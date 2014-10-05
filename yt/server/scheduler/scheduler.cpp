@@ -137,6 +137,13 @@ public:
             Unretained(this)));
 
         MasterConnector_->AddGlobalWatcherRequester(BIND(
+            &TThis::RequestNodesAttributes,
+            Unretained(this)));
+        MasterConnector_->AddGlobalWatcherHandler(BIND(
+            &TThis::HandleNodesAttributes,
+            Unretained(this)));
+
+        MasterConnector_->AddGlobalWatcherRequester(BIND(
             &TThis::RequestConfig,
             Unretained(this)));
         MasterConnector_->AddGlobalWatcherHandler(BIND(
@@ -439,6 +446,12 @@ public:
         TotalResourceLimits_ -= oldResourceLimits;
         TotalResourceLimits_ += node->ResourceLimits();
 
+        for (const auto& tag : node->SchedulingTags()) {
+            auto& resources = SchedulingTagResources_[tag];
+            resources -= oldResourceLimits;
+            resources += node->ResourceLimits();
+        }
+
         if (MasterConnector_->IsConnected()) {
             std::vector<TJobPtr> runningJobs;
             bool hasWaitingJobs = false;
@@ -556,6 +569,11 @@ public:
     }
 
     virtual TNodeResources GetTotalResourceLimits() override
+    {
+        return TotalResourceLimits_;
+    }
+
+    virtual TNodeResources GetResourceLimits(const TNullable<Stroka>& /*schedulingTag*/) override
     {
         return TotalResourceLimits_;
     }
@@ -700,6 +718,7 @@ private:
     NTableClient::IAsyncWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogConsumer_;
 
+    yhash_map<Stroka, TNodeResources> SchedulingTagResources_;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -826,6 +845,60 @@ private:
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error parsing pools configuration");
         }
+    }
+
+    void RequestNodesAttributes(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    {
+        LOG_INFO("Updating nodes information");
+
+        auto req = TYPathProxy::Get("//sys/nodes");
+        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, {"scheduling_tags"});
+        ToProto(req->mutable_attribute_filter(), attributeFilter);
+        batchReq->AddRequest(req, "get_nodes");
+    }
+
+    void HandleNodesAttributes(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_nodes");
+        if (!rsp->IsOK()) {
+            LOG_ERROR(*rsp, "Error updating nodes information");
+            return;
+        }
+
+        try {
+            auto nodesMap = ConvertToNode(TYsonString(rsp->value()))->AsMap();
+            for (const auto& child : nodesMap->GetChildren()) {
+                auto address = child.first;
+                auto node = child.second;
+                auto schedulingTags = node->Attributes().Find<std::vector<Stroka>>("scheduling_tags");
+                if (!schedulingTags) {
+                    continue;
+                }
+                if (AddressToNode_.find(address) == AddressToNode_.end()) {
+                    LOG_WARNING("Node %s is not registered in scheduler", ~address);
+                    continue;
+                }
+
+                yhash_set<Stroka> tags;
+                for (const auto& tag : *schedulingTags) {
+                    tags.insert(tag);
+                    if (SchedulingTagResources_.find(tag) == SchedulingTagResources_.end()) {
+                        SchedulingTagResources_.insert(std::make_pair(tag, TNodeResources()));
+                    }
+                }
+
+                for (const auto& oldTag : AddressToNode_[address]->SchedulingTags()) {
+                    if (tags.find(oldTag) == tags.end()) {
+                        SchedulingTagResources_[oldTag] -= AddressToNode_[address]->ResourceLimits();
+                    }
+                }
+                AddressToNode_[address]->SchedulingTags() = tags;
+            }
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error updating nodes information");
+        }
+
+        LOG_INFO("Nodes information updated");
     }
 
     void RequestOperationRuntimeParams(
@@ -1119,6 +1192,10 @@ private:
             UnregisterJob(job);
         }
         YCHECK(AddressToNode_.erase(address) == 1);
+
+        for (const auto& tag : node->SchedulingTags()) {
+            SchedulingTagResources_[tag] -= node->ResourceLimits();
+        }
     }
 
     void RegisterOperationMutation(TOperationPtr operation)

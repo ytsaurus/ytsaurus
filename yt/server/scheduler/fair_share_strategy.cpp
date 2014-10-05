@@ -85,7 +85,7 @@ struct ISchedulerElement
     virtual void Update() = 0;
 
     virtual void BeginHeartbeat() = 0;
-    virtual void PrescheduleJob(bool starvingOnly) = 0;
+    virtual void PrescheduleJob(TExecNodePtr node, bool starvingOnly) = 0;
     virtual bool ScheduleJob(ISchedulingContext* context, bool starvingOnly) = 0;
     virtual void EndHeartbeat() = 0;
 
@@ -125,9 +125,14 @@ public:
         Attributes_.Active = true;
     }
 
-    virtual void PrescheduleJob(bool /*starvingOnly*/) override
+    virtual void PrescheduleJob(TExecNodePtr /*node*/, bool /*starvingOnly*/) override
     {
         Attributes_.SatisfactionRatio = ComputeLocalSatisfactionRatio();
+    }
+
+    virtual TNullable<Stroka> GetSchedulingTag() const
+    {
+        return Null;
     }
 
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
@@ -241,10 +246,10 @@ public:
         }
     }
 
-    virtual void PrescheduleJob(bool starvingOnly)
+    virtual void PrescheduleJob(TExecNodePtr node, bool starvingOnly)
     {
         // Compute local satisfaction ratio.
-        TSchedulerElementBase::PrescheduleJob(starvingOnly);
+        TSchedulerElementBase::PrescheduleJob(node, starvingOnly);
 
         if (!Attributes_.Active)
             return;
@@ -252,8 +257,12 @@ public:
         // Adjust satisfaction ratio using children.
         // Declare the element passive if all children are passive.
         Attributes_.Active = false;
+        if (!node->CanSchedule(GetSchedulingTag())) {
+            return;
+        }
+
         for (const auto& child : GetActiveChildren()) {
-            child->PrescheduleJob(starvingOnly);
+            child->PrescheduleJob(node, starvingOnly);
             if (child->Attributes().Active) {
                 Attributes_.SatisfactionRatio = std::min(
                     Attributes_.SatisfactionRatio,
@@ -622,6 +631,11 @@ public:
         return Config->MaxShareRatio;
     }
 
+    virtual TNullable<Stroka> GetSchedulingTag() const override
+    {
+        return Config->SchedulingTag;
+    }
+
     virtual TNodeResources GetDemand() const override
     {
         auto result = ZeroNodeResources();
@@ -660,7 +674,7 @@ private:
 
     void ComputeResourceLimits()
     {
-        auto combinedLimits = Host->GetTotalResourceLimits() * Config->MaxShareRatio;
+        auto combinedLimits = Host->GetResourceLimits(GetSchedulingTag()) * Config->MaxShareRatio;
         auto perTypeLimits = InfiniteNodeResources();
         if (Config->ResourceLimits->UserSlots) {
             perTypeLimits.set_user_slots(*Config->ResourceLimits->UserSlots);
@@ -710,9 +724,13 @@ public:
     { }
 
 
-    virtual void PrescheduleJob(bool starvingOnly) override
+    virtual void PrescheduleJob(TExecNodePtr node, bool starvingOnly) override
     {
-        TSchedulableElementBase::PrescheduleJob(starvingOnly);
+        TSchedulableElementBase::PrescheduleJob(node, starvingOnly);
+
+        if (!node->CanSchedule(GetSchedulingTag())) {
+            Attributes_.Active = false;
+        }
 
         if (starvingOnly && !Starving_) {
             Attributes_.Active = false;
@@ -773,6 +791,11 @@ public:
         return Spec_->MaxShareRatio;
     }
 
+    virtual TNullable<Stroka> GetSchedulingTag() const override
+    {
+        return Spec_->SchedulingTag;
+    }
+
     virtual TNodeResources GetDemand() const override
     {
         if (Operation_->GetSuspended()) {
@@ -784,7 +807,8 @@ public:
 
     virtual const TNodeResources& ResourceLimits() const
     {
-        return InfiniteNodeResources();
+        ResourceLimits_ = Host->GetResourceLimits(GetSchedulingTag());
+        return ResourceLimits_;
     }
 
 
@@ -816,6 +840,7 @@ public:
                : EOperationStatus::BelowFairShare;
     }
 
+
     DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
     DEFINE_BYVAL_RO_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
@@ -831,8 +856,9 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TJobList, PreemptableJobs);
 
 private:
-    TFairShareStrategyConfigPtr Config;
+    mutable TNodeResources ResourceLimits_;
 
+    TFairShareStrategyConfigPtr Config;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -918,9 +944,10 @@ public:
         // First-chance scheduling.
         LOG_DEBUG("Scheduling new jobs");
         while (context->CanStartMoreJobs()) {
-            RootElement->PrescheduleJob(false);
-            if (!RootElement->ScheduleJob(context, false))
+            RootElement->PrescheduleJob(context->GetNode(), false);
+            if (!RootElement->ScheduleJob(context, false)) {
                 break;
+            }
         }
 
         // Compute discount to node usage.
@@ -951,7 +978,7 @@ public:
         // NB: Schedule at most one job.
         LOG_DEBUG("Scheduling new jobs with preemption");
         if (context->CanStartMoreJobs()) {
-            RootElement->PrescheduleJob(true);
+            RootElement->PrescheduleJob(context->GetNode(), true);
             RootElement->ScheduleJob(context, true);
         }
 

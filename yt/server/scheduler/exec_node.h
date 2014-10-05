@@ -26,6 +26,9 @@ class TExecNode
 
     //! Resource limits, as reported by the node.
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
+    
+    //! A set of scheduling tags assigned to this node.
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<Stroka>, SchedulingTags);
 
     //! The most recent resource usage, as reported by the node.
     /*!
@@ -46,6 +49,9 @@ class TExecNode
     bool HasSpareResources() const;
 
     const Stroka& GetAddress() const;
+
+    //! Checks if the node can handle jobs demanding a certain #tag.
+    bool CanSchedule(const TNullable<Stroka>& tag) const;
 
 public:
     explicit TExecNode(const NNodeTrackerClient::TNodeDescriptor& descriptor);
