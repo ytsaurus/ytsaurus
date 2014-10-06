@@ -516,7 +516,7 @@ class Application(object):
 
         required_parameters = set(["source_cluster", "source_table", "destination_cluster", "destination_table"])
         if not set(params) >= required_parameters:
-            raise RequestFailed("All required parameters ({}) must be presented Incorrect parameters".format(", ".join(required_parameters)))
+            raise RequestFailed("All required parameters ({}) must be presented".format(", ".join(required_parameters)))
 
         token, user = self._get_token_and_user(request.headers.get("Authorization", ""))
 
