@@ -426,6 +426,13 @@ def write_table(table, input_stream, format=None, table_writer=None,
         params["table_writer"] = table_writer
 
     def split_rows(stream):
+        if isinstance(input_stream, types.ListType):
+            for row in input_stream:
+                yield row
+
+        if isinstance(stream, str):
+            stream = StringIO(input_stream)
+
         while True:
             row = format.load_row(stream, unparsed=True)
             if row:
@@ -442,18 +449,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
             create_table(path, ignore_existing=True, replication_factor=replication_factor,
                          compression_codec=compression_codec, client=client)
 
-    can_split_input = True
-    if isinstance(input_stream, types.ListType):
-        input_stream = iter(input_stream)
-    elif isinstance(input_stream, file) or \
-            (hasattr(input_stream, "read") and  hasattr(input_stream, "readline")):
-        if format.is_read_row_supported():
-            input_stream = split_rows(input_stream)
-        else:
-            can_split_input = False
-    elif isinstance(input_stream, str):
-        input_stream = split_rows(StringIO(input_stream))
-
+    can_split_input = isinstance(input_stream, types.ListType) or format.is_read_row_supported()
     if config.USE_RETRIES_DURING_WRITE and can_split_input:
         input_stream = chunk_iter_lines(input_stream, config.CHUNK_SIZE)
 
