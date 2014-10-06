@@ -2,6 +2,8 @@ package NYT.NQueryClient.NProto;
 
 import "yt/core/misc/guid.proto";
 import "yt/ytlib/chunk_client/chunk_spec.proto";
+import "yt/ytlib/table_client/table_chunk_meta.proto";
+import "yt/ytlib/new_table_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,6 +93,9 @@ message TScanOperator
         optional TScanOperator scan_operator = 101;
     }
     repeated NYT.NChunkClient.NProto.TChunkSpec data_split = 1;
+
+    required NYT.NVersionedTableClient.NProto.TTableSchemaExt table_schema = 2;
+    required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 3;
 }
 
 message TFilterOperator

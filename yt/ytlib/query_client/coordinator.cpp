@@ -34,25 +34,6 @@ using namespace NVersionedTableClient;
 
 static const int MaxCounter = std::numeric_limits<int>::max();
 
-class TEmptySchemafulReader
-    : public ISchemafulReader
-{
-    virtual TAsyncError Open(const TTableSchema& /*schema*/) override
-    {
-        return OKFuture;
-    }
-
-    virtual bool Read(std::vector<TUnversionedRow>* /*rows*/) override
-    {
-        return false;
-    }
-
-    virtual TAsyncError GetReadyEvent() override
-    {
-        return OKFuture;
-    }
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TCoordinator::TCoordinator(
@@ -80,7 +61,10 @@ void TCoordinator::Run()
             NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
 
             // Now build and distribute fragments.                
-            Fragment_ = Fragment_->RewriteWith(Gather(Scatter(Fragment_->Head)));
+            Fragment_ = Fragment_->RewriteWith(Gather(
+                Scatter(Fragment_->Head),
+                Fragment_->Head->GetTableSchema(),
+                Fragment_->Head->GetKeyColumns()));
 
             DelegateToPeers();
 
@@ -136,13 +120,13 @@ std::vector<TOperatorPtr> TCoordinator::Scatter(
     if (auto scanOp = op->As<TScanOperator>()) {
         auto groupedSplits = SplitAndRegroup(
             scanOp->DataSplits,
-            scanOp->GetTableSchema(),
-            scanOp->GetKeyColumns(),
             keyTrie);
 
         for (const auto& splits : groupedSplits) {
             auto newScanOp = New<TScanOperator>();
             newScanOp->DataSplits = splits;
+            newScanOp->TableSchema = scanOp->GetTableSchema();
+            newScanOp->KeyColumns = scanOp->GetKeyColumns();
             resultOps.push_back(std::move(newScanOp));
         }
     } else if (auto filterOp = op->As<TFilterOperator>()) {
@@ -199,7 +183,10 @@ std::vector<TOperatorPtr> TCoordinator::Scatter(
 
         if (resultOps.size() > 1) {
             auto finalGroupOp = New<TGroupOperator>();
-            finalGroupOp->Source = Gather(resultOps);
+            finalGroupOp->Source = Gather(
+                resultOps,
+                resultOps.front()->GetTableSchema(),
+                resultOps.front()->GetKeyColumns());
 
             auto& finalGroupItems = finalGroupOp->GroupItems;
             for (const auto& groupItem : groupOp->GroupItems) {
@@ -234,68 +221,71 @@ std::vector<TOperatorPtr> TCoordinator::Scatter(
             newProjectOp->Projections = projectOp->Projections;
             resultOp = std::move(newProjectOp);
         }
+    } else {
+        YUNREACHABLE();
     }
 
     return resultOps;
 }
 
-TOperatorPtr TCoordinator::Gather(const std::vector<TOperatorPtr>& ops)
+TOperatorPtr TCoordinator::Gather(
+    const std::vector<TOperatorPtr>& ops,
+    const TTableSchema& tableSchema,
+    const TKeyColumns& keyColumns)
 {
-    YASSERT(!ops.empty());
-
-    auto resultOp = New<TScanOperator>();
-    auto& resultSplits = resultOp->DataSplits;
-
-    std::function<const TDataSplit&(const TConstOperatorPtr&)> collocatedSplit =
-        [&collocatedSplit] (const TConstOperatorPtr& op) -> const TDataSplit& {
+    std::function<const TDataSplit&(const TConstOperatorPtr&)> getCollocatedSplit =
+        [&getCollocatedSplit] (const TConstOperatorPtr& op) -> const TDataSplit& {
             if (auto scanOp = op->As<TScanOperator>()) {
                 return scanOp->DataSplits[0];
             } else if (auto filterOp = op->As<TFilterOperator>()) {
-                return collocatedSplit(filterOp->Source);
+                return getCollocatedSplit(filterOp->Source);
             } else if (auto groupOp = op->As<TGroupOperator>()) {
-                return collocatedSplit(groupOp->Source);
+                return getCollocatedSplit(groupOp->Source);
             } else if (auto projectOp = op->As<TProjectOperator>()) {
-                return collocatedSplit(projectOp->Source);
+                return getCollocatedSplit(projectOp->Source);
             } else {
                 YUNREACHABLE();
             }
         };
 
-    if (ops.size() == 1) {
-        auto innerExplanation = Explain(collocatedSplit(ops.front()));
+    if (ops.size() == 1 && GetPlanFragmentPeer(getCollocatedSplit(ops.front()))) {
+        return ops.front();
+    } else {
+        auto resultOp = New<TScanOperator>();
+        resultOp->TableSchema = tableSchema;
+        resultOp->KeyColumns = keyColumns;
+        auto& resultSplits = resultOp->DataSplits;
+    
+        for (const auto& op : ops) {
+            auto& collocatedSplit = getCollocatedSplit(op);
 
-        if (innerExplanation.IsInternal) {
-            return ops.front();
+            YCHECK(!GetPlanFragmentPeer(collocatedSplit));
+
+            auto fragment = Fragment_->RewriteWith(op);
+
+            LOG_DEBUG("Created subfragment (SubfragmentId: %v)",
+                fragment->GetId());
+
+            int index = Peers_.size();
+            Peers_.emplace_back(fragment, collocatedSplit, nullptr, Null);
+
+            TDataSplit facadeSplit;
+
+            SetObjectId(
+                &facadeSplit,
+                MakeId(EObjectType::PlanFragment, 0xbabe, index, 0xc0ffee));
+            SetTableSchema(&facadeSplit, op->GetTableSchema());
+            SetKeyColumns(&facadeSplit, op->GetKeyColumns());
+
+            resultSplits.push_back(facadeSplit);
         }
+
+        return resultOp;
     }
-
-    for (const auto& op : ops) {
-        auto fragment = Fragment_->RewriteWith(op);
-
-        LOG_DEBUG("Created subfragment (SubfragmentId: %v)",
-            fragment->GetId());
-
-        int index = Peers_.size();
-        Peers_.emplace_back(fragment, collocatedSplit(op), nullptr, Null);
-
-        TDataSplit facadeSplit;
-
-        SetObjectId(
-            &facadeSplit,
-            MakeId(EObjectType::PlanFragment, 0xbabe, index, 0xc0ffee));
-        SetTableSchema(&facadeSplit, op->GetTableSchema());
-        SetKeyColumns(&facadeSplit, op->GetKeyColumns());
-
-        resultSplits.push_back(facadeSplit);
-    }
-
-    return resultOp;
 }
 
 TGroupedDataSplits TCoordinator::SplitAndRegroup(
     const TDataSplits& splits,
-    const TTableSchema& tableSchema,
-    const TKeyColumns& keyColumns,
     const TKeyTrieNode& keyTrie)
 {
     TGroupedDataSplits result;
@@ -327,97 +317,64 @@ TGroupedDataSplits TCoordinator::SplitAndRegroup(
         allSplits.insert(allSplits.end(), newSplits.begin(), newSplits.end());
     }
 
-    if (allSplits.empty()) {
-        LOG_DEBUG("Adding an empty split");
+    auto keyRangeFormatter = [] (const TKeyRange& range) -> Stroka {
+        return Format("[%v .. %v]",
+            range.first,
+            range.second);
+    };
 
-        allSplits.emplace_back();
-        auto& split = allSplits.back();
+    LOG_DEBUG("Splitting %v splits according to ranges", allSplits.size());
 
-        SetObjectId(
-            &split,
-            MakeId(EObjectType::EmptyPlanFragment, 0xdead, MaxCounter, 0xc0ffee));
-        SetTableSchema(&split, tableSchema);
-        SetKeyColumns(&split, keyColumns);
+    TDataSplits resultSplits;
+    for (const auto& split : allSplits) {
+        auto originalRange = GetBothBoundsFromDataSplit(split);
 
-        result.emplace_back(allSplits);
-    } else {
+        std::vector<TKeyRange> ranges = 
+            GetRangesFromTrieWithinRange(originalRange, keyTrie);
 
-        auto keyRangeFormatter = [] (const TKeyRange& range) -> Stroka {
-            return Format("[%v .. %v]",
-                range.first,
-                range.second);
-        };
+        for (const auto& range : ranges) {
+            auto splitCopy = split;
 
-        LOG_DEBUG("Splitting %v splits according to ranges", allSplits.size());
+            LOG_DEBUG("Narrowing split %v key range from %v to %v",
+                    GetObjectIdFromDataSplit(splitCopy),
+                    keyRangeFormatter(originalRange),
+                    keyRangeFormatter(range));
+            SetBothBounds(&splitCopy, range);
 
-        TDataSplits resultSplits;
-        for (const auto& split : allSplits) {
-            auto originalRange = GetBothBoundsFromDataSplit(split);
-
-            std::vector<TKeyRange> ranges = 
-                GetRangesFromTrieWithinRange(originalRange, keyTrie);
-
-            for (const auto& range : ranges) {
-                auto splitCopy = split;
-
-                LOG_DEBUG("Narrowing split %v key range from %v to %v",
-                        GetObjectIdFromDataSplit(splitCopy),
-                        keyRangeFormatter(originalRange),
-                        keyRangeFormatter(range));
-                SetBothBounds(&splitCopy, range);
-
-                resultSplits.push_back(std::move(splitCopy));
-            }
+            resultSplits.push_back(std::move(splitCopy));
         }
-
-        LOG_DEBUG("Regrouping %v splits", resultSplits.size());
-
-        result = Callbacks_->Regroup(resultSplits, Fragment_->NodeDirectory);
     }
+
+    LOG_DEBUG("Regrouping %v splits", resultSplits.size());
+
+    result = Callbacks_->Regroup(resultSplits, Fragment_->NodeDirectory);
 
     return result;
 }
 
-TCoordinator::TDataSplitExplanation TCoordinator::Explain(const TDataSplit& split)
+TNullable<int> TCoordinator::GetPlanFragmentPeer(const TDataSplit& split)
 {
-    TDataSplitExplanation explanation;
-
     auto objectId = GetObjectIdFromDataSplit(split);
     auto type = TypeFromId(objectId);
     auto counter = static_cast<int>(CounterFromId(objectId));
 
-    explanation.IsInternal = true;
-    explanation.IsEmpty = false;
-    explanation.PeerIndex = MaxCounter;
-
-    switch (type) {
-        case EObjectType::PlanFragment:
-            explanation.PeerIndex = counter;
-            break;
-        case EObjectType::EmptyPlanFragment:
-            explanation.IsEmpty = true;
-            break;
-        default:
-            explanation.IsInternal = false;
-            break;
+    if (type == EObjectType::PlanFragment) {
+        return TNullable<int>(counter);
+    } else {
+        return TNullable<int>();
     }
-
-    return explanation;
 }
 
 void TCoordinator::DelegateToPeers()
 {
     for (auto& peer : Peers_) {
-        auto explanation = Explain(peer.CollocatedSplit);
-        if (!explanation.IsInternal) {
-            LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
-                peer.Fragment->GetId());
-            std::tie(peer.Reader, peer.QueryResult) = Callbacks_->Delegate(
-                peer.Fragment,
-                peer.CollocatedSplit);
-        } else {
-            peer.QueryResult = MakeFuture<TErrorOr<TQueryStatistics>>(TQueryStatistics());
-        }
+        YCHECK(!GetPlanFragmentPeer(peer.CollocatedSplit));
+
+        LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
+            peer.Fragment->GetId());
+        std::tie(peer.Reader, peer.QueryResult) = Callbacks_->Delegate(
+            peer.Fragment,
+            peer.CollocatedSplit);
     }
 }
 
@@ -428,15 +385,11 @@ ISchemafulReaderPtr TCoordinator::GetReader(
     auto objectId = GetObjectIdFromDataSplit(split);
     LOG_DEBUG("Creating reader for %v", objectId);
 
-    auto explanation = Explain(split);
+    auto peerIndex = GetPlanFragmentPeer(split);
 
-    if (explanation.IsEmpty) {
-        return New<TEmptySchemafulReader>();
-    }
-
-    if (explanation.IsInternal) {
-        YCHECK(explanation.PeerIndex < Peers_.size());
-        return Peers_[explanation.PeerIndex].Reader;
+    if (peerIndex) {
+        YCHECK(peerIndex.Get() < Peers_.size());
+        return Peers_[peerIndex.Get()].Reader;
     }
 
     return Callbacks_->GetReader(split, nodeDirectory);

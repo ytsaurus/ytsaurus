@@ -43,13 +43,6 @@ public:
     TQueryStatistics GetStatistics() const;
 
 private:
-    struct TDataSplitExplanation
-    {
-        bool IsInternal;
-        bool IsEmpty;
-        int PeerIndex;
-    };
-
     struct TPeer
     {
         TPeer(
@@ -74,15 +67,16 @@ private:
 
 private:
     std::vector<TOperatorPtr> Scatter(const TConstOperatorPtr& op, const TKeyTrieNode& keyTrie = TKeyTrieNode());
-    TOperatorPtr Gather(const std::vector<TOperatorPtr>& ops);
+    TOperatorPtr Gather(
+        const std::vector<TOperatorPtr>& ops,
+        const TTableSchema& tableSchema,
+        const TKeyColumns& keyColumns);
 
     TGroupedDataSplits SplitAndRegroup(
         const TDataSplits& splits,
-        const TTableSchema& tableSchema,
-        const TKeyColumns& keyColumns,
         const TKeyTrieNode& keyTrie);
 
-    TDataSplitExplanation Explain(const TDataSplit& split);
+    TNullable<int> GetPlanFragmentPeer(const TDataSplit& split);
 
     void DelegateToPeers();
 

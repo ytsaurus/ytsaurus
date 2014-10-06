@@ -44,7 +44,7 @@ Stroka TExpression::GetName() const
 TKeyColumns TOperator::GetKeyColumns() const
 {
     if (auto scanOp = this->As<TScanOperator>()) {
-        return GetKeyColumnsFromDataSplit(scanOp->DataSplits[0]);
+        return scanOp->KeyColumns; //GetKeyColumnsFromDataSplit(scanOp->DataSplits[0]);
         // TODO(lukyan): check that other splits hava the same key columns
     } else if (auto filterOp = this->As<TFilterOperator>()) {
         return filterOp->Source->GetKeyColumns();
@@ -57,8 +57,8 @@ TKeyColumns TOperator::GetKeyColumns() const
 
 TTableSchema TScanOperator::GetTableSchema() const
 {
-    YCHECK(DataSplits.size() > 0);
-    return GetTableSchemaFromDataSplit(DataSplits[0]);
+    //YCHECK(DataSplits.size() > 0);
+    return TableSchema; //GetTableSchemaFromDataSplit(DataSplits[0]);
 }
 
 TTableSchema TFilterOperator::GetTableSchema() const
@@ -704,6 +704,8 @@ TPlanFragmentPtr PreparePlanFragment(
 
     SetTableSchema(&initialDataSplit, initialTableSchema);
     scanOp->DataSplits.push_back(initialDataSplit);
+    scanOp->TableSchema = GetTableSchemaFromDataSplit(initialDataSplit);
+    scanOp->KeyColumns = GetKeyColumnsFromDataSplit(initialDataSplit);
 
     CheckDepth(head);
 
@@ -904,6 +906,8 @@ void ToProto(NProto::TOperator* serialized, const TConstOperatorPtr& original)
         serialized->set_kind(EOperatorKind::Scan);
         auto* proto = serialized->MutableExtension(NProto::TScanOperator::scan_operator);
         ToProto(proto->mutable_data_split(), scanOp->DataSplits);
+        ToProto(proto->mutable_table_schema(), scanOp->TableSchema);
+        ToProto(proto->mutable_key_columns(), scanOp->KeyColumns);
     } else if (auto filterOp = original->As<TFilterOperator>()) {
         serialized->set_kind(EOperatorKind::Filter);
         auto* proto = serialized->MutableExtension(NProto::TFilterOperator::filter_operator);
@@ -954,6 +958,8 @@ TOperatorPtr FromProto(const NProto::TOperator& serialized)
                 FromProto(&dataSplit, data.data_split(i));
                 typedResult->DataSplits.push_back(dataSplit);
             }
+            FromProto(&typedResult->TableSchema, data.table_schema());
+            FromProto(&typedResult->KeyColumns, data.key_columns());
             return typedResult;
         }
 

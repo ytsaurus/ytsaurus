@@ -128,7 +128,6 @@ DECLARE_ENUM(EObjectType,
 
     // Query stuff
     ((PlanFragment)               (800))
-    ((EmptyPlanFragment)          (801))
 );
 
 //! Types (both regular and schematic) are supposed to be in range [0, MaxObjectType].

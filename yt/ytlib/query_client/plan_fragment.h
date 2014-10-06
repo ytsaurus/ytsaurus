@@ -224,6 +224,8 @@ struct TScanOperator
     : public TOperator
 {
     TDataSplits DataSplits;
+    TTableSchema TableSchema;
+    TKeyColumns KeyColumns;
 
     virtual TTableSchema GetTableSchema() const override;
         

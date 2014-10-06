@@ -464,6 +464,8 @@ TEST_F(TQueryCoordinateTest, EmptySplit)
         .WillOnce(Return(true));
     EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
         .WillOnce(Return(WrapInFuture(emptySplits)));
+    EXPECT_CALL(CoordinateMock_, Regroup(HasSplitsCount(0), _))
+        .WillOnce(Return(emptyGroupedSplits));
 
     EXPECT_NO_THROW({
         Coordinate("k from [//t]");
