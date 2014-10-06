@@ -47,7 +47,7 @@ def process_logs(import_list, remove_list, link_queue, destination_dir, source_p
             if dst in map(get_dst, import_list):
                 continue
             if not yt.exists(dst):
-                import_list.append({"src": src, "dst": dst})
+                import_list.append({"src": src, "dst": dst, "mr_user": "userdata"})
             if make_link and not yt.exists(dst_link):
                 link_queue.append({"src": dst, "dst": dst_link})
 
