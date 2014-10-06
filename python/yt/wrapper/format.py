@@ -413,9 +413,9 @@ class YamrFormat(Format):
                 raise YtError("Incomplete record in yamr lenval")
 
             field = stream.read(length)
-            require(len(field) == length,
-                    YtError("Incorrect length field in yamr lenval,\
-                             expected {0}, received {1}".format(length, len(field))))
+            if len(field) != length:
+                 raise YtError("Incorrect length field in yamr lenval,\
+                                expected {0}, received {1}".format(length, len(field)))
             fields.append(field)
         if unparsed:
             return ''.join(fields)
