@@ -330,7 +330,7 @@ def add_set_parser(add_parser):
     parser = add_parser("set", yt.set)
     add_ypath_argument(parser)
     parser.add_argument("value", nargs="?", help='new node attribute value, in %s format. \
-You can specify in bash pipe: "cat file_with_value > yt set //tmp/my_node"" % YT_ARGUMENTS_FORMAT')
+You can specify in bash pipe: "cat file_with_value > yt set //tmp/my_node"" '% YT_ARGUMENTS_FORMAT)
     parser.set_defaults(func=set)
 
 def add_remove_parser(add_parser):
