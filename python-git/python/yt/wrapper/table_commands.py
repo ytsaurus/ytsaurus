@@ -427,7 +427,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
 
     def split_rows(stream):
         while True:
-            row = format.read_row(stream)
+            row = format.load_row(stream, unparsed=True)
             if row:
                 yield row
             else:
