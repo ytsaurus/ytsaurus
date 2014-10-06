@@ -319,12 +319,12 @@ TPlanFragmentPtr PreparePlanFragment(
     i64 outputRowLimit,
     TTimestamp timestamp)
 {
+    NAst::TLexer lexer(source,  NAst::TParser::token::StrayWillParseQuery);
+
     TRowBuffer rowBuffer;
-
-    NAst::TLexer lexer(&rowBuffer, source,  NAst::TParser::token::StrayWillParseQuery);
-
     NAst::TQuery query;
-    NAst::TParser parser(lexer, &query);
+
+    NAst::TParser parser(lexer, &query, &rowBuffer);
 
     int result = parser.parse();
     if (result != 0) {

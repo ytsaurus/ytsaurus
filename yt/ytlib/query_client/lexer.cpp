@@ -5,8 +5,6 @@
 #include <util/string/cast.h>
 #include <util/string/escape.h>
 
-#include <ytlib/new_table_client/row_buffer.h>
-
 namespace NYT {
 namespace NQueryClient {
 namespace NAst {
@@ -33,11 +31,9 @@ static const int Lexer_en_main = 8;
 } // namespace anonymous
 
 TLexer::TLexer(
-    TRowBuffer* rowBuffer,
     const Stroka& source,
     TParser::token_type strayToken)
-    : RowBuffer_(rowBuffer)
-    , StrayToken_(strayToken)
+    : StrayToken_(strayToken)
     , InjectedStrayToken_(false)
     , p(nullptr)
     , pe(nullptr)
@@ -145,15 +141,14 @@ tr0:
 tr3:
 	{te = p+1;{
             type = TToken::StringLiteral;
-
-            value->build(RowBuffer_->Capture(MakeUnversionedStringValue(UnescapeC(ts + 1, te - ts - 2))));
+            value->build(UnescapeC(ts + 1, te - ts - 2));
             {p++; cs = 8; goto _out;}
         }}
 	goto st8;
 tr5:
 	{{p = ((te))-1;}{
             type = TToken::DoubleLiteral;
-            value->build(MakeUnversionedDoubleValue(FromString<double>(ts, te - ts)));
+            value->build(FromString<double>(ts, te - ts));
             {p++; cs = 8; goto _out;}
         }}
 	goto st8;
@@ -199,21 +194,21 @@ tr31:
 tr33:
 	{te = p;p--;{
             type = TToken::DoubleLiteral;
-            value->build(MakeUnversionedDoubleValue(FromString<double>(ts, te - ts)));
+            value->build(FromString<double>(ts, te - ts));
             {p++; cs = 8; goto _out;}
         }}
 	goto st8;
 tr35:
 	{te = p;p--;{
             type = TToken::Int64Literal;
-            value->build(MakeUnversionedInt64Value(FromString<i64>(ts, te - ts)));
+            value->build(FromString<i64>(ts, te - ts));
             {p++; cs = 8; goto _out;}
         }}
 	goto st8;
 tr36:
 	{te = p+1;{
             type = TToken::Uint64Literal;
-            value->build(MakeUnversionedUint64Value(FromString<ui64>(ts, te - ts - 1)));
+            value->build(FromString<ui64>(ts, te - ts - 1));
             {p++; cs = 8; goto _out;}
         }}
 	goto st8;

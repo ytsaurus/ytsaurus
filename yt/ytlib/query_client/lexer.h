@@ -10,7 +10,6 @@ class TLexer
 {
 public:
     TLexer(
-        TRowBuffer* rowBuffer,
         const Stroka& source,
         TParser::token_type strayToken);
 
@@ -22,8 +21,6 @@ private:
     void Initialize(const char* begin, const char* end);
 
 private:
-    TRowBuffer* RowBuffer_;
-
     TParser::token_type StrayToken_;
     bool InjectedStrayToken_;
 

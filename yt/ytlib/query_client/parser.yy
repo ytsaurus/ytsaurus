@@ -14,6 +14,7 @@
 
 %parse-param {TLexer& lexer}
 %parse-param {TQuery* head}
+%parse-param {TRowBuffer* rowBuffer}
 
 %code requires {
     #include "ast.h"
@@ -28,6 +29,8 @@
 
 %code {
     #include <ytlib/query_client/lexer.h>
+    #include <ytlib/new_table_client/row_buffer.h>
+
     #define yt_ql_yylex lexer.GetNextToken
 
     #ifndef YYLLOC_DEFAULT
@@ -69,10 +72,10 @@
 
 %token <TStringBuf> Identifier "identifier"
 
-%token <TUnversionedValue> Int64Literal "int64 literal"
-%token <TUnversionedValue> Uint64Literal "uint64 literal"
-%token <TUnversionedValue> DoubleLiteral "double literal"
-%token <TUnversionedValue> StringLiteral "string literal"
+%token <i64> Int64Literal "int64 literal"
+%token <ui64> Uint64Literal "uint64 literal"
+%token <double> DoubleLiteral "double literal"
+%token <Stroka> StringLiteral "string literal"
 
 %token OpModulo 37 "`%`"
 
@@ -329,13 +332,13 @@ atomic-expr
 
 literal-expr
     : Int64Literal
-        { $$ = $1; }
+        { $$ = MakeUnversionedInt64Value($1); }
     | Uint64Literal
-        { $$ = $1; }
+        { $$ = MakeUnversionedUint64Value($1); }
     | DoubleLiteral
-        { $$ = $1; }
+        { $$ = MakeUnversionedDoubleValue($1); }
     | StringLiteral
-        { $$ = $1; }
+        { $$ = rowBuffer->Capture(MakeUnversionedStringValue($1)); }
 ;
 
 literal-list
