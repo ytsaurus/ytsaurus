@@ -524,8 +524,7 @@ void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
             ThrowVerbNotSuppored(context->GetVerb());
         }
         AfterInvoke(context);
-    } catch (const TNotALeaderException&) {
-        ForwardToLeader(context);
+        // FIXME(babenko): catch TNotALeaderException here to enable leader forwarding
     } catch (const std::exception& ex) {
         context->Reply(ex);
     }
