@@ -440,6 +440,13 @@ def write_table(table, input_stream, format=None, table_writer=None,
             else:
                 return
 
+    def chunked_iter(stream):
+        while True:
+            data = stream.read(1024 * 1024)
+            if not data:
+                break
+            yield data
+
     def prepare_table(path):
         if exists(path, client=client):
             require(replication_factor is None and compression_codec is None,
@@ -451,7 +458,9 @@ def write_table(table, input_stream, format=None, table_writer=None,
 
     can_split_input = isinstance(input_stream, types.ListType) or format.is_read_row_supported()
     if config.USE_RETRIES_DURING_WRITE and can_split_input:
-        input_stream = chunk_iter_lines(input_stream, config.CHUNK_SIZE)
+        input_stream = chunk_iter_lines(split_rows(input_stream), config.CHUNK_SIZE)
+    elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
+        input_stream = chunked_iter(input_stream)
 
     if config.USE_RETRIES_DURING_WRITE and not can_split_input:
         logger.warning("Cannot split input into rows. Write is processing by one request.")
