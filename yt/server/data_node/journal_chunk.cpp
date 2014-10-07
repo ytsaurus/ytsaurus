@@ -183,7 +183,7 @@ void TJournalChunk::UpdateCachedParams() const
 void TJournalChunk::EvictFromCache()
 {
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    dispatcher->EvictChangelog(this);
+    dispatcher->CloseChangelog(this);
 }
 
 void TJournalChunk::SyncRemove()
@@ -217,9 +217,9 @@ void TJournalChunk::DetachChangelog()
     Changelog_.Reset();
 }
 
-bool TJournalChunk::HasAttachedChangelog() const
+IChangelogPtr TJournalChunk::GetAttachedChangelog() const
 {
-    return Changelog_ != nullptr;
+    return Changelog_;
 }
 
 i64 TJournalChunk::GetRowCount() const

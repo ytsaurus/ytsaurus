@@ -36,7 +36,7 @@ public:
 
     void AttachChangelog(NHydra::IChangelogPtr changelog);
     void DetachChangelog();
-    bool HasAttachedChangelog() const;
+    NHydra::IChangelogPtr GetAttachedChangelog() const;
 
     i64 GetRowCount() const;
 

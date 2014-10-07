@@ -585,23 +585,22 @@ private:
                 ChunkId_);
         }
 
+        auto journalChunk = Chunk_->AsJournalChunk();
+        if (journalChunk->GetAttachedChangelog()) {
+            THROW_ERROR_EXCEPTION("Journal chunk %v is already being written to",
+                ChunkId_);
+        }
+
         auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
         auto location = Chunk_->GetLocation();
         auto changelog = journalDispatcher->OpenChangelog(location, ChunkId_, false);
-
         if (changelog->IsSealed()) {
             LOG_INFO("Chunk %v is already sealed",
                 ChunkId_);
             return;
         }
 
-        auto journalChunk = Chunk_->AsJournalChunk();
-        if (journalChunk->HasAttachedChangelog()) {
-            THROW_ERROR_EXCEPTION("Journal chunk %v is already being written to",
-                ChunkId_);
-        }
         journalChunk->AttachChangelog(changelog);
-
         try {
             i64 currentRowCount = changelog->GetRecordCount();
             i64 sealRowCount = SealJobSpecExt_.row_count();

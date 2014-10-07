@@ -147,8 +147,14 @@ public:
             .Run();
     }
 
-    void EvictChangelog(IChunkPtr chunk)
+    void CloseChangelog(IChunkPtr chunk)
     {
+        auto journalChunk = chunk->AsJournalChunk();
+        auto changelog = journalChunk->GetAttachedChangelog();
+        if (changelog) {
+            ChangelogDispatcher_->CloseChangelog(changelog);
+            journalChunk->DetachChangelog();
+        }
         TAsyncSlruCacheBase::Remove(chunk->GetId());
     }
 
@@ -935,9 +941,9 @@ TAsyncError TJournalDispatcher::RemoveChangelog(IChunkPtr chunk)
     return Impl_->RemoveChangelog(chunk);
 }
 
-void TJournalDispatcher::EvictChangelog(IChunkPtr chunk)
+void TJournalDispatcher::CloseChangelog(IChunkPtr chunk)
 {
-    Impl_->EvictChangelog(chunk);
+    Impl_->CloseChangelog(chunk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

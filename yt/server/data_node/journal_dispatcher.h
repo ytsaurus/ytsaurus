@@ -50,8 +50,8 @@ public:
     //! Asynchronously removes files of a given journal chunk.
     TAsyncError RemoveChangelog(IChunkPtr chunk);
 
-    //! Evicts the changelog corresponding to a given journal chunk from the cache.
-    void EvictChangelog(IChunkPtr chunk);
+    //! Closes and evicts the changelog corresponding to a given journal chunk.
+    void CloseChangelog(IChunkPtr chunk);
 
 private:
     class TCachedChangelog;
