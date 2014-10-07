@@ -78,6 +78,22 @@ class Task(object):
     def get_queue_id(self):
         return self.source_cluster, self.destination_cluster
 
+    def get_source_client(self, clusters):
+        if self.source_cluster not in clusters:
+            raise yt.YtError("Unknown cluster " + self.source_cluster)
+        client = deepcopy(clusters[self.source_cluster])
+        if client._type == "yt":
+            client.token = self.source_cluster_token
+        return client
+
+    def get_destination_client(self, clusters):
+        if self.destination_cluster not in clusters:
+            raise yt.YtError("Unknown cluster " + self.destination_cluster)
+        client = deepcopy(clusters[self.destination_cluster])
+        if client._type == "yt":
+            client.token = self.destination_cluster_token
+        return client
+
     def dict(self, hide_token=False):
         result = deepcopy(self.__dict__)
         if hide_token:
@@ -229,7 +245,7 @@ class Application(object):
             options = cluster_description["options"]
 
             if type == "yt":
-                self._clusters[name] = Yt(token=config["token"], **options)
+                self._clusters[name] = Yt(**options)
                 self._clusters[name]._export_pool = cluster_description.get("mr_export_pool")
                 self._clusters[name]._import_pool = cluster_description.get("mr_import_pool")
                 self._clusters[name]._network = cluster_description.get("remote_copy_network")
@@ -307,23 +323,25 @@ class Application(object):
         return token, user
 
     def _precheck(self, task):
+        source_client = task.get_source_client(self._clusters)
+        destination_client = task.get_destination_client(self._clusters)
+
         if task.copy_method not in [None, "pull", "push"]:
             raise yt.YtError("Incorrect copy method: " + str(task.copy_method))
-        if task.source_cluster not in self._clusters:
-            raise yt.YtError("Unknown cluster " + task.source_cluster)
-        if task.destination_cluster not in self._clusters:
-            raise yt.YtError("Unknown cluster " + task.destination_cluster)
-        if task.source_cluster not in self._availability_graph or task.destination_cluster not in self._availability_graph[task.source_cluster]:
+
+        if task.source_cluster not in self._availability_graph or \
+           task.destination_cluster not in self._availability_graph[task.source_cluster]:
             raise yt.YtError("Cluster {} not available from {}".format(task.destination_cluster, task.source_cluster))
 
-        source_client = self._clusters[task.source_cluster]
-        destination_client = self._clusters[task.destination_cluster]
         if source_client._type == "yamr" and source_client.is_empty(task.source_table) or \
-           source_client._type == "yt" and (not source_client.exists(task.source_table) or source_client.get_attribute(task.source_table, "row_count") == 0):
+           source_client._type == "yt" and (
+                not source_client.exists(task.source_table) or
+                source_client.get_attribute(task.source_table, "row_count") == 0):
             raise yt.YtError("Source table {} is empty".format(task.source_table))
 
         if source_client._type == "yt" and destination_client._type == "yamr":
-            keys = list(source_client.read_table(yt.TablePath(task.source_table, end_index=1, simplify=False), format=yt.JsonFormat(), raw=False).next())
+            path = yt.TablePath(task.source_table, end_index=1, simplify=False)
+            keys = list(source_client.read_table(path, format=yt.JsonFormat(), raw=False).next())
             if set(keys + ["subkey"]) != set(["key", "subkey", "value"]):
                 raise yt.YtError("Keys in the source table must be a subset of ('key', 'subkey', 'value')")
 
@@ -405,30 +423,31 @@ class Application(object):
             title = "Supervised by transfer task " + task.id
             task_spec = {"title": title, "transfer_task_id": task.id}
 
-            if self._clusters[task.source_cluster]._type == "yt" and self._clusters[task.destination_cluster]._type == "yt":
-                client = deepcopy(self._clusters[task.destination_cluster])
-                client.token = task.destination_cluster_token
+            source_client = task.get_source_client(self._clusters)
+            destination_client = task.get_destination_client(self._clusters)
+
+            if source_client._type == "yt" and destination_client._type == "yt":
                 logger.info("Running YT -> YT remote copy operation")
                 run_operation_and_notify(
                     message_queue,
-                    client,
+                    destination_client,
                     lambda client, strategy:
                         client.run_remote_copy(
                             task.source_table,
                             task.destination_table,
-                            cluster_name=task.source_cluster,
-                            network_name=self._clusters[task.source_cluster]._network,
+                            cluster_name=source_client._name,
+                            network_name=source_client._network,
                             spec=task_spec,
                             remote_cluster_token=task.source_cluster_token,
                             strategy=strategy))
-            elif self._clusters[task.source_cluster]._type == "yt" and self._clusters[task.destination_cluster]._type == "yamr":
+            elif source_client._type == "yt" and destination_client._type == "yamr":
                 if task.mr_user is None:
                     task.mr_user = self._default_mr_user
                 logger.info("Running YT -> YAMR remote copy")
                 if get_value(task.copy_method, "push"):
                     copy_yt_to_yamr_push(
-                        self._clusters[task.source_cluster],
-                        self._clusters[task.destination_cluster],
+                        source_client,
+                        destination_client,
                         task.source_table,
                         task.destination_table,
                         mr_user=task.mr_user,
@@ -437,38 +456,38 @@ class Application(object):
                         message_queue=message_queue)
                 else:
                     copy_yt_to_yamr_pull(
-                        self._clusters[task.source_cluster],
-                        self._clusters[task.destination_cluster],
+                        source_client,
+                        destination_client,
                         task.source_table,
                         task.destination_table,
                         mr_user=task.mr_user,
                         message_queue=message_queue)
-            elif self._clusters[task.source_cluster]._type == "yamr" and self._clusters[task.destination_cluster]._type == "yt":
+            elif source_client._type == "yamr" and destination_client._type == "yt":
                 if task.mr_user is None:
                     task.mr_user = self._default_mr_user
-                task_spec["pool"] = get_import_pool(self._clusters[task.source_cluster], self._clusters[task.destination_cluster])
+                task_spec["pool"] = get_import_pool(source_client, destination_client)
                 logger.info("Running YAMR -> YT remote copy")
                 copy_yamr_to_yt_pull(
-                    self._clusters[task.source_cluster],
-                    self._clusters[task.destination_cluster],
+                    source_client,
+                    destination_client,
                     task.source_table,
                     task.destination_table,
                     token=task.destination_cluster_token,
                     mr_user=task.mr_user,
                     spec_template=task_spec,
                     message_queue=message_queue)
-            elif self._clusters[task.source_cluster]._type == "yamr" and self._clusters[task.destination_cluster]._type == "yamr":
+            elif source_client._type == "yamr" and destination_client._type == "yamr":
                 if task.mr_user is None:
                     task.mr_user = self._default_mr_user
-                self._clusters[task.destination_cluster].remote_copy(
-                    self._clusters[task.source_cluster].server,
+                destination_client.remote_copy(
+                    source_client.server,
                     task.source_table,
                     task.destination_table,
                     task.mr_user)
             else:
                 raise Exception("Incorrect cluster types: {} source and {} destination".format(
-                                self._clusters[task.source_cluster]._type,
-                                self._clusters[task.destination_cluster]._type))
+                                source_client._type,
+                                destination_client._type))
             logger.info("Task %s completed", task.id)
         except KeyboardInterrupt:
             pass
