@@ -586,7 +586,7 @@ private:
         }
 
         auto journalChunk = Chunk_->AsJournalChunk();
-        if (journalChunk->GetAttachedChangelog()) {
+        if (journalChunk->HasAttachedChangelog()) {
             THROW_ERROR_EXCEPTION("Journal chunk %v is already being written to",
                 ChunkId_);
         }

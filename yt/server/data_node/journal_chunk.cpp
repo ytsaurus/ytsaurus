@@ -217,8 +217,14 @@ void TJournalChunk::DetachChangelog()
     Changelog_.Reset();
 }
 
+bool TJournalChunk::HasAttachedChangelog() const
+{
+    return Changelog_ != nullptr;
+}
+
 IChangelogPtr TJournalChunk::GetAttachedChangelog() const
 {
+    YCHECK(Changelog_);
     return Changelog_;
 }
 
@@ -226,6 +232,18 @@ i64 TJournalChunk::GetRowCount() const
 {
     UpdateCachedParams();
     return CachedRowCount_;
+}
+
+i64 TJournalChunk::GetDataSize() const
+{
+    UpdateCachedParams();
+    return CachedDataSize_;
+}
+
+bool TJournalChunk::IsSealed() const
+{
+    UpdateCachedParams();
+    return CachedSealed_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

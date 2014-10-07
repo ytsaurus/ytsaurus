@@ -36,9 +36,12 @@ public:
 
     void AttachChangelog(NHydra::IChangelogPtr changelog);
     void DetachChangelog();
+    bool HasAttachedChangelog() const;
     NHydra::IChangelogPtr GetAttachedChangelog() const;
 
     i64 GetRowCount() const;
+    i64 GetDataSize() const;
+    bool IsSealed() const;
 
 private:
     bool Active_ = false;

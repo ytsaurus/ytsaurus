@@ -35,21 +35,10 @@ TJournalSession::TJournalSession(
 
 TChunkInfo TJournalSession::GetChunkInfo() const
 {
-    UpdateCachedParams();
-
     TChunkInfo info;
-    info.set_disk_space(CachedDataSize_);
-    info.set_sealed(CachedSealed_);
+    info.set_disk_space(Chunk_->GetDataSize());
+    info.set_sealed(Chunk_->IsSealed());
     return info;
-}
-
-void TJournalSession::UpdateCachedParams() const
-{
-    if (Changelog_) {
-        CachedRowCount_ = Changelog_->GetRecordCount();
-        CachedDataSize_ = Changelog_->GetDataSize();
-        CachedSealed_ = Changelog_->IsSealed();
-    }
 }
 
 void TJournalSession::DoStart()
@@ -60,9 +49,9 @@ void TJournalSession::DoStart()
         TChunkDescriptor(ChunkId_));
 
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    Changelog_ = dispatcher->CreateChangelog(Chunk_, Options_.OptimizeForLatency);
+    auto changelog = dispatcher->CreateChangelog(Chunk_, Options_.OptimizeForLatency);
 
-    Chunk_->AttachChangelog(Changelog_);
+    Chunk_->AttachChangelog(changelog);
     Chunk_->SetActive(true);
 
     auto chunkStore = Bootstrap_->GetChunkStore();
@@ -71,8 +60,6 @@ void TJournalSession::DoStart()
 
 void TJournalSession::DoCancel()
 {
-    UpdateCachedParams();
-
     Chunk_->DetachChangelog();
     Chunk_->SetActive(false);
     
@@ -87,14 +74,15 @@ TFuture<TErrorOr<IChunkPtr>> TJournalSession::DoFinish(
     const TNullable<int>& blockCount)
 {
     auto sealResult = OKFuture;
+    auto changelog = Chunk_->GetAttachedChangelog();
     if (blockCount) {
-        if (*blockCount != Changelog_->GetRecordCount()) {
+        if (*blockCount != changelog->GetRecordCount()) {
             THROW_ERROR_EXCEPTION("Block count mismatch in journal session %v: expected %v, got %v",
                 ChunkId_,
-                Changelog_->GetRecordCount(),
+                changelog->GetRecordCount(),
                 *blockCount);
         }
-        sealResult = Changelog_->Seal(Changelog_->GetRecordCount());
+        sealResult = changelog->Seal(changelog->GetRecordCount());
     }
 
     auto this_ = MakeStrong(this);
@@ -112,7 +100,8 @@ TAsyncError TJournalSession::DoPutBlocks(
     const std::vector<TSharedRef>& blocks,
     bool /*enableCaching*/)
 {
-    int recordCount = Changelog_->GetRecordCount();
+    auto changelog = Chunk_->GetAttachedChangelog();
+    int recordCount = changelog->GetRecordCount();
     
     if (startBlockIndex > recordCount) {
         THROW_ERROR_EXCEPTION("Missing blocks %v:%v-%v",
@@ -132,7 +121,7 @@ TAsyncError TJournalSession::DoPutBlocks(
          index < static_cast<int>(blocks.size());
          ++index)
     {
-        LastAppendResult_ = Changelog_->Append(blocks[index]);
+        LastAppendResult_ = changelog->Append(blocks[index]);
     }
 
     return OKFuture;
@@ -148,7 +137,8 @@ TAsyncError TJournalSession::DoSendBlocks(
 
 TAsyncError TJournalSession::DoFlushBlocks(int blockIndex)
 {
-    int recordCount = Changelog_->GetRecordCount();
+    auto changelog = Chunk_->GetAttachedChangelog();
+    int recordCount = changelog->GetRecordCount();
     
     if (blockIndex > recordCount) {
         THROW_ERROR_EXCEPTION("Missing blocks %v:%v-%v",
