@@ -124,7 +124,7 @@ private:
         int count,
         TTimestampServiceProxy::TRspGenerateTimestampsPtr rsp)
     {
-        TErrorOr<TTimestamp> result;
+        TError error;
         {
             TGuard<TSpinLock> guard(SpinLock_);
 
@@ -137,7 +137,7 @@ private:
                     firstTimestamp,
                     LatestTimestamp_);
             } else {
-                result = TError("Error generating fresh timestamps") << *rsp;
+                error = TError("Error generating fresh timestamps") << *rsp;
                 LOG_ERROR(result);
             }
 
@@ -146,14 +146,15 @@ private:
             }
         }
 
-        if (result.IsOK()) {
+        if (error.IsOK()) {
+            auto timestamp = rsp->timestamp();
             for (auto& request : requests) {
-                request.Promise.Set(result);
-                result.Value() += request.Count;
+                request.Promise.Set(timestamp);
+                ++timestamp;
             }
         } else {
             for (auto& request : requests) {
-                request.Promise.Set(result);
+                request.Promise.Set(error);
             }
         }
     }
