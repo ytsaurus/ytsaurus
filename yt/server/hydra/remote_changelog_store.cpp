@@ -94,6 +94,7 @@ private:
 
         LOG_DEBUG("Creating changelog %v",
             id);
+
         {
             TCreateNodeOptions options;
             auto attributes = CreateEphemeralAttributes();
@@ -109,6 +110,14 @@ private:
                 options));
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
+
+        auto writer = MasterClient_->CreateJournalWriter(
+            path,
+            TJournalWriterOptions(),
+            Config_->Writer);
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(WaitFor(writer->Open()));
+
         LOG_DEBUG("Changelog %v created",
             id);
 
@@ -116,6 +125,7 @@ private:
             id,
             path,
             metaBlob,
+            writer,
             0,
             0);
     }
@@ -172,6 +182,7 @@ private:
             id,
             path,
             metaBlob,
+            nullptr,
             recordCount,
             dataSize);
     }
@@ -218,16 +229,10 @@ private:
         int id,
         const TYPath& path,
         const TSharedRef& meta,
+        IJournalWriterPtr writer,
         int recordCount,
         i64 dataSize)
     {
-        auto writer = MasterClient_->CreateJournalWriter(
-            path,
-            TJournalWriterOptions(),
-            Config_->Writer);
-
-        THROW_ERROR_EXCEPTION_IF_FAILED(WaitFor(writer->Open()));
-
         return New<TRemoteChangelog>(
             path,
             meta,
@@ -257,9 +262,9 @@ private:
             : Path_(path)
             , Meta_(meta)
             , Writer_(writer)
-            , Owner_(owner)
             , RecordCount_(recordCount)
             , DataSize_(dataSize)
+            , Owner_(owner)
         { }
 
         virtual TSharedRef GetMeta() const override
@@ -279,11 +284,13 @@ private:
 
         virtual bool IsSealed() const override
         {
+            // TODO(babenko): implement
             return false;
         }
 
         virtual TAsyncError Append(const TSharedRef& data) override
         {
+            YCHECK(Writer_);
             DataSize_ += data.Size();
             RecordCount_ += 1;
             FlushResult_ = Writer_->Write(std::vector<TSharedRef>(1, data));
@@ -332,9 +339,9 @@ private:
         TYPath Path_;
         TSharedRef Meta_;
         IJournalWriterPtr Writer_;
-        TRemoteChangelogStorePtr Owner_;
         int RecordCount_;
         i64 DataSize_;
+        TRemoteChangelogStorePtr Owner_;
 
         TAsyncError FlushResult_ = OKFuture;
 
