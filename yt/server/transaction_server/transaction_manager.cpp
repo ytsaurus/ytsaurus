@@ -675,7 +675,7 @@ void TTransactionManager::PrepareTransactionCommit(
         ? ETransactionState::PersistentCommitPrepared
         : ETransactionState::TransientCommitPrepared);
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Presistent: %v)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v)",
         transactionId,
         persistent);
 }

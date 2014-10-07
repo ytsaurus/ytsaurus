@@ -154,7 +154,7 @@ public:
 
         TransactionPrepared_.Fire(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Presistent: %v, PrepareTimestamp: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %v)",
             transactionId,
             persistent,
             prepareTimestamp);
