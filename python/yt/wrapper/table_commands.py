@@ -431,7 +431,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
                 yield row
         else:
             if isinstance(stream, str):
-                stream = StringIO(input_stream)
+                stream = StringIO(stream)
 
             while True:
                 row = format.load_row(stream, unparsed=True)
