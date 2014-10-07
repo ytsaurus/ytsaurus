@@ -668,6 +668,9 @@ private:
 
     void GenerateCommitTimestamp(TCommit* commit)
     {
+        LOG_DEBUG("Generating commit timestamp (TransactionId: %v)",
+            commit->GetTransactionId());
+
         TimestampProvider_->GenerateTimestamps()
             .Subscribe(BIND(&TImpl::OnCommitTimestampGenerated, MakeStrong(this), commit->GetTransactionId())
                 .Via(EpochAutomatonInvoker_));
