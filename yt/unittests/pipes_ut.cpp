@@ -21,7 +21,7 @@ using namespace NConcurrency;
 
 #ifndef _win_
 
-TEST(TPipeIODispatcher, StartStop)
+TEST(TIODispatcher, StartStop)
 {
     TIODispatcher dispatcher;
     dispatcher.Shutdown();
