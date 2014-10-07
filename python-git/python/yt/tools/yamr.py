@@ -11,31 +11,24 @@ from urllib import quote_plus
 class YamrError(YtError):
     pass
 
-try:
-    _check_output = subprocess.check_output
-except AttributeError:
-    # There is no check_output function in python2.6 :(
-    def _check_output(*popenargs, **kwargs):
-        process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
-        output, unused_err = process.communicate()
-        retcode = process.poll()
-        if retcode:
-            cmd = kwargs.get("args")
-            if cmd is None:
-                cmd = popenargs[0]
-            error = subprocess.CalledProcessError(retcode, cmd)
-            error.output = output
-            raise error
-        return output
+_check_output = subprocess.check_output
 
 def _check_call(command, **kwargs):
     logger.debug("Executing command '{}'".format(command))
+    timeout = kwargs.pop('timeout', None)
     proc = subprocess.Popen(command, stderr=subprocess.PIPE, **kwargs)
-    _, stderrdata = proc.communicate()
+    try:
+        _, stderrdata = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+        raise
+
     if proc.returncode != 0:
         error = YamrError("Command '{0}' failed".format(command))
         error.inner_errors = [YamrError(stderrdata, proc.returncode)]
         raise error
+
     logger.debug("Command '{}' successfully executed".format(command))
 
 class Yamr(object):
@@ -55,7 +48,7 @@ class Yamr(object):
         self.opts = opts
         self.fastbone = fastbone
 
-        self._light_command_timeout = 5.0
+        self._light_command_timeout = 20.0
 
         # Check that binary exists and supports help
         _check_output("{0} --help".format(self.binary), shell=True)
