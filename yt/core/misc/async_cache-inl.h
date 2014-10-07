@@ -302,7 +302,7 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
 
     // Release the guard right away to prevent recursive spinlock acquisition.
     // Indeed, the item's dtor may drop the last reference
-    // to the value and thus cause an invocation of TAsyncCacheValueBase::TAsyncCacheValueBaseeBase.
+    // to the value and thus cause an invocation of TAsyncCacheValueBase::TAsyncCacheValueBase.
     // The latter will try to acquire the spinlock.
     guard.Release();
 
