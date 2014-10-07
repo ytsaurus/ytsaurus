@@ -124,34 +124,37 @@ private:
         int count,
         TTimestampServiceProxy::TRspGenerateTimestampsPtr rsp)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TErrorOr<TTimestamp> result;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
 
-        GenerateInProgress_ = false;
+            GenerateInProgress_ = false;
 
-        if (rsp->IsOK()) {
-            auto timestamp = TTimestamp(rsp->timestamp());
-            LOG_DEBUG("Fresh timestamps generated (Timestamps: %v-%v)",
-                timestamp,
-                timestamp + count - 1);
-
-            auto latestTimestamp = LatestTimestamp_;
-            for (auto& request : requests) {
-                request.Promise.Set(TErrorOr<TTimestamp>(timestamp));
-                timestamp += request.Count;
-                latestTimestamp = std::max(latestTimestamp, timestamp - 1);
+            if (rsp->IsOK()) {
+                auto firstTimestamp = TTimestamp(rsp->timestamp());
+                LatestTimestamp_ = firstTimestamp + requests.size();
+                LOG_DEBUG("Fresh timestamps generated (Timestamps: %v-%v)",
+                    firstTimestamp,
+                    LatestTimestamp_);
+            } else {
+                result = TError("Error generating fresh timestamps") << *rsp;
+                LOG_ERROR(result);
             }
-            LatestTimestamp_ = latestTimestamp;
-        } else {
-            auto error = TError("Error generating fresh timestamps")
-                << *rsp;
-            LOG_ERROR(error);
-            for (auto& request : requests) {
-                request.Promise.Set(error);
+
+            if (!PendingRequests_.empty()) {
+                SendGenerateRequest(guard);
             }
         }
 
-        if (!PendingRequests_.empty()) {
-            SendGenerateRequest(guard);
+        if (result.IsOK()) {
+            for (auto& request : requests) {
+                request.Promise.Set(result);
+                result.Value() += request.Count;
+            }
+        } else {
+            for (auto& request : requests) {
+                request.Promise.Set(result);
+            }
         }
     }
 
