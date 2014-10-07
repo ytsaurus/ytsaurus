@@ -589,8 +589,8 @@ private:
         auto objectManager = Bootstrap->GetObjectManager();
         auto rootService = objectManager->GetRootService();
 
-        const auto& address = node->GetAddress();
-        
+        // NB: Copy address, node instance may die.
+        auto address = node->GetAddress();
         auto nodePath = "//sys/nodes/" + ToYPathLiteral(address);
         auto orchidPath = nodePath + "/orchid";
 
