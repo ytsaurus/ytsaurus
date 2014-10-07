@@ -685,7 +685,9 @@ private:
         if (!timestampOrError.IsOK()) {
             // If this is a distributed transaction then it's already prepared at coordinator and
             // at all participants. We _must_ forcefully abort it.
-            AbortTransaction(transactionId, commit->IsDistributed());
+            LOG_ERROR(timestampOrError, "Error generating commit timestamp (TransactionId: %v)",
+                transactionId);
+            AbortTransaction(transactionId, true);
             return;
         }
 
