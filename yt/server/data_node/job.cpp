@@ -214,12 +214,14 @@ protected:
 
     void GuardedRun()
     {
+        LOG_INFO("Job started");
         try {
             DoRun();
-            SetCompleted();
         } catch (const std::exception& ex) {
             SetFailed(ex);
+            return;
         }
+        SetCompleted();
     }
 
     void SetCompleted()
