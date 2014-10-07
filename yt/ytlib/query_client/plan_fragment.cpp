@@ -44,8 +44,7 @@ Stroka TExpression::GetName() const
 TKeyColumns TOperator::GetKeyColumns() const
 {
     if (auto scanOp = this->As<TScanOperator>()) {
-        return scanOp->KeyColumns; //GetKeyColumnsFromDataSplit(scanOp->DataSplits[0]);
-        // TODO(lukyan): check that other splits hava the same key columns
+        return scanOp->KeyColumns;
     } else if (auto filterOp = this->As<TFilterOperator>()) {
         return filterOp->Source->GetKeyColumns();
     } else if (this->As<TGroupOperator>() || this->As<TProjectOperator>()) {
@@ -57,8 +56,7 @@ TKeyColumns TOperator::GetKeyColumns() const
 
 TTableSchema TScanOperator::GetTableSchema() const
 {
-    //YCHECK(DataSplits.size() > 0);
-    return TableSchema; //GetTableSchemaFromDataSplit(DataSplits[0]);
+    return TableSchema;
 }
 
 TTableSchema TFilterOperator::GetTableSchema() const
