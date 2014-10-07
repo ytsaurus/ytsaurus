@@ -138,7 +138,7 @@ private:
                     LatestTimestamp_);
             } else {
                 error = TError("Error generating fresh timestamps") << *rsp;
-                LOG_ERROR(result);
+                LOG_ERROR(error);
             }
 
             if (!PendingRequests_.empty()) {
