@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from yt.wrapper.common import die
 import yt.wrapper as yt
 
 import os
@@ -87,7 +88,7 @@ class SortedHash(object):
         for byte in bytes:
             result = result * 256 + ord(byte)
         return result
-    
+
     def _num_to_str(self, num):
         result = ""
         for i in xrange(self._number_len):
@@ -138,7 +139,7 @@ def process_stream(stream, input_type, sorted, reduce_by):
 
             group_hashes = calculate_hash_of_groups(stream, input_type, reduce_by)
             hash = calculate_hash(itertools.imap(lambda hash: hash.md5(), group_hashes), SortedHash)
-            
+
         return "{0}\t{1}\n".format(key, hash.hex())
     else:
         hash = calculate_hash(extract_md5(stream, input_type), Hash)
@@ -151,48 +152,45 @@ def main():
     parser.add_argument("--sorted", action="store_true", default=False)
     parser.add_argument("--table", help="Path to the table. If --table is not set, binary uses stdin.")
     parser.add_argument("--has-subkey", action="store_true", default=False)
+    parser.add_argument("--reduce-by", action="append")
     parser.add_argument("--proxy")
 
     args = parser.parse_args()
 
     if args.input_type not in ["yamr", "structured", "md5"]:
         raise yt.YtError("Incorrect input_type '{0}'".format(args.input_type))
-        
-    if args.sorted and args.input_type == "yamr":
-        args.reduce_by = ["key"]
 
     if args.table is not None:
         if args.proxy is not None:
             yt.config.set_proxy(args.proxy)
 
-        script = os.path.realpath(__file__) 
+        script = os.path.realpath(__file__)
         cmd = "./{0} --input-type {1} {2}".format(os.path.basename(script), args.input_type, "--sorted" if args.sorted else "")
-        if args.reduce_by is not None:
-            cmd += " " + " ".join("--reduce-by " + key for key in args.reduce_by)
+
+        reduce_by = None
+        if args.sorted:
+            if not yt.exists(args.table + "/@sorted_by"):
+                die("Cannot calculate sorted checksum if table is not sorted")
+            reduce_by = yt.get(args.table + "/@sorted_by")
+            cmd += " " + " ".join("--reduce-by " + key for key in reduce_by)
 
         dst = yt.create_temp_table(prefix="checksum")
-        
+
         if args.input_type == "yamr":
-            input_format = yt.YamrFormat(has_subkey=args.has_subkey, lenval=False) 
+            input_format = yt.YamrFormat(has_subkey=args.has_subkey, lenval=False)
         if args.input_type == "structured":
             input_format = yt.JsonFormat()
         if args.input_type == "md5":
-            input_format = yt.YamrFormat(has_subkey=False, lenval=False) 
-        
-        output_format = yt.YamrFormat(lenval=False, has_subkey=False)
+            input_format = yt.YamrFormat(has_subkey=False, lenval=False)
 
-        reduce_by = None
-        if args.input_type == "yamr":
-            reduce_by = ["key"]
-        elif yt.exists(args.table + "/@sorted_by"):
-            reduce_by = yt.get_attribute(args.table + "/@sorted_by")
+        output_format = yt.YamrFormat(lenval=False, has_subkey=False)
 
         if args.sorted:
             yt.run_reduce(cmd, args.table, dst, input_format=input_format, output_format=output_format, local_files=script, reduce_by=reduce_by)
             yt.run_sort(dst, dst, sort_by=["key"])
         else:
             yt.run_map(cmd, args.table, dst, input_format=input_format, output_format=output_format, local_files=script)
-        
+
         sys.stdout.write(process_stream(yt.read_table(dst, format=output_format), "md5", args.sorted, reduce_by))
 
     else:
