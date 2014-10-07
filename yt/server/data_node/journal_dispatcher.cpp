@@ -150,8 +150,8 @@ public:
     void CloseChangelog(IChunkPtr chunk)
     {
         auto journalChunk = chunk->AsJournalChunk();
-        auto changelog = journalChunk->GetAttachedChangelog();
-        if (changelog) {
+        if (journalChunk->HasAttachedChangelog()) {
+            auto changelog = journalChunk->GetAttachedChangelog();
             ChangelogDispatcher_->CloseChangelog(changelog);
             journalChunk->DetachChangelog();
         }
