@@ -185,7 +185,8 @@ done;
 
     # number of rows per job
     rows_per_record = max(1, 1024 ** 3 * row_count / data_size)
-    ranges = [(i * rows_per_record, min((i + 1) * rows_per_record, row_count)) for i in xrange(1 + ((rows_per_record - 1) / rows_per_record))]
+    ranges = [(i * rows_per_record, min((i + 1) * rows_per_record, row_count))
+              for i in xrange(1 + ((row_count - 1) / rows_per_record))]
 
     records_stream = StringIO()
     for start, end in ranges:
