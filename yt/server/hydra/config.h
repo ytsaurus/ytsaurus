@@ -39,7 +39,7 @@ public:
             .GreaterThanOrEqual(0)
             .Default(0);
         RegisterParameter("flush_period", FlushPeriod)
-            .Default(TDuration::MilliSeconds(1000));
+            .Default(TDuration::MilliSeconds(50));
     }
 };
 
