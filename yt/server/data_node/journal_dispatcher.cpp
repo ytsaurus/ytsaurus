@@ -155,7 +155,7 @@ public:
             ChangelogDispatcher_->CloseChangelog(changelog);
             journalChunk->DetachChangelog();
         }
-        TAsyncSlruCacheBase::Remove(chunk->GetId());
+        TAsyncSlruCacheBase::TryRemove(chunk->GetId());
     }
 
 private:

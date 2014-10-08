@@ -88,8 +88,8 @@ public:
     TValuePtrOrErrorFuture Lookup(const TKey& key);
 
     bool BeginInsert(TInsertCookie* cookie);
-    bool Remove(const TKey& key);
-    bool Remove(TValuePtr value);
+    bool TryRemove(const TKey& key);
+    bool TryRemove(TValuePtr value);
     void Clear();
 
 protected:

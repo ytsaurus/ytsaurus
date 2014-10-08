@@ -157,7 +157,7 @@ private:
                     successExpirationTime,
                     failureExpirationTime);
 
-                Remove(entry);
+                TryRemove(entry);
             }
 
             auto cookie = std::make_unique<TInsertCookie>(key);

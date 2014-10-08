@@ -283,7 +283,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Unregister(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
-bool TAsyncSlruCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
+bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
 
@@ -314,7 +314,7 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
-bool TAsyncSlruCacheBase<TKey, TValue, THash>::Remove(TValuePtr value)
+bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(TValuePtr value)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
 

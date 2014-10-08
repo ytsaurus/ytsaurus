@@ -118,7 +118,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(TValuePtr value, TValueP
 }
 
 template <class TKey, class TValue, class THash>
-bool TSyncSlruCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
+bool TSyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
 
@@ -145,7 +145,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
-bool TSyncSlruCacheBase<TKey, TValue, THash>::Remove(TValuePtr value)
+bool TSyncSlruCacheBase<TKey, TValue, THash>::TryRemove(TValuePtr value)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
 

@@ -95,7 +95,7 @@ public:
 
     void EvictReader(IChunk* chunk)
     {
-        TAsyncSlruCacheBase::Remove(chunk->GetId());
+        TAsyncSlruCacheBase::TryRemove(chunk->GetId());
     }
 
 private:
