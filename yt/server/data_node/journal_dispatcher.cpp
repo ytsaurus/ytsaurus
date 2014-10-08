@@ -21,7 +21,6 @@
 #include <server/hydra/sync_file_changelog.h>
 
 #include <server/cell_node/bootstrap.h>
-#include <Foundation/Foundation.h>
 
 namespace NYT {
 namespace NDataNode {
