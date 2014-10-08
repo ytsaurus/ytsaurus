@@ -37,7 +37,7 @@ public:
             .Default((i64) 1024 * 1024);
         RegisterParameter("flush_buffer_size", FlushBufferSize)
             .GreaterThanOrEqual(0)
-            .Default(0);
+            .Default((i64) 10 * 1024 * 1024);
         RegisterParameter("flush_period", FlushPeriod)
             .Default(TDuration::MilliSeconds(50));
     }
