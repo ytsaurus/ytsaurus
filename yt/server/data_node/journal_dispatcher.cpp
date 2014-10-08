@@ -21,6 +21,7 @@
 #include <server/hydra/sync_file_changelog.h>
 
 #include <server/cell_node/bootstrap.h>
+#include <Foundation/Foundation.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -790,7 +791,10 @@ TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::OpenChangelog(
     bool enableMultiplexing)
 {
     TInsertCookie cookie(chunkId);
-    if (BeginInsert(&cookie)) {
+    bool inserted = BeginInsert(&cookie);
+    auto result = cookie.GetValue();
+
+    if (inserted) {
         location->GetWritePoolInvoker()->Invoke(BIND(
             &TImpl::DoOpenChangelog,
             MakeStrong(this),
@@ -800,7 +804,7 @@ TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::OpenChangelog(
             Passed(std::move(cookie))));
     }
 
-    return cookie.GetValue().Apply(BIND([] (TErrorOr<TCachedChangelogPtr> result) {
+    return result.Apply(BIND([] (TErrorOr<TCachedChangelogPtr> result) {
         return result.As<IChangelogPtr>();
     }));
 }
