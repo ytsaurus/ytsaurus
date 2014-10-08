@@ -383,7 +383,7 @@ protected:
                     dstKey->Length = srcKey->String->Length;
                     dstKey->Data.String = srcKey->String->Data;
                 } else {
-                    *reinterpret_cast<TDynamicValueData*>(&dstKey->Data) = *srcKey;
+                    memcpy(&dstKey->Data, srcKey, sizeof(srcKey));
                 }
             }
         }
