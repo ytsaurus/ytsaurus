@@ -363,7 +363,6 @@ private:
                     LOG_DEBUG("Started compiling fragment");
                     cgFragment = New<TCachedCGFragment>(id);
                     cgFragment->Embody(Compiler_(fragment, *cgFragment, binding));
-                    cgFragment->GetCompiledBody();
                     LOG_DEBUG("Finished compiling fragment");
                     TryInsert(cgFragment);
                 }
