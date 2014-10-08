@@ -266,6 +266,12 @@ public:
         return Value_;
     }
 
+    template <class U>
+    TErrorOr<U> As() const
+    {
+        return IsOK() ? TErrorOr<U>(Value_) : TErrorOr<U>(*this);
+    }
+
 private:
     T Value_;
 
