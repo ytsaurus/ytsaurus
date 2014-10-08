@@ -273,7 +273,7 @@ public:
 
                 std::tie(cgFragment, fragmentParams) = Codegen(fragment);
 
-                TCGFunction cgFunction = cgFragment->GetCompiledBody();
+                auto cgFunction = cgFragment->GetCompiledBody();
 
                 LOG_DEBUG("Evaluating plan fragment");
 
