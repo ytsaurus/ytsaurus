@@ -21,7 +21,8 @@ public:
         NCellNode::TBootstrap* bootstrap,
         const TChunkId& chunkId,
         const TSessionOptions& options,
-        TLocationPtr location);
+        TLocationPtr location,
+        TLease lease);
 
     virtual NChunkClient::NProto::TChunkInfo GetChunkInfo() const override;
 
@@ -30,7 +31,7 @@ private:
     TAsyncError LastAppendResult_;
 
 
-    virtual void DoStart() override;
+    virtual TAsyncError DoStart() override;
 
     virtual TAsyncError DoPutBlocks(
         int startBlockIndex,

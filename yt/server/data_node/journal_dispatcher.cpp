@@ -124,12 +124,12 @@ public:
         return Config_->MultiplexedChangelog != nullptr;
     }
 
-    IChangelogPtr OpenChangelog(
+    TFuture<TErrorOr<IChangelogPtr>> OpenChangelog(
         TLocationPtr location,
         const TChunkId& chunkId,
         bool enableMultiplexing);
 
-    IChangelogPtr CreateChangelog(
+    TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(
         IChunkPtr chunk,
         bool enableMultiplexing);
 
@@ -217,6 +217,45 @@ private:
             chunkId);
 
         return changelog;
+    }
+
+    void DoOpenChangelog(
+        TLocationPtr location,
+        const TChunkId& chunkId,
+        bool enableMultiplexing,
+        TInsertCookie cookie)
+    {
+        auto fileName = location->GetChunkFileName(chunkId);
+        LOG_DEBUG("Started opening journal chunk (LocationId: %v, ChunkId: %v)",
+            location->GetId(),
+            chunkId);
+
+        auto& Profiler = location->Profiler();
+        PROFILE_TIMING("/journal_chunk_open_time") {
+            try {
+                auto changelog = ChangelogDispatcher_->OpenChangelog(
+                    fileName,
+                    Config_->SplitChangelog);
+                auto cachedChangelog = New<TCachedChangelog>(
+                    this,
+                    chunkId,
+                    MakeFuture<TErrorOr<IChangelogPtr>>(changelog),
+                    enableMultiplexing);
+                cookie.EndInsert(cachedChangelog);
+            } catch (const std::exception& ex) {
+                auto error = TError(
+                    NChunkClient::EErrorCode::IOError,
+                    "Error opening journal chunk %v",
+                    chunkId)
+                    << ex;
+                cookie.Cancel(error);
+                location->Disable(error);
+            }
+        }
+
+        LOG_DEBUG("Finished opening journal chunk (LocationId: %v, ChunkId: %v)",
+            location->GetId(),
+            chunkId);
     }
 
     void DoRemoveChangelog(IChunkPtr chunk)
@@ -696,10 +735,15 @@ private:
 
             auto journalChunk = chunk->AsJournalChunk();
             auto location = journalChunk->GetLocation();
-            auto changelog = Owner_->OpenChangelog(
+            auto asyncChangelog = Owner_->OpenChangelog(
                 location,
                 chunkId,
                 false);
+
+            auto changelogOrError = asyncChangelog.Get();
+            THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
+            auto changelog = changelogOrError.Value();
+
             journalChunk->AttachChangelog(changelog);
             it = SplitMap_.insert(std::make_pair(
                 chunkId,
@@ -740,87 +784,72 @@ void TJournalDispatcher::TImpl::Initialize()
     LOG_INFO("Journal dispatcher started");
 }
 
-IChangelogPtr TJournalDispatcher::TImpl::OpenChangelog(
+TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::OpenChangelog(
     TLocationPtr location,
     const TChunkId& chunkId,
     bool enableMultiplexing)
 {
-    auto& Profiler = location->Profiler();
-
     TInsertCookie cookie(chunkId);
     if (BeginInsert(&cookie)) {
-        auto fileName = location->GetChunkFileName(chunkId);
-        LOG_DEBUG("Started opening journal chunk (LocationId: %v, ChunkId: %v)",
-            location->GetId(),
-            chunkId);
-
-        PROFILE_TIMING("/journal_chunk_open_time") {
-            try {
-                auto changelog = ChangelogDispatcher_->OpenChangelog(
-                    fileName,
-                    Config_->SplitChangelog);
-                auto cachedChangelog = New<TCachedChangelog>(
-                    this,
-                    chunkId,
-                    MakeFuture<TErrorOr<IChangelogPtr>>(changelog),
-                    enableMultiplexing);
-                cookie.EndInsert(cachedChangelog);
-            } catch (const std::exception& ex) {
-                auto error = TError(
-                    NChunkClient::EErrorCode::IOError,
-                    "Error opening journal chunk %v",
-                    chunkId)
-                    << ex;
-                cookie.Cancel(error);
-                location->Disable(error);
-                THROW_ERROR error;
-            }
-        }
-
-        LOG_DEBUG("Finished opening journal chunk (LocationId: %v, ChunkId: %v)",
-            location->GetId(),
-            chunkId);
+        location->GetWritePoolInvoker()->Invoke(BIND(
+            &TImpl::DoOpenChangelog,
+            MakeStrong(this),
+            location,
+            chunkId,
+            enableMultiplexing,
+            Passed(std::move(cookie))));
     }
 
-    auto resultOrError = cookie.GetValue().Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
-    return resultOrError.Value();
+    return cookie.GetValue().Apply(BIND([] (TErrorOr<TCachedChangelogPtr> result) {
+        return result.As<IChangelogPtr>();
+    }));
 }
 
-IChangelogPtr TJournalDispatcher::TImpl::CreateChangelog(
+TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::CreateChangelog(
     IChunkPtr chunk,
     bool enableMultiplexing)
 {
-    if (!AcceptsChunks()) {
-        THROW_ERROR_EXCEPTION("No new journal chunks are accepted");
+    try {
+        if (!AcceptsChunks()) {
+            THROW_ERROR_EXCEPTION("No new journal chunks are accepted");
+        }
+
+        const auto& chunkId = chunk->GetId();
+        auto location = chunk->GetLocation();
+
+        TInsertCookie cookie(chunkId);
+        YCHECK(BeginInsert(&cookie));
+
+        auto futureChangelogOrError = BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunk)
+            .Guarded()
+            .AsyncVia(location->GetWritePoolInvoker())
+            .Run();
+
+        auto cachedChangelog = New<TCachedChangelog>(
+            this,
+            chunkId,
+            futureChangelogOrError,
+            enableMultiplexing);
+        cookie.EndInsert(cachedChangelog);
+
+        if (enableMultiplexing) {
+            TMultiplexedRecord record;
+            record.Header.Type = EMultiplexedRecordType::Create;
+            record.Header.ChunkId = chunkId;
+            record.Header.RecordId = -1;
+            auto multiplexedResult = AppendMultiplexedRecord(record, cachedChangelog);
+
+            return multiplexedResult.Apply(BIND([=] (TError error) -> TErrorOr<IChangelogPtr> {
+                return error.IsOK() ? TErrorOr<IChangelogPtr>(cachedChangelog) : TErrorOr<IChangelogPtr>(error);
+            }));
+        } else {
+            return futureChangelogOrError.Apply(BIND([=] (TErrorOr<IChangelogPtr> result) {
+                return result.IsOK() ? TErrorOr<IChangelogPtr>(cachedChangelog) : TErrorOr<IChangelogPtr>(result);
+            }));
+        }
+    } catch (const std::exception& ex) {
+        return MakeFuture<TErrorOr<IChangelogPtr>>(ex);
     }
-
-    const auto& chunkId = chunk->GetId();
-    auto location = chunk->GetLocation();
-
-    TInsertCookie cookie(chunkId);
-    YCHECK(BeginInsert(&cookie));
-
-    auto futureChangelogOrError = BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunk)
-        .Guarded()
-        .AsyncVia(location->GetWritePoolInvoker())
-        .Run();
-    auto cachedChangelog = New<TCachedChangelog>(
-        this,
-        chunkId,
-        futureChangelogOrError,
-        enableMultiplexing);
-    cookie.EndInsert(cachedChangelog);
-
-    if (enableMultiplexing) {
-        TMultiplexedRecord record;
-        record.Header.Type = EMultiplexedRecordType::Create;
-        record.Header.ChunkId = chunkId;
-        record.Header.RecordId = -1;
-        AppendMultiplexedRecord(record, cachedChangelog);
-    }
-
-    return cachedChangelog;
 }
 
 TAsyncError TJournalDispatcher::TImpl::AppendMultiplexedRecord(
@@ -921,7 +950,7 @@ bool TJournalDispatcher::AcceptsChunks() const
     return Impl_->AcceptsChunks();
 }
 
-IChangelogPtr TJournalDispatcher::OpenChangelog(
+TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::OpenChangelog(
     TLocationPtr location,
     const TChunkId& chunkId,
     bool enableMultiplexing)
@@ -929,7 +958,7 @@ IChangelogPtr TJournalDispatcher::OpenChangelog(
     return Impl_->OpenChangelog(location, chunkId, enableMultiplexing);
 }
 
-IChangelogPtr TJournalDispatcher::CreateChangelog(
+TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::CreateChangelog(
     IChunkPtr chunk,
     bool enableMultiplexing)
 {

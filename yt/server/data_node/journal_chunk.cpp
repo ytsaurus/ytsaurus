@@ -8,6 +8,7 @@
 #include <core/misc/fs.h>
 
 #include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/profiling/scoped_timer.h>
 
@@ -22,6 +23,7 @@
 namespace NYT {
 namespace NDataNode {
 
+using namespace NConcurrency;
 using namespace NHydra;
 using namespace NCellNode;
 using namespace NChunkClient;
@@ -122,7 +124,9 @@ void TJournalChunk::DoReadBlocks(
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
 
     try {
-        auto changelog = dispatcher->OpenChangelog(Location_, Id_, false);
+        auto changelogOrError = WaitFor(dispatcher->OpenChangelog(Location_, Id_, false));
+        THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
+        auto changelog = changelogOrError.Value();
     
         LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
             Id_,
@@ -142,7 +146,8 @@ void TJournalChunk::DoReadBlocks(
             auto error = TError(
                 NChunkClient::EErrorCode::IOError,
                 "Error reading journal chunk %v",
-                Id_) << ex;
+                Id_)
+                << ex;
             Location_->Disable(error);
             THROW_ERROR error;
         }

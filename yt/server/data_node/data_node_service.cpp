@@ -150,9 +150,10 @@ private:
         ValidateNoChunk(chunkId);
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        sessionManager->StartSession(chunkId, options);
-
-        context->Reply();
+        auto session = sessionManager->StartSession(chunkId, options);
+        session->Start().Subscribe(BIND([=] (TError error) {
+            context->Reply(error);
+        }));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FinishChunk)

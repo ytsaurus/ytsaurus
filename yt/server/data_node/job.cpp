@@ -593,7 +593,11 @@ private:
 
         auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
         auto location = Chunk_->GetLocation();
-        auto changelog = journalDispatcher->OpenChangelog(location, ChunkId_, false);
+
+        auto changelogOrError = WaitFor(journalDispatcher->OpenChangelog(location, ChunkId_, false));
+        THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
+        auto changelog = changelogOrError.Value();
+
         if (changelog->IsSealed()) {
             LOG_INFO("Chunk %v is already sealed",
                 ChunkId_);

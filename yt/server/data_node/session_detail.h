@@ -25,7 +25,8 @@ public:
         NCellNode::TBootstrap* bootstrap,
         const TChunkId& chunkId,
         const TSessionOptions& options,
-        TLocationPtr location);
+        TLocationPtr location,
+        TLease lease);
 
     ~TSessionBase();
 
@@ -33,7 +34,7 @@ public:
     virtual EWriteSessionType GetType() const override;
     TLocationPtr GetLocation() const override;
 
-    virtual void Start(TLease lease) override;
+    virtual TAsyncError Start() override;
 
     virtual void Ping() override;
 
@@ -63,17 +64,17 @@ protected:
     TChunkId ChunkId_;
     TSessionOptions Options_;
     TLocationPtr Location_;
+    TLease Lease_;
 
     IInvokerPtr WriteInvoker_;
 
     bool Active_ = false;
-    TLease Lease_;
 
     NLog::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
 
-    virtual void DoStart() = 0;
+    virtual TAsyncError DoStart() = 0;
     virtual void DoCancel() = 0;
     virtual TFuture<TErrorOr<IChunkPtr>> DoFinish(
         const NChunkClient::NProto::TChunkMeta& chunkMeta,

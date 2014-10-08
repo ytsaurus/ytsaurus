@@ -41,8 +41,13 @@ struct ISession
     //! Returns the chunk info.
     virtual NChunkClient::NProto::TChunkInfo GetChunkInfo() const = 0;
 
-    //! Initializes the session instance.
-    virtual void Start(TLease lease) = 0;
+    //! Starts the session.
+    /*!
+     *  Returns the flag indicating that the session is persistenly started.
+     *  For blob chunks this happens immediately (and the actualy opening happens in backgound).
+     *  For journal chunks this happens when append record is flushed into the multiplexed changelog.
+     */
+    virtual TAsyncError Start() = 0;
 
     //! Cancels the session.
     virtual void Cancel(const TError& error) = 0;

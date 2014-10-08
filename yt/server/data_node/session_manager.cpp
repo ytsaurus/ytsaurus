@@ -110,6 +110,11 @@ ISessionPtr TSessionManager::CreateSession(
 
     auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
 
+    auto lease = TLeaseManager::CreateLease(
+        Config_->SessionTimeout,
+        BIND(&TSessionManager::OnSessionLeaseExpired, MakeStrong(this), chunkId)
+            .Via(Bootstrap_->GetControlInvoker()));
+
     ISessionPtr session;
     switch (chunkType) {
         case EObjectType::Chunk:
@@ -119,7 +124,8 @@ ISessionPtr TSessionManager::CreateSession(
                 Bootstrap_,
                 chunkId,
                 options,
-                location);
+                location,
+                lease);
             break;
 
         case EObjectType::JournalChunk:
@@ -128,7 +134,8 @@ ISessionPtr TSessionManager::CreateSession(
                 Bootstrap_,
                 chunkId,
                 options,
-                location);
+                location,
+                lease);
             break;
     
         default:
@@ -136,24 +143,19 @@ ISessionPtr TSessionManager::CreateSession(
                 chunkType);
     }
 
-    auto lease = TLeaseManager::CreateLease(
-        Config_->SessionTimeout,
-        BIND(&TSessionManager::OnSessionLeaseExpired, MakeStrong(this), session)
-            .Via(Bootstrap_->GetControlInvoker()));
-    session->Start(lease);
-
     return session;
 }
 
-void TSessionManager::OnSessionLeaseExpired(ISessionPtr session)
+void TSessionManager::OnSessionLeaseExpired(const TChunkId& chunkId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (SessionMap_.find(session->GetChunkId()) == SessionMap_.end())
+    auto session = FindSession(chunkId);
+    if (!session)
         return;
 
     LOG_INFO("Session lease expired (ChunkId: %v)",
-        session->GetChunkId());
+        chunkId);
 
     session->Cancel(TError("Session lease expired"));
 }

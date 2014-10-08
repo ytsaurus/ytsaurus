@@ -41,21 +41,25 @@ TBlobSession::TBlobSession(
     TBootstrap* bootstrap,
     const TChunkId& chunkId,
     const TSessionOptions& options,
-    TLocationPtr location)
+    TLocationPtr location,
+    TLease lease)
     : TSessionBase(
         config,
         bootstrap,
         chunkId,
         options,
-        location)
+        location,
+        lease)
 { }
 
-void TBlobSession::DoStart()
+TAsyncError TBlobSession::DoStart()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    WriteInvoker_->Invoke(
-        BIND(&TBlobSession::DoOpenWriter, MakeStrong(this)));
+    WriteInvoker_->Invoke(BIND(&TBlobSession::DoOpenWriter, MakeStrong(this)));
+
+    // No need to wait for the writer to get opened.
+    return OKFuture;
 }
 
 TFuture<TErrorOr<IChunkPtr>> TBlobSession::DoFinish(

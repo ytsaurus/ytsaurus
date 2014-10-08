@@ -23,13 +23,15 @@ TJournalSession::TJournalSession(
     NCellNode::TBootstrap* bootstrap,
     const TChunkId& chunkId,
     const TSessionOptions& options,
-    TLocationPtr location)
+    TLocationPtr location,
+    TLease lease)
     : TSessionBase(
         config,
         bootstrap,
         chunkId,
         options,
-        location)
+        location,
+        lease)
     , LastAppendResult_(OKFuture)
 { }
 
@@ -41,21 +43,27 @@ TChunkInfo TJournalSession::GetChunkInfo() const
     return info;
 }
 
-void TJournalSession::DoStart()
+TAsyncError TJournalSession::DoStart()
 {
     Chunk_ = New<TJournalChunk>(
         Bootstrap_,
         Location_,
         TChunkDescriptor(ChunkId_));
 
-    auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    auto changelog = dispatcher->CreateChangelog(Chunk_, Options_.OptimizeForLatency);
-
-    Chunk_->AttachChangelog(changelog);
-    Chunk_->SetActive(true);
-
     auto chunkStore = Bootstrap_->GetChunkStore();
     chunkStore->RegisterNewChunk(Chunk_);
+
+    auto dispatcher = Bootstrap_->GetJournalDispatcher();
+    auto asyncChangelog = dispatcher->CreateChangelog(Chunk_, Options_.OptimizeForLatency);
+
+    auto this_ = MakeStrong(this);
+    return asyncChangelog.Apply(BIND([this, this_] (TErrorOr<IChangelogPtr> result) -> TError {
+        if (result.IsOK()) {
+            Chunk_->AttachChangelog(result.Value());
+            Chunk_->SetActive(true);
+        }
+        return TError(result);
+    }).AsyncVia(Bootstrap_->GetControlInvoker()));
 }
 
 void TJournalSession::DoCancel()

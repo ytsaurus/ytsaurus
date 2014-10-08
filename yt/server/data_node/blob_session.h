@@ -28,7 +28,8 @@ public:
         NCellNode::TBootstrap* bootstrap,
         const TChunkId& chunkId,
         const TSessionOptions& options,
-        TLocationPtr location);
+        TLocationPtr location,
+        TLease lease);
 
     NChunkClient::NProto::TChunkInfo GetChunkInfo() const override;
 
@@ -58,7 +59,7 @@ private:
     int BlockCount_ = 0;
 
 
-    virtual void DoStart() override;
+    virtual TAsyncError DoStart() override;
     void DoOpenWriter();
    
     virtual TAsyncError DoPutBlocks(

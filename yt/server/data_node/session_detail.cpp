@@ -26,12 +26,14 @@ TSessionBase::TSessionBase(
     TBootstrap* bootstrap,
     const TChunkId& chunkId,
     const TSessionOptions& options,
-    TLocationPtr location)
+    TLocationPtr location,
+    TLease lease)
     : Config_(config)
     , Bootstrap_(bootstrap)
     , ChunkId_(chunkId)
     , Options_(options)
     , Location_(location)
+    , Lease_(lease)
     , WriteInvoker_(CreateSerializedInvoker(Location_->GetWritePoolInvoker()))
     , Logger(DataNodeLogger)
     , Profiler(location->Profiler())
@@ -68,18 +70,16 @@ TLocationPtr TSessionBase::GetLocation() const
     return Location_;
 }
 
-void TSessionBase::Start(TLease lease)
+TAsyncError TSessionBase::Start()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     LOG_DEBUG("Session started");
 
-    Lease_ = lease;
-
     YCHECK(!Active_);
     Active_ = true;
 
-    DoStart();
+    return DoStart();
 }
 
 void TSessionBase::Ping()

@@ -28,29 +28,23 @@ public:
     //! Returns |true| if new journal chunks are accepted.
     bool AcceptsChunks() const;
 
-    //! Returns a (possibly cached) changelog corresponding to a given journal chunk.
-    /*!
-     *  This call is thread-safe but may block if the changelog is not cached.
-     *  This method throws on failure.
-     */
-    NHydra::IChangelogPtr OpenChangelog(
+    //! Asynchronously opens (or returns a cached) changelog corresponding
+    //! to a given journal chunk.
+    TFuture<TErrorOr<NHydra::IChangelogPtr>> OpenChangelog(
         TLocationPtr location,
         const TChunkId& chunkId,
         bool enableMultiplexing);
 
-    //! Creates a new changelog corresponding to a given journal chunk.
-    /*!
-     *  This call is thread-safe and cannot block. The actual creation happens in background.
-     *  This method throws on failure.
-     */
-    NHydra::IChangelogPtr CreateChangelog(
+    //! Asynchronously creates a new changelog corresponding to a given journal chunk.
+    TFuture<TErrorOr<NHydra::IChangelogPtr>> CreateChangelog(
         IChunkPtr chunk,
         bool enableMultiplexing);
 
     //! Asynchronously removes files of a given journal chunk.
     TAsyncError RemoveChangelog(IChunkPtr chunk);
 
-    //! Closes and evicts the changelog corresponding to a given journal chunk.
+    //! Synchronously closes and evicts the changelog corresponding
+    //! to a given journal chunk.
     void CloseChangelog(IChunkPtr chunk);
 
 private:

@@ -66,7 +66,7 @@ private:
 
     ISessionPtr CreateSession(const TChunkId& chunkId, const TSessionOptions& options);
 
-    void OnSessionLeaseExpired(ISessionPtr session);
+    void OnSessionLeaseExpired(const TChunkId& chunkId);
     void OnSessionFinished(ISession* session, const TError& error);
 
     void RegisterSession(ISessionPtr session);
