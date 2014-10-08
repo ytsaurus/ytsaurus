@@ -368,8 +368,8 @@ private:
                     TryInsert(cgFragment);
                 }
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Failed to compile a fragment");
-                throw;
+                THROW_ERROR_EXCEPTION("Failed to compile a fragment")
+                    << ex;
             }
         } else {
             LOG_DEBUG("Codegen cache hit");
