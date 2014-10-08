@@ -140,7 +140,7 @@ public:
         RegisterParameter("max_batch_row_count", MaxBatchRowCount)
             .Default(100000);
 
-        RegisterParameter("max_flush_row_count", MaxBatchRowCount)
+        RegisterParameter("max_flush_row_count", MaxFlushRowCount)
             .Default(100000);
         RegisterParameter("max_flush_data_size", MaxFlushDataSize)
             .Default((i64) 100 * 1024 * 1024);
