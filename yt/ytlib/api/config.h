@@ -117,13 +117,19 @@ public:
     TDuration MaxBatchDelay;
     i64 MaxBatchDataSize;
     int MaxBatchRowCount;
+
+    int MaxFlushRowCount;
+    i64 MaxFlushDataSize;
+
     bool PreferLocalHost;
+
     TDuration NodeRpcTimeout;
     TDuration NodePingPeriod;
+    TDuration NodeBanTimeout;
+
     int MaxChunkOpenAttempts;
     int MaxChunkRowCount;
     i64 MaxChunkDataSize;
-    TDuration NodeBanTimeout;
 
     TJournalWriterConfig()
     {
@@ -133,12 +139,22 @@ public:
             .Default((i64) 16 * 1024 * 1024);
         RegisterParameter("max_batch_row_count", MaxBatchRowCount)
             .Default(100000);
+
+        RegisterParameter("max_flush_row_count", MaxBatchRowCount)
+            .Default(100000);
+        RegisterParameter("max_flush_data_size", MaxFlushDataSize)
+            .Default((i64) 100 * 1024 * 1024);
+
         RegisterParameter("prefer_local_host", PreferLocalHost)
             .Default(true);
+
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(5));
         RegisterParameter("node_ping_period", NodePingPeriod)
             .Default(TDuration::Seconds(5));
+        RegisterParameter("node_ban_timeout", NodeBanTimeout)
+            .Default(TDuration::Seconds(60));
+
         RegisterParameter("max_chunk_open_attempts", MaxChunkOpenAttempts)
             .GreaterThan(0)
             .Default(5);
@@ -148,8 +164,6 @@ public:
         RegisterParameter("max_chunk_data_size", MaxChunkDataSize)
             .GreaterThan(0)
             .Default((i64) 256 * 1024 * 1024);
-        RegisterParameter("node_ban_timeout", NodeBanTimeout)
-            .Default(TDuration::Seconds(60));
     }
 };
 

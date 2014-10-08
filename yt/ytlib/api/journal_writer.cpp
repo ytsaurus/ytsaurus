@@ -189,7 +189,7 @@ private:
         struct TBatch
             : public TIntrinsicRefCounted
         {
-            int FirstRowIndex = -1;
+            i64 FirstRowIndex = -1;
             i64 DataSize = 0;
             std::vector<TSharedRef> Rows;
             TAsyncErrorPromise FlushedPromise = NewPromise<TError>();
@@ -226,9 +226,11 @@ private:
             TDataNodeServiceProxy HeavyProxy;
             TPeriodicExecutorPtr PingExecutor;
 
-            bool FlushInProgress = false;
-            int FirstBlockIndex = 0;
+            i64 FirstPendingBlockIndex = 0;
+            i64 FirstPendingRowIndex = 0;
+
             std::queue<TBatchPtr> PendingBatches;
+            std::vector<TBatchPtr> InFlightBatches;
 
             explicit TNode(const TNodeDescriptor& descriptor)
                 : Descriptor(descriptor)
@@ -834,42 +836,47 @@ private:
 
         void MaybeFlushBlocks(TNodePtr node)
         {
-            if (node->FlushInProgress || node->PendingBatches.empty())
+            if (!node->InFlightBatches.empty() || node->PendingBatches.empty())
                 return;
 
-            auto batch = node->PendingBatches.front();
-            node->PendingBatches.pop();
+            i64 flushRowCount = 0;
+            i64 flushDataSize = 0;
 
-            int firstBlockIndex = node->FirstBlockIndex;
-            int lastLastIndex = firstBlockIndex + batch->Rows.size() - 1;
+            auto req = node->HeavyProxy.PutBlocks();
+            ToProto(req->mutable_chunk_id(), CurrentSession_->ChunkId);
+            req->set_first_block_index(node->FirstPendingBlockIndex);
+            req->set_flush_blocks(true);
+
+            YASSERT(node->InFlightBatches.empty());
+            while (flushRowCount <= Config_->MaxFlushRowCount && flushDataSize <= Config_->MaxFlushDataSize) {
+                auto batch = node->PendingBatches.front();
+                node->PendingBatches.pop();
+
+                req->Attachments().insert(req->Attachments().end(), batch->Rows.begin(), batch->Rows.end());
+
+                flushRowCount += batch->Rows.size();
+                flushDataSize += batch->DataSize;
+
+                node->InFlightBatches.push_back(batch);
+            }
 
             LOG_DEBUG("Flushing journal replica (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v)",
                 node->Descriptor.GetDefaultAddress(),
                 CurrentSession_->ChunkId,
-                firstBlockIndex,
-                lastLastIndex,
-                batch->FirstRowIndex,
-                batch->FirstRowIndex + batch->Rows.size() - 1);
-
-            auto req = node->HeavyProxy.PutBlocks();
-            ToProto(req->mutable_chunk_id(), CurrentSession_->ChunkId);
-            req->set_first_block_index(node->FirstBlockIndex);
-            req->set_flush_blocks(true);
-            req->Attachments() = batch->Rows;
-
-            node->FlushInProgress = true;
+                node->FirstPendingBlockIndex,
+                node->FirstPendingBlockIndex + flushRowCount - 1,
+                node->FirstPendingRowIndex,
+                node->FirstPendingRowIndex + flushRowCount - 1);
 
             req->Invoke().Subscribe(
-                BIND(&TImpl::OnBlocksFlushed, MakeWeak(this), CurrentSession_, node, batch, firstBlockIndex, lastLastIndex)
+                BIND(&TImpl::OnBlocksFlushed, MakeWeak(this), CurrentSession_, node, flushRowCount)
                     .Via(GetCurrentInvoker()));
         }
 
         void OnBlocksFlushed(
             TChunkSessionPtr session,
             TNodePtr node,
-            TBatchPtr batch,
-            int firstBlockIndex,
-            int lastBlockIndex,
+            i64 flushRowCount,
             TDataNodeServiceProxy::TRspPutBlocksPtr rsp)
         {
             if (session != CurrentSession_)
@@ -880,19 +887,21 @@ private:
                 return;
             }
 
-            node->FirstBlockIndex = lastBlockIndex + 1;
-            node->FlushInProgress = false;
-
-            ++batch->FlushedReplicas;
-
-            LOG_DEBUG("Journal replica flushed (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v, FlushCounter: %v)",
+            LOG_DEBUG("Journal replica flushed (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v)",
                 node->Descriptor.GetDefaultAddress(),
                 session->ChunkId,
-                firstBlockIndex,
-                lastBlockIndex,
-                batch->FirstRowIndex,
-                batch->FirstRowIndex + batch->Rows.size() - 1,
-                batch->FlushedReplicas);
+                node->FirstPendingBlockIndex,
+                node->FirstPendingBlockIndex + flushRowCount - 1,
+                node->FirstPendingRowIndex,
+                node->FirstPendingRowIndex + flushRowCount - 1);
+
+            for (const auto& batch : node->InFlightBatches) {
+                ++batch->FlushedReplicas;
+            }
+
+            node->FirstPendingBlockIndex += flushRowCount;
+            node->FirstPendingRowIndex += flushRowCount;
+            node->InFlightBatches.clear();
 
             while (!PendingBatches_.empty()) {
                 auto front = PendingBatches_.front();
