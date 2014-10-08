@@ -383,7 +383,7 @@ protected:
                     dstKey->Length = srcKey->String->Length;
                     dstKey->Data.String = srcKey->String->Data;
                 } else {
-                    memcpy(&dstKey->Data, srcKey, sizeof(srcKey));
+                    ::memcpy(&dstKey->Data, srcKey, sizeof(TDynamicValueData));
                 }
             }
         }
@@ -1047,7 +1047,7 @@ void TDynamicMemoryStore::SetKeys(TDynamicRow dst, TUnversionedRow src)
             if (IsStringLikeType(columnIt->Type)) {
                 *dstValue = CaptureStringValue(srcValue);
             } else {
-                *reinterpret_cast<TUnversionedValueData*>(dstValue) = srcValue.Data;
+                ::memcpy(dstValue, &srcValue.Data, sizeof(TDynamicValueData));
             }
         }
     }
@@ -1070,7 +1070,7 @@ void TDynamicMemoryStore::CaptureValueData(TUnversionedValue* dst, const TUnvers
 {
     if (IsStringLikeType(EValueType(src.Type))) {
         dst->Data.String = RowBuffer_.GetUnalignedPool()->AllocateUnaligned(src.Length);
-        memcpy(const_cast<char*>(dst->Data.String), src.Data.String, src.Length);
+        ::memcpy(const_cast<char*>(dst->Data.String), src.Data.String, src.Length);
     }
 }
 
@@ -1357,7 +1357,7 @@ TOwningKey TDynamicMemoryStore::RowToKey(TDynamicRow row)
                 dstKey.Length = srcKey->String->Length;
                 dstKey.Data.String = srcKey->String->Data;
             } else {
-                *reinterpret_cast<TDynamicValueData*>(&dstKey.Data) = *srcKey;
+                ::memcpy(&dstKey.Data, srcKey, sizeof(TDynamicValueData));
             }
         }
         builder.AddValue(dstKey);
