@@ -848,7 +848,10 @@ private:
             req->set_flush_blocks(true);
 
             YASSERT(node->InFlightBatches.empty());
-            while (flushRowCount <= Config_->MaxFlushRowCount && flushDataSize <= Config_->MaxFlushDataSize) {
+            while (flushRowCount <= Config_->MaxFlushRowCount &&
+                   flushDataSize <= Config_->MaxFlushDataSize &&
+                   !node->PendingBatches.empty())
+            {
                 auto batch = node->PendingBatches.front();
                 node->PendingBatches.pop();
 
