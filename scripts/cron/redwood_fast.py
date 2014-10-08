@@ -53,12 +53,10 @@ def main():
     def process(source, destination, days):
         process_logs(tables_to_import, tables_to_remove, args.path, source, destination, days)
 
-    process("fast_logs/{}", None, args.user_sessions_period)
+    process("fast_logs/user_sessions/{}", None, args.user_sessions_period)
 
-    print "\n".join(map(str, tables_to_import))
-    print "\n".join(map(str, tables_to_remove))
-    #yt.set(args.import_queue, list(tables_to_import))
-    #yt.set(args.remove_queue, list(tables_to_remove))
+    yt.set(args.import_queue, list(tables_to_import))
+    yt.set(args.remove_queue, list(tables_to_remove))
 
 if __name__ == "__main__":
     main()
