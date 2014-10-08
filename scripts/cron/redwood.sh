@@ -8,6 +8,9 @@ fi
 if [ -z "$USER_SESSIONS_FRAUDS_PERIOD" ]; then
     USER_SESSIONS_FRAUDS_PERIOD="$USER_SESSIONS_PERIOD"
 fi
+if [ -z "$FAST" ]; then
+    FAST=0
+fi
 set -u
 
 IMPORT_PATH="//userdata"
@@ -23,6 +26,13 @@ LOCK_PATH="//sys/cron/redwood_lock"
     --link-queue $LINK_QUEUE \
     --user-sessions-period $USER_SESSIONS_PERIOD \
     --user-sessions-frauds-period $USER_SESSIONS_FRAUDS_PERIOD
+
+if [ "$FAST" != 0 ]; then
+    /opt/cron/redwood_fast.py \
+        --path $IMPORT_PATH \
+        --import-queue $IMPORT_QUEUE \
+        --remove-queue $REMOVE_QUEUE
+fi
 
 /opt/cron/tools/remove.py $REMOVE_QUEUE
 
