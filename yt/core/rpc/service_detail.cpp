@@ -40,10 +40,6 @@ TServiceBase::TMethodDescriptor::TMethodDescriptor(
     : Method(method)
     , LiteHandler(std::move(liteHandler))
     , HeavyHandler(std::move(heavyHandler))
-    , OneWay(false)
-    , MaxQueueSize(100000)
-    , EnableReorder(false)
-    , System(false)
 { }
 
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
@@ -57,22 +53,7 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     , RemoteWaitTimeCounter("/request_time/remote_wait", tagIds)
     , LocalWaitTimeCounter("/request_time/local_wait", tagIds)
     , TotalTimeCounter("/request_time/total", tagIds)
-{ }
-
-TServiceBase::TActiveRequest::TActiveRequest(
-    const TRequestId& id,
-    IBusPtr replyBus,
-    TRuntimeMethodInfoPtr runtimeInfo,
-    const NTracing::TTraceContext& traceContext)
-    : Id(id)
-    , ReplyBus(std::move(replyBus))
-    , RuntimeInfo(std::move(runtimeInfo))
-    , RunningSync(false)
-    , Completed(false)
-    , ArrivalTime(GetCpuInstant())
-    , SyncStartTime(-1)
-    , SyncStopTime(-1)
-    , TraceContext(traceContext)
+    , RunningRequestSemaphore(0)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,18 +64,23 @@ class TServiceBase::TServiceContext
 public:
     TServiceContext(
         TServiceBasePtr service,
-        TActiveRequestPtr activeRequest,
+        const TRequestId& requestId,
+        NBus::IBusPtr replyBus,
+        TRuntimeMethodInfoPtr runtimeInfo,
+        const NTracing::TTraceContext& traceContext,
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray requestMessage,
-        IBusPtr replyBus,
         const NLog::TLogger& logger)
         : TServiceContextBase(
             std::move(header),
             std::move(requestMessage),
             logger)
         , Service_(std::move(service))
-        , ActiveRequest_(std::move(activeRequest))
+        , RequestId_(requestId)
         , ReplyBus_(std::move(replyBus))
+        , RuntimeInfo_(std::move(runtimeInfo))
+        , TraceContext_(traceContext)
+        , ArrivalTime_(GetCpuInstant())
     {
         YASSERT(RequestMessage_);
         YASSERT(ReplyBus_);
@@ -108,15 +94,127 @@ public:
         }
     }
 
+    const TRuntimeMethodInfoPtr& GetRuntimeInfo() const
+    {
+        return RuntimeInfo_;
+    }
+
+    void Run(TLiteHandler handler)
+    {
+        if (!handler)
+            return;
+
+        auto this_ = MakeStrong(this);
+        auto wrappedHandler = BIND([this, this_, handler] () {
+            const auto& descriptor = RuntimeInfo_->Descriptor;
+
+            // No need for a lock here.
+            RunningSync_ = true;
+
+            if (Profiler.GetEnabled()) {
+                SyncStartTime_ = GetCpuInstant();
+                auto value = CpuDurationToValue(SyncStartTime_ - ArrivalTime_);
+                Profiler.Aggregate(RuntimeInfo_->LocalWaitTimeCounter, value);
+            }
+
+            try {
+                NTracing::TTraceContextGuard guard(TraceContext_);
+                if (!descriptor.System) {
+                    Service_->BeforeInvoke();
+                }
+                handler.Run(this, descriptor.Options);
+            } catch (const std::exception& ex) {
+                if (!descriptor.OneWay) {
+                    Reply(ex);
+                }
+            }
+
+            {
+                TGuard<TSpinLock> guard(SpinLock_);
+
+                YASSERT(RunningSync_);
+                RunningSync_ = false;
+
+                if (Profiler.GetEnabled()) {
+                    if (!Completed_) {
+                        SyncStopTime_ = GetCpuInstant();
+                        auto value = CpuDurationToValue(SyncStopTime_ - SyncStartTime_);
+                        Profiler.Aggregate(RuntimeInfo_->SyncTimeCounter, value);
+                    }
+
+                    if (descriptor.OneWay) {
+                        auto value = CpuDurationToValue(SyncStopTime_ - ArrivalTime_);
+                        Profiler.Aggregate(RuntimeInfo_->TotalTimeCounter, value);
+                    }
+                }
+            }
+        });
+
+        const auto& descriptor = RuntimeInfo_->Descriptor;
+        auto invoker = descriptor.Invoker ? descriptor.Invoker : Service_->DefaultInvoker_;
+        if (descriptor.EnableReorder) {
+            invoker->Invoke(std::move(wrappedHandler), GetPriority());
+        } else {
+            invoker->Invoke(std::move(wrappedHandler));
+        }
+    }
+
 private:
     TServiceBasePtr Service_;
-    TActiveRequestPtr ActiveRequest_;
+    TRequestId RequestId_;
     IBusPtr ReplyBus_;
+    TRuntimeMethodInfoPtr RuntimeInfo_;
+    NTracing::TTraceContext TraceContext_;
+
+    TSpinLock SpinLock_;
+    bool RunningSync_ = false;
+    bool Completed_ = false;
+    NProfiling::TCpuInstant ArrivalTime_;
+    NProfiling::TCpuInstant SyncStartTime_ = -1;
+    NProfiling::TCpuInstant SyncStopTime_ = -1;
 
 
     virtual void DoReply() override
     {
-        Service_->OnResponse(ActiveRequest_, GetResponseMessage());
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        TRACE_ANNOTATION(
+            TraceContext_,
+            Service_->ServiceId_.ServiceName,
+            RuntimeInfo_->Descriptor.Method,
+            NTracing::ServerSendAnnotation);
+
+        YASSERT(!Completed_);
+        Completed_ = true;
+
+        ReplyBus_->Send(GetResponseMessage(), EDeliveryTrackingLevel::None);
+
+        // NB: This counter is also used to track queue size limit so
+        // it must be maintained even if the profiler is OFF.
+        Profiler.Increment(RuntimeInfo_->QueueSizeCounter, -1);
+
+        if (Profiler.GetEnabled()) {
+            auto now = GetCpuInstant();
+
+            if (RunningSync_) {
+                SyncStopTime_ = now;
+                auto value = CpuDurationToValue(SyncStopTime_ - SyncStartTime_);
+                Profiler.Aggregate(RuntimeInfo_->SyncTimeCounter, value);
+            }
+
+            {
+                auto value = CpuDurationToValue(now - SyncStopTime_);
+                Profiler.Aggregate(RuntimeInfo_->AsyncTimeCounter, value);
+            }
+
+            {
+                auto value = CpuDurationToValue(now - ArrivalTime_);
+                Profiler.Aggregate(RuntimeInfo_->TotalTimeCounter, value);
+            }
+        }
+
+        TServiceBase::ReleaseRequestSemaphore(RuntimeInfo_);
+        TServiceBase::ScheduleRequests(RuntimeInfo_);
     }
 
     virtual void LogRequest() override
@@ -315,11 +413,9 @@ void TServiceBase::OnRequest(
 
     NTracing::TTraceContextGuard traceContextGuard(traceContext);
 
-    auto activeRequest = New<TActiveRequest>(
-        requestId,
-        replyBus,
-        runtimeInfo,
-        traceContext);
+    if (!oneWay) {
+        Profiler.Increment(runtimeInfo->QueueSizeCounter, +1);
+    }
 
     TRACE_ANNOTATION(
         traceContext,
@@ -329,137 +425,63 @@ void TServiceBase::OnRequest(
 
     auto context = New<TServiceContext>(
         this,
-        activeRequest,
+        requestId,
+        std::move(replyBus),
+        runtimeInfo,
+        traceContext,
         std::move(header),
-        message,
-        replyBus,
+        std::move(message),
         Logger);
 
-    if (!oneWay) {
-        Profiler.Increment(runtimeInfo->QueueSizeCounter, +1);
+    if (oneWay) {
+        RunRequest(std::move(context));
+    } else {
+        runtimeInfo->RequestQueue.Enqueue(std::move(context));
+        ScheduleRequests(runtimeInfo);
     }
+}
 
+bool TServiceBase::TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo)
+{
+    if (++runtimeInfo->RunningRequestSemaphore <= runtimeInfo->Descriptor.MaxConcurrency) {
+        return true;
+    }
+    ReleaseRequestSemaphore(runtimeInfo);
+    return false;
+}
+
+void TServiceBase::ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo)
+{
+    --runtimeInfo->RunningRequestSemaphore;
+}
+
+void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
+{
+    while (true) {
+        if (!TryAcquireRequestSemaphore(runtimeInfo))
+            break;
+
+        TServiceContextPtr context;
+        if (!runtimeInfo->RequestQueue.Dequeue(&context)) {
+            ReleaseRequestSemaphore(runtimeInfo);
+            break;
+        }
+
+        RunRequest(std::move(context));
+    }
+}
+
+void TServiceBase::RunRequest(TServiceContextPtr context)
+{
+    const auto& runtimeInfo = context->GetRuntimeInfo();
     const auto& options = runtimeInfo->Descriptor.Options;
     if (options.HeavyRequest) {
         runtimeInfo->Descriptor.HeavyHandler
             .AsyncVia(TDispatcher::Get()->GetPoolInvoker())
             .Run(context, options)
-            .Subscribe(BIND(
-                &TServiceBase::OnInvocationPrepared,
-                MakeStrong(this),
-                std::move(activeRequest),
-                context));
+            .Subscribe(BIND(&TServiceContext::Run, std::move(context)));
     } else {
-        OnInvocationPrepared(
-            std::move(activeRequest),
-            std::move(context),
-            runtimeInfo->Descriptor.LiteHandler);
-    }
-}
-
-void TServiceBase::OnInvocationPrepared(
-    TActiveRequestPtr activeRequest,
-    IServiceContextPtr context,
-    TLiteHandler handler)
-{
-    if (!handler)
-        return;
-
-    auto wrappedHandler = BIND([=] () {
-        const auto& runtimeInfo = activeRequest->RuntimeInfo;
-
-        // No need for a lock here.
-        activeRequest->RunningSync = true;
-
-        if (Profiler.GetEnabled()) {
-            activeRequest->SyncStartTime = GetCpuInstant();
-            auto value = CpuDurationToValue(activeRequest->SyncStartTime - activeRequest->ArrivalTime);
-            Profiler.Aggregate(runtimeInfo->LocalWaitTimeCounter, value);
-        }
-
-        try {
-            NTracing::TTraceContextGuard guard(activeRequest->TraceContext);
-            if (!runtimeInfo->Descriptor.System) {
-                BeforeInvoke();
-            }
-            handler.Run(context, runtimeInfo->Descriptor.Options);
-        } catch (const std::exception& ex) {
-            context->Reply(ex);
-        }
-
-        {
-            TGuard<TSpinLock> guard(activeRequest->SpinLock);
-
-            YASSERT(activeRequest->RunningSync);
-            activeRequest->RunningSync = false;
-
-            if (Profiler.GetEnabled()) {
-                if (!activeRequest->Completed) {
-                    activeRequest->SyncStopTime = GetCpuInstant();
-                    auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->SyncStartTime);
-                    Profiler.Aggregate(runtimeInfo->SyncTimeCounter, value);
-                }
-
-                if (runtimeInfo->Descriptor.OneWay) {
-                    auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->ArrivalTime);
-                    Profiler.Aggregate(runtimeInfo->TotalTimeCounter, value);
-                }
-            }
-        }
-    });
-
-    const auto& runtimeInfo = activeRequest->RuntimeInfo;
-    auto invoker = runtimeInfo->Descriptor.Invoker;
-    if (!invoker) {
-        invoker = DefaultInvoker_;
-    }
-
-    if (runtimeInfo->Descriptor.EnableReorder) {
-        invoker->Invoke(std::move(wrappedHandler), context->GetPriority());
-    } else {
-        invoker->Invoke(std::move(wrappedHandler));
-    }
-}
-
-void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, TSharedRefArray message)
-{
-    TGuard<TSpinLock> guard(activeRequest->SpinLock);
-
-    const auto& runtimeInfo = activeRequest->RuntimeInfo;
-
-    TRACE_ANNOTATION(
-        activeRequest->TraceContext,
-        ServiceId_.ServiceName,
-        runtimeInfo->Descriptor.Method,
-        NTracing::ServerSendAnnotation);
-
-    YASSERT(!activeRequest->Completed);
-    activeRequest->Completed = true;
-
-    activeRequest->ReplyBus->Send(std::move(message), EDeliveryTrackingLevel::None);
-
-    // NB: This counter is also used to track queue size limit so
-    // it must be maintained even if the profiler is OFF.
-    Profiler.Increment(runtimeInfo->QueueSizeCounter, -1);
-
-    if (Profiler.GetEnabled()) {
-        auto now = GetCpuInstant();
-    
-        if (activeRequest->RunningSync) {
-            activeRequest->SyncStopTime = now;
-            auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->SyncStartTime);
-            Profiler.Aggregate(runtimeInfo->SyncTimeCounter, value);
-        }
-
-        {
-            auto value = CpuDurationToValue(now - activeRequest->SyncStopTime);
-            Profiler.Aggregate(runtimeInfo->AsyncTimeCounter, value);
-        }
-
-        {
-            auto value = CpuDurationToValue(now - activeRequest->ArrivalTime);
-            Profiler.Aggregate(runtimeInfo->TotalTimeCounter, value);
-        }
+        context->Run(runtimeInfo->Descriptor.LiteHandler);
     }
 }
 

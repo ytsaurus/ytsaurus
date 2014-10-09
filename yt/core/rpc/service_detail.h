@@ -23,6 +23,8 @@
 
 #include <core/tracing/trace_context.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NRpc {
 
@@ -92,7 +94,6 @@ struct THandlerInvocationOptions
 
     //! The codec to compress response body.
     NCompression::ECodec ResponseCodec = NCompression::ECodec::None;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -352,6 +353,9 @@ protected:
     typedef TCallback<void(const IServiceContextPtr&, const THandlerInvocationOptions&)> TLiteHandler;
     typedef TCallback<TLiteHandler(const IServiceContextPtr&, const THandlerInvocationOptions&)> THeavyHandler;
 
+    class TServiceContext;
+    typedef TIntrusivePtr<TServiceContext> TServiceContextPtr;
+
     //! Information needed to a register a service method.
     struct TMethodDescriptor
     {
@@ -360,7 +364,7 @@ protected:
             TLiteHandler liteHandler,
             THeavyHandler heavyHandler);
 
-        //! Invoker used to executing the handler.
+        //! Invoker used for executing the handler.
         //! If |nullptr| then the default one is used.
         IPrioritizedInvokerPtr Invoker;
 
@@ -374,20 +378,23 @@ protected:
         THeavyHandler HeavyHandler;
 
         //! Is the method one-way?
-        bool OneWay;
+        bool OneWay = false;
 
         //! Options to pass to the handler.
         THandlerInvocationOptions Options;
 
-        //! Maximum number of concurrent requests waiting in queue.
-        int MaxQueueSize;
+        //! Maximum number of requests in queue (both waiting and executing).
+        int MaxQueueSize = 10000;
+
+        //! Maximum number of requests executing concurrently.
+        int MaxConcurrency = 32;
 
         //! Should requests be reordered based on start time?
-        bool EnableReorder;
+        bool EnableReorder = false;
 
         //! System requests are completely transparent to derived classes;
         //! in particular, |BeforeInvoke| is not called.
-        bool System;
+        bool System = false;
 
 
         TMethodDescriptor& SetInvoker(IPrioritizedInvokerPtr value)
@@ -429,6 +436,12 @@ protected:
         TMethodDescriptor& SetMaxQueueSize(int value)
         {
             MaxQueueSize = value;
+            return *this;
+        }
+
+        TMethodDescriptor& SetMaxConcurrency(int value)
+        {
+            MaxConcurrency = value;
             return *this;
         }
 
@@ -476,53 +489,11 @@ protected:
         //! Time between the request arrival and the moment when it is fully processed.
         NProfiling::TAggregateCounter TotalTimeCounter;
 
+        std::atomic<int> RunningRequestSemaphore;
+        TLockFreeQueue<TServiceContextPtr> RequestQueue;
     };
 
     typedef TIntrusivePtr<TRuntimeMethodInfo> TRuntimeMethodInfoPtr;
-
-    //! A request that is currently being served.
-    struct TActiveRequest
-        : public TIntrinsicRefCounted
-    {
-        TActiveRequest(
-            const TRequestId& id,
-            NBus::IBusPtr replyBus,
-            TRuntimeMethodInfoPtr runtimeInfo,
-            const NTracing::TTraceContext& traceContext);
-
-        //! Request id.
-        TRequestId Id;
-
-        //! Bus for replying back to the client.
-        NBus::IBusPtr ReplyBus;
-
-        //! Method that is being served.
-        TRuntimeMethodInfoPtr RuntimeInfo;
-
-        //! Guards the rest.
-        TSpinLock SpinLock;
-
-        //! True if the service method is currently running synchronously.
-        bool RunningSync;
-
-        //! True if #OnEndRequest is already called.
-        bool Completed;
-
-        //! The moment when the request arrived to the server.
-        NProfiling::TCpuInstant ArrivalTime;
-
-        //! The moment when the request was dequeued and its synchronous
-        //! execution started.
-        NProfiling::TCpuInstant SyncStartTime;
-
-        //! The moment when the synchronous part of the execution finished.
-        NProfiling::TCpuInstant SyncStopTime;
-
-        //! Trace context
-        NTracing::TTraceContext TraceContext;
-    };
-
-    typedef TIntrusivePtr<TActiveRequest> TActiveRequestPtr;
 
     //! Initializes the instance.
     /*!
@@ -588,8 +559,6 @@ protected:
     NLog::TLogger Logger;
 
 private:
-    class TServiceContext;
-
     IPrioritizedInvokerPtr DefaultInvoker_;
     TServiceId ServiceId_;
     int ProtocolVersion_;
@@ -614,12 +583,10 @@ private:
         TSharedRefArray message,
         NBus::IBusPtr replyBus) override;
 
-    void OnInvocationPrepared(
-        TActiveRequestPtr activeRequest,
-        IServiceContextPtr context,
-        TLiteHandler handler);
-
-    void OnResponse(TActiveRequestPtr activeRequest, TSharedRefArray message);
+    static bool TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo);
+    static void ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo);
+    static void ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo);
+    static void RunRequest(TServiceContextPtr context);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Discover);
 
