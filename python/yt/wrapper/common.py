@@ -129,7 +129,7 @@ def die(message=None, return_code=1):
 def get_backoff(timeout, start_time):
     def get_total_seconds(timedelta):
         return timedelta.microseconds * 1e-6 + timedelta.seconds + timedelta.days * (24 * 3600)
-    return max(0.0, timeout / 1000.0, - get_total_seconds(datetime.now() - start_time))
+    return max(0.0, (timeout / 1000.0) - get_total_seconds(datetime.now() - start_time))
 
 def generate_uuid():
     def get_int():
