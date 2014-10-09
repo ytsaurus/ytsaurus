@@ -75,7 +75,7 @@ public:
     /*!
      *  \note Thread affinity: ClientThread
      */
-    TAsyncError AddTabletParticipant(const NElection::TCellGuid& cellGuid);
+    TAsyncError AddTabletParticipant(const NElection::TCellId& cellId);
 
 
     //! Raised when the transaction is aborted.
@@ -144,7 +144,7 @@ public:
      */
     TTransactionManager(
         TTransactionManagerConfigPtr config,
-        const NHive::TCellGuid& masterCellGuid,
+        const NHive::TCellId& masterCellId,
         NRpc::IChannelPtr masterChannel,
         ITimestampProviderPtr timestampProvider,
         NHive::TCellDirectoryPtr cellDirectory);

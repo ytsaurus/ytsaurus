@@ -51,7 +51,7 @@ TCommitter::TCommitter(
     VERIFY_INVOKER_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
     VERIFY_INVOKER_AFFINITY(EpochContext_->EpochUserAutomatonInvoker, AutomatonThread);
 
-    Logger.AddTag("CellGuid: %v", CellManager_->GetCellGuid());
+    Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 }
 
 TCommitter::~TCommitter()
@@ -112,7 +112,7 @@ public:
                 BIND(&TBatch::OnLocalFlush, MakeStrong(this)));
 
             for (auto followerId = 0; followerId < Owner_->CellManager_->GetPeerCount(); ++followerId) {
-                if (followerId == Owner_->CellManager_->GetSelfId())
+                if (followerId == Owner_->CellManager_->GetSelfPeerId())
                     continue;
 
                 auto channel = Owner_->CellManager_->GetPeerChannel(followerId);
@@ -195,7 +195,7 @@ private:
 
         Owner_->Profiler.TimingCheckpoint(
             Timer_,
-            Owner_->CellManager_->GetPeerTags(Owner_->CellManager_->GetSelfId()));
+            Owner_->CellManager_->GetPeerTags(Owner_->CellManager_->GetSelfPeerId()));
 
         ++FlushCount_;
         CheckQuorum();

@@ -17,8 +17,8 @@ class TClusterDirectory
 public:
     explicit TClusterDirectory(NApi::IConnectionPtr selfConnection);
 
-    NApi::IConnectionPtr GetConnection(NObjectClient::TCellId cellId) const;
-    NApi::IConnectionPtr GetConnectionOrThrow(NObjectClient::TCellId cellId) const;
+    NApi::IConnectionPtr GetConnection(NObjectClient::TCellTag cellTag) const;
+    NApi::IConnectionPtr GetConnectionOrThrow(NObjectClient::TCellTag cellTag) const;
 
     NApi::IConnectionPtr GetConnection(const Stroka& clusterName) const;
     NApi::IConnectionPtr GetConnectionOrThrow(const Stroka& clusterName) const;
@@ -35,8 +35,8 @@ public:
     void UpdateCluster(
         const Stroka& clusterName,
         NApi::TConnectionConfigPtr config,
-        NObjectClient::TCellId cellId,
-        TNullable<Stroka> defaultNetwork);
+        NObjectClient::TCellTag cellTag,
+        const TNullable<Stroka>& defaultNetwork);
 
     void UpdateSelf();
 
@@ -48,20 +48,20 @@ private:
     {
         NApi::IConnectionPtr Connection;
         NApi::TConnectionConfigPtr ConnectionConfig;
-        NObjectClient::TCellId CellId;
+        NObjectClient::TCellTag CellTag;
         Stroka Name;
         TNullable<Stroka> DefaultNetwork;
     };
 
     TSpinLock Lock_;
-    yhash_map<NObjectClient::TCellId, TCluster> CellIdMap_;
-    yhash_map<Stroka, TCluster> NameMap_;
+    yhash_map<NObjectClient::TCellTag, TCluster> CellTagToCluster_;
+    yhash_map<Stroka, TCluster> NameToCluster_;
 
 
     TCluster CreateCluster(
         const Stroka& name,
         NApi::TConnectionConfigPtr config,
-        NObjectClient::TCellId cellId,
+        NObjectClient::TCellTag cellTag,
         TNullable<Stroka> defaultNetwork) const;
     TCluster CreateSelfCluster() const;
 

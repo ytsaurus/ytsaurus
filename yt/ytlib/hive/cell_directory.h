@@ -31,17 +31,17 @@ public:
 
 
     //! Returns a leader channel for a given cell GUID (|nullptr| if none is known).
-    NRpc::IChannelPtr FindChannel(const TCellGuid& cellGuid);
+    NRpc::IChannelPtr FindChannel(const TCellId& cellId);
 
     //! Similar to #FindChannel but throws an exception if no channel is known.
-    NRpc::IChannelPtr GetChannelOrThrow(const TCellGuid& cellGuid);
+    NRpc::IChannelPtr GetChannelOrThrow(const TCellId& cellId);
 
 
     //! Returns the registered cell by its id (or |nullptr| if none is known).
-    NElection::TCellConfigPtr FindCellConfig(const TCellGuid& cellGuid);
+    NElection::TCellConfigPtr FindCellConfig(const TCellId& cellId);
 
     //! Returns the registered cell by its id (throws if none is known).
-    NElection::TCellConfigPtr GetCellConfigOrThrow(const TCellGuid& cellGuid);
+    NElection::TCellConfigPtr GetCellConfigOrThrow(const TCellId& cellId);
 
 
     struct TCellDescriptor
@@ -63,7 +63,7 @@ public:
     bool RegisterCell(NHydra::TPeerConnectionConfigPtr config, int version = 0);
 
     //! Unregisters the cell. Returns |true| if the cell was found.
-    bool UnregisterCell(const TCellGuid& cellGuid);
+    bool UnregisterCell(const TCellId& cellId);
 
     //! Drops all known cells.
     void Clear();

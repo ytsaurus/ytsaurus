@@ -40,7 +40,7 @@ TCellManager::TCellManager(
         }
     }
 
-    Logger.AddTag("CellGuid: %v", Config->CellGuid);
+    Logger.AddTag("CellId: %v", Config->CellId);
 
     LOG_INFO("Cell initialized (SelfId: %v, PeerAddresses: [%v])",
         SelfId,
@@ -64,19 +64,19 @@ void TCellManager::BuildTags()
     PeerQuorumTags.push_back(profilingManager->RegisterTag("address", "quorum"));
 }
 
-const TCellGuid& TCellManager::GetCellGuid() const
+const TCellId& TCellManager::GetCellId() const
 {
-    return Config->CellGuid;
+    return Config->CellId;
 }
 
-TPeerId TCellManager::GetSelfId() const
+TPeerId TCellManager::GetSelfPeerId() const
 {
     return SelfId;
 }
 
 const Stroka& TCellManager::GetSelfAddress() const
 {
-    return GetPeerAddress(GetSelfId());
+    return GetPeerAddress(GetSelfPeerId());
 }
 
 int TCellManager::GetQuorumCount() const
@@ -116,10 +116,10 @@ const NProfiling::TTagIdList& TCellManager::GetPeerQuorumTags() const
 
 void TCellManager::Reconfigure(TCellConfigPtr newConfig)
 {
-    if (Config->CellGuid != newConfig->CellGuid) {
+    if (Config->CellId != newConfig->CellId) {
         THROW_ERROR_EXCEPTION("Cannot change cell GUID from %v to %v",
-            Config->CellGuid,
-            newConfig->CellGuid);
+            Config->CellId,
+            newConfig->CellId);
     }
 
     auto addresses = Config->Addresses;
@@ -156,7 +156,7 @@ IChannelPtr TCellManager::CreatePeerChannel(TPeerId id)
 {
     return CreateRealmChannel(
         ChannelFactory->CreateChannel(GetPeerAddress(id)),
-        Config->CellGuid);
+        Config->CellId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

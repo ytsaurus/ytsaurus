@@ -44,8 +44,8 @@ public:
 
     ~TBootstrap();
 
-    const NElection::TCellGuid& GetCellGuid() const;
-    ui16 GetCellId() const;
+    const NElection::TCellId& GetCellId() const;
+    NObjectClient::TCellTag GetCellTag() const;
     TCellMasterConfigPtr GetConfig() const;
     NRpc::IServerPtr GetRpcServer() const;
     NElection::TCellManagerPtr GetCellManager() const;

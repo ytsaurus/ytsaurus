@@ -210,7 +210,7 @@ private:
 
             if (protoTabletInfo.has_cell_config()) {
                 auto config = ConvertTo<TCellConfigPtr>(TYsonString(protoTabletInfo.cell_config()));
-                tabletInfo->CellId = config->CellGuid;
+                tabletInfo->CellId = config->CellId;
                 CellDirectory_->RegisterCell(config, protoTabletInfo.cell_config_version());
             }
             

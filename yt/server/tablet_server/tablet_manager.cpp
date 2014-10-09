@@ -837,7 +837,7 @@ private:
             auto* protoInfo = response->add_tablet_slots_to_create();
 
             const auto& cellId = cell->GetId();
-            ToProto(protoInfo->mutable_cell_guid(), cell->GetId());
+            ToProto(protoInfo->mutable_cell_id(), cell->GetId());
             protoInfo->set_options(ConvertToYsonString(cell->GetOptions()).Data());
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v)",
@@ -852,7 +852,7 @@ private:
             auto* protoInfo = response->add_tablet_slots_configure();
 
             const auto& cellId = cell->GetId();
-            ToProto(protoInfo->mutable_cell_guid(), cell->GetId());
+            ToProto(protoInfo->mutable_cell_id(), cell->GetId());
             protoInfo->set_config_version(cell->GetConfigVersion());
             protoInfo->set_config(ConvertToYsonString(cell->GetConfig()).Data());
             protoInfo->set_peer_id(cell->GetPeerId(node));
@@ -868,7 +868,7 @@ private:
                 return;
 
             auto* protoInfo = response->add_tablet_slots_to_remove();
-            ToProto(protoInfo->mutable_cell_guid(), cellId);
+            ToProto(protoInfo->mutable_cell_id(), cellId);
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet slot removal requested (Address: %v, CellId: %v)",
                 node->GetAddress(),
@@ -901,7 +901,7 @@ private:
             if (state == EPeerState::None)
                 continue;
 
-            auto cellId = FromProto<TTabletCellId>(slotInfo.cell_guid());
+            auto cellId = FromProto<TTabletCellId>(slotInfo.cell_id());
             auto* cell = FindTabletCell(cellId);
             if (!IsObjectAlive(cell)) {
                 LOG_INFO_UNLESS(IsRecovery(), "Unknown tablet slot is running (Address: %v, CellId: %v)",
@@ -1000,7 +1000,7 @@ private:
                 return;
 
             auto* unregisterInfo = response->add_hive_cells_to_unregister();
-            ToProto(unregisterInfo->mutable_cell_guid(), cellId);
+            ToProto(unregisterInfo->mutable_cell_id(), cellId);
         };
 
         yhash_set<TTabletCell*> missingCells;
@@ -1009,8 +1009,8 @@ private:
         }
             
         for (const auto& cellInfo : request.hive_cells()) {
-            auto cellId = FromProto<TCellGuid>(cellInfo.cell_guid());
-            if (cellId == Bootstrap->GetCellGuid())
+            auto cellId = FromProto<TCellId>(cellInfo.cell_id());
+            if (cellId == Bootstrap->GetCellId())
                 continue;
 
             auto* cell = FindTabletCell(cellId);

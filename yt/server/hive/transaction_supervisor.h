@@ -31,7 +31,7 @@ public:
 
     TAsyncError CommitTransaction(
         const TTransactionId& transactionId,
-        const std::vector<NHydra::TCellGuid>& participantCellGuids = std::vector<NHydra::TCellGuid>());
+        const std::vector<NHydra::TCellId>& participantCellIds = std::vector<NHydra::TCellId>());
 
     TAsyncError AbortTransaction(
         const TTransactionId& transactionId,

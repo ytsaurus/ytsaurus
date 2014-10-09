@@ -112,7 +112,7 @@ using namespace NJournalServer;
 using namespace NSecurityServer;
 using namespace NTabletServer;
 
-using NElection::TCellGuid;
+using NElection::TCellId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,14 +131,14 @@ TBootstrap::TBootstrap(
 TBootstrap::~TBootstrap()
 { }
 
-const TCellGuid& TBootstrap::GetCellGuid() const
-{
-    return Config->Master->CellGuid;
-}
-
-ui16 TBootstrap::GetCellId() const
+const TCellId& TBootstrap::GetCellId() const
 {
     return Config->Master->CellId;
+}
+
+TCellTag TBootstrap::GetCellTag() const
+{
+    return Config->Master->CellTag;
 }
 
 TCellMasterConfigPtr TBootstrap::GetConfig() const
@@ -249,16 +249,16 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    LOG_INFO("Starting cell master (CellGuid: %v, CellId: %v)",
-        GetCellGuid(),
-        GetCellId());
+    LOG_INFO("Starting cell master (CellId: %v, CellTag: %v)",
+        GetCellId(),
+        GetCellTag());
 
-    if (GetCellGuid() == TCellGuid()) {
-        LOG_ERROR("No custom cell GUID is set, cluster can only be used for testing purposes");
+    if (GetCellId() == TCellId()) {
+        LOG_ERROR("No custom cell id is set, cluster can only be used for testing purposes");
     }
 
-    if (GetCellId() == 0) {
-        LOG_ERROR("No custom cell ID is set, cluster can only be used for testing purposes");
+    if (GetCellTag() == 0) {
+        LOG_ERROR("No custom cell tag is set, cluster can only be used for testing purposes");
     }
 
     HttpServer.reset(new NHttp::TServer(Config->MonitoringPort));
@@ -312,7 +312,7 @@ void TBootstrap::DoRun()
     HiveManager = New<THiveManager>(
         Config->HiveManager,
         CellDirectory,
-        GetCellGuid(),
+        GetCellId(),
         HydraFacade->GetAutomatonInvoker(),
         HydraFacade->GetHydraManager(),
         HydraFacade->GetAutomaton());
@@ -391,7 +391,7 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(timestampManager->GetRpcService()); // null realm
     RpcServer->RegisterService(HiveManager->GetRpcService()); // cell realm
     RpcServer->RegisterService(TransactionSupervisor->GetRpcService()); // cell realm
-    RpcServer->RegisterService(New<TLocalSnapshotService>(GetCellGuid(), fileSnapshotStore)); // cell realm
+    RpcServer->RegisterService(New<TLocalSnapshotService>(GetCellId(), fileSnapshotStore)); // cell realm
     RpcServer->RegisterService(New<TNodeTrackerService>(Config->NodeTracker, this)); // master hydra service
     RpcServer->RegisterService(CreateObjectService(this)); // master hydra service
     RpcServer->RegisterService(CreateJobTrackerService(this)); // master hydra service

@@ -143,8 +143,8 @@ private:
                 EObjectType::MapNode,
                 BuildYsonStringFluently()
                     .BeginMap()
+                        .Item("cell_tag").Value(Bootstrap_->GetCellTag())
                         .Item("cell_id").Value(Bootstrap_->GetCellId())
-                        .Item("cell_guid").Value(Bootstrap_->GetCellGuid())
                     .EndMap());
 
             CreateNode(

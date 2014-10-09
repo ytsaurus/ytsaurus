@@ -31,13 +31,13 @@ message TReqRegisterNode
 {
     required TNodeDescriptor node_descriptor = 1;
     required TNodeStatistics statistics = 2;
-    required NYT.NProto.TGuid cell_guid = 3;
+    required NYT.NProto.TGuid cell_id = 3;
 }
 
 message TRspRegisterNode
 {
     required int32 node_id = 1;
-    required NYT.NProto.TGuid cell_guid = 2;
+    required NYT.NProto.TGuid cell_id = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,14 +59,14 @@ message TRspFullHeartbeat
 message TTabletSlotInfo
 {
     required int32 peer_state = 1;
-    optional NYT.NProto.TGuid cell_guid = 2;
+    optional NYT.NProto.TGuid cell_id = 2;
     optional int32 peer_id = 3;
     optional int32 config_version = 4;
 }
 
 message THiveCellInfo
 {
-    required NYT.NProto.TGuid cell_guid = 1;
+    required NYT.NProto.TGuid cell_id = 1;
     required int32 config_version = 2;
 }
 
@@ -91,13 +91,13 @@ message TReqIncrementalHeartbeat
 
 message TCreateTabletSlotInfo
 {
-    required NYT.NProto.TGuid cell_guid = 1;
+    required NYT.NProto.TGuid cell_id = 1;
     required bytes options = 2; // NTabletClient::TTabletCellOptions
 }
 
 message TConfigureTabletSlotInfo
 {
-    required NYT.NProto.TGuid cell_guid = 1;
+    required NYT.NProto.TGuid cell_id = 1;
     required int32 config_version = 2;
     required bytes config = 3; // NTabletClient::TTabletCellConfig
     required int32 peer_id = 4;
@@ -105,12 +105,12 @@ message TConfigureTabletSlotInfo
 
 message TRemoveTabletSlotInfo
 {
-    required NYT.NProto.TGuid cell_guid = 1;
+    required NYT.NProto.TGuid cell_id = 1;
 }
 
 message TUnregisterHiveCellInfo
 {
-    required NYT.NProto.TGuid cell_guid = 1;
+    required NYT.NProto.TGuid cell_id = 1;
 }
 
 message TReconfigureHiveCellInfo

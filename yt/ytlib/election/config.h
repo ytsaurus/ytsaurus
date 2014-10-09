@@ -16,14 +16,14 @@ class TCellConfig
 {
 public:
     //! Cell id.
-    TCellGuid CellGuid;
+    TCellId CellId;
 
     //! Peer addresses.
     std::vector<Stroka> Addresses;
 
     TCellConfig()
     {
-        RegisterParameter("cell_guid", CellGuid)
+        RegisterParameter("cell_guid", CellId)
             .Default();
         RegisterParameter("addresses", Addresses)
             .Default();

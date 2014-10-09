@@ -16,7 +16,7 @@ extern NProfiling::TProfiler DataNodeProfiler;
 
 extern NRpc::IChannelFactoryPtr ChannelFactory;
 
-extern Stroka CellGuidFileName;
+extern Stroka CellIdFileName;
 
 ////////////////////////////////////////////////////////////////////////////////
 

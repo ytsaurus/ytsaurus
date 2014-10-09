@@ -38,7 +38,7 @@ static const int TypicalCellSize = 5;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-typedef NHydra::TCellGuid TTabletCellId;
+typedef NHydra::TCellId TTabletCellId;
 extern const TTabletCellId NullTabletCellId;
 
 typedef NObjectClient::TObjectId TTabletId;

@@ -901,7 +901,7 @@ private:
                 return nullptr;
             }
             auto clusterDirectory = Bootstrap->GetClusterDirectory();
-            auto connection = clusterDirectory->GetConnection(CellIdFromId(id));
+            auto connection = clusterDirectory->GetConnection(CellTagFromId(id));
             auto client = connection->CreateClient();
             auto transactionManager = client->GetTransactionManager();
             TTransactionAttachOptions options(id);
@@ -1051,41 +1051,41 @@ private:
             watchTransaction(operation->GetOutputTransaction());
         }
 
-        yhash_map<TCellId, TObjectServiceProxy::TReqExecuteBatchPtr> batchRequests;
+        yhash_map<TCellTag, TObjectServiceProxy::TReqExecuteBatchPtr> batchRequests;
 
         for (const auto& id : watchSet) {
-            auto cellId = CellIdFromId(id);
-            if (batchRequests.find(cellId) == batchRequests.end()) {
-                auto connection = ClusterDirectory->GetConnection(cellId);
+            auto cellTag = CellTagFromId(id);
+            if (batchRequests.find(cellTag) == batchRequests.end()) {
+                auto connection = ClusterDirectory->GetConnection(cellTag);
                 auto objectServiceProxy = TObjectServiceProxy(connection->GetMasterChannel());
-                batchRequests[cellId] = objectServiceProxy.ExecuteBatch();
+                batchRequests[cellTag] = objectServiceProxy.ExecuteBatch();
             }
 
             auto checkReq = TObjectYPathProxy::GetBasicAttributes(FromObjectId(id));
-            batchRequests[cellId]->AddRequest(checkReq, "check_tx_" + ToString(id));
+            batchRequests[cellTag]->AddRequest(checkReq, "check_tx_" + ToString(id));
         }
 
         LOG_INFO("Refreshing transactions");
         TransactionRefreshExecutor->ScheduleNext();
 
 
-        yhash_map<TCellId, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> batchResponses;
+        yhash_map<TCellTag, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> batchResponses;
 
         for (const auto& pair : batchRequests) {
-            const auto& cellId = pair.first;
+            auto cellTag = pair.first;
             const auto& request = pair.second;
             auto response = WaitFor(request->Invoke(), CancelableControlInvoker);
             if (!response->IsOK()) {
                 LOG_ERROR(*response, "Error refreshing transactions");
             }
-            batchResponses[cellId] = response;
+            batchResponses[cellTag] = response;
         }
 
         yhash_set<TTransactionId> deadTransactionIds;
 
         for (const auto& id : watchSet) {
-            auto cellId = CellIdFromId(id);
-            if (!batchResponses[cellId]->GetResponse("check_tx_" + ToString(id))->IsOK()) {
+            auto cellTag = CellTagFromId(id);
+            if (!batchResponses[cellTag]->GetResponse("check_tx_" + ToString(id))->IsOK()) {
                 deadTransactionIds.insert(id);
             }
         }
@@ -1736,11 +1736,11 @@ private:
                     const auto& clusterName = pair.first;
                     auto clusterAttributes = ConvertToAttributes(pair.second);
 
-                    auto cellId = clusterAttributes->Get<TCellId>("cell_id");
+                    auto cellTag = clusterAttributes->Get<TCellTag>("cell_tag");
                     auto defaultNetwork = clusterAttributes->Find<Stroka>("default_network");
                     auto connectionConfig = clusterAttributes->Get<NApi::TConnectionConfigPtr>("connection");
 
-                    ClusterDirectory->UpdateCluster(clusterName, connectionConfig, cellId, defaultNetwork);
+                    ClusterDirectory->UpdateCluster(clusterName, connectionConfig, cellTag, defaultNetwork);
                 }
                 LOG_DEBUG("Cell directory updated successfully");
             } catch (const std::exception& ex) {

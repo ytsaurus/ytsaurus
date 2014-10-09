@@ -107,7 +107,7 @@ private:
         auto this_ = MakeStrong(this);
 
         for (auto peerId = 0; peerId < Owner_->CellManager_->GetPeerCount(); ++peerId) {
-            if (peerId == Owner_->CellManager_->GetSelfId())
+            if (peerId == Owner_->CellManager_->GetSelfPeerId())
                 continue;
 
             auto channel = Owner_->CellManager_->GetPeerChannel(peerId);
@@ -166,7 +166,7 @@ private:
         LOG_INFO("Local snapshot built");
 
         const auto& params = paramsOrError.Value();
-        SnapshotChecksums_[Owner_->CellManager_->GetSelfId()] = params.Checksum;
+        SnapshotChecksums_[Owner_->CellManager_->GetSelfPeerId()] = params.Checksum;
     }
 
     void OnSnapshotsComplete()
@@ -210,7 +210,7 @@ private:
         auto this_ = MakeStrong(this);
 
         for (auto peerId = 0; peerId < Owner_->CellManager_->GetPeerCount(); ++peerId) {
-            if (peerId == Owner_->CellManager_->GetSelfId())
+            if (peerId == Owner_->CellManager_->GetSelfPeerId())
                 continue;
 
             auto channel = Owner_->CellManager_->GetPeerChannel(peerId);
@@ -349,7 +349,7 @@ TCheckpointer::TCheckpointer(
     VERIFY_INVOKER_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
     VERIFY_INVOKER_AFFINITY(EpochContext_->EpochUserAutomatonInvoker, AutomatonThread);
 
-    Logger.AddTag("CellGuid: %v", CellManager_->GetCellGuid());
+    Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 }
 
 TFuture<TError> TCheckpointer::RotateChangelog()

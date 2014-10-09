@@ -54,7 +54,7 @@ public:
     int GetUsedTableSlotCount() const;
 
     const std::vector<TTabletSlotPtr>& Slots() const;
-    TTabletSlotPtr FindSlot(const NHydra::TCellGuid& id);
+    TTabletSlotPtr FindSlot(const NHydra::TCellId& id);
     void CreateSlot(const NNodeTrackerClient::NProto::TCreateTabletSlotInfo& createInfo);
     void ConfigureSlot(TTabletSlotPtr slot, const NNodeTrackerClient::NProto::TConfigureTabletSlotInfo& configureInfo);
     void RemoveSlot(TTabletSlotPtr slot);

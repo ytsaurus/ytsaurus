@@ -31,10 +31,10 @@ TFollowerTracker::TFollowerTracker(
     YCHECK(EpochContext_);
     VERIFY_INVOKER_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
 
-    Logger.AddTag("CellGuid: %v", CellManager_->GetCellGuid());
+    Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 
     for (TPeerId id = 0; id < CellManager_->GetPeerCount(); ++id) {
-        if (id == CellManager_->GetSelfId()) {
+        if (id == CellManager_->GetSelfPeerId()) {
             PeerStates_.push_back(EPeerState::Leading);
         } else {
             PeerStates_.push_back(EPeerState::Stopped);
@@ -60,7 +60,7 @@ bool TFollowerTracker::IsFollowerActive(TPeerId peerId) const
 void TFollowerTracker::ResetFollower(TPeerId followerId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YCHECK(followerId != CellManager_->GetSelfId());
+    YCHECK(followerId != CellManager_->GetSelfPeerId());
 
     SetFollowerState(followerId, EPeerState::Stopped);
 }

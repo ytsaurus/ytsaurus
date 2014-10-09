@@ -23,8 +23,8 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NElection::TCellGuid;
-using NElection::NullCellGuid;
+using NElection::TCellId;
+using NElection::NullCellId;
 
 using NTabletClient::TTabletCellId;
 using NTabletClient::NullTabletCellId;

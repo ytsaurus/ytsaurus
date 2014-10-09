@@ -15,8 +15,8 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMailbox::TMailbox(const TCellGuid& cellGuid)
-    : CellGuid_(cellGuid)
+TMailbox::TMailbox(const TCellId& cellId)
+    : CellId_(cellId)
     , FirstOutcomingMessageId_(0)
     , LastIncomingMessageId_(-1)
     , InFlightMessageCount_(0)
@@ -27,7 +27,7 @@ void TMailbox::Save(TSaveContext& context) const
 {
     using NYT::Save;
 
-    Save(context, CellGuid_);
+    Save(context, CellId_);
     Save(context, FirstOutcomingMessageId_);
     Save(context, LastIncomingMessageId_);
     Save(context, OutcomingMessages_);
@@ -38,7 +38,7 @@ void TMailbox::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, CellGuid_);
+    Load(context, CellId_);
     Load(context, FirstOutcomingMessageId_);
     Load(context, LastIncomingMessageId_);
     Load(context, OutcomingMessages_);

@@ -19,11 +19,11 @@ class TPeerConnectionConfig
 {
 public:
     //! Id of the cell.
-    TCellGuid CellGuid;
+    TCellId CellId;
 
     TPeerConnectionConfig()
     {
-        RegisterParameter("cell_guid", CellGuid)
+        RegisterParameter("cell_guid", CellId)
             .Default();
 
         RegisterInitializer([&] () {

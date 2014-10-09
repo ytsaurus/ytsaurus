@@ -238,7 +238,7 @@ void TStoreManager::Initialize()
 {
     Logger.AddTag("TabletId: %v", Tablet_->GetId());
     if (Tablet_->GetSlot()) {
-        Logger.AddTag("CellId: %v", Tablet_->GetSlot()->GetCellGuid());
+        Logger.AddTag("CellId: %v", Tablet_->GetSlot()->GetCellId());
     }
 
     KeyColumnCount_ = Tablet_->GetKeyColumnCount();

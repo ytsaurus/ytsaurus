@@ -255,7 +255,7 @@ void TBootstrap::DoRun()
     JobProxyConfig->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
     // TODO(babenko): consider making this priority configurable
     JobProxyConfig->SupervisorConnection->Priority = 6;
-    JobProxyConfig->CellGuid = GetCellGuid();
+    JobProxyConfig->CellId = GetCellId();
 
     SlotManager = New<TSlotManager>(Config->ExecAgent->SlotManager, this);
 
@@ -326,7 +326,7 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(CreateMasterCacheService(
         Config->MasterCacheService,
         clusterConnection->GetMasterChannel(),
-        GetCellGuid()
+        GetCellId()
     ));
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
@@ -518,9 +518,9 @@ const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() cons
     return LocalDescriptor;
 }
 
-const TGuid& TBootstrap::GetCellGuid() const
+const TGuid& TBootstrap::GetCellId() const
 {
-    return Config->ClusterConnection->Master->CellGuid;
+    return Config->ClusterConnection->Master->CellId;
 }
 
 IThroughputThrottlerPtr TBootstrap::GetReplicationInThrottler() const

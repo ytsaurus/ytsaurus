@@ -28,39 +28,39 @@ public:
         , ChannelFactory_(channelFactory)
     { }
 
-    IChannelPtr FindChannel(const TCellGuid& cellGuid)
+    IChannelPtr FindChannel(const TCellId& cellId)
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        auto it = CellMap_.find(cellGuid);
+        auto it = CellMap_.find(cellId);
         if (it == CellMap_.end()) {
             return nullptr;
         }
         return it->second.Channel;
     }
 
-    IChannelPtr GetChannelOrThrow(const TCellGuid& cellGuid)
+    IChannelPtr GetChannelOrThrow(const TCellId& cellId)
     {
-        auto channel = FindChannel(cellGuid);
+        auto channel = FindChannel(cellId);
         if (!channel) {
             THROW_ERROR_EXCEPTION("Unknown cell %v",
-                cellGuid);
+                cellId);
         }
         return channel;
     }
 
-    TCellConfigPtr FindCellConfig(const TCellGuid& cellGuid)
+    TCellConfigPtr FindCellConfig(const TCellId& cellId)
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        auto it = CellMap_.find(cellGuid);
+        auto it = CellMap_.find(cellId);
         return it == CellMap_.end() ? nullptr : it->second.Descriptor.Config;
     }
 
-    TCellConfigPtr GetCellConfigOrThrow(const TCellGuid& cellGuid)
+    TCellConfigPtr GetCellConfigOrThrow(const TCellId& cellId)
     {
-        auto config = FindCellConfig(cellGuid);
+        auto config = FindCellConfig(cellId);
         if (!config) {
             THROW_ERROR_EXCEPTION("Unknown cell %v",
-                cellGuid);
+                cellId);
         }
         return config;
     }
@@ -80,10 +80,10 @@ public:
     {
         bool result = false;
         TGuard<TSpinLock> guard(SpinLock_);
-        auto it = CellMap_.find(config->CellGuid);
+        auto it = CellMap_.find(config->CellId);
         auto* entry = it == CellMap_.end() ? nullptr : &it->second;
         if (!entry ) {
-            auto it = CellMap_.insert(std::make_pair(config->CellGuid, TEntry())).first;
+            auto it = CellMap_.insert(std::make_pair(config->CellId, TEntry())).first;
             entry = &it->second;
             result = true;
         }
@@ -99,15 +99,15 @@ public:
     bool RegisterCell(TPeerConnectionConfigPtr config, int version)
     {
         auto cellConfig = New<TCellConfig>();
-        cellConfig->CellGuid = config->CellGuid;
+        cellConfig->CellId = config->CellId;
         cellConfig->Addresses = config->Addresses;
         return RegisterCell(cellConfig, version);
     }
 
-    bool UnregisterCell(const TCellGuid& cellGuid)
+    bool UnregisterCell(const TCellId& cellId)
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        auto it = CellMap_.find(cellGuid);
+        auto it = CellMap_.find(cellId);
         if (it == CellMap_.end()) {
             return false;
         } else {
@@ -133,13 +133,13 @@ private:
     };
 
     TSpinLock SpinLock_;
-    yhash_map<TCellGuid, TEntry> CellMap_;
+    yhash_map<TCellId, TEntry> CellMap_;
 
 
     void InitChannel(TEntry* entry)
     {
         auto peerConfig = New<TPeerConnectionConfig>();
-        peerConfig->CellGuid = entry->Descriptor.Config->CellGuid;
+        peerConfig->CellId = entry->Descriptor.Config->CellId;
         peerConfig->Addresses = entry->Descriptor.Config->Addresses;
         peerConfig->DiscoverTimeout = Config_->DiscoverTimeout;
         peerConfig->SoftBackoffTime = Config_->SoftBackoffTime;
@@ -165,24 +165,24 @@ TCellDirectory::TCellDirectory(
 TCellDirectory::~TCellDirectory()
 { }
 
-IChannelPtr TCellDirectory::FindChannel(const TCellGuid& cellGuid)
+IChannelPtr TCellDirectory::FindChannel(const TCellId& cellId)
 {
-    return Impl_->FindChannel(cellGuid);
+    return Impl_->FindChannel(cellId);
 }
 
-IChannelPtr TCellDirectory::GetChannelOrThrow(const TCellGuid& cellGuid)
+IChannelPtr TCellDirectory::GetChannelOrThrow(const TCellId& cellId)
 {
-    return Impl_->GetChannelOrThrow(cellGuid);
+    return Impl_->GetChannelOrThrow(cellId);
 }
 
-TCellConfigPtr TCellDirectory::FindCellConfig(const TCellGuid& cellGuid)
+TCellConfigPtr TCellDirectory::FindCellConfig(const TCellId& cellId)
 {
-    return Impl_->FindCellConfig(cellGuid);
+    return Impl_->FindCellConfig(cellId);
 }
 
-TCellConfigPtr TCellDirectory::GetCellConfigOrThrow(const TCellGuid& cellGuid)
+TCellConfigPtr TCellDirectory::GetCellConfigOrThrow(const TCellId& cellId)
 {
-    return Impl_->GetCellConfigOrThrow(cellGuid);
+    return Impl_->GetCellConfigOrThrow(cellId);
 }
 
 std::vector<TCellDirectory::TCellDescriptor> TCellDirectory::GetRegisteredCells()
@@ -200,9 +200,9 @@ bool TCellDirectory::RegisterCell(TPeerConnectionConfigPtr config, int version)
     return Impl_->RegisterCell(config, version);
 }
 
-bool TCellDirectory::UnregisterCell(const TCellGuid& cellGuid)
+bool TCellDirectory::UnregisterCell(const TCellId& cellId)
 {
-    return Impl_->UnregisterCell(cellGuid);
+    return Impl_->UnregisterCell(cellId);
 }
 
 void TCellDirectory::Clear()

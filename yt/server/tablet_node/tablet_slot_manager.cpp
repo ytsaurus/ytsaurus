@@ -108,12 +108,12 @@ public:
         return Slots_;
     }
 
-    TTabletSlotPtr FindSlot(const TCellGuid& id)
+    TTabletSlotPtr FindSlot(const TCellId& id)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         for (auto slot : Slots_) {
-            if (slot && slot->GetCellGuid() == id) {
+            if (slot && slot->GetCellId() == id) {
                 return slot;
             }
         }
@@ -169,9 +169,9 @@ public:
             YCHECK(TabletIdToDescriptor_.insert(std::make_pair(tablet->GetId(), descriptor)).second);
         }
 
-        LOG_INFO("Tablet descriptor added (TabletId: %v, CellGuid: %v)",
+        LOG_INFO("Tablet descriptor added (TabletId: %v, CellId: %v)",
             tablet->GetId(),
-            tablet->GetSlot()->GetCellGuid());
+            tablet->GetSlot()->GetCellId());
     }
 
     void UnregisterTablet(TTablet* tablet)
@@ -184,9 +184,9 @@ public:
             TabletIdToDescriptor_.erase(tablet->GetId());
         }
 
-        LOG_INFO("Tablet descriptor removed (TabletId: %v, CellGuid: %v)",
+        LOG_INFO("Tablet descriptor removed (TabletId: %v, CellId: %v)",
             tablet->GetId(),
-            tablet->GetSlot()->GetCellGuid());
+            tablet->GetSlot()->GetCellId());
     }
 
     void UpdateTablet(TTablet* tablet)
@@ -202,9 +202,9 @@ public:
             it->second = descriptor;
         }
 
-        LOG_INFO("Tablet descriptor updated (TabletId: %v, CellGuid: %v)",
+        LOG_INFO("Tablet descriptor updated (TabletId: %v, CellId: %v)",
             tablet->GetId(),
-            tablet->GetSlot()->GetCellGuid());
+            tablet->GetSlot()->GetCellId());
     }
 
     void UnregisterTablets(TTabletSlotPtr slot)
@@ -216,9 +216,9 @@ public:
         while (it != TabletIdToDescriptor_.end()) {
             auto jt = it++;
             if (jt->second->Slot == slot) {
-                LOG_INFO("Tablet descriptor removed (TabletId: %v, CellGuid: %v)",
+                LOG_INFO("Tablet descriptor removed (TabletId: %v, CellId: %v)",
                     jt->first,
-                    slot->GetCellGuid());
+                    slot->GetCellId());
                 TabletIdToDescriptor_.erase(jt);
             }
         }
@@ -401,7 +401,7 @@ const std::vector<TTabletSlotPtr>& TTabletSlotManager::Slots() const
     return Impl_->Slots();
 }
 
-TTabletSlotPtr TTabletSlotManager::FindSlot(const TCellGuid& id)
+TTabletSlotPtr TTabletSlotManager::FindSlot(const TCellId& id)
 {
     return Impl_->FindSlot(id);
 }

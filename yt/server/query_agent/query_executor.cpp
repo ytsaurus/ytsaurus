@@ -397,7 +397,7 @@ private:
 
         LOG_DEBUG("Creating reader for tablet split (TabletId: %v, CellId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v)",
             tabletId,
-            slot->GetCellGuid(),
+            slot->GetCellId(),
             lowerBound,
             upperBound,
             timestamp);

@@ -16,7 +16,7 @@ TMasterHydraServiceBase::TMasterHydraServiceBase(
     : NHydra::THydraServiceBase(
         bootstrap->GetHydraFacade()->GetHydraManager(),
         bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(),
-        NRpc::TServiceId(serviceName, bootstrap->GetCellGuid()),
+        NRpc::TServiceId(serviceName, bootstrap->GetCellId()),
         logger)
     , Bootstrap(bootstrap)
 {

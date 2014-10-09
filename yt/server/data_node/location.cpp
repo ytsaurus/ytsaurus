@@ -281,7 +281,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
     yhash_set<TChunkId> chunkIds;
     auto fileNames = NFS::EnumerateFiles(path, std::numeric_limits<int>::max());
     for (const auto& fileName : fileNames) {
-        if (fileName == CellGuidFileName)
+        if (fileName == CellIdFileName)
             continue;
 
         TChunkId chunkId;
@@ -321,25 +321,25 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
 
     LOG_INFO("Done, %v chunks found", descriptors.size());
 
-    auto cellGuidPath = NFS::CombinePaths(path, CellGuidFileName);
-    if (NFS::Exists(cellGuidPath)) {
-        TFileInput cellGuidFile(cellGuidPath);
-        auto cellGuidString = cellGuidFile.ReadAll();
-        TCellGuid cellGuid;
-        if (!TGuid::FromString(cellGuidString, &cellGuid)) {
-            THROW_ERROR_EXCEPTION("Failed to parse cell GUID %Qv",
-                cellGuidString);
+    auto cellIdPath = NFS::CombinePaths(path, CellIdFileName);
+    if (NFS::Exists(cellIdPath)) {
+        TFileInput cellIdFile(cellIdPath);
+        auto cellIdString = cellIdFile.ReadAll();
+        TCellId cellId;
+        if (!TCellId::FromString(cellIdString, &cellId)) {
+            THROW_ERROR_EXCEPTION("Failed to parse cell id %Qv",
+                cellIdString);
         }
-        if (cellGuid != Bootstrap_->GetCellGuid()) {
-            THROW_ERROR_EXCEPTION("Wrong cell GUID: expected %v, found %v",
-                Bootstrap_->GetCellGuid(),
-                cellGuid);
+        if (cellId != Bootstrap_->GetCellId()) {
+            THROW_ERROR_EXCEPTION("Wrong cell id: expected %v, found %v",
+                Bootstrap_->GetCellId(),
+                cellId);
         }
     } else {
-        LOG_INFO("Cell GUID file is not found, creating");
-        TFile file(cellGuidPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-        TFileOutput cellGuidFile(file);
-        cellGuidFile.Write(ToString(Bootstrap_->GetCellGuid()));
+        LOG_INFO("Cell id file is not found, creating");
+        TFile file(cellIdPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+        TFileOutput cellIdFile(file);
+        cellIdFile.Write(ToString(Bootstrap_->GetCellId()));
     }
 
     // Force subdirectories.

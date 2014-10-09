@@ -19,8 +19,8 @@ typedef i64 TPeerPriority;
 typedef int TPeerId;
 const TPeerId InvalidPeerId = -1;
 
-typedef TGuid TCellGuid;
-extern const TCellGuid NullCellGuid;
+typedef TGuid TCellId;
+extern const TCellId NullCellId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

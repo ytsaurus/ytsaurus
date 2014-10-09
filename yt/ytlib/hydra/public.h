@@ -40,8 +40,8 @@ DECLARE_ENUM(EErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NElection::TCellGuid;
-using NElection::NullCellGuid;
+using NElection::TCellId;
+using NElection::NullCellId;
 using NElection::TPeerId;
 using NElection::InvalidPeerId;
 using NElection::TPeerPriority;

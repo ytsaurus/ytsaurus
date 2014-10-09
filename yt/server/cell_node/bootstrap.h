@@ -80,7 +80,7 @@ public:
 
     const NNodeTrackerClient::TNodeDescriptor& GetLocalDescriptor() const;
 
-    const TGuid& GetCellGuid() const;
+    const TGuid& GetCellId() const;
 
     void Run();
 
@@ -124,7 +124,6 @@ private:
     NTabletNode::TTabletSlotManagerPtr TabletSlotManager;
 
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor;
-    TGuid CellGuid;
 
 
     void DoRun();

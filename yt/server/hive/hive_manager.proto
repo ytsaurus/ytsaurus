@@ -18,7 +18,7 @@ message TEncapsulatedMessage
 
 message TReqAcknowledgeMessages
 {
-    required NYT.NProto.TGuid cell_guid = 1;
+    required NYT.NProto.TGuid cell_id = 1;
     required int32 last_incoming_message_id = 2;
 }
 

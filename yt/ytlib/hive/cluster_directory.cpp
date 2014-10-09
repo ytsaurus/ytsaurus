@@ -24,18 +24,18 @@ TClusterDirectory::TClusterDirectory(IConnectionPtr selfConnection)
     , SelfClient_(SelfConnection_->CreateClient())
 { }
 
-IConnectionPtr TClusterDirectory::GetConnection(TCellId cellId) const
+IConnectionPtr TClusterDirectory::GetConnection(TCellTag cellTag) const
 {
     TGuard<TSpinLock> guard(Lock_);
-    auto it = CellIdMap_.find(cellId);
-    return it == CellIdMap_.end() ? nullptr : it->second.Connection;
+    auto it = CellTagToCluster_.find(cellTag);
+    return it == CellTagToCluster_.end() ? nullptr : it->second.Connection;
 }
 
-IConnectionPtr TClusterDirectory::GetConnectionOrThrow(TCellId cellId) const
+IConnectionPtr TClusterDirectory::GetConnectionOrThrow(TCellTag cellTag) const
 {
-    auto connection = GetConnection(cellId);
+    auto connection = GetConnection(cellTag);
     if (!connection) {
-        THROW_ERROR_EXCEPTION("Cannot find cluster with cell id %v", cellId);
+        THROW_ERROR_EXCEPTION("Cannot find cluster with cell tag %v", cellTag);
     }
     return connection;
 }
@@ -43,8 +43,8 @@ IConnectionPtr TClusterDirectory::GetConnectionOrThrow(TCellId cellId) const
 IConnectionPtr TClusterDirectory::GetConnection(const Stroka& clusterName) const
 {
     TGuard<TSpinLock> guard(Lock_);
-    auto it = NameMap_.find(clusterName);
-    return it == NameMap_.end() ? nullptr : it->second.Connection;
+    auto it = NameToCluster_.find(clusterName);
+    return it == NameToCluster_.end() ? nullptr : it->second.Connection;
 }
 
 IConnectionPtr TClusterDirectory::GetConnectionOrThrow(const Stroka& clusterName) const
@@ -59,18 +59,18 @@ IConnectionPtr TClusterDirectory::GetConnectionOrThrow(const Stroka& clusterName
 TNullable<Stroka> TClusterDirectory::GetDefaultNetwork(const Stroka& clusterName) const
 {
     TGuard<TSpinLock> guard(Lock_);
-    auto it = NameMap_.find(clusterName);
-    if (it == NameMap_.end()) {
+    auto it = NameToCluster_.find(clusterName);
+    if (it == NameToCluster_.end()) {
         THROW_ERROR_EXCEPTION("Cannot find cluster with name %Qv", clusterName);
     }
-    return it == NameMap_.end() ? Null : it->second.DefaultNetwork;
+    return it == NameToCluster_.end() ? Null : it->second.DefaultNetwork;
 }
 
 TConnectionConfigPtr TClusterDirectory::GetConnectionConfig(const Stroka& clusterName) const
 {
     TGuard<TSpinLock> guard(Lock_);
-    auto it = NameMap_.find(clusterName);
-    return it == NameMap_.end() ? nullptr : it->second.ConnectionConfig;
+    auto it = NameToCluster_.find(clusterName);
+    return it == NameToCluster_.end() ? nullptr : it->second.ConnectionConfig;
 }
 
 TConnectionConfigPtr TClusterDirectory::GetConnectionConfigOrThrow(const Stroka& clusterName) const
@@ -85,44 +85,40 @@ TConnectionConfigPtr TClusterDirectory::GetConnectionConfigOrThrow(const Stroka&
 std::vector<Stroka> TClusterDirectory::GetClusterNames() const
 {
     TGuard<TSpinLock> guard(Lock_);
-    std::vector<Stroka> result;
-    for (const auto& pair : NameMap_) {
-        result.push_back(pair.first);
-    }
-    return result;
+    return GetKeys(NameToCluster_);
 }
 
 void TClusterDirectory::RemoveCluster(const Stroka& clusterName)
 {
     TGuard<TSpinLock> guard(Lock_);
-    auto it = NameMap_.find(clusterName);
-    if (it == NameMap_.end())
+    auto it = NameToCluster_.find(clusterName);
+    if (it == NameToCluster_.end())
         return;
-    auto cellId = it->second.CellId;
-    NameMap_.erase(it);
-    YCHECK(CellIdMap_.erase(cellId) == 1);
+    auto cellTag = it->second.CellTag;
+    NameToCluster_.erase(it);
+    YCHECK(CellTagToCluster_.erase(cellTag) == 1);
 }
 
 void TClusterDirectory::UpdateCluster(
     const Stroka& clusterName,
     TConnectionConfigPtr config,
-    TCellId cellId,
-    TNullable<Stroka> defaultNetwork)
+    TCellTag cellTag,
+    const TNullable<Stroka>& defaultNetwork)
 {
     auto addNewCluster = [&] (const TCluster& cluster) {
-        if (CellIdMap_.find(cluster.CellId) != CellIdMap_.end()) {
-            THROW_ERROR_EXCEPTION("Duplicate cell id %d", cluster.CellId);
+        if (CellTagToCluster_.find(cluster.CellTag) != CellTagToCluster_.end()) {
+            THROW_ERROR_EXCEPTION("Duplicate cell id %d", cluster.CellTag);
         }
-        CellIdMap_[cluster.CellId] = cluster;
-        NameMap_[cluster.Name] = cluster;
+        CellTagToCluster_[cluster.CellTag] = cluster;
+        NameToCluster_[cluster.Name] = cluster;
     };
 
-    auto it = NameMap_.find(clusterName);
-    if (it == NameMap_.end()) {
+    auto it = NameToCluster_.find(clusterName);
+    if (it == NameToCluster_.end()) {
         auto cluster = CreateCluster(
             clusterName,
             config,
-            cellId,
+            cellTag,
             defaultNetwork);
 
         TGuard<TSpinLock> guard(Lock_);
@@ -135,12 +131,12 @@ void TClusterDirectory::UpdateCluster(
         auto cluster = CreateCluster(
             clusterName,
             config,
-            cellId,
+            cellTag,
             defaultNetwork);
 
         TGuard<TSpinLock> guard(Lock_);
-        CellIdMap_.erase(it->second.CellId);
-        NameMap_.erase(it);
+        CellTagToCluster_.erase(it->second.CellTag);
+        NameToCluster_.erase(it);
         addNewCluster(cluster);
     }
 }
@@ -149,20 +145,20 @@ void TClusterDirectory::UpdateSelf()
 {
     auto cluster = CreateSelfCluster();
     TGuard<TSpinLock> guard(Lock_);
-    CellIdMap_[cluster.CellId] = cluster;
+    CellTagToCluster_[cluster.CellTag] = cluster;
 }
 
 TClusterDirectory::TCluster TClusterDirectory::CreateCluster(
     const Stroka& name,
     TConnectionConfigPtr config,
-    TCellId cellId,
+    TCellTag cellTag,
     TNullable<Stroka> defaultNetwork) const
 {
     TCluster cluster;
     cluster.Name = name;
     cluster.Connection = CreateConnection(config);
     cluster.ConnectionConfig = config;
-    cluster.CellId = cellId;
+    cluster.CellTag = cellTag;
     cluster.DefaultNetwork = defaultNetwork;
 
     return cluster;
@@ -170,18 +166,17 @@ TClusterDirectory::TCluster TClusterDirectory::CreateCluster(
 
 TClusterDirectory::TCluster TClusterDirectory::CreateSelfCluster() const
 {
-    auto resultOrError = WaitFor(SelfClient_->GetNode("//sys/@cell_id"));
-    THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError, "Cannot get cell id");
-    auto cellId = ConvertTo<TCellId>(resultOrError.Value());
+    auto resultOrError = WaitFor(SelfClient_->GetNode("//sys/@cell_tag"));
+    THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError, "Error getting cluster cell tag");
+    auto cellTag = ConvertTo<TCellTag>(resultOrError.Value());
 
     TCluster cluster;
     cluster.Name = "";
     cluster.Connection = SelfConnection_;
-    cluster.CellId = cellId;
+    cluster.CellTag = cellTag;
     cluster.DefaultNetwork = Null;
 
     return cluster;
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////

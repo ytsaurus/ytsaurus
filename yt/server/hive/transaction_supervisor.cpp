@@ -61,7 +61,7 @@ public:
         : THydraServiceBase(
             hydraManager,
             automatonInvoker,
-            TServiceId(TTransactionSupervisorServiceProxy::GetServiceName(), hiveManager->GetSelfCellGuid()),
+            TServiceId(TTransactionSupervisorServiceProxy::GetServiceName(), hiveManager->GetSelfCellId()),
             HiveLogger)
         , TCompositeAutomatonPart(
             hydraManager,
@@ -78,7 +78,7 @@ public:
         YCHECK(TransactionManager_);
         YCHECK(TimestampProvider_);
 
-        Logger.AddTag("CellGuid: %v", hiveManager->GetSelfCellGuid());
+        Logger.AddTag("CellId: %v", hiveManager->GetSelfCellId());
 
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
@@ -116,11 +116,11 @@ public:
 
     TAsyncError CommitTransaction(
         const TTransactionId& transactionId,
-        const std::vector<TCellGuid>& participantCellGuids)
+        const std::vector<TCellId>& participantCellIds)
     {
         return MessageToError(DoCommitTransaction(
             transactionId,
-            participantCellGuids,
+            participantCellIds,
             NullMutationId));
     }
 
@@ -152,14 +152,14 @@ private:
         ValidateActiveLeader();
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto participantCellGuids = FromProto<TCellGuid>(request->participant_cell_guids());
+        auto participantCellIds = FromProto<TCellId>(request->participant_cell_ids());
         auto mutationId = GetMutationId(context);
 
-        context->SetRequestInfo("TransactionId: %v, ParticipantCellGuids: [%v]",
+        context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: [%v]",
             transactionId,
-            JoinToString(participantCellGuids));
+            JoinToString(participantCellIds));
 
-        auto asyncResponseMessage = DoCommitTransaction(transactionId, participantCellGuids, mutationId); 
+        auto asyncResponseMessage = DoCommitTransaction(transactionId, participantCellIds, mutationId);
         context->Reply(asyncResponseMessage);
     }
 
@@ -200,7 +200,7 @@ private:
 
     TFuture<TSharedRefArray> DoCommitTransaction(
         const TTransactionId& transactionId,
-        const std::vector<TCellGuid>& participantCellGuids,
+        const std::vector<TCellId>& participantCellIds,
         const TMutationId& mutationId)
     {
         YASSERT(!HydraManager->IsMutating());
@@ -221,13 +221,13 @@ private:
         commit = new TCommit(
             transactionId,
             mutationId,
-            participantCellGuids);
+            participantCellIds);
         TransientCommitMap_.Insert(transactionId, commit);
 
         // Commit instance may die below.
         auto asyncResponseMessage = commit->GetAsyncResponseMessage();
 
-        if (participantCellGuids.empty()) {
+        if (participantCellIds.empty()) {
             DoCommitSimpleTransaction(commit);
         } else {
             DoCommitDistributedTransaction(commit);
@@ -268,7 +268,7 @@ private:
         TReqCommitDistributedTransactionPhaseOne hydraRequest;
         ToProto(hydraRequest.mutable_transaction_id(), commit->GetTransactionId());
         ToProto(hydraRequest.mutable_mutation_id(), commit->GetMutationId());
-        ToProto(hydraRequest.mutable_participant_cell_guids(), commit->ParticipantCellGuids());
+        ToProto(hydraRequest.mutable_participant_cell_ids(), commit->ParticipantCellIds());
         hydraRequest.set_prepare_timestamp(prepareTimestamp);
         CreateMutation(HydraManager, hydraRequest)
             ->Commit();
@@ -350,7 +350,7 @@ private:
             commit = new TCommit(
                 transactionId,
                 mutationId,
-                std::vector<TCellGuid>());
+                std::vector<TCellId>());
             TransientCommitMap_.Insert(transactionId, commit);
         }
 
@@ -362,7 +362,7 @@ private:
     {
         auto mutationId = FromProto<TMutationId>(request.mutation_id());
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto participantCellGuids = FromProto<TCellGuid>(request.participant_cell_guids());
+        auto participantCellIds = FromProto<TCellId>(request.participant_cell_ids());
         auto prepareTimestamp = TTimestamp(request.prepare_timestamp());
 
         // Ensure commit existence.
@@ -373,19 +373,19 @@ private:
             commit = new TCommit(
                 transactionId,
                 mutationId,
-                participantCellGuids);
+                participantCellIds);
         }
         PersistentCommitMap_.Insert(transactionId, commit);
 
-        const auto& coordinatorCellGuid = HiveManager_->GetSelfCellGuid();
+        const auto& coordinatorCellId = HiveManager_->GetSelfCellId();
 
         LOG_DEBUG_UNLESS(IsRecovery(),
             "Distributed commit phase one started "
-            "(TransactionId: %v, ParticipantCellGuids: [%v], PrepareTimestamp: %v, CoordinatorCellGuid: %v)",
+            "(TransactionId: %v, ParticipantCellIds: [%v], PrepareTimestamp: %v, CoordinatorCellId: %v)",
             transactionId,
-            JoinToString(participantCellGuids),
+            JoinToString(participantCellIds),
             prepareTimestamp,
-            coordinatorCellGuid);
+            coordinatorCellId);
 
         // Prepare at coordinator.
         try {
@@ -415,7 +415,7 @@ private:
             TReqPrepareTransactionCommit hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_prepare_timestamp(prepareTimestamp);
-            ToProto(hydraRequest.mutable_coordinator_cell_guid(), coordinatorCellGuid);
+            ToProto(hydraRequest.mutable_coordinator_cell_id(), coordinatorCellId);
             PostToParticipants(commit, hydraRequest);
         }
     }
@@ -424,7 +424,7 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto prepareTimestamp = TTimestamp(request.prepare_timestamp());
-        auto coordinatorCellGuid = FromProto<TCellGuid>(request.coordinator_cell_guid());
+        auto coordinatorCellId = FromProto<TCellId>(request.coordinator_cell_id());
 
         YCHECK(!FindCommit(transactionId));
 
@@ -444,32 +444,32 @@ private:
         {
             TReqOnTransactionCommitPrepared hydraResponse;
             ToProto(hydraResponse.mutable_transaction_id(), transactionId);
-            ToProto(hydraResponse.mutable_participant_cell_guid(), HiveManager_->GetSelfCellGuid());
+            ToProto(hydraResponse.mutable_participant_cell_id(), HiveManager_->GetSelfCellId());
             ToProto(hydraResponse.mutable_error(), error);
-            PostToCoordinator(coordinatorCellGuid, hydraResponse);
+            PostToCoordinator(coordinatorCellId, hydraResponse);
         }
     }
 
     void HydraOnTransactionCommitPrepared(const TReqOnTransactionCommitPrepared& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto participantCellGuid = FromProto<TCellGuid>(request.participant_cell_guid());
+        auto participantCellId = FromProto<TCellId>(request.participant_cell_id());
 
         auto* commit = PersistentCommitMap_.Find(transactionId);
         if (!commit) {
             LOG_DEBUG_UNLESS(IsRecovery(),
                 "Invalid or expired transaction has been prepared, ignoring "
-                "(TransactionId: %v, ParticipantCellGuid: %v)",
+                "(TransactionId: %v, ParticipantCellId: %v)",
                 transactionId,
-                participantCellGuid);
+                participantCellId);
             return;
         }
 
         auto error = FromProto<TError>(request.error());
         if (!error.IsOK()) {
-            LOG_DEBUG_UNLESS(IsRecovery(), error, "Participant has failed to prepare (TransactionId: %v, ParticipantCellGuid: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), error, "Participant has failed to prepare (TransactionId: %v, ParticipantCellId: %v)",
                 transactionId,
-                participantCellGuid);
+                participantCellId);
 
             SetCommitFailed(commit, error);
 
@@ -492,11 +492,11 @@ private:
             return;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Participant has prepared transaction (TransactionId: %v, ParticipantCellGuid: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Participant has prepared transaction (TransactionId: %v, ParticipantCellId: %v)",
             transactionId,
-            participantCellGuid);
+            participantCellId);
 
-        YCHECK(commit->PreparedParticipantCellGuids().insert(participantCellGuid).second);
+        YCHECK(commit->PreparedParticipantCellIds().insert(participantCellId).second);
 
         if (IsLeader()) {
             CheckForPhaseTwo(commit);
@@ -652,16 +652,16 @@ private:
     template <class TMessage>
     void PostToParticipants(TCommit* commit, const TMessage& message)
     {
-        for (const auto& cellGuid : commit->ParticipantCellGuids()) {
-            auto* mailbox = HiveManager_->GetOrCreateMailbox(cellGuid);
+        for (const auto& cellId : commit->ParticipantCellIds()) {
+            auto* mailbox = HiveManager_->GetOrCreateMailbox(cellId);
             HiveManager_->PostMessage(mailbox, message);
         }
     }
 
     template <class TMessage>
-    void PostToCoordinator(const TCellGuid& coordinatorCellGuid, const TMessage& message)
+    void PostToCoordinator(const TCellId& coordinatorCellId, const TMessage& message)
     {
-        auto* mailbox = HiveManager_->GetOrCreateMailbox(coordinatorCellGuid);
+        auto* mailbox = HiveManager_->GetOrCreateMailbox(coordinatorCellId);
         HiveManager_->PostMessage(mailbox, message);
     }
 
@@ -717,7 +717,7 @@ private:
         if (!commit->IsDistributed())
             return;
 
-        if (commit->PreparedParticipantCellGuids().size() != commit->ParticipantCellGuids().size())
+        if (commit->PreparedParticipantCellIds().size() != commit->ParticipantCellIds().size())
             // Some participants are not prepared yet.
             return;
 
@@ -815,11 +815,11 @@ IServicePtr TTransactionSupervisor::GetRpcService()
 
 TAsyncError TTransactionSupervisor::CommitTransaction(
     const TTransactionId& transactionId,
-    const std::vector<TCellGuid>& participantCellGuids)
+    const std::vector<TCellId>& participantCellIds)
 {
     return Impl_->CommitTransaction(
         transactionId,
-        participantCellGuids);
+        participantCellIds);
 }
 
 TAsyncError TTransactionSupervisor::AbortTransaction(

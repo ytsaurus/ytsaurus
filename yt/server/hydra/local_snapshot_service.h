@@ -16,7 +16,7 @@ class TLocalSnapshotService
 {
 public:
     TLocalSnapshotService(
-        const NElection::TCellGuid& cellGuid,
+        const NElection::TCellId& cellId,
         TFileSnapshotStorePtr fileStore);
 
 private:

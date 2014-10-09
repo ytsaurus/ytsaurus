@@ -25,7 +25,7 @@ class TMailbox
 {
 public:
     // Persistent state.
-    DEFINE_BYVAL_RO_PROPERTY(TCellGuid, CellGuid);
+    DEFINE_BYVAL_RO_PROPERTY(TCellId, CellId);
 
     DEFINE_BYVAL_RW_PROPERTY(int, FirstOutcomingMessageId);
     DEFINE_BYVAL_RW_PROPERTY(int, LastIncomingMessageId);
@@ -40,7 +40,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Connected);
 
 public:
-    explicit TMailbox(const TCellGuid& cellGuid);
+    explicit TMailbox(const TCellId& cellId);
 
     void Save(NHydra::TSaveContext& context) const;
     void Load(NHydra::TLoadContext& context);

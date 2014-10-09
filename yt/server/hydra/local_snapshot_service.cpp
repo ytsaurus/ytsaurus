@@ -18,11 +18,11 @@ using namespace NElection;
 ////////////////////////////////////////////////////////////////////////////////
 
 TLocalSnapshotService::TLocalSnapshotService(
-    const TCellGuid& cellGuid,
+    const TCellId& cellId,
     TFileSnapshotStorePtr fileStore)
     : TServiceBase(
         GetHydraIOInvoker(),
-        TServiceId(TSnapshotServiceProxy::GetServiceName(), cellGuid),
+        TServiceId(TSnapshotServiceProxy::GetServiceName(), cellId),
         HydraLogger)
     , FileStore_(fileStore)
 {

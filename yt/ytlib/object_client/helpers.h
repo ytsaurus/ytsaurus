@@ -27,7 +27,7 @@ bool IsUserType(EObjectType type);
 EObjectType TypeFromId(const TObjectId& id);
 
 //! Extracts the cell id component from an id.
-TCellId CellIdFromId(const TObjectId& id);
+TCellTag CellTagFromId(const TObjectId& id);
 
 //! Extracts the counter component from an id.
 ui64 CounterFromId(const TObjectId& id);
@@ -44,20 +44,20 @@ EObjectType TypeFromSchemaType(EObjectType type);
 //! Constructs the id from its parts.
 TObjectId MakeId(
     EObjectType type,
-    TCellId cellId,
+    TCellTag cellTag,
     ui64 counter,
     ui32 hash);
 
 //! Constructs a id corresponding to well-known (usually singleton) entities.
 TObjectId MakeWellKnownId(
     EObjectType type,
-    TCellId cellId,
+    TCellTag cellTag,
     ui64 counter = 0xffffffffffffffff);
 
 //! Returns the id of the schema object for a given regular type.
 TObjectId MakeSchemaObjectId(
     EObjectType type,
-    TCellId cellId);
+    TCellTag cellTag);
 
 //! Constructs a new object id by replacing type component in a given one.
 TObjectId ReplaceTypeInId(

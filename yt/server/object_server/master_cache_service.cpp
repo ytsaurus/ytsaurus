@@ -42,10 +42,10 @@ public:
     TMasterCacheService(
         TMasterCacheServiceConfigPtr config,
         IChannelPtr masterChannel,
-        const TRealmId& masterCellGuid)
+        const TRealmId& masterCellId)
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetPoolInvoker(),
-            TServiceId(TObjectServiceProxy::GetServiceName(), masterCellGuid),
+            TServiceId(TObjectServiceProxy::GetServiceName(), masterCellId),
             ObjectServerLogger)
         , Config_(config)
         , MasterChannel_(CreateThrottlingChannel(
@@ -439,12 +439,12 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
 IServicePtr CreateMasterCacheService(
     TMasterCacheServiceConfigPtr config,
     IChannelPtr masterChannel,
-    const TRealmId& masterCellGuid)
+    const TRealmId& masterCellId)
 {
     return New<TMasterCacheService>(
         std::move(config),
         std::move(masterChannel),
-        masterCellGuid);
+        masterCellId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

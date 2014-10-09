@@ -239,16 +239,16 @@ public:
             "SecurityManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 
-        auto cellId = Bootstrap->GetCellId();
+        auto cellTag = Bootstrap->GetCellTag();
 
-        SysAccountId_ = MakeWellKnownId(EObjectType::Account, cellId, 0xffffffffffffffff);
-        TmpAccountId_ = MakeWellKnownId(EObjectType::Account, cellId, 0xfffffffffffffffe);
+        SysAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xffffffffffffffff);
+        TmpAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffe);
 
-        RootUserId_ = MakeWellKnownId(EObjectType::User, cellId, 0xffffffffffffffff);
-        GuestUserId_ = MakeWellKnownId(EObjectType::User, cellId, 0xfffffffffffffffe);
+        RootUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffff);
+        GuestUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffe);
 
-        EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellId, 0xffffffffffffffff);
-        UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellId, 0xfffffffffffffffe);
+        EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
+        UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
 
         RegisterMethod(BIND(&TImpl::UpdateRequestStatistics, Unretained(this)));
     }

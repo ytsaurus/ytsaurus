@@ -29,7 +29,7 @@ public:
     THiveManager(
         THiveManagerConfigPtr config,
         TCellDirectoryPtr cellDirectory,
-        const TCellGuid& selfCellGuid,
+        const TCellId& selfCellId,
         IInvokerPtr automatonInvoker,
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton);
@@ -38,19 +38,19 @@ public:
 
     NRpc::IServicePtr GetRpcService();
 
-    const TCellGuid& GetSelfCellGuid() const;
+    const TCellId& GetSelfCellId() const;
 
-    TMailbox* CreateMailbox(const TCellGuid& cellGuid);
-    TMailbox* GetOrCreateMailbox(const TCellGuid& cellGuid);
-    TMailbox* GetMailboxOrThrow(const TCellGuid& cellGuid);
-    void RemoveMailbox(const TCellGuid& cellGuid);
+    TMailbox* CreateMailbox(const TCellId& cellId);
+    TMailbox* GetOrCreateMailbox(const TCellId& cellId);
+    TMailbox* GetMailboxOrThrow(const TCellId& cellId);
+    void RemoveMailbox(const TCellId& cellId);
 
     void PostMessage(TMailbox* mailbox, const NProto::TEncapsulatedMessage& message);
     void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message);
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer);
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox, TCellGuid);
+    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox, TCellId);
 
 private:
     class TImpl;

@@ -18,8 +18,8 @@ DECLARE_REFCOUNTED_CLASS(TCellDirectoryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NHydra::TCellGuid;
-using NHydra::NullCellGuid;
+using NHydra::TCellId;
+using NHydra::NullCellId;
 
 using NTransactionClient::TTransactionId;
 using NTransactionClient::NullTransactionId;

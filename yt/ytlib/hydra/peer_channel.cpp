@@ -18,7 +18,7 @@ IChannelPtr CreateLeaderChannel(
 {
     auto realmChannelFactory = CreateRealmChannelFactory(
     	channelFactory,
-    	config->CellGuid);
+    	config->CellId);
     auto balancingChannel = CreateBalancingChannel(
     	config,
     	realmChannelFactory);

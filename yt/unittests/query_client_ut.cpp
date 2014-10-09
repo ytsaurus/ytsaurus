@@ -106,10 +106,10 @@ public:
 MATCHER_P(HasCounter, expectedCounter, "")
 {
     auto objectId = GetObjectIdFromDataSplit(arg);
-    auto cellId = CellIdFromId(objectId);
+    auto cellTag = CellTagFromId(objectId);
     auto counter = CounterFromId(objectId);
 
-    if (cellId != 0x42) {
+    if (cellTag != 0x42) {
         *result_listener << "cell id is bad";
         return false;
     }

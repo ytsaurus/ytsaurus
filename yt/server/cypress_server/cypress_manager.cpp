@@ -445,8 +445,8 @@ TCypressManager::TCypressManager(
 {
     VERIFY_INVOKER_AFFINITY(bootstrap->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
-    auto cellId = Bootstrap->GetCellId();
-    RootNodeId = MakeWellKnownId(EObjectType::MapNode, cellId);
+    auto cellTag = Bootstrap->GetCellTag();
+    RootNodeId = MakeWellKnownId(EObjectType::MapNode, cellTag);
 
     RegisterHandler(New<TStringNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TInt64NodeTypeHandler>(Bootstrap));

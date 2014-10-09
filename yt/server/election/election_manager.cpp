@@ -138,7 +138,7 @@ public:
 
         auto& cellManager = Owner->CellManager;
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
-            if (id != cellManager->GetSelfId()) {
+            if (id != cellManager->GetSelfPeerId()) {
                 SendPing(id);
             }
         }
@@ -178,7 +178,7 @@ private:
         proxy.SetDefaultTimeout(Owner->Config->RpcTimeout);
 
         auto request = proxy.PingFollower();
-        request->set_leader_id(Owner->CellManager->GetSelfId());
+        request->set_leader_id(Owner->CellManager->GetSelfPeerId());
         ToProto(request->mutable_epoch_id(), Owner->EpochContext->EpochId);
 
         Awaiter->Await(
@@ -301,7 +301,7 @@ public:
             callbacks->FormatPriority(priority));
 
         ProcessVote(
-            cellManager->GetSelfId(),
+            cellManager->GetSelfPeerId(),
             TStatus(
                 Owner->State,
                 Owner->VoteId,
@@ -309,7 +309,7 @@ public:
                 Owner->VoteEpochId));
 
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
-            if (id == cellManager->GetSelfId())
+            if (id == cellManager->GetSelfPeerId())
                 continue;
 
             auto channel = Owner->CellManager->GetPeerChannel(id);
@@ -404,7 +404,7 @@ private:
         // Use the local one for self
         // (others may still be following with an outdated epoch).
         auto candidateEpochId =
-            candidateId == Owner->CellManager->GetSelfId()
+            candidateId == Owner->CellManager->GetSelfPeerId()
             ? Owner->VoteEpochId
             : candidateStatus.VoteEpochId;
 
@@ -425,7 +425,7 @@ private:
         Awaiter->Cancel();
 
         // Become a leader or a follower.
-        if (candidateId == Owner->CellManager->GetSelfId()) {
+        if (candidateId == Owner->CellManager->GetSelfPeerId()) {
             ControlEpochInvoker->Invoke(BIND(
                 &TImpl::StartLeading,
                 Owner));
@@ -458,7 +458,7 @@ private:
             return false;
         }
 
-        if (candidateId == Owner->CellManager->GetSelfId()) {
+        if (candidateId == Owner->CellManager->GetSelfPeerId()) {
             // Check that we're voting.
             YCHECK(candidateStatus.State == EPeerState::Voting);
             return true;
@@ -519,7 +519,7 @@ TElectionManager::TImpl::TImpl(
     NRpc::IServerPtr rpcServer)
     : TServiceBase(
         controlInvoker,
-        NRpc::TServiceId(TElectionServiceProxy::GetServiceName(), cellManager->GetCellGuid()),
+        NRpc::TServiceId(TElectionServiceProxy::GetServiceName(), cellManager->GetCellId()),
         ElectionLogger)
     , Config(config)
     , CellManager(cellManager)
@@ -536,9 +536,9 @@ TElectionManager::TImpl::TImpl(
     YCHECK(RpcServer);
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 
-    Logger.AddTag("CellGuid: %v, SelfId: %v",
-        CellManager->GetCellGuid(),
-        CellManager->GetSelfId());
+    Logger.AddTag("CellId: %v, SelfPeerId: %v",
+        CellManager->GetCellId(),
+        CellManager->GetSelfPeerId());
 
     Reset();
 
@@ -727,7 +727,7 @@ void TElectionManager::TImpl::StartVoteForSelf()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     SetState(EPeerState::Voting);
-    VoteId = CellManager->GetSelfId();
+    VoteId = CellManager->GetSelfPeerId();
     VoteEpochId = TGuid::Create();
 
     if (EpochContext) {
@@ -787,7 +787,7 @@ void TElectionManager::TImpl::StartLeading()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     SetState(EPeerState::Leading);
-    YCHECK(VoteId == CellManager->GetSelfId());
+    YCHECK(VoteId == CellManager->GetSelfPeerId());
 
     // Initialize followers state.
     for (TPeerId i = 0; i < CellManager->GetPeerCount(); ++i) {
@@ -795,7 +795,7 @@ void TElectionManager::TImpl::StartLeading()
         PotentialFollowers.insert(i);
     }
 
-    InitEpochContext(CellManager->GetSelfId(), VoteEpochId);
+    InitEpochContext(CellManager->GetSelfPeerId(), VoteEpochId);
 
     // Send initial pings.
     YCHECK(!FollowerPinger);
@@ -864,7 +864,7 @@ void TElectionManager::TImpl::OnPeerReconfigured(TPeerId peerId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (peerId == CellManager->GetSelfId()) {
+    if (peerId == CellManager->GetSelfPeerId()) {
         if (State == EPeerState::Leading || State == EPeerState::Following) {
             DoStart();
         }
@@ -938,7 +938,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, GetStatus)
     response->set_vote_id(VoteId);
     response->set_priority(priority);
     ToProto(response->mutable_vote_epoch_id(), VoteEpochId);
-    response->set_self_id(CellManager->GetSelfId());
+    response->set_self_id(CellManager->GetSelfPeerId());
 
     context->SetResponseInfo("State: %v, VoteId: %v, Priority: %v, VoteEpochId: %v",
         State,

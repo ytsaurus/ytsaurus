@@ -248,7 +248,7 @@ private:
         }
         
         TRemoteSnapshotParams remoteParams;
-        remoteParams.PeerId = Owner_->CellManager_->GetSelfId();
+        remoteParams.PeerId = Owner_->CellManager_->GetSelfPeerId();
         remoteParams.SnapshotId = SnapshotId_;
         static_cast<TSnapshotParams&>(remoteParams) = paramsOrError.Value();
         Promise_.Set(remoteParams);
@@ -293,7 +293,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     VERIFY_INVOKER_AFFINITY(AutomatonInvoker_, AutomatonThread);
     VERIFY_INVOKER_AFFINITY(ControlInvoker_, ControlThread);
 
-    Logger.AddTag("CellGuid: %v", CellManager_->GetCellGuid());
+    Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 
     Reset();
 }

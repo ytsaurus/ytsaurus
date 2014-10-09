@@ -112,7 +112,7 @@ public:
         ISnapshotStorePtr snapshotStore)
         : TServiceBase(
             controlInvoker,
-            NRpc::TServiceId(THydraServiceProxy::GetServiceName(), cellManager->GetCellGuid()),
+            NRpc::TServiceId(THydraServiceProxy::GetServiceName(), cellManager->GetCellId()),
             HydraLogger)
         , Config_(config)
         , RpcServer_(rpcServer)
@@ -129,9 +129,9 @@ public:
         VERIFY_INVOKER_AFFINITY(automatonInvoker, AutomatonThread);
         VERIFY_INVOKER_AFFINITY(GetHydraIOInvoker(), IOThread);
 
-        Logger.AddTag("CellGuid: %v", CellManager_->GetCellGuid());
+        Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 
-        auto tagId = NProfiling::TProfileManager::Get()->RegisterTag("cell_guid", CellManager_->GetCellGuid());
+        auto tagId = NProfiling::TProfileManager::Get()->RegisterTag("cell_id", CellManager_->GetCellId());
         Profiler.TagIds().push_back(tagId);
 
         DecoratedAutomaton_ = New<TDecoratedAutomaton>(
@@ -178,7 +178,7 @@ public:
 
         LOG_INFO("Hydra instance started (SelfAddress: %v, SelfId: %v)",
             CellManager_->GetSelfAddress(),
-            CellManager_->GetSelfId());
+            CellManager_->GetSelfPeerId());
 
         ControlState_ = EPeerState::Elections;
 
@@ -1123,7 +1123,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if ((ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::LeaderRecovery) &&
-            peerId != CellManager_->GetSelfId())
+            peerId != CellManager_->GetSelfPeerId())
         {
             ControlEpochContext_->FollowerTracker->ResetFollower(peerId);
         }

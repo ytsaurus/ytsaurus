@@ -38,10 +38,10 @@ public:
         RegisterParameter("addresses", Addresses);
     }
 
-    NElection::TCellConfigPtr ToElection(const NElection::TCellGuid& cellGuid) const
+    NElection::TCellConfigPtr ToElection(const NElection::TCellId& cellId) const
     {
         auto result = New<NElection::TCellConfig>();
-        result->CellGuid = cellGuid;
+        result->CellId = cellId;
         result->Addresses = Addresses;
         return result;
     }

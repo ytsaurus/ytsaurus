@@ -22,15 +22,15 @@ class TCommit
 public:
     DEFINE_BYVAL_RO_PROPERTY(TTransactionId, TransactionId);
     DEFINE_BYVAL_RO_PROPERTY(NHydra::TMutationId, MutationId);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TCellGuid>, ParticipantCellGuids);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TCellGuid>, PreparedParticipantCellGuids);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, ParticipantCellIds);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TCellId>, PreparedParticipantCellIds);
 
 public:
     explicit TCommit(const TTransactionId& transactionId);
     TCommit(
         const TTransactionId& transactionId,
         const NHydra::TMutationId& mutationId,
-        const std::vector<TCellGuid>& participantCellGuids);
+        const std::vector<TCellId>& participantCellIds);
 
     TFuture<TSharedRefArray> GetAsyncResponseMessage();
     void SetResponseMessage(TSharedRefArray message);

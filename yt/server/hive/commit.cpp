@@ -19,10 +19,10 @@ TCommit::TCommit(const TTransactionId& transationId)
 TCommit::TCommit(
     const TTransactionId& transationId,
     const TMutationId& mutationId,
-    const std::vector<TCellGuid>& participantCellGuids)
+    const std::vector<TCellId>& participantCellIds)
     : TransactionId_(transationId)
     , MutationId_(mutationId)
-    , ParticipantCellGuids_(participantCellGuids)
+    , ParticipantCellIds_(participantCellIds)
 { }
 
 TFuture<TSharedRefArray> TCommit::GetAsyncResponseMessage()
@@ -37,7 +37,7 @@ void TCommit::SetResponseMessage(TSharedRefArray message)
 
 bool TCommit::IsDistributed() const
 {
-    return !ParticipantCellGuids_.empty();
+    return !ParticipantCellIds_.empty();
 }
 
 void TCommit::Save(TSaveContext& context) const
@@ -46,8 +46,8 @@ void TCommit::Save(TSaveContext& context) const
 
     Save(context, TransactionId_);
     Save(context, MutationId_);
-    Save(context, ParticipantCellGuids_);
-    Save(context, PreparedParticipantCellGuids_);
+    Save(context, ParticipantCellIds_);
+    Save(context, PreparedParticipantCellIds_);
 }
 
 void TCommit::Load(TLoadContext& context)
@@ -56,8 +56,8 @@ void TCommit::Load(TLoadContext& context)
 
     Load(context, TransactionId_);
     Load(context, MutationId_);
-    Load(context, ParticipantCellGuids_);
-    Load(context, PreparedParticipantCellGuids_);
+    Load(context, ParticipantCellIds_);
+    Load(context, PreparedParticipantCellIds_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

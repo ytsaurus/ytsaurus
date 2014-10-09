@@ -16,7 +16,7 @@ message TReqCommitDistributedTransactionPhaseOne
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required NYT.NProto.TGuid mutation_id = 2;
-    repeated NYT.NProto.TGuid participant_cell_guids = 3;
+    repeated NYT.NProto.TGuid participant_cell_ids = 3;
     required int64 prepare_timestamp = 4;
 }
 
@@ -24,13 +24,13 @@ message TReqPrepareTransactionCommit
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required int64 prepare_timestamp = 2;
-    required NYT.NProto.TGuid coordinator_cell_guid = 3;
+    required NYT.NProto.TGuid coordinator_cell_id = 3;
 }
 
 message TReqOnTransactionCommitPrepared
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    required NYT.NProto.TGuid participant_cell_guid = 2;
+    required NYT.NProto.TGuid participant_cell_id = 2;
     required NYT.NProto.TError error = 3;
 }
 

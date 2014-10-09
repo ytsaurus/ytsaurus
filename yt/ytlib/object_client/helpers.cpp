@@ -78,7 +78,7 @@ EObjectType TypeFromId(const TObjectId& id)
     return EObjectType(id.Parts[1] & 0xffff);
 }
 
-TCellId CellIdFromId(const TObjectId& id)
+TCellTag CellTagFromId(const TObjectId& id)
 {
     return id.Parts[1] >> 16;
 }
@@ -112,34 +112,34 @@ EObjectType TypeFromSchemaType(EObjectType type)
 
 TObjectId MakeId(
     EObjectType type,
-    TCellId cellId,
+    TCellTag cellTag,
     ui64 counter,
     ui32 hash)
 {
     return TObjectId(
         hash,
-        (cellId << 16) + static_cast<int>(type),
+        (cellTag << 16) + static_cast<int>(type),
         counter & 0xffffffff,
         counter >> 32);
 }
 
 TObjectId MakeWellKnownId(
     EObjectType type,
-    TCellId cellId,
+    TCellTag cellTag,
     ui64 counter /*= 0xffffffffffffffff*/)
 {
     return MakeId(
         type,
-        cellId,
+        cellTag,
         counter,
-        static_cast<ui32>(cellId * 901517) ^ 0x140a8383);
+        static_cast<ui32>(cellTag * 901517) ^ 0x140a8383);
 }
 
 TObjectId MakeSchemaObjectId(
     EObjectType type,
-    TCellId cellId)
+    TCellTag cellTag)
 {
-    return MakeWellKnownId(SchemaTypeFromType(type), cellId);
+    return MakeWellKnownId(SchemaTypeFromType(type), cellTag);
 }
 
 TObjectId ReplaceTypeInId(

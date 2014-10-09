@@ -13,7 +13,7 @@ using NObjectClient::TObjectId;
 using NObjectClient::TTransactionId;
 using NObjectClient::TVersionedObjectId;
 using NObjectClient::EObjectType;
-using NObjectClient::TCellId;
+using NObjectClient::TCellTag;
 using NObjectClient::NullObjectId;
 using NObjectClient::NullTransactionId;
 

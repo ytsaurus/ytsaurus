@@ -8,7 +8,7 @@ import "yt/core/ytree/attributes.proto";
 message TReqCommitTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    repeated NYT.NProto.TGuid participant_cell_guids = 2;
+    repeated NYT.NProto.TGuid participant_cell_ids = 2;
 }
 
 message TRspCommitTransaction

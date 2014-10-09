@@ -7,7 +7,7 @@ import "yt/server/hive/hive_manager.proto";
 
 message TReqPing
 {
-    required NYT.NProto.TGuid src_cell_guid = 1;
+    required NYT.NProto.TGuid src_cell_id = 1;
 }
 
 message TRspPing
@@ -19,7 +19,7 @@ message TRspPing
 
 message TReqPostMessages
 {
-    required NYT.NProto.TGuid src_cell_guid = 1;
+    required NYT.NProto.TGuid src_cell_id = 1;
     required int32 first_message_id = 2;
     repeated TEncapsulatedMessage messages = 3;
 }

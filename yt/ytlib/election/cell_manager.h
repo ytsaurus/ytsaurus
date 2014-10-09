@@ -26,8 +26,8 @@ public:
         NRpc::IChannelFactoryPtr channelFactory,
         TPeerId selfId);
 
-    const TCellGuid& GetCellGuid() const;
-    TPeerId GetSelfId() const;
+    const TCellId& GetCellId() const;
+    TPeerId GetSelfPeerId() const;
     const Stroka& GetSelfAddress() const;
 
     int GetQuorumCount() const;

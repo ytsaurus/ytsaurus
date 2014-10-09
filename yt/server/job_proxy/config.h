@@ -30,7 +30,7 @@ public:
     NBus::TTcpBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;
 
-    TGuid CellGuid;
+    TGuid CellId;
 
     Stroka SandboxName;
 
@@ -59,7 +59,7 @@ public:
         RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)
             .Default(TDuration::Seconds(30));
 
-        RegisterParameter("cell_guid", CellGuid);
+        RegisterParameter("cell_id", CellId);
 
         RegisterParameter("sandbox_name", SandboxName)
             .NonEmpty();

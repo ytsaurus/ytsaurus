@@ -55,23 +55,23 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
     ValidateActiveLeader();
 
     auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
-    auto requestCellGuid = FromProto<TGuid>(request->cell_guid());
+    auto requestCellId = FromProto<TGuid>(request->cell_id());
     const auto& statistics = request->statistics();
     const auto& address = descriptor.GetDefaultAddress();
 
-    context->SetRequestInfo("Address: %v, CellGuid: %v, %v",
+    context->SetRequestInfo("Address: %v, CellId: %v, %v",
         address,
-        requestCellGuid,
+        requestCellId,
         statistics);
 
-    auto expectedCellGuid = Bootstrap->GetCellGuid();
-    if (!requestCellGuid.IsEmpty() && requestCellGuid != expectedCellGuid) {
+    auto expectedCellId = Bootstrap->GetCellId();
+    if (!requestCellId.IsEmpty() && requestCellId != expectedCellId) {
         THROW_ERROR_EXCEPTION(
             NRpc::EErrorCode::PoisonPill,
-            "Wrong cell GUID reported by node %v: expected %v, received %v",
+            "Wrong cell id reported by node %v: expected %v, received %v",
             address,
-            expectedCellGuid,
-            requestCellGuid);
+            expectedCellId,
+            requestCellId);
     }
 
     auto nodeTracker = Bootstrap->GetNodeTracker();

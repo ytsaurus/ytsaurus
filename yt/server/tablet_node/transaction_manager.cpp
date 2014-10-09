@@ -57,7 +57,7 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
-        Logger.AddTag("CellId: %v", Slot_->GetCellGuid());
+        Logger.AddTag("CellId: %v", Slot_->GetCellId());
 
         RegisterLoader(
             "TransactionManager.Keys",

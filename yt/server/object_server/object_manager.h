@@ -217,8 +217,6 @@ private:
 
     IObjectProxyPtr MasterProxy_;
 
-    mutable TGuid CachedCellGuid_;
-
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
     TGarbageCollectorPtr GarbageCollector_;

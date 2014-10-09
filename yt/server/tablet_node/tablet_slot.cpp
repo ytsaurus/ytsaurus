@@ -88,7 +88,7 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
 
-        SetCellGuid(NullCellGuid);
+        SetCellId(NullCellId);
         ResetEpochInvokers();
         ResetGuardedInvokers();
     }
@@ -99,11 +99,11 @@ public:
         return SlotIndex_;
     }
 
-    const TCellGuid& GetCellGuid() const
+    const TCellId& GetCellId() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return CellGuid_;
+        return CellId_;
     }
 
     EPeerState GetControlState() const
@@ -189,8 +189,8 @@ public:
     TMailbox* GetMasterMailbox()
     {
         // Create master mailbox lazily.
-        auto masterCellGuid = Bootstrap_->GetCellGuid();
-        return HiveManager_->GetOrCreateMailbox(masterCellGuid);
+        auto masterCellId = Bootstrap_->GetCellId();
+        return HiveManager_->GetOrCreateMailbox(masterCellId);
     }
 
     TTransactionManagerPtr GetTransactionManager() const
@@ -220,8 +220,8 @@ public:
         YASSERT(typeValue >= 0 && typeValue <= MaxObjectType);
 
         return TObjectId(
-            random ^ CellGuid_.Parts[0],
-            (CellGuid_.Parts[1] & 0xffff0000) + typeValue,
+            random ^ CellId_.Parts[0],
+            (CellId_.Parts[1] & 0xffff0000) + typeValue,
             version.RecordId,
             version.SegmentId);
     }
@@ -232,8 +232,8 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ == EPeerState::None);
 
-        auto cellGuid = FromProto<TCellGuid>(createInfo.cell_guid());
-        SetCellGuid(cellGuid);
+        auto cellId = FromProto<TCellId>(createInfo.cell_id());
+        SetCellId(cellId);
 
         Options_ = ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options()));
 
@@ -251,13 +251,13 @@ public:
         CellConfig_ = ConvertTo<TTabletCellConfigPtr>(TYsonString(configureInfo.config()));
 
         if (HydraManager_) {
-            CellManager_->Reconfigure(CellConfig_->ToElection(CellGuid_));
+            CellManager_->Reconfigure(CellConfig_->ToElection(CellId_));
         } else {
             PeerId_ = configureInfo.peer_id();
             State_ = EPeerState::Elections;
 
             CellManager_ = New<TCellManager>(
-                CellConfig_->ToElection(CellGuid_),
+                CellConfig_->ToElection(CellId_),
                 Bootstrap_->GetTabletChannelFactory(),
                 configureInfo.peer_id());
 
@@ -268,13 +268,13 @@ public:
             auto snapshotStore = CreateRemoteSnapshotStore(
                 Config_->Snapshots,
                 Options_,
-                Format("//sys/tablet_cells/%v/snapshots", CellGuid_),
+                Format("//sys/tablet_cells/%v/snapshots", CellId_),
                 Bootstrap_->GetMasterClient());
 
             auto changelogStore = CreateRemoteChangelogStore(
                 Config_->Changelogs,
                 Options_,
-                Format("//sys/tablet_cells/%v/changelogs", CellGuid_),
+                Format("//sys/tablet_cells/%v/changelogs", CellId_),
                 Bootstrap_->GetMasterClient());
 
             HydraManager_ = CreateDistributedHydraManager(
@@ -311,7 +311,7 @@ public:
             HiveManager_ = New<THiveManager>(
                 Config_->HiveManager,
                 Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory(),
-                CellGuid_,
+                CellId_,
                 GetAutomatonInvoker(),
                 HydraManager_,
                 Automaton_);
@@ -409,7 +409,7 @@ private:
     TTabletNodeConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
 
-    TCellGuid CellGuid_;
+    TCellId CellId_;
     mutable EPeerState State_;
     TPeerId PeerId_;
     int CellConfigVersion_ = 0;
@@ -441,9 +441,9 @@ private:
     NLog::TLogger Logger;
 
 
-    void SetCellGuid(const TCellGuid& cellGuid)
+    void SetCellId(const TCellId& cellId)
     {
-        CellGuid_ = cellGuid;
+        CellId_ = cellId;
         InitLogger();
     }
 
@@ -451,8 +451,8 @@ private:
     {
         Logger = NLog::TLogger(TabletNodeLogger);
         Logger.AddTag("Slot: %v", SlotIndex_);
-        if (CellGuid_ != NullCellGuid) {
-            Logger.AddTag("CellGuid: %v", CellGuid_);
+        if (CellId_ != NullCellId) {
+            Logger.AddTag("CellId: %v", CellId_);
         }
     }
 
@@ -501,7 +501,7 @@ private:
         BuildYsonMapFluently(consumer)
             .Item("index").Value(SlotIndex_)
             .Item("state").Value(GetControlState())
-            .Item("cell_guid").Value(CellGuid_)
+            .Item("cell_id").Value(CellId_)
             .Item("options").Value(*Options_);
     }
 
@@ -566,9 +566,9 @@ int TTabletSlot::GetIndex() const
     return Impl_->GetIndex();
 }
 
-const TCellGuid& TTabletSlot::GetCellGuid() const
+const TCellId& TTabletSlot::GetCellId() const
 {
-    return Impl_->GetCellGuid();
+    return Impl_->GetCellId();
 }
 
 EPeerState TTabletSlot::GetControlState() const

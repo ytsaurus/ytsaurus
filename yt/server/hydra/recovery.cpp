@@ -45,7 +45,7 @@ TRecovery::TRecovery(
     YCHECK(EpochContext_);
     VERIFY_INVOKER_AFFINITY(EpochContext_->EpochSystemAutomatonInvoker, AutomatonThread);
 
-    Logger.AddTag("CellGuid: %v", CellManager_->GetCellGuid());
+    Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 }
 
 void TRecovery::RecoverToVersion(TVersion targetVersion)

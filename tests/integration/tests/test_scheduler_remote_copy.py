@@ -30,8 +30,8 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
     @classmethod
     def setup_class(cls):
         super(TestSchedulerRemoteCopyCommands, cls).setup_class()
-        # Change cell id of remote cluster
-        cls.Env._run_all(masters_count=1, nodes_count=9, schedulers_count=0, has_proxy=False, instance_id="-remote", cell_id=10)
+        # Change cell tag of remote cluster
+        cls.Env._run_all(masters_count=1, nodes_count=9, schedulers_count=0, has_proxy=False, instance_id="-remote", cell_tag=10)
 
     def setup(self):
         set("//sys/clusters/remote",
@@ -41,7 +41,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
                     "timestamp_provider": self.Env.configs["master-remote"][0]["timestamp_provider"],
                     "transaction_manager": self.Env.configs["master-remote"][0]["transaction_manager"]
                 },
-                "cell_id": 10
+                "cell_tag": 10
             })
         self.remote_driver = Driver(config=self.Env.configs["driver-remote"])
         time.sleep(1.0)

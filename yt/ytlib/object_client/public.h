@@ -33,7 +33,7 @@ extern TObjectId NullObjectId;
 
 //! Identifies a particular installation of YT.
 //! Must be unique to prevent object ids from colliding.
-typedef ui16 TCellId;
+typedef ui16 TCellTag;
 
 //! Describes the runtime type of an object.
 DECLARE_ENUM(EObjectType,

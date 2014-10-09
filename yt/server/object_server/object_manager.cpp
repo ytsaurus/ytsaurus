@@ -350,7 +350,7 @@ TObjectManager::TObjectManager(
     RegisterMethod(BIND(&TObjectManager::HydraExecute, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::HydraDestroyObjects, Unretained(this)));
 
-    MasterObjectId_ = MakeWellKnownId(EObjectType::Master, Bootstrap->GetCellId());
+    MasterObjectId_ = MakeWellKnownId(EObjectType::Master, Bootstrap->GetCellTag());
 }
 
 void TObjectManager::Initialize()
@@ -437,7 +437,7 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
         schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap, type);
         LOG_INFO("Type registered (Type: %v, SchemaObjectId: %v)",
             type,
-            MakeSchemaObjectId(type, Bootstrap->GetCellId()));
+            MakeSchemaObjectId(type, Bootstrap->GetCellTag()));
     } else {
         LOG_INFO("Type registered (Type: %v)",
             type);
@@ -493,7 +493,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 
     TObjectId id(
         random,
-        (Bootstrap->GetCellId() << 16) + typeValue,
+        (Bootstrap->GetCellTag() << 16) + typeValue,
         version.RecordId,
         version.SegmentId);
 
@@ -633,7 +633,7 @@ void TObjectManager::DoClear()
     for (auto type : RegisteredTypes_)  {
         auto& entry = TypeToEntry_[static_cast<int>(type)];
         if (HasSchema(type)) {
-            entry.SchemaObject.reset(new TSchemaObject(MakeSchemaObjectId(type, Bootstrap->GetCellId())));
+            entry.SchemaObject.reset(new TSchemaObject(MakeSchemaObjectId(type, Bootstrap->GetCellTag())));
             entry.SchemaObject->RefObject();
             entry.SchemaProxy = CreateSchemaProxy(Bootstrap, entry.SchemaObject.get());
         }
