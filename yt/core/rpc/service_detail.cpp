@@ -479,7 +479,7 @@ void TServiceBase::RunRequest(TServiceContextPtr context)
         runtimeInfo->Descriptor.HeavyHandler
             .AsyncVia(TDispatcher::Get()->GetPoolInvoker())
             .Run(context, options)
-            .Subscribe(BIND(&TServiceContext::Run, std::move(context)));
+            .Subscribe(BIND(&TServiceContext::Run, context));
     } else {
         context->Run(runtimeInfo->Descriptor.LiteHandler);
     }
