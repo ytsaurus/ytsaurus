@@ -171,7 +171,7 @@ class TestAcls(YTEnvSetup):
         self._prepare_scheduler_test()
         set('//tmp/t2/@account', 'a')
         set('//sys/accounts/a/@acl/end', self._make_ace('allow', 'u', 'use'))
-        # account "a" still has zero disk space limit
+        set('//sys/accounts/a/@resource_limits/disk_space', 0)
         with pytest.raises(YtError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
 
     def test_inherit1(self):

@@ -127,19 +127,14 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     originatingNode->SetRevision(mutationContext->GetVersion().ToRevision());
 }
 
-std::unique_ptr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
+TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
     TCypressNodeBase* sourceNode,
-    ICypressNodeFactoryPtr /*factory*/)
+    ICypressNodeFactoryPtr factory)
 {
-    auto objectManager = Bootstrap->GetObjectManager();
-
     auto type = GetObjectType();
+    auto objectManager = Bootstrap->GetObjectManager();
     auto clonedId = objectManager->GenerateId(type);
-
-    auto clonedNode = Instantiate(TVersionedNodeId(clonedId));
-    clonedNode->SetTrunkNode(clonedNode.get());
-
-    return clonedNode;
+    return factory->CreateNode(clonedId);
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(

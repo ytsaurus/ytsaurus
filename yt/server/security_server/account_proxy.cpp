@@ -53,6 +53,7 @@ private:
         attributes->push_back("committed_resource_usage");
         attributes->push_back("resource_limits");
         attributes->push_back("over_disk_space_limit");
+        attributes->push_back("over_node_count_limit");
         TBase::ListSystemAttributes(attributes);
     }
 
@@ -87,6 +88,12 @@ private:
         if (key == "over_disk_space_limit") {
             BuildYsonFluently(consumer)
                 .Value(account->IsOverDiskSpaceLimit());
+            return true;
+        }
+
+        if (key == "over_node_count_limit") {
+            BuildYsonFluently(consumer)
+                .Value(account->IsOverNodeCountLimit());
             return true;
         }
 

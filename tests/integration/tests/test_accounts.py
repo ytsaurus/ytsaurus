@@ -25,9 +25,18 @@ class TestAccounts(YTEnvSetup):
     def _set_account_disk_space_limit(self, account, value):
         set('//sys/accounts/{0}/@resource_limits/disk_space'.format(account), value)
 
+    def _get_account_node_count_limit(self, account):
+        return get('//sys/accounts/{0}/@resource_limits/node_count'.format(account))
+
+    def _set_account_node_count_limit(self, account, value):
+        set('//sys/accounts/{0}/@resource_limits/node_count'.format(account), value)
+
     def _is_account_over_disk_space_limit(self, account):
         return get('//sys/accounts/{0}/@over_disk_space_limit'.format(account))
 
+    def _is_account_over_node_count_limit(self, account):
+        return get('//sys/accounts/{0}/@over_node_count_limit'.format(account))
+    
     def _get_tx_disk_space(self, tx, account):
         return get('#{0}/@resource_usage/{1}/disk_space'.format(tx, account))
 
@@ -270,6 +279,28 @@ class TestAccounts(YTEnvSetup):
         assert self._get_node_disk_space('//tmp/t') == space * 2
         assert self._get_account_disk_space('tmp') == space * 2
 
+    def test_node_count_limits1(self):
+        create_account('max')
+        assert self._is_account_over_node_count_limit('max') == 'false'
+        self._set_account_node_count_limit('max', 1000)
+        self._set_account_node_count_limit('max', 2000)
+        self._set_account_node_count_limit('max', 0)
+        assert self._is_account_over_node_count_limit('max') == 'true'
+        with pytest.raises(YtError): self._set_account_node_count_limit('max', -1)
+
+    def test_node_count_limits2(self):
+        create_account('max')
+        assert self._get_account_node_count('max') == 0
+        create('table', '//tmp/t')
+        set('//tmp/t/@account', 'max')
+        assert self._get_account_node_count('max') == 1
+
+    def test_node_count_limits3(self):
+        create_account('max')
+        create('table', '//tmp/t')
+        self._set_account_node_count_limit('max', 0)
+        with pytest.raises(YtError): set('//tmp/t/@account', 'max')
+
     def test_disk_space_limits1(self):
         create_account('max')
         assert self._is_account_over_disk_space_limit('max') == 'false'
@@ -320,6 +351,38 @@ class TestAccounts(YTEnvSetup):
         create('file', '//tmp/f3', attributes={"account": "max"})
         upload('//tmp/f3', content)
         assert self._is_account_over_disk_space_limit('max') == 'true'
+
+    def test_disk_space_limits5(self):
+        content = "some_data"
+
+        create('map_node', '//tmp/a')
+        create('file', '//tmp/a/f1')
+        upload('//tmp/a/f1', content)
+        create('file', '//tmp/a/f2')
+        upload('//tmp/a/f2', content)
+
+        disk_space = get('//tmp/a/f1/@resource_usage/disk_space')
+        assert get('//tmp/a/f2/@resource_usage/disk_space') == disk_space
+
+        create_account('max')
+        create('map_node', '//tmp/b')
+        set('//tmp/b/@account', 'max')
+
+        self._set_account_disk_space_limit('max', disk_space * 2 + 1)
+        copy('//tmp/a', '//tmp/b/a')
+        assert self._get_account_disk_space('max') == disk_space * 2
+        assert exists('//tmp/b/a')
+
+        remove('//tmp/b/a')
+        gc_collect()
+        assert self._get_account_disk_space('max') == 0
+
+        self._set_account_disk_space_limit('max', 0)
+        with pytest.raises(YtError): copy('//tmp/a', '//tmp/b/a')
+        gc_collect()
+        assert self._get_account_disk_space('max') == 0
+        assert self._get_account_node_count('max') == 1
+        assert not exists('//tmp/b/a')
 
     def test_committed_usage(self):
         assert self._get_account_committed_disk_space('tmp') == 0

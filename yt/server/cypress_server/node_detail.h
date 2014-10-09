@@ -50,7 +50,7 @@ protected:
         TCypressNodeBase* originatingNode,
         TCypressNodeBase* branchedNode);
 
-    std::unique_ptr<TCypressNodeBase> CloneCorePrologue(
+    TCypressNodeBase* CloneCorePrologue(
         TCypressNodeBase* sourceNode,
         ICypressNodeFactoryPtr factory);
 
@@ -154,31 +154,24 @@ public:
         TCypressNodeBase* branchedNode) override
     {
         // Run core stuff.
-        MergeCore(
-            originatingNode,
-            branchedNode);
+        MergeCore(originatingNode, branchedNode);
 
         // Run custom stuff.
-        DoMerge(
-            dynamic_cast<TImpl*>(originatingNode),
-            dynamic_cast<TImpl*>(branchedNode));
+        DoMerge(dynamic_cast<TImpl*>(originatingNode), dynamic_cast<TImpl*>(branchedNode));
     }
 
-    virtual std::unique_ptr<TCypressNodeBase> Clone(
+    virtual TCypressNodeBase* Clone(
         TCypressNodeBase* sourceNode,
         ICypressNodeFactoryPtr factory) override
     {
         // Run core prologue stuff.
-        auto clonedNode = CloneCorePrologue(sourceNode, factory);
+        auto* clonedNode = CloneCorePrologue(sourceNode, factory);
 
         // Run custom stuff.
-        DoClone(
-            dynamic_cast<TImpl*>(sourceNode),
-            dynamic_cast<TImpl*>(clonedNode.get()),
-            factory);
+        DoClone(dynamic_cast<TImpl*>(sourceNode), dynamic_cast<TImpl*>(clonedNode), factory);
 
         // Run core epilogue stuff.
-        CloneCoreEpilogue(sourceNode, clonedNode.get(), factory);
+        CloneCoreEpilogue(sourceNode, clonedNode, factory);
 
         return clonedNode;
     }

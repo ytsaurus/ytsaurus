@@ -969,6 +969,9 @@ private:
     {
         auto* account = new TAccount(id);
         account->SetName(name);
+        // Give some reasonable initial resource limits.
+        account->ResourceLimits().DiskSpace = (i64) 1024 * 1024 * 1024; // 1 GB
+        account->ResourceLimits().NodeCount = 1000;
 
         AccountMap_.Insert(id, account);
         YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);

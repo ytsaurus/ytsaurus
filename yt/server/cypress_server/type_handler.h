@@ -37,12 +37,13 @@ struct INodeTypeHandler
     //! Returns the (static) node type.
     virtual NYTree::ENodeType GetNodeType() = 0;
 
-    //! Create an empty instance of the node (used during snapshot deserialization).
-    virtual std::unique_ptr<TCypressNodeBase> Instantiate(const TVersionedNodeId& id) = 0;
+    //! Create an empty instance of a node (used during snapshot deserialization).
+    virtual std::unique_ptr<TCypressNodeBase> Instantiate(
+        const TVersionedNodeId& id) = 0;
 
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
-    //! Creates and registers a node.
+    //! Creates a node.
     /*!
      *  This is called during |Create|.
      */
@@ -93,7 +94,7 @@ struct INodeTypeHandler
         TCypressNodeBase* branchedNode) = 0;
 
     //! Constructs a deep copy of the node.
-    virtual std::unique_ptr<TCypressNodeBase> Clone(
+    virtual TCypressNodeBase* Clone(
         TCypressNodeBase* sourceNode,
         ICypressNodeFactoryPtr factory) = 0;
 

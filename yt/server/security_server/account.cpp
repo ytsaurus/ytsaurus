@@ -59,6 +59,33 @@ void TAccount::ValidateDiskSpaceLimit() const
     }
 }
 
+bool TAccount::IsOverNodeCountLimit() const
+{
+    return ResourceUsage_.NodeCount >= ResourceLimits_.NodeCount;
+}
+
+void TAccount::ValidateNodeCountLimit()
+{
+    if (IsOverNodeCountLimit()) {
+        THROW_ERROR_EXCEPTION(
+            NSecurityClient::EErrorCode::AccountLimitExceeded,
+            "Account %Qv is over node count limit",
+            Name_)
+            << TErrorAttribute("usage", ResourceUsage_.NodeCount)
+            << TErrorAttribute("limit", ResourceLimits_.NodeCount);
+    }
+}
+
+void TAccount::ValidateResourceUsageIncrease(const TClusterResources& delta)
+{
+    if (delta.NodeCount > 0) {
+        ValidateNodeCountLimit();
+    }
+    if (delta.DiskSpace > 0) {
+        ValidateDiskSpaceLimit();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NSecurityServer

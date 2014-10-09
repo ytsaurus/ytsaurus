@@ -142,7 +142,9 @@ public:
         TReqCreate* request = nullptr,
         TRspCreate* response = nullptr) override
     {
-        ValidateNodeCreation(type);
+        ValidateCreatedNodeType(type);
+
+        GetNewNodeAccount()->ValidateNodeCountLimit();
 
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto handler = cypressManager->FindHandler(type);
@@ -195,10 +197,21 @@ public:
         return cypressManager->GetNodeProxy(trunkNode, Transaction_);
     }
 
-    virtual TCypressNodeBase* CloneNode(
-        TCypressNodeBase* sourceNode) override
+    virtual TCypressNodeBase* CreateNode(const TNodeId& id) override
     {
-        ValidateNodeCreation(sourceNode->GetType());
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        auto* node = cypressManager->CreateNode(id);
+
+        RegisterCreatedNode(node);
+
+        return node;
+    }
+
+    virtual TCypressNodeBase* CloneNode(TCypressNodeBase* sourceNode) override
+    {
+        ValidateCreatedNodeType(sourceNode->GetType());
+
+        GetClonedNodeAccount(sourceNode)->ValidateResourceUsageIncrease(sourceNode->GetResourceUsage());
 
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this);
@@ -229,7 +242,7 @@ private:
     std::vector<TCypressNodeBase*> CreatedNodes_;
 
 
-    void ValidateNodeCreation(EObjectType type)
+    void ValidateCreatedNodeType(EObjectType type)
     {
         auto objectManager = Bootstrap_->GetObjectManager();
         auto* schema = objectManager->GetSchema(type);
@@ -552,26 +565,34 @@ TCypressNodeBase* TCypressManager::CreateNode(
     YCHECK(factory);
 
     auto* transaction = factory->GetTransaction();
-    auto node = handler->Create(transaction, request, response);
-    auto node_ = node.get();
-
-    RegisterNode(std::move(node));
+    auto* node = handler->Create(transaction, request, response).release();
+    RegisterNode(node);
 
     // Set account.
     auto securityManager = Bootstrap->GetSecurityManager();
     auto* account = factory->GetNewNodeAccount();
-    securityManager->SetAccount(node_, account);
+    securityManager->SetAccount(node, account);
 
     // Set owner.
     auto* user = securityManager->GetAuthenticatedUser();
-    auto* acd = securityManager->GetAcd(node_);
+    auto* acd = securityManager->GetAcd(node);
     acd->SetOwner(user);
 
     if (response) {
-        ToProto(response->mutable_node_id(), node_->GetId());
+        ToProto(response->mutable_node_id(), node->GetId());
     }
 
-    return node_;
+    return node;
+}
+
+TCypressNodeBase* TCypressManager::CreateNode(const TNodeId& id)
+{
+    auto type = TypeFromId(id);
+    auto handler = GetHandler(type);
+    auto* node = handler->Instantiate(TVersionedNodeId(id)).release();
+    node->SetTrunkNode(node);
+    RegisterNode(node);
+    return node;
 }
 
 TCypressNodeBase* TCypressManager::CloneNode(
@@ -587,21 +608,17 @@ TCypressNodeBase* TCypressManager::CloneNode(
     securityManager->ValidatePermission(account, EPermission::Use);
 
     auto handler = GetHandler(sourceNode);
-    auto clonedNode = handler->Clone(sourceNode, factory);
-
-    // Make a rawptr copy and transfer the ownership.
-    auto clonedNode_ = clonedNode.get();
-    RegisterNode(std::move(clonedNode));
+    auto* clonedNode = handler->Clone(sourceNode, factory);
 
     // Set account.
-    securityManager->SetAccount(clonedNode_, account);
+    securityManager->SetAccount(clonedNode, account);
 
     // Set owner.
     auto* user = securityManager->GetAuthenticatedUser();
-    auto* acd = securityManager->GetAcd(clonedNode_);
+    auto* acd = securityManager->GetAcd(clonedNode);
     acd->SetOwner(user);
 
-    return clonedNode_;
+    return clonedNode;
 }
 
 TCypressNodeBase* TCypressManager::GetRootNode() const
@@ -1338,7 +1355,7 @@ void TCypressManager::OnRecoveryComplete()
     }
 }
 
-void TCypressManager::RegisterNode(std::unique_ptr<TCypressNodeBase> node)
+void TCypressManager::RegisterNode(TCypressNodeBase* node)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(node->IsTrunk());
@@ -1357,7 +1374,7 @@ void TCypressManager::RegisterNode(std::unique_ptr<TCypressNodeBase> node)
     node->SetAccessTime(mutationContext->GetTimestamp());
     node->SetRevision(mutationContext->GetVersion().ToRevision());
 
-    NodeMap.Insert(TVersionedNodeId(nodeId), node.release());
+    NodeMap.Insert(TVersionedNodeId(nodeId), node);
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Type: %v)",
         nodeId,

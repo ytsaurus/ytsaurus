@@ -68,6 +68,9 @@ public:
         TReqCreate* request,
         TRspCreate* response);
 
+    //! Creates a new node and registers it.
+    TCypressNodeBase* CreateNode(const TNodeId& id);
+
     //! Clones a node and registers its clone.
     TCypressNodeBase* CloneNode(
         TCypressNodeBase* sourceNode,
@@ -82,7 +85,7 @@ public:
     //! Creates a resolver that provides a view in the context of a given transaction.
     NYTree::INodeResolverPtr CreateResolver(NTransactionServer::TTransaction* transaction = nullptr);
 
-    //! Similar to |FindNode| provided by |DECLARE_METAMAP_ACCESSORS| but
+    //! Similar to |FindNode| provided by |DECLARE_ENTITY_ACCESSORS| but
     //! specially optimized for the case of null transaction.
     TCypressNodeBase* FindNode(
         TCypressNodeBase* trunkNode,
@@ -158,7 +161,7 @@ private:
     bool RecomputeKeyColumns;
     
     
-    void RegisterNode(std::unique_ptr<TCypressNodeBase> node);
+    void RegisterNode(TCypressNodeBase* node);
 
     void DestroyNode(TCypressNodeBase* trunkNode);
 

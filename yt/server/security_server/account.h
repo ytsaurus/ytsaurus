@@ -31,11 +31,22 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    //! Returns |true| if disk space limit is exceeded.
+    //! Returns |true| if disk space limit is exceeded,
+    //! i.e. no more disk space could be allocated.
     bool IsOverDiskSpaceLimit() const;
 
-    //! Throws is disk space limit is exceeded.
+    //! Throws if disk space limit is exceeded.
     void ValidateDiskSpaceLimit() const;
+
+    //! Returns |true| is node count limit is exceeded,
+    //! i.e. no more Cypress node could be created.
+    bool IsOverNodeCountLimit() const;
+
+    //! Throws if node count limit is exceeded.
+    void ValidateNodeCountLimit();
+
+    //! Throws if account limit is exceeded for some resource type with positive delta.
+    void ValidateResourceUsageIncrease(const TClusterResources& delta);
 
 };
 
