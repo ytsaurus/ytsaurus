@@ -1734,20 +1734,11 @@ private:
 
                 for (const auto& pair : clustersNode->GetChildren()) {
                     const auto& clusterName = pair.first;
-                    auto clusterNode = pair.second->AsMap();
+                    auto clusterAttributes = ConvertToAttributes(pair.second);
 
-                    auto cellId = ConvertTo<TCellId>(clusterNode->GetChild("cell_id"));
-
-                    TNullable<Stroka> defaultNetwork = Null;
-                    {
-                        auto child = clusterNode->FindChild("default_network");
-                        if (child) {
-                            defaultNetwork = ConvertTo<Stroka>(child);
-                        }
-                    }
-
-                    auto connectionConfig = New<NApi::TConnectionConfig>();
-                    connectionConfig->Load(clusterNode->GetChild("connection"));
+                    auto cellId = clusterAttributes->Get<TCellId>("cell_id");
+                    auto defaultNetwork = clusterAttributes->Find<Stroka>("default_network");
+                    auto connectionConfig = clusterAttributes->Get<NApi::TConnectionConfigPtr>("connection");
 
                     ClusterDirectory->UpdateCluster(clusterName, connectionConfig, cellId, defaultNetwork);
                 }
