@@ -48,7 +48,7 @@ class Yamr(object):
         self.opts = opts
         self.fastbone = fastbone
 
-        self._light_command_timeout = 20.0
+        self._light_command_timeout = 60.0
 
         # Check that binary exists and supports help
         _check_output("{0} --help".format(self.binary), shell=True)
