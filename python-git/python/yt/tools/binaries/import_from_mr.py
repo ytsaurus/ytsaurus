@@ -15,7 +15,6 @@ import subprocess
 import sys
 import traceback
 from argparse import ArgumentParser
-from urllib import quote_plus
 
 def pull_table(source, destination, record_count, mr, fastbone, portion_size, job_count, pool):
     proxies = mr.proxies
@@ -45,14 +44,7 @@ def pull_table(source, destination, record_count, mr, fastbone, portion_size, jo
     mr.copy(source, temp_yamr_table)
     source = temp_yamr_table
 
-    if mr.proxies:
-        command = 'curl "http://${{server}}/table/{0}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(source))
-    else:
-        use_fastbone = "-opt net_table=fastbone" if fastbone else ""
-        shared_tx = "-sharedtransactionid yt" if mr.supports_shared_transactions else ""
-        command = 'USER=yt MR_USER=tmp ./mapreduce -server $server {0} -read {1}:[$start,$end] -lenval -subkey {2}'\
-                    .format(use_fastbone, source, shared_tx)
-
+    command = mr.get_read_range_command(source)
     debug_str = 'echo "{0}" 1>&2; '.format(command.replace('"', "'"))
     command = 'while true; do '\
                   'IFS="\t" read -r server start end; '\
