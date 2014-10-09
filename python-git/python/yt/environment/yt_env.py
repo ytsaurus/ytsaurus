@@ -126,7 +126,7 @@ class YTEnv(object):
 
         self._run_all(self.NUM_MASTERS, self.NUM_NODES, self.NUM_SCHEDULERS, self.START_PROXY, ports=ports)
 
-    def _run_all(self, masters_count, nodes_count, schedulers_count, has_proxy, instance_id="", cell_id=0, ports=None):
+    def _run_all(self, masters_count, nodes_count, schedulers_count, has_proxy, instance_id="", cell_tag=0, ports=None):
         get_open_port.busy_ports = set()
 
         def list_ports(service_name, count):
@@ -157,7 +157,7 @@ class YTEnv(object):
 
         try:
             logging.info("Configuring...")
-            self._run_masters(masters_count, master_name, cell_id)
+            self._run_masters(masters_count, master_name, cell_tag)
             self._run_schedulers(schedulers_count, scheduler_name)
             self._run_nodes(nodes_count, node_name)
             self._prepare_driver(driver_name)
@@ -275,7 +275,7 @@ class YTEnv(object):
             os.makedirs(dirname)
         self.pids_file = open(self._pids_filename, 'wt')
 
-    def _prepare_masters(self, masters_count, master_name, cell_id):
+    def _prepare_masters(self, masters_count, master_name, cell_tag):
         if masters_count == 0:
              return
 
@@ -294,7 +294,7 @@ class YTEnv(object):
             config['rpc_port'] = self._ports[master_name][2 * i]
             config['monitoring_port'] = self._ports[master_name][2 * i + 1]
 
-            config["master"]["cell_id"] = cell_id
+            config["master"]["cell_id"] = cell_tag
             config['master']['addresses'] = self._master_addresses[master_name]
             config['timestamp_provider']['addresses'] = self._master_addresses[master_name]
             config['changelogs']['path'] = os.path.join(current, 'changelogs')
@@ -335,8 +335,8 @@ class YTEnv(object):
         self._wait_for(masters_ready, name=master_name)
         logging.info('Leader is %d', self.leader_id)
 
-    def _run_masters(self, masters_count, master_name, cell_id):
-        self._prepare_masters(masters_count, master_name, cell_id)
+    def _run_masters(self, masters_count, master_name, cell_tag):
+        self._prepare_masters(masters_count, master_name, cell_tag)
         self.start_masters(master_name)
 
 
