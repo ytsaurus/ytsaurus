@@ -604,7 +604,7 @@ private:
     void ScheduleMore()
     {
         while (true) {
-            if (!AcquireSemaphore())
+            if (!TryAcquireSemaphore())
                 break;
 
             TClosure callback;
@@ -621,7 +621,7 @@ private:
         }        
     }
 
-    bool AcquireSemaphore()
+    bool TryAcquireSemaphore()
     {
         if (++Semaphore_ <= MaxConcurrentInvocations_) {
             return true;
