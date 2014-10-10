@@ -357,9 +357,9 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, CheckAll)
 
     const auto& attachments = request->Attachments();
     EXPECT_EQ(3, attachments.size());
-    EXPECT_EQ("Attachments",     StringFromSharedRef(attachments[0]));
-    EXPECT_EQ("are",      StringFromSharedRef(attachments[1]));
-    EXPECT_EQ("ok",  StringFromSharedRef(attachments[2]));
+    EXPECT_EQ("Attachments", StringFromSharedRef(attachments[0]));
+    EXPECT_EQ("are", StringFromSharedRef(attachments[1]));
+    EXPECT_EQ("ok", StringFromSharedRef(attachments[2]));
 }
 
 TEST_F(TRpcTest, OneWaySend)
