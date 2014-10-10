@@ -5,6 +5,7 @@
 #include "chunk_list.h"
 #include "chunk_manager.h"
 #include "chunk_tree_traversing.h"
+#include "config.h"
 
 #include <core/concurrency/scheduler.h>
 
@@ -21,6 +22,8 @@
 #include <ytlib/object_client/helpers.h>
 
 #include <server/node_tracker_server/node_directory_builder.h>
+
+#include <server/cell_master/config.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -50,11 +53,13 @@ public:
 
     TFetchChunkVisitor(
         NCellMaster::TBootstrap* bootstrap,
+        TChunkManagerConfigPtr config,
         TChunkList* chunkList,
         TCtxFetchPtr context,
         const TChannel& channel,
         bool fetchParityReplicas)
         : Bootstrap_(bootstrap)
+        , Config_(config)
         , ChunkList_(chunkList)
         , Context_(context)
         , Channel_(channel)
@@ -95,6 +100,7 @@ public:
 
 private:
     NCellMaster::TBootstrap* Bootstrap_;
+    TChunkManagerConfigPtr Config_;
     TChunkList* ChunkList_;
     TCtxFetchPtr Context_;
     TChannel Channel_;
@@ -170,6 +176,12 @@ private:
         const TReadLimit& endLimit) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (Context_->Response().chunks_size() >= Config_->MaxChunksPerFetch) {
+            ReplyError(TError("Attempt to fetch too many chunks in a single request")
+                       << TErrorAttribute("limit", Config_->MaxChunksPerFetch));
+            return false;
+        }
 
         auto chunkManager = Bootstrap_->GetChunkManager();
 
@@ -801,6 +813,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 
     auto visitor = New<TFetchChunkVisitor>(
         Bootstrap,
+        Bootstrap->GetConfig()->ChunkManager,
         chunkList,
         context,
         channel,

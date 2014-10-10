@@ -78,6 +78,9 @@ public:
     //! Maximum number of chunks that can be sealed concurrently.
     int MaxChunkConcurrentSeals;
 
+    //! Maximum number of chunks to report per single fetch request.
+    int MaxChunksPerFetch;
+
     TChunkManagerConfig()
     {
         RegisterParameter("disable_chunk_replicator", DisableChunkReplicator)
@@ -132,6 +135,10 @@ public:
         RegisterParameter("max_concurrent_chunk_seals", MaxChunkConcurrentSeals)
             .GreaterThan(0)
             .Default(10);
+
+        RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
+            .GreaterThan(0)
+            .Default(1000000);
     }
 };
 
