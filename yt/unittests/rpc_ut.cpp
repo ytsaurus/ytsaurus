@@ -6,6 +6,7 @@
 #include <core/misc/error.h>
 
 #include <core/concurrency/action_queue.h>
+#include <core/concurrency/parallel_collector.h>
 
 #include <core/bus/bus.h>
 #include <core/bus/config.h>
@@ -32,10 +33,13 @@ class TMyProxy
     : public TProxyBase
 {
 public:
-    static const Stroka ServiceName_;
+    static const Stroka GetServiceName()
+    {
+        return "MyService";
+    }
 
     explicit TMyProxy(IChannelPtr channel, int protocolVersion = DefaultProtocolVersion)
-        : TProxyBase(channel, ServiceName_, protocolVersion)
+        : TProxyBase(channel, GetServiceName(), protocolVersion)
     { }
 
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SomeCall);
@@ -51,8 +55,6 @@ public:
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, NotRegistredOneWay);
 
 };
-
-const Stroka TMyProxy::ServiceName_ = "MyService";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,8 +94,11 @@ class TMyService
     : public TServiceBase
 {
 public:
-    TMyService(IInvokerPtr invoker, Event* event)
-        : TServiceBase(invoker, TMyProxy::ServiceName_, NLog::TLogger("Main"))
+    explicit TMyService(IInvokerPtr invoker)
+        : TServiceBase(
+            invoker,
+            TMyProxy::GetServiceName(),
+            NLog::TLogger("Main"))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SomeCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyAttachments));
@@ -119,6 +124,14 @@ public:
 
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, OneWay);
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, CheckAll);
+
+    TFuture<void> GetOneWayCalled()
+    {
+        return OneWayCalled_;
+    }
+
+private:
+    TPromise<void> OneWayCalled_ = NewPromise<void>();
 
 };
 
@@ -149,29 +162,27 @@ DEFINE_RPC_SERVICE_METHOD(TMyService, CustomMessageError)
 }
 
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, OneWay)
-{ }
+{
+    OneWayCalled_.Set();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRpcTest
     : public ::testing::Test
 {
-    // need to remember
-    TActionQueuePtr Queue;
 public:
-    IServerPtr RpcServer;
-
     virtual void SetUp()
     {
-        auto busConfig = New<NBus::TTcpBusServerConfig>();
-        busConfig->Port = 2000;
-        auto busServer = NBus::CreateTcpBusServer(busConfig);
+        auto busConfig = New<TTcpBusServerConfig>(2000);
+        auto busServer = CreateTcpBusServer(busConfig);
 
         RpcServer = CreateBusServer(busServer);
 
         Queue = New<TActionQueue>();
 
-        RpcServer->RegisterService(New<TMyService>(Queue->GetInvoker(), &ReadyEvent));
+        Service = New<TMyService>(Queue->GetInvoker());
+        RpcServer->RegisterService(Service);
         RpcServer->Start();
     }
 
@@ -181,34 +192,10 @@ public:
         RpcServer.Reset();
     }
 
-    // For services to signal when they processed incoming onewey rpc request
-    Event ReadyEvent;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TResponseHandler
-    : public TRefCounted
-{
-public:
-    TResponseHandler(int numRepliesWaiting, Event* event_)
-        : NumRepliesWaiting(numRepliesWaiting)
-        , Event_(event_)
-    { }
-
-    void CheckReply(int expected, TMyProxy::TRspSomeCallPtr response)
-    {
-        EXPECT_TRUE(response->IsOK());
-        EXPECT_EQ(expected, response->b());
-
-        if (AtomicDecrement(NumRepliesWaiting) == 0) {
-            Event_->Signal();
-        }
-    }
-
-private:
-    TAtomic NumRepliesWaiting;
-    Event* Event_;
+protected:
+    TActionQueuePtr Queue;
+    TIntrusivePtr<TMyService> Service;
+    IServerPtr RpcServer;
 
 };
 
@@ -225,25 +212,26 @@ TEST_F(TRpcTest, Send)
     EXPECT_EQ(142, response->b());
 }
 
-TEST_F(TRpcTest, ManyAsyncSends)
+TEST_F(TRpcTest, ManyAsyncRequests)
 {
-    int numSends = 1000;
+    const int RequestCount = 1000;
 
-    Event event;
-    auto handler = New<TResponseHandler>(numSends, &event);
+    auto collector = New<TParallelCollector<void>>();
 
     TMyProxy proxy(CreateChannel("localhost:2000"));
 
-    for (int i = 0; i < numSends; ++i) {
+    for (int i = 0; i < RequestCount; ++i) {
         auto request = proxy.SomeCall();
         request->set_a(i);
-        request->Invoke().Subscribe(BIND(
-            &TResponseHandler::CheckReply,
-            handler,
-            i + 100));
+        auto result = request->Invoke().Apply(BIND([=] (TMyProxy::TRspSomeCallPtr rsp) -> TError {
+            EXPECT_TRUE(rsp->IsOK());
+            EXPECT_EQ(i + 100, rsp->b());
+            return TError();
+        }));
+        collector->Collect(result);
     }
 
-    EXPECT_TRUE(event.WaitT(TDuration::Seconds(4))); // assert no timeout
+    collector->Complete().Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -362,26 +350,6 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, CheckAll)
     EXPECT_EQ("ok", StringFromSharedRef(attachments[2]));
 }
 
-TEST_F(TRpcTest, OneWaySend)
-{
-    TMyProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.CheckAll();
-
-    request->set_value(12345);
-    request->set_ok(true);
-    request->set_message(Stroka("hello, TMyService"));
-    request->Attachments().push_back(SharedRefFromString("Attachments"));
-    request->Attachments().push_back(SharedRefFromString("are"));
-    request->Attachments().push_back(SharedRefFromString("ok"));
-
-    auto response = request->Invoke().Get();
-    EXPECT_EQ(TError::OK, response->GetError().GetCode());
-
-    EXPECT_TRUE(ReadyEvent.WaitT(TDuration::Seconds(4))); // assert no timeout
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TEST_F(TRpcTest, OneWayOK)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
@@ -389,6 +357,8 @@ TEST_F(TRpcTest, OneWayOK)
     auto response = request->Invoke().Get();
 
     EXPECT_TRUE(response->IsOK());
+
+    Service->GetOneWayCalled().Get();
 }
 
 TEST_F(TRpcTest, OneWayTransportError)
