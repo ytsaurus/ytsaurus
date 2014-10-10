@@ -6,6 +6,7 @@
 #include "message.h"
 #include "config.h"
 #include "helpers.h"
+#include "response_keeper.h"
 
 #include <core/misc/string.h>
 #include <core/misc/address.h>
@@ -65,6 +66,7 @@ public:
     TServiceContext(
         TServiceBasePtr service,
         const TRequestId& requestId,
+        const TMutationId& mutationId,
         NBus::IBusPtr replyBus,
         TRuntimeMethodInfoPtr runtimeInfo,
         const NTracing::TTraceContext& traceContext,
@@ -77,6 +79,7 @@ public:
             logger)
         , Service_(std::move(service))
         , RequestId_(requestId)
+        , MutationId_(mutationId)
         , ReplyBus_(std::move(replyBus))
         , RuntimeInfo_(std::move(runtimeInfo))
         , TraceContext_(traceContext)
@@ -162,6 +165,7 @@ public:
 private:
     TServiceBasePtr Service_;
     TRequestId RequestId_;
+    TMutationId MutationId_;
     IBusPtr ReplyBus_;
     TRuntimeMethodInfoPtr RuntimeInfo_;
     NTracing::TTraceContext TraceContext_;
@@ -187,7 +191,13 @@ private:
         YASSERT(!Completed_);
         Completed_ = true;
 
-        ReplyBus_->Send(GetResponseMessage(), EDeliveryTrackingLevel::None);
+        auto responseMessage = GetResponseMessage();
+
+        if (MutationId_ != NullMutationId) {
+            Service_->ResponseKeeper_->EndRequest(MutationId_, responseMessage);
+        }
+
+        ReplyBus_->Send(std::move(responseMessage), EDeliveryTrackingLevel::None);
 
         // NB: This counter is also used to track queue size limit so
         // it must be maintained even if the profiler is OFF.
@@ -234,9 +244,8 @@ private:
             AppendInfo(&builder, "User: %v", *user);
         }
 
-        auto mutationId = GetMutationId(*RequestHeader_);
-        if (mutationId != NullMutationId) {
-            AppendInfo(&builder, "MutationId: %v", mutationId);
+        if (MutationId_ != NullMutationId) {
+            AppendInfo(&builder, "MutationId: %v", MutationId_);
         }
 
         AppendInfo(&builder, "%v", RequestInfo_);
@@ -273,33 +282,38 @@ TServiceBase::TServiceBase(
     IPrioritizedInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
     const NLog::TLogger& logger,
-    int protocolVersion)
+    int protocolVersion,
+    IResponseKeeperPtr responseKeeper)
 {
     Init(
         defaultInvoker,
         serviceId,
         logger,
-        protocolVersion);
+        protocolVersion,
+        responseKeeper);
 }
 
 TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
     const NLog::TLogger& logger,
-    int protocolVersion)
+    int protocolVersion,
+    IResponseKeeperPtr responseKeeper)
 {
     Init(
         CreateFakePrioritizedInvoker(defaultInvoker),
         serviceId,
         logger,
-        protocolVersion);
+        protocolVersion,
+        responseKeeper);
 }
 
 void TServiceBase::Init(
     IPrioritizedInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
     const NLog::TLogger& logger,
-    int protocolVersion)
+    int protocolVersion,
+    IResponseKeeperPtr responseKeeper)
 {
     YCHECK(defaultInvoker);
 
@@ -307,6 +321,7 @@ void TServiceBase::Init(
     ServiceId_ = serviceId;
     Logger = logger;
     ProtocolVersion_ = protocolVersion;
+    ResponseKeeper_ = responseKeeper;
 
     ServiceTagId_ = NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
     
@@ -336,6 +351,7 @@ void TServiceBase::OnRequest(
     const auto& method = header->method();
     bool oneWay = header->one_way();
     auto requestId = FromProto<TRequestId>(header->request_id());
+    auto mutationId = ResponseKeeper_ ? GetMutationId(*header) : NullMutationId;
     auto requestProtocolVersion = header->protocol_version();
 
     TRuntimeMethodInfoPtr runtimeInfo;
@@ -370,6 +386,12 @@ void TServiceBase::OnRequest(
                 oneWay);
         }
 
+        if (oneWay && mutationId != NullMutationId) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::ProtocolError,
+                "One-way requests cannot be marked with mutation id");
+        }
+
         // Not actually atomic but should work fine as long as some small error is OK.
         if (runtimeInfo->QueueSizeCounter.Current > runtimeInfo->Descriptor.MaxQueueSize) {
             THROW_ERROR_EXCEPTION(
@@ -386,6 +408,20 @@ void TServiceBase::OnRequest(
             replyBus->Send(errorMessage, EDeliveryTrackingLevel::None);
         }
         return;
+    }
+
+    if (mutationId != NullMutationId) {
+        auto asyncResponseMessage = ResponseKeeper_->TryBeginRequest(mutationId);
+        if (asyncResponseMessage) {
+            auto this_ = MakeStrong(this);
+            asyncResponseMessage.Subscribe(BIND([this, this_, requestId, mutationId, replyBus] (TSharedRefArray responseMessage) {
+                LOG_DEBUG("Replying with kept response (RequestId: %v, MutationId: %v)",
+                    requestId,
+                    mutationId);
+                replyBus->Send(std::move(responseMessage), EDeliveryTrackingLevel::None);
+            }));
+            return;
+        }
     }
 
     Profiler.Increment(runtimeInfo->RequestCounter, +1);
@@ -426,6 +462,7 @@ void TServiceBase::OnRequest(
     auto context = New<TServiceContext>(
         this,
         requestId,
+        mutationId,
         std::move(replyBus),
         runtimeInfo,
         traceContext,
@@ -435,10 +472,11 @@ void TServiceBase::OnRequest(
 
     if (oneWay) {
         RunRequest(std::move(context));
-    } else {
-        runtimeInfo->RequestQueue.Enqueue(std::move(context));
-        ScheduleRequests(runtimeInfo);
+        return;
     }
+
+    runtimeInfo->RequestQueue.Enqueue(std::move(context));
+    ScheduleRequests(runtimeInfo);
 }
 
 bool TServiceBase::TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo)
