@@ -533,6 +533,9 @@ class Application(object):
         except ValueError as error:
             raise RequestFailed("Cannot parse json from body '{}'".format(request.data), inner_errors=[yt.YtError(error.message)])
 
+        id = generate_uuid()
+        logger.info("Adding task %s with id %s", json.dumps(params), id)
+
         required_parameters = set(["source_cluster", "source_table", "destination_cluster", "destination_table"])
         if not set(params) >= required_parameters:
             raise RequestFailed("All required parameters ({}) must be presented".format(", ".join(required_parameters)))
@@ -540,7 +543,7 @@ class Application(object):
         token, user = self._get_token_and_user(request.headers.get("Authorization", ""))
 
         try:
-            task = Task(id=generate_uuid(), creation_time=now(), user=user, token=token, state="pending", **params)
+            task = Task(id=id, creation_time=now(), user=user, token=token, state="pending", **params)
         except TypeError as error:
             raise RequestFailed("Cannot create task", inner_errors=[yt.YtError(error.message)])
 
@@ -556,11 +559,15 @@ class Application(object):
 
             self._yt.set(os.path.join(self._tasks_path, task.id), task.dict())
 
+        logger.info("Task %s added")
+
         return task.id
 
     def abort(self, id):
         if id not in self._tasks:
             raise RequestFailed("Unknown task " + id)
+
+        logger.info("Aboring task %s", id)
 
         _, user = self._get_token_and_user(request.headers.get("Authorization", ""))
         if self._tasks[id].user != user and \
@@ -585,6 +592,8 @@ class Application(object):
     def restart(self, id):
         if id not in self._tasks:
             raise RequestFailed("Unknown task " + id)
+
+        logger.info("Restarting task %s", id)
 
         _, user = self._get_token_and_user(request.headers.get("Authorization", ""))
         if self._tasks[id].user != user and \
