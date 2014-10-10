@@ -73,6 +73,7 @@ public:
         TChunkStorePtr owner)
         : UnderlyingReader_(std::move(underlyingReader))
         , Owner_(std::move(owner))
+        , AutomatonInvoker_(Owner_->Tablet_->GetEpochAutomatonInvoker())
     { }
 
     virtual TAsyncReadBlocksResult ReadBlocks(const std::vector<int>& blockIndexes) override
@@ -116,11 +117,13 @@ private:
     NChunkClient::IReaderPtr UnderlyingReader_;
     TChunkStorePtr Owner_;
 
+    IInvokerPtr AutomatonInvoker_;
+
 
     void CheckResult(const TError& result)
     {
         if (!result.IsOK()) {
-            Owner_->OnLocalReaderFailed();
+            AutomatonInvoker_->Invoke(BIND(&TChunkStore::OnLocalReaderFailed, Owner_));
         }
     }
 
@@ -401,12 +404,9 @@ void TChunkStore::PrecacheProperties()
 
 void TChunkStore::OnLocalReaderFailed()
 {
-    auto this_ = MakeStrong(this);
-    Tablet_->GetEpochAutomatonInvoker()->Invoke(BIND([this, this_] () {
-        ChunkInitialized_ = false;
-        Chunk_.Reset();
-        ChunkReader_.Reset();
-    }));
+    ChunkInitialized_ = false;
+    Chunk_.Reset();
+    ChunkReader_.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
