@@ -5,6 +5,8 @@
 #include <core/misc/checksum.h>
 #include <core/misc/error.h>
 
+#include <core/actions/signal.h>
+
 #include <core/concurrency/thread_affinity.h>
 
 #include <core/logging/log.h>
@@ -51,6 +53,14 @@ public:
      *  \note Thread affinity: any
      */
     bool CanRotateChangelogs() const;
+
+    //! This signal is set whenever the leader cannot proceed and a re-election must take place.
+    /*!
+     *  Such a catastrophe happens when the changelog rotation fails.
+     *
+     *  \note Thread affinity: raised in an unspecified thread
+     */
+    DEFINE_SIGNAL(void(), LeaderFailed);
 
 private:
     TDistributedHydraManagerConfigPtr Config_;

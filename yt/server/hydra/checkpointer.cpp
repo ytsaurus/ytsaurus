@@ -31,8 +31,6 @@ public:
         bool buildSnapshot)
         : Owner_(owner)
         , BuildSnapshot_(buildSnapshot)
-        , SnapshotPromise_(NewPromise<TErrorOr<TRemoteSnapshotParams>>())
-        , ChangelogPromise_(NewPromise<TError>())
         , Logger(Owner_->Logger)
     { }
 
@@ -47,7 +45,8 @@ public:
         Owner_->LeaderCommitter_->Flush();
         Owner_->LeaderCommitter_->SuspendLogging();
 
-        LOG_INFO("Starting distributed changelog rotation at version %v", Version_);
+        LOG_INFO("Starting distributed changelog rotation (Version: %v)",
+            Version_);
 
         Owner_->LeaderCommitter_->GetQuorumFlushResult()
             .Subscribe(BIND(&TSession::OnQuorumFlushed, MakeStrong(this))
@@ -72,8 +71,8 @@ private:
     int RemoteRotationSuccessCount_ = 0;
 
     TVersion Version_;
-    TPromise<TErrorOr<TRemoteSnapshotParams>> SnapshotPromise_;
-    TPromise<TError> ChangelogPromise_;
+    TPromise<TErrorOr<TRemoteSnapshotParams>> SnapshotPromise_ = NewPromise<TErrorOr<TRemoteSnapshotParams>>();
+    TPromise<TError> ChangelogPromise_ = NewPromise<TError>();
     TParallelAwaiterPtr SnapshotAwaiter_;
     TParallelAwaiterPtr ChangelogAwaiter_;
     std::vector<TNullable<TChecksum>> SnapshotChecksums_;
@@ -319,6 +318,7 @@ private:
     {
         ChangelogAwaiter_->Cancel();
         ChangelogPromise_.Set(error);
+        Owner_->LeaderFailed_.Fire();
     }
 
 };

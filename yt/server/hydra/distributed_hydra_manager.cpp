@@ -787,30 +787,13 @@ private:
         YCHECK(epochContext->IsActiveLeader);
 
         auto checkpointer = epochContext->Checkpointer;
-        TAsyncError result;
         if (checkpointer->CanBuildSnapshot()) {
-            result = checkpointer->BuildSnapshot().Apply(BIND([] (TErrorOr<TRemoteSnapshotParams> result) {
-                return TError(result);
-            }));
+            checkpointer->BuildSnapshot();
         } else if (checkpointer->CanRotateChangelogs()) {
             LOG_WARNING("Snapshot is still being built, just rotating changlogs");
-            result = checkpointer->RotateChangelog();
+            checkpointer->RotateChangelog();
         } else {
-            LOG_WARNING("Cannot neither build a snapshot nor rotate changelogs");
             return;
-        }
-
-        result.Subscribe(BIND(&TDistributedHydraManager::OnCheckpointResult, MakeStrong(this))
-            .Via(epochContext->EpochControlInvoker));
-    }
-
-    void OnCheckpointResult(TError error)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (!error.IsOK()) {
-            LOG_ERROR(error);
-            Restart();
         }
     }
 
@@ -822,6 +805,11 @@ private:
         DecoratedAutomaton_->CancelPendingLeaderMutations(error);
 
         LOG_ERROR(error, "Error committing mutation, restarting");
+        Restart();
+    }
+
+    void OnCheckpointerFailed()
+    {
         Restart();
     }
 
@@ -874,6 +862,9 @@ private:
             epochContext->LeaderCommitter,
             SnapshotStore_,
             epochContext);
+        epochContext->Checkpointer->SubscribeLeaderFailed(BIND(
+            &TDistributedHydraManager::OnCheckpointerFailed,
+            MakeWeak(this)));
 
         epochContext->FollowerTracker->Start();
 
@@ -934,9 +925,9 @@ private:
 
             // Let's be neat and omit changelog rotation for the very first run.
             if (DecoratedAutomaton_->GetLoggedVersion() != TVersion()) {
-                auto rotateResult = WaitFor(epochContext->Checkpointer->RotateChangelog());
+                auto result = WaitFor(epochContext->Checkpointer->RotateChangelog());
                 VERIFY_THREAD_AFFINITY(AutomatonThread);
-                THROW_ERROR_EXCEPTION_IF_FAILED(rotateResult);
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
             }
 
             SwitchTo(epochContext->EpochControlInvoker);
