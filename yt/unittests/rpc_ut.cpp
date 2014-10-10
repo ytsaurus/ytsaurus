@@ -94,7 +94,6 @@ class TMyService
 public:
     TMyService(IInvokerPtr invoker, Event* event)
         : TServiceBase(invoker, TMyProxy::ServiceName_, NLog::TLogger("Main"))
-        , Event_(event)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SomeCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyAttachments));
@@ -121,9 +120,6 @@ public:
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, OneWay);
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, CheckAll);
 
-private:
-    // To signal for one-way rpc requests when processed the request
-    Event* Event_;
 };
 
 DEFINE_RPC_SERVICE_METHOD(TMyService, SomeCall)
@@ -364,8 +360,6 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, CheckAll)
     EXPECT_EQ("Attachments",     StringFromSharedRef(attachments[0]));
     EXPECT_EQ("are",      StringFromSharedRef(attachments[1]));
     EXPECT_EQ("ok",  StringFromSharedRef(attachments[2]));
-
-    Event_->Signal();
 }
 
 TEST_F(TRpcTest, OneWaySend)
