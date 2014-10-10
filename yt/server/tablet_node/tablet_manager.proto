@@ -59,6 +59,7 @@ message TReqCommitTabletStoresUpdate
     required NYT.NProto.TGuid tablet_id = 1;
 	repeated NYT.NTabletServer.NProto.TAddStoreDescriptor stores_to_add = 2;
 	repeated NYT.NTabletServer.NProto.TRemoveStoreDescriptor stores_to_remove = 3;
+	optional NYT.NProto.TGuid transaction_id = 4;
 }
 
 message TRspUpdateTabletStores

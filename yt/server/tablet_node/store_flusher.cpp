@@ -278,13 +278,6 @@ private:
         try {
             LOG_INFO("Store flush started");
 
-            TReqCommitTabletStoresUpdate updateStoresRequest;
-            ToProto(updateStoresRequest.mutable_tablet_id(), tabletId);
-            {
-                auto* descriptor = updateStoresRequest.add_stores_to_remove();
-                ToProto(descriptor->mutable_store_id(), store->GetId());
-            }
-
             auto reader = store->CreateReader(
                 MinKey(),
                 MaxKey(),
@@ -315,6 +308,14 @@ private:
                 transaction = transactionOrError.Value();
                 LOG_INFO("Store flush transaction created (TransactionId: %v)",
                     transaction->GetId());
+            }
+
+            TReqCommitTabletStoresUpdate hydraRequest;
+            ToProto(hydraRequest.mutable_tablet_id(), tabletId);
+            ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
+            {
+                auto* descriptor = hydraRequest.add_stores_to_remove();
+                ToProto(descriptor->mutable_store_id(), store->GetId());
             }
 
             auto writer = CreateVersionedMultiChunkWriter(
@@ -350,7 +351,7 @@ private:
             }
 
             for (const auto& chunkSpec : writer->GetWrittenChunks()) {
-                auto* descriptor = updateStoresRequest.add_stores_to_add();
+                auto* descriptor = hydraRequest.add_stores_to_add();
                 descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
                 ToProto(descriptor->mutable_backing_store_id(), store->GetId());
@@ -358,7 +359,7 @@ private:
 
             SwitchTo(automatonInvoker);
 
-            CreateMutation(slot->GetHydraManager(), updateStoresRequest)
+            CreateMutation(slot->GetHydraManager(), hydraRequest)
                 ->Commit();
 
             LOG_INFO("Store flush completed");

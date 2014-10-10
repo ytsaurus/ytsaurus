@@ -40,6 +40,7 @@
 #include <server/tablet_server/tablet_manager.pb.h>
 
 #include <server/hive/hive_manager.h>
+#include <server/hive/transaction_supervisor.pb.h>
 
 #include <server/data_node/block_store.h>
 
@@ -63,6 +64,8 @@ using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NObjectClient;
+using namespace NHive;
+using namespace NHive::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -733,14 +736,27 @@ private:
             JoinToString(storeIdsToAdd),
             JoinToString(storeIdsToRemove));
 
-        TReqUpdateTabletStores updateRequest;
-        ToProto(updateRequest.mutable_tablet_id(), tabletId);
-        updateRequest.mutable_stores_to_add()->MergeFrom(commitRequest.stores_to_add());
-        updateRequest.mutable_stores_to_remove()->MergeFrom(commitRequest.stores_to_remove());
-
         auto* slot = tablet->GetSlot();
         auto hiveManager = slot->GetHiveManager();
-        hiveManager->PostMessage(slot->GetMasterMailbox(), updateRequest);
+
+        {
+            TReqUpdateTabletStores masterRequest;
+            ToProto(masterRequest.mutable_tablet_id(), tabletId);
+            masterRequest.mutable_stores_to_add()->MergeFrom(commitRequest.stores_to_add());
+            masterRequest.mutable_stores_to_remove()->MergeFrom(commitRequest.stores_to_remove());
+
+            hiveManager->PostMessage(slot->GetMasterMailbox(), masterRequest);
+        }
+
+        if (commitRequest.has_transaction_id()) {
+            auto transactionId = FromProto<TTransactionId>(commitRequest.transaction_id());
+
+            TReqHydraAbortTransaction masterRequest;
+            ToProto(masterRequest.mutable_transaction_id(), transactionId);
+            ToProto(masterRequest.mutable_mutation_id(), NullMutationId);
+
+            hiveManager->PostMessage(slot->GetMasterMailbox(), masterRequest);
+        }
     }
 
     void HydraOnTabletStoresUpdated(const TRspUpdateTabletStores& response)

@@ -51,7 +51,7 @@ message TReqHydraAbortTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required NYT.NProto.TGuid mutation_id = 2;
-    required bool force = 3;
+    optional bool force = 3 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

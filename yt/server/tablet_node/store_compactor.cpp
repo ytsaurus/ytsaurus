@@ -368,11 +368,11 @@ private:
             int writeRowCount = 0;
             IVersionedMultiChunkWriterPtr currentWriter;
 
-            TReqCommitTabletStoresUpdate updateStoresRequest;
-            ToProto(updateStoresRequest.mutable_tablet_id(), tabletId);
-
+            TReqCommitTabletStoresUpdate hydraRequest;
+            ToProto(hydraRequest.mutable_tablet_id(), tabletId);
+            ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
             for (auto store : stores) {
-                auto* descriptor = updateStoresRequest.add_stores_to_remove();
+                auto* descriptor = hydraRequest.add_stores_to_remove();
                 ToProto(descriptor->mutable_store_id(), store->GetId());
             }
 
@@ -436,7 +436,7 @@ private:
                         currentPartitionRowCount);
 
                     for (const auto& chunkSpec : currentWriter->GetWrittenChunks()) {
-                        auto* descriptor = updateStoresRequest.add_stores_to_add();
+                        auto* descriptor = hydraRequest.add_stores_to_add();
                         descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                         descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
                     }
@@ -507,7 +507,7 @@ private:
             LOG_INFO("Eden partitioning completed (RowCount: %v)",
                 readRowCount);
 
-            CreateMutation(slot->GetHydraManager(), updateStoresRequest)
+            CreateMutation(slot->GetHydraManager(), hydraRequest)
                 ->Commit();
 
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
@@ -605,11 +605,11 @@ private:
                     transaction->GetId());
             }
 
-            TReqCommitTabletStoresUpdate updateStoresRequest;
-            ToProto(updateStoresRequest.mutable_tablet_id(), tabletId);
-
+            TReqCommitTabletStoresUpdate hydraRequest;
+            ToProto(hydraRequest.mutable_tablet_id(), tabletId);
+            ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
             for (auto store : stores) {
-                auto* descriptor = updateStoresRequest.add_stores_to_remove();
+                auto* descriptor = hydraRequest.add_stores_to_remove();
                 ToProto(descriptor->mutable_store_id(), store->GetId());
             }
 
@@ -658,7 +658,7 @@ private:
             }
 
             for (const auto& chunkSpec : writer->GetWrittenChunks()) {
-                auto* descriptor = updateStoresRequest.add_stores_to_add();
+                auto* descriptor = hydraRequest.add_stores_to_add();
                 descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
             }
@@ -669,7 +669,7 @@ private:
             LOG_INFO("Partition compaction completed (RowCount: %v)",
                 readRowCount);
 
-            CreateMutation(slot->GetHydraManager(), updateStoresRequest)
+            CreateMutation(slot->GetHydraManager(), hydraRequest)
                 ->Commit();
 
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
