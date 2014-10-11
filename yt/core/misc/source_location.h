@@ -7,57 +7,31 @@ namespace NYT {
 class TSourceLocation
 {
 public:
-    TSourceLocation();
-    TSourceLocation(
-        const void* instructionPointer,
-        const char* function,
-        const char* file,
-        int line);
+    TSourceLocation()
+        : FileName_(nullptr)
+        , Line_(-1)
+    { }
 
+    TSourceLocation(const char* fileName, int line)
+        : FileName_(fileName)
+        , Line_(line)
+    { }
 
-    inline const void* GetInstructionPointer() const
-    {
-        return InstructionPointer;
-    }
+    const char* GetFileName() const;
+    int GetLine() const;
+    bool IsValid() const;
 
-    inline const char* GetFunctionName() const
-    {
-        return Function;
-    }
-
-    inline const char* GetFileName() const
-    {
-        return File;
-    }
-
-    inline int GetFileLine() const
-    {
-        return Line;
-    }
+    bool operator<(const TSourceLocation& other) const;
+    bool operator==(const TSourceLocation& other) const;
 
 private:
-    const void* InstructionPointer;
-    const char* Function;
-    const char* File;
-    int Line;
+    const char* FileName_;
+    int Line_;
 
 };
 
-//! A function to get current instruction pointer.
-const void* GetInstructionPointer();
-
-//! Define a macro to record the current source location.
-#ifdef __GNUC__
-#define FROM_HERE FROM_HERE_WITH_EXPLICIT_FUNCTION(__PRETTY_FUNCTION__)
-#else
-#define FROM_HERE FROM_HERE_WITH_EXPLICIT_FUNCTION(__FUNCTION__)
-#endif
-
-#define FROM_HERE_WITH_EXPLICIT_FUNCTION(functionName) \
-    ::NYT::TSourceLocation(::NYT::GetInstructionPointer(), \
-        functionName, \
-        __FILE__, \
-        __LINE__)
+//! Defines a macro to record the current source location.
+#define FROM_HERE ::NYT::TSourceLocation(__FILE__, __LINE__)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -7,9 +7,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRefCountedTypeCookie GetRefCountedTypeCookie(TRefCountedTypeKey key)
+TRefCountedTypeCookie GetRefCountedTypeCookie(
+	TRefCountedTypeKey typeKey,
+	const TSourceLocation& location)
 {
-    return TRefCountedTracker::Get()->GetCookie(key);
+    return TRefCountedTracker::Get()->GetCookie(typeKey, location);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

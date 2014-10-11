@@ -1,46 +1,52 @@
 #include "source_location.h"
 
-#include <cstdlib>
-
-#ifdef _win_
-// MSDN says to #include <intrin.h>, but that breaks the VS2005 build.
-extern "C" {
-    void* _ReturnAddress();
-}
-#endif
+#include <string.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSourceLocation::TSourceLocation()
-    : InstructionPointer(NULL)
-    , Function("<unknown>")
-    , File("<unknown>")
-    , Line(-1)
-{ }
-
-TSourceLocation::TSourceLocation(
-    const void* instructionPointer,
-    const char* function,
-    const char* file,
-    int line)
-    : InstructionPointer(instructionPointer)
-    , Function(function)
-    , File(file)
-    , Line(line)
-{ }
-
-#ifdef _win_
-__declspec(noinline)
-#endif
-const void* GetInstructionPointer()
+const char* TSourceLocation::GetFileName() const
 {
-#ifdef _win_
-    return _ReturnAddress();
-#else
-    return __builtin_extract_return_addr(__builtin_return_address(0));
-#endif
+    return FileName_;
+}
+
+int TSourceLocation::GetLine() const
+{
+    return Line_;
+}
+
+bool TSourceLocation::IsValid() const
+{
+    return FileName_ != nullptr;
+}
+
+bool TSourceLocation::operator<(const TSourceLocation& other) const
+{
+    const char* fileName = FileName_ ? FileName_ : "";
+    const char* otherFileName = other.FileName_ ? other.FileName_ : "";
+    int fileNameResult = strcmp(fileName, otherFileName);
+    if (fileNameResult != 0) {
+        return fileNameResult;
+    }
+
+    if (Line_ < other.Line_) {
+        return true;
+    }
+    if (Line_ > other.Line_) {
+        return false;
+    }
+
+    return false;
+}
+
+bool TSourceLocation::operator==(const TSourceLocation& other) const
+{
+    const char* fileName = FileName_ ? FileName_ : "";
+    const char* otherFileName = other.FileName_ ? other.FileName_ : "";
+    return
+        strcmp(fileName, otherFileName) == 0 &&
+        Line_ == other.Line_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

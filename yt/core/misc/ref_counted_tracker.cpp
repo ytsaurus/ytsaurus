@@ -47,18 +47,58 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRefCountedTracker::TNamedSlot::TNamedSlot(TRefCountedTypeKey key)
+bool TRefCountedTracker::TKey::operator==(const TKey& other) const
+{
+    return
+        TypeKey == other.TypeKey &&
+        Location == other.Location;
+}
+
+bool TRefCountedTracker::TKey::operator<(const TKey& other) const
+{
+    if (TypeKey < other.TypeKey) {
+        return true;
+    }
+    if (other.TypeKey < TypeKey) {
+        return false;
+    }
+    if (Location < other.Location) {
+        return true;
+    }
+    if (other.Location < Location) {
+        return false;
+    }
+
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRefCountedTracker::TNamedSlot::TNamedSlot(const TKey& key)
     : Key_(key)
 { }
 
-TRefCountedTypeKey TRefCountedTracker::TNamedSlot::GetKey() const
+TRefCountedTypeKey TRefCountedTracker::TNamedSlot::GetTypeKey() const
 {
-    return Key_;
+    return Key_.TypeKey;
 }
 
-Stroka TRefCountedTracker::TNamedSlot::GetName() const
+const TSourceLocation& TRefCountedTracker::TNamedSlot::GetLocation() const
 {
-    return DemangleCxxName(static_cast<const std::type_info*>(Key_)->name());
+    return Key_.Location;
+}
+
+Stroka TRefCountedTracker::TNamedSlot::GetTypeName() const
+{
+    return DemangleCxxName(static_cast<const std::type_info*>(GetTypeKey())->name());
+}
+
+Stroka TRefCountedTracker::TNamedSlot::GetFullName() const
+{
+    const auto& location = Key_.Location;
+    return location.IsValid()
+        ? Format("%v at %v:%v", GetTypeName(), location.GetFileName(), location.GetLine())
+        : GetTypeName();
 }
 
 TRefCountedTracker::TAnonymousSlot& TRefCountedTracker::TAnonymousSlot::operator+=(const TAnonymousSlot& other)
@@ -101,15 +141,18 @@ int TRefCountedTracker::GetTrackedThreadCount() const
 PER_THREAD TRefCountedTracker::TAnonymousSlot* TRefCountedTracker::CurrentThreadStatisticsBegin; // = nullptr
 PER_THREAD int TRefCountedTracker::CurrentThreadStatisticsSize; // = 0
 
-TRefCountedTypeCookie TRefCountedTracker::GetCookie(TRefCountedTypeKey key)
+TRefCountedTypeCookie TRefCountedTracker::GetCookie(
+    TRefCountedTypeKey typeKey,
+    const TSourceLocation& location)
 {
     TGuard<TForkAwareSpinLock> guard(SpinLock_);
+    TKey key{typeKey, location};
     auto it = KeyToCookie_.find(key);
     if (it != KeyToCookie_.end()) {
         return it->second;
     }
     auto cookie = CookieToKey_.size();
-    KeyToCookie_.insert(std::make_pair(key, cookie));
+    KeyToCookie_.emplace(key, cookie);
     CookieToKey_.push_back(key);
     return cookie;
 }
@@ -168,7 +211,7 @@ void TRefCountedTracker::SortSnapshot(TNamedStatistics* snapshot, int sortByColu
 
         case 4:
             predicate = [] (const TNamedSlot& lhs, const TNamedSlot& rhs) {
-                return lhs.GetName() < rhs.GetName();
+                return lhs.GetTypeName() < rhs.GetTypeName();
             };
             break;
     }
@@ -209,7 +252,7 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn) const
             slot.GetObjectsAllocated(),
             slot.GetBytesAlive(),
             slot.GetBytesAllocated(),
-            ~slot.GetName());
+            ~slot.GetFullName());
     }
 
     builder.AppendString("-------------------------------------------------------------------------------------------------------------\n");
@@ -247,7 +290,7 @@ TYsonProducer TRefCountedTracker::GetMonitoringProducer() const
                 .Item("statistics").DoListFor(slots, [] (TFluentList fluent, const TNamedSlot& slot) {
                     fluent
                         .Item().BeginMap()
-                            .Item("name").Value(slot.GetName())
+                            .Item("name").Value(slot.GetFullName())
                             .Item("objects_alive").Value(slot.GetObjectsAlive())
                             .Item("objects_allocated").Value(slot.GetObjectsAllocated())
                             .Item("bytes_alive").Value(slot.GetBytesAlive())
@@ -264,41 +307,47 @@ TYsonProducer TRefCountedTracker::GetMonitoringProducer() const
     });
 }
 
-i64 TRefCountedTracker::GetObjectsAllocated(TRefCountedTypeKey key)
+i64 TRefCountedTracker::GetObjectsAllocated(TRefCountedTypeKey typeKey)
 {
-    return GetSlot(key).GetObjectsAllocated();
+    return GetSlot(typeKey).GetObjectsAllocated();
 }
 
-i64 TRefCountedTracker::GetObjectsAlive(TRefCountedTypeKey key)
+i64 TRefCountedTracker::GetObjectsAlive(TRefCountedTypeKey typeKey)
 {
-    return GetSlot(key).GetObjectsAlive();
+    return GetSlot(typeKey).GetObjectsAlive();
 }
 
-i64 TRefCountedTracker::GetAllocatedBytes(TRefCountedTypeKey key)
+i64 TRefCountedTracker::GetAllocatedBytes(TRefCountedTypeKey typeKey)
 {
-    return GetSlot(key).GetBytesAllocated();
+    return GetSlot(typeKey).GetBytesAllocated();
 }
 
-i64 TRefCountedTracker::GetAliveBytes(TRefCountedTypeKey key)
+i64 TRefCountedTracker::GetAliveBytes(TRefCountedTypeKey typeKey)
 {
-    return GetSlot(key).GetBytesAlive();
+    return GetSlot(typeKey).GetBytesAlive();
 }
 
-TRefCountedTracker::TNamedSlot TRefCountedTracker::GetSlot(TRefCountedTypeKey key)
+TRefCountedTracker::TNamedSlot TRefCountedTracker::GetSlot(TRefCountedTypeKey typeKey)
 {
-    auto cookie = GetCookie(key);
+    TGuard<TForkAwareSpinLock> guard(SpinLock_);
+
+    TKey key{typeKey, TSourceLocation()};
 
     TNamedSlot result(key);
-    auto accumulateResult = [&] (const TAnonymousStatistics& statistics) {
+    auto accumulateResult = [&] (const TAnonymousStatistics& statistics, TRefCountedTypeCookie cookie) {
         if (cookie < statistics.size()) {
             result += statistics[cookie];
         }
     };
 
-    TGuard<TForkAwareSpinLock> guard(SpinLock_);
-    accumulateResult(GlobalStatistics_);
-    for (auto* holder : PerThreadHolders_) {
-        accumulateResult(*holder->GetStatistics());
+    auto it = KeyToCookie_.lower_bound(key);
+    while (it != KeyToCookie_.end() && it->first.TypeKey == typeKey) {
+        auto cookie = it->second;
+        accumulateResult(GlobalStatistics_, cookie);
+        for (auto* holder : PerThreadHolders_) {
+            accumulateResult(*holder->GetStatistics(), cookie);
+        }
+        ++it;
     }
 
     return result;

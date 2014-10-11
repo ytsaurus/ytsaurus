@@ -3,12 +3,6 @@
 #include "bind_internal.h"
 #include "callback_internal.h"
 
-#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
-#define BIND(...) ::NYT::Bind(FROM_HERE, __VA_ARGS__)
-#else
-#define BIND(...) ::NYT::Bind(__VA_ARGS__)
-#endif
-
 namespace NYT {
 /*! \internal */
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,19 +33,26 @@ namespace NYT {
 // harder to read.
 //
 
-template <class TFunctor, class... TParams>
+template <
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+    class TTag,
+    int Counter,
+#endif
+    class TFunctor,
+    class... TAs>
 TCallback<
     typename NYT::NDetail::TBindState<
         typename NYT::NDetail::TFunctorTraits<TFunctor>::TRunnable,
         typename NYT::NDetail::TFunctorTraits<TFunctor>::TSignature,
-        void(typename NMpl::TDecay<TParams>::TType...)
+        void(typename NMpl::TDecay<TAs>::TType...)
     >::TUnboundSignature>
 Bind(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     const TSourceLocation& location,
 #endif
-    TFunctor functor, TParams&&... params) {
-
+    TFunctor functor,
+    TAs&&... args)
+{
     // Typedefs for how to store and run the functor.
     typedef NYT::NDetail::TFunctorTraits<TFunctor> TFunctorTraits;
     typedef typename TFunctorTraits::TRunnable TRunnable;
@@ -71,20 +72,36 @@ Bind(
     // Binding a raw pointer can result in invocation with dead parameters,
     // because #TBindState do not hold references to parameters.
 
-    typedef NYT::NDetail::TCheckFirstArgument<TRunnable, TParams...> TCheckFirstArgument;
+    typedef NYT::NDetail::TCheckFirstArgument<TRunnable, TAs...> TCheckFirstArgument;
     typedef NYT::NDetail::TCheckReferencesInSignature<typename TRunnable::TSignature> TCheckReferencesInSignature;
-    typedef NYT::NMpl::TTypesPack<NYT::NDetail::TCheckIsRawPtrToRefCountedTypeHelper<TParams>...> TCheckParamsIsRawPtrToRefCountedType;
+    typedef NYT::NMpl::TTypesPack<NYT::NDetail::TCheckIsRawPtrToRefCountedTypeHelper<TAs>...> TCheckParamsIsRawPtrToRefCountedType;
 
-    typedef NYT::NDetail::TBindState<TRunnable, TSignature,
-        void(typename NMpl::TDecay<TParams>::TType...)> TTypedBindState;
+    typedef NYT::NDetail::TBindState<
+        TRunnable,
+        TSignature,
+        void(typename NMpl::TDecay<TAs>::TType...)
+        > TTypedBindState;
+
     return TCallback<typename TTypedBindState::TUnboundSignature>(
-        New<TTypedBindState>(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+        NewWithLocation<TTypedBindState, TTag, Counter>(
             location,
-#endif
+            location,
             NYT::NDetail::MakeRunnable(functor),
-            std::forward<TParams>(params)...));
+            std::forward<TAs>(args)...)
+#else
+        New<TTypedBindState>(
+            NYT::NDetail::MakeRunnable(functor),
+            std::forward<TAs>(args)...)
+#endif
+    );
 }
+
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+#define BIND(...) ::NYT::Bind<::NYT::TCurrentTranslationUnitTag, __COUNTER__>(FROM_HERE, __VA_ARGS__)
+#else
+#define BIND(...) ::NYT::Bind(__VA_ARGS__)
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 /*! \endinternal */

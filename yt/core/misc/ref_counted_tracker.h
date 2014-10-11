@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "source_location.h"
 
 #include <core/ytree/yson_producer.h>
 
@@ -24,7 +25,10 @@ class TRefCountedTracker
 {
 public:
     static TRefCountedTracker* Get();
-    TRefCountedTypeCookie GetCookie(TRefCountedTypeKey key);
+
+    TRefCountedTypeCookie GetCookie(
+        TRefCountedTypeKey typeKey,
+        const TSourceLocation& location = TSourceLocation());
 
     FORCED_INLINE void Allocate(TRefCountedTypeCookie cookie, size_t size)
     {
@@ -39,10 +43,10 @@ public:
     Stroka GetDebugInfo(int sortByColumn = -1) const;
     NYTree::TYsonProducer GetMonitoringProducer() const;
 
-    i64 GetObjectsAllocated(TRefCountedTypeKey key);
-    i64 GetObjectsAlive(TRefCountedTypeKey key);
-    i64 GetAllocatedBytes(TRefCountedTypeKey key);
-    i64 GetAliveBytes(TRefCountedTypeKey key);
+    i64 GetObjectsAllocated(TRefCountedTypeKey typeKey);
+    i64 GetObjectsAlive(TRefCountedTypeKey typeKey);
+    i64 GetAllocatedBytes(TRefCountedTypeKey typeKey);
+    i64 GetAliveBytes(TRefCountedTypeKey typeKey);
 
     int GetTrackedThreadCount() const;
 
@@ -50,6 +54,16 @@ private:
     class TStatisticsHolder;
     friend class TStatisticsHolder;
     friend class TRefCountedTrackerInitializer;
+
+    struct TKey
+    {
+        TRefCountedTypeKey TypeKey;
+        TSourceLocation Location;
+
+        bool operator < (const TKey& other) const;
+        bool operator == (const TKey& other) const;
+    };
+
 
     class TAnonymousSlot
     {
@@ -87,12 +101,16 @@ private:
         : public TAnonymousSlot
     {
     public:
-        explicit TNamedSlot(TRefCountedTypeKey key);
-        TRefCountedTypeKey GetKey() const;
-        Stroka GetName() const;
+        explicit TNamedSlot(const TKey& key);
+        
+        TRefCountedTypeKey GetTypeKey() const;
+        const TSourceLocation& GetLocation() const;
+
+        Stroka GetTypeName() const;
+        Stroka GetFullName() const;
 
     private:
-        TRefCountedTypeKey Key_;
+        TKey Key_;
 
     };
 
@@ -102,8 +120,8 @@ private:
     static PER_THREAD int CurrentThreadStatisticsSize;
 
     NConcurrency::TForkAwareSpinLock SpinLock_;
-    yhash_map<TRefCountedTypeKey, TRefCountedTypeCookie> KeyToCookie_;
-    std::vector<TRefCountedTypeKey> CookieToKey_;
+    std::map<TKey, TRefCountedTypeCookie> KeyToCookie_;
+    std::vector<TKey> CookieToKey_;
     TAnonymousStatistics GlobalStatistics_;
     yhash_set<TStatisticsHolder*> PerThreadHolders_;
 
@@ -113,7 +131,7 @@ private:
     TNamedStatistics GetSnapshot() const;
     static void SortSnapshot(TNamedStatistics* snapshot, int sortByColumn);
 
-    TNamedSlot GetSlot(TRefCountedTypeKey key);
+    TNamedSlot GetSlot(TRefCountedTypeKey typeKey);
 
     FORCED_INLINE TAnonymousSlot* GetPerThreadSlot(TRefCountedTypeCookie cookie)
     {
@@ -130,7 +148,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// A nifty counter initializer for TRefCountedTracker.
+//! A nifty counter initializer for TRefCountedTracker.
 static class TRefCountedTrackerInitializer
 {
 public:

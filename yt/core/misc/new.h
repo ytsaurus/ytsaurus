@@ -1,5 +1,7 @@
 #pragma once
 
+#include "source_location.h"
+
 #include <typeinfo>
 
 #include <util/system/defaults.h>
@@ -71,29 +73,50 @@ TRefCountedTypeKey GetRefCountedTypeKey()
     return &typeid(T);
 }
 
-TRefCountedTypeCookie GetRefCountedTypeCookie(TRefCountedTypeKey key);
+TRefCountedTypeCookie GetRefCountedTypeCookie(
+    TRefCountedTypeKey typeKey,
+    const TSourceLocation& location);
 
 template <class T>
 FORCED_INLINE TRefCountedTypeCookie GetRefCountedTypeCookie()
 {
-    static TRefCountedTypeCookie cookie = GetRefCountedTypeCookie(GetRefCountedTypeKey<T>());
+    static auto cookie = NullRefCountedTypeCookie;
+    if (UNLIKELY(cookie == NullRefCountedTypeCookie)) {
+        cookie = GetRefCountedTypeCookie(
+            GetRefCountedTypeKey<T>(),
+            TSourceLocation());
+    }
     return cookie;
 }
+
+template <class T, class TTag, int Counter>
+FORCED_INLINE TRefCountedTypeCookie GetRefCountedTypeCookieWithLocation(const TSourceLocation& location)
+{
+    static auto cookie = NullRefCountedTypeCookie;
+    if (UNLIKELY(cookie == NullRefCountedTypeCookie)) {
+        cookie = GetRefCountedTypeCookie(
+            GetRefCountedTypeKey<T>(),
+            location);
+    }
+    return cookie;
+}
+
+namespace {
+
+//! A per-translation unit tag type.
+struct TCurrentTranslationUnitTag
+{ };
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
 
-#define REF_COUNTED_NEW_PROLOGUE() \
-    auto cookie = ::NYT::GetRefCountedTypeCookie<T>()
-
 #define REF_COUNTED_NEW_EPILOGUE() \
     InitializeTracking(result.Get(), cookie, sizeof (T))
 
 #else // !YT_ENABLE_REF_COUNTED_TRACKING
-
-#define REF_COUNTED_NEW_PROLOGUE() \
-    (void) 0
 
 #define REF_COUNTED_NEW_EPILOGUE() \
     (void) 0
@@ -103,13 +126,27 @@ FORCED_INLINE TRefCountedTypeCookie GetRefCountedTypeCookie()
 template <class T, class... As>
 inline TIntrusivePtr<T> New(As&&... args)
 {
-    REF_COUNTED_NEW_PROLOGUE();
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    auto cookie = GetRefCountedTypeCookie<T>();
+#endif
     TIntrusivePtr<T> result(new T(std::forward<As>(args)...), false);
     REF_COUNTED_NEW_EPILOGUE();
     return result;
 }
 
-#undef REF_COUNTED_NEW_PROLOGUE
+template <class T, class TTag, int Counter, class... As>
+inline TIntrusivePtr<T> NewWithLocation(
+    const TSourceLocation& location,
+    As&&... args)
+{
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    auto cookie = GetRefCountedTypeCookieWithLocation<T, TTag, Counter>(location);
+#endif
+    TIntrusivePtr<T> result(new T(std::forward<As>(args)...), false);
+    REF_COUNTED_NEW_EPILOGUE();
+    return result;    
+}
+
 #undef REF_COUNTED_NEW_EPILOGUE
 
 /*! \} */
