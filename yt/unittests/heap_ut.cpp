@@ -10,12 +10,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THeapTest
-    : public ::testing::Test
-{ };
-
-static const int TestSize = 10000;
-
 Stroka GetRandomString(int len)
 {
     Stroka str;
