@@ -82,7 +82,7 @@ public:
         const TOwningKey& minKey,
         const TOwningKey& maxKey);
 
-    //! Returns a range of partitions intersecting with the range |[lowerBound, uppwerBound)|.
+    //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
         const TOwningKey& lowerBound,
         const TOwningKey& upperBound);

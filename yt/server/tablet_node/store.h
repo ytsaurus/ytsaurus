@@ -53,7 +53,7 @@ struct IStore
     *  The reader will be providing values filtered by |timestamp| and columns
     *  filtered by |columnFilter|.
     *
-    *  This call is typically synchornous and fast but may occasionally yield.
+    *  This call is typically synchronous and fast but may occasionally yield.
     */
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
         TOwningKey lowerKey,
