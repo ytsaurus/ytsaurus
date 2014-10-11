@@ -188,30 +188,6 @@ static void InitGuidSeed()
     GuidSeed.StartMicroseconds = MicroSeconds();
 }
 
-TGuid::TGuid()
-{
-    memset(&Parts, 0, sizeof (Parts));
-}
-
-TGuid::TGuid(ui32 part0, ui32 part1, ui32 part2, ui32 part3)
-{
-    Parts = {part0, part1, part2, part3};
-}
-
-TGuid::TGuid(ui64 part0, ui64 part1)
-{
-    Parts = {
-        static_cast<ui32>(part0),
-        static_cast<ui32>(part0 >> 32),
-        static_cast<ui32>(part1),
-        static_cast<ui32>(part1 >> 32)};
-}
-
-bool TGuid::IsEmpty() const
-{
-    return (Parts[0] | Parts[1] | Parts[2] | Parts[3]) == 0;
-}
-
 TGuid TGuid::Create()
 {
     TGuid res;
@@ -233,9 +209,9 @@ TGuid TGuid::Create()
 
     TJenkinsHashFunc2 hf;
     hf.SetSeed(0x853122ef, 0x1c39dbb5);
-    hf.CalcHash(info, sizeof(info), &res.Parts[0], &res.Parts[1]);
-    res.Parts[2] = MurmurHash<ui32>(info, sizeof(info));
-    res.Parts[3] = counter;
+    hf.CalcHash(info, sizeof(info), &res.Parts32[0], &res.Parts32[1]);
+    res.Parts32[2] = MurmurHash<ui32>(info, sizeof(info));
+    res.Parts32[3] = counter;
     return res;
 }
 
@@ -255,10 +231,10 @@ bool TGuid::FromString(const TStringBuf &str, TGuid* guid)
     if (sscanf(
         str.data(),
         "%x-%x-%x-%x%n",
-        &guid->Parts[3],
-        &guid->Parts[2],
-        &guid->Parts[1],
-        &guid->Parts[0],
+        &guid->Parts32[3],
+        &guid->Parts32[2],
+        &guid->Parts32[1],
+        &guid->Parts32[0],
         &length) != 4 || length != str.length())
     {
         return false;
@@ -266,42 +242,15 @@ bool TGuid::FromString(const TStringBuf &str, TGuid* guid)
     return true;
 }
 
-void ToProto(NProto::TGuid* protoGuid, const TGuid& guid)
-{
-    ui64 first = (static_cast<ui64>(guid.Parts[1]) << 32) + guid.Parts[0];
-    ui64 second = (static_cast<ui64>(guid.Parts[3]) << 32) + guid.Parts[2];
-    protoGuid->set_first(first);
-    protoGuid->set_second(second);
-}
-
-void FromProto(TGuid* guid, const NYT::NProto::TGuid& protoGuid)
-{
-    *guid = TGuid(protoGuid.first(), protoGuid.second());
-}
-
 Stroka ToString(const TGuid& guid)
 {
     char buf[4 + 4 * 8];
-    sprintf(buf, "%x-%x-%x-%x", guid.Parts[3], guid.Parts[2], guid.Parts[1], guid.Parts[0]);
+    sprintf(buf, "%x-%x-%x-%x",
+        guid.Parts32[3],
+        guid.Parts32[2],
+        guid.Parts32[1],
+        guid.Parts32[0]);
     return buf;
-}
-
-bool operator == (const TGuid& lhs, const TGuid& rhs)
-{
-    return lhs.Parts[0] == rhs.Parts[0] &&
-           lhs.Parts[1] == rhs.Parts[1] &&
-           lhs.Parts[2] == rhs.Parts[2] &&
-           lhs.Parts[3] == rhs.Parts[3];
-}
-
-bool operator != (const TGuid& lhs, const TGuid& rhs)
-{
-    return !(lhs == rhs);
-}
-
-bool operator < (const TGuid& lhs, const TGuid& rhs)
-{
-    return memcmp(&lhs, &rhs, sizeof (lhs)) < 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

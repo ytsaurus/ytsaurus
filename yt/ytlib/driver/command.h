@@ -289,7 +289,7 @@ protected:
     {
         auto result = this->CurrentMutationId;
         if (this->CurrentMutationId != NRpc::NullMutationId) {
-            ++(this->CurrentMutationId).Parts[0];
+            ++(this->CurrentMutationId).Parts32[0];
         }
         return result;
     }

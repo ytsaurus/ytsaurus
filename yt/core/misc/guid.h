@@ -6,17 +6,17 @@
 
 #include <core/misc/guid.pb.h>
 
-#include <core/ytree/public.h>
-
-#include <array>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGuid
 {
-    std::array<ui32, 4> Parts;
+    union
+    {
+        ui32 Parts32[4];
+        ui64 Parts64[2];
+    };
 
     //! Constructs a null (zero) guid.
     TGuid();
@@ -27,16 +27,19 @@ struct TGuid
     //! Constructs guid from parts.
     TGuid(ui64 part0, ui64 part1);
 
+    //! Copies an existing guid.
+    TGuid(const TGuid& other) = default;
+
     //! Checks if TGuid is zero.
     bool IsEmpty() const;
 
     //! Creates a new instance.
     static TGuid Create();
 
-    //! Conversion from TStringBuf, throws an exception if something went wrong.
+    //! Parses guid from TStringBuf, throws an exception if something went wrong.
     static TGuid FromString(const TStringBuf& str);
 
-    //! Conversion from TStringBuf, returns |true| if everything was ok.
+    //! Parses guid from TStringBuf, returns |true| if everything was ok.
     static bool FromString(const TStringBuf& str, TGuid* guid);
 };
 
@@ -48,6 +51,7 @@ Stroka ToString(const TGuid& guid);
 bool operator == (const TGuid& lhs, const TGuid& rhs);
 bool operator != (const TGuid& lhs, const TGuid& rhs);
 bool operator <  (const TGuid& lhs, const TGuid& rhs);
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,12 +67,16 @@ struct hash<NYT::TGuid>
 {
     inline size_t operator()(const NYT::TGuid& guid) const
     {
-        ui32 p = 1000000009; // prime number
-        return guid.Parts[0] +
-               guid.Parts[1] * p +
-               guid.Parts[2] * p * p +
-               guid.Parts[3] * p * p * p;
+        const size_t p = 1000000009; // prime number
+        return guid.Parts32[0] +
+               guid.Parts32[1] * p +
+               guid.Parts32[2] * p * p +
+               guid.Parts32[3] * p * p * p;
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#define GUID_INL_H_
+#include "guid-inl.h"
+#undef GUID_INL_H_

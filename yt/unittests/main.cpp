@@ -78,6 +78,13 @@ public:
 
 int main(int argc, char **argv)
 {
+    NYT::TGuid a;
+    NYT::TGuid b(a);
+
+    printf("%d", a == b);
+    printf("%d", a != b);
+    printf("%d", a < b);
+
 #ifdef _unix_
     signal(SIGPIPE, SIG_IGN);
 #endif

@@ -159,9 +159,13 @@ void FormatValue(TStringBuilder* builder, T* value, const TStringBuf& format)
 // TGuid (specialize for performance reasons)
 inline void FormatValue(TStringBuilder* builder, const TGuid& value, const TStringBuf& /*format*/)
 {
-    char buf[4 + 4 * 8];
-    sprintf(buf, "%x-%x-%x-%x", value.Parts[3], value.Parts[2], value.Parts[1], value.Parts[0]);
-    builder->AppendString(buf);
+    char* buf = builder->Preallocate(4 + 4 * 8);
+    int count = sprintf(buf, "%x-%x-%x-%x",
+        value.Parts32[3],
+        value.Parts32[2],
+        value.Parts32[1],
+        value.Parts32[0]);
+    builder->Advance(count);
 }
 
 // TNullable

@@ -182,7 +182,7 @@ int TLocation::GetChunkCount() const
 
 Stroka TLocation::GetChunkFileName(const TChunkId& chunkId) const
 {
-    ui8 firstHashByte = static_cast<ui8>(chunkId.Parts[0] & 0xff);
+    ui8 firstHashByte = static_cast<ui8>(chunkId.Parts32[0] & 0xff);
     return NFS::CombinePaths(
         GetPath(),
         Format("%02x%v%v", firstHashByte, LOCSLASH_S, chunkId));

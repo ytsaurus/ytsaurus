@@ -431,7 +431,7 @@ private:
             commandOptions.MutationId = NRpc::GenerateMutationId();
         }
         auto result = commandOptions.MutationId;
-        ++commandOptions.MutationId.Parts[0];
+        ++commandOptions.MutationId.Parts32[0];
         return result;
     }
     

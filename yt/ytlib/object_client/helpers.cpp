@@ -75,20 +75,20 @@ bool IsUserType(EObjectType type)
 
 EObjectType TypeFromId(const TObjectId& id)
 {
-    return EObjectType(id.Parts[1] & 0xffff);
+    return EObjectType(id.Parts32[1] & 0xffff);
 }
 
 TCellTag CellTagFromId(const TObjectId& id)
 {
-    return id.Parts[1] >> 16;
+    return id.Parts32[1] >> 16;
 }
 
 ui64 CounterFromId(const TObjectId& id)
 {
     ui64 result;
-    result   = id.Parts[3];
+    result   = id.Parts32[3];
     result <<= 32;
-    result  |= id.Parts[2];
+    result  |= id.Parts32[2];
     return result;
 }
 
@@ -147,8 +147,8 @@ TObjectId ReplaceTypeInId(
     EObjectType type)
 {
     auto result = id;
-    result.Parts[1] &= ~0xffff;
-    result.Parts[1] |= type;
+    result.Parts32[1] &= ~0xffff;
+    result.Parts32[1] |= type;
     return result;
 }
 

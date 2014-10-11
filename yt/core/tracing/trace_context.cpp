@@ -20,8 +20,8 @@ static ui64 GenerateId()
 {
     auto guid = TGuid::Create();
     return
-        (static_cast<ui64>(guid.Parts[0]) << 32) +
-        (guid.Parts[1] ^ guid.Parts[3]);
+        (static_cast<ui64>(guid.Parts32[1]) << 32) +
+        (guid.Parts32[1] ^ guid.Parts32[3]);
 }
 
 static TSpanId GenerateTraceId()

@@ -220,8 +220,8 @@ public:
         YASSERT(typeValue >= 0 && typeValue <= MaxObjectType);
 
         return TObjectId(
-            random ^ CellId_.Parts[0],
-            (CellId_.Parts[1] & 0xffff0000) + typeValue,
+            random ^ CellId_.Parts32[0],
+            (CellId_.Parts32[1] & 0xffff0000) + typeValue,
             version.RecordId,
             version.SegmentId);
     }

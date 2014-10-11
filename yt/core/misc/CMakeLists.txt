@@ -68,6 +68,7 @@ set( HDRS
   ${BASE}/error-inl.h
   ${BASE}/fs.h
   ${BASE}/guid.h
+  ${BASE}/guid-inl.h
   ${BASE}/hash.h
   ${BASE}/heap-inl.h
   ${BASE}/heap.h
