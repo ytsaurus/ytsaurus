@@ -25,12 +25,12 @@ static const auto& Logger = RpcServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcServer
+class TBusServer
     : public TServerBase
     , public IMessageHandler
 {
 public:
-    explicit TRpcServer(IBusServerPtr busServer)
+    explicit TBusServer(IBusServerPtr busServer)
         : BusServer_(busServer)
     { }
 
@@ -74,15 +74,17 @@ private:
         const auto& method = header->method();
         auto realmId = header->has_realm_id() ? FromProto<TRealmId>(header->realm_id()) : NullRealmId;
         bool oneWay = header->has_one_way() ? header->one_way() : false;
+        auto requestStartTime = header->has_request_start_time() ? MakeNullable(header->request_start_time()) : Null;
+        auto retryStartTime = header->has_retry_start_time() ? MakeNullable(header->retry_start_time()) : Null;
 
-        LOG_DEBUG("Request received (Service: %v, Method: %v, RealmId: %v, RequestId: %v, OneWay: %v, RequestStartTime: %v, RetryStartTime: %v)",
+        LOG_DEBUG("Request received (Method: %v:%v, RealmId: %v, RequestId: %v, OneWay: %v, RequestStartTime: %v, RetryStartTime: %v)",
             serviceName,
             method,
             realmId,
             requestId,
             oneWay,
-            header->has_request_start_time() ? ToString(TInstant(header->request_start_time())) : "<Null>",
-            header->has_retry_start_time() ? ToString(TInstant(header->retry_start_time())) : "<Null>");
+            requestStartTime,
+            retryStartTime);
 
         if (!Started_) {
             auto error = TError(NRpc::EErrorCode::Unavailable, "Server is not started");
@@ -125,7 +127,7 @@ private:
 
 IServerPtr CreateBusServer(NBus::IBusServerPtr busServer)
 {
-    return New<TRpcServer>(busServer);
+    return New<TBusServer>(busServer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,6 +38,7 @@ public:
 
     virtual void Reply(const TError& error) override;
     virtual void Reply(TSharedRefArray responseMessage) override;
+    using IServiceContext::Reply;
 
     virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
     virtual TSharedRefArray GetResponseMessage() const override;

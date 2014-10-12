@@ -410,20 +410,6 @@ void TServiceBase::OnRequest(
         return;
     }
 
-    if (mutationId != NullMutationId) {
-        auto asyncResponseMessage = ResponseKeeper_->TryBeginRequest(mutationId);
-        if (asyncResponseMessage) {
-            auto this_ = MakeStrong(this);
-            asyncResponseMessage.Subscribe(BIND([this, this_, requestId, mutationId, replyBus] (TSharedRefArray responseMessage) {
-                LOG_DEBUG("Replying with kept response (RequestId: %v, MutationId: %v)",
-                    requestId,
-                    mutationId);
-                replyBus->Send(std::move(responseMessage), EDeliveryTrackingLevel::None);
-            }));
-            return;
-        }
-    }
-
     Profiler.Increment(runtimeInfo->RequestCounter, +1);
 
     if (header->has_request_start_time() && header->has_retry_start_time()) {
@@ -441,17 +427,12 @@ void TServiceBase::OnRequest(
     }
 
     auto traceContext = GetTraceContext(*header);
+    NTracing::TTraceContextGuard traceContextGuard(traceContext);
 
     TRACE_ANNOTATION(
         traceContext,
         "server_host",
         TAddressResolver::Get()->GetLocalHostName());
-
-    NTracing::TTraceContextGuard traceContextGuard(traceContext);
-
-    if (!oneWay) {
-        Profiler.Increment(runtimeInfo->QueueSizeCounter, +1);
-    }
 
     TRACE_ANNOTATION(
         traceContext,
@@ -459,10 +440,21 @@ void TServiceBase::OnRequest(
         method,
         NTracing::ServerReceiveAnnotation);
 
+    TFuture<TSharedRefArray>  keptResponseMessage;
+    if (mutationId != NullMutationId) {
+        keptResponseMessage = ResponseKeeper_->TryBeginRequest(mutationId);
+        if (keptResponseMessage) {
+            LOG_DEBUG("Replying with kept response (RequestId: %v, MutationId: %v)",
+                requestId,
+                mutationId);
+        }
+    }
+
     auto context = New<TServiceContext>(
         this,
         requestId,
-        mutationId,
+        // NB: Suppress keeping the response if we're replying with a kept one.
+        keptResponseMessage ? NullMutationId : mutationId,
         std::move(replyBus),
         runtimeInfo,
         traceContext,
@@ -472,6 +464,13 @@ void TServiceBase::OnRequest(
 
     if (oneWay) {
         RunRequest(std::move(context));
+        return;
+    }
+
+    Profiler.Increment(runtimeInfo->QueueSizeCounter, +1);
+
+    if (keptResponseMessage) {
+        context->Reply(std::move(keptResponseMessage));
         return;
     }
 
