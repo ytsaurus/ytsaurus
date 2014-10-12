@@ -23,6 +23,8 @@
     #include <unistd.h>
 #endif
 
+#include <array>
+
 namespace NYT {
 
 using namespace NConcurrency;

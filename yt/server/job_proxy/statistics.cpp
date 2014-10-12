@@ -6,6 +6,8 @@
 #include <core/ytree/convert.h>
 #include <core/ytree/tree_builder.h>
 
+#include <array>
+
 namespace NYT {
 namespace NJobProxy {
 

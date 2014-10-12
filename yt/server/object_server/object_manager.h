@@ -21,6 +21,8 @@
 
 #include <server/cypress_server/public.h>
 
+#include <array>
+
 namespace NYT {
 namespace NObjectServer {
 

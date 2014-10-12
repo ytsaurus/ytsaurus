@@ -11,7 +11,10 @@
 #include <core/misc/fs.h>
 
 #include <util/random/random.h>
+
 #include <util/system/tempfile.h>
+
+#include <array>
 
 namespace NYT {
 namespace NHydra {

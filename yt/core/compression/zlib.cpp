@@ -7,6 +7,7 @@
 #include <contrib/libs/zlib/zlib.h>
 
 #include <iostream>
+#include <array>
 
 namespace NYT {
 namespace NCompression {
