@@ -26,6 +26,8 @@
 #include <core/concurrency/scheduler.h>
 
 #include <core/rpc/dispatcher.h>
+#include <core/rpc/message.h>
+#include <core/rpc/response_keeper.h>
 
 #include <core/logging/log.h>
 
@@ -66,6 +68,7 @@ namespace NScheduler {
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
+using namespace NRpc;
 using namespace NTransactionClient;
 using namespace NCypressClient;
 using namespace NCellScheduler;
@@ -241,14 +244,6 @@ public:
         return operation;
     }
 
-    TOperationPtr FindOperationByMutationId(const TMutationId& id)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto it = MutationIdToOperation_.find(id);
-        return it == MutationIdToOperation_.end() ? nullptr : it->second;
-    }
-
 
     TExecNodePtr FindNode(const Stroka& address)
     {
@@ -286,14 +281,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // Check for an already existing operation.
-        if (mutationId != NullMutationId) {
-            auto existingOperation = FindOperationByMutationId(mutationId);
-            if (existingOperation) {
-                return existingOperation->GetStarted();
-            }
-        }
-
         if (static_cast<int>(IdToOperation_.size()) >= Config_->MaxOperationCount) {
             THROW_ERROR_EXCEPTION("Limit for the number of concurrent operations %v has been reached",
                 Config_->MaxOperationCount);
@@ -329,7 +316,6 @@ public:
         operation->SetCleanStart(true);
         operation->SetState(EOperationState::Initializing);
 
-        RegisterOperationMutation(operation);
         LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, MutationId: %v, User: %v)",
             type,
             operationId,
@@ -607,7 +593,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto operationId = operation->GetId();
+        const auto& operationId = operation->GetId();
 
         if (operation->IsFinishedState() || operation->IsFinishingState()) {
             // Operation is probably being aborted.
@@ -660,9 +646,6 @@ private:
 
     typedef yhash_map<TOperationId, TOperationPtr> TOperationIdMap;
     TOperationIdMap IdToOperation_;
-
-    typedef yhash_map<TMutationId, TOperationPtr> TOperationMutationIdMap;
-    TOperationMutationIdMap MutationIdToOperation_;
 
     typedef yhash_map<TJobId, TJobPtr> TJobMap;
     TJobMap IdToJob_;
@@ -933,7 +916,7 @@ private:
             throw TFiberCanceledException();
         }
 
-        auto operationId = operation->GetId();
+        const auto& operationId = operation->GetId();
 
         try {
             // Run async preparation.
@@ -981,10 +964,18 @@ private:
 
     void ReviveOperation(TOperationPtr operation)
     {
-        auto operationId = operation->GetId();
+        const auto& operationId = operation->GetId();
 
         LOG_INFO("Reviving operation (OperationId: %v)",
             operationId);
+
+        if (operation->GetMutationId() != NullMutationId) {
+            TRspStartOperation response;
+            ToProto(response.mutable_operation_id(), operationId);
+            auto responseMessage = CreateResponseMessage(response);
+            auto responseKeeper = Bootstrap_->GetResponseKeeper();
+            responseKeeper->EndRequest(operation->GetMutationId(), responseMessage);
+        }
 
         // NB: The operation is being revived, hence it already
         // has a valid node associated with it.
@@ -1003,7 +994,6 @@ private:
             return;
         }
 
-        RegisterOperationMutation(operation);
         RegisterOperation(operation);
 
         BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation)
@@ -1114,13 +1104,6 @@ private:
         YCHECK(AddressToNode_.erase(address) == 1);
     }
 
-    void RegisterOperationMutation(TOperationPtr operation)
-    {
-        auto mutationId = operation->GetMutationId();
-        if (mutationId != NullMutationId) {
-            YCHECK(MutationIdToOperation_.insert(std::make_pair(mutationId, operation)).second);
-        }
-    }
 
     void RegisterOperation(TOperationPtr operation)
     {
@@ -1153,11 +1136,6 @@ private:
     void UnregisterOperation(TOperationPtr operation)
     {
         YCHECK(IdToOperation_.erase(operation->GetId()) == 1);
-
-        auto mutationId = operation->GetMutationId();
-        if (mutationId != NullMutationId) {
-            YCHECK(MutationIdToOperation_.erase(operation->GetMutationId()) == 1);
-        }
 
         OperationUnregistered_.Fire(operation);
 
@@ -1530,7 +1508,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto operationId = operation->GetId();
+        const auto& operationId = operation->GetId();
 
         LOG_INFO("Completing operation (OperationId: %v)",
             operationId);

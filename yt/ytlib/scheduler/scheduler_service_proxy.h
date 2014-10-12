@@ -20,6 +20,11 @@ public:
         return "SchedulerService";
     }
 
+    static int GetProtocolVersion()
+    {
+        return 0;
+    }
+
     explicit TSchedulerServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }

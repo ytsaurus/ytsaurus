@@ -31,8 +31,10 @@ public:
         : TServiceBase(
             bootstrap->GetControlInvoker(),
             TSchedulerServiceProxy::GetServiceName(),
-            SchedulerLogger)
-        , Bootstrap(bootstrap)
+            SchedulerLogger,
+            TSchedulerServiceProxy::GetProtocolVersion(),
+            bootstrap->GetResponseKeeper())
+        , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
@@ -41,7 +43,8 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap;
+    TBootstrap* Bootstrap_;
+
 
     DECLARE_RPC_SERVICE_METHOD(NProto, StartOperation)
     {
@@ -64,7 +67,7 @@ private:
             type,
             transactionId);
 
-        auto scheduler = Bootstrap->GetScheduler();
+        auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
         scheduler->StartOperation(
             type,
@@ -91,7 +94,7 @@ private:
 
         context->SetRequestInfo("OperationId: %v", operationId);
 
-        auto scheduler = Bootstrap->GetScheduler();
+        auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
         auto operation = scheduler->GetOperationOrThrow(operationId);
@@ -110,7 +113,7 @@ private:
 
         context->SetRequestInfo("OperationId: %v", operationId);
 
-        auto scheduler = Bootstrap->GetScheduler();
+        auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
         auto operation = scheduler->GetOperationOrThrow(operationId);
@@ -127,7 +130,7 @@ private:
 
         context->SetRequestInfo("OperationId: %v", operationId);
 
-        auto scheduler = Bootstrap->GetScheduler();
+        auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
         auto operation = scheduler->GetOperationOrThrow(operationId);

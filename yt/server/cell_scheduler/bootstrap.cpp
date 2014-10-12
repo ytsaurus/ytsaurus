@@ -15,6 +15,7 @@
 #include <core/rpc/bus_server.h>
 #include <core/rpc/retrying_channel.h>
 #include <core/rpc/bus_channel.h>
+#include <core/rpc/transient_response_keeper.h>
 
 #include <ytlib/api/connection.h>
 #include <ytlib/api/client.h>
@@ -53,7 +54,6 @@
 #include <server/scheduler/job_tracker_service.h>
 #include <server/scheduler/config.h>
 
-
 namespace NYT {
 namespace NCellScheduler {
 
@@ -81,8 +81,8 @@ static NLog::TLogger Logger("Bootstrap");
 TBootstrap::TBootstrap(
     const Stroka& configFileName,
     TCellSchedulerConfigPtr config)
-    : ConfigFileName(configFileName)
-    , Config(config)
+    : ConfigFileName_(configFileName)
+    , Config_(config)
 { }
 
 TBootstrap::~TBootstrap()
@@ -92,7 +92,7 @@ void TBootstrap::Run()
 {
     srand(time(nullptr));
 
-    ControlQueue = New<TFairShareActionQueue>("Control", EControlQueue::GetDomainNames());
+    ControlQueue_ = New<TFairShareActionQueue>("Control", EControlQueue::GetDomainNames());
 
     auto result = BIND(&TBootstrap::DoRun, this)
         .Guarded()
@@ -106,26 +106,28 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    LocalAddress = BuildServiceAddress(
+    LocalAddress_ = BuildServiceAddress(
         TAddressResolver::Get()->GetLocalHostName(),
-        Config->RpcPort);
+        Config_->RpcPort);
 
     LOG_INFO("Starting scheduler (LocalAddress: %v, MasterAddresses: [%v])",
-        LocalAddress,
-        JoinToString(Config->ClusterConnection->Master->Addresses));
+        LocalAddress_,
+        JoinToString(Config_->ClusterConnection->Master->Addresses));
 
-    auto connection = CreateConnection(Config->ClusterConnection);
-    MasterClient = connection->CreateClient();
+    auto connection = CreateConnection(Config_->ClusterConnection);
+    MasterClient_ = connection->CreateClient();
 
-    BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
+    BusServer_ = CreateTcpBusServer(New<TTcpBusServerConfig>(Config_->RpcPort));
 
-    RpcServer = CreateBusServer(BusServer);
+    RpcServer_ = CreateBusServer(BusServer_);
 
-    HttpServer.reset(new NHttp::TServer(Config->MonitoringPort));
+    HttpServer_.reset(new NHttp::TServer(Config_->MonitoringPort));
 
-    ClusterDirectory = New<NHive::TClusterDirectory>(MasterClient->GetConnection());
+    ClusterDirectory_ = New<TClusterDirectory>(MasterClient_->GetConnection());
 
-    Scheduler = New<TScheduler>(Config->Scheduler, this);
+    Scheduler_ = New<TScheduler>(Config_->Scheduler, this);
+
+    ResponseKeeper_ = CreateTransientResponseKeeper(Config_->ResponseKeeper);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
@@ -146,66 +148,72 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/config",
-        CreateVirtualNode(NYTree::CreateYsonFileService(ConfigFileName)));
+        CreateVirtualNode(NYTree::CreateYsonFileService(ConfigFileName_)));
     SetNodeByYPath(
         orchidRoot,
         "/scheduler",
-        CreateVirtualNode(Scheduler
+        CreateVirtualNode(
+            Scheduler_
             ->GetOrchidService()
             ->Via(GetControlInvoker())
-            ->Cached(Config->OrchidCacheExpirationTime)));
+            ->Cached(Config_->OrchidCacheExpirationTime)));
     
     SetBuildAttributes(orchidRoot, "scheduler");
 
-    RpcServer->RegisterService(CreateOrchidService(
+    RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
         GetControlInvoker()));
 
-    HttpServer->Register(
+    HttpServer_->Register(
         "/orchid",
         NMonitoring::GetYPathHttpHandler(orchidRoot));
 
-    RpcServer->RegisterService(CreateSchedulerService(this));
-    RpcServer->RegisterService(CreateJobTrackerService(this));
+    RpcServer_->RegisterService(CreateSchedulerService(this));
+    RpcServer_->RegisterService(CreateJobTrackerService(this));
 
-    LOG_INFO("Listening for HTTP requests on port %v", Config->MonitoringPort);
-    HttpServer->Start();
+    LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
+    HttpServer_->Start();
 
-    LOG_INFO("Listening for RPC requests on port %v", Config->RpcPort);
-    RpcServer->Configure(Config->RpcServer);
-    RpcServer->Start();
+    LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+    RpcServer_->Configure(Config_->RpcServer);
+    RpcServer_->Start();
 
-    Scheduler->Initialize();
+    Scheduler_->Initialize();
 }
 
 TCellSchedulerConfigPtr TBootstrap::GetConfig() const
 {
-    return Config;
+    return Config_;
 }
 
 IClientPtr TBootstrap::GetMasterClient() const
 {
-    return MasterClient;
+    return MasterClient_;
 }
 
 const Stroka& TBootstrap::GetLocalAddress() const
 {
-    return LocalAddress;
+    return LocalAddress_;
 }
 
 IInvokerPtr TBootstrap::GetControlInvoker(EControlQueue queue) const
 {
-    return ControlQueue->GetInvoker(queue);
+    return ControlQueue_->GetInvoker(queue);
 }
 
 TSchedulerPtr TBootstrap::GetScheduler() const
 {
-    return Scheduler;
+    return Scheduler_;
 }
 
-NHive::TClusterDirectoryPtr TBootstrap::GetClusterDirectory() const
+TClusterDirectoryPtr TBootstrap::GetClusterDirectory() const
 {
-    return ClusterDirectory;
+    return ClusterDirectory_;
+}
+
+IResponseKeeperPtr TBootstrap::GetResponseKeeper() const
+{
+    return ResponseKeeper_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

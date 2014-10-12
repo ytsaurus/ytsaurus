@@ -43,21 +43,24 @@ public:
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
     NScheduler::TSchedulerPtr GetScheduler() const;
     NHive::TClusterDirectoryPtr GetClusterDirectory() const;
+    NRpc::IResponseKeeperPtr GetResponseKeeper() const;
 
     void Run();
 
 private:
-    Stroka ConfigFileName;
-    TCellSchedulerConfigPtr Config;
+    Stroka ConfigFileName_;
+    TCellSchedulerConfigPtr Config_;
 
-    NConcurrency::TFairShareActionQueuePtr ControlQueue;
-    NBus::IBusServerPtr BusServer;
-    NRpc::IServerPtr RpcServer;
-    std::unique_ptr<NHttp::TServer> HttpServer;
-    NApi::IClientPtr MasterClient;
-    Stroka LocalAddress;
-    NScheduler::TSchedulerPtr Scheduler;
-    NHive::TClusterDirectoryPtr ClusterDirectory;
+    NConcurrency::TFairShareActionQueuePtr ControlQueue_;
+    NBus::IBusServerPtr BusServer_;
+    NRpc::IServerPtr RpcServer_;
+    std::unique_ptr<NHttp::TServer> HttpServer_;
+    NApi::IClientPtr MasterClient_;
+    Stroka LocalAddress_;
+    NScheduler::TSchedulerPtr Scheduler_;
+    NHive::TClusterDirectoryPtr ClusterDirectory_;
+    NRpc::IResponseKeeperPtr ResponseKeeper_;
+
 
     void DoRun();
 

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/rpc/config.h>
+
 #include <ytlib/api/config.h>
 
 #include <server/misc/config.h>
@@ -31,6 +33,8 @@ public:
 
     NScheduler::TSchedulerConfigPtr Scheduler;
 
+    NRpc::TResponseKeeperConfigPtr ResponseKeeper;
+
     TCellSchedulerConfig()
     {
         RegisterParameter("orchid_cache_expiration_time", OrchidCacheExpirationTime)
@@ -41,6 +45,8 @@ public:
             .Default(10001);
         RegisterParameter("cluster_connection", ClusterConnection);
         RegisterParameter("scheduler", Scheduler)
+            .DefaultNew();
+        RegisterParameter("response_keeper", ResponseKeeper)
             .DefaultNew();
     }
 };
