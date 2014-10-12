@@ -68,7 +68,7 @@ struct IServiceContext
     //! Returns a future representing the response message.
     /*!
      *  \note
-     *  Can only be called before the request invocation is started.
+     *  Can only be called before the request handling is started.
      */
     virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const = 0;
 
@@ -81,7 +81,7 @@ struct IServiceContext
 
     //! Returns the error that was previously set by #Reply.
     /*!
-     *  Calling #GetError before #Reply is forbidden.
+     *  Can only be called after the context is replied.
      */
     virtual const TError& GetError() const = 0;
 
@@ -152,7 +152,7 @@ Stroka ToString(const TServiceId& serviceId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Represents an abstract service registered within TServer.
+//! Represents an abstract service registered within IServer.
 /*!
  *  \note All methods be be implemented as thread-safe.
  */
