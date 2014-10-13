@@ -181,7 +181,7 @@ done;
         yamr_client.mr_user = mr_user
 
     row_count = yt_client.get(src + "/@row_count")
-    data_size = yt.client.get(src + "/@uncompressed_data_size")
+    data_size = yt_client.get(src + "/@uncompressed_data_size")
 
     # number of rows per job
     rows_per_record = max(1, 1024 ** 3 * row_count / data_size)
