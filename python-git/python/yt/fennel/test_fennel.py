@@ -9,6 +9,73 @@ import datetime
 import unittest
 
 
+def test_event_log_timestamp_parse():
+    d = datetime.datetime.strptime("2014-10-02T15:31:24.887386Z".split(".")[0], "%Y-%m-%dT%H:%M:%S")
+    assert d.hour == 15
+    assert d.minute == 31
+    assert d.second == 24
+    assert d.date().year == 2014
+    assert d.date().month == 10
+    assert d.date().day == 2
+
+
+def test_normilize_timestamp():
+    assert fennel.normilize_timestamp("2014-10-02T15:31:24.887386Z") == "2014-10-02 15:31:24"
+    assert fennel.normilize_timestamp("2014-10-10T14:07:22.295882Z") == "2014-10-10 14:07:22"
+
+
+def test_tskv_value_escape_encode():
+    assert fennel.escape_encode("Hello") == "Hello"
+    assert fennel.escape_encode("Hello\nworld") == "Hello\\nworld"
+    assert fennel.escape_encode("\\ is slash, but \0 is zero char") == "\\\\ is slash, but \\0 is zero char"
+
+
+def test_tskv_key_escape_encode():
+    assert fennel.escape_encode("Complex=key", escape_chars=fennel.TSKV_KEY_ESCAPE) == "Complex\\=key"
+
+
+def check_identity(identity, parameter):
+    assert identity(parameter) == parameter
+
+
+def test_tskv_escape_value_encode_decode():
+    def identity(line):
+        return fennel.escape_decode(fennel.escape_encode(line))
+
+    check_identity(identity, "\\ is slash, but \0 is zero char")
+    check_identity(identity, "Hello")
+    check_identity(identity, "Hello\nworld")
+
+
+def compare_types(left, right):
+    if isinstance(left, basestring) and isinstance(right, basestring):
+        pass
+    else:
+        assert type(left) == type(right)
+
+
+def compare(left, right):
+    compare_types(left, right)
+    if isinstance(left, dict):
+        assert len(left.keys()) == len(right.keys())
+        for k in left.keys():
+            compare(left[k], right[k])
+    else:
+        assert left == right
+
+
+def test_convert_to_from():
+    dataset = [
+        dict(key1="value1", key2="value2"),
+        dict(ks="string", ki=3),
+        dict(key=dict(s1="v1", s2="v2"), other_key="data")
+#        dict(key="{}")
+    ]
+    for data in dataset:
+        data_after = fennel.convert_from(fennel.convert_to(data))
+        compare(data, data_after)
+
+
 @pytest.fixture
 def fake_state():
     state = fennel.State(event_log=mock.Mock(name="event_log"))
@@ -263,9 +330,9 @@ class TestSaveChunk(IOLoopedTestCase):
         l.start()
 
         def save_all():
-            l.save_chunk(0, [{"key0":"value0"}])
-            l.save_chunk(1, [{"key1":"value1"}])
-            l.save_chunk(2, [{"key2":"value2"}, {"key3":"value3"}])
+            l.save_chunk(0, [{"key0":"value0", "timestamp": "2014-10-02T15:31:24.887386Z"}])
+            l.save_chunk(1, [{"key1":"value1",  "timestamp": "2014-10-02T15:31:24.887386Z"}])
+            l.save_chunk(2, [{"key2":"value2",  "timestamp": "2014-10-02T15:31:24.887386Z"}, {"key3":"value3",  "timestamp": "2014-10-02T15:31:24.887386Z"}])
         state.on_session_changed = save_all
 
         self.start()

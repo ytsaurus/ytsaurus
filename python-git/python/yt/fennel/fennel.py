@@ -312,9 +312,90 @@ class EventLog(object):
                 self.yt.set(self._number_of_first_row_attr, 0)
 
 
+def normilize_timestamp(ts):
+    dt = datetime.datetime.strptime(ts.split(".")[0], "%Y-%m-%dT%H:%M:%S")
+    return dt.isoformat(' ')
+
+
+ESCAPE_MAP = {
+    "\0": "\\0",
+    "\r": "\\r",
+    "\n": "\\n",
+    "\t": "\\t",
+    "\\": "\\\\",
+    "=": "\\="
+}
+
+UNESCAPE_MAP = {
+    "0": "\0",
+    "r": "\r",
+    "n": "\n",
+    "t": "\t",
+    "\\": "\\",
+    "=": "="
+}
+
+TSKV_KEY_ESCAPE = frozenset(['\0', '\r', '\n', '\t', '\\', '='])
+TSKV_VALUE_ESCAPE = frozenset(['\0', '\r', '\n', '\t', '\\'])
+
+def escape_encode(line, escape_chars=TSKV_VALUE_ESCAPE):
+    result = ""
+    start = 0
+    index = 0
+    for c in line:
+        if c in escape_chars:
+            result += line[start:index]
+            result += ESCAPE_MAP[c]
+            start = index + 1
+
+        index += 1
+    result += line[start:index]
+    return result
+
+def escape_decode(line):
+    result = ""
+    previousIsSlash = False
+    for c in line:
+        if previousIsSlash:
+            result += UNESCAPE_MAP[c]
+            previousIsSlash = False
+        else:
+            if c == '\\':
+                previousIsSlash = True
+            else:
+                result += c
+    return result
+
+
+def convert_to(row):
+    result = "tskv"
+
+    for key, value in row.iteritems():
+        if isinstance(value, basestring):
+            pass
+        else:
+            value = json.dumps(value)
+
+        result += "\t" + escape_encode(key, escape_chars=TSKV_KEY_ESCAPE) \
+          + "=" + escape_encode(value, escape_chars=TSKV_VALUE_ESCAPE);
+
+    return result
+
+def convert_from(converted_row):
+    result = dict()
+    for kv in converted_row.split('\t')[1:]:
+        key, value = kv.split('=', 1)
+        try:
+            value = json.loads(value)
+        except ValueError:
+            pass
+        result[key] = value
+    return result
+
+
 def serialize_chunk(chunk_id, seqno, lines, data):
     serialized_data = struct.pack(CHUNK_HEADER_FORMAT, chunk_id, seqno, lines)
-    serialized_data += zlib.compress("\n".join(["json-" + json.dumps(row).encode("string_escape") for row in data]))
+    serialized_data += zlib.compress("\n".join([convert_to(row) for row in data]))
     return serialized_data
 
 
@@ -332,7 +413,7 @@ def parse_chunk(serialized_data):
 
     data = []
     for line in decompressed_data.split("\n"):
-        data.append(json.loads(line[len("json-"):].decode("string_escape")))
+        data.append(convert_from(line))
 
     return data
 
@@ -340,7 +421,9 @@ def parse_chunk(serialized_data):
 class LogBroker(object):
     log = logging.getLogger("log_broker")
 
-    def __init__(self, state, io_loop=None, IOStreamClass=None, advicer_url=None, **session_options):
+    def __init__(self, state, io_loop=None, IOStreamClass=None, advicer_url=None, cluster_name = None, **session_options):
+        self._log_name = "yt-scheduler-log"
+        self._cluster_name = cluster_name
         self._advicer_url = advicer_url
         self._state = state
         self._starting = False
@@ -364,6 +447,7 @@ class LogBroker(object):
         self._session.abort()
 
     def save_chunk(self, seqno, data):
+        data = self._pre_process(data)
         if self._push_channel is not None:
             serialized_data = serialize_chunk(self._chunk_id, seqno, self._lines, data)
             self._chunk_id += 1
@@ -399,6 +483,20 @@ class LogBroker(object):
 
         self.log.info("Adviced endpoint: %s", host)
         return (host, 80)
+
+    def _pre_process(self, data):
+        return [self._transform_record(record) for record in data]
+
+    def _transform_record(self, record):
+        try:
+            record["timestamp"] = normilize_timestamp(record["timestamp"])
+            record["cluster_name"] = self._cluster_name
+            record["tskv_format"] = self._log_name
+            record["timezone"] = "+0000"
+        except:
+            self.log.error("Unable to transform record: %r", record)
+            raise
+        return record
 
 
 class PushChannel(object):
