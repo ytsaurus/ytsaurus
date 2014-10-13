@@ -120,9 +120,9 @@ class Application(object):
 
         self._sleep_step = 0.5
 
-        # Prepare acl node if it is missing
-        self._acl_path = os.path.join(config["path"], "acl")
-        self._yt.create("map_node", self._acl_path, ignore_existing=True)
+        # Prepare auth node if it is missing
+        self._auth_path = os.path.join(config["path"], "auth")
+        self._yt.create("map_node", self._auth_path, ignore_existing=True)
 
         self._default_mr_user = "userdata"
 
@@ -571,7 +571,7 @@ class Application(object):
 
         _, user = self._get_token_and_user(request.headers.get("Authorization", ""))
         if self._tasks[id].user != user and \
-           self._yt.check_permission(user, "administer", self._acl_path)["action"] != "allow":
+           self._yt.check_permission(user, "administer", self._auth_path)["action"] != "allow":
             raise RequestFailed("There is no permission to abort task.")
 
         if id in self._task_processes:
@@ -597,7 +597,7 @@ class Application(object):
 
         _, user = self._get_token_and_user(request.headers.get("Authorization", ""))
         if self._tasks[id].user != user and \
-           self._yt.check_permission(user, "administer", self._acl_path)["action"] != "allow":
+           self._yt.check_permission(user, "administer", self._auth_path)["action"] != "allow":
             raise RequestFailed("There is no permission to abort task.")
 
         if self._tasks[id].state not in ["completed", "aborted", "failed"]:
