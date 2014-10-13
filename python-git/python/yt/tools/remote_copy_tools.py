@@ -7,6 +7,12 @@ import os
 from copy import deepcopy
 from cStringIO import StringIO
 
+def which(file):
+    for path in os.environ["PATH"].split(":"):
+        if os.path.exists(path + "/" + file):
+            return path + "/" + file
+    return None
+
 def pack_module(module_name, output_dir):
     module = __import__(module_name)
     module_path = module.__file__.strip("__init__.py").strip("__init__.pyc")
@@ -151,13 +157,13 @@ while True:
     count += 1
 """
 
-    read_from_yt_script = """
-#!/bin/bash -eux
-
-while true; do
+    read_from_yt_script = """while true; do
+    set +e
     read -r start end;
-    if [ "$?" != "0" ]; then break; fi;
-    PYTHONPATH=. YT_HOSTS="{0}" yt/wrapper/yt read "{1}"'[#'"${{start}}"':#'"${{end}}"']' --format "<has_subkey=true;lenval=true>yamr" --proxy {2};
+    result="$?"
+    set -e
+    if [ "$result" != "0" ]; then break; fi;
+    PYTHONPATH=. YT_HOSTS="{0}" ./yt2 read "{1}"'[#'"${{start}}"':#'"${{end}}"']' --format "<has_subkey=true;lenval=true>yamr" --proxy {2};
 done;
 """.format(yt_client.hosts, src, yt_client.proxy)
 
@@ -167,7 +173,8 @@ done;
     os.mkdir(tmp_dir)
 
     dateutil_file = pack_module("dateutil", tmp_dir)
-    yt_file = pack_module("yt", tmp_dir)
+    yt_module_file = pack_module("yt", tmp_dir)
+    yt_file = which("yt2")
     lenval_to_nums_file = os.path.join(tmp_dir, "lenval_to_nums.py")
     with open(lenval_to_nums_file, "w") as fout:
         fout.write(lenval_to_nums_script)
@@ -200,9 +207,9 @@ done;
 
     command = "unzip yt.zip -d yt >/dev/null; "\
               "unzip dateutil.zip -d dateutil >/dev/null; "\
-              "python lenval_to_nums.py | bash read_from_yt.sh"
+              "python lenval_to_nums.py | bash -eux read_from_yt.sh"
     yamr_client.run_map(command, temp_yamr_table, dst,
-                      files=[dateutil_file, yt_file, lenval_to_nums_file, read_from_yt_file],
+                      files=[dateutil_file, yt_module_file, yt_file, lenval_to_nums_file, read_from_yt_file],
                       opts="-subkey -lenval -jobcount 500 -opt cpu.intensive.mode=1")
 
     result_row_count = yamr_client.records_count(dst)
