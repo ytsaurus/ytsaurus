@@ -14,7 +14,7 @@ class YamrError(YtError):
 _check_output = subprocess.check_output
 
 def _check_call(command, **kwargs):
-    logger.debug("Executing command '{}'".format(command))
+    logger.info("Executing command '{}'".format(command))
     timeout = kwargs.pop('timeout', None)
     proc = subprocess.Popen(command, stderr=subprocess.PIPE, **kwargs)
     try:
@@ -29,7 +29,7 @@ def _check_call(command, **kwargs):
         error.inner_errors = [YamrError(stderrdata, proc.returncode)]
         raise error
 
-    logger.debug("Command '{}' successfully executed".format(command))
+    logger.info("Command '{}' successfully executed".format(command))
 
 class Yamr(object):
     def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", fastbone=False, opts=""):
