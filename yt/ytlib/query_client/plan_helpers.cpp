@@ -195,7 +195,7 @@ TKeyTrieNode ExtractMultipleConstraints(
                 rowConstraint = IntersectKeyTrie(rowConstraint, emitConstraint(keyIndex, inExpr->Values[rowIndex].Get()));
             }
 
-            result = UniteKeyTrie(result, rowConstraint);
+            result.Unite(rowConstraint);
         }
 
         return result;

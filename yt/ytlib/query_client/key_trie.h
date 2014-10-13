@@ -47,23 +47,37 @@ struct TKeyTrieNode
     std::map<TUnversionedValue, TKeyTrieNode> Next;
     std::vector<TBound> Bounds;
 
+    TKeyTrieNode(const TKeyTrieNode&) = default;
+    TKeyTrieNode(TKeyTrieNode&&) = default;
+
+    TKeyTrieNode& operator=(const TKeyTrieNode&) = default;
+    TKeyTrieNode& operator=(TKeyTrieNode&&) = default;
+
+
     static TKeyTrieNode Empty()
     {
-        TKeyTrieNode result;
-        result.Offset = std::numeric_limits<int>::min();
-        return result;
+        return TKeyTrieNode(std::numeric_limits<int>::min());
     }
 
     static TKeyTrieNode Universal()
     {
-        return TKeyTrieNode();
+        return TKeyTrieNode(std::numeric_limits<int>::max());
     }
+
+    TKeyTrieNode& Unite(const TKeyTrieNode& rhs);
+    
+    friend TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs);
+
+    friend TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs);
+
+private:
+    TKeyTrieNode(int offset)
+        : Offset(offset)
+    { }
 
 };
 
-TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs);
 
-TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs);
 
 std::vector<TKeyRange> GetRangesFromTrieWithinRange(
     const TKeyRange& keyRange,

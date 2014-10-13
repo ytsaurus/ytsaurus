@@ -117,8 +117,7 @@ TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
     } else if (lhs.Offset > rhs.Offset) {
         return lhs;
     }
-    TKeyTrieNode result;
-    result.Offset = lhs.Offset;
+    TKeyTrieNode result(lhs.Offset);
 
     std::vector<TBound> bounds = UniteBounds(lhs.Bounds, rhs.Bounds);
 
@@ -154,6 +153,45 @@ TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
     return result;
 };
 
+TKeyTrieNode& TKeyTrieNode::Unite(const TKeyTrieNode& rhs)
+{
+    if (Offset < rhs.Offset) {
+        *this = rhs;
+        return *this;
+    } else if (Offset > rhs.Offset) {
+        return *this;
+    }
+
+    std::vector<TBound> bounds = UniteBounds(Bounds, rhs.Bounds);
+    std::vector<TBound> deletedPoints;
+
+    deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
+
+    for (const auto& next : Next) {
+        deletedPoints.emplace_back(next.first, false);
+        deletedPoints.emplace_back(next.first, false);
+    }
+        
+    for (const auto& next : rhs.Next) {
+        auto found = Next.find(next.first);
+
+        if (found != Next.end()) {
+            found->second = found->second.Unite(next.second);
+        } else {
+            Next.insert(next);
+
+            deletedPoints.emplace_back(next.first, false);
+            deletedPoints.emplace_back(next.first, false);
+        }
+    }
+
+    deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+
+    Bounds = IntersectBounds(bounds, deletedPoints);
+
+    return *this;
+}
+
 TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
 {
     if (lhs.Offset < rhs.Offset) {
@@ -169,8 +207,7 @@ TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
         }
         return result;
     }
-    TKeyTrieNode result;
-    result.Offset = lhs.Offset;
+    TKeyTrieNode result(lhs.Offset);
     result.Bounds = IntersectBounds(lhs.Bounds, rhs.Bounds);
 
     auto covers = [&] (const std::vector<TBound>& bounds, const TUnversionedValue& point) {
@@ -205,7 +242,7 @@ TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
     for (const auto& next : lhs.Next) {
         auto found = rhs.Next.find(next.first);
         if (found != rhs.Next.end()) {
-            result.Next[next.first] = IntersectKeyTrie(found->second, next.second);
+            result.Next.emplace(next.first, IntersectKeyTrie(found->second, next.second));
         } 
     }
     return result;
