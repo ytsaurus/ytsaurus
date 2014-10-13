@@ -8,16 +8,24 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 FORCED_INLINE TGuid::TGuid()
-    : Parts64{0, 0}
-{ }
+{
+    Parts64[0] = 0;
+    Parts64[1] = 0;
+}
 
 FORCED_INLINE TGuid::TGuid(ui32 part0, ui32 part1, ui32 part2, ui32 part3)
-    : Parts32{part0, part1, part2, part3}
-{ }
+{
+    Parts32[0] = part0;
+    Parts32[1] = part1;
+    Parts32[2] = part2;
+    Parts32[3] = part3;
+}
 
 FORCED_INLINE TGuid::TGuid(ui64 part0, ui64 part1)
-    : Parts64{part0, part1}
-{ }
+{
+    Parts64[0] = part0;
+    Parts64[1] = part1;
+}
 
 FORCED_INLINE bool TGuid::IsEmpty() const
 {
