@@ -66,7 +66,7 @@ private:
     };
 
 private:
-    std::vector<TOperatorPtr> Scatter(const TConstOperatorPtr& op, const TKeyTrieNode& keyTrie = TKeyTrieNode());
+    std::vector<TOperatorPtr> Scatter(const TConstOperatorPtr& op, const TKeyTrieNode& keyTrie = TKeyTrieNode::Universal());
     TOperatorPtr Gather(
         const std::vector<TOperatorPtr>& ops,
         const TTableSchema& tableSchema,
