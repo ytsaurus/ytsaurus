@@ -69,7 +69,7 @@ class Task(object):
         self.mr_user = mr_user
         self.error = error
         self.token = token
-        self.copy_method = copy_method
+        self.copy_method = get_value(copy_method, "pull")
         self.progress = progress
 
         # Special field to store meta-information for web-interface
@@ -326,7 +326,7 @@ class Application(object):
         source_client = task.get_source_client(self._clusters)
         destination_client = task.get_destination_client(self._clusters)
 
-        if task.copy_method not in [None, "pull", "push"]:
+        if task.copy_method not in ["pull", "push"]:
             raise yt.YtError("Incorrect copy method: " + str(task.copy_method))
 
         if task.source_cluster not in self._availability_graph or \
@@ -444,7 +444,7 @@ class Application(object):
                 if task.mr_user is None:
                     task.mr_user = self._default_mr_user
                 logger.info("Running YT -> YAMR remote copy")
-                if get_value(task.copy_method, "push"):
+                if task.copy_method == "push":
                     copy_yt_to_yamr_push(
                         source_client,
                         destination_client,
