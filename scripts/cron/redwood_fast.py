@@ -21,7 +21,7 @@ def process_logs(import_list, remove_list, destination_dir, source_pattern, dest
     if destination_pattern is None:
         destination_pattern = source_pattern
 
-    for i in xrange(2 * hours):
+    for i in xrange(5 * hours):
         for minutes in xrange(0, 60, 30):
             now = datetime.utcnow()
             rounded_now = datetime(now.year, now.month, now.day, now.hour) - timedelta(hours=i, minutes=minutes)
@@ -37,7 +37,10 @@ def process_logs(import_list, remove_list, destination_dir, source_pattern, dest
                 if dst in map(get_dst, import_list):
                     continue
                 if not yt.exists(dst):
-                    import_list.append({"src": src, "dst": dst, "mr_user": "userdata"})
+                    import_list.append({"src": src, "dst": dst,
+                                        "mr_user": "userdata",
+                                        "erasure_code": "none",
+                                        "compression_codec": "lz4"})
 
 def main():
     parser = argparse.ArgumentParser(description='Prepare tables to merge')
