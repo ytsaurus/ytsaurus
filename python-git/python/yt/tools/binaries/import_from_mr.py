@@ -165,13 +165,10 @@ def import_table(object, args):
 
     logger.info("Importing table '%s' (row count: %d, sorted: %d, method: %s)", src, record_count, sorted, params.import_type)
 
-    if params.force:
-        yt.remove(dst, recursive=True, force=True)
-    else:
-        if yt.exists(dst):
-            if not (yt.get_type(dst) == "table" and yt.is_empty(dst)):
-                logger.warning("Destination table '%s' is not empty", dst)
-                return CANCEL
+
+    if not params.force and yt.exists(dst) and (yt.get_type(dst) != "table" or not yt.is_empty(dst)):
+        logger.warning("Destination table '%s' is not empty", dst)
+        return CANCEL
     yt.create_table(dst, recursive=True, ignore_existing=True)
 
     logger.info("Destination table '%s' created", dst)
@@ -184,6 +181,7 @@ def import_table(object, args):
                        job_count=params.job_count,
                        pool=params.yt_pool)
         elif params.import_type == "push":
+            yt.remove(dst, recursive=True, force=True)
             push_table(src, dst, record_count, mr,
                        yt_binary=params.yt_binary,
                        token=params.yt_token,
