@@ -73,7 +73,7 @@ update_from_env(globals())
 from format import YamrFormat
 import format_config as format
 
-def set_mapreduce_mode():
+def set_yamr_mode():
     global MAPREDUCE_MODE, ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE, USE_MAPREDUCE_STYLE_DESTINATION_FDS
     global TREAT_UNEXISTING_AS_EMPTY, DELETE_EMPTY_TABLES, USE_YAMR_SORT_REDUCE_COLUMNS
     global REPLACE_TABLES_WHILE_COPY_OR_MOVE, CREATE_RECURSIVE

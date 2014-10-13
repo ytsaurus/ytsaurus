@@ -25,10 +25,10 @@ def _test_file_path(path):
 def _module_file_path(path):
     return os.path.join(LOCATION, "..", path)
 
-class TestMapreduceMode(YtTestBase, YTEnv):
+class TestYamrMode(YtTestBase, YTEnv):
     def setup_class(cls):
         YtTestBase._setup_class(YTEnv)
-        config.set_mapreduce_mode()
+        config.set_yamr_mode()
         config.TREAT_UNEXISTING_AS_EMPTY = False
         if not yt.exists("//sys/empty_yamr_table"):
             yt.create("table", "//sys/empty_yamr_table", recursive=True)

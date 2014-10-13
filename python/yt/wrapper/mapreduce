@@ -107,7 +107,7 @@ def get_smart_format(tables, smart_format_flag, has_subkey, lenval, ignore_unexi
     return result_format
 
 def main():
-    config.set_mapreduce_mode()
+    config.set_yamr_mode()
 
     parser = ArgumentParser(
         formatter_class=SortingHelpFormatter,
