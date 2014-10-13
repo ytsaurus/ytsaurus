@@ -73,7 +73,7 @@ TKeyTrieNode ExtractMultipleConstraints(
             auto referenceExpr = lhsExpr->As<TReferenceExpression>();
             auto constantExpr = rhsExpr->As<TLiteralExpression>();
 
-            TKeyTrieNode result;
+            auto result = TKeyTrieNode::Universal();
 
             if (referenceExpr && constantExpr) {
                 int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
@@ -84,7 +84,7 @@ TKeyTrieNode ExtractMultipleConstraints(
                     switch (opcode) {
                         case EBinaryOp::Equal:
                             result.Offset = keyPartIndex;
-                            result.Next[value] = TKeyTrieNode();
+                            result.Next.emplace(value, TKeyTrieNode::Universal());
                             break;
                         case EBinaryOp::NotEqual:
                             result.Offset = keyPartIndex;
@@ -136,7 +136,7 @@ TKeyTrieNode ExtractMultipleConstraints(
         auto referenceExpr = rhsExpr->As<TReferenceExpression>();
         auto constantExpr = lhsExpr->As<TLiteralExpression>();
 
-        TKeyTrieNode result;
+        auto result = TKeyTrieNode::Universal();
 
         if (functionName == "is_prefix" && referenceExpr && constantExpr) {
             int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
@@ -173,13 +173,13 @@ TKeyTrieNode ExtractMultipleConstraints(
         auto emitConstraint = [&] (size_t index, const TRow& literalTuple) {
             auto referenceExpr = inExpr->Arguments[index]->As<TReferenceExpression>();
 
-            TKeyTrieNode result;
+            auto result = TKeyTrieNode::Universal();
             if (referenceExpr) {
                 int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
 
                 if (keyPartIndex >= 0) {
                     result.Offset = keyPartIndex;
-                    result.Next[literalTuple[index]] = TKeyTrieNode();
+                    result.Next.emplace(literalTuple[index], TKeyTrieNode::Universal());
                 }
             }
 
@@ -190,7 +190,7 @@ TKeyTrieNode ExtractMultipleConstraints(
 
         for (size_t rowIndex = 0; rowIndex < inExpr->Values.size(); ++rowIndex) {
 
-            TKeyTrieNode rowConstraint;
+            auto rowConstraint = TKeyTrieNode::Universal();
             for (size_t keyIndex = 0; keyIndex < keySize; ++keyIndex) {
                 rowConstraint = IntersectKeyTrie(rowConstraint, emitConstraint(keyIndex, inExpr->Values[rowIndex].Get()));
             }
@@ -201,7 +201,7 @@ TKeyTrieNode ExtractMultipleConstraints(
         return result;
     }
 
-    return TKeyTrieNode();
+    return TKeyTrieNode::Universal();
 };
 
 TConstExpressionPtr MakeAndExpression(const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs)
@@ -384,13 +384,13 @@ TConstExpressionPtr RefinePredicate(
         auto emitConstraint = [&] (size_t index, const TRow& literalTuple) {
             auto referenceExpr = inExpr->Arguments[index]->As<TReferenceExpression>();
 
-            TKeyTrieNode result;
+            auto result = TKeyTrieNode::Universal();
             if (referenceExpr) {
                 int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
 
                 if (keyPartIndex >= 0) {
                     result.Offset = keyPartIndex;
-                    result.Next[literalTuple[index]] = TKeyTrieNode();
+                    result.Next.emplace(literalTuple[index], TKeyTrieNode::Universal());
                 }
             }
 
@@ -399,7 +399,7 @@ TConstExpressionPtr RefinePredicate(
 
         for (size_t rowIndex = 0; rowIndex < inExpr->Values.size(); ++rowIndex) {
 
-            TKeyTrieNode rowConstraint;
+            auto rowConstraint = TKeyTrieNode::Universal();
             for (size_t keyIndex = 0; keyIndex < keySize; ++keyIndex) {
                 rowConstraint = IntersectKeyTrie(rowConstraint, emitConstraint(keyIndex, inExpr->Values[rowIndex].Get()));
             }
