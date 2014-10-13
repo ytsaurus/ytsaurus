@@ -15,6 +15,7 @@ import socket
 import shutil
 import subprocess
 import sys
+import getpass
 import simplejson as json
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -255,10 +256,15 @@ class YTEnv(object):
 
     def _run_ytserver(self, service_name, name):
         for i in xrange(len(self.configs[name])):
-            self._run([
+            command = [
                 'ytserver', "--" + service_name,
                 '--config', self.config_paths[name][i]
-                ],
+                ]
+            if service_name == "node":
+                user_name = getpass.getuser()
+                cgroup_path = "/sys/fs/cgroup/freezer/" + user_name + "/yt"
+                command.extend(["--cgroup", cgroup_path])
+            self._run(command,
                 name, i)
 
     def _kill_previously_run_services(self):
