@@ -78,17 +78,6 @@ public:
 
         ValidateColumnFilter(ColumnFilter_, SchemaColumnCount_);
 
-        SmallVector<bool, TypicalColumnCount> columnFilterFlags(SchemaColumnCount_);
-        if (ColumnFilter_.All) {
-            for (int id = 0; id < SchemaColumnCount_; ++id) {
-                columnFilterFlags[id] = true;
-            }
-        } else {
-            for (int index : ColumnFilter_.Indexes) {
-                columnFilterFlags[index] = true;
-            }
-        }
-
         // NB: IStore::CreateLookuper may yield so one must copy all stores.
         for (const auto& pair : Tablet_->Stores()) {
             Stores_.push_back(pair.second);
