@@ -720,7 +720,7 @@ class Session(object):
         return attributes
 
 
-def main(table_name, proxy_path, service_id, source_id, chunk_size, ack_queue_length, advicer_url, **kwargs):
+def main(table_name, proxy_path, service_id, source_id, chunk_size, ack_queue_length, advicer_url, cluster_name, **kwargs):
     io_loop = ioloop.IOLoop.instance()
 
     yt.config.set_proxy(proxy_path)
@@ -729,7 +729,8 @@ def main(table_name, proxy_path, service_id, source_id, chunk_size, ack_queue_le
         event_log=event_log,
         io_loop=io_loop,
         chunk_size=chunk_size, ack_queue_length=ack_queue_length,
-        service_id=service_id, source_id=source_id, advicer_url = advicer_url)
+        service_id=service_id, source_id=source_id, advicer_url = advicer_url,
+        cluster_name=cluster_name)
     state.start()
     io_loop.start()
 
@@ -771,6 +772,7 @@ def run():
     options.define("chunk_size", default=DEFAULT_CHUNK_SIZE, help="size of chunk in rows")
     options.define("ack_queue_length", default=DEFAULT_ACK_QUEUE_LENGTH, help="number of concurrent chunks to save")
 
+    options.define("cluster_name", default="", help="[logbroker] name of source cluster")
     options.define("advicer_url", default=DEFAULT_ADVICER_URL, help="[logbroker] url to get adviced kafka endpoint")
     options.define("service_id", default=DEFAULT_SERVICE_ID, help="[logbroker] service id")
     options.define("source_id", default=DEFAULT_SOURCE_ID, help="[logbroker] source id")
