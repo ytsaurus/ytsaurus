@@ -103,7 +103,7 @@ void TPartitionChunkReader::OnGotMeta(IReader::TGetMetaResult result)
             YCHECK(PartitionTag == blockInfo.partition_tag());
             blockSequence.push_back(TSequentialReader::TBlockInfo(
                 blockInfo.block_index(),
-                blockInfo.block_size()));
+                blockInfo.uncompressed_size()));
         }
     }
 

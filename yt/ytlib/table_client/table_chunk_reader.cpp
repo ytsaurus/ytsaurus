@@ -442,7 +442,7 @@ private:
 
                     result.push_back(TSequentialReader::TBlockInfo(
                         protoBlock.block_index(),
-                        protoBlock.block_size()));
+                        protoBlock.uncompressed_size()));
                     StartRows.push_back(startRow);
                     break;
                 }
@@ -490,7 +490,7 @@ private:
                 std::push_heap(blockHeap.begin(), blockHeap.end());
                 result.push_back(TSequentialReader::TBlockInfo(
                     protoBlock.block_index(),
-                    protoBlock.block_size()));
+                    protoBlock.uncompressed_size()));
                 break;
             }
         }
@@ -692,7 +692,7 @@ public:
                 if (chunkReader->PartitionTag == blockInfo.partition_tag()) {
                     blockSequence.push_back(TSequentialReader::TBlockInfo(
                         blockInfo.block_index(),
-                        blockInfo.block_size()));
+                        blockInfo.uncompressed_size()));
 
                     rowCount += blockInfo.row_count();
                 }

@@ -280,7 +280,7 @@ auto TBlockWriter::FlushBlock() -> TBlock
         insertBuffer(stream.Flush());
     }
 
-    result.Meta.set_block_size(blockSize);
+    result.Meta.set_uncompressed_size(blockSize);
 
     return result;
 }

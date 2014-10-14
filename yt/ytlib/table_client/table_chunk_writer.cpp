@@ -346,7 +346,7 @@ void TTableChunkWriter::PrepareBlock()
     for (const auto& part : blockParts) {
         size += part.Size();
     }
-    blockInfo->set_block_size(size);
+    blockInfo->set_uncompressed_size(size);
     LargestBlockSize = std::max(LargestBlockSize, size);
 
     CurrentBufferCapacity += channel->GetCapacity();

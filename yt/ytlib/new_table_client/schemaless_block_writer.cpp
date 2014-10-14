@@ -51,7 +51,7 @@ TBlock THorizontalSchemalessBlockWriter::FlushBlock()
 
     TBlockMeta meta;
     meta.set_row_count(RowCount_);
-    meta.set_block_size(GetBlockSize());
+    meta.set_uncompressed_size(GetBlockSize());
 
     TBlock block;
     block.Data.swap(blockParts);

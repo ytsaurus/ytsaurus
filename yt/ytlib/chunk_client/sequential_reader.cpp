@@ -142,17 +142,12 @@ void TSequentialReader::DecompressBlocks(
             blockInfo.Index);
 
         auto uncompressedBlock = Codec_->Decompress(compressedBlock);
+        YCHECK(uncompressedBlock.Size() == blockInfo.UncompressedDataSize);
+
         Window_[windowIndex].Block.Set(uncompressedBlock);
 
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlock.Size();
-
-        i64 delta = uncompressedBlock.Size() - blockInfo.Size;
-        if (delta > 0) {
-            AsyncSemaphore_.Acquire(delta);
-        } else {
-            AsyncSemaphore_.Release(-delta);
-        }
 
         LOG_DEBUG("Finished decompressing block (Block: %v, CompressedSize: %v, UncompressedSize: %v)",
             blockInfo.Index,
@@ -171,7 +166,7 @@ void TSequentialReader::FetchNextGroup()
 
     std::vector<int> windowIndexes;
     std::vector<int> blockIndexes;
-    i64 compressedSize = 0;
+    i64 uncompressedSize = 0;
     while (FirstUnfetchedWindowIndex_ < BlockInfos_.size()) {
         const auto& blockInfo = BlockInfos_[FirstUnfetchedWindowIndex_];
         TBlockId blockId(ChunkReader_->GetChunkId(), blockInfo.Index);
@@ -182,12 +177,12 @@ void TSequentialReader::FetchNextGroup()
             slot.Cached = true;
         } else {
             // Do not exceed group size if possible.
-            if (!windowIndexes.empty() && compressedSize + blockInfo.Size > Config_->GroupSize) {
+            if (!windowIndexes.empty() && uncompressedSize + blockInfo.UncompressedDataSize > Config_->GroupSize) {
                 break;
             }
             windowIndexes.push_back(FirstUnfetchedWindowIndex_);
             blockIndexes.push_back(blockInfo.Index);
-            compressedSize += blockInfo.Size;
+            uncompressedSize += blockInfo.UncompressedDataSize;
         }
 
         ++FirstUnfetchedWindowIndex_;
@@ -203,20 +198,20 @@ void TSequentialReader::FetchNextGroup()
             MakeWeak(this),
             windowIndexes,
             blockIndexes,
-            compressedSize)
+            uncompressedSize)
         .Via(TDispatcher::Get()->GetReaderInvoker()));
 }
 
 void TSequentialReader::RequestBlocks(
     const std::vector<int>& windowIndexes,
     const std::vector<int>& blockIndexes,
-    i64 compressedSize)
+    i64 uncompressedSize)
 {
-    LOG_DEBUG("Requesting block group (Blocks: [%v], CompressedSize: %v)",
+    LOG_DEBUG("Requesting block group (Blocks: [%v], UncompressedSize: %v)",
         JoinToString(blockIndexes),
-        compressedSize);
+        uncompressedSize);
 
-    AsyncSemaphore_.Acquire(compressedSize);
+    AsyncSemaphore_.Acquire(uncompressedSize);
     ChunkReader_->ReadBlocks(blockIndexes).Subscribe(
         BIND(&TSequentialReader::OnGotBlocks,
             MakeWeak(this),

@@ -165,7 +165,7 @@ private:
     {
         TBlockReader blockReader(
             uncompressedBlock,
-            ChunkMeta_->BlockMeta().entries(blockId.BlockIndex),
+            ChunkMeta_->BlockMeta().blocks(blockId.BlockIndex),
             ChunkMeta_->ChunkSchema(),
             ChunkMeta_->KeyColumns(),
             SchemaIdMapping_,

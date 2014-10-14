@@ -241,9 +241,9 @@ void TChunkReader::DoOpen()
     std::vector<TSequentialReader::TBlockInfo> blockSequence;
     {
         // ToDo(psushin): Choose proper blocks and rows using index.
-        for (int i = 0; i < BlockMeta.entries_size(); ++i) {
-            const auto& blockMeta = BlockMeta.entries(i);
-            blockSequence.push_back(TSequentialReader::TBlockInfo(i, blockMeta.block_size()));
+        for (int i = 0; i < BlockMeta.blocks_size(); ++i) {
+            const auto& blockMeta = BlockMeta.blocks(i);
+            blockSequence.push_back(TSequentialReader::TBlockInfo(i, blockMeta.uncompressed_size()));
         }
     }
 
@@ -258,7 +258,7 @@ void TChunkReader::DoOpen()
         auto error = WaitFor(SequentialReader->FetchNextBlock());
         if (error.IsOK()) {
             BlockReader.reset(new TBlockReader(
-                BlockMeta.entries(CurrentBlockIndex),
+                BlockMeta.blocks(CurrentBlockIndex),
                 SequentialReader->GetCurrentBlock(),
                 BlockColumnTypes));
         }
@@ -281,7 +281,7 @@ bool TChunkReader::Read(std::vector<TUnversionedRow> *rows)
         YCHECK(!State.HasRunningOperation());
         ++CurrentBlockIndex;
         BlockReader.reset(new TBlockReader(
-            BlockMeta.entries(CurrentBlockIndex),
+            BlockMeta.blocks(CurrentBlockIndex),
             SequentialReader->GetCurrentBlock(),
             BlockColumnTypes));
     }

@@ -38,16 +38,16 @@ public:
     struct TBlockInfo
     {
         int Index;
-        int Size;
+        int UncompressedDataSize;
 
         TBlockInfo()
             : Index(-1)
-            , Size(0)
+            , UncompressedDataSize(0)
         { }
 
-        TBlockInfo(int index, int size)
+        TBlockInfo(int index, int uncompressedDataSize)
             : Index(index)
-            , Size(size)
+            , UncompressedDataSize(uncompressedDataSize)
         { }
     };
 
@@ -84,7 +84,7 @@ private:
     void RequestBlocks(
         const std::vector<int>& windowIndexes,
         const std::vector<int>& blockIndexes,
-        i64 compressedSize);
+        i64 uncompressedSize);
 
     void OnGotBlocks(
         const std::vector<int>& windowIndexes,

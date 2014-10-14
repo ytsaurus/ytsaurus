@@ -50,9 +50,7 @@ message TBlockInfo
 {
     required int32 block_index = 1;
     required int32 row_count = 2;
-
-    // This is uncompressed block size, used for window management in SequentialReader.
-    required int32 block_size = 3;
+    required int32 uncompressed_size = 3;
 
     optional int32 partition_tag = 4 [default = -1];
 }

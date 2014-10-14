@@ -250,7 +250,7 @@ void TVersionedChunkWriter::FinishBlock()
 
     BlockMetaExtSize_ += block.Meta.ByteSize();
 
-    BlockMetaExt_.add_entries()->Swap(&block.Meta);
+    BlockMetaExt_.add_blocks()->Swap(&block.Meta);
     EncodingChunkWriter_->WriteBlock(std::move(block.Data));
 
     MaxTimestamp_ = std::max(MaxTimestamp_, BlockWriter_->GetMaxTimestamp());

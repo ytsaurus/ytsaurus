@@ -118,7 +118,7 @@ TBlock TSimpleVersionedBlockWriter::FlushBlock()
 
     TBlockMeta meta;
     meta.set_row_count(RowCount_);
-    meta.set_block_size(size);
+    meta.set_uncompressed_size(size);
 
     auto* metaExt = meta.MutableExtension(TSimpleVersionedBlockMeta::block_meta_ext);
     metaExt->set_value_count(ValueCount_);
