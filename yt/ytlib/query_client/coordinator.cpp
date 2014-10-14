@@ -288,10 +288,36 @@ TGroupedDataSplits TCoordinator::SplitAndRegroup(
     const TDataSplits& splits,
     const TKeyTrieNode& keyTrie)
 {
-    TGroupedDataSplits result;
-    TDataSplits allSplits;
+    auto keyRangeFormatter = [] (const TKeyRange& range) -> Stroka {
+        return Format("[%v .. %v]",
+            range.first,
+            range.second);
+    };
 
+    LOG_DEBUG("Splitting %v splits according to ranges", splits.size());
+
+    TDataSplits prunedSplits;
     for (const auto& split : splits) {
+        auto originalRange = GetBothBoundsFromDataSplit(split);
+
+        std::vector<TKeyRange> ranges = 
+            GetRangesFromTrieWithinRange(originalRange, keyTrie);
+
+        for (const auto& range : ranges) {
+            auto splitCopy = split;
+
+            LOG_DEBUG("Narrowing split %v key range from %v to %v",
+                    GetObjectIdFromDataSplit(splitCopy),
+                    keyRangeFormatter(originalRange),
+                    keyRangeFormatter(range));
+            SetBothBounds(&splitCopy, range);
+
+            prunedSplits.push_back(std::move(splitCopy));
+        }
+    }
+
+    TDataSplits allSplits;
+    for (const auto& split : prunedSplits) {
         auto objectId = GetObjectIdFromDataSplit(split);
 
         if (Callbacks_->CanSplit(split)) {
@@ -317,37 +343,9 @@ TGroupedDataSplits TCoordinator::SplitAndRegroup(
         allSplits.insert(allSplits.end(), newSplits.begin(), newSplits.end());
     }
 
-    auto keyRangeFormatter = [] (const TKeyRange& range) -> Stroka {
-        return Format("[%v .. %v]",
-            range.first,
-            range.second);
-    };
+    LOG_DEBUG("Regrouping %v splits", allSplits.size());
 
-    LOG_DEBUG("Splitting %v splits according to ranges", allSplits.size());
-
-    TDataSplits resultSplits;
-    for (const auto& split : allSplits) {
-        auto originalRange = GetBothBoundsFromDataSplit(split);
-
-        std::vector<TKeyRange> ranges = 
-            GetRangesFromTrieWithinRange(originalRange, keyTrie);
-
-        for (const auto& range : ranges) {
-            auto splitCopy = split;
-
-            LOG_DEBUG("Narrowing split %v key range from %v to %v",
-                    GetObjectIdFromDataSplit(splitCopy),
-                    keyRangeFormatter(originalRange),
-                    keyRangeFormatter(range));
-            SetBothBounds(&splitCopy, range);
-
-            resultSplits.push_back(std::move(splitCopy));
-        }
-    }
-
-    LOG_DEBUG("Regrouping %v splits", resultSplits.size());
-
-    result = Callbacks_->Regroup(resultSplits, Fragment_->NodeDirectory);
+    TGroupedDataSplits result = Callbacks_->Regroup(allSplits, Fragment_->NodeDirectory);
 
     return result;
 }

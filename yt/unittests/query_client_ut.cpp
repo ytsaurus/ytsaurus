@@ -495,26 +495,13 @@ TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
 {
     TDataSplits splits;
 
-    splits.emplace_back(MakeSimpleSplit("//t", 1));
-    SetSorted(&splits.back(), true);
-    SetLowerBound(&splits.back(), BuildKey("0;0;0"));
-    SetUpperBound(&splits.back(), BuildKey("1;0;0"));
-
     splits.emplace_back(MakeSimpleSplit("//t", 2));
     SetSorted(&splits.back(), true);
     SetLowerBound(&splits.back(), BuildKey("1;0;0"));
     SetUpperBound(&splits.back(), BuildKey("2;0;0"));
 
-    splits.emplace_back(MakeSimpleSplit("//t", 3));
-    SetSorted(&splits.back(), true);
-    SetLowerBound(&splits.back(), BuildKey("2;0;0"));
-    SetUpperBound(&splits.back(), BuildKey("3;0;0"));
-
-    EXPECT_CALL(CoordinateMock_, CanSplit(_))
-        .WillRepeatedly(Return(false));
     EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
-        .WillOnce(Return(true))
-        .RetiresOnSaturation();
+        .WillOnce(Return(true));
     EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
         .WillOnce(Return(WrapInFuture(splits)));
     EXPECT_CALL(CoordinateMock_, Delegate(_, HasCounter(2)))
@@ -531,9 +518,11 @@ TEST_F(TQueryCoordinateTest, SimpleIn)
     singleSplit.emplace_back(MakeSimpleSplit("//t", 1));
 
     EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
-        .WillOnce(Return(true));
+        .Times(3)
+        .WillRepeatedly(Return(true));
     EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
-        .WillOnce(Return(WrapInFuture(singleSplit)));
+        .Times(3)
+        .WillRepeatedly(Return(WrapInFuture(singleSplit)));
     EXPECT_CALL(CoordinateMock_, Delegate(_, HasCounter(1)))
         .Times(3)
         .WillRepeatedly(Return(std::make_pair(nullptr, TFuture<TErrorOr<NQueryClient::TQueryStatistics>>())));
