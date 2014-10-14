@@ -2,6 +2,8 @@
 #include "cell_directory.h"
 #include "config.h"
 
+#include <core/concurrency/rw_spinlock.h>
+
 #include <core/rpc/channel.h>
 
 #include <ytlib/hydra/peer_channel.h>
@@ -12,6 +14,7 @@
 namespace NYT {
 namespace NHive {
 
+using namespace NConcurrency;
 using namespace NRpc;
 using namespace NHydra;
 using namespace NElection;
@@ -30,7 +33,7 @@ public:
 
     IChannelPtr FindChannel(const TCellId& cellId)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TReaderGuard guard(SpinLock_);
         auto it = CellMap_.find(cellId);
         if (it == CellMap_.end()) {
             return nullptr;
@@ -50,7 +53,7 @@ public:
 
     TCellConfigPtr FindCellConfig(const TCellId& cellId)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TReaderGuard guard(SpinLock_);
         auto it = CellMap_.find(cellId);
         return it == CellMap_.end() ? nullptr : it->second.Descriptor.Config;
     }
@@ -67,7 +70,7 @@ public:
 
     std::vector<TCellDescriptor> GetRegisteredCells()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TReaderGuard guard(SpinLock_);
         std::vector<TCellDescriptor> result;
         result.reserve(CellMap_.size());
         for (const auto& pair : CellMap_) {
@@ -78,8 +81,8 @@ public:
 
     bool RegisterCell(TCellConfigPtr config, int version)
     {
+        TWriterGuard guard(SpinLock_);
         bool result = false;
-        TGuard<TSpinLock> guard(SpinLock_);
         auto it = CellMap_.find(config->CellId);
         auto* entry = it == CellMap_.end() ? nullptr : &it->second;
         if (!entry ) {
@@ -106,7 +109,7 @@ public:
 
     bool UnregisterCell(const TCellId& cellId)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TWriterGuard guard(SpinLock_);
         auto it = CellMap_.find(cellId);
         if (it == CellMap_.end()) {
             return false;
@@ -118,7 +121,7 @@ public:
 
     void Clear()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TWriterGuard guard(SpinLock_);
         CellMap_.clear();
     }
 
@@ -132,7 +135,7 @@ private:
         IChannelPtr Channel;
     };
 
-    TSpinLock SpinLock_;
+    TReaderWriterSpinLock SpinLock_;
     yhash_map<TCellId, TEntry> CellMap_;
 
 
