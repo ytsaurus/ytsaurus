@@ -17,8 +17,8 @@ public:
     TDuration OnlineNodeTimeout;
 
     //! Limit for the number of queued FullHeartbeat requests plus the number of registered nodes before
-    //! RegisterNode starts replying EErrorCode::Unavailable.
-    int FullHeartbeatQueueSizeLimit;
+    //! |RegisterNode| method starts replying |EErrorCode::Unavailable|.
+    int MaxFullHeartbeatQueueSizeLimit;
 
     TNodeTrackerConfig()
     {
@@ -27,8 +27,8 @@ public:
         RegisterParameter("online_node_timeout", OnlineNodeTimeout)
             .Default(TDuration::Seconds(60));
 
-        RegisterParameter("full_heartbeat_queue_size_limit", FullHeartbeatQueueSizeLimit)
-            .Default(20)
+        RegisterParameter("max_full_heartbeat_queue_size", MaxFullHeartbeatQueueSizeLimit)
+            .Default(10)
             .GreaterThan(0);
     }
 };

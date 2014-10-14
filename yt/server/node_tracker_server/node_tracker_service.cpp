@@ -77,13 +77,13 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
     auto nodeTracker = Bootstrap->GetNodeTracker();
     int fullHeartbeatQueueSize = FullHeartbeatMethodInfo->QueueSizeCounter.Current;
     int registeredNodeCount = nodeTracker->GetRegisteredNodeCount();
-    if (fullHeartbeatQueueSize + registeredNodeCount > Config->FullHeartbeatQueueSizeLimit) {
+    if (fullHeartbeatQueueSize + registeredNodeCount > Config->MaxFullHeartbeatQueueSizeLimit) {
         context->Reply(TError(
             NRpc::EErrorCode::Unavailable,
             "Full heartbeat throttling is active")
             << TErrorAttribute("queue_size", fullHeartbeatQueueSize)
             << TErrorAttribute("registered_node_count", registeredNodeCount)
-            << TErrorAttribute("limit", Config->FullHeartbeatQueueSizeLimit));
+            << TErrorAttribute("limit", Config->MaxFullHeartbeatQueueSizeLimit));
         return;
     }
 
