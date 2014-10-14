@@ -892,6 +892,7 @@ private:
         LockTransaction.Reset();
 
         ClearUpdateLists();
+        ClearWatcherLists();
 
         StopRefresh();
         StopSnapshots();
@@ -1217,6 +1218,10 @@ private:
         return it == WatcherLists.end() ? nullptr : &it->second;
     }
 
+    void ClearWatcherLists()
+    {
+        WatcherLists.clear();
+    }
 
     void UpdateOperationNodes()
     {
