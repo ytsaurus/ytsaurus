@@ -226,7 +226,7 @@ void TEntityMap<TKey, TValue, TTraits, THash>::SaveKeys(TSaveContext& context) c
     std::sort(
         SaveIterators_.begin(),
         SaveIterators_.end(),
-        [] (const TMap::const_iterator& lhs, const TMap::const_iterator& rhs) {
+        [] (const typename TMap::const_iterator& lhs, const typename TMap::const_iterator& rhs) {
             return lhs->first < rhs->first;
         });
 
