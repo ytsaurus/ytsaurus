@@ -262,10 +262,9 @@ class YTEnv(object):
                 ]
             if service_name == "node":
                 user_name = getpass.getuser()
-                cgroup_path = "/sys/fs/cgroup/freezer/" + user_name + "/yt"
+                cgroup_path = "/sys/fs/cgroup/freezer/{0}/yt".format(user_name)
                 command.extend(["--cgroup", cgroup_path])
-            self._run(command,
-                name, i)
+            self._run(command, name, i)
 
     def _kill_previously_run_services(self):
         if os.path.exists(self._pids_filename):
