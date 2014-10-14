@@ -8,6 +8,8 @@
 #include <util/folder/dirut.h>
 #include <util/folder/filelist.h>
 
+#include <array>
+
 // For GetAvaibaleSpace().
 #if defined(_linux_)
     #include <sys/vfs.h>

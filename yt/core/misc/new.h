@@ -84,7 +84,7 @@ FORCED_INLINE TRefCountedTypeCookie GetRefCountedTypeCookie()
     if (UNLIKELY(cookie == NullRefCountedTypeCookie)) {
         cookie = GetRefCountedTypeCookie(
             GetRefCountedTypeKey<T>(),
-            TSourceLocation());
+            NYT::TSourceLocation());
     }
     return cookie;
 }
