@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "row_base.h"
 
-#include <core/misc/string.h>
 #include <core/misc/error.h>
+#include <core/misc/small_vector.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -57,12 +57,20 @@ void ValidateColumnFilter(const TColumnFilter& columnFilter, int schemaColumnCou
     if (columnFilter.All)
         return;
 
+    SmallVector<bool, TypicalColumnCount> flags;
+    flags.resize(schemaColumnCount);
+
     for (int index : columnFilter.Indexes) {
         if (index < 0 || index >= schemaColumnCount) {
             THROW_ERROR_EXCEPTION("Column filter contains invalid index: actual %v, expected in range [0, %v]",
                 index,
                 schemaColumnCount - 1);
         }
+        if (flags[index]) {
+            THROW_ERROR_EXCEPTION("Column filter contains duplicate index %v",
+                index);
+        }
+        flags[index] = true;
     }
 }
 
