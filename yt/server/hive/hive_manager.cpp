@@ -284,16 +284,11 @@ private:
 
         int lastIncomingMessageId = request.last_incoming_message_id();
         int trimCount = lastIncomingMessageId - mailbox->GetFirstOutcomingMessageId() + 1;
-        YCHECK(trimCount >= 0);
-        if (trimCount == 0)
+        if (trimCount <= 0)
             return;
 
         auto& outcomingMessages = mailbox->OutcomingMessages();
-        std::move(
-            outcomingMessages.begin() + trimCount,
-            outcomingMessages.end(),
-            outcomingMessages.begin());
-        outcomingMessages.resize(outcomingMessages.size() - trimCount);
+        outcomingMessages.erase(outcomingMessages.begin(), outcomingMessages.begin() + trimCount);
 
         mailbox->SetFirstOutcomingMessageId(mailbox->GetFirstOutcomingMessageId() + trimCount);
         LOG_DEBUG_UNLESS(IsRecovery(), "Messages acknowledged (SrcCellId: %v, DstCellId: %v, FirstOutcomingMessageId: %v)",
