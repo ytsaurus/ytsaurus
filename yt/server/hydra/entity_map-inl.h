@@ -40,16 +40,16 @@ size_t IReadOnlyEntityMap<TKey, TValue, THash>::size() const
 
 template <class TKey, class TValue, class TTraits, class THash>
 TEntityMap<TKey, TValue, TTraits, THash>::TEntityMap(const TTraits& traits)
-    : Traits(traits)
+    : Traits_(traits)
 { }
 
 template <class TKey, class TValue, class TTraits, class THash>
 TEntityMap<TKey, TValue, TTraits, THash>::~TEntityMap()
 {
-    for (const auto& pair : Map) {
+    for (const auto& pair : Map_) {
         delete pair.second;
     }
-    Map.clear();
+    Map_.clear();
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -58,7 +58,7 @@ void TEntityMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, TValue* v
     VERIFY_THREAD_AFFINITY(UserThread);
 
     YASSERT(value);
-    YCHECK(Map.insert(std::make_pair(key, value)).second);
+    YCHECK(Map_.insert(std::make_pair(key, value)).second);
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -66,8 +66,8 @@ TValue* TEntityMap<TKey, TValue, TTraits, THash>::Find(const TKey& key) const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    auto it = Map.find(key);
-    return it == Map.end() ? NULL : it->second;
+    auto it = Map_.find(key);
+    return it == Map_.end() ? NULL : it->second;
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -93,12 +93,12 @@ bool TEntityMap<TKey, TValue, TTraits, THash>::TryRemove(const TKey& key)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    auto it = Map.find(key);
-    if (it == Map.end()) {
+    auto it = Map_.find(key);
+    if (it == Map_.end()) {
         return false;
     }
     delete it->second;
-    Map.erase(it);
+    Map_.erase(it);
     return true;
 }
 
@@ -107,10 +107,10 @@ std::unique_ptr<TValue> TEntityMap<TKey, TValue, TTraits, THash>::Release(const 
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    auto it = Map.find(key);
-    YASSERT(it != Map.end());
+    auto it = Map_.find(key);
+    YASSERT(it != Map_.end());
     auto* value = it->second;
-    Map.erase(it);
+    Map_.erase(it);
     return std::unique_ptr<TValue>(value);
 }
 
@@ -127,10 +127,10 @@ void TEntityMap<TKey, TValue, TTraits, THash>::Clear()
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    for (const auto& pair : Map) {
+    for (const auto& pair : Map_) {
         delete pair.second;
     }
-    Map.clear();
+    Map_.clear();
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -138,7 +138,7 @@ int TEntityMap<TKey, TValue, TTraits, THash>::GetSize() const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    return static_cast<int>(Map.size());
+    return static_cast<int>(Map_.size());
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -147,7 +147,7 @@ TEntityMap<TKey, TValue, TTraits, THash>::Begin()
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    return Map.begin();
+    return Map_.begin();
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -156,7 +156,7 @@ TEntityMap<TKey, TValue, TTraits, THash>::End()
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    return Map.end();
+    return Map_.end();
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -165,7 +165,7 @@ TEntityMap<TKey, TValue, TTraits, THash>::Begin() const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    return Map.begin();
+    return Map_.begin();
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -174,7 +174,7 @@ TEntityMap<TKey, TValue, TTraits, THash>::End() const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    return Map.end();
+    return Map_.end();
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -182,14 +182,16 @@ void TEntityMap<TKey, TValue, TTraits, THash>::LoadKeys(TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    Map.clear();
+    Map_.clear();
+    LoadedKeys_.clear();
     size_t size = TSizeSerializer::Load(context);
 
     for (size_t index = 0; index < size; ++index) {
         TKey key;
         Load(context, key);
-        auto value = Traits.Create(key);
-        YCHECK(Map.insert(std::make_pair(key, value.release())).second);
+        LoadedKeys_.push_back(key);
+        auto value = Traits_.Create(key);
+        YCHECK(Map_.insert(std::make_pair(key, value.release())).second);
     }
 }
 
@@ -199,28 +201,23 @@ void TEntityMap<TKey, TValue, TTraits, THash>::LoadValues(TContext& context)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    std::vector<TKey> keys;
-    keys.reserve(Map.size());
-    for (const auto& pair : Map) {
-        keys.push_back(pair.first);
-    }
-    std::sort(keys.begin(), keys.end());
-
-    for (const auto& key : keys) {
-        auto it = Map.find(key);
-        YCHECK(it != Map.end());
+    for (const auto& key : LoadedKeys_) {
+        auto it = Map_.find(key);
+        YCHECK(it != Map_.end());
         Load(context, *it->second);
     }
+
+    LoadedKeys_.clear();
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
 void TEntityMap<TKey, TValue, TTraits, THash>::SaveKeys(TSaveContext& context) const
 {
-    TSizeSerializer::Save(context, Map.size());
+    TSizeSerializer::Save(context, Map_.size());
 
     std::vector<TKey> keys;
-    keys.reserve(Map.size());
-    for (const auto& pair : Map) {
+    keys.reserve(Map_.size());
+    for (const auto& pair : Map_) {
         keys.push_back(pair.first);
     }
     std::sort(keys.begin(), keys.end());
@@ -234,7 +231,7 @@ template <class TKey, class TValue, class TTraits, class THash>
 template <class TContext>
 void TEntityMap<TKey, TValue, TTraits, THash>::SaveValues(TContext& context) const
 {
-    std::vector<TItem> items(Map.begin(), Map.end());
+    std::vector<TItem> items(Map_.begin(), Map_.end());
     std::sort(
         items.begin(),
         items.end(),

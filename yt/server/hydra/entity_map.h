@@ -127,8 +127,10 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(UserThread);
 
-    TMap Map;
-    TTraits Traits;
+    TMap Map_;
+    TTraits Traits_;
+
+    std::vector<TKey> LoadedKeys_;
 
 };
 
