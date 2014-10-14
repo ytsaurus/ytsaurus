@@ -5,6 +5,8 @@
 
 #include <core/misc/string.h>
 
+#include <core/concurrency/rw_spinlock.h>
+
 #include <core/ytree/ypath.pb.h>
 
 #include <ytlib/election/config.h>
@@ -24,6 +26,7 @@
 namespace NYT {
 namespace NTabletClient {
 
+using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYTree::NProto;
 using namespace NYPath;
@@ -92,44 +95,55 @@ public:
 
     TFuture<TErrorOr<TTableMountInfoPtr>> GetTableInfo(const TYPath& path)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        auto now = TInstant::Now();
 
-        auto it = PathToEntry_.find(path);
-        if (it == PathToEntry_.end()) {
-            TTableEntry entry;
-            auto promise = entry.Promise = NewPromise<TErrorOr<TTableMountInfoPtr>>();
-            YCHECK(PathToEntry_.insert(std::make_pair(path, entry)).second);
-            guard.Release();
-            RequestTableMountInfo(path);
+        // Fast path.
+        {
+            TReaderGuard guard(SpinLock_);
+            auto it = PathToEntry_.find(path);
+            if (it != PathToEntry_.end()) {
+                const auto& entry = it->second;
+                if (now < entry.Deadline) {
+                    return entry.Promise;
+                }
+            }
+        }
+
+        // Slow path.
+        {
+            TWriterGuard guard(SpinLock_);
+            auto it = PathToEntry_.find(path);
+            if (it == PathToEntry_.end()) {
+                TTableEntry entry;
+                entry.Deadline = TInstant::Max();
+                auto promise = entry.Promise = NewPromise<TErrorOr<TTableMountInfoPtr>>();
+                YCHECK(PathToEntry_.insert(std::make_pair(path, entry)).second);
+                guard.Release();
+                RequestTableMountInfo(path);
+                return promise;
+            }
+
+            const auto& entry = it->second;
+            const auto& promise = entry.Promise;
+            if (!promise.IsSet()) {
+                return promise;
+            }
+
+            if (now > entry.Deadline) {
+                // Evict and retry.
+                PathToEntry_.erase(it);
+                guard.Release();
+                return GetTableInfo(path);
+            }
+
             return promise;
         }
-
-        auto& entry = it->second;
-        auto promise = entry.Promise;
-        if (!promise.IsSet()) {
-            return promise;
-        }
-
-        const auto& infoOrError = promise.Get();
-        auto timeout = infoOrError.IsOK()
-            ? Config_->SuccessExpirationTime
-            : Config_->FailureExpirationTime;
-        if (entry.Timestamp < TInstant::Now() - timeout) {
-            // Evict and retry.
-            PathToEntry_.erase(it);
-            guard.Release();
-            return GetTableInfo(path);
-        }
-
-        return promise;
     }
 
     void Clear()
     {
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            PathToEntry_.clear();
-        }
+        TWriterGuard guard(SpinLock_);
+        PathToEntry_.clear();
         LOG_DEBUG("Table mount info cache cleared");
     }
 
@@ -141,13 +155,13 @@ private:
 
     struct TTableEntry
     {
-        //! When this entry was last updated.
-        TInstant Timestamp;
+        //! When this entry must be evicted.
+        TInstant Deadline;
         //! Some latest known info (possibly not yet set).
         TPromise<TErrorOr<TTableMountInfoPtr>> Promise;
     };
 
-    TSpinLock SpinLock_;
+    TReaderWriterSpinLock SpinLock_;
     yhash<TYPath, TTableEntry> PathToEntry_;
 
 
@@ -167,7 +181,7 @@ private:
 
     void OnTableMountInfoResponse(const TYPath& path, TTableYPathProxy::TRspGetMountInfoPtr rsp)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TWriterGuard guard(SpinLock_);
         auto it = PathToEntry_.find(path);
         if (it == PathToEntry_.end())
             return;
@@ -175,7 +189,8 @@ private:
         auto& entry = it->second;
 
         auto setResult = [&] (TErrorOr<TTableMountInfoPtr> result) {
-            entry.Timestamp = TInstant::Now();
+            auto expirationTime = result.IsOK() ? Config_->SuccessExpirationTime : Config_->FailureExpirationTime;
+            entry.Deadline = TInstant::Now() + expirationTime;
             if (entry.Promise.IsSet()) {
                 entry.Promise = MakePromise(result);
             } else {
