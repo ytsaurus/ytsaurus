@@ -61,13 +61,8 @@ FORCED_INLINE bool operator != (const TGuid& lhs, const TGuid& rhs)
 
 FORCED_INLINE bool operator < (const TGuid& lhs, const TGuid& rhs)
 {
-    if (lhs.Parts64[0] < rhs.Parts64[0]) {
-        return true;
-    }
-    if (lhs.Parts64[0] > rhs.Parts64[0]) {
-        return false;
-    }
-    return lhs.Parts64[1] < rhs.Parts64[1];
+    // TODO(babenko): optimize
+    return memcmp(&lhs, &rhs, sizeof(TGuid)) < 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
