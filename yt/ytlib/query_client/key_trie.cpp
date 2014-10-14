@@ -110,49 +110,6 @@ std::vector<TBound> IntersectBounds(
     return result;
 }
 
-TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
-{
-    if (lhs.Offset < rhs.Offset) {
-        return rhs;
-    } else if (lhs.Offset > rhs.Offset) {
-        return lhs;
-    }
-    TKeyTrieNode result(lhs.Offset);
-
-    std::vector<TBound> bounds = UniteBounds(lhs.Bounds, rhs.Bounds);
-
-    std::vector<TBound> deletedPoints;
-
-    deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
-
-    auto addValue = [&] (const std::pair<TUnversionedValue, TKeyTrieNode>& next) {
-        auto found = result.Next.find(next.first);
-
-        if (found != result.Next.end()) {
-            found->second = UniteKeyTrie(found->second, next.second);
-        } else {
-            result.Next.insert(next);
-
-            deletedPoints.emplace_back(next.first, false);
-            deletedPoints.emplace_back(next.first, false);
-        }
-    };
-
-    for (const auto& next : lhs.Next) {
-        addValue(next);
-    }
-        
-    for (const auto& next : rhs.Next) {
-        addValue(next);
-    }
-
-    deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
-
-    result.Bounds = IntersectBounds(bounds, deletedPoints);
-
-    return result;
-};
-
 TKeyTrieNode& TKeyTrieNode::Unite(const TKeyTrieNode& rhs)
 {
     if (Offset < rhs.Offset) {
@@ -162,16 +119,6 @@ TKeyTrieNode& TKeyTrieNode::Unite(const TKeyTrieNode& rhs)
         return *this;
     }
 
-    std::vector<TBound> bounds = UniteBounds(Bounds, rhs.Bounds);
-    std::vector<TBound> deletedPoints;
-
-    deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
-
-    for (const auto& next : Next) {
-        deletedPoints.emplace_back(next.first, false);
-        deletedPoints.emplace_back(next.first, false);
-    }
-        
     for (const auto& next : rhs.Next) {
         auto found = Next.find(next.first);
 
@@ -179,18 +126,33 @@ TKeyTrieNode& TKeyTrieNode::Unite(const TKeyTrieNode& rhs)
             found->second = found->second.Unite(next.second);
         } else {
             Next.insert(next);
-
-            deletedPoints.emplace_back(next.first, false);
-            deletedPoints.emplace_back(next.first, false);
         }
     }
 
-    deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+    if (!Bounds.empty() || !rhs.Bounds.empty()) {
+        std::vector<TBound> deletedPoints;
 
-    Bounds = IntersectBounds(bounds, deletedPoints);
+        deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
+        for (const auto& next : Next) {
+            deletedPoints.emplace_back(next.first, false);
+            deletedPoints.emplace_back(next.first, false);
+        }
+        deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+
+        std::vector<TBound> bounds = UniteBounds(Bounds, rhs.Bounds);
+
+        Bounds = IntersectBounds(bounds, deletedPoints);
+    }    
 
     return *this;
 }
+
+TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
+{
+    TKeyTrieNode result = lhs;
+    result.Unite(rhs);
+    return result;
+};
 
 TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
 {
