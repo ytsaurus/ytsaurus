@@ -293,6 +293,17 @@ void TNonOwningCGroup::AddCurrentTask()
 #endif
 }
 
+Stroka TNonOwningCGroup::Get(const Stroka& name) const
+{
+    YCHECK(!IsNull());
+    Stroka result;
+#ifdef _linux_
+    const auto path = NFS::CombinePaths(FullPath_, name);
+    result = TBufferedFileInput(path).ReadLine();
+#endif
+    return result;
+}
+
 void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const
 {
     YCHECK(!IsNull());
@@ -301,7 +312,6 @@ void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const
     TFileOutput output(TFile(path, OpenMode::WrOnly));
     output << value;
 #endif
-
 }
 
 bool TNonOwningCGroup::IsNull() const
@@ -544,24 +554,12 @@ TMemory::TStatistics TMemory::GetStatistics()
 
 i64 TMemory::GetUsageInBytes() const
 {
-    i64 usageInBytes = 0;
-#ifdef _linux_
-    const auto filename = NFS::CombinePaths(GetFullPath(), "memory.usage_in_bytes");
-    auto rawData = TBufferedFileInput(filename).ReadLine();
-    usageInBytes = FromString<i64>(rawData);
-#endif
-    return usageInBytes;
+    return FromString<i64>(Get("memory.usage_in_bytes"));
 }
 
 i64 TMemory::GetMaxUsageInBytes() const
 {
-    i64 maxUsageInBytes = 0;
-#ifdef _linux_
-    const auto filename = NFS::CombinePaths(GetFullPath(), "memory.max_usage_in_bytes");
-    auto rawData = TBufferedFileInput(filename).ReadLine();
-    maxUsageInBytes = FromString<i64>(rawData);
-#endif
-    return maxUsageInBytes;
+    return FromString<i64>(Get("memory.max_usage_in_bytes"));
 }
 
 void TMemory::SetLimitInBytes(i64 bytes) const
@@ -572,8 +570,7 @@ void TMemory::SetLimitInBytes(i64 bytes) const
 bool TMemory::IsHierarchyEnabled() const
 {
 #ifdef _linux_
-    const auto filename = NFS::CombinePaths(GetFullPath(), "memory.use_hierarchy");
-    auto isHierarchyEnabled = FromString<int>(TFileInput(filename).ReadAll());
+    auto isHierarchyEnabled = FromString<int>(Get("memory.use_hierarchy"));
     YCHECK((isHierarchyEnabled == 0) || (isHierarchyEnabled == 1));
 
     return (isHierarchyEnabled == 1);
@@ -640,12 +637,7 @@ TEvent TMemory::GetOomEvent() const
 
 int TMemory::GetFailCount() const
 {
-    int failCount = 0;
-#ifdef _linux_
-    const auto filename = NFS::CombinePaths(GetFullPath(), "memory.failcnt");
-    failCount = FromString<int>(Strip(TFileInput(filename).ReadAll()));
-#endif
-    return failCount;
+    return FromString<int>(Get("memory.failcnt"));
 }
 
 TMemory::TStatistics::TStatistics()

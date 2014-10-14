@@ -68,6 +68,7 @@ public:
     void AddTask(int pid);
     void AddCurrentTask();
 
+    Stroka Get(const Stroka& name) const;
     void Set(const Stroka& name, const Stroka& value) const;
 
     bool IsNull() const;
