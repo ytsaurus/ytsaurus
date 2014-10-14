@@ -500,6 +500,14 @@ TEST(CGroup, Bug)
     EXPECT_TRUE(waitedpid == pid);
 }
 
+TEST(CGroup, FreezerEmpty)
+{
+    TFreezer group("some");
+    group.Create();
+
+    EXPECT_EQ("THAWED", group.GetState());
+}
+
 TEST(CurrentProcessCGroup, Empty)
 {
     std::vector<char> empty;

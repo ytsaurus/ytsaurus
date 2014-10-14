@@ -647,6 +647,22 @@ TMemory::TStatistics::TStatistics()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFreezer::TFreezer(const Stroka& name)
+    : TCGroup("freezer", name)
+{ }
+
+Stroka TFreezer::GetState() const
+{
+    return Get("freezer.state");
+}
+
+void TFreezer::Freeze() const
+{
+    Set("freezer.state", "FROZEN");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::map<Stroka, Stroka> ParseCurrentProcessCGroups(TStringBuf str)
 {
     std::map<Stroka, Stroka> result;
