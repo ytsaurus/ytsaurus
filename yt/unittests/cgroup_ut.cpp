@@ -21,11 +21,21 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename T>
+T CreateCGroup(const Stroka& name)
+{
+    T group(name);
+    group.Create();
+    return group;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 TEST(CGroup, CreateDestroy)
 {
     for (int i = 0; i < 2; ++i) {
-        TBlockIO group("some");
-        group.Create();
+        auto group = CreateCGroup<TBlockIO>("some");
         group.Destroy();
     }
 }
@@ -50,8 +60,7 @@ TEST(CGroup, DoubleCreate)
 
 TEST(CGroup, EmptyHasNoTasks)
 {
-    TBlockIO group("some2");
-    group.Create();
+    auto group = CreateCGroup<TBlockIO>("some2");
     auto tasks = group.GetTasks();
     EXPECT_EQ(0, tasks.size());
     group.Destroy();
@@ -61,8 +70,7 @@ TEST(CGroup, EmptyHasNoTasks)
 
 TEST(CGroup, AddCurrentTask)
 {
-    TBlockIO group("some");
-    group.Create();
+    auto group = CreateCGroup<TBlockIO>("some");
 
     auto pid = fork();
     ASSERT_TRUE(pid >= 0);
@@ -84,8 +92,7 @@ TEST(CGroup, AddCurrentTask)
 
 TEST(CGroup, UnableToDestoryNotEmptyCGroup)
 {
-    TBlockIO group("some");
-    group.Create();
+    auto group = CreateCGroup<TBlockIO>("some");
 
     auto addedEvent = eventfd(0, 0);
     auto triedRemoveEvent = eventfd(0, 0);
@@ -121,8 +128,7 @@ TEST(CGroup, UnableToDestoryNotEmptyCGroup)
 
 TEST(CGroup, DestroyAndGrandChildren)
 {
-    TBlockIO group("grandchildren");
-    group.Create();
+    auto group = CreateCGroup<TBlockIO>("grandchildren");
 
     auto pid = fork();
     ASSERT_TRUE(pid >= 0);
@@ -152,8 +158,7 @@ TEST(CGroup, DestroyAndGrandChildren)
 
 TEST(CGroup, GetCpuAccStat)
 {
-    TCpuAccounting group("some");
-    group.Create();
+    auto group = CreateCGroup<TCpuAccounting>("some");
 
     auto stats = group.GetStatistics();
     EXPECT_EQ(0, stats.UserTime.MilliSeconds());
@@ -164,8 +169,7 @@ TEST(CGroup, GetCpuAccStat)
 
 TEST(CGroup, GetBlockIOStat)
 {
-    TBlockIO group("some");
-    group.Create();
+    auto group = CreateCGroup<TBlockIO>("some");
 
     auto stats = group.GetStatistics();
     EXPECT_EQ(0, stats.BytesRead);
@@ -177,8 +181,7 @@ TEST(CGroup, GetBlockIOStat)
 
 TEST(CGroup, GetMemoryStats)
 {
-    TMemory group("some");
-    group.Create();
+    auto group = CreateCGroup<TMemory>("some");
 
     auto stats = group.GetStatistics();
     EXPECT_EQ(0, group.GetUsageInBytes());
@@ -190,8 +193,7 @@ TEST(CGroup, GetMemoryStats)
 TEST(CGroup, UsageInBytesWithoutLimit)
 {
     const i64 memoryUsage = 8 * 1024 * 1024;
-    TMemory group("some");
-    group.Create();
+    auto group = CreateCGroup<TMemory>("some");
     auto event = group.GetOomEvent();
 
     i64 num = 1;
@@ -229,8 +231,7 @@ TEST(CGroup, UsageInBytesWithoutLimit)
 
 TEST(CGroup, OomEnabledByDefault)
 {
-    TMemory group("some");
-    group.Create();
+    auto group = CreateCGroup<TMemory>("some");
 
     EXPECT_TRUE(group.IsOomEnabled());
 
@@ -239,8 +240,7 @@ TEST(CGroup, OomEnabledByDefault)
 
 TEST(CGroup, DisableOom)
 {
-    TMemory group("some");
-    group.Create();
+    auto group = CreateCGroup<TMemory>("some");
     group.DisableOom();
 
     EXPECT_FALSE(group.IsOomEnabled());
@@ -250,12 +250,10 @@ TEST(CGroup, DisableOom)
 
 TEST(CGroup, OomSettingsIsInherited)
 {
-    TMemory group("parent");
-    group.Create();
+    auto group = CreateCGroup<TMemory>("parent");
     group.DisableOom();
 
-    TMemory child("parent/child");
-    child.Create();
+    auto child = CreateCGroup<TMemory>("parent/child");
     EXPECT_FALSE(child.IsOomEnabled());
 
     child.Destroy();
@@ -264,12 +262,10 @@ TEST(CGroup, OomSettingsIsInherited)
 
 TEST(CGroup, UnableToDisableOom)
 {
-    TMemory group("parent");
-    group.Create();
+    auto group = CreateCGroup<TMemory>("parent");
     group.EnableHierarchy();
 
-    TMemory child("parent/child");
-    child.Create();
+    auto child = CreateCGroup<TMemory>("parent/child");
     EXPECT_THROW(group.DisableOom(), std::exception);
 
     child.Destroy();
@@ -278,16 +274,14 @@ TEST(CGroup, UnableToDisableOom)
 
 TEST(CGroup, GetOomEventIfOomIsEnabled)
 {
-    TMemory group("some");
-    group.Create();
+    auto group = CreateCGroup<TMemory>("some");
     auto event = group.GetOomEvent();
 }
 
 TEST(CGroup, OomEventFiredIfOomIsEnabled)
 {
     const i64 limit = 8 * 1024 * 1024;
-    TMemory group("some");
-    group.Create();
+    auto group = CreateCGroup<TMemory>("some");
     group.SetLimitInBytes(limit);
     auto event = group.GetOomEvent();
 
@@ -318,8 +312,7 @@ TEST(CGroup, OomEventFiredIfOomIsEnabled)
 TEST(CGroup, OomEventMissingEvent)
 {
     const i64 limit = 8 * 1024 * 1024;
-    TMemory group("some");
-    group.Create();
+    auto group = CreateCGroup<TMemory>("some");
     group.SetLimitInBytes(limit);
 
     auto pid = fork();
@@ -348,13 +341,11 @@ TEST(CGroup, OomEventMissingEvent)
 TEST(CGroup, ParentLimit)
 {
     const i64 limit = 8 * 1024 * 1024;
-    TMemory parent("parent");
-    parent.Create();
+    auto parent = CreateCGroup<TMemory>("parent");
     parent.EnableHierarchy();
     parent.SetLimitInBytes(limit);
 
-    TMemory child("parent/child");
-    child.Create();
+    auto child = CreateCGroup<TMemory>("parent/child");
     auto childOom = child.GetOomEvent();
 
     auto pid = fork();
@@ -378,8 +369,7 @@ TEST(CGroup, ParentLimit)
 TEST(CGroup, ParentLimitTwoChildren)
 {
     const i64 limit = 8 * 1024 * 1024;
-    TMemory parent("parent");
-    parent.Create();
+    auto parent = CreateCGroup<TMemory>("parent");
     parent.EnableHierarchy();
     parent.SetLimitInBytes(limit);
     TEvent parentOom = parent.GetOomEvent();
@@ -458,8 +448,7 @@ TEST(CGroup, Bug)
 {
     char buffer[1024];
 
-    TMemory group("something_different");
-    group.Create();
+    auto group = CreateCGroup<TMemory>("something_different");
 
     i64 num = 1;
     auto exitBarier = ::eventfd(0, 0);
@@ -509,8 +498,7 @@ TEST(CGroup, Bug)
 
 TEST(CGroup, FreezerEmpty)
 {
-    TFreezer group("some");
-    group.Create();
+    auto group = CreateCGroup<TFreezer>("some");
 
     EXPECT_EQ("THAWED", group.GetState());
 }
