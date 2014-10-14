@@ -7,6 +7,7 @@
 
 #include <core/misc/fs.h>
 
+#include <core/concurrency/rw_spinlock.h>
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/parallel_awaiter.h>
@@ -154,7 +155,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(TabletDescriptorsSpinLock_);
+        TReaderGuard guard(TabletDescriptorsSpinLock_);
         auto it = TabletIdToDescriptor_.find(tabletId);
         return it == TabletIdToDescriptor_.end() ? nullptr : it->second;
     }
@@ -164,7 +165,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         {
-            TGuard<TSpinLock> guard(TabletDescriptorsSpinLock_);
+            TWriterGuard guard(TabletDescriptorsSpinLock_);
             auto descriptor = BuildTabletDescriptor(tablet);
             YCHECK(TabletIdToDescriptor_.insert(std::make_pair(tablet->GetId(), descriptor)).second);
         }
@@ -179,7 +180,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         {
-            TGuard<TSpinLock> guard(TabletDescriptorsSpinLock_);
+            TWriterGuard guard(TabletDescriptorsSpinLock_);
             // NB: Don't check the result.
             TabletIdToDescriptor_.erase(tablet->GetId());
         }
@@ -196,7 +197,7 @@ public:
         auto descriptor = BuildTabletDescriptor(tablet);
 
         {
-            TGuard<TSpinLock> guard(TabletDescriptorsSpinLock_);
+            TWriterGuard guard(TabletDescriptorsSpinLock_);
             auto it = TabletIdToDescriptor_.find(tablet->GetId());
             YCHECK(it != TabletIdToDescriptor_.end());
             it->second = descriptor;
@@ -211,7 +212,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(TabletDescriptorsSpinLock_);
+        TWriterGuard guard(TabletDescriptorsSpinLock_);
         auto it = TabletIdToDescriptor_.begin();
         while (it != TabletIdToDescriptor_.end()) {
             auto jt = it++;
@@ -247,7 +248,7 @@ private:
 
     TPeriodicExecutorPtr SlotScanExecutor_;
 
-    TSpinLock TabletDescriptorsSpinLock_;
+    TReaderWriterSpinLock TabletDescriptorsSpinLock_;
     yhash_map<TTabletId, TTabletDescriptorPtr> TabletIdToDescriptor_;
 
 
