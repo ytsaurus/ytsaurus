@@ -152,32 +152,28 @@ void TEvent::Swap(TEvent& other)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<Stroka> GetSupportedCGroups()
-{
-    std::vector<Stroka> result;
-    result.push_back("cpuacct");
-    result.push_back("blkio");
-    result.push_back("memory");
-    return result;
-}
-
-void RemoveAllSubscgroupsImpl(const TFsPath& path)
+void ApplyActionToAllChlidren(const TFsPath& path, const TCallback<void(const TFsPath&)> action)
 {
     if (path.Exists()) {
         yvector<TFsPath> children;
         path.List(children);
         for (const auto& child : children) {
             if (child.IsDirectory()) {
-                RemoveAllSubscgroupsImpl(child);
-                child.DeleteIfExists();
+                ApplyActionToAllChlidren(child, action);
+                action.Run(child);
             }
         }
     }
 }
 
+void RemoveDir(const TFsPath& path)
+{
+    path.DeleteIfExists();
+}
+
 void RemoveAllSubcgroups(const Stroka& path)
 {
-    RemoveAllSubscgroupsImpl(TFsPath(path));
+    ApplyActionToAllChlidren(TFsPath(path), BIND(RemoveDir));
 }
 
 // The caller must be sure that it has root privileges.
@@ -186,36 +182,55 @@ void RunKiller(const Stroka& processGroupPath)
 #ifdef _linux_
     LOG_INFO("Kill %Qv processes", processGroupPath);
 
+    TNonOwningCGroup group(processGroupPath);
+    auto pids = group.GetTasks();
+    if (pids.empty())
+        return;
+
     auto throwError = [=] (const TError& error) {
         THROW_ERROR_EXCEPTION(
             "Failed to kill processes from %Qv",
             processGroupPath) << error;
     };
 
-    while (true) {
-        TProcess process(GetExecPath());
-        process.AddArgument("--killer");
-        process.AddArgument("--process-group-path");
-        process.AddArgument(processGroupPath);
+    TProcess process(GetExecPath());
+    process.AddArgument("--killer");
+    process.AddArgument("--process-group-path");
+    process.AddArgument(processGroupPath);
 
-        TNonOwningCGroup group(processGroupPath);
-        auto pids = group.GetTasks();
-        if (pids.empty())
-            return;
+    // We are forking here in order not to give the root privileges to the parent process ever,
+    // because we cannot know what other threads are doing.
+    auto error = process.Spawn();
+    if (!error.IsOK()) {
+        throwError(error);
+    }
 
-        // We are forking here in order not to give the root privileges to the parent process ever,
-        // because we cannot know what other threads are doing.
-        auto error = process.Spawn();
-        if (!error.IsOK()) {
-            throwError(error);
-        }
+    error = process.Wait();
+    if (!error.IsOK()) {
+        throwError(error);
+    }
+#endif
+}
 
-        error = process.Wait();
-        if (!error.IsOK()) {
-            throwError(error);
+void KillProcessGroupImpl(const TFsPath& processGroupPath)
+{
+#ifdef _linux_
+    TNonOwningCGroup group(processGroupPath);
+    auto pids = group.GetTasks();
+
+    while (!pids.empty()) {
+        LOG_DEBUG("Killing processes (PIDs: [%v])",
+            JoinToString(pids));
+
+        for (int pid : pids) {
+            auto result = kill(pid, 9);
+            if (result == -1) {
+                YCHECK(errno == ESRCH);
+            }
         }
 
         ThreadYield();
+        pids = group.GetTasks();
     }
 #endif
 }
@@ -223,25 +238,13 @@ void RunKiller(const Stroka& processGroupPath)
 void KillProcessGroup(const Stroka& processGroupPath)
 {
 #ifdef _linux_
-    TNonOwningCGroup group(processGroupPath);
-    auto pids = group.GetTasks();
-    if (pids.empty())
-        return;
-
-    LOG_DEBUG("Killing processes (PIDs: [%v])",
-        JoinToString(pids));
+    LOG_DEBUG("Killing processes from %v cgroup",
+        processGroupPath);
 
     YCHECK(setuid(0) == 0);
-
-    for (int pid : pids) {
-        auto result = kill(pid, 9);
-        if (result == -1) {
-            YCHECK(errno == ESRCH);
-        }
-    }
+    ApplyActionToAllChlidren(TFsPath(processGroupPath), BIND(KillProcessGroupImpl));
 #endif
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
