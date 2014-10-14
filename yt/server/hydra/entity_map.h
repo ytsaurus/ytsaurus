@@ -130,7 +130,8 @@ private:
     TMap Map_;
     TTraits Traits_;
 
-    std::vector<TKey> LoadedKeys_;
+    std::vector<TKey> LoadKeys_;
+    std::vector<typename TMap::const_iterator> SaveIterators_;
 
 };
 

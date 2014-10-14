@@ -182,14 +182,16 @@ void TEntityMap<TKey, TValue, TTraits, THash>::LoadKeys(TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    Map_.clear();
-    LoadedKeys_.clear();
     size_t size = TSizeSerializer::Load(context);
+
+    Map_.clear();
+    LoadKeys_.clear();
+    LoadKeys_.reserve(size);
 
     for (size_t index = 0; index < size; ++index) {
         TKey key;
         Load(context, key);
-        LoadedKeys_.push_back(key);
+        LoadKeys_.push_back(key);
         auto value = Traits_.Create(key);
         YCHECK(Map_.insert(std::make_pair(key, value.release())).second);
     }
@@ -201,13 +203,13 @@ void TEntityMap<TKey, TValue, TTraits, THash>::LoadValues(TContext& context)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    for (const auto& key : LoadedKeys_) {
+    for (const auto& key : LoadKeys_) {
         auto it = Map_.find(key);
         YCHECK(it != Map_.end());
         Load(context, *it->second);
     }
 
-    LoadedKeys_.clear();
+    LoadKeys_.clear();
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -215,15 +217,21 @@ void TEntityMap<TKey, TValue, TTraits, THash>::SaveKeys(TSaveContext& context) c
 {
     TSizeSerializer::Save(context, Map_.size());
 
-    std::vector<TKey> keys;
-    keys.reserve(Map_.size());
-    for (const auto& pair : Map_) {
-        keys.push_back(pair.first);
+    SaveIterators_.clear();
+    SaveIterators_.reserve(Map_.size());
+    for (auto it = Map_.begin(); it != Map_.end(); ++it) {
+        SaveIterators_.push_back(it);
     }
-    std::sort(keys.begin(), keys.end());
 
-    for (const auto& key : keys) {
-        Save(context, key);
+    std::sort(
+        SaveIterators_.begin(),
+        SaveIterators_.end(),
+        [] (const TMap::const_iterator& lhs, const TMap::const_iterator& rhs) {
+            return lhs->first < rhs->first;
+        });
+
+    for (const auto& it : SaveIterators_) {
+        Save(context, it->first);
     }
 }
 
@@ -231,17 +239,10 @@ template <class TKey, class TValue, class TTraits, class THash>
 template <class TContext>
 void TEntityMap<TKey, TValue, TTraits, THash>::SaveValues(TContext& context) const
 {
-    std::vector<TItem> items(Map_.begin(), Map_.end());
-    std::sort(
-        items.begin(),
-        items.end(),
-        [] (const TItem& lhs, const TItem& rhs) {
-            return lhs.first < rhs.first;
-        });
-
-    for (const auto& item : items) {
-        Save(context, *item.second);
+    for (const auto& it : SaveIterators_) {
+        Save(context, *it->second);
     }
+    SaveIterators_.clear();
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
