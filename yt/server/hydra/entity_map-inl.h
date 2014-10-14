@@ -185,15 +185,9 @@ void TEntityMap<TKey, TValue, TTraits, THash>::LoadKeys(TLoadContext& context)
     Map.clear();
     size_t size = TSizeSerializer::Load(context);
 
-    auto previousKey = TKey();
     for (size_t index = 0; index < size; ++index) {
         TKey key;
         Load(context, key);
-
-        YCHECK(index == 0 || previousKey < key);
-
-        previousKey = key;
-
         auto value = Traits.Create(key);
         YCHECK(Map.insert(std::make_pair(key, value.release())).second);
     }
