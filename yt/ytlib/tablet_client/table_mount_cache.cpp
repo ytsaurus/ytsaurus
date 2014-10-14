@@ -6,6 +6,7 @@
 #include <core/misc/string.h>
 
 #include <core/concurrency/rw_spinlock.h>
+#include <core/concurrency/delayed_executor.h>
 
 #include <core/ytree/ypath.pb.h>
 
@@ -123,7 +124,7 @@ public:
                 return promise;
             }
 
-            const auto& entry = it->second;
+            auto& entry = it->second;
             const auto& promise = entry.Promise;
             if (!promise.IsSet()) {
                 return promise;
@@ -131,6 +132,7 @@ public:
 
             if (now > entry.Deadline) {
                 // Evict and retry.
+                TDelayedExecutor::CancelAndClear(entry.ProbationCookie);
                 PathToEntry_.erase(it);
                 guard.Release();
                 return GetTableInfo(path);
@@ -159,6 +161,8 @@ private:
         TInstant Deadline;
         //! Some latest known info (possibly not yet set).
         TPromise<TErrorOr<TTableMountInfoPtr>> Promise;
+        //! Corresponds to a future probation request.
+        TDelayedExecutorCookie ProbationCookie;
     };
 
     TReaderWriterSpinLock SpinLock_;
@@ -176,7 +180,7 @@ private:
         cachingHeaderExt->set_failure_expiration_time(Config_->FailureExpirationTime.MilliSeconds());
 
         ObjectProxy_.Execute(req).Subscribe(
-            BIND(&TImpl::OnTableMountInfoResponse, MakeStrong(this), path));
+            BIND(&TImpl::OnTableMountInfoResponse, MakeWeak(this), path));
     }
 
     void OnTableMountInfoResponse(const TYPath& path, TTableYPathProxy::TRspGetMountInfoPtr rsp)
@@ -239,6 +243,10 @@ private:
         }
 
         setResult(tableInfo);
+
+        entry.ProbationCookie = TDelayedExecutor::Submit(
+            BIND(&TImpl::RequestTableMountInfo, MakeWeak(this), path),
+            Config_->SuccessProbationTime);
 
         LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Sorted: %v)",
             path,
