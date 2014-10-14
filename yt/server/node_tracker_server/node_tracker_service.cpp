@@ -106,13 +106,14 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, FullHeartbeat)
     auto nodeId = request->node_id();
     const auto& statistics = request->statistics();
 
-    context->SetRequestInfo("NodeId: %v, %v",
-        nodeId,
-        statistics);
-    
     auto nodeTracker = Bootstrap->GetNodeTracker();
     auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
+    context->SetRequestInfo("NodeId: %v, Address: %v, %v",
+        nodeId,
+        node->GetAddress(),
+        statistics);
+    
     if (node->GetState() != ENodeState::Registered) {
         context->Reply(TError(
             NNodeTrackerClient::EErrorCode::InvalidState,
@@ -135,12 +136,13 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
     auto nodeId = request->node_id();
     const auto& statistics = request->statistics();
 
-    context->SetRequestInfo("NodeId: %v, %v",
-        nodeId,
-        statistics);
-
     auto nodeTracker = Bootstrap->GetNodeTracker();
     auto* node = nodeTracker->GetNodeOrThrow(nodeId);
+
+    context->SetRequestInfo("NodeId: %v, Address: %v, %v",
+        nodeId,
+        node->GetAddress(),
+        statistics);
 
     if (node->GetState() != ENodeState::Online) {
         context->Reply(TError(
