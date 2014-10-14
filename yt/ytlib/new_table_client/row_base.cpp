@@ -52,6 +52,20 @@ void ValidateSchemaValueType(EValueType type)
     }       
 }
 
+void ValidateColumnFilter(const TColumnFilter& columnFilter, int schemaColumnCount)
+{
+    if (columnFilter.All)
+        return;
+
+    for (int index : columnFilter.Indexes) {
+        if (index < 0 || index >= schemaColumnCount) {
+            THROW_ERROR_EXCEPTION("Column filter contains invalid index: actual %v, expected in range [0, %v]",
+                index,
+                schemaColumnCount - 1);
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient

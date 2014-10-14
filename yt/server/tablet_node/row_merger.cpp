@@ -28,10 +28,6 @@ TUnversionedRowMerger::TUnversionedRowMerger(
         }
     } else {
         for (int id : columnFilter.Indexes) {
-            if (id < 0 || id >= SchemaColumnCount_) {
-                THROW_ERROR_EXCEPTION("Invalid column id %v in column filter",
-                    id);
-            }
             ColumnIds_.push_back(id);
         }
     }

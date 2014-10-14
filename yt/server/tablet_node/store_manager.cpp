@@ -76,6 +76,8 @@ public:
             ColumnFilter_.Indexes = FromProto<int, SmallVector<int, TypicalColumnCount>>(req.column_filter().indexes());
         }
 
+        ValidateColumnFilter(ColumnFilter_, SchemaColumnCount_);
+
         SmallVector<bool, TypicalColumnCount> columnFilterFlags(SchemaColumnCount_);
         if (ColumnFilter_.All) {
             for (int id = 0; id < SchemaColumnCount_; ++id) {
@@ -83,10 +85,6 @@ public:
             }
         } else {
             for (int index : ColumnFilter_.Indexes) {
-                if (index < 0 || index >= SchemaColumnCount_) {
-                    THROW_ERROR_EXCEPTION("Invalid index %v in column filter",
-                        index);
-                }
                 columnFilterFlags[index] = true;
             }
         }

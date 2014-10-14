@@ -186,11 +186,6 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
 
     TTableSchema result;
     for (int id : columnFilter.Indexes) {
-        if (id < 0 || id >= Columns_.size()) {
-            THROW_ERROR_EXCEPTION("Invalid id in column filter: actual %d, expected in range [0, %d]",
-                id,
-                static_cast<int>(Columns_.size()));
-        }
         result.Columns().push_back(Columns_[id]);
     }
     return result;

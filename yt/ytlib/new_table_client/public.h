@@ -59,23 +59,6 @@ const i64 MaxStringValueLength = (i64) 1024 * 1024; // 1 MB
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EValueType,
-    ((Min)         (0x00))
-
-    ((TheBottom)   (0x01))
-    ((Null)        (0x02))
-    
-    ((Int64)       (0x03))
-    ((Uint64)      (0x04))
-    ((Double)      (0x05))
-    ((Boolean)     (0x06))
-
-    ((String)      (0x10))
-    ((Any)         (0x11))
-
-    ((Max)         (0xef))
-);
-
 DECLARE_ENUM(ETableChunkFormat,
     ((Old)                  (1))
     ((VersionedSimple)      (2))
@@ -89,24 +72,13 @@ struct TColumnIdMapping
     int ReaderSchemaIndex;
 };
 
-struct TColumnFilter
-{
-    TColumnFilter()
-        : All(true)
-    { }
-
-    TColumnFilter(const std::initializer_list<int>& indexes)
-        : All(false)
-        , Indexes(indexes.begin(), indexes.end())
-    { }
-
-    bool All;
-    SmallVector<int, TypicalColumnCount> Indexes;
-};
-
 typedef SmallVector<int, TypicalColumnCount> TNameTableToSchemaIdMapping;
 
 union TUnversionedValueData;
+
+class EValueType;
+
+struct TColumnFilter;
 
 struct TUnversionedValue;
 struct TVersionedValue;

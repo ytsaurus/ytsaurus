@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "row_base.h"
 
 #include <core/misc/error.h>
 #include <core/misc/nullable.h>

@@ -4,6 +4,7 @@
 
 #include <core/misc/ref.h>
 
+#include <ytlib/new_table_client/row_base.h>
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 
 #include <util/generic/bitmap.h>

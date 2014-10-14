@@ -23,7 +23,7 @@
 
 #include <ytlib/cypress_client/public.h>
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/new_table_client/row_base.h>
 
 #include <ytlib/tablet_client/public.h>
 

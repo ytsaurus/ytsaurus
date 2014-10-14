@@ -7,6 +7,42 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(EValueType,
+    ((Min)         (0x00))
+
+    ((TheBottom)   (0x01))
+    ((Null)        (0x02))
+
+    ((Int64)       (0x03))
+    ((Uint64)      (0x04))
+    ((Double)      (0x05))
+    ((Boolean)     (0x06))
+
+    ((String)      (0x10))
+    ((Any)         (0x11))
+
+    ((Max)         (0xef))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TColumnFilter
+{
+    TColumnFilter()
+        : All(true)
+    { }
+
+    TColumnFilter(const std::initializer_list<int>& indexes)
+        : All(false)
+          , Indexes(indexes.begin(), indexes.end())
+    { }
+
+    bool All;
+    SmallVector<int, TypicalColumnCount> Indexes;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Checks that #type is allowed to appear in data. Throws on failure.
 void ValidateDataValueType(EValueType type);
 
@@ -15,6 +51,9 @@ void ValidateKeyValueType(EValueType type);
 
 //! Checks that #type is allowed to appear in schema. Throws on failure.
 void ValidateSchemaValueType(EValueType type);
+
+//! Checks that column filter contains indexes in range |[0, schemaColumnCount - 1]|.
+void ValidateColumnFilter(const TColumnFilter& columnFilter, int schemaColumnCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

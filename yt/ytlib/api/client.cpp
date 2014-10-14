@@ -605,8 +605,13 @@ private:
         const TLookupRowsOptions& options)
     {
         auto tableInfo = SyncGetTableInfo(path);
-        auto resultSchema = tableInfo->Schema.Filter(options.ColumnFilter);
+
+        int schemaColumnCount = static_cast<int>(tableInfo->Schema.Columns().size());
         int keyColumnCount = static_cast<int>(tableInfo->KeyColumns.size());
+
+        ValidateColumnFilter(options.ColumnFilter, schemaColumnCount);
+
+        auto resultSchema = tableInfo->Schema.Filter(options.ColumnFilter);
         auto idMapping = BuildColumnIdMapping(tableInfo, nameTable);
 
         yhash_map<TTabletInfoPtr, TLookupTabletSessionPtr> tabletToSession;
