@@ -44,7 +44,7 @@ public:
         } else {
             int regs[4];
             Cpuid(regs, 1);
-            Result = regs[2] & 2;
+            Result = regs[2] & (1 << 1);
             WasTested = true;
             return Result;
         }
