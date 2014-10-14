@@ -473,10 +473,17 @@ TEST(CGroup, Bug)
     EXPECT_STREQ(~Stroka(buffer, reallyRead), "0\n");
 
     auto pid = fork();
+    ASSERT_TRUE(pid >= 0);
+
     if (pid == 0) {
         group.AddCurrentTask();
 
         auto otherPid = fork();
+        if (otherPid < 0) {
+            YCHECK(::write(initBarier, &num, sizeof(num)) == sizeof(num));
+            _exit(3);
+        }
+
         if (otherPid == 0) {
             num = 1;
             YCHECK(::write(initBarier, &num, sizeof(num)) == sizeof(num));
