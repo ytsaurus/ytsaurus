@@ -284,10 +284,10 @@ void ValidateKeyColumns(const TKeyColumns& keyColumns)
     }
 }
 
-void ValidateTableScheme(const TTableSchema& tableScheme)
+void ValidateTableSchema(const TTableSchema& schema)
 {
     yhash_set<Stroka> names;
-    for (const auto& column : tableScheme.Columns()) {
+    for (const auto& column : schema.Columns()) {
         if (!names.insert(column.Name).second) {
             THROW_ERROR_EXCEPTION("Duplicate column %Qv", column.Name);
         }

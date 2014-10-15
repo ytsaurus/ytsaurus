@@ -83,7 +83,7 @@ bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
 
-void ValidateTableScheme(const TTableSchema& tableScheme);
+void ValidateTableSchema(const TTableSchema& schema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

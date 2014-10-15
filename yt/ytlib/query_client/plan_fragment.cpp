@@ -80,7 +80,7 @@ TTableSchema TGroupOperator::GetTableSchema() const
             aggregateItem.Expression->Type);
     }
 
-    ValidateTableScheme(result);
+    ValidateTableSchema(result);
 
     return result;
 }
@@ -96,7 +96,7 @@ TTableSchema TProjectOperator::GetTableSchema() const
             projection.Expression->Type);
     }
 
-    ValidateTableScheme(result);
+    ValidateTableSchema(result);
 
     return result;
 }
@@ -652,7 +652,7 @@ TPlanFragmentPtr PreparePlanFragment(
             tableSchema.Columns().emplace_back(expr.second, typedExprs.front()->Type);
         }
 
-        ValidateTableScheme(tableSchema);
+        ValidateTableSchema(tableSchema);
 
         head = groupOp;
         groupOpProxy.Emplace(tableSchemaProxy, *groupOp);
@@ -676,7 +676,7 @@ TPlanFragmentPtr PreparePlanFragment(
             tableSchema.Columns().emplace_back(expr.second, typedExprs.front()->Type);
         }
 
-        ValidateTableScheme(tableSchema);
+        ValidateTableSchema(tableSchema);
 
         head = projectOp;
         groupOpProxy.Reset();

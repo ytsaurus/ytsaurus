@@ -66,20 +66,20 @@ private:
     std::unique_ptr<TSimpleVersionedBlockWriter> BlockWriter_;
 
     TBlockMetaExt BlockMetaExt_;
-    i64 BlockMetaExtSize_;
+    i64 BlockMetaExtSize_ = 0;
 
     TBlockIndexExt BlockIndexExt_;
-    i64 BlockIndexExtSize_;
+    i64 BlockIndexExtSize_ = 0;
 
     TSamplesExt SamplesExt_;
-    i64 SamplesExtSize_;
-    double AverageSampleSize_;
+    i64 SamplesExtSize_ = 0;
+    double AverageSampleSize_ = 0.0;
 
-    i64 DataWeight_;
+    i64 DataWeight_ = 0;
 
     TBoundaryKeysExt BoundaryKeysExt_;
 
-    i64 RowCount_;
+    i64 RowCount_ = 0;
 
     TTimestamp MinTimestamp_;
     TTimestamp MaxTimestamp_;
@@ -115,12 +115,6 @@ TVersionedChunkWriter::TVersionedChunkWriter(
     , EncodingChunkWriter_(New<TEncodingChunkWriter>(config, options, asyncWriter))
     , LastKey_(static_cast<TUnversionedValue*>(nullptr), static_cast<TUnversionedValue*>(nullptr))
     , BlockWriter_(new TSimpleVersionedBlockWriter(Schema_, KeyColumns_))
-    , BlockMetaExtSize_(0)
-    , BlockIndexExtSize_(0)
-    , SamplesExtSize_(0)
-    , AverageSampleSize_(0.0)
-    , DataWeight_(0)
-    , RowCount_(0)
     , MinTimestamp_(MaxTimestamp)
     , MaxTimestamp_(MinTimestamp)
 {
