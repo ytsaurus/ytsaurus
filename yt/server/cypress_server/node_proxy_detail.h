@@ -167,8 +167,6 @@ protected:
     void SetAccessed();
     void SuppressAccessTracking();
 
-    ICypressNodeProxyPtr ResolveSourcePath(const NYPath::TYPath& path);
-
     virtual bool CanHaveChildren() const;
     
     virtual void SetChild(

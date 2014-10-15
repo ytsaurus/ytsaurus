@@ -664,14 +664,6 @@ void TNontemplateCypressNodeProxyBase::SuppressAccessTracking()
     AccessTrackingSuppressed = true;
 }
 
-ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::ResolveSourcePath(const TYPath& path)
-{   
-    auto node = GetResolver()->ResolvePath(path);
-    auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(node.Get());
-    YCHECK(nodeProxy);
-    return nodeProxy;
-}
-
 bool TNontemplateCypressNodeProxyBase::CanHaveChildren() const
 {
     return false;
@@ -801,7 +793,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         preserveAccount,
         removeSource);
 
-    auto sourceProxy = ResolveSourcePath(sourcePath);
+    auto ytreeSourceProxy = GetResolver()->ResolvePath(sourcePath);
+    auto* sourceProxy = dynamic_cast<ICypressNodeProxy*>(ytreeSourceProxy.Get());
+    YCHECK(sourceProxy);
 
     if (targetPath.empty()) {
         ThrowAlreadyExists(this);

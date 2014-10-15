@@ -23,6 +23,7 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/helpers.h>
+#include <ytlib/object_client/object_ypath_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
@@ -239,7 +240,7 @@ public:
                 auto root = cypressManager->GetNodeProxy(
                     cypressManager->GetRootNode(),
                     transaction);
-                return DoResolvePath(root, tokenizer.GetSuffix());
+                return DoResolvePath(root, transaction, tokenizer.GetSuffix());
             }
 
             case NYPath::ETokenType::Literal: {
@@ -259,7 +260,7 @@ public:
 
                 auto* object = objectManager->GetObjectOrThrow(objectId);
                 auto proxy = objectManager->GetProxy(object, transaction);
-                return DoResolvePath(proxy, tokenizer.GetSuffix());
+                return DoResolvePath(proxy, transaction, tokenizer.GetSuffix());
             }
 
             default:
@@ -284,25 +285,24 @@ private:
     TBootstrap* Bootstrap_;
 
 
-    static IObjectProxyPtr DoResolvePath(IObjectProxyPtr proxy, const TYPath& path)
+    IObjectProxyPtr DoResolvePath(
+        IObjectProxyPtr proxy,
+        TTransaction* transaction,
+        const TYPath& path)
     {
+        // Fast path.
         if (path.empty()) {
             return std::move(proxy);
         }
 
-        auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(proxy.Get());
-        if (!nodeProxy) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::ResolveError,
-                "Cannot resolve nontrivial path %v for nonversioned object %v",
-                path,
-                proxy->GetId());
-        }
+        // Slow path.
+        auto req = TObjectYPathProxy::GetBasicAttributes(path);
+        auto rsp = SyncExecuteVerb(proxy, req);
+        auto objectId = FromProto<TObjectId>(rsp->id());
 
-        auto resolvedNode = GetNodeByYPath(nodeProxy, path);
-        auto* resolvedNodeProxy = dynamic_cast<ICypressNodeProxy*>(resolvedNode.Get());
-        YCHECK(resolvedNodeProxy);
-        return resolvedNodeProxy;
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto* object = objectManager->GetObjectOrThrow(objectId);
+        return objectManager->GetProxy(object, transaction);
     }
 
 };

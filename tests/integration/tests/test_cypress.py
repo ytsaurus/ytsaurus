@@ -279,6 +279,16 @@ class TestCypress(YTEnvSetup):
     def test_copy_simple6(self):
         with pytest.raises(YtError): copy('//tmp', '//tmp/a')
 
+    def test_copy_simple7(self):
+        tx = start_transaction()
+        with pytest.raises(YtError): copy('#' + tx, '//tmp/t')
+
+    def test_copy_simple8(self):
+        create('map_node', '//tmp/a')
+        create('table', '//tmp/a/t')
+        link('//tmp/a', '//tmp/b')
+        copy('//tmp/b/t', '//tmp/t')
+
     def test_copy_tx1(self):
         tx = start_transaction()
 
