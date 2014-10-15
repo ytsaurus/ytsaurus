@@ -105,6 +105,7 @@ public:
         , CpuAccounting(CGroupPrefix + ToString(jobId))
         , BlockIO(CGroupPrefix + ToString(jobId))
         , Memory(CGroupPrefix + ToString(jobId))
+        , Freezer(CGroupPrefix + ToString(jobId))
     {
         auto config = host->GetConfig();
         MemoryWatchdogExecutor = New<TPeriodicExecutor>(
@@ -130,6 +131,7 @@ public:
         if (UserJobSpec.enable_accounting() || config->ForceEnableAccounting) {
             CreateCGroup(CpuAccounting);
             CreateCGroup(BlockIO);
+            CreateCGroup(Freezer);
             if (config->EnableCGroupMemoryHierarchy) {
                 CreateCGroup(Memory);
             }
@@ -166,6 +168,9 @@ public:
 
             Process.AddArgument("--cgroup");
             Process.AddArgument(BlockIO.GetFullPath());
+
+            Process.AddArgument("--cgroup");
+            Process.AddArgument(Freezer.GetFullPath());
 
             if (config->EnableCGroupMemoryHierarchy) {
                 Process.AddArgument("--cgroup");
@@ -266,6 +271,7 @@ public:
 
             DestroyCGroup(CpuAccounting);
             DestroyCGroup(BlockIO);
+            DestroyCGroup(Freezer);
 
             if (config->EnableCGroupMemoryHierarchy)
             {
@@ -592,7 +598,7 @@ private:
                     << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds())
                     << TErrorAttribute("rss", rss)
                     << TErrorAttribute("limit", memoryLimit));
-                NCGroup::RunKiller(Memory.GetFullPath());
+                KillUserJob();
                 return;
             }
 
@@ -621,13 +627,7 @@ private:
             }
         } catch (const std::exception& ex) {
             SetError(ex);
-
-            TGuard<TSpinLock> guard(MemoryLock);
-
-            if (!Memory.IsCreated()) {
-                return;
-            }
-            NCGroup::RunKiller(Memory.GetFullPath());
+            KillUserJob();
         }
     }
 
@@ -686,7 +686,21 @@ private:
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Unable to destroy cgroup %Qv", cgroup.GetFullPath());
             }
+        } else {
+            LOG_WARNING("CGroup %Qv is not created. Unable to destroy", cgroup.GetFullPath());
         }
+    }
+
+    void KillUserJob()
+    {
+        TGuard<TSpinLock> guard(FreezerLock);
+
+        if (!Freezer.IsCreated()) {
+            LOG_ERROR("CGroup %Qv is not created. Unable to kill user job", Freezer.GetFullPath());
+            return;
+        }
+
+        NCGroup::RunKiller(Freezer.GetFullPath());
     }
 
     std::unique_ptr<TUserJobIO> JobIO;
@@ -725,6 +739,9 @@ private:
 
     NCGroup::TMemory Memory;
     TSpinLock MemoryLock;
+
+    NCGroup::TFreezer Freezer;
+    TSpinLock FreezerLock;
 
     TStatistics Statistics;
 };
