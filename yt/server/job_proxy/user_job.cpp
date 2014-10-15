@@ -385,7 +385,8 @@ private:
                     JobIO->CreateTableInput(i, consumer.get()),
                     std::move(buffer),
                     std::move(consumer),
-                    3 * i));
+                    3 * i,
+                    UserJobSpec.check_input_fully_consumed()));
             }
         }
 

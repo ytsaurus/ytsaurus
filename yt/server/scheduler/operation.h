@@ -73,6 +73,9 @@ class TOperation
 
     //! Maximum number of stderrs to capture.
     DEFINE_BYVAL_RW_PROPERTY(int, MaxStderrCount);
+    
+    //! Scheduling tag.
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<Stroka>, SchedulingTag);
 
     //! Currently existing jobs in the operation.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);

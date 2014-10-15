@@ -101,7 +101,8 @@ public:
         std::unique_ptr<NTableClient::TTableProducer> tableProducer,
         std::unique_ptr<TBlobOutput> buffer,
         std::unique_ptr<NYson::IYsonConsumer> consumer,
-        int jobDescriptor);
+        int jobDescriptor,
+        bool checkDataFullyConsumed);
 
     virtual void PrepareProxyDescriptors() override;
 
@@ -127,6 +128,7 @@ private:
 
     bool HasData = true;
     bool IsFinished = false;
+    bool CheckDataFullyConsumed;
 
     NPipes::TAsyncWriterPtr Writer;
 };

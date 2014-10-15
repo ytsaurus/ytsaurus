@@ -292,6 +292,7 @@ private:
         TDataStatistics chunkStatistics;
         chunkStatistics.set_compressed_data_size(miscExt.compressed_data_size());
         chunkStatistics.set_uncompressed_data_size(miscExt.uncompressed_data_size());
+        chunkStatistics.set_row_count(miscExt.row_count());
         chunkStatistics.set_chunk_count(1);
         DataStatistics_ += chunkStatistics;
 

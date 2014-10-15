@@ -317,7 +317,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         command = "python -c 'import os; os.read(0, 1);'"
 
         op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command,
-            spec={ 'mapper': { 'input_format' : 'dsv'}})
+                spec={ 'mapper': { 'input_format' : 'dsv', 'check_input_fully_consumed': 'true'}})
         # if all jobs failed then operation is also failed
         with pytest.raises(YtError): track_op(op_id)
 
@@ -744,3 +744,19 @@ print row + table_index
         with pytest.raises(YtError):
             map(in_='//tmp/t_in', out='//tmp/t_out', command='cat',
                 opt=['/spec/mapper/memory_limit=1000000000000'])
+
+    def test_check_input_fully_consumed(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write('//tmp/t1', {"foo": "bar"})
+
+        command = "python -c 'import os; os.read(0, 5);'"
+
+        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command,
+                spec={ 'mapper': { 'input_format' : 'dsv', 'check_input_fully_consumed': 'true'}})
+        # if all jobs failed then operation is also failed
+        with pytest.raises(YtError): track_op(op_id)
+
+        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command,
+                spec={ 'mapper': { 'input_format' : 'dsv', 'check_input_fully_consumed': 'true'}})
+        self.assertEqual([], read("//tmp/t2"))

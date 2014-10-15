@@ -1130,6 +1130,7 @@ private:
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
+        // COMPAT(babenko)
         if (context.GetVersion() < 101) {
             RecomputeResources_ = true;
         }

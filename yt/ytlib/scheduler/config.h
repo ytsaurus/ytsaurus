@@ -72,6 +72,8 @@ public:
 
     TNullable<Stroka> Title;
 
+    TNullable<Stroka> SchedulingTag;
+
     TOperationSpecBase()
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
@@ -96,6 +98,9 @@ public:
             .Default(true);
 
         RegisterParameter("title", Title)
+            .Default(Null);
+        
+        RegisterParameter("scheduling_tag", SchedulingTag)
             .Default(Null);
 
         SetKeepOptions(true);
@@ -134,11 +139,11 @@ public:
     double MemoryReserveFactor;
 
     bool UseYamrDescriptors;
+    bool CheckInputStreamFullyConsumed;
     bool EnableCoreDump;
     bool EnableIOPrio;
 
     i64 MaxStderrSize;
-
 
     TUserJobSpec()
     {
@@ -165,6 +170,8 @@ public:
             .GreaterThan(0.)
             .LessThanOrEqual(1.);
         RegisterParameter("use_yamr_descriptors", UseYamrDescriptors)
+            .Default(false);
+        RegisterParameter("check_input_fully_consumed", CheckInputStreamFullyConsumed)
             .Default(false);
         RegisterParameter("enable_core_dump", EnableCoreDump)
             .Default(false);
@@ -709,6 +716,8 @@ public:
 
     TPoolResourceLimitsConfigPtr ResourceLimits;
 
+    TNullable<Stroka> SchedulingTag;
+
     TPoolConfig()
     {
         RegisterParameter("weight", Weight)
@@ -726,6 +735,9 @@ public:
 
         RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();
+        
+        RegisterParameter("scheduling_tag", SchedulingTag)
+            .Default(Null);
     }
 };
 
@@ -736,6 +748,7 @@ class TStrategyOperationSpec
 {
 public:
     TNullable<Stroka> Pool;
+    TNullable<Stroka> SchedulingTag;
     double Weight;
     double MinShareRatio;
     double MaxShareRatio;
@@ -759,6 +772,9 @@ public:
         RegisterParameter("max_share_ratio", MaxShareRatio)
             .Default(1.0)
             .InRange(0.0, 1.0);
+
+        RegisterParameter("scheduling_tag", SchedulingTag)
+            .Default();
 
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
             .Default();

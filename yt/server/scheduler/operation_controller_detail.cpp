@@ -706,8 +706,11 @@ void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
         return;
 
     for (auto node : nodes) {
-        if (Dominates(node->ResourceLimits(), neededResources))
+        if (node->CanSchedule(Controller->Operation->GetSchedulingTag()) &&
+            Dominates(node->ResourceLimits(), neededResources))
+        {
             return;
+        }
     }
 
     // It seems nobody can satisfy the demand.
@@ -1033,6 +1036,7 @@ void TOperationControllerBase::Initialize()
 void TOperationControllerBase::Essentiate()
 {
     Operation->SetMaxStderrCount(Spec->MaxStderrCount.Get(Config->MaxStderrCount));
+    Operation->SetSchedulingTag(Spec->SchedulingTag);
 
     InitializeTransactions();
 
@@ -1582,7 +1586,8 @@ void TOperationControllerBase::OnJobStarted(TJobPtr job)
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(job->GetId())
         .Item("operation_id").Value(job->GetOperation()->GetId())
-        .Item("resource_limits").Value(job->ResourceLimits());
+        .Item("resource_limits").Value(job->ResourceLimits())
+        .Item("node_address").Value(job->GetNode()->GetAddress());
 
     JobCounter.Start(1);
 }
@@ -3412,6 +3417,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_shell_command(config->Command);
     jobSpec->set_memory_limit(config->MemoryLimit);
     jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);
+    jobSpec->set_check_input_fully_consumed(config->CheckInputStreamFullyConsumed);
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_enable_vm_limit(Config->EnableVMLimit);
@@ -3566,7 +3572,8 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
         .Item("start_time").Value(job->GetStartTime())
         .Item("finish_time").Value(job->GetFinishTime())
         .Item("resource_limits").Value(job->ResourceLimits())
-        .Item("statistics").Value(statistics);
+        .Item("statistics").Value(statistics)
+        .Item("node_address").Value(job->GetNode()->GetAddress());
 }
 
 IClientPtr TOperationControllerBase::CreateClient()

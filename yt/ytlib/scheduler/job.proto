@@ -152,6 +152,8 @@ message TUserJobSpec
     optional bool enable_io_prio = 14 [default = true];
 
     optional bool enable_accounting = 15 [default = false];
+
+    optional bool check_input_fully_consumed = 16 [default = false];
 }
 
 // User code result.
