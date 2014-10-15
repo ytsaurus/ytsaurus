@@ -609,8 +609,8 @@ private:
 
         try {
             Slot->MakeLink(
-                fileName,
                 chunk->GetFileName(),
+                fileName,
                 descriptor.executable());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(

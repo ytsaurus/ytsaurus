@@ -180,9 +180,9 @@ void TSlot::InitSandbox()
 }
 
 void TSlot::MakeLink(
-    const Stroka& linkName,
     const Stroka& targetPath,
-    bool isExecutable)
+    const Stroka& linkName,
+    bool executable)
 {
     {
         // Take exclusive lock in blocking fashion to ensure that no 
@@ -193,10 +193,13 @@ void TSlot::MakeLink(
 
     auto linkPath = NFS::CombinePaths(SandboxPath, linkName);
     NFS::MakeSymbolicLink(targetPath, linkPath);
-    NFS::SetExecutableMode(linkPath, isExecutable);
+    NFS::SetExecutableMode(linkPath, executable);
 }
 
-void TSlot::MakeFile(const Stroka& fileName, std::function<void (TOutputStream*)> dataProducer, bool isExecutable)
+void TSlot::MakeFile(
+    const Stroka& fileName,
+    std::function<void (TOutputStream*)> dataProducer,
+    bool executable)
 {
     auto path = NFS::CombinePaths(SandboxPath, fileName);
     {
@@ -206,7 +209,7 @@ void TSlot::MakeFile(const Stroka& fileName, std::function<void (TOutputStream*)
         file.Flock(LOCK_EX | LOCK_NB);
         TFileOutput fileOutput(file);
         dataProducer(&fileOutput);
-        NFS::SetExecutableMode(path, isExecutable);
+        NFS::SetExecutableMode(path, executable);
     }
 
     {
