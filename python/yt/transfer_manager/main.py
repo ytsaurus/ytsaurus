@@ -350,7 +350,7 @@ class Application(object):
             if not destination_client.exists(destination_dir):
                 raise yt.YtError("Destination directory {} should exist".format(destination_dir))
             destination_user = self._yt.get_user_name(task.destination_cluster_token)
-            if destination_client.check_permission(destination_user, "write", destination_dir)["action"] != "allow":
+            if destination_user is None or destination_client.check_permission(destination_user, "write", destination_dir)["action"] != "allow":
                 raise yt.YtError("There is no permission to write to {}. Please log in.".format(task.destination_table))
 
 
