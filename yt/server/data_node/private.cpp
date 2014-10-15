@@ -15,7 +15,7 @@ NProfiling::TProfiler DataNodeProfiler("/data_node");
 
 NRpc::IChannelFactoryPtr ChannelFactory(NRpc::CreateCachingChannelFactory(NRpc::GetBusChannelFactory()));
 
-Stroka CellIdFileName("cell_guid");
+Stroka CellIdFileName("cell_id");
 
 ////////////////////////////////////////////////////////////////////////////////
 
