@@ -1022,7 +1022,7 @@ void TObjectManager::ExecuteMutatingRequest(
         TAuthenticatedUserGuard userGuard(securityManager, user);
         ExecuteVerb(RootService_, mutationServiceContext);
     } catch (const std::exception& ex) {
-        context->Reply(ex);
+        mutationServiceContext->Reply(ex);
     }
 
     auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
@@ -1035,7 +1035,7 @@ void TObjectManager::ExecuteMutatingRequest(
             NRpc::EErrorCode::Unavailable,
             "Mutation suppressed"));
     } else {
-        responseMessage = context->GetResponseMessage();
+        responseMessage = mutationServiceContext->GetResponseMessage();
     }
 
     if (mutationId != NullMutationId) {
