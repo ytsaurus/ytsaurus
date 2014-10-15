@@ -81,8 +81,10 @@ public:
 
         // Notify the caller than we're not going to answer the response synchronously.
         auto* mutationContext = dynamic_cast<IMutationServiceContext*>(context.Get());
-        mutationContext->SuppressResponse();
-    
+        if (mutationContext) {
+            mutationContext->SuppressResponse();
+        }
+
         // Prevent doing anything during recovery and at followers.
         if (!hydraManager->IsLeader()) {
             return;
