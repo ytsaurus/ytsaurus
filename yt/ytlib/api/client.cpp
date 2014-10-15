@@ -112,6 +112,7 @@ public:
         IConnectionPtr connection,
         const TClientOptions& options)
         : Connection_(std::move(connection))
+        , Options_(options)
         , Invoker_(NDriver::TDispatcher::Get()->GetLightInvoker())
     {
         MasterChannel_ = Connection_->GetMasterChannel();
@@ -371,14 +372,24 @@ public:
         const TCheckPermissionOptions& options),
         (user, path, permission, options))
 
-
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
+
+    IChannelPtr GetTabletChannel(const TTabletCellId& cellId)
+    {
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        auto channel = cellDirectory->GetChannelOrThrow(cellId);
+        if (Options_.User) {
+            channel = CreateAuthenticatedChannel(std::move(channel), *Options_.User);
+        }
+        return channel;
+    }
 
 private:
     friend class TTransaction;
 
     IConnectionPtr Connection_;
+    TClientOptions Options_;
 
     IChannelPtr MasterChannel_;
     IChannelPtr SchedulerChannel_;
@@ -442,7 +453,10 @@ private:
         return transaction ? transaction->GetId() : NullTransactionId;
     }
 
-    NTransactionClient::TTransactionPtr GetTransaction(const TTransactionalOptions& commandOptions, bool allowNullTransaction, bool pingTransaction)
+    NTransactionClient::TTransactionPtr GetTransaction(
+        const TTransactionalOptions& commandOptions,
+        bool allowNullTransaction,
+        bool pingTransaction)
     {
         if (commandOptions.TransactionId == NullTransactionId) {
             if (!allowNullTransaction) {
@@ -462,13 +476,18 @@ private:
         return TransactionManager_->Attach(attachOptions);
     }
 
-    void SetTransactionId(IClientRequestPtr request, const TTransactionalOptions& commandOptions, bool allowNullTransaction)
+    void SetTransactionId(
+        IClientRequestPtr request,
+        const TTransactionalOptions& commandOptions,
+        bool allowNullTransaction)
     {
         NCypressClient::SetTransactionId(request, GetTransactionId(commandOptions, allowNullTransaction));
     }
 
 
-    static void SetSuppressAccessTracking(IClientRequestPtr request, const TSuppressableAccessTrackingOptions& commandOptions)
+    static void SetSuppressAccessTracking(
+        IClientRequestPtr request,
+        const TSuppressableAccessTrackingOptions& commandOptions)
     {
         NCypressClient::SetSuppressAccessTracking(
             &request->Header(),
@@ -630,14 +649,12 @@ private:
             session->AddKey(index, key);
         }
 
-        const auto& cellDirectory = Connection_->GetCellDirectory();
         auto collector = New<TParallelCollector<void>>();
-
         for (const auto& pair : tabletToSession) {
             const auto& tabletInfo = pair.first;
             const auto& session = pair.second;
-            auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
-            collector->Collect(session->Invoke(channel));
+            auto channel = GetTabletChannel(tabletInfo->CellId);
+            collector->Collect(session->Invoke(std::move(channel)));
         }
 
         {
@@ -1395,9 +1412,10 @@ private:
     {
     public:
         TTabletCommitSession(
-            TTransaction* owner,
+            TTransactionPtr owner,
             TTabletInfoPtr tabletInfo)
-            : TransactionId_(owner->Transaction_->GetId())
+            : Owner_(owner)
+            , TransactionId_(owner->Transaction_->GetId())
             , TabletId_(tabletInfo->TabletId)
             , Config_(owner->Client_->Connection_->GetConfig())
         { }
@@ -1428,6 +1446,8 @@ private:
         }
 
     private:
+        TTransactionPtr Owner_;
+
         TTransactionId TransactionId_;
         TTabletId TabletId_;
         TConnectionConfigPtr Config_;
@@ -1521,14 +1541,12 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
             }
 
-            auto cellDirectory = Client_->Connection_->GetCellDirectory();
 
             auto writeCollector = New<TParallelCollector<void>>();
-
             for (const auto& pair : TabletToSession_) {
                 const auto& tabletInfo = pair.first;
                 const auto& session = pair.second;
-                auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
+                auto channel = Client_->GetTabletChannel(tabletInfo->CellId);
                 writeCollector->Collect(session->Invoke(std::move(channel)));
             }
 
