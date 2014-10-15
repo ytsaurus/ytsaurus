@@ -577,11 +577,13 @@ class Session(object):
             io_loop=None,
             IOStreamClass=None,
             service_id=None,
-            source_id=None):
+            source_id=None,
+            logtype=None):
         self._endpoint = None
         self._host = None
         self._service_id = service_id or DEFAULT_SERVICE_ID
         self._source_id = source_id or DEFAULT_SOURCE_ID
+        self._logtype = logtype
         self._id = None
         self._aborted = False
         self._state = state
@@ -623,12 +625,13 @@ class Session(object):
                 "GET /rt/session?"
                 "ident={ident}&"
                 "sourceid={source_id}&"
-                "logtype=json "
+                "logtype={logtype} "
                 "HTTP/1.1\r\n"
                 "Host: {host}\r\n"
                 "Accept: */*\r\n\r\n".format(
                     ident=self._service_id,
                     source_id=self._source_id,
+                    logtype=self._logtype,
                     host=self._host)
                 )
         except iostream.StreamClosedError:
@@ -720,7 +723,7 @@ class Session(object):
         return attributes
 
 
-def main(table_name, proxy_path, service_id, source_id, chunk_size, ack_queue_length, advicer_url, cluster_name, **kwargs):
+def main(table_name, proxy_path, service_id, source_id, chunk_size, ack_queue_length, advicer_url, cluster_name, logtype, **kwargs):
     io_loop = ioloop.IOLoop.instance()
 
     yt.config.set_proxy(proxy_path)
@@ -730,7 +733,7 @@ def main(table_name, proxy_path, service_id, source_id, chunk_size, ack_queue_le
         io_loop=io_loop,
         chunk_size=chunk_size, ack_queue_length=ack_queue_length,
         service_id=service_id, source_id=source_id, advicer_url = advicer_url,
-        cluster_name=cluster_name)
+        cluster_name=cluster_name, logtype=logtype)
     state.start()
     io_loop.start()
 
@@ -773,6 +776,7 @@ def run():
     options.define("ack_queue_length", default=DEFAULT_ACK_QUEUE_LENGTH, help="number of concurrent chunks to save")
 
     options.define("cluster_name", default="", help="[logbroker] name of source cluster")
+    options.define("logtype", default="", help="[logbroker] log type")
     options.define("advicer_url", default=DEFAULT_ADVICER_URL, help="[logbroker] url to get adviced kafka endpoint")
     options.define("service_id", default=DEFAULT_SERVICE_ID, help="[logbroker] service id")
     options.define("source_id", default=DEFAULT_SOURCE_ID, help="[logbroker] source id")
