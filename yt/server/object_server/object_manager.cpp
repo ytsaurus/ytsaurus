@@ -108,15 +108,13 @@ public:
         if (mutationId != NullMutationId) {
             auto asyncResponseMessage = responseKeeper->TryBeginRequest(mutationId);
             if (asyncResponseMessage) {
-                LOG_DEBUG_UNLESS(recovery, "Returning kept response (RequestId: %v, MutationId: %v)",
-                    context->GetRequestId(),
+                LOG_DEBUG_UNLESS(recovery, "Returning kept response (MutationId: %v)",
                     mutationId);
                 context->Reply(std::move(asyncResponseMessage));
                 return;
             }
 
-            LOG_DEBUG_UNLESS(recovery, "Response will be kept (RequestId: %v, MutationId: %v)",
-                context->GetRequestId(),
+            LOG_DEBUG_UNLESS(recovery, "Response will be kept (MutationId: %v)",
                 mutationId);
         }
 
@@ -1041,6 +1039,8 @@ void TObjectManager::ExecuteMutatingRequest(
     }
 
     if (mutationId != NullMutationId) {
+        LOG_DEBUG_UNLESS(IsRecovery(), "Response kept (MutationId: %v)",
+            mutationId);
         auto responseKeeper = Bootstrap->GetHydraFacade()->GetResponseKeeper();
         responseKeeper->EndRequest(mutationId, responseMessage);
     }
