@@ -37,7 +37,7 @@ Py::Object CreateYsonObject(const std::string& className, const Py::Object& obje
 
 ///////////////////////////////////////////////////////////////////////////////
 
-} // anonymous namespace
+} // namespace
 
 namespace NYTree {
 
