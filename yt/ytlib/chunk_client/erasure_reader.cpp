@@ -864,7 +864,7 @@ std::vector<IReaderPtr> CreateErasurePartsReaders(
     return readers;
 }
 
-} // anonymous namespace
+} // namespace
 
 std::vector<IReaderPtr> CreateErasureDataPartsReaders(
     TReplicationReaderConfigPtr config,

@@ -336,7 +336,7 @@ void ParseRowLimits(NYson::TTokenizer& tokenizer, IAttributeDictionary* attribut
     }
 }
 
-} // anonymous namespace
+} // namespace
 
 TRichYPath TRichYPath::Parse(const Stroka& str)
 {

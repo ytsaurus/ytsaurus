@@ -47,7 +47,7 @@ TPartIndexList ExtractRows(const TPartIndexList& matrix, int width, const TPartI
     return result;
 }
 
-} // anonymous namespace
+} // namespace
 
 const int TLrc::BitmaskOptimizationThreshold = 22;
 

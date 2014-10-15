@@ -109,7 +109,7 @@ private:
 
 };
 
-} // anonymous namespace
+} // namespace
 
 std::unique_ptr<TOutputStream> CreateSyncOutputStream(IAsyncOutputStreamPtr asyncStream)
 {
@@ -152,7 +152,7 @@ private:
     bool Failed_;
 };
 
-} // anonymous namespace
+} // namespace
 
 IAsyncOutputStreamPtr CreateAsyncOutputStream(TOutputStream* asyncStream)
 {
