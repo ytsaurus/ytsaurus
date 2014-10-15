@@ -28,7 +28,7 @@ static const int Lexer_en_quoted_identifier = 39;
 static const int Lexer_en_main = 8;
 
 
-} // namespace anonymous
+} // namespace
 
 TLexer::TLexer(
     const Stroka& source,

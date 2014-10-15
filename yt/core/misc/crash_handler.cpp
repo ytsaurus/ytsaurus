@@ -340,7 +340,7 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace anonymous
+} // namespace
 #endif
 
 void InstallCrashSignalHandler()

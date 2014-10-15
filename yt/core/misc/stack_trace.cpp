@@ -91,7 +91,7 @@ int GetStackTrace__libgcc(void** result, int maxFrames, int skipFrames)
     return argument.frames;
 }
 
-} // namespace anonymous
+} // namespace
 } // namespace YT
 
 #endif // ENABLE_GCC_STACKTRACE
@@ -127,7 +127,7 @@ int GetStackTrace__glibc(void** result, int maxFrames, int skipFrames)
     return frames;
 }
 
-} // namespace anonymous
+} // namespace
 } // namespace YT
 
 #endif // ENABLE_GLIBC_STACKTRACE
@@ -196,7 +196,7 @@ int GetStackTrace__libunwind(void** result, int maxFrames, int skipFrames)
     return frames;
 }
 
-} // namespace anonymous
+} // namespace
 } // namespace YT
 
 #endif // ENABLE_LIBUNWIND_STACKTRACE
