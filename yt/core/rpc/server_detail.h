@@ -118,7 +118,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServiceContextWrapper
-    : public IServiceContext
+    : public virtual IServiceContext
 {
 public:
     explicit TServiceContextWrapper(IServiceContextPtr underlyingContext);

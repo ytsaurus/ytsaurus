@@ -309,6 +309,32 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TObjectManager::TMutationServiceContext
+    : public TServiceContextWrapper
+    , public IMutationServiceContext
+{
+public:
+    explicit TMutationServiceContext(IServiceContextPtr underlyingContext)
+        : TServiceContextWrapper(std::move(underlyingContext))
+    { }
+
+    virtual void SuppressResponse() override
+    {
+        ResponseSuppressed_ = true;
+    }
+
+    virtual bool IsResponseSuppressed() const override
+    {
+        return ResponseSuppressed_;
+    }
+
+private:
+    bool ResponseSuppressed_ = false;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TObjectManager::TObjectManager(
     TObjectManagerConfigPtr config,
     TBootstrap* bootstrap)
@@ -990,11 +1016,13 @@ void TObjectManager::ExecuteMutatingRequest(
     const TMutationId& mutationId,
     IServiceContextPtr context)
 {
+    auto mutationServiceContext = New<TMutationServiceContext>(std::move(context));
+
     try {
         auto securityManager = Bootstrap->GetSecurityManager();
         auto* user = securityManager->GetUserOrThrow(userId);
         TAuthenticatedUserGuard userGuard(securityManager, user);
-        ExecuteVerb(RootService_, context);
+        ExecuteVerb(RootService_, mutationServiceContext);
     } catch (const std::exception& ex) {
         context->Reply(ex);
     }
@@ -1003,7 +1031,14 @@ void TObjectManager::ExecuteMutatingRequest(
     auto* mutationContext = hydraManager->GetMutationContext();
     YASSERT(mutationContext);
 
-    auto responseMessage = context->GetResponseMessage();
+    TSharedRefArray responseMessage;
+    if (mutationServiceContext->IsResponseSuppressed()) {
+        responseMessage = CreateErrorResponseMessage(TError(
+            NRpc::EErrorCode::Unavailable,
+            "Mutation suppressed"));
+    } else {
+        responseMessage = context->GetResponseMessage();
+    }
 
     if (mutationId != NullMutationId) {
         auto responseKeeper = Bootstrap->GetHydraFacade()->GetResponseKeeper();

@@ -21,6 +21,8 @@ using NObjectClient::NullTransactionId;
 
 struct IObjectResolver;
 
+DECLARE_REFCOUNTED_STRUCT(IMutationServiceContext);
+
 DECLARE_REFCOUNTED_CLASS(TObjectManager)
 DECLARE_REFCOUNTED_CLASS(TGarbageCollector)
 
