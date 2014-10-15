@@ -126,6 +126,7 @@ TAsyncError TVersionedChunkWriter::Open()
     } catch (const std::exception& ex) {
         return MakeFuture<TError>(ex);
     }
+    return OKFuture;
 }
 
 bool TVersionedChunkWriter::Write(const std::vector<TVersionedRow>& rows)
