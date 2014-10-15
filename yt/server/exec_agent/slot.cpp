@@ -97,7 +97,7 @@ int TSlot::GetUserId() const
 
 const NCGroup::TNonOwningCGroup& TSlot::GetProcessGroup() const
 {
-    return Config_->EnableCGroups : ProcessGroup_ : NullCGroup_;
+    return Config_->EnableCGroups ? ProcessGroup_ : NullCGroup_;
 }
 
 std::vector<Stroka> TSlot::GetCGroupPaths() const
