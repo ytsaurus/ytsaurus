@@ -54,11 +54,11 @@ void TSlot::Initialize()
 
 #ifdef _linux_
         try {
-            NCGroup::RunKiller(ProcessGroup.GetFullPath());
+            NCGroup::RunKiller(ProcessGroup_.GetFullPath());
         } catch (const std::exception& ex) {
             // ToDo(psushin): think about more complex logic of handling fs errors.
             LOG_FATAL(ex, "Failed to clean process group %v",
-                ProcessGroup.GetFullPath());
+                ProcessGroup_.GetFullPath());
         }
 #endif
     }
@@ -97,11 +97,7 @@ int TSlot::GetUserId() const
 
 const NCGroup::TNonOwningCGroup& TSlot::GetProcessGroup() const
 {
-    if (Config_->EnableCGroups) {
-        return ProcessGroup_;
-    } else {
-        return NullCGroup_;
-    }
+    return Config_->EnableCGroups : ProcessGroup_ : NullCGroup_;
 }
 
 std::vector<Stroka> TSlot::GetCGroupPaths() const
