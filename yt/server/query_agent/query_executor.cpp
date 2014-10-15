@@ -226,10 +226,23 @@ public:
         const TDataSplits& splits,
         TNodeDirectoryPtr nodeDirectory) override
     {
+        std::map<TGuid, TDataSplits> groups;
         TGroupedDataSplits result;
+
         for (const auto& split : splits) {
-            result.emplace_back(1, split);
+            auto tabletId = GetObjectIdFromDataSplit(split);
+            if (TypeFromId(tabletId) == EObjectType::Tablet) {
+                groups[tabletId].push_back(split);
+            } else {
+                result.emplace_back(1, split);
+            }
         }
+
+        result.reserve(result.size() + groups.size());
+        for (const auto& group : groups) {
+            result.emplace_back(std::move(group.second));
+        }
+
         return result;
     }
 
