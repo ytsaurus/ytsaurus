@@ -750,13 +750,7 @@ void TObjectProxyBase::DeclareMutating()
 }
 
 void TObjectProxyBase::DeclareNonMutating()
-{
-    auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
-    if (hydraManager->IsMutating()) {
-        auto objectManager = Bootstrap->GetObjectManager();
-        objectManager->SuppressMutation();
-    }
-}
+{ }
 
 void TObjectProxyBase::ValidateTransaction()
 {

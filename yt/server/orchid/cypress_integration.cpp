@@ -77,15 +77,8 @@ public:
 
     void Invoke(IServiceContextPtr context) override
     {
-        auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
-        
-        // Prevent regarding the request as a mutating one.
-        if (hydraManager->IsMutating()) {
-            auto objectManager = Bootstrap->GetObjectManager();
-            objectManager->SuppressMutation();
-        }
-
         // Prevent doing anything during recovery and at followers.
+        auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
         if (!hydraManager->IsLeader()) {
             return;
         }

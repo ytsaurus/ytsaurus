@@ -947,13 +947,6 @@ IObjectResolver* TObjectManager::GetObjectResolver()
     return ObjectResolver_.get();
 }
 
-void TObjectManager::SuppressMutation()
-{
-    MutationSuppressed_ = true;
-
-    LOG_DEBUG_UNLESS(IsRecovery(), "Mutation suppressed");
-}
-
 bool TObjectManager::AdviceYield(TInstant startTime) const
 {
     return TInstant::Now() > startTime + Config_->YieldTimeout;
@@ -1001,7 +994,6 @@ void TObjectManager::ExecuteMutatingRequest(
         auto securityManager = Bootstrap->GetSecurityManager();
         auto* user = securityManager->GetUserOrThrow(userId);
         TAuthenticatedUserGuard userGuard(securityManager, user);
-        MutationSuppressed_ = false;
         ExecuteVerb(RootService_, context);
     } catch (const std::exception& ex) {
         context->Reply(ex);
@@ -1011,14 +1003,7 @@ void TObjectManager::ExecuteMutatingRequest(
     auto* mutationContext = hydraManager->GetMutationContext();
     YASSERT(mutationContext);
 
-    TSharedRefArray responseMessage;
-    if (MutationSuppressed_) {
-        responseMessage = CreateErrorResponseMessage(TError(
-            NRpc::EErrorCode::Unavailable,
-            "Mutation suppressed"));
-    } else {
-        responseMessage = context->GetResponseMessage();
-    }
+    auto responseMessage = context->GetResponseMessage();
 
     if (mutationId != NullMutationId) {
         auto responseKeeper = Bootstrap->GetHydraFacade()->GetResponseKeeper();

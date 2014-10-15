@@ -178,8 +178,6 @@ public:
 
     IObjectResolver* GetObjectResolver();
 
-    void SuppressMutation();
-
     //! Advices a client to yield if it spent a lot of time already.
     bool AdviceYield(TInstant startTime) const;
 
@@ -230,7 +228,6 @@ private:
     //! Stores deltas from parent transaction.
     NHydra::TEntityMap<TVersionedObjectId, TAttributeSet> AttributeMap_;
 
-    bool MutationSuppressed_ = false;
 
 
     void SaveKeys(NCellMaster::TSaveContext& context) const;
