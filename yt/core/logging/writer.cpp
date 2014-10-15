@@ -107,13 +107,21 @@ TFileLogWriter::TFileLogWriter(const Stroka& fileName)
 void TFileLogWriter::CheckSpace(i64 minSpace)
 {
     try {
-        auto statistics = NFS::GetDiskSpaceStatistics(FileName_);
+        auto directoryName = NFS::GetDirectoryName(FileName_);
+        auto statistics = NFS::GetDiskSpaceStatistics(directoryName);
         if (statistics.AvailableSpace < minSpace) {
+            if (!Disabled_.load()) {
+                LOG_ERROR("Logging disabled: not enough space (FileName: %v, AvailableSpace: %v, MinSpace: %v)",
+                    directoryName,
+                    statistics.AvailableSpace,
+                    minSpace);
+            }
             Disabled_.store(true);
-            LOG_ERROR("Logging disabled: not enough space (FileName: %v, AvailableSpace: %v, MinSpace: %v)",
-                FileName_,
-                statistics.AvailableSpace,
-                minSpace);
+        } else {
+            if (Disabled_.load()) {
+                LOG_INFO("Logging enabled: space check passed");
+            }
+            Disabled_.store(false);
         }
     } catch (const std::exception& ex) {
         Disabled_.store(true);
