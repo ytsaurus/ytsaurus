@@ -61,8 +61,21 @@ FORCED_INLINE bool operator != (const TGuid& lhs, const TGuid& rhs)
 
 FORCED_INLINE bool operator < (const TGuid& lhs, const TGuid& rhs)
 {
-    // TODO(babenko): optimize
+#ifdef __GNUC__
+    ui64 lhs0 = __builtin_bswap64(lhs.Parts64[0]);
+    ui64 rhs0 = __builtin_bswap64(rhs.Parts64[0]);
+    if (lhs0 < rhs0) {
+        return true;
+    }
+    if (lhs0 > rhs0) {
+        return false;
+    }
+    ui64 lhs1 = __builtin_bswap64(lhs.Parts64[1]);
+    ui64 rhs1 = __builtin_bswap64(rhs.Parts64[1]);
+    return lhs1 < rhs1;
+#else
     return memcmp(&lhs, &rhs, sizeof(TGuid)) < 0;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
