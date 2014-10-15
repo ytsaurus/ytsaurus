@@ -457,6 +457,7 @@ private:
                 AssumeControl();
                 UpdateClusterDirectory();
                 ListOperations();
+                AbortAbortingOperations();
                 RequestOperationAttributes();
                 CheckOperationTransactions();
                 DownloadSnapshots();
@@ -473,6 +474,7 @@ private:
         TIntrusivePtr<TImpl> Owner;
         Stroka ServiceAddress;
         std::vector<TOperationId> OperationIds;
+        std::vector<TOperationId> AbortingOperationIds;
         TMasterHandshakeResult Result;
 
         // - Register scheduler instance.
@@ -586,7 +588,6 @@ private:
         // - Request operations and their states.
         void ListOperations()
         {
-
             auto batchReq = Owner->StartBatchRequest();
             {
                 auto req = TYPathProxy::List("//sys/operations");
@@ -611,9 +612,27 @@ private:
                     auto state = operationNode->Attributes().Get<EOperationState>("state");
                     if (IsOperationInProgress(state)) {
                         OperationIds.push_back(id);
+                    } else if (state == EOperationState::Aborting) {
+                        AbortingOperationIds.push_back(id);
                     }
                 }
             }
+        }
+
+        // - Set abort state for aborting operations.
+        void AbortAbortingOperations()
+        {
+            auto batchReq = Owner->StartBatchRequest();
+
+            for (const auto& id : AbortingOperationIds) {
+                auto req = TYPathProxy::Set(GetOperationPath(id) + "/@state");
+                req->set_value(ConvertToYsonString(EOperationState::Aborted).Data());
+                GenerateMutationId(req);
+                batchReq->AddRequest(req, "abort_operation");
+            }
+
+            auto batchRsp = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
         }
 
         // - Request attributes for unfinished operations.
@@ -882,6 +901,7 @@ private:
         LockTransaction.Reset();
 
         ClearUpdateLists();
+        ClearWatcherLists();
 
         StopRefresh();
         StopSnapshots();
@@ -1199,6 +1219,10 @@ private:
         return it == WatcherLists.end() ? nullptr : &it->second;
     }
 
+    void ClearWatcherLists()
+    {
+        WatcherLists.clear();
+    }
 
     void UpdateOperationNodes()
     {

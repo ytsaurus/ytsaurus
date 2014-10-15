@@ -36,6 +36,8 @@ public:
     //! Any operation with usage less than this cannot be preempted.
     double MinPreemptableRatio;
 
+    TNullable<Stroka> SchedulingTag;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -55,6 +57,9 @@ public:
         RegisterParameter("min_preemptable_ratio", MinPreemptableRatio)
             .InRange(0.0, 1.0)
             .Default(0.05);
+        
+        RegisterParameter("scheduling_tag", SchedulingTag)
+            .Default(Null);
     }
 };
 

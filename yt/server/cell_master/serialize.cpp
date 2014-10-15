@@ -50,7 +50,7 @@ int GetCurrentSnapshotVersion()
 bool ValidateSnapshotVersion(int version)
 {
     return
-        version == 42 ||
+        version == 43 ||
         version == 100 ||
         version == 101 ||
         version == 102;

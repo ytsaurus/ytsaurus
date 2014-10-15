@@ -39,6 +39,11 @@ const Stroka& TExecNode::GetAddress() const
     return Descriptor_.GetDefaultAddress();
 }
 
+bool TExecNode::CanSchedule(const TNullable<Stroka>& tag) const
+{
+    return !tag || SchedulingTags_.find(*tag) != SchedulingTags_.end();
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

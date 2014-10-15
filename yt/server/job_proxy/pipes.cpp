@@ -237,13 +237,14 @@ TInputPipe::TInputPipe(
     std::unique_ptr<NTableClient::TTableProducer> tableProducer,
     std::unique_ptr<TBlobOutput> buffer,
     std::unique_ptr<NYson::IYsonConsumer> consumer,
-    int jobDescriptor)
+    int jobDescriptor,
+    bool checkDataFullyConsumed)
     : Pipe(fd)
     , JobDescriptor(jobDescriptor)
     , TableProducer(std::move(tableProducer))
     , Buffer(std::move(buffer))
     , Consumer(std::move(consumer))
-    , Writer(New<NPipes::TAsyncWriter>(Pipe.WriteFd))
+    , CheckDataFullyConsumed(checkDataFullyConsumed)
 {
     YCHECK(TableProducer);
     YCHECK(Buffer);
@@ -312,7 +313,7 @@ void TInputPipe::Finish()
 
     SafeClose(Pipe.ReadFd);
 
-    if (!dataConsumed) {
+    if (!dataConsumed && CheckDataFullyConsumed) {
         THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process")
             << TErrorAttribute("fd", Pipe.WriteFd)
             << TErrorAttribute("job_descriptor", JobDescriptor);
