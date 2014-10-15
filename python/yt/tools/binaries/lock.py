@@ -6,6 +6,8 @@ import yt.wrapper as yt
 import os
 import sys
 import time
+import ctypes
+import signal
 import argparse
 import subprocess
 
@@ -25,8 +27,13 @@ def main():
                 return
             raise
 
+        ctypes.cdll.LoadLibrary("libc.so.6")
+        libc = ctypes.CDLL('libc.so.6')
+        PR_SET_PDEATHSIG = 1
+
         logger.info("Running command %s", args.command)
-        proc = subprocess.Popen(args.command, stdout=sys.stdout, stderr=sys.stderr, shell=True, env=os.environ.copy())
+        proc = subprocess.Popen(args.command, stdout=sys.stdout, stderr=sys.stderr, shell=True, env=os.environ.copy(),
+                                preexec_fn=lambda: libc.prctl(PR_SET_PDEATHSIG, signal.SIGTERM))
 
         while True:
             if not tx.ping.is_alive():
