@@ -34,7 +34,7 @@ public:
         , RequestId_(FromProto<TRequestId>(Header_->request_id()))
     { }
 
-    virtual TSharedRefArray Serialize() const override
+    virtual TSharedRefArray Serialize() override
     {
         return Message_;
     }

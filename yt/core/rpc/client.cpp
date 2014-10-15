@@ -30,34 +30,44 @@ TClientRequest::TClientRequest(
     : RequestAck_(true)
     , RequestHeavy_(false)
     , ResponseHeavy_(false)
-    , Channel(channel)
+    , Channel_(channel)
 {
     YCHECK(channel);
 
     Header_.set_service(service);
     Header_.set_method(method);
     Header_.set_one_way(oneWay);
-    Header_.set_request_start_time(TInstant::Now().MicroSeconds());
     ToProto(Header_.mutable_request_id(), TRequestId::Create());
     Header_.set_protocol_version(protocolVersion);
 }
 
-TSharedRefArray TClientRequest::Serialize() const
+TSharedRefArray TClientRequest::Serialize()
 {
-    auto header = Header_;
-    header.set_retry_start_time(TInstant::Now().MicroSeconds());
+    auto now = TInstant::Now();
 
-    auto bodyData = SerializeBody();
+    // Set request start time on first serialization attempt.
+    if (!Header_.has_request_start_time()) {
+        Header_.set_request_start_time(now.MicroSeconds());
+    }
+    Header_.set_retry_start_time(now.MicroSeconds());
+
+    if (Timeout_) {
+        Header_.set_timeout(Timeout_->MicroSeconds());
+    }
+
+    if (!SerializedBody_) {
+        SerializedBody_ = SerializeBody();
+    }
 
     return CreateRequestMessage(
-        header,
-        bodyData,
+        Header_,
+        SerializedBody_,
         Attachments_);
 }
 
 void TClientRequest::DoInvoke(IClientResponseHandlerPtr responseHandler)
 {
-    Channel->Send(
+    Channel_->Send(
         this,
         responseHandler,
         Timeout_,

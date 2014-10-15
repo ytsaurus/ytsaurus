@@ -20,6 +20,7 @@ message TRequestHeader
 
     optional int64 request_start_time = 6;
     optional int64 retry_start_time = 7;
+    optional int64 timeout = 10;
 
     extensions 100 to max;
 }

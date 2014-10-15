@@ -104,7 +104,7 @@ NRpc::NProto::TRequestHeader& TYPathRequest::Header()
     return Header_;
 }
 
-TSharedRefArray TYPathRequest::Serialize() const
+TSharedRefArray TYPathRequest::Serialize()
 {
     auto bodyData = SerializeBody();
     return CreateRequestMessage(

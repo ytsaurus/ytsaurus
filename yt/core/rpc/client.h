@@ -29,7 +29,7 @@ namespace NRpc {
 struct IClientRequest
     : public virtual TRefCounted
 {
-    virtual TSharedRefArray Serialize() const = 0;
+    virtual TSharedRefArray Serialize() = 0;
 
     virtual const NProto::TRequestHeader& Header() const = 0;
     virtual NProto::TRequestHeader& Header() = 0;
@@ -89,7 +89,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, ResponseHeavy);
 
 public:
-    virtual TSharedRefArray Serialize() const override;
+    virtual TSharedRefArray Serialize() override;
 
     virtual bool IsOneWay() const override;
     
@@ -102,7 +102,9 @@ public:
     virtual void SetStartTime(TInstant value) override;
 
 protected:
-    IChannelPtr Channel;
+    IChannelPtr Channel_;
+
+    TSharedRef SerializedBody_;
 
     TClientRequest(
         IChannelPtr channel,
@@ -118,6 +120,7 @@ protected:
     TClientContextPtr CreateClientContext();
 
     void DoInvoke(IClientResponseHandlerPtr responseHandler);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

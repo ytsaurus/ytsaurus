@@ -113,19 +113,26 @@ public:
 
             // No need for a lock here.
             RunningSync_ = true;
+            SyncStartTime_ = GetCpuInstant();
 
             if (Profiler.GetEnabled()) {
-                SyncStartTime_ = GetCpuInstant();
                 auto value = CpuDurationToValue(SyncStartTime_ - ArrivalTime_);
                 Profiler.Aggregate(RuntimeInfo_->LocalWaitTimeCounter, value);
             }
 
             try {
                 NTracing::TTraceContextGuard guard(TraceContext_);
+
                 if (!descriptor.System) {
                     Service_->BeforeInvoke();
                 }
-                handler.Run(this, descriptor.Options);
+
+                if (IsTimedOut()) {
+                    LOG_DEBUG("Request dropped due to timeout (RequestId: %v)",
+                        RequestId_);
+                } else {
+                    handler.Run(this, descriptor.Options);
+                }
             } catch (const std::exception& ex) {
                 if (!descriptor.OneWay) {
                     Reply(ex);
@@ -178,6 +185,16 @@ private:
     NProfiling::TCpuInstant SyncStopTime_ = -1;
 
 
+    bool IsTimedOut() const
+    {
+        if (!RequestHeader_->has_timeout()) {
+            return false;
+        }
+
+        auto timeout = TDuration(RequestHeader_->timeout());
+        return SyncStartTime_ > ArrivalTime_ + DurationToCpuDuration(timeout);
+    }
+
     virtual void DoReply() override
     {
         TGuard<TSpinLock> guard(SpinLock_);
@@ -203,9 +220,9 @@ private:
         // it must be maintained even if the profiler is OFF.
         Profiler.Increment(RuntimeInfo_->QueueSizeCounter, -1);
 
-        if (Profiler.GetEnabled()) {
-            auto now = GetCpuInstant();
+        auto now = GetCpuInstant();
 
+        if (Profiler.GetEnabled()) {
             if (RunningSync_) {
                 SyncStopTime_ = now;
                 auto value = CpuDurationToValue(SyncStopTime_ - SyncStartTime_);

@@ -40,7 +40,7 @@ public:
     virtual const NRpc::NProto::TRequestHeader& Header() const override;
     virtual NRpc::NProto::TRequestHeader& Header() override;
 
-    virtual TSharedRefArray Serialize() const override;
+    virtual TSharedRefArray Serialize() override;
 
 protected:
     NRpc::NProto::TRequestHeader Header_;
