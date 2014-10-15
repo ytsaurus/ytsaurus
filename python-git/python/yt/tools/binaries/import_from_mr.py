@@ -16,7 +16,7 @@ import sys
 import traceback
 from argparse import ArgumentParser
 
-def pull_table(source, destination, record_count, mr, fastbone, portion_size, job_count, pool):
+def pull_table(source, destination, record_count, mr, portion_size, job_count, pool):
     proxies = mr.proxies
     if not proxies:
         proxies = [mr.server]
@@ -154,7 +154,8 @@ def import_table(object, args):
               proxies=params.mr_proxy,
               proxy_port=params.mr_proxy_port,
               fetch_info_from_http=params.fetch_info_from_http,
-              mr_user=params.mr_user)
+              mr_user=params.mr_user,
+              fastbone=params.fastbone)
 
     if mr.is_empty(src):
         logger.info("Source table '%s' is empty", src)
@@ -176,7 +177,6 @@ def import_table(object, args):
     try:
         if params.import_type == "pull":
             pull_table(src, dst, record_count, mr,
-                       fastbone=params.fastbone,
                        portion_size=params.portion_size,
                        job_count=params.job_count,
                        pool=params.yt_pool)
