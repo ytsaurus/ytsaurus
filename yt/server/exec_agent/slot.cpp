@@ -29,27 +29,27 @@ TSlot::TSlot(
     int slotIndex,
     int userId)
     : IsFree_(true)
-    , IsClean(true)
-    , Path(path)
+    , IsClean_(true)
+    , Path_(path)
     , SlotIndex(slotIndex)
-    , UserId(userId)
-    , SlotThread(New<TActionQueue>(Format("ExecSlot:%v", slotIndex)))
-    , ProcessGroup("freezer", GetSlotProcessGroup(slotIndex))
-    , NullCGroup()
+    , UserId_(userId)
+    , SlotThread_(New<TActionQueue>(Format("ExecSlot:%v", slotIndex)))
+    , ProcessGroup_("freezer", GetSlotProcessGroup(slotIndex))
+    , NullCGroup_()
     , Logger(ExecAgentLogger)
-    , Config(config)
+    , Config_(config)
 {
     Logger.AddTag("Slot: %v", SlotIndex);
 }
 
 void TSlot::Initialize()
 {
-    if (Config->EnableCGroups) {
+    if (Config_->EnableCGroups) {
         try {
-            ProcessGroup.EnsureExistance();
+            ProcessGroup_.EnsureExistance();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to create process group %v",
-                ProcessGroup.GetFullPath()) << ex;
+                ProcessGroup_.GetFullPath()) << ex;
         }
 
 #ifdef _linux_
@@ -64,12 +64,12 @@ void TSlot::Initialize()
     }
 
     try {
-        NFS::ForcePath(Path, 0755);
-        SandboxPath = NFS::CombinePaths(Path, "sandbox");
+        NFS::ForcePath(Path_, 0755);
+        SandboxPath_ = NFS::CombinePaths(Path_, "sandbox");
         DoCleanSandbox();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to create slot directory %v",
-            Path) << ex;
+            Path_) << ex;
     }
 
     try {
@@ -92,23 +92,23 @@ bool TSlot::IsFree() const
 
 int TSlot::GetUserId() const
 {
-    return UserId;
+    return UserId_;
 }
 
 const NCGroup::TNonOwningCGroup& TSlot::GetProcessGroup() const
 {
-    if (Config->EnableCGroups) {
-        return ProcessGroup;
+    if (Config_->EnableCGroups) {
+        return ProcessGroup_;
     } else {
-        return NullCGroup;
+        return NullCGroup_;
     }
 }
 
 std::vector<Stroka> TSlot::GetCGroupPaths() const
 {
     std::vector<Stroka> result;
-    if (Config->EnableCGroups) {
-        result.push_back(ProcessGroup.GetFullPath());
+    if (Config_->EnableCGroups) {
+        result.push_back(ProcessGroup_.GetFullPath());
     }
 
     return result;
@@ -117,17 +117,17 @@ std::vector<Stroka> TSlot::GetCGroupPaths() const
 void TSlot::DoCleanSandbox()
 {
     try {
-        if (NFS::Exists(SandboxPath)) {
-            if (UserId == EmptyUserId) {
-                NFS::RemoveRecursive(SandboxPath);
+        if (NFS::Exists(SandboxPath_)) {
+            if (UserId_ == EmptyUserId) {
+                NFS::RemoveRecursive(SandboxPath_);
             } else {
-                RunCleaner(SandboxPath);
+                RunCleaner(SandboxPath_);
             }
         }
-        IsClean = true;
+        IsClean_ = true;
     } catch (const std::exception& ex) {
         auto wrappedError = TError("Failed to clean sandbox directory %v",
-            SandboxPath)
+            SandboxPath_)
             << ex;
         LOG_ERROR(wrappedError);
         THROW_ERROR wrappedError;
@@ -160,7 +160,7 @@ void TSlot::Clean()
 
 void TSlot::Release()
 {
-    YCHECK(IsClean);
+    YCHECK(IsClean_);
     IsFree_ = true;
 }
 
@@ -169,14 +169,14 @@ void TSlot::InitSandbox()
     YCHECK(!IsFree_);
 
     try {
-        NFS::ForcePath(SandboxPath, 0777);
+        NFS::ForcePath(SandboxPath_, 0777);
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Failed to create sandbox directory %Qv", SandboxPath);
+        LOG_FATAL(ex, "Failed to create sandbox directory %Qv", SandboxPath_);
     }
 
-    LOG_INFO("Created slot sandbox directory %Qv", SandboxPath);
+    LOG_INFO("Created slot sandbox directory %Qv", SandboxPath_);
 
-    IsClean = false;
+    IsClean_ = false;
 }
 
 void TSlot::MakeLink(
@@ -191,7 +191,7 @@ void TSlot::MakeLink(
         file.Flock(LOCK_EX);
     }
 
-    auto linkPath = NFS::CombinePaths(SandboxPath, linkName);
+    auto linkPath = NFS::CombinePaths(SandboxPath_, linkName);
     NFS::MakeSymbolicLink(targetPath, linkPath);
     NFS::SetExecutableMode(linkPath, executable);
 }
@@ -201,7 +201,7 @@ void TSlot::MakeFile(
     std::function<void (TOutputStream*)> dataProducer,
     bool executable)
 {
-    auto path = NFS::CombinePaths(SandboxPath, fileName);
+    auto path = NFS::CombinePaths(SandboxPath_, fileName);
     {
         // NB! Races are possible between file creation and call to flock.
         // Unfortunately in Linux we cannot make it atomically.
@@ -222,12 +222,12 @@ void TSlot::MakeFile(
 
 const Stroka& TSlot::GetWorkingDirectory() const
 {
-    return Path;
+    return Path_;
 }
 
 IInvokerPtr TSlot::GetInvoker()
 {
-    return SlotThread->GetInvoker();
+    return SlotThread_->GetInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

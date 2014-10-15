@@ -59,21 +59,22 @@ public:
 
 private:
     volatile bool IsFree_;
-    bool IsClean;
+    bool IsClean_;
 
-    Stroka Path;
+    Stroka Path_;
     int SlotIndex;
-    int UserId;
+    int UserId_;
 
-    Stroka SandboxPath;
+    Stroka SandboxPath_;
 
-    NConcurrency::TActionQueuePtr SlotThread;
+    NConcurrency::TActionQueuePtr SlotThread_;
 
-    NCGroup::TNonOwningCGroup ProcessGroup;
-    NCGroup::TNonOwningCGroup NullCGroup;
+    NCGroup::TNonOwningCGroup ProcessGroup_;
+    NCGroup::TNonOwningCGroup NullCGroup_;
 
     NLog::TLogger Logger;
-    TSlotManagerConfigPtr Config;
+    TSlotManagerConfigPtr Config_;
+
 
     void DoCleanSandbox();
     void DoCleanProcessGroups();
