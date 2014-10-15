@@ -240,11 +240,12 @@ TInputPipe::TInputPipe(
     int jobDescriptor,
     bool checkDataFullyConsumed)
     : Pipe(fd)
-    , JobDescriptor(jobDescriptor)
     , TableProducer(std::move(tableProducer))
     , Buffer(std::move(buffer))
     , Consumer(std::move(consumer))
+    , JobDescriptor(jobDescriptor)
     , CheckDataFullyConsumed(checkDataFullyConsumed)
+    , Writer(New<NPipes::TAsyncWriter>(Pipe.WriteFd))
 {
     YCHECK(TableProducer);
     YCHECK(Buffer);
