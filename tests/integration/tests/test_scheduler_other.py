@@ -88,7 +88,7 @@ class TestSchedulerOther(YTEnvSetup):
 
         assert read('//tmp/t_out') == [ {'foo' : 'bar'} ]
 
-class TestSchedulingGroups(YTEnvSetup):
+class TestSchedulingTags(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
@@ -155,6 +155,6 @@ class TestSchedulingGroups(YTEnvSetup):
         op_id = map(dont_track=True, command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"job_count": 20})
         track_op(op_id)
         time.sleep(0.5)
-        assert len(get_job_nodes(op_id)) == 2
+        assert len(get_job_nodes(op_id)) <= 2
 
 
