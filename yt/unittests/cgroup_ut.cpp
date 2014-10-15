@@ -503,6 +503,45 @@ TEST(CGroup, FreezerEmpty)
     EXPECT_EQ("THAWED", group.GetState());
 }
 
+TEST(CGroup, FreezerFreeze)
+{
+    auto group = CreateCGroup<TFreezer>("some");
+
+    auto addedEvent = eventfd(0, 0);
+    auto exitEvent = eventfd(0, 0);
+
+    auto pid = fork();
+    ASSERT_TRUE(pid >= 0);
+
+    if (pid == 0) {
+        group.AddCurrentTask();
+
+        i64 value = 1024;
+        ASSERT_EQ(sizeof(value), ::write(addedEvent, &value, sizeof(value)));
+
+        ASSERT_EQ(sizeof(value), ::read(exitEvent, &value, sizeof(value)));
+        exit(0);
+    }
+
+    i64 value;
+    ASSERT_EQ(sizeof(value), ::read(addedEvent, &value, sizeof(value)));
+    // test here something
+
+    group.Freeze();
+    auto state = group.GetState();
+    EXPECT_TRUE((state == "FREEZING") || (state == "FROZEN"));
+
+    value = 1;
+    ASSERT_EQ(sizeof(value), ::write(exitEvent, &value, sizeof(value)));
+
+    group.UnFreeze();
+
+    auto waitedpid = waitpid(pid, nullptr, 0);
+
+    group.Destroy();
+    ASSERT_EQ(pid, waitedpid);
+}
+
 TEST(CurrentProcessCGroup, Empty)
 {
     std::vector<char> empty;

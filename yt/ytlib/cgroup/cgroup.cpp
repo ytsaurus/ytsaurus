@@ -661,6 +661,11 @@ void TFreezer::Freeze() const
     Set("freezer.state", "FROZEN");
 }
 
+void TFreezer::UnFreeze() const
+{
+    Set("freezer.state", "THAWED");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::map<Stroka, Stroka> ParseCurrentProcessCGroups(TStringBuf str)

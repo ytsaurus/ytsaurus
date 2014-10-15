@@ -186,6 +186,7 @@ public:
 
     Stroka GetState() const;
     void Freeze() const;
+    void UnFreeze() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
