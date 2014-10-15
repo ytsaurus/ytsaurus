@@ -100,22 +100,14 @@ public:
         auto* user = securityManager->GetAuthenticatedUser();
         auto userId = user->GetId();
 
-        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        bool recovery = hydraManager->IsRecovery();
-
         auto responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
         auto mutationId = GetMutationId(context);
         if (mutationId != NullMutationId) {
             auto asyncResponseMessage = responseKeeper->TryBeginRequest(mutationId);
             if (asyncResponseMessage) {
-                LOG_DEBUG_UNLESS(recovery, "Returning kept response (MutationId: %v)",
-                    mutationId);
                 context->Reply(std::move(asyncResponseMessage));
                 return;
             }
-
-            LOG_DEBUG_UNLESS(recovery, "Response will be kept (MutationId: %v)",
-                mutationId);
         }
 
         NProto::TReqExecute request;
@@ -302,32 +294,6 @@ private:
         auto* object = objectManager->GetObjectOrThrow(objectId);
         return objectManager->GetProxy(object, transaction);
     }
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TObjectManager::TMutationServiceContext
-    : public TServiceContextWrapper
-    , public IMutationServiceContext
-{
-public:
-    explicit TMutationServiceContext(IServiceContextPtr underlyingContext)
-        : TServiceContextWrapper(std::move(underlyingContext))
-    { }
-
-    virtual void SuppressResponse() override
-    {
-        ResponseSuppressed_ = true;
-    }
-
-    virtual bool IsResponseSuppressed() const override
-    {
-        return ResponseSuppressed_;
-    }
-
-private:
-    bool ResponseSuppressed_ = false;
 
 };
 
@@ -1014,38 +980,24 @@ void TObjectManager::ExecuteMutatingRequest(
     const TMutationId& mutationId,
     IServiceContextPtr context)
 {
-    auto mutationServiceContext = New<TMutationServiceContext>(std::move(context));
+    auto asyncResponseMessage = context->GetAsyncResponseMessage();
 
     try {
         auto securityManager = Bootstrap->GetSecurityManager();
         auto* user = securityManager->GetUserOrThrow(userId);
         TAuthenticatedUserGuard userGuard(securityManager, user);
-        ExecuteVerb(RootService_, mutationServiceContext);
+        ExecuteVerb(RootService_, context);
     } catch (const std::exception& ex) {
-        mutationServiceContext->Reply(ex);
-    }
-
-    auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
-    auto* mutationContext = hydraManager->GetMutationContext();
-    YASSERT(mutationContext);
-
-    TSharedRefArray responseMessage;
-    if (mutationServiceContext->IsResponseSuppressed()) {
-        responseMessage = CreateErrorResponseMessage(TError(
-            NRpc::EErrorCode::Unavailable,
-            "Mutation suppressed"));
-    } else {
-        responseMessage = mutationServiceContext->GetResponseMessage();
+        context->Reply(ex);
     }
 
     if (mutationId != NullMutationId) {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Response kept (MutationId: %v)",
-            mutationId);
         auto responseKeeper = Bootstrap->GetHydraFacade()->GetResponseKeeper();
-        responseKeeper->EndRequest(mutationId, responseMessage);
+        asyncResponseMessage.Subscribe(
+            BIND([=] (TSharedRefArray message) {
+                responseKeeper->EndRequest(mutationId, std::move(message));
+            }));
     }
-
-    mutationContext->Response().Data = std::move(responseMessage);
 }
 
 void TObjectManager::HydraExecute(const NProto::TReqExecute& request)

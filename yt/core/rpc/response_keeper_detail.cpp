@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "response_keeper_detail.h"
 #include "config.h"
+#include "private.h"
 
 #include <core/misc/serialize.h>
 
@@ -8,6 +9,10 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const auto& Logger = RpcServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,15 +35,19 @@ TFuture<TSharedRefArray> TResponseKeeperBase::TryBeginRequest(const TMutationId&
 
     auto finishedIt = FinishedResponses_.find(id);
     if (finishedIt != FinishedResponses_.end()) {
+        LOG_DEBUG("Replying with finished response (MutationId: %v)", id);
         return MakeFuture(finishedIt->second);
     }
 
     auto pendingIt = PendingResponses_.find(id);
     if (pendingIt != PendingResponses_.end()) {
+        LOG_DEBUG("Replying with pending response (MutationId: %v)", id);
         return pendingIt->second;
     }
 
     YCHECK(PendingResponses_.insert(std::make_pair(id, NewPromise<TSharedRefArray>())).second);
+
+    LOG_DEBUG("Response will be kept (MutationId: %v)", id);
 
     return TFuture<TSharedRefArray>();
 }
@@ -67,6 +76,7 @@ void TResponseKeeperBase::EndRequest(
     }
 
     if (remember) {
+        LOG_DEBUG("Response kept (MutationId: %v)", id);
         UpdateCounters(data, +1);
         OnProfiling();
     }

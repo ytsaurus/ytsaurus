@@ -460,11 +460,6 @@ void TServiceBase::OnRequest(
     TFuture<TSharedRefArray>  keptResponseMessage;
     if (mutationId != NullMutationId) {
         keptResponseMessage = ResponseKeeper_->TryBeginRequest(mutationId);
-        if (keptResponseMessage) {
-            LOG_DEBUG("Replying with kept response (RequestId: %v, MutationId: %v)",
-                requestId,
-                mutationId);
-        }
     }
 
     auto context = New<TServiceContext>(

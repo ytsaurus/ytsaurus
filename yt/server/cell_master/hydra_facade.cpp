@@ -12,6 +12,7 @@
 
 #include <core/rpc/bus_channel.h>
 #include <core/rpc/server.h>
+#include <core/rpc/transient_response_keeper.h>
 
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/periodic_executor.h>
@@ -34,7 +35,6 @@
 #include <server/hydra/snapshot.h>
 #include <server/hydra/distributed_hydra_manager.h>
 #include <server/hydra/sync_file_changelog.h>
-#include <server/hydra/persistent_response_keeper.h>
 
 #include <server/hive/transaction_supervisor.h>
 
@@ -112,11 +112,8 @@ public:
             GuardedInvokers_.push_back(HydraManager_->CreateGuardedAutomatonInvoker(unguardedInvoker));
         }
 
-        ResponseKeeper_ = New<TPersistentResponseKeeper>(
+        ResponseKeeper_ = CreateTransientResponseKeeper(
             Config_->HydraManager->ResponseKeeper,
-            GetAutomatonInvoker(),
-            HydraManager_,
-            Automaton_,
             NHydra::HydraProfiler);
     }
 
@@ -178,7 +175,7 @@ private:
     TMasterAutomatonPtr Automaton_;
     IHydraManagerPtr HydraManager_;
 
-    TPersistentResponseKeeperPtr ResponseKeeper_;
+    IResponseKeeperPtr ResponseKeeper_;
 
     std::vector<IInvokerPtr> GuardedInvokers_;
     std::vector<IInvokerPtr> EpochInvokers_;

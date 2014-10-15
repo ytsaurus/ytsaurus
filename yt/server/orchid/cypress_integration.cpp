@@ -77,15 +77,8 @@ public:
 
     void Invoke(IServiceContextPtr context) override
     {
-        auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
-
-        // Notify the caller than we're not going to answer the response synchronously.
-        auto* mutationContext = dynamic_cast<IMutationServiceContext*>(context.Get());
-        if (mutationContext) {
-            mutationContext->SuppressResponse();
-        }
-
         // Prevent doing anything during recovery and at followers.
+        auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
         if (!hydraManager->IsLeader()) {
             return;
         }

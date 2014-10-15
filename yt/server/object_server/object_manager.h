@@ -50,17 +50,6 @@ struct IObjectResolver
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IMutationServiceContext
-    : public virtual NRpc::IServiceContext
-{
-    virtual void SuppressResponse() = 0;
-    virtual bool IsResponseSuppressed() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IMutationServiceContext)
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Provides high-level management and tracking of objects and their attributes.
 /*!
  *  \note
@@ -201,7 +190,6 @@ private:
     typedef TIntrusivePtr<TRootService> TRootServicePtr;
 
     class TObjectResolver;
-    class TMutationServiceContext;
 
     TObjectManagerConfigPtr Config_;
 
