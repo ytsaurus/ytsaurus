@@ -117,15 +117,15 @@ TVersionedChunkWriter::TVersionedChunkWriter(
     , BlockWriter_(new TSimpleVersionedBlockWriter(Schema_, KeyColumns_))
     , MinTimestamp_(MaxTimestamp)
     , MaxTimestamp_(MinTimestamp)
-{
-    YCHECK(Schema_.Columns().size() > 0);
-    YCHECK(KeyColumns_.size() > 0);
-    YCHECK(Schema_.CheckKeyColumns(KeyColumns_).IsOK());
-}
+{ }
 
 TAsyncError TVersionedChunkWriter::Open()
 {
-    return OKFuture;
+    try {
+        ValidateTableSchemaAndKeyColumns(Schema_, KeyColumns_);
+    } catch (const std::exception& ex) {
+        return MakeFuture<TError>(ex);
+    }
 }
 
 bool TVersionedChunkWriter::Write(const std::vector<TVersionedRow>& rows)

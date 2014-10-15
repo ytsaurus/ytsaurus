@@ -44,10 +44,7 @@ TErrorOr<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::DoLoad(
     try {
         KeyColumns_ = keyColumns;
 
-        {
-            auto error = readerSchema.CheckKeyColumns(keyColumns);
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-        }
+        ValidateTableSchemaAndKeyColumns(readerSchema, keyColumns);
 
         auto chunkMetaOrError = WaitFor(chunkReader->GetMeta());
         THROW_ERROR_EXCEPTION_IF_FAILED(chunkMetaOrError)

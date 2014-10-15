@@ -58,8 +58,6 @@ public:
     int GetColumnIndex(const TColumnSchema& column) const;
     int GetColumnIndexOrThrow(const TStringBuf& name) const;
 
-    TError CheckKeyColumns(const TKeyColumns& keyColumns) const;
-
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
 
     void Save(TStreamSaveContext& context) const;
@@ -82,8 +80,8 @@ bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
-
 void ValidateTableSchema(const TTableSchema& schema);
+void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColumns& keyColumns);
 
 ////////////////////////////////////////////////////////////////////////////////
 

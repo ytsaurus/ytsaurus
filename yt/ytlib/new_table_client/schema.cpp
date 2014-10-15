@@ -153,31 +153,6 @@ int TTableSchema::GetColumnIndexOrThrow(const TStringBuf& name) const
     return GetColumnIndex(GetColumnOrThrow(name));
 }
 
-TError TTableSchema::CheckKeyColumns(const TKeyColumns& keyColumns) const
-{
-    // ToDo(psushin): provide ToString for TTableSchema and make better error messages.
-    if (Columns_.size() < keyColumns.size()) {
-        return TError("Key columns must form a prefix of schema");;
-    }
-
-    for (int index = 0; index < static_cast<int>(keyColumns.size()); ++index) {
-        const auto& columnSchema = Columns_[index];
-        if (columnSchema.Name != keyColumns[index]) {
-            return TError("Key columns must form a prefix of schema");;
-        }
-        if (columnSchema.Lock) {
-            return TError("Key column %Qv cannot have an explicit lock group",
-                columnSchema.Name);
-        }
-    }
-
-    if (Columns_.size() == keyColumns.size()) {
-        return TError("Schema must contains at least one non-key column");;
-    }
-
-    return TError();
-}
-
 TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
 {
     if (columnFilter.All) {
@@ -214,27 +189,7 @@ void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
 void Deserialize(TTableSchema& schema, INodePtr node)
 {
     NYTree::Deserialize(schema.Columns(), node);
-    
-    // Check for duplicate names.
-    // Check lock groups count.
-    yhash_set<Stroka> columnNames;
-    yhash_set<Stroka> lockNames;
-    YCHECK(lockNames.insert(PrimaryLockName).second);
-    for (const auto& column : schema.Columns()) {
-        if (!columnNames.insert(column.Name).second) {
-            THROW_ERROR_EXCEPTION("Duplicate column name %Qv in table schema",
-                column.Name);
-        }
-        if (column.Lock) {
-            lockNames.insert(*column.Lock);
-        }
-    }
-
-    if (lockNames.size() > MaxColumnLockCount) {
-        THROW_ERROR_EXCEPTION("Too many column locks in table schema: actual %v, limit %v",
-            lockNames.size(),
-            MaxColumnLockCount);
-    }
+    ValidateTableSchema(schema);
 }
 
 void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema)
@@ -286,11 +241,50 @@ void ValidateKeyColumns(const TKeyColumns& keyColumns)
 
 void ValidateTableSchema(const TTableSchema& schema)
 {
-    yhash_set<Stroka> names;
+    // Check for duplicate column names.
+    // Check lock groups count.
+    yhash_set<Stroka> columnNames;
+    yhash_set<Stroka> lockNames;
+    YCHECK(lockNames.insert(PrimaryLockName).second);
     for (const auto& column : schema.Columns()) {
-        if (!names.insert(column.Name).second) {
-            THROW_ERROR_EXCEPTION("Duplicate column %Qv", column.Name);
+        if (!columnNames.insert(column.Name).second) {
+            THROW_ERROR_EXCEPTION("Duplicate column name %Qv in table schema",
+                column.Name);
         }
+        if (column.Lock) {
+            lockNames.insert(*column.Lock);
+        }
+    }
+
+    if (lockNames.size() > MaxColumnLockCount) {
+        THROW_ERROR_EXCEPTION("Too many column locks in table schema: actual %v, limit %v",
+            lockNames.size(),
+            MaxColumnLockCount);
+    }
+}
+
+void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColumns& keyColumns)
+{
+    ValidateTableSchema(schema);
+    ValidateKeyColumns(keyColumns);
+
+    if (schema.Columns().size() < keyColumns.size()) {
+        THROW_ERROR_EXCEPTION("Key columns must form a prefix of schema");;
+    }
+
+    for (int index = 0; index < static_cast<int>(keyColumns.size()); ++index) {
+        const auto& columnSchema = schema.Columns()[index];
+        if (columnSchema.Name != keyColumns[index]) {
+            THROW_ERROR_EXCEPTION("Key columns must form a prefix of schema");
+        }
+        if (columnSchema.Lock) {
+            THROW_ERROR_EXCEPTION("Key column %Qv cannot have a lock",
+                columnSchema.Name);
+        }
+    }
+
+    if (schema.Columns().size() == keyColumns.size()) {
+        THROW_ERROR_EXCEPTION("Schema must contains at least one non-key column");;
     }
 }
 

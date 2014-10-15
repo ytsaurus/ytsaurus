@@ -336,25 +336,8 @@ public:
     {
         auto objectManager = Bootstrap->GetObjectManager();
         auto tableProxy = objectManager->GetProxy(table);
-
         // COMPAT(babenko): schema must be mandatory
-        auto schema = tableProxy->Attributes().Get<TTableSchema>("schema", TTableSchema());
-        const auto& keyColumns = table->KeyColumns();
-
-        // Ensure that every key column is mentioned in schema.
-        // Move all key columns up the front.
-        for (int keyIndex = 0; keyIndex < static_cast<int>(keyColumns.size()); ++keyIndex) {
-            auto* column = schema.FindColumn(keyColumns[keyIndex]);
-            if (!column) {
-                THROW_ERROR_EXCEPTION("Schema does define a key column %Qv",
-                    keyColumns[keyIndex]);
-            }
-            int schemaIndex = schema.GetColumnIndex(*column);
-            if (schemaIndex != keyIndex) {
-                std::swap(schema.Columns()[schemaIndex], schema.Columns()[keyIndex]);
-            }
-        }
-        return schema;
+        return tableProxy->Attributes().Get<TTableSchema>("schema", TTableSchema());
     }
 
     TTabletStatistics GetTabletStatistics(TTablet* tablet)
@@ -384,12 +367,9 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
         
-        if (table->KeyColumns().empty()) {
-            THROW_ERROR_EXCEPTION("Table has no key columns");
-        }
-
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
         auto schema = GetTableSchema(table); // may throw
+        ValidateTableSchemaAndKeyColumns(schema, table->KeyColumns()); // may throw
 
         TTabletCell* hintedCell;
         if (cellId == NullTabletCellId) {
