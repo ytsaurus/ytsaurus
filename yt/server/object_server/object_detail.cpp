@@ -552,9 +552,6 @@ void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
         if (!DoInvoke(context)) {
             ThrowMethodNotSupported(context->GetMethod());
         }
-        // TODO(babenko): currently broken
-        ForwardToLeader(context);
-        return;
     } catch (const std::exception& ex) {
         error = ex;
     }
