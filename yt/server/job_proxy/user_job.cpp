@@ -277,6 +277,13 @@ public:
             {
                 TGuard<TSpinLock> guard(MemoryLock);
                 RetrieveStatistics(Memory, [&] (NCGroup::TMemory& cgroup) { });
+
+                try {
+                    Memory.ForceEmpty();
+                } catch (const std::exception& ex) {
+                    LOG_ERROR("Unable to force empty cgroup %Qv", Memory.GetFullPath());
+                }
+
                 DestroyCGroup(Memory);
             }
         }

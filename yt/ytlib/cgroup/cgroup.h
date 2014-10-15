@@ -173,6 +173,8 @@ public:
     void DisableOom() const;
     TEvent GetOomEvent() const;
 
+    void ForceEmpty() const;
+
     int GetFailCount() const;
 };
 

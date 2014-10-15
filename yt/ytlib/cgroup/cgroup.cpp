@@ -635,6 +635,11 @@ TEvent TMemory::GetOomEvent() const
 #endif
 }
 
+void TMemory::ForceEmpty() const
+{
+    Set("memory.force_empty", "0");
+}
+
 int TMemory::GetFailCount() const
 {
     return FromString<int>(Get("memory.failcnt"));
