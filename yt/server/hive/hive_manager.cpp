@@ -304,7 +304,23 @@ private:
     void HydraPostMessages(TCtxPostMessagesPtr context, const TReqPostMessages& request)
     {
         auto srcCellId = FromProto<TCellId>(request.src_cell_id());
-        auto* mailbox = GetOrCreateMailbox(srcCellId);
+        int firstMessageId = request.first_message_id();
+        auto* mailbox = FindMailbox(srcCellId);
+        if (!mailbox) {
+            if (firstMessageId == 0) {
+                mailbox = CreateMailbox(srcCellId);
+            } else {
+                auto error = TError("Mailbox does not exist; expecting message 0 but got %v",
+                    firstMessageId);
+                LOG_DEBUG_UNLESS(IsRecovery(), error, "Incoming messages dropped (SrcCellId: %v, DstCellId: %v)",
+                    srcCellId,
+                    SelfCellId_);
+                if (context) {
+                    context->Reply(error);
+                }
+                return;
+            }
+        }
 
         HandleIncomingMessages(mailbox, request);
 
