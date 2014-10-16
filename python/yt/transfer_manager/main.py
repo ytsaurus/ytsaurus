@@ -147,6 +147,7 @@ class Application(object):
         self._add_rule("/tasks/", 'get_tasks', methods=["GET"])
         self._add_rule("/tasks/", 'add', methods=["POST"])
         self._add_rule("/tasks/<id>/", 'get_task', methods=["GET"])
+        self._add_rule("/tasks/<id>/", 'delete_task', methods=["DELETE"])
         self._add_rule("/tasks/<id>/abort/", 'abort', methods=["POST"])
         self._add_rule("/tasks/<id>/restart/", 'restart', methods=["POST"])
         self._add_rule("/config/", 'config', methods=["GET"])
@@ -203,7 +204,7 @@ class Application(object):
                 return json.dumps(error.simplify()), 400
             except Exception as error:
                 logger.exception(error)
-                return json.dumps({"code": 1, "message": "Unknown error: " + error.message}), 502
+                return json.dumps({"code": 1, "message": "Unknown error: " + str(error)}), 502
 
         return decorator
 
@@ -618,6 +619,16 @@ class Application(object):
             return "Unknown task " + id, 400
 
         return jsonify(**self._get_task_description(self._tasks[id]))
+
+    def delete_task(self, id):
+        if id not in self._tasks:
+            return "Unknown task " + id, 400
+
+        with self._mutex:
+            self._yt.remove(os.path.join(self._tasks_path, id), recursive=True)
+        del self._tasks[id]
+
+        return ""
 
     def get_tasks(self):
         user = request.args.get("user")
