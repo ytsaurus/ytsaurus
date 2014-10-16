@@ -25,8 +25,9 @@ import struct
 import logging
 import json
 import datetime
-import zlib
 import sys
+import gzip
+import StringIO
 
 
 DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
@@ -312,6 +313,21 @@ class EventLog(object):
                 self.yt.set(self._number_of_first_row_attr, 0)
 
 
+def gzip_compress(text):
+    out = StringIO.StringIO()
+    with gzip.GzipFile(fileobj=out, mode="w") as f:
+        f.write(text)
+    return out.getvalue()
+
+
+def gzip_decompress(text):
+    infile = StringIO.StringIO()
+    infile.write(text)
+    with gzip.GzipFile(fileobj=infile, mode="r") as f:
+        f.rewind()
+        return f.read()
+
+
 def normilize_timestamp(ts):
     dt = datetime.datetime.strptime(ts.split(".")[0], "%Y-%m-%dT%H:%M:%S")
     return dt.isoformat(' ')
@@ -395,7 +411,7 @@ def convert_from(converted_row):
 
 def serialize_chunk(chunk_id, seqno, lines, data):
     serialized_data = struct.pack(CHUNK_HEADER_FORMAT, chunk_id, seqno, lines)
-    serialized_data += zlib.compress("\n".join([convert_to(row) for row in data]))
+    serialized_data += gzip_compress("\n".join([convert_to(row) for row in data]))
     return serialized_data
 
 
@@ -409,7 +425,7 @@ def parse_chunk(serialized_data):
     chunk_id, seqno, lines = struct.unpack(CHUNK_HEADER_FORMAT, serialized_data[index:index + CHUNK_HEADER_SIZE])
     index += CHUNK_HEADER_SIZE
 
-    decompressed_data = zlib.decompress(serialized_data[index:])
+    decompressed_data = gzip_decompress(serialized_data[index:])
 
     data = []
     for line in decompressed_data.split("\n"):
