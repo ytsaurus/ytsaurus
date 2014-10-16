@@ -441,6 +441,12 @@ private:
             error = ex;
         }
 
+        if (error.IsOK()) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Participant has prepared transaction (TransactionId: %v, CoordinatorCellId: %v)",
+                transactionId,
+                coordinatorCellId);
+        }
+
         {
             TReqOnTransactionCommitPrepared hydraResponse;
             ToProto(hydraResponse.mutable_transaction_id(), transactionId);
@@ -467,7 +473,7 @@ private:
 
         auto error = FromProto<TError>(request.error());
         if (!error.IsOK()) {
-            LOG_DEBUG_UNLESS(IsRecovery(), error, "Participant has failed to prepare (TransactionId: %v, ParticipantCellId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), error, "Participant response: transaction has failed to prepare (TransactionId: %v, ParticipantCellId: %v)",
                 transactionId,
                 participantCellId);
 
@@ -492,7 +498,7 @@ private:
             return;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Participant has prepared transaction (TransactionId: %v, ParticipantCellId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Participant response: transaction prepared (TransactionId: %v, ParticipantCellId: %v)",
             transactionId,
             participantCellId);
 
