@@ -14,9 +14,6 @@ Oper = namedtuple("Oper", ["start_time", "finish_time", "id", "user", "state", "
 
 logger.set_formatter(logging.Formatter('%(asctime)-15s\t{}\t%(message)s'.format(yt.config.http.PROXY)))
 
-def is_casual(op):
-    return op.state in ["completed", "aborted"] and len(yt.get("//sys/operations/%s/jobs" % op.id)) == 0
-
 def clean_operations(count, total_count, failed_timeout, max_operations_per_user, robots, log):
     """Clean all operations started no more than #days days ago,
        leaving no more than #count most recent operations."""
@@ -32,14 +29,15 @@ def clean_operations(count, total_count, failed_timeout, max_operations_per_user
         v.attributes["state"],
         v.attributes['spec'])
             for k, v in operations.iteritems()];
-    operations.sort(reverse=True)
 
-    saved = 0
-    to_remove = []
+    def is_casual(op):
+        return op.state in ["completed", "aborted"] and len(yt.get("//sys/operations/%s/jobs" % op.id)) == 0
 
     def is_final(state):
         return state in ["completed", "aborted", "failed"]
 
+    saved = 0
+    to_remove = []
     operations.sort(key=lambda op: op.start_time, reverse=True)
 
     users = {}
