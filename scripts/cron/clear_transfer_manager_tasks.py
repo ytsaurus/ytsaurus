@@ -83,7 +83,7 @@ def main():
                        help='leave no more than N completed (without stderr) or aborted tasks')
     parser.add_argument('--total-count', metavar='N', type=int, default=2000,
                        help='leave no more that N tasks totally')
-    parser.add_argument('--failed-timeout', metavar='N', type=int, default=1,
+    parser.add_argument('--failed-timeout', metavar='N', type=int, default=30,
                        help='remove all failed task older than N days')
     parser.add_argument('--max-tasks-per-user', metavar='N', type=int, default=200,
                        help='remove old task of user if limit exceeded')
