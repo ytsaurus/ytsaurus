@@ -738,7 +738,8 @@ private:
 
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) || 
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
-            resultError.FindMatching(EErrorCode::ConfigCreationFailed))
+            resultError.FindMatching(EErrorCode::ConfigCreationFailed) || 
+            resultError.FindMatching(EExitStatus::ExitCodeBase + EJobProxyExitCode::HeartbeatFailed))
         {
             return MakeNullable(EAbortReason::Other);
         } else if (resultError.FindMatching(EErrorCode::ResourceOverdraft)) {
