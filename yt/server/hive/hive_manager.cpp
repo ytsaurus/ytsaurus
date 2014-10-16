@@ -288,6 +288,17 @@ private:
             return;
 
         auto& outcomingMessages = mailbox->OutcomingMessages();
+        if (trimCount > outcomingMessages.size()) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Requested to acknowledge too many messages "
+                "(SrcCellId: %v, DstCellId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v, LastIncomingMessageId: %v)",
+                SelfCellId_,
+                mailbox->GetCellId(),
+                mailbox->GetFirstOutcomingMessageId(),
+                outcomingMessages.size(),
+                lastIncomingMessageId);
+            return;
+        }
+
         outcomingMessages.erase(outcomingMessages.begin(), outcomingMessages.begin() + trimCount);
 
         mailbox->SetFirstOutcomingMessageId(mailbox->GetFirstOutcomingMessageId() + trimCount);
