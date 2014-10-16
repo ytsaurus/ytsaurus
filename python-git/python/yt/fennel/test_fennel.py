@@ -7,6 +7,18 @@ import pytest
 import mock
 import datetime
 import unittest
+import subprocess
+
+
+def test_compression_external():
+    p = subprocess.Popen(["gzip", "-d"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdoutdata, stderrdata = p.communicate(fennel.gzip_compress("Hello"))
+    assert stdoutdata == "Hello"
+    assert not stderrdata
+
+
+def test_compression_internal():
+    assert fennel.gzip_decompress(fennel.gzip_compress("Hello")) == "Hello"
 
 
 def test_event_log_timestamp_parse():
