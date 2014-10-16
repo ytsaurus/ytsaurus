@@ -379,69 +379,6 @@ bool operator > (const TUnversionedValue& lhs, const TUnversionedValue& rhs)
     return CompareRowValues(lhs, rhs) > 0;
 }
 
-TUnversionedValue GetValueSuccessor(TUnversionedValue value, TRowBuffer* rowBuffer)
-{
-    auto unalignedPool = rowBuffer->GetUnalignedPool();
-
-    switch (value.Type) {
-        case EValueType::Int64: {
-            auto& inner = value.Data.Int64;
-            const auto maximum = std::numeric_limits<i64>::max();
-            if (LIKELY(inner != maximum)) {
-                ++inner;
-            } else {
-                value.Type = EValueType::Max;
-            }
-            break;
-        }
-
-        case EValueType::Uint64: {
-            auto& inner = value.Data.Uint64;
-            const auto maximum = std::numeric_limits<ui64>::max();
-            if (LIKELY(inner != maximum)) {
-                ++inner;
-            } else {
-                value.Type = EValueType::Max;
-            }
-            break;
-        }
-
-        case EValueType::Double: {
-            auto& inner = value.Data.Double;
-            const auto maximum = std::numeric_limits<double>::max();
-            if (LIKELY(inner != maximum)) {
-                inner = std::nextafter(inner, maximum);
-            } else {
-                value.Type = EValueType::Max;
-            }
-            break;
-        }
-
-        case EValueType::Boolean: {
-            auto& inner = value.Data.Boolean;
-            if (inner) {
-                value.Type = EValueType::Max;
-            } else {
-                value.Data.Boolean = true;
-            }
-            break;
-        }
-
-        case EValueType::String: {
-            char* newValue = unalignedPool->AllocateUnaligned(value.Length + 1);
-            memcpy(newValue, value.Data.String, value.Length);
-            newValue[value.Length] = 0;
-            value.Data.String = newValue;
-            break;
-        }
-
-        default:
-            YUNREACHABLE();
-    }
-
-    return value;
-}
-
 int CompareRows(
     const TUnversionedValue* lhsBegin,
     const TUnversionedValue* lhsEnd,

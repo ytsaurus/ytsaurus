@@ -223,9 +223,6 @@ bool operator <  (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator >= (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator >  (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 
-//! Computes succeeding value.
-TUnversionedValue GetValueSuccessor(TUnversionedValue value, TRowBuffer* rowBuffer);
-
 //! Ternary comparison predicate for ranges of TUnversionedValue-s.
 int CompareRows(
     const TUnversionedValue* lhsBegin,
