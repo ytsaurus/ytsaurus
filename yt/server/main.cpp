@@ -48,6 +48,8 @@
 #include <contrib/tclap/tclap/CmdLine.h>
 
 #ifdef _linux_
+    #include <sys/resource.h>
+
     #include <core/misc/ioprio.h>
 
     #include <ytlib/cgroup/cgroup.h>
