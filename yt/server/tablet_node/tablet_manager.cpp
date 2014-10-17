@@ -12,6 +12,7 @@
 #include "dynamic_memory_store.h"
 #include "chunk_store.h"
 #include "store_flusher.h"
+#include "lookup.h"
 #include "private.h"
 
 #include <core/misc/ring_queue.h>
@@ -168,23 +169,19 @@ public:
 
 
     std::vector<TSharedRef> Read(
-        TTablet* tablet,
+        TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
         const TSharedRef& requestData)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        ValidateTabletMounted(tablet);
         ValidateReadTimestamp(timestamp);
-
-        // Protect from tablet disposal.
-        TCurrentInvokerGuard guard(tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read));
 
         TWireProtocolReader reader(requestData);
         TWireProtocolWriter writer;
 
         while (ExecuteSingleRead(
-            tablet,
+            tabletSnapshot,
             timestamp,
             &reader,
             &writer))
@@ -707,6 +704,7 @@ private:
 
         RotateStores(tablet, true);
         StartMemoryUsageTracking(tablet);
+        UpdateTabletSnapshot(tablet);
     }
 
 
@@ -816,6 +814,7 @@ private:
                 JoinToString(addedStoreIds),
                 JoinToString(removedStoreIds));
 
+            UpdateTabletSnapshot(tablet);
             if (IsLeader()) {
                 CheckIfAllStoresFlushed(tablet);
             }
@@ -843,11 +842,7 @@ private:
             JoinToString(pivotKeys, Stroka(" .. ")));
 
         tablet->SplitPartition(partitionIndex, pivotKeys);
-
-        if (!IsRecovery()) {
-            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-            tabletSlotManager->UpdateTablet(tablet);
-        }
+        UpdateTabletSnapshot(tablet);
     }
 
     void HydraMergePartitions(const TReqMergePartitions& request)
@@ -870,11 +865,7 @@ private:
             tablet->Partitions()[lastPartitionIndex]->GetNextPivotKey());
 
         tablet->MergePartitions(firstPartitionIndex, lastPartitionIndex);
-
-        if (!IsRecovery()) {
-            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-            tabletSlotManager->UpdateTablet(tablet);
-        }
+        UpdateTabletSnapshot(tablet);
     }
 
     void HydraUpdatePartitionSampleKeys(const TReqUpdatePartitionSampleKeys& request)
@@ -896,11 +887,7 @@ private:
 
         partition->SampleKeys() = FromProto<TOwningKey>(request.sample_keys());
         partition->SetSamplingNeeded(false);
-
-        if (!IsRecovery()) {
-            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-            tabletSlotManager->UpdateTablet(tablet);
-        }
+        UpdateTabletSnapshot(tablet);
     }
 
 
@@ -1035,7 +1022,7 @@ private:
 
 
     bool ExecuteSingleRead(
-        TTablet* tablet,
+        TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
@@ -1045,11 +1032,11 @@ private:
             return false;
         }
 
-        const auto& storeManager = tablet->GetStoreManager();
-
         switch (command) {
             case EWireProtocolCommand::LookupRows:
-                storeManager->LookupRows(
+                LookupRows(
+                    Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker(),
+                    std::move(tabletSnapshot),
                     timestamp,
                     reader,
                     writer);
@@ -1180,7 +1167,7 @@ private:
         tablet->StartEpoch(Slot_);
 
         auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->RegisterTablet(tablet);
+        tabletSlotManager->RegisterTabletSnapshot(tablet);
     }
 
     void StopTabletEpoch(TTablet* tablet)
@@ -1202,7 +1189,7 @@ private:
         tablet->GetStoreManager()->ResetRotationScheduled();
 
         auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->UnregisterTablet(tablet);
+        tabletSlotManager->UnregisterTabletSnapshot(tablet);
     }
 
 
@@ -1298,8 +1285,16 @@ private:
     {
         return New<TStoreManager>(
             Config_,
-            tablet,
-            Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker());
+            tablet);
+    }
+
+
+    void UpdateTabletSnapshot(TTablet* tablet)
+    {
+        if (!IsRecovery()) {
+            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+            tabletSlotManager->UpdateTabletSnapshot(tablet);
+        }
     }
 
 };
@@ -1342,12 +1337,12 @@ void TTabletManager::BackoffStore(IStorePtr store, EStoreState state)
 }
 
 std::vector<TSharedRef> TTabletManager::Read(
-    TTablet* tablet,
+    TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
     const TSharedRef& requestData)
  {
     return Impl_->Read(
-        tablet,
+        std::move(tabletSnapshot),
         timestamp,
         requestData);
 }

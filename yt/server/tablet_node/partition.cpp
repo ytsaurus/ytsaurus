@@ -69,6 +69,14 @@ i64 TPartition::GetTotalDataSize() const
     return result;
 }
 
+TPartitionSnapshotPtr TPartition::BuildSnapshot() const
+{
+    auto snapshot = New<TPartitionSnapshot>();
+    snapshot->SampleKeys = SampleKeys_;
+    snapshot->Stores.insert(snapshot->Stores.end(), Stores_.begin(), Stores_.end());
+    return snapshot;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode

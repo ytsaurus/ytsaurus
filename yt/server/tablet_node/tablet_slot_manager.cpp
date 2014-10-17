@@ -151,76 +151,93 @@ public:
     }
 
 
-    TTabletDescriptorPtr FindTabletDescriptor(const TTabletId& tabletId)
+    TTabletSnapshotPtr FindTabletSnapshot(const TTabletId& tabletId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TReaderGuard guard(TabletDescriptorsSpinLock_);
-        auto it = TabletIdToDescriptor_.find(tabletId);
-        return it == TabletIdToDescriptor_.end() ? nullptr : it->second;
+        TReaderGuard guard(TabletSnapshotsSpinLock_);
+        auto it = TabletIdToSnapshot_.find(tabletId);
+        return it == TabletIdToSnapshot_.end() ? nullptr : it->second;
     }
 
-    void RegisterTablet(TTablet* tablet)
+    TTabletSnapshotPtr GetTabletSnapshotOrThrow(const TTabletId& tabletId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        auto snapshot = FindTabletSnapshot(tabletId);
+        if (!snapshot) {
+            THROW_ERROR_EXCEPTION("Tablet %v is not known",
+                tabletId);
+        }
+        return snapshot;
+    }
+
+    void RegisterTabletSnapshot(TTablet* tablet)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto snapshot = tablet->BuildSnapshot();
+        tablet->SetSnapshot(snapshot);
+
         {
-            TWriterGuard guard(TabletDescriptorsSpinLock_);
-            auto descriptor = BuildTabletDescriptor(tablet);
-            YCHECK(TabletIdToDescriptor_.insert(std::make_pair(tablet->GetId(), descriptor)).second);
+            TWriterGuard guard(TabletSnapshotsSpinLock_);
+            YCHECK(TabletIdToSnapshot_.insert(std::make_pair(tablet->GetId(), snapshot)).second);
         }
 
-        LOG_INFO("Tablet descriptor added (TabletId: %v, CellId: %v)",
+        LOG_INFO("Tablet snapshot registered (TabletId: %v, CellId: %v)",
             tablet->GetId(),
             tablet->GetSlot()->GetCellId());
     }
 
-    void UnregisterTablet(TTablet* tablet)
+    void UnregisterTabletSnapshot(TTablet* tablet)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        tablet->SetSnapshot(nullptr);
+
         {
-            TWriterGuard guard(TabletDescriptorsSpinLock_);
+            TWriterGuard guard(TabletSnapshotsSpinLock_);
             // NB: Don't check the result.
-            TabletIdToDescriptor_.erase(tablet->GetId());
+            TabletIdToSnapshot_.erase(tablet->GetId());
         }
 
-        LOG_INFO("Tablet descriptor removed (TabletId: %v, CellId: %v)",
+        LOG_INFO("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
             tablet->GetId(),
             tablet->GetSlot()->GetCellId());
     }
 
-    void UpdateTablet(TTablet* tablet)
+    void UpdateTabletSnapshot(TTablet* tablet)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto descriptor = BuildTabletDescriptor(tablet);
+        auto snapshot = tablet->BuildSnapshot();
+        tablet->SetSnapshot(snapshot);
 
         {
-            TWriterGuard guard(TabletDescriptorsSpinLock_);
-            auto it = TabletIdToDescriptor_.find(tablet->GetId());
-            YCHECK(it != TabletIdToDescriptor_.end());
-            it->second = descriptor;
+            TWriterGuard guard(TabletSnapshotsSpinLock_);
+            auto it = TabletIdToSnapshot_.find(tablet->GetId());
+            YCHECK(it != TabletIdToSnapshot_.end());
+            it->second = snapshot;
         }
 
-        LOG_INFO("Tablet descriptor updated (TabletId: %v, CellId: %v)",
+        LOG_INFO("Tablet snapshot updated (TabletId: %v, CellId: %v)",
             tablet->GetId(),
             tablet->GetSlot()->GetCellId());
     }
 
-    void UnregisterTablets(TTabletSlotPtr slot)
+    void UnregisterTabletSnapshots(TTabletSlotPtr slot)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TWriterGuard guard(TabletDescriptorsSpinLock_);
-        auto it = TabletIdToDescriptor_.begin();
-        while (it != TabletIdToDescriptor_.end()) {
+        TWriterGuard guard(TabletSnapshotsSpinLock_);
+        auto it = TabletIdToSnapshot_.begin();
+        while (it != TabletIdToSnapshot_.end()) {
             auto jt = it++;
             if (jt->second->Slot == slot) {
-                LOG_INFO("Tablet descriptor removed (TabletId: %v, CellId: %v)",
+                LOG_INFO("Tablet snapshot removed (TabletId: %v, CellId: %v)",
                     jt->first,
                     slot->GetCellId());
-                TabletIdToDescriptor_.erase(jt);
+                TabletIdToSnapshot_.erase(jt);
             }
         }
     }
@@ -248,8 +265,8 @@ private:
 
     TPeriodicExecutorPtr SlotScanExecutor_;
 
-    TReaderWriterSpinLock TabletDescriptorsSpinLock_;
-    yhash_map<TTabletId, TTabletDescriptorPtr> TabletIdToDescriptor_;
+    TReaderWriterSpinLock TabletSnapshotsSpinLock_;
+    yhash_map<TTabletId, TTabletSnapshotPtr> TabletIdToSnapshot_;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -331,20 +348,6 @@ private:
     }
 
 
-    static TTabletDescriptorPtr BuildTabletDescriptor(TTablet* tablet)
-    {
-        auto descriptor = New<TTabletDescriptor>();
-        descriptor->Slot = tablet->GetSlot();
-        for (const auto& partition : tablet->Partitions()) {
-            descriptor->SplitKeys.insert(
-                descriptor->SplitKeys.end(),
-                partition->SampleKeys().begin(),
-                partition->SampleKeys().end());
-        }
-        return descriptor;
-    }
-
-
     int GetFreeSlotIndex()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -422,29 +425,34 @@ void TTabletSlotManager::RemoveSlot(TTabletSlotPtr slot)
     Impl_->RemoveSlot(slot);
 }
 
-TTabletDescriptorPtr TTabletSlotManager::FindTabletDescriptor(const TTabletId& tabletId)
+TTabletSnapshotPtr TTabletSlotManager::FindTabletSnapshot(const TTabletId& tabletId)
 {
-    return Impl_->FindTabletDescriptor(tabletId);
+    return Impl_->FindTabletSnapshot(tabletId);
 }
 
-void TTabletSlotManager::RegisterTablet(TTablet* tablet)
+TTabletSnapshotPtr TTabletSlotManager::GetTabletSnapshotOrThrow(const TTabletId& tabletId)
 {
-    Impl_->RegisterTablet(tablet);
+    return Impl_->FindTabletSnapshot(tabletId);
 }
 
-void TTabletSlotManager::UnregisterTablet(TTablet* tablet)
+void TTabletSlotManager::RegisterTabletSnapshot(TTablet* tablet)
 {
-    Impl_->UnregisterTablet(tablet);
+    Impl_->RegisterTabletSnapshot(tablet);
 }
 
-void TTabletSlotManager::UpdateTablet(TTablet* tablet)
+void TTabletSlotManager::UnregisterTabletSnapshot(TTablet* tablet)
 {
-    Impl_->UpdateTablet(tablet);
+    Impl_->UnregisterTabletSnapshot(tablet);
 }
 
-void TTabletSlotManager::UnregisterTablets(TTabletSlotPtr slot)
+void TTabletSlotManager::UpdateTabletSnapshot(TTablet* tablet)
 {
-    Impl_->UnregisterTablets(std::move(slot));
+    Impl_->UpdateTabletSnapshot(tablet);
+}
+
+void TTabletSlotManager::UnregisterTabletSnapshots(TTabletSlotPtr slot)
+{
+    Impl_->UnregisterTabletSnapshots(std::move(slot));
 }
 
 IYPathServicePtr TTabletSlotManager::GetOrchidService()

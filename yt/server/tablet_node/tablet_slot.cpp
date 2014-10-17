@@ -360,7 +360,7 @@ public:
         YCHECK(State_ != EPeerState::None);
 
         auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->UnregisterTablets(Owner_);
+        tabletSlotManager->UnregisterTabletSnapshots(Owner_);
 
         if (HydraManager_) {
             HydraManager_->Stop();

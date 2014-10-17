@@ -11,6 +11,17 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPartitionSnapshot
+    : public TIntrinsicRefCounted
+{
+    std::vector<TOwningKey> SampleKeys;
+    std::vector<IStorePtr> Stores;
+};
+
+DEFINE_REFCOUNTED_TYPE(TPartitionSnapshot)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPartition
     : private TNonCopyable
 {
@@ -39,6 +50,8 @@ public:
     void Load(TLoadContext& context);
 
     i64 GetTotalDataSize() const;
+
+    TPartitionSnapshotPtr BuildSnapshot() const;
 
 };
 

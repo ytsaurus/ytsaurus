@@ -10,26 +10,19 @@ namespace NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates a reader that merges data from the relevant stores and
-//! a single version of each value.
-/*!
- *  Must be called from the automaton thread.
- */
+//! returns a single version of each value.
 NVersionedTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
-    TTablet* tablet,
+    IInvokerPtr poolInvoker,
+    TTabletSnapshotPtr tabletSnapshot,
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp timestamp);
 
-//! Creates a reader that merges data from the relevant stores
-//! and provides all versions of each value.
-/*!
- *  Must be called from the automaton thread.
- *  
- *  If #partition is |nullptr| then takes all data, otherwise just that
- *  contained in stores belonging to #partition.
- */
+//! Creates a reader that merges data from all given #stores and
+//! returns all versions of each value.
 NVersionedTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
-    TTablet* tablet,
+    IInvokerPtr poolInvoker,
+    TTabletSnapshotPtr tabletSnapshot,
     std::vector<IStorePtr> stores,
     TOwningKey lowerBound,
     TOwningKey upperBound,

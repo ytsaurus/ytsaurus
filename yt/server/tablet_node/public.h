@@ -63,7 +63,9 @@ using NVersionedTableClient::TColumnSchema;
 using NHive::ETransactionState;
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
+static const int TypicalStoreCount = 64;
+
 DECLARE_ENUM(EPartitionState,
     (None)               // nothing special is happening
     (Splitting)          // split mutation is submitted
@@ -139,8 +141,10 @@ DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 
 class TPartition;
 class TTablet;
-DECLARE_REFCOUNTED_STRUCT(TTabletDescriptor)
-        
+
+DECLARE_REFCOUNTED_STRUCT(TPartitionSnapshot)
+DECLARE_REFCOUNTED_STRUCT(TTabletSnapshot)
+
 class TTransaction;
 
 DECLARE_REFCOUNTED_STRUCT(IStore)

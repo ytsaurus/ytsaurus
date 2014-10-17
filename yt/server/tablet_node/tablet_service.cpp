@@ -1,7 +1,9 @@
 #include "stdafx.h"
 #include "tablet_service.h"
+#include "tablet.h"
 #include "tablet_slot.h"
 #include "tablet_manager.h"
+#include "tablet_slot_manager.h"
 #include "transaction_manager.h"
 #include "transaction.h"
 #include "store_manager.h"
@@ -57,7 +59,7 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Read)
-            .SetInvoker(Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Read)));
+            .SetInvoker(Bootstrap_->GetQueryPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Write)
             .SetInvoker(Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Write)));
     }
@@ -101,8 +103,9 @@ private:
             tabletId,
             timestamp);
 
-        auto tabletManager = Slot_->GetTabletManager();
-        auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
+        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
+        auto tabletManager = tabletSnapshot->Slot->GetTabletManager();
 
         auto requestData = DecompressWithEnvelope(request->Attachments());
 
@@ -111,7 +114,7 @@ private:
             Logger,
             [&] () {
                 auto responseData = tabletManager->Read(
-                    tablet,
+                    tabletSnapshot,
                     timestamp,
                     requestData);
                 auto responseCodec = request->has_response_codec()

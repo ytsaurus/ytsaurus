@@ -28,6 +28,33 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::pair<TTabletSnapshot::TPartitionListIterator, TTabletSnapshot::TPartitionListIterator>
+TTabletSnapshot::GetIntersectingPartitions(
+    const TOwningKey& lowerBound,
+    const TOwningKey& upperBound)
+{
+    auto beginIt = std::upper_bound(
+        Partitions.begin(),
+        Partitions.end(),
+        lowerBound,
+        [] (const TOwningKey& key, const TPartitionSnapshotPtr& partition) {
+            return key < partition->SampleKeys[0];
+        });
+
+    if (beginIt != Partitions.begin()) {
+        --beginIt;
+    }
+
+    auto endIt = beginIt;
+    while (endIt != Partitions.end() && upperBound > (*endIt)->SampleKeys[0]) {
+        ++endIt;
+    }
+
+    return std::make_pair(beginIt, endIt);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTablet::TTablet(const TTabletId& id)
     : Id_(id)
     , Slot_(nullptr)
@@ -327,30 +354,6 @@ TPartition* TTablet::GetContainingPartition(
     return Eden_.get();
 }
 
-std::pair<TTablet::TPartitionListIterator, TTablet::TPartitionListIterator> TTablet::GetIntersectingPartitions(
-    const TOwningKey& lowerBound,
-    const TOwningKey& upperBound)
-{
-    auto beginIt = std::upper_bound(
-        Partitions_.begin(),
-        Partitions_.end(),
-        lowerBound,
-        [] (const TOwningKey& key, const std::unique_ptr<TPartition>& partition) {
-            return key < partition->GetPivotKey();
-        });
-
-    if (beginIt != Partitions_.begin()) {
-        --beginIt;
-    }
-
-    auto endIt = beginIt;
-    while (endIt != Partitions_.end() && upperBound > (*endIt)->GetPivotKey()) {
-        ++endIt;
-    }
-
-    return std::make_pair(beginIt, endIt);
-}
-
 const yhash_map<TStoreId, IStorePtr>& TTablet::Stores() const
 {
     return Stores_;
@@ -439,6 +442,22 @@ void TTablet::StopEpoch()
 IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
 {
     return EpochAutomatonInvokers_[queue];
+}
+
+TTabletSnapshotPtr TTablet::BuildSnapshot() const
+{
+    auto snapshot = New<TTabletSnapshot>();
+    snapshot->TabletId = Id_;
+    snapshot->Slot = Slot_;
+    snapshot->Config = Config_;
+    snapshot->Schema = Schema_;
+    snapshot->KeyColumns = KeyColumns_;
+    snapshot->Eden = Eden_->BuildSnapshot();
+    snapshot->Partitions.reserve(Partitions_.size());
+    for (const auto& partition : Partitions_) {
+        snapshot->Partitions.push_back(partition->BuildSnapshot());
+    }
+    return snapshot;
 }
 
 void TTablet::Initialize()

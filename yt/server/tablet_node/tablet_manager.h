@@ -45,7 +45,7 @@ public:
 
 
     std::vector<TSharedRef> Read(
-        TTablet* tablet,
+        TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
         const TSharedRef& requestData);
 

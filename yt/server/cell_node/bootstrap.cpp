@@ -317,7 +317,7 @@ void TBootstrap::DoRun()
 
     RpcServer->RegisterService(CreateQueryService(
         Config->QueryAgent,
-        GetControlInvoker(),
+        GetQueryPoolInvoker(),
         queryExecutor));
 
     RpcServer->RegisterService(CreateTimestampProxyService(

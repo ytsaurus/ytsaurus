@@ -24,8 +24,7 @@ class TStoreManager
 public:
     TStoreManager(
         TTabletManagerConfigPtr config,
-        TTablet* tablet,
-        IInvokerPtr readWorkerInvoker = nullptr);
+        TTablet* tablet);
 
     void Initialize();
 
@@ -37,13 +36,6 @@ public:
 
     //! Returns |true| is there are some in-memory stores that are not flushed yet.
     bool HasUnflushedStores() const;
-
-    //! Executes a bunch of row lookup requests. Request parameters are parsed via #reader,
-    //! response is written into #writer.
-    void LookupRows(
-        TTimestamp timestamp,
-        NTabletClient::TWireProtocolReader* reader,
-        NTabletClient::TWireProtocolWriter* writer);
 
     TDynamicRowRef WriteRow(
         TTransaction* transaction,
@@ -87,7 +79,6 @@ public:
 private:
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
-    IInvokerPtr ReadWorkerInvoker_;
 
     int KeyColumnCount_;
 

@@ -20,13 +20,42 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTabletSnapshot
+    : public TIntrinsicRefCounted
+{
+    TTabletId TabletId;
+    TTabletSlotPtr Slot;
+    TTableMountConfigPtr Config;
+
+    NVersionedTableClient::TTableSchema Schema;
+    NVersionedTableClient::TKeyColumns KeyColumns;
+
+    TPartitionSnapshotPtr Eden;
+
+    typedef std::vector<TPartitionSnapshotPtr> TPartitionList;
+    typedef TPartitionList::iterator TPartitionListIterator;
+    TPartitionList Partitions;
+
+    //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
+    std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
+        const TOwningKey& lowerBound,
+        const TOwningKey& upperBound);
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTablet
     : public TRefTracked<TTablet>
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TTabletId, Id);
     DEFINE_BYVAL_RO_PROPERTY(TTabletSlot*, Slot);
-    
+
+    DEFINE_BYVAL_RW_PROPERTY(TTabletSnapshotPtr, Snapshot);
+
     DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TTableSchema, Schema);
     DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TKeyColumns, KeyColumns);
 
@@ -66,8 +95,6 @@ public:
     void SetStoreManager(TStoreManagerPtr manager);
 
     typedef std::vector<std::unique_ptr<TPartition>> TPartitionList;
-    typedef TPartitionList::iterator TPartitionListIterator;
-
     const TPartitionList& Partitions() const;
     TPartition* GetEden() const;
     void CreateInitialPartition();
@@ -81,11 +108,6 @@ public:
     TPartition* GetContainingPartition(
         const TOwningKey& minKey,
         const TOwningKey& maxKey);
-
-    //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
-    std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
-        const TOwningKey& lowerBound,
-        const TOwningKey& upperBound);
 
     const yhash_map<TStoreId, IStorePtr>& Stores() const;
     void AddStore(IStorePtr store);
@@ -106,6 +128,8 @@ public:
     void StartEpoch(TTabletSlotPtr slot);
     void StopEpoch();
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default);
+
+    TTabletSnapshotPtr BuildSnapshot() const;
 
 private:
     TTableMountConfigPtr Config_;

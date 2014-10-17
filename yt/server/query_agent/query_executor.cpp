@@ -167,10 +167,7 @@ public:
             YCHECK(TypeFromId(tabletId) == EObjectType::Tablet);
 
             auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-            auto tabletDescriptor = tabletSlotManager->FindTabletDescriptor(tabletId);
-            if (!tabletDescriptor) {
-                ThrowNoSuchTablet(tabletId);
-            }
+            auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
 
             auto lowerBound = GetLowerBoundFromDataSplit(split);
             auto upperBound = GetUpperBoundFromDataSplit(split);
@@ -178,33 +175,21 @@ public:
             auto schema = GetTableSchemaFromDataSplit(split);
             auto timestamp = GetTimestampFromDataSplit(split);
 
-            // Run binary search to find the relevant partitions.
-            auto startIt = std::upper_bound(
-                tabletDescriptor->SplitKeys.begin(),
-                tabletDescriptor->SplitKeys.end(),
-                lowerBound,
-                [] (const TOwningKey& lhs, const TOwningKey& rhs) {
-                    return lhs < rhs;
-                }) - 1;
+            // Build the initial set of split keys by copying samples.
+            // NB: splitKeys[0] < lowerBound is possible.
+            auto splitKeys = BuildSplitKeys(tabletSnapshot, lowerBound, upperBound);
 
-            auto endIt = std::lower_bound(
-                tabletDescriptor->SplitKeys.begin(),
-                tabletDescriptor->SplitKeys.end(),
-                upperBound,
-                [] (const TOwningKey& lhs, const TOwningKey& rhs) {
-                    return lhs < rhs;
-                });
-
-            int totalSplitCount = std::distance(startIt, endIt);
-            int adjustedSplitCount = std::min(totalSplitCount, Config_->MaxSubsplitsPerTablet);
+            // Cap the number of splits.
+            int totalSplitCount = static_cast<int>(splitKeys.size());
+            int cappedSplitCount = std::min(totalSplitCount, Config_->MaxSubsplitsPerTablet);
 
             std::vector<TDataSplit> subsplits;
-            for (int index = 0; index < adjustedSplitCount; ++index) {
-                auto thisIt = startIt + index * totalSplitCount / adjustedSplitCount;
-                auto nextIt = startIt + (index + 1) * totalSplitCount / adjustedSplitCount;
+            for (int index = 0; index < cappedSplitCount; ++index) {
+                auto thisIt = splitKeys.begin() + index * totalSplitCount / cappedSplitCount;
+                auto nextIt = splitKeys.begin() + (index + 1) * totalSplitCount / cappedSplitCount;
 
                 const auto& thisKey = *thisIt;
-                auto nextKey = (nextIt == tabletDescriptor->SplitKeys.end()) ? MaxKey() : *nextIt;
+                const auto& nextKey = (nextIt == splitKeys.end()) ? MaxKey() : *nextIt;
 
                 TDataSplit subsplit;
                 SetObjectId(&subsplit, tabletId);
@@ -215,11 +200,53 @@ public:
                 SetTimestamp(&subsplit, timestamp);
                 subsplits.push_back(std::move(subsplit));
             }
-
-            return MakeFuture(TErrorOr<TDataSplits>(std::move(subsplits)));
+            return MakeFuture<TErrorOr<TDataSplits>>(std::move(subsplits));
         } catch (const std::exception& ex) {
-            return MakeFuture(TErrorOr<TDataSplits>(ex));
+            return MakeFuture<TErrorOr<TDataSplits>>(ex);
         }
+    }
+
+    static std::vector<TOwningKey> BuildSplitKeys(
+        TTabletSnapshotPtr tabletSnapshot,
+        const TOwningKey& lowerBound,
+        const TOwningKey& upperBound)
+    {
+        // Run binary search to find the relevant partitions.
+        const auto& partitions = tabletSnapshot->Partitions;
+        YCHECK(lowerBound >= partitions[0]->SampleKeys[0]);
+        auto startPartitionIt = std::upper_bound(
+            partitions.begin(),
+            partitions.end(),
+            lowerBound,
+            [] (const TOwningKey& lhs, const TPartitionSnapshotPtr& rhs) {
+                return lhs < rhs->SampleKeys[0];
+            }) - 1;
+
+        // Construct split keys by copying sample keys.
+        std::vector<TOwningKey> result;
+        for (auto partitionIt = startPartitionIt; partitionIt != partitions.end(); ++partitionIt) {
+            const auto& partition = *partitionIt;
+            const auto& sampleKeys = partition->SampleKeys;
+            // Run binary search to find the relevant sections of the partition.
+            auto startSampleIt = partitionIt == startPartitionIt
+                ? std::upper_bound(
+                    sampleKeys.begin(),
+                    sampleKeys.end(),
+                    lowerBound,
+                    [] (const TOwningKey& lhs, const TOwningKey& rhs) {
+                        return lhs < rhs;
+                    }) - 1
+                : sampleKeys.begin();
+
+            for (auto sampleIt = startSampleIt; sampleIt != sampleKeys.end(); ++sampleIt) {
+                const auto& sampleKey = *sampleIt;
+                if (sampleKey >= upperBound) {
+                    return result;
+                }
+                result.push_back(sampleKey);
+            }
+        }
+        return result;
     }
 
     virtual TGroupedDataSplits Regroup(
@@ -360,73 +387,29 @@ private:
             auto tabletId = FromProto<TTabletId>(split.chunk_id());
 
             auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-            auto tabletDescriptor = tabletSlotManager->FindTabletDescriptor(tabletId);
-            if (!tabletDescriptor) {
-                ThrowNoSuchTablet(tabletId);
-            }
+            auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
 
-            const auto& slot = tabletDescriptor->Slot;
-            auto invoker = slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read);
-            auto futureReader = BIND(&TQueryExecutor::DoAutomatonGetTabletReader, MakeStrong(this))
-                .Guarded()
-                .AsyncVia(invoker)
-                .Run(tabletId, slot, split, std::move(nodeDirectory));
+            auto lowerBound = GetLowerBoundFromDataSplit(split);
+            auto upperBound = GetUpperBoundFromDataSplit(split);
+            auto timestamp = GetTimestampFromDataSplit(split);
 
-            return New<TLazySchemafulReader>(futureReader);
+            LOG_DEBUG("Creating reader for tablet split (TabletId: %v, CellId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v)",
+                tabletId,
+                tabletSnapshot->Slot->GetCellId(),
+                lowerBound,
+                upperBound,
+                timestamp);
+
+            return CreateSchemafulTabletReader(
+                Bootstrap_->GetQueryPoolInvoker(),
+                std::move(tabletSnapshot),
+                std::move(lowerBound),
+                std::move(upperBound),
+                timestamp);
         } catch (const std::exception& ex) {
             auto futureReader = MakeFuture(TErrorOr<ISchemafulReaderPtr>(ex));
             return New<TLazySchemafulReader>(futureReader);
         }
-    }
-
-    ISchemafulReaderPtr DoAutomatonGetTabletReader(
-        const TTabletId& tabletId,
-        TTabletSlotPtr slot,
-        const TDataSplit& split,
-        TNodeDirectoryPtr nodeDirectory)
-    {
-        auto hydraManager = slot->GetHydraManager();
-        if (hydraManager->GetAutomatonState() != NHydra::EPeerState::Leading) {
-            THROW_ERROR_EXCEPTION("Cannot query tablet %v while cell is in %Qlv state",
-                tabletId,
-                hydraManager->GetAutomatonState());
-        }
-
-        auto tabletManager = slot->GetTabletManager();
-        auto* tablet = tabletManager->FindTablet(tabletId);
-        if (!tablet) {
-            ThrowNoSuchTablet(tabletId);
-        }
-
-        if (tablet->GetState() != NTabletNode::ETabletState::Mounted) {
-            THROW_ERROR_EXCEPTION("Cannot query tablet %v in %Qlv state",
-                tabletId,
-                tablet->GetState());
-        }
-
-        auto lowerBound = GetLowerBoundFromDataSplit(split);
-        auto upperBound = GetUpperBoundFromDataSplit(split);
-        auto timestamp = GetTimestampFromDataSplit(split);
-
-        LOG_DEBUG("Creating reader for tablet split (TabletId: %v, CellId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v)",
-            tabletId,
-            slot->GetCellId(),
-            lowerBound,
-            upperBound,
-            timestamp);
-
-        return CreateSchemafulTabletReader(
-            tablet,
-            std::move(lowerBound),
-            std::move(upperBound),
-            timestamp);
-    }
-
-
-    void ThrowNoSuchTablet(const TTabletId& tabletId)
-    {
-        THROW_ERROR_EXCEPTION("Tablet %v is not known",
-            tabletId);
     }
 
 };

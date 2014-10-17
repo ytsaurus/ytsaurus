@@ -156,8 +156,8 @@ private:
             ForcedRotationCandidates_.pop_back();
 
             auto tabletId = candidate.TabletId;
-            auto tabletDesriptor = tabletSlotManager->FindTabletDescriptor(tabletId);
-            if (!tabletDesriptor)
+            auto tabletSnapshot = tabletSlotManager->FindTabletSnapshot(tabletId);
+            if (!tabletSnapshot)
                 continue;
 
             LOG_INFO("Scheduling store rotation due to memory pressure condition (TabletId: %v, "
@@ -168,7 +168,7 @@ private:
                 candidate.MemoryUsage,
                 Config_->MemoryLimit);
 
-            auto slot = tabletDesriptor->Slot;
+            auto slot = tabletSnapshot->Slot;
             auto invoker = slot->GetGuardedAutomatonInvoker();
             invoker->Invoke(BIND([slot, tabletId] () {
                 auto tabletManager = slot->GetTabletManager();

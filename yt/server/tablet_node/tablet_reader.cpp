@@ -40,15 +40,16 @@ class TTabletReaderBase
 {
 public:
     TTabletReaderBase(
-        TTablet* tablet,
+        IInvokerPtr poolInvoker,
+        TTabletSnapshotPtr tabletSnapshot,
         TOwningKey lowerBound,
         TOwningKey upperBound,
         TTimestamp timestamp)
-        : Tablet_(tablet)
+        : PoolInvoker_(std::move(poolInvoker))
+        , TabletSnapshot_(std::move(tabletSnapshot))
         , LowerBound_(std::move(lowerBound))
         , UpperBound_(std::move(upperBound))
         , Timestamp_(timestamp)
-        , AutomatonInvoker_(Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read))
         , Pool_(TTabletReaderPoolTag())
         , ReadyEvent_(OKFuture)
         , Opened_(false)
@@ -56,12 +57,11 @@ public:
     { }
 
 protected:
-    TTablet* Tablet_;
+    IInvokerPtr PoolInvoker_;
+    TTabletSnapshotPtr TabletSnapshot_;
     TOwningKey LowerBound_;
     TOwningKey UpperBound_;
     TTimestamp Timestamp_;
-
-    IInvokerPtr AutomatonInvoker_;
 
     TChunkedMemoryPool Pool_;
 
@@ -289,12 +289,14 @@ class TSchemafulTabletReader
 {
 public:
     TSchemafulTabletReader(
-        TTablet* tablet,
+        IInvokerPtr poolInvoker,
+        TTabletSnapshotPtr tabletSnapshot,
         TOwningKey lowerBound,
         TOwningKey upperBound,
         TTimestamp timestamp)
         : TTabletReaderBase(
-            tablet,
+            std::move(poolInvoker),
+            std::move(tabletSnapshot),
             std::move(lowerBound),
             std::move(upperBound),
             timestamp)
@@ -302,29 +304,15 @@ public:
 
     virtual TAsyncError Open(const TTableSchema& schema) override
     {
-        return BIND(&TSchemafulTabletReader::DoOpen, MakeStrong(this), schema)
-            .Guarded()
-            .AsyncVia(AutomatonInvoker_)
-            .Run();
+        return BIND(&TSchemafulTabletReader::DoOpen, MakeStrong(this))
+                .Guarded()
+                .AsyncVia(PoolInvoker_)
+                .Run(schema);
     }
-
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
-    {
-        return TTabletReaderBase::DoRead(rows, RowMerger_.get());
-    }
-
-    virtual TAsyncError GetReadyEvent() override
-    {
-        return ReadyEvent_;
-    }
-
-private:
-    std::unique_ptr<TUnversionedRowMerger> RowMerger_;
-
 
     void DoOpen(const TTableSchema& schema)
     {
-        const auto& tabletSchema = Tablet_->Schema();
+        const auto& tabletSchema = TabletSnapshot_->Schema;
 
         // Infer column filter.
         TColumnFilter columnFilter;
@@ -343,40 +331,54 @@ private:
         // Initialize merger.
         RowMerger_.reset(new TUnversionedRowMerger(
             &Pool_,
-            Tablet_->GetSchemaColumnCount(),
-            Tablet_->GetKeyColumnCount(),
+            TabletSnapshot_->Schema.Columns().size(),
+            TabletSnapshot_->KeyColumns.size(),
             columnFilter));
 
         // Select stores.
         std::vector<IStorePtr> stores;
-        auto takePartition = [&] (TPartition* partition) {
-            for (auto store : partition->Stores()) {
-                stores.push_back(std::move(store));
-            }
+        auto takePartition = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
+            stores.insert(
+                stores.end(),
+                partitionSnapshot->Stores.begin(),
+                partitionSnapshot->Stores.end());
         };
 
-        takePartition(Tablet_->GetEden());
+        takePartition(TabletSnapshot_->Eden);
 
-        auto range = Tablet_->GetIntersectingPartitions(LowerBound_, UpperBound_);
+        auto range = TabletSnapshot_->GetIntersectingPartitions(LowerBound_, UpperBound_);
         for (auto it = range.first; it != range.second; ++it) {
-            takePartition(it->get());
+            takePartition(*it);
         }
 
         TTabletReaderBase::DoOpen(columnFilter, stores);
     }
 
+    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    {
+        return TTabletReaderBase::DoRead(rows, RowMerger_.get());
+    }
+
+    virtual TAsyncError GetReadyEvent() override
+    {
+        return ReadyEvent_;
+    }
+
+private:
+    std::unique_ptr<TUnversionedRowMerger> RowMerger_;
+
 };
 
 ISchemafulReaderPtr CreateSchemafulTabletReader(
-    TTablet* tablet,
+    IInvokerPtr poolInvoker,
+    TTabletSnapshotPtr tabletSnapshot,
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp timestamp)
 {
-    YCHECK(tablet);
-
     return New<TSchemafulTabletReader>(
-        tablet,
+        std::move(poolInvoker),
+        std::move(tabletSnapshot),
         std::move(lowerBound),
         std::move(upperBound),
         timestamp);
@@ -390,14 +392,16 @@ class TVersionedTabletReader
 {
 public:
     TVersionedTabletReader(
-        TTablet* tablet,
+        IInvokerPtr poolInvoker,
+        TTabletSnapshotPtr tabletSnapshot,
         std::vector<IStorePtr> stores,
         TOwningKey lowerBound,
         TOwningKey upperBound,
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp)
         : TTabletReaderBase(
-            tablet,
+            std::move(poolInvoker),
+            std::move(tabletSnapshot),
             std::move(lowerBound),
             std::move(upperBound),
             AllCommittedTimestamp)
@@ -406,8 +410,8 @@ public:
         , MajorTimestamp_(majorTimestamp)
         , RowMerger_(
             &Pool_,
-            Tablet_->GetKeyColumnCount(),
-            Tablet_->GetConfig(),
+            TabletSnapshot_->KeyColumns.size(),
+            TabletSnapshot_->Config,
             CurrentTimestamp_,
             MajorTimestamp_)
     { }
@@ -416,9 +420,8 @@ public:
     {
         return BIND(&TVersionedTabletReader::DoOpen, MakeStrong(this))
             .Guarded()
-            .AsyncVia(AutomatonInvoker_)
-            .Run();
-    }
+            .AsyncVia(PoolInvoker_)
+            .Run();    }
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
@@ -456,7 +459,8 @@ private:
 };
 
 IVersionedReaderPtr CreateVersionedTabletReader(
-    TTablet* tablet,
+    IInvokerPtr poolInvoker,
+    TTabletSnapshotPtr tabletSnapshot,
     std::vector<IStorePtr> stores,
     TOwningKey lowerBound,
     TOwningKey upperBound,
@@ -464,7 +468,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     TTimestamp majorTimestamp)
 {
     return New<TVersionedTabletReader>(
-        tablet,
+        std::move(poolInvoker),
+        std::move(tabletSnapshot),
         std::move(stores),
         std::move(lowerBound),
         std::move(upperBound),

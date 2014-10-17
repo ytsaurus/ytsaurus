@@ -5,6 +5,7 @@
 #include <ytlib/tablet_client/wire_protocol.pb.h>
 
 #include <server/tablet_node/store_manager.h>
+#include <server/tablet_node/lookup.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -90,7 +91,12 @@ protected:
         {
             TWireProtocolReader reader(request);
             TWireProtocolWriter writer;
-            StoreManager_->LookupRows(timestamp, &reader, &writer);
+            LookupRows(
+                GetSyncInvoker(),
+                Tablet_->BuildSnapshot(),
+                timestamp,
+                &reader,
+                &writer);
             response = MergeRefs(writer.Flush());
         }
 

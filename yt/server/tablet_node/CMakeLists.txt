@@ -23,6 +23,7 @@ set( SRCS
   ${BASE}/partition_balancer.cpp
   ${BASE}/tablet_reader.cpp
   ${BASE}/row_merger.cpp
+  ${BASE}/lookup.cpp
 )
 set( HDRS
   ${BASE}/private.h
@@ -49,6 +50,7 @@ set( HDRS
   ${BASE}/partition_balancer.h
   ${BASE}/tablet_reader.h
   ${BASE}/row_merger.h
+  ${BASE}/lookup.h
 )
 
 list(APPEND YT_SOURCE_FILES

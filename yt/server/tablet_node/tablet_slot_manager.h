@@ -19,19 +19,6 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An immutable descriptor for a tablet, which helps to coordinate and
-//! run queries against it.
-struct TTabletDescriptor
-    : public TIntrinsicRefCounted
-{
-    TTabletSlotPtr Slot;
-    std::vector<NVersionedTableClient::TOwningKey> SplitKeys;
-};
-
-DEFINE_REFCOUNTED_TYPE(TTabletDescriptor)
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Controls all tablet slots running at this node.
 class TTabletSlotManager
     : public TRefCounted
@@ -63,20 +50,23 @@ public:
     // The following section of methods is used to maintain tablet id to slot mapping.
     // It is safe to call them from any thread.
 
-    //! Returns the descriptor for a given tablet or |nullptr| if none.
-    TTabletDescriptorPtr FindTabletDescriptor(const TTabletId& tabletId);
+    //! Returns the snapshot for a given tablet or |nullptr| if none.
+    TTabletSnapshotPtr FindTabletSnapshot(const TTabletId& tabletId);
+
+    //! Returns the snapshot for a given tablet or throws if no such tablet is known.
+    TTabletSnapshotPtr GetTabletSnapshotOrThrow(const TTabletId& tabletId);
 
     //! Informs the controller that some slot now serves #tablet.
-    void RegisterTablet(TTablet* tablet);
+    void RegisterTabletSnapshot(TTablet* tablet);
 
     //! Informs the controller that #tablet is no longer served.
-    void UnregisterTablet(TTablet* tablet);
+    void UnregisterTabletSnapshot(TTablet* tablet);
 
     //! Informs the controller that #slot no longer serves any tablet.
-    void UnregisterTablets(TTabletSlotPtr slot);
+    void UnregisterTabletSnapshots(TTabletSlotPtr slot);
 
-    //! Informs the controller that #tablet's descriptor must be updated.
-    void UpdateTablet(TTablet* tablet);
+    //! Informs the controller that #tablet's snapshot must be updated.
+    void UpdateTabletSnapshot(TTablet* tablet);
 
 
     NYTree::IYPathServicePtr GetOrchidService();

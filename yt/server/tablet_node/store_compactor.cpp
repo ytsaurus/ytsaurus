@@ -327,7 +327,8 @@ private:
                 currentTimestamp);
 
             auto reader = CreateVersionedTabletReader(
-                tablet,
+                Bootstrap_->GetQueryPoolInvoker(),
+                tablet->GetSnapshot(),
                 stores,
                 tabletPivotKey,
                 nextTabletPivotKey,
@@ -574,7 +575,8 @@ private:
                 majorTimestamp);
 
             auto reader = CreateVersionedTabletReader(
-                tablet,
+                Bootstrap_->GetQueryPoolInvoker(),
+                tablet->GetSnapshot(),
                 stores,
                 tabletPivotKey,
                 nextTabletPivotKey,
