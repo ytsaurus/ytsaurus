@@ -10,6 +10,44 @@ namespace {
 
 #ifdef YT_USE_SSE42
 
+class TCheckSSE42Support
+{
+    bool WasTested;
+    bool Result;
+
+    static void Cpuid(int regs[4], int mode)
+    {
+#ifdef _win_
+    __cpuid(regs, mode);
+#else
+    asm volatile
+        ("cpuid" : "=a" (regs[0]), "=b" (regs[1]), "=c" (regs[2]), "=d" (regs[3])
+        : "a" (mode), "c" (0));
+#endif
+    }
+
+public:
+    TCheckSSE42Support() 
+        : WasTested(false)
+        , Result(false)
+    { }
+
+    bool operator() ()
+    {
+        if (WasTested) {
+            return Result;
+        } else {
+            int regs[4];
+            Cpuid(regs, 1);
+            Result = regs[2] & (1 << 20);
+            WasTested = true;
+            return Result;
+        }
+    }
+};
+
+TCheckSSE42Support CheckSSE42Support;
+
 const char _m128i_shift_right[31] = {
      0,  1,  2,  3,  4,  5,  6,  7,
      8,  9, 10, 11, 12, 13, 14, 15,
@@ -111,7 +149,7 @@ static inline const char* FindNextSymbol(
     return current;
 }
 
-#else
+#endif
 
 static inline const char* FindNextSymbol(
     const char* begin,
@@ -133,7 +171,7 @@ static inline const char* FindNextSymbol(
     return current;
 }
 
-#endif
+
 
 } // namespace anonymous
 
@@ -147,27 +185,30 @@ void TLookupTable::Fill(const char* begin, const char* end)
     YCHECK(end - begin <= 16);
 
 #ifdef YT_USE_SSE42
-    char storage[16] = {0};
+    if (CheckSSE42Support()) {
+        char storage[16] = {0};
 
-    SymbolCount = end - begin;
-    for (int i = 0; i < SymbolCount; ++i) {
-        storage[i] = begin[i]; // :) C-style!
-    }
+        SymbolCount = end - begin;
+        for (int i = 0; i < SymbolCount; ++i) {
+            storage[i] = begin[i]; // :) C-style!
+        }
 
-    Symbols = _mm_setr_epi8(
-        storage[0],  storage[1],  storage[2],  storage[3],
-        storage[4],  storage[5],  storage[6],  storage[7],
-        storage[8],  storage[9],  storage[10], storage[11],
-        storage[12], storage[13], storage[14], storage[15]);
-#else
-    for (int i = 0; i < 256; ++i) {
-        Bitmap[i] = false;
-    }
-
-    for (const char* current = begin; current != end; ++current) {
-        Bitmap[static_cast<ui8>(*current)] = true;
-    }
+        Symbols = _mm_setr_epi8(
+            storage[0],  storage[1],  storage[2],  storage[3],
+            storage[4],  storage[5],  storage[6],  storage[7],
+            storage[8],  storage[9],  storage[10], storage[11],
+            storage[12], storage[13], storage[14], storage[15]);
+    } else 
 #endif
+    {
+        for (int i = 0; i < 256; ++i) {
+            Bitmap[i] = false;
+        }
+
+        for (const char* current = begin; current != end; ++current) {
+            Bitmap[static_cast<ui8>(*current)] = true;
+        }
+    }
 }
 
 void TLookupTable::Fill(const std::vector<char>& v)
@@ -186,10 +227,13 @@ const char* TLookupTable::FindNext(const char* begin, const char* end) const
         return end;
     }
 #ifdef YT_USE_SSE42
-    return FindNextSymbol(begin, end, Symbols, SymbolCount);
-#else
-    return FindNextSymbol(begin, end, Bitmap);
+    if (CheckSSE42Support()) {
+        return FindNextSymbol(begin, end, Symbols, SymbolCount);
+    } else
 #endif
+    {
+        return FindNextSymbol(begin, end, Bitmap);
+    }
 }
 
 TEscapeTable::TEscapeTable()

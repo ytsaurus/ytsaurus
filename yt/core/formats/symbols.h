@@ -37,9 +37,8 @@ private:
 #   endif
     DECL_PREFIX __m128i Symbols DECL_SUFFIX;
     int SymbolCount;
-#else
-    bool Bitmap[256];
 #endif
+    bool Bitmap[256];
 
 };
 
