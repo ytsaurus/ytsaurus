@@ -14,6 +14,8 @@
 
 #include <ytlib/query_client/public.h>
 
+#include <ytlib/security_client/public.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -21,7 +23,7 @@ namespace NApi {
 
 struct TClientOptions
 {
-    TNullable<Stroka> User;
+    Stroka User = NSecurityClient::GuestUserName;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

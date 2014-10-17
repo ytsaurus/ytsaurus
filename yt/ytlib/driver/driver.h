@@ -7,6 +7,7 @@
 #include <core/concurrency/async_stream.h>
 
 #include <core/ytree/public.h>
+
 #include <core/yson/consumer.h>
 #include <core/yson/writer.h>
 
@@ -15,6 +16,8 @@
 #include <ytlib/formats/format.h>
 
 #include <ytlib/api/public.h>
+
+#include <ytlib/security_client/public.h>
 
 namespace NYT {
 namespace NDriver {
@@ -41,8 +44,7 @@ struct TDriverRequest
     NYTree::IMapNodePtr Arguments;
 
     //! Name of the user issuing the request.
-    //! If |Null| then "root" is assumed.
-    TNullable<Stroka> AuthenticatedUser;
+    Stroka AuthenticatedUser = NSecurityClient::RootUserName;
 
     //! Provides means to return arbitrary structured data from any command.
     NYson::IYsonConsumer* ResponseParametersConsumer;

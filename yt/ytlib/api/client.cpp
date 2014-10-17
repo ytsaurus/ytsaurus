@@ -118,9 +118,9 @@ public:
         MasterChannel_ = Connection_->GetMasterChannel();
         SchedulerChannel_ = Connection_->GetSchedulerChannel();
 
-        if (options.User) {
-            MasterChannel_ = CreateAuthenticatedChannel(MasterChannel_, *options.User);
-            SchedulerChannel_ = CreateAuthenticatedChannel(SchedulerChannel_, *options.User);
+        if (options.User != NSecurityClient::RootUserName) {
+            MasterChannel_ = CreateAuthenticatedChannel(MasterChannel_, options.User);
+            SchedulerChannel_ = CreateAuthenticatedChannel(SchedulerChannel_, options.User);
         }
 
         MasterChannel_ = CreateScopedChannel(MasterChannel_);
@@ -379,8 +379,8 @@ public:
     {
         const auto& cellDirectory = Connection_->GetCellDirectory();
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
-        if (Options_.User) {
-            channel = CreateAuthenticatedChannel(std::move(channel), *Options_.User);
+        if (Options_.User != NSecurityClient::RootUserName) {
+            channel = CreateAuthenticatedChannel(std::move(channel), Options_.User);
         }
         return channel;
     }
