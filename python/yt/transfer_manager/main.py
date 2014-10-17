@@ -352,6 +352,7 @@ class Application(object):
         return token, user
 
     def _precheck(self, task):
+        logger.info("Making precheck for task %s", task.id)
         source_client = task.get_source_client(self._clusters)
         destination_client = task.get_destination_client(self._clusters)
 
@@ -381,6 +382,8 @@ class Application(object):
             destination_user = self._yt.get_user_name(task.destination_cluster_token)
             if destination_user is None or destination_client.check_permission(destination_user, "write", destination_dir)["action"] != "allow":
                 raise yt.YtError("There is no permission to write to {}. Please log in.".format(task.destination_table))
+
+        logger.info("Precheck for task %s completed", task.id)
 
 
     def _can_run(self, task):
@@ -446,7 +449,6 @@ class Application(object):
     def _execute_task(self, task, message_queue):
         logger.info("Executing task %s", task.id)
         try:
-            logger.info("Making precheck")
             self._precheck(task)
 
             title = "Supervised by transfer task " + task.id
