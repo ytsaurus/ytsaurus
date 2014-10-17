@@ -2,12 +2,7 @@
 
 #include "common.h"
 
-#include <core/actions/callback.h>
 #include <core/misc/error.h>
-
-#ifdef _linux_
-    #include <sys/resource.h>
-#endif
 
 namespace NYT {
 
