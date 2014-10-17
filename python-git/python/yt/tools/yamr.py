@@ -11,7 +11,11 @@ from urllib import quote_plus
 class YamrError(YtError):
     pass
 
-_check_output = subprocess.check_output
+def _check_output(command, **kwargs):
+    logger.info("Executing command '{}'".format(command))
+    result = subprocess.check_output(command, **kwargs)
+    logger.info("Command '{}' successfully executed".format(command))
+    return result
 
 def _check_call(command, **kwargs):
     logger.info("Executing command '{}'".format(command))
