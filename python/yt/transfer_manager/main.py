@@ -323,6 +323,8 @@ class Application(object):
 
         self._pending_tasks.sort(key=lambda id: self._tasks[id].creation_time)
 
+        logger.info("Tasks load")
+
     def _change_task_state(self, id, new_state):
         with self._mutex:
             self._tasks[id].state = new_state
