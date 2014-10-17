@@ -179,7 +179,7 @@ void CloseAllDescriptors()
 #endif
 }
 
-void SafeClose(int fd, bool ignoreInvalidFd)
+void SafeClose(int fd)
 {
     while (true) {
         auto res = close(fd);
@@ -187,11 +187,6 @@ void SafeClose(int fd, bool ignoreInvalidFd)
             switch (errno) {
             case EINTR:
                 break;
-
-            case EBADF:
-                if (ignoreInvalidFd) {
-                    return;
-                } // otherwise fall through and throw exception.
 
             default:
                 THROW_ERROR_EXCEPTION("close failed")

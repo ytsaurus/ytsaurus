@@ -22,7 +22,7 @@ void RunCleaner(const Stroka& path);
 
 void RemoveDirAsRoot(const Stroka& path);
 
-void SafeClose(int fd, bool ignoreInvalidFd = false);
+void SafeClose(int fd);
 
 void CloseAllDescriptors();
 
