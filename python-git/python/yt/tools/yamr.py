@@ -4,23 +4,33 @@ from yt.wrapper.common import generate_uuid
 
 import os
 import sh
+import ctypes
+import signal
 import subprocess32 as subprocess
 import simplejson as json
 from urllib import quote_plus
+
+
+ctypes.cdll.LoadLibrary("libc.so.6")
+LIBC = ctypes.CDLL('libc.so.6')
+PR_SET_PDEATHSIG = 1
+
+def set_pdeathsig():
+    LIBC.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
 
 class YamrError(YtError):
     pass
 
 def _check_output(command, **kwargs):
     logger.info("Executing command '{}'".format(command))
-    result = subprocess.check_output(command, **kwargs)
+    result = subprocess.check_output(command, preexec_fn=set_pdeathsig, **kwargs)
     logger.info("Command '{}' successfully executed".format(command))
     return result
 
 def _check_call(command, **kwargs):
     logger.info("Executing command '{}'".format(command))
     timeout = kwargs.pop('timeout', None)
-    proc = subprocess.Popen(command, stderr=subprocess.PIPE, **kwargs)
+    proc = subprocess.Popen(command, stderr=subprocess.PIPE, preexec_fn=set_pdeathsig, **kwargs)
     try:
         _, stderrdata = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
