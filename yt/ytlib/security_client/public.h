@@ -14,14 +14,14 @@ typedef NObjectClient::TObjectId TSubjectId;
 typedef NObjectClient::TObjectId TUserId;
 typedef NObjectClient::TObjectId TGroupId;
 
-extern Stroka TmpAccountName;
-extern Stroka SysAccountName;
+extern const Stroka TmpAccountName;
+extern const Stroka SysAccountName;
 
-extern Stroka RootUserName;
-extern Stroka GuestUserName;
+extern const Stroka RootUserName;
+extern const Stroka GuestUserName;
 
-extern Stroka EveryoneGroupName;
-extern Stroka UsersGroupName;
+extern const Stroka EveryoneGroupName;
+extern const Stroka UsersGroupName;
 
 DECLARE_ENUM(ESecurityAction,
     ((Undefined)(0))  // Intermediate state, used internally.

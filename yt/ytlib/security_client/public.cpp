@@ -6,14 +6,14 @@ namespace NSecurityClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka TmpAccountName("tmp");
-Stroka SysAccountName("sys");
+const Stroka TmpAccountName("tmp");
+const Stroka SysAccountName("sys");
 
-Stroka RootUserName("root");
-Stroka GuestUserName("guest");
+const Stroka RootUserName("root");
+const Stroka GuestUserName("guest");
 
-Stroka EveryoneGroupName("everyone");
-Stroka UsersGroupName("users");
+const Stroka EveryoneGroupName("everyone");
+const Stroka UsersGroupName("users");
 
 ////////////////////////////////////////////////////////////////////////////////
 
