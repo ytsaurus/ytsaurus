@@ -421,7 +421,8 @@ public:
         return BIND(&TVersionedTabletReader::DoOpen, MakeStrong(this))
             .Guarded()
             .AsyncVia(PoolInvoker_)
-            .Run();    }
+            .Run();
+    }
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
