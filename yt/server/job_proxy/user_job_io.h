@@ -56,8 +56,8 @@ public:
 
     virtual void PopulateResult(NJobTrackerClient::NProto::TJobResult* result) = 0;
 
-    NChunkClient::NProto::TDataStatistics GetInputDataStatistics() const;
-    NChunkClient::NProto::TDataStatistics GetOutputDataStatistics() const;
+    virtual NChunkClient::NProto::TDataStatistics GetInputDataStatistics() const;
+    virtual NChunkClient::NProto::TDataStatistics GetOutputDataStatistics() const;
 
 protected:
     NScheduler::TJobIOConfigPtr IOConfig;
