@@ -18,6 +18,7 @@ import json
 import time
 import signal
 import socket
+import logging
 import argparse
 import traceback
 from copy import deepcopy
@@ -223,11 +224,13 @@ class Application(object):
                         logger.exception(yt.errors.format_error(err))
                         return
 
+                logger.info("Lock acquired")
 
                 # Loading tasks from cypress
                 self._load_tasks(os.path.join(self._path, "tasks"))
 
                 self._lock_acquired = True
+
 
                 # Set attribute outside of transaction
                 self._yt.set_attribute(self._path, "address", socket.getfqdn())
@@ -243,8 +246,9 @@ class Application(object):
             pass
 
     def _load_config(self, config):
-        self._clusters = {}
+        self._configure_logging(config.get("logging", {}))
 
+        self._clusters = {}
         for name, cluster_description in config["clusters"].iteritems():
             type = cluster_description["type"]
             options = cluster_description["options"]
@@ -273,7 +277,27 @@ class Application(object):
 
         self._availability_graph = config["availability_graph"]
 
+    def _configure_logging(self, logging_node):
+        level = logging.__dict__[logging_node.get("level", "INFO")]
+
+        if "filename" in logging_node:
+            handler = logging.FileHandler(logging_node["filename"])
+        else:
+            handler = logging.StreamHandler()
+
+        new_logger = logging.getLogger("Transfer manager")
+        new_logger.propagate = False
+        new_logger.setLevel(level)
+        new_logger.addHandler(handler)
+        new_logger.handlers[0].setFormatter(logger.BASIC_FORMATTER)
+        logger.LOGGER = new_logger
+
+        logging.getLogger('werkzeug').setLevel(level)
+        logging.getLogger('werkzeug').addHandler(handler)
+
     def _load_tasks(self, tasks_path): #, archived_tasks_path):
+        logger.info("Loading tasks from cypress")
+
         self._tasks_path = tasks_path
         if not self._yt.exists(self._tasks_path):
             self._yt.create("map_node", self._tasks_path)
