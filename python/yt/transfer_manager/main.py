@@ -223,6 +223,10 @@ class Application(object):
                         logger.exception(yt.errors.format_error(err))
                         return
 
+
+                # Loading tasks from cypress
+                self._load_tasks(os.path.join(self._path, "tasks"))
+
                 self._lock_acquired = True
 
                 # Set attribute outside of transaction
@@ -268,8 +272,6 @@ class Application(object):
                     raise yt.YtError("Incorrect availability graph, cluster {} is missing".format(neighbour))
 
         self._availability_graph = config["availability_graph"]
-
-        self._load_tasks(os.path.join(config["path"], "tasks"))
 
     def _load_tasks(self, tasks_path): #, archived_tasks_path):
         self._tasks_path = tasks_path
