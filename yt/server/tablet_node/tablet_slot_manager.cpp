@@ -432,7 +432,7 @@ TTabletSnapshotPtr TTabletSlotManager::FindTabletSnapshot(const TTabletId& table
 
 TTabletSnapshotPtr TTabletSlotManager::GetTabletSnapshotOrThrow(const TTabletId& tabletId)
 {
-    return Impl_->FindTabletSnapshot(tabletId);
+    return Impl_->GetTabletSnapshotOrThrow(tabletId);
 }
 
 void TTabletSlotManager::RegisterTabletSnapshot(TTablet* tablet)
