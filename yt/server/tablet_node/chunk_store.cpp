@@ -163,11 +163,13 @@ const TChunkMeta& TChunkStore::GetChunkMeta() const
 
 void TChunkStore::SetBackingStore(IStorePtr store)
 {
+    TWriterGuard guard(BackingStoreLock_);
     BackingStore_ = store;
 }
 
 bool TChunkStore::HasBackingStore() const
 {
+    TReaderGuard guard(BackingStoreLock_);
     return BackingStore_ != nullptr;
 }
 
@@ -207,8 +209,9 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
-    if (BackingStore_) {
-        return BackingStore_->CreateReader(
+    auto backingStore = GetBackingStore();
+    if (backingStore) {
+        return backingStore->CreateReader(
             std::move(lowerKey),
             std::move(upperKey),
             timestamp,
@@ -244,8 +247,9 @@ IVersionedLookuperPtr TChunkStore::CreateLookuper(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
-    if (BackingStore_) {
-        return BackingStore_->CreateLookuper(timestamp, columnFilter);
+    auto backingStore = GetBackingStore();
+    if (backingStore) {
+        return backingStore->CreateLookuper(timestamp, columnFilter);
     }
 
     auto chunk = PrepareChunk();
@@ -266,8 +270,9 @@ void TChunkStore::CheckRowLocks(
     TTransaction* transaction,
     ui32 lockMask)
 {
-    if (BackingStore_) {
-        return BackingStore_->CheckRowLocks(key, transaction, lockMask);
+    auto backingStore = GetBackingStore();
+    if (backingStore) {
+        return backingStore->CheckRowLocks(key, transaction, lockMask);
     }
 
     THROW_ERROR_EXCEPTION(
@@ -299,6 +304,7 @@ void TChunkStore::Load(TLoadContext& context)
 
 void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
 {
+    auto backingStore = GetBackingStore();
     auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
     BuildYsonMapFluently(consumer)
         .Item("compressed_data_size").Value(miscExt.compressed_data_size())
@@ -308,30 +314,39 @@ void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
         .Item("max_key").Value(MaxKey_)
         .Item("min_timestamp").Value(MinTimestamp_)
         .Item("max_timestamp").Value(MaxTimestamp_)
-        .DoIf(BackingStore_, [&] (TFluentMap fluent) {
-            fluent.Item("backing_store_id").Value(BackingStore_->GetId());
+        .DoIf(backingStore, [&] (TFluentMap fluent) {
+            fluent.Item("backing_store_id").Value(backingStore->GetId());
         });
 }
 
 IChunkPtr TChunkStore::PrepareChunk()
 {
-    if (ChunkInitialized_) {
-        return Chunk_;
+    {
+        TReaderGuard guard(ChunkLock_);
+        if (ChunkInitialized_) {
+            return Chunk_;
+        }
     }
 
     auto chunkRegistry = Bootstrap_->GetChunkRegistry();
     auto asyncChunk = BIND(&TChunkRegistry::FindChunk, chunkRegistry, Id_)
         .AsyncVia(Bootstrap_->GetControlInvoker())
         .Run();
-    auto chunk = Chunk_ = WaitFor(asyncChunk);
-    ChunkInitialized_ = true;
+    auto chunk = WaitFor(asyncChunk);
+
+    {
+        TWriterGuard guard(ChunkLock_);
+        ChunkInitialized_ = true;
+        Chunk_ = chunk;
+    }
 
     auto this_ = MakeStrong(this);
     TDelayedExecutor::Submit(
         BIND([this, this_] () {
+            TWriterGuard guard(ChunkLock_);
             ChunkInitialized_ = false;
             Chunk_.Reset();
-        }).Via(Tablet_->GetEpochAutomatonInvoker()),
+        }),
         ChunkExpirationTimeout);
 
     return chunk;
@@ -339,8 +354,11 @@ IChunkPtr TChunkStore::PrepareChunk()
 
 IReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
 {
-    if (ChunkReader_) {
-        return ChunkReader_;
+    {
+        TReaderGuard guard(ChunkReaderLock_);
+        if (ChunkReader_) {
+            return ChunkReader_;
+        }
     }
 
     IReaderPtr chunkReader;
@@ -349,12 +367,12 @@ IReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
             Bootstrap_,
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
             chunk);
-        chunkReader = ChunkReader_ = New<TLocalChunkReaderWrapper>(
+        chunkReader = New<TLocalChunkReaderWrapper>(
             localChunkReader,
             this);
     } else {
         // TODO(babenko): provide seed replicas
-        chunkReader = ChunkReader_ = CreateReplicationReader(
+        chunkReader = CreateReplicationReader(
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
             Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
             Bootstrap_->GetMasterClient()->GetMasterChannel(),
@@ -363,11 +381,17 @@ IReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
             Id_);
     }
 
+    {
+        TWriterGuard guard(ChunkReaderLock_);
+        ChunkReader_ = chunkReader;
+    }
+
     auto this_ = MakeStrong(this);
     TDelayedExecutor::Submit(
         BIND([this, this_] () {
+            TWriterGuard guard(ChunkReaderLock_);
             ChunkReader_.Reset();
-        }).Via(Tablet_->GetEpochAutomatonInvoker()),
+        }),
         ChunkReaderExpirationTimeout);
 
     return chunkReader;
@@ -375,8 +399,11 @@ IReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
 
 TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IReaderPtr chunkReader)
 {
-    if (CachedVersionedChunkMeta_) {
-        return CachedVersionedChunkMeta_;
+    {
+        TReaderGuard guard(CachedVersionedChunkMetaLock_);
+        if (CachedVersionedChunkMeta_) {
+            return CachedVersionedChunkMeta_;
+        }
     }
 
     auto cachedMetaOrError = WaitFor(TCachedVersionedChunkMeta::Load(
@@ -384,9 +411,20 @@ TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IReade
         Tablet_->Schema(),
         Tablet_->KeyColumns()));
     THROW_ERROR_EXCEPTION_IF_FAILED(cachedMetaOrError);
-    auto cachedMeta = CachedVersionedChunkMeta_ = cachedMetaOrError.Value();
+    auto cachedMeta = cachedMetaOrError.Value();
+
+    {
+        TWriterGuard guard(CachedVersionedChunkMetaLock_);
+        CachedVersionedChunkMeta_ = cachedMeta;
+    }
 
     return cachedMeta;
+}
+
+IStorePtr TChunkStore::GetBackingStore()
+{
+    TReaderGuard guard(BackingStoreLock_);
+    return BackingStore_;
 }
 
 void TChunkStore::PrecacheProperties()
@@ -404,9 +442,15 @@ void TChunkStore::PrecacheProperties()
 
 void TChunkStore::OnLocalReaderFailed()
 {
-    ChunkInitialized_ = false;
-    Chunk_.Reset();
-    ChunkReader_.Reset();
+    {
+        TWriterGuard guard(ChunkLock_);
+        ChunkInitialized_ = false;
+        Chunk_.Reset();
+    }
+    {
+        TWriterGuard guard(ChunkReaderLock_);
+        ChunkReader_.Reset();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

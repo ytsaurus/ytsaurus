@@ -5,6 +5,8 @@
 
 #include <core/misc/nullable.h>
 
+#include <core/concurrency/rw_spinlock.h>
+
 #include <core/rpc/public.h>
 
 #include <core/profiling/public.h>
@@ -87,17 +89,19 @@ private:
     TTimestamp MaxTimestamp_;
     i64 DataSize_ = -1;
 
+    NChunkClient::NProto::TChunkMeta ChunkMeta_;
+
+    NConcurrency::TReaderWriterSpinLock ChunkLock_;
     bool ChunkInitialized_ = false;
     NDataNode::IChunkPtr Chunk_;
 
-    NChunkClient::NProto::TChunkMeta ChunkMeta_;
-
+    NConcurrency::TReaderWriterSpinLock ChunkReaderLock_;
     NChunkClient::IReaderPtr ChunkReader_;
 
+    NConcurrency::TReaderWriterSpinLock CachedVersionedChunkMetaLock_;
     NVersionedTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
 
-    std::vector<TVersionedRow> PooledRows_;
-
+    NConcurrency::TReaderWriterSpinLock BackingStoreLock_;
     IStorePtr BackingStore_;
 
 
@@ -106,6 +110,7 @@ private:
         NDataNode::IChunkPtr chunk);
     NVersionedTableClient::TCachedVersionedChunkMetaPtr PrepareCachedVersionedChunkMeta(
         NChunkClient::IReaderPtr chunkReader);
+    IStorePtr GetBackingStore();
 
     void PrecacheProperties();
 

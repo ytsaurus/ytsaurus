@@ -54,6 +54,8 @@ struct IStore
     *  filtered by |columnFilter|.
     *
     *  This call is typically synchronous and fast but may occasionally yield.
+    *
+    *  Thread affinity: any
     */
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
         TOwningKey lowerKey,
@@ -63,7 +65,7 @@ struct IStore
 
     //! Creates a lookuper instance.
     /*!
-     *  This call is typically synchornous and fast but may occasionally yield.
+     *  This call is typically synchronous and fast but may occasionally yield.
      */
     virtual NVersionedTableClient::IVersionedLookuperPtr CreateLookuper(
         TTimestamp timestamp,
@@ -71,6 +73,9 @@ struct IStore
 
     //! Checks that #transaction attempting to take locks indicated by #lockMask
     //! has no conflicts within the store. Throws on failure.
+    /*!
+     *  Thread affinity: any
+     */
     virtual void CheckRowLocks(
         TKey key,
         TTransaction* transaction,
