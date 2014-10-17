@@ -26,9 +26,6 @@ void SafeClose(int fd);
 
 void CloseAllDescriptors();
 
-int GetErrNoFromExitCode(int exitCode);
-
-
 DECLARE_ENUM(EExitStatus,
     ((ExitCodeBase)         (10000))
 
