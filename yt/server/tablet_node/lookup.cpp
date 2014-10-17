@@ -197,7 +197,7 @@ void LookupRows(
     TWireProtocolWriter* writer)
 {
     auto executor = ObjectPool<TLookupExecutor>().Allocate();
-    executor->Prepare(std::move(tabletSnapshot), timestamp, reader);
+    executor->Prepare(tabletSnapshot, timestamp, reader);
     LOG_DEBUG("Looking up %v keys (TabletId: %v, CellId: %v)",
         executor->GetLookupKeys().size(),
         tabletSnapshot->TabletId,
