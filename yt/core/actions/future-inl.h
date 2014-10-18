@@ -262,6 +262,7 @@ public:
         , OnTimeout_(std::move(onTimeout))
     {
         YASSERT(state);
+        CallbackAlreadyRan_.clear();
         state->Subscribe(
             BIND(&TPromiseAwaiter::OnResult, MakeStrong(this)));
         NConcurrency::TDelayedExecutor::Submit(
