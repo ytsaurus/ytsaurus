@@ -39,6 +39,7 @@ using namespace NChunkClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;
+static auto NullRowFuture = MakeFuture<TErrorOr<TVersionedRow>>(TVersionedRow());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -496,16 +497,13 @@ public:
     {
         auto iterator = Store_->Rows_->FindEqualTo(TRowWrapper{key});
         if (!iterator.IsValid()) {
-            return NullRow_;
+            return NullRowFuture;
         }
 
         auto dynamicRow = iterator.GetCurrent();
         auto versionedRow = ProduceSingleRowVersion(dynamicRow);
         return MakeFuture<TErrorOr<TVersionedRow>>(versionedRow);
     }
-
-private:
-    TFuture<TErrorOr<TVersionedRow>> NullRow_ = MakeFuture<TErrorOr<TVersionedRow>>(TVersionedRow());
 
 };
 
