@@ -473,7 +473,7 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
         TReadLimit(),
         TReadLimit(),
         TColumnFilter(),
-        AllCommittedTimestamp);
+        AsyncAllCommittedTimestamp);
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
 

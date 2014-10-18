@@ -40,7 +40,7 @@ public:
             auto reader = Store_->CreateReader(
                 std::move(key),
                 std::move(keySuccessor),
-                LastCommittedTimestamp,
+                SyncLastCommittedTimestamp,
                 TColumnFilter());
 
             reader->Open().Get();

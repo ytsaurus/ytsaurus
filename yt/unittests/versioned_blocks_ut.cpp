@@ -153,7 +153,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadLastCommitted)
         Schema,
         KeyColumns,
         schemaIdMapping,
-        LastCommittedTimestamp);
+        SyncLastCommittedTimestamp);
 
     TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 1, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
@@ -179,7 +179,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
         Schema,
         KeyColumns,
         schemaIdMapping,
-        AllCommittedTimestamp);
+        AsyncAllCommittedTimestamp);
 
     TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 3, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);

@@ -317,7 +317,8 @@ private:
 
     void ValidateReadTimestamp(TTimestamp timestamp)
     {
-        if (timestamp != LastCommittedTimestamp &&
+        if (timestamp != SyncLastCommittedTimestamp &&
+            timestamp != AsyncLastCommittedTimestamp &&
             (timestamp < MinTimestamp || timestamp > MaxTimestamp))
         {
             THROW_ERROR_EXCEPTION("Invalid timestamp %v", timestamp);

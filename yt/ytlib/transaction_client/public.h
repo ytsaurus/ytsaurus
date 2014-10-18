@@ -49,9 +49,11 @@ const TTimestamp MinTimestamp = 0x0000000000000001ULL;
 const TTimestamp MaxTimestamp = 0x3fffffffffffff00ULL;
 
 // Sentinels.
-const TTimestamp LastCommittedTimestamp = 0x3fffffffffffff01ULL;
-const TTimestamp UncommittedTimestamp   = 0x3fffffffffffff02ULL;
-const TTimestamp AllCommittedTimestamp  = 0x3fffffffffffff03ULL;
+const TTimestamp SyncLastCommittedTimestamp  = 0x3fffffffffffff01ULL;
+const TTimestamp AsyncLastCommittedTimestamp = 0x3fffffffffffff04ULL;
+const TTimestamp UncommittedTimestamp        = 0x3fffffffffffff02ULL;
+const TTimestamp AsyncAllCommittedTimestamp  = 0x3fffffffffffff03ULL;
+const TTimestamp NotPreparedTimestamp        = 0x3fffffffffffffffULL; // must be > SyncLastCommittedTimestamp
 
 // Masks.
 const TTimestamp TimestampCounterMask     = 0x000000003fffffffULL;

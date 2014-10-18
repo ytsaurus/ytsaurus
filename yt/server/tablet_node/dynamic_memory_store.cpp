@@ -66,7 +66,7 @@ T* SearchList(
         return nullptr;
     }
 
-    if (maxTimestamp == LastCommittedTimestamp) {
+    if (maxTimestamp == SyncLastCommittedTimestamp || maxTimestamp == AsyncLastCommittedTimestamp) {
         auto& value = list.Back();
         if (timestampExtractor(value) != UncommittedTimestamp) {
             return &value;
@@ -155,7 +155,7 @@ public:
         , ColumnLockCount_(Store_->ColumnLockCount_)
         , Pool_(TDynamicMemoryStoreFetcherPoolTag(), TabletReaderPoolSize)
     {
-        YCHECK(Timestamp_ != AllCommittedTimestamp || ColumnFilter_.All);
+        YCHECK(Timestamp_ != AsyncAllCommittedTimestamp || ColumnFilter_.All);
 
         if (columnFilter.All) {
             LockMask_ = TDynamicRow::AllLocksMask;
@@ -197,7 +197,7 @@ protected:
 
     TVersionedRow ProduceSingleRowVersion(TDynamicRow dynamicRow)
     {
-        if (Timestamp_ != LastCommittedTimestamp) {
+        if (Timestamp_ != AsyncLastCommittedTimestamp) {
             while (true) {
                 int lockIndex = GetBlockingLockIndex(dynamicRow);
                 if (lockIndex < 0)
@@ -469,7 +469,7 @@ private:
     {
         auto dynamicRow = Iterator_.GetCurrent();
         return
-            Timestamp_ == AllCommittedTimestamp
+            Timestamp_ == AsyncAllCommittedTimestamp
             ? ProduceAllRowVersions(dynamicRow)
             : ProduceSingleRowVersion(dynamicRow);
     }
@@ -679,10 +679,10 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
             for (int index = 0; index < ColumnLockCount_; ++index, ++lock, ++migratedLock) {
                 if (lock->Transaction == transaction) {
                     YASSERT(lock->RowIndex != TLockDescriptor::InvalidRowIndex);
-                    YASSERT(lock->PrepareTimestamp != NullTimestamp);
+                    YASSERT(lock->PrepareTimestamp != NotPreparedTimestamp);
                     YASSERT(!migratedLock->Transaction);
                     YASSERT(migratedLock->RowIndex == TLockDescriptor::InvalidRowIndex);
-                    YASSERT(migratedLock->PrepareTimestamp == MaxTimestamp);
+                    YASSERT(migratedLock->PrepareTimestamp == NotPreparedTimestamp);
                     migratedLock->Transaction = lock->Transaction;
                     migratedLock->RowIndex = lock->RowIndex;
                     migratedLock->PrepareTimestamp = lock->PrepareTimestamp;
@@ -721,7 +721,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
                 if (lock->Transaction == transaction) {
                     lock->Transaction = nullptr;
                     lock->RowIndex = TLockDescriptor::InvalidRowIndex;
-                    lock->PrepareTimestamp = MaxTimestamp;
+                    lock->PrepareTimestamp = NotPreparedTimestamp;
                     if (index == TDynamicRow::PrimaryLockIndex) {
                         row.SetDeleteLockFlag(false);
                     }
@@ -845,7 +845,7 @@ void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
             if (lock->Transaction == transaction) {
                 lock->Transaction = nullptr;
                 lock->RowIndex = TLockDescriptor::InvalidRowIndex;
-                lock->PrepareTimestamp = MaxTimestamp;
+                lock->PrepareTimestamp = NotPreparedTimestamp;
                 YASSERT(lock->LastCommitTimestamp <= commitTimestamp);
                 lock->LastCommitTimestamp = commitTimestamp;
             }
@@ -870,7 +870,7 @@ void TDynamicMemoryStore::AbortRow(TTransaction* transaction, TDynamicRow row)
             if (lock->Transaction == transaction) {
                 lock->Transaction = nullptr;
                 lock->RowIndex = TLockDescriptor::InvalidRowIndex;
-                lock->PrepareTimestamp = MaxTimestamp;
+                lock->PrepareTimestamp = NotPreparedTimestamp;
             }
         }
     }
@@ -954,7 +954,7 @@ void TDynamicMemoryStore::AcquireRowLocks(
                 lock->Transaction = transaction;
                 YASSERT(lock->RowIndex == TLockDescriptor::InvalidRowIndex);
                 lock->RowIndex = rowIndex;
-                YASSERT(lock->PrepareTimestamp == MaxTimestamp);
+                YASSERT(lock->PrepareTimestamp == NotPreparedTimestamp);
             }
         }
     }

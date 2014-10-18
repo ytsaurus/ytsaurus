@@ -206,7 +206,7 @@ struct TSelectRequest
     {
         RegisterParameter("query", Query);
         RegisterParameter("timestamp", Timestamp)
-            .Default(NVersionedTableClient::LastCommittedTimestamp);
+            .Default(NVersionedTableClient::SyncLastCommittedTimestamp);
         RegisterParameter("input_row_limit", InputRowLimit)
             .Default();
         RegisterParameter("output_row_limit", OutputRowLimit)
@@ -237,7 +237,7 @@ struct TLookupRequest
         RegisterParameter("path", Path);
         RegisterParameter("key", Key);
         RegisterParameter("timestamp", Timestamp)
-            .Default(NTransactionClient::LastCommittedTimestamp);
+            .Default(NTransactionClient::SyncLastCommittedTimestamp);
         RegisterParameter("column_names", ColumnNames)
             .Default(Null);
     }

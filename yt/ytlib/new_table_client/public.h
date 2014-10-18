@@ -42,8 +42,10 @@ using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
 using NTransactionClient::MinTimestamp;
 using NTransactionClient::MaxTimestamp;
-using NTransactionClient::LastCommittedTimestamp;
-using NTransactionClient::AllCommittedTimestamp;
+using NTransactionClient::SyncLastCommittedTimestamp;
+using NTransactionClient::AsyncLastCommittedTimestamp;
+using NTransactionClient::AsyncAllCommittedTimestamp;
+using NTransactionClient::NotPreparedTimestamp;
 
 using NTableClient::TKeyColumns; // TODO(babenko): remove after migration
 

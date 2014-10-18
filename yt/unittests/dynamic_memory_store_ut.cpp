@@ -105,7 +105,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, Empty)
 {
     auto key = BuildKey("1");
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, 0), Null));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, LastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), Null));
 }
 
 TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockWriteAndCommit)
@@ -116,7 +116,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockWriteAndCommit)
 
     Stroka rowString("key=1;a=1");
 
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, LastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), Null));
 
     auto row = WriteRow(transaction.get(), BuildRow(rowString), true);
     ASSERT_FALSE(row.GetDeleteLockFlag());
@@ -130,7 +130,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockWriteAndCommit)
     ASSERT_EQ(1, transaction->LockedRows().size());
     ASSERT_TRUE(transaction->LockedRows()[0].Row == row);
 
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, LastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), Null));
 
     PrepareTransaction(transaction.get());
     PrepareRow(transaction.get(), row);
@@ -143,7 +143,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockWriteAndCommit)
     ASSERT_EQ(TLockDescriptor::InvalidRowIndex, lock.RowIndex);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), Null));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, LastCommittedTimestamp), rowString));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), rowString));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MaxTimestamp), rowString));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts), rowString));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts - 1), Null));
@@ -156,7 +156,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockDeleteAndCommit)
 
     auto ts1 = WriteRow(BuildRow(rowString, false));
 
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, LastCommittedTimestamp), rowString));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), rowString));
 
     auto transaction = StartTransaction();
 
@@ -172,7 +172,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockDeleteAndCommit)
     ASSERT_EQ(1, transaction->LockedRows().size());
     ASSERT_TRUE(transaction->LockedRows()[0].Row == row);
 
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, LastCommittedTimestamp), rowString));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), rowString));
 
     PrepareTransaction(transaction.get());
     PrepareRow(transaction.get(), row);
@@ -185,7 +185,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockDeleteAndCommit)
     ASSERT_EQ(TLockDescriptor::InvalidRowIndex, lock.RowIndex);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), Null));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, LastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), Null));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MaxTimestamp), Null));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), rowString));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), Null));
@@ -220,7 +220,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockManyWritesAndCommit)
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), Null));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MaxTimestamp), Stroka("key=1;a=99")));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, LastCommittedTimestamp), Stroka("key=1;a=99")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), Stroka("key=1;a=99")));
 
     for (int i = 0; i < 100; ++i) {
         EXPECT_TRUE(AreRowsEqual(LookupRow(key, timestamps[i]), Stroka("key=1;a=" + ToString(i))));
@@ -265,7 +265,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, Delete)
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), Null));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts), Null));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, LastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), Null));
 }
 
 TEST_F(TSingleLockDynamicMemoryStoreTest, WriteDelete)
@@ -280,7 +280,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteDelete)
     EXPECT_EQ(ts1, GetLock(row).LastCommitTimestamp);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), Null));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, LastCommittedTimestamp), Stroka("key=1;c=value")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), Stroka("key=1;c=value")));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), Stroka("key=1;c=value")));
 
     PrepareTransaction(transaction2.get());
@@ -290,7 +290,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteDelete)
     CommitRow(transaction2.get(), row);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), Stroka("key=1;c=value")));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, LastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), Null));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), Null));
     EXPECT_EQ(ts2, GetLock(row).LastCommitTimestamp);
 }
@@ -306,7 +306,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteWrite)
     auto row = WriteRow(transaction2.get(), BuildRow("key=1;b=3.14"), false);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), Null));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, LastCommittedTimestamp), Stroka("key=1;a=1")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), Stroka("key=1;a=1")));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), Stroka("key=1;a=1")));
 
     PrepareTransaction(transaction2.get());
@@ -316,7 +316,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteWrite)
     CommitRow(transaction2.get(), row);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), Stroka("key=1;a=1")));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, LastCommittedTimestamp), Stroka("key=1;b=3.14")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), Stroka("key=1;b=3.14")));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), Stroka("key=1;b=3.14")));
 }
 
@@ -501,7 +501,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadNotBlocked)
     }));
 
     // Not blocked.
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, LastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), Null));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, transaction->GetPrepareTimestamp()), Null));
 
     EXPECT_FALSE(blocked);
@@ -527,7 +527,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedAbort)
     }));
 
     // Blocked, old value is read.
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, MaxTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, SyncLastCommittedTimestamp), Null));
 
     EXPECT_TRUE(blocked);
 }
@@ -552,7 +552,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedCommit)
     }));
 
     // Blocked, new value is read.
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, MaxTimestamp), Stroka("key=1;a=1")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, SyncLastCommittedTimestamp), Stroka("key=1;a=1")));
 
     EXPECT_TRUE(blocked);
 }
@@ -564,7 +564,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ArbitraryKeyLength)
     auto reader = Store_->CreateReader(
         BuildKey("1"),
         BuildKey("1;<type=max>#"),
-        LastCommittedTimestamp,
+        AsyncLastCommittedTimestamp,
         TColumnFilter());
 
     EXPECT_TRUE(reader->Open().Get().IsOK());

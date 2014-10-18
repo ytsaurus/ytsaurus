@@ -46,7 +46,7 @@ public:
         YCHECK(ChunkMeta_->Misc().sorted());
         YCHECK(ChunkMeta_->ChunkMeta().type() == EChunkType::Table);
         YCHECK(ChunkMeta_->ChunkMeta().version() == TBlockReader::FormatVersion);
-        YCHECK(Timestamp_ != AllCommittedTimestamp || columnFilter.All);
+        YCHECK(Timestamp_ != AsyncAllCommittedTimestamp || columnFilter.All);
 
         if (columnFilter.All) {
             SchemaIdMapping_ = ChunkMeta_->SchemaIdMapping();

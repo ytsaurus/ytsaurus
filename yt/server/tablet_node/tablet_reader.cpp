@@ -404,7 +404,7 @@ public:
             std::move(tabletSnapshot),
             std::move(lowerBound),
             std::move(upperBound),
-            AllCommittedTimestamp)
+        AsyncAllCommittedTimestamp)
         , Stores_(std::move(stores))
         , CurrentTimestamp_(currentTimestamp)
         , MajorTimestamp_(majorTimestamp)

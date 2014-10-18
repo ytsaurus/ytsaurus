@@ -220,8 +220,8 @@ TEST_F(TSingleLockStoreManagerTest, ConfirmRowWithRotation)
     EXPECT_EQ(0, store2->GetLockCount());
 
     auto key = BuildKey("1");
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, LastCommittedTimestamp), Null));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, LastCommittedTimestamp), Stroka("key=1;a=1")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, AsyncLastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, AsyncLastCommittedTimestamp), Stroka("key=1;a=1")));
 }
 
 TEST_F(TSingleLockStoreManagerTest, PrepareRowWithRotation)
@@ -257,8 +257,8 @@ TEST_F(TSingleLockStoreManagerTest, PrepareRowWithRotation)
     EXPECT_EQ(0, store2->GetLockCount());
 
     auto key = BuildKey("1");
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, LastCommittedTimestamp), Null));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, LastCommittedTimestamp), Stroka("key=1;a=1")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, AsyncLastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, AsyncLastCommittedTimestamp), Stroka("key=1;a=1")));
 }
 
 TEST_F(TSingleLockStoreManagerTest, MigrateRow)
@@ -290,8 +290,8 @@ TEST_F(TSingleLockStoreManagerTest, MigrateRow)
     EXPECT_EQ(0, store2->GetLockCount());
 
     auto key = BuildKey("1");
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, LastCommittedTimestamp), Null));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, LastCommittedTimestamp), Stroka("key=1;a=1")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, AsyncLastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, AsyncLastCommittedTimestamp), Stroka("key=1;a=1")));
 }
 
 TEST_F(TSingleLockStoreManagerTest, WriteSameRowWithRotation)
@@ -418,8 +418,8 @@ TEST_F(TSingleLockStoreManagerTest, AbortRowWithRotation)
     EXPECT_EQ(0, store2->GetLockCount());
 
     auto key = BuildKey("1");
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, LastCommittedTimestamp), Null));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, LastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, AsyncLastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, AsyncLastCommittedTimestamp), Null));
 }
 
 TEST_F(TSingleLockStoreManagerTest, LookupRow1)
@@ -427,7 +427,7 @@ TEST_F(TSingleLockStoreManagerTest, LookupRow1)
     WriteRow(BuildRow("key=1;a=100", false));
     Rotate();
     WriteRow(BuildRow("key=1;b=3.14", false));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("1"), LastCommittedTimestamp), Stroka("key=1;a=100;b=3.14")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("1"), AsyncLastCommittedTimestamp), Stroka("key=1;a=100;b=3.14")));
 }
 
 TEST_F(TSingleLockStoreManagerTest, LookupRow2)
@@ -436,7 +436,7 @@ TEST_F(TSingleLockStoreManagerTest, LookupRow2)
     DeleteRow(BuildKey("1"));
     Rotate();
     WriteRow(BuildRow("key=1;b=3.14", false));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("1"), LastCommittedTimestamp), Stroka("key=1;b=3.14")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("1"), AsyncLastCommittedTimestamp), Stroka("key=1;b=3.14")));
 }
 
 TEST_F(TSingleLockStoreManagerTest, LookupRow3)
@@ -445,7 +445,7 @@ TEST_F(TSingleLockStoreManagerTest, LookupRow3)
     Rotate();
     DeleteRow(BuildKey("1"));
     WriteRow(BuildRow("key=1;b=3.14", false));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("1"), LastCommittedTimestamp), Stroka("key=1;b=3.14")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("1"), AsyncLastCommittedTimestamp), Stroka("key=1;b=3.14")));
 }
 
 TEST_F(TSingleLockStoreManagerTest, LookupRow4)
@@ -456,7 +456,7 @@ TEST_F(TSingleLockStoreManagerTest, LookupRow4)
     Rotate();
     WriteRow(BuildRow("key=1;a=200;c=test", false));
     Rotate();
-    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("1"), LastCommittedTimestamp), Stroka("key=1;a=200;b=3.14;c=test")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("1"), AsyncLastCommittedTimestamp), Stroka("key=1;a=200;b=3.14;c=test")));
 }
 
 TEST_F(TSingleLockStoreManagerTest, UnlockStoreOnCommit)
@@ -582,9 +582,9 @@ TEST_F(TSingleLockStoreManagerTestWithStringKeys, StringKey)
     WriteRow(BuildRow("key=test;a=100", false));
     WriteRow(BuildRow("key=another_test;a=101", false));
     WriteRow(BuildRow("b=3.14", false));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("test"), LastCommittedTimestamp), Stroka("key=test;a=100")));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("another_test"), LastCommittedTimestamp), Stroka("key=another_test;a=101")));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("weird_test"), LastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("test"), AsyncLastCommittedTimestamp), Stroka("key=test;a=100")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("another_test"), AsyncLastCommittedTimestamp), Stroka("key=another_test;a=101")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("weird_test"), AsyncLastCommittedTimestamp), Null));
 }
 
 TEST_F(TSingleLockStoreManagerTestWithStringKeys, NullKey)
@@ -592,7 +592,7 @@ TEST_F(TSingleLockStoreManagerTestWithStringKeys, NullKey)
     WriteRow(BuildRow("key=test;a=100", false));
     WriteRow(BuildRow("key=another_test;a=101", false));
     WriteRow(BuildRow("b=3.14", false));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("<type=null>#"), LastCommittedTimestamp), Stroka("b=3.14")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("<type=null>#"), AsyncLastCommittedTimestamp), Stroka("b=3.14")));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -632,14 +632,14 @@ TEST_F(TSingleLockStoreManagerTestWithCompositeKeys, Write)
     WriteRow(BuildRow("k1=2;     v=600", false));
     WriteRow(BuildRow("          v=700", false));
 
-    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("1;1"), LastCommittedTimestamp), Stroka("k1=1;k2=1;v=100")));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("1;2"), LastCommittedTimestamp), Stroka("k1=1;k2=2;v=200")));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("2;1"), LastCommittedTimestamp), Stroka("k1=2;k2=1;v=300")));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("2;2"), LastCommittedTimestamp), Stroka("k1=2;k2=2;v=400")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("1;1"), AsyncLastCommittedTimestamp), Stroka("k1=1;k2=1;v=100")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("1;2"), AsyncLastCommittedTimestamp), Stroka("k1=1;k2=2;v=200")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("2;1"), AsyncLastCommittedTimestamp), Stroka("k1=2;k2=1;v=300")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("2;2"), AsyncLastCommittedTimestamp), Stroka("k1=2;k2=2;v=400")));
 
-    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("<type=null>#;           2"), LastCommittedTimestamp), Stroka("     k2=2;v=500")));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("2;           <type=null>#"), LastCommittedTimestamp), Stroka("k1=2;     v=600")));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("<type=null>#;<type=null>#"), LastCommittedTimestamp), Stroka("          v=700")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("<type=null>#;           2"), AsyncLastCommittedTimestamp), Stroka("     k2=2;v=500")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("2;           <type=null>#"), AsyncLastCommittedTimestamp), Stroka("k1=2;     v=600")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("<type=null>#;<type=null>#"), AsyncLastCommittedTimestamp), Stroka("          v=700")));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -760,8 +760,8 @@ TEST_F(TMultiLockStoreManagerTest, MigrateRow)
     EXPECT_EQ(1, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, LastCommittedTimestamp), Null));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, LastCommittedTimestamp), Stroka("key=1;a=1")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, AsyncLastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, AsyncLastCommittedTimestamp), Stroka("key=1;a=1")));
 
     CommitTransaction(transaction2.get());
     StoreManager_->CommitRow(transaction2.get(), rowRef2);
@@ -769,8 +769,8 @@ TEST_F(TMultiLockStoreManagerTest, MigrateRow)
     EXPECT_EQ(0, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, LastCommittedTimestamp), Null));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, LastCommittedTimestamp), Stroka("key=1;a=1;b=3.14")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, AsyncLastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, AsyncLastCommittedTimestamp), Stroka("key=1;a=1;b=3.14")));
 }
 
 TEST_F(TMultiLockStoreManagerTest, MigrateRow2)
@@ -812,8 +812,8 @@ TEST_F(TMultiLockStoreManagerTest, MigrateRow2)
     CommitTransaction(transaction2.get());
     StoreManager_->CommitRow(transaction2.get(), rowRef2);
 
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, LastCommittedTimestamp), Null));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, LastCommittedTimestamp), Stroka("key=1;b=3.14")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, AsyncLastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, AsyncLastCommittedTimestamp), Stroka("key=1;b=3.14")));
 
     EXPECT_EQ(1, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
@@ -824,8 +824,8 @@ TEST_F(TMultiLockStoreManagerTest, MigrateRow2)
     EXPECT_EQ(0, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, LastCommittedTimestamp), Null));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, LastCommittedTimestamp), Stroka("key=1;a=1;b=3.14")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, AsyncLastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, AsyncLastCommittedTimestamp), Stroka("key=1;a=1;b=3.14")));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

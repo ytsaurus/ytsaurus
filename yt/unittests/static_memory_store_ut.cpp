@@ -33,7 +33,7 @@ TEST_F(TStaticMemoryStoreTest, Empty)
     auto store = Builder.Finish();
     auto scanner = store->CreateScanner();
     ASSERT_EQ(
-        scanner->Find(BuildKey("1").Get(), LastCommittedTimestamp),
+        scanner->Find(BuildKey("1").Get(), SyncLastCommittedTimestamp),
         NullTimestamp);
 }
 
@@ -57,15 +57,15 @@ TEST_F(TStaticMemoryStoreTest, Small1)
     auto store = Builder.Finish();
     auto scanner = store->CreateScanner();
 
-    ASSERT_EQ(scanner->Find(BuildKey("0").Get(), LastCommittedTimestamp), NullTimestamp);
+    ASSERT_EQ(scanner->Find(BuildKey("0").Get(), SyncLastCommittedTimestamp), NullTimestamp);
     
-    ASSERT_EQ(scanner->Find(BuildKey("1").Get(), LastCommittedTimestamp), 10 | IncrementalTimestampMask);
+    ASSERT_EQ(scanner->Find(BuildKey("1").Get(), SyncLastCommittedTimestamp), 10 | IncrementalTimestampMask);
     ASSERT_EQ(CompareRowValues(scanner->GetKeys()[0], MakeUnversionedIntegerValue(1)), 0);
     ASSERT_EQ(CompareRowValues(*scanner->GetFixedValue(0), MakeUnversionedIntegerValue(123)), 0);
     ASSERT_EQ(scanner->GetFixedValue(1), nullptr);
     ASSERT_EQ(scanner->GetFixedValue(2), nullptr);
 
-    ASSERT_EQ(scanner->Find(BuildKey("2").Get(), LastCommittedTimestamp), NullTimestamp);
+    ASSERT_EQ(scanner->Find(BuildKey("2").Get(), SyncLastCommittedTimestamp), NullTimestamp);
 }
 
 TEST_F(TStaticMemoryStoreTest, Small2)

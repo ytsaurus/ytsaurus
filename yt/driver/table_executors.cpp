@@ -226,7 +226,7 @@ Stroka TInsertExecutor::GetCommandName() const
 
 TSelectExecutor::TSelectExecutor()
     : QueryArg("query", "query to execute", true, "", "QUERY")
-    , TimestampArg("", "timestamp", "timestamp to use", false, NTransactionClient::LastCommittedTimestamp, "TIMESTAMP")
+    , TimestampArg("", "timestamp", "timestamp to use", false, NTransactionClient::SyncLastCommittedTimestamp, "TIMESTAMP")
     , InputRowLimitArg("", "input_row_limit", "input rows limit", false, std::numeric_limits<int>::max(), "INTEGER")
     , OutputRowLimitArg("", "output_row_limit", "output rows limit", false, std::numeric_limits<int>::max(), "INTEGER")
 {
@@ -261,7 +261,7 @@ Stroka TSelectExecutor::GetCommandName() const
 TLookupExecutor::TLookupExecutor()
     : PathArg("path", "table path to lookup", true, "", "YPATH")
     , KeyArg("key", "key to lookup", true, "", "YSON_LIST_FRAGMENT")
-    , TimestampArg("", "timestamp", "timestamp to use", false, NTransactionClient::LastCommittedTimestamp, "TIMESTAMP")
+    , TimestampArg("", "timestamp", "timestamp to use", false, NTransactionClient::SyncLastCommittedTimestamp, "TIMESTAMP")
 {
     CmdLine.add(PathArg);
     CmdLine.add(KeyArg);

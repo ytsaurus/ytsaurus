@@ -285,7 +285,7 @@ public:
             auto* lock = row.BeginLocks(keyColumnCount);
             for (int index = 0; index < columnLockCount; ++index, ++lock) {
                 lock->RowIndex = TLockDescriptor::InvalidRowIndex;
-                lock->PrepareTimestamp = NVersionedTableClient::MaxTimestamp;
+                lock->PrepareTimestamp = NVersionedTableClient::NotPreparedTimestamp;
                 lock->LastCommitTimestamp = NVersionedTableClient::MinTimestamp;
             }
         }

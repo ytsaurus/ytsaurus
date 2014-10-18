@@ -19,7 +19,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     NChunkClient::TReadLimit lowerLimit,
     NChunkClient::TReadLimit upperLimit,
     const TColumnFilter& columnFilter,
-    TTimestamp timestamp = LastCommittedTimestamp);
+    TTimestamp timestamp = SyncLastCommittedTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////
 

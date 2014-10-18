@@ -151,7 +151,7 @@ bool TSimpleVersionedBlockReader::JumpToRowIndex(int index)
 TVersionedRow TSimpleVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
 {
     YCHECK(!Closed_);
-    if (Timestamp_ == AllCommittedTimestamp) {
+    if (Timestamp_ == AsyncAllCommittedTimestamp) {
         return ReadAllValues(memoryPool);
     } else {
         return ReadValuesByTimestamp(memoryPool);

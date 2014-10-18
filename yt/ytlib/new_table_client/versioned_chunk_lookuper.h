@@ -13,7 +13,7 @@ IVersionedLookuperPtr CreateVersionedChunkLookuper(
     NChunkClient::IBlockCachePtr uncompressedBlockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
     const TColumnFilter& columnFilter,
-    TTimestamp timestamp = LastCommittedTimestamp);
+    TTimestamp timestamp = SyncLastCommittedTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////
 

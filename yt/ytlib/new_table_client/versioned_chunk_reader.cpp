@@ -111,7 +111,7 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     YCHECK(CachedChunkMeta_->Misc().sorted());
     YCHECK(CachedChunkMeta_->ChunkMeta().type() == EChunkType::Table);
     YCHECK(CachedChunkMeta_->ChunkMeta().version() == TBlockReader::FormatVersion);
-    YCHECK(Timestamp_ != AllCommittedTimestamp || columnFilter.All);
+    YCHECK(Timestamp_ != AsyncAllCommittedTimestamp || columnFilter.All);
 
     if (columnFilter.All) {
         SchemaIdMapping_ = CachedChunkMeta_->SchemaIdMapping();

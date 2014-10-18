@@ -113,14 +113,14 @@ struct TLookupRowsOptions
 {
     NVersionedTableClient::TColumnFilter ColumnFilter;
     //! Ignored when queried via transaction.
-    NTransactionClient::TTimestamp Timestamp = NTransactionClient::LastCommittedTimestamp;
+    NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
     bool KeepMissingRows = false;
 };
 
 struct TSelectRowsOptions
 {
     //! Ignored when queried via transaction.
-    NTransactionClient::TTimestamp Timestamp = NTransactionClient::LastCommittedTimestamp;
+    NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
     //! If null then connection defaults are used.
     TNullable<i64> InputRowLimit;
     //! If null then connection defaults are used.
