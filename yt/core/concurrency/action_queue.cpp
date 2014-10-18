@@ -650,6 +650,8 @@ private:
 
 };
 
+PER_THREAD TBoundedConcurrencyInvoker* TBoundedConcurrencyInvoker::CurrentScheduler_ = nullptr;
+
 IInvokerPtr CreateBoundedConcurrencyInvoker(
     IInvokerPtr underlyingInvoker,
     int maxConcurrentInvocations)
