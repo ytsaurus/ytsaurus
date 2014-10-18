@@ -219,6 +219,7 @@ class Application(object):
                         break
                     except yt.YtError as err:
                         if err.is_concurrent_transaction_lock_conflict():
+                            logger.info("Failed to take lock")
                             time.sleep(self._lock_timeout)
                             continue
                         logger.exception(yt.errors.format_error(err))
@@ -350,6 +351,12 @@ class Application(object):
             if not user:
                 raise IncorrectTokenError("Authorization token is incorrect: " + token)
         return token, user
+
+    def _check_permission(self, id, authorization_header):
+        _, user = self._get_token_and_user(authorization_header)
+        if self._tasks[id].user != user and \
+           self._yt.check_permission(user, "administer", self._auth_path)["action"] != "allow":
+            raise RequestFailed("There is no permission to abort task.")
 
     def _precheck(self, task):
         logger.info("Making precheck for task %s", task.id)
@@ -600,10 +607,7 @@ class Application(object):
 
         logger.info("Aboring task %s", id)
 
-        _, user = self._get_token_and_user(request.headers.get("Authorization", ""))
-        if self._tasks[id].user != user and \
-           self._yt.check_permission(user, "administer", self._auth_path)["action"] != "allow":
-            raise RequestFailed("There is no permission to abort task.")
+        self._check_permission(id, request.headers.get("Authorization", ""))
 
         if id in self._task_processes:
             process, _ = self._task_processes[id]
@@ -626,11 +630,7 @@ class Application(object):
 
         logger.info("Restarting task %s", id)
 
-        _, user = self._get_token_and_user(request.headers.get("Authorization", ""))
-        if self._tasks[id].user != user and \
-           self._yt.check_permission(user, "administer", self._auth_path)["action"] != "allow":
-            raise RequestFailed("There is no permission to abort task.")
-
+        self._check_permission(id, request.headers.get("Authorization", ""))
         if self._tasks[id].state not in ["completed", "aborted", "failed"]:
             raise RequestFailed("Cannot restart task in state " + self._tasks[id].state)
 
@@ -653,6 +653,10 @@ class Application(object):
     def delete_task(self, id):
         if id not in self._tasks:
             return "Unknown task " + id, 400
+
+        self._check_permission(id, request.headers.get("Authorization", ""))
+        if self._tasks[id].state not in ["completed", "aborted", "failed"]:
+            raise RequestFailed("Cannot delete running task " + self._tasks[id].state)
 
         with self._mutex:
             self._yt.remove(os.path.join(self._tasks_path, id), recursive=True)
