@@ -15,6 +15,8 @@
 
 #include <util/system/event.h>
 
+#include <atomic>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,12 +51,14 @@ public:
     typedef SmallVector<TCancelHandler, 8> TCancelHandlers;
 
 private:
-    TNullable<T> Value_;
     mutable TSpinLock SpinLock_;
+    std::atomic<bool> Canceled_;
+    std::atomic<bool> Set_;
+    TNullable<T> Value_;
     mutable std::unique_ptr<Event> ReadyEvent_;
     TResultHandlers ResultHandlers_;
-    bool Canceled_;
     TCancelHandlers CancelHandlers_;
+
 
     template <class U, bool MustSet>
     bool DoSet(U&& value)
@@ -68,20 +72,18 @@ private:
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
-
             if (Canceled_) {
                 return false;
             }
-
             if (MustSet) {
-                YCHECK(!Value_);
+                YCHECK(!Set_);
             } else {
-                if (Value_) {
+                if (Set_) {
                     return false;
                 }
             }
-
             Value_.Assign(std::forward<U>(value));
+            Set_ = true;
         }
 
         if (ReadyEvent_) {
@@ -100,14 +102,17 @@ private:
 
 public:
     TPromiseState()
-        : Canceled_(false)
-    { }
+    {
+        Set_ = false;
+        Canceled_ = false;
+    }
 
     template <class U>
     explicit TPromiseState(U&& value)
         : Value_(std::forward<U>(value))
-        , Canceled_(false)
     {
+        Set_ = true;
+        Canceled_ = false;
         static_assert(
             NMpl::TIsConvertible<U, T>::Value,
             "U have to be convertible to T");
@@ -120,13 +125,17 @@ public:
 
     const T& Get() const
     {
+        // Fast path.
+        if (Set_) {
+            return *Value_;
+        }
+
+        // Slow path.
         {
             TGuard<TSpinLock> guard(SpinLock_);
-
-            if (Value_) {
-                return Value_.Get();
+            if (Set_) {
+                return *Value_;
             }
-
             if (!ReadyEvent_) {
                 ReadyEvent_.reset(new Event());
             }
@@ -134,26 +143,21 @@ public:
 
         ReadyEvent_->Wait();
 
-        return Value_.Get();
+        return *Value_;
     }
 
     TNullable<T> TryGet() const
     {
-        TGuard<TSpinLock> guard(SpinLock_);
-        return Value_;
+        return Set_ ? Value_ : Null;
     }
 
     bool IsSet() const
     {
-        // Guard is typically redundant.
-        TGuard<TSpinLock> guard(SpinLock_);
-        return Value_.HasValue();
+        return Set_;
     }
 
     bool IsCanceled() const
     {
-        // Guard is typically redundant.
-        TGuard<TSpinLock> guard(SpinLock_);
         return Canceled_;
     }
 
@@ -171,13 +175,21 @@ public:
 
     void Subscribe(TResultHandler onResult)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        // Fast path.
+        if (Set_) {
+            onResult.Run(*Value_);
+            return;
+        }
 
-        if (Value_) {
-            guard.Release();
-            onResult.Run(Value_.Get());
-        } else if (!Canceled_) {
-            ResultHandlers_.push_back(std::move(onResult));
+        // Slow path.
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (Set_) {
+                guard.Release();
+                onResult.Run(*Value_);
+            } else if (!Canceled_) {
+                ResultHandlers_.push_back(std::move(onResult));
+            }
         }
     }
 
@@ -188,13 +200,21 @@ public:
 
     void OnCanceled(TCancelHandler onCancel)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
-
+        // Fast path.
         if (Canceled_) {
-            guard.Release();
             onCancel.Run();
-        } else if (!Value_) {
-            CancelHandlers_.push_back(std::move(onCancel));
+            return;
+        }
+
+        // Slow path.
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (Canceled_) {
+                guard.Release();
+                onCancel.Run();
+            } else if (!Set_) {
+                CancelHandlers_.push_back(std::move(onCancel));
+            }
         }
     }
 
@@ -210,10 +230,9 @@ private:
     {
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            if (Value_ || Canceled_) {
+            if (Set_ || Canceled_) {
                 return false;
             }
-                
             Canceled_ = true;
         }
 
@@ -241,10 +260,8 @@ public:
         TClosure onTimeout)
         : OnResult_(std::move(onResult))
         , OnTimeout_(std::move(onTimeout))
-        , CallbackAlreadyRan_(false)
     {
         YASSERT(state);
-
         state->Subscribe(
             BIND(&TPromiseAwaiter::OnResult, MakeStrong(this)));
         NConcurrency::TDelayedExecutor::Submit(
@@ -255,11 +272,12 @@ private:
     TCallback<void(T)> OnResult_;
     TClosure OnTimeout_;
 
-    TAtomic CallbackAlreadyRan_;
+    std::atomic_flag CallbackAlreadyRan_;
+
 
     bool AtomicAcquire()
     {
-        return AtomicCas(&CallbackAlreadyRan_, true, false);
+        return !CallbackAlreadyRan_.test_and_set();
     }
 
     void OnResult(T value)
