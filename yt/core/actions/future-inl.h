@@ -103,6 +103,7 @@ private:
 public:
     TPromiseState()
     {
+        // TODO(babenko): VS compat
         Set_ = false;
         Canceled_ = false;
     }
@@ -111,6 +112,7 @@ public:
     explicit TPromiseState(U&& value)
         : Value_(std::forward<U>(value))
     {
+        // TODO(babenko): VS compat
         Set_ = true;
         Canceled_ = false;
         static_assert(

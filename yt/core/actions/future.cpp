@@ -3,6 +3,8 @@
 
 #include <core/concurrency/delayed_executor.h>
 
+#include <atomic>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,11 +24,11 @@ public:
     typedef SmallVector<TCancelHandler, 8> TCancelHandlers;
 
 private:
-    bool HasValue_;
     mutable TSpinLock SpinLock_;
+    std::atomic<bool> Canceled_;
+    std::atomic<bool> Set_;
     mutable std::unique_ptr<Event> ReadyEvent_;
     TResultHandlers ResultHandlers_;
-    bool Canceled_;
     TCancelHandlers CancelHandlers_;
 
     template <bool MustSet>
@@ -37,20 +39,17 @@ private:
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
-
             if (Canceled_) {
                 return false;
             }
-
             if (MustSet) {
-                YCHECK(!HasValue_);
+                YCHECK(!Set_);
             } else {
-                if (HasValue_) {
+                if (Set_) {
                     return false;
                 }
             }
-
-            HasValue_ = true;
+            Set_ = true;
         }
 
         if (ReadyEvent_) {
@@ -68,10 +67,12 @@ private:
     }
 
 public:
-    TPromiseState(bool hasValue = false)
-        : HasValue_(hasValue)
-        , Canceled_(false)
-    { }
+    TPromiseState(bool set = false)
+    {
+        // TODO(babenko): VS compat
+        Set_ = set;
+        Canceled_ = false;
+    }
 
     ~TPromiseState()
     {
@@ -80,15 +81,11 @@ public:
 
     bool IsSet() const
     {
-        // Guard is typically redundant.
-        TGuard<TSpinLock> guard(SpinLock_);
-        return HasValue_;
+        return Set_;
     }
 
     bool IsCanceled() const
     {
-        // Guard is typically redundant.
-        TGuard<TSpinLock> guard(SpinLock_);
         return Canceled_;
     }
 
@@ -104,12 +101,15 @@ public:
 
     void Get() const
     {
+        // Fast path.
+        if (Set_)
+            return;
+
+        // Slow path.
         {
             TGuard<TSpinLock> guard(SpinLock_);
-
-            if (HasValue_)
+            if (Set_)
                 return;
-
             if (!ReadyEvent_) {
                 ReadyEvent_.reset(new Event());
             }
@@ -120,13 +120,21 @@ public:
 
     void Subscribe(TResultHandler onResult)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
-
-        if (HasValue_) {
-            guard.Release();
+        // Fast path.
+        if (Set_) {
             onResult.Run();
-        } else if (!Canceled_) {
-            ResultHandlers_.push_back(std::move(onResult));
+            return;
+        }
+
+        // Slow path.
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (Set_) {
+                guard.Release();
+                onResult.Run();
+            } else if (!Canceled_) {
+                ResultHandlers_.push_back(std::move(onResult));
+            }
         }
     }
 
@@ -137,16 +145,22 @@ public:
 
     void OnCanceled(TCancelHandler onCancel)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
-
-        if (HasValue_)
-            return;
-
+        // Fast path.
         if (Canceled_) {
-
+            onCancel.Run();
+            return;
         }
 
-        CancelHandlers_.push_back(std::move(onCancel));
+        // Slow path.
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (Canceled_) {
+                guard.Release();
+                onCancel.Run();
+            } else if (!Set_) {
+                CancelHandlers_.push_back(std::move(onCancel));
+            }
+        }
     }
 
     bool Cancel()
@@ -162,7 +176,7 @@ private:
         {
             TGuard<TSpinLock> guard(SpinLock_);
 
-            if (HasValue_) {
+            if (Set_) {
                 return false;
             }
                 
