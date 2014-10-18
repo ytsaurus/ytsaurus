@@ -566,6 +566,8 @@ private:
     std::atomic<int> Semaphore_;
     TLockFreeQueue<TClosure> Queue_;
 
+    static PER_THREAD TBoundedConcurrencyInvoker* CurrentScheduler_;
+
 
     class TInvocationGuard
     {
@@ -603,6 +605,10 @@ private:
 
     void ScheduleMore()
     {
+        // Prevent reenterant invocations.
+        if (CurrentScheduler_ == this)
+            return;
+
         while (true) {
             if (!TryAcquireSemaphore())
                 break;
@@ -613,11 +619,18 @@ private:
                 break;
             }
 
+            // If UnderlyingInvoker_ is already terminated, Invoke may drop the guard right away.
+            // Protect by setting CurrentScheduler_ and checking it on entering ScheduleMore.
+            CurrentScheduler_ = this;
+
             UnderlyingInvoker_->Invoke(BIND(
                 &TBoundedConcurrencyInvoker::RunCallback,
                 MakeStrong(this),
                 Passed(std::move(callback)),
                 Passed(TInvocationGuard(this))));
+
+            // Don't leave a dangling pointer behind.
+            CurrentScheduler_ = nullptr;
         }        
     }
 
