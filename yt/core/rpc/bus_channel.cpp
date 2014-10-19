@@ -238,7 +238,7 @@ private:
                     auto error = TerminationError_;
                     guard.Release();
 
-                    LOG_DEBUG("Request via terminated channel is dropped (RequestId: %v, Service: %v, Method: %v)",
+                    LOG_DEBUG("Request via terminated channel is dropped (RequestId: %v, Method: %v:%v)",
                         requestId,
                         request->GetService(),
                         request->GetMethod());
@@ -366,7 +366,7 @@ private:
                 MakeStrong(this),
                 requestId));
 
-            LOG_DEBUG("Request sent (RequestId: %v, Service: %v, Method: %v, Timeout: %v)",
+            LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v)",
                 requestId,
                 request->GetService(),
                 request->GetMethod(),
