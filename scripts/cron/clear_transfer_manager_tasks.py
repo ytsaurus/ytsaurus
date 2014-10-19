@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 import yt.logger as logger
-import yt.wrapper as yt
 from dateutil.parser import parse
 from collections import namedtuple
 from datetime import datetime, timedelta
@@ -12,9 +11,9 @@ import requests
 
 Task = namedtuple("Oper", ["start_time", "finish_time", "id", "user", "state"]);
 
-logger.set_formatter(logging.Formatter('%(asctime)-15s\t{}\t%(message)s'.format(yt.config.http.PROXY)))
+logger.set_formatter(logging.Formatter('%(asctime)-15s\t%(message)s'))
 
-def clean_tasks(url, count, total_count, failed_timeout, max_tasks_per_user, robots):
+def clean_tasks(url, token, count, total_count, failed_timeout, max_tasks_per_user, robots):
     if robots is None:
         robots = []
 
@@ -69,7 +68,8 @@ def clean_tasks(url, count, total_count, failed_timeout, max_tasks_per_user, rob
             logger.info("Task (%s) is no more in final state", task)
             continue
         logger.info("Removing task %s", task)
-        rsp = requests.delete("%s/tasks/%s/" % (url, task))
+        #rsp = requests.delete("%s/tasks/%s/" % (url, task),
+        #                      headers={"Authorization": "OAuth " + token})
         if rsp.status_code != 200:
             logger.error("Cannot remove task %s: %s", task, rsp.content)
             break
@@ -79,6 +79,7 @@ def clean_tasks(url, count, total_count, failed_timeout, max_tasks_per_user, rob
 def main():
     parser = argparse.ArgumentParser(description='Clean transfer manager tasks.')
     parser.add_argument('url', help="Url of transfer manager")
+    parser.add_argument('--token', help="Token of administer user")
     parser.add_argument('--count', metavar='N', type=int, default=500,
                        help='leave no more than N completed (without stderr) or aborted tasks')
     parser.add_argument('--total-count', metavar='N', type=int, default=2000,
@@ -90,7 +91,7 @@ def main():
     parser.add_argument('--robot', action="append",  help='robot users that run tasks very often and can be ignored')
 
     args = parser.parse_args()
-    clean_tasks(args.url, args.count, args.total_count, timedelta(days=args.failed_timeout), args.max_tasks_per_user, args.robot)
+    clean_tasks(args.url, args.token, args.count, args.total_count, timedelta(days=args.failed_timeout), args.max_tasks_per_user, args.robot)
 
 if __name__ == "__main__":
     main()
