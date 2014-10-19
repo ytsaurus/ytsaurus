@@ -409,7 +409,7 @@ class Application(object):
             with self._mutex:
                 self._pending_tasks = filter(lambda id: self._tasks[id].state == "pending", self._pending_tasks)
 
-                logger.info("%d pending tasks found", len(self._pending_tasks))
+                logger.info("Progress: %d running, %d pending tasks found", len(self._task_processes), len(self._pending_tasks))
 
                 for id, (process, message_queue) in self._task_processes.items():
                     error = None
