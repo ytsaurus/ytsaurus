@@ -401,12 +401,15 @@ class Application(object):
             if self._terminating:
                 return
 
+            logger.info("Processing tasks")
             if not self._lock_acquired:
                 time.sleep(self._lock_timeout)
                 continue
 
             with self._mutex:
                 self._pending_tasks = filter(lambda id: self._tasks[id].state == "pending", self._pending_tasks)
+
+                logger.info("%d pending tasks found", len(self._pending_tasks))
 
                 for id, (process, message_queue) in self._task_processes.items():
                     error = None
@@ -441,6 +444,7 @@ class Application(object):
 
                 for id in self._pending_tasks:
                     if not self._can_run(self._tasks[id]):
+                        logger.info("Task %s cannot be run", id)
                         continue
                     self._running_task_queues[self._tasks[id].get_queue_id()].append(id)
                     self._change_task_state(id, "running")
@@ -597,7 +601,7 @@ class Application(object):
 
             self._yt.set(os.path.join(self._tasks_path, task.id), task.dict())
 
-        logger.info("Task %s added")
+        logger.info("Task %s added", task.id)
 
         return task.id
 
