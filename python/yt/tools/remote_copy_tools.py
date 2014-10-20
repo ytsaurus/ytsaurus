@@ -259,3 +259,117 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, token=None, spec_temp
         error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
         logger.error(error)
         raise yt.YtError(error)
+
+def copy_yt_to_kiwi(yt_client_flux, yt_client_src, src, kiwi_cluster, kwworm_binary_path, kiwi_user="flux", message_queue=None, spec_template=None, write_to_table=False, protobin=False):
+    yt_client_flux = deepcopy(yt_client_flux)
+    yt_client_src = deepcopy(yt_client_src)
+
+    row_count = yt_client_src.get(src + "/@row_count")
+    data_size = yt_client_src.get(src + "/@uncompressed_data_size")
+
+    rows_per_record = max(1, 256 * yt.config.MB * row_count / data_size)
+    ranges = [(i * rows_per_record, min((i + 1) * rows_per_record, row_count)) for i in xrange(1 + ((row_count - 1) / rows_per_record))]
+
+#    print row_count, data_size, rows_per_record, ranges
+
+    range_table = yt_client_flux.create_temp_table(prefix=os.path.basename(src))
+    yt_client_flux.write_table(range_table,
+                               ["\t".join(map(str, range)) + "\n" for range in ranges],
+                               format=yt.YamrFormat(lenval=False, has_subkey=False))
+
+    output_table = yt_client_flux.create_temp_table()
+    yt_client_flux.set(output_table + "/@replication_factor", 1)
+
+    if spec_template is None:
+        spec_template = {}
+    spec = deepcopy(spec_template)
+    spec["data_size_per_job"] = 1
+    spec["locality_timeout"] = 0
+    spec["max_failed_job_count"] = 16384
+
+    extract_value_script_to_table = """
+import sys
+import struct
+
+count = 0
+while True:
+    s = sys.stdin.read(4)
+    if not s:
+        break
+    length = struct.unpack('i', s)[0]
+    if count % 2 == 0:
+        sys.stdin.read(length)
+    else:
+        sys.stdout.write('\\x00\\x00\\x00\\x00')
+        sys.stdout.write(s)
+        sys.stdout.write(sys.stdin.read(length))
+    count += 1
+"""
+
+    extract_value_script_to_worm = """
+import sys
+import struct
+
+count = 0
+while True:
+    s = sys.stdin.read(4)
+    if not s:
+        break
+    length = struct.unpack('i', s)[0]
+    if count % 2 == 0:
+        sys.stdin.read(length)
+    else:
+        sys.stdout.write(sys.stdin.read(length))
+    count += 1
+"""
+
+    if write_to_table:
+        extract_value_script = extract_value_script_to_table
+        write_command_part = ""
+        output_format = yt.YamrFormat(lenval=True,has_subkey=False)
+    else:
+        extract_value_script = extract_value_script_to_worm
+        write_command_part = "| {0} -c {1} -6 -u {2} -r 10000 -f 60000 --balance fast --spread 4 --tcp-cork write -f {3} -n 2>&1".format(kwworm_binary_path, kiwi_cluster, kiwi_user, "protobin" if protobin else "prototext")
+        output_format = yt.SchemafulDsvFormat(columns=["error"])
+
+    command_script = """
+set -o pipefail
+while true; do
+    read -r start end;
+    if [ "$?" != "0" ]; then break; fi;
+    set -e
+    YT_HOSTS={0} yt2 read "{1}"[#${{start}}:#${{end}}] --proxy {2} --format "<lenval=true>yamr" | python extract_value.py {3};
+    set +e
+done;
+""".format(yt_client_src.hosts, src, yt_client_src.proxy, write_command_part)
+
+    uuid = generate_uuid()
+    tmp_dir = "/tmp/" + uuid
+    os.mkdir(tmp_dir)
+
+    extract_value_file = os.path.join(tmp_dir, "extract_value.py")
+    with open(extract_value_file, "w") as fout:
+        fout.write(extract_value_script)
+
+    command_file = os.path.join(tmp_dir, "command.sh")
+    with open(command_file, "w") as fout:
+        fout.write(command_script)
+
+    run_operation_and_notify(
+        message_queue,
+        yt_client_flux,
+        lambda client, strategy:
+            client.run_map(
+                "bash -ux command.sh",
+                range_table,
+                output_table,
+                files=[extract_value_file, command_file],
+                input_format=yt.YamrFormat(lenval=False,has_subkey=False),
+                output_format=output_format,
+                memory_limit=1000 * yt.config.MB,
+                spec=spec,
+                strategy=strategy))
+
+def copy_yamr_to_kiwi():
+    pass
+
