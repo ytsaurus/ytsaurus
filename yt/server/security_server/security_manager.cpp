@@ -118,7 +118,7 @@ private:
     }
 
     virtual IObjectProxyPtr DoGetProxy(TAccount* account, TTransaction* transaction) override;
-    
+
     virtual void DoDestroy(TAccount* account) override;
 
     virtual TAccessControlDescriptor* DoFindAcd(TAccount* account) override
@@ -243,6 +243,7 @@ public:
 
         SysAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xffffffffffffffff);
         TmpAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffe);
+        IntermediateAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffd);
 
         RootUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffff);
         GuestUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffe);
@@ -892,6 +893,9 @@ private:
     TAccountId TmpAccountId_;
     TAccount* TmpAccount_ = nullptr;
 
+    TAccountId IntermediateAccountId_;
+    TAccount* IntermediateAccount_ = nullptr;
+
     NHydra::TEntityMap<TUserId, TUser> UserMap_;
     yhash_map<Stroka, TUser*> UserNameMap_;
 
@@ -981,7 +985,7 @@ private:
 
         return account;
     }
-    
+
     TUser* DoCreateUser(const TUserId& id, const Stroka& name)
     {
         auto* user = new TUser(id);
@@ -1296,6 +1300,17 @@ private:
             TmpAccount_ = DoCreateAccount(TmpAccountId_, TmpAccountName);
             TmpAccount_->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000);
             TmpAccount_->Acd().AddEntry(TAccessControlEntry(
+                ESecurityAction::Allow,
+                UsersGroup_,
+                EPermission::Use));
+        }
+
+        IntermediateAccount_ = FindAccount(IntermediateAccountId_);
+        if (!IntermediateAccount_) {
+            // tmp, 1 TB disk space, 100000 nodes, usage allowed for: users
+            IntermediateAccount_ = DoCreateAccount(IntermediateAccountId_, IntermediateAccountName);
+            IntermediateAccount_->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000);
+            IntermediateAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
                 EPermission::Use));

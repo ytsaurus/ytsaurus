@@ -8,6 +8,7 @@ namespace NSecurityClient {
 
 const Stroka TmpAccountName("tmp");
 const Stroka SysAccountName("sys");
+const Stroka IntermediateAccountName("intermediate");
 
 const Stroka RootUserName("root");
 const Stroka GuestUserName("guest");

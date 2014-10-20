@@ -77,7 +77,7 @@ public:
     TOperationSpecBase()
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
-            .Default("tmp");
+            .Default("intermediate");
         RegisterParameter("intermediate_compression_codec", IntermediateCompressionCodec)
             .Default(NCompression::ECodec::Lz4);
 

@@ -16,6 +16,7 @@ typedef NObjectClient::TObjectId TGroupId;
 
 extern const Stroka TmpAccountName;
 extern const Stroka SysAccountName;
+extern const Stroka IntermediateAccountName;
 
 extern const Stroka RootUserName;
 extern const Stroka GuestUserName;
