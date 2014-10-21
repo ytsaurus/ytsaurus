@@ -284,9 +284,9 @@ class Application(object):
                 if neighbour not in self._clusters:
                     raise yt.YtError("Incorrect availability graph, cluster {} is missing".format(neighbour))
 
-        self.kiwi_transmittor = None
-        if "kiwi_transmittor" in config:
-            self.kiwi_transmittor = Yt(**config["kiwi_transmittor"])
+        self.kiwi_transmitter = None
+        if "kiwi_transmitter" in config:
+            self.kiwi_transmitter = Yt(**config["kiwi_transmitter"])
 
         self._availability_graph = config["availability_graph"]
 
@@ -402,7 +402,7 @@ class Application(object):
             if destination_user is None or destination_client.check_permission(destination_user, "write", destination_dir)["action"] != "allow":
                 raise yt.YtError("There is no permission to write to {}. Please log in.".format(task.destination_table))
         
-        if destination_client._type == "kiwi" and self.kiwi_transmittor is None:
+        if destination_client._type == "kiwi" and self.kiwi_transmitter is None:
             raise yt.YtError("Transimission cluster for transfer to kiwi is not configured")
 
         logger.info("Precheck for task %s completed", task.id)
@@ -540,7 +540,7 @@ class Application(object):
                     task.source_table,
                     task.destination_table)
             elif source_client._type == "yt" and destination_client._type == "kiwi":
-                copy_yt_to_kiwi(source_client, destination_client, self.kiwi_transmittor, task.source_table)
+                copy_yt_to_kiwi(source_client, destination_client, self.kiwi_transmitter, task.source_table)
             else:
                 raise Exception("Incorrect cluster types: {} source and {} destination".format(
                                 source_client._type,
@@ -762,7 +762,7 @@ DEFAULT_CONFIG = {
             }
         }
     },
-    "kiwi_transmittor": {
+    "kiwi_transmitter": {
         "proxy": "flux.yt.yandex.net",
         "token": "93b4cacc08aa4538a79a76c21e99c0fb"
     },
