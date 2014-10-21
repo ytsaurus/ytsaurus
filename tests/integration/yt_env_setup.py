@@ -85,7 +85,7 @@ class YTEnvSetup(YTEnv):
 
     def _remove_accounts(self, accounts):
         for account in accounts:
-            if account != 'sys' and account != 'tmp':
+            if account != 'sys' and account != 'tmp' and account != 'intermediate':
                 yt_commands.remove_account(account)
 
     def _remove_users(self, users):
