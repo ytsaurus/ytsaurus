@@ -142,7 +142,7 @@ class ParseStructuredData(Action):
 class ParseMemoryLimit(Action):
     def __call__(self, parser, namespace, values, option_string=None):
         if values is not None:
-            values = yt.config.MB * int(values)
+            values = yt.common.MB * int(values)
         setattr(namespace, self.dest, values)
 
 def add_argument(parser, name, help, description, **kwargs):
