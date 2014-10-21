@@ -23,32 +23,35 @@ def _check_codec(table, codec_name, codec_value):
             else:
                 raise
 
-def convert_to_erasure(src, dst=None, erasure_codec=None, compression_codec=None, desired_chunk_size=None):
+def convert_to_erasure(src, dst=None, erasure_codec=None, compression_codec=None, desired_chunk_size=None, yt_client=None):
+    if yt_client is None:
+        yt_client = yt
+
     if erasure_codec is None:
         pass
 
-    if not yt.exists(src) or yt.get(src + "/@row_count") == 0:
+    if not yt_client.exists(src) or yt_client.get(src + "/@row_count") == 0:
         logger.info("Table is empty")
         return False
 
     if dst is None:
         dst = src
     else:
-        yt.create("table", dst, ignore_existing=True)
+        yt_client.create("table", dst, ignore_existing=True)
     
     if compression_codec is not None:
         ratio = _get_compression_ratio(src, compression_codec)
-        yt.set(dst + "/@compression_codec", compression_codec)
+        yt_client.set(dst + "/@compression_codec", compression_codec)
     else:
-        ratio = yt.get(src + "/@compression_ratio")
+        ratio = yt_client.get(src + "/@compression_ratio")
 
-    yt.set(dst + "/@erasure_codec", erasure_codec)
+    yt_client.set(dst + "/@erasure_codec", erasure_codec)
     if _check_codec(dst, "compression", compression_codec) and _check_codec(dst, "erasure", erasure_codec):
         logger.info("Table already has proper codecs")
         return False
 
     data_size_per_job = max(1, int(desired_chunk_size / ratio))
-    mode = "sorted" if yt.is_sorted(src) else "unordered"
+    mode = "sorted" if yt_client.is_sorted(src) else "unordered"
     
     spec = {"combine_chunks": "true",
             "force_transform": "true",
@@ -60,5 +63,5 @@ def convert_to_erasure(src, dst=None, erasure_codec=None, compression_codec=None
             }}
    
     logger.info("Merge from '%s' to '%s' (mode: '%s', spec: '%s'", src, dst, mode, spec) 
-    yt.run_merge(src, dst, mode, spec=spec)
+    yt_client.run_merge(src, dst, mode, spec=spec)
 
