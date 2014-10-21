@@ -1,19 +1,30 @@
 from yt.zip import ZipFile
 from yt.wrapper.common import generate_uuid
+from yt.tools.convertion_tools import convert_to_erasure
 import yt.logger as logger
 import yt.wrapper as yt
 
 import os
+import json
+import shutil
+import tempfile
 from copy import deepcopy
-from cStringIO import StringIO
 
-def which(file):
+class IncorrectRowCount(yt.YtError):
+    pass
+
+class Kiwi(object):
+    def __init__(self, url, kwworm):
+        self.url = url
+        self.kwworm = kwworm
+
+def _which(file):
     for path in os.environ["PATH"].split(":"):
         if os.path.exists(path + "/" + file):
             return path + "/" + file
     return None
 
-def pack_module(module_name, output_dir):
+def _pack_module(module_name, output_dir):
     module = __import__(module_name)
     module_path = module.__file__.strip("__init__.py").strip("__init__.pyc")
     if module_path.endswith(".egg"):
@@ -30,6 +41,58 @@ def pack_module(module_name, output_dir):
                         continue
                     zip.write(file_path, destination)
         return zip_filename
+
+def _pack_string(name, script, output_dir):
+    filename = os.path.join(output_dir, name)
+    with open(filename, "w") as fout:
+        fout.write(script)
+    return filename
+
+
+def _split_rows(row_count, split_size, total_size):
+    split_row_count = max(1, (row_count * split_size) / total_size)
+    return [(i * split_row_count, min((i + 1) * split_row_count, row_count)) for i in xrange(1 + ((row_count - 1) / split_row_count))]
+
+def _split_rows_yt(yt_client, table, split_size):
+    row_count = yt_client.get(table + "/@row_count")
+    data_size = yt_client.get(table + "/@uncompressed_data_size")
+    return _split_rows(row_count, split_size, data_size)
+
+def _get_read_ranges_command(prepare_command, read_command):
+    return """\
+set -ux
+
+{0}
+
+while true; do
+    read -r start end;
+    if [ "$?" != "0" ]; then break; fi;
+    set -e
+    {1}
+    set +e
+done;""".format(prepare_command, read_command)
+
+def _get_read_from_yt_command(yt_client, src, format):
+    token = yt_client.token
+    if token is None:
+        token = ""
+
+    return """PATH=".:$PATH" PYTHONPATH=. YT_RETRY_READ=1 YT_TOKEN={0} YT_HOSTS="{1}" """\
+           """yt2 read "{2}"'[#'"${{start}}"':#'"${{end}}"']' --format '{3}' --proxy {4}"""\
+           .format(token, yt_client.hosts, src, format, yt_client.proxy)
+
+def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, pack=False):
+    files = []
+    prepare_command = "export YT_TOKEN=$(cat yt_token)"
+    if pack:
+        files = [_pack_module("dateutil", tmp_dir), _pack_module("yt", tmp_dir), _which("yt2")]
+        prepare_command += "\nunzip yt.zip -d yt >/dev/null\nunzip dateutil.zip -d dateutil >/dev/null"
+
+    read_command = _get_read_from_yt_command(yt_client, src, format)
+    files.append(_pack_string("read_from_yt.sh", _get_read_ranges_command(prepare_command, read_command), tmp_dir))
+
+    return files
+
 
 class AsyncStrategy(object):
     def process_operation(self, type, operation, finalize, client=None):
@@ -53,16 +116,54 @@ def run_operation_and_notify(message_queue, yt_client, run_operation):
                             }})
     strategy.wait()
 
-def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, token, spec_template, mr_user=None, message_queue=None):
-    yt_client = deepcopy(yt_client)
-    yamr_client = deepcopy(yamr_client)
 
-    if mr_user is not None:
-        yamr_client.mr_user = mr_user
+def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, spec_template=None, message_queue=None):
+    if spec_template is None:
+        spec_template = {}
 
-    yt_client.token = token
-    portion_size = 1024 ** 3
+    tmp_dir = tempfile.mkdtemp()
+    files = _prepare_read_from_yt_command(source_client, src, "yson", tmp_dir)
 
+    try:
+        sorted_by = None
+        if source_client.exists(src + "/@sorted_by"):
+            sorted_by = source_client.get(src + "/@sorted_by")
+        row_count = source_client.get(src + "/@row_count")
+        compression_codec = source_client.get(src + "/@compression_codec")
+        erasure_codec = source_client.get(src + "/@erasure_codec")
+
+        ranges = _split_rows_yt(source_client, src, 1024 * yt.config.MB)
+        temp_table = destination_client.create_temp_table(prefix=os.path.basename(src))
+        destination_client.write_table(temp_table, (json.dumps({"start": start, "end": end}) for start, end in ranges), format=yt.JsonFormat())
+
+        spec = deepcopy(spec_template)
+        spec["data_size_per_job"] = 1
+
+        destination_client.create("table", dst, ignore_existing=True)
+        destination_client.run_map("bash read_from_yt.sh", temp_table, dst, files=files, spec=spec,
+                                   input_format=yt.SchemafulDsvFormat(columns=["start", "end"]),
+                                   output_format=yt.YsonFormat())
+
+        result_row_count = destination_client.records_count(dst)
+        if row_count != result_row_count:
+            error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
+            logger.error(error)
+            raise yt.IncorrectRowCount(error)
+
+        if sorted_by:
+            logger.info("Sorting '%s'", dst)
+            run_operation_and_notify(
+                message_queue,
+                destination_client,
+                lambda client, strategy: client.run_sort(dst, sort_by=sorted_by, strategy=strategy))
+
+        convert_to_erasure(dst, yt_client=destination_client, erasure_codec=erasure_codec, compression_codec=compression_codec)
+
+    finally:
+        shutil.rmtree(tmp_dir)
+
+
+def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, spec_template, message_queue=None):
     proxies = yamr_client.proxies
     if not proxies:
         proxies = [yamr_client.server]
@@ -74,35 +175,30 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, token, spec_template,
 
     yt_client.create_table(dst, recursive=True, ignore_existing=True)
 
-    ranges = []
-    record_threshold = max(1, record_count * portion_size / yamr_client.data_size(src))
-    for i in xrange((record_count - 1) / record_threshold + 1):
-        server = proxies[i % len(proxies)]
-        start = i * record_threshold
-        end = min(record_count, (i + 1) * record_threshold)
-        ranges.append((server, start, end))
-
-    temp_table = yt_client.create_temp_table(prefix=os.path.basename(src))
-    yt_client.write_table(temp_table,
-                          ["\t".join(map(str, range)) + "\n" for range in ranges],
-                          format=yt.YamrFormat(lenval=False, has_subkey=True))
-
-    spec = deepcopy(spec_template)
-    spec["data_size_per_job"] = 1
-
     temp_yamr_table = "tmp/yt/" + generate_uuid()
     yamr_client.copy(src, temp_yamr_table)
     src = temp_yamr_table
 
-    read_command = yamr_client.get_read_range_command(src)
-    command = 'while true; do '\
-                  'IFS="\t" read -r server start end; '\
-                  'if [ "$?" != "0" ]; then break; fi; '\
-                  'set -e; '\
-                  '{0}; '\
-                  'set +e; '\
-              'done;'\
-                  .format(read_command)
+    ranges = _split_rows(record_count, 1024 * yt.config.MB, yamr_client.data_size(src))
+    read_commands = yamr_client.create_read_range_commands(ranges, src)
+    temp_table = yt_client.create_temp_table(prefix=os.path.basename(src))
+    yt_client.write_table(temp_table, read_commands, format=yt.SchemafulDsvFormat(columns=["command"]))
+    
+    spec = deepcopy(spec_template)
+    spec["data_size_per_job"] = 1
+
+    command = """\
+set -ux
+while true; do
+    IFS="\t" read -r command;
+    if [ "$?" != "0" ]; then
+        break;
+    fi
+    set -e;
+    bash -c "${command}";
+    set +e;
+done"""
+
     logger.info("Pull import: run map '%s' with spec '%s'", command, repr(spec))
     try:
         run_operation_and_notify(
@@ -113,12 +209,18 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, token, spec_template,
                     command,
                     temp_table,
                     dst,
-                    input_format=yt.YamrFormat(lenval=False, has_subkey=True),
+                    input_format=yt.SchemafulDsvFormat(columns=["command"]),
                     output_format=yt.YamrFormat(lenval=True, has_subkey=True),
                     files=yamr_client.binary,
                     memory_limit = 2500 * yt.config.MB,
                     spec=spec,
                     strategy=strategy))
+
+        result_record_count = yt_client.records_count(dst)
+        if result_record_count != record_count:
+            error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
+            logger.error(error)
+            raise yt.IncorrectRowCount(error)
 
         if sorted:
             logger.info("Sorting '%s'", dst)
@@ -127,17 +229,15 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, token, spec_template,
                 yt_client,
                 lambda client, strategy: client.run_sort(dst, sort_by=["key", "subkey"], strategy=strategy))
 
-        result_record_count = yt_client.records_count(dst)
-        if result_record_count != record_count:
-            error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
-            logger.error(error)
-            raise yt.YtError(error)
-
     finally:
         yamr_client.drop(temp_yamr_table)
 
-def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, mr_user=None, message_queue=None):
-    lenval_to_nums_script = """
+def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, message_queue=None):
+    tmp_dir = tempfile.mkdtemp()
+
+    lenval_to_nums_file = _pack_string(
+        "lenval_to_nums.py",
+"""\
 import sys
 import struct
 
@@ -154,83 +254,38 @@ while True:
     else:
         sys.stdout.write('\\t')
 
-    count += 1
-"""
+    count += 1""",
+        tmp_dir)
 
-    read_from_yt_script = """while true; do
-    set +e
-    read -r start end;
-    result="$?"
-    set -e
-    if [ "$result" != "0" ]; then break; fi;
-    PYTHONPATH=. YT_HOSTS="{0}" ./yt2 read "{1}"'[#'"${{start}}"':#'"${{end}}"']' --format "<has_subkey=true;lenval=true>yamr" --proxy {2};
-done;
-""".format(yt_client.hosts, src, yt_client.proxy)
+    files = _prepare_read_from_yt_command(yt_client, src, "<has_subkey=true;lenval=true>yamr", tmp_dir, pack=True)
+    files.append(lenval_to_nums_file)
 
-    uuid = generate_uuid()
+    command = "python lenval_to_nums.py | bash read_from_yt.sh"
 
-    tmp_dir = "/tmp/" + uuid
-    os.mkdir(tmp_dir)
+    try:
+        row_count = yt_client.get(src+ "/@row_count")
 
-    dateutil_file = pack_module("dateutil", tmp_dir)
-    yt_module_file = pack_module("yt", tmp_dir)
-    yt_file = which("yt2")
-    lenval_to_nums_file = os.path.join(tmp_dir, "lenval_to_nums.py")
-    with open(lenval_to_nums_file, "w") as fout:
-        fout.write(lenval_to_nums_script)
-    read_from_yt_file = os.path.join(tmp_dir, "read_from_yt.sh")
-    with open(read_from_yt_file, "w") as fout:
-        fout.write(read_from_yt_script)
+        ranges = _split_rows_yt(yt_client, src, 1024 * yt.config.MB)
 
-    yt_client = deepcopy(yt_client)
-    yamr_client = deepcopy(yamr_client)
-    if mr_user is not None:
-        yamr_client.mr_user = mr_user
+        temp_yamr_table = "tmp/yt/" + generate_uuid()
+        yamr_client.write(temp_yamr_table,
+                          "".join(["\t".join(map(str, range)) + "\n" for range in ranges]))
 
-    row_count = yt_client.get(src + "/@row_count")
-    data_size = yt_client.get(src + "/@uncompressed_data_size")
+        yamr_client.run_map(command, temp_yamr_table, dst, files=files,
+                            opts="-subkey -lenval -jobcount 500 -opt cpu.intensive.mode=1")
 
-    # number of rows per job
-    rows_per_record = max(1, 1024 ** 3 * row_count / data_size)
-    ranges = [(i * rows_per_record, min((i + 1) * rows_per_record, row_count))
-              for i in xrange(1 + ((row_count - 1) / rows_per_record))]
+        result_row_count = yamr_client.records_count(dst)
+        if row_count != result_row_count:
+            yamr_client.drop(dst)
+            error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
+            logger.error(error)
+            raise yt.IncorrectRowCount(error)
+    finally:
+        shutil.rmtree(tmp_dir)
 
-    records_stream = StringIO()
-    for start, end in ranges:
-        records_stream.write(str(start))
-        records_stream.write("\t")
-        records_stream.write(str(end))
-        records_stream.write("\n")
-
-    temp_yamr_table = "tmp/yt/" + generate_uuid()
-    yamr_client.write(temp_yamr_table, records_stream.getvalue())
-
-    command = "unzip yt.zip -d yt >/dev/null; "\
-              "unzip dateutil.zip -d dateutil >/dev/null; "\
-              "python lenval_to_nums.py | bash -eux read_from_yt.sh"
-    yamr_client.run_map(command, temp_yamr_table, dst,
-                      files=[dateutil_file, yt_module_file, yt_file, lenval_to_nums_file, read_from_yt_file],
-                      opts="-subkey -lenval -jobcount 500 -opt cpu.intensive.mode=1")
-
-    result_row_count = yamr_client.records_count(dst)
-    if row_count != result_row_count:
-        yamr_client.drop(dst)
-        error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
-        logger.error(error)
-        raise yt.YtError(error)
-
-def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, token=None, spec_template=None, mr_user=None, message_queue=None):
-    yt_client = deepcopy(yt_client)
-    yamr_client = deepcopy(yamr_client)
-
-    if mr_user is not None:
-        yamr_client.mr_user = mr_user
-    if token is not None:
-        yt_client.token = token
-
+def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, spec_template=None, message_queue=None):
     if not yamr_client.is_empty(dst):
         yamr_client.drop(dst)
-
 
     record_count = yt_client.records_count(src)
 
@@ -258,36 +313,10 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, token=None, spec_temp
         yamr_client.drop(dst)
         error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
         logger.error(error)
-        raise yt.YtError(error)
+        raise yt.IncorrectRowCount(error)
 
-def copy_yt_to_kiwi(yt_client_flux, yt_client_src, src, kiwi_cluster, kwworm_binary_path, kiwi_user="flux", message_queue=None, spec_template=None, write_to_table=False, protobin=False):
-    yt_client_flux = deepcopy(yt_client_flux)
-    yt_client_src = deepcopy(yt_client_src)
-
-    row_count = yt_client_src.get(src + "/@row_count")
-    data_size = yt_client_src.get(src + "/@uncompressed_data_size")
-
-    rows_per_record = max(1, 256 * yt.config.MB * row_count / data_size)
-    ranges = [(i * rows_per_record, min((i + 1) * rows_per_record, row_count)) for i in xrange(1 + ((row_count - 1) / rows_per_record))]
-
-#    print row_count, data_size, rows_per_record, ranges
-
-    range_table = yt_client_flux.create_temp_table(prefix=os.path.basename(src))
-    yt_client_flux.write_table(range_table,
-                               ["\t".join(map(str, range)) + "\n" for range in ranges],
-                               format=yt.YamrFormat(lenval=False, has_subkey=False))
-
-    output_table = yt_client_flux.create_temp_table()
-    yt_client_flux.set(output_table + "/@replication_factor", 1)
-
-    if spec_template is None:
-        spec_template = {}
-    spec = deepcopy(spec_template)
-    spec["data_size_per_job"] = 1
-    spec["locality_timeout"] = 0
-    spec["max_failed_job_count"] = 16384
-
-    extract_value_script_to_table = """
+def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, kiwi_user=None, spec_template=None, write_to_table=False, protobin=True, message_queue=None):
+    extract_value_script_to_table = """\
 import sys
 import struct
 
@@ -306,7 +335,7 @@ while True:
     count += 1
 """
 
-    extract_value_script_to_worm = """
+    extract_value_script_to_worm = """\
 import sys
 import struct
 
@@ -323,52 +352,63 @@ while True:
     count += 1
 """
 
+    if kiwi_user is None:
+        kiwi_user = "flux"
+
+    range_table = kiwi_transmittor.create_temp_table(prefix=os.path.basename(src))
+    kiwi_transmittor.write_table(range_table,
+                                 ["\t".join(map(str, range)) + "\n" for range in ranges],
+                                 format=yt.YamrFormat(lenval=False, has_subkey=False))
+
+    output_table = kiwi_transmittor.create_temp_table()
+    kiwi_transmittor.set(output_table + "/@replication_factor", 1)
+
+    if spec_template is None:
+        spec_template = {}
+    spec = deepcopy(spec_template)
+    spec["data_size_per_job"] = 1
+    spec["locality_timeout"] = 0
+    spec["max_failed_job_count"] = 16384
+
     if write_to_table:
         extract_value_script = extract_value_script_to_table
-        write_command_part = ""
+        write_command = ""
         output_format = yt.YamrFormat(lenval=True,has_subkey=False)
     else:
         extract_value_script = extract_value_script_to_worm
-        write_command_part = "| {0} -c {1} -6 -u {2} -r 10000 -f 60000 --balance fast --spread 4 --tcp-cork write -f {3} -n 2>&1".format(kwworm_binary_path, kiwi_cluster, kiwi_user, "protobin" if protobin else "prototext")
+        write_command = "| {0} -c {1} -6 -u {2} -r 10000 -f 60000 --balance fast --spread 4 --tcp-cork write -f {3} -n 2>&1"\
+                        .format(kiwi_client.kwworm, kiwi_client.url, kiwi_user, "protobin" if protobin else "prototext")
         output_format = yt.SchemafulDsvFormat(columns=["error"])
 
-    command_script = """
-set -o pipefail
-while true; do
-    read -r start end;
-    if [ "$?" != "0" ]; then break; fi;
-    set -e
-    YT_HOSTS={0} yt2 read "{1}"[#${{start}}:#${{end}}] --proxy {2} --format "<lenval=true>yamr" | python extract_value.py {3};
-    set +e
-done;
-""".format(yt_client_src.hosts, src, yt_client_src.proxy, write_command_part)
+    tmp_dir = tempfile.mkdtemp()
+    files = []
+    command_script = _get_read_ranges_command(
+        "set -o pipefail", "{0} | python extract_value.py {1}".format(read_command, write_command))
+    files.append(_pack_string("command.sh", command_script, tmp_dir))
+    files.append(_pack_string("extract_value.py", extract_value_script, tmp_dir))
 
-    uuid = generate_uuid()
-    tmp_dir = "/tmp/" + uuid
-    os.mkdir(tmp_dir)
+    try:
+        run_operation_and_notify(
+            message_queue,
+            kiwi_transmittor,
+            lambda client, strategy:
+                client.run_map(
+                    "bash -ux command.sh",
+                    range_table,
+                    output_table,
+                    files=files,
+                    input_format=yt.YamrFormat(lenval=False,has_subkey=False),
+                    output_format=output_format,
+                    memory_limit=1000 * yt.config.MB,
+                    spec=spec,
+                    strategy=strategy))
+    finally:
+        shutil.rmtree(tmp_dir)
 
-    extract_value_file = os.path.join(tmp_dir, "extract_value.py")
-    with open(extract_value_file, "w") as fout:
-        fout.write(extract_value_script)
-
-    command_file = os.path.join(tmp_dir, "command.sh")
-    with open(command_file, "w") as fout:
-        fout.write(command_script)
-
-    run_operation_and_notify(
-        message_queue,
-        yt_client_flux,
-        lambda client, strategy:
-            client.run_map(
-                "bash -ux command.sh",
-                range_table,
-                output_table,
-                files=[extract_value_file, command_file],
-                input_format=yt.YamrFormat(lenval=False,has_subkey=False),
-                output_format=output_format,
-                memory_limit=1000 * yt.config.MB,
-                spec=spec,
-                strategy=strategy))
+def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
+    ranges = _split_rows_yt(yt_client, src, 256 * yt.config.MB)
+    read_command = _get_read_from_yt_command(yt_client, src, "<lenval=true>yamr")
+    _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command=read_command, ranges=ranges, **kwargs)
 
 def copy_yamr_to_kiwi():
     pass
