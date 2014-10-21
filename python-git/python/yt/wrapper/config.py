@@ -1,4 +1,4 @@
-from common import update_from_env, die
+import common
 
 USE_HOSTS = True
 HOSTS = "hosts"
@@ -19,13 +19,11 @@ RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED = False
 USE_NON_STRICT_UPPER_KEY = False
 CHECK_INPUT_FULLY_CONSUMED = False
 
-MB = 2 ** 20
-
 OPERATION_STATE_UPDATE_PERIOD = 5.0
 STDERR_LOGGING_LEVEL = "INFO"
 IGNORE_STDERR_IF_DOWNLOAD_FAILED = False
 ERRORS_TO_PRINT_LIMIT = 100
-READ_BUFFER_SIZE = 8 * MB
+READ_BUFFER_SIZE = 8 * common.MB
 MEMORY_LIMIT = None
 FILE_STORAGE = "//tmp/yt_wrapper/file_storage"
 TEMP_TABLES_STORAGE = "//tmp/yt_wrapper/table_storage"
@@ -53,12 +51,12 @@ FORCE_DROP_DST = False
 
 USE_RETRIES_DURING_WRITE = True
 USE_RETRIES_DURING_UPLOAD = True
-CHUNK_SIZE = 512 * MB
+CHUNK_SIZE = 512 * common.MB
 
 USE_SHORT_OPERATION_INFO = False
 
 MIN_CHUNK_COUNT_FOR_MERGE_WARNING = 1000
-MAX_CHUNK_SIZE_FOR_MERGE_WARNING = 32 * MB
+MAX_CHUNK_SIZE_FOR_MERGE_WARNING = 32 * common.MB
 
 PYTHON_FUNCTION_SEARCH_EXTENSIONS = None
 PYTHON_FUNCTION_MODULE_FILTER = None
@@ -68,7 +66,7 @@ PYTHON_CREATE_MODULES_ARCHIVE = None
 MUTATION_ID = None
 TRACE = None
 
-update_from_env(globals())
+common.update_from_env(globals())
 
 from format import YamrFormat
 import format_config as format

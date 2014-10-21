@@ -132,7 +132,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, spe
         compression_codec = source_client.get(src + "/@compression_codec")
         erasure_codec = source_client.get(src + "/@erasure_codec")
 
-        ranges = _split_rows_yt(source_client, src, 1024 * yt.config.MB)
+        ranges = _split_rows_yt(source_client, src, 1024 * yt.common.MB)
         temp_table = destination_client.create_temp_table(prefix=os.path.basename(src))
         destination_client.write_table(temp_table, (json.dumps({"start": start, "end": end}) for start, end in ranges), format=yt.JsonFormat())
 
@@ -179,7 +179,7 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, spec_template, messag
     yamr_client.copy(src, temp_yamr_table)
     src = temp_yamr_table
 
-    ranges = _split_rows(record_count, 1024 * yt.config.MB, yamr_client.data_size(src))
+    ranges = _split_rows(record_count, 1024 * yt.common.MB, yamr_client.data_size(src))
     read_commands = yamr_client.create_read_range_commands(ranges, src)
     temp_table = yt_client.create_temp_table(prefix=os.path.basename(src))
     yt_client.write_table(temp_table, read_commands, format=yt.SchemafulDsvFormat(columns=["command"]))
@@ -212,7 +212,7 @@ done"""
                     input_format=yt.SchemafulDsvFormat(columns=["command"]),
                     output_format=yt.YamrFormat(lenval=True, has_subkey=True),
                     files=yamr_client.binary,
-                    memory_limit = 2500 * yt.config.MB,
+                    memory_limit = 2500 * yt.common.MB,
                     spec=spec,
                     strategy=strategy))
 
@@ -265,7 +265,7 @@ while True:
     try:
         row_count = yt_client.get(src+ "/@row_count")
 
-        ranges = _split_rows_yt(yt_client, src, 1024 * yt.config.MB)
+        ranges = _split_rows_yt(yt_client, src, 1024 * yt.common.MB)
 
         temp_yamr_table = "tmp/yt/" + generate_uuid()
         yamr_client.write(temp_yamr_table,
@@ -292,7 +292,7 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, spec_template=None, m
     if spec_template is None:
         spec_template = {}
     spec = deepcopy(spec_template)
-    spec["data_size_per_job"] = 2 * 1024 * yt.config.MB
+    spec["data_size_per_job"] = 2 * 1024 * yt.common.MB
 
     write_command = yamr_client.get_write_command(dst)
     logger.info("Running map '%s'", write_command)
@@ -304,7 +304,7 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, spec_template=None, m
             client.run_map(write_command, src, yt_client.create_temp_table(),
                            files=yamr_client.binary,
                            format=yt.YamrFormat(has_subkey=True, lenval=True),
-                           memory_limit=2000 * yt.config.MB,
+                           memory_limit=2000 * yt.common.MB,
                            spec=spec,
                            strategy=strategy))
 
@@ -399,14 +399,14 @@ while True:
                     files=files,
                     input_format=yt.YamrFormat(lenval=False,has_subkey=False),
                     output_format=output_format,
-                    memory_limit=1000 * yt.config.MB,
+                    memory_limit=1000 * yt.common.MB,
                     spec=spec,
                     strategy=strategy))
     finally:
         shutil.rmtree(tmp_dir)
 
 def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
-    ranges = _split_rows_yt(yt_client, src, 256 * yt.config.MB)
+    ranges = _split_rows_yt(yt_client, src, 256 * yt.common.MB)
     read_command = _get_read_from_yt_command(yt_client, src, "<lenval=true>yamr")
     _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command=read_command, ranges=ranges, **kwargs)
 
