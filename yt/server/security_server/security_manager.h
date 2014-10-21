@@ -90,6 +90,9 @@ public:
     //! Returns "tmp" built-in account.
     TAccount* GetTmpAccount();
 
+    //! Return "intermediate" built-in account.
+    TAccount* GetIntermediateAccount();
+
 
     //! Assigns node to a given account, updates the total resource usage.
     void SetAccount(NCypressServer::TCypressNodeBase* node, TAccount* account);

@@ -326,6 +326,11 @@ public:
         return TmpAccount_;
     }
 
+    TAccount* GetIntermediateAccount()
+    {
+        return IntermediateAccount_;
+    }
+
 
     void SetAccount(TCypressNodeBase* node, TAccount* account)
     {
@@ -1536,6 +1541,11 @@ TAccount* TSecurityManager::GetSysAccount()
 TAccount* TSecurityManager::GetTmpAccount()
 {
     return Impl_->GetTmpAccount();
+}
+
+TAccount* TSecurityManager::GetIntermediateAccount()
+{
+    return Impl_->GetIntermediateAccount();
 }
 
 void TSecurityManager::SetAccount(TCypressNodeBase* node, TAccount* account)
