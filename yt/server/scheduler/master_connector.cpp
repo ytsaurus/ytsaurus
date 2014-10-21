@@ -1428,6 +1428,9 @@ private:
                         auto failContextRootPath = GetFailContextRootPath(operation->GetId(), job->GetId());
                         auto req = TYPathProxy::Set(failContextRootPath);
                         req->set_value(BuildYsonStringFluently()
+                            .BeginAttributes()
+                                .Item("account").Value(TmpAccountName)
+                            .EndAttributes()
                             .BeginMap()
                             .EndMap()
                             .Data());
