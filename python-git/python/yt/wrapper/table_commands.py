@@ -275,6 +275,8 @@ def _configure_spec(spec):
         spec = update({"pool": config.POOL}, spec)
     if config.INTERMEDIATE_DATA_ACCOUNT is not None:
         spec = update({"intermediate_data_account": config.INTERMEDIATE_DATA_ACCOUNT}, spec)
+    if config.SPEC is not None:
+        spec = update(json.loads(config.SPEC), spec)
     return spec
 
 def _add_input_output_spec(source_table, destination_table, spec):
