@@ -76,9 +76,9 @@ def export_table(object, args):
         try:
             yt.run_map(command, src, yt.create_temp_table(),
                        format=yt.YsonFormat(format="binary"),
-                       memory_limit=3500 * yt.config.MB,
+                       memory_limit=3500 * yt.common.MB,
                        spec={"pool": params.yt_pool,
-                             "data_size_per_job": 2 * 1024 * yt.config.MB})
+                             "data_size_per_job": 2 * 1024 * yt.common.MB})
         except yt.YtOperationFailedError as error:
             logger.exception("Export operation failed")
             # "YtNetworkError" in error message usually means that some jobs failed

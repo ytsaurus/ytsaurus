@@ -13,6 +13,8 @@ import simplejson as json
 
 EMPTY_GENERATOR = (i for i in [])
 
+MB = 1024 * 1024
+
 def compose(*args):
     def compose_two(f, g):
         return lambda x: f(g(x))
