@@ -45,7 +45,7 @@ class TestAccounts(YTEnvSetup):
 
 
     def test_init(self):
-        self.assertItemsEqual(ls('//sys/accounts'), ['sys', 'tmp'])
+        self.assertItemsEqual(sorted(ls('//sys/accounts')), sorted(['sys', 'tmp', 'intermediate']))
         assert get('//@account') == 'sys'
         assert get('//sys/@account') == 'sys'
         assert get('//tmp/@account') == 'tmp'
@@ -53,7 +53,7 @@ class TestAccounts(YTEnvSetup):
 
     def test_account_create1(self):
         create_account('max')
-        self.assertItemsEqual(ls('//sys/accounts'), ['sys', 'tmp', 'max'])
+        self.assertItemsEqual(sorted(ls('//sys/accounts')), sorted(['sys', 'tmp', 'intermediate', 'max']))
         assert self._get_account_disk_space('max') == 0
         assert self._get_account_node_count('max') == 0
 
