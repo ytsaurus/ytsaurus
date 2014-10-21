@@ -5,28 +5,28 @@
             "options": {
                 "proxy": "kant.yt.yandex.net"
             },
-            "remote_copy_network": "fastbone",
+            "remote_copy_network": "fastbone"
         },
         "smith": {
             "type": "yt",
             "options": {
                 "proxy": "smith.yt.yandex.net"
             },
-            "remote_copy_network": "fastbone",
+            "remote_copy_network": "fastbone"
         },
         "plato": {
             "type": "yt",
             "options": {
                 "proxy": "plato.yt.yandex.net"
             },
-            "remote_copy_network": "fastbone",
+            "remote_copy_network": "fastbone"
         },
         "marx": {
             "type": "yt",
             "options": {
                 "proxy": "marx.yt.yandex.net"
             },
-            "remote_copy_network": "default",
+            "remote_copy_network": "default"
         },
         "cedar": {
             "type": "yamr",
@@ -70,7 +70,7 @@
             }
         }
     },
-    "kiwi_transmittor": {
+    "kiwi_transmitter": {
         "proxy": "flux.yt.yandex.net",
         "token": "93b4cacc08aa4538a79a76c21e99c0fb"
     },
