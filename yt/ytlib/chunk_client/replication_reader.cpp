@@ -479,6 +479,7 @@ private:
 
     TReplicationReader::TAsyncGetSeedsResult GetSeedsResult;
 
+
     void OnGotSeeds(TReplicationReader::TGetSeedsResult result)
     {
         auto reader = Reader_.Lock();
@@ -549,9 +550,7 @@ public:
 
     ~TReadBlockSetSession()
     {
-        if (!Promise_.IsSet()) {
-            Promise_.Set(TError("Reader terminated"));
-        }
+        Promise_.TrySet(TError("Reader terminated"));
     }
 
     TAsyncReadBlocksResult Run()
@@ -823,7 +822,7 @@ private:
             YCHECK(block);
             blocks.push_back(block);
         }
-        Promise_.Set(TReadBlocksResult(blocks));
+        Promise_.TrySet(TReadBlocksResult(blocks));
     }
 
     virtual void OnSessionFailed() override
@@ -835,7 +834,7 @@ private:
         auto error = BuildCombinedError(TError(
             "Error fetching blocks for chunk %v",
             reader->ChunkId_));
-        Promise_.Set(error);
+        Promise_.TrySet(error);
     }
 };
 
@@ -869,9 +868,7 @@ public:
 
     ~TReadBlockRangeSession()
     {
-        if (!Promise_.IsSet()) {
-            Promise_.Set(TError("Reader terminated"));
-        }
+        Promise_.TrySet(TError("Reader terminated"));
     }
 
     TAsyncReadBlocksResult Run()
@@ -1042,7 +1039,7 @@ private:
             FirstBlockIndex_,
             FirstBlockIndex_ + static_cast<int>(FetchedBlocks_.size()) - 1);
 
-        Promise_.Set(TReadBlocksResult(FetchedBlocks_));
+        Promise_.TrySet(TReadBlocksResult(FetchedBlocks_));
     }
 
     virtual void OnSessionFailed() override
@@ -1054,7 +1051,7 @@ private:
         auto error = BuildCombinedError(TError(
             "Error fetching blocks for chunk %v",
             reader->ChunkId_));
-        Promise_.Set(error);
+        Promise_.TrySet(error);
     }
 
 };
@@ -1097,9 +1094,7 @@ public:
 
     ~TGetMetaSession()
     {
-        if (!Promise_.IsSet()) {
-            Promise_.Set(TError("Reader terminated"));
-        }
+        Promise_.TrySet(TError("Reader terminated"));
     }
 
     TAsyncGetMetaResult Run()
@@ -1196,7 +1191,7 @@ private:
     void OnSessionSucceeded(const NProto::TChunkMeta& chunkMeta)
     {
         LOG_INFO("Chunk meta obtained");
-        Promise_.Set(TGetMetaResult(chunkMeta));
+        Promise_.TrySet(TGetMetaResult(chunkMeta));
     }
 
     virtual void OnSessionFailed() override
@@ -1208,7 +1203,7 @@ private:
         auto error = BuildCombinedError(TError(
             "Error fetching meta for chunk %v",
             reader->ChunkId_));
-        Promise_.Set(error);
+        Promise_.TrySet(error);
     }
 
 };
