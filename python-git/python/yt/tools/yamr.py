@@ -149,14 +149,20 @@ class Yamr(object):
         if proc.returncode != 0:
             raise subprocess.CalledProcessError("Command '{0}' return non-zero exit status {1}".format(command, proc.returncode))
 
-    def get_read_range_command(self, table):
-        if self.proxies:
-            return 'curl "http://${{server}}/table/{0}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(table))
-        else:
-            fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
-            shared_tx_str = ("-sharedtransactionid yt_" + generate_uuid()) if self.supports_shared_transactions else ""
-            return '{0} MR_USER={1} USER=yt ./{2} -server $server {3} -read {4}:[$start,$end] -lenval -subkey {5}'\
-                        .format(self.opts, self.mr_user, self.binary_name, fastbone_str, table, shared_tx_str)
+    def create_read_range_commands(self, ranges, table):
+        commands = []
+        for i, range in enumerate(ranges):
+            start, end = range
+            if self.proxies:
+                command = 'curl "http://{0}/table/{1}?subkey=1&lenval=1&startindex={2}&endindex={3}"'\
+                        .format(self.proxies[i % len(self.proxies)], quote_plus(table), start, end)
+            else:
+                fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
+                shared_tx_str = ("-sharedtransactionid yt_" + generate_uuid()) if self.supports_shared_transactions else ""
+                command = '{0} MR_USER={1} USER=yt ./{2} -server {3} {4} -read {5}:[{6},{7}] -lenval -subkey {8}'\
+                        .format(self.opts, self.mr_user, self.binary_name, self.server, fastbone_str, table, start, end, shared_tx_str)
+            commands.append(command)
+        return commands
 
     def get_write_command(self, table):
         fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
@@ -170,10 +176,8 @@ class Yamr(object):
             .format(self.mr_user, self.binary, self.server, command, src, dst, " ".join("-file " + file for file in files), opts)
         _check_call(shell_command, shell=True)
 
-    def remote_copy(self, remote_server, src, dst, mr_user=None):
-        if mr_user is None:
-            mr_user = self.mr_user
+    def remote_copy(self, remote_server, src, dst):
         fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
         shell_command = "MR_USER={0} {1} -srcserver {2} -server {3} -copy -src {4} -dst {5} {6}"\
-            .format(mr_user, self.binary, remote_server, self.server, src, dst, fastbone_str)
+            .format(self.mr_user, self.binary, remote_server, self.server, src, dst, fastbone_str)
         _check_call(shell_command, shell=True)
