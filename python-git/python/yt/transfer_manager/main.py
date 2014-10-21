@@ -6,7 +6,10 @@ from yt.tools.remote_copy_tools import \
     copy_yamr_to_yt_pull, \
     copy_yt_to_yamr_pull, \
     copy_yt_to_yamr_push, \
-    run_operation_and_notify
+    copy_yt_to_kiwi, \
+    copy_yt_to_yt_by_proxy, \
+    run_operation_and_notify, \
+    Kiwi
 from yt.wrapper.client import Yt
 from yt.wrapper.common import generate_uuid, get_value
 import yt.wrapper as yt
@@ -46,14 +49,15 @@ def create_pool(yt_client, destination_cluster_name):
     yt_client.set(pool_path + "/@mode", "fifo")
     return pool_path
 
-def get_import_pool(mr_client, yt_client):
-    if yt_client._import_pool is None:
-        return create_pool(yt_client, mr_client._name)
+def get_pool(yt_client, name):
+    if name in yt_client._pools:
+        return yt_client._pools[name]
     else:
-        return yt_client._import_pool
+        return create_pool(yt_client, name)
 
 class Task(object):
-    def __init__(self, source_cluster, source_table, destination_cluster, destination_table, creation_time, id, state,
+    # NB: destination table is missing if we copy to kiwi
+    def __init__(self, source_cluster, source_table, destination_cluster, creation_time, id, state, destination_table=None,  
                  token="", source_cluster_token=None, destination_cluster_token=None, user="unknown", mr_user=None, error=None, finish_time=None, copy_method=None, progress=None, meta=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
@@ -85,6 +89,8 @@ class Task(object):
         client = deepcopy(clusters[self.source_cluster])
         if client._type == "yt":
             client.token = self.source_cluster_token
+        if client._type == "yamr" and self.mr_user is not None:
+            client.mr_user = self.mr_user
         return client
 
     def get_destination_client(self, clusters):
@@ -93,6 +99,8 @@ class Task(object):
         client = deepcopy(clusters[self.destination_cluster])
         if client._type == "yt":
             client.token = self.destination_cluster_token
+        if client._type == "yamr" and self.mr_user is not None:
+            client.mr_user = self.mr_user
         return client
 
     def dict(self, hide_token=False):
@@ -124,8 +132,6 @@ class Application(object):
         # Prepare auth node if it is missing
         self._auth_path = os.path.join(config["path"], "auth")
         self._yt.create("map_node", self._auth_path, ignore_existing=True)
-
-        self._default_mr_user = "userdata"
 
         # Run lock thread
         self._terminating = False
@@ -256,13 +262,15 @@ class Application(object):
 
             if type == "yt":
                 self._clusters[name] = Yt(**options)
-                self._clusters[name]._export_pool = cluster_description.get("mr_export_pool")
-                self._clusters[name]._import_pool = cluster_description.get("mr_import_pool")
+                self._clusters[name]._pools = cluster_description.get("pools", {})
                 self._clusters[name]._network = cluster_description.get("remote_copy_network")
+                self._clusters[name]._version = cluster_description.get("version", 0)
             elif type == "yamr":
                 if "viewer" in options:
                     del options["viewer"]
                 self._clusters[name] = Yamr(**options)
+            elif type == "kiwi":
+                self._clusters[name] = Kiwi(**options)
             else:
                 raise yt.YtError("Incorrect cluster type " + options["type"])
 
@@ -275,6 +283,10 @@ class Application(object):
             for neighbour in config["availability_graph"][name]:
                 if neighbour not in self._clusters:
                     raise yt.YtError("Incorrect availability graph, cluster {} is missing".format(neighbour))
+
+        self.kiwi_transmittor = None
+        if "kiwi_transmittor" in config:
+            self.kiwi_transmittor = Yt(**config["kiwi_transmittor"])
 
         self._availability_graph = config["availability_graph"]
 
@@ -389,6 +401,9 @@ class Application(object):
             destination_user = self._yt.get_user_name(task.destination_cluster_token)
             if destination_user is None or destination_client.check_permission(destination_user, "write", destination_dir)["action"] != "allow":
                 raise yt.YtError("There is no permission to write to {}. Please log in.".format(task.destination_table))
+        
+        if destination_client._type == "kiwi" and self.kiwi_transmittor is None:
+            raise yt.YtError("Transimission cluster for transfer to kiwi is not configured")
 
         logger.info("Precheck for task %s completed", task.id)
 
@@ -470,31 +485,37 @@ class Application(object):
 
             if source_client._type == "yt" and destination_client._type == "yt":
                 logger.info("Running YT -> YT remote copy operation")
-                run_operation_and_notify(
-                    message_queue,
-                    destination_client,
-                    lambda client, strategy:
-                        client.run_remote_copy(
-                            task.source_table,
-                            task.destination_table,
-                            cluster_name=source_client._name,
-                            network_name=source_client._network,
-                            spec=task_spec,
-                            remote_cluster_token=task.source_cluster_token,
-                            strategy=strategy))
+                if source_client._version != destination_client._version:
+                    task_spec["pool"] = get_pool(destination_client, source_client._name)
+                    copy_yt_to_yt_by_proxy(
+                        source_client,
+                        destination_client,
+                        task.source_table,
+                        task.destination_table,
+                        spec_template=task_spec)
+                else:
+                    run_operation_and_notify(
+                        message_queue,
+                        destination_client,
+                        lambda client, strategy:
+                            client.run_remote_copy(
+                                task.source_table,
+                                task.destination_table,
+                                cluster_name=source_client._name,
+                                network_name=source_client._network,
+                                spec=task_spec,
+                                remote_cluster_token=task.source_cluster_token,
+                                strategy=strategy))
             elif source_client._type == "yt" and destination_client._type == "yamr":
-                if task.mr_user is None:
-                    task.mr_user = self._default_mr_user
                 logger.info("Running YT -> YAMR remote copy")
                 if task.copy_method == "push":
+                    task_spec["pool"] = get_pool(source_client, destination_client._name)
                     copy_yt_to_yamr_push(
                         source_client,
                         destination_client,
                         task.source_table,
                         task.destination_table,
-                        mr_user=task.mr_user,
                         spec_template=task_spec,
-                        token=task.source_cluster_token,
                         message_queue=message_queue)
                 else:
                     copy_yt_to_yamr_pull(
@@ -502,30 +523,24 @@ class Application(object):
                         destination_client,
                         task.source_table,
                         task.destination_table,
-                        mr_user=task.mr_user,
                         message_queue=message_queue)
             elif source_client._type == "yamr" and destination_client._type == "yt":
-                if task.mr_user is None:
-                    task.mr_user = self._default_mr_user
-                task_spec["pool"] = get_import_pool(source_client, destination_client)
+                task_spec["pool"] = get_pool(destination_client, source_client._name)
                 logger.info("Running YAMR -> YT remote copy")
                 copy_yamr_to_yt_pull(
                     source_client,
                     destination_client,
                     task.source_table,
                     task.destination_table,
-                    token=task.destination_cluster_token,
-                    mr_user=task.mr_user,
                     spec_template=task_spec,
                     message_queue=message_queue)
             elif source_client._type == "yamr" and destination_client._type == "yamr":
-                if task.mr_user is None:
-                    task.mr_user = self._default_mr_user
                 destination_client.remote_copy(
                     source_client.server,
                     task.source_table,
-                    task.destination_table,
-                    task.mr_user)
+                    task.destination_table)
+            elif source_client._type == "yt" and destination_client._type == "kiwi":
+                copy_yt_to_kiwi(source_client, destination_client, self.kiwi_transmittor, task.source_table)
             else:
                 raise Exception("Incorrect cluster types: {} source and {} destination".format(
                                 source_client._type,
@@ -578,11 +593,17 @@ class Application(object):
         id = generate_uuid()
         logger.info("Adding task %s with id %s", json.dumps(params), id)
 
-        required_parameters = set(["source_cluster", "source_table", "destination_cluster", "destination_table"])
+        # Move this check to precheck function
+        required_parameters = set(["source_cluster", "source_table", "destination_cluster"])
         if not set(params) >= required_parameters:
             raise RequestFailed("All required parameters ({}) must be presented".format(", ".join(required_parameters)))
+        if "destination_table" not in params:
+            params["destination_table"] = None
 
         token, user = self._get_token_and_user(request.headers.get("Authorization", ""))
+
+        if "mr_user" not in params:
+            params["mr_user"] = self._config.get("default_mr_user")
 
         try:
             task = Task(id=id, creation_time=now(), user=user, token=token, state="pending", **params)
@@ -688,26 +709,27 @@ DEFAULT_CONFIG = {
             "type": "yt",
             "options": {
                 "proxy": "kant.yt.yandex.net",
+                "hosts": "hosts/fb"
             },
             "remote_copy_network": "fastbone",
-            "mr_import_pool": "import_restricted"
         },
         "smith": {
             "type": "yt",
             "options": {
                 "proxy": "smith.yt.yandex.net",
+                "hosts": "hosts/fb"
             },
             # TODO: support it by client, move to options.
             "remote_copy_network": "fastbone",
-            "mr_import_pool": "import_restricted"
+            "version": 1
         },
         "plato": {
             "type": "yt",
             "options": {
-                "proxy": "plato.yt.yandex.net"
+                "proxy": "plato.yt.yandex.net",
+                "hosts": "hosts/fb"
             },
             "remote_copy_network": "fastbone",
-            "mr_import_pool": "import_restricted"
         },
         "cedar": {
             "type": "yamr",
@@ -721,25 +743,37 @@ DEFAULT_CONFIG = {
                 "viewer": "https://specto.yandex.ru/cedar-viewer/"
             }
         },
-        "betula": {
+        "redwood": {
             "type": "yamr",
             "options": {
-                "server": "betula00.yandex.ru",
-                "binary": "/opt/cron/tools/betula/mapreduce",
+                "server": "redwood00.search.yandex.net",
+                "binary": "/opt/cron/tools/mapreduce",
                 "server_port": 8013,
                 "http_port": 13013,
                 "fastbone": True,
-                "viewer": "https://specto.yandex.ru/betula-viewer/"
+                "viewer": "https://specto.yandex.ru/redwood-viewer/"
+            }
+        },
+        "apterix": {
+            "type": "kiwi",
+            "options": {
+                "url": "fb-kiwi1500.search.yandex.net",
+                "kwworm": "/home/monster/kwworm"
             }
         }
     },
-    "availability_graph": {
-        "kant": ["cedar", "betula", "smith", "plato"],
-        "smith": ["cedar", "betula", "kant", "plato"],
-        "plato": ["cedar", "betula", "kant", "smith"],
-        "cedar": ["betula", "kant", "smith", "plato"],
-        "betula": ["cedar", "kant", "smith", "plato"]
+    "kiwi_transmittor": {
+        "proxy": "flux.yt.yandex.net",
+        "token": "93b4cacc08aa4538a79a76c21e99c0fb"
     },
+    "availability_graph": {
+        "kant": ["cedar", "redwood", "smith", "plato"],
+        "smith": ["cedar", "redwood", "kant", "plato"],
+        "plato": ["cedar", "redwood", "kant", "smith", "apterix"],
+        "cedar": ["redwood", "kant", "smith", "plato"],
+        "redwood": ["cedar", "kant", "smith", "plato"]
+    },
+    "default_mr_user": "userdata",
     "path": "//home/ignat/transfer_manager_test",
     "proxy": "kant.yt.yandex.net",
     "token": "93b4cacc08aa4538a79a76c21e99c0fb",

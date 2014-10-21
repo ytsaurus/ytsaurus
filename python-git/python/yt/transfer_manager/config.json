@@ -6,7 +6,6 @@
                 "proxy": "kant.yt.yandex.net"
             },
             "remote_copy_network": "fastbone",
-            "mr_import_pool": "import_restricted"
         },
         "smith": {
             "type": "yt",
@@ -14,7 +13,6 @@
                 "proxy": "smith.yt.yandex.net"
             },
             "remote_copy_network": "fastbone",
-            "mr_import_pool": "import_restricted"
         },
         "plato": {
             "type": "yt",
@@ -22,7 +20,6 @@
                 "proxy": "plato.yt.yandex.net"
             },
             "remote_copy_network": "fastbone",
-            "mr_import_pool": "import_restricted"
         },
         "marx": {
             "type": "yt",
@@ -30,7 +27,6 @@
                 "proxy": "marx.yt.yandex.net"
             },
             "remote_copy_network": "default",
-            "mr_import_pool": "import_restricted"
         },
         "cedar": {
             "type": "yamr",
@@ -55,6 +51,13 @@
                 "viewer": "https://specto.yandex.ru/betula-viewer/"
             }
         },
+        "apterix": {
+            "type": "kiwi",
+            "options": {
+                "url": "fb-kiwi1500.search.yandex.net",
+                "kwworm": "/home/monster/kwworm"
+            }
+        },
         "bsmr": {
             "type": "yamr",
             "options": {
@@ -67,10 +70,14 @@
             }
         }
     },
+    "kiwi_transmittor": {
+        "proxy": "flux.yt.yandex.net",
+        "token": "93b4cacc08aa4538a79a76c21e99c0fb"
+    },
     "availability_graph": {
         "kant": ["cedar", "betula", "smith", "plato", "bsmr"],
         "smith": ["cedar", "betula", "kant", "plato"],
-        "plato": ["cedar", "betula", "kant", "smith"],
+        "plato": ["cedar", "betula", "kant", "smith", "apterix"],
         "marx": ["plato"],
         "cedar": ["kant", "smith", "plato"],
         "betula": ["kant", "smith", "plato"],
