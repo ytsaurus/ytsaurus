@@ -7,7 +7,7 @@ from yt.tools.remote_copy_tools import \
     copy_yt_to_yamr_pull, \
     copy_yt_to_yamr_push, \
     copy_yt_to_kiwi, \
-    copy_yt_to_yt_by_proxy, \
+    copy_yt_to_yt_through_proxy, \
     run_operation_and_notify, \
     Kiwi
 from yt.wrapper.client import Yt
@@ -487,7 +487,7 @@ class Application(object):
                 logger.info("Running YT -> YT remote copy operation")
                 if source_client._version != destination_client._version:
                     task_spec["pool"] = get_pool(destination_client, source_client._name)
-                    copy_yt_to_yt_by_proxy(
+                    copy_yt_to_yt_through_proxy(
                         source_client,
                         destination_client,
                         task.source_table,
