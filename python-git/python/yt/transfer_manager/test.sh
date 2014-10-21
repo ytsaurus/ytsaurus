@@ -71,12 +71,12 @@ echo "Importing from Kant to Cedar"
 id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "kant", "destination_table": "tmp/yt/test_table", "destination_cluster": "cedar"}')
 wait_task $id
 
-echo "Importing from Cedar to Betula"
-id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "tmp/yt/test_table", "destination_cluster": "betula", "mr_user": "userdata"}')
+echo "Importing from Cedar to Redwood"
+id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "tmp/yt/test_table", "destination_cluster": "redwood", "mr_user": "userdata"}')
 wait_task $id
 
-echo "Importing from Betula to Plato"
-id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "mr_user": "userdata"}')
+echo "Importing from Redwood to Plato"
+id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "redwood", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "mr_user": "userdata"}')
 wait_task $id
 
 echo "Importing from Plato to Kant"
@@ -86,6 +86,14 @@ wait_task $id
 check \
     "$(yt2 read //tmp/test_table --proxy kant.yt.yandex.net --format yamr)" \
     "$(yt2 read //tmp/test_table_from_plato --proxy kant.yt.yandex.net --format yamr)"
+
+echo "Importing from Plato to Smith"
+id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "smith"}')
+wait_task $id
+
+check \
+    "$(yt2 read //tmp/test_table --proxy kant.yt.yandex.net --format yamr)" \
+    "$(yt2 read //tmp/test_table_from_plato --proxy smith.yt.yandex.net --format yamr)"
 
 # Abort, restart
 yt2 remove //tmp/test_table_from_plato --proxy kant.yt.yandex.net --force
