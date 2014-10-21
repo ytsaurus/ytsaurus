@@ -1,9 +1,10 @@
 #include "stdafx.h"
 #include "delayed_executor.h"
 #include "action_queue_detail.h"
-#include "fork_aware_spinlock.h"
 
 #include <core/misc/singleton.h>
+#include <core/misc/lock_free.h>
+#include <core/misc/nullable.h>
 
 #include <util/datetime/base.h>
 
@@ -14,7 +15,7 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto DeadlinePrecision = TDuration::MilliSeconds(1);
+static const auto TimeQuantum = TDuration::MilliSeconds(10);
 
 const TDelayedExecutorCookie NullDelayedExecutorCookie;
 
@@ -41,9 +42,10 @@ struct TDelayedExecutorEntry
         , Callback(std::move(callback))
     { }
 
+    bool Canceled = false;
     TInstant Deadline;
-    TClosure Callback; // if null then the entry is invalidated
-    std::set<TDelayedExecutorCookie, TComparer>::iterator Iterator;
+    TClosure Callback;
+    TNullable<std::set<TDelayedExecutorCookie, TComparer>::iterator> Iterator;
 
 };
 
@@ -59,9 +61,10 @@ public:
         : TEVSchedulerThread(
             "DelayedExecutor",
             false)
-        , TimerWatcher_(EventLoop)
+        , PeriodicWatcher_(EventLoop)
     {
-        TimerWatcher_.set<TImpl, &TImpl::OnTimer>(this);
+        PeriodicWatcher_.set<TImpl, &TImpl::OnTimer>(this);
+        PeriodicWatcher_.start(0, TimeQuantum.SecondsFloat());
 
         Start();
     }
@@ -74,110 +77,89 @@ public:
     TDelayedExecutorCookie Submit(TClosure callback, TInstant deadline)
     {
         auto entry = New<TDelayedExecutorEntry>(std::move(callback), deadline);
-
-        {
-            TGuard<TForkAwareSpinLock> guard(SpinLock_);
-            auto pair = Entries_.insert(entry);
-            YCHECK(pair.second);    
-            entry->Iterator = pair.first;
-            if (*Entries_.begin() == entry) {
-                StartWatcher(entry);
-            }
+        if (IsRunning()) {
+            SubmitQueue_.Enqueue(std::move(entry));
         }
-
         if (!IsRunning()) {
-            PurgeEntries();
+            PurgeQueues();
         }
-
         return entry;
     }
 
-    bool Cancel(TDelayedExecutorCookie entry)
+    void Cancel(TDelayedExecutorCookie entry)
     {
-        TClosure callback;
-        {
-            TGuard<TForkAwareSpinLock> guard(SpinLock_);
-            if (!entry || !entry->Callback) {
-                return false;
-            }
-            Entries_.erase(entry->Iterator);
-            callback = std::move(entry->Callback); // prevent destruction under spin lock
+        if (entry && IsRunning()) {
+            CancelQueue_.Enqueue(std::move(entry));
         }
-        // |callback| dies here
-        return true;
+        if (!IsRunning()) {
+            PurgeQueues();
+        }
     }
 
-    bool CancelAndClear(TDelayedExecutorCookie& entry)
+    void CancelAndClear(TDelayedExecutorCookie& entry)
     {
-        if (!entry) {
-            return false;
-        }
-        bool result = Cancel(entry);
+        Cancel(entry);
         entry.Reset();
-        return result;
     }
 
 private:
-    ev::timer TimerWatcher_;
+    ev::periodic PeriodicWatcher_;
 
-    TForkAwareSpinLock SpinLock_;
-    std::set<TDelayedExecutorCookie, TDelayedExecutorEntry::TComparer> Entries_;
+    //! Only touched from the dedicated thread.
+    std::set<TDelayedExecutorCookie, TDelayedExecutorEntry::TComparer> ScheduledEntries_;
+
+    //! Enqueued from any thread, dequeued from the dedicated thread.
+    TMultipleProducerSingleConsumerLockFreeStack<TDelayedExecutorEntryPtr> SubmitQueue_;
+    TMultipleProducerSingleConsumerLockFreeStack<TDelayedExecutorEntryPtr> CancelQueue_;
 
 
     virtual void OnShutdown() override
     {
         TEVSchedulerThread::OnShutdown();
-        PurgeEntries();
+        PurgeQueues();
     }
 
-    void StartWatcher(TDelayedExecutorCookie entry)
+    void OnTimer(ev::periodic&, int)
     {
-        GetInvoker()->Invoke(BIND(
-            &TImpl::DoStartWatcher,
-            MakeStrong(this),
-            entry->Deadline));
-    }
+        TDelayedExecutorEntryPtr entry;
 
-    void DoStartWatcher(TInstant deadline)
-    {
-        double delay = std::max(deadline.SecondsFloat() - TInstant::Now().SecondsFloat(), 0.0);
-        TimerWatcher_.start(delay + ev_now(EventLoop) - ev_time(), 0.0);
-    }
+        while (SubmitQueue_.Dequeue(&entry)) {
+            if (entry->Canceled)
+                continue;
+            auto pair = ScheduledEntries_.insert(entry);
+            YCHECK(pair.second);
+            entry->Iterator = pair.first;
+        }
 
-    void OnTimer(ev::timer&, int)
-    {
-        while (true) {
-            TClosure callback;
-            {
-                TGuard<TForkAwareSpinLock> guard(SpinLock_);
-                if (Entries_.empty()) {
-                    break;
-                }
-                auto entry = *Entries_.begin();
-                if (entry->Deadline > TInstant::Now() + DeadlinePrecision) {
-                    StartWatcher(entry);
-                    break;
-                }
-                Entries_.erase(entry->Iterator);
-                
-                callback = std::move(entry->Callback); // prevent destruction under spin lock
+        while (CancelQueue_.Dequeue(&entry)) {
+            if (entry->Canceled)
+                continue;
+            entry->Canceled = true;
+            entry->Callback.Reset();
+            if (entry->Iterator) {
+                ScheduledEntries_.erase(*entry->Iterator);
+                entry->Iterator.Reset();
             }
-            if (callback) {
-                callback.Run();
-            }
+        }
+
+        while (!ScheduledEntries_.empty()) {
+            auto it = ScheduledEntries_.begin();
+            const auto& entry = *it;
+            if (entry->Canceled)
+                continue;
+            if (entry->Deadline > TInstant::Now())
+                break;
+            entry->Callback.Run();
+            entry->Callback.Reset();
+            entry->Iterator.Reset();
+            ScheduledEntries_.erase(it);
         }
     }
 
-    void PurgeEntries()
+    void PurgeQueues()
     {
-        std::vector<TClosure> callbacks;
-        {
-            TGuard<TForkAwareSpinLock> guard(SpinLock_);
-            for (auto& entry : Entries_) {
-                callbacks.push_back(std::move(entry->Callback)); // prevent destruction under spin lock
-            }            
-        }
-        // |callbacks| die here
+        SubmitQueue_.DequeueAll();
+        CancelQueue_.DequeueAll();
     }
 
 };
@@ -194,14 +176,14 @@ TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TInstant dead
     return RefCountedSingleton<TImpl>()->Submit(std::move(callback), deadline);
 }
 
-bool TDelayedExecutor::Cancel(TDelayedExecutorCookie entry)
+void TDelayedExecutor::Cancel(TDelayedExecutorCookie entry)
 {
-    return RefCountedSingleton<TImpl>()->Cancel(std::move(entry));
+    RefCountedSingleton<TImpl>()->Cancel(std::move(entry));
 }
 
-bool TDelayedExecutor::CancelAndClear(TDelayedExecutorCookie& entry)
+void TDelayedExecutor::CancelAndClear(TDelayedExecutorCookie& entry)
 {
-    return RefCountedSingleton<TImpl>()->CancelAndClear(entry);
+    RefCountedSingleton<TImpl>()->CancelAndClear(entry);
 }
 
 void TDelayedExecutor::Shutdown()

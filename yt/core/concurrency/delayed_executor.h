@@ -23,13 +23,13 @@ public:
     /*!
      *  \returns True iff the cookie is valid.
      */
-    static bool Cancel(TDelayedExecutorCookie cookie);
+    static void Cancel(TDelayedExecutorCookie cookie);
 
     //! Cancels an earlier scheduled execution and clears the cookie.
     /*!
      *  \returns True iff the cookie is valid.
      */
-    static bool CancelAndClear(TDelayedExecutorCookie& cookie);
+    static void CancelAndClear(TDelayedExecutorCookie& cookie);
 
     //! Terminates the scheduler thread.
     /*!
