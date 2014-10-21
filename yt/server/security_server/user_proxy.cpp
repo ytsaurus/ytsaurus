@@ -30,8 +30,9 @@ private:
     virtual void ValidateRemoval() override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
-        if (GetThisTypedImpl() == securityManager->GetRootUser() ||
-            GetThisTypedImpl() == securityManager->GetGuestUser())
+        const auto* user = GetThisTypedImpl();
+        if (user == securityManager->GetRootUser() ||
+            user == securityManager->GetGuestUser())
         {
             THROW_ERROR_EXCEPTION("Cannot remove a built-in user");
         }
