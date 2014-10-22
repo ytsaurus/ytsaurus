@@ -11,6 +11,15 @@ namespace NProto {
 
 class TNodeDirectory;
 
+class TReqRegisterNode;
+class TRspRegisterNode;
+
+class TReqIncrementalHeartbeat;
+class TRspIncrementalHeartbeat;
+
+class TReqFullHeartbeat;
+class TRspFullHeartbeat;
+
 } // namespace NProto
 
 ///////////////////////////////////////////////////////////////////////////////
