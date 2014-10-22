@@ -43,7 +43,6 @@ import_from_mr.py \
     --mr-server "redwood00.search.yandex.net" \
     --compression-codec "gzip_best_compression" --erasure-codec "lrc_12_2_2" \
     --yt-pool "redwood_restricted" \
-    --portion-size $((4 * 1024 * 1024 * 1024)) \
     --fastbone
 
 /opt/cron/tools/link.py $LINK_QUEUE
