@@ -13,6 +13,12 @@ namespace NNodeTrackerServer {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TReqUnregisterNode;
+
+} // namespace NProto
+
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::InvalidNodeId;
 

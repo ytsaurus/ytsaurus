@@ -48,7 +48,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TNodeId, Id);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, RegisterTime);
-    
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
+
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
     DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, Alerts);
 
@@ -83,15 +84,9 @@ public:
     // Tablet Manager stuff.
     struct TTabletSlot
     {
-        TTabletSlot()
-            : Cell(nullptr)
-            , PeerState(NHydra::EPeerState::None)
-            , PeerId(-1)
-        { }
-
-        NTabletServer::TTabletCell* Cell;
-        NHydra::EPeerState PeerState;
-        int PeerId;
+        NTabletServer::TTabletCell* Cell = nullptr;
+        NHydra::EPeerState PeerState = NHydra::EPeerState::None;
+        int PeerId = -1;
 
         void Persist(NCellMaster::TPersistenceContext& context);
 

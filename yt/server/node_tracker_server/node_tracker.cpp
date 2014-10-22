@@ -20,6 +20,8 @@
 
 #include <server/chunk_server/job.h>
 
+#include <server/node_tracker_server/node_tracker.pb.h>
+
 #include <server/cypress_server/cypress_manager.h>
 
 #include <server/transaction_server/transaction_manager.h>
@@ -523,6 +525,10 @@ private:
         auto* transaction = node->GetTransaction();
         if (!transaction)
             return;
+
+        auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
+        const auto* mutationContext = hydraManager->GetMutationContext();
+        node->SetLastSeenTime(mutationContext->GetTimestamp());
 
         auto timeout = GetLeaseTimeout(node);
         transaction->SetTimeout(timeout);

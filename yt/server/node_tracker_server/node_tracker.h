@@ -9,11 +9,8 @@
 #include <ytlib/hydra/public.h>
 
 #include <ytlib/node_tracker_client/node_statistics.h>
-#include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
 #include <server/hydra/entity_map.h>
-
-#include <server/node_tracker_server/node_tracker.pb.h>
 
 #include <server/cell_master/public.h>
 
@@ -23,9 +20,11 @@ namespace NNodeTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
-    typedef NNodeTrackerClient::NProto::TReqRegisterNode TReqRegisterNode;
-    typedef NNodeTrackerClient::NProto::TReqIncrementalHeartbeat TReqIncrementalHeartbeat;
-    typedef NNodeTrackerClient::NProto::TReqFullHeartbeat TReqFullHeartbeat;
+
+typedef NNodeTrackerClient::NProto::TReqRegisterNode TReqRegisterNode;
+typedef NNodeTrackerClient::NProto::TReqIncrementalHeartbeat TReqIncrementalHeartbeat;
+typedef NNodeTrackerClient::NProto::TReqFullHeartbeat TReqFullHeartbeat;
+
 } // namespace NProto
 
 class TNodeTracker
