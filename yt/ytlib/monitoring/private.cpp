@@ -1,0 +1,16 @@
+#include "stdafx.h"
+#include "private.h"
+
+namespace NYT {
+namespace NMonitoring {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NLog::TLogger MonitoringLogger("Monitoring");
+NProfiling::TProfiler MonitoringProfiler("/monitoring");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NJournalClient
+} // namespace NYT
+

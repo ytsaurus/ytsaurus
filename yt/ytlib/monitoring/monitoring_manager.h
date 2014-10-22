@@ -2,11 +2,6 @@
 
 #include "public.h"
 
-#include <core/concurrency/action_queue.h>
-
-#include <core/concurrency/periodic_executor.h>
-
-#include <core/ytree/public.h>
 #include <core/ytree/yson_producer.h>
 
 namespace NYT {
@@ -14,30 +9,26 @@ namespace NMonitoring {
 
 ////////////////////////////////////////////////////////////////////////////////
     
-//! Provides monitoring info for registered systems in YSON format
+//! Exposes a tree assembled from results returned by a set of
+//! registered NYTree::TYsonProducer-s.
 /*!
- * \note Periodically updates info for all registered systems
+ *  \note
+ *  The results are cached and periodically updated.
  */
 class TMonitoringManager
     : public TRefCounted
 {
 public:
     TMonitoringManager();
+    ~TMonitoringManager();
 
-    //! Registers system for specified path.
-    /*!
-     * \param path      YPath for specified monitoring info.
-     * \param producer  Monitoring info producer for the system.
-     */
+    //! Registers a new #producer for a given #path.
     void Register(const NYPath::TYPath& path, NYTree::TYsonProducer producer);
 
-    //! Unregisters system for specified path.
-    /*!
-     * \param path  YPath for specified monitoring info.
-     */
+    //! Unregisters an existing producer for the specified #path.
     void Unregister(const NYPath::TYPath& path);
 
-    //! Returns the service providing info for all registered systems.
+    //! Returns the service representing the whole tree.
     /*!
      * \note The service is thread-safe.
      */
@@ -50,22 +41,8 @@ public:
     void Stop();
 
 private:
-    class TYPathService;
-
-    typedef yhash<Stroka, NYTree::TYsonProducer> TProducerMap;
-
-    bool IsStarted;
-    NConcurrency::TActionQueuePtr ActionQueue;
-    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
-
-    //! Protects #MonitoringMap.
-    TSpinLock SpinLock;
-    TProducerMap ProducerMap;
-
-    NYTree::INodePtr Root;
-
-    void Update();
-    void Visit(NYson::IYsonConsumer* consumer);
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
 

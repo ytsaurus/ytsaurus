@@ -573,9 +573,13 @@ public:
         return TotalResourceLimits_;
     }
 
-    virtual TNodeResources GetResourceLimits(const TNullable<Stroka>& /*schedulingTag*/) override
+    virtual TNodeResources GetResourceLimits(const TNullable<Stroka>& schedulingTag) override
     {
-        return TotalResourceLimits_;
+        if (!schedulingTag || SchedulingTagResources_.find(*schedulingTag) == SchedulingTagResources_.end()) {
+            return TotalResourceLimits_;
+        } else {
+            return SchedulingTagResources_[*schedulingTag];
+        }
     }
 
 
@@ -887,9 +891,15 @@ private:
                     }
                 }
 
-                for (const auto& oldTag : AddressToNode_[address]->SchedulingTags()) {
+                auto oldTags = AddressToNode_[address]->SchedulingTags();
+                for (const auto& oldTag : oldTags) {
                     if (tags.find(oldTag) == tags.end()) {
                         SchedulingTagResources_[oldTag] -= AddressToNode_[address]->ResourceLimits();
+                    }
+                }
+                for (const auto& tag : tags) {
+                    if (oldTags.find(tag) == oldTags.end()) {
+                        SchedulingTagResources_[tag] += AddressToNode_[address]->ResourceLimits();
                     }
                 }
                 AddressToNode_[address]->SchedulingTags() = tags;

@@ -5,6 +5,10 @@
 
 #include <core/formats/json_writer.h>
 
+#include <ytlib/chunk_client/public.h>
+
+#include <ytlib/security_client/public.h>
+
 namespace NYT {
 namespace NNodeJS {
 
@@ -132,6 +136,18 @@ void InitializeError(Handle<Object> target)
     target->Set(
         String::NewSymbol("UnavailableYtErrorCode"),
         Integer::New(NRpc::EErrorCode::Unavailable));
+
+    target->Set(
+        String::NewSymbol("UserBannedYtErrorCode"),
+        Integer::New(NSecurityClient::EErrorCode::UserBanned));
+
+    target->Set(
+        String::NewSymbol("RequestRateLimitExceededYtErrorCode"),
+        Integer::New(NSecurityClient::EErrorCode::RequestRateLimitExceeded));
+
+    target->Set(
+        String::NewSymbol("AllTargetNodesFailedYtErrorCode"),
+        Integer::New(NChunkClient::EErrorCode::AllTargetNodesFailed));
 
     ErrorCode = NODE_PSYMBOL("code");
     ErrorMessage = NODE_PSYMBOL("message");

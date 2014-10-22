@@ -91,6 +91,11 @@ YtError.prototype.isRequestRateLimitExceeded = function() {
     return checkForErrorCode(this, binding.RequestRateLimitExceededYtErrorCode);
 };
 
+YtError.prototype.isAllTargetNodesFailed = function() {
+    "use strict";
+    return checkForErrorCode(this, binding.AllTargetNodesFailedYtErrorCode);
+};
+
 // Setters.
 
 YtError.prototype.withCode = function(code) {
