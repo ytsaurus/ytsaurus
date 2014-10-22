@@ -40,21 +40,6 @@ class IncorrectTokenError(RequestFailed):
 def now():
     return str(datetime.utcnow().isoformat() + "Z")
 
-def create_pool(yt_client, destination_cluster_name):
-    pool_name = "transfer_" + destination_cluster_name
-    pool_path = "//sys/pools/transfer_manager/" + pool_name
-    if not yt_client.exists(pool_path):
-        yt_client.create("map_node", pool_path, recursive=True, ignore_existing=True)
-    yt_client.set(pool_path + "/@resource_limits", {"user_slots": 200})
-    yt_client.set(pool_path + "/@mode", "fifo")
-    return pool_path
-
-def get_pool(yt_client, name):
-    if name in yt_client._pools:
-        return yt_client._pools[name]
-    else:
-        return create_pool(yt_client, name)
-
 class Task(object):
     # NB: destination table is missing if we copy to kiwi
     def __init__(self, source_cluster, source_table, destination_cluster, creation_time, id, state, user,
@@ -349,6 +334,25 @@ class Application(object):
         with self._mutex:
             self._yt.set(os.path.join(self._tasks_path, id), self._tasks[id].dict())
 
+
+    def _create_pool(self, yt_client, destination_cluster_name):
+        pool_name = "transfer_" + destination_cluster_name
+        pool_path = "//sys/pools/transfer_manager/" + pool_name
+        yt_client = deepcopy(yt_client)
+        yt_client.token = self._yt.token
+        if not yt_client.exists(pool_path):
+            yt_client.create("map_node", pool_path, recursive=True, ignore_existing=True)
+            yt_client.set(pool_path + "/@resource_limits", {"user_slots": 200})
+            yt_client.set(pool_path + "/@mode", "fifo")
+        return pool_path
+
+    def _get_pool(self, yt_client, name):
+        if name in yt_client._pools:
+            return yt_client._pools[name]
+        else:
+            return self._create_pool(yt_client, name)
+
+
     def _get_token(self, authorization_header):
         words = authorization_header.split()
         if len(words) != 2 or words[0].lower() != "oauth":
@@ -489,7 +493,7 @@ class Application(object):
             if source_client._type == "yt" and destination_client._type == "yt":
                 logger.info("Running YT -> YT remote copy operation")
                 if source_client._version != destination_client._version:
-                    task_spec["pool"] = get_pool(destination_client, source_client._name)
+                    task_spec["pool"] = self._get_pool(destination_client, source_client._name)
                     copy_yt_to_yt_through_proxy(
                         source_client,
                         destination_client,
@@ -512,7 +516,7 @@ class Application(object):
             elif source_client._type == "yt" and destination_client._type == "yamr":
                 logger.info("Running YT -> YAMR remote copy")
                 if task.copy_method == "push":
-                    task_spec["pool"] = get_pool(source_client, destination_client._name)
+                    task_spec["pool"] = self._get_pool(source_client, destination_client._name)
                     copy_yt_to_yamr_push(
                         source_client,
                         destination_client,
@@ -528,7 +532,7 @@ class Application(object):
                         task.destination_table,
                         message_queue=message_queue)
             elif source_client._type == "yamr" and destination_client._type == "yt":
-                task_spec["pool"] = get_pool(destination_client, source_client._name)
+                task_spec["pool"] = self._get_pool(destination_client, source_client._name)
                 logger.info("Running YAMR -> YT remote copy")
                 copy_yamr_to_yt_pull(
                     source_client,
