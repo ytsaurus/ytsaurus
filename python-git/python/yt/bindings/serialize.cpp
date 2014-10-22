@@ -187,10 +187,6 @@ void TPythonObjectBuilder::OnEndAttributes()
 
 Py::Object TPythonObjectBuilder::AddObject(const Py::Object& obj, const Py::Callable& type)
 {
-    if (ObjectStack_.empty() && !Attributes_) {
-        Attributes_ = Py::Dict();
-    }
-    
     if (Attributes_) {
         return AddObject(type.apply(Py::TupleN(obj)));
     } else {
