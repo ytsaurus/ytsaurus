@@ -72,23 +72,27 @@ while true; do
     set +e
 done;""".format(prepare_command, read_command)
 
-def _get_read_from_yt_command(yt_client, src, format):
+def _get_read_from_yt_command(yt_client, src, format, fastbone):
     token = yt_client.token
     if token is None:
         token = ""
 
+    hosts = "hosts"
+    if fastbone:
+        hosts = "hosts/fb"
+
     return """PATH=".:$PATH" PYTHONPATH=. YT_RETRY_READ=1 YT_TOKEN={0} YT_HOSTS="{1}" """\
            """yt2 read "{2}"'[#'"${{start}}"':#'"${{end}}"']' --format '{3}' --proxy {4}"""\
-           .format(token, yt_client.hosts, src, format, yt_client.proxy)
+           .format(token, hosts, src, format, yt_client.proxy)
 
-def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, pack=False):
+def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pack=False):
     files = []
     prepare_command = "export YT_TOKEN=$(cat yt_token)"
     if pack:
         files = [_pack_module("dateutil", tmp_dir), _pack_module("yt", tmp_dir), _which("yt2")]
         prepare_command += "\nunzip yt.zip -d yt >/dev/null\nunzip dateutil.zip -d dateutil >/dev/null"
 
-    read_command = _get_read_from_yt_command(yt_client, src, format)
+    read_command = _get_read_from_yt_command(yt_client, src, format, fastbone)
     files.append(_pack_string("read_from_yt.sh", _get_read_ranges_command(prepare_command, read_command), tmp_dir))
 
     return files
@@ -117,12 +121,12 @@ def run_operation_and_notify(message_queue, yt_client, run_operation):
     strategy.wait()
 
 
-def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, spec_template=None, message_queue=None):
+def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone=True, spec_template=None, message_queue=None):
     if spec_template is None:
         spec_template = {}
 
     tmp_dir = tempfile.mkdtemp()
-    files = _prepare_read_from_yt_command(source_client, src, "yson", tmp_dir)
+    files = _prepare_read_from_yt_command(source_client, src, "yson", tmp_dir, fastbone)
 
     try:
         sorted_by = None
@@ -232,7 +236,7 @@ done"""
     finally:
         yamr_client.drop(temp_yamr_table)
 
-def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, message_queue=None):
+def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, fastbone=True, message_queue=None):
     tmp_dir = tempfile.mkdtemp()
 
     lenval_to_nums_file = _pack_string(
@@ -257,7 +261,7 @@ while True:
     count += 1""",
         tmp_dir)
 
-    files = _prepare_read_from_yt_command(yt_client, src, "<has_subkey=true;lenval=true>yamr", tmp_dir, pack=True)
+    files = _prepare_read_from_yt_command(yt_client, src, "<has_subkey=true;lenval=true>yamr", tmp_dir, fastbone, pack=True)
     files.append(lenval_to_nums_file)
 
     command = "python lenval_to_nums.py | bash read_from_yt.sh"
@@ -407,7 +411,10 @@ while True:
 
 def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
     ranges = _split_rows_yt(yt_client, src, 256 * yt.common.MB)
-    read_command = _get_read_from_yt_command(yt_client, src, "<lenval=true>yamr")
+    fastbone = kwargs.get("fastbone", True)
+    if "fasbone" in kwargs:
+        del kwargs["fasbone"]
+    read_command = _get_read_from_yt_command(yt_client, src, "<lenval=true>yamr", fastbone)
     _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command=read_command, ranges=ranges, **kwargs)
 
 def copy_yamr_to_kiwi():
