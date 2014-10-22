@@ -860,7 +860,7 @@ def run_merge(source_table, destination_table, mode=None,
         lambda _: get_value(_, {})
     )(spec)
 
-    _make_operation_request("merge", spec, strategy, finalizer=None, client=None)
+    _make_operation_request("merge", spec, strategy, finalizer=None, client=client)
 
 def run_sort(source_table, destination_table=None, sort_by=None,
              strategy=None, table_writer=None, replication_factor=None,

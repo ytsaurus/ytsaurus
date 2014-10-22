@@ -1,21 +1,21 @@
 import yt.logger as logger
 import yt.wrapper as yt
 
-def _get_compression_ratio(table, codec):
+def _get_compression_ratio(table, codec, yt_client):
     logger.info("Compress sample of '%s' to calculate compression ratio", table) 
-    tmp = yt.create_temp_table()
-    yt.set(tmp + "/@compression_codec", codec)
-    yt.run_merge(table + "[#1:#10000]", tmp, mode="unordered", spec={"force_transform": "true"})
-    ratio = yt.get(table + "/@compression_ratio")
-    yt.remove(tmp)
+    tmp = yt_client.create_temp_table()
+    yt_client.set(tmp + "/@compression_codec", codec)
+    yt_client.run_merge(table + "[#1:#10000]", tmp, mode="unordered", spec={"force_transform": "true"})
+    ratio = yt_client.get(table + "/@compression_ratio")
+    yt_client.remove(tmp)
     return ratio
 
-def _check_codec(table, codec_name, codec_value):
+def _check_codec(table, codec_name, codec_value, yt_client):
     if codec_value is None:
         return True
     else:
         try:
-            codecs = yt.list("{0}/@{1}_statistics".format(table, codec_name))
+            codecs = yt_client.list("{0}/@{1}_statistics".format(table, codec_name))
             return codecs == [codec_value]
         except yt.YtResponseError as error:
             if error.is_resolve_error():
@@ -40,13 +40,13 @@ def convert_to_erasure(src, dst=None, erasure_codec=None, compression_codec=None
         yt_client.create("table", dst, ignore_existing=True)
     
     if compression_codec is not None:
-        ratio = _get_compression_ratio(src, compression_codec)
+        ratio = _get_compression_ratio(src, compression_codec, yt_client)
         yt_client.set(dst + "/@compression_codec", compression_codec)
     else:
         ratio = yt_client.get(src + "/@compression_ratio")
 
     yt_client.set(dst + "/@erasure_codec", erasure_codec)
-    if _check_codec(dst, "compression", compression_codec) and _check_codec(dst, "erasure", erasure_codec):
+    if _check_codec(dst, "compression", compression_codec, yt_client) and _check_codec(dst, "erasure", erasure_codec, yt_client):
         logger.info("Table already has proper codecs")
         return False
 
