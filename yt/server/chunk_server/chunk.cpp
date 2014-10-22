@@ -6,11 +6,6 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
-// XXX(babenko): fix snapshot bloat caused by remote copy
-#include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
-#include <core/misc/protobuf_helpers.h>
-
 #include <ytlib/object_client/helpers.h>
 
 #include <core/erasure/codec.h>
@@ -28,11 +23,6 @@ using namespace NSecurityServer;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TChunkProperties::TChunkProperties()
-    : ReplicationFactor(0)
-    , Vital(false)
-{ }
 
 bool operator== (const TChunkProperties& lhs, const TChunkProperties& rhs)
 {

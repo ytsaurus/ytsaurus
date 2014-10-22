@@ -29,10 +29,8 @@ namespace NChunkServer {
 
 struct TChunkProperties
 {
-    TChunkProperties();
-
-    int ReplicationFactor;
-    bool Vital;
+    int ReplicationFactor = 0;
+    bool Vital = false;
 };
 
 bool operator== (const TChunkProperties& lhs, const TChunkProperties& rhs);
