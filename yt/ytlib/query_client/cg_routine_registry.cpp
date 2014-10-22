@@ -26,7 +26,8 @@ uint64_t TRoutineRegistry::GetAddress(const Stroka& symbol) const
 
 TRoutineRegistry::TTypeBuilder TRoutineRegistry::GetTypeBuilder(const Stroka& symbol) const
 {
-    auto it = SymbolToTypeBuilder_.find(symbol);
+    auto mangledSymbol = MangleSymbol(symbol);
+    auto it = SymbolToTypeBuilder_.find(mangledSymbol);
     YCHECK(it != SymbolToTypeBuilder_.end());
     return it->second;
 }
@@ -36,9 +37,19 @@ bool TRoutineRegistry::RegisterRoutineImpl(
     uint64_t address,
     TTypeBuilder typeBuilder)
 {
-    YCHECK(SymbolToAddress_.insert(std::make_pair(Stroka(symbol), std::move(address))).second);
-    YCHECK(SymbolToTypeBuilder_.insert(std::make_pair(Stroka(symbol), std::move(typeBuilder))).second);
+    auto mangledSymbol = MangleSymbol(symbol);
+    YCHECK(SymbolToAddress_.insert(std::make_pair(mangledSymbol, std::move(address))).second);
+    YCHECK(SymbolToTypeBuilder_.insert(std::make_pair(mangledSymbol, std::move(typeBuilder))).second);
     return true;
+}
+
+Stroka TRoutineRegistry::MangleSymbol(const Stroka& name)
+{
+#ifdef _darwin_
+    return "_" + name;
+#else
+    return name;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
