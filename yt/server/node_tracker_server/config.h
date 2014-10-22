@@ -33,6 +33,10 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TNodeTrackerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeConfig
     : public NYTree::TYsonSerializable
 {
@@ -48,6 +52,8 @@ public:
             .Default(false);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TNodeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

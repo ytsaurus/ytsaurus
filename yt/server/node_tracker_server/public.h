@@ -24,8 +24,10 @@ using NNodeTrackerClient::InvalidNodeId;
 
 using NNodeTrackerClient::TNodeDescriptor;
 
-class TNodeTracker;
-typedef TIntrusivePtr<TNodeTracker> TNodeTrackerPtr;
+DECLARE_REFCOUNTED_CLASS(TNodeTracker)
+
+DECLARE_REFCOUNTED_CLASS(TNodeTrackerConfig)
+DECLARE_REFCOUNTED_CLASS(TNodeConfig)
 
 class TNode;
 typedef SmallVector<TNode*, NChunkClient::TypicalReplicaCount> TNodeList;
@@ -33,12 +35,6 @@ typedef TSmallSet<TNode*, NChunkClient::TypicalReplicaCount> TNodeSet;
 
 class TNodeTrackerService;
 typedef TIntrusivePtr<TNodeTrackerService> TNodeTrackerServicePtr;
-
-class TNodeTrackerConfig;
-typedef TIntrusivePtr<TNodeTrackerConfig> TNodeTrackerConfigPtr;
-
-class TNodeConfig;
-typedef TIntrusivePtr<TNodeConfig> TNodeConfigPtr;
 
 ///////////////////////////////////////////////////////////////////////////////
 
