@@ -33,9 +33,6 @@ class TNode;
 typedef SmallVector<TNode*, NChunkClient::TypicalReplicaCount> TNodeList;
 typedef TSmallSet<TNode*, NChunkClient::TypicalReplicaCount> TNodeSet;
 
-class TNodeTrackerService;
-typedef TIntrusivePtr<TNodeTrackerService> TNodeTrackerServicePtr;
-
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NNodeTrackerServer

@@ -392,7 +392,7 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(HiveManager->GetRpcService()); // cell realm
     RpcServer->RegisterService(TransactionSupervisor->GetRpcService()); // cell realm
     RpcServer->RegisterService(New<TLocalSnapshotService>(GetCellId(), fileSnapshotStore)); // cell realm
-    RpcServer->RegisterService(New<TNodeTrackerService>(Config->NodeTracker, this)); // master hydra service
+    RpcServer->RegisterService(CreateNodeTrackerService(Config->NodeTracker, this)); // master hydra service
     RpcServer->RegisterService(CreateObjectService(this)); // master hydra service
     RpcServer->RegisterService(CreateJobTrackerService(this)); // master hydra service
     RpcServer->RegisterService(CreateChunkService(this)); // master hydra service
