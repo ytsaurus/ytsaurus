@@ -159,7 +159,7 @@ class Yamr(object):
             else:
                 fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
                 shared_tx_str = ("-sharedtransactionid yt_" + generate_uuid()) if self.supports_shared_transactions else ""
-                command = '{0} MR_USER={1} USER=yt ./{2} -server {3} {4} -read {5}:[{6},{7}] -lenval -subkey {8}'\
+                command = '{0} MR_USER={1} USER=yt ./{2} -server {3} {4} -read {5}:[{6},{7}] -lenval -subkey {8}\n'\
                         .format(self.opts, self.mr_user, self.binary_name, self.server, fastbone_str, table, start, end, shared_tx_str)
             commands.append(command)
         return commands

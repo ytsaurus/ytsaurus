@@ -264,10 +264,21 @@ class Application(object):
             self._clusters[name]._name = name
             self._clusters[name]._type = type
 
-        for name in config["availability_graph"]:
+        self._availability_graph = deepcopy(config["availability_graph"])
+
+        for name in self._availability_graph:
+            edges = {}
+            for neighbour in self._availability_graph[name]:
+                if isinstance(neighbour, dict):
+                    edges[neighbour["name"]] = neighbour.get("options", {})
+                else:
+                    edges[neighbour] = {}
+            self._availability_graph[name] = edges
+
+        for name in self._availability_graph:
             if name not in self._clusters:
                 raise yt.YtError("Incorrect availability graph, cluster {} is missing".format(name))
-            for neighbour in config["availability_graph"][name]:
+            for neighbour in self._availability_graph[name]:
                 if neighbour not in self._clusters:
                     raise yt.YtError("Incorrect availability graph, cluster {} is missing".format(neighbour))
 
@@ -275,7 +286,6 @@ class Application(object):
         if "kiwi_transmitter" in config:
             self.kiwi_transmitter = Yt(**config["kiwi_transmitter"])
 
-        self._availability_graph = config["availability_graph"]
 
     def _configure_logging(self, logging_node):
         level = logging.__dict__[logging_node.get("level", "INFO")]
@@ -407,7 +417,7 @@ class Application(object):
             destination_user = self._yt.get_user_name(task.destination_cluster_token)
             if destination_user is None or destination_client.check_permission(destination_user, "write", destination_dir)["action"] != "allow":
                 raise yt.YtError("There is no permission to write to {}. Please log in.".format(task.destination_table))
-        
+
         if destination_client._type == "kiwi" and self.kiwi_transmitter is None:
             raise yt.YtError("Transimission cluster for transfer to kiwi is not configured")
 
@@ -489,6 +499,7 @@ class Application(object):
 
             source_client = task.get_source_client(self._clusters)
             destination_client = task.get_destination_client(self._clusters)
+            options = self._availability_graph[task.source_cluster][task.destination_cluster]
 
             if source_client._type == "yt" and destination_client._type == "yt":
                 logger.info("Running YT -> YT remote copy operation")
@@ -499,6 +510,7 @@ class Application(object):
                         destination_client,
                         task.source_table,
                         task.destination_table,
+                        fastbone=options.get("fastbone", True),
                         spec_template=task_spec)
                 else:
                     run_operation_and_notify(
@@ -530,6 +542,7 @@ class Application(object):
                         destination_client,
                         task.source_table,
                         task.destination_table,
+                        fastbone=options.get("fastbone", True),
                         message_queue=message_queue)
             elif source_client._type == "yamr" and destination_client._type == "yt":
                 task_spec["pool"] = self._get_pool(destination_client, source_client._name)
@@ -547,7 +560,12 @@ class Application(object):
                     task.source_table,
                     task.destination_table)
             elif source_client._type == "yt" and destination_client._type == "kiwi":
-                copy_yt_to_kiwi(source_client, destination_client, self.kiwi_transmitter, task.source_table)
+                copy_yt_to_kiwi(
+                    source_client,
+                    destination_client,
+                    self.kiwi_transmitter,
+                    task.source_table,
+                    fastbone=options.get("fastbone", True))
             else:
                 raise Exception("Incorrect cluster types: {} source and {} destination".format(
                                 source_client._type,
@@ -716,7 +734,6 @@ DEFAULT_CONFIG = {
             "type": "yt",
             "options": {
                 "proxy": "kant.yt.yandex.net",
-                "hosts": "hosts/fb"
             },
             "remote_copy_network": "fastbone",
         },
@@ -724,7 +741,6 @@ DEFAULT_CONFIG = {
             "type": "yt",
             "options": {
                 "proxy": "smith.yt.yandex.net",
-                "hosts": "hosts/fb"
             },
             # TODO: support it by client, move to options.
             "remote_copy_network": "fastbone",
@@ -734,7 +750,6 @@ DEFAULT_CONFIG = {
             "type": "yt",
             "options": {
                 "proxy": "plato.yt.yandex.net",
-                "hosts": "hosts/fb"
             },
             "remote_copy_network": "fastbone",
         },
