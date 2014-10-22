@@ -57,8 +57,9 @@ def get_pool(yt_client, name):
 
 class Task(object):
     # NB: destination table is missing if we copy to kiwi
-    def __init__(self, source_cluster, source_table, destination_cluster, creation_time, id, state, destination_table=None,  
-                 token="", source_cluster_token=None, destination_cluster_token=None, user="unknown", mr_user=None, error=None, finish_time=None, copy_method=None, progress=None, meta=None):
+    def __init__(self, source_cluster, source_table, destination_cluster, creation_time, id, state, user,
+                 destination_table=None, source_cluster_token=None, token=None, destination_cluster_token=None, mr_user=None, error=None,
+                 start_time=None, finish_time=None, copy_method=None, progress=None, meta=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.source_cluster_token = get_value(source_cluster_token, token)
@@ -67,13 +68,14 @@ class Task(object):
         self.destination_cluster_token = get_value(destination_cluster_token, token)
 
         self.creation_time = creation_time
+        self.start_time = start_time
         self.finish_time = finish_time
         self.state = state
         self.id = id
         self.user = user
         self.mr_user = mr_user
         self.error = error
-        self.token = token
+        self.token = get_value(token, "")
         self.copy_method = get_value(copy_method, "pull")
         self.progress = progress
 
@@ -462,8 +464,9 @@ class Application(object):
                         logger.info("Task %s cannot be run", id)
                         continue
                     self._running_task_queues[self._tasks[id].get_queue_id()].append(id)
-                    self._change_task_state(id, "running")
+                    self._tasks[id].start_time = now()
                     self._tasks[id].progress = {"operations": []}
+                    self._change_task_state(id, "running")
                     queue = Queue()
                     task_process = Process(target=lambda: self._execute_task(self._tasks[id], queue))
                     task_process.aborted = False
