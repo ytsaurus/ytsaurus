@@ -1,5 +1,5 @@
 import os
-import subprocess
+import subprocess32 as subprocess
 
 def get_version():
     if os.path.exists("VERSION"):
