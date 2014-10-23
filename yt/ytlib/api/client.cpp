@@ -592,7 +592,8 @@ private:
             const auto& batch = Batches_[InvokeBatchIndex_];
 
             TTabletServiceProxy proxy(InvokeChannel_);
-            auto req = proxy.Read();
+            auto req = proxy.Read()
+                ->SetRequestAck(false);
             ToProto(req->mutable_tablet_id(), TabletId_);
             req->set_timestamp(Options_.Timestamp);
             req->set_response_codec(Config_->LookupResponseCodec);
@@ -1475,8 +1476,9 @@ private:
 
             const auto& batch = Batches_[InvokeBatchIndex_];
 
-            TTabletServiceProxy tabletProxy(InvokeChannel_);
-            auto req = tabletProxy.Write();
+            TTabletServiceProxy proxy(InvokeChannel_);
+            auto req = proxy.Write()
+                ->SetRequestAck(false);
             ToProto(req->mutable_transaction_id(), TransactionId_);
             ToProto(req->mutable_tablet_id(), TabletId_);
             req->Attachments() = std::move(batch->RequestData);
