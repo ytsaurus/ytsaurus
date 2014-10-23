@@ -264,6 +264,11 @@ TPlanFragmentPtr PreparePlanFragment(
     auto planFragment = New<TPlanFragment>(source);
     planFragment->NodeDirectory = New<TNodeDirectory>();
 
+    if (ast.Limit) {
+        outputRowLimit = ast.Limit;
+        planFragment->Ordered = true;
+    }
+
     auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
 
     struct TTableSchemaProxy
@@ -911,6 +916,7 @@ void ToProto(NProto::TPlanFragment* proto, const TConstPlanFragmentPtr& fragment
 {
     ToProto(proto->mutable_query(), fragment->Query);
     ToProto(proto->mutable_data_split(), fragment->DataSplits);
+    proto->set_ordered(fragment->Ordered);
     
     proto->set_source(fragment->GetSource());
 }
@@ -922,6 +928,7 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
 
     result->NodeDirectory = New<TNodeDirectory>();
     result->Query = FromProto(serialized.query());
+    result->Ordered = serialized.ordered();
 
     result->DataSplits.reserve(serialized.data_split_size());
     for (int i = 0; i < serialized.data_split_size(); ++i) {

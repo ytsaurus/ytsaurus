@@ -347,6 +347,7 @@ public:
 
     TDataSplits DataSplits;
     TConstQueryPtr Query;
+    bool Ordered = false;
 
 };
 

@@ -157,7 +157,7 @@ message TPlanFragment
 
     repeated NYT.NChunkClient.NProto.TChunkSpec data_split = 2;
     required TQuery query = 3;
-    
+    required bool ordered = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

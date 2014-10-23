@@ -155,7 +155,7 @@ public:
         auto Logger = BuildLogger(fragment->Query);
 
         std::vector<ISchemafulReaderPtr> splitReaders;
-        std::vector<TFuture<TErrorOr<TQueryStatistics>>> subqueryStatistics;
+        std::vector<TFuture<TErrorOr<TQueryStatistics>>> subqueriesStatistics;
 
         for (size_t subqueryIndex = 0; subqueryIndex < subqueries.size(); ++subqueryIndex) {
             if (!groupedSplits[subqueryIndex].empty()) {
@@ -185,7 +185,7 @@ public:
                 }));
 
                 splitReaders.push_back(pipe->GetReader());
-                subqueryStatistics.push_back(result);
+                subqueriesStatistics.push_back(result);
             }                    
         }
 
@@ -196,11 +196,13 @@ public:
             .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
             .Run(topquery, std::move(mergingReader), std::move(writer));
 
-        auto resultOrError = WaitFor(asyncResultOrError);
+        auto queryStatistics = WaitFor(asyncResultOrError).ValueOrThrow();
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
-
-        return resultOrError.Value();
+        for (auto const& subqueryStatistics : subqueriesStatistics) {
+            queryStatistics += subqueryStatistics.Get().ValueOrThrow();
+        }
+        
+        return queryStatistics; 
     }
 
     // IExecutor implementation.

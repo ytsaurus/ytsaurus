@@ -26,6 +26,7 @@
 #include <ytlib/tablet_client/wire_protocol.h>
 
 #include <ytlib/new_table_client/schemaful_merging_reader.h>
+#include <ytlib/new_table_client/schemaful_ordered_reader.h>
 
 #include <ytlib/query_client/callbacks.h>
 #include <ytlib/query_client/evaluator.h>
@@ -296,40 +297,10 @@ public:
             .Run(path, timestamp);
     }
 
-
-    // ICoordinateCallbacks implementation.
-
-    TGroupedDataSplits Regroup(
+    TDataSplits DoSplit(
         const TDataSplits& splits,
-        TNodeDirectoryPtr nodeDirectory)
-    {
-        std::map<Stroka, TDataSplits> groups;
-        TGroupedDataSplits result;
-
-        for (const auto& split : splits) {
-            auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(split.replicas());
-            if (replicas.empty()) {
-                auto objectId = GetObjectIdFromDataSplit(split);
-                THROW_ERROR_EXCEPTION("No alive replicas for split %v",
-                    objectId);
-            }
-            auto replica = replicas[RandomNumber(replicas.size())];
-            auto descriptor = nodeDirectory->GetDescriptor(replica);
-
-            groups[descriptor.GetDefaultAddress()].push_back(split);
-        }
-
-        result.reserve(groups.size());
-        for (const auto& group : groups) {
-            result.emplace_back(std::move(group.second));
-        }
-
-        return result;
-    }
-
-    TGroupedDataSplits DoSplitAndRegroup(
-        const TDataSplits& splits,
-        TNodeDirectoryPtr nodeDirectory)
+        TNodeDirectoryPtr nodeDirectory,
+        const NLog::TLogger& Logger)
     {
         TDataSplits allSplits;
         for (const auto& split : splits) {
@@ -343,36 +314,12 @@ public:
 
             TDataSplits newSplits = DoSplitFurther(split, nodeDirectory);
 
+            LOG_DEBUG("Got %v splits for input %v", newSplits.size(), objectId);
 
             allSplits.insert(allSplits.end(), newSplits.begin(), newSplits.end());
         }
 
-        //LOG_DEBUG("Regrouping %v splits", allSplits.size());
-
-        return Regroup(allSplits, nodeDirectory);
-    }
-
-    std::pair<ISchemafulReaderPtr, TFuture<TErrorOr<TQueryStatistics>>> Delegate(
-        const TPlanFragmentPtr& fragment,
-        const TDataSplit& collocatedSplit)
-    {
-        auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(collocatedSplit.replicas());
-        YCHECK(!replicas.empty());
-        auto replica = replicas[RandomNumber(replicas.size())];
-
-        auto descriptor = fragment->NodeDirectory->GetDescriptor(replica);
-        auto address = descriptor.GetDefaultAddress();
-        auto channel = NodeChannelFactory_->CreateChannel(address);
-
-        TQueryServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Config_->QueryTimeout);
-        auto req = proxy.Execute();
-        fragment->NodeDirectory->DumpTo(req->mutable_node_directory());
-        ToProto(req->mutable_plan_fragment(), fragment);
-        req->set_response_codec(Config_->SelectResponseCodec);
-
-        auto resultReader = New<TQueryResponseReader>(req->Invoke());
-        return std::make_pair(resultReader, resultReader->GetQueryResult());
+        return allSplits;
     }
 
     std::pair<ISchemafulReaderPtr, TFuture<TErrorOr<TQueryStatistics>>> Delegate(
@@ -399,53 +346,160 @@ public:
         ISchemafulWriterPtr writer)
     {
         auto query = fragment->Query;
+        auto Logger = BuildLogger(query);
 
-        auto groupedSplits = DoSplitAndRegroup(GetPrunedSplits(query, fragment->DataSplits), fragment->NodeDirectory);
+        auto splits = DoSplit(GetPrunedSplits(query, fragment->DataSplits), fragment->NodeDirectory, Logger);
 
-        std::vector<TKeyRange> ranges = GetRanges(groupedSplits);
+        std::map<Stroka, TDataSplits> groupes;
+        
+        LOG_DEBUG("Regrouping %v splits", splits.size());
+
+        for (const auto& split : splits) {
+            auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(split.replicas());
+            if (replicas.empty()) {
+                auto objectId = GetObjectIdFromDataSplit(split);
+                THROW_ERROR_EXCEPTION("No alive replicas for split %v",
+                    objectId);
+            }
+            auto replica = replicas[RandomNumber(replicas.size())];
+            auto descriptor = fragment->NodeDirectory->GetDescriptor(replica);
+
+            groupes[descriptor.GetDefaultAddress()].push_back(split);
+        }
+
+        std::vector<TKeyRange> ranges;
+        std::vector<std::pair<TDataSplits, Stroka>> groupedSplits;
+
+        for (const auto& group : groupes) {
+            groupedSplits.emplace_back(group.second, group.first);
+            ranges.push_back(GetRange(group.second));
+        }
 
         TConstQueryPtr topquery;
         std::vector<TConstQueryPtr> subqueries;
 
         std::tie(topquery, subqueries) = CoordinateQuery(query, ranges);
 
-        auto Logger = BuildLogger(fragment->Query);
-
         std::vector<ISchemafulReaderPtr> splitReaders;
-        std::vector<TFuture<TErrorOr<TQueryStatistics>>> subqueryStatistics;
+        std::vector<TFuture<TErrorOr<TQueryStatistics>>> subqueriesStatistics;
 
-        for (size_t subqueryIndex = 0; subqueryIndex < subqueries.size(); ++subqueryIndex) {
-            if (!groupedSplits[subqueryIndex].empty()) {
+        for (size_t index = 0; index < groupedSplits.size(); ++index) {
+            if (!groupedSplits[index].first.empty()) {
+                auto subquery = subqueries[index];
                 LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
-                    subqueries[subqueryIndex]->GetId());
+                    subquery->GetId());
+
+                auto subfragment = New<TPlanFragment>(fragment->GetSource());
+                subfragment->NodeDirectory = fragment->NodeDirectory;
+                subfragment->DataSplits = groupedSplits[index].first;
+                subfragment->Query = subquery;
 
                 ISchemafulReaderPtr reader;
                 TFuture<TErrorOr<TQueryStatistics>> statistics;
 
-                auto subfragment = New<TPlanFragment>(fragment->GetSource());
-                subfragment->NodeDirectory = fragment->NodeDirectory;
-                subfragment->DataSplits = groupedSplits[subqueryIndex];
-                subfragment->Query = subqueries[subqueryIndex];
-
                 std::tie(reader, statistics) = Delegate(
                     subfragment,
-                    subfragment->DataSplits[0]);
+                    groupedSplits[index].second);
 
                 splitReaders.push_back(reader);
-                subqueryStatistics.push_back(statistics);
-            }                    
+                subqueriesStatistics.push_back(statistics);
+            }
         }
 
         auto mergingReader = CreateSchemafulMergingReader(splitReaders);
 
-        return Evaluator_->Run(topquery, std::move(mergingReader), std::move(writer));
+        auto queryStatistics = Evaluator_->Run(topquery, std::move(mergingReader), std::move(writer));
+
+        for (auto const& subqueryStatistics : subqueriesStatistics) {
+            queryStatistics += subqueryStatistics.Get().ValueOrThrow();
+        }
+        
+        return queryStatistics;
+    }
+
+    TQueryStatistics DoExecuteOrdered(
+        const TPlanFragmentPtr& fragment,
+        ISchemafulWriterPtr writer)
+    {
+        auto query = fragment->Query;
+        auto Logger = BuildLogger(query);
+        auto splits = DoSplit(GetPrunedSplits(query, fragment->DataSplits), fragment->NodeDirectory, Logger);
+
+        LOG_DEBUG("Sorting %v splits", splits.size());
+
+        std::sort(splits.begin(), splits.end(), [] (const TDataSplit& lhs, const TDataSplit& rhs) {
+            return GetLowerBoundFromDataSplit(lhs) < GetLowerBoundFromDataSplit(rhs);
+        });
+
+        std::vector<TKeyRange> ranges;
+        for (auto const& split : splits) {
+            ranges.push_back(GetBothBoundsFromDataSplit(split));
+        }
+
+        TConstQueryPtr topquery;
+        std::vector<TConstQueryPtr> subqueries;
+
+        std::tie(topquery, subqueries) = CoordinateQuery(query, ranges);
+
+        std::vector<TFuture<TErrorOr<TQueryStatistics>>> subqueriesStatistics;
+        size_t index = 0;
+
+        auto mergingReader = CreateSchemafulOrderedReader([&] () -> ISchemafulReaderPtr {
+            if (index >= splits.size()) {
+                return nullptr;
+            }
+
+            auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(splits[index].replicas());
+            if (replicas.empty()) {
+                auto objectId = GetObjectIdFromDataSplit(splits[index]);
+                THROW_ERROR_EXCEPTION("No alive replicas for split %v",
+                    objectId);
+            }
+            auto replica = replicas[RandomNumber(replicas.size())];
+            auto descriptor = fragment->NodeDirectory->GetDescriptor(replica);
+
+            auto subquery = subqueries[index];
+
+            LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
+                subquery->GetId());
+
+            auto subfragment = New<TPlanFragment>(fragment->GetSource());
+            subfragment->NodeDirectory = fragment->NodeDirectory;
+            subfragment->DataSplits.push_back(splits[index]);
+            subfragment->Query = subquery;
+
+            ISchemafulReaderPtr reader;
+            TFuture<TErrorOr<TQueryStatistics>> statistics;
+
+            std::tie(reader, statistics) = Delegate(
+                subfragment,
+                descriptor.GetDefaultAddress());
+
+            subqueriesStatistics.push_back(statistics);
+
+            ++index;
+
+            return reader;
+        });
+
+        auto queryStatistics = Evaluator_->Run(topquery, std::move(mergingReader), std::move(writer));
+
+        for (auto const& subqueryStatistics : subqueriesStatistics) {
+            queryStatistics += subqueryStatistics.Get().ValueOrThrow();
+        }
+        
+        return queryStatistics;
     }
 
     virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
         const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer) override
     {
-        return BIND(&TConnection::DoExecute, MakeStrong(this))
+        auto execute = fragment->Ordered
+            ? &TConnection::DoExecuteOrdered
+            : &TConnection::DoExecute;
+
+        return BIND(execute, MakeStrong(this))
             .Guarded()
             .AsyncVia(NDriver::TDispatcher::Get()->GetHeavyInvoker())
             .Run(fragment, std::move(writer));
