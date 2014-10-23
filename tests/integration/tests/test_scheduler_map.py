@@ -1,8 +1,6 @@
 import pytest
-import sys
 import time
 import __builtin__
-import socket
 import os
 import tempfile
 
@@ -52,7 +50,7 @@ class TestEventLog(YTEnvSetup):
                     assert key in stats
                 # our job should burn enough cpu
                 assert int(stats['cpu']['user_time']) > 0
-        assert {"operation_started"}.issubset(event_types)
+        assert "operation_started" in event_types
 
 
 class TestSchedulerMapCommands(YTEnvSetup):

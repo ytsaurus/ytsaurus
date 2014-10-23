@@ -107,7 +107,7 @@ class TestSchedulingTags(YTEnvSetup):
         create('table', '//tmp/t_out')
 
         self.node = list(get("//sys/nodes"))[0]
-        set("//sys/nodes/{}/@scheduling_tags".format(self.node), ["tagA", "tagB"])
+        set("//sys/nodes/{0}/@scheduling_tags".format(self.node), ["tagA", "tagB"])
 
     def test_failed_cases(self):
         self._prepare()
@@ -119,7 +119,7 @@ class TestSchedulingTags(YTEnvSetup):
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
         assert read('//tmp/t_out') == [ {'foo' : 'bar'} ]
 
-        set("//sys/nodes/{}/@scheduling_tags".format(self.node), [])
+        set("//sys/nodes/{0}/@scheduling_tags".format(self.node), [])
         time.sleep(1.0)
         with pytest.raises(YtError):
             map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
@@ -144,7 +144,7 @@ class TestSchedulingTags(YTEnvSetup):
         self._prepare()
         write('//tmp/t_in', [{"foo": "bar"} for _ in xrange(20)])
 
-        set("//sys/nodes/{}/@scheduling_tags".format(self.node), ["tagB"])
+        set("//sys/nodes/{0}/@scheduling_tags".format(self.node), ["tagB"])
         time.sleep(1.0)
         op_id = map(dont_track=True, command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagB", "job_count": 20})
         track_op(op_id)
