@@ -1361,10 +1361,11 @@ private:
             auto* cell = tablet->GetCell();
 
             if (tablet->GetState() == ETabletState::Mounted) {
-                LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %v, TabletId: %v, CellId: %v)",
+                LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %v, TabletId: %v, CellId: %v, Force: %v)",
                     table->GetId(),
                     tablet->GetId(),
-                    cell->GetId());
+                    cell->GetId(),
+                    force);
 
                 tablet->SetState(ETabletState::Unmounting);
 
