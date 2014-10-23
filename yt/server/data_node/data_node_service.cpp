@@ -11,6 +11,7 @@
 #include "peer_block_table.h"
 #include "session_manager.h"
 #include "session.h"
+#include "master_connector.h"
 
 #include <ytlib/table_client/public.h>
 
@@ -146,6 +147,7 @@ private:
             options.SyncOnClose,
             options.OptimizeForLatency);
 
+        ValidateConnected();
         ValidateNoSession(chunkId);
         ValidateNoChunk(chunkId);
 
@@ -165,6 +167,8 @@ private:
         context->SetRequestInfo("ChunkId: %v, BlockCount: %v",
             chunkId,
             blockCount ? ToString(*blockCount) : "<null>");
+
+        ValidateConnected();
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
@@ -237,6 +241,8 @@ private:
             enableCaching,
             flushBlocks);
 
+        ValidateConnected();
+
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
 
@@ -277,6 +283,8 @@ private:
             lastBlockIndex,
             target.GetDefaultAddress());
 
+        ValidateConnected();
+
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
         session->SendBlocks(firstBlockIndex, blockCount, target)
@@ -303,6 +311,8 @@ private:
         context->SetRequestInfo("BlockId: %v:%v",
             chunkId,
             blockIndex);
+
+        ValidateConnected();
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
@@ -346,6 +356,8 @@ private:
                 JoinToString(request.block_indexes()),
                 enableCaching,
                 sessionType);
+
+            Owner_->ValidateConnected();
 
             auto chunkStore = Owner_->Bootstrap_->GetChunkStore();
             auto blockStore = Owner_->Bootstrap_->GetBlockStore();
@@ -410,6 +422,7 @@ private:
 
         TParallelAwaiterPtr Awaiter_;
 
+        // Updated multiple times.
         std::atomic<int> BlocksWithData_;
         std::atomic<i64> BlocksSize_;
 
@@ -501,6 +514,8 @@ private:
                 firstBlockIndex + blockCount - 1,
                 sessionType);
 
+            Owner_->ValidateConnected();
+
             auto chunkStore = Owner_->Bootstrap_->GetChunkStore();
             auto blockStore = Owner_->Bootstrap_->GetBlockStore();
 
@@ -524,6 +539,7 @@ private:
         TIntrusivePtr<TDataNodeService> Owner_;
         TCtxGetBlockRangePtr Context_;
 
+        // Updated just once.
         int BlocksWithData_;
         i64 BlocksSize_;
 
@@ -588,6 +604,8 @@ private:
             JoinToString(extensionTags),
             partitionTag);
 
+        ValidateConnected();
+
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->GetChunk(chunkId);
         auto asyncChunkMeta = chunk->GetMeta(
@@ -610,13 +628,14 @@ private:
         }).Via(WorkerThread_->GetInvoker()));
     }
 
-
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSplits)
     {
         context->SetRequestInfo("KeyColumnCount: %v, ChunkCount: %v, MinSplitSize: %v",
             request->key_columns_size(),
             request->chunk_specs_size(),
             request->min_split_size());
+
+        ValidateConnected();
 
         auto awaiter = New<TParallelAwaiter>(WorkerThread_->GetInvoker());
         auto keyColumns = NYT::FromProto<Stroka>(request->key_columns());
@@ -874,6 +893,8 @@ private:
             request->key_columns_size(),
             request->sample_requests_size());
 
+        ValidateConnected();
+
         auto awaiter = New<TParallelAwaiter>(WorkerThread_->GetInvoker());
         auto keyColumns = FromProto<Stroka>(request->key_columns());
 
@@ -1058,6 +1079,8 @@ private:
         context->SetRequestInfo("ChunkId: %v",
             chunkId);
 
+        ValidateConnected();
+
         Bootstrap_
             ->GetChunkCache()
             ->DownloadChunk(chunkId)
@@ -1092,6 +1115,14 @@ private:
         }
     }
 
+
+    void ValidateConnected()
+    {
+        auto masterConnector = Bootstrap_->GetMasterConnector();
+        if (!masterConnector->IsConnected()) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Master is not connected");
+        }
+    }
 
     void ValidateNoSession(const TChunkId& chunkId)
     {
