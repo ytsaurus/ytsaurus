@@ -88,15 +88,18 @@ public:
 
     i64 MaxEdenDataSize;
     int MaxEdenChunkCount;
+    int MaxPartitioningFanIn;
 
     int MinCompactionChunkCount;
-    int MaxCompactionChunkCount;
     i64 CompactionDataSizeBase;
     double CompactionDataSizeRatio;
+    int MaxCompactionFanIn;
 
     int SamplesPerPartition;
 
     TDuration BackingStoreRetentionTime;
+
+    int MaxReadFanIn;
 
     TTableMountConfig()
     {
@@ -135,12 +138,12 @@ public:
         RegisterParameter("max_eden_chunk_count", MaxEdenChunkCount)
             .Default(8)
             .GreaterThan(0);
+        RegisterParameter("max_partitioning_fan_in", MaxPartitioningFanIn)
+            .Default(10)
+            .GreaterThan(0);
 
         RegisterParameter("min_compaction_chunk_count", MinCompactionChunkCount)
             .Default(3)
-            .GreaterThan(1);
-        RegisterParameter("max_compaction_chunk_count", MaxCompactionChunkCount)
-            .Default(5)
             .GreaterThan(1);
         RegisterParameter("compaction_data_size_base", CompactionDataSizeBase)
             .Default((i64) 16 * 1024 * 1024)
@@ -148,6 +151,9 @@ public:
         RegisterParameter("compaction_data_size_ratio", CompactionDataSizeRatio)
             .Default(2.0)
             .GreaterThan(1.0);
+        RegisterParameter("max_compaction_fan_in", MaxCompactionFanIn)
+            .Default(5)
+            .GreaterThan(0);
 
         RegisterParameter("samples_per_partition", SamplesPerPartition)
             .Default(1)
@@ -156,6 +162,10 @@ public:
         RegisterParameter("backing_store_retention_time", BackingStoreRetentionTime)
             .Default(TDuration::Seconds(60));
 
+        RegisterParameter("max_read_fan_in", MaxReadFanIn)
+            .GreaterThan(0)
+            .Default(20);
+
         RegisterValidator([&] () {
             if (MinPartitionDataSize >= DesiredPartitionDataSize) {
                 THROW_ERROR_EXCEPTION("\"min_partition_data_size\" must be less than \"desired_partition_data_size\"");
@@ -163,8 +173,8 @@ public:
             if (DesiredPartitionDataSize >= MaxPartitionDataSize) {
                 THROW_ERROR_EXCEPTION("\"desired_partition_data_size\" must be less than \"max_partition_data_size\"");
             }
-            if (MaxCompactionChunkCount <= MinCompactionChunkCount) {
-                THROW_ERROR_EXCEPTION("\"max_compaction_chunk_count\" must be greater than \"min_compaction_chunk_count\"");
+            if (MaxCompactionFanIn <= MinCompactionChunkCount) {
+                THROW_ERROR_EXCEPTION("\"max_compaction_fan_in\" must be greater than \"min_compaction_chunk_count\"");
             }
         });
     }
@@ -261,7 +271,6 @@ class TStoreCompactorConfig
 public:
     int ThreadPoolSize;
     int MaxConcurrentCompactions;
-    int MaxChunksPerCompaction;
 
     NVersionedTableClient::TTableWriterConfigPtr Writer;
 
@@ -273,9 +282,6 @@ public:
         RegisterParameter("max_concurrent_compactions", MaxConcurrentCompactions)
             .GreaterThan(0)
             .Default(1);
-        RegisterParameter("max_chunks_per_compaction", MaxChunksPerCompaction)
-            .GreaterThan(0)
-            .Default(10);
     }
 };
 

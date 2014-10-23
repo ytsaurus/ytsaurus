@@ -310,6 +310,20 @@ public:
                 .Run(schema);
     }
 
+    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    {
+        return TTabletReaderBase::DoRead(rows, RowMerger_.get());
+    }
+
+    virtual TAsyncError GetReadyEvent() override
+    {
+        return ReadyEvent_;
+    }
+
+private:
+    std::unique_ptr<TUnversionedRowMerger> RowMerger_;
+
+
     void DoOpen(const TTableSchema& schema)
     {
         const auto& tabletSchema = TabletSnapshot_->Schema;
@@ -351,22 +365,15 @@ public:
             takePartition(*it);
         }
 
+        if (stores.size() > TabletSnapshot_->Config->MaxReadFanIn) {
+            THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
+                << TErrorAttribute("tablet_id", TabletSnapshot_->TabletId)
+                << TErrorAttribute("fan_in", stores.size())
+                << TErrorAttribute("fan_in_limit", TabletSnapshot_->Config->MaxReadFanIn);
+        }
+
         TTabletReaderBase::DoOpen(columnFilter, stores);
     }
-
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
-    {
-        return TTabletReaderBase::DoRead(rows, RowMerger_.get());
-    }
-
-    virtual TAsyncError GetReadyEvent() override
-    {
-        return ReadyEvent_;
-    }
-
-private:
-    std::unique_ptr<TUnversionedRowMerger> RowMerger_;
-
 };
 
 ISchemafulReaderPtr CreateSchemafulTabletReader(

@@ -131,9 +131,9 @@ private:
             return;
 
         // Limit the number of chunks to process at once.
-        if (static_cast<int>(stores.size()) > Config_->StoreCompactor->MaxChunksPerCompaction) {
+        if (static_cast<int>(stores.size()) > config->MaxPartitioningFanIn) {
             stores.erase(
-                stores.begin() + Config_->StoreCompactor->MaxChunksPerCompaction,
+                stores.begin() + config->MaxPartitioningFanIn,
                 stores.end());
         }
 
@@ -239,7 +239,7 @@ private:
         for (int i = 0; i < candidates.size(); ++i) {
             i64 dataSizeSum = 0;
             int j = i;
-            while (j < candidates.size() && j < i + config->MaxCompactionChunkCount) {
+            while (j < candidates.size() && j < i + config->MaxCompactionFanIn) {
                 i64 dataSize = candidates[j]->GetDataSize();
                 if (j > i && dataSize > config->CompactionDataSizeBase && dataSize > dataSizeSum * config->CompactionDataSizeRatio)
                     break;
