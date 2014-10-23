@@ -18,6 +18,12 @@ import itertools
 import simplejson as json
 from cStringIO import StringIO
 
+try:
+    import cjson
+except ImportError:
+    cjson = None
+
+
 class Format(object):
     """ YT data representations.
 
@@ -464,13 +470,28 @@ class JsonFormat(Format):
         self.process_table_index = process_table_index
         self.table_index_field_name = table_index_field_name
 
+    def _loads(self, string):
+        if cjson is not None:
+            return cjson.decode(string)
+        return json.loads(string)
+
+    def _dump(self, obj, stream):
+        if cjson is not None:
+            return stream.write(cjson.encode(obj))
+        return json.dump(obj, stream)
+
+    def _dumps(self, obj):
+        if cjson is not None:
+            return cjson.encode(obj)
+        return json.dumps(obj)
+
     def load_row(self, stream, unparsed=False):
         row = stream.readline()
         if unparsed:
             return row
         if not row:
             return None
-        return json.loads(row.rstrip("\n"))
+        return self._loads(row.rstrip("\n"))
 
     def _process_input_rows(self, rows):
         table_index = None
@@ -487,7 +508,7 @@ class JsonFormat(Format):
     def load_rows(self, stream):
         def _load_rows(stream):
             for line in stream:
-                yield json.loads(line)
+                yield self._loads(line)
 
         rows = _load_rows(stream)
         if self.process_table_index:
@@ -495,7 +516,7 @@ class JsonFormat(Format):
         return rows
 
     def dump_row(self, row, stream):
-        json.dump(row, stream)
+        self._dump(row, stream)
         stream.write("\n")
 
     def _process_output_rows(self, rows):
@@ -518,10 +539,10 @@ class JsonFormat(Format):
             self.dump_row(row, stream)
 
     def dumps_row(self, row):
-        return json.dumps(row)
+        return self._dumps(row)
 
     def loads_row(self, string):
-        return json.loads(string)
+        return self._loads(string)
 
 class YamredDsvFormat(YamrFormat):
     """
