@@ -159,6 +159,7 @@ struct TQuery
     TNullableNamedExprs SelectExprs;
     TExpressionPtr WherePredicate;
     TNullableNamedExprs GroupExprs;
+    i64 Limit = 0;
 
 };
 

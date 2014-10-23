@@ -62,6 +62,7 @@
 
 %token KwFrom "keyword `FROM`"
 %token KwWhere "keyword `WHERE`"
+%token KwLimit "keyword `LIMIT`"
 %token KwGroupBy "keyword `GROUP BY`"
 %token KwAs "keyword `AS`"
 
@@ -99,6 +100,7 @@
 %type <TStringBuf> from-clause
 %type <TExpressionPtr> where-clause
 %type <TNamedExpressionList> group-by-clause
+%type <i64> limit-clause
 
 %type <TNamedExpressionList> named-expression-list
 %type <TNamedExpression> named-expression
@@ -134,24 +136,36 @@ head-clause
             head->SelectExprs = $select;
             head->FromPath = $from;
         }
-    | select-clause[select] from-clause[from] where-clause[where]
+    | select-clause[select] from-clause[from] head-clause-tail
         {
             head->SelectExprs = $select;
-            head->WherePredicate = $where;
             head->FromPath = $from;
         }
-    | select-clause[select] from-clause[from] where-clause[where] group-by-clause[group]
+;
+
+
+head-clause-tail
+    : where-clause[where]
         {
-            head->SelectExprs = $select;
+            head->WherePredicate = $where;
+        }
+    | group-by-clause[group]
+        {
+            head->GroupExprs = $group;
+        }
+    | limit-clause[limit]
+        {
+            head->Limit = $limit;
+        }
+    | where-clause[where] group-by-clause[group]
+        {
             head->WherePredicate = $where;
             head->GroupExprs = $group;
-            head->FromPath = $from;
         }
-    | select-clause[select] from-clause[from] group-by-clause[group]
+    | where-clause[where] limit-clause[limit]
         {
-            head->SelectExprs = $select;
-            head->GroupExprs = $group;
-            head->FromPath = $from;
+            head->WherePredicate = $where;
+            head->Limit = $limit;
         }
 ;
 
@@ -184,6 +198,13 @@ group-by-clause
     : KwGroupBy named-expression-list[exprs]
         {
             $$ = $exprs;
+        }
+;
+
+limit-clause
+    : KwLimit Int64Literal[limit]
+        {
+            $$ = $limit;
         }
 ;
 

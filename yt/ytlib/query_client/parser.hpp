@@ -272,6 +272,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       char dummy11[sizeof(double)];
 
       // "int64 literal"
+      // limit-clause
       char dummy12[sizeof(i64)];
 
       // "uint64 literal"
@@ -303,17 +304,18 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         StrayWillParseQuery = 999,
         KwFrom = 1002,
         KwWhere = 1003,
-        KwGroupBy = 1004,
-        KwAs = 1005,
-        KwAnd = 1006,
-        KwOr = 1007,
-        KwBetween = 1008,
-        KwIn = 1009,
-        Identifier = 1010,
-        Int64Literal = 1011,
-        Uint64Literal = 1012,
-        DoubleLiteral = 1013,
-        StringLiteral = 1014,
+        KwLimit = 1004,
+        KwGroupBy = 1005,
+        KwAs = 1006,
+        KwAnd = 1007,
+        KwOr = 1008,
+        KwBetween = 1009,
+        KwIn = 1010,
+        Identifier = 1011,
+        Int64Literal = 1012,
+        Uint64Literal = 1013,
+        DoubleLiteral = 1014,
+        StringLiteral = 1015,
         OpModulo = 37,
         LeftParenthesis = 40,
         RightParenthesis = 41,
@@ -323,11 +325,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         OpMinus = 45,
         OpDivide = 47,
         OpLess = 60,
-        OpLessOrEqual = 1015,
+        OpLessOrEqual = 1016,
         OpEqual = 61,
-        OpNotEqual = 1016,
+        OpNotEqual = 1017,
         OpGreater = 62,
-        OpGreaterOrEqual = 1017
+        OpGreaterOrEqual = 1018
       };
     };
 
@@ -465,6 +467,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     static inline
     symbol_type
     make_KwWhere (const location_type& l);
+
+    static inline
+    symbol_type
+    make_KwLimit (const location_type& l);
 
     static inline
     symbol_type
@@ -766,13 +772,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 81,           //< Last index in yytable_.
-      yynnts_ = 24,  //< Number of nonterminal symbols.
+      yylast_ = 86,           //< Last index in yytable_.
+      yynnts_ = 26,  //< Number of nonterminal symbols.
       yyempty_ = -2,
       yyfinal_ = 22, //< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 32    //< Number of tokens.
+      yyntokens_ = 33    //< Number of tokens.
     };
 
 
