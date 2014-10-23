@@ -33,7 +33,7 @@ typedef ::NYT::TIntrusivePtr<const TExpression> TConstExpressionPtr;
 void Ref(const TExpression* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
 void Unref(const TExpression* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
 
-DECLARE_REFCOUNTED_CLASS(TQuery);
+DECLARE_REFCOUNTED_STRUCT(TQuery);
 typedef ::NYT::TIntrusivePtr<const TQuery> TConstQueryPtr;
 void Ref(const TQuery* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
 void Unref(const TQuery* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
