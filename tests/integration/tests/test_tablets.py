@@ -13,7 +13,7 @@ class TestTablets(YTEnvSetup):
 
     def _wait(self, predicate):
         while not predicate():
-            sleep(0.1)
+            sleep(1)
 
     def _sync_create_cells(self, size, count):
         ids = []
@@ -49,15 +49,9 @@ class TestTablets(YTEnvSetup):
     def _sync_mount_table(self, path):
         mount_table(path)
 
-        print 'Waiting for tablets for become mounted...'
-        
-        def _check():
-            tablets = get('//tmp/t/@tablets')
-            return all(x['state'] == 'mounted' for x in tablets)
-
-        self._wait(_check)
+        print 'Waiting for tablets to become mounted...'
+        self._wait(all(x['state'] == 'mounted' for x in get('//tmp/t/@tablets')))
                 
-
     def _get_pivot_keys(self, path):
         tablets = get(path + '/@tablets')
         return [tablet['pivot_key'] for tablet in tablets]
@@ -90,14 +84,12 @@ class TestTablets(YTEnvSetup):
         assert tablet["pivot_key"] == []
 
         print 'Waiting for table to become mounted...'
-        while get('//tmp/t/@tablets/0/state') != 'mounted':
-            sleep(0.1)
+        self._wait(get('//tmp/t/@tablets/0/state') == 'mounted')
 
         unmount_table('//tmp/t')
 
         print 'Waiting for table to become unmounted...'
-        while get('//tmp/t/@tablets/0/state') != 'unmounted':
-            sleep(0.1)
+        self._wait(lambda: get('//tmp/t/@tablets/0/state') == 'unmounted')
 
     def test_reshard_unmounted(self):
         self._sync_create_cells(1, 1)
@@ -140,6 +132,6 @@ class TestTablets(YTEnvSetup):
         assert self._find_tablet_orchid(address, tablet_id) is not None
        
         remove('//tmp/t')
-        sleep(0.1)
+        sleep(1)
         assert self._find_tablet_orchid(address, tablet_id) is None
          
