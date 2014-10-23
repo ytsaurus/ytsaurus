@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <ytlib/new_table_client/unversioned_row.h>
 
@@ -15,24 +15,21 @@
 // of native and JIT'ed code; second, to map necessary C++ types to LLVM types.
 
 namespace llvm {
-    class LLVMContext;
-    class Function;
-    class FunctionType;
-    class Module;
-    class Twine;
-    class Value;
-    class Instruction;
+
+class LLVMContext;
+class Function;
+class FunctionType;
+class Module;
+class Twine;
+class Value;
+class Instruction;
+
 } // namespace llvm
 
 namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using NVersionedTableClient::TRowBuffer;
-
-class TQuery;
-class TCGFragment;
 
 struct TExecutionContext
 {
@@ -55,8 +52,10 @@ struct TExecutionContext
 };
 
 namespace NDetail {
-    class TGroupHasher;
-    class TGroupComparer;
+
+class TGroupHasher;
+class TGroupComparer;
+
 } // namespace NDetail
 
 typedef
