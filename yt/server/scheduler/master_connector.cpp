@@ -67,6 +67,7 @@ using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NTransactionClient;
 using namespace NRpc;
+using namespace NApi;
 using namespace NSecurityClient;
 using namespace NTransactionClient::NProto;
 using namespace NConcurrency;
@@ -922,7 +923,7 @@ private:
             }
             auto clusterDirectory = Bootstrap->GetClusterDirectory();
             auto connection = clusterDirectory->GetConnection(CellTagFromId(id));
-            auto client = connection->CreateClient();
+            auto client = connection->CreateClient(GetRootClientOptions());
             auto transactionManager = client->GetTransactionManager();
             TTransactionAttachOptions options(id);
             options.AutoAbort = false;

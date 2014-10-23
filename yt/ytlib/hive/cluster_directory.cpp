@@ -21,7 +21,7 @@ using namespace NConcurrency;
 
 TClusterDirectory::TClusterDirectory(IConnectionPtr selfConnection)
     : SelfConnection_(selfConnection)
-    , SelfClient_(SelfConnection_->CreateClient())
+    , SelfClient_(SelfConnection_->CreateClient(GetRootClientOptions()))
 { }
 
 IConnectionPtr TClusterDirectory::GetConnection(TCellTag cellTag) const

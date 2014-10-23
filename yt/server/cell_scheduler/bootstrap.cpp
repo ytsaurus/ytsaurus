@@ -115,7 +115,7 @@ void TBootstrap::DoRun()
         JoinToString(Config_->ClusterConnection->Master->Addresses));
 
     auto connection = CreateConnection(Config_->ClusterConnection);
-    MasterClient_ = connection->CreateClient();
+    MasterClient_ = connection->CreateClient(GetRootClientOptions());
 
     BusServer_ = CreateTcpBusServer(New<TTcpBusServerConfig>(Config_->RpcPort));
 

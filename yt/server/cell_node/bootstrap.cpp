@@ -170,7 +170,7 @@ void TBootstrap::DoRun()
     }
 
     auto clusterConnection = CreateConnection(Config->ClusterConnection);
-    MasterClient = clusterConnection->CreateClient();
+    MasterClient = clusterConnection->CreateClient(GetRootClientOptions());
 
     QueryThreadPool = New<TThreadPool>(
         Config->QueryAgent->ThreadPoolSize,

@@ -72,6 +72,15 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TClientOptions GetRootClientOptions()
+{
+    TClientOptions options;
+    options.User = NSecurityClient::RootUserName;
+    return options;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryResponseReader
     : public ISchemafulReader
 {

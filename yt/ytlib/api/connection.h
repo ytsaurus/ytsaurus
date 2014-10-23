@@ -23,8 +23,10 @@ namespace NApi {
 
 struct TClientOptions
 {
-    Stroka User = NSecurityClient::RootUserName;
+    Stroka User = NSecurityClient::GuestUserName;
 };
+
+TClientOptions GetRootClientOptions();
 
 ////////////////////////////////////////////////////////////////////////////////
 
