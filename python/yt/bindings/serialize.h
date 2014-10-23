@@ -15,7 +15,11 @@ namespace NYTree {
 ///////////////////////////////////////////////////////////////////////////////
 
 // This methods allow use methods convertTo* with Py::Object.
-void Serialize(const Py::Object& obj, NYson::IYsonConsumer* consumer);
+void Serialize(
+    const Py::Object& obj,
+    NYson::IYsonConsumer* consumer,
+    bool ignoreInnerAttributes = false,
+    int depth = 0);
 
 void Deserialize(Py::Object& obj, NYTree::INodePtr node);
 
@@ -25,7 +29,7 @@ class TPythonObjectBuilder
     : public NYson::TYsonConsumerBase
 {
 public:
-    TPythonObjectBuilder();
+    explicit TPythonObjectBuilder(bool alwaysCreateAttributes);
 
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnInt64Scalar(i64 value) override;
@@ -60,6 +64,8 @@ private:
     Py::Callable YsonDouble;
     Py::Callable YsonBoolean;
     Py::Callable YsonEntity;
+
+    bool AlwaysCreateAttributes_;
 
     std::queue<Py::Object> Objects_;
 

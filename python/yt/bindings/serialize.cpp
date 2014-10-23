@@ -43,7 +43,7 @@ namespace NYTree {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void SerializeMapFragment(const Py::Mapping& map, IYsonConsumer* consumer)
+void SerializeMapFragment(const Py::Mapping& map, IYsonConsumer* consumer, bool ignoreInnerAttributes, int depth)
 {
     auto iterator = Py::Object(PyObject_GetIter(*map), true);
     while (auto* next = PyIter_Next(*iterator)) {
@@ -51,19 +51,19 @@ void SerializeMapFragment(const Py::Mapping& map, IYsonConsumer* consumer)
         char* keyStr = PyString_AsString(ConvertToString(key).ptr());
         auto value = Py::Object(PyMapping_GetItemString(*map, keyStr), true);
         consumer->OnKeyedItem(TStringBuf(keyStr));
-        Serialize(value, consumer);
+        Serialize(value, consumer, ignoreInnerAttributes, depth + 1);
     }
 }
 
 
-void Serialize(const Py::Object& obj, IYsonConsumer* consumer)
+void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerAttributes, int depth)
 {
     const char* attributesStr = "attributes";
-    if (PyObject_HasAttrString(*obj, attributesStr)) {
+    if ((!ignoreInnerAttributes || depth == 0) && PyObject_HasAttrString(*obj, attributesStr)) {
         auto attributes = Py::Mapping(PyObject_GetAttrString(*obj, attributesStr), true);
         if (attributes.length() > 0) {
             consumer->OnBeginAttributes();
-            SerializeMapFragment(attributes, consumer);
+            SerializeMapFragment(attributes, consumer, ignoreInnerAttributes, depth);
             consumer->OnEndAttributes();
         }
     }
@@ -75,14 +75,14 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer)
         consumer->OnStringScalar(ConvertToStringBuf(ConvertToString(encoded)));
     } else if (obj.isMapping()) {
         consumer->OnBeginMap();
-        SerializeMapFragment(Py::Mapping(obj), consumer);
+        SerializeMapFragment(Py::Mapping(obj), consumer, ignoreInnerAttributes, depth);
         consumer->OnEndMap();
     } else if (obj.isSequence()) {
         const auto& objList = Py::Sequence(obj);
         consumer->OnBeginList();
         for (auto it = objList.begin(); it != objList.end(); ++it) {
             consumer->OnListItem();
-            Serialize(*it, consumer);
+            Serialize(*it, consumer, ignoreInnerAttributes, depth + 1);
         }
         consumer->OnEndList();
     } else if (obj.isBoolean()) {
@@ -102,7 +102,7 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TPythonObjectBuilder::TPythonObjectBuilder()
+TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes)
     : YsonMap(GetYsonType("YsonMap"))
     , YsonList(GetYsonType("YsonList"))
     , YsonString(GetYsonType("YsonString"))
@@ -111,6 +111,7 @@ TPythonObjectBuilder::TPythonObjectBuilder()
     , YsonDouble(GetYsonType("YsonDouble"))
     , YsonBoolean(GetYsonType("YsonBoolean"))
     , YsonEntity(GetYsonType("YsonEntity"))
+    , AlwaysCreateAttributes_(alwaysCreateAttributes)
 { }
 
 void TPythonObjectBuilder::OnStringScalar(const TStringBuf& value)
@@ -187,6 +188,10 @@ void TPythonObjectBuilder::OnEndAttributes()
 
 Py::Object TPythonObjectBuilder::AddObject(const Py::Object& obj, const Py::Callable& type)
 {
+    if (AlwaysCreateAttributes_ && !Attributes_) {
+        Attributes_ = Py::Dict();
+    }
+
     if (Attributes_) {
         return AddObject(type.apply(Py::TupleN(obj)));
     } else {
