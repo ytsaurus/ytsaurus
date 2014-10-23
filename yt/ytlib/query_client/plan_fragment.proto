@@ -126,15 +126,38 @@ message TProjectOperator
     repeated TNamedItem projections = 2;
 }
 
+message TGroupClause
+{
+    repeated TNamedItem group_items = 4;
+    repeated TAggregateItem aggregate_items = 5;
+}
+
+message TProjectClause
+{
+    repeated TNamedItem projections = 6;
+}
+
+message TQuery
+{
+    required NYT.NProto.TGuid id = 1;
+    required int64 input_row_limit = 2;
+    required int64 output_row_limit = 3;
+
+    required NYT.NVersionedTableClient.NProto.TTableSchemaExt table_schema = 4;
+    required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 5;
+
+    optional TExpression predicate = 6;
+    optional TGroupClause group_clause = 7;
+    optional TProjectClause project_clause = 8;
+}
+
 message TPlanFragment
 {
-    required TOperator head = 1;
-    required NYT.NProto.TGuid id = 2;
-    required uint64 timestamp = 3;
-    required int64 input_row_limit = 4;
-    required int64 output_row_limit = 5;
+    required string source = 1;
 
-    required string source = 6;
+    repeated NYT.NChunkClient.NProto.TChunkSpec data_split = 2;
+    required TQuery query = 3;
+    
 }
 
 ////////////////////////////////////////////////////////////////////////////////

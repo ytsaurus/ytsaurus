@@ -12,9 +12,9 @@
 #include <ytlib/new_table_client/schemaful_writer.h>
 
 #include <ytlib/query_client/plan_fragment.h>
-#include <ytlib/query_client/executor.h>
 #include <ytlib/query_client/query_service_proxy.h>
 #include <ytlib/query_client/query_statistics.h>
+#include <ytlib/query_client/callbacks.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -68,7 +68,7 @@ private:
         auto planFragment = FromProto(request->plan_fragment());
         planFragment->NodeDirectory->MergeFrom(request->node_directory());
 
-        context->SetRequestInfo("FragmentId: %v", planFragment->GetId());
+        context->SetRequestInfo("FragmentId: %v", planFragment->Query->GetId());
 
         ExecuteRequestWithRetries(
             Config_->MaxQueryRetries,

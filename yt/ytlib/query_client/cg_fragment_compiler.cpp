@@ -53,6 +53,7 @@ using llvm::Value;
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef std::function<void(TCGIRBuilder& builder, Value* row)> TCodegenConsumer;
+typedef std::function<void(TCGIRBuilder& builder, const TCodegenConsumer& codegenConsumer)> TCodegenSource;
 
 static Value* CodegenValuesPtrFromRow(TCGIRBuilder&, Value*);
 
@@ -355,7 +356,7 @@ class TCGContext
 {
 public:
     static Function* CodegenEvaluate(
-        const TConstPlanFragmentPtr& planFragment,
+        const TConstQueryPtr& query,
         const TCGFragment& cgFragment,
         const TCGBinding& binding);
 
@@ -410,29 +411,29 @@ private:
         const TTableSchema& schema,
         Value* row);
 
-    void CodegenOp(
-        TCGIRBuilder& builder,
-        const TConstOperatorPtr& op,
-        const TCodegenConsumer& codegenConsumer);
-
     void CodegenScanOp(
         TCGIRBuilder& builder,
-        const TScanOperator* op,
         const TCodegenConsumer& codegenConsumer);
 
     void CodegenFilterOp(
         TCGIRBuilder& builder,
-        const TFilterOperator* op,
+        const TConstExpressionPtr& predicate,
+        const TTableSchema& sourceTableSchema,
+        const TCodegenSource& codegenSource,
         const TCodegenConsumer& codegenConsumer);
 
     void CodegenProjectOp(
         TCGIRBuilder& builder,
-        const TProjectOperator* op,
+        const TProjectClause& op,
+        const TTableSchema& sourceTableSchema,
+        const TCodegenSource& codegenSource,
         const TCodegenConsumer& codegenConsumer);
 
     void CodegenGroupOp(
         TCGIRBuilder& builder,
-        const TGroupOperator* op,
+        const TGroupClause& op,
+        const TTableSchema& sourceTableSchema,
+        const TCodegenSource& codegenSource,
         const TCodegenConsumer& codegenConsumer);
 
 };
@@ -1004,7 +1005,7 @@ TCGValue TCGContext::CodegenExpr(
     Value* row)
 {
     if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        auto it = Binding_.NodeToConstantIndex.find(expr.Get());
+        auto it = Binding_.NodeToConstantIndex.find(literalExpr);
         YCHECK(it != Binding_.NodeToConstantIndex.end());
         auto index = it->second;
         return TCGValue::CreateFromRow(
@@ -1012,7 +1013,7 @@ TCGValue TCGContext::CodegenExpr(
             GetConstantsRows(builder),
             index,
             "literal." + Twine(index))
-            .SetType(expr->Type) // Force type as constants are non-NULL.
+            .SetType(literalExpr->Type) // Force type as constants are non-NULL.
             .Steal();
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
         auto column = referenceExpr->ColumnName;
@@ -1049,27 +1050,8 @@ TCGValue TCGContext::CodegenExpr(
 // Operators
 //
 
-void TCGContext::CodegenOp(
-    TCGIRBuilder& builder,
-    const TConstOperatorPtr& op,
-    const TCodegenConsumer& codegenConsumer)
-{
-    if (auto scanOp = op->As<TScanOperator>()) {
-        return CodegenScanOp(builder, scanOp, codegenConsumer);
-    } else if (auto filterOp = op->As<TFilterOperator>()) {
-        return CodegenFilterOp(builder, filterOp, codegenConsumer);
-    } else if (auto projectOp = op->As<TProjectOperator>()) {
-        return CodegenProjectOp(builder, projectOp, codegenConsumer);
-    } else if (auto groupOp = op->As<TGroupOperator>()) {
-        return CodegenGroupOp(builder, groupOp, codegenConsumer);
-    } else {
-        YUNREACHABLE();
-    }
-}
-
 void TCGContext::CodegenScanOp(
     TCGIRBuilder& builder,
-    const TScanOperator* op,
     const TCodegenConsumer& codegenConsumer)
 {
     auto module = builder.GetInsertBlock()->getParent()->getParent();
@@ -1098,9 +1080,7 @@ void TCGContext::CodegenScanOp(
 
     Value* executionContextPtr = GetExecutionContextPtr(builder);
 
-    auto it = Binding_.ScanOpToDataSplits.find(op);
-    YCHECK(it != Binding_.ScanOpToDataSplits.end());
-    int dataSplitsIndex = it->second;
+    int dataSplitsIndex = 0;
 
     builder.CreateCall4(
         Fragment_.GetRoutine("ScanOpHelper"),
@@ -1112,17 +1092,16 @@ void TCGContext::CodegenScanOp(
 
 void TCGContext::CodegenFilterOp(
     TCGIRBuilder& builder,
-    const TFilterOperator* op,
+    const TConstExpressionPtr& predicate,
+    const TTableSchema& sourceTableSchema,
+    const TCodegenSource& codegenSource,
     const TCodegenConsumer& codegenConsumer)
 {
-    auto sourceSchema = op->GetTableSchema();
-
-    CodegenOp(builder, op->Source,
-        [&] (TCGIRBuilder& innerBuilder, Value* row) {
+    codegenSource(builder, [&] (TCGIRBuilder& innerBuilder, Value* row) {
             auto predicateResult = CodegenExpr(
                 innerBuilder,
-                op->Predicate,
-                sourceSchema,
+                predicate,
+                sourceTableSchema,
                 row);
 
             Value* result = innerBuilder.CreateZExtOrBitCast(
@@ -1147,14 +1126,14 @@ void TCGContext::CodegenFilterOp(
 
 void TCGContext::CodegenProjectOp(
     TCGIRBuilder& builder,
-    const TProjectOperator* op,
+    const TProjectClause& clause,
+    const TTableSchema& sourceTableSchema,
+    const TCodegenSource& codegenSource,
     const TCodegenConsumer& codegenConsumer)
 {
-    int projectionCount = op->Projections.size();
-    auto sourceTableSchema = op->Source->GetTableSchema();
+    int projectionCount = clause.Projections.size();
 
-    CodegenOp(builder, op->Source,
-        [&] (TCGIRBuilder& innerBuilder, Value* row) {
+    codegenSource(builder, [&] (TCGIRBuilder& innerBuilder, Value* row) {
             Value* newRowPtr = innerBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
             innerBuilder.CreateCall3(
@@ -1166,7 +1145,7 @@ void TCGContext::CodegenProjectOp(
             Value* newRow = innerBuilder.CreateLoad(newRowPtr);
 
             for (int index = 0; index < projectionCount; ++index) {
-                const auto& expr = op->Projections[index].Expression;
+                const auto& expr = clause.Projections[index].Expression;
                 auto id = index;
                 auto type = expr->Type;
 
@@ -1181,7 +1160,9 @@ void TCGContext::CodegenProjectOp(
 
 void TCGContext::CodegenGroupOp(
     TCGIRBuilder& builder,
-    const TGroupOperator* op,
+    const TGroupClause& clause,
+    const TTableSchema& sourceTableSchema,
+    const TCodegenSource& codegenSource,
     const TCodegenConsumer& codegenConsumer)
 {
     auto module = builder.GetInsertBlock()->getParent()->getParent();
@@ -1204,13 +1185,12 @@ void TCGContext::CodegenGroupOp(
         &builder,
         closure);
 
-    int keySize = op->GroupItems.size();
-    int aggregateItemCount = op->AggregateItems.size();
-    auto sourceTableSchema = op->Source->GetTableSchema();
+    int keySize = clause.GroupItems.size();
+    int aggregateItemCount = clause.AggregateItems.size();
 
     Value* newRowPtr = innerBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
-    CodegenOp(innerBuilder, op->Source, [&] (TCGIRBuilder& innerBuilder, Value* row) {
+    codegenSource(innerBuilder, [&] (TCGIRBuilder& innerBuilder, Value* row) {
         Value* executionContextPtrRef = GetExecutionContextPtr(innerBuilder);
         Value* groupedRowsRef = innerBuilder.ViaClosure(groupedRows);
         Value* rowsRef = innerBuilder.ViaClosure(rows);
@@ -1225,7 +1205,7 @@ void TCGContext::CodegenGroupOp(
         Value* newRowRef = innerBuilder.CreateLoad(newRowPtrRef);
 
         for (int index = 0; index < keySize; ++index) {
-            const auto& expr = op->GroupItems[index].Expression;
+            const auto& expr = clause.GroupItems[index].Expression;
             auto id = index;
             auto type = expr->Type;
 
@@ -1235,7 +1215,7 @@ void TCGContext::CodegenGroupOp(
         }
 
         for (int index = 0; index < aggregateItemCount; ++index) {
-            const auto& item = op->AggregateItems[index];
+            const auto& item = clause.AggregateItems[index];
             const auto& expr = item.Expression;
 
             auto id = keySize + index;
@@ -1260,7 +1240,7 @@ void TCGContext::CodegenGroupOp(
         }, [&] (TCGIRBuilder& innerBuilder) {
             Value* foundRow = innerBuilder.CreateLoad(foundRowPtr);
             for (int index = 0; index < aggregateItemCount; ++index) {
-                const auto& item = op->AggregateItems[index];
+                const auto& item = clause.AggregateItems[index];
                 const auto& name = item.Name;
 
                 auto id = keySize + index;
@@ -1297,7 +1277,7 @@ void TCGContext::CodegenGroupOp(
 }
 
 Function* TCGContext::CodegenEvaluate(
-    const TConstPlanFragmentPtr& planFragment,
+    const TConstQueryPtr& query,
     const TCGFragment& cgFragment,
     const TCGBinding& binding)
 {
@@ -1320,11 +1300,35 @@ Function* TCGContext::CodegenEvaluate(
 
     TCGContext ctx(cgFragment, binding, constants, executionContextPtr);
 
-    ctx.CodegenOp(builder, planFragment->Head,
-        [&] (TCGIRBuilder& innerBuilder, Value* row) {
-            Value* executionContextPtrRef = innerBuilder.ViaClosure(executionContextPtr);
-            innerBuilder.CreateCall2(cgFragment.GetRoutine("WriteRow"), row, executionContextPtrRef);
-        });
+    TCodegenSource codegenSource = [&] (TCGIRBuilder& builder, const TCodegenConsumer& codegenConsumer) {
+        ctx.CodegenScanOp(builder, codegenConsumer);
+    };
+    TTableSchema sourceSchema = query->TableSchema;
+
+    if (query->Predicate) {
+        codegenSource = [&, codegenSource, sourceSchema] (TCGIRBuilder& builder, const TCodegenConsumer& codegenConsumer) {
+            ctx.CodegenFilterOp(builder, query->Predicate, sourceSchema, codegenSource, codegenConsumer);
+        };
+    }
+
+    if (query->GroupClause) {
+        codegenSource = [&, codegenSource, sourceSchema] (TCGIRBuilder& builder, const TCodegenConsumer& codegenConsumer) {
+            ctx.CodegenGroupOp(builder, query->GroupClause.Get(), sourceSchema, codegenSource, codegenConsumer);
+        };
+        sourceSchema = query->GroupClause->GetTableSchema();
+    }
+
+    if (query->ProjectClause) {
+        codegenSource = [&, codegenSource, sourceSchema] (TCGIRBuilder& builder, const TCodegenConsumer& codegenConsumer) {
+            ctx.CodegenProjectOp(builder, query->ProjectClause.Get(), sourceSchema, codegenSource, codegenConsumer);
+        };
+        sourceSchema = query->ProjectClause->GetTableSchema();
+    }
+    
+    codegenSource(builder, [&] (TCGIRBuilder& innerBuilder, Value* row) {
+        Value* executionContextPtrRef = innerBuilder.ViaClosure(executionContextPtr);
+        innerBuilder.CreateCall2(cgFragment.GetRoutine("WriteRow"), row, executionContextPtrRef);
+    });
 
     builder.CreateRetVoid();
 

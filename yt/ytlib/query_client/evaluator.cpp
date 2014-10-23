@@ -5,10 +5,15 @@
 #include "private.h"
 #include "plan_fragment.h"
 #include "query_statistics.h"
+#include "config.h"
+
+#ifdef YT_USE_LLVM
+
 #include "cg_fragment.h"
 #include "cg_fragment_compiler.h"
 #include "cg_routines.h"
-#include "config.h"
+
+#endif
 
 #include <ytlib/new_table_client/schemaful_writer.h>
 #include <ytlib/new_table_client/row_buffer.h>
@@ -25,10 +30,14 @@
 
 #include <core/tracing/trace_context.h>
 
+#ifdef YT_USE_LLVM
+
 #include <llvm/ADT/FoldingSet.h>
 
 #include <llvm/Support/Threading.h>
 #include <llvm/Support/TargetSelect.h>
+
+#endif
 
 #include <mutex>
 
@@ -38,6 +47,8 @@ namespace NQueryClient {
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#ifdef YT_USE_LLVM
 
 void InitializeLlvmImpl()
 {
@@ -86,7 +97,7 @@ public:
         , Variables_(variables)
     { }
 
-    void Profile(const TConstOperatorPtr& op);
+    void Profile(const TConstQueryPtr& query);
     void Profile(const TConstExpressionPtr& expr);
     void Profile(const TNamedItem& namedExpression);
     void Profile(const TAggregateItem& aggregateItem);
@@ -99,52 +110,37 @@ private:
 
 };
 
-void TFoldingProfiler::Profile(const TConstOperatorPtr& op)
+void TFoldingProfiler::Profile(const TConstQueryPtr& query)
 {
-    if (auto scanOp = op->As<TScanOperator>()) {
-        Id_.AddInteger(EFoldingObjectType::ScanOp);
-
-        auto tableSchema = scanOp->GetTableSchema();
-            
-        Profile(tableSchema);
-        
-        // TODO(lukyan): Remove this code
-        auto dataSplits = scanOp->DataSplits;
-        for (auto & dataSplit : dataSplits) {
-            SetTableSchema(&dataSplit, tableSchema);
-        }
-
-        int index = Variables_.DataSplitsArray.size();
-        Variables_.DataSplitsArray.push_back(dataSplits);
-        Binding_.ScanOpToDataSplits[scanOp] = index;
-    } else if (auto filterOp = op->As<TFilterOperator>()) {
+    Id_.AddInteger(EFoldingObjectType::ScanOp);
+    Profile(query->TableSchema);
+    
+    if (query->Predicate) {
         Id_.AddInteger(EFoldingObjectType::FilterOp);
-
-        Profile(filterOp->Predicate);
-        Profile(filterOp->Source);
-    } else if (auto projectOp = op->As<TProjectOperator>()) {
-        Id_.AddInteger(EFoldingObjectType::ProjectOp);
-
-        for (const auto& projection : projectOp->Projections) {
-            Profile(projection);
-        }
-
-        Profile(projectOp->Source);
-    } else if (auto groupOp = op->As<TGroupOperator>()) {
+        Profile(query->Predicate);
+    }
+     
+    if (query->GroupClause) {
         Id_.AddInteger(EFoldingObjectType::GroupOp);
 
-        for (const auto& groupItem : groupOp->GroupItems) {
+        for (const auto& groupItem : query->GroupClause->GroupItems) {
             Profile(groupItem);
         }
 
-        for (const auto& aggregateItem : groupOp->AggregateItems) {
+        for (const auto& aggregateItem : query->GroupClause->AggregateItems) {
             Profile(aggregateItem);
         }
-
-        Profile(groupOp->Source);
-    } else {
-        YUNREACHABLE();
     }
+
+
+    if (query->ProjectClause) {
+        Id_.AddInteger(EFoldingObjectType::ProjectOp);
+
+        for (const auto& projection : query->ProjectClause->Projections) {
+            Profile(projection);
+        }
+    }
+    
 }
 
 void TFoldingProfiler::Profile(const TConstExpressionPtr& expr)
@@ -155,7 +151,7 @@ void TFoldingProfiler::Profile(const TConstExpressionPtr& expr)
         Id_.AddInteger(TValue(literalExpr->Value).Type);
 
         int index = Variables_.ConstantsRowBuilder.AddValue(TValue(literalExpr->Value));
-        Binding_.NodeToConstantIndex[expr.Get()] = index;
+        Binding_.NodeToConstantIndex[literalExpr] = index;
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
         Id_.AddInteger(EFoldingObjectType::ReferenceExpr);
         Id_.AddString(referenceExpr->ColumnName.c_str());
@@ -253,14 +249,14 @@ public:
     }
 
     TQueryStatistics Run(
-        IEvaluateCallbacks* callbacks,
-        const TPlanFragmentPtr& fragment,
+        const TConstQueryPtr& query,
+        ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer)
     {
         TRACE_CHILD("QueryClient", "Evaluate") {
-            TRACE_ANNOTATION("fragment_id", fragment->GetId());
+            TRACE_ANNOTATION("fragment_id", query->GetId());
 
-            auto Logger = BuildLogger(fragment);
+            auto Logger = BuildLogger(query);
 
             TQueryStatistics statistics;
             TDuration wallTime;
@@ -271,7 +267,7 @@ public:
                 TCachedCGFragmentPtr cgFragment;
                 TCGVariables fragmentParams;
 
-                std::tie(cgFragment, fragmentParams) = Codegen(fragment);
+                std::tie(cgFragment, fragmentParams) = Codegen(query);
 
                 auto cgFunction = cgFragment->GetCompiledBody();
 
@@ -281,8 +277,8 @@ public:
                 {
                     NProfiling::TAggregatingTimingGuard timingGuard(&statistics.AsyncTime);
                     auto error = WaitFor(writer->Open(
-                        fragment->Head->GetTableSchema(),
-                        fragment->Head->GetKeyColumns()));
+                        query->GetTableSchema(),
+                        query->GetKeyColumns()));
                     THROW_ERROR_EXCEPTION_IF_FAILED(error);
                 }
 
@@ -294,8 +290,9 @@ public:
                 batch.reserve(MaxRowsPerWrite);
 
                 TExecutionContext executionContext;
-                executionContext.Callbacks = callbacks;
-                executionContext.NodeDirectory = fragment->NodeDirectory;
+                executionContext.Reader = reader.Get();
+                executionContext.Schema = query->TableSchema;
+
                 executionContext.DataSplitsArray = &fragmentParams.DataSplitsArray;
                 executionContext.LiteralRows = &fragmentParams.LiteralRows;
                 executionContext.RowBuffer = &rowBuffer;
@@ -303,8 +300,8 @@ public:
                 executionContext.Writer = writer.Get();
                 executionContext.Batch = &batch;
                 executionContext.Statistics = &statistics;
-                executionContext.InputRowLimit = fragment->GetInputRowLimit();
-                executionContext.OutputRowLimit = fragment->GetOutputRowLimit();
+                executionContext.InputRowLimit = query->GetInputRowLimit();
+                executionContext.OutputRowLimit = query->GetOutputRowLimit();
 
                 CallCGFunctionPtr_(cgFunction, fragmentParams.ConstantsRowBuilder.GetRow(), &executionContext);
 
@@ -346,14 +343,14 @@ public:
     }
 
 private:
-    std::pair<TCachedCGFragmentPtr, TCGVariables> Codegen(const TPlanFragmentPtr& fragment)
+    std::pair<TCachedCGFragmentPtr, TCGVariables> Codegen(const TConstQueryPtr& query)
     {
         llvm::FoldingSetNodeID id;
         TCGBinding binding;
         TCGVariables variables;
 
-        TFoldingProfiler(id, binding, variables).Profile(fragment->Head);
-        auto Logger = BuildLogger(fragment);
+        TFoldingProfiler(id, binding, variables).Profile(query);
+        auto Logger = BuildLogger(query);
 
         auto cgFragment = Find(id);
         if (!cgFragment) {
@@ -362,7 +359,7 @@ private:
                 TRACE_CHILD("QueryClient", "Compile") {
                     LOG_DEBUG("Started compiling fragment");
                     cgFragment = New<TCachedCGFragment>(id);
-                    cgFragment->Embody(Compiler_(fragment, *cgFragment, binding));
+                    cgFragment->Embody(Compiler_(query, *cgFragment, binding));
                     LOG_DEBUG("Finished compiling fragment");
                     TryInsert(cgFragment);
                 }
@@ -397,31 +394,31 @@ private:
 private:
     TCGFragmentCompiler Compiler_;
 
-
-    static NLog::TLogger BuildLogger(const TPlanFragmentPtr& fragment)
-    {
-        NLog::TLogger result(QueryClientLogger);
-        result.AddTag("FragmentId: %v", fragment->GetId());
-        return result;
-    }
-
 };
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TEvaluator::TEvaluator(TExecutorConfigPtr config)
+#ifdef YT_USE_LLVM
     : Impl_(New<TImpl>(std::move(config)))
+#endif
 { }
 
 TEvaluator::~TEvaluator()
 { }
 
 TQueryStatistics TEvaluator::Run(
-    IEvaluateCallbacks* callbacks,
-    const TPlanFragmentPtr& fragment,
+    const TConstQueryPtr& query,
+    ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer)
 {
-    return Impl_->Run(callbacks, fragment, std::move(writer));
+#ifdef YT_USE_LLVM
+    return Impl_->Run(query, std::move(reader), std::move(writer));
+#else
+    THROW_ERROR_EXCEPTION("Query evaluation is not supported in this build");
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,6 +4,8 @@
 
 #include <core/misc/string.h>
 
+#include <core/concurrency/scheduler.h>
+
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
@@ -18,11 +20,16 @@
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_chunk_reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
+#include <ytlib/new_table_client/schemaful_merging_reader.h>
 #include <ytlib/new_table_client/pipe.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
 #include <ytlib/query_client/callbacks.h>
-#include <ytlib/query_client/executor.h>
+#include <ytlib/query_client/evaluator.h>
+#include <ytlib/query_client/plan_fragment.h>
+#include <ytlib/query_client/plan_helpers.h>
+#include <ytlib/query_client/coordinator.h>
+#include <ytlib/query_client/private.h>
 #include <ytlib/query_client/helpers.h>
 #include <ytlib/query_client/query_statistics.h>
 
@@ -50,6 +57,7 @@
 namespace NYT {
 namespace NQueryAgent {
 
+using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NQueryClient;
 using namespace NChunkClient;
@@ -119,7 +127,6 @@ private:
 
 class TQueryExecutor
     : public IExecutor
-    , public ICoordinateCallbacks
 {
 public:
     explicit TQueryExecutor(
@@ -127,83 +134,129 @@ public:
         TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
-        , Coordinator_(CreateCoordinator(
-            Config_,
-            // NB: Don't bound concurrency here.
-            // Doing otherwise may lead to deadlock and makes no sense since coordination
-            // is cheap.
-            Bootstrap_->GetQueryPoolInvoker(),
-            this))
-        , Evaluator_(CreateEvaluator(
-            Config_,
-            Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker(),
-            this))
+        , Evaluator_(New<TEvaluator>(Config_))
     { }
 
+    TQueryStatistics DoExecute(
+        const TPlanFragmentPtr& fragment,
+        ISchemafulWriterPtr writer)
+    {
+        auto query = fragment->Query;
+
+        auto groupedSplits = DoSplitAndRegroup(GetPrunedSplits(query, fragment->DataSplits), fragment->NodeDirectory);
+
+        std::vector<TKeyRange> ranges = GetRanges(groupedSplits);
+
+        TConstQueryPtr topquery;
+        std::vector<TConstQueryPtr> subqueries;
+
+        std::tie(topquery, subqueries) = CoordinateQuery(query, ranges);
+
+        auto Logger = BuildLogger(fragment->Query);
+
+        std::vector<ISchemafulReaderPtr> splitReaders;
+        std::vector<TFuture<TErrorOr<TQueryStatistics>>> subqueryStatistics;
+
+        for (size_t subqueryIndex = 0; subqueryIndex < subqueries.size(); ++subqueryIndex) {
+            if (!groupedSplits[subqueryIndex].empty()) {
+                LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
+                    subqueries[subqueryIndex]->GetId());
+
+                ISchemafulReaderPtr reader;
+                TFuture<TErrorOr<TQueryStatistics>> statistics;
+
+                std::vector<ISchemafulReaderPtr> bottomSplitReaders;
+                for (const auto& dataSplit : groupedSplits[subqueryIndex]) {
+                    bottomSplitReaders.push_back(GetReader(dataSplit, fragment->NodeDirectory));
+                }
+                auto mergingReader = CreateSchemafulMergingReader(bottomSplitReaders);
+
+                auto pipe = New<TSchemafulPipe>();
+                
+                auto result = BIND(&TEvaluator::Run, Evaluator_)
+                    .Guarded()
+                    .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
+                    .Run(subqueries[subqueryIndex], mergingReader, pipe->GetWriter());
+
+                result.Subscribe(BIND([pipe] (TErrorOr<TQueryStatistics> result) {
+                    if (!result.IsOK()) {
+                        pipe->Fail(result);
+                    }
+                }));
+
+                splitReaders.push_back(pipe->GetReader());
+                subqueryStatistics.push_back(result);
+            }                    
+        }
+
+        auto mergingReader = CreateSchemafulMergingReader(splitReaders);
+
+        auto asyncResultOrError = BIND(&TEvaluator::Run, Evaluator_)
+            .Guarded()
+            .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
+            .Run(topquery, std::move(mergingReader), std::move(writer));
+
+        auto resultOrError = WaitFor(asyncResultOrError);
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
+
+        return resultOrError.Value();
+    }
 
     // IExecutor implementation.
     virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
         const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer) override
     {
-        return Coordinator_->Execute(fragment, std::move(writer));
+        return BIND(&TQueryExecutor::DoExecute, MakeStrong(this))
+            .Guarded()
+            .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
+            .Run(fragment, std::move(writer));
     }
 
-
-    // ICoordinateCallbacks implementation.
-    virtual bool CanSplit(const TDataSplit& split) override
-    {
-        auto objectId = GetObjectIdFromDataSplit(split);
-        auto type = TypeFromId(objectId);
-        return type == EObjectType::Tablet;
-    }
-
-    virtual TFuture<TErrorOr<TDataSplits>> SplitFurther(
+    TDataSplits SplitFurther(
         const TDataSplit& split,
-        TNodeDirectoryPtr nodeDirectory) override
+        TNodeDirectoryPtr nodeDirectory)
     {
-        try {
-            auto tabletId = GetObjectIdFromDataSplit(split);
-            YCHECK(TypeFromId(tabletId) == EObjectType::Tablet);
+        auto tabletId = GetObjectIdFromDataSplit(split);
+        YCHECK(TypeFromId(tabletId) == EObjectType::Tablet);
 
-            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-            auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
+        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
 
-            auto lowerBound = GetLowerBoundFromDataSplit(split);
-            auto upperBound = GetUpperBoundFromDataSplit(split);
-            auto keyColumns = GetKeyColumnsFromDataSplit(split);
-            auto schema = GetTableSchemaFromDataSplit(split);
-            auto timestamp = GetTimestampFromDataSplit(split);
+        auto lowerBound = GetLowerBoundFromDataSplit(split);
+        auto upperBound = GetUpperBoundFromDataSplit(split);
+        auto keyColumns = GetKeyColumnsFromDataSplit(split);
+        auto schema = GetTableSchemaFromDataSplit(split);
+        auto timestamp = GetTimestampFromDataSplit(split);
 
-            // Build the initial set of split keys by copying samples.
-            // NB: splitKeys[0] < lowerBound is possible.
-            auto splitKeys = BuildSplitKeys(tabletSnapshot, lowerBound, upperBound);
+        // Build the initial set of split keys by copying samples.
+        // NB: splitKeys[0] < lowerBound is possible.
+        auto splitKeys = BuildSplitKeys(tabletSnapshot, lowerBound, upperBound);
 
-            // Cap the number of splits.
-            int totalSplitCount = static_cast<int>(splitKeys.size());
-            int cappedSplitCount = std::min(totalSplitCount, Config_->MaxSubsplitsPerTablet);
+        // Cap the number of splits.
+        int totalSplitCount = static_cast<int>(splitKeys.size());
+        int cappedSplitCount = std::min(totalSplitCount, Config_->MaxSubsplitsPerTablet);
 
-            std::vector<TDataSplit> subsplits;
-            for (int index = 0; index < cappedSplitCount; ++index) {
-                auto thisIt = splitKeys.begin() + index * totalSplitCount / cappedSplitCount;
-                auto nextIt = splitKeys.begin() + (index + 1) * totalSplitCount / cappedSplitCount;
+        std::vector<TDataSplit> subsplits;
+        for (int index = 0; index < cappedSplitCount; ++index) {
+            auto thisIt = splitKeys.begin() + index * totalSplitCount / cappedSplitCount;
+            auto nextIt = splitKeys.begin() + (index + 1) * totalSplitCount / cappedSplitCount;
 
-                const auto& thisKey = *thisIt;
-                const auto& nextKey = (nextIt == splitKeys.end()) ? MaxKey() : *nextIt;
+            const auto& thisKey = *thisIt;
+            const auto& nextKey = (nextIt == splitKeys.end()) ? MaxKey() : *nextIt;
 
-                TDataSplit subsplit;
-                SetObjectId(&subsplit, tabletId);
-                SetKeyColumns(&subsplit, keyColumns);
-                SetTableSchema(&subsplit, schema);
-                SetLowerBound(&subsplit, std::max(lowerBound, thisKey));
-                SetUpperBound(&subsplit, std::min(upperBound, nextKey));
-                SetTimestamp(&subsplit, timestamp);
-                subsplits.push_back(std::move(subsplit));
-            }
-            return MakeFuture<TErrorOr<TDataSplits>>(std::move(subsplits));
-        } catch (const std::exception& ex) {
-            return MakeFuture<TErrorOr<TDataSplits>>(ex);
+            TDataSplit subsplit;
+            SetObjectId(&subsplit, tabletId);
+            SetKeyColumns(&subsplit, keyColumns);
+            SetTableSchema(&subsplit, schema);
+            SetLowerBound(&subsplit, std::max(lowerBound, thisKey));
+            SetUpperBound(&subsplit, std::min(upperBound, nextKey));
+            SetTimestamp(&subsplit, timestamp);
+            subsplits.push_back(std::move(subsplit));
         }
+
+        return subsplits;
     }
 
     static std::vector<TOwningKey> BuildSplitKeys(
@@ -251,7 +304,7 @@ public:
 
     virtual TGroupedDataSplits Regroup(
         const TDataSplits& splits,
-        TNodeDirectoryPtr nodeDirectory) override
+        TNodeDirectoryPtr nodeDirectory)
     {
         std::map<TGuid, TDataSplits> groups;
         TGroupedDataSplits result;
@@ -273,24 +326,38 @@ public:
         return result;
     }
 
-    virtual std::pair<ISchemafulReaderPtr, TFuture<TErrorOr<TQueryStatistics>>> Delegate(
-        const TPlanFragmentPtr& fragment,
-        const TDataSplit& /*collocatedSplit*/) override
+    TGroupedDataSplits DoSplitAndRegroup(
+        const TDataSplits& splits,
+        TNodeDirectoryPtr nodeDirectory)
     {
-        auto pipe = New<TSchemafulPipe>();
-        auto result = Evaluator_->Execute(fragment, pipe->GetWriter());
-        result.Subscribe(BIND([pipe] (TErrorOr<TQueryStatistics> result) {
-            if (!result.IsOK()) {
-                pipe->Fail(result);
-            }
-        }));
+        TDataSplits allSplits;
+        for (const auto& split : splits) {
+            auto objectId = GetObjectIdFromDataSplit(split);
+            auto type = TypeFromId(objectId);
 
-        return std::make_pair(pipe->GetReader(), result);
+            if (type != EObjectType::Tablet) {
+                allSplits.push_back(split);
+                continue;
+            }
+
+            TDataSplits newSplits = SplitFurther(split, nodeDirectory);
+
+            LOG_DEBUG(
+                "Got %v splits for input %v",
+                newSplits.size(),
+                objectId);
+
+            allSplits.insert(allSplits.end(), newSplits.begin(), newSplits.end());
+        }
+
+        LOG_DEBUG("Regrouping %v splits", allSplits.size());
+
+        return Regroup(allSplits, nodeDirectory);
     }
 
-    virtual ISchemafulReaderPtr GetReader(
+    ISchemafulReaderPtr GetReader(
         const TDataSplit& split,
-        TNodeDirectoryPtr nodeDirectory) override
+        TNodeDirectoryPtr nodeDirectory)
     {
         auto objectId = FromProto<TObjectId>(split.chunk_id());
         switch (TypeFromId(objectId)) {
@@ -311,9 +378,7 @@ private:
     TQueryAgentConfigPtr Config_;
     TBootstrap* Bootstrap_;
     
-    IExecutorPtr Coordinator_;
-    IExecutorPtr Evaluator_;
-
+    TEvaluatorPtr Evaluator_;
 
     ISchemafulReaderPtr DoGetChunkReader(
         const TDataSplit& split,

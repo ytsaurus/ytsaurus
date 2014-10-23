@@ -49,8 +49,8 @@
 
 #include <ytlib/new_table_client/schemaful_writer.h>
 
+#include <ytlib/query_client/callbacks.h>
 #include <ytlib/query_client/plan_fragment.h>
-#include <ytlib/query_client/executor.h>
 #include <ytlib/query_client/query_statistics.h>
 
 namespace NYT {

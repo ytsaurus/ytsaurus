@@ -80,34 +80,6 @@ public:
         TTimestamp));
 };
 
-class TCoordinateCallbacksMock
-    : public ICoordinateCallbacks
-{
-public:
-    MOCK_METHOD2(GetReader, ISchemafulReaderPtr(
-        const TDataSplit&,
-        TNodeDirectoryPtr));
-
-    MOCK_METHOD1(CanSplit, bool(const TDataSplit&));
-
-    MOCK_METHOD2(SplitFurther, TFuture<TErrorOr<TDataSplits>>(
-        const TDataSplit&,
-        TNodeDirectoryPtr));
-
-    TGroupedDataSplits Regroup(const TDataSplits& splits, TNodeDirectoryPtr)
-    {
-        TGroupedDataSplits result;
-        for (const auto& split : splits) {
-            result.emplace_back(1, split);
-        }
-        return result;
-    }
-
-    MOCK_METHOD2(Delegate, std::pair<ISchemafulReaderPtr, TFuture<TErrorOr<TQueryStatistics>>>(
-        const TPlanFragmentPtr&,
-        const TDataSplit&));
-};
-
 MATCHER_P(HasCounter, expectedCounter, "")
 {
     auto objectId = GetObjectIdFromDataSplit(arg);
@@ -438,39 +410,24 @@ protected:
             .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
     }
 
-    void Coordinate(const Stroka& source)
+    void Coordinate(const Stroka& source, const TDataSplits& dataSplits, size_t subqueriesCount)
     {
-        YCHECK(!Coordinator_);
-        Coordinator_.Emplace(
-            &CoordinateMock_,
-            PreparePlanFragment(&PrepareMock_, source));
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source);
 
-        Coordinator_->Run();
-        CoordinatorFragment_ = Coordinator_->GetCoordinatorFragment();
-        PeerFragments_ = Coordinator_->GetPeerFragments();
+        auto prunedSplits = GetPrunedSplits(planFragment->Query, dataSplits);
+
+        EXPECT_EQ(prunedSplits.size(), subqueriesCount);
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
-    StrictMock<TCoordinateCallbacksMock> CoordinateMock_;
-
-    TNullable<TCoordinator> Coordinator_;
-
-    TPlanFragmentPtr CoordinatorFragment_;
-    TNullable<std::vector<TPlanFragmentPtr>> PeerFragments_;
-
 };
 
 TEST_F(TQueryCoordinateTest, EmptySplit)
 {
     TDataSplits emptySplits;
 
-    EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
-        .WillOnce(Return(WrapInFuture(emptySplits)));
-
     EXPECT_NO_THROW({
-        Coordinate("k from [//t]");
+        Coordinate("k from [//t]", emptySplits, 0);
     });
 }
 
@@ -479,15 +436,8 @@ TEST_F(TQueryCoordinateTest, SingleSplit)
     TDataSplits singleSplit;
     singleSplit.emplace_back(MakeSimpleSplit("//t", 1));
 
-    EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
-        .WillOnce(Return(WrapInFuture(singleSplit)));
-    EXPECT_CALL(CoordinateMock_, Delegate(_, HasCounter(1)))
-        .WillOnce(Return(std::make_pair(nullptr, TFuture<TErrorOr<NQueryClient::TQueryStatistics>>())));
-
     EXPECT_NO_THROW({
-        Coordinate("k from [//t]");
+        Coordinate("k from [//t]", singleSplit, 1);
     });
 }
 
@@ -495,20 +445,23 @@ TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
 {
     TDataSplits splits;
 
+    splits.emplace_back(MakeSimpleSplit("//t", 1));
+    SetSorted(&splits.back(), true);
+    SetLowerBound(&splits.back(), BuildKey("0;0;0"));
+    SetUpperBound(&splits.back(), BuildKey("1;0;0"));
+
     splits.emplace_back(MakeSimpleSplit("//t", 2));
     SetSorted(&splits.back(), true);
     SetLowerBound(&splits.back(), BuildKey("1;0;0"));
     SetUpperBound(&splits.back(), BuildKey("2;0;0"));
 
-    EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
-        .WillOnce(Return(true));
-    EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
-        .WillOnce(Return(WrapInFuture(splits)));
-    EXPECT_CALL(CoordinateMock_, Delegate(_, HasCounter(2)))
-        .WillOnce(Return(std::make_pair(nullptr, NYT::TFuture<NYT::TErrorOr<NYT::NQueryClient::TQueryStatistics>>())));
+    splits.emplace_back(MakeSimpleSplit("//t", 3));
+    SetSorted(&splits.back(), true);
+    SetLowerBound(&splits.back(), BuildKey("2;0;0"));
+    SetUpperBound(&splits.back(), BuildKey("3;0;0"));
 
     EXPECT_NO_THROW({
-        Coordinate("a from [//t] where k = 1 and l = 2 and m = 3");
+        Coordinate("a from [//t] where k = 1 and l = 2 and m = 3", splits, 1);
     });
 }
 
@@ -517,18 +470,8 @@ TEST_F(TQueryCoordinateTest, SimpleIn)
     TDataSplits singleSplit;
     singleSplit.emplace_back(MakeSimpleSplit("//t", 1));
 
-    EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
-        .Times(3)
-        .WillRepeatedly(Return(true));
-    EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
-        .Times(3)
-        .WillRepeatedly(Return(WrapInFuture(singleSplit)));
-    EXPECT_CALL(CoordinateMock_, Delegate(_, HasCounter(1)))
-        .Times(3)
-        .WillRepeatedly(Return(std::make_pair(nullptr, TFuture<TErrorOr<NQueryClient::TQueryStatistics>>())));
-
     EXPECT_NO_THROW({
-        Coordinate("k from [//t] where k in (1, 2, 3)");
+        Coordinate("k from [//t] where k in (1, 2, 3)", singleSplit, 3);
     });
 }
 
@@ -1604,9 +1547,6 @@ protected:
         EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
             .WillOnce(Return(WrapInFuture(dataSplit)));
 
-        EXPECT_CALL(EvaluateMock_, GetReader(HasSchema(GetTableSchemaFromDataSplit(dataSplit)), _))
-            .WillOnce(Return(ReaderMock_));
-
         EXPECT_CALL(*ReaderMock_, Open(_))
             .WillOnce(Return(WrapVoidInFuture()));
 
@@ -1627,10 +1567,10 @@ protected:
                 .WillOnce(Return(WrapVoidInFuture()));
         }
 
-        TEvaluator evaluator(New<TExecutorConfig>());
-        evaluator.Run(
-            &EvaluateMock_,
-            PreparePlanFragment(&PrepareMock_, query, inputRowLimit, outputRowLimit),
+        auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
+        evaluator->Run(
+            PreparePlanFragment(&PrepareMock_, query, inputRowLimit, outputRowLimit)->Query,
+            ReaderMock_,
             WriterMock_);
     }
 

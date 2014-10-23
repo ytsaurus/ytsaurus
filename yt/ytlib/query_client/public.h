@@ -18,7 +18,9 @@ namespace NQueryClient {
 namespace NProto {
 
 class TExpression;
-class TOperator;
+class TGroupClause;
+class TProjectClause;
+class TQuery;
 class TPlanFragment;
 class TQueryStatistics;
 
@@ -31,10 +33,10 @@ typedef ::NYT::TIntrusivePtr<const TExpression> TConstExpressionPtr;
 void Ref(const TExpression* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
 void Unref(const TExpression* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
 
-DECLARE_REFCOUNTED_STRUCT(TOperator)
-typedef ::NYT::TIntrusivePtr<const TOperator> TConstOperatorPtr;
-void Ref(const TOperator* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
-void Unref(const TOperator* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
+DECLARE_REFCOUNTED_CLASS(TQuery);
+typedef ::NYT::TIntrusivePtr<const TQuery> TConstQueryPtr;
+void Ref(const TQuery* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
+void Unref(const TQuery* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
 
 DECLARE_REFCOUNTED_CLASS(TPlanFragment);
 typedef ::NYT::TIntrusivePtr<const TPlanFragment> TConstPlanFragmentPtr;
@@ -42,7 +44,6 @@ void Ref(const TPlanFragment* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
 void Unref(const TPlanFragment* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
 
 struct IPrepareCallbacks;
-struct ICoordinateCallbacks;
 struct IEvaluateCallbacks;
 
 struct TQueryStatistics;
@@ -62,6 +63,7 @@ using NVersionedTableClient::ISchemafulWriter;
 using NVersionedTableClient::ISchemafulWriterPtr;
 using NVersionedTableClient::EValueType;
 using NVersionedTableClient::TTableSchema;
+using NVersionedTableClient::TColumnSchema;
 using NVersionedTableClient::TKeyColumns;
 
 using NTransactionClient::TTimestamp;

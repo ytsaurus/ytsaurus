@@ -25,12 +25,17 @@
 #include <ytlib/tablet_client/table_mount_cache.h>
 #include <ytlib/tablet_client/wire_protocol.h>
 
+#include <ytlib/new_table_client/schemaful_merging_reader.h>
+
 #include <ytlib/query_client/callbacks.h>
-#include <ytlib/query_client/helpers.h>
+#include <ytlib/query_client/evaluator.h>
 #include <ytlib/query_client/plan_fragment.h>
+#include <ytlib/query_client/plan_helpers.h>
+#include <ytlib/query_client/coordinator.h>
+#include <ytlib/query_client/private.h>
+#include <ytlib/query_client/helpers.h>
 #include <ytlib/query_client/query_statistics.h>
 #include <ytlib/query_client/query_service_proxy.h>
-#include <ytlib/query_client/executor.h>
 
 #include <ytlib/transaction_client/timestamp_provider.h>
 #include <ytlib/transaction_client/remote_timestamp_provider.h>
@@ -153,12 +158,13 @@ IClientPtr CreateClient(IConnectionPtr connection, const TClientOptions& options
 
 class TConnection
     : public IConnection
+    , public IExecutor
     , public IPrepareCallbacks
-    , public ICoordinateCallbacks
 {
 public:
     explicit TConnection(TConnectionConfigPtr config)
         : Config_(config)
+        , Evaluator_(New<TEvaluator>(Config_->QueryExecutor))
     {
         MasterChannel_ = CreateMasterChannel(Config_->Master);
 
@@ -202,11 +208,6 @@ public:
             Config_->TableMountCache,
             MasterCacheChannel_,
             CellDirectory_);
-
-        QueryExecutor_ = CreateCoordinator(
-            Config_->QueryExecutor,
-            NDriver::TDispatcher::Get()->GetHeavyInvoker(),
-            this);
     }
 
 
@@ -269,7 +270,7 @@ public:
 
     virtual IExecutorPtr GetQueryExecutor() override
     {
-        return QueryExecutor_;
+        return this;
     }
 
     virtual IClientPtr CreateClient(const TClientOptions& options) override
@@ -298,32 +299,9 @@ public:
 
     // ICoordinateCallbacks implementation.
 
-    virtual ISchemafulReaderPtr GetReader(
-        const TDataSplit& /*split*/,
-        TNodeDirectoryPtr /*nodeDirectory*/) override
-    {
-        YUNREACHABLE();
-    }
-
-    virtual bool CanSplit(const TDataSplit& split) override
-    {
-        return TypeFromId(GetObjectIdFromDataSplit(split)) == EObjectType::Table;
-    }
-
-    virtual TFuture<TErrorOr<std::vector<TDataSplit>>> SplitFurther(
-        const TDataSplit& split,
-        TNodeDirectoryPtr nodeDirectory) override
-    {
-        return
-            BIND(&TConnection::DoSplitFurther, MakeStrong(this))
-                .Guarded()
-                .AsyncVia(NDriver::TDispatcher::Get()->GetLightInvoker())
-                .Run(split, std::move(nodeDirectory));
-    }
-
-    virtual TGroupedDataSplits Regroup(
+    TGroupedDataSplits Regroup(
         const TDataSplits& splits,
-        TNodeDirectoryPtr nodeDirectory) override
+        TNodeDirectoryPtr nodeDirectory)
     {
         std::map<Stroka, TDataSplits> groups;
         TGroupedDataSplits result;
@@ -349,9 +327,34 @@ public:
         return result;
     }
 
-    virtual std::pair<ISchemafulReaderPtr, TFuture<TErrorOr<TQueryStatistics>>> Delegate(
+    TGroupedDataSplits DoSplitAndRegroup(
+        const TDataSplits& splits,
+        TNodeDirectoryPtr nodeDirectory)
+    {
+        TDataSplits allSplits;
+        for (const auto& split : splits) {
+            auto objectId = GetObjectIdFromDataSplit(split);
+            auto type = TypeFromId(objectId);
+
+            if (type != EObjectType::Table) {
+                allSplits.push_back(split);
+                continue;
+            }
+
+            TDataSplits newSplits = DoSplitFurther(split, nodeDirectory);
+
+
+            allSplits.insert(allSplits.end(), newSplits.begin(), newSplits.end());
+        }
+
+        //LOG_DEBUG("Regrouping %v splits", allSplits.size());
+
+        return Regroup(allSplits, nodeDirectory);
+    }
+
+    std::pair<ISchemafulReaderPtr, TFuture<TErrorOr<TQueryStatistics>>> Delegate(
         const TPlanFragmentPtr& fragment,
-        const TDataSplit& collocatedSplit) override
+        const TDataSplit& collocatedSplit)
     {
         auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(collocatedSplit.replicas());
         YCHECK(!replicas.empty());
@@ -372,6 +375,82 @@ public:
         return std::make_pair(resultReader, resultReader->GetQueryResult());
     }
 
+    std::pair<ISchemafulReaderPtr, TFuture<TErrorOr<TQueryStatistics>>> Delegate(
+        const TPlanFragmentPtr& fragment,
+        const Stroka& address)
+    {
+        auto channel = NodeChannelFactory_->CreateChannel(address);
+
+        TQueryServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(Config_->QueryTimeout);
+        auto req = proxy.Execute();
+        fragment->NodeDirectory->DumpTo(req->mutable_node_directory());
+        ToProto(req->mutable_plan_fragment(), fragment);
+        req->set_response_codec(Config_->SelectResponseCodec);
+
+        auto resultReader = New<TQueryResponseReader>(req->Invoke());
+        return std::make_pair(resultReader, resultReader->GetQueryResult());
+    }
+
+    // IExecutor implementation.
+
+    TQueryStatistics DoExecute(
+        const TPlanFragmentPtr& fragment,
+        ISchemafulWriterPtr writer)
+    {
+        auto query = fragment->Query;
+
+        auto groupedSplits = DoSplitAndRegroup(GetPrunedSplits(query, fragment->DataSplits), fragment->NodeDirectory);
+
+        std::vector<TKeyRange> ranges = GetRanges(groupedSplits);
+
+        TConstQueryPtr topquery;
+        std::vector<TConstQueryPtr> subqueries;
+
+        std::tie(topquery, subqueries) = CoordinateQuery(query, ranges);
+
+        auto Logger = BuildLogger(fragment->Query);
+
+        std::vector<ISchemafulReaderPtr> splitReaders;
+        std::vector<TFuture<TErrorOr<TQueryStatistics>>> subqueryStatistics;
+
+        for (size_t subqueryIndex = 0; subqueryIndex < subqueries.size(); ++subqueryIndex) {
+            if (!groupedSplits[subqueryIndex].empty()) {
+                LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
+                    subqueries[subqueryIndex]->GetId());
+
+                ISchemafulReaderPtr reader;
+                TFuture<TErrorOr<TQueryStatistics>> statistics;
+
+                auto subfragment = New<TPlanFragment>(fragment->GetSource());
+                subfragment->NodeDirectory = fragment->NodeDirectory;
+                subfragment->DataSplits = groupedSplits[subqueryIndex];
+                subfragment->Query = subqueries[subqueryIndex];
+
+                std::tie(reader, statistics) = Delegate(
+                    subfragment,
+                    subfragment->DataSplits[0]);
+
+                splitReaders.push_back(reader);
+                subqueryStatistics.push_back(statistics);
+            }                    
+        }
+
+        auto mergingReader = CreateSchemafulMergingReader(splitReaders);
+
+        return Evaluator_->Run(topquery, std::move(mergingReader), std::move(writer));
+    }
+
+    virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
+        const TPlanFragmentPtr& fragment,
+        ISchemafulWriterPtr writer) override
+    {
+        return BIND(&TConnection::DoExecute, MakeStrong(this))
+            .Guarded()
+            .AsyncVia(NDriver::TDispatcher::Get()->GetHeavyInvoker())
+            .Run(fragment, std::move(writer));
+    }
+
 private:
     TConnectionConfigPtr Config_;
 
@@ -384,7 +463,7 @@ private:
     TTableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;
-    IExecutorPtr QueryExecutor_;
+    TEvaluatorPtr Evaluator_;
 
 
     static IChannelPtr CreateMasterChannel(TMasterConnectionConfigPtr config)

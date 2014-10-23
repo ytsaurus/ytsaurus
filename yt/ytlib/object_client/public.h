@@ -126,8 +126,6 @@ DECLARE_ENUM(EObjectType,
     ((TabletMap)                  (703))
     ((DynamicMemoryTabletStore)   (704))
 
-    // Query stuff
-    ((PlanFragment)               (800))
 );
 
 //! Types (both regular and schematic) are supposed to be in range [0, MaxObjectType].

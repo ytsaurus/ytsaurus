@@ -75,25 +75,13 @@ void ScanOpHelper(
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, TRow* rows, int size))
 {
-    auto* callbacks = executionContext->Callbacks;
-    auto dataSplits = (*executionContext->DataSplitsArray)[dataSplitsIndex];
-
-    std::vector<ISchemafulReaderPtr> splitReaders;
-    TTableSchema schema;
-    for (const auto& dataSplit : dataSplits) {
-        if (splitReaders.empty()) {
-            // All schemas are expected to be same; take the first one. 
-            schema = GetTableSchemaFromDataSplit(dataSplit);
-        }
-        splitReaders.push_back(callbacks->GetReader(dataSplit, executionContext->NodeDirectory));
-    }
-
-    auto mergingReader = CreateSchemafulMergingReader(splitReaders);
+    auto* reader = executionContext->Reader;
 
     {
-        auto error = WaitFor(mergingReader->Open(schema));
+        auto error = WaitFor(reader->Open(executionContext->Schema));
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
+
 
     std::vector<TRow> rows;
     rows.reserve(MaxRowsPerRead);
@@ -101,7 +89,7 @@ void ScanOpHelper(
     while (true) {
         executionContext->ScratchSpace->Clear();
 
-        bool hasMoreData = mergingReader->Read(&rows);
+        bool hasMoreData = reader->Read(&rows);
         bool shouldWait = rows.empty();
 
         if (executionContext->InputRowLimit < rows.size()) {
@@ -135,7 +123,7 @@ void ScanOpHelper(
 
         if (shouldWait) {
             NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
-            auto error = WaitFor(mergingReader->GetReadyEvent());
+            auto error = WaitFor(reader->GetReadyEvent());
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
     }

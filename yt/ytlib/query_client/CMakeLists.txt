@@ -5,12 +5,12 @@ set( SRCS
   ${BASE}/private.cpp
   ${BASE}/helpers.cpp
   ${BASE}/coordinator.cpp
-  ${BASE}/executor.cpp
   ${BASE}/key_trie.cpp
   ${BASE}/ast.cpp
   ${BASE}/plan_fragment.cpp
   ${BASE}/plan_fragment_common.cpp
   ${BASE}/query_statistics.cpp  
+  ${BASE}/evaluator.cpp
 )
 
 set( HDRS
@@ -21,7 +21,6 @@ set( HDRS
   ${BASE}/config.h
   ${BASE}/plan_helpers.h
   ${BASE}/coordinator.h
-  ${BASE}/executor.h
   ${BASE}/lexer.h
   ${BASE}/parser.hpp
   ${BASE}/private.h
@@ -32,12 +31,12 @@ set( HDRS
   ${BASE}/plan_fragment.h
   ${BASE}/plan_fragment_common.h
   ${BASE}/query_statistics.h
+  ${BASE}/evaluator.h
 )
 
 if (YT_BUILD_ENABLE_LLVM)
   set( SRCS
     ${SRCS}
-    ${BASE}/evaluator.cpp
     ${BASE}/cg_routine_registry.cpp
     ${BASE}/cg_routines.cpp
     ${BASE}/cg_ir_builder.cpp
@@ -47,7 +46,6 @@ if (YT_BUILD_ENABLE_LLVM)
 
   set( HDRS
     ${HDRS}
-    ${BASE}/evaluator.h
     ${BASE}/cg_types.h
     ${BASE}/cg_routine_registry.h
     ${BASE}/cg_routines.h

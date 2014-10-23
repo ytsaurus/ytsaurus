@@ -13,6 +13,8 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <ytlib/query_client/plan_fragment.pb.h>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -196,52 +198,6 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOperator
-    : public TIntrinsicRefCounted
-{
-    virtual TTableSchema GetTableSchema() const = 0;
-
-    // TODO: Remove this function from here
-    TKeyColumns GetKeyColumns() const;
-
-    template <class TDerived>
-    const TDerived* As() const
-    {
-        return dynamic_cast<const TDerived*>(this);
-    }
-
-    template <class TDerived>
-    TDerived* As()
-    {
-        return dynamic_cast<TDerived*>(this);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TOperator)
-DEFINE_REFCOUNTED_TYPE(const TOperator)
-
-struct TScanOperator
-    : public TOperator
-{
-    TDataSplits DataSplits;
-    TTableSchema TableSchema;
-    TKeyColumns KeyColumns;
-
-    virtual TTableSchema GetTableSchema() const override;
-        
-};
-
-struct TFilterOperator
-    : public TOperator
-{
-    TConstOperatorPtr Source;
-
-    TConstExpressionPtr Predicate;
-
-    virtual TTableSchema GetTableSchema() const override;
-    
-};
-
 struct TNamedItem
 {
     TNamedItem()
@@ -254,90 +210,143 @@ struct TNamedItem
 
     TConstExpressionPtr Expression;
     Stroka Name;
+
+    TColumnSchema GetColumnSchema() const
+    {
+        return TColumnSchema(Name, Expression->Type);
+    }
 };
 
 typedef std::vector<TNamedItem> TNamedItemList;
 
 struct TAggregateItem
+    : public TNamedItem
 {
     TAggregateItem()
     { }
 
     TAggregateItem(const TConstExpressionPtr& expression, EAggregateFunctions aggregateFunction, Stroka name)
-        : Expression(expression)
+        : TNamedItem(expression, name)
         , AggregateFunction(aggregateFunction)
-        , Name(name)
     { }
 
-    TConstExpressionPtr Expression;
     EAggregateFunctions AggregateFunction;
-    Stroka Name;
 };
 
 typedef std::vector<TAggregateItem> TAggregateItemList;
 
-struct TGroupOperator
-    : public TOperator
-{
-    TConstOperatorPtr Source;
+////////////////////////////////////////////////////////////////////////////////
 
+struct TGroupClause
+{
     TNamedItemList GroupItems;
     TAggregateItemList AggregateItems;
 
-    virtual TTableSchema GetTableSchema() const override;    
+    TTableSchema GetTableSchema() const
+    {
+        TTableSchema result;
+
+        for (const auto& groupItem : GroupItems) {
+            result.Columns().emplace_back(groupItem.GetColumnSchema());
+        }
+
+        for (const auto& aggregateItem : AggregateItems) {
+            result.Columns().emplace_back(aggregateItem.GetColumnSchema());
+        }
+
+        ValidateTableSchema(result);
+
+        return result;
+    }
 };
 
-struct TProjectOperator
-    : public TOperator
+struct TProjectClause
 {
-    TConstOperatorPtr Source;
-
     TNamedItemList Projections;
 
-    virtual TTableSchema GetTableSchema() const override;    
+    TTableSchema GetTableSchema() const
+    {
+        TTableSchema result;
+
+        for (const auto& item : Projections) {
+            result.Columns().emplace_back(item.GetColumnSchema());
+        }
+
+        ValidateTableSchema(result);
+
+        return result;
+    }
 };
 
-////////////////////////////////////////////////////////////////////////////////
+struct TQuery
+    : public TIntrinsicRefCounted
+{
+    explicit TQuery(
+        i64 inputRowLimit,
+        i64 outputRowLimit,
+        const TGuid& id = TGuid::Create())
+        : InputRowLimit_(inputRowLimit)
+        , OutputRowLimit_(outputRowLimit)
+        , Id_(id)
+    { }
+
+    DEFINE_BYVAL_RO_PROPERTY(i64, InputRowLimit);
+    DEFINE_BYVAL_RO_PROPERTY(i64, OutputRowLimit);
+    DEFINE_BYVAL_RO_PROPERTY(TGuid, Id);
+
+    // TODO: Rename to InitialTableSchema
+    TTableSchema TableSchema;
+    TKeyColumns KeyColumns;
+
+    TConstExpressionPtr Predicate;
+
+    TNullable<TGroupClause> GroupClause;
+
+    TNullable<TProjectClause> ProjectClause;
+
+    TTableSchema GetTableSchema() const
+    {
+        if (ProjectClause) {
+            return ProjectClause->GetTableSchema();
+        }
+
+        if (GroupClause) {
+            return GroupClause->GetTableSchema();
+        }
+
+        return TableSchema;
+    }
+
+    TKeyColumns GetKeyColumns() const
+    {
+        if (!GroupClause && !ProjectClause) {
+            return KeyColumns;
+        } else {
+            return TKeyColumns();
+        }        
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TQuery)
+DEFINE_REFCOUNTED_TYPE(const TQuery)
 
 class TPlanFragment
     : public TIntrinsicRefCounted
 {
 public:
     explicit TPlanFragment(
-        TTimestamp timestamp,
-        i64 inputRowLimit,
-        i64 outputRowLimit,
-        const TGuid& id = TGuid::Create(),
         const TStringBuf& source = TStringBuf())
-        : Timestamp_(timestamp)
-        , InputRowLimit_(inputRowLimit)
-        , OutputRowLimit_(outputRowLimit)
-        , Id_(id)
-        , Source_(source)
+        : Source_(source)
     { }
 
-    explicit TPlanFragment(
-        TTimestamp timestamp,
-        i64 inputRowLimit,
-        i64 outputRowLimit,
-        const TStringBuf& source)
-        : Timestamp_(timestamp)
-        , InputRowLimit_(inputRowLimit)
-        , OutputRowLimit_(outputRowLimit)
-        , Id_(TGuid::Create())
-        , Source_(source)
-    { }
-
-    DEFINE_BYVAL_RO_PROPERTY(TTimestamp, Timestamp);
-    DEFINE_BYVAL_RO_PROPERTY(i64, InputRowLimit);
-    DEFINE_BYVAL_RO_PROPERTY(i64, OutputRowLimit);
-    DEFINE_BYVAL_RO_PROPERTY(TGuid, Id);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Source);
 
-    TPlanFragmentPtr RewriteWith(const TConstOperatorPtr& head) const;
-    
     TNodeDirectoryPtr NodeDirectory;
-    TConstOperatorPtr Head;
+
+    ///
+
+    TDataSplits DataSplits;
+    TConstQueryPtr Query;
 
 };
 

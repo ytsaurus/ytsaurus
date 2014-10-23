@@ -2,19 +2,14 @@
 
 #include "public.h"
 
-#include <core/logging/log.h>
-
 namespace NYT {
-namespace NQueryClient {
+namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger QueryClientLogger;
-
-NLog::TLogger BuildLogger(const TConstQueryPtr& query);
+ISchemafulReaderPtr CreateSchemafulOrderedReader(const std::function<ISchemafulReaderPtr()>& getNextReader);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
+} // namespace NVersionedTableClient
 } // namespace NYT
-

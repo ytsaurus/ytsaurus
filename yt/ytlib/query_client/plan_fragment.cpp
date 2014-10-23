@@ -41,66 +41,6 @@ Stroka TExpression::GetName() const
     return Stroka();
 }
 
-TKeyColumns TOperator::GetKeyColumns() const
-{
-    if (auto scanOp = this->As<TScanOperator>()) {
-        return scanOp->KeyColumns;
-    } else if (auto filterOp = this->As<TFilterOperator>()) {
-        return filterOp->Source->GetKeyColumns();
-    } else if (this->As<TGroupOperator>() || this->As<TProjectOperator>()) {
-        return TKeyColumns();
-    } else {
-        YUNREACHABLE();
-    }
-}
-
-TTableSchema TScanOperator::GetTableSchema() const
-{
-    return TableSchema;
-}
-
-TTableSchema TFilterOperator::GetTableSchema() const
-{
-    return Source->GetTableSchema();
-}
-
-TTableSchema TGroupOperator::GetTableSchema() const
-{
-    TTableSchema result;
-
-    for (const auto& groupItem : GroupItems) {
-        result.Columns().emplace_back(
-            groupItem.Name,
-            groupItem.Expression->Type);
-    }
-
-    for (const auto& aggregateItem : AggregateItems) {
-        result.Columns().emplace_back(
-            aggregateItem.Name,
-            aggregateItem.Expression->Type);
-    }
-
-    ValidateTableSchema(result);
-
-    return result;
-}
-
-TTableSchema TProjectOperator::GetTableSchema() const
-{
-    TTableSchema result;
-
-    auto sourceSchema = Source->GetTableSchema();
-    for (const auto& projection : Projections) {
-        result.Columns().emplace_back(
-            projection.Name,
-            projection.Expression->Type);
-    }
-
-    ValidateTableSchema(result);
-
-    return result;
-}
-
 EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType rhsType, const TStringBuf& source)
 {
     if (lhsType != rhsType) {
@@ -260,55 +200,26 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
 
 }
 
-void CheckDepth(const TOperatorPtr& head)
+void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)
 {
-    std::function<int(const TConstExpressionPtr& op)> getExpressionDepth = [&] (const TConstExpressionPtr& op) -> int {
-        if (op->As<TLiteralExpression>() || op->As<TReferenceExpression>() || op->As<TInOpExpression>()) {
-            return 1;
-        } else if (auto functionExpr = op->As<TFunctionExpression>()) {
-            int maxChildDepth = 0;
-            for (const auto& argument : functionExpr->Arguments) {
-                maxChildDepth = std::max(maxChildDepth, getExpressionDepth(argument));
-            }
-            return maxChildDepth + 1;
-        } else if (auto binaryOpExpr = op->As<TBinaryOpExpression>()) {
-            return std::max(
-                getExpressionDepth(binaryOpExpr->Lhs), 
-                getExpressionDepth(binaryOpExpr->Rhs)) + 1;
-        }
-        YUNREACHABLE();
-    };
-
-    std::function<int(const TConstOperatorPtr& op)> getOperatorDepth = [&] (const TConstOperatorPtr& op) -> int {
-        if (op->As<TScanOperator>()) {
-            return 1;
-        } else if (auto filterOp = op->As<TFilterOperator>()) {
-            return std::max(
-                getOperatorDepth(filterOp->Source), 
-                getExpressionDepth(filterOp->Predicate)) + 1;
-        } else if (auto projectOp = op->As<TProjectOperator>()) {
-            int maxChildDepth = getOperatorDepth(projectOp->Source);
-            for (const auto& projection : projectOp->Projections) {
-                maxChildDepth = std::max(maxChildDepth, getExpressionDepth(projection.Expression) + 1);
-            }
-            return maxChildDepth + 1;
-        } else if (auto groupOp = op->As<TGroupOperator>()) {
-            int maxChildDepth = getOperatorDepth(groupOp->Source);
-            for (const auto& groupItem : groupOp->GroupItems) {
-                maxChildDepth = std::max(maxChildDepth, getExpressionDepth(groupItem.Expression) + 1);
-            }
-            for (const auto& aggregateItem : groupOp->AggregateItems) {
-                maxChildDepth = std::max(maxChildDepth, getExpressionDepth(aggregateItem.Expression) + 1);
-            }
-            return maxChildDepth + 1;
-        }
-        YUNREACHABLE();
-    };
-
-    if (getOperatorDepth(head) > PlanFragmentDepthLimit) {
+    if (depth > PlanFragmentDepthLimit) {
         THROW_ERROR_EXCEPTION("Plan fragment depth limit exceeded");
     }
-}
+
+    if (op->As<TLiteralExpression>() || op->As<TReferenceExpression>() || op->As<TInOpExpression>()) {
+        return;
+    } else if (auto functionExpr = op->As<TFunctionExpression>()) {
+        for (const auto& argument : functionExpr->Arguments) {
+            CheckExpressionDepth(argument, depth + 1);
+        }
+        return;
+    } else if (auto binaryOpExpr = op->As<TBinaryOpExpression>()) {
+        CheckExpressionDepth(binaryOpExpr->Lhs, depth + 1);
+        CheckExpressionDepth(binaryOpExpr->Rhs, depth + 1);
+        return;
+    }
+    YUNREACHABLE();
+};
 
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
@@ -320,16 +231,15 @@ TPlanFragmentPtr PreparePlanFragment(
     NAst::TLexer lexer(source,  NAst::TParser::token::StrayWillParseQuery);
 
     TRowBuffer rowBuffer;
-    NAst::TQuery query;
+    NAst::TQuery ast;
 
-    NAst::TParser parser(lexer, &query, &rowBuffer);
+    NAst::TParser parser(lexer, &ast, &rowBuffer);
 
     int result = parser.parse();
     if (result != 0) {
         THROW_ERROR_EXCEPTION("Failed to parse query");
     }
 
-    ////////////////////////////////////
     auto getAggregate = [] (TStringBuf functionName) {
         Stroka name(functionName);
         name.to_lower();
@@ -351,8 +261,10 @@ TPlanFragmentPtr PreparePlanFragment(
         return result;
     };
 
-    auto planFragment = New<TPlanFragment>(timestamp, inputRowLimit, outputRowLimit, TGuid::Create(), source);
+    auto planFragment = New<TPlanFragment>(source);
     planFragment->NodeDirectory = New<TNodeDirectory>();
+
+    auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
 
     struct TTableSchemaProxy
     {
@@ -386,22 +298,7 @@ TPlanFragmentPtr PreparePlanFragment(
         }
     };
 
-    struct TGroupOperatorProxy
-    {
-        TTableSchemaProxy SourceSchemaProxy;
-        TGroupOperator& Op;
-        std::map<Stroka, size_t> SubexprNames;        
-
-        TGroupOperatorProxy(
-            const TTableSchemaProxy& sourceSchemaProxy, 
-            TGroupOperator& op)
-            : SourceSchemaProxy(sourceSchemaProxy)
-            , Op(op)
-        { }
-
-    };
-
-    auto tablePath = query.FromPath;
+    auto tablePath = ast.FromPath;
 
     LOG_DEBUG("Getting initial data split for %v", tablePath);
     // XXX(sandello): We have just one table at the moment.
@@ -432,14 +329,29 @@ TPlanFragmentPtr PreparePlanFragment(
         return result;
     };
 
+    struct TGroupClauseProxy
+    {
+        TTableSchemaProxy SourceSchemaProxy;
+        TGroupClause& Op;
+        std::map<Stroka, size_t> SubexprNames;        
+
+        TGroupClauseProxy(
+            const TTableSchemaProxy& sourceSchemaProxy, 
+            TGroupClause& op)
+            : SourceSchemaProxy(sourceSchemaProxy)
+            , Op(op)
+        { }
+
+    };
+
     std::function<std::vector<TConstExpressionPtr>(
         const TTableSchemaProxy&,
         const NAst::TExpression*,
-        TGroupOperatorProxy*)>
+        TGroupClauseProxy*)>
         buildTypedExpression = [&] (
             const TTableSchemaProxy& tableSchema,
             const NAst::TExpression* expr,
-            TGroupOperatorProxy* groupProxy) -> std::vector<TConstExpressionPtr> {
+            TGroupClauseProxy* groupProxy) -> std::vector<TConstExpressionPtr> {
 
         std::vector<TConstExpressionPtr> result;
         if (auto commaExpr = expr->As<NAst::TCommaExpression>()) {
@@ -487,6 +399,8 @@ TPlanFragmentPtr PreparePlanFragment(
                             aggregateFunction.Get())
                             << TErrorAttribute("source", functionExpr->GetSource(querySourceString));
                     }
+
+                    CheckExpressionDepth(typedOperands.front());
 
                     groupOp.AggregateItems.emplace_back(
                         typedOperands.front(),
@@ -603,28 +517,25 @@ TPlanFragmentPtr PreparePlanFragment(
     };
     
     std::set<Stroka> liveColumns;
-    auto scanOp = New<TScanOperator>();
     auto initialDataSplit = dataSplitOrError.Value();
     auto initialTableSchema = GetTableSchemaFromDataSplit(initialDataSplit);
 
-    TOperatorPtr head = scanOp;
     TTableSchemaProxy tableSchemaProxy(initialTableSchema, &liveColumns);
-    TNullable<TGroupOperatorProxy> groupOpProxy;
-    
-    if (query.WherePredicate) {
-        auto filterOp = New<TFilterOperator>();
-        filterOp->Source = head;
 
-        auto typedPredicate = buildTypedExpression(tableSchemaProxy, query.WherePredicate.Get(), nullptr);
+    if (ast.WherePredicate) {
+
+        auto typedPredicate = buildTypedExpression(tableSchemaProxy, ast.WherePredicate.Get(), nullptr);
 
         if (typedPredicate.size() != 1) {
             THROW_ERROR_EXCEPTION("Expecting scalar expression")
-                << TErrorAttribute("source", query.WherePredicate->GetSource(querySourceString));
+                << TErrorAttribute("source", ast.WherePredicate->GetSource(querySourceString));
         }
 
-        filterOp->Predicate = typedPredicate.front();
+        auto predicate = typedPredicate.front();
 
-        auto actualType = filterOp->Predicate->Type;
+        CheckExpressionDepth(predicate);
+
+        auto actualType = predicate->Type;
         EValueType expectedType(EValueType::Boolean);
         if (actualType != expectedType) {
             THROW_ERROR_EXCEPTION("WHERE-clause is not a boolean expression")
@@ -632,15 +543,19 @@ TPlanFragmentPtr PreparePlanFragment(
                 << TErrorAttribute("expected_type", expectedType);
         }
 
-        head = filterOp;
-    }   
+        query->Predicate = predicate;
+    }
 
-    if (query.GroupExprs) {
-        auto groupOp = New<TGroupOperator>();
-        groupOp->Source = head;
+        
 
+    TNullable<TGroupClauseProxy> groupClauseProxy;
+
+    if (ast.GroupExprs) {
         TTableSchema tableSchema;
-        for (const auto& expr : query.GroupExprs.Get()) {
+
+        TGroupClause groupClause;
+
+        for (const auto& expr : ast.GroupExprs.Get()) {
             auto typedExprs = buildTypedExpression(tableSchemaProxy, expr.first.Get(), nullptr);
             
             if (typedExprs.size() != 1) {
@@ -648,38 +563,43 @@ TPlanFragmentPtr PreparePlanFragment(
                     << TErrorAttribute("source", expr.first->GetSource(querySourceString));
             }
 
-            groupOp->GroupItems.emplace_back(typedExprs.front(), expr.second);
+            CheckExpressionDepth(typedExprs.front());
+            groupClause.GroupItems.emplace_back(typedExprs.front(), expr.second);
             tableSchema.Columns().emplace_back(expr.second, typedExprs.front()->Type);
         }
 
         ValidateTableSchema(tableSchema);
 
-        head = groupOp;
-        groupOpProxy.Emplace(tableSchemaProxy, *groupOp);
+        query->GroupClause = std::move(groupClause);
+
+        groupClauseProxy.Emplace(tableSchemaProxy, query->GroupClause.Get());
         tableSchemaProxy = TTableSchemaProxy(tableSchema);
     }
 
-    if (query.SelectExprs) {
-        auto projectOp = New<TProjectOperator>();
-        projectOp->Source = head;
-
+    if (ast.SelectExprs) {
         TTableSchema tableSchema;
-        for (const auto& expr : query.SelectExprs.Get()) {
-            auto typedExprs = buildTypedExpression(tableSchemaProxy, expr.first.Get(), groupOpProxy.GetPtr());
+
+        TProjectClause projectClause;
+
+        for (const auto& expr : ast.SelectExprs.Get()) {
+            auto typedExprs = buildTypedExpression(tableSchemaProxy, expr.first.Get(), groupClauseProxy.GetPtr());
             
             if (typedExprs.size() != 1) {
                 THROW_ERROR_EXCEPTION("Expecting scalar expression")
                     << TErrorAttribute("source", expr.first->GetSource(querySourceString));
             }
 
-            projectOp->Projections.emplace_back(typedExprs.front(), expr.second);
+            CheckExpressionDepth(typedExprs.front());
+
+            projectClause.Projections.emplace_back(typedExprs.front(), expr.second);
             tableSchema.Columns().emplace_back(expr.second, typedExprs.front()->Type);
         }
 
         ValidateTableSchema(tableSchema);
 
-        head = projectOp;
-        groupOpProxy.Reset();
+        query->ProjectClause = std::move(projectClause);
+
+        groupClauseProxy.Reset();
         tableSchemaProxy = TTableSchemaProxy(tableSchema);
     }
 
@@ -701,31 +621,16 @@ TPlanFragmentPtr PreparePlanFragment(
     }
 
     SetTableSchema(&initialDataSplit, initialTableSchema);
-    scanOp->DataSplits.push_back(initialDataSplit);
-    scanOp->TableSchema = GetTableSchemaFromDataSplit(initialDataSplit);
-    scanOp->KeyColumns = GetKeyColumnsFromDataSplit(initialDataSplit);
 
-    CheckDepth(head);
+    planFragment->DataSplits.push_back(initialDataSplit);
+    query->TableSchema = GetTableSchemaFromDataSplit(initialDataSplit);
+    query->KeyColumns = GetKeyColumnsFromDataSplit(initialDataSplit);
 
-    planFragment->Head = head;
+    planFragment->Query = query;
 
     return planFragment;
 }
 
-TPlanFragmentPtr TPlanFragment::RewriteWith(const TConstOperatorPtr& head) const
-{
-    auto fragment = New<TPlanFragment>(
-        GetTimestamp(),
-        GetInputRowLimit(),
-        GetOutputRowLimit(),
-        TGuid::Create(),
-        GetSource());
-
-    fragment->NodeDirectory = NodeDirectory;
-    fragment->Head = head;
-
-    return fragment;
-}
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& original)
@@ -898,33 +803,39 @@ void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
     ToProto(serialized->mutable_name(), original.Name);
 }
 
-void ToProto(NProto::TOperator* serialized, const TConstOperatorPtr& original)
+void ToProto(NProto::TGroupClause* proto, const TGroupClause& original)
 {
-    if (auto scanOp = original->As<TScanOperator>()) {
-        serialized->set_kind(EOperatorKind::Scan);
-        auto* proto = serialized->MutableExtension(NProto::TScanOperator::scan_operator);
-        ToProto(proto->mutable_data_split(), scanOp->DataSplits);
-        ToProto(proto->mutable_table_schema(), scanOp->TableSchema);
-        ToProto(proto->mutable_key_columns(), scanOp->KeyColumns);
-    } else if (auto filterOp = original->As<TFilterOperator>()) {
-        serialized->set_kind(EOperatorKind::Filter);
-        auto* proto = serialized->MutableExtension(NProto::TFilterOperator::filter_operator);
-        ToProto(proto->mutable_source(), filterOp->Source);
-        ToProto(proto->mutable_predicate(), filterOp->Predicate);
-    } else if (auto groupOp = original->As<TGroupOperator>()) {
-        serialized->set_kind(EOperatorKind::Group);
-        auto* proto = serialized->MutableExtension(NProto::TGroupOperator::group_operator);
-        ToProto(proto->mutable_source(), groupOp->Source);
-        ToProto(proto->mutable_group_items(), groupOp->GroupItems);
-        ToProto(proto->mutable_aggregate_items(), groupOp->AggregateItems);
-    } else if (auto projectOp = original->As<TProjectOperator>()) {
-        serialized->set_kind(EOperatorKind::Project);
-        auto* proto = serialized->MutableExtension(NProto::TProjectOperator::project_operator);
-        ToProto(proto->mutable_source(), projectOp->Source);
-        ToProto(proto->mutable_projections(), projectOp->Projections);
-    } else {
-        YUNREACHABLE();
-    }    
+    ToProto(proto->mutable_group_items(), original.GroupItems);
+    ToProto(proto->mutable_aggregate_items(), original.AggregateItems);
+}
+
+void ToProto(NProto::TProjectClause* proto, const TProjectClause& original)
+{
+    ToProto(proto->mutable_projections(), original.Projections);
+}
+
+void ToProto(NProto::TQuery* proto, const TConstQueryPtr& original)
+{
+    proto->set_input_row_limit(original->GetInputRowLimit());
+    proto->set_output_row_limit(original->GetOutputRowLimit());
+
+    ToProto(proto->mutable_id(), original->GetId());
+
+
+    ToProto(proto->mutable_table_schema(), original->TableSchema);
+    ToProto(proto->mutable_key_columns(), original->KeyColumns);
+
+    if (original->Predicate) {
+        ToProto(proto->mutable_predicate(), original->Predicate);
+    }
+
+    if (original->GroupClause) {
+        ToProto(proto->mutable_group_clause(), original->GroupClause.Get());
+    }
+    
+    if (original->ProjectClause) {
+        ToProto(proto->mutable_project_clause(), original->ProjectClause.Get());
+    }
 }
 
 TNamedItem FromProto(const NProto::TNamedItem& serialized)
@@ -942,88 +853,82 @@ TAggregateItem FromProto(const NProto::TAggregateItem& serialized)
         serialized.name());
 }
 
-TOperatorPtr FromProto(const NProto::TOperator& serialized)
+TGroupClause FromProto(const NProto::TGroupClause& serialized)
 {
-    auto kind = EOperatorKind(serialized.kind());
-
-    switch (kind) {
-        case EOperatorKind::Scan: {
-            auto typedResult = New<TScanOperator>();
-            auto data = serialized.GetExtension(NProto::TScanOperator::scan_operator);
-            typedResult->DataSplits.reserve(data.data_split_size());
-            for (int i = 0; i < data.data_split_size(); ++i) {
-                TDataSplit dataSplit;
-                FromProto(&dataSplit, data.data_split(i));
-                typedResult->DataSplits.push_back(dataSplit);
-            }
-            FromProto(&typedResult->TableSchema, data.table_schema());
-            FromProto(&typedResult->KeyColumns, data.key_columns());
-            return typedResult;
-        }
-
-        case EOperatorKind::Filter: {
-            auto typedResult = New<TFilterOperator>();
-            auto data = serialized.GetExtension(NProto::TFilterOperator::filter_operator);            
-            typedResult->Source = FromProto(data.source());
-            typedResult->Predicate = FromProto(data.predicate());
-            return typedResult;
-        }
-
-        case EOperatorKind::Group: {
-            auto typedResult = New<TGroupOperator>();
-            auto data = serialized.GetExtension(NProto::TGroupOperator::group_operator);
-            typedResult->Source = FromProto(data.source());
-            typedResult->GroupItems.reserve(data.group_items_size());
-            for (int i = 0; i < data.group_items_size(); ++i) {
-                typedResult->GroupItems.push_back(FromProto(data.group_items(i)));
-            }
-            typedResult->AggregateItems.reserve(data.aggregate_items_size());
-            for (int i = 0; i < data.aggregate_items_size(); ++i) {
-                typedResult->AggregateItems.push_back( FromProto(data.aggregate_items(i)));
-            }
-            return typedResult;
-        }
-
-        case EOperatorKind::Project: {
-            auto typedResult = New<TProjectOperator>();
-            auto data = serialized.GetExtension(NProto::TProjectOperator::project_operator);
-            typedResult->Source = FromProto(data.source());
-            typedResult->Projections.reserve(data.projections_size());
-            for (int i = 0; i < data.projections_size(); ++i) {
-                typedResult->Projections.push_back(FromProto(data.projections(i)));
-            }
-            return typedResult;
-        }
+    TGroupClause result;
+    result.GroupItems.reserve(serialized.group_items_size());
+    for (int i = 0; i < serialized.group_items_size(); ++i) {
+        result.GroupItems.push_back(FromProto(serialized.group_items(i)));
+    }
+    result.AggregateItems.reserve(serialized.aggregate_items_size());
+    for (int i = 0; i < serialized.aggregate_items_size(); ++i) {
+        result.AggregateItems.push_back(FromProto(serialized.aggregate_items(i)));
     }
 
-    YUNREACHABLE();
+    return result;
+}
+
+TProjectClause FromProto(const NProto::TProjectClause& serialized)
+{
+    TProjectClause result;
+
+    result.Projections.reserve(serialized.projections_size());
+    for (int i = 0; i < serialized.projections_size(); ++i) {
+        result.Projections.push_back(FromProto(serialized.projections(i)));
+    }
+
+    return result;
+}
+
+TQueryPtr FromProto(const NProto::TQuery& serialized)
+{
+    auto query = New<TQuery>(
+        serialized.input_row_limit(),
+        serialized.output_row_limit(),
+        NYT::FromProto<TGuid>(serialized.id()));
+
+    FromProto(&query->TableSchema, serialized.table_schema());
+    FromProto(&query->KeyColumns, serialized.key_columns());
+
+    if (serialized.has_predicate()) {
+        query->Predicate = FromProto(serialized.predicate());
+    }
+
+    if (serialized.has_group_clause()) {
+        query->GroupClause = FromProto(serialized.group_clause());       
+    }
+
+    if (serialized.has_project_clause()) {
+        query->ProjectClause = FromProto(serialized.project_clause());       
+    }
+
+    return query;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TPlanFragment* serialized, const TConstPlanFragmentPtr& fragment)
+void ToProto(NProto::TPlanFragment* proto, const TConstPlanFragmentPtr& fragment)
 {
-    ToProto(serialized->mutable_id(), fragment->GetId());
-    ToProto(serialized->mutable_head(), fragment->Head);
+    ToProto(proto->mutable_query(), fragment->Query);
+    ToProto(proto->mutable_data_split(), fragment->DataSplits);
     
-    serialized->set_timestamp(fragment->GetTimestamp());
-    serialized->set_input_row_limit(fragment->GetInputRowLimit());
-    serialized->set_output_row_limit(fragment->GetOutputRowLimit());
-    serialized->set_source(fragment->GetSource());
+    proto->set_source(fragment->GetSource());
 }
 
 TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
 {
     auto result = New<TPlanFragment>(
-        serialized.timestamp(),
-        serialized.input_row_limit(),
-        serialized.output_row_limit(),
-        NYT::FromProto<TGuid>(serialized.id()),
         serialized.source());
 
     result->NodeDirectory = New<TNodeDirectory>();
+    result->Query = FromProto(serialized.query());
 
-    result->Head = FromProto(serialized.head());
+    result->DataSplits.reserve(serialized.data_split_size());
+    for (int i = 0; i < serialized.data_split_size(); ++i) {
+        TDataSplit dataSplit;
+        FromProto(&dataSplit, serialized.data_split(i));
+        result->DataSplits.push_back(dataSplit);
+    }
 
     return result;
 }

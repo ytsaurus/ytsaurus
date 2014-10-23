@@ -32,7 +32,6 @@
 
 #include <ytlib/tablet_client/table_mount_cache.h>
 
-#include <ytlib/query_client/executor.h>
 #include <ytlib/query_client/query_statistics.h>
 
 #include <ytlib/hive/cell_directory.h>

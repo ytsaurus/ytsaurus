@@ -31,7 +31,7 @@ namespace NQueryClient {
 
 using NVersionedTableClient::TRowBuffer;
 
-class TPlanFragment;
+class TQuery;
 class TCGFragment;
 
 struct TExecutionContext
@@ -40,8 +40,8 @@ struct TExecutionContext
     size_t StackSizeGuardHelper;
 #endif
 
-    IEvaluateCallbacks* Callbacks;
-    TNodeDirectoryPtr NodeDirectory;
+    TTableSchema Schema;
+    ISchemafulReader* Reader;
     std::vector<TDataSplits>* DataSplitsArray;
     std::vector<std::vector<TOwningRow>>* LiteralRows;
     TRowBuffer* RowBuffer;
@@ -66,7 +66,6 @@ typedef
 struct TCGBinding
 {
     std::unordered_map<const TExpression*, int> NodeToConstantIndex;
-    std::unordered_map<const TOperator*, int> ScanOpToDataSplits;
     std::unordered_map<const TExpression*, int> NodeToRows;
     
 };
