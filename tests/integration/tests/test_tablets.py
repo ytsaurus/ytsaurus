@@ -21,8 +21,7 @@ class TestTablets(YTEnvSetup):
             ids.append(create_tablet_cell(size))
 
         print 'Waiting for tablet cells to become healthy...'
-        self._wait(lambda : all(get('//sys/tablet_cells/' + id + '/@health') == 'good'
-                                for id in ids))
+        self._wait(lambda: all(get('//sys/tablet_cells/' + id + '/@health') == 'good' for id in ids))
 
     def _create_table(self):
         create('table', '//tmp/t',
@@ -50,7 +49,7 @@ class TestTablets(YTEnvSetup):
         mount_table(path)
 
         print 'Waiting for tablets to become mounted...'
-        self._wait(all(x['state'] == 'mounted' for x in get('//tmp/t/@tablets')))
+        self._wait(lambda: all(x['state'] == 'mounted' for x in get('//tmp/t/@tablets')))
                 
     def _get_pivot_keys(self, path):
         tablets = get(path + '/@tablets')
@@ -84,7 +83,7 @@ class TestTablets(YTEnvSetup):
         assert tablet["pivot_key"] == []
 
         print 'Waiting for table to become mounted...'
-        self._wait(get('//tmp/t/@tablets/0/state') == 'mounted')
+        self._wait(lambda: get('//tmp/t/@tablets/0/state') == 'mounted')
 
         unmount_table('//tmp/t')
 
