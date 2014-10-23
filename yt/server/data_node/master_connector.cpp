@@ -194,7 +194,6 @@ void TMasterConnector::SendRegister()
     auto req = proxy.RegisterNode();
     *req->mutable_statistics() = ComputeStatistics();
     ToProto(req->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
-    ToProto(req->mutable_cell_id(), Bootstrap_->GetCellId());
     req->Invoke().Subscribe(
         BIND(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
             .Via(HeartbeatInvoker_));
@@ -270,9 +269,6 @@ void TMasterConnector::OnRegisterResponse(TNodeTrackerServiceProxy::TRspRegister
         ResetAndScheduleRegister();
         return;
     }
-
-    auto cellId = FromProto<TGuid>(rsp->cell_id());
-    YCHECK(cellId == Bootstrap_->GetCellId());
 
     NodeId_ = rsp->node_id();
     YCHECK(State_ == EState::Registering);

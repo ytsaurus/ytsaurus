@@ -65,24 +65,12 @@ private:
         ValidateActiveLeader();
 
         auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
-        auto requestCellId = FromProto<TGuid>(request->cell_id());
         const auto& statistics = request->statistics();
         const auto& address = descriptor.GetDefaultAddress();
 
-        context->SetRequestInfo("Address: %v, CellId: %v, %v",
+        context->SetRequestInfo("Address: %v, %v",
             address,
-            requestCellId,
             statistics);
-
-        auto expectedCellId = Bootstrap->GetCellId();
-        if (!requestCellId.IsEmpty() && requestCellId != expectedCellId) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::PoisonPill,
-                "Wrong cell id reported by node %v: expected %v, received %v",
-                address,
-                expectedCellId,
-                requestCellId);
-        }
 
         auto nodeTracker = Bootstrap->GetNodeTracker();
         int fullHeartbeatQueueSize = FullHeartbeatMethodInfo->QueueSizeCounter.Current;
@@ -91,9 +79,9 @@ private:
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Full heartbeat throttling is active")
-                           << TErrorAttribute("queue_size", fullHeartbeatQueueSize)
-                           << TErrorAttribute("registered_node_count", registeredNodeCount)
-                           << TErrorAttribute("limit", Config->MaxFullHeartbeatQueueSizeLimit));
+                << TErrorAttribute("queue_size", fullHeartbeatQueueSize)
+                << TErrorAttribute("registered_node_count", registeredNodeCount)
+                << TErrorAttribute("limit", Config->MaxFullHeartbeatQueueSizeLimit));
             return;
         }
 

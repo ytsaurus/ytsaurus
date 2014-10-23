@@ -31,13 +31,11 @@ message TReqRegisterNode
 {
     required TNodeDescriptor node_descriptor = 1;
     required TNodeStatistics statistics = 2;
-    required NYT.NProto.TGuid cell_id = 3;
 }
 
 message TRspRegisterNode
 {
     required int32 node_id = 1;
-    required NYT.NProto.TGuid cell_id = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

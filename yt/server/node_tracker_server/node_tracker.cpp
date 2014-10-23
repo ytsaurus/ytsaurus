@@ -315,7 +315,6 @@ private:
 
         TRspRegisterNode response;
         response.set_node_id(node->GetId());
-        ToProto(response.mutable_cell_id(), Bootstrap->GetCellId());
         return response;
     }
 
