@@ -206,18 +206,21 @@ Py::Object TPythonObjectBuilder::AddObject(const Py::Callable& type)
 
 Py::Object TPythonObjectBuilder::AddObject(Py::Object obj)
 {
+    if (Attributes_) {
+        obj.setAttr("attributes", *Attributes_);
+        Attributes_ = Null;
+    }
+
     if (ObjectStack_.empty()) {
         Objects_.push(obj);
     } else if (ObjectStack_.top().second == EObjectType::List) {
         PyList_Append(ObjectStack_.top().first.ptr(), *obj);
     } else {
-        PyMapping_SetItemString(*ObjectStack_.top().first, const_cast<char*>(~Keys_.top()), *obj);
+        auto keyObj = PyString_FromStringAndSize(~Keys_.top(), Keys_.top().size());
+        PyDict_SetItem(*ObjectStack_.top().first, keyObj, *obj);
         Keys_.pop();
     }
-    if (Attributes_) {
-        obj.setAttr("attributes", *Attributes_);
-        Attributes_ = Null;
-    }
+
     return obj;
 }
 
