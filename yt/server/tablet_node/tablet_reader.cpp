@@ -105,7 +105,7 @@ protected:
             return true;
         }
 
-        // Refill sessions with newly arrived rows requested in RefillExhausedSessions above.
+        // Refill sessions with newly arrived rows requested in RefillExhaustedSessions above.
         for (auto* session : RefillingSessions_) {
             RefillSession(session);
         }
