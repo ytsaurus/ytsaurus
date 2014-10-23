@@ -37,13 +37,14 @@ public:
         : Py::PythonClass<TYsonIterator>::PythonClass(self, args, kwargs)
     { }
 
-    void Init(NYson::EYsonType ysonType, TInputStream* inputStream, std::unique_ptr<TInputStream> inputStreamOwner, std::unique_ptr<Stroka> stringHolder)
+    void Init(NYson::EYsonType ysonType, TInputStream* inputStream, std::unique_ptr<TInputStream> inputStreamOwner, std::unique_ptr<Stroka> stringHolder, bool alwaysCreateAttributes)
     {
         YCHECK(!inputStreamOwner || inputStreamOwner.get() == inputStream);
         InputStream_ = inputStream;
         InputStreamOwner_ = std::move(inputStreamOwner);
         StringHolder_ = std::move(stringHolder);
-        Parser_.reset(new NYson::TYsonParser(&Consumer_, ysonType));
+        Consumer_.reset(new NYTree::TPythonObjectBuilder(alwaysCreateAttributes));
+        Parser_.reset(new NYson::TYsonParser(Consumer_.get(), ysonType));
         IsStreamRead_ = false;
 
     }
@@ -57,7 +58,7 @@ public:
     {
         try {
             // Read unless we have whole row
-            while (!Consumer_.HasObject() && !IsStreamRead_) {
+            while (!Consumer_->HasObject() && !IsStreamRead_) {
                 int length = InputStream_->Read(Buffer_, BufferSize_);
                 if (length != 0) {
                     Parser_->Read(TStringBuf(Buffer_, length));
@@ -69,12 +70,12 @@ public:
             }
 
             // Stop iteration if we done
-            if (!Consumer_.HasObject()) {
+            if (!Consumer_->HasObject()) {
                 PyErr_SetNone(PyExc_StopIteration);
                 return 0;
             }
 
-            auto result = Consumer_.ExtractObject();
+            auto result = Consumer_->ExtractObject();
             // We should return pointer to alive object
             result.increment_reference_count();
             return result.ptr();
@@ -104,7 +105,7 @@ private:
 
     bool IsStreamRead_;
 
-    NYTree::TPythonObjectBuilder Consumer_;
+    std::unique_ptr<NYTree::TPythonObjectBuilder> Consumer_;
     std::unique_ptr<NYson::TYsonParser> Parser_;
 
     static const int BufferSize_ = 1024 * 1024;
@@ -208,6 +209,13 @@ private:
             ysonType = ParseEnum<NYson::EYsonType>(ConvertToStroka(ConvertToString(arg)));
         }
 
+        bool alwaysCreateAttributes = true;
+        if (HasArgument(args, kwargs, "always_create_attributes")) {
+            auto arg = ExtractArgument(args, kwargs, "always_create_attributes");
+            alwaysCreateAttributes = Py::Boolean(arg);
+        }
+
+
         if (args.length() > 0 || kwargs.length() > 0) {
             throw CreateYsonError("Incorrect arguments");
         }
@@ -221,10 +229,10 @@ private:
             Py::PythonClassObject<TYsonIterator> pythonIter(class_type.apply(Py::Tuple(), Py::Dict()));
 
             auto* iter = pythonIter.getCxxObject();
-            iter->Init(ysonType, inputStreamPtr, std::move(inputStream), std::move(stringHolder));
+            iter->Init(ysonType, inputStreamPtr, std::move(inputStream), std::move(stringHolder), alwaysCreateAttributes);
             return pythonIter;
         } else {
-            NYTree::TPythonObjectBuilder consumer;
+            NYTree::TPythonObjectBuilder consumer(alwaysCreateAttributes);
             NYson::TYsonParser parser(&consumer, ysonType);
 
             const int BufferSize = 1024 * 1024;
@@ -255,6 +263,7 @@ private:
 
         // Holds outputStreamWrap if passed non-trivial stream argument
         std::unique_ptr<TOutputStreamWrap> outputStreamWrap;
+        std::unique_ptr<TBufferedOutput> bufferedOutputStream;
 
         if (!outputStream) {
             auto streamArg = ExtractArgument(args, kwargs, "stream");
@@ -269,7 +278,8 @@ private:
                 outputStream = &Cerr;
             } else {
                 outputStreamWrap.reset(new TOutputStreamWrap(streamArg));
-                outputStream = outputStreamWrap.get();
+                bufferedOutputStream.reset(new TBufferedOutput(outputStreamWrap.get(), 1024 * 1024));
+                outputStream = bufferedOutputStream.get();
             }
         }
 
@@ -291,6 +301,12 @@ private:
             indent = Py::Int(arg).asLongLong();
         }
 
+        bool ignoreInnerAttributes = false;
+        if (HasArgument(args, kwargs, "ignore_inner_attributes")) {
+            auto arg = ExtractArgument(args, kwargs, "ignore_inner_attributes");
+            ignoreInnerAttributes = Py::Boolean(arg);
+        }
+
         if (args.length() > 0 || kwargs.length() > 0) {
             throw CreateYsonError("Incorrect arguments");
         }
@@ -298,7 +314,7 @@ private:
         NYson::TYsonWriter writer(outputStream, ysonFormat, ysonType, false, indent);
         if (ysonType == NYson::EYsonType::Node) {
             try {
-                NYTree::Consume(obj, &writer);
+                Serialize(obj, &writer, ignoreInnerAttributes);
             } catch (const NYT::TErrorException& error) {
                 throw CreateYsonError(error.what());
             }
@@ -307,7 +323,7 @@ private:
             try {
                 PyObject *item;
                 while (item = PyIter_Next(*iterator)) {
-                    NYTree::Consume(Py::Object(item, true), &writer);
+                    Serialize(Py::Object(item, true), &writer, ignoreInnerAttributes);
                 }
             } catch (const NYT::TErrorException& error) {
                 throw CreateYsonError(error.what());
