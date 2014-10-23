@@ -70,6 +70,7 @@ private:
     std::queue<Py::Object> Objects_;
 
     std::stack<std::pair<Py::Object, EObjectType>> ObjectStack_;
+    // NB(ignat): to avoid using Stroka we need to make tricky bufferring while reading from input stream.
     std::stack<Stroka> Keys_;
     TNullable<Py::Object> Attributes_;
 
