@@ -43,7 +43,6 @@ TNode::TNode(
     TInstant registerTime)
     : Id_(id)
     , RegisterTime_(registerTime)
-    , LastSeenTime_(registerTime)
     , Descriptor_(descriptor)
     , Config_(config)
 {
@@ -89,7 +88,6 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, Descriptor_.Addresses());
     Save(context, State_);
     Save(context, RegisterTime_);
-    Save(context, LastSeenTime_);
     Save(context, Statistics_);
     Save(context, Alerts_);
     Save(context, Transaction_);
@@ -107,10 +105,6 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 102) {
         Load(context, RegisterTime_);
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 103) {
-        Load(context, LastSeenTime_);
     }
     Load(context, Statistics_);
     Load(context, Alerts_);

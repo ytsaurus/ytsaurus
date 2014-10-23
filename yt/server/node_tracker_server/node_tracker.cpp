@@ -8,6 +8,7 @@
 #include <core/misc/address.h>
 
 #include <core/ytree/convert.h>
+#include <core/ytree/ypath_client.h>
 
 #include <core/ypath/token.h>
 
@@ -16,7 +17,7 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/object_client/public.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <server/chunk_server/job.h>
 
@@ -287,6 +288,11 @@ private:
         return nodeNode->Attributes().ToMap();
     }
 
+    static TYPath GetNodePath(TNode* node)
+    {
+        return "//sys/nodes/" + ToYPathLiteral(node->GetAddress());
+    }
+
 
     TRspRegisterNode HydraRegisterNode(const TReqRegisterNode& request)
     {
@@ -528,10 +534,18 @@ private:
 
         auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
         const auto* mutationContext = hydraManager->GetMutationContext();
-        node->SetLastSeenTime(mutationContext->GetTimestamp());
 
-        auto timeout = GetLeaseTimeout(node);
+        auto timeout = GetNodeLeaseTimeout(node);
         transaction->SetTimeout(timeout);
+
+        try {
+            auto objectManager = Bootstrap->GetObjectManager();
+            auto rootService = objectManager->GetRootService();
+            auto nodePath = GetNodePath(node);
+            SyncYPathSet(rootService, nodePath + "/@last_seen_time", ConvertToYsonString(mutationContext->GetTimestamp()));
+        } catch (const std::exception& ex) {
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error updating node properties in Cypress");
+        }
 
         if (IsLeader()) {
             auto transactionManager = Bootstrap->GetTransactionManager();
@@ -539,7 +553,7 @@ private:
         }
     }
 
-    TDuration GetLeaseTimeout(TNode* node)
+    TDuration GetNodeLeaseTimeout(TNode* node)
     {
         switch (node->GetState()) {
             case ENodeState::Registered:
@@ -570,78 +584,6 @@ private:
     }
 
 
-    void RegisterNodeInCypress(TNode* node)
-    {
-        // We're already in the state thread but need to postpone the planned changes and enqueue a callback.
-        // Doing otherwise will turn node registration and Cypress update into a single
-        // logged change, which is undesirable.
-        auto hydraFacade = Bootstrap->GetHydraFacade();
-        BIND(&TImpl::DoRegisterNodeInCypress, MakeStrong(this), node->GetId())
-            .Via(hydraFacade->GetEpochAutomatonInvoker())
-            .Run();
-    }
-
-    void DoRegisterNodeInCypress(TNodeId nodeId)
-    {
-        auto* node = FindNode(nodeId);
-        if (!node)
-            return;
-
-        auto* transaction = node->GetTransaction();
-        if (!transaction)
-            return;
-        auto transactionId = transaction->GetId();
-
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto rootService = objectManager->GetRootService();
-
-        // NB: Copy address, node instance may die.
-        auto address = node->GetAddress();
-        auto nodePath = "//sys/nodes/" + ToYPathLiteral(address);
-        auto orchidPath = nodePath + "/orchid";
-
-        try {
-            {
-                auto req = TCypressYPathProxy::Create(nodePath);
-                req->set_type(EObjectType::CellNode);
-                req->set_ignore_existing(true);
-
-                auto defaultAttributes = ConvertToAttributes(New<TNodeConfig>());
-                ToProto(req->mutable_node_attributes(), *defaultAttributes);
-
-                auto asyncResult = ExecuteVerb(rootService, req);
-                auto result = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(*result);
-            }
-
-            {
-                auto req = TCypressYPathProxy::Create(orchidPath);
-                req->set_type(EObjectType::Orchid);
-                req->set_ignore_existing(true);
-
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("remote_address", address);
-                ToProto(req->mutable_node_attributes(), *attributes);
-
-                auto asyncResult = ExecuteVerb(rootService, req);
-                auto result = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(*result);
-            }
-
-            {
-                auto req = TCypressYPathProxy::Lock(nodePath);
-                req->set_mode(ELockMode::Shared);
-                SetTransactionId(req, transactionId);
-
-                auto asyncResult = ExecuteVerb(rootService, req);
-                auto result = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(*result);
-            }
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error registering node in Cypress");
-        }
-    }
-
     TNode* DoRegisterNode(const TNodeDescriptor& descriptor, const TNodeStatistics& statistics)
     {
         PROFILE_TIMING ("/node_register_time") {
@@ -666,21 +608,69 @@ private:
             
             UpdateNodeCounters(node, +1);
 
-            // Create lease transaction.
             auto transactionManager = Bootstrap->GetTransactionManager();
-            auto timeout = GetLeaseTimeout(node);
-            auto* transaction = transactionManager->StartTransaction(nullptr, timeout);
-            node->SetTransaction(transaction);
-            RegisterLeaseTransaction(node);
-
-            // Set "title" attribute.
             auto objectManager = Bootstrap->GetObjectManager();
-            auto* attributeSet = objectManager->GetOrCreateAttributes(TVersionedObjectId(transaction->GetId()));
-            auto title = ConvertToYsonString(Format("Lease for node %v", node->GetAddress()));
-            YCHECK(attributeSet->Attributes().insert(std::make_pair("title", title)).second);
-            
-            if (IsLeader()) {
-                RegisterNodeInCypress(node);
+            auto rootService = objectManager->GetRootService();
+            auto nodePath = GetNodePath(node);
+
+            // Create lease transaction.
+            TTransaction* transaction;
+            {
+                auto timeout = GetNodeLeaseTimeout(node);
+                transaction = transactionManager->StartTransaction(nullptr, timeout);
+                node->SetTransaction(transaction);
+                RegisterLeaseTransaction(node);
+            }
+
+            try {
+                // Set "title" attribute.
+                {
+                    auto path = FromObjectId(transaction->GetId()) + "/@title";
+                    auto title = Format("Lease for node %v", node->GetAddress());
+                    SyncYPathSet(rootService, path, ConvertToYsonString(title));
+                }
+
+                // Create Cypress node.
+                {
+                    auto req = TCypressYPathProxy::Create(nodePath);
+                    req->set_type(EObjectType::CellNode);
+                    req->set_ignore_existing(true);
+
+                    auto defaultAttributes = ConvertToAttributes(New<TNodeConfig>());
+                    ToProto(req->mutable_node_attributes(), *defaultAttributes);
+
+                    auto rsp = SyncExecuteVerb(rootService, req);
+                    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+                }
+
+                // Create "orchid" child.
+                {
+                    auto req = TCypressYPathProxy::Create(nodePath + "/orchid");
+                    req->set_type(EObjectType::Orchid);
+                    req->set_ignore_existing(true);
+
+                    auto attributes = CreateEphemeralAttributes();
+                    attributes->Set("remote_address", address);
+                    ToProto(req->mutable_node_attributes(), *attributes);
+
+                    auto rsp = SyncExecuteVerb(rootService, req);
+                    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+                }
+            } catch (const std::exception& ex) {
+                LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering node in Cypress");
+            }
+
+            // Make the initial lease renewal (and also set "last_seen_time" attribute).
+            RenewNodeLease(node);
+
+            // Lock Cypress node.
+            {
+                auto req = TCypressYPathProxy::Lock(nodePath);
+                req->set_mode(ELockMode::Shared);
+                SetTransactionId(req, transaction->GetId());
+
+                auto rsp = SyncExecuteVerb(rootService, req);
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
             }
 
             LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, %v)",
