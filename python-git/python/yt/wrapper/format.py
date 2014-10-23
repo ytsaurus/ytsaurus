@@ -272,6 +272,9 @@ class YsonFormat(Format):
         super(YsonFormat, self).__init__("yson", all_attributes)
         self.process_table_index = process_table_index
 
+    def _check_bindings(self):
+        require(yson.TYPE == "BINARY", YtError("Yson bindings required"))
+
     def load_row(self, stream, unparsed=False):
         """Not supported"""
         raise YtFormatError("load_row is not supported in Yson")
@@ -288,18 +291,19 @@ class YsonFormat(Format):
                 continue
 
             row["input_table_index"] = table_index
-            row.attributes["input_table_index"] = table_index # TODO(veronikaiv): remove it!
             yield row
 
     def load_rows(self, stream):
-        rows = yson.load(stream, yson_type="list_fragment")
+        self._check_bindings()
+        rows = yson.load(stream, yson_type="list_fragment", always_create_attributes=False)
         if not self.process_table_index:
             return rows
         return self._process_input_rows(rows)
 
 
     def dump_row(self, row, stream):
-        yson.dump([row], stream, yson_type="list_fragment")
+        self._check_bindings()
+        self.dump_rows([row], stream)
 
     @staticmethod
     def _process_output_rows(rows):
@@ -315,13 +319,11 @@ class YsonFormat(Format):
             row.pop("input_table_index", None)
             yield row
 
-    def dump_rows(self, rows, stream):
-        if not self.process_table_index:
-            yson.dump(rows, stream, yson_type="list_fragment")
-            return
-
-        rows_with_switchers = self._process_output_rows(rows)
-        yson.dump(rows_with_switchers, stream, yson_type="list_fragment")
+    def dump_rows(self, rows, stream, ignore_inner_attributes=False):
+        self._check_bindings()
+        if self.process_table_index:
+            rows = self._process_output_rows(rows)
+        yson.dump(rows, stream, yson_type="list_fragment", ignore_inner_attributes=ignore_inner_attributes)
 
 class YamrFormat(Format):
     """
