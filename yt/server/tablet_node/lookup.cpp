@@ -168,6 +168,7 @@ private:
             }
 
             // Send requests, collect sync responses.
+            PartialRows_.clear();
             InvokeLookupers(EdenLookupers_, key);
             InvokeLookupers(PartitionLookupers_, key);
 
