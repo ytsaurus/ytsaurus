@@ -9,7 +9,7 @@ from yt.wrapper.table_commands import copy_table, _remove_locks, _get_format_fro
 from yt.wrapper.tree_commands import remove_with_empty_dirs
 from yt.wrapper.table import check_prefix
 
-from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, die, get_version, writelines_silently
+from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, die, get_version, writelines_silently, MB
 import yt.wrapper.config as config
 import yt.yson as yson
 import yt.wrapper as yt
@@ -418,7 +418,7 @@ Examples:
     config.PING_ANCESTOR_TRANSACTIONS = args.pingtx
 
     if args.memlimit is not None:
-        config.MEMORY_LIMIT = int(args.memlimit) * common.MB
+        config.MEMORY_LIMIT = int(args.memlimit) * MB
 
     config.DETACHED = (args.detached is None) or bool(args.detached)
 
