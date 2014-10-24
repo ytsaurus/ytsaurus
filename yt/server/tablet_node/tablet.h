@@ -41,6 +41,9 @@ struct TTabletSnapshot
         const TOwningKey& lowerBound,
         const TOwningKey& upperBound);
 
+    //! Returns a partition possibly containing a given #key or
+    //! |nullptr| is there's none.
+    TPartitionSnapshotPtr FindContainingPartition(TKey key);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)

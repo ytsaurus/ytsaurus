@@ -53,6 +53,19 @@ TTabletSnapshot::GetIntersectingPartitions(
     return std::make_pair(beginIt, endIt);
 }
 
+TPartitionSnapshotPtr TTabletSnapshot::FindContainingPartition(TKey key)
+{
+    auto it = std::upper_bound(
+        Partitions.begin(),
+        Partitions.end(),
+        key,
+        [] (TKey key, const TPartitionSnapshotPtr& partition) {
+            return key < partition->SampleKeys[0].Get();
+        });
+
+    return it == Partitions.begin() ? nullptr : *(--it);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTablet::TTablet(const TTabletId& id)
