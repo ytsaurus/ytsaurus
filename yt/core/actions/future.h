@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <core/misc/public.h>
 #include <core/misc/nullable.h>
 
 namespace NYT {
@@ -175,6 +176,10 @@ public:
     //! is either set or canceled.
     TFuture<void> Finally();
 
+    //! Returns a future that is either set to an actual value (if the original one is set in timely manner)
+    //! or to |EErrorCode::Timeout| (in case of timeout).
+    TFuture<TErrorOr<T>> WithTimeout(TDuration timeout);
+
 private:
     explicit TFuture(const TIntrusivePtr<NYT::NDetail::TPromiseState<T>>& state);
     explicit TFuture(TIntrusivePtr<NYT::NDetail::TPromiseState<T>>&& state);
@@ -280,6 +285,10 @@ public:
     //! Returns a void future that is set when the original future
     //! is either set or canceled.
     TFuture<void> Finally();
+
+    //! Returns a future that is either set to OK (if the original one is set in timely manner)
+    //! or to |EErrorCode::Timeout| (in case of timeout).
+    TFuture<TError> WithTimeout(TDuration timeout);
 
 private:
     explicit TFuture(const TIntrusivePtr<NYT::NDetail::TPromiseState<void>>& state);

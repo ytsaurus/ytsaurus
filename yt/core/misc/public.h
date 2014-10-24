@@ -1,10 +1,22 @@
 #pragma once
 
 #include "common.h"
+#include "enum.h"
 
 namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+class TError;
+
+}  // namespace NProto
+
+template <class T>
+class TErrorOr;
+
+typedef TErrorOr<void> TError;
 
 DECLARE_REFCOUNTED_STRUCT(TLeaseEntry)
 typedef TLeaseEntryPtr TLease;
@@ -35,6 +47,14 @@ struct ICheckpointableInputStream;
 struct ICheckpointableOutputStream;
 
 DECLARE_REFCOUNTED_CLASS(TSlruCacheConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+DECLARE_ENUM(EErrorCode,
+    ((OK)              (0))
+    ((Generic)         (1))
+    ((Timeout)         (104))
+);
 
 ///////////////////////////////////////////////////////////////////////////////
 

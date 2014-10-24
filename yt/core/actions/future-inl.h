@@ -12,6 +12,7 @@
 #include <core/concurrency/delayed_executor.h>
 
 #include <core/misc/small_vector.h>
+#include <core/misc/error.h>
 
 #include <util/system/event.h>
 
@@ -655,6 +656,24 @@ TFuture<void> TFuture<T>::Finally()
     auto promise = NewPromise<void>();
     Subscribe(BIND([=] (T) mutable { promise.Set(); }));
     OnCanceled(BIND([=] () mutable { promise.Set(); }));
+    return promise;
+}
+
+template <class T>
+TFuture<TErrorOr<T>> TFuture<T>::WithTimeout(TDuration timeout)
+{
+    auto promise = NewPromise<TErrorOr<T>>();
+    Subscribe(BIND([=] (T value) mutable {
+        promise.TrySet(std::move(value));
+    }));
+    OnCanceled(BIND([=] () mutable {
+        promise.Cancel();
+    }));
+    NConcurrency::TDelayedExecutor::Submit(
+        BIND([=] () mutable {
+            promise.TrySet(TError(NYT::EErrorCode::Timeout, "Future has timed out"));
+        }),
+        timeout);
     return promise;
 }
 

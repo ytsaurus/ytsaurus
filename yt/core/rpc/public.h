@@ -65,7 +65,7 @@ DECLARE_ENUM(EErrorCode,
     ((ProtocolError)   (101))
     ((NoSuchService)   (102))
     ((NoSuchMethod)    (103))
-    ((Timeout)         (104))
+    ((Timeout)         (NYT::EErrorCode::Timeout))
     ((Unavailable)     (105))
     ((PoisonPill)      (106))
 );

@@ -482,6 +482,23 @@ TFuture<void> TFuture<void>::Finally()
     return promise;
 }
 
+TFuture<TError> TFuture<void>::WithTimeout(TDuration timeout)
+{
+    auto promise = NewPromise<TError>();
+    Subscribe(BIND([=] () mutable {
+        promise.TrySet(TError());
+    }));
+    OnCanceled(BIND([=] () mutable {
+        promise.Cancel();
+    }));
+    NConcurrency::TDelayedExecutor::Submit(
+        BIND([=] () mutable {
+            promise.TrySet(TError(NYT::EErrorCode::Timeout, "Future has timed out"));
+        }),
+        timeout);
+    return promise;
+}
+
 TFuture<void>::TFuture(
     const TIntrusivePtr< NYT::NDetail::TPromiseState<void>>& state)
     : Impl_(state)

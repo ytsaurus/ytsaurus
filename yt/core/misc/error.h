@@ -1,9 +1,7 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 #include "property.h"
-
-#include <core/misc/preprocessor.h>
 
 #include <core/actions/callback.h>
 
@@ -12,20 +10,6 @@
 #include <core/ytree/attributes.h>
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Forward declarations
-template <class T>
-class TErrorOr;
-
-typedef TErrorOr<void> TError;
-
-namespace NProto {
-
-class TError;
-
-}  // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,12 +52,6 @@ public:
     bool IsOK() const;
 
     TNullable<TError> FindMatching(int code) const;
-
-    enum
-    {
-        OK = 0,
-        GenericFailure = 1
-    };
 
 private:
     int Code_;
@@ -134,6 +112,7 @@ TError operator >>= (const TErrorAttribute& attribute, TError error);
 class TErrorException
     : public std::exception
 {
+public:
     DEFINE_BYREF_RW_PROPERTY(TError, Error);
 
 public:
@@ -144,7 +123,7 @@ public:
     virtual const char* what() const throw() override;
 
 private:
-    mutable Stroka CachedWhat;
+    mutable Stroka CachedWhat_;
 
 };
 

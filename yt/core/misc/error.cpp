@@ -19,7 +19,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TError::TErrorOr()
-    : Code_(OK)
+    : Code_(NYT::EErrorCode::OK)
 { }
 
 TError::TErrorOr(const TError& other)
@@ -42,13 +42,13 @@ TError::TErrorOr(const std::exception& ex)
     if (errorEx) {
         *this = errorEx->Error();
     } else {
-        Code_ = GenericFailure;
+        Code_ = NYT::EErrorCode::Generic;
         Message_ = ex.what();
     }
 }
 
 TError::TErrorOr(const Stroka& message)
-    : Code_(GenericFailure)
+    : Code_(NYT::EErrorCode::Generic)
     , Message_(message)
 {
     CaptureOriginAttributes();
@@ -143,7 +143,7 @@ std::vector<TError>& TError::InnerErrors()
 
 bool TError::IsOK() const
 {
-    return Code_ == OK;
+    return Code_ == NYT::EErrorCode::OK;
 }
 
 void TError::CaptureOriginAttributes()
@@ -198,7 +198,7 @@ void AppendError(TStringBuilder* builder, const TError& error, int indent)
     builder->AppendString(error.GetMessage());
     builder->AppendChar('\n');
 
-    if (error.GetCode() != TError::GenericFailure) {
+    if (error.GetCode() != NYT::EErrorCode::Generic) {
         AppendAttribute(builder, "code", ToString(error.GetCode()), indent);
     }
 
@@ -393,10 +393,10 @@ TError operator >>= (const TErrorAttribute& attribute, TError error)
 
 const char* TErrorException::what() const throw()
 {
-    if (CachedWhat.empty()) {
-        CachedWhat = ToString(Error_);
+    if (CachedWhat_.empty()) {
+        CachedWhat_ = ToString(Error_);
     }
-    return ~CachedWhat;
+    return ~CachedWhat_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

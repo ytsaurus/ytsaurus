@@ -274,7 +274,7 @@ TEST_F(TRpcTest, OK)
     auto request = proxy.DoNothing();
     auto response = request->Invoke().Get();
 
-    EXPECT_EQ(TError::OK, response->GetError().GetCode());
+    EXPECT_TRUE(response->GetError().IsOK());
 }
 
 TEST_F(TRpcTest, TransportError)

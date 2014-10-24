@@ -203,7 +203,7 @@ public:
             return;
         }
 
-        if (JobResult && JobResult->error().code() != TError::OK) {
+        if (JobResult && JobResult->error().code() != NYT::EErrorCode::OK) {
             return;
         }
 
