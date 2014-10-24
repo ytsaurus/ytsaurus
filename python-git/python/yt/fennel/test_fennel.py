@@ -244,11 +244,21 @@ class StreamToKafka(object):
         else:
             self._io_loop.stop()
 
+    def read_bytes(self, size, callback):
+        if self._index + size <= len(self._data):
+            self._io_loop.add_callback(callback, self._data[self._index:self._index + size])
+            self._index += size
+        else:
+            self._io_loop.stop()
+
     def read_until_close(self, callback, streaming_callback):
         pass
 
     def set_close_callback(self, callback):
         self._close_callback = callback
+
+    def close():
+        self._io_loop.stop()
 
 
 session_data = """HTTP/1.1 200 OK
@@ -263,8 +273,7 @@ Seqno: 3488
 Lines: 218
 PartOffset: 396
 Topic: rt3.fol--other
-Partition: 0\r\n\r\n5
-ping
+Partition: 0\r\n\r\n5\r\nping
 """
 
 
