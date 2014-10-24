@@ -321,7 +321,7 @@ def build_python_packages(options):
             package_version = run_captured("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
             uploaded_version = extract_version(package)
             teamcity_message("Package {0}. Current version: {1}, dist version: {2}".format(package, package_version, uploaded_version))
-            if package_version == uploaded_version:
+            if versions_cmp(package_version, uploaded_version) <= 0:
                 continue
             run(["dch", "-r", package_version, "'Resigned by teamcity'"])
         with cwd(options.checkout_directory, "python"):
