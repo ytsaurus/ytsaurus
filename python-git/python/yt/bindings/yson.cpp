@@ -190,18 +190,15 @@ private:
         if (!inputStream) {
             auto streamArg = ExtractArgument(args, kwargs, "stream");
 
-            // In case of sys.stdin we write directly to stream
-            // without any wrappers by optimization reasons.
-            Py::Object pyStdin(PySys_GetObject(const_cast<char*>("__stdin__")));
-            if (*pyStdin == *streamArg) {
-                inputStreamPtr = &Cin;
+            if (PyFile_Check(streamArg.ptr())) {
+                FILE* file = PyFile_AsFile(streamArg.ptr());
+                int fd = fileno(file);
+                inputStream.reset(new TFileInput(TFile(fd)));
             } else {
                 inputStream.reset(new TInputStreamWrap(streamArg));
-                inputStreamPtr = inputStream.get();
             }
-        } else {
-            inputStreamPtr = inputStream.get();
         }
+        inputStreamPtr = inputStream.get();
 
         auto ysonType = NYson::EYsonType::Node;
         if (HasArgument(args, kwargs, "yson_type")) {
@@ -264,23 +261,22 @@ private:
         // Holds outputStreamWrap if passed non-trivial stream argument
         std::unique_ptr<TOutputStreamWrap> outputStreamWrap;
         std::unique_ptr<TBufferedOutput> bufferedOutputStream;
+        std::unique_ptr<TFileOutput> fileOutput;
 
         if (!outputStream) {
             auto streamArg = ExtractArgument(args, kwargs, "stream");
 
-            // In case of sys.stdout and sys.stderr we write directly to stream
-            // without any wrappers by optimization reasons.
-            Py::Object pyStdout(PySys_GetObject(const_cast<char*>("__stdout__")));
-            Py::Object pyStderr(PySys_GetObject(const_cast<char*>("__stderr__")));
-            if (*pyStdout == *streamArg) {
-                outputStream = &Cout;
-            } else if (*pyStderr == *streamArg) {
-                outputStream = &Cerr;
+            if (PyFile_Check(streamArg.ptr())) {
+                FILE* file = PyFile_AsFile(streamArg.ptr());
+                int fd = fileno(file);
+                fileOutput.reset(new TFileOutput(TFile(fd)));
+                outputStream = fileOutput.get();
             } else {
                 outputStreamWrap.reset(new TOutputStreamWrap(streamArg));
-                bufferedOutputStream.reset(new TBufferedOutput(outputStreamWrap.get(), 1024 * 1024));
-                outputStream = bufferedOutputStream.get();
+                outputStream = outputStreamWrap.get();
             }
+            bufferedOutputStream.reset(new TBufferedOutput(outputStream, 1024 * 1024));
+            outputStream = bufferedOutputStream.get();
         }
 
         NYson::EYsonFormat ysonFormat = NYson::EYsonFormat::Text;
@@ -330,6 +326,10 @@ private:
             }
         } else {
             throw CreateYsonError(ToString(ysonType) + " is not supported");
+        }
+
+        if (bufferedOutputStream) {
+            bufferedOutputStream->Flush();
         }
     }
 };
