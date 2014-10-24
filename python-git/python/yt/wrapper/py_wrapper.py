@@ -83,7 +83,8 @@ def create_modules_archive(tempfiles_manager):
 
                 relpath = module_relpath(module.__name__, file)
                 if relpath is None:
-                    raise YtError("Cannot determine relative path of module " + str(module))
+                    logger.warning("Cannot determine relative path of module " + str(module))
+                    continue
 
                 if relpath in compressed_files:
                     continue
