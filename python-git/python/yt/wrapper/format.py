@@ -329,7 +329,7 @@ class YsonFormat(Format):
         self._check_bindings()
         if self.process_table_index:
             rows = self._process_output_rows(rows)
-        yson.dump(rows, stream, yson_type="list_fragment", ignore_inner_attributes=ignore_inner_attributes)
+        yson.dump(rows, stream, yson_type="list_fragment", yson_format=self.attributes["format"], ignore_inner_attributes=ignore_inner_attributes)
 
 class YamrFormat(Format):
     """
