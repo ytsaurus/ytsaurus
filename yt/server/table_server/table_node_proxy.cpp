@@ -63,11 +63,11 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         TTransaction* transaction,
         TTableNode* trunkNode)
-    : TBase(
-        typeHandler,
-        bootstrap,
-        transaction,
-        trunkNode)
+        : TBase(
+            typeHandler,
+            bootstrap,
+            transaction,
+            trunkNode)
     { }
 
 private:
