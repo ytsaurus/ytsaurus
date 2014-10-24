@@ -634,6 +634,8 @@ private:
         auto resultSchema = tableInfo->Schema.Filter(options.ColumnFilter);
         auto idMapping = BuildColumnIdMapping(tableInfo, nameTable);
 
+        // Server-side is specifically optimized for handling long runs of keys
+        // from the same partition. Let's sort the keys to facilitate this.
         std::vector<std::pair<int, NVersionedTableClient::TKey>> sortedKeys;
         sortedKeys.reserve(keys.size());
         for (int index = 0; index < static_cast<int>(keys.size()); ++index) {

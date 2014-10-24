@@ -154,7 +154,10 @@ private:
             KeyColumnCount_,
             ColumnFilter_);
 
+        // Assuming that lookup keys are sorted, we cache the lookupers for the last
+        // examined partition.
         TPartitionSnapshotPtr currentPartitionSnapshot;
+
         for (auto key : LookupKeys_) {
             ValidateServerKey(key, KeyColumnCount_, TabletSnapshot_->Schema);
 
