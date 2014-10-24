@@ -198,7 +198,9 @@ TError TOutputPipe::ReadAll()
     TBlob buffer(InputBufferSize, false);
     while (true) {
         auto result = WaitFor(Reader->Read(buffer.Begin(), buffer.Size()));
-        RETURN_IF_ERROR(result);
+        if (!result.IsOK()) {
+            return result;
+        }
 
         if (result.Value() == 0) {
             break;
@@ -284,7 +286,9 @@ TError TInputPipe::WriteAll()
 
         {
             auto error = WaitFor(Writer->Write(Buffer->Begin(), Buffer->Size()));
-            RETURN_IF_ERROR(error);
+            if (!error.IsOK()) {
+                return error;
+            }
         }
 
         swap(*Buffer, PreviousBuffer);
