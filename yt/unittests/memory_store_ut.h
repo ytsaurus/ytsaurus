@@ -98,10 +98,10 @@ protected:
     }
 
 
-    std::unique_ptr<TTransaction> StartTransaction()
+    std::unique_ptr<TTransaction> StartTransaction(TTimestamp startTimestamp = NullTimestamp)
     {
         std::unique_ptr<TTransaction> transaction(new TTransaction(TTransactionId::Create()));
-        transaction->SetStartTimestamp(GenerateTimestamp());
+        transaction->SetStartTimestamp(startTimestamp == NullTimestamp ? GenerateTimestamp() : startTimestamp);
         transaction->SetState(ETransactionState::Active);
         return transaction;
     }

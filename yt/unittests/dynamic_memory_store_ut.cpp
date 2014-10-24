@@ -20,8 +20,11 @@ protected:
     {
         TMemoryStoreTestBase::SetUp();
 
+        auto config = New<TTabletManagerConfig>();
+        config->MaxBlockedRowWaitTime = TDuration::MilliSeconds(100);
+
         Store_ = New<TDynamicMemoryStore>(
-            New<TTabletManagerConfig>(),
+            config,
             TTabletId(),
             Tablet_.get());
     }
@@ -519,8 +522,9 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedAbort)
     PrepareRow(transaction.get(), row);
 
     bool blocked = false;
-    Store_->SubscribeRowBlocked(BIND([&] (TDynamicRow row, int lockIndex) {
+    Store_->SubscribeRowBlocked(BIND([&] (TDynamicRow blockedRow, int lockIndex) {
         EXPECT_EQ(TDynamicRow::PrimaryLockIndex, lockIndex);
+        EXPECT_EQ(blockedRow, row);
         AbortTransaction(transaction.get());
         AbortRow(transaction.get(), row);
         blocked = true;
@@ -528,7 +532,6 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedAbort)
 
     // Blocked, old value is read.
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, SyncLastCommittedTimestamp), Null));
-
     EXPECT_TRUE(blocked);
 }
 
@@ -544,8 +547,9 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedCommit)
     PrepareRow(transaction.get(), row);
 
     bool blocked = false;
-    Store_->SubscribeRowBlocked(BIND([&] (TDynamicRow row, int lockIndex) {
+    Store_->SubscribeRowBlocked(BIND([&] (TDynamicRow blockedRow, int lockIndex) {
         EXPECT_EQ(TDynamicRow::PrimaryLockIndex, lockIndex);
+        EXPECT_EQ(blockedRow, row);
         CommitTransaction(transaction.get());
         CommitRow(transaction.get(), row);
         blocked = true;
@@ -553,7 +557,83 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedCommit)
 
     // Blocked, new value is read.
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, SyncLastCommittedTimestamp), Stroka("key=1;a=1")));
+    EXPECT_TRUE(blocked);
+}
 
+TEST_F(TSingleLockDynamicMemoryStoreTest, WriteNotBlocked)
+{
+    auto inputRow = BuildRow("key=1;a=1");
+
+    auto transaction1 = StartTransaction();
+    auto transaction2 = StartTransaction();
+
+    auto row = WriteRow(transaction1.get(), inputRow, false);
+
+    PrepareTransaction(transaction1.get());
+    PrepareRow(transaction1.get(), row);
+
+    bool blocked = false;
+    Store_->SubscribeRowBlocked(BIND([&] (TDynamicRow /*blockedRow*/, int /*lockIndex*/) {
+        blocked = true;
+    }));
+
+    // Not blocked, write conflicted.
+    EXPECT_ANY_THROW({
+        WriteRow(transaction2.get(), inputRow, true);
+    });
+    EXPECT_FALSE(blocked);
+}
+
+TEST_F(TSingleLockDynamicMemoryStoreTest, WriteBlocked)
+{
+    auto inputRow = BuildRow("key=1;a=1");
+
+    auto transaction1 = StartTransaction();
+
+    auto row = WriteRow(transaction1.get(), inputRow, false);
+
+    PrepareTransaction(transaction1.get());
+    PrepareRow(transaction1.get(), row);
+
+    bool blocked = false;
+    Store_->SubscribeRowBlocked(BIND([&] (TDynamicRow blockedRow, int lockIndex) {
+        EXPECT_EQ(TDynamicRow::PrimaryLockIndex, lockIndex);
+        EXPECT_EQ(blockedRow, row);
+        CommitTransaction(transaction1.get());
+        CommitRow(transaction1.get(), row);
+        blocked = true;
+    }));
+
+    auto transaction2 = StartTransaction();
+
+    // Blocked, no value is written.
+    EXPECT_FALSE(WriteRow(transaction2.get(), inputRow, true));
+    EXPECT_TRUE(blocked);
+}
+
+TEST_F(TSingleLockDynamicMemoryStoreTest, WriteBlockedTimeout)
+{
+    auto inputRow = BuildRow("key=1;a=1");
+
+    auto transaction1 = StartTransaction();
+
+    auto row = WriteRow(transaction1.get(), inputRow, false);
+
+    PrepareTransaction(transaction1.get());
+    PrepareRow(transaction1.get(), row);
+
+    bool blocked = false;
+    Store_->SubscribeRowBlocked(BIND([&] (TDynamicRow blockedRow, int lockIndex) {
+        blocked = true;
+        Sleep(TDuration::MilliSeconds(10));
+    }));
+
+    auto transaction2 = StartTransaction();
+
+    // Blocked, timeout.
+    EXPECT_ANY_THROW({
+        WriteRow(transaction2.get(), inputRow, true);
+    });
     EXPECT_TRUE(blocked);
 }
 
@@ -755,7 +835,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, DeleteWriteConflict1)
     DeleteRow(key);
 
     EXPECT_ANY_THROW({
-        WriteRow(transaction.get(), BuildRow("key=1;a=1", false), LockMask1);
+        WriteRow(transaction.get(), BuildRow("key=1;a=1", false), true, LockMask1);
     });
 }
 
@@ -770,6 +850,27 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, DeleteWriteConflict2)
     EXPECT_ANY_THROW({
         WriteRow(BuildRow("key=1;a=1", false), LockMask1);
     });
+}
+
+TEST_F(TMultiLockDynamicMemoryStoreTest, WriteNotBlocked)
+{
+    auto transaction1 = StartTransaction();
+    auto transaction2 = StartTransaction();
+
+    auto row1 = WriteRow(transaction1.get(), BuildRow("key=1;a=1", false), false, LockMask1);
+
+    PrepareTransaction(transaction1.get());
+    PrepareRow(transaction1.get(), row1);
+
+    bool blocked = false;
+    Store_->SubscribeRowBlocked(BIND([&] (TDynamicRow /*blockedRow*/, int /*lockIndex*/) {
+        blocked = true;
+    }));
+
+    // Not blocked, not conflicted.
+    auto row2 = WriteRow(transaction2.get(), BuildRow("key=1;b=3.14", false), true, LockMask2);
+    EXPECT_EQ(row1, row2);
+    EXPECT_FALSE(blocked);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

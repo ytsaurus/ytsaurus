@@ -43,6 +43,10 @@ using NVersionedTableClient::TKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto BlockedRowWaitQuantum = TDuration::MilliSeconds(100);
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStoreManager::TStoreManager(
     TTabletManagerConfigPtr config,
     TTablet* Tablet_)
@@ -128,14 +132,18 @@ TDynamicRowRef TStoreManager::WriteRow(
             lockMask);
     }
 
-    auto* store = Tablet_->GetActiveStore().Get();
-    auto dynamicRow = store->WriteRow(
-        transaction,
-        row,
-        prelock,
-        lockMask);
+    TDynamicMemoryStorePtr store;
+    TDynamicRow dynamicRow;
+    do {
+        store = Tablet_->GetActiveStore();
+        dynamicRow = store->WriteRow(
+            transaction,
+            row,
+            prelock,
+            lockMask);
+    } while (!dynamicRow);
 
-    return TDynamicRowRef(store, dynamicRow);
+    return TDynamicRowRef(store.Get(), dynamicRow);
 }
 
 TDynamicRowRef TStoreManager::DeleteRow(
@@ -152,13 +160,17 @@ TDynamicRowRef TStoreManager::DeleteRow(
             TDynamicRow::PrimaryLockMask);
     }
 
-    auto* store = Tablet_->GetActiveStore().Get();
-    auto dynamicRow = store->DeleteRow(
-        transaction,
-        key,
-        prelock);
+    TDynamicMemoryStorePtr store;
+    TDynamicRow dynamicRow;
+    do {
+        store = Tablet_->GetActiveStore();
+        dynamicRow = store->DeleteRow(
+            transaction,
+            key,
+            prelock);
+    } while (!dynamicRow);
 
-    return TDynamicRowRef(store, dynamicRow);
+    return TDynamicRowRef(store.Get(), dynamicRow);
 }
 
 void TStoreManager::ConfirmRow(TTransaction* transaction, const TDynamicRowRef& rowRef)
@@ -173,8 +185,18 @@ void TStoreManager::PrepareRow(TTransaction* transaction, const TDynamicRowRef& 
 
 void TStoreManager::CommitRow(TTransaction* transaction, const TDynamicRowRef& rowRef)
 {
-    auto row = MigrateRowIfNeeded(transaction, rowRef);
-    Tablet_->GetActiveStore()->CommitRow(transaction, row);
+    const auto& activeStore = Tablet_->GetActiveStore();
+    if (rowRef.Store == activeStore) {
+        activeStore->CommitRow(transaction, rowRef.Row);
+    } else {
+        // NB: MigrateRow may change rowRef if the latter references
+        // an element from transaction->LockedRows().
+        auto* store = rowRef.Store;
+        auto migratedRow = activeStore->MigrateRow(transaction, rowRef);
+        store->CommitRow(transaction, rowRef.Row);
+        CheckForUnlockedStore(store);
+        activeStore->CommitRow(transaction, migratedRow);
+    }
 }
 
 void TStoreManager::AbortRow(TTransaction* transaction, const TDynamicRowRef& rowRef)
@@ -204,20 +226,6 @@ ui32 TStoreManager::ComputeLockMask(TUnversionedRow row, ELockMode lockMode)
         default:
             YUNREACHABLE();
     }
-}
-
-TDynamicRow TStoreManager::MigrateRowIfNeeded(TTransaction* transaction, const TDynamicRowRef& rowRef)
-{
-    if (rowRef.Store->GetState() == EStoreState::ActiveDynamic) {
-        return rowRef.Row;
-    }
-
-    // NB: MigrateRow may change rowRef if the latter references
-    // an element from transaction->LockedRows().
-    auto* store = rowRef.Store;
-    auto migratedRow = Tablet_->GetActiveStore()->MigrateRow(transaction, rowRef);
-    CheckForUnlockedStore(store);
-    return migratedRow;
 }
 
 void TStoreManager::CheckInactiveStoresLocks(
@@ -480,7 +488,11 @@ void TStoreManager::WaitForBlockedRow(
     const auto& lock = row.BeginLocks(KeyColumnCount_)[lockIndex];
     const auto* transaction = lock.Transaction;
     if (transaction && transaction->GetId() == transactionId) {
-        WaitFor(transaction->GetFinished());
+        LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v)",
+            RowToKey(Tablet_, row),
+            lockIndex,
+            transactionId);
+        WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum));
     }
 }
 

@@ -93,8 +93,6 @@ private:
 
     ui32 ComputeLockMask(TUnversionedRow row, ELockMode lockMode);
 
-    TDynamicRow MigrateRowIfNeeded(TTransaction* transaction, const TDynamicRowRef& rowRef);
-
     void CheckInactiveStoresLocks(
         TTransaction* transaction,
         TUnversionedRow key,

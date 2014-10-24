@@ -126,7 +126,16 @@ private:
 
 
     TDynamicRow AllocateRow();
-    
+
+    int GetBlockingLockIndex(
+        TDynamicRow row,
+        ui32 lockMask,
+        TTimestamp timestamp);
+    bool WaitWhileBlocked(
+        TDynamicRow row,
+        ui32 lockMask,
+        TTimestamp timestamp);
+
     void CheckRowLocks(
         TDynamicRow row,
         TTransaction* transaction,
@@ -153,8 +162,6 @@ private:
     TDynamicValueData CaptureStringValue(const TUnversionedValue& src);
 
     void OnMemoryUsageUpdated();
-
-    TOwningKey RowToKey(TDynamicRow row);
 
 };
 

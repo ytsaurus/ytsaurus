@@ -10,11 +10,9 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if !defined(_win_)
+#ifndef _win_
 
 const int TLockDescriptor::InvalidRowIndex;
-
-////////////////////////////////////////////////////////////////////////////////
 
 const int TDynamicRow::PrimaryLockIndex;
 const ui32 TDynamicRow::PrimaryLockMask;
@@ -220,6 +218,35 @@ int TDynamicRowKeyComparer::Compare(TDynamicRow lhs, TUnversionedValue* rhsBegin
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TOwningKey RowToKey(TTablet* tablet, TDynamicRow row)
+{
+    TUnversionedOwningRowBuilder builder;
+    ui32 nullKeyBit = 1;
+    ui32 nullKeyMask = row.GetNullKeyMask();
+    const auto* srcKey = row.BeginKeys();
+    auto columnIt = tablet->Schema().Columns().begin();
+    for (int index = 0;
+         index < tablet->GetKeyColumnCount();
+         ++index, nullKeyBit <<= 1, ++srcKey, ++columnIt)
+    {
+        TUnversionedValue dstKey;
+        dstKey.Id = index;
+        if (nullKeyMask & nullKeyBit) {
+            dstKey.Type = EValueType::Null;
+        } else {
+            dstKey.Type = columnIt->Type;
+            if (IsStringLikeType(EValueType(dstKey.Type))) {
+                dstKey.Length = srcKey->String->Length;
+                dstKey.Data.String = srcKey->String->Data;
+            } else {
+                ::memcpy(&dstKey.Data, srcKey, sizeof(TDynamicValueData));
+            }
+        }
+        builder.AddValue(dstKey);
+    }
+    return builder.FinishRow();
+}
 
 void SaveRowKeys(
     TSaveContext& context,

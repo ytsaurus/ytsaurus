@@ -143,6 +143,7 @@ void TTransaction::Load(TLoadContext& context)
         } else {
             dynamicRow = store->WriteRow(this, row, false, lockMask);
         }
+        YCHECK(dynamicRow);
 
         if (PrepareTimestamp_ != NullTimestamp) {
             store->PrepareRow(this, dynamicRow);

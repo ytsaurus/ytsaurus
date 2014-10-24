@@ -11,7 +11,7 @@
 #include <core/misc/small_vector.h>
 #include <core/misc/skip_list.h>
 
-#include <core/concurrency/scheduler.h>
+#include <core/profiling/timing.h>
 
 #include <core/ytree/fluent.h>
 
@@ -27,7 +27,6 @@
 namespace NYT {
 namespace NTabletNode {
 
-using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
 using namespace NObjectClient;
@@ -183,28 +182,9 @@ protected:
     ui32 LockMask_;
 
 
-    int GetBlockingLockIndex(TDynamicRow dynamicRow)
-    {
-        const auto* lock = dynamicRow.BeginLocks(KeyColumnCount_);
-        ui32 lockMaskBit = 1;
-        for (int index = 0; index < ColumnLockCount_; ++index, ++lock, lockMaskBit <<= 1) {
-            if ((LockMask_ & lockMaskBit) && lock->PrepareTimestamp < Timestamp_) {
-                return index;
-            }
-        }
-        return -1;
-    }
-
     TVersionedRow ProduceSingleRowVersion(TDynamicRow dynamicRow)
     {
-        if (Timestamp_ != AsyncLastCommittedTimestamp) {
-            while (true) {
-                int lockIndex = GetBlockingLockIndex(dynamicRow);
-                if (lockIndex < 0)
-                    break;
-                Store_->RowBlocked_.Fire(dynamicRow, lockIndex);
-            }
-        }
+        Store_->WaitWhileBlocked(dynamicRow, LockMask_, Timestamp_);
 
         auto writeTimestampList = dynamicRow.GetTimestampList(ETimestampListKind::Write, KeyColumnCount_, ColumnLockCount_);
         const auto* writeTimestampPtr = SearchList(
@@ -586,7 +566,7 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
     auto newKeyProvider = [&] () -> TDynamicRow {
         YASSERT(State_ == EStoreState::ActiveDynamic);
 
-        auto dynamicRow = result = AllocateRow();
+        auto dynamicRow = AllocateRow();
 
         // Copy keys.
         SetKeys(dynamicRow, row);
@@ -597,11 +577,16 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
         // Copy values.
         addValues(dynamicRow);
 
+        result = dynamicRow;
         return dynamicRow;
     };
 
     auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
-        result = dynamicRow;
+        // Make sure the row is not blocked. Bail out if we spinned.
+        if (WaitWhileBlocked(dynamicRow, lockMask, transaction->GetStartTimestamp())) {
+            YCHECK(prelock);
+            return;
+        }
 
         // Check for lock conflicts and acquire the lock.
         CheckRowLocks(dynamicRow, transaction, lockMask);
@@ -609,6 +594,8 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
 
         // Copy values.
         addValues(dynamicRow);
+
+        result = dynamicRow;
     };
 
     Rows_->Insert(TRowWrapper{row}, newKeyProvider, existingKeyConsumer);
@@ -628,7 +615,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     auto newKeyProvider = [&] () -> TDynamicRow {
         YASSERT(State_ == EStoreState::ActiveDynamic);
 
-        auto dynamicRow = result = AllocateRow();
+        auto dynamicRow = AllocateRow();
 
         // Copy keys.
         SetKeys(dynamicRow, key);
@@ -641,11 +628,17 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     };
 
     auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
-        result = dynamicRow;
+        // Make sure the row is not blocked. Bail out if we spinned.
+        if (WaitWhileBlocked(dynamicRow, TDynamicRow::PrimaryLockMask, transaction->GetStartTimestamp())) {
+            YCHECK(prelock);
+            return;
+        }
 
         // Check for lock conflicts and acquire the lock.
         CheckRowLocks(dynamicRow, transaction, TDynamicRow::PrimaryLockMask);
         AcquireRowLocks(dynamicRow, transaction, prelock, TDynamicRow::PrimaryLockMask, true);
+
+        result = dynamicRow;
     };
 
     Rows_->Insert(TRowWrapper{key}, newKeyProvider, existingKeyConsumer);
@@ -660,9 +653,6 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
     const TDynamicRowRef& rowRef)
 {
     auto row = rowRef.Row;
-    // NB: We may change rowRef if the latter references
-    // an element from transaction->LockedRows().
-    auto* store = rowRef.Store;
 
     auto migrateLocksAndValues = [&] (TDynamicRow migratedRow) {
         auto migratedRowRef = TDynamicRowRef(this, migratedRow);
@@ -714,23 +704,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
             }
         }
 
-        // Release locks.
-        {
-            auto* lock = locks;
-            for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
-                if (lock->Transaction == transaction) {
-                    lock->Transaction = nullptr;
-                    lock->RowIndex = TLockDescriptor::InvalidRowIndex;
-                    lock->PrepareTimestamp = NotPreparedTimestamp;
-                    if (index == TDynamicRow::PrimaryLockIndex) {
-                        row.SetDeleteLockFlag(false);
-                    }
-                }
-            }
-        }
-
         Lock();
-        store->Unlock();
     };
 
     TDynamicRow result;
@@ -812,8 +786,6 @@ void TDynamicMemoryStore::PrepareRow(TTransaction* transaction, TDynamicRow row)
 
 void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
 {
-    YASSERT(State_ == EStoreState::ActiveDynamic);
-
     auto commitTimestamp = transaction->GetCommitTimestamp();
     YASSERT(commitTimestamp != NullTimestamp);
 
@@ -889,6 +861,55 @@ TDynamicRow TDynamicMemoryStore::AllocateRow()
         SchemaColumnCount_);
 }
 
+int TDynamicMemoryStore::GetBlockingLockIndex(
+    TDynamicRow row,
+    ui32 lockMask,
+    TTimestamp timestamp)
+{
+    const auto* lock = row.BeginLocks(KeyColumnCount_);
+    ui32 lockMaskBit = 1;
+    for (int index = 0;
+         index < ColumnLockCount_;
+         ++index, ++lock, lockMaskBit <<= 1)
+    {
+        if ((lockMask & lockMaskBit) && lock->PrepareTimestamp < timestamp) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+bool TDynamicMemoryStore::WaitWhileBlocked(
+    TDynamicRow row,
+    ui32 lockMask,
+    TTimestamp timestamp)
+{
+    if (timestamp == AsyncLastCommittedTimestamp) {
+        return false;
+    }
+
+    auto now = NProfiling::GetCpuInstant();
+    auto deadline = now + NProfiling::DurationToCpuDuration(Config_->MaxBlockedRowWaitTime);
+
+    bool blocked = false;
+    while (true) {
+        int lockIndex = GetBlockingLockIndex(row, lockMask, timestamp);
+        if (lockIndex < 0)
+            break;
+
+        blocked = true;
+        RowBlocked_.Fire(row, lockIndex);
+
+        if (NProfiling::GetCpuInstant() > deadline) {
+            THROW_ERROR_EXCEPTION("Timed out waiting on blocked row")
+                << TErrorAttribute("tablet_id", Tablet_->GetId())
+                << TErrorAttribute("key", RowToKey(Tablet_, row))
+                << TErrorAttribute("timeout", Config_->MaxBlockedRowWaitTime);
+        }
+    }
+    return blocked;
+}
+
 void TDynamicMemoryStore::CheckRowLocks(
     TDynamicRow row,
     TTransaction* transaction,
@@ -901,7 +922,7 @@ void TDynamicMemoryStore::CheckRowLocks(
             THROW_ERROR_EXCEPTION("Multiple modifications to a row within a single transaction are not allowed")
                 << TErrorAttribute("transaction_id", transaction->GetId())
                 << TErrorAttribute("tablet_id", Tablet_->GetId())
-                << TErrorAttribute("key", RowToKey(row));
+                << TErrorAttribute("key", RowToKey(Tablet_, row));
         }
         // Check locks requested in #lockMask with the following exceptions:
         // * if primary lock is requested then all locks are checked
@@ -915,7 +936,7 @@ void TDynamicMemoryStore::CheckRowLocks(
                     << TErrorAttribute("conflicted_transaction_id", transaction->GetId())
                     << TErrorAttribute("winner_transaction_id", lock->Transaction->GetId())
                     << TErrorAttribute("tablet_id", Tablet_->GetId())
-                    << TErrorAttribute("key", RowToKey(row))
+                    << TErrorAttribute("key", RowToKey(Tablet_, row))
                     << TErrorAttribute("lock", Tablet_->LockIndexToName()[index]);
             }
             if (lock->LastCommitTimestamp > transaction->GetStartTimestamp()) {
@@ -923,7 +944,7 @@ void TDynamicMemoryStore::CheckRowLocks(
                     << TErrorAttribute("conflicted_transaction_id", transaction->GetId())
                     << TErrorAttribute("winner_transaction_commit_timestamp", lock->LastCommitTimestamp)
                     << TErrorAttribute("tablet_id", Tablet_->GetId())
-                    << TErrorAttribute("key", RowToKey(row))
+                    << TErrorAttribute("key", RowToKey(Tablet_, row))
                     << TErrorAttribute("lock", Tablet_->LockIndexToName()[index]);
             }
         }
@@ -1334,34 +1355,6 @@ void TDynamicMemoryStore::OnMemoryUsageUpdated()
     }
 }
 
-TOwningKey TDynamicMemoryStore::RowToKey(TDynamicRow row)
-{
-    TUnversionedOwningRowBuilder builder;
-    ui32 nullKeyBit = 1;
-    ui32 nullKeyMask = row.GetNullKeyMask();
-    const auto* srcKey = row.BeginKeys();
-    auto columnIt = Tablet_->Schema().Columns().begin();
-    for (int index = 0;
-         index < KeyColumnCount_;
-         ++index, nullKeyBit <<= 1, ++srcKey, ++columnIt)
-    {
-        TUnversionedValue dstKey;
-        dstKey.Id = index;
-        if (nullKeyMask & nullKeyBit) {
-            dstKey.Type = EValueType::Null;
-        } else {
-            dstKey.Type = columnIt->Type;
-            if (IsStringLikeType(EValueType(dstKey.Type))) {
-                dstKey.Length = srcKey->String->Length;
-                dstKey.Data.String = srcKey->String->Data;
-            } else {
-                ::memcpy(&dstKey.Data, srcKey, sizeof(TDynamicValueData));
-            }
-        }
-        builder.AddValue(dstKey);
-    }
-    return builder.FinishRow();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

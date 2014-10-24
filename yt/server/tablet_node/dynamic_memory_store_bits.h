@@ -483,6 +483,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TOwningKey RowToKey(TTablet* tablet, TDynamicRow row);
+
 void SaveRowKeys(
     TSaveContext& context,
     TDynamicRow row,

@@ -219,6 +219,8 @@ public:
 
     TDuration ErrorBackoffTime;
 
+    TDuration MaxBlockedRowWaitTime;
+
     NCompression::ECodec ChangelogCodec;
 
     TTabletManagerConfig()
@@ -232,6 +234,9 @@ public:
         RegisterParameter("max_pool_small_block_ratio", MaxPoolSmallBlockRatio)
             .InRange(0.0, 1.0)
             .Default(0.25);
+
+        RegisterParameter("max_blocked_row_wait_time", MaxBlockedRowWaitTime)
+            .Default(TDuration::Seconds(5));
 
         RegisterParameter("error_backoff_time", ErrorBackoffTime)
             .Default(TDuration::Minutes(1));
