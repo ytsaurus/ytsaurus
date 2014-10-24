@@ -13,10 +13,15 @@ class TError;
 
 }  // namespace NProto
 
+///////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 class TErrorOr;
 
 typedef TErrorOr<void> TError;
+
+template <class T>
+struct TErrorTraits;
 
 DECLARE_REFCOUNTED_STRUCT(TLeaseEntry)
 typedef TLeaseEntryPtr TLease;

@@ -73,6 +73,21 @@ void Deserialize(TError& error, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+struct TErrorTraits
+{
+    typedef TErrorOr<T> TWrapped;
+};
+
+template <class T>
+struct TErrorTraits<TErrorOr<T>>
+{
+    typedef T TUnderlying;
+    typedef TErrorOr<T> TWrapped;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NYTree {
 
 // Avoid dependency on convert.h
