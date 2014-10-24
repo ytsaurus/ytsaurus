@@ -46,18 +46,10 @@ void TDiskHealthChecker::Start()
 
 TAsyncError TDiskHealthChecker::RunCheck()
 {
-    auto asyncError = NewPromise<TError>();
-
-    BIND(&TDiskHealthChecker::DoRunCheck, Unretained(this))
+    return BIND(&TDiskHealthChecker::DoRunCheck, MakeStrong(this))
         .AsyncVia(CheckInvoker_)
         .Run()
-        .Subscribe(
-            Config_->Timeout,
-            BIND([=] (TError error) mutable {
-                asyncError.Set(error);
-            }),
-            BIND(&TDiskHealthChecker::OnCheckTimeout, MakeWeak(this), asyncError));
-    return asyncError;
+        .WithTimeout(Config_->Timeout);
 }
 
 void TDiskHealthChecker::OnCheck()
@@ -69,16 +61,17 @@ void TDiskHealthChecker::OnCheckCompleted(TError error)
 {
     if (error.IsOK()) {
         PeriodicExecutor_->ScheduleNext();
-    } else if (!FailedLock_.test_and_set()) {
-        Failed_.Fire(error);
+        return;
     }
-}
 
-void TDiskHealthChecker::OnCheckTimeout(TAsyncErrorPromise result)
-{
-    auto error = TError("Disk health check timed out at %v", Path_);
-    LOG_ERROR(error);
-    result.Set(error);
+    if (!FailedLock_.test_and_set())
+        return;
+
+    auto actualError = error.GetCode() == NYT::EErrorCode::Timeout
+        ? TError("Disk health check timed out at %v", Path_)
+        : error;
+    LOG_ERROR(actualError);
+    Failed_.Fire(actualError);
 }
 
 TError TDiskHealthChecker::DoRunCheck()

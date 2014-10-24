@@ -196,11 +196,6 @@ public:
         }
     }
 
-    void Subscribe(
-        TDuration timeout,
-        TResultHandler onResult,
-        TClosure onTimeout);
-
     void OnCanceled(TCancelHandler onCancel)
     {
         // Fast path.
@@ -252,54 +247,6 @@ private:
 };
 
 template <class T>
-class TPromiseAwaiter
-    : public TIntrinsicRefCounted
-{
-public:
-    TPromiseAwaiter(
-        TPromiseState<T>* state,
-        TDuration timeout,
-        TCallback<void(T)> onResult,
-        TClosure onTimeout)
-        : OnResult_(std::move(onResult))
-        , OnTimeout_(std::move(onTimeout))
-    {
-        YASSERT(state);
-        CallbackAlreadyRan_.clear();
-        state->Subscribe(
-            BIND(&TPromiseAwaiter::OnResult, MakeStrong(this)));
-        NConcurrency::TDelayedExecutor::Submit(
-            BIND(&TPromiseAwaiter::OnTimeout, MakeStrong(this)), timeout);
-    }
-
-private:
-    TCallback<void(T)> OnResult_;
-    TClosure OnTimeout_;
-
-    std::atomic_flag CallbackAlreadyRan_;
-
-
-    bool AtomicAcquire()
-    {
-        return !CallbackAlreadyRan_.test_and_set();
-    }
-
-    void OnResult(T value)
-    {
-        if (AtomicAcquire()) {
-            OnResult_.Run(std::move(value));
-        }
-    }
-
-    void OnTimeout()
-    {
-        if (AtomicAcquire()) {
-            OnTimeout_.Run();
-        }
-    }
-};
-
-template <class T>
 struct TPromiseSetter
 {
     static void Do(TPromise<T> promise, T value)
@@ -307,19 +254,6 @@ struct TPromiseSetter
         promise.Set(std::move(value));
     }
 };
-
-template <class T>
-inline void TPromiseState<T>::Subscribe(
-    TDuration timeout,
-    TResultHandler onResult,
-    TClosure onTimeout)
-{
-    New<TPromiseAwaiter<T>>(
-        this,
-        timeout,
-        std::move(onResult),
-        std::move(onTimeout));
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -533,16 +467,6 @@ inline void TFuture<T>::Subscribe(TCallback<void(T)> onResult)
 }
 
 template <class T>
-inline void TFuture<T>::Subscribe(
-    TDuration timeout,
-    TCallback<void(T)> onResult,
-    TClosure onTimeout)
-{
-    YASSERT(Impl_);
-    return Impl_->Subscribe(timeout, std::move(onResult), std::move(onTimeout));
-}
-
-template <class T>
 inline void TFuture<T>::OnCanceled(TClosure onCancel)
 {
     YASSERT(Impl_);
@@ -660,9 +584,9 @@ TFuture<void> TFuture<T>::Finally()
 }
 
 template <class T>
-TFuture<TErrorOr<T>> TFuture<T>::WithTimeout(TDuration timeout)
+TFuture<typename TErrorTraits<T>::TWrapped> TFuture<T>::WithTimeout(TDuration timeout)
 {
-    auto promise = NewPromise<TErrorOr<T>>();
+    auto promise = NewPromise<typename TErrorTraits<T>::TWrapped>();
     Subscribe(BIND([=] (T value) mutable {
         promise.TrySet(std::move(value));
     }));
@@ -839,16 +763,6 @@ inline void TPromise<T>::Subscribe(TCallback<void(T)> onResult)
 {
     YASSERT(Impl_);
     Impl_->Subscribe(std::move(onResult));
-}
-
-template <class T>
-inline void TPromise<T>::Subscribe(
-    TDuration timeout,
-    TCallback<void(T)> onResult,
-    TClosure onTimeout)
-{
-    YASSERT(Impl_);
-    Impl_->Subscribe(timeout, std::move(onResult), std::move(onTimeout));
 }
 
 template <class T>

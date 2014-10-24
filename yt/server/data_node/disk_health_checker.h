@@ -52,7 +52,6 @@ private:
 
     void OnCheck();
     void OnCheckCompleted(TError error);
-    void OnCheckTimeout(TAsyncErrorPromise result);
 
     TError DoRunCheck();
 

@@ -138,11 +138,6 @@ public:
         }
     }
 
-    void Subscribe(
-        TDuration timeout,
-        TResultHandler onResult,
-        TClosure onTimeout);
-
     void OnCanceled(TCancelHandler onCancel)
     {
         // Fast path.
@@ -198,54 +193,6 @@ private:
 DEFINE_REFCOUNTED_TYPE(TPromiseState<void>)
 
 template <>
-class TPromiseAwaiter<void>
-    : public TIntrinsicRefCounted
-{
-public:
-    TPromiseAwaiter(
-        TPromiseState<void>* state,
-        TDuration timeout,
-        TClosure onResult,
-        TClosure onTimeout)
-        : OnResult_(onResult)
-        , OnTimeout_(onTimeout)
-        , CallbackAlreadyRan_(0)
-    {
-        YASSERT(state);
-
-        state->Subscribe(
-            BIND(&TPromiseAwaiter::OnResult, MakeStrong(this)));
-        NConcurrency::TDelayedExecutor::Submit(
-            BIND(&TPromiseAwaiter::OnTimeout, MakeStrong(this)), timeout);
-    }
-
-private:
-    TClosure OnResult_;
-    TClosure OnTimeout_;
-
-    TAtomic CallbackAlreadyRan_;
-
-    bool AtomicAcquire()
-    {
-        return AtomicCas(&CallbackAlreadyRan_, true, false);
-    }
-
-    void OnResult()
-    {
-        if (AtomicAcquire()) {
-            OnResult_.Run();
-        }
-    }
-
-    void OnTimeout()
-    {
-        if (AtomicAcquire()) {
-            OnTimeout_.Run();
-        }
-    }
-};
-
-template <>
 struct TPromiseSetter<void>
 {
     static void Do(TPromise<void> promise)
@@ -253,18 +200,6 @@ struct TPromiseSetter<void>
         promise.Set();
     }
 };
-
-inline void TPromiseState<void>::Subscribe(
-    TDuration timeout,
-    TResultHandler onResult,
-    TClosure onTimeout)
-{
-    New<TPromiseAwaiter<void>>(
-        this,
-        timeout,
-        std::move(onResult),
-        std::move(onTimeout));
-}
 
 } // namespace NDetail
 
@@ -322,15 +257,6 @@ void TPromise<void>::Subscribe(TClosure onResult)
 {
     YASSERT(Impl_);
     return Impl_->Subscribe(std::move(onResult));
-}
-
-void TPromise<void>::Subscribe(
-    TDuration timeout,
-    TClosure onResult,
-    TClosure onTimeout)
-{
-    YASSERT(Impl_);
-    return Impl_->Subscribe(timeout, std::move(onResult), std::move(onTimeout));
 }
 
 void TPromise<void>::OnCanceled(TClosure onCancel)
@@ -414,15 +340,6 @@ void TFuture<void>::Subscribe(TClosure onResult)
 {
     YASSERT(Impl_);
     return Impl_->Subscribe(std::move(onResult));
-}
-
-void TFuture<void>::Subscribe(
-    TDuration timeout,
-    TClosure onResult,
-    TClosure onTimeout)
-{
-    YASSERT(Impl_);
-    return Impl_->Subscribe(timeout, std::move(onResult), std::move(onTimeout));
 }
 
 void TFuture<void>::OnCanceled(TClosure onCancel)

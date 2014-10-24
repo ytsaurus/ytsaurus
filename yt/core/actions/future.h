@@ -4,6 +4,7 @@
 
 #include <core/misc/public.h>
 #include <core/misc/nullable.h>
+#include <core/misc/error.h>
 
 namespace NYT {
 
@@ -130,23 +131,6 @@ public:
      */
     void Subscribe(TCallback<void(T)> onResult);
 
-    //! Attaches a result listener.
-    /*!
-     *  \param timeout Asynchronously wait for the specified time before
-     *  dropping the subscription.
-     *  \param onResult A callback to call when the value gets set
-     *  (passing the value as a parameter).
-     *  \param onTimeout A callback to call when the timeout exceeded.
-     *
-     *  \note
-     *  If the value is set before the call to #Subscribe, then
-     *  #callback gets called synchronously.
-     */
-    void Subscribe(
-        TDuration timeout,
-        TCallback<void(T)> onResult,
-        TClosure onTimeout);
-
     //! Does exactly same thing as its TPromise counterpart.
     //! Gives the consumder a chance to handle cancelation.
     void OnCanceled(TClosure onCancel);
@@ -178,7 +162,7 @@ public:
 
     //! Returns a future that is either set to an actual value (if the original one is set in timely manner)
     //! or to |EErrorCode::Timeout| (in case of timeout).
-    TFuture<TErrorOr<T>> WithTimeout(TDuration timeout);
+    TFuture<typename TErrorTraits<T>::TWrapped> WithTimeout(TDuration timeout);
 
 private:
     explicit TFuture(const TIntrusivePtr<NYT::NDetail::TPromiseState<T>>& state);
@@ -242,23 +226,6 @@ public:
      *  #callback gets called synchronously.
      */
     void Subscribe(TClosure onResult);
-
-    //! Attaches a result listener.
-    /*!
-     *  \param timeout Asynchronously wait for the specified time before
-     *  dropping the subscription.
-     *  \param onResult A callback to call when the value gets set
-     *  (passing the value as a parameter).
-     *  \param onTimeout A callback to call when the timeout exceeded.
-     *
-     *  \note
-     *  If the value is set before the call to #Subscribe, then
-     *  #callback gets called synchronously.
-     */
-    void Subscribe(
-        TDuration timeout,
-        TClosure onResult,
-        TClosure onTimeout);
 
     //! Does exactly same thing as its TPromise counterpart.
     //! Gives the consumer a chance to handle cancelation.
@@ -380,23 +347,6 @@ public:
      */
     void Subscribe(TCallback<void(T)> onResult);
 
-    //! Attaches a result listener.
-    /*!
-     *  \param timeout Asynchronously wait for the specified time before
-     *  dropping the subscription.
-     *  \param onResult A callback to call when the value gets set
-     *  (passing the value as a parameter).
-     *  \param onTimeout A callback to call when the timeout exceeded.
-     *
-     *  \note
-     *  If the value is set before the call to #Subscribe, then
-     *  #callback gets called synchronously.
-     */
-    void Subscribe(
-        TDuration timeout,
-        TCallback<void(T)> onResult,
-        TClosure onTimeout);
-
     //! Attaches a cancellation listener.
     /*!
      *  \param onCancel A callback to call when #TFuture<T>::Cancel is triggered
@@ -494,23 +444,6 @@ public:
      *  #onResult gets called synchronously.
      */
     void Subscribe(TClosure onResult);
-
-    //! Attaches a result listener.
-    /*!
-     *  \param timeout Asynchronously wait for the specified time before
-     *  dropping the subscription.
-     *  \param onResult A callback to call when the value gets set
-     *  (passing the value as a parameter).
-     *  \param onTimeout A callback to call when the timeout exceeded.
-     *
-     *  \note
-     *  If the value is set before the call to #Subscribe, then
-     *  #onResult gets called synchronously.
-     */
-    void Subscribe(
-        TDuration timeout,
-        TClosure onResult,
-        TClosure onTimeout);
 
     //! Attaches a cancellation listener.
     /*!
