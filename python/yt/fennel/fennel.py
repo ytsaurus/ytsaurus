@@ -470,6 +470,8 @@ class LogBroker(object):
             self._chunk_id += 1
             self._lines += 1
 
+            assert len(serialized_data) > 0
+
             self.log.debug("Save chunk [%d]", seqno)
             data_to_write = "{size:X}\r\n{data}\r\n".format(size=len(serialized_data), data=serialized_data)
             self._push_channel.write(data_to_write)
@@ -532,15 +534,15 @@ class PushChannel(object):
         self.IOStreamClass = IOStreamClass or iostream.IOStream
 
     def connect(self):
-        self.log.info("Create a push channel. Endpoint: %s. Session: %s", self._endpoint, self._session_id)
+        self.log.info("Create a push channel [%d]. Endpoint: %s. Session: %s", id(self), self._endpoint, self._session_id)
         if self._aborted:
-            self.log.error("Unable to connect: channel is aborted")
+            self.log.error("Unable to connect: push channel [%d] is aborted", id(self))
             return
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         self._iostream = self.IOStreamClass(s, io_loop=self._io_loop)
         self._iostream.set_close_callback(self.on_close)
         self._iostream.connect(self._endpoint, callback=self.on_connect)
-        self.log.info("Send request")
+        self.log.info("Send request to push channel [%d]", id(self))
         self._iostream.write(
             "PUT /rt/store HTTP/1.1\r\n"
             "Host: {host}\r\n"
@@ -556,18 +558,18 @@ class PushChannel(object):
 
     def write(self, data):
         if self._aborted:
-            self.log.error("Unable to write: channel is aborted")
+            self.log.error("Unable to write: push channel [%d] is aborted", id(self))
             return
         self._iostream.write(data)
 
     def abort(self):
-        self.log.info("Abort the push channel")
+        self.log.info("Abort the push channel [%d]", id(self))
         self._aborted = True
         if self._iostream is not None:
             self._iostream.close()
 
     def on_connect(self):
-        self.log.info("The push channel has been created")
+        self.log.info("The push channel [%d] has been created", id(self))
         self._state.on_session_changed()
         self._iostream.read_until_close(self.on_response_end, self.on_response)
 
@@ -578,7 +580,7 @@ class PushChannel(object):
         self.log.debug(data)
 
     def on_close(self):
-        self.log.info("The push channel has been closed")
+        self.log.info("The push channel [%d] has been closed", id(self))
         self._iostream = None
         if not self._aborted:
             self._io_loop.add_timeout(datetime.timedelta(seconds=1), self.connect)
@@ -613,7 +615,7 @@ class Session(object):
         assert self._iostream is None
         if self._aborted:
             return
-        self.log.info("Connect to kafka")
+        self.log.info("[%d] Connect to kafka", id(self))
 
         # check endpoint
         self._endpoint = self._log_broker.get_endpoint()
@@ -633,7 +635,8 @@ class Session(object):
             self.log.error("Unable to start connecting. Retry later.", exc_info=True)
             self._io_loop.add_timeout(datetime.timedelta(seconds=1), self.connect)
 
-        self.log.info("Send request. Ident: %s. SourceId: %s. Endpoint: %s",
+        self.log.info("[%d] Send request. Ident: %s. SourceId: %s. Endpoint: %s",
+            id(self),
             self._service_id,
             self._source_id,
             self._endpoint)
@@ -652,18 +655,18 @@ class Session(object):
                     host=self._host)
                 )
         except iostream.StreamClosedError:
-            self.log.error("Session is closed before created. Reconnect", exc_info=True)
+            self.log.error("[%d] Session is closed before created. Reconnect", id(self), exc_info=True)
             raise
 
     @gen.coroutine
     def on_connect(self):
-        self.log.info("The session channel has been created")
+        self.log.info("[%d] The session channel has been created", id(self))
         metadata_raw = yield gen.Task(self._iostream.read_until, "\r\n\r\n")
 
-        self.log.debug("Parse response %s", metadata_raw)
+        self.log.debug("[%d] Parse response %s", id(self), metadata_raw)
         result = self.read_metadata(metadata_raw[:-4])
         if not result:
-            self.log.error("Unable to find Session header in the response")
+            self.log.error("[%d] Unable to find Session header in the response", id(self))
             self._iostream.close()
             return
 
@@ -673,21 +676,21 @@ class Session(object):
                 try:
                     body_size = int(headers_raw, 16)
                 except ValueError:
-                    self.log.error("Bad HTTP chunk header format")
+                    self.log.error("[%d] Bad HTTP chunk header format", id(self))
                     self._iostream.close()
                     return
                 if body_size == 0:
-                    self.log.error("HTTP response is finished")
+                    self.log.error("[%d] HTTP response is finished", id(self))
                     data = yield gen.Task(self._iostream.read_until_close)
-                    self.log.debug("Session trailers: %s", data)
+                    self.log.debug("[%d] Session trailers: %s", id(self), data)
                     self._iostream.close()
                     return
                 data = yield gen.Task(self._iostream.read_bytes, body_size + 2)
 
-                self.log.debug("Process status: %s", data.strip())
+                self.log.debug("[%d] Process status: %s", id(self), data.strip())
                 self.process_data(data.strip())
         except Exception:
-            self.log.error("Unhandled exception. Close the push channel", exc_info=True)
+            self.log.error("[%d] Unhandled exception. Close the session", id(self), exc_info=True)
             self._iostream.close()
             raise
 
@@ -697,19 +700,19 @@ class Session(object):
                 key, value = line.split(":", 1)
                 if key.strip() == "Session":
                     self._id = value.strip()
-                    self.log.info("Session id: %s", self._id)
+                    self.log.info("[%d] Session id: %s", id(self), self._id)
                     self._log_broker.on_session_changed(self._id, self._host)
                     return True
         return False
 
     def abort(self):
-        self.log.info("Abort the session channel")
+        self.log.info("[%d] Abort the session channel", id(self))
         self._aborted = True
         if self.iostream is not None:
             self._iostream.close()
 
     def on_close(self):
-        self.log.error("The session channel has been closed")
+        self.log.error("[%d] The session channel has been closed", id(self))
         self._iostream = None
         if not self._aborted:
             self._io_loop.add_timeout(datetime.timedelta(seconds=1), self.connect)
@@ -811,7 +814,7 @@ def run():
     options.define("archive", default=False, help="archive and exit")
 
     options.define("log_dir", metavar="PATH", default="/var/log/fennel", help="log directory")
-    options.define("verbose", default=False, help="vervose mode")
+    options.define("verbose", default=False, help="verbose mode")
 
     options.define("sentry_endpoint", default="", help="sentry endpoint")
 
