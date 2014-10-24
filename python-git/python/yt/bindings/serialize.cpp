@@ -116,27 +116,28 @@ TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes)
 
 void TPythonObjectBuilder::OnStringScalar(const TStringBuf& value)
 {
-    AddObject(Py::String(value), YsonString);
+    auto obj = PyString_FromStringAndSize(~value, value.size());
+    AddObject(obj, YsonString);
 }
 
 void TPythonObjectBuilder::OnInt64Scalar(i64 value)
 {
-    AddObject(Py::Int(value), YsonInt64);
+    AddObject(PyInt_FromLong(value), YsonInt64);
 }
 
 void TPythonObjectBuilder::OnUint64Scalar(ui64 value)
 {
-    AddObject(Py::Long(value), YsonUint64);
+    AddObject(PyLong_FromUnsignedLongLong(value), YsonUint64);
 }
 
 void TPythonObjectBuilder::OnDoubleScalar(double value)
 {
-    AddObject(Py::Float(value), YsonDouble);
+    AddObject(PyFloat_FromDouble(value), YsonDouble);
 }
 
 void TPythonObjectBuilder::OnBooleanScalar(bool value)
 {
-    AddObject(Py::Boolean(value), YsonBoolean);
+    AddObject(PyBool_FromLong(value ? 1 : 0), YsonBoolean);
 }
 
 void TPythonObjectBuilder::OnEntity()
@@ -146,8 +147,8 @@ void TPythonObjectBuilder::OnEntity()
 
 void TPythonObjectBuilder::OnBeginList()
 {
-    auto obj = AddObject(Py::List(), YsonList);
-    Push(obj, EObjectType::List);
+    auto obj = AddObject(Py::List().ptr(), YsonList);
+    Push(Py::Object(obj), EObjectType::List);
 }
 
 void TPythonObjectBuilder::OnListItem()
@@ -161,8 +162,8 @@ void TPythonObjectBuilder::OnEndList()
 
 void TPythonObjectBuilder::OnBeginMap()
 {
-    auto obj = AddObject(Py::Dict(), YsonMap);
-    Push(obj, EObjectType::Map);
+    auto obj = AddObject(PyDict_New(), YsonMap);
+    Push(Py::Object(obj), EObjectType::Map);
 }
 
 void TPythonObjectBuilder::OnKeyedItem(const TStringBuf& key)
@@ -186,38 +187,39 @@ void TPythonObjectBuilder::OnEndAttributes()
     Attributes_ = Pop();
 }
 
-Py::Object TPythonObjectBuilder::AddObject(const Py::Object& obj, const Py::Callable& type)
+PyObject* TPythonObjectBuilder::AddObject(PyObject* obj, const Py::Callable& type)
 {
     if (AlwaysCreateAttributes_ && !Attributes_) {
         Attributes_ = Py::Dict();
     }
 
     if (Attributes_) {
-        return AddObject(type.apply(Py::TupleN(obj)));
+        return AddObject(type.apply(Py::TupleN(Py::Object(obj))).ptr());
     } else {
         return AddObject(obj);
     }
 }
 
-Py::Object TPythonObjectBuilder::AddObject(const Py::Callable& type)
+PyObject* TPythonObjectBuilder::AddObject(const Py::Callable& type)
 {
-    return AddObject(type.apply(Py::Tuple()));
+    return AddObject(type.apply(Py::Tuple()).ptr());
 }
 
-Py::Object TPythonObjectBuilder::AddObject(Py::Object obj)
+PyObject* TPythonObjectBuilder::AddObject(PyObject* obj)
 {
+    static const char* attributes = "attributes";
     if (Attributes_) {
-        obj.setAttr("attributes", *Attributes_);
+        PyObject_SetAttrString(obj, const_cast<char*>(attributes), (*Attributes_).ptr());
         Attributes_ = Null;
     }
 
     if (ObjectStack_.empty()) {
-        Objects_.push(obj);
+        Objects_.push(Py::Object(obj));
     } else if (ObjectStack_.top().second == EObjectType::List) {
-        PyList_Append(ObjectStack_.top().first.ptr(), *obj);
+        PyList_Append(ObjectStack_.top().first.ptr(), obj);
     } else {
         auto keyObj = PyString_FromStringAndSize(~Keys_.top(), Keys_.top().size());
-        PyDict_SetItem(*ObjectStack_.top().first, keyObj, *obj);
+        PyDict_SetItem(*ObjectStack_.top().first, keyObj, obj);
         Keys_.pop();
     }
 

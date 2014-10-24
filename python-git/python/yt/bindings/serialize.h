@@ -74,9 +74,9 @@ private:
     std::stack<Stroka> Keys_;
     TNullable<Py::Object> Attributes_;
 
-    Py::Object AddObject(const Py::Object& obj, const Py::Callable& type);
-    Py::Object AddObject(const Py::Callable& type);
-    Py::Object AddObject(Py::Object obj);
+    PyObject* AddObject(PyObject* obj, const Py::Callable& type);
+    PyObject* AddObject(const Py::Callable& type);
+    PyObject* AddObject(PyObject* obj);
 
     void Push(const Py::Object& obj, EObjectType objectType);
     Py::Object Pop();
