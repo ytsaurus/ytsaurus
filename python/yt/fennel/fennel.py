@@ -678,6 +678,8 @@ class Session(object):
                     return
                 if body_size == 0:
                     self.log.error("HTTP response is finished")
+                    data = yield gen.Task(self._iostream.read_until_close)
+                    self.log.debug("Session trailers: %s", data)
                     self._iostream.close()
                     return
                 data = yield gen.Task(self._iostream.read_bytes, body_size + 2)
