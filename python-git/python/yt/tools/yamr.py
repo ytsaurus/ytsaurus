@@ -46,7 +46,7 @@ def _check_call(command, **kwargs):
     logger.info("Command '{}' successfully executed".format(command))
 
 class Yamr(object):
-    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", fastbone=False, opts=""):
+    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", fastbone=False, opts="", timeout=None):
         self.binary = binary
         self.binary_name = os.path.basename(binary)
         self.server = self._make_address(server, server_port)
@@ -62,7 +62,9 @@ class Yamr(object):
         self.opts = opts
         self.fastbone = fastbone
 
-        self._light_command_timeout = 60.0
+        if timeout is None:
+            timeout = 60.0
+        self._light_command_timeout = timeout
 
         # Check that binary exists and supports help
         _check_output("{0} --help".format(self.binary), shell=True)
