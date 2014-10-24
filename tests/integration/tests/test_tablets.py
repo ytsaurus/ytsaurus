@@ -25,10 +25,10 @@ class TestTablets(YTEnvSetup):
 
     def _create_table(self):
         create('table', '//tmp/t',
-               attributes = {
-                 'schema': [{'name': 'key', 'type': 'int64'}, {'name': 'value', 'type': 'string'}],
-                 'key_columns': ['key']
-               })
+            attributes = {
+                'schema': [{'name': 'key', 'type': 'int64'}, {'name': 'value', 'type': 'string'}],
+                'key_columns': ['key']
+            })
 
     def _get_tablet_leader_address(self, tablet_id):
         cell_id = get('//sys/tablets/' + tablet_id + '/@cell_id')
@@ -49,7 +49,7 @@ class TestTablets(YTEnvSetup):
         mount_table(path)
 
         print 'Waiting for tablets to become mounted...'
-        self._wait(lambda: all(x['state'] == 'mounted' for x in get('//tmp/t/@tablets')))
+        self._wait(lambda: all(x['state'] == 'mounted' for x in get(path + '/@tablets')))
                 
     def _get_pivot_keys(self, path):
         tablets = get(path + '/@tablets')

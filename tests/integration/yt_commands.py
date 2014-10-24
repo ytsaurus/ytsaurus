@@ -185,6 +185,17 @@ def select(query, **kwargs):
     kwargs["query"] = query
     return execute_command_with_output_format("select", kwargs)
 
+def insert(path, value, is_raw=False, **kwargs):
+    if not is_raw:
+        if not isinstance(value, list):
+            value = [value]
+        value = yson.dumps(value)
+        # remove surrounding [ ]
+        value = value[1:-1]
+        
+    kwargs["path"] = path
+    return command("insert", kwargs, input_stream=StringIO(value))
+
 def start_transaction(**kwargs):
     out = command('start_tx', kwargs)
     return out.replace('"', '').strip('\n')
