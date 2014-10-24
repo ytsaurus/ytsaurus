@@ -634,10 +634,17 @@ private:
         auto resultSchema = tableInfo->Schema.Filter(options.ColumnFilter);
         auto idMapping = BuildColumnIdMapping(tableInfo, nameTable);
 
-        yhash_map<TTabletInfoPtr, TLookupTabletSessionPtr> tabletToSession;
-                
+        std::vector<std::pair<int, NVersionedTableClient::TKey>> sortedKeys;
+        sortedKeys.reserve(keys.size());
         for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
-            auto key = keys[index];
+            sortedKeys.push_back(std::make_pair(index, keys[index]));
+        }
+
+        yhash_map<TTabletInfoPtr, TLookupTabletSessionPtr> tabletToSession;
+
+        for (const auto& pair : sortedKeys) {
+            int index = pair.first;
+            auto key = pair.second;
             ValidateClientKey(key, keyColumnCount, tableInfo->Schema);
             auto tabletInfo = SyncGetTabletInfo(tableInfo, key);
             auto it = tabletToSession.find(tabletInfo);
