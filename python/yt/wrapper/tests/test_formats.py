@@ -1,4 +1,5 @@
 from yt.wrapper.string_iter_io import StringIterIO
+import yt.yson as yson
 import yt.wrapper as yt
 
 from cStringIO import StringIO
@@ -58,6 +59,9 @@ def test_yson_format():
     stream = StringIO()
     format.dump_row(row, stream)
     assert stream.getvalue().rstrip(";\n") == serialized_row
+
+    format = yt.YsonFormat(format="binary")
+    assert format.dumps_row({"a": 1}) == yson.dumps({"a": 1}, yson_format="binary") + ";"
 
 def test_yson_table_switcher():
     format = yt.YsonFormat()
