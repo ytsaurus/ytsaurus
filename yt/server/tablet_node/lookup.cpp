@@ -50,7 +50,10 @@ public:
         TTimestamp timestamp,
         TWireProtocolReader* reader)
     {
+        Clean();
+
         TabletSnapshot_ = std::move(tabletSnapshot);
+        Timestamp_ = timestamp;
         KeyColumnCount_ = TabletSnapshot_->KeyColumns.size();
         SchemaColumnCount_ = TabletSnapshot_->Schema.Columns().size();
 
@@ -63,17 +66,6 @@ public:
         }
 
         ValidateColumnFilter(ColumnFilter_, SchemaColumnCount_);
-
-        auto addLookupers = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
-            for (const auto& store : partitionSnapshot->Stores) {
-                auto lookuper = store->CreateLookuper(timestamp, ColumnFilter_);
-                Lookupers_.push_back(std::move(lookuper));
-            }
-        };
-        addLookupers(TabletSnapshot_->Eden);
-        for (const auto& partitionSnapshot : TabletSnapshot_->Partitions) {
-            addLookupers(partitionSnapshot);
-        }
 
         reader->ReadUnversionedRowset(&LookupKeys_);
     }
@@ -97,18 +89,24 @@ public:
 
     void Clean()
     {
-        ColumnFilter_ = TColumnFilter();
         MemoryPool_.Clear();
         LookupKeys_.clear();
-        Lookupers_.clear();
+        EdenLookupers_.clear();
+        PartitionLookupers_.clear();
+        PartialRows_.clear();
+        Collector_.Reset();
     }
 
 private:
     TChunkedMemoryPool MemoryPool_;
     std::vector<TUnversionedRow> LookupKeys_;
-    std::vector<IVersionedLookuperPtr> Lookupers_;
+    std::vector<IVersionedLookuperPtr> EdenLookupers_;
+    std::vector<IVersionedLookuperPtr> PartitionLookupers_;
+    std::vector<TVersionedRow> PartialRows_;
+    TIntrusivePtr<TParallelCollector<TVersionedRow>> Collector_;
 
     TTabletSnapshotPtr TabletSnapshot_;
+    TTimestamp Timestamp_;
     int KeyColumnCount_;
     int SchemaColumnCount_;
     TColumnFilter ColumnFilter_;
@@ -116,50 +114,76 @@ private:
     TCallback<TError(TWireProtocolWriter* writer)> RunCallback_;
 
 
+    void CreateLookupers(
+        std::vector<IVersionedLookuperPtr>* lookupers,
+        const TPartitionSnapshotPtr partitionSnapshot)
+    {
+        lookupers->clear();
+        for (const auto& store : partitionSnapshot->Stores) {
+            auto lookuper = store->CreateLookuper(Timestamp_, ColumnFilter_);
+            lookupers->push_back(std::move(lookuper));
+        }
+    }
+
+    void InvokeLookupers(
+        const std::vector<IVersionedLookuperPtr>& lookupers,
+        TKey key)
+    {
+        for (const auto& lookuper : lookupers) {
+            auto futureRowOrError = lookuper->Lookup(key);
+            auto maybeRowOrError = futureRowOrError.TryGet();
+            if (maybeRowOrError) {
+                THROW_ERROR_EXCEPTION_IF_FAILED(*maybeRowOrError);
+                PartialRows_.push_back(maybeRowOrError->Value());
+            } else {
+                if (!Collector_) {
+                    Collector_ = New<TParallelCollector<TVersionedRow>>();
+                }
+                Collector_->Collect(futureRowOrError);
+            }
+        }
+    }
+
     void DoRun(TWireProtocolWriter* writer)
     {
+        CreateLookupers(&EdenLookupers_, TabletSnapshot_->Eden);
+
         TUnversionedRowMerger rowMerger(
             &MemoryPool_,
             SchemaColumnCount_,
             KeyColumnCount_,
             ColumnFilter_);
 
-        TKeyComparer keyComparer(KeyColumnCount_);
-
+        TPartitionSnapshotPtr currentPartitionSnapshot;
         for (auto key : LookupKeys_) {
             ValidateServerKey(key, KeyColumnCount_, TabletSnapshot_->Schema);
 
-            // Create lookupers, send requests, collect sync responses.
-            TIntrusivePtr<TParallelCollector<TVersionedRow>> collector;
-            SmallVector<TVersionedRow, TypicalStoreCount> partialRows;
-            for (const auto& lookuper : Lookupers_) {
-                auto futureRowOrError = lookuper->Lookup(key);
-                auto maybeRowOrError = futureRowOrError.TryGet();
-                if (maybeRowOrError) {
-                    THROW_ERROR_EXCEPTION_IF_FAILED(*maybeRowOrError);
-                    partialRows.push_back(maybeRowOrError->Value());
-                } else {
-                    if (!collector) {
-                        collector = New<TParallelCollector<TVersionedRow>>();
-                    }
-                    collector->Collect(futureRowOrError);
-                }
+            auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);
+            if (!partitionSnapshot)
+                continue;
+
+            if (partitionSnapshot != currentPartitionSnapshot) {
+                currentPartitionSnapshot = std::move(partitionSnapshot);
+                CreateLookupers(&PartitionLookupers_, currentPartitionSnapshot);
             }
 
+            // Send requests, collect sync responses.
+            InvokeLookupers(EdenLookupers_, key);
+            InvokeLookupers(PartitionLookupers_, key);
+
             // Wait for async responses.
-            if (collector) {
-                auto result = WaitFor(collector->Complete());
+            if (Collector_) {
+                auto result = WaitFor(Collector_->Complete());
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                partialRows.insert(partialRows.end(), result.Value().begin(), result.Value().end());
+                PartialRows_.insert(PartialRows_.end(), result.Value().begin(), result.Value().end());
             }
 
             // Merge partial rows.
-            for (auto row : partialRows) {
+            for (auto row : PartialRows_) {
                 if (row) {
                     rowMerger.AddPartialRow(row);
                 }
             }
-
             auto mergedRow = rowMerger.BuildMergedRowAndReset();
             writer->WriteUnversionedRow(mergedRow);
         }
