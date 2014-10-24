@@ -141,18 +141,22 @@ public:
         const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer)
     {
+        auto nodeDirectory = fragment->NodeDirectory;
         auto query = fragment->Query;
+        auto Logger = BuildLogger(fragment->Query);
 
-        auto groupedSplits = DoSplitAndRegroup(GetPrunedSplits(query, fragment->DataSplits), fragment->NodeDirectory);
+        auto splits = DoSplit(GetPrunedSplits(query, fragment->DataSplits), nodeDirectory, Logger);
 
-        std::vector<TKeyRange> ranges = GetRanges(groupedSplits);
+        LOG_DEBUG("Regrouping %v splits", splits.size());
 
-        TConstQueryPtr topquery;
+        auto groupedSplits = Regroup(splits, nodeDirectory);
+
+        auto ranges = GetRanges(groupedSplits);
+
+        TConstQueryPtr topQuery;
         std::vector<TConstQueryPtr> subqueries;
 
-        std::tie(topquery, subqueries) = CoordinateQuery(query, ranges);
-
-        auto Logger = BuildLogger(fragment->Query);
+        std::tie(topQuery, subqueries) = CoordinateQuery(query, ranges);
 
         std::vector<ISchemafulReaderPtr> splitReaders;
         std::vector<TFuture<TErrorOr<TQueryStatistics>>> subqueriesStatistics;
@@ -167,7 +171,7 @@ public:
 
                 std::vector<ISchemafulReaderPtr> bottomSplitReaders;
                 for (const auto& dataSplit : groupedSplits[subqueryIndex]) {
-                    bottomSplitReaders.push_back(GetReader(dataSplit, fragment->NodeDirectory));
+                    bottomSplitReaders.push_back(GetReader(dataSplit, nodeDirectory));
                 }
                 auto mergingReader = CreateSchemafulMergingReader(bottomSplitReaders);
 
@@ -194,7 +198,7 @@ public:
         auto asyncResultOrError = BIND(&TEvaluator::Run, Evaluator_)
             .Guarded()
             .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
-            .Run(topquery, std::move(mergingReader), std::move(writer));
+            .Run(topQuery, std::move(mergingReader), std::move(writer));
 
         auto queryStatistics = WaitFor(asyncResultOrError).ValueOrThrow();
 
@@ -216,7 +220,7 @@ public:
             .Run(fragment, std::move(writer));
     }
 
-    TDataSplits SplitFurther(
+    TDataSplits DoSplitFurther(
         const TDataSplit& split,
         TNodeDirectoryPtr nodeDirectory)
     {
@@ -328,9 +332,10 @@ public:
         return result;
     }
 
-    TGroupedDataSplits DoSplitAndRegroup(
+    TDataSplits DoSplit(
         const TDataSplits& splits,
-        TNodeDirectoryPtr nodeDirectory)
+        TNodeDirectoryPtr nodeDirectory,
+        const NLog::TLogger& Logger)
     {
         TDataSplits allSplits;
         for (const auto& split : splits) {
@@ -342,19 +347,14 @@ public:
                 continue;
             }
 
-            TDataSplits newSplits = SplitFurther(split, nodeDirectory);
+            auto newSplits = DoSplitFurther(split, nodeDirectory);
 
-            LOG_DEBUG(
-                "Got %v splits for input %v",
-                newSplits.size(),
-                objectId);
+            LOG_DEBUG("Got %v splits for input %v", newSplits.size(), objectId);
 
             allSplits.insert(allSplits.end(), newSplits.begin(), newSplits.end());
         }
 
-        LOG_DEBUG("Regrouping %v splits", allSplits.size());
-
-        return Regroup(allSplits, nodeDirectory);
+        return allSplits;
     }
 
     ISchemafulReaderPtr GetReader(

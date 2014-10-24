@@ -312,7 +312,7 @@ public:
                 continue;
             }
 
-            TDataSplits newSplits = DoSplitFurther(split, nodeDirectory);
+            auto newSplits = DoSplitFurther(split, nodeDirectory);
 
             LOG_DEBUG("Got %v splits for input %v", newSplits.size(), objectId);
 
@@ -345,10 +345,11 @@ public:
         const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer)
     {
+        auto nodeDirectory = fragment->NodeDirectory;
         auto query = fragment->Query;
         auto Logger = BuildLogger(query);
 
-        auto splits = DoSplit(GetPrunedSplits(query, fragment->DataSplits), fragment->NodeDirectory, Logger);
+        auto splits = DoSplit(GetPrunedSplits(query, fragment->DataSplits), nodeDirectory, Logger);
 
         std::map<Stroka, TDataSplits> groupes;
         
@@ -362,7 +363,7 @@ public:
                     objectId);
             }
             auto replica = replicas[RandomNumber(replicas.size())];
-            auto descriptor = fragment->NodeDirectory->GetDescriptor(replica);
+            auto descriptor = nodeDirectory->GetDescriptor(replica);
 
             groupes[descriptor.GetDefaultAddress()].push_back(split);
         }
@@ -375,10 +376,10 @@ public:
             ranges.push_back(GetRange(group.second));
         }
 
-        TConstQueryPtr topquery;
+        TConstQueryPtr topQuery;
         std::vector<TConstQueryPtr> subqueries;
 
-        std::tie(topquery, subqueries) = CoordinateQuery(query, ranges);
+        std::tie(topQuery, subqueries) = CoordinateQuery(query, ranges);
 
         std::vector<ISchemafulReaderPtr> splitReaders;
         std::vector<TFuture<TErrorOr<TQueryStatistics>>> subqueriesStatistics;
@@ -390,7 +391,7 @@ public:
                     subquery->GetId());
 
                 auto subfragment = New<TPlanFragment>(fragment->GetSource());
-                subfragment->NodeDirectory = fragment->NodeDirectory;
+                subfragment->NodeDirectory = nodeDirectory;
                 subfragment->DataSplits = groupedSplits[index].first;
                 subfragment->Query = subquery;
 
@@ -408,7 +409,7 @@ public:
 
         auto mergingReader = CreateSchemafulMergingReader(splitReaders);
 
-        auto queryStatistics = Evaluator_->Run(topquery, std::move(mergingReader), std::move(writer));
+        auto queryStatistics = Evaluator_->Run(topQuery, std::move(mergingReader), std::move(writer));
 
         for (auto const& subqueryStatistics : subqueriesStatistics) {
             queryStatistics += subqueryStatistics.Get().ValueOrThrow();
@@ -421,9 +422,11 @@ public:
         const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer)
     {
+        auto nodeDirectory = fragment->NodeDirectory;
         auto query = fragment->Query;
         auto Logger = BuildLogger(query);
-        auto splits = DoSplit(GetPrunedSplits(query, fragment->DataSplits), fragment->NodeDirectory, Logger);
+
+        auto splits = DoSplit(GetPrunedSplits(query, fragment->DataSplits), nodeDirectory, Logger);
 
         LOG_DEBUG("Sorting %v splits", splits.size());
 
@@ -452,19 +455,17 @@ public:
             auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(splits[index].replicas());
             if (replicas.empty()) {
                 auto objectId = GetObjectIdFromDataSplit(splits[index]);
-                THROW_ERROR_EXCEPTION("No alive replicas for split %v",
-                    objectId);
+                THROW_ERROR_EXCEPTION("No alive replicas for split %v", objectId);
             }
             auto replica = replicas[RandomNumber(replicas.size())];
-            auto descriptor = fragment->NodeDirectory->GetDescriptor(replica);
+            auto descriptor = nodeDirectory->GetDescriptor(replica);
 
             auto subquery = subqueries[index];
 
-            LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
-                subquery->GetId());
+            LOG_DEBUG("Delegating subquery (SubqueryId: %v)", subquery->GetId());
 
             auto subfragment = New<TPlanFragment>(fragment->GetSource());
-            subfragment->NodeDirectory = fragment->NodeDirectory;
+            subfragment->NodeDirectory = nodeDirectory;
             subfragment->DataSplits.push_back(splits[index]);
             subfragment->Query = subquery;
 

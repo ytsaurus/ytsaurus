@@ -80,52 +80,6 @@ message TAggregateItem
     required string name = 3;
 }
 
-message TOperator
-{
-    required int32 kind = 1;
-
-    extensions 100 to max;
-}
-
-message TScanOperator
-{
-    extend TOperator {
-        optional TScanOperator scan_operator = 101;
-    }
-    repeated NYT.NChunkClient.NProto.TChunkSpec data_split = 1;
-
-    required NYT.NVersionedTableClient.NProto.TTableSchemaExt table_schema = 2;
-    required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 3;
-}
-
-message TFilterOperator
-{
-    extend TOperator {
-        optional TFilterOperator filter_operator = 102;
-    }
-    required TOperator source = 1;
-    required TExpression predicate = 2;
-}
-
-message TGroupOperator
-{
-    extend TOperator {
-        optional TGroupOperator group_operator = 103;
-    }
-    required TOperator source = 1;
-    repeated TNamedItem group_items = 2;
-    repeated TAggregateItem aggregate_items = 3;
-}
-
-message TProjectOperator
-{
-    extend TOperator {
-        optional TProjectOperator project_operator = 104;
-    }
-    required TOperator source = 1;
-    repeated TNamedItem projections = 2;
-}
-
 message TGroupClause
 {
     repeated TNamedItem group_items = 4;
