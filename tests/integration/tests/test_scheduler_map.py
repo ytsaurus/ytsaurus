@@ -2,6 +2,7 @@ import pytest
 import time
 import __builtin__
 import os
+import socket
 import tempfile
 
 from yt_env_setup import YTEnvSetup
