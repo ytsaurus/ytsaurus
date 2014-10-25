@@ -39,7 +39,8 @@ def import_table(object, args):
                     proxy_port=params.mr_proxy_port,
                     fetch_info_from_http=params.fetch_info_from_http,
                     mr_user=params.mr_user,
-                    fastbone=params.fastbone)
+                    fastbone=params.fastbone,
+                    timeout=300.0)
 
         yt_client = Yt(yt.config.http.PROXY, token=yt.config.http.TOKEN)
 
