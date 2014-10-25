@@ -636,11 +636,18 @@ private:
 
         // Server-side is specifically optimized for handling long runs of keys
         // from the same partition. Let's sort the keys to facilitate this.
-        std::vector<std::pair<int, NVersionedTableClient::TKey>> sortedKeys;
+        typedef std::pair<int, NVersionedTableClient::TKey> TIndexedKey;
+        std::vector<TIndexedKey> sortedKeys;
         sortedKeys.reserve(keys.size());
         for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
             sortedKeys.push_back(std::make_pair(index, keys[index]));
         }
+        std::sort(
+            sortedKeys.begin(),
+            sortedKeys.end(),
+            [] (const TIndexedKey& lhs, const TIndexedKey& rhs) {
+                return lhs.second < rhs.second;
+            });
 
         yhash_map<TTabletInfoPtr, TLookupTabletSessionPtr> tabletToSession;
 
