@@ -41,7 +41,9 @@ class Response(object):
 
     def error(self):
         self._process_return_code()
-        return self._error
+        if hasattr(self, "_error"):
+            return self._error
+        return None
 
     def is_ok(self):
         self._process_return_code()
@@ -60,7 +62,6 @@ class Response(object):
         if self._return_code_processed:
             return
 
-        self._error = None
         if not str(self.raw_response.status_code).startswith("2"):
             # 401 is case of incorrect token
             if self.raw_response.status_code == 401:
