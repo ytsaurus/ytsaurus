@@ -103,6 +103,7 @@
 
 #include "public.h"
 #include "callback_internal.h"
+#include "bind_internal.h"
 
 #include <core/misc/mpl.h>
 
@@ -168,8 +169,10 @@ struct TFutureHelper< TPromise<R> >
     static const bool WrappedInFuture = true;
 };
 
-} // namespace NDetail
+template <class S1, class S2>
+class TCallbackRunnableAdapter;
 
+} // namespace NDetail
 
 template <class R, class... TArgs>
 class TCallback<R(TArgs...)>
@@ -199,11 +202,21 @@ public:
         // Force the assignment to a local variable of TTypedInvokeFunction
         // so the compiler will typecheck that the passed in Run() method has
         // the correct type.
-        auto invokeFunction =
-            &NYT::NDetail::TBindState<TRunnable, TSignature, TBoundArgs>
-            ::TInvokerType::Run;
-        UntypedInvoke =
-            reinterpret_cast<TUntypedInvokeFunction>(invokeFunction);
+        auto invokeFunction = &NYT::NDetail::TBindState<TRunnable, TSignature, TBoundArgs>::TInvokerType::Run;
+        UntypedInvoke = reinterpret_cast<TUntypedInvokeFunction>(invokeFunction);
+    }
+
+    template <class R2, class... TArgs2>
+    operator TCallback<R2(TArgs2...)>() const
+    {
+        typedef NYT::NDetail::TCallbackRunnableAdapter<R(TArgs...), R2(TArgs2...)> TRunnable;
+        return TCallback<R2(TArgs2...)>(
+            New<NYT::NDetail::TBindState<TRunnable,TSignature, void()>>(
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+                BindState->Location,
+#endif
+                TRunnable(*this))
+            );
     }
 
     using TCallbackBase::operator ==;

@@ -254,6 +254,48 @@ private:
     R (T::*Method)(TArgs...) const;
 };
 
+
+// Callback Adapter
+template <class S1, class S2>
+class TCallbackRunnableAdapter;
+
+template <class S1, class R2, class... TArgs2>
+class TCallbackRunnableAdapter<S1, R2(TArgs2...)>
+{
+public:
+    explicit TCallbackRunnableAdapter(TCallback<S1> callback)
+        : Callback(std::move(callback))
+    { }
+
+    R2 Run(TArgs2&&... args)
+    {
+        return Callback.Run(std::forward<TArgs2>(args)...);
+    }
+
+private:
+    TCallback<S1> Callback;
+
+};
+
+// Callback Adapter (specialized for void return type)
+template <class S1, class... TArgs2>
+class TCallbackRunnableAdapter<S1, void(TArgs2...)>
+{
+public:
+    explicit TCallbackRunnableAdapter(TCallback<S1> callback)
+        : Callback(std::move(callback))
+    { }
+
+    void Run(TArgs2&&... args)
+    {
+        Callback.Run(std::forward<TArgs2>(args)...);
+    }
+
+private:
+    TCallback<S1> Callback;
+
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 // #TIgnoreResultInSignature<>
 ////////////////////////////////////////////////////////////////////////////////
@@ -279,7 +321,7 @@ struct TFunctorTraits
 };
 
 template <class T>
-struct TFunctorTraits< TIgnoreResultWrapper<T> >
+struct TFunctorTraits< TIgnoreResultWrapper<T>>
 {
     typedef typename TFunctorTraits<T>::TRunnable TRunnable;
     typedef typename TIgnoreResultInSignature<
@@ -288,7 +330,7 @@ struct TFunctorTraits< TIgnoreResultWrapper<T> >
 };
 
 template <class T>
-struct TFunctorTraits< TCallback<T> >
+struct TFunctorTraits< TCallback<T>>
 {
     typedef TCallback<T> TRunnable;
     typedef typename TCallback<T>::TSignature TSignature;
@@ -313,7 +355,7 @@ MakeRunnable(const TIgnoreResultWrapper<T>& wrapper)
 }
 
 template <class T>
-const typename TFunctorTraits< TCallback<T> >::TRunnable&
+const typename TFunctorTraits< TCallback<T>>::TRunnable&
 MakeRunnable(const TCallback<T>& x)
 {
     return x;
@@ -392,7 +434,7 @@ template <class TTypedBindState, class R, class TBoundArgsPack, class TRunArgsPa
 struct TInvoker;
 
 template <class TTypedBindState, class R, class... TRunArgs>
-struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<>, NMpl::TTypesPack<TRunArgs...>, NMpl::TSequence<> >
+struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<>, NMpl::TTypesPack<TRunArgs...>, NMpl::TSequence<>>
 {
     typedef R(TUnboundSignature)(TRunArgs...);
 
@@ -418,7 +460,7 @@ struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<>, NMpl::TTypesPack<TRunArg
 };
 
 template <class TTypedBindState, class R, class BA0, class... TBoundArgs, class... TRunArgs, unsigned... BoundIndexes>
-struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<BA0, TBoundArgs...>, NMpl::TTypesPack<TRunArgs...>, NMpl::TSequence<0, BoundIndexes...> >
+struct TInvoker<TTypedBindState, R, NMpl::TTypesPack<BA0, TBoundArgs...>, NMpl::TTypesPack<TRunArgs...>, NMpl::TSequence<0, BoundIndexes...>>
 {
     typedef R(TUnboundSignature)(TRunArgs...);
 
@@ -486,7 +528,7 @@ struct TBindState<TRunnable_, R(TArgs...), void(S...)>
     typedef TIsMethodHelper<TRunnable> IsMethod;
     typedef TBindStateIsWeakMethodHelper<IsMethod::Value, S...> IsWeakMethod;
 
-    typedef NMpl::TSplitVariadic<sizeof...(S), NMpl::TTypesPack<>, NMpl::TTypesPack<TArgs...> > TSplitVariadicType;
+    typedef NMpl::TSplitVariadic<sizeof...(S), NMpl::TTypesPack<>, NMpl::TTypesPack<TArgs...>> TSplitVariadicType;
     typedef typename TSplitVariadicType::THead TBoundArgsPack;
     typedef typename TSplitVariadicType::TTail TRunArgsPack;
 

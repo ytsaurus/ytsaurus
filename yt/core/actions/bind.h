@@ -77,9 +77,9 @@ Bind(
     typedef NYT::NMpl::TTypesPack<NYT::NDetail::TCheckIsRawPtrToRefCountedTypeHelper<TAs>...> TCheckParamsIsRawPtrToRefCountedType;
 
     typedef NYT::NDetail::TBindState<
-        TRunnable,
-        TSignature,
-        void(typename NMpl::TDecay<TAs>::TType...)
+            TRunnable,
+            TSignature,
+            void(typename NMpl::TDecay<TAs>::TType...)
         > TTypedBindState;
 
     return TCallback<typename TTypedBindState::TUnboundSignature>(
@@ -87,13 +87,11 @@ Bind(
         NewWithLocation<TTypedBindState, TTag, Counter>(
             location,
             location,
-            NYT::NDetail::MakeRunnable(functor),
-            std::forward<TAs>(args)...)
 #else
         New<TTypedBindState>(
+#endif
             NYT::NDetail::MakeRunnable(functor),
             std::forward<TAs>(args)...)
-#endif
     );
 }
 

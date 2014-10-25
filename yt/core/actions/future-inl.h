@@ -45,7 +45,7 @@ class TPromiseState
     : public TIntrinsicRefCounted
 {
 public:
-    typedef TCallback<void(T)> TResultHandler;
+    typedef TCallback<void(const T&)> TResultHandler;
     typedef SmallVector<TResultHandler, 8> TResultHandlers;
 
     typedef TClosure TCancelHandler;
@@ -176,11 +176,11 @@ public:
         return DoSet<U, false>(std::forward<U>(value));
     }
 
-    void Subscribe(TResultHandler onResult)
+    void Subscribe(TResultHandler handler)
     {
         // Fast path.
         if (Set_) {
-            onResult.Run(*Value_);
+            handler.Run(*Value_);
             return;
         }
 
@@ -189,18 +189,18 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
             if (Set_) {
                 guard.Release();
-                onResult.Run(*Value_);
+                handler.Run(*Value_);
             } else if (!Canceled_) {
-                ResultHandlers_.push_back(std::move(onResult));
+                ResultHandlers_.push_back(std::move(handler));
             }
         }
     }
 
-    void OnCanceled(TCancelHandler onCancel)
+    void OnCanceled(TCancelHandler handler)
     {
         // Fast path.
         if (Canceled_) {
-            onCancel.Run();
+            handler.Run();
             return;
         }
 
@@ -209,9 +209,9 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
             if (Canceled_) {
                 guard.Release();
-                onCancel.Run();
+                handler.Run();
             } else if (!Set_) {
-                CancelHandlers_.push_back(std::move(onCancel));
+                CancelHandlers_.push_back(std::move(handler));
             }
         }
     }
@@ -460,17 +460,17 @@ inline TNullable<T> TFuture<T>::TryGet() const
 }
 
 template <class T>
-inline void TFuture<T>::Subscribe(TCallback<void(T)> onResult)
+inline void TFuture<T>::Subscribe(TCallback<void(const T&)> handler)
 {
     YASSERT(Impl_);
-    return Impl_->Subscribe(std::move(onResult));
+    return Impl_->Subscribe(std::move(handler));
 }
 
 template <class T>
-inline void TFuture<T>::OnCanceled(TClosure onCancel)
+inline void TFuture<T>::OnCanceled(TClosure handler)
 {
     YASSERT(Impl_);
-    Impl_->OnCanceled(std::move(onCancel));
+    Impl_->OnCanceled(std::move(handler));
 }
 
 template <class T>
@@ -481,12 +481,11 @@ inline bool TFuture<T>::Cancel()
 }
 
 template <class T>
-inline TFuture<void> TFuture<T>::Apply(TCallback<void(T)> mutator)
+inline TFuture<void> TFuture<T>::Apply(TCallback<void(const T&)> mutator)
 {
     auto mutated = NewPromise();
 
-    // TODO(sandello): Make cref here.
-    Subscribe(BIND([=] (T value) mutable {
+    Subscribe(BIND([=] (const T& value) mutable {
         mutator.Run(value);
         mutated.Set();
     }));
@@ -499,16 +498,20 @@ inline TFuture<void> TFuture<T>::Apply(TCallback<void(T)> mutator)
 }
 
 template <class T>
-inline TFuture<void> TFuture<T>::Apply(TCallback<TFuture<void>(T)> mutator)
+inline TFuture<void> TFuture<T>::Apply(TCallback<void(T)> mutator)
+{
+    return Apply(TCallback<void(const T&)>(mutator));
+}
+
+template <class T>
+inline TFuture<void> TFuture<T>::Apply(TCallback<TFuture<void>(const T&)> mutator)
 {
     auto mutated = NewPromise();
 
-    // TODO(sandello): Make cref here.
     auto inner = BIND([=] () mutable {
         mutated.Set();
     });
-    // TODO(sandello): Make cref here.
-    auto outer = BIND([=] (T outerValue) mutable {
+    auto outer = BIND([=] (const T& outerValue) mutable {
         mutator.Run(outerValue).Subscribe(inner);
     });
     Subscribe(outer);
@@ -521,13 +524,18 @@ inline TFuture<void> TFuture<T>::Apply(TCallback<TFuture<void>(T)> mutator)
 }
 
 template <class T>
+inline TFuture<void> TFuture<T>::Apply(TCallback<TFuture<void>(T)> mutator)
+{
+    return Apply(TCallback<TFuture<void>(const T&)>(mutator));
+}
+
+template <class T>
 template <class R>
-inline TFuture<R> TFuture<T>::Apply(TCallback<R(T)> mutator)
+inline TFuture<R> TFuture<T>::Apply(TCallback<R(const T&)> mutator)
 {
     auto mutated = NewPromise<R>();
 
-    // TODO(sandello): Make cref here.
-    Subscribe(BIND([=] (T value) mutable {
+    Subscribe(BIND([=] (const T& value) mutable {
         mutated.Set(mutator.Run(value));
     }));
 
@@ -540,16 +548,21 @@ inline TFuture<R> TFuture<T>::Apply(TCallback<R(T)> mutator)
 
 template <class T>
 template <class R>
-inline TFuture<R> TFuture<T>::Apply(TCallback<TFuture<R>(T)> mutator)
+inline TFuture<R> TFuture<T>::Apply(TCallback<R(T)> mutator)
+{
+    return Apply(TCallback<R(const T&)>(mutator));
+}
+
+template <class T>
+template <class R>
+inline TFuture<R> TFuture<T>::Apply(TCallback<TFuture<R>(const T&)> mutator)
 {
     auto mutated = NewPromise<R>();
 
-    // TODO(sandello): Make cref here.
-    auto inner = BIND([=] (R innerValue) mutable {
-        mutated.Set(std::move(innerValue));
+    auto inner = BIND([=] (const R& innerValue) mutable {
+        mutated.Set(innerValue);
     });
-    // TODO(sandello): Make cref here.
-    auto outer = BIND([=] (T outerValue) mutable {
+    auto outer = BIND([=] (const T& outerValue) mutable {
         mutator.Run(outerValue).Subscribe(inner);
     });
     Subscribe(outer);
@@ -562,10 +575,17 @@ inline TFuture<R> TFuture<T>::Apply(TCallback<TFuture<R>(T)> mutator)
 }
 
 template <class T>
+template <class R>
+inline TFuture<R> TFuture<T>::Apply(TCallback<TFuture<R>(T)> mutator)
+{
+    return Apply(TCallback<TFuture<R>(const T&)>(mutator));
+}
+
+template <class T>
 TFuture<void> TFuture<T>::IgnoreResult()
 {
     auto promise = NewPromise<void>();
-    Subscribe(BIND([=] (T) mutable {
+    Subscribe(BIND([=] (const T&) mutable {
         promise.Set();
     }));
     OnCanceled(BIND([=] () mutable {
@@ -578,7 +598,7 @@ template <class T>
 TFuture<void> TFuture<T>::Finally()
 {
     auto promise = NewPromise<void>();
-    Subscribe(BIND([=] (T) mutable { promise.Set(); }));
+    Subscribe(BIND([=] (const T&) mutable { promise.Set(); }));
     OnCanceled(BIND([=] () mutable { promise.Set(); }));
     return promise;
 }
@@ -587,8 +607,8 @@ template <class T>
 TFuture<typename TErrorTraits<T>::TWrapped> TFuture<T>::WithTimeout(TDuration timeout)
 {
     auto promise = NewPromise<typename TErrorTraits<T>::TWrapped>();
-    Subscribe(BIND([=] (T value) mutable {
-        promise.TrySet(std::move(value));
+    Subscribe(BIND([=] (const T& value) mutable {
+        promise.TrySet(value);
     }));
     OnCanceled(BIND([=] () mutable {
         promise.Cancel();
@@ -602,15 +622,8 @@ TFuture<typename TErrorTraits<T>::TWrapped> TFuture<T>::WithTimeout(TDuration ti
 }
 
 template <class T>
-inline TFuture<T>::TFuture(
-    const TIntrusivePtr<NYT::NDetail::TPromiseState<T>>& state)
-    : Impl_(state)
-{ }
-
-template <class T>
-inline TFuture<T>::TFuture(
-    TIntrusivePtr<NYT::NDetail::TPromiseState<T>>&& state)
-    : Impl_(std::move(state))
+inline TFuture<T>::TFuture(const TIntrusivePtr<NYT::NDetail::TPromiseState<T>> impl)
+    : Impl_(std::move(impl))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -621,7 +634,6 @@ inline TFuture<R> TFuture<void>::Apply(TCallback<R()> mutator)
 {
     auto mutated = NewPromise<R>();
 
-    // TODO(sandello): Make cref here.
     Subscribe(BIND([=] () mutable {
         mutated.Set(mutator.Run());
     }));
@@ -638,11 +650,9 @@ inline TFuture<R> TFuture<void>::Apply(TCallback<TFuture<R>()> mutator)
 {
     auto mutated = NewPromise<R>();
 
-    // TODO(sandello): Make cref here.
-    auto inner = BIND([=] (R innerValue) mutable {
-        mutated.Set(std::move(innerValue));
+    auto inner = BIND([=] (const R& innerValue) mutable {
+        mutated.Set(innerValue);
     });
-    // TODO(sandello): Make cref here.
     auto outer = BIND([=] () mutable {
         mutator.Run().Subscribe(inner);
     });
@@ -735,8 +745,8 @@ template <class U>
 inline void TPromise<T>::SetFrom(TFuture<U> another)
 {
     auto impl = Impl_;
-    another.Subscribe(BIND([impl] (U value) {
-        impl->Set(std::move(value));
+    another.Subscribe(BIND([impl] (const U& value) {
+        impl->Set(value);
     }));
 }
 
@@ -759,8 +769,8 @@ template <class U>
 inline void TPromise<T>::TrySetFrom(TFuture<U> another)
 {
     auto impl = Impl_;
-    another.Subscribe(BIND([impl] (U value) {
-        impl->TrySet(std::move(value));
+    another.Subscribe(BIND([impl] (const U& value) {
+        impl->TrySet(value);
     }));
 }
 
@@ -779,17 +789,17 @@ inline TNullable<T> TPromise<T>::TryGet() const
 }
 
 template <class T>
-inline void TPromise<T>::Subscribe(TCallback<void(T)> onResult)
+inline void TPromise<T>::Subscribe(TCallback<void(const T&)> handler)
 {
     YASSERT(Impl_);
-    Impl_->Subscribe(std::move(onResult));
+    Impl_->Subscribe(std::move(handler));
 }
 
 template <class T>
-inline void TPromise<T>::OnCanceled(TClosure onCancel)
+inline void TPromise<T>::OnCanceled(TClosure handler)
 {
     YASSERT(Impl_);
-    Impl_->OnCanceled(std::move(onCancel));
+    Impl_->OnCanceled(std::move(handler));
 }
 
 template <class T>
@@ -813,15 +823,8 @@ inline TPromise<T>::operator TFuture<T>() const
 }
 
 template <class T>
-inline TPromise<T>::TPromise(
-    const TIntrusivePtr<NYT::NDetail::TPromiseState<T>>& state)
-    : Impl_(state)
-{ }
-
-template <class T>
-inline TPromise<T>::TPromise(
-    TIntrusivePtr<NYT::NDetail::TPromiseState<T>>&& state)
-    : Impl_(std::move(state))
+inline TPromise<T>::TPromise(TIntrusivePtr<NYT::NDetail::TPromiseState<T>> impl)
+    : Impl_(std::move(impl))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

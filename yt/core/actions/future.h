@@ -120,36 +120,42 @@ public:
      */
     TNullable<T> TryGet() const;
 
-    //! Attaches a result listener.
+    //! Attaches a result handler.
     /*!
-     *  \param onResult A callback to call when the value gets set
+     *  \param handler A callback to call when the value gets set
      *  (passing the value as a parameter).
      *
      *  \note
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.
      */
-    void Subscribe(TCallback<void(T)> onResult);
+    void Subscribe(TCallback<void(const T&)> handler);
 
     //! Does exactly same thing as its TPromise counterpart.
-    //! Gives the consumder a chance to handle cancelation.
-    void OnCanceled(TClosure onCancel);
+    //! Gives the consumer a chance to handle cancelation.
+    void OnCanceled(TClosure handler);
 
     //! Notifies the producer that the promised value is no longer needed.
     //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
     bool Cancel();
 
     //! Chains the asynchronous computation with another synchronous function.
+    TFuture<void> Apply(TCallback<void(const T&)> mutator);
     TFuture<void> Apply(TCallback<void(T)> mutator);
 
     //! Chains the asynchronous computation with another asynchronous function.
+    TFuture<void> Apply(TCallback<TFuture<void>(const T&)> mutator);
     TFuture<void> Apply(TCallback<TFuture<void>(T)> mutator);
 
     //! Chains the asynchronous computation with another synchronous function.
     template <class R>
+    TFuture<R> Apply(TCallback<R(const T&)> mutator);
+    template <class R>
     TFuture<R> Apply(TCallback<R(T)> mutator);
 
     //! Chains the asynchronous computation with another asynchronous function.
+    template <class R>
+    TFuture<R> Apply(TCallback<TFuture<R>(const T&)> mutator);
     template <class R>
     TFuture<R> Apply(TCallback<TFuture<R>(T)> mutator);
 
@@ -165,8 +171,7 @@ public:
     TFuture<typename TErrorTraits<T>::TWrapped> WithTimeout(TDuration timeout);
 
 private:
-    explicit TFuture(const TIntrusivePtr<NYT::NDetail::TPromiseState<T>>& state);
-    explicit TFuture(TIntrusivePtr<NYT::NDetail::TPromiseState<T>>&& state);
+    explicit TFuture(TIntrusivePtr<NYT::NDetail::TPromiseState<T>> impl);
 
     TIntrusivePtr<NYT::NDetail::TPromiseState<T>> Impl_;
 
@@ -216,20 +221,20 @@ public:
     //! Synchronously waits until #Set is called.
     void Get() const;
 
-    //! Attaches a result listener.
+    //! Attaches a result handler.
     /*!
-     *  \param onResult A callback to call when the value gets set
+     *  \param handler A callback to call when the value gets set
      *  (passing the value as a parameter).
      *
      *  \note
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.
      */
-    void Subscribe(TClosure onResult);
+    void Subscribe(TClosure handler);
 
     //! Does exactly same thing as its TPromise counterpart.
     //! Gives the consumer a chance to handle cancelation.
-    void OnCanceled(TClosure onCancel);
+    void OnCanceled(TClosure handler);
 
     //! Notifies the producer that the promised value is no longer needed.
     //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
@@ -344,27 +349,27 @@ public:
      */
     TNullable<T> TryGet() const;
 
-    //! Attaches a result listener.
+    //! Attaches a result handler.
     /*!
-     *  \param onResult A callback to call when the value gets set
+     *  \param handler A callback to call when the value gets set
      *  (passing the value as a parameter).
      *
      *  \note
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.
      */
-    void Subscribe(TCallback<void(T)> onResult);
+    void Subscribe(TCallback<void(const T&)> handler);
 
-    //! Attaches a cancellation listener.
+    //! Attaches a cancellation handler.
     /*!
-     *  \param onCancel A callback to call when #TFuture<T>::Cancel is triggered
+     *  \param handler A callback to call when #TFuture<T>::Cancel is triggered
      *  by the client.
      *
      *  \note
-     *  If the value is set before the call to #OnCanceled, then
-     *  #onCancel is discarded.
+     *  If the value is set before the call to #handlered, then
+     *  #handler is discarded.
      */
-    void OnCanceled(TClosure onCancel);
+    void OnCanceled(TClosure handler);
 
     //! Notifies the producer that the promised value is no longer needed.
     //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
@@ -374,8 +379,7 @@ public:
     operator TFuture<T>() const;
 
 private:
-    explicit TPromise(const TIntrusivePtr<NYT::NDetail::TPromiseState<T>>& state);
-    explicit TPromise(TIntrusivePtr<NYT::NDetail::TPromiseState<T>>&& state);
+    explicit TPromise(const TIntrusivePtr<NYT::NDetail::TPromiseState<T>> impl);
 
     TIntrusivePtr<NYT::NDetail::TPromiseState<T>> Impl_;
 
@@ -456,27 +460,27 @@ public:
      */
     void Get() const;
 
-    //! Attaches a result listener.
+    //! Attaches a result handler.
     /*!
-     *  \param onResult A callback to call when the value gets set
+     *  \param handler A callback to call when the value gets set
      *  (passing the value as a parameter).
      *
      *  \note
      *  If the value is set before the call to #Subscribe, then
-     *  #onResult gets called synchronously.
+     *  #handler gets called synchronously.
      */
-    void Subscribe(TClosure onResult);
+    void Subscribe(TClosure handler);
 
-    //! Attaches a cancellation listener.
+    //! Attaches a cancellation handler.
     /*!
-     *  \param onCancel A callback to call when #TFuture<void>::Cancel is triggered
+     *  \param handler A callback to call when #TFuture<void>::Cancel is triggered
      *  by the client.
      *
      *  \note
-     *  If the value is set before the call to #OnCanceled, then
-     *  #onCancel is discarded.
+     *  If the value is set before the call to #handlered, then
+     *  #handler is discarded.
      */
-    void OnCanceled(TClosure onCancel);
+    void OnCanceled(TClosure handler);
 
     //! Notifies the producer that the promised value is no longer needed.
     //! Returns |true| if succeeded, |false| is the promise was already set or canceled.

@@ -118,11 +118,11 @@ public:
         ReadyEvent_->Wait();
     }
 
-    void Subscribe(TResultHandler onResult)
+    void Subscribe(TResultHandler handler)
     {
         // Fast path.
         if (Set_) {
-            onResult.Run();
+            handler.Run();
             return;
         }
 
@@ -131,18 +131,18 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
             if (Set_) {
                 guard.Release();
-                onResult.Run();
+                handler.Run();
             } else if (!Canceled_) {
-                ResultHandlers_.push_back(std::move(onResult));
+                ResultHandlers_.push_back(std::move(handler));
             }
         }
     }
 
-    void OnCanceled(TCancelHandler onCancel)
+    void OnCanceled(TCancelHandler handler)
     {
         // Fast path.
         if (Canceled_) {
-            onCancel.Run();
+            handler.Run();
             return;
         }
 
@@ -151,9 +151,9 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
             if (Canceled_) {
                 guard.Release();
-                onCancel.Run();
+                handler.Run();
             } else if (!Set_) {
-                CancelHandlers_.push_back(std::move(onCancel));
+                CancelHandlers_.push_back(std::move(handler));
             }
         }
     }
@@ -269,16 +269,16 @@ void TPromise<void>::Get() const
     Impl_->Get();
 }
 
-void TPromise<void>::Subscribe(TClosure onResult)
+void TPromise<void>::Subscribe(TClosure handler)
 {
     YASSERT(Impl_);
-    return Impl_->Subscribe(std::move(onResult));
+    return Impl_->Subscribe(std::move(handler));
 }
 
-void TPromise<void>::OnCanceled(TClosure onCancel)
+void TPromise<void>::OnCanceled(TClosure handler)
 {
     YASSERT(Impl_);
-    Impl_->OnCanceled(std::move(onCancel));
+    Impl_->OnCanceled(std::move(handler));
 }
 
 bool TPromise<void>::Cancel()
@@ -352,16 +352,16 @@ void TFuture<void>::Get() const
     Impl_->Get();
 }
 
-void TFuture<void>::Subscribe(TClosure onResult)
+void TFuture<void>::Subscribe(TClosure handler)
 {
     YASSERT(Impl_);
-    return Impl_->Subscribe(std::move(onResult));
+    return Impl_->Subscribe(std::move(handler));
 }
 
-void TFuture<void>::OnCanceled(TClosure onCancel)
+void TFuture<void>::OnCanceled(TClosure handler)
 {
     YASSERT(Impl_);
-    Impl_->OnCanceled(std::move(onCancel));
+    Impl_->OnCanceled(std::move(handler));
 }
 
 bool TFuture<void>::Cancel()
@@ -390,11 +390,9 @@ TFuture<void> TFuture<void>::Apply(TCallback<TFuture<void>()> mutator)
 {
     auto mutated = NewPromise<void>();
 
-    // TODO(sandello): Make cref here.
     auto inner = BIND([=] () mutable {
         mutated.Set();
     });
-    // TODO(sandello): Make cref here.
     auto outer = BIND([=] () mutable {
         mutator.Run().Subscribe(inner);
     });
