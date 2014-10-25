@@ -37,12 +37,12 @@ const auto& Logger = TabletNodeLogger;
 
 struct TLookupPoolTag { };
 
-class TLookupExecutor
+class TLookupSession
 {
 public:
-    TLookupExecutor()
+    TLookupSession()
         : MemoryPool_(TLookupPoolTag())
-        , RunCallback_(BIND(&TLookupExecutor::DoRun, this).Guarded())
+        , RunCallback_(BIND(&TLookupSession::DoRun, this).Guarded())
     { }
 
     void Prepare(
@@ -93,7 +93,6 @@ public:
         LookupKeys_.clear();
         EdenLookupers_.clear();
         PartitionLookupers_.clear();
-        PartialRows_.clear();
         Collector_.Reset();
     }
 
@@ -102,7 +101,6 @@ private:
     std::vector<TUnversionedRow> LookupKeys_;
     std::vector<IVersionedLookuperPtr> EdenLookupers_;
     std::vector<IVersionedLookuperPtr> PartitionLookupers_;
-    std::vector<TVersionedRow> PartialRows_;
     TIntrusivePtr<TParallelCollector<TVersionedRow>> Collector_;
 
     TTabletSnapshotPtr TabletSnapshot_;
@@ -119,14 +117,17 @@ private:
         const TPartitionSnapshotPtr partitionSnapshot)
     {
         lookupers->clear();
-        for (const auto& store : partitionSnapshot->Stores) {
-            auto lookuper = store->CreateLookuper(Timestamp_, ColumnFilter_);
-            lookupers->push_back(std::move(lookuper));
+        if (partitionSnapshot) {
+            for (const auto& store : partitionSnapshot->Stores) {
+                auto lookuper = store->CreateLookuper(Timestamp_, ColumnFilter_);
+                lookupers->push_back(std::move(lookuper));
+            }
         }
     }
 
     void InvokeLookupers(
         const std::vector<IVersionedLookuperPtr>& lookupers,
+        TUnversionedRowMerger* merger,
         TKey key)
     {
         for (const auto& lookuper : lookupers) {
@@ -134,7 +135,7 @@ private:
             auto maybeRowOrError = futureRowOrError.TryGet();
             if (maybeRowOrError) {
                 THROW_ERROR_EXCEPTION_IF_FAILED(*maybeRowOrError);
-                PartialRows_.push_back(maybeRowOrError->Value());
+                merger->AddPartialRow(maybeRowOrError->Value());
             } else {
                 if (!Collector_) {
                     Collector_ = New<TParallelCollector<TVersionedRow>>();
@@ -148,7 +149,7 @@ private:
     {
         CreateLookupers(&EdenLookupers_, TabletSnapshot_->Eden);
 
-        TUnversionedRowMerger rowMerger(
+        TUnversionedRowMerger merger(
             &MemoryPool_,
             SchemaColumnCount_,
             KeyColumnCount_,
@@ -162,33 +163,26 @@ private:
             ValidateServerKey(key, KeyColumnCount_, TabletSnapshot_->Schema);
 
             auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);
-            if (!partitionSnapshot)
-                continue;
-
             if (partitionSnapshot != currentPartitionSnapshot) {
                 currentPartitionSnapshot = std::move(partitionSnapshot);
                 CreateLookupers(&PartitionLookupers_, currentPartitionSnapshot);
             }
 
             // Send requests, collect sync responses.
-            PartialRows_.clear();
-            InvokeLookupers(EdenLookupers_, key);
-            InvokeLookupers(PartitionLookupers_, key);
+            InvokeLookupers(EdenLookupers_, &merger, key);
+            InvokeLookupers(PartitionLookupers_, &merger, key);
 
             // Wait for async responses.
             if (Collector_) {
                 auto result = WaitFor(Collector_->Complete());
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                PartialRows_.insert(PartialRows_.end(), result.Value().begin(), result.Value().end());
+                for (auto row : result.Value()) {
+                    merger.AddPartialRow(row);
+                }
             }
 
             // Merge partial rows.
-            for (auto row : PartialRows_) {
-                if (row) {
-                    rowMerger.AddPartialRow(row);
-                }
-            }
-            auto mergedRow = rowMerger.BuildMergedRowAndReset();
+            auto mergedRow = merger.BuildMergedRowAndReset();
             writer->WriteUnversionedRow(mergedRow);
         }
     }
@@ -201,10 +195,10 @@ private:
 namespace NYT {
 
 template <>
-struct TPooledObjectTraits<NTabletNode::TLookupExecutor, void>
+struct TPooledObjectTraits<NTabletNode::TLookupSession, void>
     : public TPooledObjectTraitsBase
 {
-    static void Clean(NTabletNode::TLookupExecutor* executor)
+    static void Clean(NTabletNode::TLookupSession* executor)
     {
         executor->Clean();
     }
@@ -224,7 +218,7 @@ void LookupRows(
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {
-    auto executor = ObjectPool<TLookupExecutor>().Allocate();
+    auto executor = ObjectPool<TLookupSession>().Allocate();
     executor->Prepare(tabletSnapshot, timestamp, reader);
     LOG_DEBUG("Looking up %v keys (TabletId: %v, CellId: %v)",
         executor->GetLookupKeys().size(),
