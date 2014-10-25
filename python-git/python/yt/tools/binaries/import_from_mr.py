@@ -15,7 +15,7 @@ import copy
 import sys
 import traceback
 from argparse import ArgumentParser
-from subprocess32 import TimeoutExpired
+from subprocess32 import TimeoutExpired, CalledProcessError
 
 def import_table(object, args):
     object = copy.deepcopy(object)
@@ -30,33 +30,34 @@ def import_table(object, args):
         dst = os.path.join(args.destination_dir, src)
         params = args
 
-    yamr = Yamr(binary=params.mapreduce_binary,
-                server=params.mr_server,
-                server_port=params.mr_server_port,
-                http_port=params.mr_http_port,
-                proxies=params.mr_proxy,
-                proxy_port=params.mr_proxy_port,
-                fetch_info_from_http=params.fetch_info_from_http,
-                mr_user=params.mr_user,
-                fastbone=params.fastbone)
-
-    yt_client = Yt(yt.config.http.PROXY, token=yt.config.http.TOKEN)
-
-    if yamr.is_empty(src):
-        logger.info("Source table '%s' is empty", src)
-        return CANCEL
-
-    record_count = yamr.records_count(src, allow_cache=True)
-    sorted = yamr.is_sorted(src, allow_cache=True)
-
-    if not params.force and yt_client.exists(dst) and (yt_client.get_type(dst) != "table" or not yt_client.is_empty(dst)):
-        logger.warning("Destination table '%s' is not empty", dst)
-        return CANCEL
-    yt_client.create_table(dst, recursive=True, ignore_existing=True)
-
-    logger.info("Destination table '%s' created", dst)
-
     try:
+        yamr = Yamr(binary=params.mapreduce_binary,
+                    server=params.mr_server,
+                    server_port=params.mr_server_port,
+                    http_port=params.mr_http_port,
+                    proxies=params.mr_proxy,
+                    proxy_port=params.mr_proxy_port,
+                    fetch_info_from_http=params.fetch_info_from_http,
+                    mr_user=params.mr_user,
+                    fastbone=params.fastbone)
+
+        yt_client = Yt(yt.config.http.PROXY, token=yt.config.http.TOKEN)
+
+        if yamr.is_empty(src):
+            logger.info("Source table '%s' is empty", src)
+            return CANCEL
+
+        record_count = yamr.records_count(src, allow_cache=True)
+        sorted = yamr.is_sorted(src, allow_cache=True)
+
+        if not params.force and yt_client.exists(dst) and (yt_client.get_type(dst) != "table" or not yt_client.is_empty(dst)):
+            logger.warning("Destination table '%s' is not empty", dst)
+            return CANCEL
+
+        yt_client.mkdir(os.path.dirname(dst), recursive=True)
+
+        logger.info("Destination table '%s' created", dst)
+
         spec_template = {
             "pool": params.yt_pool,
             "job_io": {"table_writer": {"max_row_weight": 32 * 1024 * 1024}}
@@ -86,7 +87,7 @@ def import_table(object, args):
             logger.error("Incorrect record count (expected: %d, actual: %d)", record_count, yt_client.records_count(dst))
             return REPEAT
 
-    except (TimeoutExpired, IncorrectRowCount) as error:
+    except (CalledProcessError, TimeoutExpired, IncorrectRowCount) as error:
         logger.exception(error.message)
         return REPEAT
     except yt.YtError:
