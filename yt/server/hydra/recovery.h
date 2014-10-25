@@ -111,10 +111,10 @@ public:
     TAsyncError Run();
 
     //! Postpones an incoming request for changelog rotation.
-    TError PostponeChangelogRotation(TVersion version);
+    void PostponeChangelogRotation(TVersion version);
 
     //! Postpones incoming changes.
-    TError PostponeMutations(
+    void PostponeMutations(
         TVersion version,
         const std::vector<TSharedRef>& recordsData);
 

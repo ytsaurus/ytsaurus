@@ -377,8 +377,7 @@ void TFollowerRecovery::DoRun()
     LOG_INFO("Finished logging postponed mutations");
 }
 
-TError TFollowerRecovery::PostponeChangelogRotation(
-    TVersion version)
+void TFollowerRecovery::PostponeChangelogRotation(TVersion version)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -388,11 +387,11 @@ TError TFollowerRecovery::PostponeChangelogRotation(
         LOG_DEBUG("Late changelog rotation received during recovery, ignored: expected %v, received %v",
             PostponedVersion_,
             version);
-        return TError();
+        return;
     }
 
     if (PostponedVersion_ < version) {
-        return TError("Out-of-order changelog rotation received during recovery: expected %v, received %v",
+        THROW_ERROR_EXCEPTION("Out-of-order changelog rotation received during recovery: expected %v, received %v",
             PostponedVersion_,
             version);
     }
@@ -403,11 +402,9 @@ TError TFollowerRecovery::PostponeChangelogRotation(
         PostponedVersion_);
 
     PostponedVersion_.Rotate();
-
-    return TError();
 }
 
-TError TFollowerRecovery::PostponeMutations(
+void TFollowerRecovery::PostponeMutations(
     TVersion version,
     const std::vector<TSharedRef>& recordsData)
 {
@@ -419,11 +416,11 @@ TError TFollowerRecovery::PostponeMutations(
         LOG_WARNING("Late mutations received during recovery, ignored: expected %v, received %v",
             PostponedVersion_,
             version);
-        return TError();
+        return;
     }
 
     if (PostponedVersion_ != version) {
-        return TError("Out-of-order mutations received during recovery: expected %v, received %v",
+        THROW_ERROR_EXCEPTION("Out-of-order mutations received during recovery: expected %v, received %v",
             PostponedVersion_,
             version);
     }
@@ -437,8 +434,6 @@ TError TFollowerRecovery::PostponeMutations(
     }
 
     PostponedVersion_.Advance(recordsData.size());
-
-    return TError();
 }
 
 bool TFollowerRecovery::IsLeader() const

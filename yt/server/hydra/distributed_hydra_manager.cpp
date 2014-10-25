@@ -478,45 +478,56 @@ private:
         }
 
         ValidateEpoch(epochId);
+        auto epochContext = ControlEpochContext_;
 
         switch (ControlState_) {
             case EPeerState::Following: {
-                auto this_ = MakeStrong(this);
-                ControlEpochContext_->FollowerCommitter->LogMutations(startVersion, request->Attachments())
-                    .Subscribe(BIND([this, this_, context, response] (TError error) {
-                        response->set_logged(error.IsOK());
+                SwitchTo(epochContext->EpochControlInvoker);
+                VERIFY_THREAD_AFFINITY(ControlThread);
 
-                        if (error.GetCode() == NHydra::EErrorCode::OutOfOrderMutations) {
-                            Restart();
-                        }
+                try {
+                    auto error = WaitFor(epochContext->FollowerCommitter->LogMutations(
+                        startVersion,
+                        request->Attachments()));
+                    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+                } catch (const std::exception& ex) {
+                    LOG_WARNING(ex, "Error logging mutations");
+                    Restart();
+                    throw;
+                }
 
-                        context->Reply(error);
-                    }));
+                response->set_logged(true);
+
                 break;
             }
 
             case EPeerState::FollowerRecovery: {
-                if (ControlEpochContext_->FollowerRecovery) {
-                    auto error = ControlEpochContext_->FollowerRecovery->PostponeMutations(startVersion, request->Attachments());
-                    if (!error.IsOK()) {
-                        LOG_WARNING(error, "Error postponing mutations, restarting");
-                        Restart();
-                    }
-
-                    response->set_logged(false);
-
-                    context->Reply();
-                } else {
-                    context->Reply(TError(
+                auto followerRecovery = epochContext->FollowerRecovery;
+                if (!followerRecovery) {
+                    // NB: No restart.
+                    THROW_ERROR_EXCEPTION(
                         NHydra::EErrorCode::InvalidState,
-                        "Ping is not received yet"));
+                        "Sync ping is not received yet");
                 }
+
+                try {
+                    followerRecovery->PostponeMutations(startVersion, request->Attachments());
+                } catch (const std::exception& ex) {
+                    LOG_WARNING(ex, "Error postponing mutations during recovery");
+                    Restart();
+                    throw;
+                }
+
+                response->set_logged(false);
+
                 break;
             }
 
             default:
                 YUNREACHABLE();
         }
+
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, PingFollower)
@@ -646,41 +657,64 @@ private:
                 SwitchTo(epochContext->EpochUserAutomatonInvoker);
                 VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-                if (DecoratedAutomaton_->GetLoggedVersion() != version) {
+                try {
+                    if (DecoratedAutomaton_->GetLoggedVersion() != version) {
+                        THROW_ERROR_EXCEPTION(
+                            NHydra::EErrorCode::InvalidVersion,
+                            "Invalid logged version: expected %v, received %v",
+                            DecoratedAutomaton_->GetLoggedVersion(),
+                            version);
+                    }
+
+                    auto followerCommitter = epochContext->FollowerCommitter;
+                    if (followerCommitter->IsLoggingSuspended()) {
+                        THROW_ERROR_EXCEPTION(
+                            NHydra::EErrorCode::InvalidState,
+                            "Changelog is already being rotated");
+                    }
+
+                    followerCommitter->SuspendLogging();
+
+                    {
+                        auto error = WaitFor(DecoratedAutomaton_->RotateChangelog(epochContext));
+                        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+                    }
+
+                    followerCommitter->ResumeLogging();
+                } catch (const std::exception& ex) {
+                    LOG_WARNING(ex, "Error rotating changelog");
                     Restart();
-                    context->Reply(TError(
-                        NHydra::EErrorCode::InvalidVersion,
-                        "Invalid logged version: expected %v, received %v",
-                        DecoratedAutomaton_->GetLoggedVersion(),
-                        version));
-                    return;
+                    throw;
                 }
 
-                WaitFor(DecoratedAutomaton_->RotateChangelog(epochContext));
-
-                context->Reply();
                 break;
             }
 
-            case EPeerState::FollowerRecovery:
-                if (epochContext->FollowerRecovery) {
-                    auto error = epochContext->FollowerRecovery->PostponeChangelogRotation(version);
-                    if (!error.IsOK()) {
-                        LOG_ERROR(error);
-                        Restart();
-                    }
-
-                    context->Reply();
-                } else {
-                    context->Reply(TError(
+            case EPeerState::FollowerRecovery: {
+                auto followerRecovery = epochContext->FollowerRecovery;
+                if (!followerRecovery) {
+                    // NB: No restart.
+                    THROW_ERROR_EXCEPTION(
                         NHydra::EErrorCode::InvalidState,
-                        "Sync ping is not received yet"));
+                        "Sync ping is not received yet");
                 }
+
+                try {
+                    followerRecovery->PostponeChangelogRotation(version);
+                } catch (const std::exception& ex) {
+                    LOG_WARNING(ex, "Error postponing changelog rotation during recovery");
+                    Restart();
+                    throw;
+                }
+
                 break;
+            }
 
             default:
                 YUNREACHABLE();
         }
+
+        context->Reply();
     }
 
 
@@ -853,7 +887,7 @@ private:
         epochContext->LeaderCommitter->SubscribeCheckpointNeeded(
             BIND(&TDistributedHydraManager::OnCheckpointNeeded, MakeWeak(this), epochContext));
         epochContext->LeaderCommitter->SubscribeCommitFailed(
-            BIND(&TDistributedHydraManager::OnCommitFailed, MakeWeak(this)));
+        BIND(&TDistributedHydraManager::OnCommitFailed, MakeWeak(this)));
 
         epochContext->Checkpointer = New<TCheckpointer>(
             Config_,

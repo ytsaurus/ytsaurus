@@ -5,8 +5,6 @@
 
 #include <core/concurrency/thread_affinity.h>
 
-#include <core/misc/ring_queue.h>
-
 #include <core/actions/signal.h>
 
 #include <core/logging/log.h>
@@ -139,11 +137,11 @@ private:
     struct TPendingMutation
     {
         TMutationRequest Request;
-        TPromise<TErrorOr<TMutationResponse>> CommitPromise;
+        TPromise<TErrorOr<TMutationResponse>> Promise;
     };
     
     bool LoggingSuspended_ = false;
-    TRingQueue<TPendingMutation> PendingMutations_;
+    std::vector<TPendingMutation> PendingMutations_;
 
     TSpinLock BatchSpinLock_;
     TBatchPtr CurrentBatch_;
@@ -179,10 +177,35 @@ public:
         TVersion expectedVersion,
         const std::vector<TSharedRef>& recordsData);
 
+    //! Returns |true| is mutation logging is currently suspended.
+    bool IsLoggingSuspended() const;
+
+    //! Temporarily suspends writing mutations to the changelog and keeps them in memory.
+    /*!
+     *  \note Thread affinity: ControlThread
+     */
+    void SuspendLogging();
+
+    //! Resumes an earlier suspended mutation logging and logs out all pending mutations.
+    /*!
+     *  \note Thread affinity: ControlThread
+     */
+    void ResumeLogging();
+
 private:
     TAsyncError DoLogMutations(
         TVersion expectedVersion,
         const std::vector<TSharedRef>& recordsData);
+
+    struct TPendingMutation
+    {
+        std::vector<TSharedRef> RecordsData;
+        TVersion ExpectedVersion;
+        TPromise<TError> Promise;
+    };
+
+    bool LoggingSuspended_ = false;
+    std::vector<TPendingMutation> PendingMutations_;
 
 };
 

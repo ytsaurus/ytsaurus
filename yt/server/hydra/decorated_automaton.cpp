@@ -429,20 +429,20 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
 void TDecoratedAutomaton::LogLeaderMutation(
     const TMutationRequest& request,
     TSharedRef* recordData,
-    TAsyncError* logResult,
-    TPromise<TErrorOr<TMutationResponse>> commitPromise)
+    TFuture<TError>* localFlushResult,
+    TFuture<TErrorOr<TMutationResponse>>* commitResult)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(recordData);
-    YASSERT(logResult);
-    YASSERT(commitPromise);
+    YASSERT(localFlushResult);
+    YASSERT(commitResult);
 
     TPendingMutation pendingMutation;
     pendingMutation.Version = LoggedVersion_;
     pendingMutation.Request = request;
     pendingMutation.Timestamp = TInstant::Now();
     pendingMutation.RandomSeed  = RandomNumber<ui64>();
-    pendingMutation.CommitPromise = std::move(commitPromise);
+    pendingMutation.CommitPromise = NewPromise<TErrorOr<TMutationResponse>>();
     PendingMutations_.push(pendingMutation);
 
     MutationHeader_.Clear(); // don't forget to cleanup the pooled instance
@@ -458,7 +458,8 @@ void TDecoratedAutomaton::LogLeaderMutation(
         LoggedVersion_,
         request.Type);
 
-    *logResult = Changelog_->Append(*recordData);
+    *localFlushResult = Changelog_->Append(*recordData);
+    *commitResult = pendingMutation.CommitPromise;
     
     {
         TGuard<TSpinLock> guard(VersionSpinLock_);

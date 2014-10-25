@@ -309,35 +309,34 @@ TFuture< TErrorOr<TMutationResponse> > TLeaderCommitter::Commit(const TMutationR
     if (LoggingSuspended_) {
         TPendingMutation pendingMutation;
         pendingMutation.Request = request;
-        pendingMutation.CommitPromise = NewPromise<TErrorOr<TMutationResponse>>();
-        PendingMutations_.push(pendingMutation);
-
-        return pendingMutation.CommitPromise;
-    } else {
-        auto version = DecoratedAutomaton_->GetLoggedVersion();
-
-        TSharedRef recordData;
-        TAsyncError localFlushResult;
-        auto commitResult = NewPromise<TErrorOr<TMutationResponse>>();
-        DecoratedAutomaton_->LogLeaderMutation(
-            request,
-            &recordData,
-            &localFlushResult,
-            commitResult);
-
-        AddToBatch(
-            version,
-            std::move(recordData),
-            std::move(localFlushResult));
-
-        if (version.RecordId + 1 >= Config_->LeaderCommitter->MaxChangelogRecordCount ||
-            DecoratedAutomaton_->GetLoggedDataSize() > Config_->LeaderCommitter->MaxChangelogDataSize)
-        {
-            CheckpointNeeded_.Fire();
-        }
-
-        return commitResult;
+        pendingMutation.Promise = NewPromise<TErrorOr<TMutationResponse>>();
+        PendingMutations_.push_back(pendingMutation);
+        return pendingMutation.Promise;
     }
+
+    auto version = DecoratedAutomaton_->GetLoggedVersion();
+
+    TSharedRef recordData;
+    TFuture<TError> localFlushResult;
+    TFuture<TErrorOr<TMutationResponse>> commitResult;
+    DecoratedAutomaton_->LogLeaderMutation(
+        request,
+        &recordData,
+        &localFlushResult,
+        &commitResult);
+
+    AddToBatch(
+        version,
+        std::move(recordData),
+        std::move(localFlushResult));
+
+    if (version.RecordId + 1 >= Config_->LeaderCommitter->MaxChangelogRecordCount ||
+        DecoratedAutomaton_->GetLoggedDataSize() > Config_->LeaderCommitter->MaxChangelogDataSize)
+    {
+        CheckpointNeeded_.Fire();
+    }
+
+    return commitResult;
 }
 
 void TLeaderCommitter::Flush()
@@ -376,25 +375,24 @@ void TLeaderCommitter::ResumeLogging()
 
     LOG_DEBUG("Mutations logging resumed");
 
-    while (!PendingMutations_.empty()) {
-        auto& pendingMutation = PendingMutations_.front();
+    for (auto& pendingMutation : PendingMutations_) {
         auto version = DecoratedAutomaton_->GetLoggedVersion();
 
         TSharedRef recordData;
-        TAsyncError localFLushResult;
+        TFuture<TError> localFlushResult;
+        TFuture<TErrorOr<TMutationResponse>> commitResult;
         DecoratedAutomaton_->LogLeaderMutation(
             pendingMutation.Request,
             &recordData,
-            &localFLushResult,
-            pendingMutation.CommitPromise);
+            &localFlushResult,
+            &commitResult);
 
-        AddToBatch(version, recordData, localFLushResult);
-
-        PendingMutations_.pop();
+        AddToBatch(version, recordData, std::move(localFlushResult));
+        pendingMutation.Promise.SetFrom(std::move(commitResult));
     }
 
+    PendingMutations_.clear();
     LoggingSuspended_ = false;
-    YCHECK(PendingMutations_.empty());
 }
 
 void TLeaderCommitter::AddToBatch(
@@ -507,10 +505,15 @@ TAsyncError TFollowerCommitter::LogMutations(
     const std::vector<TSharedRef>& recordsData)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YASSERT(!recordsData.empty());
 
-    Profiler.Increment(CommitCounter_, recordsData.size());
-    Profiler.Increment(BatchFlushCounter_);
+    if (LoggingSuspended_) {
+        TPendingMutation pendingMutation;
+        pendingMutation.RecordsData = recordsData;
+        pendingMutation.ExpectedVersion = expectedVersion;
+        pendingMutation.Promise = NewPromise<TError>();
+        PendingMutations_.push_back(pendingMutation);
+        return pendingMutation.Promise;
+    }
 
     return
         BIND(
@@ -532,16 +535,57 @@ TAsyncError TFollowerCommitter::DoLogMutations(
     if (currentVersion != expectedVersion) {
         return MakeFuture(TError(
             NHydra::EErrorCode::OutOfOrderMutations,
-            "Out-of-order mutations received by follower: expected %v but got %v",
-            currentVersion,
-            expectedVersion));
+            "Out-of-order mutations received by follower: expected %v, actual %v",
+            expectedVersion,
+            currentVersion));
     }
 
-    TAsyncError localFlushResult;
-    for (const auto& recordData : recordsData) {
-        DecoratedAutomaton_->LogFollowerMutation(recordData, &localFlushResult);
+    auto result = OKFuture;
+    int recordsCount = static_cast<int>(recordsData.size());
+    for (int index = 0; index < recordsCount; ++index) {
+        DecoratedAutomaton_->LogFollowerMutation(
+            recordsData[index],
+            index == recordsCount - 1 ? &result : nullptr);
     }
-    return localFlushResult;
+
+    Profiler.Increment(CommitCounter_, recordsCount);
+    Profiler.Increment(BatchFlushCounter_);
+
+    return result;
+}
+
+bool TFollowerCommitter::IsLoggingSuspended() const
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    return LoggingSuspended_;
+}
+
+void TFollowerCommitter::SuspendLogging()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YCHECK(!LoggingSuspended_);
+
+    LOG_DEBUG("Mutations logging suspended");
+
+    LoggingSuspended_ = true;
+    YCHECK(PendingMutations_.empty());
+}
+
+void TFollowerCommitter::ResumeLogging()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YCHECK(LoggingSuspended_);
+
+    LOG_DEBUG("Mutations logging resumed");
+
+    for (auto& pendingMutation : PendingMutations_) {
+        auto result = DoLogMutations(pendingMutation.ExpectedVersion, pendingMutation.RecordsData);
+        pendingMutation.Promise.SetFrom(std::move(result));
+    }
+
+    PendingMutations_.clear();
+    LoggingSuspended_ = false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

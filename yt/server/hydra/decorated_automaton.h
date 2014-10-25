@@ -94,8 +94,8 @@ public:
     void LogLeaderMutation(
         const TMutationRequest& request,
         TSharedRef* recordData,
-        TAsyncError* localFlushResult,
-        TPromise<TErrorOr<TMutationResponse>> commitResult);
+        TFuture<TError>* localFlushResult,
+        TFuture<TErrorOr<TMutationResponse>>* commitResult);
 
     void CancelPendingLeaderMutations(const TError& error);
 
