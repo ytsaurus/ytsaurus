@@ -107,7 +107,7 @@ void TUnversionedRowMerger::AddPartialRow(TVersionedRow row)
     }
 }
 
-TUnversionedRow TUnversionedRowMerger::BuildMergedRowAndReset()
+TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
 {
     if (!Started_) {
         return TUnversionedRow();
@@ -188,7 +188,7 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
         row.EndDeleteTimestamps());
 }
 
-TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
+TVersionedRow TVersionedRowMerger::BuildMergedRow()
 {
     if (!Started_) {
         return TVersionedRow();

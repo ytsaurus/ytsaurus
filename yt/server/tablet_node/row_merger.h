@@ -25,7 +25,7 @@ public:
         const TColumnFilter& columnFilter);
 
     void AddPartialRow(TVersionedRow row);
-    TUnversionedRow BuildMergedRowAndReset();
+    TUnversionedRow BuildMergedRow();
     void Reset();
 
 private:
@@ -63,7 +63,7 @@ public:
         TTimestamp majorTimestamp);
 
     void AddPartialRow(TVersionedRow row);
-    TVersionedRow BuildMergedRowAndReset();
+    TVersionedRow BuildMergedRow();
     void Reset();
 
 private:

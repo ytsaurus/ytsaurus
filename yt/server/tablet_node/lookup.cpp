@@ -182,7 +182,7 @@ private:
             }
 
             // Merge partial rows.
-            auto mergedRow = merger.BuildMergedRowAndReset();
+            auto mergedRow = merger.BuildMergedRow();
             writer->WriteUnversionedRow(mergedRow);
         }
     }
