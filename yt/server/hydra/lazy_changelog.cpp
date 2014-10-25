@@ -172,9 +172,7 @@ private:
         guard.Release();
 
         if (lastBacklogAppendResult) {
-            lastBacklogAppendResult.Subscribe(BIND([=] (TError error) mutable {
-                promise.Set(error);
-            }));
+            promise.SetFrom(std::move(lastBacklogAppendResult));
         } else {
             promise.Set(TError());
         }

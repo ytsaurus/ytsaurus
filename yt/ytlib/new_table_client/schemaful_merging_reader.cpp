@@ -75,9 +75,7 @@ public:
         auto readyEvent = NewPromise<TError>();
         for (auto& session : Sessions_) {
             if (session.ReadyEvent) {
-                session.ReadyEvent.Subscribe(BIND([readyEvent] (TError error) mutable {
-                    readyEvent.TrySet(error);
-                }));
+                readyEvent.TrySetFrom(session.ReadyEvent);
             }
         }
         ReadyEvent_ = readyEvent;
