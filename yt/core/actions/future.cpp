@@ -241,10 +241,26 @@ void TPromise<void>::Set()
     Impl_->Set();
 }
 
+void TPromise<void>::SetFrom(TFuture<void> another)
+{
+    auto impl = Impl_;
+    another.Subscribe(BIND([impl] () {
+        impl->Set();
+    }));
+}
+
 bool TPromise<void>::TrySet()
 {
     YASSERT(Impl_);
     return Impl_->TrySet();
+}
+
+void TPromise<void>::TrySetFrom(TFuture<void> another)
+{
+    auto impl = Impl_;
+    another.Subscribe(BIND([impl] () {
+        impl->TrySet();
+    }));
 }
 
 void TPromise<void>::Get() const
@@ -283,12 +299,12 @@ TPromise<void>::operator TFuture<void>() const
 }
 
 TPromise<void>::TPromise(
-    const TIntrusivePtr< NYT::NDetail::TPromiseState<void>>& state)
+    const TIntrusivePtr<NYT::NDetail::TPromiseState<void>>& state)
     : Impl_(state)
 { }
 
 TPromise<void>::TPromise(
-    TIntrusivePtr< NYT::NDetail::TPromiseState<void>>&& state)
+    TIntrusivePtr<NYT::NDetail::TPromiseState<void>>&& state)
     : Impl_(std::move(state))
 { }
 
@@ -417,12 +433,12 @@ TFuture<TError> TFuture<void>::WithTimeout(TDuration timeout)
 }
 
 TFuture<void>::TFuture(
-    const TIntrusivePtr< NYT::NDetail::TPromiseState<void>>& state)
+    const TIntrusivePtr<NYT::NDetail::TPromiseState<void>>& state)
     : Impl_(state)
 { }
 
 TFuture<void>::TFuture(
-    TIntrusivePtr< NYT::NDetail::TPromiseState<void>>&& state)
+    TIntrusivePtr<NYT::NDetail::TPromiseState<void>>&& state)
     : Impl_(std::move(state))
 { }
 
@@ -437,7 +453,7 @@ TFuture<bool> FalseFuture = MakeFuture<bool>(false);
 template <>
 TPromise<void> NewPromise<void>()
 {
-    return TPromise<void>(New< NYT::NDetail::TPromiseState<void> >(false));
+    return TPromise<void>(New<NYT::NDetail::TPromiseState<void> >(false));
 }
 
 TPromise<void> NewPromise()
@@ -447,12 +463,12 @@ TPromise<void> NewPromise()
 
 TPromise<void> MakePromise()
 {
-    return TPromise<void>(New< NYT::NDetail::TPromiseState<void> >(true));
+    return TPromise<void>(New<NYT::NDetail::TPromiseState<void> >(true));
 }
 
 TFuture<void> MakeFuture()
 {
-    return TFuture<void>(New< NYT::NDetail::TPromiseState<void>>(true));
+    return TFuture<void>(New<NYT::NDetail::TPromiseState<void>>(true));
 }
 
 TFuture<void> MakeDelayed(TDuration delay)

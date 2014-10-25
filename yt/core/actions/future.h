@@ -319,10 +319,18 @@ public:
     void Set(const T& value);
     void Set(T&& value);
 
+    //! Sets the value when #another future is set.
+    template <class U>
+    void SetFrom(TFuture<U> another);
+
     //! Atomically invokes |Set|, if not already set or canceled.
     //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
     bool TrySet(const T& value);
     bool TrySet(T&& value);
+
+    //! Similar to #SetFrom but calls #TrySet instead of #Set.
+    template <class U>
+    void TrySetFrom(TFuture<U> another);
 
     //! Gets the value.
     /*!
@@ -421,12 +429,26 @@ public:
      */
     void Set();
 
+    //! Sets the value from #another future when the latter is set.
+    template <class U>
+    void SetFrom(TFuture<U> another);
+
+    //! Sets the value from #another future when the latter is set.
+    void SetFrom(TFuture<void> another);
+
     //! Atomically sets the promise, if not already set or canceled.
     //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
     /*!
      *  Calling this method also invokes all the subscribers.
      */
     bool TrySet();
+
+    //! Similar to #SetFrom but calls #TrySet instead of #Set.
+    template <class U>
+    void TrySetFrom(TFuture<U> another);
+
+    //! Similar to #SetFrom but calls #TrySet instead of #Set.
+    void TrySetFrom(TFuture<void> another);
 
     //! Gets the value.
     /*!

@@ -603,13 +603,13 @@ TFuture<typename TErrorTraits<T>::TWrapped> TFuture<T>::WithTimeout(TDuration ti
 
 template <class T>
 inline TFuture<T>::TFuture(
-    const TIntrusivePtr< NYT::NDetail::TPromiseState<T>>& state)
+    const TIntrusivePtr<NYT::NDetail::TPromiseState<T>>& state)
     : Impl_(state)
 { }
 
 template <class T>
 inline TFuture<T>::TFuture(
-    TIntrusivePtr< NYT::NDetail::TPromiseState<T>>&& state)
+    TIntrusivePtr<NYT::NDetail::TPromiseState<T>>&& state)
     : Impl_(std::move(state))
 { }
 
@@ -672,10 +672,10 @@ inline bool operator!=(const TFuture<T>& lhs, const TFuture<T>& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-inline TFuture< typename NMpl::TDecay<T>::TType> MakeFuture(T&& value)
+inline TFuture<typename NMpl::TDecay<T>::TType> MakeFuture(T&& value)
 {
     typedef typename NMpl::TDecay<T>::TType U;
-    return TFuture<U>(New< NYT::NDetail::TPromiseState<U>>(std::forward<T>(value)));
+    return TFuture<U>(New<NYT::NDetail::TPromiseState<U>>(std::forward<T>(value)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -731,6 +731,16 @@ inline void TPromise<T>::Set(T&& value)
 }
 
 template <class T>
+template <class U>
+inline void TPromise<T>::SetFrom(TFuture<U> another)
+{
+    auto impl = Impl_;
+    another.Subscribe(BIND([impl] (U value) {
+        impl->Set(std::move(value));
+    }));
+}
+
+template <class T>
 inline bool TPromise<T>::TrySet(const T& value)
 {
     YASSERT(Impl_);
@@ -742,6 +752,16 @@ inline bool TPromise<T>::TrySet(T&& value)
 {
     YASSERT(Impl_);
     return Impl_->TrySet(std::move(value));
+}
+
+template <class T>
+template <class U>
+inline void TPromise<T>::TrySetFrom(TFuture<U> another)
+{
+    auto impl = Impl_;
+    another.Subscribe(BIND([impl] (U value) {
+        impl->TrySet(std::move(value));
+    }));
 }
 
 template <class T>
@@ -794,15 +814,29 @@ inline TPromise<T>::operator TFuture<T>() const
 
 template <class T>
 inline TPromise<T>::TPromise(
-    const TIntrusivePtr< NYT::NDetail::TPromiseState<T>>& state)
+    const TIntrusivePtr<NYT::NDetail::TPromiseState<T>>& state)
     : Impl_(state)
 { }
 
 template <class T>
 inline TPromise<T>::TPromise(
-    TIntrusivePtr< NYT::NDetail::TPromiseState<T>>&& state)
+    TIntrusivePtr<NYT::NDetail::TPromiseState<T>>&& state)
     : Impl_(std::move(state))
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class U>
+void TPromise<void>::SetFrom(TFuture<U> another)
+{
+    SetFrom(another.IgnoreResult());
+}
+
+template <class U>
+void TPromise<void>::TrySetFrom(TFuture<U> another)
+{
+    TrySetFrom(another.IgnoreResult());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -821,16 +855,16 @@ inline bool operator!=(const TPromise<T>& lhs, const TPromise<T>& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-inline TPromise< typename NMpl::TDecay<T>::TType> MakePromise(T&& value)
+inline TPromise<typename NMpl::TDecay<T>::TType> MakePromise(T&& value)
 {
     typedef typename NMpl::TDecay<T>::TType U;
-    return TPromise<U>(New< NYT::NDetail::TPromiseState<U>>(std::forward<T>(value)));
+    return TPromise<U>(New<NYT::NDetail::TPromiseState<U>>(std::forward<T>(value)));
 }
 
 template <class T>
 inline TPromise<T> NewPromise()
 {
-    return TPromise<T>(New< NYT::NDetail::TPromiseState<T>>());
+    return TPromise<T>(New<NYT::NDetail::TPromiseState<T>>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
