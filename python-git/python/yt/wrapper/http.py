@@ -60,6 +60,7 @@ class Response(object):
         if self._return_code_processed:
             return
 
+        self._error = None
         if not str(self.raw_response.status_code).startswith("2"):
             # 401 is case of incorrect token
             if self.raw_response.status_code == 401:
