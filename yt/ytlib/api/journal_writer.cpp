@@ -245,7 +245,7 @@ private:
         TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
 
         struct TChunkSession
-            : public TIntrinsicRefCounted
+            : public TRefCounted
         {
             TChunkId ChunkId;
             std::vector<TNodePtr> Nodes;
@@ -256,6 +256,7 @@ private:
         };
 
         typedef TIntrusivePtr<TChunkSession> TChunkSessionPtr;
+        typedef TWeakPtr<TChunkSession> TChunkSessionWeakPtr;
 
         TChunkSessionPtr CurrentSession_;
 
@@ -501,7 +502,7 @@ private:
             for (auto node : CurrentSession_->Nodes) {
                 node->PingExecutor = New<TPeriodicExecutor>(
                     GetCurrentInvoker(),
-                    BIND(&TImpl::SendPing, MakeWeak(this), CurrentSession_, MakeWeak(node)),
+                    BIND(&TImpl::SendPing, MakeWeak(this), MakeWeak(CurrentSession_), MakeWeak(node)),
                     Config_->NodePingPeriod);
                 node->PingExecutor->Start();
             }
@@ -646,7 +647,10 @@ private:
                 req->Invoke().Subscribe(
                     BIND(&TImpl::OnChunkFinished, MakeStrong(this), node)
                         .Via(GetCurrentInvoker()));
-                node->PingExecutor->Stop();
+                if (node->PingExecutor) {
+                    node->PingExecutor->Stop();
+                    node->PingExecutor.Reset();
+                }
             }
 
             LOG_INFO("Sealing chunk (ChunkId: %v, RowCount: %v)",
@@ -774,20 +778,24 @@ private:
         }
   
 
-        void SendPing(TChunkSessionPtr session, TNodeWeakPtr node)
+        void SendPing(TChunkSessionWeakPtr session_, TNodeWeakPtr node_)
         {
-            auto node_ = node.Lock();
-            if (!node_)
+            auto session = session_.Lock();
+            if (!session)
+                return;
+
+            auto node = node_.Lock();
+            if (!node)
                 return;
 
             LOG_DEBUG("Sending ping (Address: %v, ChunkId: %v)",
-                node_->Descriptor.GetDefaultAddress(),
+                node->Descriptor.GetDefaultAddress(),
                 session->ChunkId);
 
-            auto req = node_->LightProxy.PingSession();
+            auto req = node->LightProxy.PingSession();
             ToProto(req->mutable_chunk_id(), session->ChunkId);
             req->Invoke().Subscribe(
-                BIND(&TImpl::OnPingSent, MakeWeak(this), session, node_)
+                BIND(&TImpl::OnPingSent, MakeWeak(this), session, node)
                     .Via(GetCurrentInvoker()));
         }
 
