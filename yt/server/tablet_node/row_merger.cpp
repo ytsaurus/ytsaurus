@@ -48,6 +48,9 @@ TUnversionedRowMerger::TUnversionedRowMerger(
 
 void TUnversionedRowMerger::AddPartialRow(TVersionedRow row)
 {
+    if (!row)
+        return;
+
     YASSERT(row.GetKeyCount() == KeyColumnCount_);
     YASSERT(row.GetWriteTimestampCount() <= 1);
     YASSERT(row.GetDeleteTimestampCount() <= 1);
@@ -165,6 +168,9 @@ TVersionedRowMerger::TVersionedRowMerger(
 
 void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
 {
+    if (!row)
+        return;
+
     if (!Started_) {
         Started_ = true;
         YASSERT(row.GetKeyCount() == KeyColumnCount_);
