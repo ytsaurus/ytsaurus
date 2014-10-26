@@ -134,3 +134,10 @@ class TestTablets(YTEnvSetup):
         sleep(1)
         assert self._find_tablet_orchid(address, tablet_id) is None
          
+    def test_read_write(self):
+        self._sync_create_cells(1, 1)
+        self._create_table()
+        self._sync_mount_table('//tmp/t')
+
+        with pytest.raises(YtError): read('//tmp/t')
+        with pytest.raises(YtError): write("//tmp/t", [{"key": 1, "value": 2}])
