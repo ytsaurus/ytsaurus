@@ -43,7 +43,7 @@ public:
 
     TMasterCellConfig()
     {
-        RegisterParameter("cell_id", CellTag)
+        RegisterParameter("cell_tag", CellTag)
             .Default(0);
     }
 };

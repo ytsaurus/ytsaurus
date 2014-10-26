@@ -23,7 +23,7 @@ public:
 
     TPeerConnectionConfig()
     {
-        RegisterParameter("cell_guid", CellId)
+        RegisterParameter("cell_id", CellId)
             .Default();
 
         RegisterInitializer([&] () {

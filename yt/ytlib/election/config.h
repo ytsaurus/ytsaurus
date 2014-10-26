@@ -23,7 +23,7 @@ public:
 
     TCellConfig()
     {
-        RegisterParameter("cell_guid", CellId)
+        RegisterParameter("cell_id", CellId)
             .Default();
         RegisterParameter("addresses", Addresses)
             .Default();
