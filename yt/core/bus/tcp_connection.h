@@ -143,9 +143,6 @@ private:
 
     std::atomic<int> State_; // EState actually
 
-    TClosure MessageEnqueuedCallback_;
-    std::atomic<bool> MessageEnqueuedCallbackPending_;
-
     TSpinLock TerminationSpinLock_;
     TError TerminationError_;
 
@@ -154,9 +151,10 @@ private:
     TPacketDecoder Decoder_;
     TBlob ReadBuffer_;
 
-    TPromise<TError> TerminatedPromise_;
+    TPromise<TError> TerminatedPromise_ = NewPromise<TError>();
 
     TMultipleProducerSingleConsumerLockFreeStack<TQueuedMessage> QueuedMessages_;
+    ev::async QueuedMessagesWatcher_;
     
     TRingQueue<TPacket*> QueuedPackets_;
     TRingQueue<TPacket*> EncodedPackets_;
@@ -183,7 +181,7 @@ private:
     void SyncClose(const TError& error);
 
     void InitFd();
-    void InitWatcher();
+    void InitSocketWatcher();
     
     void ConnectSocket(const TNetworkAddress& netAddress);
     void CloseSocket();
@@ -219,7 +217,7 @@ private:
     void OnPacketSent();
     void OnAckPacketSent(const TPacket& packet);
     void OnMessagePacketSent(const TPacket& packet);
-    void OnMessageEnqueued();
+    void OnMessageEnqueued(ev::async&, int);
     void ProcessOutcomingMessages();
     void DiscardOutcomingMessages(const TError& error);
     void DiscardUnackedMessages(const TError& error);

@@ -75,9 +75,8 @@ TTcpConnection::TTcpConnection(
     , Logger(BusLogger)
     , Profiler(BusProfiler)
     // NB: This produces a cycle, which gets broken in SyncFinalize.
-    , MessageEnqueuedCallback_(BIND(&TTcpConnection::OnMessageEnqueued, MakeStrong(this)))
     , ReadBuffer_(MinBatchReadSize)
-    , TerminatedPromise_(NewPromise<TError>())
+    , QueuedMessagesWatcher_(DispatcherThread_->GetEventLoop())
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(handler);
@@ -104,12 +103,13 @@ TTcpConnection::TTcpConnection(
             YUNREACHABLE();
     }
 
-    MessageEnqueuedCallbackPending_.store(false);
-
     WriteBuffers_.push_back(std::make_unique<TBlob>());
     WriteBuffers_[0]->Reserve(MaxBatchWriteSize);
 
     UpdateConnectionCount(+1);
+
+    QueuedMessagesWatcher_.set<TTcpConnection, &TTcpConnection::OnMessageEnqueued>(this);
+    QueuedMessagesWatcher_.start();
 }
 
 TTcpConnection::~TTcpConnection()
@@ -148,7 +148,7 @@ void TTcpConnection::SyncInitialize()
 
         case EConnectionType::Server:
             InitFd();
-            InitWatcher();
+            InitSocketWatcher();
             SyncOpen();
             break;
 
@@ -274,7 +274,7 @@ void TTcpConnection::OnAddressResolved(const TNetworkAddress& netAddress)
         return;
     }
 
-    InitWatcher();
+    InitSocketWatcher();
 
     State_.store(EState::Opening);
 }
@@ -306,9 +306,6 @@ void TTcpConnection::SyncClose(const TError& error)
     // Release memory.
     Cleanup();
 
-    // Break the cycle.
-    MessageEnqueuedCallback_.Reset();
-
     // Construct a detailed error.
     auto detailedError = error
         << TErrorAttribute("connection_id", Id_)
@@ -335,7 +332,7 @@ void TTcpConnection::InitFd()
 #endif
 }
 
-void TTcpConnection::InitWatcher()
+void TTcpConnection::InitSocketWatcher()
 {
     SocketWatcher_.reset(new ev::io(DispatcherThread_->GetEventLoop()));
     SocketWatcher_->set<TTcpConnection, &TTcpConnection::OnSocket>(this);
@@ -442,14 +439,6 @@ TAsyncError TTcpConnection::Send(TSharedRefArray message, EDeliveryTrackingLevel
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TQueuedMessage queuedMessage(std::move(message), level);
-
-    // NB: Log first to avoid producing weird traces.
-    LOG_DEBUG("Outcoming message enqueued (PacketId: %v)",
-        queuedMessage.PacketId);
-
-    QueuedMessages_.Enqueue(queuedMessage);
-
     auto state = State_.load();
     if (state == EState::Closed) {
         return MakeFuture(TError(
@@ -457,15 +446,14 @@ TAsyncError TTcpConnection::Send(TSharedRefArray message, EDeliveryTrackingLevel
             "Connection closed"));
     }
 
-    if (!MessageEnqueuedCallbackPending_.load(std::memory_order_relaxed) &&
-        state != EState::Resolving &&
-        state != EState::Opening)
-    {
-        bool expected = false;
-        if (MessageEnqueuedCallbackPending_.compare_exchange_strong(expected, true)) {
-            DispatcherThread_->GetInvoker()->Invoke(MessageEnqueuedCallback_);
-        }
-    }
+    TQueuedMessage queuedMessage(std::move(message), level);
+
+    // NB: Log first to avoid producing weird traces.
+    LOG_DEBUG("Outcoming message enqueued (PacketId: %v)",
+        queuedMessage.PacketId);
+
+    QueuedMessages_.Enqueue(queuedMessage);
+    QueuedMessagesWatcher_.send();
 
     return queuedMessage.Promise;
 }
@@ -1027,21 +1015,30 @@ void TTcpConnection::OnMessagePacketSent(const TPacket& packet)
         packet.Size);
 }
 
-void TTcpConnection::OnMessageEnqueued()
+void TTcpConnection::OnMessageEnqueued(ev::async&, int)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
-    
-    MessageEnqueuedCallbackPending_.store(false);
 
-    if (State_.load() == EState::Closed) {
-        DiscardOutcomingMessages(TError(
-            NRpc::EErrorCode::TransportError,
-            "Connection closed"));
-        return;
+    switch (State_.load()) {
+        case EState::Resolving:
+        case EState::Opening:
+            // Do nothing.
+            break;
+
+        case EState::Open:
+            ProcessOutcomingMessages();
+            UpdateSocketWatcher();
+            break;
+
+        case EState::Closed:
+            DiscardOutcomingMessages(TError(
+                NRpc::EErrorCode::TransportError,
+                "Connection closed"));
+            break;
+
+        default:
+            YUNREACHABLE();
     }
-
-    ProcessOutcomingMessages();
-    UpdateSocketWatcher();
 }
 
 void TTcpConnection::ProcessOutcomingMessages()
