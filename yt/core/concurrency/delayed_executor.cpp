@@ -15,7 +15,7 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto TimeQuantum = TDuration::MilliSeconds(10);
+static const auto TimeQuantum = TDuration::MilliSeconds(1);
 
 const TDelayedExecutorCookie NullDelayedExecutorCookie;
 
