@@ -310,7 +310,7 @@ private:
         DeclareMutating();
 
         int firstTabletIndex = request->first_tablet_index();
-        int lastTabletIndex = request->first_tablet_index();
+        int lastTabletIndex = request->last_tablet_index();
         auto cellId = request->has_cell_id() ? FromProto<TTabletCellId>(request->cell_id()) : NullTabletCellId;
         context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v",
             firstTabletIndex,
