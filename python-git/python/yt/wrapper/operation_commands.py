@@ -13,7 +13,6 @@ import logging
 from datetime import datetime
 from time import sleep, time
 from cStringIO import StringIO
-from dateutil import tz
 
 OPERATIONS_PATH = "//sys/operations"
 
@@ -153,9 +152,7 @@ class PrintOperationInfo(object):
 
         creation_time_str = get_attribute(os.path.join(OPERATIONS_PATH, self.operation), "creation_time", client=client)
         creation_time = dateutil.parser.parse(creation_time_str).replace(tzinfo=None)
-
-        creation_time = creation_time.replace(tzinfo=tz.tzutc())
-        local_creation_time = creation_time.astimezone(tz.tzlocal()).replace(tzinfo=None)
+        local_creation_time = creation_time + (datetime.now() - datetime.utcnow())
 
         self.formatter = OperationProgressFormatter(start_time=local_creation_time)
 
