@@ -307,7 +307,9 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
     typedef ::NYT::TIntrusivePtr<type> type ## Ptr; \
     \
     void Ref(type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
-    void Unref(type* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
+    void Ref(const type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
+    void Unref(type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
+    void Unref(const type* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
 
 //! Forward-declares a class type, defines an intrusive pointer for it, and finally
 //! declares Ref/Unref overloads. Use this macro in |public.h|-like files.
@@ -327,7 +329,17 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
         obj->Ref(); \
     } \
     \
+    inline void Ref(const type* obj) \
+    { \
+        obj->Ref(); \
+    } \
+    \
     inline void Unref(type* obj) \
+    { \
+        obj->Unref(); \
+    } \
+    \
+    inline void Unref(const type* obj) \
     { \
         obj->Unref(); \
     }

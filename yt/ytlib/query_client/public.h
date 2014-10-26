@@ -29,19 +29,13 @@ class TQueryStatistics;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TExpression)
-typedef ::NYT::TIntrusivePtr<const TExpression> TConstExpressionPtr;
-void Ref(const TExpression* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
-void Unref(const TExpression* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
+typedef TIntrusivePtr<const TExpression> TConstExpressionPtr;
 
 DECLARE_REFCOUNTED_STRUCT(TQuery);
-typedef ::NYT::TIntrusivePtr<const TQuery> TConstQueryPtr;
-void Ref(const TQuery* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
-void Unref(const TQuery* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
+typedef TIntrusivePtr<const TQuery> TConstQueryPtr;
 
 DECLARE_REFCOUNTED_CLASS(TPlanFragment);
-typedef ::NYT::TIntrusivePtr<const TPlanFragment> TConstPlanFragmentPtr;
-void Ref(const TPlanFragment* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
-void Unref(const TPlanFragment* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
+typedef TIntrusivePtr<const TPlanFragment> TConstPlanFragmentPtr;
 
 struct IPrepareCallbacks;
 struct IEvaluateCallbacks;

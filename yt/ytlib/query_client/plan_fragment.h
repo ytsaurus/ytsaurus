@@ -74,7 +74,6 @@ struct TExpression
 };
 
 DEFINE_REFCOUNTED_TYPE(TExpression)
-DEFINE_REFCOUNTED_TYPE(const TExpression)
 
 struct TLiteralExpression
     : public TExpression
@@ -194,7 +193,11 @@ struct TInOpExpression
 
 };
 
-EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType rhsType, const TStringBuf& source);
+EValueType InferBinaryExprType(
+    EBinaryOp opCode,
+    EValueType lhsType,
+    EValueType rhsType,
+    const TStringBuf& source);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -328,7 +331,6 @@ struct TQuery
 };
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
-DEFINE_REFCOUNTED_TYPE(const TQuery)
 
 class TPlanFragment
     : public TIntrinsicRefCounted
@@ -342,9 +344,6 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Source);
 
     TNodeDirectoryPtr NodeDirectory;
-
-    ///
-
     TDataSplits DataSplits;
     TConstQueryPtr Query;
     bool Ordered = false;
@@ -352,7 +351,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TPlanFragment)
-DEFINE_REFCOUNTED_TYPE(const TPlanFragment)
 
 void ToProto(NProto::TPlanFragment* serialized, const TConstPlanFragmentPtr& fragment);
 TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized);
