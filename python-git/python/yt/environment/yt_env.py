@@ -299,7 +299,7 @@ class YTEnv(object):
             config['rpc_port'] = self._ports[master_name][2 * i]
             config['monitoring_port'] = self._ports[master_name][2 * i + 1]
 
-            config["master"]["cell_id"] = cell_tag
+            config["master"]["cell_tag"] = cell_tag
             config['master']['addresses'] = self._master_addresses[master_name]
             config['timestamp_provider']['addresses'] = self._master_addresses[master_name]
             config['changelogs']['path'] = os.path.join(current, 'changelogs')
