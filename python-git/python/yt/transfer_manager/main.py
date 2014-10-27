@@ -774,7 +774,8 @@ DEFAULT_CONFIG = {
                 "server_port": 8013,
                 "http_port": 13013,
                 "fastbone": True,
-                "viewer": "https://specto.yandex.ru/redwood-viewer/"
+                "viewer": "https://specto.yandex.ru/redwood-viewer/",
+                "timeout": 300
             }
         },
         "apterix": {
