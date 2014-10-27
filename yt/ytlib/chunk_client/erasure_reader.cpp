@@ -727,9 +727,12 @@ private:
         }
 
         // Open writers.
+        auto collector = New<TParallelCollector<void>>();
         for (auto writer : Writers_) {
-            writer->Open();
+            collector->Collect(writer->Open());
         }
+        auto error = WaitFor(collector->Complete());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
 
         // Repair all blocks with the help of TRepairReader and push them to the
         // corresponding writers.

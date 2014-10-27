@@ -12,12 +12,19 @@
 
 #include <core/erasure/codec.h>
 
+#include <core/misc/address.h>
+
+#include <core/ytree/yson_serializable.h>
+
+#include <ytlib/chunk_client/chunk_service_proxy.h>
+
 #include <ytlib/node_tracker_client/node_directory.h>
 
 namespace NYT {
 namespace NChunkClient {
 
 using namespace NConcurrency;
+using namespace NNodeTrackerClient;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -138,6 +145,7 @@ public:
         const std::vector<IWriterPtr>& writers)
         : Config_(config)
         , Codec_(codec)
+        , IsOpen_(false)
         , Writers_(writers)
     {
         YCHECK(writers.size() == codec->GetTotalPartCount());
@@ -145,11 +153,12 @@ public:
         ChunkInfo_.set_disk_space(0);
     }
 
-    virtual void Open() override
+    virtual TAsyncError Open() override
     {
-        for (auto writer : Writers_) {
-            writer->Open();
-        }
+        return BIND(&TErasureWriter::DoOpen, MakeStrong(this))
+            .Guarded()
+            .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+            .Run();
     }
 
     virtual bool WriteBlock(const TSharedRef& block) override
@@ -174,16 +183,20 @@ public:
         return error;
     }
 
-    virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
+    virtual const NProto::TChunkInfo& GetChunkInfo() const override
     {
         return ChunkInfo_;
     }
 
-    virtual TReplicaIndexes GetWrittenReplicaIndexes() const override
+    virtual TChunkReplicaList GetWrittenChunkReplicas() const override
     {
-        TReplicaIndexes result;
-        for (int i = 0; i < Codec_->GetTotalPartCount(); ++i) {
-            result.push_back(i);
+        TChunkReplicaList result;
+        for (int i = 0; i < Writers_.size(); ++i) {
+            auto replicas = Writers_[i]->GetWrittenChunkReplicas();
+            YCHECK(replicas.size() == 1);
+            auto replica = TChunkReplica(replicas.front().GetNodeId(), i);
+
+            result.push_back(replica);
         }
         return result;
     }
@@ -194,6 +207,8 @@ private:
     void PrepareBlocks();
 
     void PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta);
+
+    void DoOpen();
 
     TAsyncError WriteDataBlocks();
 
@@ -210,6 +225,8 @@ private:
     TErasureWriterConfigPtr Config_;
     NErasure::ICodec* Codec_;
 
+    bool IsOpen_;
+
     std::vector<IWriterPtr> Writers_;
     std::vector<TSharedRef> Blocks_;
 
@@ -221,8 +238,8 @@ private:
     int WindowCount_;
 
     // Chunk meta with information about block placement
-    NChunkClient::NProto::TChunkMeta ChunkMeta_;
-    NChunkClient::NProto::TChunkInfo ChunkInfo_;
+    NProto::TChunkMeta ChunkMeta_;
+    NProto::TChunkInfo ChunkInfo_;
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 
@@ -278,6 +295,20 @@ void TErasureWriter::PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta)
 
     ChunkMeta_ = chunkMeta;
     SetProtoExtension(ChunkMeta_.mutable_extensions(), placementExt);
+}
+
+void TErasureWriter::DoOpen()
+{
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
+    auto collector = New<TParallelCollector<void>>();
+    for (auto writer : Writers_) {
+        collector->Collect(writer->Open());
+    }
+
+    auto error = WaitFor(collector->Complete());
+    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    IsOpen_ = true;
 }
 
 TAsyncError TErasureWriter::WriteDataBlocks()
@@ -371,6 +402,8 @@ TAsyncError TErasureWriter::CloseParityWriters()
 
 TAsyncError TErasureWriter::Close(const NProto::TChunkMeta& chunkMeta)
 {
+    YCHECK(IsOpen_);
+
     PrepareBlocks();
     PrepareChunkMeta(chunkMeta);
 
@@ -424,16 +457,46 @@ std::vector<IWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
     NErasure::ICodec* codec,
-    std::vector<NNodeTrackerClient::TNodeDescriptor> targets,
+    TNodeDirectoryPtr nodeDirectory,
+    NRpc::IChannelPtr masterChannel,
     EWriteSessionType sessionType)
 {
-    YCHECK(targets.size() == codec->GetTotalPartCount());
+    // Patch writer configs to ignore upload replication factor for erasure chunk parts.
+    auto config_ = NYTree::CloneYsonSerializable(config);
+    config_->UploadReplicationFactor = 1;
+
+    TChunkServiceProxy proxy(masterChannel);
+    auto req = proxy.AllocateWriteTargets();
+
+    req->set_target_count(codec->GetTotalPartCount());
+    if (config_->PreferLocalHost) {
+        req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
+    }
+
+    ToProto(req->mutable_chunk_id(), chunkId);
+
+    auto rsp = WaitFor(req->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        *rsp,
+        EErrorCode::MasterCommunicationFailed, 
+        "Failed to allocate write targets for chunk %v", 
+        chunkId);
+
+    nodeDirectory->MergeFrom(rsp->node_directory());
+    auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(rsp->replicas());
+
+    YCHECK(replicas.size() == codec->GetTotalPartCount());
 
     std::vector<IWriterPtr> writers;
     for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
         auto partId = ErasurePartIdFromChunkId(chunkId, index);
-        std::vector<NNodeTrackerClient::TNodeDescriptor> partTargets(1, targets[index]);
-        writers.push_back(CreateReplicationWriter(config, partId, partTargets, sessionType));
+        writers.push_back(CreateReplicationWriter(
+            config_,
+            partId,
+            TChunkReplicaList(1, replicas[index]),
+            nodeDirectory,
+            nullptr,
+            sessionType));
     }
 
     return writers;
@@ -443,5 +506,3 @@ std::vector<IWriterPtr> CreateErasurePartWriters(
 
 } // namespace NChunkClient
 } // namespace NYT
-
-

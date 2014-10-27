@@ -18,14 +18,6 @@ TFuture<NObjectClient::TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
     NObjectClient::EObjectType chunkType,
     NObjectClient::TTransactionId transactionId);
 
-void OnChunkCreated(
-    NObjectClient::TMasterYPathProxy::TRspCreateObjectsPtr rsp,
-    TMultiChunkWriterConfigPtr config,
-    TMultiChunkWriterOptionsPtr options,
-    TChunkId* chunkId,
-    std::vector<TChunkReplica>* replicas,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

@@ -367,21 +367,35 @@ private:
     virtual void DoRun() override
     {
         auto metaOrError = WaitFor(Chunk_->GetMeta(0));
-        THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta of chunk %v",
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            metaOrError, 
+            "Error getting meta of chunk %v",
             ChunkId_);
 
         LOG_INFO("Chunk meta fetched");
         const auto& meta = metaOrError.Value();
 
-        auto targets = FromProto<TNodeDescriptor>(ReplicateChunkJobSpecExt_.targets());
+        auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+        nodeDirectory->MergeFrom(ReplicateChunkJobSpecExt_.node_directory());
+
+        auto targets = FromProto<TChunkReplica, TChunkReplicaList>(ReplicateChunkJobSpecExt_.targets());
 
         auto writer = CreateReplicationWriter(
             Config_->ReplicationWriter,
             ChunkId_,
             targets,
+            nodeDirectory,
+            nullptr,
             EWriteSessionType::Replication,
             Bootstrap_->GetReplicationOutThrottler());
-        writer->Open();
+
+        {
+            auto error = WaitFor(writer->Open());
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                error, 
+                "Error opening writer for chunk %v during replication",
+                ChunkId_);
+        }
 
         int blockIndex = 0;
         int blockCount = GetBlockCount(*meta);
@@ -394,7 +408,9 @@ private:
                 blockIndex,
                 blockCount - blockIndex,
                 FetchPriority));
-            THROW_ERROR_EXCEPTION_IF_FAILED(getResult, "Error reading chunk %v during replication",
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                getResult, 
+                "Error reading chunk %v during replication",
                 ChunkId_);
             const auto& blocks = getResult.Value();
 
@@ -405,7 +421,9 @@ private:
             auto writeResult = writer->WriteBlocks(blocks);
             if (!writeResult) {
                 auto error = WaitFor(writer->GetReadyEvent());
-                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error writing chunk %v during replication",
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    error, 
+                    "Error writing chunk %v during replication",
                     ChunkId_);
             }
 
@@ -475,7 +493,7 @@ private:
         auto* codec = NErasure::GetCodec(codecId);
 
         auto replicas = FromProto<TChunkReplica>(RepairJobSpecExt_.replicas());
-        auto targets = FromProto<TNodeDescriptor>(RepairJobSpecExt_.targets());
+        auto targets = FromProto<TChunkReplica>(RepairJobSpecExt_.targets());
         auto erasedIndexes = FromProto<int, NErasure::TPartIndexList>(RepairJobSpecExt_.erased_indexes());
         YCHECK(targets.size() == erasedIndexes.size());
 
@@ -521,12 +539,13 @@ private:
         std::vector<IWriterPtr> writers;
         for (int index = 0; index < static_cast<int>(erasedIndexes.size()); ++index) {
             int partIndex = erasedIndexes[index];
-            const auto& target = targets[index];
             auto partId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
             auto writer = CreateReplicationWriter(
                 Config_->RepairWriter,
                 partId,
-                std::vector<TNodeDescriptor>(1, target),
+                TChunkReplicaList(1, targets[index]),
+                nodeDirectory,
+                nullptr,
                 EWriteSessionType::Repair,
                 Bootstrap_->GetRepairOutThrottler());
             writers.push_back(writer);

@@ -137,7 +137,11 @@ public:
      */
     TDuration NodeRpcTimeout;
 
+    int UploadReplicationFactor;
+
     int MinUploadReplicationFactor;
+
+    bool PreferLocalHost;
 
     //! Interval between consecutive pings to Data Nodes.
     TDuration NodePingPeriod;
@@ -157,9 +161,14 @@ public:
             .GreaterThan(0);
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(120));
+        RegisterParameter("upload_replication_factor", UploadReplicationFactor)
+            .GreaterThanOrEqual(1)
+            .Default(2);
         RegisterParameter("min_upload_replication_factor", MinUploadReplicationFactor)
             .Default(2)
             .GreaterThan(0);
+        RegisterParameter("prefer_local_host", PreferLocalHost)
+            .Default(true);
         RegisterParameter("node_ping_interval", NodePingPeriod)
             .Default(TDuration::Seconds(10));
         RegisterParameter("enable_caching", EnableCaching)
@@ -268,11 +277,7 @@ public:
     i64 DesiredChunkSize;
     i64 MaxMetaSize;
 
-    int UploadReplicationFactor;
-
     bool ChunksMovable;
-
-    bool PreferLocalHost;
 
     bool SyncChunkSwitch;
 
@@ -287,12 +292,7 @@ public:
             .GreaterThan(0)
             .LessThanOrEqual(64 * 1024 * 1024)
             .Default(30 * 1024 * 1024);
-        RegisterParameter("upload_replication_factor", UploadReplicationFactor)
-            .GreaterThanOrEqual(1)
-            .Default(2);
         RegisterParameter("chunks_movable", ChunksMovable)
-            .Default(true);
-        RegisterParameter("prefer_local_host", PreferLocalHost)
             .Default(true);
         RegisterParameter("sync_chunk_switch", SyncChunkSwitch)
             .Default(false);

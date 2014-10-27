@@ -233,7 +233,11 @@ private:
             auto chunkWriter = New<TFileWriter>(fileName);
             try {
                 NFS::ForcePath(NFS::GetDirectoryName(fileName));
-                chunkWriter->Open();
+                auto asyncError = chunkWriter->Open();
+
+                // File writer opens synchronously.
+                YCHECK(asyncError.IsSet());
+                YCHECK(asyncError.Get().IsOK());
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Error opening cached chunk for writing");
             }

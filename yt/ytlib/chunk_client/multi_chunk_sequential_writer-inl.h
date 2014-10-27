@@ -129,9 +129,11 @@ void TOldMultiChunkSequentialWriter<TProvider>::CreateNextSession()
         ? NObjectClient::EObjectType::Chunk
         : NObjectClient::EObjectType::ErasureChunk;
 
-    CreateChunk(MasterChannel, Config, Options, chunkType, TransactionId).Subscribe(
-            BIND(&TOldMultiChunkSequentialWriter<TProvider>::OnChunkCreated, MakeWeak(this))
-                .Via(TDispatcher::Get()->GetWriterInvoker()));
+    CreateChunk(MasterChannel, Config, Options, chunkType, TransactionId)
+        .Subscribe(BIND(
+            &TOldMultiChunkSequentialWriter<TProvider>::OnChunkCreated,
+            MakeWeak(this))
+        .Via(TDispatcher::Get()->GetWriterInvoker()));
 }
 
 template <class TProvider>
@@ -145,42 +147,50 @@ void TOldMultiChunkSequentialWriter<TProvider>::OnChunkCreated(
         return;
     }
 
-    TSession session;
-
     try {
-        NChunkClient::OnChunkCreated(rsp, Config, Options, &session.ChunkId, &session.Replicas, NodeDirectory);
+        TSession session;
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            *rsp, 
+            EErrorCode::MasterCommunicationFailed, 
+            "Error creating chunk");
+
+        session.ChunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
+        LOG_DEBUG("Chunk created (ChunkId: %v)", session.ChunkId);
+
+        auto erasureCodecId = Options->ErasureCodec;
+        if (erasureCodecId == NErasure::ECodec::None) {
+            session.AsyncWriter = CreateReplicationWriter(
+                Config,
+                session.ChunkId,
+                TChunkReplicaList(),
+                NodeDirectory,
+                MasterChannel);
+        } else {
+            auto* erasureCodec = NErasure::GetCodec(erasureCodecId);
+
+            auto writers = CreateErasurePartWriters(
+                Config,
+                session.ChunkId,
+                erasureCodec,
+                NodeDirectory,
+                MasterChannel,
+                EWriteSessionType::User);
+
+            session.AsyncWriter = CreateErasureWriter(
+                Config,
+                erasureCodec,
+                writers);
+        }
+
+        auto error = NConcurrency::WaitFor(session.AsyncWriter->Open());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error)
+
+        NextSession.Set(session);
     } catch (const std::exception& ex) {
-        State.Fail(ex);
-        return;
+        auto error = TError("Failed to start next session") << ex;
+        LOG_WARNING(error);
+        State.Fail(error);
     }
-
-    LOG_DEBUG("Chunk created (ChunkId: %v)", session.ChunkId);
-
-    auto targets = NodeDirectory->GetDescriptors(session.Replicas);
-    auto erasureCodecId = Options->ErasureCodec;
-    if (erasureCodecId == NErasure::ECodec::None) {
-        session.AsyncWriter = CreateReplicationWriter(
-            Config,
-            session.ChunkId,
-            targets);
-    } else {
-        auto* erasureCodec = NErasure::GetCodec(erasureCodecId);
-
-        auto writers = CreateErasurePartWriters(
-            Config,
-            session.ChunkId,
-            erasureCodec,
-            targets,
-            EWriteSessionType::User);
-
-        session.AsyncWriter = CreateErasureWriter(
-            Config,
-            erasureCodec,
-            writers);
-    }
-
-    session.AsyncWriter->Open();
-    NextSession.Set(session);
 }
 
 template <class TProvider>
@@ -302,10 +312,7 @@ void TOldMultiChunkSequentialWriter<TProvider>::OnChunkClosed(
     LOG_DEBUG("Chunk closed (ChunkId: %v)",
         currentSession.ChunkId);
 
-    std::vector<TChunkReplica> replicas;
-    for (int index : asyncWriter->GetWrittenReplicaIndexes()) {
-        replicas.push_back(currentSession.Replicas[index]);
-    }
+    auto replicas = asyncWriter->GetWrittenChunkReplicas();
 
     NObjectClient::TObjectServiceProxy objectProxy(MasterChannel);
     auto batchReq = objectProxy.ExecuteBatch();

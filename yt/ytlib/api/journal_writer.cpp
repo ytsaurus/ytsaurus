@@ -458,7 +458,7 @@ private:
                 if (Config_->PreferLocalHost) {
                     req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
                 }
-                req->set_upload_replication_factor(ReplicationFactor_);
+                req->set_target_count(ReplicationFactor_);
 
                 auto rsp = WaitFor(req->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error allocating write targets");

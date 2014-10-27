@@ -24,7 +24,7 @@ public:
         const Stroka& fileName,
         bool syncOnClose = true);
 
-    virtual void Open() override;
+    virtual TAsyncError Open() override;
 
     virtual bool WriteBlock(const TSharedRef& block) override;
     virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override;
@@ -38,7 +38,7 @@ public:
     //! Returns chunk info. The writer must be already closed.
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
 
-    virtual TReplicaIndexes GetWrittenReplicaIndexes() const override;
+    virtual TChunkReplicaList GetWrittenChunkReplicas() const override;
 
     //! The writer must be already closed.
     const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
@@ -59,8 +59,6 @@ private:
     NChunkClient::NProto::TChunkMeta ChunkMeta_;
 
     TAsyncError Result_;
-
-    bool EnsureOpen();
 
 };
 

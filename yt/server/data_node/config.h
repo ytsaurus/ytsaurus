@@ -372,6 +372,10 @@ public:
             // Expect many splits -- adjust configuration.
             SplitChangelog->FlushBufferSize = (i64) 16 * 1024 * 1024;
             SplitChangelog->FlushPeriod = TDuration::Seconds(15);
+
+            // Disable target allocation from master.
+            ReplicationWriter->UploadReplicationFactor = 1;
+            RepairWriter->UploadReplicationFactor = 1;
         });
     }
 };

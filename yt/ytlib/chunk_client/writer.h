@@ -18,7 +18,7 @@ struct IWriter
     : public virtual TRefCounted
 {
     //! Starts a new upload session.
-    virtual void Open() = 0;
+    virtual TAsyncError Open() = 0;
 
     //! Enqueues another block to be written.
     /*!
@@ -43,14 +43,13 @@ struct IWriter
      */
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const = 0;
 
-    typedef SmallVector<int, TypicalReplicaCount> TReplicaIndexes;
-
     //! Return the indices of replicas that were successfully written.
     /*!
      *  Can only be called when the writer is successfully closed.
      *  Not every writer implements this method.
      */
-    virtual TReplicaIndexes GetWrittenReplicaIndexes() const = 0;
+    virtual TChunkReplicaList GetWrittenChunkReplicas() const = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IWriter)

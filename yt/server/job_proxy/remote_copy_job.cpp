@@ -186,8 +186,6 @@ private:
 
         // Create output chunk
         TChunkId outputChunkId;
-        std::vector<TChunkReplica> replicas;
-        std::vector<TNodeDescriptor> targets;
         {
             auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
             auto writerNodeDirectory = New<TNodeDirectory>();
@@ -199,15 +197,12 @@ private:
                 isErasure ? EObjectType::ErasureChunk : EObjectType::Chunk,
                 transactionId));
 
-            OnChunkCreated(
-                rsp,
-                WriterConfig_,
-                writerOptions,
-                &outputChunkId,
-                &replicas,
-                writerNodeDirectory);
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                *rsp,
+                NChunkClient::EErrorCode::MasterCommunicationFailed,
+                "Error creating chunk");
 
-            targets = writerNodeDirectory->GetDescriptors(replicas);
+            FromProto(&outputChunkId, rsp->object_ids(0));
         }
 
         // Copy chunk
@@ -215,6 +210,9 @@ private:
 
         TChunkInfo chunkInfo;
         TChunkMeta chunkMeta;
+        TChunkReplicaList writtenReplicas;
+
+        auto nodeDirectory = New<TNodeDirectory>();
 
         if (isErasure) {
             auto erasureCodec = NErasure::GetCodec(erasureCodecId);
@@ -235,7 +233,8 @@ private:
                 WriterConfig_,
                 outputChunkId,
                 erasureCodec,
-                targets,
+                nodeDirectory,
+                host->GetMasterChannel(),
                 EWriteSessionType::User);
 
             YCHECK(readers.size() == writers.size());
@@ -273,7 +272,9 @@ private:
             auto writer = CreateReplicationWriter(
                 WriterConfig_,
                 outputChunkId,
-                targets,
+                TChunkReplicaList(),
+                nodeDirectory,
+                host->GetMasterChannel(),
                 EWriteSessionType::User);
 
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
@@ -284,6 +285,7 @@ private:
             DoCopy(reader, writer, blockCount, chunkMeta);
 
             chunkInfo = writer->GetChunkInfo();
+            writtenReplicas = writer->GetWrittenChunkReplicas();
         }
 
         // Prepare data statistics
@@ -316,7 +318,7 @@ private:
             GenerateMutationId(req);
             *req->mutable_chunk_info() = chunkInfo;
             *req->mutable_chunk_meta() = masterChunkMeta;
-            NYT::ToProto(req->mutable_replicas(), replicas);
+            NYT::ToProto(req->mutable_replicas(), writtenReplicas);
 
             auto rsp = WaitFor(objectProxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Failed to confirm chunk");
@@ -340,7 +342,8 @@ private:
         int blockCount,
         const TChunkMeta& meta)
     {
-        writer->Open();
+        auto error = WaitFor(writer->Open());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error opening writer");
 
         for (int i = 0; i < blockCount; ++i) {
             auto result = WaitFor(reader->ReadBlocks(i, 1));

@@ -64,19 +64,30 @@ void TFileChunkOutput::Open()
         Options->Account,
         Options->ReplicationFactor,
         Config->UploadReplicationFactor);
-
-    auto nodeDirectory = New<TNodeDirectory>();
     
     auto rsp = CreateChunk(MasterChannel, Config, Options, EObjectType::Chunk, TransactionId).Get();
-    OnChunkCreated(rsp, Config, Options, &ChunkId, &Replicas, nodeDirectory);
+    if (!rsp->IsOK()) {
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::MasterCommunicationFailed,
+            "Error creating chunk") << *rsp;
+    }
+
+    ChunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
 
     Logger.AddTag("ChunkId: %v", ChunkId);
 
     LOG_INFO("Chunk created");
 
-    auto targets = nodeDirectory->GetDescriptors(Replicas);
-    ChunkWriter = CreateReplicationWriter(Config, ChunkId, targets);
-    ChunkWriter->Open();
+    auto nodeDirectory = New<TNodeDirectory>();
+    ChunkWriter = CreateReplicationWriter(
+        Config,
+        ChunkId,
+        TChunkReplicaList(),
+        nodeDirectory,
+        MasterChannel);
+
+    auto error = ChunkWriter->Open().Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(error)
 
     Writer = New<TFileChunkWriter>(
         Config,
@@ -122,10 +133,8 @@ void TFileChunkOutput::DoFinish()
 
         auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
         *req->mutable_chunk_info() = ChunkWriter->GetChunkInfo();
-        for (int index : ChunkWriter->GetWrittenReplicaIndexes()) {
-            req->add_replicas(ToProto<ui32>(Replicas[index]));
-        }
         *req->mutable_chunk_meta() = Writer->GetMasterMeta();
+        ToProto(req->mutable_replicas(), ChunkWriter->GetWrittenChunkReplicas());
         GenerateMutationId(req);
 
         auto rsp = proxy.Execute(req).Get();

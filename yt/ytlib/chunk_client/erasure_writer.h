@@ -20,7 +20,8 @@ std::vector<IWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
     NErasure::ICodec* codec,
-    std::vector<NNodeTrackerClient::TNodeDescriptor> targets,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    NRpc::IChannelPtr masterChannel,
     EWriteSessionType sessionType);
 
 ///////////////////////////////////////////////////////////////////////////////

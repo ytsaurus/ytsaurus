@@ -65,7 +65,6 @@ protected:
     {
         TIntrusivePtr<TChunkWriter> ChunkWriter;
         IWriterPtr AsyncWriter;
-        std::vector<TChunkReplica> Replicas;
         TChunkId ChunkId;
 
         TSession()

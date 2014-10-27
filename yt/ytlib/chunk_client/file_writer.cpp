@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "file_writer.h"
 
+#include "chunk_replica.h"
+
 #include <core/misc/fs.h>
 #include <core/misc/serialize.h>
 #include <core/misc/protobuf_helpers.h>
@@ -31,7 +33,7 @@ TFileWriter::TFileWriter(
     , Result_(OKFuture)
 { }
 
-void TFileWriter::Open()
+TAsyncError TFileWriter::Open()
 {
     YCHECK(!IsOpen_);
     YCHECK(!IsClosed_);
@@ -45,6 +47,7 @@ void TFileWriter::Open()
     DataFile_->Flock(LOCK_EX);
 
     IsOpen_ = true;
+    return OKFuture;
 }
 
 bool TFileWriter::WriteBlock(const TSharedRef& block)
@@ -182,7 +185,7 @@ const TChunkMeta& TFileWriter::GetChunkMeta() const
     return ChunkMeta_;
 }
 
-IWriter::TReplicaIndexes TFileWriter::GetWrittenReplicaIndexes() const
+TChunkReplicaList TFileWriter::GetWrittenChunkReplicas() const
 {
     YUNIMPLEMENTED();
 }

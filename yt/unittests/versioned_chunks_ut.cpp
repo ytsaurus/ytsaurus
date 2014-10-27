@@ -49,7 +49,7 @@ protected:
         KeyColumns = {"k1", "k2", "k3"};
 
         MemoryWriter = New<TMemoryWriter>();
-        MemoryWriter->Open();
+        EXPECT_TRUE(MemoryWriter->Open().Get().IsOK());
 
         ChunkWriter = CreateVersionedChunkWriter(
             New<TChunkWriterConfig>(),

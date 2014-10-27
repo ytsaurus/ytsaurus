@@ -6,6 +6,8 @@
 
 #include <ytlib/node_tracker_client/public.h>
 
+#include <core/rpc/public.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -14,7 +16,9 @@ namespace NChunkClient {
 IWriterPtr CreateReplicationWriter(
     TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
-    const std::vector<NNodeTrackerClient::TNodeDescriptor>& targets,
+    const TChunkReplicaList& targets,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    NRpc::IChannelPtr masterChannel,
     EWriteSessionType sessionType = EWriteSessionType::User,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 

@@ -1,5 +1,7 @@
 #include "memory_writer.h"
 
+#include "chunk_replica.h"
+
 #include <core/actions/future.h>
 
 namespace NYT {
@@ -9,12 +11,14 @@ using namespace NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void TMemoryWriter::Open()
+TAsyncError TMemoryWriter::Open()
 {
     YCHECK(!Open_);
     YCHECK(!Closed_);
 
     Open_ = true;
+
+    return OKFuture;
 }
 
 bool TMemoryWriter::WriteBlock(const TSharedRef& block)
@@ -58,7 +62,7 @@ const TChunkInfo& TMemoryWriter::GetChunkInfo() const
     YUNIMPLEMENTED();
 }
 
-IWriter::TReplicaIndexes TMemoryWriter::GetWrittenReplicaIndexes() const
+TChunkReplicaList TMemoryWriter::GetWrittenChunkReplicas() const
 {
     YUNIMPLEMENTED();
 }

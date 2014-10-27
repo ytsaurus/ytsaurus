@@ -117,27 +117,20 @@ public:
             writers.push_back(NYT::New<TFileWriter>(filename));
         }
 
-        for (auto writer : writers) {
-            writer->Open();
-        }
-
         TChunkMeta meta;
         meta.set_type(1);
         meta.set_version(1);
 
         i64 dataSize = 0;
         auto erasureWriter = CreateErasureWriter(config, codec, writers);
+        EXPECT_TRUE(erasureWriter->Open().Get().IsOK());
+
         for (const auto& ref : data) {
             erasureWriter->WriteBlock(ref);
             dataSize += ref.Size();
         }
-        erasureWriter->Close(meta).Get();
-
+        EXPECT_TRUE(erasureWriter->Close(meta).Get().IsOK());
         EXPECT_TRUE(erasureWriter->GetChunkInfo().disk_space() >= dataSize);
-
-        for (auto writer : writers) {
-            EXPECT_TRUE(writer->Close(meta).Get().IsOK());
-        }
     }
 
     static IReaderPtr CreateErasureReader(ICodec* codec)

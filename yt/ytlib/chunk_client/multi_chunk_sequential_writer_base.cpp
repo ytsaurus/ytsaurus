@@ -146,7 +146,7 @@ void TMultiChunkSequentialWriterBase::CreateNextSession()
         Options_->ReplicationFactor,
         UploadReplicationFactor_);
 
-    {
+    try {
         TObjectServiceProxy objectProxy(MasterChannel_);
 
         auto req = TMasterYPathProxy::CreateObjects();
@@ -159,69 +159,58 @@ void TMultiChunkSequentialWriterBase::CreateNextSession()
         req->set_account(Options_->Account);
         GenerateMutationId(req);
 
+        // ToDo(psushin): Use CreateChunk here.
+
         auto* reqExt = req->MutableExtension(NProto::TReqCreateChunkExt::create_chunk_ext);
-        reqExt->set_replication_factor(Options_->ReplicationFactor);
         reqExt->set_movable(Config_->ChunksMovable);
         reqExt->set_vital(Options_->ChunksVital);
         reqExt->set_erasure_codec(Options_->ErasureCodec);
 
         auto rsp = WaitFor(objectProxy.Execute(req));
-        if (!rsp->IsOK()) {
-            CompletionError_.TrySet(TError(
-                NChunkClient::EErrorCode::MasterCommunicationFailed,
-                "Error creating chunk")
-                << *rsp);
-            return;
-        }
+
+        
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            *rsp,
+            NChunkClient::EErrorCode::MasterCommunicationFailed,
+            "Error creating chunk");
 
         NextSession_.ChunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
-    }
 
-    {
-        TChunkServiceProxy chunkProxy(MasterChannel_);
-        auto req = chunkProxy.AllocateWriteTargets();
-        ToProto(req->mutable_chunk_id(), NextSession_.ChunkId);
-        if (Config_->PreferLocalHost) {
-            req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
-        }
-        req->set_upload_replication_factor(UploadReplicationFactor_);
+        LOG_DEBUG("Chunk created (ChunkId: %v)", NextSession_.ChunkId);
 
-        auto rsp = WaitFor(req->Invoke());
-        if (!rsp->IsOK()) {
-            CompletionError_.TrySet(TError(
-                NChunkClient::EErrorCode::MasterCommunicationFailed,
-                "Error allocating write targers")
-                << *rsp);
-            return;
-        }
+        if (Options_->ErasureCodec == ECodec::None) {
+            auto targets = NodeDirectory_->GetDescriptors(NextSession_.Replicas);
+            NextSession_.UnderlyingWriter = CreateReplicationWriter(
+                Config_, 
+                NextSession_.ChunkId, 
+                TChunkReplicaList(),
+                NodeDirectory_,
+                MasterChannel_);
+        } else {
+            auto* erasureCodec = GetCodec(Options_->ErasureCodec);
+            int totalPartCount = erasureCodec->GetTotalPartCount();
 
-        NodeDirectory_->MergeFrom(rsp->node_directory());
-        NextSession_.Replicas = NYT::FromProto<TChunkReplica>(rsp->replicas());
-    }
+            YCHECK(NextSession_.Replicas.size() == totalPartCount);
 
-    LOG_DEBUG("Chunk created (ChunkId: %v)", NextSession_.ChunkId);
+            auto writers = CreateErasurePartWriters(
+                Config_, 
+                NextSession_.ChunkId, 
+                erasureCodec, 
+                NodeDirectory_, 
+                MasterChannel_, 
+                EWriteSessionType::User);
 
-    if (Options_->ErasureCodec == ECodec::None) {
-        auto targets = NodeDirectory_->GetDescriptors(NextSession_.Replicas);
-        NextSession_.UnderlyingWriter = CreateReplicationWriter(Config_, NextSession_.ChunkId, targets);
-    } else {
-        auto* erasureCodec = GetCodec(Options_->ErasureCodec);
-        int totalPartCount = erasureCodec->GetTotalPartCount();
-
-        YCHECK(NextSession_.Replicas.size() == totalPartCount);
-
-        std::vector<IWriterPtr> writers;
-        for (int index = 0; index < totalPartCount; ++index) {
-            auto partId = ErasurePartIdFromChunkId(NextSession_.ChunkId, index);
-            auto target = NodeDirectory_->GetDescriptor(NextSession_.Replicas[index]);
-            std::vector<TNodeDescriptor> targets(1, target);
-            writers.push_back(CreateReplicationWriter(Config_, partId, targets));
+            NextSession_.UnderlyingWriter = CreateErasureWriter(Config_, erasureCodec, writers);
         }
 
-        NextSession_.UnderlyingWriter = CreateErasureWriter(Config_, erasureCodec, writers);
+        auto error = WaitFor(NextSession_.UnderlyingWriter->Open());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    } catch (const std::exception& ex) {
+        auto error = TError("Failed to start new session") << ex;
+        LOG_WARNING(error);
+        CompletionError_.TrySet(error);
     }
 
-    NextSession_.UnderlyingWriter->Open();
 }
 
 void TMultiChunkSequentialWriterBase::SwitchSession()
@@ -288,10 +277,7 @@ void TMultiChunkSequentialWriterBase::DoFinishSession(const TSession& session)
 
     LOG_DEBUG("Chunk closed (ChunkId: %v)", session.ChunkId);
 
-    std::vector<TChunkReplica> replicas;
-    for (int index : session.UnderlyingWriter->GetWrittenReplicaIndexes()) {
-        replicas.push_back(session.Replicas[index]);
-    }
+    auto replicas = session.UnderlyingWriter->GetWrittenChunkReplicas();
 
     *chunkSpec.mutable_chunk_meta() = session.FrontalWriter->GetSchedulerMeta();
     ToProto(chunkSpec.mutable_chunk_id(), session.ChunkId);

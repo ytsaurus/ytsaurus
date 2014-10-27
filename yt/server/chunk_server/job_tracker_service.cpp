@@ -162,7 +162,12 @@ private:
             switch (job->GetType()) {
                 case EJobType::ReplicateChunk: {
                     auto* replciateChunkJobSpecExt = jobSpec->MutableExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext);
-                    SerializeDescriptors(replciateChunkJobSpecExt->mutable_targets(), job->TargetAddresses());
+
+                    auto targetReplicas = AddressesToReplicas(job->TargetAddresses());
+                    ToProto(replciateChunkJobSpecExt->mutable_targets(), targetReplicas);
+
+                    NNodeTrackerServer::TNodeDirectoryBuilder builder(replciateChunkJobSpecExt->mutable_node_directory());
+                    builder.Add(targetReplicas);
                     break;
                 }
 
@@ -181,7 +186,9 @@ private:
                     builder.Add(replicas);
                     ToProto(repairChunkJobSpecExt->mutable_replicas(), replicas);
 
-                    SerializeDescriptors(repairChunkJobSpecExt->mutable_targets(), job->TargetAddresses());
+                    auto targetReplicas = AddressesToReplicas(job->TargetAddresses());
+                    builder.Add(targetReplicas);
+                    ToProto(repairChunkJobSpecExt->mutable_targets(), targetReplicas);
                     break;
                 }
 
@@ -215,15 +222,16 @@ private:
         context->Reply();
     }
 
-    void SerializeDescriptors(
-        ::google::protobuf::RepeatedPtrField<NNodeTrackerClient::NProto::TNodeDescriptor>* protoDescriptors,
-        const std::vector<Stroka>& addresses)
+    TNodePtrWithIndexList AddressesToReplicas(const std::vector<Stroka>& addresses)
     {
+        TNodePtrWithIndexList replicas;
         auto nodeTracker = Bootstrap->GetNodeTracker();
         for (const auto& address : addresses) {
-            auto* target = nodeTracker->GetNodeByAddress(address);
-            NNodeTrackerClient::ToProto(protoDescriptors->Add(), target->GetDescriptor());
+            auto* node = nodeTracker->GetNodeByAddress(address);
+            TNodePtrWithIndex replica(node, 0);
+            replicas.push_back(replica);
         }
+        return replicas;
     }
 
 };

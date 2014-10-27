@@ -37,8 +37,8 @@ message TReqAllocateWriteTargets
     // facilitate local uploads.
     optional string preferred_host_name = 3;
 
-   // Requested number of nodes to write.
-    optional int32 upload_replication_factor = 4 [default = 1];
+    // Requested number of nodes to write.
+    optional int32 target_count = 4 [default = 1];
 }
 
 message TRspAllocateWriteTargets
