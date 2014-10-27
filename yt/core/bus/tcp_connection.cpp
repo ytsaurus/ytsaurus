@@ -293,6 +293,7 @@ void TTcpConnection::SyncClose(const TError& error)
 
     // Stop all watchers.
     SocketWatcher_.reset();
+    QueuedMessagesWatcher_.stop();
 
     // Close the socket.
     CloseSocket();
