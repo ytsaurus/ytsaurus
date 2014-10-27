@@ -22,6 +22,7 @@ import time
 import signal
 import socket
 import logging
+import logging.handlers
 import argparse
 import traceback
 from copy import deepcopy
@@ -291,7 +292,7 @@ class Application(object):
         level = logging.__dict__[logging_node.get("level", "INFO")]
 
         if "filename" in logging_node:
-            handler = logging.FileHandler(logging_node["filename"])
+            handler = logging.handlers.WatchedFileHandler(logging_node["filename"])
         else:
             handler = logging.StreamHandler()
 
@@ -799,7 +800,10 @@ DEFAULT_CONFIG = {
     "path": "//home/ignat/transfer_manager_test",
     "proxy": "kant.yt.yandex.net",
     "token": "93b4cacc08aa4538a79a76c21e99c0fb",
-    "port": 5010
+    "port": 5010,
+    "logging": {
+        "filename": "log"
+    }
 }
 
 def main():
