@@ -196,7 +196,7 @@ void TBootstrap::DoRun()
         Config->MasterCacheService,
         MasterClient->GetMasterChannel());
     RpcServer->RegisterService(CreateRedirectorService(
-        NChunkClient::TChunkServiceProxy::GetServiceName(),
+        TServiceId(NChunkClient::TChunkServiceProxy::GetServiceName(), GetCellId()),
         throttlingMasterChannel));
 
     BlobReaderCache = New<TBlobReaderCache>(Config->DataNode);
