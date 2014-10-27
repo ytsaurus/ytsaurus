@@ -292,11 +292,30 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
 #ifdef _linux_
+    bool enableCGroups = true;
+    if (isCellNode) {
+        auto config = New<NCellNode::TCellNodeConfig>();
+
+        try {
+            config->Load(configNode);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing cell node configuration")
+                << ex;
+        }
+        enableCGroups = config->ExecAgent->SlotManager->EnableCGroups;
+    }
+
     auto cgroups = parser.CGroups.getValue();
-    for (const auto& path : cgroups) {
-        NCGroup::TNonOwningCGroup cgroup(path);
-        cgroup.EnsureExistance();
-        cgroup.AddCurrentTask();
+    if (enableCGroups) {
+        for (const auto& path : cgroups) {
+            NCGroup::TNonOwningCGroup cgroup(path);
+            cgroup.EnsureExistance();
+            cgroup.AddCurrentTask();
+        }
+    } else {
+        if (!cgroups.empty()) {
+            LOG_WARNING("CGroups are explicitely disabled in config. Ignore --cgroup parameter");
+        }
     }
 
     auto vmLimit = parser.VMLimit.getValue();
