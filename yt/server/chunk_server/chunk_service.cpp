@@ -15,7 +15,6 @@
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/master_hydra_service.h>
-#include <ImageCaptureCore/ImageCaptureCore.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -45,8 +44,7 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateChunks)
     {
-        context->SetRequestInfo("ChunkCount: %v",
-            request->chunk_ids_size());
+        context->SetRequestInfo("ChunkCount: %v", request->chunk_ids_size());
 
         auto chunkManager = Bootstrap->GetChunkManager();
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
@@ -104,16 +102,16 @@ private:
             }
         }
 
-        int uploadReplicationFactor;
+        int targetCount;
         if (chunk->IsErasure()) {
             const auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
-            uploadReplicationFactor = codec->GetDataPartCount() + codec->GetParityPartCount();
+            targetCount = codec->GetDataPartCount() + codec->GetParityPartCount();
         } else {
-            uploadReplicationFactor = request->upload_replication_factor();
+            targetCount = request->target_count();
         }
 
         auto targets = chunkManager->AllocateWriteTargets(
-            uploadReplicationFactor,
+            targetCount,
             &forbiddenNodeSet,
             preferredHostName,
             chunk->GetType());
