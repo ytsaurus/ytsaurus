@@ -467,6 +467,15 @@ class LogBroker(object):
         data = self._pre_process(data)
         if self._push_channel is not None:
             serialized_data = serialize_chunk(self._chunk_id, seqno, self._lines, data)
+            self.log.debug("Chunk size [%d] equals to %d", seqno, len(serialized_data))
+            if len(serialized_data) > 10*1024*1024:
+                self.log.warning("Chunk [%d] is too big. Try to strip error information", seqno)
+                data = self._strip_errors(data)
+                serialized_data = serialize_chunk(self._chunk_id, seqno, self._lines, data)
+                self.log.debug("Chunk size [%d] equals to %d", seqno, len(serialized_data))
+                if len(serialized_data) > 10*1024*1024:
+                    raise RuntimeError("Chunk is too big")
+
             self._chunk_id += 1
             self._lines += 1
 
@@ -505,6 +514,14 @@ class LogBroker(object):
 
     def _pre_process(self, data):
         return [self._transform_record(record) for record in data]
+
+    def _strip_errors(self, data):
+        return [self._strip_error(record) for record in data]
+
+    def _strip_error(self, record):
+        if "error" in record:
+            del record["error"]
+        return record
 
     def _transform_record(self, record):
         try:
