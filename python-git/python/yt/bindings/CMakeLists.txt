@@ -54,13 +54,13 @@ target_link_libraries( yt-yson-python
 )
 
 exec_program(
-  ${CMAKE_COMMAND} -E create_symlink
+  ${CMAKE_COMMAND} ARGS -E create_symlink
   ${CMAKE_BINARY_DIR}/lib/libyt-driver-python.so
   ${BASE}/driver/driver_lib.so
 )
 
 exec_program(
-  ${CMAKE_COMMAND} -E create_symlink
+  ${CMAKE_COMMAND} ARGS -E create_symlink
   ${CMAKE_BINARY_DIR}/lib/libyt-yson-python.so
   ${CMAKE_SOURCE_DIR}/python/yt_yson_bindings/yson_lib.so
 )
