@@ -1402,7 +1402,6 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
 
     const auto& requestExt = request->GetExtension(TReqCreateChunkExt::create_chunk_ext);
     auto erasureCodecId = isErasure ? NErasure::ECodec(requestExt.erasure_codec()) : NErasure::ECodec(NErasure::ECodec::None);
-    auto* erasureCodec = isErasure ? NErasure::GetCodec(erasureCodecId) : nullptr;
     int replicationFactor = isErasure ? 1 : requestExt.replication_factor();
     int readQuorum = isJournal ? requestExt.read_quorum() : 0;
     int writeQuorum = isJournal ? requestExt.write_quorum() : 0;
