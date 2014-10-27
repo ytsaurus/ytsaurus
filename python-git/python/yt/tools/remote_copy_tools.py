@@ -37,8 +37,6 @@ def _pack_module(module_name, output_dir):
                     file_path = os.path.join(root, file)
                     assert file_path.startswith(module_path)
                     destination = file_path[len(module_path):]
-                    if "bindings" in file_path:
-                        continue
                     zip.write(file_path, destination)
         return zip_filename
 
