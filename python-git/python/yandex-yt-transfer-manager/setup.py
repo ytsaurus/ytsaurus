@@ -4,7 +4,7 @@ from setuptools import setup
 
 def main():
     requires =["yandex-yt-python", "yandex-yt-python-tools", "python-flask"]
-    scripts, data_files = prepare_files(["yt/transfer_manager/yt_transfer_manager"])
+    scripts, data_files = prepare_files(["yt/transfer_manager/transfer_manager"])
 
     setup(
         name = "yandex-yt-transfer-manager",
