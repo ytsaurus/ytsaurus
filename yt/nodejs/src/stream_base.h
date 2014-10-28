@@ -25,7 +25,7 @@ public:
     void AsyncUnref();
 
 protected:
-    NDetail::TVolatileCounter AsyncRefCounter;
+    std::atomic<NDetail::TNonVolatileCounter> AsyncRefCounter;
 
 protected:
     struct TOutputPart

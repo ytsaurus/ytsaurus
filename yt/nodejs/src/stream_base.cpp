@@ -19,7 +19,7 @@ TNodeJSStreamBase::~TNodeJSStreamBase()
 
 void TNodeJSStreamBase::AsyncRef(bool acquireSyncRef)
 {
-    if (NDetail::AtomicallyIncrement(&AsyncRefCounter) == 0) {
+    if (AsyncRefCounter++ == 0) {
         if (acquireSyncRef) {
             THREAD_AFFINITY_IS_V8();
             Ref();
@@ -31,8 +31,9 @@ void TNodeJSStreamBase::AsyncRef(bool acquireSyncRef)
 
 void TNodeJSStreamBase::AsyncUnref()
 {
-    YASSERT(NDetail::AtomicallyFetch(&AsyncRefCounter) >  0);
-    if (NDetail::AtomicallyDecrement(&AsyncRefCounter) == 1) {
+    auto rc = AsyncRefCounter--
+    YASSERT(rc > 0);
+    if (rc == 1) {
         EIO_PUSH(TNodeJSStreamBase::UnrefCallback, this);
     }
 }
@@ -44,7 +45,7 @@ int TNodeJSStreamBase::UnrefCallback(eio_req* request)
 
     TNodeJSStreamBase* stream = static_cast<TNodeJSStreamBase*>(request->data);
 
-    YASSERT(NDetail::AtomicallyFetch(&stream->AsyncRefCounter) == 0);
+    YASSERT(stream->AsyncRefCounter.load() == 0);
 
     stream->Unref();
 

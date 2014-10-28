@@ -63,7 +63,7 @@ TIntrinsicRefCounted::TIntrinsicRefCounted()
 TIntrinsicRefCounted::~TIntrinsicRefCounted()
 {
     // For failed assertions, see the comments in TExtrinsicRefCounted::~TExtrinsicRefCounted.
-    YASSERT(NDetail::AtomicallyFetch(&RefCounter) == 0);
+    YASSERT(RefCounter.load() == 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
