@@ -303,21 +303,35 @@ def build_python_packages(options):
             return map(int, v.replace("-", ".").split("."))
         return cmp(normalize(version1), normalize(version2))
 
+    #def extract_version(package):
+    #    output = run_captured(
+    #        """ssh dist.yandex.ru 'find /repo/  -name "*{0}_*.changes"'""".format(package),
+    #        ignore_return_code=True,
+    #        shell=True)
+    #    filenames = filter(None, output.split("\n"))
+    #    filenames = filter(lambda filename: not "REJECT" in filename, filenames)
+    #    versions = map(lambda filename: filename.split(package)[1].split("_")[1], filenames)
+    #    if not versions:
+    #        return ""
+    #    else:
+    #        return sorted(versions, reverse=True, cmp=versions_cmp)[0]
+
     def extract_version(package):
-        output = run_captured(
-            """ssh dist.yandex.ru 'find /repo/  -name "*{0}_*.changes"'""".format(package),
-            ignore_return_code=True,
-            shell=True)
-        filenames = filter(None, output.split("\n"))
-        filenames = filter(lambda filename: not "REJECT" in filename, filenames)
-        versions = map(lambda filename: filename.split(package)[1].split("_")[1], filenames)
-        if not versions:
-            return ""
-        else:
-            return sorted(versions, reverse=True, cmp=versions_cmp)[0]
+        versions = []
+
+        output = run_captured(["apt-cache", "policy", "yandex-yt-python"])
+        versions_part = output.split("Version table:")[1]
+        for line in versions_part.split("\n"):
+            line = line.replace("***", "   ")
+            if line.startswith(" " * 5) and not line.startswith(" " * 6):
+                versions.append(line.split()[0])
+
+        return sorted(versions, reverse=True, cmp=versions_cmp)[0]
 
     if not options.package:
         return
+
+    run(["sudo", "apt-get", "update"])
 
     for package in ["yandex-yt-python", "yandex-yt-python-tools", "yandex-yt-python-yson", "yandex-yt-transfer-manager", "yandex-yt-python-fennel"]:
         with cwd(options.checkout_directory, "python", package):
