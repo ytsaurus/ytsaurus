@@ -21,7 +21,7 @@ cat "${sandbox}/${changes_out}" \
   | while read deb_out; do
   deb_url="http://dist.yandex.net/yt-precise/unstable/amd64/${deb_out}"
   deb_url=${deb_url/+/\%2b}
-  curl -sL "${deb_url}" > "${sandbox}/${deb_out}"
+  curl -sSL "${deb_url}" > "${sandbox}/${deb_out}"
 done
 
 chmod -R a+rwx "${sandbox}"
