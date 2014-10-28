@@ -63,6 +63,8 @@ public:
         if (req.has_column_filter()) {
             ColumnFilter_.All = false;
             ColumnFilter_.Indexes = FromProto<int, SmallVector<int, TypicalColumnCount>>(req.column_filter().indexes());
+        } else {
+            ColumnFilter_.All = true;
         }
 
         ValidateColumnFilter(ColumnFilter_, SchemaColumnCount_);
