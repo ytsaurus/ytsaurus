@@ -11,7 +11,7 @@ import subprocess
 import sys
 import inspect
 
-only_python27 = pytest.mark.skipif(sys.version_info < (2,7), reason="requires python2.7")
+pytestmark = pytest.mark.skipif("sys.version_info < (2,7)", reason="requires python2.7")
 
 
 def test_compression_external():
@@ -387,13 +387,3 @@ def xtest_session_integration():
     s.connect()
     io_loop.start()
     assert s._id is not None
-
-
-def ignore_tests_on_old_python():
-    for item in globals():
-        if inspect.isfunction(item) and item.func_name.startswith("test"):
-            item = only_python27(item)
-        elif inspect.isclass(item):
-            item = only_python27(item)
-
-ignore_tests_on_old_python()
