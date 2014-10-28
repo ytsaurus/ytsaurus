@@ -603,6 +603,16 @@ class PushChannel(object):
             self._io_loop.add_timeout(datetime.timedelta(seconds=1), self.connect)
 
 
+class PushSession(object):
+    def __init__(self):
+        pass
+
+    def connect(self, endpoint, timeout=None):
+        pass
+
+    def write(self, data):
+        pass
+
 class Session(object):
     log = logging.getLogger("session")
 
@@ -760,6 +770,116 @@ class Session(object):
             else:
                 attributes[key] = value
         return attributes
+
+
+class SessionIdNotFound(RuntimeError):
+    pass
+
+class SessionEnd(RuntimeError):
+    pass
+
+class BadProtocol(RuntimeError):
+    pass
+
+
+class SessionStream(object):
+    log = logging.getLogger("SessionStream")
+
+    def __init__(self, service_id=None, source_id=None, logtype=None, io_loop=None, IOStreamClass=None):
+        self._id = None
+        self._iostream = None
+
+        self._logtype = logtype
+        self._service_id = service_id or DEFAULT_SERVICE_ID
+        self._source_id = source_id or DEFAULT_SOURCE_ID
+
+        self._io_loop = io_loop or ioloop.IOLoop.instance()
+        self.IOStreamClass = IOStreamClass or iostream.IOStream
+
+    @gen.coroutine
+    def connect(self, endpoint, timeout=None):
+        while True:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+                self._iostream = self.IOStreamClass(s, io_loop=self._io_loop)
+
+                self.log.info("Connect to kafka %s", endpoint)
+                connect_future = self._iostream.connect(endpoint)
+                self._iostream.write(
+                    "GET /rt/session?"
+                    "ident={ident}&"
+                    "sourceid={source_id}&"
+                    "logtype={logtype} "
+                    "HTTP/1.1\r\n"
+                    "Host: {host}\r\n"
+                    "Accept: */*\r\n\r\n".format(
+                        ident=self._service_id,
+                        source_id=self._source_id,
+                        logtype=self._logtype,
+                        host=endpoint[0])
+                    )
+                connection = yield connect_future
+
+                self.log.info("The session channel has been created")
+                metadata_raw = yield self._iostream.read_until("\r\n\r\n", max_bytes=1024*1024)
+
+                self.log.debug("Parse response %s", metadata_raw)
+                result = self.parse_metadata(metadata_raw[:-4])
+                if not result:
+                    self.log.error("Unable to find Session header in the response")
+                    raise SessionIdNotFound()
+
+                raise gen.Return(self._id)
+            except iostream.StreamClosedError:
+                self.log.error("The session channel was closed", exc_info=True)
+                # sleep for a minute
+                pass
+            except SessionIdNotFound:
+                # sleep for a minute
+                pass
+            except gen.Return:
+                raise
+            except:
+                self.log.error("Unhandled exception", exc_info=True)
+                if self._iostream is not None:
+                    self._iostream.close()
+                    self._iostream = None
+                raise
+
+    def parse_metadata(self, data):
+        for index, line in enumerate(data.split("\n")):
+            if index > 0:
+                key, value = line.split(":", 1)
+                if key.strip() == "Session":
+                    self._id = value.strip()
+                    self.log.info("[%d] Session id: %s", id(self), self._id)
+                    return True
+        return False
+
+    @gen.coroutine
+    def read_message(self, timeout=None):
+        try:
+            headers_raw = yield self._iostream.read_until("\r\n", max_bytes=4*1024)
+            try:
+                body_size = int(headers_raw, 16)
+            except ValueError:
+                self.log.error("Bad HTTP chunk header format")
+                raise BadProtocol()
+            if body_size == 0:
+                self.log.error("HTTP response is finished")
+                data = yield gen.Task(self._iostream.read_until_close)
+                self.log.debug("Session trailers: %s", data)
+                raise SessionEnd()
+            else:
+                data = yield self._iostream.read_bytes(body_size + 2)
+                self.log.debug("Process status: %s", data.strip())
+                raise gen.Return(data.strip())
+        except gen.Return:
+            raise
+        except:
+            if self._iostream is not None:
+                self._iostream.close()
+                self._iostream = None
 
 
 def main(table_name, proxy_path, service_id, source_id, chunk_size, ack_queue_length, advicer_url, cluster_name, logtype, **kwargs):

@@ -2,12 +2,16 @@ import fennel
 
 from tornado import iostream
 from tornado import ioloop
+from tornado import testing
+from tornado import gen
 
 import pytest
 import mock
 import datetime
 import unittest
 import subprocess
+import functools
+import logging
 import sys
 import inspect
 
@@ -327,6 +331,22 @@ class TestSession(IOLoopedTestCase):
         assert not self.force_stop
 
 
+class TestSessionStream(testing.AsyncTestCase):
+    @testing.gen_test
+    def test_connect(self):
+        s = fennel.SessionStream(io_loop=self.io_loop)
+        session_id = yield s.connect((u'kafka01ft.stat.yandex.net', 80))
+        assert session_id is not None
+
+    @testing.gen_test
+    def test_get_ping(self):
+        s = fennel.SessionStream(io_loop=self.io_loop)
+        session_id = yield s.connect((u'kafka01ft.stat.yandex.net', 80))
+        assert session_id is not None
+        message = yield s.read_message()
+        assert message == "ping"
+
+
 class TestSessionReconnect(IOLoopedTestCase):
     def test_basic(self):
         self._fail_connections = 1
@@ -387,3 +407,138 @@ def xtest_session_integration():
     s.connect()
     io_loop.start()
     assert s._id is not None
+
+
+class FakeIOStream(object):
+    log = logging.getLogger("FakeIOStream")
+
+    IGNORE = object()
+
+    def __init__(self, description=None):
+        self._description = description or []
+        self._index = 0
+
+    def _compare_lists(self, expected, actual):
+        assert len(expected) == len(actual)
+        for i in xrange(len(expected)):
+            if expected[i] != FakeIOStream.IGNORE:
+                assert expected[i] == actual[i]
+
+    def _compare_dicts(self, expected, actual):
+        assert len(expected) == len(actual)
+        for key, value in expected.iteritems():
+            if value != FakeIOStream.IGNORE:
+                assert key in actual
+                assert value == actual[key]
+
+    def method_missing(self, name, *args, **kwargs):
+        self.log.info("%s called with %r and %r", name, args, kwargs)
+
+        expected_name, expected_args, expected_kwargs, return_value = self._description[self._index]
+        assert expected_name == name
+        self._compare_lists(expected_args, args)
+        self._compare_dicts(expected_kwargs, kwargs)
+        self._index += 1
+        return return_value
+
+    def expect(self, *calls):
+        self._description.extend(calls)
+
+    def __getattr__(self, name):
+        return functools.partial(self.method_missing, name)
+
+
+def call(name, return_value, *args, **kwargs):
+    rv = gen.Future()
+    if issubclass(type(return_value), Exception):
+        rv.set_exception(return_value)
+    else:
+        rv.set_result(return_value)
+    return (name, args, kwargs, rv)
+
+
+def test_fake_io_stream():
+    f = FakeIOStream([call("hello", "hi")])
+    assert f.hello().result() == "hi"
+
+
+class TestSessionStream(testing.AsyncTestCase):
+    good_response = """HTTP/1.1 200 OK
+Server: nginx/1.4.4
+Date: Wed, 19 Mar 2014 11:09:54 GMT
+Content-Type: text/plain
+Transfer-Encoding: chunked
+Connection: keep-alive
+Vary: Accept-Encoding
+Session: 00291e7c-eedf-42cd-99cc-f18331b9db77
+Seqno: 3488
+Lines: 218
+PartOffset: 396
+Topic: rt3.fol--other
+Partition: 0\r\n\r\n"""
+
+    session_id_missing_response = """HTTP/1.1 200 OK
+Server: nginx/1.4.4
+Date: Wed, 19 Mar 2014 11:09:54 GMT
+Content-Type: text/plain
+Transfer-Encoding: chunked
+Connection: keep-alive
+Vary: Accept-Encoding\r\n\r\n"""
+
+    endpoint = (u'kafka01ft.stat.yandex.net', 80)
+
+    def setUp(self):
+        super(TestSessionStream, self).setUp()
+        self.fake_stream = FakeIOStream()
+        self.s = fennel.SessionStream(IOStreamClass=self.stream_factory)
+
+    def stream_factory(self, s, io_loop=None):
+        return self.fake_stream
+
+    @testing.gen_test
+    def test_basic(self):
+        self.fake_stream.expect(
+            call("connect", None, self.endpoint),
+            call("write", None, FakeIOStream.IGNORE),
+            call("read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+        )
+        result = yield self.s.connect(self.endpoint)
+        assert result == "00291e7c-eedf-42cd-99cc-f18331b9db77"
+
+    @testing.gen_test
+    def test_reconnect(self):
+        self.fake_stream.expect(
+            call("connect", iostream.StreamClosedError(), self.endpoint),
+            call("write", None, FakeIOStream.IGNORE),
+            call("connect", None, self.endpoint),
+            call("write", None, FakeIOStream.IGNORE),
+            call("read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+        )
+        result = yield self.s.connect(self.endpoint)
+        assert result == "00291e7c-eedf-42cd-99cc-f18331b9db77"
+
+    @testing.gen_test
+    def test_no_session_id(self):
+        self.fake_stream.expect(
+            call("connect", None, self.endpoint),
+            call("write", None, FakeIOStream.IGNORE),
+            call("read_until", self.session_id_missing_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("connect", None, self.endpoint),
+            call("write", None, FakeIOStream.IGNORE),
+            call("read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+        )
+        result = yield self.s.connect(self.endpoint)
+        assert result == "00291e7c-eedf-42cd-99cc-f18331b9db77"
+
+    @testing.gen_test
+    def test_read_message(self):
+        self.fake_stream.expect(
+            call("connect", None, self.endpoint),
+            call("write", None, FakeIOStream.IGNORE),
+            call("read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("read_until", "4\r\n", "\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("read_bytes", "1234\r\n", 6),
+        )
+        yield self.s.connect(self.endpoint)
+        message = yield self.s.read_message()
+        assert message == "1234"
