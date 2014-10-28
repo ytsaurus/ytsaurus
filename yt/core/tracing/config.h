@@ -23,7 +23,7 @@ public:
     //! Send period.
     TDuration SendPeriod;
 
-    //! Port to show in endpoints
+    //! Port to show in endpoints.
     ui16 EndpointPort;
 
     TTraceManagerConfig()
