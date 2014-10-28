@@ -46,7 +46,7 @@ def _check_call(command, **kwargs):
     logger.info("Command '{}' successfully executed".format(command))
 
 class Yamr(object):
-    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", fastbone=False, opts="", timeout=None):
+    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", fastbone=False, opts="", timeout=None, max_failed_jobs=None):
         self.binary = binary
         self.binary_name = os.path.basename(binary)
         self.server = self._make_address(server, server_port)
@@ -65,6 +65,10 @@ class Yamr(object):
         if timeout is None:
             timeout = 60.0
         self._light_command_timeout = timeout
+
+        if max_failed_jobs is None:
+            max_failed_jobs = 100
+        self.max_failed_jobs = max_failed_jobs
 
         # Check that binary exists and supports help
         _check_output("{0} --help".format(self.binary), shell=True)
@@ -175,8 +179,8 @@ class Yamr(object):
     def run_map(self, command, src, dst, files=None, opts=""):
         if files is None:
             files = []
-        shell_command = "MR_USER={0} {1} -server {2} -map '{3}' -src {4} -dst {5} {6} {7}"\
-            .format(self.mr_user, self.binary, self.server, command, src, dst, " ".join("-file " + file for file in files), opts)
+        shell_command = "MR_USER={0} {1} -server {2} -map '{3}' -src {4} -dst {5} -maxjobfails {6} {7} {8}"\
+            .format(self.mr_user, self.binary, self.server, command, src, dst, self.max_failed_jobs, " ".join("-file " + file for file in files), opts)
         _check_call(shell_command, shell=True)
 
     def remote_copy(self, remote_server, src, dst):
