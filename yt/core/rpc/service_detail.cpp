@@ -482,7 +482,7 @@ void TServiceBase::OnRequest(
     Profiler.Increment(runtimeInfo->QueueSizeCounter, +1);
 
     if (keptResponseMessage) {
-        context->Reply(std::move(keptResponseMessage));
+        context->ReplyFrom(std::move(keptResponseMessage));
         return;
     }
 

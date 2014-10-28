@@ -16,11 +16,19 @@ void IServiceContext::SetResponseInfo()
     SetRawResponseInfo("");
 }
 
-void IServiceContext::Reply(TFuture<TSharedRefArray> message)
+void IServiceContext::ReplyFrom(TFuture<TSharedRefArray> message)
 {
     auto this_ = MakeStrong(this);
-    message.Subscribe(BIND([this, this_] (TSharedRefArray message) {
+    message.Subscribe(BIND([this, this_] (const TSharedRefArray& message) {
         Reply(message);
+    }));
+}
+
+void IServiceContext::ReplyFrom(TFuture<TError> error)
+{
+    auto this_ = MakeStrong(this);
+    error.Subscribe(BIND([this, this_] (const TError& error) {
+        Reply(error);
     }));
 }
 

@@ -105,7 +105,7 @@ public:
         if (mutationId != NullMutationId) {
             auto asyncResponseMessage = responseKeeper->TryBeginRequest(mutationId);
             if (asyncResponseMessage) {
-                context->Reply(std::move(asyncResponseMessage));
+                context->ReplyFrom(std::move(asyncResponseMessage));
                 return;
             }
         }

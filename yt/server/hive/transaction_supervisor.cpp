@@ -160,7 +160,7 @@ private:
             JoinToString(participantCellIds));
 
         auto asyncResponseMessage = DoCommitTransaction(transactionId, participantCellIds, mutationId);
-        context->Reply(asyncResponseMessage);
+        context->ReplyFrom(asyncResponseMessage);
     }
 
 
@@ -177,7 +177,7 @@ private:
             force);
 
         auto asyncResponseMessage = DoAbortTransaction(transactionId, mutationId, force);
-        context->Reply(asyncResponseMessage);
+        context->ReplyFrom(asyncResponseMessage);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, PingTransaction)

@@ -126,7 +126,11 @@ struct IServiceContext
     template <class... TArgs>
     void SetResponseInfo(const char* format, const TArgs&... args);
 
-    void Reply(TFuture<TSharedRefArray> message);
+    //! Replies with a given message when the latter is set.
+    void ReplyFrom(TFuture<TSharedRefArray> message);
+
+    //! Replies with a given error when the latter is set.
+    void ReplyFrom(TFuture<TError> error);
 
 };
 
