@@ -277,8 +277,6 @@ public:
     int ThreadPoolSize;
     int MaxConcurrentCompactions;
 
-    NVersionedTableClient::TTableWriterConfigPtr Writer;
-
     TStoreCompactorConfig()
     {
         RegisterParameter("thread_pool_size", ThreadPoolSize)
