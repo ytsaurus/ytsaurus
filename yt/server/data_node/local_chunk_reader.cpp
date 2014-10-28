@@ -6,7 +6,7 @@
 #include <core/tracing/trace_context.h>
 
 #include <ytlib/chunk_client/config.h>
-#include <ytlib/chunk_client/reader.h>
+#include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>

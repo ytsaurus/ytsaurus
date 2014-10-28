@@ -30,8 +30,8 @@ set( SRCS
   ${BASE}/sequential_reader.cpp
 )
 set( HDRS
-  ${BASE}/reader.h
-  ${BASE}/writer.h
+  ${BASE}/chunk_reader.h
+  ${BASE}/chunk_writer.h
   ${BASE}/block_cache.h
   ${BASE}/block_id.h
   ${BASE}/helpers.h

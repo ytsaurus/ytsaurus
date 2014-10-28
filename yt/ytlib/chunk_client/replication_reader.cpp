@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "config.h"
 #include "replication_reader.h"
-#include "reader.h"
+#include "chunk_reader.h"
 #include "block_cache.h"
 #include "private.h"
 #include "block_id.h"

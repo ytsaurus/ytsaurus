@@ -16,7 +16,7 @@
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/reader.h>
+#include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/read_limit.h>
 

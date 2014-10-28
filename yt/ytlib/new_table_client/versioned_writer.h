@@ -3,7 +3,7 @@
 #include "public.h"
 #include "versioned_row.h"
 
-#include <ytlib/chunk_client/writer_base.h>
+#include <ytlib/chunk_client/chunk_writer_base.h>
 #include <core/misc/error.h>
 
 namespace NYT {

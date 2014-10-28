@@ -6,7 +6,7 @@
 #include "private.h"
 #include "config.h"
 #include "block_cache.h"
-#include "reader.h"
+#include "chunk_reader.h"
 #include "dispatcher.h"
 #include "chunk_meta_extensions.h"
 #include "replication_reader.h"

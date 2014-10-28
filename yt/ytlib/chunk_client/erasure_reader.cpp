@@ -1,6 +1,6 @@
 #include "erasure_reader.h"
-#include "writer.h"
-#include "reader.h"
+#include "chunk_writer.h"
+#include "chunk_reader.h"
 #include "block_cache.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_replica.h"

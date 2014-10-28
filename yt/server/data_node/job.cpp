@@ -27,7 +27,7 @@
 
 #include <ytlib/job_tracker_client/statistics.h>
 
-#include <ytlib/chunk_client/writer.h>
+#include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/erasure_reader.h>
@@ -511,7 +511,7 @@ private:
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->MergeFrom(RepairJobSpecExt_.node_directory());
 
-        std::vector<IChunkPtr> readers;
+        std::vector<IChunkReaderPtr> readers;
         for (int partIndex : *repairIndexes) {
             TChunkReplicaList partReplicas;
             for (auto replica : replicas) {

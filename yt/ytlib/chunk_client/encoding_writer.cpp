@@ -3,7 +3,7 @@
 #include "config.h"
 #include "private.h"
 #include "dispatcher.h"
-#include "writer.h"
+#include "chunk_writer.h"
 
 #include <core/compression/codec.h>
 

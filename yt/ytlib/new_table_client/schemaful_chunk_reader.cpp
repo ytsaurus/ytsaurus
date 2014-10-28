@@ -9,7 +9,7 @@
 #include "schemaful_reader.h"
 #include "unversioned_row.h"
 
-#include <ytlib/chunk_client/reader.h>
+#include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/sequential_reader.h>

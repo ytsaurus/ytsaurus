@@ -17,7 +17,7 @@
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
-#include <ytlib/chunk_client/reader.h>
+#include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/sequential_reader.h>

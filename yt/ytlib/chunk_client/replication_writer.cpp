@@ -7,8 +7,8 @@
 #include "config.h"
 #include "data_node_service_proxy.h"
 #include "dispatcher.h"
+#include "chunk_writer.h"
 #include "private.h"
-#include "writer.h"
 
 #include <ytlib/node_tracker_client/node_directory.h>
 

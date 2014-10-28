@@ -1,15 +1,14 @@
 #include "stdafx.h"
 #include "file_writer.h"
-
+#include "format.h"
 #include "chunk_replica.h"
+#include "chunk_meta_extensions.h"
 
 #include <core/misc/fs.h>
 #include <core/misc/serialize.h>
 #include <core/misc/protobuf_helpers.h>
 
 #include <core/logging/log.h>
-
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NChunkClient {

@@ -4,7 +4,7 @@
 #include "config.h"
 
 #include <ytlib/chunk_client/encoding_writer.h>
-#include <ytlib/chunk_client/writer.h>
+#include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
 namespace NYT {

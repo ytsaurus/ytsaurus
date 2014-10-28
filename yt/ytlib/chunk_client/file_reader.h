@@ -1,7 +1,6 @@
 #pragma once
 
-#include "reader.h"
-#include "format.h"
+#include "chunk_reader.h"
 
 #include <ytlib/chunk_client/chunk_meta.pb.h>
 

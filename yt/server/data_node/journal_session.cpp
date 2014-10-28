@@ -99,7 +99,7 @@ TFuture<TErrorOr<IChunkPtr>> TJournalSession::DoFinish(
         if (!error.IsOK()) {
             return error;
         }
-        return IChunkReaderPtr(Chunk_);
+        return IChunkPtr(Chunk_);
     }).AsyncVia(GetCurrentInvoker()));
 }
 

@@ -38,7 +38,7 @@
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/replication_reader.h>
-#include <ytlib/chunk_client/reader.h>
+#include <ytlib/chunk_client/chunk_reader.h>
 
 #include <ytlib/job_tracker_client/statistics.h>
 

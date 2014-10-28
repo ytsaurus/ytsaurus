@@ -7,7 +7,7 @@
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/writer.h>
+#include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
 
 #include <core/misc/protobuf_helpers.h>

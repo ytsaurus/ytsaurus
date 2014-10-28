@@ -26,7 +26,7 @@
 #include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/object_client/helpers.h>
 
-#include <ytlib/chunk_client/writer.h>
+#include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/replication_writer.h>
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 

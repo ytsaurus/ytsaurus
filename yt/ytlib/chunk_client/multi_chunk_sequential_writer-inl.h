@@ -3,7 +3,7 @@
 #endif
 #undef MULTI_CHUNK_SEQUENTIAL_WRITER_INL_H_
 
-#include "writer.h"
+#include "chunk_writer.h"
 #include "chunk_list_ypath_proxy.h"
 #include "chunk_ypath_proxy.h"
 #include "dispatcher.h"
@@ -34,12 +34,12 @@ namespace NChunkClient {
 
 template <class TProvider>
 TOldMultiChunkSequentialWriter<TProvider>::TOldMultiChunkSequentialWriter(
-        TMultiChunkWriterConfigPtr config,
-        TMultiChunkWriterOptionsPtr options,
-        TProviderPtr provider,
-        NRpc::IChannelPtr masterChannel,
-        const NTransactionClient::TTransactionId& transactionId,
-        const TChunkListId& parentChunkListId)
+    TMultiChunkWriterConfigPtr config,
+    TMultiChunkWriterOptionsPtr options,
+    TProviderPtr provider,
+    NRpc::IChannelPtr masterChannel,
+    const NTransactionClient::TTransactionId& transactionId,
+    const TChunkListId& parentChunkListId)
     : Config(config)
     , Options(options)
     , MasterChannel(masterChannel)

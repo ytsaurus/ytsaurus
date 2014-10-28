@@ -1,5 +1,5 @@
 #include "memory_reader.h"
-#include "reader.h"
+#include "chunk_reader.h"
 #include "chunk_meta_extensions.h"
 
 namespace NYT {

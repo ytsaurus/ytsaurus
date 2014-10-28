@@ -8,7 +8,7 @@
 
 #include <core/compression/codec.h>
 
-#include <ytlib/chunk_client/reader.h>
+#include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/dispatcher.h>
 

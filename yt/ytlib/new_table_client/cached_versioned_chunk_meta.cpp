@@ -2,7 +2,7 @@
 #include "cached_versioned_chunk_meta.h"
 #include "schema.h"
 
-#include <ytlib/chunk_client/reader.h>
+#include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
 #include <core/concurrency/scheduler.h>

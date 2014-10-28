@@ -8,7 +8,7 @@
 #include "name_table.h"
 #include "schemaless_block_writer.h"
 
-#include <ytlib/chunk_client/writer.h>
+#include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer_base.h>
 

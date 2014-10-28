@@ -4,7 +4,7 @@
 #include "job_detail.h"
 #include "config.h"
 
-#include <ytlib/chunk_client/reader.h>
+#include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>

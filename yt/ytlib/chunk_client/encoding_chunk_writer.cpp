@@ -2,7 +2,7 @@
 
 #include "encoding_chunk_writer.h"
 
-#include "writer.h"
+#include "chunk_writer.h"
 #include "config.h"
 #include "encoding_writer.h"
 

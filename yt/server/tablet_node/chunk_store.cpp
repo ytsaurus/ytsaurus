@@ -23,7 +23,7 @@
 
 #include <ytlib/api/client.h>
 
-#include <ytlib/chunk_client/reader.h>
+#include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/block_cache.h>
@@ -319,7 +319,7 @@ void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
         });
 }
 
-IChunkReaderPtr TChunkStore::PrepareChunk()
+IChunkPtr TChunkStore::PrepareChunk()
 {
     {
         TReaderGuard guard(ChunkLock_);
@@ -352,7 +352,7 @@ IChunkReaderPtr TChunkStore::PrepareChunk()
     return chunk;
 }
 
-IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkReaderPtr chunk)
+IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
 {
     {
         TReaderGuard guard(ChunkReaderLock_);

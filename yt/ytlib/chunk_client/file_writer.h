@@ -1,8 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "writer.h"
-#include "format.h"
+#include "chunk_writer.h"
 
 #include <ytlib/chunk_client/chunk_meta.pb.h>
 #include <ytlib/chunk_client/chunk_info.pb.h>

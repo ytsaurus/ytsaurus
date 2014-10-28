@@ -2,7 +2,7 @@
 
 #include "multi_chunk_sequential_writer_base.h"
 
-#include "writer.h"
+#include "chunk_writer.h"
 #include "chunk_list_ypath_proxy.h"
 #include "chunk_replica.h"
 #include "chunk_writer_base.h"

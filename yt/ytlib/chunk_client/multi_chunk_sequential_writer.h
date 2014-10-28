@@ -11,7 +11,7 @@
 
 #include <core/logging/log.h>
 
-#include <ytlib/chunk_client/writer.h>
+#include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/object_client/object_service_proxy.h>

@@ -16,7 +16,7 @@
 
 #include <ytlib/api/config.h>
 
-#include <ytlib/chunk_client/writer.h>
+#include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>

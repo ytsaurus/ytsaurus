@@ -5,7 +5,7 @@
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/chunk_client/reader.h>
+#include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/data_statistics.h>
 
 #include <core/misc/async_stream_state.h>

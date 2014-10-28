@@ -1,7 +1,7 @@
 #include "public.h"
 #include "config.h"
 #include "dispatcher.h"
-#include "writer.h"
+#include "chunk_writer.h"
 #include "chunk_replica.h"
 #include "chunk_meta_extensions.h"
 #include "replication_writer.h"
