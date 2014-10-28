@@ -51,7 +51,7 @@ Operation run under self-pinged transaction, if `yt.wrapper.config.DETACHED` is 
 import config
 import py_wrapper
 from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, \
-                   is_prefix, get_value, compose, bool_to_string, chunk_iter_lines, get_version
+                   is_prefix, get_value, compose, bool_to_string, chunk_iter_lines, get_version, MB
 from errors import YtError, YtNetworkError
 from driver import read_content, get_host_for_heavy_operation, make_request, ResponseStream
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
@@ -940,8 +940,7 @@ class Finalizer(object):
             return
 
         compression_ratio = get_attribute(table, "compression_ratio", client=self.client)
-        data_size_per_job = min(16 * 1024 * config.MB,
-                                int(500 * config.MB / float(compression_ratio)))
+        data_size_per_job = min(16 * 1024 * MB, int(500 * MB / float(compression_ratio)))
 
         mode = "sorted" if is_sorted(table, client=self.client) else "unordered"
 
