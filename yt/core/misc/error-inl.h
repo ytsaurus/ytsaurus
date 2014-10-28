@@ -35,7 +35,7 @@ TError WrapError(const TInner& inner)
 
 template <class... TArgs>
 TError::TErrorOr(const char* format, const TArgs&... args)
-    : Code_(EErrorCode::Generic)
+    : Code_(NYT::EErrorCode::Generic)
     , Message_(Format(format, args...))
 {
     CaptureOriginAttributes();
