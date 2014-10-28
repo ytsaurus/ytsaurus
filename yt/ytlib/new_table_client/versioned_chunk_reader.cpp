@@ -40,7 +40,7 @@ public:
     TVersionedChunkReader(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
-        IReaderPtr chunkReader,
+        IChunkReaderPtr chunkReader,
         IBlockCachePtr uncompressedBlockCache,
         TReadLimit lowerLimit,
         TReadLimit upperLimit,
@@ -54,7 +54,7 @@ public:
 private:
     const TChunkReaderConfigPtr Config_;
     TCachedVersionedChunkMetaPtr CachedChunkMeta_;
-    IReaderPtr ChunkReader_;
+    IChunkReaderPtr ChunkReader_;
     IBlockCachePtr UncompressedBlockCache_;
     TReadLimit LowerLimit_;
     TReadLimit UpperLimit_;
@@ -93,7 +93,7 @@ template <class TBlockReader>
 TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     TChunkReaderConfigPtr config,
     TCachedVersionedChunkMetaPtr chunkMeta,
-    IReaderPtr chunkReader,
+    IChunkReaderPtr chunkReader,
     IBlockCachePtr uncompressedBlockCache,
     TReadLimit lowerLimit,
     TReadLimit upperLimit,
@@ -376,7 +376,7 @@ void TVersionedChunkReader<TBlockReader>::DoSwitchBlock()
 
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
-    IReaderPtr chunkReader,
+    IChunkReaderPtr chunkReader,
     IBlockCachePtr uncompressedBlockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
     TReadLimit lowerLimit,

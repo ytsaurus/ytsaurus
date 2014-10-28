@@ -29,7 +29,7 @@ static const auto& Logger = TableClientLogger;
 TChunkWriterBase::TChunkWriterBase(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    NChunkClient::IWriterPtr chunkWriter)
+    NChunkClient::IChunkWriterPtr chunkWriter)
     : Config(config)
     , Options(options)
     , ChunkWriter(chunkWriter)

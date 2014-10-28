@@ -53,7 +53,7 @@ protected:
     struct TSession
     {
         IChunkWriterBasePtr FrontalWriter;
-        IWriterPtr UnderlyingWriter;
+        IChunkWriterPtr UnderlyingWriter;
         std::vector<TChunkReplica> Replicas;
         TChunkId ChunkId;
 
@@ -121,7 +121,7 @@ protected:
     TFuture<void> FinishSession(const TSession& session);
     void DoFinishSession(const TSession& session);
 
-    virtual IChunkWriterBasePtr CreateFrontalWriter(IWriterPtr underlyingWriter) = 0;
+    virtual IChunkWriterBasePtr CreateFrontalWriter(IChunkWriterPtr underlyingWriter) = 0;
 
 };
 

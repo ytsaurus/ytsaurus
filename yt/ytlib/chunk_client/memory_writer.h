@@ -3,13 +3,15 @@
 #include "public.h"
 #include "writer.h"
 
+#include <ytlib/chunk_client/chunk_meta.pb.h>
+
 namespace NYT {
 namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
 class TMemoryWriter
-    : public IWriter
+    : public IChunkWriter
 {
 public:
     virtual TAsyncError Open() override;

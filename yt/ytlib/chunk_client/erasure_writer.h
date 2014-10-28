@@ -11,12 +11,12 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IWriterPtr CreateErasureWriter(
+IChunkWriterPtr CreateErasureWriter(
     TErasureWriterConfigPtr config,
     NErasure::ICodec* codec,
-    const std::vector<IWriterPtr>& writers);
+    const std::vector<IChunkWriterPtr>& writers);
 
-std::vector<IWriterPtr> CreateErasurePartWriters(
+std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
     NErasure::ICodec* codec,

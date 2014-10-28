@@ -96,7 +96,7 @@ private:
     NDataNode::IChunkPtr Chunk_;
 
     NConcurrency::TReaderWriterSpinLock ChunkReaderLock_;
-    NChunkClient::IReaderPtr ChunkReader_;
+    NChunkClient::IChunkReaderPtr ChunkReader_;
 
     NConcurrency::TReaderWriterSpinLock CachedVersionedChunkMetaLock_;
     NVersionedTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
@@ -106,10 +106,10 @@ private:
 
 
     NDataNode::IChunkPtr PrepareChunk();
-    NChunkClient::IReaderPtr PrepareChunkReader(
+    NChunkClient::IChunkReaderPtr PrepareChunkReader(
         NDataNode::IChunkPtr chunk);
     NVersionedTableClient::TCachedVersionedChunkMetaPtr PrepareCachedVersionedChunkMeta(
-        NChunkClient::IReaderPtr chunkReader);
+        NChunkClient::IChunkReaderPtr chunkReader);
     IStorePtr GetBackingStore();
 
     void PrecacheProperties();

@@ -21,7 +21,7 @@ static const auto& Logger = ChunkClientLogger;
 TEncodingWriter::TEncodingWriter(
     TEncodingWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    IWriterPtr asyncWriter)
+    IChunkWriterPtr asyncWriter)
     : UncompressedSize_(0)
     , CompressedSize_(0)
     , CompressionRatio_(config->DefaultCompressionRatio)

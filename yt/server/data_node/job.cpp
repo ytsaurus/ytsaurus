@@ -511,7 +511,7 @@ private:
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->MergeFrom(RepairJobSpecExt_.node_directory());
 
-        std::vector<IReaderPtr> readers;
+        std::vector<IChunkPtr> readers;
         for (int partIndex : *repairIndexes) {
             TChunkReplicaList partReplicas;
             for (auto replica : replicas) {
@@ -536,7 +536,7 @@ private:
             readers.push_back(reader);
         }
 
-        std::vector<IWriterPtr> writers;
+        std::vector<IChunkWriterPtr> writers;
         for (int index = 0; index < static_cast<int>(erasedIndexes.size()); ++index) {
             int partIndex = erasedIndexes[index];
             auto partId = ErasurePartIdFromChunkId(ChunkId_, partIndex);

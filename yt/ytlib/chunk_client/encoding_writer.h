@@ -28,7 +28,7 @@ public:
     TEncodingWriter(
         TEncodingWriterConfigPtr config,
         TEncodingWriterOptionsPtr options,
-        IWriterPtr chunkWriter);
+        IChunkWriterPtr chunkWriter);
 
     bool IsReady() const;
     TAsyncError GetReadyEvent();
@@ -50,7 +50,7 @@ private:
     double CompressionRatio_;
 
     TEncodingWriterConfigPtr Config;
-    IWriterPtr ChunkWriter;
+    IChunkWriterPtr ChunkWriter;
 
     IInvokerPtr CompressionInvoker;
     NConcurrency::TAsyncSemaphore Semaphore;

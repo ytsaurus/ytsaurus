@@ -19,7 +19,7 @@ public:
     TChunkWriterBase(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
-        NChunkClient::IWriterPtr chunkWriter,
+        NChunkClient::IChunkWriterPtr chunkWriter,
         const TKeyColumns& keyColumns = TKeyColumns());
 
     virtual TAsyncError Open() override;
@@ -90,7 +90,7 @@ public:
     TSortedChunkWriterBase(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
-        NChunkClient::IWriterPtr chunkWriter,
+        NChunkClient::IChunkWriterPtr chunkWriter,
         TKeyColumns keyColumns);
 
     virtual NChunkClient::NProto::TChunkMeta GetMasterMeta() const override;

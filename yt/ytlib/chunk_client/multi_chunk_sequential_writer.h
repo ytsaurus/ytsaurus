@@ -64,7 +64,7 @@ protected:
     struct TSession
     {
         TIntrusivePtr<TChunkWriter> ChunkWriter;
-        IWriterPtr AsyncWriter;
+        IChunkWriterPtr AsyncWriter;
         TChunkId ChunkId;
 
         TSession()

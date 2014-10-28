@@ -31,7 +31,7 @@ class TLocalChunkReader;
 typedef TIntrusivePtr<TLocalChunkReader> TLocalChunkReaderPtr;
 
 class TLocalChunkReader
-    : public NChunkClient::IReader
+    : public NChunkClient::IChunkReader
 {
 public:
     TLocalChunkReader(
@@ -183,7 +183,7 @@ private:
 
 };
 
-NChunkClient::IReaderPtr CreateLocalChunkReader(
+NChunkClient::IChunkReaderPtr CreateLocalChunkReader(
     TBootstrap* bootstrap,
     TReplicationReaderConfigPtr config,
     IChunkPtr chunk)

@@ -136,13 +136,13 @@ private:
 ///////////////////////////////////////////////////////////////////////////////
 
 class TErasureWriter
-    : public IWriter
+    : public IChunkWriter
 {
 public:
     TErasureWriter(
         TErasureWriterConfigPtr config,
         NErasure::ICodec* codec,
-        const std::vector<IWriterPtr>& writers)
+        const std::vector<IChunkWriterPtr>& writers)
         : Config_(config)
         , Codec_(codec)
         , IsOpen_(false)
@@ -214,7 +214,7 @@ private:
 
     TError EncodeAndWriteParityBlocks();
 
-    TError WriteDataPart(IWriterPtr writer, const std::vector<TSharedRef>& blocks);
+    TError WriteDataPart(IChunkWriterPtr writer, const std::vector<TSharedRef>& blocks);
 
     TAsyncError WriteParityBlocks(const std::vector<TSharedRef>& blocks);
 
@@ -227,7 +227,7 @@ private:
 
     bool IsOpen_;
 
-    std::vector<IWriterPtr> Writers_;
+    std::vector<IChunkWriterPtr> Writers_;
     std::vector<TSharedRef> Blocks_;
 
     // Information about blocks, necessary to write blocks
@@ -330,7 +330,7 @@ TAsyncError TErasureWriter::WriteDataBlocks()
     return parallelCollector->Complete();
 }
 
-TError TErasureWriter::WriteDataPart(IWriterPtr writer, const std::vector<TSharedRef>& blocks)
+TError TErasureWriter::WriteDataPart(IChunkWriterPtr writer, const std::vector<TSharedRef>& blocks)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -443,17 +443,17 @@ TAsyncError TErasureWriter::OnClosed(TError error)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IWriterPtr CreateErasureWriter(
+IChunkWriterPtr CreateErasureWriter(
     TErasureWriterConfigPtr config,
     NErasure::ICodec* codec,
-    const std::vector<IWriterPtr>& writers)
+    const std::vector<IChunkWriterPtr>& writers)
 {
     return New<TErasureWriter>(config, codec, writers);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-std::vector<IWriterPtr> CreateErasurePartWriters(
+std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
     NErasure::ICodec* codec,
@@ -487,7 +487,7 @@ std::vector<IWriterPtr> CreateErasurePartWriters(
 
     YCHECK(replicas.size() == codec->GetTotalPartCount());
 
-    std::vector<IWriterPtr> writers;
+    std::vector<IChunkWriterPtr> writers;
     for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
         auto partId = ErasurePartIdFromChunkId(chunkId, index);
         writers.push_back(CreateReplicationWriter(

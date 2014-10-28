@@ -111,7 +111,7 @@ public:
         auto config = NYT::New<TErasureWriterConfig>();
         config->ErasureWindowSize = 64;
 
-        std::vector<IWriterPtr> writers;
+        std::vector<IChunkWriterPtr> writers;
         for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
             Stroka filename = "block" + ToString(i + 1);
             writers.push_back(NYT::New<TFileWriter>(filename));
@@ -133,9 +133,9 @@ public:
         EXPECT_TRUE(erasureWriter->GetChunkInfo().disk_space() >= dataSize);
     }
 
-    static IReaderPtr CreateErasureReader(ICodec* codec)
+    static IChunkReaderPtr CreateErasureReader(ICodec* codec)
     {
-        std::vector<IReaderPtr> readers;
+        std::vector<IChunkReaderPtr> readers;
         for (int i = 0; i < codec->GetDataPartCount(); ++i) {
             Stroka filename = "block" + ToString(i + 1);
             auto reader = NYT::New<TFileReader>(filename);
@@ -254,8 +254,8 @@ TEST_F(TErasureMixture, RepairTest1)
         NFs::Remove((filename + ".meta").c_str());
     }
 
-    std::vector<IReaderPtr> readers;
-    std::vector<IWriterPtr> writers;
+    std::vector<IChunkReaderPtr> readers;
+    std::vector<IChunkWriterPtr> writers;
     for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
         Stroka filename = "block" + ToString(i + 1);
         if (erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
@@ -314,8 +314,8 @@ TEST_F(TErasureMixture, RepairTest2)
         NFs::Remove((filename + ".meta").c_str());
     }
 
-    std::vector<IReaderPtr> readers;
-    std::vector<IWriterPtr> writers;
+    std::vector<IChunkReaderPtr> readers;
+    std::vector<IChunkWriterPtr> writers;
     for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
         Stroka filename = "block" + ToString(i + 1);
         if (erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
@@ -389,8 +389,8 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
         NFs::Remove((filename + ".meta").c_str());
     }
 
-    std::vector<IReaderPtr> readers;
-    std::vector<IWriterPtr> writers;
+    std::vector<IChunkReaderPtr> readers;
+    std::vector<IChunkWriterPtr> writers;
     for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
         Stroka filename = "block" + ToString(i + 1);
         if (erasedIndicesSet.find(i) != erasedIndicesSet.end()) {

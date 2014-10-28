@@ -5,6 +5,7 @@
 #include "format.h"
 
 #include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <ytlib/chunk_client/chunk_info.pb.h>
 
 #include <core/misc/checksum.h>
 
@@ -17,7 +18,7 @@ namespace NChunkClient {
 
 //! Provides a local and synchronous implementation of #IAsyncWriter.
 class TFileWriter
-    : public IWriter
+    : public IChunkWriter
 {
 public:
     explicit TFileWriter(

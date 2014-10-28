@@ -458,7 +458,7 @@ TErrorOr<IChunkPtr> TBlobSession::OnWriterClosed(TError error)
 
     Finished_.Fire(TError());
 
-    return IChunkPtr(chunk);
+    return IChunkReaderPtr(chunk);
 }
 
 void TBlobSession::ReleaseBlocks(int flushedBlockIndex)

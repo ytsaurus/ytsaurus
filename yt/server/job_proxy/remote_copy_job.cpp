@@ -344,8 +344,8 @@ private:
     }
 
     void DoCopy(
-        NChunkClient::IReaderPtr reader,
-        NChunkClient::IWriterPtr writer,
+        NChunkClient::IChunkReaderPtr reader,
+        NChunkClient::IChunkWriterPtr writer,
         int blockCount,
         const TChunkMeta& meta)
     {
@@ -375,7 +375,7 @@ private:
     }
 
     // Request input chunk meta. Input and output chunk metas are the same.
-    TChunkMeta GetChunkMeta(NChunkClient::IReaderPtr reader)
+    TChunkMeta GetChunkMeta(NChunkClient::IChunkReaderPtr reader)
     {
         auto result = WaitFor(reader->GetMeta());
         if (!result.IsOK()) {

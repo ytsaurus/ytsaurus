@@ -12,6 +12,7 @@ namespace NChunkClient {
 
 namespace NProto {
 
+class TChunkInfo;
 class TChunkSpec;
 class TChunkMeta;
 class TMiscExt;
@@ -107,8 +108,8 @@ DECLARE_REFCOUNTED_CLASS(TEncodingWriter)
 DECLARE_REFCOUNTED_CLASS(TEncodingChunkWriter)
 DECLARE_REFCOUNTED_CLASS(TSequentialReader)
 
-DECLARE_REFCOUNTED_STRUCT(IReader)
-DECLARE_REFCOUNTED_STRUCT(IWriter)
+DECLARE_REFCOUNTED_STRUCT(IChunkReader)
+DECLARE_REFCOUNTED_STRUCT(IChunkWriter)
 
 DECLARE_REFCOUNTED_STRUCT(IChunkWriterBase)
 DECLARE_REFCOUNTED_STRUCT(IMultiChunkWriter)

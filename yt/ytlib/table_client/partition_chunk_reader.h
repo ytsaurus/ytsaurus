@@ -52,7 +52,7 @@ public:
     TPartitionChunkReader(
         TPartitionChunkReaderProviderPtr provider,
         NChunkClient::TSequentialReaderConfigPtr sequentialReader,
-        NChunkClient::IReaderPtr chunkReader,
+        NChunkClient::IChunkReaderPtr chunkReader,
         NChunkClient::IBlockCachePtr uncompressedBlockCache,
         int partitionTag,
         NCompression::ECodec codecId);
@@ -77,7 +77,7 @@ private:
     TFacade Facade;
 
     NChunkClient::TSequentialReaderConfigPtr SequentialConfig;
-    NChunkClient::IReaderPtr ChunkReader;
+    NChunkClient::IChunkReaderPtr ChunkReader;
     NChunkClient::IBlockCachePtr UncompressedBlockCache;
     int PartitionTag;
     NCompression::ECodec CodecId;
@@ -95,7 +95,7 @@ private:
 
     NLog::TLogger Logger;
 
-    void OnGotMeta(NChunkClient::IReader::TGetMetaResult result);
+    void OnGotMeta(NChunkClient::IChunkReader::TGetMetaResult result);
     void OnNextBlock(TError error);
 
     bool NextRow();
@@ -119,7 +119,7 @@ public:
 
     TPartitionChunkReaderPtr CreateReader(
         const NChunkClient::NProto::TChunkSpec& chunkSpec,
-        NChunkClient::IReaderPtr chunkReader);
+        NChunkClient::IChunkReaderPtr chunkReader);
 
     void OnReaderOpened(
         TPartitionChunkReaderPtr reader,

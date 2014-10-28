@@ -30,7 +30,7 @@ using namespace NChunkClient::NProto;
 
 namespace {
 
-IReader::TAsyncGetMetaResult GetPlacementMeta(IReaderPtr reader)
+IChunkReader::TAsyncGetMetaResult GetPlacementMeta(IChunkReaderPtr reader)
 {
     std::vector<int> tags;
     tags.push_back(TProtoExtensionTag<TErasurePlacementExt>::Value);
@@ -49,18 +49,18 @@ class TNonReparingReaderSession
 {
 public:
     TNonReparingReaderSession(
-        const std::vector<IReaderPtr>& readers,
+        const std::vector<IChunkReaderPtr>& readers,
         const std::vector<TPartInfo>& partInfos,
         const std::vector<int>& blockIndexes)
         : Readers_(readers)
         , PartInfos_(partInfos)
         , BlockIndexes_(blockIndexes)
         , Result_(BlockIndexes_.size())
-        , ResultPromise_(NewPromise<IReader::TReadBlocksResult>())
+        , ResultPromise_(NewPromise<IChunkReader::TReadBlocksResult>())
     { }
 
 
-    IReader::TAsyncReadBlocksResult Run()
+    IChunkReader::TAsyncReadBlocksResult Run()
     {
         // For each reader we find blocks to read and their initial indices.
         std::vector<
@@ -109,7 +109,7 @@ public:
         return ResultPromise_;
     }
 
-    void OnBlocksRead(const TPartIndexList& indicesInPart, IReader::TReadBlocksResult readResult)
+    void OnBlocksRead(const TPartIndexList& indicesInPart, IChunkReader::TReadBlocksResult readResult)
     {
         if (readResult.IsOK()) {
             auto dataRefs = readResult.Value();
@@ -143,13 +143,13 @@ private:
         }
     };
 
-    std::vector<IReaderPtr> Readers_;
+    std::vector<IChunkReaderPtr> Readers_;
     std::vector<TPartInfo> PartInfos_;
 
     std::vector<int> BlockIndexes_;
 
     std::vector<TSharedRef> Result_;
-    TPromise<IReader::TReadBlocksResult> ResultPromise_;
+    TPromise<IChunkReader::TReadBlocksResult> ResultPromise_;
 
     TSpinLock AddReadErrorLock_;
     std::vector<TError> ReadErrors_;
@@ -158,10 +158,10 @@ private:
 ///////////////////////////////////////////////////////////////////////////////
 
 class TNonRepairingReader
-    : public IReader
+    : public IChunkReader
 {
 public:
-    explicit TNonRepairingReader(const std::vector<IReaderPtr>& readers)
+    explicit TNonRepairingReader(const std::vector<IChunkReaderPtr>& readers)
         : Readers_(readers)
     {
         YCHECK(!Readers_.empty());
@@ -200,7 +200,7 @@ public:
     }
 
 private:
-    std::vector<IReaderPtr> Readers_;
+    std::vector<IChunkReaderPtr> Readers_;
 
     std::vector<TPartInfo> PartInfos_;
 
@@ -217,7 +217,7 @@ private:
                 .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
     }
 
-    void OnGotPlacementMeta(IReader::TGetMetaResult metaOrError)
+    void OnGotPlacementMeta(IChunkReader::TGetMetaResult metaOrError)
     {
         THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError);
 
@@ -233,8 +233,8 @@ private:
 
 };
 
-IReaderPtr CreateNonRepairingErasureReader(
-    const std::vector<IReaderPtr>& dataBlockReaders)
+IChunkReaderPtr CreateNonRepairingErasureReader(
+    const std::vector<IChunkReaderPtr>& dataBlockReaders)
 {
     return New<TNonRepairingReader>(dataBlockReaders);
 }
@@ -255,7 +255,7 @@ public:
     typedef TFuture<TReadResult> TReadFuture;
 
     TWindowReader(
-        IReaderPtr reader,
+        IChunkReaderPtr reader,
         int blockCount)
         : Reader_(reader)
         , BlockCount_(blockCount)
@@ -279,7 +279,7 @@ public:
     }
 
 private:
-    IReaderPtr Reader_;
+    IChunkReaderPtr Reader_;
     int BlockCount_;
 
     //! Window size requested by the currently served #Read.
@@ -320,7 +320,7 @@ private:
         promise.Set(result);
     }
 
-    void OnBlockRead(TReadPromise promise, IReader::TReadBlocksResult readResult)
+    void OnBlockRead(TReadPromise promise, IChunkReader::TReadBlocksResult readResult)
     {
         if (!readResult.IsOK()) {
             Complete(promise, TError(readResult));
@@ -468,7 +468,7 @@ public:
 
     TRepairReader(
         NErasure::ICodec* codec,
-        const std::vector<IReaderPtr>& readers,
+        const std::vector<IChunkReaderPtr>& readers,
         const TPartIndexList& erasedIndices,
         const TPartIndexList& repairIndices)
         : Codec_(codec)
@@ -499,7 +499,7 @@ public:
 
 private:
     NErasure::ICodec* Codec_;
-    std::vector<IReaderPtr> Readers_;
+    std::vector<IChunkReaderPtr> Readers_;
 
     TPartIndexList ErasedIndices_;
     TPartIndexList RepairIndices_;
@@ -525,7 +525,7 @@ private:
     TBlock OnBlockRepaired(TError error);
     TAsyncError OnBlocksCollected(TErrorOr<std::vector<TSharedRef>> result);
     TAsyncError Repair(const std::vector<TSharedRef>& aliveWindows);
-    void OnGotMeta(IReader::TGetMetaResult metaOrError);
+    void OnGotMeta(IChunkReader::TGetMetaResult metaOrError);
 
 };
 
@@ -609,7 +609,7 @@ TAsyncError TRepairReader::RepairBlockIfNeeded()
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
 }
 
-void TRepairReader::OnGotMeta(IReader::TGetMetaResult metaOrError)
+void TRepairReader::OnGotMeta(IChunkReader::TGetMetaResult metaOrError)
 {
     THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError);
     auto placementExt = GetProtoExtension<TErasurePlacementExt>(
@@ -682,8 +682,8 @@ public:
     TRepairAllPartsSession(
         NErasure::ICodec* codec,
         const TPartIndexList& erasedIndices,
-        const std::vector<IReaderPtr>& readers,
-        const std::vector<IWriterPtr>& writers,
+        const std::vector<IChunkReaderPtr>& readers,
+        const std::vector<IChunkWriterPtr>& writers,
         TRepairProgressHandler onProgress)
         : Reader_(New<TRepairReader>(
             codec,
@@ -775,7 +775,7 @@ private:
         }
     }
 
-    IWriterPtr GetWriterForIndex(int index)
+    IChunkWriterPtr GetWriterForIndex(int index)
     {
         auto it = IndexToWriter_.find(index);
         YCHECK(it != IndexToWriter_.end());
@@ -784,11 +784,11 @@ private:
 
 
     TRepairReaderPtr Reader_;
-    std::vector<IReaderPtr> Readers_;
-    std::vector<IWriterPtr> Writers_;
+    std::vector<IChunkReaderPtr> Readers_;
+    std::vector<IChunkWriterPtr> Writers_;
     TRepairProgressHandler OnProgress_;
 
-    yhash_map<int, IWriterPtr> IndexToWriter_;
+    yhash_map<int, IChunkWriterPtr> IndexToWriter_;
 
     i64 RepairedDataSize_;
 
@@ -797,8 +797,8 @@ private:
 TAsyncError RepairErasedParts(
     NErasure::ICodec* codec,
     const TPartIndexList& erasedIndices,
-    const std::vector<IReaderPtr>& readers,
-    const std::vector<IWriterPtr>& writers,
+    const std::vector<IChunkReaderPtr>& readers,
+    const std::vector<IChunkWriterPtr>& writers,
     TRepairProgressHandler onProgress)
 {
     auto session = New<TRepairAllPartsSession>(
@@ -814,7 +814,7 @@ TAsyncError RepairErasedParts(
 
 namespace {
 
-std::vector<IReaderPtr> CreateErasurePartsReaders(
+std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     TReplicationReaderConfigPtr config,
     IBlockCachePtr compressedBlockCache,
     NRpc::IChannelPtr masterChannel,
@@ -835,7 +835,7 @@ std::vector<IReaderPtr> CreateErasurePartsReaders(
             return lhs.GetIndex() < rhs.GetIndex();
         });
 
-    std::vector<IReaderPtr> readers;
+    std::vector<IChunkReaderPtr> readers;
     readers.reserve(partCount);
 
     {
@@ -869,7 +869,7 @@ std::vector<IReaderPtr> CreateErasurePartsReaders(
 
 } // namespace
 
-std::vector<IReaderPtr> CreateErasureDataPartsReaders(
+std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
     TReplicationReaderConfigPtr config,
     IBlockCachePtr compressedBlockCache,
     NRpc::IChannelPtr masterChannel,
@@ -891,7 +891,7 @@ std::vector<IReaderPtr> CreateErasureDataPartsReaders(
         networkName);
 }
 
-std::vector<IReaderPtr> CreateErasureAllPartsReaders(
+std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
     IBlockCachePtr compressedBlockCache,
     NRpc::IChannelPtr masterChannel,

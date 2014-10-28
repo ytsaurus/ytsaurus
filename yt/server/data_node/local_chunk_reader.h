@@ -16,7 +16,7 @@ namespace NDataNode {
  *  \note
  *  Thread affinity: any
  */
-NChunkClient::IReaderPtr CreateLocalChunkReader(
+NChunkClient::IChunkReaderPtr CreateLocalChunkReader(
     NCellNode::TBootstrap* bootstrap,
     NChunkClient::TReplicationReaderConfigPtr config,
     IChunkPtr chunk);

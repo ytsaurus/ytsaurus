@@ -21,7 +21,7 @@ using namespace NChunkClient::NProto;
 TSequentialReader::TSequentialReader(
     TSequentialReaderConfigPtr config,
     std::vector<TBlockInfo> blockInfos,
-    IReaderPtr chunkReader,
+    IChunkReaderPtr chunkReader,
     IBlockCachePtr uncompressedBlockCache,
     NCompression::ECodec codecId)
     : UncompressedDataSize_(0)
@@ -105,7 +105,7 @@ TAsyncError TSequentialReader::FetchNextBlock()
 void TSequentialReader::OnGotBlocks(
     const std::vector<int>& windowIndexes,
     const std::vector<int>& blockIndexes,
-    IReader::TReadBlocksResult readResult)
+    IChunkReader::TReadBlocksResult readResult)
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
 

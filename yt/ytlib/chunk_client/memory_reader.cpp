@@ -10,7 +10,7 @@ using namespace NChunkClient::NProto;
 ///////////////////////////////////////////////////////////////////////////////
 
 class TMemoryReader
-    : public IReader
+    : public IChunkReader
 {
 public:
     TMemoryReader(
@@ -64,7 +64,7 @@ private:
 
 };
 
-IReaderPtr CreateMemoryReader(const TChunkMeta& meta, const std::vector<TSharedRef>& blocks)
+IChunkReaderPtr CreateMemoryReader(const TChunkMeta& meta, const std::vector<TSharedRef>& blocks)
 {
     return New<TMemoryReader>(meta, blocks);
 }

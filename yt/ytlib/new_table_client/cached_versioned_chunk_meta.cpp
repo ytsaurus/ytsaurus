@@ -25,7 +25,7 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<TErrorOr<TCachedVersionedChunkMetaPtr>> TCachedVersionedChunkMeta::Load(
-    IReaderPtr chunkReader,
+    IChunkReaderPtr chunkReader,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns)
 {
@@ -37,7 +37,7 @@ TFuture<TErrorOr<TCachedVersionedChunkMetaPtr>> TCachedVersionedChunkMeta::Load(
 }
 
 TErrorOr<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::DoLoad(
-    IReaderPtr chunkReader,
+    IChunkReaderPtr chunkReader,
     const TTableSchema& readerSchema,
     const TKeyColumns& keyColumns)
 {

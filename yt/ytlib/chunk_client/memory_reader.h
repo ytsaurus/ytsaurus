@@ -9,7 +9,7 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IReaderPtr CreateMemoryReader(
+IChunkReaderPtr CreateMemoryReader(
     const NProto::TChunkMeta& meta,
     const std::vector<TSharedRef>& blocks);
 

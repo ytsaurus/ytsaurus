@@ -121,7 +121,7 @@ typedef std::deque<TGroupPtr> TWindow;
 ///////////////////////////////////////////////////////////////////////////////
 
 class TReplicationWriter
-    : public IWriter
+    : public IChunkWriter
 {
 public:
     TReplicationWriter(
@@ -981,7 +981,7 @@ TChunkReplicaList TReplicationWriter::GetWrittenChunkReplicas() const
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IWriterPtr CreateReplicationWriter(
+IChunkWriterPtr CreateReplicationWriter(
     TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
     const TChunkReplicaList& targets,

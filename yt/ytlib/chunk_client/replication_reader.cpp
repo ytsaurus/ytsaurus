@@ -48,7 +48,7 @@ using ::ToString;
 ///////////////////////////////////////////////////////////////////////////////
 
 class TReplicationReader
-    : public IReader
+    : public IChunkReader
 {
 public:
     typedef TErrorOr<TChunkReplicaList> TGetSeedsResult;
@@ -838,7 +838,7 @@ private:
     }
 };
 
-IReader::TAsyncReadBlocksResult TReplicationReader::ReadBlocks(const std::vector<int>& blockIndexes)
+IChunkReader::TAsyncReadBlocksResult TReplicationReader::ReadBlocks(const std::vector<int>& blockIndexes)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1056,7 +1056,7 @@ private:
 
 };
 
-IReader::TAsyncReadBlocksResult TReplicationReader::ReadBlocks(
+IChunkReader::TAsyncReadBlocksResult TReplicationReader::ReadBlocks(
     int firstBlockIndex,
     int blockCount)
 {
@@ -1222,7 +1222,7 @@ TReplicationReader::TAsyncGetMetaResult TReplicationReader::GetMeta(
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IReaderPtr CreateReplicationReader(
+IChunkReaderPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     IBlockCachePtr compressedBlockCache,
     NRpc::IChannelPtr masterChannel,

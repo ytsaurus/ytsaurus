@@ -95,7 +95,7 @@ private:
 
     int CurrentChunkIndex_ = -1;
     bool Finished_ = false;
-    IReaderPtr CurrentChunkReader_;
+    IChunkReaderPtr CurrentChunkReader_;
 
     // Inside current chunk.
     i64 BeginRowIndex_ = -1;

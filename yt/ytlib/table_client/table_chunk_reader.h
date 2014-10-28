@@ -57,7 +57,7 @@ public:
         TTableChunkReaderProviderPtr provider,
         NChunkClient::TSequentialReaderConfigPtr config,
         const NChunkClient::TChannel& channel,
-        NChunkClient::IReaderPtr chunkReader,
+        NChunkClient::IChunkReaderPtr chunkReader,
         NChunkClient::IBlockCachePtr uncompressedBlockCache,
         const NChunkClient::TReadLimit& startLimit,
         const NChunkClient::TReadLimit& endLimit,
@@ -192,7 +192,7 @@ public:
 
     TTableChunkReaderPtr CreateReader(
         const NChunkClient::NProto::TChunkSpec& chunkSpec,
-        NChunkClient::IReaderPtr chunkReader);
+        NChunkClient::IChunkReaderPtr chunkReader);
 
     void OnReaderOpened(
         TTableChunkReaderPtr reader,

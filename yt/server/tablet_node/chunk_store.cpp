@@ -65,11 +65,11 @@ static const TDuration ChunkReaderExpirationTimeout = TDuration::Seconds(15);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkStore::TLocalChunkReaderWrapper
-    : public NChunkClient::IReader
+    : public NChunkClient::IChunkReader
 {
 public:
     TLocalChunkReaderWrapper(
-        NChunkClient::IReaderPtr underlyingReader,
+        NChunkClient::IChunkReaderPtr underlyingReader,
         TChunkStorePtr owner)
         : UnderlyingReader_(std::move(underlyingReader))
         , Owner_(std::move(owner))
@@ -114,7 +114,7 @@ public:
     }
 
 private:
-    NChunkClient::IReaderPtr UnderlyingReader_;
+    NChunkClient::IChunkReaderPtr UnderlyingReader_;
     TChunkStorePtr Owner_;
 
     IInvokerPtr AutomatonInvoker_;
@@ -319,7 +319,7 @@ void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
         });
 }
 
-IChunkPtr TChunkStore::PrepareChunk()
+IChunkReaderPtr TChunkStore::PrepareChunk()
 {
     {
         TReaderGuard guard(ChunkLock_);
@@ -352,7 +352,7 @@ IChunkPtr TChunkStore::PrepareChunk()
     return chunk;
 }
 
-IReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
+IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkReaderPtr chunk)
 {
     {
         TReaderGuard guard(ChunkReaderLock_);
@@ -361,7 +361,7 @@ IReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
         }
     }
 
-    IReaderPtr chunkReader;
+    IChunkReaderPtr chunkReader;
     if (chunk) {
         auto localChunkReader = CreateLocalChunkReader(
             Bootstrap_,
@@ -397,7 +397,7 @@ IReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
     return chunkReader;
 }
 
-TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IReaderPtr chunkReader)
+TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IChunkReaderPtr chunkReader)
 {
     {
         TReaderGuard guard(CachedVersionedChunkMetaLock_);

@@ -17,7 +17,7 @@ using namespace NChunkClient;
 TFileChunkWriter::TFileChunkWriter(
     TFileChunkWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    IWriterPtr chunkWriter)
+    IChunkWriterPtr chunkWriter)
     : Config(config)
     , Options(options)
     , EncodingWriter(New<TEncodingWriter>(config, options, chunkWriter))
@@ -191,7 +191,7 @@ TFileChunkWriterProvider::TFileChunkWriterProvider(
     , ActiveWriters(0)
 { }
 
-TFileChunkWriterPtr TFileChunkWriterProvider::CreateChunkWriter(NChunkClient::IWriterPtr chunkWriter)
+TFileChunkWriterPtr TFileChunkWriterProvider::CreateChunkWriter(NChunkClient::IChunkWriterPtr chunkWriter)
 {
     YCHECK(ActiveWriters == 0);
     ++ActiveWriters;

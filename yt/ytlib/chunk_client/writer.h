@@ -5,16 +5,15 @@
 #include <core/misc/ref.h>
 #include <core/misc/error.h>
 
-#include <ytlib/chunk_client/chunk_meta.pb.h>
-#include <ytlib/chunk_client/chunk_info.pb.h>
+#include <core/actions/future.h>
 
 namespace NYT {
 namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! Provides a basic interface for uploading chunks to data nodes.
-struct IWriter
+//! Provides a basic interface for uploading chunks to a suitable target.
+struct IChunkWriter
     : public virtual TRefCounted
 {
     //! Starts a new upload session.
@@ -52,7 +51,7 @@ struct IWriter
 
 };
 
-DEFINE_REFCOUNTED_TYPE(IWriter)
+DEFINE_REFCOUNTED_TYPE(IChunkWriter)
 
 ///////////////////////////////////////////////////////////////////////////////
 

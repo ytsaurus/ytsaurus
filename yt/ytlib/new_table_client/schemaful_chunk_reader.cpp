@@ -56,7 +56,7 @@ class TChunkReader
 public:
     TChunkReader(
         TChunkReaderConfigPtr config,
-        NChunkClient::IReaderPtr chunkReader,
+        NChunkClient::IChunkReaderPtr chunkReader,
         IBlockCachePtr uncompressedBlockCache,
         const TReadLimit& lowerLimit,
         const TReadLimit& upperLimit,
@@ -76,7 +76,7 @@ private:
     };
 
     TChunkReaderConfigPtr Config;
-    NChunkClient::IReaderPtr ChunkReader;
+    NChunkClient::IChunkReaderPtr ChunkReader;
     IBlockCachePtr UncompressedBlockCache;
 
     TTableSchema Schema;
@@ -113,7 +113,7 @@ private:
 
 TChunkReader::TChunkReader(
     TChunkReaderConfigPtr config,
-    NChunkClient::IReaderPtr chunkReader,
+    NChunkClient::IChunkReaderPtr chunkReader,
     IBlockCachePtr uncompressedBlockCache,
     const TReadLimit& lowerLimit,
     const TReadLimit& upperLimit,
@@ -506,7 +506,7 @@ void TTableChunkReaderAdapter::ThrowIncompatibleType(const TColumnSchema& schema
 
 ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
-    NChunkClient::IReaderPtr chunkReader,
+    NChunkClient::IChunkReaderPtr chunkReader,
     IBlockCachePtr uncompressedBlockCache,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TReadLimit& lowerLimit,

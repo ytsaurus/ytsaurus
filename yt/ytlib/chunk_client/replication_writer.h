@@ -13,7 +13,7 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IWriterPtr CreateReplicationWriter(
+IChunkWriterPtr CreateReplicationWriter(
     TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
     const TChunkReplicaList& targets,

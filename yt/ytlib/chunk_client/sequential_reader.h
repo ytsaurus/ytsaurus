@@ -54,7 +54,7 @@ public:
     TSequentialReader(
         TSequentialReaderConfigPtr config,
         std::vector<TBlockInfo> blockInfos,
-        IReaderPtr chunkReader,
+        IChunkReaderPtr chunkReader,
         IBlockCachePtr uncompressedBlockCache,
         NCompression::ECodec codecId);
 
@@ -89,7 +89,7 @@ private:
     void OnGotBlocks(
         const std::vector<int>& windowIndexes,
         const std::vector<int>& blockIndexes,
-        IReader::TReadBlocksResult readResult);
+        IChunkReader::TReadBlocksResult readResult);
 
     void DecompressBlocks(
         const std::vector<int>& windowIndexes,
@@ -98,7 +98,7 @@ private:
 
     TSequentialReaderConfigPtr Config_;
     std::vector<TBlockInfo> BlockInfos_;
-    IReaderPtr ChunkReader_;
+    IChunkReaderPtr ChunkReader_;
     IBlockCachePtr UncompressedBlockCache_;
 
     struct TWindowSlot

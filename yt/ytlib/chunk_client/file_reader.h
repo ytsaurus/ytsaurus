@@ -14,7 +14,7 @@ namespace NChunkClient {
 
 //! Provides a local and synchronous implementation of IAsyncReader.
 class TFileReader
-    : public IReader
+    : public IChunkReader
 {
 public:
     //! Creates a new reader.

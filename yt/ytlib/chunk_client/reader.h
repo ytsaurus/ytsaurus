@@ -2,22 +2,18 @@
 
 #include "public.h"
 
-#include <core/misc/common.h>
 #include <core/misc/ref.h>
 #include <core/misc/error.h>
 
 #include <core/actions/future.h>
-
-#include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/chunk_meta.pb.h>
 
 namespace NYT {
 namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! A basic interface for readings chunks from a suitable source.
-struct IReader
+//! A basic interface for reading chunks from a suitable source.
+struct IChunkReader
     : public virtual TRefCounted
 {
     typedef TErrorOr<std::vector<TSharedRef>> TReadBlocksResult;
@@ -43,7 +39,7 @@ struct IReader
     virtual TChunkId GetChunkId() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IReader)
+DEFINE_REFCOUNTED_TYPE(IChunkReader)
 
 ///////////////////////////////////////////////////////////////////////////////
 

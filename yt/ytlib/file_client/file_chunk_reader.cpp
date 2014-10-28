@@ -21,7 +21,7 @@ static const auto& Logger = FileClientLogger;
 
 TFileChunkReader::TFileChunkReader(
     TSequentialReaderConfigPtr sequentialConfig,
-    NChunkClient::IReaderPtr chunkReader,
+    NChunkClient::IChunkReaderPtr chunkReader,
     IBlockCachePtr uncompressedBlockCache,
     NCompression::ECodec codecId,
     i64 startOffset,
@@ -50,7 +50,7 @@ TAsyncError TFileChunkReader::AsyncOpen()
     return State.GetOperationError();
 }
 
-void TFileChunkReader::OnGotMeta(NChunkClient::IReader::TGetMetaResult result)
+void TFileChunkReader::OnGotMeta(NChunkClient::IChunkReader::TGetMetaResult result)
 {
     if (!result.IsOK()) {
         auto error = TError("Failed to get file chunk meta") << result;
@@ -230,7 +230,7 @@ TFileChunkReaderProvider::TFileChunkReaderProvider(
 
 TFileChunkReaderPtr TFileChunkReaderProvider::CreateReader(
     const NChunkClient::NProto::TChunkSpec& chunkSpec,
-    NChunkClient::IReaderPtr chunkReader)
+    NChunkClient::IChunkReaderPtr chunkReader)
 {
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
 

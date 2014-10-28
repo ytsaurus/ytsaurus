@@ -27,7 +27,7 @@ public:
 
     TFileChunkReaderPtr CreateReader(
         const NChunkClient::NProto::TChunkSpec& chunkSpec,
-        NChunkClient::IReaderPtr chunkReader);
+        NChunkClient::IChunkReaderPtr chunkReader);
 
     void OnReaderOpened(
         TFileChunkReaderPtr reader,
@@ -71,7 +71,7 @@ public:
 
     TFileChunkReader(
         NChunkClient::TSequentialReaderConfigPtr sequentialConfig,
-        NChunkClient::IReaderPtr chunkReader,
+        NChunkClient::IChunkReaderPtr chunkReader,
         NChunkClient::IBlockCachePtr uncompressedBlockCache,
         NCompression::ECodec codecId,
         i64 startOffset,
@@ -92,7 +92,7 @@ public:
 
 private:
     NChunkClient::TSequentialReaderConfigPtr SequentialConfig;
-    NChunkClient::IReaderPtr ChunkReader;
+    NChunkClient::IChunkReaderPtr ChunkReader;
     NChunkClient::IBlockCachePtr UncompressedBlockCache;
     NCompression::ECodec CodecId;
     i64 StartOffset;
@@ -107,7 +107,7 @@ private:
     NLog::TLogger Logger;
 
     void OnNextBlock(TError error);
-    void OnGotMeta(NChunkClient::IReader::TGetMetaResult result);
+    void OnGotMeta(NChunkClient::IChunkReader::TGetMetaResult result);
 
 };
 

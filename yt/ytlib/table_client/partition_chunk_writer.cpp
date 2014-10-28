@@ -60,7 +60,7 @@ void TPartitionChunkWriterFacade::WriteRowUnsafe(
 TPartitionChunkWriter::TPartitionChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    NChunkClient::IWriterPtr chunkWriter,
+    NChunkClient::IChunkWriterPtr chunkWriter,
     IPartitioner* partitioner)
     : TChunkWriterBase(config, options, chunkWriter)
     , Partitioner(partitioner)
@@ -295,7 +295,7 @@ TPartitionChunkWriterProvider::TPartitionChunkWriterProvider(
     , DataStatistics(NChunkClient::NProto::ZeroDataStatistics())
 { }
 
-TPartitionChunkWriterPtr TPartitionChunkWriterProvider::CreateChunkWriter(NChunkClient::IWriterPtr chunkWriter)
+TPartitionChunkWriterPtr TPartitionChunkWriterProvider::CreateChunkWriter(NChunkClient::IChunkWriterPtr chunkWriter)
 {
     YCHECK(ActiveWriterCount == 0);
     if (CurrentWriter) {

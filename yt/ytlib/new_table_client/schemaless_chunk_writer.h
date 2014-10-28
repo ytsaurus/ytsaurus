@@ -28,7 +28,7 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     TChunkWriterOptionsPtr options,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    NChunkClient::IWriterPtr chunkWriter);
+    NChunkClient::IChunkWriterPtr chunkWriter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

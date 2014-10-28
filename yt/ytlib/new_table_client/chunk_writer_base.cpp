@@ -26,7 +26,7 @@ using namespace NProto;
 TChunkWriterBase::TChunkWriterBase(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    IWriterPtr asyncWriter,
+    IChunkWriterPtr asyncWriter,
     // We pass key columns here in order to use TChunkWriterBase and
     // TSortedChunkWriterBase as template base interchangably.
     const TKeyColumns& keyColumns)
@@ -191,7 +191,7 @@ i64 TChunkWriterBase::GetUncompressedSize() const
 TSortedChunkWriterBase::TSortedChunkWriterBase(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    NChunkClient::IWriterPtr chunkWriter,
+    NChunkClient::IChunkWriterPtr chunkWriter,
     TKeyColumns keyColumns)
     : TChunkWriterBase(config, options, chunkWriter, keyColumns)
 { }

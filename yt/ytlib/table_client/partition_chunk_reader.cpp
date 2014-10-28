@@ -38,7 +38,7 @@ TValue TPartitionChunkReaderFacade::ReadValue(const TStringBuf& name) const
 TPartitionChunkReader::TPartitionChunkReader(
     TPartitionChunkReaderProviderPtr provider,
     TSequentialReaderConfigPtr sequentialReader,
-    NChunkClient::IReaderPtr chunkReader,
+    NChunkClient::IChunkReaderPtr chunkReader,
     IBlockCachePtr uncompressedBlockCache,
     int partitionTag,
     NCompression::ECodec codecId)
@@ -71,7 +71,7 @@ TAsyncError TPartitionChunkReader::AsyncOpen()
     return State.GetOperationError();
 }
 
-void TPartitionChunkReader::OnGotMeta(IReader::TGetMetaResult result)
+void TPartitionChunkReader::OnGotMeta(IChunkReader::TGetMetaResult result)
 {
     if (!result.IsOK()) {
         OnFail(result);
@@ -266,7 +266,7 @@ TPartitionChunkReaderProvider::TPartitionChunkReaderProvider(
 
 TPartitionChunkReaderPtr TPartitionChunkReaderProvider::CreateReader(
     const NChunkClient::NProto::TChunkSpec& chunkSpec,
-    const NChunkClient::IReaderPtr chunkReader)
+    const NChunkClient::IChunkReaderPtr chunkReader)
 {
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
 

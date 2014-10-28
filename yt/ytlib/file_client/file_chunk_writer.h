@@ -38,7 +38,7 @@ public:
     TFileChunkWriter(
         TFileChunkWriterConfigPtr config,
         NChunkClient::TEncodingWriterOptionsPtr options,
-        NChunkClient::IWriterPtr chunkWriter);
+        NChunkClient::IChunkWriterPtr chunkWriter);
 
     ~TFileChunkWriter();
 
@@ -60,7 +60,7 @@ private:
     TFileChunkWriterConfigPtr Config;
     NChunkClient::TEncodingWriterOptionsPtr Options;
     NChunkClient::TEncodingWriterPtr EncodingWriter;
-    NChunkClient::IWriterPtr ChunkWriter;
+    NChunkClient::IChunkWriterPtr ChunkWriter;
 
     TFileChunkWriterFacade Facade;
     TBlob Buffer;
@@ -97,7 +97,7 @@ public:
         TFileChunkWriterConfigPtr config,
         NChunkClient::TEncodingWriterOptionsPtr options);
 
-    TFileChunkWriterPtr CreateChunkWriter(NChunkClient::IWriterPtr chunkWriter);
+    TFileChunkWriterPtr CreateChunkWriter(NChunkClient::IChunkWriterPtr chunkWriter);
     void OnChunkFinished();
     void OnChunkClosed(TFileChunkWriterPtr writer);
 

@@ -32,7 +32,7 @@ public:
     TVersionedChunkLookuper(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
-        IReaderPtr chunkReader,
+        IChunkReaderPtr chunkReader,
         IBlockCachePtr uncompressedBlockCache,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp)
@@ -95,7 +95,7 @@ public:
 private:
     TChunkReaderConfigPtr Config_;
     TCachedVersionedChunkMetaPtr ChunkMeta_;
-    IReaderPtr ChunkReader_;
+    IChunkReaderPtr ChunkReader_;
     IBlockCachePtr UncompressedBlockCache_;
     TTimestamp Timestamp_;
 
@@ -137,7 +137,7 @@ private:
     TErrorOr<TVersionedRow> OnBlockRead(
         TKey key,
         const TBlockId& blockId,
-        NChunkClient::IReader::TReadBlocksResult result)
+        NChunkClient::IChunkReader::TReadBlocksResult result)
     {
         if (!result.IsOK()) {
             return TError(result);
@@ -187,7 +187,7 @@ private:
 
 IVersionedLookuperPtr CreateVersionedChunkLookuper(
     TChunkReaderConfigPtr config,
-    IReaderPtr chunkReader,
+    IChunkReaderPtr chunkReader,
     IBlockCachePtr uncompressedBlockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
     const TColumnFilter& columnFilter,

@@ -37,11 +37,11 @@ protected:
     TChunkWriterBase(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
-        NChunkClient::IWriterPtr chunkWriter);
+        NChunkClient::IChunkWriterPtr chunkWriter);
 
     const TChunkWriterConfigPtr Config;
     const TChunkWriterOptionsPtr Options;
-    const NChunkClient::IWriterPtr ChunkWriter;
+    const NChunkClient::IChunkWriterPtr ChunkWriter;
 
     NChunkClient::TEncodingWriterPtr EncodingWriter;
 

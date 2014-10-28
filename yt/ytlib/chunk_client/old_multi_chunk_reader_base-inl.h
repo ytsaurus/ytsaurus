@@ -150,7 +150,7 @@ void TOldMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
         chunkIndex,
         chunkId);
 
-    IReaderPtr asyncReader;
+    IChunkReaderPtr asyncReader;
     if (IsErasureChunkId(chunkId)) {
         auto erasureCodecId = NErasure::ECodec(chunkSpec.erasure_codec());
         auto* erasureCodec = NErasure::GetCodec(erasureCodecId);

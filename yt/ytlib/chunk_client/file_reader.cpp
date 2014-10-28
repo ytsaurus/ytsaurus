@@ -65,7 +65,7 @@ void TFileReader::Open()
     Opened_ = true;
 }
 
-IReader::TAsyncReadBlocksResult TFileReader::ReadBlocks(const std::vector<int>& blockIndexes)
+IChunkReader::TAsyncReadBlocksResult TFileReader::ReadBlocks(const std::vector<int>& blockIndexes)
 {
     YCHECK(Opened_);
 
@@ -89,7 +89,7 @@ IReader::TAsyncReadBlocksResult TFileReader::ReadBlocks(const std::vector<int>& 
     }
 }
 
-IReader::TAsyncReadBlocksResult TFileReader::ReadBlocks(
+IChunkReader::TAsyncReadBlocksResult TFileReader::ReadBlocks(
     int firstBlockIndex,
     int blockCount)
 {
@@ -161,7 +161,7 @@ i64 TFileReader::GetFullSize() const
     return MetaSize_ + DataSize_;
 }
 
-IReader::TAsyncGetMetaResult TFileReader::GetMeta(
+IChunkReader::TAsyncGetMetaResult TFileReader::GetMeta(
     const TNullable<int>& partitionTag,
     const std::vector<int>* extensionTags)
 {

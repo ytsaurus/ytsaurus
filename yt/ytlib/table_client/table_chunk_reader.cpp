@@ -162,7 +162,7 @@ public:
     TRegularInitializer(
         TSequentialReaderConfigPtr config,
         TTableChunkReaderPtr tableReader,
-        NChunkClient::IReaderPtr chunkReader,
+        NChunkClient::IChunkReaderPtr chunkReader,
         IBlockCachePtr uncompressedBlockCache,
         const NChunkClient::TReadLimit& startLimit,
         const NChunkClient::TReadLimit& endLimit)
@@ -215,7 +215,7 @@ private:
         chunkReader->ReaderState.Fail(error);
     }
 
-    void OnGotMeta(NChunkClient::IReader::TGetMetaResult result)
+    void OnGotMeta(NChunkClient::IChunkReader::TGetMetaResult result)
     {
         auto chunkReader = TableReader.Lock();
         if (!chunkReader)
@@ -600,7 +600,7 @@ private:
 
 
     TSequentialReaderConfigPtr SequentialConfig;
-    NChunkClient::IReaderPtr ChunkReader;
+    NChunkClient::IChunkReaderPtr ChunkReader;
     IBlockCachePtr UncompressedBlockCache;
     TWeakPtr<TTableChunkReader> TableReader;
 
@@ -635,7 +635,7 @@ public:
     TPartitionInitializer(
         TSequentialReaderConfigPtr config,
         TTableChunkReaderPtr tableReader,
-        NChunkClient::IReaderPtr chunkReader,
+        NChunkClient::IChunkReaderPtr chunkReader,
         IBlockCachePtr uncompressedBlockCache)
         : SequentialConfig(config)
         , ChunkReader(std::move(chunkReader))
@@ -663,7 +663,7 @@ public:
                 .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
     }
 
-    void OnGotMeta(NChunkClient::IReader::TGetMetaResult result)
+    void OnGotMeta(NChunkClient::IChunkReader::TGetMetaResult result)
     {
         auto chunkReader = TableReader.Lock();
         if (!chunkReader)
@@ -735,7 +735,7 @@ public:
 
 
     TSequentialReaderConfigPtr SequentialConfig;
-    NChunkClient::IReaderPtr ChunkReader;
+    NChunkClient::IChunkReaderPtr ChunkReader;
     IBlockCachePtr UncompressedBlockCache;
     TWeakPtr<TTableChunkReader> TableReader;
     NLog::TLogger Logger;
@@ -749,7 +749,7 @@ TTableChunkReader::TTableChunkReader(
     TTableChunkReaderProviderPtr provider,
     TSequentialReaderConfigPtr config,
     const TChannel& channel,
-    NChunkClient::IReaderPtr chunkReader,
+    NChunkClient::IChunkReaderPtr chunkReader,
     IBlockCachePtr uncompressedBlockCache,
     const NChunkClient::TReadLimit& startLimit,
     const NChunkClient::TReadLimit& endLimit,
@@ -1041,7 +1041,7 @@ TTableChunkReaderProvider::TTableChunkReaderProvider(
 
 TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
     const NChunkClient::NProto::TChunkSpec& chunkSpec,
-    NChunkClient::IReaderPtr chunkReader)
+    NChunkClient::IChunkReaderPtr chunkReader)
 {
     return New<TTableChunkReader>(
         this,

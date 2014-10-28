@@ -405,7 +405,7 @@ private:
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
 
-        NChunkClient::IReaderPtr chunkReader;
+        NChunkClient::IChunkReaderPtr chunkReader;
         if (chunk) {
             LOG_DEBUG("Creating local reader for chunk split (ChunkId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v)",
                 chunkId,

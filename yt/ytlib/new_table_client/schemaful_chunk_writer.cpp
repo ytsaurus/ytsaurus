@@ -40,7 +40,7 @@ public:
     TChunkWriter(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
-        IWriterPtr chunkWriter);
+        IChunkWriterPtr chunkWriter);
 
     virtual TAsyncError Open(
         const TTableSchema& schema,
@@ -84,7 +84,7 @@ private:
 
     TChunkWriterConfigPtr Config;
     TEncodingWriterOptionsPtr Options;
-    IWriterPtr UnderlyingWriter;
+    IChunkWriterPtr UnderlyingWriter;
 
     std::vector<int> KeyIds;
     TNameTablePtr InputNameTable;
@@ -132,7 +132,7 @@ private:
 TChunkWriter::TChunkWriter(
     TChunkWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    IWriterPtr chunkWriter)
+    IChunkWriterPtr chunkWriter)
     : Config(config)
     , Options(options)
     , UnderlyingWriter(chunkWriter)
@@ -451,7 +451,7 @@ void TChunkWriter::FlushPreviousBlock()
 ISchemafulWriterPtr CreateSchemafulChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    NChunkClient::IWriterPtr chunkWriter)
+    NChunkClient::IChunkWriterPtr chunkWriter)
 {
     return New<TChunkWriter>(config, options, chunkWriter);
 }

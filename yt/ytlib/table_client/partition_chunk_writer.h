@@ -56,7 +56,7 @@ public:
     TPartitionChunkWriter(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
-        NChunkClient::IWriterPtr chunkWriter,
+        NChunkClient::IChunkWriterPtr chunkWriter,
         IPartitioner* partitioner);
 
     ~TPartitionChunkWriter();
@@ -105,7 +105,7 @@ public:
         TChunkWriterOptionsPtr options,
         IPartitioner* partitioner);
 
-    TPartitionChunkWriterPtr CreateChunkWriter(NChunkClient::IWriterPtr chunkWriter);
+    TPartitionChunkWriterPtr CreateChunkWriter(NChunkClient::IChunkWriterPtr chunkWriter);
     void OnChunkFinished();
     void OnChunkClosed(TPartitionChunkWriterPtr writer);
 

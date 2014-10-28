@@ -62,7 +62,7 @@ void TTableChunkWriterFacade::WriteRowUnsafe(const TRow& row)
 TTableChunkWriter::TTableChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    NChunkClient::IWriterPtr chunkWriter,
+    NChunkClient::IChunkWriterPtr chunkWriter,
     TOwningKey lastKey)
     : TChunkWriterBase(config, options, chunkWriter)
     , Facade(this)
@@ -543,7 +543,7 @@ TTableChunkWriterProvider::TTableChunkWriterProvider(
     BoundaryKeysExt.mutable_end();
 }
 
-TTableChunkWriterPtr TTableChunkWriterProvider::CreateChunkWriter(NChunkClient::IWriterPtr chunkWriter)
+TTableChunkWriterPtr TTableChunkWriterProvider::CreateChunkWriter(NChunkClient::IChunkWriterPtr chunkWriter)
 {
     YCHECK(FinishedWriterCount == CreatedWriterCount);
 

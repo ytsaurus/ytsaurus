@@ -30,13 +30,13 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnIdMapping>, SchemaIdMapping);
 
     static TFuture<TErrorOr<TCachedVersionedChunkMetaPtr>> Load(
-        NChunkClient::IReaderPtr asyncReader,
+        NChunkClient::IChunkReaderPtr asyncReader,
         const TTableSchema& schema,
         const TKeyColumns& keyColumns);
 
 private:
     TErrorOr<TCachedVersionedChunkMetaPtr> DoLoad(
-        NChunkClient::IReaderPtr chunkReader,
+        NChunkClient::IChunkReaderPtr chunkReader,
         const TTableSchema& readerSchema,
         const TKeyColumns& keyColumns);
 
