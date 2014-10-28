@@ -4,6 +4,8 @@
 
 #include <core/erasure/public.h>
 
+#include <core/rpc/public.h>
+
 #include <ytlib/node_tracker_client/public.h>
 
 namespace NYT {
