@@ -1,4 +1,3 @@
-from yt.zip import ZipFile
 from yt.wrapper.common import generate_uuid
 from yt.tools.convertion_tools import convert_to_erasure
 import yt.logger as logger
@@ -8,6 +7,7 @@ import os
 import json
 import shutil
 import tempfile
+import tarfile
 from copy import deepcopy
 
 class IncorrectRowCount(yt.YtError):
@@ -30,15 +30,16 @@ def _pack_module(module_name, output_dir):
     if module_path.endswith(".egg"):
         return module_path
     else:
-        zip_filename = os.path.join(output_dir, module_name + ".zip")
-        with ZipFile(zip_filename, "w") as zip:
-            for root, dirs, files in os.walk(module_path):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    assert file_path.startswith(module_path)
-                    destination = file_path[len(module_path):]
-                    zip.write(file_path, destination)
-        return zip_filename
+        archive_filename = os.path.join(output_dir, module_name + ".tar")
+        tar = tarfile.open(archive_filename, "w")
+        for root, dirs, files in os.walk(module_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                assert file_path.startswith(module_path)
+                destination = os.path.join(module_name, file_path[len(module_path):])
+                tar.add(os.path.realpath(file_path), destination)
+        tar.close()
+        return archive_filename
 
 def _pack_string(name, script, output_dir):
     filename = os.path.join(output_dir, name)
@@ -85,10 +86,10 @@ def _get_read_from_yt_command(yt_client, src, format, fastbone):
 
 def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pack=False):
     files = []
-    prepare_command = "export YT_TOKEN=$(cat yt_token)"
+    prepare_command = "export YT_TOKEN=$(cat yt_token)\n"
     if pack:
-        files = [_pack_module("dateutil", tmp_dir), _pack_module("yt", tmp_dir), _which("yt2")]
-        prepare_command += "\nunzip yt.zip -d yt >/dev/null\nunzip dateutil.zip -d dateutil >/dev/null"
+        files = [_pack_module("simplejson", tmp_dir), _pack_module("dateutil", tmp_dir), _pack_module("yt", tmp_dir), _which("yt2")]
+        prepare_command += "set -e\ntar xvf yt.tar >&2\ntar xvf simplejson.tar >&2\ntar xvf dateutil.tar >&2\n ls -la >&2\nset +e"
 
     read_command = _get_read_from_yt_command(yt_client, src, format, fastbone)
     files.append(_pack_string("read_from_yt.sh", _get_read_ranges_command(prepare_command, read_command), tmp_dir))
