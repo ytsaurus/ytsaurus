@@ -146,7 +146,7 @@ void TRecovery::SyncChangelog(IChangelogPtr changelog, int changelogId)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     THydraServiceProxy proxy(CellManager_->GetPeerChannel(EpochContext_->LeaderId));
-    proxy.SetDefaultTimeout(Config_->RpcTimeout);
+    proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
     auto req = proxy.LookupChangelog();
     req->set_changelog_id(changelogId);
@@ -242,7 +242,7 @@ void TRecovery::ReplayChangelog(IChangelogPtr changelog, int changelogId, int ta
         auto recordsData = changelog->Read(
             startRecordId,
             recordsNeeded,
-            Config_->MaxChangelogReadSize);
+            Config_->MaxChangelogRecordsPerRequest);
         int recordsRead = static_cast<int>(recordsData.size());
 
         LOG_INFO("Finished reading records %v-%v from changelog %v",

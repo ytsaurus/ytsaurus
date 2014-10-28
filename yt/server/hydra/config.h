@@ -114,25 +114,6 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStoreConfig)
 
-class TSnapshotDownloaderConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    TDuration RpcTimeout;
-    i64 BlockSize;
-
-    TSnapshotDownloaderConfig()
-    {
-        RegisterParameter("rpc_timeout", RpcTimeout)
-            .Default(TDuration::Seconds(10));
-        RegisterParameter("block_size", BlockSize)
-            .GreaterThan(0)
-            .Default((i64) 32 * 1024 * 1024);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TSnapshotDownloaderConfig)
-
 class TRemoteChangelogStoreConfig
     : public NYTree::TYsonSerializable
 {
@@ -151,49 +132,42 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStoreConfig)
 
-class TChangelogDownloaderConfig
-    : public NYTree::TYsonSerializable
+class TDistributedHydraManagerConfig
+    : public NElection::TElectionManagerConfig
 {
 public:
-    TDuration RpcTimeout;
-    int RecordsPerRequest;
+    //! Commit RPC requests timeout (leader-to-follower commit propagation).
+    TDuration CommitRpcTimeout;
 
-    TChangelogDownloaderConfig()
-    {
-        RegisterParameter("read_timeout", RpcTimeout)
-            .Default(TDuration::Seconds(10));
-        RegisterParameter("records_per_request", RecordsPerRequest)
-            .GreaterThan(0)
-            .Default(64 * 1024);
-    }
-};
+    //! Backoff time for unrecoverable errors causing restart.
+    TDuration RestartBackoffTime;
 
-DEFINE_REFCOUNTED_TYPE(TChangelogDownloaderConfig)
+    //! Maximum time allotted to construct a snapshot.
+    TDuration SnapshotBuildTimeout;
 
-class TFollowerTrackerConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    TDuration PingInterval;
-    TDuration RpcTimeout;
+    //! Maximum time interval between consequent snapshots.
+    TDuration SnapshotBuildPeriod;
 
-    TFollowerTrackerConfig()
-    {
-        RegisterParameter("ping_interval", PingInterval)
-            .Default(TDuration::MilliSeconds(1000));
-        RegisterParameter("rpc_timeout", RpcTimeout)
-            .Default(TDuration::MilliSeconds(1000));
-    }
-};
+    //! Generic timeout for RPC calls during changelog download.
+    TDuration ChangelogDownloadRpcTimeout;
 
-DEFINE_REFCOUNTED_TYPE(TFollowerTrackerConfig)
+    //! Maximum number of bytes to read from a changelog at once.
+    i64 MaxChangelogBytesPerRequest;
 
-class TLeaderCommitterConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    TDuration MaxBatchDelay;
-    int MaxBatchSize;
+    //! Maximum number of records to read from a changelog at once.
+    int MaxChangelogRecordsPerRequest;
+
+    //! Generic timeout for RPC calls during snapshot download.
+    TDuration SnapshotDownloadRpcTimeout;
+
+    //! Block size used during snapshot download.
+    i64 SnapshotDownloadBlockSize;
+
+    //! Maximum time to wait before flushing the current batch.
+    TDuration MaxCommitBatchDelay;
+
+    //! Maximum number of records to collect before flushing the current batch.
+    int MaxCommitBatchRecordCount;
 
     //! Changelog record count limit.
     /*!
@@ -208,76 +182,45 @@ public:
      */
     i64 MaxChangelogDataSize;
 
-    //! Maximum time interval between consequent snapshots.
-    TDuration AutoSnapshotPeriod;
-
-
-    TLeaderCommitterConfig()
+    TDistributedHydraManagerConfig()
     {
-        RegisterParameter("max_batch_delay", MaxBatchDelay)
+        RegisterParameter("commit_rpc_timeout", CommitRpcTimeout)
+            .Default(TDuration::Seconds(30));
+
+        RegisterParameter("restart_backoff_time", RestartBackoffTime)
+            .Default(TDuration::Seconds(5));
+
+        RegisterParameter("snapshot_build_timeout", SnapshotBuildTimeout)
+            .Default(TDuration::Minutes(5));
+        RegisterParameter("snapshot_build_period", SnapshotBuildPeriod)
+            .Default(TDuration::Minutes(60));
+
+        RegisterParameter("changelog_download_rpc_timeout", ChangelogDownloadRpcTimeout)
+            .Default(TDuration::Seconds(10));
+        RegisterParameter("max_changelog_records_per_request", MaxChangelogRecordsPerRequest)
+            .GreaterThan(0)
+            .Default(64 * 1024);
+        RegisterParameter("max_changelog_bytes_per_request", MaxChangelogBytesPerRequest)
+            .GreaterThan(0)
+            .Default((i64) 128 * 1024 * 1024);
+
+        RegisterParameter("snapshot_download_rpc_timeout", SnapshotDownloadRpcTimeout)
+            .Default(TDuration::Seconds(10));
+        RegisterParameter("snapshot_download_block_size", SnapshotDownloadBlockSize)
+            .GreaterThan(0)
+            .Default((i64) 32 * 1024 * 1024);
+
+        RegisterParameter("max_commmit_batch_delay", MaxCommitBatchDelay)
             .Default(TDuration::MilliSeconds(10));
-        RegisterParameter("max_batch_size", MaxBatchSize)
+        RegisterParameter("max_commit_batch_record_count", MaxCommitBatchRecordCount)
             .Default(10000);
+
         RegisterParameter("max_changelog_record_count", MaxChangelogRecordCount)
             .Default(1000000)
             .GreaterThan(0);
         RegisterParameter("max_changelog_data_size", MaxChangelogDataSize)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
-        RegisterParameter("auto_snapshot_period", AutoSnapshotPeriod)
-            .Default(TDuration::Minutes(60));
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TLeaderCommitterConfig)
-
-class TDistributedHydraManagerConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    //! Default timeout for control RPC requests.
-    TDuration RpcTimeout;
-
-    //! Maximum time allotted to construct a snapshot.
-    TDuration SnapshotTimeout;
-
-    //! Backoff time for unrecoverable internal errors.
-    TDuration BackoffTime;
-
-    //! Maximum number of bytes to read from a changelog at once.
-    i64 MaxChangelogReadSize;
-
-    NElection::TElectionManagerConfigPtr Elections;
-
-    TChangelogDownloaderConfigPtr ChangelogDownloader;
-
-    TSnapshotDownloaderConfigPtr SnapshotDownloader;
-
-    TFollowerTrackerConfigPtr FollowerTracker;
-
-    TLeaderCommitterConfigPtr LeaderCommitter;
-
-    TDistributedHydraManagerConfig()
-    {
-        RegisterParameter("rpc_timeout", RpcTimeout)
-            .Default(TDuration::Seconds(3));
-        RegisterParameter("snapshot_timeout", SnapshotTimeout)
-            .Default(TDuration::Minutes(5));
-        RegisterParameter("backoff_time", BackoffTime)
-            .Default(TDuration::Seconds(5));
-        RegisterParameter("max_changelog_read_size", MaxChangelogReadSize)
-            .Default((i64) 128 * 1024 * 1024)
-            .GreaterThan(0);
-        RegisterParameter("elections", Elections)
-            .DefaultNew();
-        RegisterParameter("changelog_downloader", ChangelogDownloader)
-            .DefaultNew();
-        RegisterParameter("snapshot_downloader", SnapshotDownloader)
-            .DefaultNew();
-        RegisterParameter("follower_tracker", FollowerTracker)
-            .DefaultNew();
-        RegisterParameter("leader_committer", LeaderCommitter)
-            .DefaultNew();
     }
 };
 

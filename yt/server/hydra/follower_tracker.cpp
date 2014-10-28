@@ -15,7 +15,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFollowerTracker::TFollowerTracker(
-    TFollowerTrackerConfigPtr config,
+    TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext)
@@ -90,7 +90,7 @@ void TFollowerTracker::SendPing(TPeerId followerId)
         EpochContext_->EpochId);
 
     THydraServiceProxy proxy(channel);
-    proxy.SetDefaultTimeout(Config_->RpcTimeout);
+    proxy.SetDefaultTimeout(Config_->FollowerPingRpcTimeout);
 
     auto req = proxy.PingFollower();
     ToProto(req->mutable_epoch_id(), EpochContext_->EpochId);
@@ -108,7 +108,7 @@ void TFollowerTracker::SchedulePing(TPeerId followerId)
     TDelayedExecutor::Submit(
         BIND(&TFollowerTracker::SendPing, MakeStrong(this), followerId)
             .Via(EpochContext_->EpochControlInvoker),
-        Config_->PingInterval);
+        Config_->FollowerPingPeriod);
 }
 
 void TFollowerTracker::OnPingResponse(TPeerId followerId, THydraServiceProxy::TRspPingFollowerPtr rsp)

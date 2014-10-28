@@ -69,11 +69,11 @@ public:
         auto cellManager = New<TCellManager>(cellConfig, ChannelFactory, selfId);
 
         auto electionConfig = New<TElectionManagerConfig>();
-        electionConfig->RpcTimeout = RpcTimeout;
-        electionConfig->VotingRoundInterval = TDuration::MilliSeconds(10);
-        electionConfig->FollowerPingTimeout = TDuration::MilliSeconds(60);
-        electionConfig->FollowerGracePeriod = TDuration::MilliSeconds(30);
-        electionConfig->FollowerPingInterval = TDuration::MilliSeconds(50);
+        electionConfig->ControlRpcTimeout = RpcTimeout;
+        electionConfig->VotingRoundPeriod = TDuration::MilliSeconds(10);
+        electionConfig->FollowerPingRpcTimeout = TDuration::MilliSeconds(60);
+        electionConfig->FollowerGraceTimeout = TDuration::MilliSeconds(30);
+        electionConfig->FollowerPingPeriod = TDuration::MilliSeconds(50);
         ElectionManager = New<TElectionManager>(
             electionConfig,
             cellManager,

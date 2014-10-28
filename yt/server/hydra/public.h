@@ -42,11 +42,7 @@ DECLARE_REFCOUNTED_CLASS(TFileChangelogConfig)
 DECLARE_REFCOUNTED_CLASS(TFileChangelogStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TLocalSnapshotStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStoreConfig)
-DECLARE_REFCOUNTED_CLASS(TSnapshotDownloaderConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreConfig)
-DECLARE_REFCOUNTED_CLASS(TChangelogDownloaderConfig)
-DECLARE_REFCOUNTED_CLASS(TFollowerTrackerConfig)
-DECLARE_REFCOUNTED_CLASS(TLeaderCommitterConfig)
 DECLARE_REFCOUNTED_CLASS(TDistributedHydraManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////

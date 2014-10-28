@@ -175,7 +175,7 @@ private:
         LOG_DEBUG("Sending ping to follower %v", peerId);
 
         TElectionServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Owner->Config->RpcTimeout);
+        proxy.SetDefaultTimeout(Owner->Config->ControlRpcTimeout);
 
         auto request = proxy.PingFollower();
         request->set_leader_id(Owner->CellManager->GetSelfPeerId());
@@ -194,7 +194,7 @@ private:
         TDelayedExecutor::Submit(
             BIND(&TFollowerPinger::SendPing, MakeWeak(this), id)
                 .Via(Owner->ControlEpochInvoker),
-            Owner->Config->FollowerPingInterval);
+            Owner->Config->FollowerPingPeriod);
     }
 
     void OnPingResponse(TPeerId id, TElectionServiceProxy::TRspPingFollowerPtr response)
@@ -240,7 +240,7 @@ private:
                         id);
                 }
             } else {
-                if (TInstant::Now() > Owner->EpochContext->StartTime + Owner->Config->FollowerGracePeriod) {
+                if (TInstant::Now() > Owner->EpochContext->StartTime + Owner->Config->FollowerGraceTimeout) {
                     LOG_WARNING(error, "Error pinging follower %v, no success within grace period, considered down",
                         id);
                     Owner->PotentialFollowers.erase(id);
@@ -317,7 +317,7 @@ public:
                 continue;
 
             TElectionServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Owner->Config->RpcTimeout);
+            proxy.SetDefaultTimeout(Owner->Config->ControlRpcTimeout);
 
             auto request = proxy.GetStatus();
             Awaiter->Await(
@@ -755,7 +755,7 @@ void TElectionManager::TImpl::StartVotingRound()
     TDelayedExecutor::Submit(
         BIND(&TVotingRound::Run, round)
             .Via(ControlEpochInvoker),
-        Config->VotingRoundInterval);
+        Config->VotingRoundPeriod);
 }
 
 void TElectionManager::TImpl::StartFollowing(
@@ -773,7 +773,7 @@ void TElectionManager::TImpl::StartFollowing(
     PingTimeoutCookie = TDelayedExecutor::Submit(
         BIND(&TImpl::OnFollowerPingTimeout, MakeWeak(this))
             .Via(ControlEpochInvoker),
-        Config->ReadyToFollowTimeout);
+        Config->LeaderLeaseTimeout);
 
     LOG_INFO("Started following (LeaderId: %v, EpochId: %v)",
         EpochContext->LeaderId,
@@ -916,11 +916,10 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
     }
 
     TDelayedExecutor::Cancel(PingTimeoutCookie);
-
     PingTimeoutCookie = TDelayedExecutor::Submit(
         BIND(&TImpl::OnFollowerPingTimeout, MakeWeak(this))
             .Via(ControlEpochInvoker),
-        Config->FollowerPingTimeout);
+        Config->LeaderLeaseTimeout);
 
     context->Reply();
 }

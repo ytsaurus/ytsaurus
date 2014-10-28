@@ -819,7 +819,7 @@ void TObjectProxyBase::ForwardToLeader(IServiceContextPtr context)
     // TODO(babenko): timeout?
     // TODO(babenko): prerequisite transactions?
     // TODO(babenko): authenticated user?
-    proxy.SetDefaultTimeout(Bootstrap->GetConfig()->HydraManager->RpcTimeout);
+    proxy.SetDefaultTimeout(Bootstrap->GetConfig()->HydraManager->ControlRpcTimeout);
     auto batchReq = proxy.ExecuteBatch();
     batchReq->AddRequestMessage(updatedRequestMessage);
     batchReq->Invoke().Subscribe(

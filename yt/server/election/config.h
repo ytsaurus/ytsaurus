@@ -13,32 +13,26 @@ class TElectionManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TDuration VotingRoundInterval;
-    TDuration RpcTimeout;
-    TDuration FollowerPingInterval;
-    TDuration FollowerPingTimeout;
-    TDuration ReadyToFollowTimeout;
-    TDuration FollowerGracePeriod;
+    TDuration VotingRoundPeriod;
+    TDuration ControlRpcTimeout;
+    TDuration FollowerPingPeriod;
+    TDuration FollowerPingRpcTimeout;
+    TDuration LeaderLeaseTimeout;
+    TDuration FollowerGraceTimeout;
 
     TElectionManagerConfig()
     {
-        RegisterParameter("voting_round_interval", VotingRoundInterval)
-            .GreaterThan(TDuration())
+        RegisterParameter("voting_round_period", VotingRoundPeriod)
             .Default(TDuration::MilliSeconds(100));
-        RegisterParameter("rpc_timeout", RpcTimeout)
-            .GreaterThan(TDuration())
+        RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
             .Default(TDuration::MilliSeconds(1000));
-        RegisterParameter("follower_ping_interval", FollowerPingInterval)
-            .GreaterThan(TDuration())
+        RegisterParameter("follower_ping_period", FollowerPingPeriod)
             .Default(TDuration::MilliSeconds(1000));
-        RegisterParameter("follower_ping_timeout", FollowerPingTimeout)
-            .GreaterThan(TDuration())
+        RegisterParameter("follower_ping_rpc_timeout", FollowerPingRpcTimeout)
             .Default(TDuration::MilliSeconds(5000));
-        RegisterParameter("ready_to_follow_timeout", ReadyToFollowTimeout)
-            .GreaterThan(TDuration())
+        RegisterParameter("leader_lease_timeout", LeaderLeaseTimeout)
             .Default(TDuration::MilliSeconds(5000));
-        RegisterParameter("follower_grace_period", FollowerGracePeriod)
-            .GreaterThan(TDuration())
+        RegisterParameter("follower_grace_timeout", FollowerGraceTimeout)
             .Default(TDuration::MilliSeconds(5000));
     }
 };

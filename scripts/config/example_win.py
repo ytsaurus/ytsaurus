@@ -147,9 +147,7 @@ class Holder(WinNode, Server):
                 'tablet_manager' : {
                 },
                 'hydra_manager' : {
-                    'leader_committer' : {
-                        'max_changelog_record_count' : 10
-                    }
+                    'max_changelog_record_count' : 10
                 }
             },
             'rpc_port' : r'%(port)d',

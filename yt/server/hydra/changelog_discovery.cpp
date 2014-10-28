@@ -72,7 +72,7 @@ public:
             LOG_INFO("Requesting changelog info from peer %v", peerId);
 
             THydraServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Config->RpcTimeout);
+            proxy.SetDefaultTimeout(Config->ControlRpcTimeout);
 
             auto req = proxy.LookupChangelog();
             req->set_changelog_id(ChangelogInfo.ChangelogId);

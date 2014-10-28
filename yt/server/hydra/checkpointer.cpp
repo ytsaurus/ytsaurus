@@ -116,7 +116,7 @@ private:
             LOG_DEBUG("Requesting follower %v to build a snapshot", peerId);
 
             THydraServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Owner_->Config_->SnapshotTimeout);
+            proxy.SetDefaultTimeout(Owner_->Config_->SnapshotBuildTimeout);
 
             auto req = proxy.BuildSnapshot();
             ToProto(req->mutable_epoch_id(), Owner_->EpochContext_->EpochId);
@@ -219,7 +219,7 @@ private:
             LOG_DEBUG("Requesting follower %v to rotate the changelog", peerId);
 
             THydraServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Owner_->Config_->RpcTimeout);
+            proxy.SetDefaultTimeout(Owner_->Config_->ControlRpcTimeout);
 
             auto req = proxy.RotateChangelog();
             ToProto(req->mutable_epoch_id(), Owner_->EpochContext_->EpochId);

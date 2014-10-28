@@ -19,7 +19,7 @@ class TFollowerTracker
 {
 public:
     TFollowerTracker(
-        TFollowerTrackerConfigPtr config,
+        TDistributedHydraManagerConfigPtr config,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext);
@@ -33,7 +33,7 @@ public:
     TFuture<void> GetActiveQuorum();
 
 private:
-    TFollowerTrackerConfigPtr Config_;
+    TDistributedHydraManagerConfigPtr Config_;
     NElection::TCellManagerPtr CellManager_;
     TDecoratedAutomatonPtr DecoratedAutomaton_;
     TEpochContext* EpochContext_;

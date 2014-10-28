@@ -145,7 +145,7 @@ public:
             Profiler);
 
         ElectionManager_ = New<TElectionManager>(
-            Config_->Elections,
+            Config_,
             CellManager_,
             controlInvoker,
             New<TElectionCallbacks>(this),
@@ -447,7 +447,7 @@ private:
         auto recordsData = changelog->Read(
             startRecordId,
             recordCount,
-            Config_->MaxChangelogReadSize);
+            Config_->MaxChangelogBytesPerRequest);
 
         // Pack refs to minimize allocations.
         context->Response().Attachments().push_back(PackRefs(recordsData));
@@ -794,7 +794,7 @@ private:
                 break;
             } catch (const std::exception& ex) {
                 LOG_WARNING(ex, "Error computing reachable version, backing off and retrying");
-                WaitFor(MakeDelayed(Config_->BackoffTime));
+                WaitFor(MakeDelayed(Config_->RestartBackoffTime));
             }
         }
 
@@ -872,7 +872,7 @@ private:
         auto* epochContext = ControlEpochContext_.Get();
 
         epochContext->FollowerTracker = New<TFollowerTracker>(
-            Config_->FollowerTracker,
+            Config_,
             CellManager_,
             DecoratedAutomaton_,
             epochContext);
@@ -977,7 +977,7 @@ private:
             LeaderActive_.Fire();
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Leader recovery failed, backing off and restarting");
-            WaitFor(MakeDelayed(Config_->BackoffTime));
+            WaitFor(MakeDelayed(Config_->RestartBackoffTime));
             Restart();
         }
     }
@@ -1066,7 +1066,7 @@ private:
             FollowerRecoveryComplete_.Fire();
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Follower recovery failed, backing off and restarting");
-            WaitFor(MakeDelayed(Config_->BackoffTime));
+            WaitFor(MakeDelayed(Config_->RestartBackoffTime));
             Restart();
         }
     }

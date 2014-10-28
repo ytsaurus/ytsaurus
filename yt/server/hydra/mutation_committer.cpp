@@ -122,7 +122,7 @@ public:
                 LOG_DEBUG("Sending mutations to follower %v", followerId);
 
                 THydraServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(Owner_->Config_->RpcTimeout);
+                proxy.SetDefaultTimeout(Owner_->Config_->ControlRpcTimeout);
 
                 auto committedVersion = Owner_->DecoratedAutomaton_->GetAutomatonVersion();
 
@@ -330,8 +330,8 @@ TFuture< TErrorOr<TMutationResponse> > TLeaderCommitter::Commit(const TMutationR
         std::move(recordData),
         std::move(localFlushResult));
 
-    if (version.RecordId + 1 >= Config_->LeaderCommitter->MaxChangelogRecordCount ||
-        DecoratedAutomaton_->GetLoggedDataSize() > Config_->LeaderCommitter->MaxChangelogDataSize)
+    if (version.RecordId + 1 >= Config_->MaxChangelogRecordCount ||
+        DecoratedAutomaton_->GetLoggedDataSize() > Config_->MaxChangelogDataSize)
     {
         CheckpointNeeded_.Fire();
     }
@@ -403,7 +403,7 @@ void TLeaderCommitter::AddToBatch(
     TGuard<TSpinLock> guard(BatchSpinLock_);
     auto batch = GetOrCreateBatch(version);
     batch->AddMutation(recordData, std::move(localFlushResult));
-    if (batch->GetMutationCount() >= Config_->LeaderCommitter->MaxBatchSize) {
+    if (batch->GetMutationCount() >= Config_->MaxCommitBatchRecordCount) {
         FlushCurrentBatch();
     }
 }
@@ -436,7 +436,7 @@ TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(TVersion version)
         BatchTimeoutCookie_ = TDelayedExecutor::Submit(
             BIND(&TLeaderCommitter::OnBatchTimeout, MakeWeak(this), CurrentBatch_)
                 .Via(EpochContext_->EpochControlInvoker),
-            Config_->LeaderCommitter->MaxBatchDelay);
+            Config_->MaxCommitBatchDelay);
     }
 
     return CurrentBatch_;
@@ -470,7 +470,7 @@ void TLeaderCommitter::OnAutoCheckpointCheck()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (EpochContext_->IsActiveLeader &&
-        TInstant::Now() > DecoratedAutomaton_->GetLastSnapshotTime() + Config_->LeaderCommitter->AutoSnapshotPeriod)
+        TInstant::Now() > DecoratedAutomaton_->GetLastSnapshotTime() + Config_->SnapshotBuildPeriod)
     {
         CheckpointNeeded_.Fire();
     }

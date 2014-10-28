@@ -223,7 +223,7 @@ private:
 
     virtual TDuration GetTimeout() const override
     {
-        return Owner_->Config_->SnapshotTimeout;
+        return Owner_->Config_->SnapshotBuildTimeout;
     }
 
     virtual void Build() override
