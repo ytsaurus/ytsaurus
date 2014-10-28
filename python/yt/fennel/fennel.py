@@ -29,6 +29,7 @@ import time
 import sys
 import gzip
 import StringIO
+import collections
 
 
 DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
@@ -603,16 +604,6 @@ class PushChannel(object):
             self._io_loop.add_timeout(datetime.timedelta(seconds=1), self.connect)
 
 
-class PushSession(object):
-    def __init__(self):
-        pass
-
-    def connect(self, endpoint, timeout=None):
-        pass
-
-    def write(self, data):
-        pass
-
 class Session(object):
     log = logging.getLogger("session")
 
@@ -782,6 +773,9 @@ class BadProtocol(RuntimeError):
     pass
 
 
+SessionMessage = collections.namedtuple("SessionMessage", ["type", "attributes"])
+
+
 class SessionStream(object):
     log = logging.getLogger("SessionStream")
 
@@ -803,7 +797,7 @@ class SessionStream(object):
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
                 self._iostream = self.IOStreamClass(s, io_loop=self._io_loop)
 
-                self.log.info("Connect to kafka %s", endpoint)
+                self.log.info("Create a session. Endpoint: %s", endpoint)
                 connect_future = self._iostream.connect(endpoint)
                 self._iostream.write(
                     "GET /rt/session?"
@@ -820,7 +814,7 @@ class SessionStream(object):
                     )
                 connection = yield connect_future
 
-                self.log.info("The session channel has been created")
+                self.log.info("The session stream has been created")
                 metadata_raw = yield self._iostream.read_until("\r\n\r\n", max_bytes=1024*1024)
 
                 self.log.debug("Parse response %s", metadata_raw)
@@ -852,7 +846,7 @@ class SessionStream(object):
                 key, value = line.split(":", 1)
                 if key.strip() == "Session":
                     self._id = value.strip()
-                    self.log.info("[%d] Session id: %s", id(self), self._id)
+                    self.log.info("Session id: %s", self._id)
                     return True
         return False
 
@@ -873,13 +867,95 @@ class SessionStream(object):
             else:
                 data = yield self._iostream.read_bytes(body_size + 2)
                 self.log.debug("Process status: %s", data.strip())
-                raise gen.Return(data.strip())
+                raise gen.Return(self._parse(data.strip()))
         except gen.Return:
+            raise
+        except BadProtocol:
             raise
         except:
             if self._iostream is not None:
                 self._iostream.close()
                 self._iostream = None
+
+    def _parse(self, line):
+        if line.startswith("ping"):
+            return SessionMessage("ping", {})
+        elif line.startswith("eof"):
+            return SessionMessage("eof", {})
+
+        attributes = {}
+        records = line.split()
+
+        if records[0] == "skip":
+            type_ = records[0]
+            records = records[1:]
+        else:
+            type_ = "ack"
+
+        for record in records[1:]:
+            try:
+                key, value = record.split("=", 1)
+                value = int(value)
+            except ValueError:
+                raise BadProtocol()
+            else:
+                attributes[key] = value
+        return SessionMessage(type_, attributes)
+
+
+
+class PushStream(object):
+    log = logging.getLogger("PushStream")
+
+    def __init__(self, io_loop=None, IOStreamClass=None):
+        self._iostream = None
+        self._session_id = None
+
+        self._io_loop = io_loop or ioloop.IOLoop.instance()
+        self.IOStreamClass = IOStreamClass or iostream.IOStream
+
+    @gen.coroutine
+    def connect(self, endpoint, session_id, timeout=None):
+        self._session_id = session_id
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+        self._iostream = self.IOStreamClass(s, io_loop=self._io_loop)
+
+        self.log.info("Create a push channel for session %s. Endpoint: %s", self._session_id, endpoint)
+        connect_future = self._iostream.connect(endpoint)
+        self._iostream.write(
+            "PUT /rt/store HTTP/1.1\r\n"
+            "Host: {host}\r\n"
+            "Content-Type: text/plain\r\n"
+            "Content-Encoding: gzip\r\n"
+            "Transfer-Encoding: chunked\r\n"
+            "RTSTreamFormat: v2le\r\n"
+            "Session: {session_id}\r\n"
+            "\r\n".format(
+                host=endpoint[0],
+                session_id=self._session_id)
+            )
+        connection = yield connect_future
+
+        self.log.info("The push stream for session %s has been created", self._session_id)
+
+        self._iostream.read_until_close(callback=self._post_close, streaming_callback=self._dump_output)
+        raise gen.Return()
+
+    def write_chunk(self, serialized_data):
+        return self.write("{size:X}\r\n{data}\r\n".format(size=len(serialized_data), data=serialized_data))
+
+    def write(self, data):
+        self.log.debug("Write to push stream for session %s %d bytes", self._session_id, len(data))
+        return self._iostream.write(data)
+
+    def _dump_output(self, data):
+        self.log.debug("Received data from push stream for session %s: %s", self._session_id, data)
+
+    def _post_close(self, data):
+        if data:
+            self.log.debug("Received data from push stream for session %s: %s", self._session_id, data)
+        self.log.debug("The push stream for session %s was closed", self._session_id)
 
 
 def main(table_name, proxy_path, service_id, source_id, chunk_size, ack_queue_length, advicer_url, cluster_name, logtype, **kwargs):

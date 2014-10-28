@@ -12,6 +12,7 @@ import unittest
 import subprocess
 import functools
 import logging
+import uuid
 import sys
 import inspect
 
@@ -347,6 +348,107 @@ class TestSessionStream(testing.AsyncTestCase):
         assert message == "ping"
 
 
+class TestIntegration(testing.AsyncTestCase):
+    hostname = "kafka01ft.stat.yandex.net"
+    service_id = "fenneltest"
+
+    def setUp(self):
+        super(TestIntegration, self).setUp()
+        self.init()
+        self.wait()
+
+    @gen.coroutine
+    def init(self):
+        self.source_id = uuid.uuid4().hex
+
+        self.s = fennel.SessionStream(service_id=self.service_id, source_id=self.source_id, io_loop=self.io_loop)
+        session_id = yield self.s.connect((self.hostname, 80))
+        assert session_id is not None
+
+        self.p = fennel.PushStream(io_loop=self.io_loop)
+        yield self.p.connect((self.hostname, 9000), session_id=session_id)
+        self.stop()
+
+    def write_chunk(self, seqno):
+        data = [{}]
+        serialized_data = fennel.serialize_chunk(0, seqno, 0, data)
+        return self.p.write_chunk(serialized_data)
+
+    @testing.gen_test
+    def test_basic(self):
+        yield self.write_chunk(1)
+
+        message = None
+        while message is None or message.type == "ping":
+            message = yield self.s.read_message()
+        assert message.type == "ack"
+        assert message.attributes["seqno"] == 1
+
+    @testing.gen_test
+    def test_two_consecutive(self):
+        yield self.write_chunk(1)
+        yield self.write_chunk(2)
+
+        acked_seqno = 0
+        while acked_seqno < 2:
+            message = None
+            while message is None or message.type == "ping":
+                message = yield self.s.read_message()
+            assert message.type == "ack"
+            acked_seqno = message.attributes["seqno"]
+        assert acked_seqno == 2
+
+    @testing.gen_test
+    def test_two_non_consecutive(self):
+        yield self.write_chunk(10)
+        yield self.write_chunk(20)
+
+        acked_seqno = 0
+        while acked_seqno < 20:
+            message = None
+            while message is None or message.type == "ping":
+                message = yield self.s.read_message()
+            assert message.type == "ack"
+            acked_seqno = message.attributes["seqno"]
+        assert acked_seqno == 20
+
+    @testing.gen_test
+    def test_two_unordered(self):
+        yield self.write_chunk(20)
+
+        message = None
+        while message is None or message.type == "ping":
+            message = yield self.s.read_message()
+        assert message.type == "ack"
+        assert message.attributes["seqno"] == 20
+
+        yield self.write_chunk(10)
+
+        message = None
+        while message is None or message.type == "ping":
+            message = yield self.s.read_message()
+        assert message.type == "skip"
+        assert message.attributes["seqno"] == 10
+
+    @testing.gen_test
+    def test_two_equal(self):
+        yield self.write_chunk(20)
+
+        message = None
+        while message is None or message.type == "ping":
+            message = yield self.s.read_message()
+        assert message.type == "ack"
+        assert message.attributes["seqno"] == 20
+
+        yield self.write_chunk(20)
+
+        message = None
+        while message is None or message.type == "ping":
+            message = yield self.s.read_message()
+        assert message.type == "skip"
+        assert message.attributes["seqno"] == 20
+
+
 class TestSessionReconnect(IOLoopedTestCase):
     def test_basic(self):
         self._fail_connections = 1
@@ -537,8 +639,8 @@ Vary: Accept-Encoding\r\n\r\n"""
             call("write", None, FakeIOStream.IGNORE),
             call("read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
             call("read_until", "4\r\n", "\r\n", max_bytes=FakeIOStream.IGNORE),
-            call("read_bytes", "1234\r\n", 6),
+            call("read_bytes", "ping\r\n", 6),
         )
         yield self.s.connect(self.endpoint)
         message = yield self.s.read_message()
-        assert message == "1234"
+        assert message.type == "ping"
