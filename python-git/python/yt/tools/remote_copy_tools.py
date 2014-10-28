@@ -89,7 +89,12 @@ def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pac
     prepare_command = "export YT_TOKEN=$(cat yt_token)\n"
     if pack:
         files = [_pack_module("simplejson", tmp_dir), _pack_module("dateutil", tmp_dir), _pack_module("yt", tmp_dir), _which("yt2")]
-        prepare_command += "set -e\ntar xvf yt.tar >&2\ntar xvf simplejson.tar >&2\ntar xvf dateutil.tar >&2\n ls -la >&2\nset +e"
+        prepare_command += """
+set -e
+tar xvf yt.tar >/dev/null
+tar xvf simplejson.tar >/dev/null
+tar xvf dateutil.tar >/dev/null
+set +e"""
 
     read_command = _get_read_from_yt_command(yt_client, src, format, fastbone)
     files.append(_pack_string("read_from_yt.sh", _get_read_ranges_command(prepare_command, read_command), tmp_dir))
