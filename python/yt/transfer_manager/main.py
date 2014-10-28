@@ -23,6 +23,7 @@ import signal
 import socket
 import logging
 import logging.handlers
+import thread
 import argparse
 import traceback
 from copy import deepcopy
@@ -37,6 +38,24 @@ class RequestFailed(yt.YtError):
 
 class IncorrectTokenError(RequestFailed):
     pass
+
+class SafeThread(Thread):
+    def __init__(self, group=None, target=None, name=None, args=None, kwargs=None):
+        if args is None:
+            args = ()
+        if kwargs is None:
+            kwargs = {}
+
+        def safe_run(*args, **kwargs):
+            try:
+                target(*args, **kwargs)
+            except KeyboardInterrupt:
+                thread.interrupt_main()
+            except:
+                logger.exception("Unknown exception")
+                thread.interrupt_main()
+
+        super(SafeThread, self).__init__(group=group, target=safe_run, name=name, args=args, kwargs=kwargs)
 
 def now():
     return str(datetime.utcnow().isoformat() + "Z")
@@ -127,13 +146,13 @@ class Application(object):
         self._lock_path = os.path.join(config["path"], "lock")
         self._lock_timeout = 10.0
         self._yt.create("map_node", self._lock_path, ignore_existing=True)
-        self._lock_thread = Thread(target=self._take_lock)
+        self._lock_thread = SafeThread(target=self._take_lock, name="LockThread")
         self._lock_thread.daemon = True
         self._lock_thread.start()
 
         # Run execution thread
         self._task_processes = {}
-        self._execution_thread = Thread(target=self._execute_tasks)
+        self._execution_thread = SafeThread(target=self._execute_tasks, name="SchedulingThread")
         self._execution_thread.daemon = True
         self._execution_thread.start()
 
@@ -205,40 +224,35 @@ class Application(object):
 
     def _take_lock(self):
         yt_client = deepcopy(self._yt)
-        try:
-            with yt_client.PingableTransaction():
-                while True:
-                    try:
-                        yt_client.lock(self._lock_path)
-                        break
-                    except yt.YtError as err:
-                        if err.is_concurrent_transaction_lock_conflict():
-                            logger.info("Failed to take lock")
-                            time.sleep(self._lock_timeout)
-                            continue
-                        logger.exception(yt.errors.format_error(err))
-                        return
+        with yt_client.PingableTransaction():
+            while True:
+                try:
+                    yt_client.lock(self._lock_path)
+                    break
+                except yt.YtError as err:
+                    if err.is_concurrent_transaction_lock_conflict():
+                        logger.info("Failed to take lock")
+                        time.sleep(self._lock_timeout)
+                        continue
+                    logger.exception(yt.errors.format_error(err))
+                    return
 
-                logger.info("Lock acquired")
+            logger.info("Lock acquired")
 
-                # Loading tasks from cypress
-                self._load_tasks(os.path.join(self._path, "tasks"))
+            # Loading tasks from cypress
+            self._load_tasks(os.path.join(self._path, "tasks"))
 
-                self._lock_acquired = True
+            self._lock_acquired = True
 
+            # Set attribute outside of transaction
+            self._yt.set_attribute(self._path, "address", socket.getfqdn())
 
-                # Set attribute outside of transaction
-                self._yt.set_attribute(self._path, "address", socket.getfqdn())
+            # Sleep infinitely long
+            while True:
+                if self._terminating:
+                    return
+                time.sleep(self._sleep_step)
 
-                # Sleep infinitely long
-                while True:
-                    if self._terminating:
-                        return
-                    time.sleep(self._sleep_step)
-
-        except KeyboardInterrupt:
-            # Do not print backtrace in case of SIGINT
-            pass
 
     def _load_config(self, config):
         self._configure_logging(config.get("logging", {}))
@@ -328,7 +342,6 @@ class Application(object):
             self._tasks[id] = task
             if task.state == "running":
                 self._change_task_state(id, "pending")
-                task.state = "pending"
             if task.state == "pending":
                 self._pending_tasks.append(task.id)
 
@@ -340,6 +353,7 @@ class Application(object):
         with self._mutex:
             self._tasks[id].state = new_state
             self._yt.set(os.path.join(self._tasks_path, id), self._tasks[id].dict())
+            logger.info("Task %s %s", id, new_state)
 
     def _dump_task(self, id):
         with self._mutex:
@@ -444,35 +458,45 @@ class Application(object):
                 logger.info("Progress: %d running, %d pending tasks found", len(self._task_processes), len(self._pending_tasks))
 
                 for id, (process, message_queue) in self._task_processes.items():
+                    logger.info("Processing task %s", id)
                     error = None
+                    completed = False
                     while not message_queue.empty():
                         message = None
                         try:
-                            message = message_queue.get()
+                            message = message_queue.get_nowait()
                         except Queue.Empty:
                             break
+
                         if message["type"] == "error":
-                            assert not process.is_alive()
                             error = message["error"]
                         elif message["type"] == "operation_started":
                             self._tasks[id].progress["operations"].append(message["operation"])
                             self._dump_task(id)
+                        elif message["type"] == "completed":
+                            completed = True
                         else:
                             assert False, "Incorrect message type: " + message["type"]
 
-                    if not process.is_alive():
+                    if not process.is_alive() and not completed and error is None:
+                        logger.warning("Process dead without any messages")
+                        error = "Process dead without any messages"
+
+                    if process.aborted or error is not None or completed:
                         self._tasks[id].finish_time = now()
-                        if process.aborted:
-                            pass
-                        elif error is None:
+                        if completed:
+                            if process.is_alive():
+                                logger.warning("Task completed, but process still alive!")
                             self._change_task_state(id, "completed")
-                        else:
+                        if error is not None:
                             self._tasks[id].error = error
                             self._change_task_state(id, "failed")
 
                         self._dump_task(id)
                         self._running_task_queues[self._tasks[id].get_queue_id()].remove(id)
                         del self._task_processes[id]
+
+                    logger.info("Task %s processed", id)
 
                 for id in self._pending_tasks:
                     if not self._can_run(self._tasks[id]):
@@ -572,6 +596,8 @@ class Application(object):
                                 source_client._type,
                                 destination_client._type))
             logger.info("Task %s completed", task.id)
+
+            message_queue.put({"type": "completed"})
         except KeyboardInterrupt:
             pass
         except yt.YtError as error:
@@ -801,10 +827,7 @@ DEFAULT_CONFIG = {
     "path": "//home/ignat/transfer_manager_test",
     "proxy": "kant.yt.yandex.net",
     "token": "93b4cacc08aa4538a79a76c21e99c0fb",
-    "port": 5010,
-    "logging": {
-        "filename": "log"
-    }
+    "port": 5010
 }
 
 def main():
