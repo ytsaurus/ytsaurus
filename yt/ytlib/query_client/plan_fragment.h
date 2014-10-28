@@ -281,9 +281,10 @@ struct TProjectClause
     }
 };
 
-struct TQuery
+class TQuery
     : public TIntrinsicRefCounted
 {
+public:
     explicit TQuery(
         i64 inputRowLimit,
         i64 outputRowLimit,
