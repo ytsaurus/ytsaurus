@@ -182,7 +182,7 @@ private:
                     Passed(std::move(cookie))));
             }
 
-            return result.Apply(BIND([] (TErrorOr<TEntryPtr> entryOrError) -> TErrorOr<TSharedRefArray> {
+            return result.Apply(BIND([] (const TErrorOr<TEntryPtr>& entryOrError) -> TErrorOr<TSharedRefArray> {
         	    if (!entryOrError.IsOK()) {
     	            return TError(entryOrError);
             	}
@@ -416,7 +416,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
         masterRequest->Invoke();
     }
 
-    responseCollector->Complete().Subscribe(BIND([=] (TErrorOr<std::vector<TSharedRefArray>> subresponseMessagesOrError) {
+    responseCollector->Complete().Subscribe(BIND([=] (const TErrorOr<std::vector<TSharedRefArray>>& subresponseMessagesOrError) {
         if (!subresponseMessagesOrError.IsOK()) {
             context->Reply(subresponseMessagesOrError);
             return;

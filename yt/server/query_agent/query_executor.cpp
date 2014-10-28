@@ -182,7 +182,7 @@ public:
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
                     .Run(subqueries[subqueryIndex], mergingReader, pipe->GetWriter());
 
-                result.Subscribe(BIND([pipe] (TErrorOr<TQueryStatistics> result) {
+                result.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& result) {
                     if (!result.IsOK()) {
                         pipe->Fail(result);
                     }

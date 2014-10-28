@@ -153,7 +153,7 @@ private:
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->StartSession(chunkId, options);
-        session->Start().Subscribe(BIND([=] (TError error) {
+        session->Start().Subscribe(BIND([=] (const TError& error) {
             context->Reply(error);
         }));
     }
@@ -174,7 +174,7 @@ private:
         auto session = sessionManager->GetSession(chunkId);
 
         session->Finish(meta, blockCount)
-            .Subscribe(BIND([=] (TErrorOr<IChunkPtr> chunkOrError) {
+            .Subscribe(BIND([=] (const TErrorOr<IChunkPtr>& chunkOrError) {
                 if (chunkOrError.IsOK()) {
                     auto chunk = chunkOrError.Value();
                     const auto& chunkInfo = session->GetChunkInfo();
@@ -254,7 +254,7 @@ private:
         
         // Flush blocks if needed.
         if (flushBlocks) {
-            result = result.Apply(BIND([=] (TError error) -> TAsyncError {
+            result = result.Apply(BIND([=] (const TError& error) -> TAsyncError {
                 if (!error.IsOK()) {
                     return MakeFuture(error);
                 }
@@ -262,9 +262,7 @@ private:
             }));
         }
 
-        result.Subscribe(BIND([=] (TError error) {
-            context->Reply(error);
-        }));
+        context->ReplyFrom(result);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SendBlocks)
@@ -288,7 +286,7 @@ private:
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
         session->SendBlocks(firstBlockIndex, blockCount, target)
-            .Subscribe(BIND([=] (TError error) {
+            .Subscribe(BIND([=] (const TError& error) {
                 if (error.IsOK()) {
                     context->Reply();
                 } else {
@@ -316,11 +314,8 @@ private:
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
-
-        session->FlushBlocks(blockIndex)
-            .Subscribe(BIND([=] (TError error) {
-                context->Reply(error);
-            }));
+        auto result = session->FlushBlocks(blockIndex);
+        context->ReplyFrom(result);
     }
 
 

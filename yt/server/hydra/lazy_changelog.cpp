@@ -69,7 +69,7 @@ public:
 
     virtual TAsyncError Flush() override
     {
-        return FutureChangelogOrError_.Apply(BIND([=] (TErrorOr<IChangelogPtr> changelogOrError ) -> TAsyncError {
+        return FutureChangelogOrError_.Apply(BIND([=] (const TErrorOr<IChangelogPtr>& changelogOrError ) -> TAsyncError {
             if (!changelogOrError.IsOK()) {
                 return MakeFuture<TError>(TError(changelogOrError));
             }
@@ -106,7 +106,7 @@ public:
 
     virtual TAsyncError Seal(int recordCount) override
     {
-        return FutureChangelogOrError_.Apply(BIND([=] (TErrorOr<IChangelogPtr> changelogOrError ) -> TAsyncError {
+        return FutureChangelogOrError_.Apply(BIND([=] (const TErrorOr<IChangelogPtr>& changelogOrError) -> TAsyncError {
             if (!changelogOrError.IsOK()) {
                 return MakeFuture<TError>(TError(changelogOrError));
             }
@@ -116,7 +116,7 @@ public:
 
     virtual TAsyncError Unseal() override
     {
-        return FutureChangelogOrError_.Apply(BIND([=] (TErrorOr<IChangelogPtr> changelogOrError ) -> TAsyncError {
+        return FutureChangelogOrError_.Apply(BIND([=] (const TErrorOr<IChangelogPtr> changelogOrError) -> TAsyncError {
             if (!changelogOrError.IsOK()) {
                 return MakeFuture<TError>(TError(changelogOrError));
             }

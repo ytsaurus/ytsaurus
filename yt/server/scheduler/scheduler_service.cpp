@@ -75,7 +75,7 @@ private:
             mutationId,
             spec,
             user)
-            .Subscribe(BIND([=] (TErrorOr<TOperationPtr> result) {
+            .Subscribe(BIND([=] (const TErrorOr<TOperationPtr>& result) {
                 if (!result.IsOK()) {
                     context->Reply(result);
                     return;
@@ -117,11 +117,8 @@ private:
         scheduler->ValidateConnected();
 
         auto operation = scheduler->GetOperationOrThrow(operationId);
-        scheduler
-            ->SuspendOperation(operation)
-            .Subscribe(BIND([=] (TError error) {
-                context->Reply(error);
-            }));
+        auto result = scheduler->SuspendOperation(operation);
+        context->ReplyFrom(result);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ResumeOperation)
@@ -134,11 +131,8 @@ private:
         scheduler->ValidateConnected();
 
         auto operation = scheduler->GetOperationOrThrow(operationId);
-        scheduler
-            ->ResumeOperation(operation)
-            .Subscribe(BIND([=] (TError error) {
-                context->Reply(error);
-            }));
+        auto result = scheduler->ResumeOperation(operation);
+        context->ReplyFrom(result);
     }
 
 };

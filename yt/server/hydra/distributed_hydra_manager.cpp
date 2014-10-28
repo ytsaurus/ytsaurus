@@ -300,7 +300,7 @@ public:
         return epochContext
             ->Checkpointer
             ->BuildSnapshot()
-            .Apply(BIND([] (TErrorOr<TRemoteSnapshotParams> errorOrParams) -> TErrorOr<int> {
+            .Apply(BIND([] (const TErrorOr<TRemoteSnapshotParams>& errorOrParams) -> TErrorOr<int> {
                 if (!errorOrParams.IsOK()) {
                     return TError(errorOrParams);
                 }

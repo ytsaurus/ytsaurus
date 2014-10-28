@@ -171,7 +171,7 @@ public:
     {
         auto this_ = MakeStrong(this);
         return PreparePartInfos().Apply(
-            BIND([this, this_, blockIndexes] (TError error) -> TAsyncReadBlocksResult {
+            BIND([this, this_, blockIndexes] (const TError& error) -> TAsyncReadBlocksResult {
                 if (!error.IsOK()) {
                     return MakeFuture<TReadBlocksResult>(error);
                 }

@@ -192,7 +192,7 @@ private:
 
         auto& entry = it->second;
 
-        auto setResult = [&] (TErrorOr<TTableMountInfoPtr> result) {
+        auto setResult = [&] (const TErrorOr<TTableMountInfoPtr>& result) {
             auto expirationTime = result.IsOK() ? Config_->SuccessExpirationTime : Config_->FailureExpirationTime;
             entry.Deadline = TInstant::Now() + expirationTime;
             if (entry.Promise.IsSet()) {

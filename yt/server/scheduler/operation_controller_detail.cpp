@@ -1055,7 +1055,7 @@ TFuture<TError> TOperationControllerBase::Prepare()
         BIND(&TThis::DoPrepare, this_)
             .AsyncVia(CancelableBackgroundInvoker)
             .Run()
-            .Apply(BIND([this, this_] (TError error) -> TError {
+            .Apply(BIND([this, this_] (const TError& error) -> TError {
                 if (error.IsOK()) {
                     Prepared = true;
                     Running = true;

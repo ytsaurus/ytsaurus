@@ -803,7 +803,7 @@ TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::OpenChangelog(
             Passed(std::move(cookie))));
     }
 
-    return result.Apply(BIND([] (TErrorOr<TCachedChangelogPtr> result) {
+    return result.Apply(BIND([] (const TErrorOr<TCachedChangelogPtr>& result) {
         return result.As<IChangelogPtr>();
     }));
 }
@@ -842,11 +842,11 @@ TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::CreateChangelog(
             record.Header.RecordId = -1;
             auto multiplexedResult = AppendMultiplexedRecord(record, cachedChangelog);
 
-            return multiplexedResult.Apply(BIND([=] (TError error) -> TErrorOr<IChangelogPtr> {
+            return multiplexedResult.Apply(BIND([=] (const TError& error) -> TErrorOr<IChangelogPtr> {
                 return error.IsOK() ? TErrorOr<IChangelogPtr>(cachedChangelog) : TErrorOr<IChangelogPtr>(error);
             }));
         } else {
-            return futureChangelogOrError.Apply(BIND([=] (TErrorOr<IChangelogPtr> result) {
+            return futureChangelogOrError.Apply(BIND([=] (const TErrorOr<IChangelogPtr>& result) {
                 return result.IsOK() ? TErrorOr<IChangelogPtr>(cachedChangelog) : TErrorOr<IChangelogPtr>(result);
             }));
         }

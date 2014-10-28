@@ -219,7 +219,7 @@ public:
         TPromise<TErrorOr<IRowsetPtr>> rowset;
         std::tie(writer, rowset) = CreateSchemafulRowsetWriter();
 
-        SelectRows(query, writer, options).Subscribe(BIND([=] (TErrorOr<TQueryStatistics> error) mutable {
+        SelectRows(query, writer, options).Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& error) mutable {
             if (!error.IsOK()) {
                 // It's uncommon to have the promise set here but let's be sloppy about it.
                 result.Set(TError(error));
@@ -1594,7 +1594,7 @@ TFuture<TErrorOr<ITransactionPtr>> TClient::StartTransaction(
 {
     auto this_ = MakeStrong(this);
     return TransactionManager_->Start(type, options).Apply(
-        BIND([=] (TErrorOr<NTransactionClient::TTransactionPtr> transactionOrError) -> TErrorOr<ITransactionPtr> {
+        BIND([=] (const TErrorOr<NTransactionClient::TTransactionPtr>& transactionOrError) -> TErrorOr<ITransactionPtr> {
             if (!transactionOrError.IsOK()) {
                 return TError(transactionOrError);
             }

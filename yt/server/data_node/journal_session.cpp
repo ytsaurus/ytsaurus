@@ -57,7 +57,7 @@ TAsyncError TJournalSession::DoStart()
     auto asyncChangelog = dispatcher->CreateChangelog(Chunk_, Options_.OptimizeForLatency);
 
     auto this_ = MakeStrong(this);
-    return asyncChangelog.Apply(BIND([this, this_] (TErrorOr<IChangelogPtr> result) -> TError {
+    return asyncChangelog.Apply(BIND([this, this_] (const TErrorOr<IChangelogPtr>& result) -> TError {
         if (result.IsOK()) {
             Chunk_->AttachChangelog(result.Value());
             Chunk_->SetActive(true);
@@ -94,7 +94,7 @@ TFuture<TErrorOr<IChunkPtr>> TJournalSession::DoFinish(
     }
 
     auto this_ = MakeStrong(this);
-    return sealResult.Apply(BIND([this, this_] (TError error) -> TErrorOr<IChunkPtr> {
+    return sealResult.Apply(BIND([this, this_] (const TError& error) -> TErrorOr<IChunkPtr> {
         DoCancel();
         if (!error.IsOK()) {
             return error;

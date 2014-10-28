@@ -128,7 +128,7 @@ public:
                 mutationId,
                 context))
             ->Commit()
-            .Subscribe(BIND([=] (TErrorOr<TMutationResponse> result) {
+            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
                 if (!result.IsOK()) {
                     // Reply with commit error.
                     context->Reply(TError(result));
@@ -993,9 +993,9 @@ void TObjectManager::ExecuteMutatingRequest(
 
     if (mutationId != NullMutationId) {
         auto responseKeeper = Bootstrap->GetHydraFacade()->GetResponseKeeper();
-        asyncResponseMessage.Subscribe(
-            BIND([=] (TSharedRefArray message) {
-                responseKeeper->EndRequest(mutationId, std::move(message));
+        asyncResponseMessage
+            .Subscribe(BIND([=] (const TSharedRefArray& message) {
+                responseKeeper->EndRequest(mutationId, message);
             }));
     }
 }

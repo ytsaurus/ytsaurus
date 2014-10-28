@@ -56,7 +56,7 @@ private:
             method);
 
         ExecuteVerb(RootService_, requestMessage)
-            .Subscribe(BIND([=] (TSharedRefArray responseMessage) {
+            .Subscribe(BIND([=] (const TSharedRefArray& responseMessage) {
                 TResponseHeader responseHeader;
                 YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
 

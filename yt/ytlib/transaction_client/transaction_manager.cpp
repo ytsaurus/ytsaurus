@@ -239,7 +239,7 @@ public:
     TAsyncError Abort(bool force, const TMutationId& mutationId)
     {
         auto this_ = MakeStrong(this);
-        return SendAbort(force, mutationId).Apply(BIND([this, this_] (TError error) -> TError {
+        return SendAbort(force, mutationId).Apply(BIND([this, this_] (const TError& error) -> TError {
             if (error.IsOK()) {
                 DoAbort(TError("Transaction aborted by user request"));
             }
@@ -706,7 +706,7 @@ private:
         }
 
         auto this_ = MakeStrong(this);
-        SendPing().Subscribe(BIND([this, this_] (TError error) {
+        SendPing().Subscribe(BIND([this, this_] (const TError& error) {
             if (!error.IsOK())
                 return;
             TDelayedExecutor::Submit(
@@ -902,7 +902,7 @@ TFuture<TErrorOr<TTransactionPtr>> TTransactionManager::TImpl::Start(
 
     auto transaction = New<TTransaction::TImpl>(this);
     return transaction->Start(type, options).Apply(
-        BIND([=] (TError error) -> TErrorOr<TTransactionPtr> {
+        BIND([=] (const TError& error) -> TErrorOr<TTransactionPtr> {
             if (!error.IsOK()) {
                 return error;
             }

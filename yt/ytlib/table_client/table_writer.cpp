@@ -299,10 +299,10 @@ bool TAsyncTableWriter::IsReady()
         auto this_ = MakeStrong(this);
         auto readyEvent = NewPromise<TError>();
         WriteFuture_ = readyEvent;
-        Writer->GetReadyEvent().Subscribe(BIND([=] (TError error) mutable {
+        Writer->GetReadyEvent().Subscribe(BIND([this, this_, readyEvent] (const TError& error) mutable {
             if (error.IsOK()) {
-                this_->CurrentWriterFacade = this_->Writer->GetCurrentWriter();
-                YCHECK(this_->CurrentWriterFacade);
+                CurrentWriterFacade = Writer->GetCurrentWriter();
+                YCHECK(CurrentWriterFacade);
             }
             readyEvent.Set(error);
         }));

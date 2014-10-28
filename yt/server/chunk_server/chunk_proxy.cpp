@@ -390,7 +390,7 @@ private:
         if (chunk->IsJournal() && key == "quorum_row_count") {
             auto chunkManager = Bootstrap->GetChunkManager();
             auto rowCountResult = chunkManager->GetChunkQuorumInfo(chunk);
-            return rowCountResult.Apply(BIND([=] (TErrorOr<TMiscExt> result) -> TError {
+            return rowCountResult.Apply(BIND([=] (const TErrorOr<TMiscExt>& result) -> TError {
                 if (result.IsOK()) {
                     BuildYsonFluently(consumer)
                         .Value(result.Value().row_count());

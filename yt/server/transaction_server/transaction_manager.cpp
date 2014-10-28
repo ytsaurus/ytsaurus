@@ -593,7 +593,7 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     LOG_DEBUG("Transaction lease expired (TransactionId: %v)", id);
 
     auto transactionSupervisor = Bootstrap->GetTransactionSupervisor();
-    transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (TError error) {
+    transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (const TError& error) {
         if (!error.IsOK()) {
             LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
                 id);

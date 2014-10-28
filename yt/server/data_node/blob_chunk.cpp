@@ -85,7 +85,7 @@ IChunk::TAsyncGetMetaResult TBlobChunkBase::GetMeta(
     auto this_ = MakeStrong(this);
     auto invoker = Bootstrap_->GetControlInvoker();
     return ReadMeta(priority).Apply(
-        BIND([=] (TError error) -> TGetMetaResult {
+        BIND([=] (const TError& error) -> TGetMetaResult {
             if (!error.IsOK()) {
                 return error;
             }

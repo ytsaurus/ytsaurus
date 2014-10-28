@@ -201,7 +201,7 @@ TFuture<void> TJournalChunk::AsyncRemove()
     auto location = Location_;
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
     return dispatcher->RemoveChangelog(this)
-        .Apply(BIND([=] (TError error) {
+        .Apply(BIND([=] (const TError& error) {
             if (!error.IsOK()) {
                 location->Disable(error);
             }

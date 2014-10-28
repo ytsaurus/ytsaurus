@@ -261,10 +261,8 @@ ExecuteVerb(IYPathServicePtr service, TSharedRefArray requestMessage)
 void ExecuteVerb(IYPathServicePtr service, IServiceContextPtr context)
 {
     auto requestMessage = context->GetRequestMessage();
-    ExecuteVerb(service, requestMessage)
-        .Subscribe(BIND([=] (TSharedRefArray responseMessage) {
-            context->Reply(responseMessage);
-        }));
+    auto asyncResponseMessage = ExecuteVerb(service, requestMessage);
+    context->ReplyFrom(asyncResponseMessage);
 }
 
 TFuture< TErrorOr<TYsonString> > AsyncYPathGet(

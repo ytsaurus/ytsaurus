@@ -696,7 +696,7 @@ private:
 
                     awaiter->Await(
                         transaction->Ping(),
-                        BIND([=] (TError error) {
+                        BIND([=] (const TError& error) {
                             if (!error.IsOK() && !operation->GetCleanStart()) {
                                 operation->SetCleanStart(true);
                                 LOG_INFO("Error renewing operation transaction, will use clean start (OperationId: %v, TransactionId: %v)",

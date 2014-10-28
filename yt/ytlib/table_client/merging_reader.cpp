@@ -57,11 +57,11 @@ public:
         for (auto reader : Readers) {
             awaiter->Await(
                 reader->AsyncOpen(),
-                BIND([&] (TError error) {
+                BIND([&] (const TError& error) {
                     if (!error.IsOK()) {
                         errors.push_back(error);
                     }
-            }));
+                }));
         }
 
         awaiter->Complete().Get();

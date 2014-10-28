@@ -42,7 +42,7 @@ TOperation::TOperation(
 TFuture<TOperationStartResult> TOperation::GetStarted()
 {
     auto this_ = MakeStrong(this);
-    return StartedPromise.ToFuture().Apply(BIND([this_] (TError error) -> TOperationStartResult {
+    return StartedPromise.ToFuture().Apply(BIND([this_] (const TError& error) -> TOperationStartResult {
         if (error.IsOK()) {
             return TOperationStartResult(this_);
         } else {

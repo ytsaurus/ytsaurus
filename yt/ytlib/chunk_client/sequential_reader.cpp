@@ -94,8 +94,8 @@ TAsyncError TSequentialReader::FetchNextBlock()
     ++FirstReadyWindowIndex_;
 
     auto this_ = MakeStrong(this);
-    Window_[FirstReadyWindowIndex_].Block.Subscribe(
-        BIND([this, this_] (TSharedRef) {
+    Window_[FirstReadyWindowIndex_].Block
+        .Subscribe(BIND([this, this_] (const TSharedRef&) {
             State_.FinishOperation();
         }));
 

@@ -8,7 +8,7 @@ namespace NHydra {
 
 TFuture<TErrorOr<IChangelogPtr>> IChangelogStore::TryOpenChangelog(int id)
 {
-    return OpenChangelog(id).Apply(BIND([] (TErrorOr<IChangelogPtr> result) -> TErrorOr<IChangelogPtr> {
+    return OpenChangelog(id).Apply(BIND([] (const TErrorOr<IChangelogPtr>& result) -> TErrorOr<IChangelogPtr> {
         if (!result.IsOK() && result.GetCode() == NHydra::EErrorCode::NoSuchChangelog) {
             return IChangelogPtr(nullptr);
         }

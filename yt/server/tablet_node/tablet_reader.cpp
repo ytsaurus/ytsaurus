@@ -273,7 +273,7 @@ protected:
         auto this_ = MakeStrong(this);
         Refilling_ = true;
         ReadyEvent_ = refillCollector->Complete()
-            .Apply(BIND([this, this_] (TError error) -> TError {
+            .Apply(BIND([this, this_] (const TError& error) -> TError {
                 Refilling_ = false;
                 return error;
             }));

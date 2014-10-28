@@ -220,7 +220,7 @@ void TOldMultiChunkSequentialWriter<TProvider>::SwitchSession()
     YCHECK(NextSession);
 
     auto this_ = MakeStrong(this);
-    auto startNextSession = [this, this_] (TError error) {
+    auto startNextSession = [this, this_] (const TError& error) {
         if (!error.IsOK())
             return;
 

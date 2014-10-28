@@ -103,7 +103,7 @@ void TFileChunkWriter::OnFinalBlocksWritten(TError error)
     SetProtoExtension(Meta.mutable_extensions(), MiscExt);
 
     auto this_ = MakeStrong(this);
-    ChunkWriter->Close(Meta).Subscribe(BIND([=] (TError error) {
+    ChunkWriter->Close(Meta).Subscribe(BIND([=] (const TError& error) {
         // ToDo(psushin): more verbose diagnostic.
         this_->State.Finish(error);
     }));

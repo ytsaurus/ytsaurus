@@ -162,7 +162,7 @@ private:
             auto chunkManager = Bootstrap->GetChunkManager();
             return chunkManager
                 ->GetChunkQuorumInfo(chunk)
-                .Apply(BIND([=] (TErrorOr<TMiscExt> result) -> TError {
+                .Apply(BIND([=] (const TErrorOr<TMiscExt>& result) -> TError {
                     if (result.IsOK()) {
                         BuildYsonFluently(consumer)
                             .Value(penultimateRowCount + result.Value().row_count());

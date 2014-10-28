@@ -11,9 +11,9 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCallback<void(TErrorOr<TMutationResponse>)> CreateRpcResponseHandler(IServiceContextPtr context)
+TCallback<void(const TErrorOr<TMutationResponse>&)> CreateRpcResponseHandler(IServiceContextPtr context)
 {
-    return BIND([=] (TErrorOr<TMutationResponse> result) {
+    return BIND([=] (const TErrorOr<TMutationResponse>& result) {
         if (result.IsOK()) {
             const auto& response = result.Value();
             if (response.Data) {

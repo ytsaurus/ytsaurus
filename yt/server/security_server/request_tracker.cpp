@@ -102,7 +102,7 @@ void TRequestTracker::OnFlush()
         ->GetSecurityManager()
         ->CreateUpdateRequestStatisticsMutation(UpdateRequestStatisticsRequest_)
         ->Commit()
-        .Subscribe(BIND([this, this_] (TErrorOr<TMutationResponse> error) {
+        .Subscribe(BIND([this, this_] (const TErrorOr<TMutationResponse>& error) {
             if (error.IsOK()) {
                 FlushExecutor_->ScheduleOutOfBand();
             }

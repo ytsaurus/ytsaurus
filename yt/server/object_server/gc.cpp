@@ -203,7 +203,7 @@ void TGarbageCollector::OnSweep()
         ->GetObjectManager()
         ->CreateDestroyObjectsMutation(request)
         ->Commit()
-        .Subscribe(BIND([this, this_] (TErrorOr<TMutationResponse> error) {
+        .Subscribe(BIND([this, this_] (const TErrorOr<TMutationResponse>& error) {
             if (error.IsOK()) {
                 SweepExecutor->ScheduleOutOfBand();
             }

@@ -42,7 +42,7 @@ private:
         int count = request->count();
         context->SetRequestInfo("Count: %v", count);
 
-        Provider_->GenerateTimestamps(count).Subscribe(BIND([=] (TErrorOr<TTimestamp> result) {
+        Provider_->GenerateTimestamps(count).Subscribe(BIND([=] (const TErrorOr<TTimestamp>& result) {
             if (result.IsOK()) {
                 auto timestamp = result.Value();
                 context->SetResponseInfo("Timestamp: %v", timestamp);

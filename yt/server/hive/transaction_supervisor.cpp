@@ -310,7 +310,7 @@ private:
         // If the mutation succeeds then Response Keeper gets notified in HydraAbortTransaction.
         // If it fails then the current epoch ends and Response Keeper gets cleaned up anyway.
         return CreateMutation(HydraManager, hydraRequest)
-            ->Commit().Apply(BIND([] (TErrorOr<TMutationResponse> result) {
+            ->Commit().Apply(BIND([] (const TErrorOr<TMutationResponse>& result) -> TSharedRefArray {
                 return result.IsOK()
                     ? result.Value().Data
                     : CreateErrorResponseMessage(result);
@@ -319,7 +319,7 @@ private:
 
     static TAsyncError MessageToError(TFuture<TSharedRefArray> asyncMessage)
     {
-        return asyncMessage.Apply(BIND([] (TSharedRefArray message) -> TError {
+        return asyncMessage.Apply(BIND([] (const TSharedRefArray& message) -> TError {
             TResponseHeader header;
             YCHECK(ParseResponseHeader(message, &header));
             return FromProto<TError>(header.error());

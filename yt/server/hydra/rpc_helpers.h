@@ -9,7 +9,7 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCallback<void(TErrorOr<TMutationResponse>)> CreateRpcResponseHandler(NRpc::IServiceContextPtr context);
+TCallback<void(const TErrorOr<TMutationResponse>&)> CreateRpcResponseHandler(NRpc::IServiceContextPtr context);
 
 ////////////////////////////////////////////////////////////////////////////////
 
