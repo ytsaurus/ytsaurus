@@ -251,11 +251,18 @@ private:
                 int blockCount = (i < erasureCodec->GetDataPartCount())
                     ? erasurePlacementExt.part_infos(i).block_sizes_size()
                     : erasurePlacementExt.parity_block_count();
+
+                // ToDo(psushin): copy chunk parts is parallel.
                 DoCopy(readers[i], writers[i], blockCount, chunkMeta);
                 diskSpace += writers[i]->GetChunkInfo().disk_space();
+
+                auto replicas = writers[i]->GetWrittenChunkReplicas();
+                YCHECK(replicas.size() == 1);
+                auto replica = TChunkReplica(replicas.front().GetNodeId(), i);
+
+                writtenReplicas.push_back(replica);
             }
             chunkInfo.set_disk_space(diskSpace);
-
         } else {
             auto reader = CreateReplicationReader(
                 ReaderConfig_,
