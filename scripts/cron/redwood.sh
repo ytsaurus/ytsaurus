@@ -7,6 +7,7 @@ if [ -z "$USER_SESSIONS_PERIOD" ]; then
 fi
 if [ -z "$USER_SESSIONS_FRAUDS_PERIOD" ]; then
     USER_SESSIONS_FRAUDS_PERIOD="$USER_SESSIONS_PERIOD"
+    USER_SESSIONS_SPY_LOG_PERIOD="$USER_SESSIONS_PERIOD"
 fi
 if [ -z "$FAST" ]; then
     FAST=0
@@ -25,7 +26,8 @@ LOCK_PATH="//sys/cron/redwood_lock"
     --remove-queue $REMOVE_QUEUE \
     --link-queue $LINK_QUEUE \
     --user-sessions-period $USER_SESSIONS_PERIOD \
-    --user-sessions-frauds-period $USER_SESSIONS_FRAUDS_PERIOD
+    --user-sessions-frauds-period $USER_SESSIONS_FRAUDS_PERIOD \
+    --user-sessions-spy-log-period $USER_SESSIONS_SPY_LOG_PERIOD
 
 if [ "$FAST" != 0 ]; then
     /opt/cron/redwood_fast.py \
