@@ -18,14 +18,17 @@ public:
     explicit TParallelAwaiter(IInvokerPtr invoker);
 
     template <class T>
-    void Await(
-        TFuture<T> result,
-        TCallback<void(T)> onResult = TCallback<void(T)>());
+    void Await(TFuture<T> result, TCallback<void(T)> onResult);
 
-    //! Specialization of #Await for |T = void|.
-    void Await(
-        TFuture<void> result,
-        TCallback<void()> onResult = TCallback<void()>());
+    template <class T>
+    void Await(TFuture<T> result, TCallback<void(const T&)> onResult);
+
+    void Await(TFuture<void> result, TClosure onResult);
+
+    template <class T>
+    void Await(TFuture<T> result);
+
+    void Await(TFuture<void> result);
 
     TFuture<void> Complete(TClosure onComplete = TClosure());
     
@@ -61,9 +64,13 @@ private:
 
     void Terminate();
 
+    template <class TResult, class THandler>
+    void DoAwait(TResult result, THandler onResultHandler);
+
     template <class T>
     void HandleResult(TCallback<void(T)> onResult, T result);
-    void HandleResult(TCallback<void()> onResult);
+
+    void HandleVoidResult(TClosure onResult);
 
     void HandleCancel();
 

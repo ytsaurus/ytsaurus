@@ -41,37 +41,51 @@ inline bool TParallelAwaiter::TryAwait()
 }
 
 template <class T>
-void TParallelAwaiter::Await(
-    TFuture<T> result,
-    TCallback<void(T)> onResult)
+void TParallelAwaiter::Await(TFuture<T> result, TCallback<void(const T&)> onResult)
 {
-    YASSERT(result);
-
-    if (TryAwait()) {
-        result.Subscribe(BIND(
-            &TParallelAwaiter::HandleResult<T>,
-            MakeStrong(this),
-            Passed(std::move(onResult))));
-        result.OnCanceled(BIND(
-            &TParallelAwaiter::HandleCancel,
-            MakeStrong(this)));
-    }
+    DoAwait(
+        std::move(result),
+        BIND(&TParallelAwaiter::HandleResult<const T&>, MakeStrong(this), Passed(std::move(onResult))));
 }
 
-inline void TParallelAwaiter::Await(
-    TFuture<void> result,
-    TCallback<void(void)> onResult)
+template <class T>
+void TParallelAwaiter::Await(TFuture<T> result, TCallback<void(T)> onResult)
+{
+    DoAwait(
+        std::move(result),
+        BIND(&TParallelAwaiter::HandleResult<T>, MakeStrong(this), Passed(std::move(onResult))));
+}
+
+inline void TParallelAwaiter::Await(TFuture<void> result, TClosure onResult)
+{
+    DoAwait(
+        std::move(result),
+        BIND(&TParallelAwaiter::HandleVoidResult, MakeStrong(this), Passed(std::move(onResult))));
+}
+
+template <class T>
+void TParallelAwaiter::Await(TFuture<T> result)
+{
+    DoAwait(
+        std::move(result),
+        BIND(&TParallelAwaiter::HandleResult<T>, MakeStrong(this), TCallback<void(T)>()));
+}
+
+inline void TParallelAwaiter::Await(TFuture<void> result)
+{
+    DoAwait(
+        std::move(result),
+        BIND(&TParallelAwaiter::HandleVoidResult, MakeStrong(this), TClosure()));
+}
+
+template <class TResult, class THandler>
+void TParallelAwaiter::DoAwait(TResult result, THandler onResultHandler)
 {
     YASSERT(result);
 
     if (TryAwait()) {
-        result.Subscribe(BIND(
-            (void(TParallelAwaiter::*)(TCallback<void()>)) &TParallelAwaiter::HandleResult,
-            MakeStrong(this),
-            Passed(std::move(onResult))));
-        result.OnCanceled(BIND(
-            &TParallelAwaiter::HandleCancel,
-            MakeStrong(this)));
+        result.Subscribe(std::move(onResultHandler));
+        result.OnCanceled(BIND(&TParallelAwaiter::HandleCancel, MakeStrong(this)));
     }
 }
 
@@ -79,13 +93,13 @@ template <class T>
 void TParallelAwaiter::HandleResult(TCallback<void(T)> onResult, T result)
 {
     if (onResult) {
-        CancelableInvoker_->Invoke(BIND(onResult, std::move(result)));
+        CancelableInvoker_->Invoke(BIND(onResult, result));
     }
 
     HandleResponse();
 }
 
-inline void TParallelAwaiter::HandleResult(TCallback<void()> onResult)
+inline void TParallelAwaiter::HandleVoidResult(TClosure onResult)
 {
     if (onResult) {
         CancelableInvoker_->Invoke(onResult);
