@@ -27,26 +27,21 @@ typedef const void* TRefCountedTypeKey;
 
 namespace NDetail {
 
-typedef intptr_t TNonVolatileCounter;
-
-static_assert(sizeof(TNonVolatileCounter) == sizeof(void*),
-    "TNonVolatileCounter should be the same size as a raw pointer.");
-
-static inline TNonVolatileCounter AtomicallyIncrementIfNonZero(std::atomic<TNonVolatileCounter> &p)
+static inline int AtomicallyIncrementIfNonZero(std::atomic_int& atomicCounter)
 {
     // Atomically performs the following:
     // { auto v = *p; if (v != 0) ++(*p); return v; }
-    auto v = p.load();
+    auto value = atomicCounter.load();
 
     for (;;) {
-        if (v == 0) {
-            return v;
+        if (value == 0) {
+            return value;
         }
 
-        if (p.compare_exchange_strong(v, v+1)) {
-            return v;
+        if (atomicCounter.compare_exchange_strong(value, value + 1)) {
+            return value;
         } else {
-            v = p.load();
+            value = atomicCounter.load();
         }
     }
 }
@@ -56,9 +51,9 @@ class TRefCounter
 {
 public:
     TRefCounter(TExtrinsicRefCounted* object)
-        : StrongCount(1)
-        , WeakCount(1)
-        , that(object)
+        : StrongCount_(1)
+        , WeakCount_(1)
+        , that_(object)
     { }
 
     ~TRefCounter()
@@ -77,24 +72,23 @@ public:
     //! Adds a strong reference to the counter.
     inline void Ref() // noexcept
     {
-        auto sc = StrongCount++;
-        YASSERT(sc > 0 && WeakCount.load() > 0);
-
+        auto oldStrongCount = StrongCount_++;
+        YASSERT(oldStrongCount > 0 && WeakCount_.load() > 0);
     }
 
     //! Removes a strong reference from the counter.
     inline void Unref() // noexcept
     {
-        auto sc = StrongCount--;
-        YASSERT(sc > 0);
+        auto oldStrongCount = StrongCount_--;
+        YASSERT(oldStrongCount > 0);
 
-        if (sc == 1) {
+        if (oldStrongCount == 1) {
             Dispose();
 
-            auto wc = WeakCount--;
-            YASSERT(wc > 0);
+            auto oldWeakCount = WeakCount_--;
+            YASSERT(oldWeakCount > 0);
 
-            if (wc == 1) {
+            if (oldWeakCount == 1) {
                 Destroy();
             }
         }
@@ -103,23 +97,23 @@ public:
     //! Tries to add a strong reference to the counter.
     inline bool TryRef() // noexcept
     {
-        YASSERT(WeakCount.load() > 0);
-        return AtomicallyIncrementIfNonZero(StrongCount) > 0;
+        YASSERT(WeakCount_.load() > 0);
+        return AtomicallyIncrementIfNonZero(StrongCount_) > 0;
     }
 
     //! Adds a weak reference to the counter.
     inline void WeakRef() // noexcept
     {
-        auto wc = WeakCount++;
-        YASSERT(wc > 0);
+        auto oldWeakCount = WeakCount_++;
+        YASSERT(oldWeakCount > 0);
     }
 
     //! Removes a weak reference from the counter.
     inline void WeakUnref() // noexcept
     {
-        auto wc = WeakCount--;
-        YASSERT(wc > 0);
-        if (wc == 1) {
+        auto oldWeakCount = WeakCount_--;
+        YASSERT(oldWeakCount > 0);
+        if (oldWeakCount == 1) {
             Destroy();
         }
     }
@@ -127,13 +121,13 @@ public:
     //! Returns the current number of strong references.
     int GetRefCount() const // noexcept
     {
-        return StrongCount.load();
+        return StrongCount_.load();
     }
 
     //! Returns the current number of weak references.
     int GetWeakRefCount() const // noexcept
     {
-        return WeakCount.load();
+        return WeakCount_.load();
     }
 
 private:
@@ -145,11 +139,11 @@ private:
     TRefCounter& operator=(const TRefCounter&&);
 
     //! Number of strong references.
-    std::atomic<TNonVolatileCounter> StrongCount;
+    std::atomic_int StrongCount_;
     //! Number of weak references plus one if there is at least one strong reference.
-    std::atomic<TNonVolatileCounter> WeakCount;
+    std::atomic_int WeakCount_;
     //! The object.
-    TExtrinsicRefCounted* that;
+    TExtrinsicRefCounted* that_;
 };
 
 } // namespace NDetail
@@ -209,20 +203,20 @@ public:
     inline void Ref() const // noexcept
     {
 #ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
-        auto rc = RefCounter->GetRefCount();
-        ::std::fprintf(stderr, "=== %p === Ref(): %" PRId32 " -> %" PRId32, this, rc, rc + 1);
+        auto refCount = RefCounter_->GetRefCount();
+        ::std::fprintf(stderr, "=== %p === Ref(): %" PRId32 " -> %" PRId32, this, refCount, refCount + 1);
 #endif
-        RefCounter->Ref();
+        RefCounter_->Ref();
     }
 
     //! Decrements the reference counter.
     inline void Unref() const // noexcept
     {
 #ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
-        auto rc = RefCounter->GetRefCount();
-        ::std::fprintf(stderr, "=== %p === Unref(): %" PRId32 " -> %" PRId32, this, rc, rc - 1);
+        auto refCount = RefCounter_->GetRefCount();
+        ::std::fprintf(stderr, "=== %p === Unref(): %" PRId32 " -> %" PRId32, this, refCount, refCount - 1);
 #endif
-        RefCounter->Unref();
+        RefCounter_->Unref();
     }
 
     //! Returns current number of references to the object.
@@ -230,9 +224,9 @@ public:
      * Note that you should never ever use this method in production code.
      * This method is mainly for debugging purposes.
      */
-    inline NDetail::TNonVolatileCounter GetRefCount() const
+    inline int GetRefCount() const
     {
-        return RefCounter->GetRefCount();
+        return RefCounter_->GetRefCount();
     }
 
     //! Returns pointer to the underlying reference counter of the object.
@@ -242,7 +236,7 @@ public:
      */
     inline NDetail::TRefCounter* GetRefCounter() const
     {
-        return RefCounter;
+        return RefCounter_;
     }
 
     //! See #TIntrinsicRefCounted::DangerousGetPtr.
@@ -250,13 +244,13 @@ public:
     static ::NYT::TIntrusivePtr<T> DangerousGetPtr(T* object)
     {
         return
-            object->RefCounter->TryRef()
+            object->RefCounter_->TryRef()
             ? ::NYT::TIntrusivePtr<T>(object, false)
             : ::NYT::TIntrusivePtr<T>();
     }
 
 private:
-    mutable NDetail::TRefCounter* RefCounter;
+    mutable NDetail::TRefCounter* RefCounter_;
 
 };
 
@@ -271,24 +265,24 @@ public:
     //! Increments the reference counter.
     inline void Ref() const // noexcept
     {
-        auto rc = RefCounter++;
+        auto oldRefCount = RefCounter_++;
 
 #ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
-        ::std::fprintf(stderr, "=== %p === Ref(): %" PRId64 " -> %" PRId64, this, rc, rc + 1);
+        ::std::fprintf(stderr, "=== %p === Ref(): %" PRId64 " -> %" PRId64, this, oldRefCount, oldRefCount + 1);
 #endif
-        YASSERT(rc > 0);
+        YASSERT(oldRefCount > 0);
     }
 
     //! Decrements the reference counter.
     inline void Unref() const // noexcept
     {
-        auto rc = RefCounter--;
+        auto oldRefCount = RefCounter_--;
 
 #ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
-        ::std::fprintf(stderr, "=== %p === Unref(): %" PRId64 " -> %" PRId64, this, rc, rc - 1);
+        ::std::fprintf(stderr, "=== %p === Unref(): %" PRId64 " -> %" PRId64, this, oldRefCount, oldRefCount - 1);
 #endif
-        YASSERT(rc > 0);
-        if (rc == 1) {
+        YASSERT(oldRefCount > 0);
+        if (oldRefCount == 1) {
             delete this;
         }
     }
@@ -298,9 +292,9 @@ public:
      * Note that you should never ever use this method in production code.
      * This method is mainly for debugging purposes.
      */
-    inline NDetail::TNonVolatileCounter GetRefCount() const // noexcept
+    inline int GetRefCount() const // noexcept
     {
-        return RefCounter.load();
+        return RefCounter_.load();
     }
 
     //! Tries to obtain an intrusive pointer for an object that may had
@@ -323,13 +317,13 @@ public:
     static ::NYT::TIntrusivePtr<T> DangerousGetPtr(T* object)
     {
         return
-            NDetail::AtomicallyIncrementIfNonZero(object->RefCounter) > 0
+            NDetail::AtomicallyIncrementIfNonZero(object->RefCounter_) > 0
             ? ::NYT::TIntrusivePtr<T>(object, false)
             : ::NYT::TIntrusivePtr<T>();
     }
 
 private:
-    mutable std::atomic<NDetail::TNonVolatileCounter> RefCounter;
+    mutable std::atomic_int RefCounter_;
 
 };
 

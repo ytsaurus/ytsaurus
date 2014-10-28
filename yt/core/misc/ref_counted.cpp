@@ -40,7 +40,7 @@ void TRefCountedBase::FinalizeTracking()
 ////////////////////////////////////////////////////////////////////////////////
 
 TExtrinsicRefCounted::TExtrinsicRefCounted()
-    : RefCounter(new NDetail::TRefCounter(this))
+    : RefCounter_(new NDetail::TRefCounter(this))
 { }
 
 TExtrinsicRefCounted::~TExtrinsicRefCounted()
@@ -51,26 +51,26 @@ TExtrinsicRefCounted::~TExtrinsicRefCounted()
     //   (possibly inside auto_ptr, unique_ptr, shared_ptr or similar helpers),
     //   or declaring an instance with static or automatic durations.
     // - Throwing an exception from ctor.
-    YASSERT(RefCounter->GetRefCount() == 0);
+    YASSERT(RefCounter_->GetRefCount() == 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TIntrinsicRefCounted::TIntrinsicRefCounted()
-    : RefCounter(1)
+    : RefCounter_(1)
 { }
 
 TIntrinsicRefCounted::~TIntrinsicRefCounted()
 {
     // For failed assertions, see the comments in TExtrinsicRefCounted::~TExtrinsicRefCounted.
-    YASSERT(RefCounter.load() == 0);
+    YASSERT(RefCounter_.load() == 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void NDetail::TRefCounter::Dispose()
 {
-    delete that;
+    delete that_;
 }
 
 void NDetail::TRefCounter::Destroy()
