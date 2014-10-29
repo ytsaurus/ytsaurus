@@ -781,6 +781,7 @@ class SessionStream(object):
 
     def __init__(self, service_id=None, source_id=None, logtype=None, io_loop=None, IOStreamClass=None):
         self._id = None
+        self._attributes = None
         self._iostream = None
 
         self._logtype = logtype
@@ -840,15 +841,26 @@ class SessionStream(object):
                     self._iostream = None
                 raise
 
+    def stop(self):
+        if self._iostream is not None:
+            self._iostream.close()
+            self._iostream = None
+
     def parse_metadata(self, data):
+        attributes = {}
         for index, line in enumerate(data.split("\n")):
             if index > 0:
                 key, value = line.split(":", 1)
-                if key.strip() == "Session":
-                    self._id = value.strip()
-                    self.log.info("Session id: %s", self._id)
-                    return True
+                attributes[key.strip().lower()] = value.strip()
+        if "session" in attributes:
+            self._id = attributes["session"]
+            self._attributes = attributes
+            self.log.info("Session id: %s", self._id)
+            return True
         return False
+
+    def get_attributes(self):
+        return self._attributes
 
     @gen.coroutine
     def read_message(self, timeout=None):
@@ -941,6 +953,11 @@ class PushStream(object):
 
         self._iostream.read_until_close(callback=self._post_close, streaming_callback=self._dump_output)
         raise gen.Return()
+
+    def stop(self):
+        if self._iostream is not None:
+            self._iostream.close()
+            self._iostream = None
 
     def write_chunk(self, serialized_data):
         return self.write("{size:X}\r\n{data}\r\n".format(size=len(serialized_data), data=serialized_data))
