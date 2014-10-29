@@ -569,7 +569,7 @@ def add_check_permission_parser(add_parser):
     parser.add_argument("user")
     parser.add_argument("permission", help="one of read, write, administer, create, use")
     add_ypath_argument(parser)
-    add_structured_format_help(parser, default=yt.create_format("yson"))
+    add_structured_format_help(parser, default=yt.YsonFormat(format="pretty"))
     parser.set_defaults(func=check_permission)
 
 def member_args(parser):
