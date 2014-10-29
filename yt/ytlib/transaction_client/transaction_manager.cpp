@@ -325,9 +325,11 @@ private:
 
     void SchedulePing()
     {
-        TDelayedExecutor::Submit(
-            BIND(IgnoreResult(&TTransaction::SendPing), MakeWeak(this)),
-            Owner_->Config->PingPeriod);
+        if (Ping_) {
+            TDelayedExecutor::Submit(
+                BIND(IgnoreResult(&TTransaction::SendPing), MakeWeak(this)),
+                Owner_->Config->PingPeriod);
+        }
     }
 
     TAsyncError SendPing()
@@ -346,10 +348,7 @@ private:
     {
         if (rsp->IsOK()) {
             LOG_DEBUG("Transaction pinged (TransactionId: %s)", ~ToString(Id_));
-
-            if (Ping_) {
-                SchedulePing();
-            }
+            SchedulePing();
         } else {
             if (rsp->GetError().GetCode() == NYTree::EErrorCode::ResolveError) {
                 LOG_WARNING("Transaction has expired or was aborted (TransactionId: %s)",
@@ -358,6 +357,7 @@ private:
             } else {
                 LOG_WARNING(*rsp, "Error pinging transaction (TransactionId: %s)",
                     ~ToString(Id_));
+                SchedulePing();
             }
         }
 
