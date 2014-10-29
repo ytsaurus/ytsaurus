@@ -43,106 +43,6 @@ CHUNK_HEADER_FORMAT = "<QQQ"
 CHUNK_HEADER_SIZE = struct.calcsize(CHUNK_HEADER_FORMAT)
 
 
-class State(object):
-    log = logging.getLogger("State")
-
-    def __init__(self,
-                 event_log,
-                 io_loop=None,
-                 chunk_size=DEFAULT_CHUNK_SIZE,
-                 ack_queue_length=DEFAULT_ACK_QUEUE_LENGTH,
-                 IOStreamClass=None,
-                 **log_broker_options):
-        self._chunk_size = chunk_size
-        self._ack_queue_length = ack_queue_length
-        self._last_saved_seqno = 0
-        self._last_seqno = 0
-
-        self._io_loop = io_loop or ioloop.IOLoop.instance()
-        self._event_log = event_log
-        self._log_broker = LogBroker(self, self._io_loop, IOStreamClass, **log_broker_options)
-
-        self._save_chunk_handle = None
-        self._update_state_handle = None
-
-    def start(self):
-        self._initialize()
-        self._log_broker.start()
-
-    def abort(self):
-        self._log_broker.abort()
-
-    def _initialize(self):
-        self._last_saved_seqno = self._from_row_number(self._event_log.get_next_row_to_save()) - 1
-        self._last_seqno = self._last_saved_seqno
-        self.log.info("Last acked seqno is %d", self._last_seqno)
-
-    def maybe_save_another_chunk(self):
-        if self._save_chunk_handle is not None:
-            # wait for callback
-            return
-        if self._last_saved_seqno - self._last_seqno < self._ack_queue_length:
-            self._save_chunk()
-
-    def _save_chunk(self):
-        self.log.debug("Schedule chunk save")
-        self._save_chunk_handle = None
-        try:
-            seqno = self._last_saved_seqno + 1
-            data = self._event_log.get_data(self._to_row_number(seqno), self._chunk_size)
-            self._log_broker.save_chunk(seqno, data)
-            self._last_saved_seqno = seqno
-        except yt.YtError:
-            self.log.error("Unable to schedule chunk save", exc_info=True)
-            self._save_chunk_handle = self._io_loop.add_timeout(datetime.timedelta(seconds=1), self._save_chunk)
-        except EventLog.NotEnoughDataError:
-            self.log.warning("Unable to get {0} rows from event log".format(self._chunk_size), exc_info=True)
-            self._io_loop.add_timeout(datetime.timedelta(seconds=120), self.maybe_save_another_chunk)
-        else:
-            self._io_loop.add_callback(self.maybe_save_another_chunk)
-
-    def on_session_changed(self):
-        self._last_saved_seqno = self._last_seqno
-        self.log.info("Last acked seqno is %d", self._last_seqno)
-        self.maybe_save_another_chunk()
-
-    def on_skip(self, seqno):
-        self.log.debug("Skip seqno=%d", seqno)
-        if seqno > self._last_seqno:
-            self.update_last_seqno(seqno)
-
-    def on_save_ack(self, seqno):
-        self.log.debug("Ack seqno=%d", seqno)
-        if seqno > self._last_seqno:
-            self.update_last_seqno(seqno)
-
-    def update_last_seqno(self, new_last_seqno):
-        self.log.debug("Update last seqno: %d", new_last_seqno)
-
-        self._last_seqno = new_last_seqno
-        self.log.info("Last acked seqno is %d", self._last_seqno)
-
-        if self._update_state_handle is None:
-            self._update_state_handle = self._io_loop.add_timeout(datetime.timedelta(seconds=5), self._update_state)
-
-        self.maybe_save_another_chunk()
-
-    def _update_state(self):
-        self.log.debug("Update state. Last acked seqno: %d", self._last_seqno)
-        self._update_state_handle = None
-        try:
-            self._event_log.set_next_row_to_save(self._to_row_number(self._last_seqno))
-        except yt.YtError:
-            self.log.error("Unable to update next row to save", exc_info=True)
-            self._update_state_handle = self._io_loop.add_timeout(datetime.timedelta(seconds=1), self._update_state)
-
-    def _to_row_number(self, reqno):
-        return reqno * self._chunk_size
-
-    def _from_row_number(self, row_number):
-        return row_number / self._chunk_size
-
-
 class EventLog(object):
     log = logging.getLogger("EventLog")
 
@@ -435,332 +335,143 @@ def parse_chunk(serialized_data):
 
     return data
 
+def get_endpoint(self, advicer_url):
+    self.log.info("Getting adviced logbroker endpoint...")
+    response = requests.get(advicer_url, headers={"ClientHost": socket.getfqdn()})
+    if not response.ok:
+        self.log.error("Unable to get adviced logbroker endpoint")
+        return None
+    host = response.text.strip()
+
+    self.log.info("Adviced endpoint: %s", host)
+    return (host, 80)
+
+def _pre_process(data):
+    return [_transform_record(record) for record in data]
+
+def _strip_errors(data):
+    return [_strip_error(record) for record in data]
+
+def _strip_error(record):
+    if "error" in record:
+        del record["error"]
+    return record
+
+def _transform_record(record):
+    try:
+        record["timestamp"] = normilize_timestamp(record["timestamp"])
+        record["cluster_name"] = self._cluster_name
+        record["tskv_format"] = self._log_name
+        record["timezone"] = "+0000"
+    except:
+        self.log.error("Unable to transform record: %r", record)
+        raise
+    return record
+
 
 class LogBroker(object):
-    log = logging.getLogger("log_broker")
+    log = logging.getLogger("LogBroker")
 
-    def __init__(self, state, io_loop=None, IOStreamClass=None, advicer_url=None, cluster_name = None, **session_options):
-        self._log_name = "yt-scheduler-log"
-        self._cluster_name = cluster_name
-        self._advicer_url = advicer_url
-        self._state = state
-        self._starting = False
-        self._chunk_id = 0
-        self._lines = 0
-        self._push_channel = None
+    def __init__(self, service_id, source_id, io_loop=None, IOStreamClass=None):
+        self._service_id = service_id
+        self._source_id = source_id
+
         self._session = None
-        self._session_options = session_options
-        self._io_loop = io_loop or ioloop.IOLoop.instance()
-        self.IOStreamClass = IOStreamClass or iostream.IOStream
+        self._push = None
 
-    def start(self):
-        if not self._starting:
-            self._starting = True
-            self.log.info("Start a log broker")
-            self._session = Session(self._state, self, self._io_loop, self.IOStreamClass, **self._session_options)
-            self._session.connect()
-
-    def abort(self):
-        self._push_channel.abort()
-        self._session.abort()
-
-    def save_chunk(self, seqno, data):
-        data = self._pre_process(data)
-        if self._push_channel is not None:
-            serialized_data = serialize_chunk(self._chunk_id, seqno, self._lines, data)
-            self.log.debug("Chunk size [%d] equals to %d", seqno, len(serialized_data))
-            if len(serialized_data) > 10*1024*1024:
-                self.log.warning("Chunk [%d] is too big. Try to strip error information", seqno)
-                data = self._strip_errors(data)
-                serialized_data = serialize_chunk(self._chunk_id, seqno, self._lines, data)
-                self.log.debug("Chunk size [%d] equals to %d", seqno, len(serialized_data))
-                if len(serialized_data) > 10*1024*1024:
-                    raise RuntimeError("Chunk is too big")
-
-            self._chunk_id += 1
-            self._lines += 1
-
-            assert len(serialized_data) > 0
-
-            self.log.debug("Save chunk [%d]", seqno)
-            data_to_write = "{size:X}\r\n{data}\r\n".format(size=len(serialized_data), data=serialized_data)
-            self._push_channel.write(data_to_write)
-        else:
-            assert False
-
-    def on_session_changed(self, id_, host):
-        self._starting = False
-        if self._push_channel is not None:
-            self._push_channel.abort()
-
-        self._chunk_id = 0
-        self._lines = 0
-
-        self._push_channel = PushChannel(self._state, id_,
-            io_loop=self._io_loop,
-            IOStreamClass=self.IOStreamClass,
-            endpoint=(host, 9000))
-        self._push_channel.connect()
-
-    def get_endpoint(self):
-        self.log.info("Getting adviced logbroker endpoint...")
-        response = requests.get(self._advicer_url, headers={"ClientHost": socket.getfqdn()})
-        if not response.ok:
-            self.log.error("Unable to get adviced logbroker endpoint")
-            return None
-        host = response.text.strip()
-
-        self.log.info("Adviced endpoint: %s", host)
-        return (host, 80)
-
-    def _pre_process(self, data):
-        return [self._transform_record(record) for record in data]
-
-    def _strip_errors(self, data):
-        return [self._strip_error(record) for record in data]
-
-    def _strip_error(self, record):
-        if "error" in record:
-            del record["error"]
-        return record
-
-    def _transform_record(self, record):
-        try:
-            record["timestamp"] = normilize_timestamp(record["timestamp"])
-            record["cluster_name"] = self._cluster_name
-            record["tskv_format"] = self._log_name
-            record["timezone"] = "+0000"
-        except:
-            self.log.error("Unable to transform record: %r", record)
-            raise
-        return record
-
-
-class PushChannel(object):
-    log = logging.getLogger("push_channel")
-
-    def __init__(self, state, session_id, io_loop=None, IOStreamClass=None, endpoint=None):
-        self._state = state
-        self._session_id = session_id
-        self._aborted = False
-
-        self._endpoint = endpoint
-        self._host = self._endpoint[0]
+        self._save_chunk_futures = dict()
+        self._last_acked_seqno = None
+        self._stopped = False
 
         self._io_loop = io_loop or ioloop.IOLoop.instance()
-        self._iostream = None
         self.IOStreamClass = IOStreamClass or iostream.IOStream
-
-    def connect(self):
-        self.log.info("Create a push channel [%d]. Endpoint: %s. Session: %s", id(self), self._endpoint, self._session_id)
-        if self._aborted:
-            self.log.error("Unable to connect: push channel [%d] is aborted", id(self))
-            return
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-        self._iostream = self.IOStreamClass(s, io_loop=self._io_loop)
-        self._iostream.set_close_callback(self.on_close)
-        self._iostream.connect(self._endpoint, callback=self.on_connect)
-        self.log.info("Send request to push channel [%d]", id(self))
-        self._iostream.write(
-            "PUT /rt/store HTTP/1.1\r\n"
-            "Host: {host}\r\n"
-            "Content-Type: text/plain\r\n"
-            "Content-Encoding: gzip\r\n"
-            "Transfer-Encoding: chunked\r\n"
-            "RTSTreamFormat: v2le\r\n"
-            "Session: {session_id}\r\n"
-            "\r\n".format(
-                host=self._host,
-                session_id=self._session_id)
-        )
-
-    def write(self, data):
-        if self._aborted:
-            self.log.error("Unable to write: push channel [%d] is aborted", id(self))
-            return
-        self._iostream.write(data)
-
-    def abort(self):
-        self.log.info("Abort the push channel [%d]", id(self))
-        self._aborted = True
-        if self._iostream is not None:
-            self._iostream.close()
-
-    def on_connect(self):
-        self.log.info("The push channel [%d] has been created", id(self))
-        self._state.on_session_changed()
-        self._iostream.read_until_close(self.on_response_end, self.on_response)
-
-    def on_response(self, data):
-        self.log.debug(data)
-
-    def on_response_end(self, data):
-        self.log.debug(data)
-
-    def on_close(self):
-        self.log.info("The push channel [%d] has been closed", id(self))
-        self._iostream = None
-        if not self._aborted:
-            self._io_loop.add_timeout(datetime.timedelta(seconds=1), self.connect)
-
-
-class Session(object):
-    log = logging.getLogger("session")
-
-    def __init__(
-            self,
-            state,
-            log_broker,
-            io_loop=None,
-            IOStreamClass=None,
-            service_id=None,
-            source_id=None,
-            logtype=None):
-        self._endpoint = None
-        self._host = None
-        self._service_id = service_id or DEFAULT_SERVICE_ID
-        self._source_id = source_id or DEFAULT_SOURCE_ID
-        self._logtype = logtype
-        self._id = None
-        self._aborted = False
-        self._state = state
-        self._log_broker = log_broker
-        self._io_loop = io_loop or ioloop.IOLoop.instance()
-        self._iostream = None
-        self.IOStreamClass = IOStreamClass or iostream.IOStream
-
-    def connect(self):
-        assert self._iostream is None
-        if self._aborted:
-            return
-        self.log.info("[%d] Connect to kafka", id(self))
-
-        # check endpoint
-        self._endpoint = self._log_broker.get_endpoint()
-        if self._endpoint is None:
-            self.log.info("Unable to get logbroker endpoint. Retry later.")
-            self._io_loop.add_timeout(datetime.timedelta(seconds=1), self.connect)
-
-        self._host = self._endpoint[0]
-
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-            self._iostream = self.IOStreamClass(s, io_loop=self._io_loop)
-            self._iostream.set_close_callback(self.on_close)
-            self._iostream.connect(self._endpoint, callback=self.on_connect)
-        except Exception:
-            self._iostream = None
-            self.log.error("Unable to start connecting. Retry later.", exc_info=True)
-            self._io_loop.add_timeout(datetime.timedelta(seconds=1), self.connect)
-
-        self.log.info("[%d] Send request. Ident: %s. SourceId: %s. Endpoint: %s",
-            id(self),
-            self._service_id,
-            self._source_id,
-            self._endpoint)
-        try:
-            self._iostream.write(
-                "GET /rt/session?"
-                "ident={ident}&"
-                "sourceid={source_id}&"
-                "logtype={logtype} "
-                "HTTP/1.1\r\n"
-                "Host: {host}\r\n"
-                "Accept: */*\r\n\r\n".format(
-                    ident=self._service_id,
-                    source_id=self._source_id,
-                    logtype=self._logtype,
-                    host=self._host)
-                )
-        except iostream.StreamClosedError:
-            self.log.error("[%d] Session is closed before created. Reconnect", id(self), exc_info=True)
-            raise
 
     @gen.coroutine
-    def on_connect(self):
-        self.log.info("[%d] The session channel has been created", id(self))
-        metadata_raw = yield gen.Task(self._iostream.read_until, "\r\n\r\n")
+    def connect(self, hostname, timeout=None):
+        assert self._session is None
+        assert self._push is None
 
-        self.log.debug("[%d] Parse response %s", id(self), metadata_raw)
-        result = self.read_metadata(metadata_raw[:-4])
-        if not result:
-            self.log.error("[%d] Unable to find Session header in the response", id(self))
-            self._iostream.close()
-            return
+        self._session = SessionStream(service_id=self._service_id, source_id=self._source_id, io_loop=self._io_loop)
+        self.log.info("Connect session stream")
+        session_id = yield self._session.connect((hostname, 80))
+        self._update_last_acked_seqno(int(self._session.get_attributes()["seqno"]))
 
+        self._push = PushStream(io_loop=self._io_loop)
+        self.log.info("Connect push stream")
+        yield self._push.connect((hostname, 9000), session_id=session_id)
+
+        self._io_loop.add_callback(self.read_session)
+
+    def save_chunk(self, seqno, data, timeout=None):
+        assert not seqno in self._save_chunk_futures
+
+        serialized_data = serialize_chunk(0, seqno, 0, data)
+        self._push.write_chunk(serialized_data)
+        f = gen.Future()
+        self._save_chunk_futures[seqno] = f
+        return f
+
+    @gen.coroutine
+    def read_session(self):
+        while not self._stopped:
+            try:
+                message = yield self._session.read_message()
+            except RuntimeError as e:
+                self._abort(e)
+            else:
+                self.log.debug("Get %r message", message)
+                if message.type == "ping":
+                    pass
+                elif message.type == "skip":
+                    skip_seqno = message.attributes["seqno"]
+                    f = self._save_chunk_futures.pop(skip_seqno, None)
+                    if f:
+                        if skip_seqno > self._last_acked_seqno:
+                            self._update_last_acked_seqno(skip_seqno)
+                        f.set_result(self._last_acked_seqno)
+                elif message.type == "ack":
+                    assert self._last_acked_seqno <= message.attributes["seqno"]
+
+                    self._update_last_acked_seqno(message.attributes["seqno"])
+                    self._set_futures(self._last_acked_seqno)
+
+    def _abort(self, e):
+        self.log.info("Abort LogBroker client", exc_info=e)
+        if not self._stopped:
+            self._set_futures(e)
+            self.stop()
+
+        assert len(self._save_chunk_futures) == 0
+
+    def _set_futures(self, future_value):
         try:
-            while True:
-                headers_raw = yield gen.Task(self._iostream.read_until, "\r\n")
-                try:
-                    body_size = int(headers_raw, 16)
-                except ValueError:
-                    self.log.error("[%d] Bad HTTP chunk header format", id(self))
-                    self._iostream.close()
-                    return
-                if body_size == 0:
-                    self.log.error("[%d] HTTP response is finished", id(self))
-                    data = yield gen.Task(self._iostream.read_until_close)
-                    self.log.debug("[%d] Session trailers: %s", id(self), data)
-                    self._iostream.close()
-                    return
-                data = yield gen.Task(self._iostream.read_bytes, body_size + 2)
+            is_exception = isinstance(type(future_value), Exception)
+            if is_exception:
+                for key, value in self._save_chunk_futures.iteritems():
+                    value.set_exception(future_value)
+            else:
+                seqnos = self._save_chunk_futures.keys()
+                for seqno in seqnos:
+                    if seqno <= future_value:
+                        f = self._save_chunk_futures.pop(seqno)
+                        f.set_result(future_value)
 
-                self.log.debug("[%d] Process status: %s", id(self), data.strip())
-                self.process_data(data.strip())
-        except Exception:
-            self.log.error("[%d] Unhandled exception. Close the session", id(self), exc_info=True)
-            self._iostream.close()
+            self._save_chunk_futures.clear()
+        except:
+            self.log.error("Unhandled exception:", exc_info=True)
             raise
 
-    def read_metadata(self, data):
-        for index, line in enumerate(data.split("\n")):
-            if index > 0:
-                key, value = line.split(":", 1)
-                if key.strip() == "Session":
-                    self._id = value.strip()
-                    self.log.info("[%d] Session id: %s", id(self), self._id)
-                    self._log_broker.on_session_changed(self._id, self._host)
-                    return True
-        return False
+    def _update_last_acked_seqno(self, value):
+        self.log.debug("Update last acked seqno. Old: %s. New: %s", self._last_acked_seqno, value)
+        self._last_acked_seqno = value
 
-    def abort(self):
-        self.log.info("[%d] Abort the session channel", id(self))
-        self._aborted = True
-        if self.iostream is not None:
-            self._iostream.close()
-
-    def on_close(self):
-        self.log.error("[%d] The session channel has been closed", id(self))
-        self._iostream = None
-        if not self._aborted:
-            self._io_loop.add_timeout(datetime.timedelta(seconds=1), self.connect)
-
-    def process_data(self, data):
-        if data.startswith("skip"):
-            line = data[len("skip") + 1:]
-            handler = self._state.on_skip
-        else:
-            line = data
-            handler = self._state.on_save_ack
-
-        attributes = self._parse(line)
-        try:
-            handler(attributes["seqno"])
-        except KeyError:
-            pass
-
-    def _parse(self, line):
-        attributes = {}
-        records = line.split()
-        for record in records:
-            try:
-                key, value = record.split("=", 1)
-                value = int(value)
-            except ValueError:
-                pass
-            else:
-                attributes[key] = value
-        return attributes
+    def stop(self):
+        assert len(self._save_chunk_futures) == 0
+        self._push.stop()
+        self._push = None
+        self._session.stop()
+        self._session = None
+        self._stopped = True
 
 
 class SessionIdNotFound(RuntimeError):
