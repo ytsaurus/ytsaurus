@@ -43,53 +43,53 @@ def prepare_path(path):
     attributes = {}
     if isinstance(path, yson.YsonString):
         attributes = path.attributes
-    result = yson.loads(command("parse_ypath", arguments={"path": path}, verbose=False))
+    result = yson.loads(command("parse_ypath", parameters={"path": path}, verbose=False))
     update(result.attributes, attributes)
     return result
 
 def prepare_paths(paths):
     return [prepare_path(path) for path in flatten(paths)]
 
-def prepare_args(arguments):
-    change(arguments, "tx", "transaction_id")
-    change(arguments, "attr", "attributes")
-    change(arguments, "ping_ancestor_txs", "ping_ancestor_transactions")
-    if "opt" in arguments:
-        for option in flatten(arguments["opt"]):
+def prepare_parameters(parameters):
+    change(parameters, "tx", "transaction_id")
+    change(parameters, "attr", "attributes")
+    change(parameters, "ping_ancestor_txs", "ping_ancestor_transactions")
+    if "opt" in parameters:
+        for option in flatten(parameters["opt"]):
             key, value = option.split("=", 1)
-            set_branch(arguments, key.strip("/").split("/"), yson.loads(value))
-        del arguments["opt"]
+            set_branch(parameters, key.strip("/").split("/"), yson.loads(value))
+        del parameters["opt"]
 
-    return arguments
+    return parameters
 
-def command(command_name, arguments, input_stream=None, output_stream=None, verbose=None):
-    if "verbose" in arguments:
-        verbose = arguments["verbose"]
-        del arguments["verbose"]
+def command(command_name, parameters, input_stream=None, output_stream=None, verbose=None):
+    if "verbose" in parameters:
+        verbose = parameters["verbose"]
+        del parameters["verbose"]
     verbose = verbose is None or verbose
 
-    if "driver" in arguments:
-        driver = arguments["driver"]
-        del arguments["driver"]
+    if "driver" in parameters:
+        driver = parameters["driver"]
+        del parameters["driver"]
     else:
         driver = get_driver()
 
     user = None
-    if "user" in arguments:
-        user = arguments["user"]
-        del arguments["user"]
+    if "user" in parameters:
+        user = parameters["user"]
+        del parameters["user"]
 
-    if "path" in arguments and command_name != "parse_ypath":
-        arguments["path"] = prepare_path(arguments["path"])
+    if "path" in parameters and command_name != "parse_ypath":
+        parameters["path"] = prepare_path(parameters["path"])
 
-    arguments = prepare_args(arguments)
+    parameters = prepare_parameters(parameters)
 
     if verbose:
-        print >>sys.stderr, str(datetime.now()), command_name, arguments
+        print >>sys.stderr, str(datetime.now()), command_name, parameters
     result = make_request(
         driver,
         Request(command_name=command_name,
-                arguments=arguments,
+                parameters=parameters,
                 input_stream=input_stream,
                 output_stream=output_stream,
                 user=user))

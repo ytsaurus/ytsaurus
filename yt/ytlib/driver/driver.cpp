@@ -332,7 +332,7 @@ private:
         virtual const TFormat& GetInputFormat() override
         {
             if (!InputFormat_) {
-                InputFormat_ = ConvertTo<TFormat>(Request_.Arguments->GetChild("input_format"));
+                InputFormat_ = ConvertTo<TFormat>(Request_.Parameters->GetChild("input_format"));
             }
             return *InputFormat_;
         }
@@ -340,7 +340,7 @@ private:
         virtual const TFormat& GetOutputFormat() override
         {
             if (!OutputFormat_) {
-                OutputFormat_ = ConvertTo<TFormat>(Request_.Arguments->GetChild("output_format"));
+                OutputFormat_ = ConvertTo<TFormat>(Request_.Parameters->GetChild("output_format"));
             }
             return *OutputFormat_;
         }

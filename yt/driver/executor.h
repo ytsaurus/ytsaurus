@@ -77,7 +77,7 @@ protected:
 
     NFormats::TFormat GetFormat(NFormats::EDataType dataType, const TNullable<NYTree::TYsonString>& yson);
 
-    NYTree::IMapNodePtr GetArgs();
+    NYTree::IMapNodePtr GetParameters();
 
     // Construct args according to given options
     virtual void BuildArgs(NYson::IYsonConsumer* consumer);

@@ -188,8 +188,8 @@ private:
     {
         Request_ = New<TRequest>();
         try {
-            auto arguments = Context_->Request().Arguments;;
-            Request_ = NYTree::ConvertTo<TIntrusivePtr<TRequest>>(arguments);
+            auto parameters = Context_->Request().Parameters;
+            Request_ = NYTree::ConvertTo<TIntrusivePtr<TRequest>>(parameters);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing command arguments") << ex;
         }

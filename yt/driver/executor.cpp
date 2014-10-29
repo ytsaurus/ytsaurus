@@ -190,8 +190,8 @@ void TRequestExecutor::DoExecute()
     OutputStream_ = std::unique_ptr<TOutputStream>(new TBufferedOutput(&StdOutStream(), OutputBufferSize));
 
     TDriverRequest request;
-    // GetArgs() must be called before GetInputStream()
-    request.Arguments = GetArgs();
+    // GetParameters() must be called before GetInputStream()
+    request.Parameters = GetParameters();
     request.CommandName = GetCommandName();
 
     if (AuthenticatedUserArg.isSet()) {
@@ -200,7 +200,7 @@ void TRequestExecutor::DoExecute()
 
     request.InputStream = CreateAsyncInputStream(GetInputStream());
     try {
-        request.Arguments->AddChild(
+        request.Parameters->AddChild(
             ConvertToNode(GetFormat(descriptor.InputType, inputFormat)),
             "input_format");
     } catch (const std::exception& ex) {
@@ -209,7 +209,7 @@ void TRequestExecutor::DoExecute()
 
     request.OutputStream = CreateAsyncOutputStream(OutputStream_.get());
     try {
-        request.Arguments->AddChild(
+        request.Parameters->AddChild(
             ConvertToNode(GetFormat(descriptor.OutputType, outputFormat)),
             "output_format");
     } catch (const std::exception& ex) {
@@ -230,7 +230,7 @@ void TRequestExecutor::DoExecute(const TDriverRequest& request)
     THROW_ERROR_EXCEPTION_IF_FAILED(response.Error);
 }
 
-IMapNodePtr TRequestExecutor::GetArgs()
+IMapNodePtr TRequestExecutor::GetParameters()
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -240,11 +240,11 @@ IMapNodePtr TRequestExecutor::GetArgs()
             .Do(BIND(&TRequestExecutor::BuildArgs, Unretained(this)))
         .EndMap();
 
-    auto args = builder->EndTree()->AsMap();
+    auto parameters = builder->EndTree()->AsMap();
     for (const auto& opt : OptArg.getValue()) {
-        ApplyYPathOverride(args, opt);
+        ApplyYPathOverride(parameters, opt);
     }
-    return args;
+    return parameters;
 }
 
 TFormat TRequestExecutor::GetFormat(EDataType dataType, const TNullable<TYsonString>& yson)

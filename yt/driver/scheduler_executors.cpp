@@ -41,10 +41,10 @@ void TStartOpExecutor::DoExecute(const TDriverRequest& request)
     TDriverRequest requestCopy = request;
 
     TStringStream output;
-    requestCopy.Arguments->AddChild(
+    requestCopy.Parameters->AddChild(
         ConvertToNode(TFormat(EFormatType::Yson)),
         "input_format");
-    requestCopy.Arguments->AddChild(
+    requestCopy.Parameters->AddChild(
         ConvertToNode(TFormat(EFormatType::Yson)),
         "output_format");
     
