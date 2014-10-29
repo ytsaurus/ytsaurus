@@ -114,15 +114,13 @@ protected:
 
     void SwitchSession();
 
-    const TMultiChunkWriterConfigPtr Config;
+    TMultiChunkWriterConfigPtr Config;
     const TMultiChunkWriterOptionsPtr Options;
     const NRpc::IChannelPtr MasterChannel;
     const NTransactionClient::TTransactionId TransactionId;
     const TChunkListId ParentChunkListId;
 
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
-
-    const int UploadReplicationFactor;
 
     TProviderPtr Provider;
 

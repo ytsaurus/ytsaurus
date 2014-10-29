@@ -19,6 +19,8 @@
 #include <core/misc/address.h>
 #include <core/misc/protobuf_helpers.h>
 
+#include <core/ytree/yson_serializable.h>
+
 #include <core/rpc/helpers.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
@@ -40,13 +42,11 @@ TOldMultiChunkSequentialWriter<TProvider>::TOldMultiChunkSequentialWriter(
     NRpc::IChannelPtr masterChannel,
     const NTransactionClient::TTransactionId& transactionId,
     const TChunkListId& parentChunkListId)
-    : Config(config)
-    , Options(options)
+    : Options(options)
     , MasterChannel(masterChannel)
     , TransactionId(transactionId)
     , ParentChunkListId(parentChunkListId)
     , NodeDirectory(New<NNodeTrackerClient::TNodeDirectory>())
-    , UploadReplicationFactor(std::min(Options->ReplicationFactor, Config->UploadReplicationFactor))
     , Provider(provider)
     , Progress(0)
     , CompleteChunkSize(0)
@@ -55,6 +55,10 @@ TOldMultiChunkSequentialWriter<TProvider>::TOldMultiChunkSequentialWriter(
 {
     YCHECK(config);
     YCHECK(masterChannel);
+
+    // Patch UploadReplicationFactor with respect to options.
+    Config = NYTree::CloneYsonSerializable(config);
+    Config->UploadReplicationFactor = std::min(Options->ReplicationFactor, Config->UploadReplicationFactor);
 
     Logger.AddTag("TransactionId: %v", TransactionId);
 }
