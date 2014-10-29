@@ -150,10 +150,12 @@ class Yamr(object):
 
     def write(self, table, data):
         command = "MR_USER={0} {1} -server {2} -write {3}".format(self.mr_user, self.binary, self.server, table)
-        proc = subprocess.Popen(command, stdin=subprocess.PIPE, preexec_fn=set_pdeathsig, shell=True)
-        proc.communicate(data)
+        proc = subprocess.Popen(command, stdin=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=set_pdeathsig, shell=True)
+        _, stderr = proc.communicate(data)
         if proc.returncode != 0:
-            raise subprocess.CalledProcessError("Command '{0}' return non-zero exit status {1}".format(command, proc.returncode))
+            error = YamrError("Command '{0}' failed".format(command))
+            error.inner_errors = [YamrError(stderr, proc.returncode)]
+            raise error
 
     def create_read_range_commands(self, ranges, table):
         commands = []
