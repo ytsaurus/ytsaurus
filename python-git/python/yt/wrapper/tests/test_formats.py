@@ -51,7 +51,7 @@ def check_table_index(format, raw_row, raw_table_switcher, rows, process_output=
     assert output_stream_str == input_stream_str
 
 def test_yson_format():
-    format = yt.YsonFormat(process_table_index=False)
+    format = yt.YsonFormat(process_table_index=False, format="text")
     row = {"a": 1, "b": 2}
     serialized_row = '{"a"=1;"b"=2}'
     yson_rows = list(format.load_rows(StringIO(serialized_row)))
@@ -64,7 +64,7 @@ def test_yson_format():
     assert format.dumps_row({"a": 1}) == yson.dumps({"a": 1}, yson_format="binary") + ";"
 
 def test_yson_table_switcher():
-    format = yt.YsonFormat()
+    format = yt.YsonFormat(format="text")
     input = '{"a"=1};\n<"table_index"=1>#;\n{"a"=1};\n'
 
     yson_rows = format.load_rows(StringIO(input))
