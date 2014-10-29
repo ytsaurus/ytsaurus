@@ -95,7 +95,6 @@ public:
         LookupKeys_.clear();
         EdenLookupers_.clear();
         PartitionLookupers_.clear();
-        Collector_.Reset();
     }
 
 private:
@@ -103,7 +102,6 @@ private:
     std::vector<TUnversionedRow> LookupKeys_;
     std::vector<IVersionedLookuperPtr> EdenLookupers_;
     std::vector<IVersionedLookuperPtr> PartitionLookupers_;
-    TIntrusivePtr<TParallelCollector<TVersionedRow>> Collector_;
 
     TTabletSnapshotPtr TabletSnapshot_;
     TTimestamp Timestamp_;
@@ -130,6 +128,7 @@ private:
     void InvokeLookupers(
         const std::vector<IVersionedLookuperPtr>& lookupers,
         TUnversionedRowMerger* merger,
+        TIntrusivePtr<TParallelCollector<TVersionedRow>>* collector,
         TKey key)
     {
         for (const auto& lookuper : lookupers) {
@@ -139,10 +138,10 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(*maybeRowOrError);
                 merger->AddPartialRow(maybeRowOrError->Value());
             } else {
-                if (!Collector_) {
-                    Collector_ = New<TParallelCollector<TVersionedRow>>();
+                if (!(*collector)) {
+                    *collector = New<TParallelCollector<TVersionedRow>>();
                 }
-                Collector_->Collect(futureRowOrError);
+                (*collector)->Collect(futureRowOrError);
             }
         }
     }
@@ -170,13 +169,15 @@ private:
                 CreateLookupers(&PartitionLookupers_, currentPartitionSnapshot);
             }
 
+            TIntrusivePtr<TParallelCollector<TVersionedRow>> collector;
+
             // Send requests, collect sync responses.
-            InvokeLookupers(EdenLookupers_, &merger, key);
-            InvokeLookupers(PartitionLookupers_, &merger, key);
+            InvokeLookupers(EdenLookupers_, &merger, &collector, key);
+            InvokeLookupers(PartitionLookupers_, &merger, &collector, key);
 
             // Wait for async responses.
-            if (Collector_) {
-                auto result = WaitFor(Collector_->Complete());
+            if (collector) {
+                auto result = WaitFor(collector->Complete());
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 for (auto row : result.Value()) {
                     merger.AddPartialRow(row);
