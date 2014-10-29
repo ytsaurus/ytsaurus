@@ -35,12 +35,14 @@ import collections
 DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
 DEFAULT_ADVICER_URL = "http://cellar-t.stat.yandex.net/advise"
 DEFAULT_CHUNK_SIZE = 4000
-DEFAULT_ACK_QUEUE_LENGTH = 1
 DEFAULT_SERVICE_ID = "yt"
 DEFAULT_SOURCE_ID = "tramsmm43"
 
 CHUNK_HEADER_FORMAT = "<QQQ"
 CHUNK_HEADER_SIZE = struct.calcsize(CHUNK_HEADER_FORMAT)
+
+
+log = logging.getLogger("Fennel")
 
 
 class EventLog(object):
@@ -336,35 +338,27 @@ def parse_chunk(serialized_data):
     return data
 
 def get_endpoint(self, advicer_url):
-    self.log.info("Getting adviced logbroker endpoint...")
+    log.info("Getting adviced logbroker endpoint...")
     response = requests.get(advicer_url, headers={"ClientHost": socket.getfqdn()})
     if not response.ok:
-        self.log.error("Unable to get adviced logbroker endpoint")
+        log.error("Unable to get adviced logbroker endpoint")
         return None
     host = response.text.strip()
 
-    self.log.info("Adviced endpoint: %s", host)
+    log.info("Adviced endpoint: %s", host)
     return (host, 80)
 
 def _pre_process(data):
     return [_transform_record(record) for record in data]
 
-def _strip_errors(data):
-    return [_strip_error(record) for record in data]
-
-def _strip_error(record):
-    if "error" in record:
-        del record["error"]
-    return record
-
 def _transform_record(record):
     try:
         record["timestamp"] = normilize_timestamp(record["timestamp"])
-        record["cluster_name"] = self._cluster_name
-        record["tskv_format"] = self._log_name
+        record["cluster_name"] = "CLUSTER_NAME"
+        record["tskv_format"] = "LOG_NAME"
         record["timezone"] = "+0000"
     except:
-        self.log.error("Unable to transform record: %r", record)
+        log.error("Unable to transform record: %r", record)
         raise
     return record
 
@@ -401,6 +395,7 @@ class LogBroker(object):
         yield self._push.connect((hostname, 9000), session_id=session_id)
 
         self._io_loop.add_callback(self.read_session)
+        raise gen.Return(self._last_acked_seqno)
 
     def save_chunk(self, seqno, data, timeout=None):
         assert not seqno in self._save_chunk_futures
@@ -686,19 +681,35 @@ class PushStream(object):
         self.log.debug("The push stream for session %s was closed", self._session_id)
 
 
-def main(table_name, proxy_path, service_id, source_id, chunk_size, ack_queue_length, advicer_url, cluster_name, logtype, **kwargs):
-    io_loop = ioloop.IOLoop.instance()
+class Application(object):
+    def __init__(self, proxy_path, logbroker_url, table_name, service_id, source_id):
+        yt.config.set_proxy(proxy_path)
 
-    yt.config.set_proxy(proxy_path)
-    event_log = EventLog(yt, table_name=table_name)
-    state = State(
-        event_log=event_log,
-        io_loop=io_loop,
-        chunk_size=chunk_size, ack_queue_length=ack_queue_length,
-        service_id=service_id, source_id=source_id, advicer_url = advicer_url,
-        cluster_name=cluster_name, logtype=logtype)
-    state.start()
-    io_loop.start()
+        self._last_acked_seqno = None
+        self._chunk_size = 4000
+
+        self._io_loop = ioloop.IOLoop.instance()
+        self._event_log = EventLog(yt, table_name=table_name)
+        self._log_broker = LogBroker(service_id, source_id, io_loop=self._io_loop)
+        self._logbroker_url = logbroker_url
+
+    def start(self):
+        self._io_loop.add_callback(self._start)
+        self._io_loop.start()
+
+    @gen.coroutine
+    def _start(self):
+         self._last_acked_seqno = yield self._log_broker.connect(self._logbroker_url)
+
+         while True:
+             data = self._event_log.get_data(self._last_acked_seqno, self._chunk_size)
+             data = _pre_process(data)
+             self._last_acked_seqno = yield self._log_broker.save_chunk(self._last_acked_seqno + self._chunk_size, data)
+
+
+def main(proxy_path, table_name, service_id, source_id, **kwargs):
+    app = Application(proxy_path, "kafka01ft.stat.yandex.net", table_name, service_id, source_id)
+    app.start()
 
 
 def init(table_name, proxy_path, **kwargs):
@@ -736,7 +747,6 @@ def run():
         help="[yt] path to scheduler event log")
     options.define("proxy_path", metavar="URL", help="[yt] url to proxy")
     options.define("chunk_size", default=DEFAULT_CHUNK_SIZE, help="size of chunk in rows")
-    options.define("ack_queue_length", default=DEFAULT_ACK_QUEUE_LENGTH, help="number of concurrent chunks to save")
 
     options.define("cluster_name", default="", help="[logbroker] name of source cluster")
     options.define("logtype", default="", help="[logbroker] log type")
@@ -755,7 +765,6 @@ def run():
     options.define("archive", default=False, help="archive and exit")
 
     options.define("log_dir", metavar="PATH", default="/var/log/fennel", help="log directory")
-    options.define("verbose", default=False, help="verbose mode")
 
     options.define("sentry_endpoint", default="", help="sentry endpoint")
 

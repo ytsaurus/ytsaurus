@@ -116,7 +116,8 @@ class TestLogBrokerIntegration(testing.AsyncTestCase):
 
         source_id = uuid.uuid4().hex
         self.l = fennel.LogBroker(service_id=self.service_id, source_id=source_id, io_loop=self.io_loop)
-        yield self.l.connect('kafka01ft.stat.yandex.net')
+        seqno = yield self.l.connect('kafka01ft.stat.yandex.net')
+        assert seqno == 0
         self.stop()
 
     @testing.gen_test
