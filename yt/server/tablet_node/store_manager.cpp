@@ -6,6 +6,7 @@
 #include "transaction.h"
 #include "config.h"
 #include "tablet_slot.h"
+#include "transaction_manager.h"
 #include "private.h"
 
 #include <core/misc/small_vector.h>
@@ -485,15 +486,16 @@ void TStoreManager::WaitForBlockedRow(
     int lockIndex,
     const TTransactionId& transactionId)
 {
-    const auto& lock = row.BeginLocks(KeyColumnCount_)[lockIndex];
-    const auto* transaction = lock.Transaction;
-    if (transaction && transaction->GetId() == transactionId) {
-        LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v)",
-            RowToKey(Tablet_, row),
-            lockIndex,
-            transactionId);
-        WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum));
-    }
+    auto transactionManager = Tablet_->GetSlot()->GetTransactionManager();
+    auto* transaction = transactionManager->FindTransaction(transactionId);
+    if (!transaction)
+        return;
+
+    LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v)",
+        RowToKey(Tablet_, row),
+        lockIndex,
+        transactionId);
+    WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
