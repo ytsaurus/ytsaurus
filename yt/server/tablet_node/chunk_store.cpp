@@ -7,6 +7,7 @@
 
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/delayed_executor.h>
+#include <core/concurrency/thread_affinity.h>
 
 #include <core/ytree/fluent.h>
 
@@ -65,15 +66,14 @@ static const TDuration ChunkReaderExpirationTimeout = TDuration::Seconds(15);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkStore::TLocalChunkReaderWrapper
-    : public NChunkClient::IChunkReader
+    : public IChunkReader
 {
 public:
     TLocalChunkReaderWrapper(
-        NChunkClient::IChunkReaderPtr underlyingReader,
+        IChunkReaderPtr underlyingReader,
         TChunkStorePtr owner)
         : UnderlyingReader_(std::move(underlyingReader))
         , Owner_(std::move(owner))
-        , AutomatonInvoker_(Owner_->Tablet_->GetEpochAutomatonInvoker())
     { }
 
     virtual TAsyncReadBlocksResult ReadBlocks(const std::vector<int>& blockIndexes) override
@@ -114,16 +114,14 @@ public:
     }
 
 private:
-    NChunkClient::IChunkReaderPtr UnderlyingReader_;
+    IChunkReaderPtr UnderlyingReader_;
     TChunkStorePtr Owner_;
-
-    IInvokerPtr AutomatonInvoker_;
 
 
     void CheckResult(const TError& result)
     {
         if (!result.IsOK()) {
-            AutomatonInvoker_->Invoke(BIND(&TChunkStore::OnLocalReaderFailed, Owner_));
+            Owner_->OnLocalReaderFailed();
         }
     }
 
@@ -209,6 +207,8 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto backingStore = GetBackingStore();
     if (backingStore) {
         return backingStore->CreateReader(
@@ -247,6 +247,8 @@ IVersionedLookuperPtr TChunkStore::CreateLookuper(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto backingStore = GetBackingStore();
     if (backingStore) {
         return backingStore->CreateLookuper(timestamp, columnFilter);
@@ -321,6 +323,8 @@ void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
 
 IChunkPtr TChunkStore::PrepareChunk()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     {
         TReaderGuard guard(ChunkLock_);
         if (ChunkInitialized_) {
@@ -354,6 +358,8 @@ IChunkPtr TChunkStore::PrepareChunk()
 
 IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     {
         TReaderGuard guard(ChunkReaderLock_);
         if (ChunkReader_) {
@@ -399,6 +405,8 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
 
 TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IChunkReaderPtr chunkReader)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     {
         TReaderGuard guard(CachedVersionedChunkMetaLock_);
         if (CachedVersionedChunkMeta_) {
@@ -423,6 +431,8 @@ TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IChunk
 
 IStorePtr TChunkStore::GetBackingStore()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     TReaderGuard guard(BackingStoreLock_);
     return BackingStore_;
 }
@@ -442,6 +452,8 @@ void TChunkStore::PrecacheProperties()
 
 void TChunkStore::OnLocalReaderFailed()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     {
         TWriterGuard guard(ChunkLock_);
         ChunkInitialized_ = false;
