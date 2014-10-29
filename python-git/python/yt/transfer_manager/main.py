@@ -790,7 +790,7 @@ DEFAULT_CONFIG = {
             "options": {
                 "server": "cedar00.search.yandex.net",
                 "opts": "MR_NET_TABLE=ipv6",
-                "binary": "/opt/cron/tools/mapreduce",
+                "binary": "/Berkanavt/bin/mapreduce-dev",
                 "server_port": 8013,
                 "http_port": 13013,
                 "fastbone": True,
@@ -801,7 +801,7 @@ DEFAULT_CONFIG = {
             "type": "yamr",
             "options": {
                 "server": "redwood00.search.yandex.net",
-                "binary": "/opt/cron/tools/mapreduce",
+                "binary": "/Berkanavt/bin/mapreduce-dev",
                 "server_port": 8013,
                 "http_port": 13013,
                 "fastbone": True,

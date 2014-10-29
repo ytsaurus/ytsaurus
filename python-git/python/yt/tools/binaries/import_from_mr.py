@@ -2,7 +2,7 @@
 
 from yt.tools.atomic import process_tasks_from_list, CANCEL, REPEAT
 from yt.tools.common import update_args
-from yt.tools.yamr import Yamr
+from yt.tools.yamr import Yamr, YamrError
 from yt.tools.remote_copy_tools import copy_yamr_to_yt_pull, IncorrectRowCount
 from yt.wrapper.common import die
 from yt.wrapper.client import Yt
@@ -91,7 +91,10 @@ def import_table(object, args):
     except (CalledProcessError, TimeoutExpired, IncorrectRowCount) as error:
         logger.exception(error.message)
         return REPEAT
-    except yt.YtError:
+    except YamrError as error:
+        logger.exception("Yamr failed: " + yt.errors.format_error(error))
+        return REPEAT
+    except:
         logger.exception("Unknown error occurred while import")
         return CANCEL
 
