@@ -114,7 +114,7 @@ public:
 
         TDriverRequest request;
         request.CommandName = ConvertToStroka(Py::String(GetAttr(pyRequest, "command_name")));
-        request.Arguments = ConvertToNode(GetAttr(pyRequest, "arguments"))->AsMap();
+        request.Parameters = ConvertToNode(GetAttr(pyRequest, "parameters"))->AsMap();
 
         auto user = GetAttr(pyRequest, "user");
         if (!user.isNone()) {
