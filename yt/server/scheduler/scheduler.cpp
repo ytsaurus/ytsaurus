@@ -353,7 +353,7 @@ public:
 
         // Spawn a new fiber where all startup logic will work asynchronously.
         BIND(&TThis::DoStartOperation, MakeStrong(this), operation)
-            .AsyncVia(Bootstrap_->GetControlInvoker())
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
 
         return operation->GetStarted();
@@ -985,8 +985,6 @@ private:
 
             RegisterOperation(operation);
             registered = true;
-
-            SwitchTo(controller->GetCancelableControlInvoker());
 
             controller->Initialize();
             controller->Essentiate();

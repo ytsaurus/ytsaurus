@@ -38,6 +38,8 @@ public:
 
     void Start();
 
+    IInvokerPtr GetCancelableControlInvoker() const;
+
     bool IsConnected() const;
 
     TAsyncError CreateOperationNode(TOperationPtr operation);
@@ -47,7 +49,7 @@ public:
     void CreateJobNode(TJobPtr job,
         const NChunkClient::TChunkId& stdErrChunkId,
         const std::vector<NChunkClient::TChunkId>& failContexts);
-    
+
     void AttachToLivePreview(
         TOperationPtr operation,
         const NChunkClient::TChunkListId& chunkListId,

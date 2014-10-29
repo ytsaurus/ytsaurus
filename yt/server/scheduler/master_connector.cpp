@@ -101,6 +101,11 @@ public:
         return Connected;
     }
 
+    IInvokerPtr GetCancelableControlInvoker() const
+    {
+        return CancelableControlInvoker;
+    }
+
 
     TAsyncError CreateOperationNode(TOperationPtr operation)
     {
@@ -1812,6 +1817,11 @@ void TMasterConnector::Start()
 bool TMasterConnector::IsConnected() const
 {
     return Impl->IsConnected();
+}
+
+IInvokerPtr TMasterConnector::GetCancelableControlInvoker() const
+{
+    return Impl->GetCancelableControlInvoker();
 }
 
 TAsyncError TMasterConnector::CreateOperationNode(TOperationPtr operation)
