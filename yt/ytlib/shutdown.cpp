@@ -24,12 +24,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef YT_USE_LLVM
-namespace NQueryClient {
-    void ShutdownLlvm();
-}
-#endif
-
 void Shutdown()
 {
     NPipes::TIODispatcher::Get()->Shutdown();
@@ -40,9 +34,6 @@ void Shutdown()
     NConcurrency::TDelayedExecutor::Shutdown();
     NProfiling::TProfileManager::Get()->Shutdown();
     TAddressResolver::Get()->Shutdown();
-#ifdef YT_USE_LLVM
-    NQueryClient::ShutdownLlvm();
-#endif
     NLog::TLogManager::Get()->Shutdown();
     NTracing::TTraceManager::Get()->Shutdown();
     NConcurrency::NDetail::ShutdownUnwindThread();
