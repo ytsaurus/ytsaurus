@@ -39,7 +39,7 @@ def process_logs(import_list, remove_list, destination_dir, source_pattern, dest
                 if not yt.exists(dst):
                     import_list.append({"src": src, "dst": dst,
                                         "mr_user": "userdata",
-                                        "erasure_code": "none",
+                                        "erasure_codec": "none",
                                         "compression_codec": "lz4"})
 
 def main():
