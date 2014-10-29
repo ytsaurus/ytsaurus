@@ -938,8 +938,8 @@ private:
             VERIFY_THREAD_AFFINITY(AutomatonThread);
             THROW_ERROR_EXCEPTION_IF_FAILED(recoveryResult);
 
-            DecoratedAutomaton_->OnLeaderRecoveryComplete();
             LeaderRecoveryComplete_.Fire();
+            DecoratedAutomaton_->OnLeaderRecoveryComplete();
 
             SwitchTo(epochContext->EpochControlInvoker);
             VERIFY_THREAD_AFFINITY(ControlThread);
