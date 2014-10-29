@@ -19,6 +19,7 @@ from flask import Flask, request, jsonify, Response, make_response
 import os
 import json
 import time
+import prctl
 import signal
 import socket
 import logging
@@ -40,7 +41,9 @@ class IncorrectTokenError(RequestFailed):
     pass
 
 class SafeThread(Thread):
-    def __init__(self, group=None, target=None, name=None, args=None, kwargs=None):
+    def __init__(self, group=None, target=None, name=None, terminate=None, args=None, kwargs=None):
+        self._parent_pid = os.getpid()
+
         if args is None:
             args = ()
         if kwargs is None:
@@ -53,7 +56,7 @@ class SafeThread(Thread):
                 thread.interrupt_main()
             except:
                 logger.exception("Unknown exception")
-                thread.interrupt_main()
+                os.kill(self._parent_pid, signal.SIGINT)
 
         super(SafeThread, self).__init__(group=group, target=safe_run, name=name, args=args, kwargs=kwargs)
 
@@ -515,6 +518,8 @@ class Application(object):
             time.sleep(self._sleep_step)
 
     def _execute_task(self, task, message_queue):
+        prctl.set_pdeathsig(signal.SIGINT)
+
         logger.info("Executing task %s", task.id)
         try:
             self._precheck(task)
@@ -841,7 +846,7 @@ def main():
         config = DEFAULT_CONFIG
 
     app = Application(config)
-    app.run(host=config.get("host", "::"), port=config["port"], debug=True, use_reloader=False, threaded=True)
+    app.run(host=config.get("host", "::"), port=config["port"], use_reloader=False, threaded=True)
     app.terminate()
 
 if __name__ == "__main__":
