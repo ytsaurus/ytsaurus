@@ -133,39 +133,40 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
     files = _prepare_read_from_yt_command(source_client, src, "yson", tmp_dir, fastbone)
 
     try:
-        sorted_by = None
-        if source_client.exists(src + "/@sorted_by"):
-            sorted_by = source_client.get(src + "/@sorted_by")
-        row_count = source_client.get(src + "/@row_count")
-        compression_codec = source_client.get(src + "/@compression_codec")
-        erasure_codec = source_client.get(src + "/@erasure_codec")
+        with source_client.PingableTransaction():
+            sorted_by = None
+            if source_client.exists(src + "/@sorted_by"):
+                sorted_by = source_client.get(src + "/@sorted_by")
+            row_count = source_client.get(src + "/@row_count")
+            compression_codec = source_client.get(src + "/@compression_codec")
+            erasure_codec = source_client.get(src + "/@erasure_codec")
 
-        ranges = _split_rows_yt(source_client, src, 1024 * yt.common.MB)
-        temp_table = destination_client.create_temp_table(prefix=os.path.basename(src))
-        destination_client.write_table(temp_table, (json.dumps({"start": start, "end": end}) for start, end in ranges), format=yt.JsonFormat())
+            ranges = _split_rows_yt(source_client, src, 1024 * yt.common.MB)
+            temp_table = destination_client.create_temp_table(prefix=os.path.basename(src))
+            destination_client.write_table(temp_table, (json.dumps({"start": start, "end": end}) for start, end in ranges), format=yt.JsonFormat())
 
-        spec = deepcopy(spec_template)
-        spec["data_size_per_job"] = 1
+            spec = deepcopy(spec_template)
+            spec["data_size_per_job"] = 1
 
-        destination_client.create("table", dst, ignore_existing=True)
-        destination_client.run_map("bash read_from_yt.sh", temp_table, dst, files=files, spec=spec,
-                                   input_format=yt.SchemafulDsvFormat(columns=["start", "end"]),
-                                   output_format=yt.YsonFormat())
+            destination_client.create("table", dst, ignore_existing=True)
+            destination_client.run_map("bash read_from_yt.sh", temp_table, dst, files=files, spec=spec,
+                                       input_format=yt.SchemafulDsvFormat(columns=["start", "end"]),
+                                       output_format=yt.YsonFormat())
 
-        result_row_count = destination_client.records_count(dst)
-        if row_count != result_row_count:
-            error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
-            logger.error(error)
-            raise yt.IncorrectRowCount(error)
+            result_row_count = destination_client.records_count(dst)
+            if row_count != result_row_count:
+                error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
+                logger.error(error)
+                raise yt.IncorrectRowCount(error)
 
-        if sorted_by:
-            logger.info("Sorting '%s'", dst)
-            run_operation_and_notify(
-                message_queue,
-                destination_client,
-                lambda client, strategy: client.run_sort(dst, sort_by=sorted_by, strategy=strategy))
+            if sorted_by:
+                logger.info("Sorting '%s'", dst)
+                run_operation_and_notify(
+                    message_queue,
+                    destination_client,
+                    lambda client, strategy: client.run_sort(dst, sort_by=sorted_by, strategy=strategy))
 
-        convert_to_erasure(dst, yt_client=destination_client, erasure_codec=erasure_codec, compression_codec=compression_codec)
+            convert_to_erasure(dst, yt_client=destination_client, erasure_codec=erasure_codec, compression_codec=compression_codec)
 
     finally:
         shutil.rmtree(tmp_dir)
@@ -191,7 +192,7 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, spec_template, messag
     read_commands = yamr_client.create_read_range_commands(ranges, src)
     temp_table = yt_client.create_temp_table(prefix=os.path.basename(src))
     yt_client.write_table(temp_table, read_commands, format=yt.SchemafulDsvFormat(columns=["command"]))
-    
+
     spec = deepcopy(spec_template)
     spec["data_size_per_job"] = 1
 
@@ -209,38 +210,42 @@ done"""
 
     logger.info("Pull import: run map '%s' with spec '%s'", command, repr(spec))
     try:
-        run_operation_and_notify(
-            message_queue,
-            yt_client,
-            lambda client, strategy:
-                client.run_map(
-                    command,
-                    temp_table,
-                    dst,
-                    input_format=yt.SchemafulDsvFormat(columns=["command"]),
-                    output_format=yt.YamrFormat(lenval=True, has_subkey=True),
-                    files=yamr_client.binary,
-                    memory_limit = 2500 * yt.common.MB,
-                    spec=spec,
-                    strategy=strategy))
-
-        result_record_count = yt_client.records_count(dst)
-        if result_record_count != record_count:
-            error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
-            logger.error(error)
-            raise yt.IncorrectRowCount(error)
-
-        if sorted:
-            logger.info("Sorting '%s'", dst)
+        with yt_client.PingableTransaction():
             run_operation_and_notify(
                 message_queue,
                 yt_client,
-                lambda client, strategy: client.run_sort(dst, sort_by=["key", "subkey"], strategy=strategy))
+                lambda client, strategy:
+                    client.run_map(
+                        command,
+                        temp_table,
+                        dst,
+                        input_format=yt.SchemafulDsvFormat(columns=["command"]),
+                        output_format=yt.YamrFormat(lenval=True, has_subkey=True),
+                        files=yamr_client.binary,
+                        memory_limit = 2500 * yt.common.MB,
+                        spec=spec,
+                        strategy=strategy))
+
+            result_record_count = yt_client.records_count(dst)
+            if result_record_count != record_count:
+                error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
+                logger.error(error)
+                raise yt.IncorrectRowCount(error)
+
+            if sorted:
+                logger.info("Sorting '%s'", dst)
+                run_operation_and_notify(
+                    message_queue,
+                    yt_client,
+                    lambda client, strategy: client.run_sort(dst, sort_by=["key", "subkey"], strategy=strategy))
 
     finally:
         yamr_client.drop(temp_yamr_table)
 
-def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, fastbone=True, message_queue=None):
+def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, job_count=None, fastbone=True, message_queue=None):
+    if job_count is None:
+        job_count = 200
+
     tmp_dir = tempfile.mkdtemp()
 
     lenval_to_nums_file = _pack_string(
@@ -271,23 +276,26 @@ while True:
     command = "python lenval_to_nums.py | bash read_from_yt.sh"
 
     try:
-        row_count = yt_client.get(src+ "/@row_count")
+        with yt_client.PingableTransaction():
+            yt_client.lock(src, mode="snapshot")
 
-        ranges = _split_rows_yt(yt_client, src, 1024 * yt.common.MB)
+            row_count = yt_client.get(src + "/@row_count")
 
-        temp_yamr_table = "tmp/yt/" + generate_uuid()
-        yamr_client.write(temp_yamr_table,
-                          "".join(["\t".join(map(str, range)) + "\n" for range in ranges]))
+            ranges = _split_rows_yt(yt_client, src, 1024 * yt.common.MB)
 
-        yamr_client.run_map(command, temp_yamr_table, dst, files=files,
-                            opts="-subkey -lenval -jobcount 500 -opt cpu.intensive.mode=1")
+            temp_yamr_table = "tmp/yt/" + generate_uuid()
+            yamr_client.write(temp_yamr_table,
+                              "".join(["\t".join(map(str, range)) + "\n" for range in ranges]))
 
-        result_row_count = yamr_client.records_count(dst)
-        if row_count != result_row_count:
-            yamr_client.drop(dst)
-            error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
-            logger.error(error)
-            raise yt.IncorrectRowCount(error)
+            yamr_client.run_map(command, temp_yamr_table, dst, files=files,
+                                opts="-subkey -lenval -jobcount {0} -opt cpu.intensive.mode=1".format(job_count))
+
+            result_row_count = yamr_client.records_count(dst)
+            if row_count != result_row_count:
+                yamr_client.drop(dst)
+                error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
+                logger.error(error)
+                raise yt.IncorrectRowCount(error)
     finally:
         shutil.rmtree(tmp_dir)
 
