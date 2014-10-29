@@ -273,7 +273,7 @@ class YsonFormat(Format):
          and `load_rows`. `See also <https://wiki.yandex-team.ru/yt/userdoc/tableswitch#yson>`_
         """
         all_attributes = Format._make_attributes(get_value(attributes, {}),
-                                                 {"format": "text"},
+                                                 {"format": "binary"},
                                                  {"format": format})
         super(YsonFormat, self).__init__("yson", all_attributes)
         self.process_table_index = process_table_index
