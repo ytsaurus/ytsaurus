@@ -82,8 +82,9 @@ private:
             : Null;
         const auto& forbiddenAddresses = request->forbidden_addresses();
 
-        context->SetRequestInfo("ChunkId: %v, PeferredHostName: %v, ForbiddenAddresses: [%v]",
+        context->SetRequestInfo("ChunkId: %v, TargetCount: %v, PeferredHostName: %v, ForbiddenAddresses: [%v]",
             chunkId,
+            request->target_count(),
             preferredHostName,
             JoinToString(forbiddenAddresses));
         
