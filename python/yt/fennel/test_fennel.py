@@ -338,6 +338,7 @@ class TestSessionStream(testing.AsyncTestCase):
         s = fennel.SessionStream(io_loop=self.io_loop)
         session_id = yield s.connect((u'kafka01ft.stat.yandex.net', 80))
         assert session_id is not None
+        assert "Seqno" in s.get_attributes()
 
     @testing.gen_test
     def test_get_ping(self):
@@ -447,6 +448,28 @@ class TestIntegration(testing.AsyncTestCase):
             message = yield self.s.read_message()
         assert message.type == "skip"
         assert message.attributes["seqno"] == 20
+
+    @testing.gen_test
+    def test_session_seqno(self):
+        yield self.write_chunk(20)
+
+        message = None
+        while message is None or message.type == "ping":
+            message = yield self.s.read_message()
+        assert message.type == "ack"
+        assert message.attributes["seqno"] == 20
+
+        self.p.stop()
+        self.s.stop()
+
+        self.s = fennel.SessionStream(service_id=self.service_id, source_id=self.source_id, io_loop=self.io_loop)
+        session_id = yield self.s.connect((self.hostname, 80))
+        assert session_id is not None
+
+        self.p = fennel.PushStream(io_loop=self.io_loop)
+        yield self.p.connect((self.hostname, 9000), session_id=session_id)
+
+        assert int(self.s.get_attributes()["seqno"]) == 20
 
 
 class TestSessionReconnect(IOLoopedTestCase):
