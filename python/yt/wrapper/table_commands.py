@@ -570,6 +570,8 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 return_content=False,
                 proxy=get_host_for_heavy_operation(),
                 client=client)
+            if "X-YT-Response-Parameters" not in response.headers():
+                raise YtNetworkError("X-YT-Response-Parameters missing (bug in proxy)")
             rsp_params = json.loads(response.headers()["X-YT-Response-Parameters"])
             return rsp_params.get("start_row_index", None)
 
