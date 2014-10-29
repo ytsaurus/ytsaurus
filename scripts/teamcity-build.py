@@ -319,7 +319,7 @@ def build_python_packages(options):
     def extract_version(package):
         versions = []
 
-        output = run_captured(["apt-cache", "policy", "yandex-yt-python"])
+        output = run_captured(["apt-cache", "policy", package])
         versions_part = output.split("Version table:")[1]
         for line in versions_part.split("\n"):
             line = line.replace("***", "   ")
