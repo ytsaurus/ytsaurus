@@ -124,7 +124,7 @@ private:
         TNodeDirectoryBuilder builder(response->mutable_node_directory());
         for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
             auto* target = targets[index];
-            auto replica = TNodePtrWithIndex(target, chunk->IsErasure() ? index : GenericChunkReplicaIndex);
+            auto replica = TNodePtrWithIndex(target, GenericChunkReplicaIndex);
             builder.Add(replica);
             response->add_replicas(NYT::ToProto<ui32>(replica));
         }
