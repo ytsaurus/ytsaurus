@@ -33,18 +33,6 @@ namespace NQueryClient {
 
 static const auto& Logger = QueryClientLogger;
 
-// XXX(sandello): Due to http://llvm.org/bugs/show_bug.cgi?id=15750
-// we have to serialize all MCJIT operations through a single thread.
-static TLazyIntrusivePtr<NConcurrency::TActionQueue> McjitThread(
-    NConcurrency::TActionQueue::CreateFactory("Mcjit"));
-
-void ShutdownLlvm()
-{
-    if (McjitThread.HasValue()) {
-        McjitThread->Shutdown();
-    }
-}
-
 static bool DumpIR()
 {
     static bool result = (getenv("DUMP_IR") != nullptr);
@@ -157,14 +145,9 @@ public:
         YCHECK(body->getParent() == parent);
         YCHECK(body->getType() == type);
 
-        auto fp = BIND(&TCGFragment::TImpl::Compile, this)
-            .AsyncVia(McjitThread->GetInvoker())
-            .Run(body)
-            .Get();
+        CompiledBody_ = reinterpret_cast<TCGFunction>(Compile(body));
 
         // TODO(sandello): Clean module here.
-
-        CompiledBody_ = reinterpret_cast<TCGFunction>(fp);
     }
 
     TCGFunction GetCompiledBody()
