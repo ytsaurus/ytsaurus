@@ -4,6 +4,8 @@
 
 #include <util/generic/noncopyable.h>
 
+#include <atomic>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,109 +27,33 @@ typedef const void* TRefCountedTypeKey;
 
 namespace NDetail {
 
-typedef intptr_t TNonVolatileCounter;
-typedef volatile intptr_t TVolatileCounter;
-
-static_assert(sizeof(TNonVolatileCounter) == sizeof(void*),
-    "TNonVolatileCounter should be the same size as a raw pointer.");
-static_assert(sizeof(TVolatileCounter) == sizeof(void*),
-    "TVolatileCounter should be the same size as a raw pointer.");
-
-#if defined(__GNUC__)
-
-// Note that returning previous value is a micro-tiny-bit faster.
-// (see http://lwn.net/Articles/256433/)
-
-static inline TNonVolatileCounter AtomicallyStore(TVolatileCounter* p, TNonVolatileCounter v)
-{
-    __sync_synchronize();
-    *p = v;
-    __sync_synchronize();
-    return v;
-}
-
-static inline TNonVolatileCounter AtomicallyFetch(const TVolatileCounter* p)
-{
-    return __sync_fetch_and_add(const_cast<TVolatileCounter*>(p), 0);
-}
-
-static inline TNonVolatileCounter AtomicallyIncrement(TVolatileCounter* p)
-{
-    // Atomically performs the following:
-    // { return (*p)++; }
-    return __sync_fetch_and_add(p, +1);
-}
-
-static inline TNonVolatileCounter AtomicallyDecrement(TVolatileCounter* p)
-{
-    // Atomically performs the following:
-    // { return (*p)--; }
-    return __sync_fetch_and_add(p, -1);
-}
-
-static inline TNonVolatileCounter AtomicallyIncrementIfNonZero(TVolatileCounter* p)
+static inline int AtomicallyIncrementIfNonZero(std::atomic<int>& atomicCounter)
 {
     // Atomically performs the following:
     // { auto v = *p; if (v != 0) ++(*p); return v; }
-    TNonVolatileCounter v = *p;
+    auto value = atomicCounter.load();
 
     for (;;) {
-        if (v == 0) {
-            return v;
+        if (value == 0) {
+            return value;
         }
 
-        TNonVolatileCounter w = __sync_val_compare_and_swap(p, v, v + 1);
-
-        if (w == v) {
-            return v; // CAS was successful.
+        if (atomicCounter.compare_exchange_strong(value, value + 1)) {
+            return value;
         } else {
-            v = w; // CAS was unsuccessful.
+            value = atomicCounter.load();
         }
     }
 }
-
-#else
-    // Fallback to Arcadia's implementation (efficiency is not crucial here).
-
-    static inline TNonVolatileCounter AtomicallyFetch(const TVolatileCounter* p)
-    {
-        return AtomicAdd(*const_cast<TVolatileCounter*>(p), 0);
-    }
-
-    static inline TNonVolatileCounter AtomicallyIncrement(TVolatileCounter* p)
-    {
-        return AtomicIncrement(*p) - 1;
-    }
-
-    static inline TNonVolatileCounter AtomicallyDecrement(TVolatileCounter* p)
-    {
-        return AtomicDecrement(*p) + 1;
-    }
-
-    static inline TNonVolatileCounter AtomicallyIncrementIfNonZero(TVolatileCounter* p)
-    {
-        for (;;) {
-            TNonVolatileCounter v = *p;
-
-            if (v == 0) {
-                return v;
-            }
-
-            if (AtomicCas(p, v + 1, v)) {
-                return v;
-            }
-        }
-    }
-#endif
 
 //! An atomic reference counter for extrinsic reference counting.
 class TRefCounter
 {
 public:
     TRefCounter(TExtrinsicRefCounted* object)
-        : StrongCount(1)
-        , WeakCount(1)
-        , that(object)
+        : StrongCount_(1)
+        , WeakCount_(1)
+        , that_(object)
     { }
 
     ~TRefCounter()
@@ -146,18 +72,23 @@ public:
     //! Adds a strong reference to the counter.
     inline void Ref() // noexcept
     {
-        YASSERT(StrongCount > 0 && WeakCount > 0);
-        AtomicallyIncrement(&StrongCount);
+        auto oldStrongCount = StrongCount_++;
+        YASSERT(oldStrongCount > 0 && WeakCount_.load() > 0);
     }
 
     //! Removes a strong reference from the counter.
     inline void Unref() // noexcept
     {
-        YASSERT(StrongCount > 0 && WeakCount > 0);
-        if (AtomicallyDecrement(&StrongCount) == 1) {
+        auto oldStrongCount = StrongCount_--;
+        YASSERT(oldStrongCount > 0);
+
+        if (oldStrongCount == 1) {
             Dispose();
 
-            if (AtomicallyDecrement(&WeakCount) == 1) {
+            auto oldWeakCount = WeakCount_--;
+            YASSERT(oldWeakCount > 0);
+
+            if (oldWeakCount == 1) {
                 Destroy();
             }
         }
@@ -166,22 +97,23 @@ public:
     //! Tries to add a strong reference to the counter.
     inline bool TryRef() // noexcept
     {
-        YASSERT(WeakCount > 0);
-        return AtomicallyIncrementIfNonZero(&StrongCount) > 0;
+        YASSERT(WeakCount_.load() > 0);
+        return AtomicallyIncrementIfNonZero(StrongCount_) > 0;
     }
 
     //! Adds a weak reference to the counter.
     inline void WeakRef() // noexcept
     {
-        YASSERT(WeakCount > 0);
-        AtomicallyIncrement(&WeakCount);
+        auto oldWeakCount = WeakCount_++;
+        YASSERT(oldWeakCount > 0);
     }
 
     //! Removes a weak reference from the counter.
     inline void WeakUnref() // noexcept
     {
-        YASSERT(WeakCount > 0);
-        if (AtomicallyDecrement(&WeakCount) == 1) {
+        auto oldWeakCount = WeakCount_--;
+        YASSERT(oldWeakCount > 0);
+        if (oldWeakCount == 1) {
             Destroy();
         }
     }
@@ -189,13 +121,13 @@ public:
     //! Returns the current number of strong references.
     int GetRefCount() const // noexcept
     {
-        return AtomicallyFetch(&StrongCount);
+        return StrongCount_.load();
     }
 
     //! Returns the current number of weak references.
     int GetWeakRefCount() const // noexcept
     {
-        return AtomicallyFetch(&WeakCount);
+        return WeakCount_.load();
     }
 
 private:
@@ -207,11 +139,11 @@ private:
     TRefCounter& operator=(const TRefCounter&&);
 
     //! Number of strong references.
-    TVolatileCounter StrongCount;
+    std::atomic<int> StrongCount_;
     //! Number of weak references plus one if there is at least one strong reference.
-    TVolatileCounter WeakCount;
+    std::atomic<int> WeakCount_;
     //! The object.
-    TExtrinsicRefCounted* that;
+    TExtrinsicRefCounted* that_;
 };
 
 } // namespace NDetail
@@ -271,20 +203,20 @@ public:
     inline void Ref() const // noexcept
     {
 #ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
-        auto rc = RefCounter->GetRefCount();
-        ::std::fprintf(stderr, "=== %p === Ref(): %" PRId32 " -> %" PRId32, this, rc, rc + 1);
+        auto refCount = RefCounter_->GetRefCount();
+        ::std::fprintf(stderr, "=== %p === Ref(): %" PRId32 " -> %" PRId32, this, refCount, refCount + 1);
 #endif
-        RefCounter->Ref();
+        RefCounter_->Ref();
     }
 
     //! Decrements the reference counter.
     inline void Unref() const // noexcept
     {
 #ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
-        auto rc = RefCounter->GetRefCount();
-        ::std::fprintf(stderr, "=== %p === Unref(): %" PRId32 " -> %" PRId32, this, rc, rc - 1);
+        auto refCount = RefCounter_->GetRefCount();
+        ::std::fprintf(stderr, "=== %p === Unref(): %" PRId32 " -> %" PRId32, this, refCount, refCount - 1);
 #endif
-        RefCounter->Unref();
+        RefCounter_->Unref();
     }
 
     //! Returns current number of references to the object.
@@ -292,9 +224,9 @@ public:
      * Note that you should never ever use this method in production code.
      * This method is mainly for debugging purposes.
      */
-    inline NDetail::TNonVolatileCounter GetRefCount() const
+    inline int GetRefCount() const
     {
-        return RefCounter->GetRefCount();
+        return RefCounter_->GetRefCount();
     }
 
     //! Returns pointer to the underlying reference counter of the object.
@@ -304,7 +236,7 @@ public:
      */
     inline NDetail::TRefCounter* GetRefCounter() const
     {
-        return RefCounter;
+        return RefCounter_;
     }
 
     //! See #TIntrinsicRefCounted::DangerousGetPtr.
@@ -312,13 +244,13 @@ public:
     static ::NYT::TIntrusivePtr<T> DangerousGetPtr(T* object)
     {
         return
-            object->RefCounter->TryRef()
+            object->RefCounter_->TryRef()
             ? ::NYT::TIntrusivePtr<T>(object, false)
             : ::NYT::TIntrusivePtr<T>();
     }
 
 private:
-    mutable NDetail::TRefCounter* RefCounter;
+    mutable NDetail::TRefCounter* RefCounter_;
 
 };
 
@@ -333,23 +265,24 @@ public:
     //! Increments the reference counter.
     inline void Ref() const // noexcept
     {
+        auto oldRefCount = RefCounter_++;
+
 #ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
-        auto rc = NDetail::AtomicallyFetch(&RefCounter);
-        ::std::fprintf(stderr, "=== %p === Ref(): %" PRId64 " -> %" PRId64, this, rc, rc + 1);
+        ::std::fprintf(stderr, "=== %p === Ref(): %" PRId64 " -> %" PRId64, this, oldRefCount, oldRefCount + 1);
 #endif
-        YASSERT(NDetail::AtomicallyFetch(&RefCounter) > 0);
-        NDetail::AtomicallyIncrement(&RefCounter);
+        YASSERT(oldRefCount > 0);
     }
 
     //! Decrements the reference counter.
     inline void Unref() const // noexcept
     {
+        auto oldRefCount = RefCounter_--;
+
 #ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
-        auto rc = NDetail::AtomicallyFetch(&RefCounter);
-        ::std::fprintf(stderr, "=== %p === Unref(): %" PRId64 " -> %" PRId64, this, rc, rc - 1);
+        ::std::fprintf(stderr, "=== %p === Unref(): %" PRId64 " -> %" PRId64, this, oldRefCount, oldRefCount - 1);
 #endif
-        YASSERT(NDetail::AtomicallyFetch(&RefCounter) > 0);
-        if (NDetail::AtomicallyDecrement(&RefCounter) == 1) {
+        YASSERT(oldRefCount > 0);
+        if (oldRefCount == 1) {
             delete this;
         }
     }
@@ -359,9 +292,9 @@ public:
      * Note that you should never ever use this method in production code.
      * This method is mainly for debugging purposes.
      */
-    inline NDetail::TNonVolatileCounter GetRefCount() const // noexcept
+    inline int GetRefCount() const // noexcept
     {
-        return NDetail::AtomicallyFetch(&RefCounter);
+        return RefCounter_.load();
     }
 
     //! Tries to obtain an intrusive pointer for an object that may had
@@ -384,13 +317,13 @@ public:
     static ::NYT::TIntrusivePtr<T> DangerousGetPtr(T* object)
     {
         return
-            NDetail::AtomicallyIncrementIfNonZero(&object->RefCounter) > 0
+            NDetail::AtomicallyIncrementIfNonZero(object->RefCounter_) > 0
             ? ::NYT::TIntrusivePtr<T>(object, false)
             : ::NYT::TIntrusivePtr<T>();
     }
 
 private:
-    mutable NDetail::TVolatileCounter RefCounter;
+    mutable std::atomic<int> RefCounter_;
 
 };
 
