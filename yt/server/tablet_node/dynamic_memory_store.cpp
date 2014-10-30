@@ -1219,6 +1219,7 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
+    Validate();
     return New<TReader>(
         this,
         std::move(lowerKey),
@@ -1231,6 +1232,7 @@ IVersionedLookuperPtr TDynamicMemoryStore::CreateLookuper(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
+    Validate();
     return New<TLookuper>(this, timestamp, columnFilter);
 }
 
@@ -1358,6 +1360,8 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
 
         Rows_->Insert(row);
     }
+
+    Validate();
 
     OnMemoryUsageUpdated();
 }
