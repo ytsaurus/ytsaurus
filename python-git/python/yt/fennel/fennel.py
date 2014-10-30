@@ -400,7 +400,7 @@ class LogBroker(object):
         self._session = SessionStream(service_id=self._service_id, source_id=self._source_id, io_loop=self._io_loop, connection_factory=self._connection_factory)
         self.log.info("Connect session stream")
         session_id = yield self._session.connect((hostname, 80))
-        self._update_last_acked_seqno(int(self._session.get_attributes()["seqno"]))
+        self._update_last_acked_seqno(int(self._session.get_attribute("seqno")))
 
         self._push = PushStream(io_loop=self._io_loop, connection_factory=self._connection_factory)
         self.log.info("Connect push stream")
@@ -481,9 +481,6 @@ class LogBroker(object):
         self._stopped = True
 
 
-class SessionIdNotFound(RuntimeError):
-    pass
-
 class SessionEnd(RuntimeError):
     pass
 
@@ -534,13 +531,19 @@ class SessionStream(object):
                 metadata_raw = yield self._iostream.read_until("\r\n\r\n", max_bytes=1024*1024)
 
                 self.log.debug("Parse response %s", metadata_raw)
-                result = self.parse_metadata(metadata_raw[:-4])
-                if not result:
-                    self.log.error("Unable to find Session header in the response")
-                    raise SessionIdNotFound()
+                self.parse_metadata(metadata_raw[:-4])
+
+                if not "seqno" in self._attributes:
+                    self.log.error("There is no seqno header in session response")
+                    raise BadProtocol("There is no seqno header in session response")
+                if not "session" in self._attributes:
+                    self.log.error("There is no seqno header in session response")
+                    raise BadProtocol("There is no seqno header in session response")
+
+                self._id = self._attributes["session"]
 
                 raise gen.Return(self._id)
-            except (IOError, SessionIdNotFound) as e:
+            except (IOError, BadProtocol) as e:
                 self.log.error("Error occured. Try reconnect...", exc_info=True)
                 yield sleep_future(1.0, self._io_loop)
             except gen.Return:
@@ -561,15 +564,12 @@ class SessionStream(object):
             if index > 0:
                 key, value = line.split(":", 1)
                 attributes[key.strip().lower()] = value.strip()
-        if "session" in attributes:
-            self._id = attributes["session"]
-            self._attributes = attributes
-            self.log.info("Session id: %s", self._id)
-            return True
-        return False
 
-    def get_attributes(self):
-        return self._attributes
+        self._attributes = attributes
+        self.log.info("Session id: %s", self._id)
+
+    def get_attribute(self, name):
+        return self._attributes[name]
 
     @gen.coroutine
     def read_message(self, timeout=None):

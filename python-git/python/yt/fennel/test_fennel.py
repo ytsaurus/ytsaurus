@@ -148,7 +148,7 @@ class TestSessionStreamIntegraion(testing.AsyncTestCase):
         s = fennel.SessionStream(io_loop=self.io_loop)
         session_id = yield s.connect((KAFKA_ENDPOINT, 80))
         assert session_id is not None
-        assert "seqno" in s.get_attributes()
+        s.get_attribute("seqno")
 
     @testing.gen_test
     def test_get_ping(self):
@@ -279,7 +279,7 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
         self.p = fennel.PushStream(io_loop=self.io_loop)
         yield self.p.connect((self.hostname, 9000), session_id=session_id)
 
-        assert int(self.s.get_attributes()["seqno"]) == 20
+        assert int(self.s.get_attribute("seqno")) == 20
 
 
 # Good tests
