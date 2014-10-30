@@ -830,11 +830,10 @@ void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
         }
     }
 
-    if (row.GetDeleteLockFlag()) {
-        AddTimestamp(row, commitTimestamp, ETimestampListKind::Delete);
-    } else {
-        AddTimestamp(row, commitTimestamp, ETimestampListKind::Write);
-    }
+    AddTimestamp(
+        row,
+        commitTimestamp,
+        row.GetDeleteLockFlag() ? ETimestampListKind::Delete : ETimestampListKind::Write);
 
     {
         auto* lock = locks;
