@@ -423,7 +423,7 @@ class LogBroker(object):
         while not self._stopped:
             try:
                 message = yield self._session.read_message()
-            except RuntimeError as e:
+            except (RuntimeError, IOError) as e:
                 self._abort(e)
             else:
                 self.log.debug("Get %r message", message)
@@ -591,8 +591,6 @@ class SessionStream(object):
                 self.log.debug("Process status: %s", data.strip())
                 raise gen.Return(self._parse(data.strip()))
         except gen.Return:
-            raise
-        except BadProtocol:
             raise
         except:
             self.stop()
