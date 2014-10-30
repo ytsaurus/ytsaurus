@@ -564,5 +564,22 @@ Partition: 0\r\n\r\n"""
         assert seqno == 32
         assert not f2.done()
 
+    @testing.gen_test
+    def test_unsuccesfull_save_one_chunk(self):
+        response = ""
+        self._world_serialization.expect(
+            call("session", "write", None, FakeIOStream.IGNORE),
+            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("push", "write", None, FakeIOStream.IGNORE),
+            call("push", "read_until_close", None, streaming_callback=FakeIOStream.IGNORE),
+            call("push", "write", None, FakeIOStream.IGNORE),
+            call("session", "read_until", "{0}\r\n".format(hex(len(response))[2:]), "\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("session", "read_until_close", None),
+            call("session", "close", None),
+        )
+        yield self.logbroker.connect(KAFKA_ENDPOINT)
+        with pytest.raises(fennel.SessionEnd):
+            seqno = yield self.logbroker.save_chunk(32, [{}])
+
     def get_hex_length(self, text):
         return hex(len(text))[2:]
