@@ -46,6 +46,17 @@ CHUNK_HEADER_SIZE = struct.calcsize(CHUNK_HEADER_FORMAT)
 log = logging.getLogger("Fennel")
 
 
+def sleep_future(seconds, io_loop=None):
+    future = gen.Future()
+    io_loop = io_loop or ioloop.IOLoop.instance()
+    def callback():
+        log.debug("Setting sleep_future future")
+        future.set_result(None)
+
+    io_loop.call_later(seconds, callback)
+    return future
+
+
 class EventLog(object):
     log = logging.getLogger("EventLog")
 
@@ -529,20 +540,14 @@ class SessionStream(object):
                     raise SessionIdNotFound()
 
                 raise gen.Return(self._id)
-            except IOError:
+            except (IOError, SessionIdNotFound) as e:
                 self.log.error("IO Error. Try reconnect...", exc_info=True)
-                # sleep for a minute
-                pass
-            except SessionIdNotFound:
-                # sleep for a minute
-                pass
+                yield sleep_future(1.0, self._io_loop)
             except gen.Return:
                 raise
             except:
                 self.log.error("Unhandled exception", exc_info=True)
-                if self._iostream is not None:
-                    self._iostream.close()
-                    self._iostream = None
+                self.stop()
                 raise
 
     def stop(self):
@@ -589,9 +594,7 @@ class SessionStream(object):
         except BadProtocol:
             raise
         except:
-            if self._iostream is not None:
-                self._iostream.close()
-                self._iostream = None
+            self.stop()
             raise
 
     def _parse(self, line):
