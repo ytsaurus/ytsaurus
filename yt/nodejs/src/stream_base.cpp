@@ -11,7 +11,7 @@ COMMON_V8_USES
 
 TNodeJSStreamBase::TNodeJSStreamBase()
     : node::ObjectWrap()
-    , AsyncRefCounter(0)
+    , AsyncRefCounter_(0)
 { }
 
 TNodeJSStreamBase::~TNodeJSStreamBase()
@@ -19,7 +19,7 @@ TNodeJSStreamBase::~TNodeJSStreamBase()
 
 void TNodeJSStreamBase::AsyncRef(bool acquireSyncRef)
 {
-    if (AsyncRefCounter++ == 0) {
+    if (AsyncRefCounter_++ == 0) {
         if (acquireSyncRef) {
             THREAD_AFFINITY_IS_V8();
             Ref();
@@ -31,7 +31,7 @@ void TNodeJSStreamBase::AsyncRef(bool acquireSyncRef)
 
 void TNodeJSStreamBase::AsyncUnref()
 {
-    auto oldRefCounter = AsyncRefCounter--;
+    auto oldRefCounter = AsyncRefCounter_--;
     YASSERT(oldRefCounter > 0);
     if (oldRefCounter == 1) {
         EIO_PUSH(TNodeJSStreamBase::UnrefCallback, this);
@@ -45,7 +45,7 @@ int TNodeJSStreamBase::UnrefCallback(eio_req* request)
 
     TNodeJSStreamBase* stream = static_cast<TNodeJSStreamBase*>(request->data);
 
-    YASSERT(stream->AsyncRefCounter.load() == 0);
+    YASSERT(stream->AsyncRefCounter_.load() == 0);
 
     stream->Unref();
 

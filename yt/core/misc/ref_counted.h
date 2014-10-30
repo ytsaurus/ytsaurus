@@ -27,7 +27,7 @@ typedef const void* TRefCountedTypeKey;
 
 namespace NDetail {
 
-static inline int AtomicallyIncrementIfNonZero(std::atomic_int& atomicCounter)
+static inline int AtomicallyIncrementIfNonZero(std::atomic<int>& atomicCounter)
 {
     // Atomically performs the following:
     // { auto v = *p; if (v != 0) ++(*p); return v; }
@@ -139,9 +139,9 @@ private:
     TRefCounter& operator=(const TRefCounter&&);
 
     //! Number of strong references.
-    std::atomic_int StrongCount_;
+    std::atomic<int> StrongCount_;
     //! Number of weak references plus one if there is at least one strong reference.
-    std::atomic_int WeakCount_;
+    std::atomic<int> WeakCount_;
     //! The object.
     TExtrinsicRefCounted* that_;
 };
@@ -323,7 +323,7 @@ public:
     }
 
 private:
-    mutable std::atomic_int RefCounter_;
+    mutable std::atomic<int> RefCounter_;
 
 };
 

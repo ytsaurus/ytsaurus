@@ -25,7 +25,7 @@ public:
     void AsyncUnref();
 
 protected:
-    std::atomic_int AsyncRefCounter;
+    std::atomic<int> AsyncRefCounter_;
 
 protected:
     struct TOutputPart
