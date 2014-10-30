@@ -39,12 +39,11 @@ class TMasterCellConfig
     : public NElection::TCellConfig
 {
 public:
-    NObjectClient::TCellTag CellTag;
+    NObjectClient::TCellTag CellTag = 0;
 
     TMasterCellConfig()
     {
-        RegisterParameter("cell_tag", CellTag)
-            .Default(0);
+        RegisterParameter("cell_tag", CellTag);
     }
 };
 
