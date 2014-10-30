@@ -10,6 +10,7 @@ except ImportError:
 from tornado import ioloop
 from tornado import iostream
 from tornado import gen
+from tornado import tcpclient
 from tornado import options
 
 try:
@@ -485,7 +486,7 @@ SessionMessage = collections.namedtuple("SessionMessage", ["type", "attributes"]
 class SessionStream(object):
     log = logging.getLogger("SessionStream")
 
-    def __init__(self, service_id=None, source_id=None, logtype=None, io_loop=None, IOStreamClass=None):
+    def __init__(self, service_id=None, source_id=None, logtype=None, io_loop=None, connection_factory=None):
         self._id = None
         self._attributes = None
         self._iostream = None
@@ -495,17 +496,15 @@ class SessionStream(object):
         self._source_id = source_id or DEFAULT_SOURCE_ID
 
         self._io_loop = io_loop or ioloop.IOLoop.instance()
-        self.IOStreamClass = IOStreamClass or iostream.IOStream
+        self._connection_factory = connection_factory or tcpclient.TCPClient(io_loop=self._io_loop)
 
     @gen.coroutine
     def connect(self, endpoint, timeout=None):
         while True:
             try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-                self._iostream = self.IOStreamClass(s, io_loop=self._io_loop)
-
                 self.log.info("Create a session. Endpoint: %s", endpoint)
-                connect_future = self._iostream.connect(endpoint)
+
+                self._iostream = yield self._connection_factory.connect(endpoint[0], endpoint[1])
                 self._iostream.write(
                     "GET /rt/session?"
                     "ident={ident}&"
@@ -519,7 +518,6 @@ class SessionStream(object):
                         logtype=self._logtype,
                         host=endpoint[0])
                     )
-                connection = yield connect_future
 
                 self.log.info("The session stream has been created")
                 metadata_raw = yield self._iostream.read_until("\r\n\r\n", max_bytes=1024*1024)
@@ -531,8 +529,8 @@ class SessionStream(object):
                     raise SessionIdNotFound()
 
                 raise gen.Return(self._id)
-            except iostream.StreamClosedError:
-                self.log.error("The session channel was closed", exc_info=True)
+            except IOError:
+                self.log.error("IO Error. Try reconnect...", exc_info=True)
                 # sleep for a minute
                 pass
             except SessionIdNotFound:
@@ -625,22 +623,20 @@ class SessionStream(object):
 class PushStream(object):
     log = logging.getLogger("PushStream")
 
-    def __init__(self, io_loop=None, IOStreamClass=None):
+    def __init__(self, io_loop=None, connection_factory=None):
         self._iostream = None
         self._session_id = None
 
         self._io_loop = io_loop or ioloop.IOLoop.instance()
-        self.IOStreamClass = IOStreamClass or iostream.IOStream
+        self._connection_factory = connection_factory or tcpclient.TCPClient(io_loop=self._io_loop)
 
     @gen.coroutine
     def connect(self, endpoint, session_id, timeout=None):
         self._session_id = session_id
 
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-        self._iostream = self.IOStreamClass(s, io_loop=self._io_loop)
-
         self.log.info("Create a push channel for session %s. Endpoint: %s", self._session_id, endpoint)
-        connect_future = self._iostream.connect(endpoint)
+
+        self._iostream = yield self._connection_factory.connect(endpoint[0], endpoint[1])
         self._iostream.write(
             "PUT /rt/store HTTP/1.1\r\n"
             "Host: {host}\r\n"
@@ -653,8 +649,6 @@ class PushStream(object):
                 host=endpoint[0],
                 session_id=self._session_id)
             )
-        connection = yield connect_future
-
         self.log.info("The push stream for session %s has been created", self._session_id)
 
         self._iostream.read_until_close(callback=self._post_close, streaming_callback=self._dump_output)
