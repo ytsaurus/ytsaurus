@@ -163,10 +163,6 @@ private:
 
     void OnMemoryUsageUpdated();
 
-
-    void Validate();
-    NVersionedTableClient::TUnversionedRowBuilder B;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicMemoryStore)
