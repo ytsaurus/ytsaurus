@@ -77,6 +77,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AllocateWriteTargets)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        int targetCount = request->target_count();
         auto preferredHostName = request->has_preferred_host_name()
             ? TNullable<Stroka>(request->preferred_host_name())
             : Null;
@@ -84,7 +85,7 @@ private:
 
         context->SetRequestInfo("ChunkId: %v, TargetCount: %v, PeferredHostName: %v, ForbiddenAddresses: [%v]",
             chunkId,
-            request->target_count(),
+            targetCount,
             preferredHostName,
             JoinToString(forbiddenAddresses));
         
@@ -101,14 +102,6 @@ private:
                 forbiddenNodeSet.insert(node);
                 forbiddenNodeList.push_back(node);
             }
-        }
-
-        int targetCount;
-        if (chunk->IsErasure()) {
-            const auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
-            targetCount = codec->GetDataPartCount() + codec->GetParityPartCount();
-        } else {
-            targetCount = request->target_count();
         }
 
         auto targets = chunkManager->AllocateWriteTargets(
