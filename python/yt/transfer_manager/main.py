@@ -450,10 +450,11 @@ class Application(object):
             if self._terminating:
                 return
 
-            logger.info("Processing tasks")
             if not self._lock_acquired:
                 time.sleep(self._lock_timeout)
                 continue
+
+            logger.info("Processing tasks")
 
             with self._mutex:
                 self._pending_tasks = filter(lambda id: self._tasks[id].state == "pending", self._pending_tasks)
