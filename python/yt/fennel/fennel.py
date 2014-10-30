@@ -678,16 +678,21 @@ class PushStream(object):
 
 
 class Application(object):
+    log = logging.getLogger("Application")
+
     def __init__(self, proxy_path, logbroker_url, table_name, service_id, source_id):
         yt.config.set_proxy(proxy_path)
 
         self._last_acked_seqno = None
         self._chunk_size = 4000
+        self._logbroker_url = logbroker_url
+
+        self._service_id = service_id
+        self._source_id = source_id
 
         self._io_loop = ioloop.IOLoop.instance()
         self._event_log = EventLog(yt, table_name=table_name)
-        self._log_broker = LogBroker(service_id, source_id, io_loop=self._io_loop)
-        self._logbroker_url = logbroker_url
+        self._log_broker = None
 
     def start(self):
         self._io_loop.add_callback(self._start)
@@ -695,12 +700,32 @@ class Application(object):
 
     @gen.coroutine
     def _start(self):
-         self._last_acked_seqno = yield self._log_broker.connect(self._logbroker_url)
+        while True:
+            try:
+                self._log_broker = LogBroker(self._service_id, self._source_id, io_loop=self._io_loop)
 
-         while True:
-             data = self._event_log.get_data(self._last_acked_seqno, self._chunk_size)
-             data = _pre_process(data)
-             self._last_acked_seqno = yield self._log_broker.save_chunk(self._last_acked_seqno + self._chunk_size, data)
+                hostname = self._get_hostname()
+                self._last_acked_seqno = yield self._log_broker.connect(hostname)
+
+                while True:
+                    data = self._event_log.get_data(self._last_acked_seqno, self._chunk_size)
+                    data = _pre_process(data)
+                    self._last_acked_seqno = yield self._log_broker.save_chunk(self._last_acked_seqno + self._chunk_size, data)
+            except Exception:
+                self.log.error("Unhandled exception. Try to reconnect...", exc_info=True)
+                self._log_broker.stop()
+                self._log_broker = None
+                yield sleep_future(1, self._io_loop)
+
+    def _get_hostname(self):
+        self.log.info("Getting adviced logbroker endpoint hostname...")
+        response = requests.get("http://{0}/advice".format(self._logbroker_url), headers={"ClientHost": socket.getfqdn()})
+        if not response.ok:
+            raise RuntimeError("Unable to get adviced logbroker endpoint hostname")
+        host = response.text.strip()
+
+        self.log.info("Adviced endpoint hostname: %s", host)
+        return host
 
 
 def main(proxy_path, table_name, service_id, source_id, **kwargs):
