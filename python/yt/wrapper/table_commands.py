@@ -436,7 +436,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
                 stream = StringIO(stream)
 
             while True:
-                row = format.load_row(stream, unparsed=True)
+                row = format.load_row(stream, raw=True)
                 if row:
                     yield row
                 else:
@@ -586,7 +586,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 proxy=get_host_for_heavy_operation(client=client))
             response_stream = ResponseStream(response, None)
             while True:
-                row = format.load_row(response_stream, unparsed=raw)
+                row = format.load_row(response_stream, raw=raw)
                 if row is None or row == "":
                     break
                 yield row
