@@ -565,9 +565,7 @@ class SessionStream(object):
             if index > 0:
                 key, value = line.split(":", 1)
                 attributes[key.strip().lower()] = value.strip()
-
         self._attributes = attributes
-        self.log.info("Session id: %s", self._id)
 
     def get_attribute(self, name):
         return self._attributes[name]
@@ -579,16 +577,16 @@ class SessionStream(object):
             try:
                 body_size = int(headers_raw, 16)
             except ValueError:
-                self.log.error("Bad HTTP chunk header format")
+                self.log.error("[%s] Bad HTTP chunk header format", self._id)
                 raise BadProtocol()
             if body_size == 0:
-                self.log.error("HTTP response is finished")
+                self.log.error("[%s] HTTP response is finished", self._id)
                 data = yield self._iostream.read_until_close()
-                self.log.debug("Session trailers: %s", data)
+                self.log.debug("[%s] Session trailers: %s", self._id, data)
                 raise SessionEnd()
             else:
                 data = yield self._iostream.read_bytes(body_size + 2)
-                self.log.debug("Process status: %s", data.strip())
+                self.log.debug("[%s] Process status: %s", self._id, data.strip())
                 raise gen.Return(self._parse(data.strip()))
         except gen.Return:
             raise
