@@ -372,6 +372,7 @@ class FakeIOStream(object):
                     raise
 
                 if issubclass(type(return_value), Exception):
+                    self.log.info("Raise exception: %r", return_value)
                     raise return_value
                 else:
                     raise gen.Return(return_value)
@@ -579,6 +580,22 @@ Partition: 0\r\n\r\n"""
         )
         yield self.logbroker.connect(KAFKA_ENDPOINT)
         with pytest.raises(fennel.SessionEnd):
+            seqno = yield self.logbroker.save_chunk(32, [{}])
+
+    @testing.gen_test
+    def test_session_closed_save_one_chunk(self):
+        response = ""
+        self._world_serialization.expect(
+            call("session", "write", None, FakeIOStream.IGNORE),
+            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("push", "write", None, FakeIOStream.IGNORE),
+            call("push", "read_until_close", None, streaming_callback=FakeIOStream.IGNORE),
+            call("push", "write", None, FakeIOStream.IGNORE),
+            call("session", "read_until", iostream.StreamClosedError(), "\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("session", "close", None),
+        )
+        yield self.logbroker.connect(KAFKA_ENDPOINT)
+        with pytest.raises(iostream.StreamClosedError):
             seqno = yield self.logbroker.save_chunk(32, [{}])
 
     def get_hex_length(self, text):
