@@ -283,14 +283,61 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
 
 # Good tests
 
+class WorldSerialization(object):
+    """Represents a world-wide serialization of events"""
+
+    log = logging.getLogger("WorldSerialization")
+
+    def __init__(self):
+        self._description = []
+        self._index = 0
+        self._index_change_futures = []
+
+    def expect(self, *calls):
+        self._description.extend(calls)
+
+    def connect(self, hostname, port):
+        if port == 80:
+            return gen.maybe_future(FakeIOStream(self, name="session"))
+        elif port == 9000:
+            return gen.maybe_future(FakeIOStream(self, name="push"))
+        else:
+            self.log.error("Unsupported port")
+            assert False
+
+    def get_connection_factory(self):
+        return self
+
+    def get_call_index_change(self):
+        future = gen.Future()
+        self._index_change_futures.append(future)
+        return future
+
+    def get_current_stream(self):
+        self.log.debug("Current index: %d", self._index)
+        return self._description[self._index][0]
+
+    def get_current_call(self):
+        self.log.debug("Current index: %d", self._index)
+        return self._description[self._index][1:]
+
+    def move_to_next_call(self):
+        self._index += 1
+        self.log.info("Move to next call. Index: %d", self._index)
+        for f in self._index_change_futures:
+            f.set_result(None)
+        del self._index_change_futures[:]
+        self.log.info("End of move_to_next_call")
+
+
 class FakeIOStream(object):
     log = logging.getLogger("FakeIOStream")
 
     IGNORE = object()
 
-    def __init__(self, description=None):
-        self._description = description or []
-        self._index = 0
+    def __init__(self, serialization, name):
+        self._serializaton = serialization
+        self._name = name
 
     def _compare_lists(self, expected, actual):
         assert len(expected) == len(actual)
@@ -305,35 +352,30 @@ class FakeIOStream(object):
                 assert key in actual
                 assert value == actual[key]
 
+    @gen.coroutine
     def method_missing(self, name, *args, **kwargs):
         self.log.info("%s called with %r and %r", name, args, kwargs)
 
-        expected_name, expected_args, expected_kwargs, return_value = self._description[self._index]
-        assert expected_name == name
-        self._compare_lists(expected_args, args)
-        self._compare_dicts(expected_kwargs, kwargs)
-        self._index += 1
-        return return_value
-
-    def expect(self, *calls):
-        self._description.extend(calls)
+        while True:
+            if self._serializaton.get_current_stream() == self._name:
+                expected_name, expected_args, expected_kwargs, return_value = self._serializaton.get_current_call()
+                assert expected_name == name
+                self._compare_lists(expected_args, args)
+                self._compare_dicts(expected_kwargs, kwargs)
+                self._serializaton.move_to_next_call()
+                if issubclass(type(return_value), Exception):
+                    raise return_value
+                else:
+                    raise gen.Return(return_value)
+            else:
+                yield self._serializaton.get_call_index_change()
 
     def __getattr__(self, name):
         return functools.partial(self.method_missing, name)
 
 
-def call(name, return_value, *args, **kwargs):
-    rv = gen.Future()
-    if issubclass(type(return_value), Exception):
-        rv.set_exception(return_value)
-    else:
-        rv.set_result(return_value)
-    return (name, args, kwargs, rv)
-
-
-def test_fake_io_stream():
-    f = FakeIOStream([call("hello", "hi")])
-    assert f.hello().result() == "hi"
+def call(stream_name, name, return_value, *args, **kwargs):
+    return (stream_name, name, args, kwargs, return_value)
 
 
 class TestSessionStream(testing.AsyncTestCase):
@@ -363,24 +405,14 @@ Vary: Accept-Encoding\r\n\r\n"""
 
     def setUp(self):
         super(TestSessionStream, self).setUp()
-        self.fake_stream = FakeIOStream()
-        self.s = fennel.SessionStream(connection_factory=self)
-        self._connect_failures = 0
-
-    def connect(self, hostname, port):
-        future = gen.Future()
-        if self._connect_failures > 0:
-            self._connect_failures -= 1
-            future.set_exception(IOError())
-        else:
-            future.set_result(self.fake_stream)
-        return future
+        self._world_serialization = WorldSerialization()
+        self.s = fennel.SessionStream(connection_factory=self._world_serialization)
 
     @testing.gen_test
     def test_basic(self):
-        self.fake_stream.expect(
-            call("write", None, FakeIOStream.IGNORE),
-            call("read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+        self._world_serialization.expect(
+            call("session", "write", None, FakeIOStream.IGNORE),
+            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
         )
         result = yield self.s.connect(self.endpoint)
         assert result == "00291e7c-eedf-42cd-99cc-f18331b9db77"
@@ -388,31 +420,20 @@ Vary: Accept-Encoding\r\n\r\n"""
     @testing.gen_test
     def test_reconnect(self):
         self._connect_failures = 1
-        self.fake_stream.expect(
-            call("write", None, FakeIOStream.IGNORE),
-            call("read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
-        )
-        result = yield self.s.connect(self.endpoint)
-        assert result == "00291e7c-eedf-42cd-99cc-f18331b9db77"
-
-    @testing.gen_test
-    def test_no_session_id(self):
-        self.fake_stream.expect(
-            call("write", None, FakeIOStream.IGNORE),
-            call("read_until", self.session_id_missing_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
-            call("write", None, FakeIOStream.IGNORE),
-            call("read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+        self._world_serialization.expect(
+            call("session", "write", None, FakeIOStream.IGNORE),
+            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
         )
         result = yield self.s.connect(self.endpoint)
         assert result == "00291e7c-eedf-42cd-99cc-f18331b9db77"
 
     @testing.gen_test
     def test_read_message(self):
-        self.fake_stream.expect(
-            call("write", None, FakeIOStream.IGNORE),
-            call("read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
-            call("read_until", "4\r\n", "\r\n", max_bytes=FakeIOStream.IGNORE),
-            call("read_bytes", "ping\r\n", 6),
+        self._world_serialization.expect(
+            call("session", "write", None, FakeIOStream.IGNORE),
+            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("session", "read_until", "4\r\n", "\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("session", "read_bytes", "ping\r\n", 6),
         )
         yield self.s.connect(self.endpoint)
         message = yield self.s.read_message()
