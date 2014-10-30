@@ -74,9 +74,8 @@ TTcpConnection::TTcpConnection(
     , Handler_(handler)
     , Logger(BusLogger)
     , Profiler(BusProfiler)
-    // NB: This produces a cycle, which gets broken in SyncFinalize.
+    , MessageEnqueuedCallback_(BIND(&TTcpConnection::OnMessageEnqueuedThunk, MakeWeak(this)))
     , ReadBuffer_(MinBatchReadSize)
-    , QueuedMessagesWatcher_(DispatcherThread_->GetEventLoop())
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(handler);
@@ -103,13 +102,12 @@ TTcpConnection::TTcpConnection(
             YUNREACHABLE();
     }
 
+    MessageEnqueuedCallbackPending_.store(false);
+
     WriteBuffers_.push_back(std::make_unique<TBlob>());
     WriteBuffers_[0]->Reserve(MaxBatchWriteSize);
 
     UpdateConnectionCount(+1);
-
-    QueuedMessagesWatcher_.set<TTcpConnection, &TTcpConnection::OnMessageEnqueued>(this);
-    QueuedMessagesWatcher_.start();
 }
 
 TTcpConnection::~TTcpConnection()
@@ -120,6 +118,10 @@ TTcpConnection::~TTcpConnection()
 
 void TTcpConnection::Cleanup()
 {
+    DiscardOutcomingMessages(TError(
+        NRpc::EErrorCode::TransportError,
+        "Connection closed"));
+
     while (!QueuedPackets_.empty()) {
         auto* packet = QueuedPackets_.front();
         UpdatePendingOut(-1, -packet->Size);
@@ -293,7 +295,6 @@ void TTcpConnection::SyncClose(const TError& error)
 
     // Stop all watchers.
     SocketWatcher_.reset();
-    QueuedMessagesWatcher_.stop();
 
     // Close the socket.
     CloseSocket();
@@ -440,13 +441,6 @@ TAsyncError TTcpConnection::Send(TSharedRefArray message, EDeliveryTrackingLevel
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto state = State_.load();
-    if (state == EState::Closed) {
-        return MakeFuture(TError(
-            NRpc::EErrorCode::TransportError,
-            "Connection closed"));
-    }
-
     TQueuedMessage queuedMessage(std::move(message), level);
 
     // NB: Log first to avoid producing weird traces.
@@ -454,7 +448,13 @@ TAsyncError TTcpConnection::Send(TSharedRefArray message, EDeliveryTrackingLevel
         queuedMessage.PacketId);
 
     QueuedMessages_.Enqueue(queuedMessage);
-    QueuedMessagesWatcher_.send();
+
+    if (!MessageEnqueuedCallbackPending_.load(std::memory_order_relaxed)) {
+        bool expected = false;
+        if (MessageEnqueuedCallbackPending_.compare_exchange_strong(expected, true)) {
+            DispatcherThread_->GetInvoker()->Invoke(MessageEnqueuedCallback_);
+        }
+    }
 
     return queuedMessage.Promise;
 }
@@ -1016,9 +1016,19 @@ void TTcpConnection::OnMessagePacketSent(const TPacket& packet)
         packet.Size);
 }
 
-void TTcpConnection::OnMessageEnqueued(ev::async&, int)
+void TTcpConnection::OnMessageEnqueuedThunk(const TWeakPtr<TTcpConnection>& weakConnection)
+{
+    auto strongConnection = weakConnection.Lock();
+    if (strongConnection) {
+        strongConnection->OnMessageEnqueued();
+    }
+}
+
+void TTcpConnection::OnMessageEnqueued()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
+
+    MessageEnqueuedCallbackPending_.store(false);
 
     switch (State_.load()) {
         case EState::Resolving:
