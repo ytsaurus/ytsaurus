@@ -364,15 +364,21 @@ Vary: Accept-Encoding\r\n\r\n"""
     def setUp(self):
         super(TestSessionStream, self).setUp()
         self.fake_stream = FakeIOStream()
-        self.s = fennel.SessionStream(IOStreamClass=self.stream_factory)
+        self.s = fennel.SessionStream(connection_factory=self)
+        self._connect_failures = 0
 
-    def stream_factory(self, s, io_loop=None):
-        return self.fake_stream
+    def connect(self, hostname, port):
+        future = gen.Future()
+        if self._connect_failures > 0:
+            self._connect_failures -= 1
+            future.set_exception(IOError())
+        else:
+            future.set_result(self.fake_stream)
+        return future
 
     @testing.gen_test
     def test_basic(self):
         self.fake_stream.expect(
-            call("connect", None, self.endpoint),
             call("write", None, FakeIOStream.IGNORE),
             call("read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
         )
@@ -381,10 +387,8 @@ Vary: Accept-Encoding\r\n\r\n"""
 
     @testing.gen_test
     def test_reconnect(self):
+        self._connect_failures = 1
         self.fake_stream.expect(
-            call("connect", iostream.StreamClosedError(), self.endpoint),
-            call("write", None, FakeIOStream.IGNORE),
-            call("connect", None, self.endpoint),
             call("write", None, FakeIOStream.IGNORE),
             call("read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
         )
@@ -394,10 +398,8 @@ Vary: Accept-Encoding\r\n\r\n"""
     @testing.gen_test
     def test_no_session_id(self):
         self.fake_stream.expect(
-            call("connect", None, self.endpoint),
             call("write", None, FakeIOStream.IGNORE),
             call("read_until", self.session_id_missing_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
-            call("connect", None, self.endpoint),
             call("write", None, FakeIOStream.IGNORE),
             call("read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
         )
@@ -407,7 +409,6 @@ Vary: Accept-Encoding\r\n\r\n"""
     @testing.gen_test
     def test_read_message(self):
         self.fake_stream.expect(
-            call("connect", None, self.endpoint),
             call("write", None, FakeIOStream.IGNORE),
             call("read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
             call("read_until", "4\r\n", "\r\n", max_bytes=FakeIOStream.IGNORE),
