@@ -31,7 +31,7 @@ class Format(object):
     """
     __metaclass__ = ABCMeta
 
-    def __init__(self, name, attributes=None):
+    def __init__(self, name, attributes=None, raw=None):
         """
         :param name: (string) format name
         :param attributes: (dict) format parameters
@@ -39,6 +39,7 @@ class Format(object):
         require(isinstance(name, str), YtFormatError("Incorrect format %r" % name))
         self._name = yson.YsonString(name)
         self._name.attributes = get_value(attributes, {})
+        self._raw = raw
 
     def json(self):
         """
@@ -59,6 +60,13 @@ class Format(object):
         self._name.attributes = value
 
     attributes = property(_get_attributes, _set_attributes)
+
+    def _is_raw(self, raw):
+        if raw is None:
+            if self._raw is None:
+                return False
+            return self._raw
+        return raw
 
     def __repr__(self):
         return yson.dumps(self._name)
@@ -85,7 +93,7 @@ class Format(object):
         return string.replace("\\", "")
 
     @abstractmethod
-    def load_row(self, stream, unparsed=False):
+    def load_row(self, stream, raw=None):
         """Read from the stream, parse (optionally) and return one row.
 
         :return: parsed row (dict or Record), (string) if unparsed, None if stream is empty
@@ -93,21 +101,27 @@ class Format(object):
         pass
 
     @abstractmethod
-    def load_rows(self, stream):
+    def load_rows(self, stream, raw=None):
         """Read from the stream, parse, process input table switcher and yield all rows.
         """
         pass
 
-    @abstractmethod
-    def dump_row(self, row, stream):
-        """Serialize row and write to the stream."""
-        pass
+    def dump_row(self, row, stream, raw=None):
+        """Serialize row and write to the stream.
+        """
+        if self._is_raw(raw):
+            stream.write(raw)
+            return
+        self._dump_row(row, stream)
 
-    @abstractmethod
-    def dump_rows(self, rows, stream):
+    def dump_rows(self, rows, stream, raw=None):
         """Serialize rows, create output table switchers and write to the stream.
         """
-        pass
+        if self._is_raw(raw):
+            for row in rows:
+                stream.write(row)
+            return
+        self._dump_rows(rows, stream)
 
     def dumps_row(self, row):
         """Convert parsed row to string"""
@@ -157,7 +171,7 @@ class DsvFormat(Format):
     """
 
     def __init__(self, enable_escaping=None,
-                 enable_table_index=None, table_index_column=None, attributes=None):
+                 enable_table_index=None, table_index_column=None, attributes=None, raw=None):
         """
         :param enable_escaping: (bool) process escaped symbols, True by default
         :param enable_table_index: (bool) process input table indexes in load_rows. \
@@ -172,7 +186,7 @@ class DsvFormat(Format):
                    "table_index_column": table_index_column}
 
         all_attributes = Format._make_attributes(get_value(attributes, {}), defaults, options)
-        super(DsvFormat, self).__init__("dsv", all_attributes)
+        super(DsvFormat, self).__init__("dsv", all_attributes, raw)
 
 
     enable_escaping = Format._create_property("enable_escaping")
@@ -181,20 +195,20 @@ class DsvFormat(Format):
 
     table_index_column = Format._create_property("table_index_column")
 
-    def load_row(self, stream, unparsed=False):
+    def load_row(self, stream, raw=None):
         line = stream.readline()
-        if unparsed:
-            return line
         if not line:
             return None
+        if self._is_raw(raw):
+            return line
         parsed_line = self._parse(line)
         if self.enable_table_index:
             parsed_line[self.table_index_column] = int(parsed_line[self.table_index_column])
         return parsed_line
 
-    def load_rows(self, stream):
+    def load_rows(self, stream, raw=None):
         while True:
-            row = self.load_row(stream)
+            row = self.load_row(stream, raw=raw)
             if row is None:
                 break
             yield row
@@ -217,7 +231,7 @@ class DsvFormat(Format):
             stream.write(escape_value(str(item[1])))
             stream.write("\n" if i == length - 1 else "\t")
 
-    def dump_rows(self, rows, stream):
+    def _dump_rows(self, rows, stream):
         for row in rows:
             self.dump_row(row, stream)
 
@@ -265,7 +279,8 @@ class YsonFormat(Format):
     .. seealso:: `YSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yson>`_
     """
 
-    def __init__(self, format=None, process_table_index=True, ignore_inner_attributes=False, attributes=None):
+    def __init__(self, format=None, process_table_index=True, ignore_inner_attributes=False,
+                 attributes=None, raw=None):
         """
         :param format: (one of "text" (default), "pretty", "binary") output format \
         (actual only for output).
@@ -275,14 +290,14 @@ class YsonFormat(Format):
         all_attributes = Format._make_attributes(get_value(attributes, {}),
                                                  {"format": "binary"},
                                                  {"format": format})
-        super(YsonFormat, self).__init__("yson", all_attributes)
+        super(YsonFormat, self).__init__("yson", all_attributes, raw)
         self.process_table_index = process_table_index
         self.ignore_inner_attributes = ignore_inner_attributes
 
     def _check_bindings(self):
         require(yson.TYPE == "BINARY", YtError("Yson bindings required"))
 
-    def load_row(self, stream, unparsed=False):
+    def load_row(self, stream, raw=None):
         """Not supported"""
         raise YtFormatError("load_row is not supported in Yson")
 
@@ -300,7 +315,10 @@ class YsonFormat(Format):
             row["input_table_index"] = table_index
             yield row
 
-    def load_rows(self, stream):
+    def load_rows(self, stream, raw=None):
+        if self._is_raw(raw):
+            raise YtFormatError("Raw load_rows is not supported in Yson")
+
         self._check_bindings()
         rows = yson.load(stream, yson_type="list_fragment", always_create_attributes=False)
         if not self.process_table_index:
@@ -308,9 +326,9 @@ class YsonFormat(Format):
         return self._process_input_rows(rows)
 
 
-    def dump_row(self, row, stream):
+    def _dump_row(self, row, stream):
         self._check_bindings()
-        self.dump_rows([row], stream)
+        self._dump_rows([row], stream)
 
     @staticmethod
     def _process_output_rows(rows):
@@ -326,7 +344,7 @@ class YsonFormat(Format):
             row.pop("input_table_index", None)
             yield row
 
-    def dump_rows(self, rows, stream):
+    def _dump_rows(self, rows, stream):
         self._check_bindings()
         if self.process_table_index:
             rows = self._process_output_rows(rows)
@@ -345,7 +363,7 @@ class YamrFormat(Format):
 
     def __init__(self, has_subkey=None, lenval=None,
                  field_separator=None, record_separator=None,
-                 enable_table_index=None, attributes=None):
+                 enable_table_index=None, attributes=None, raw=None):
         """
         :param has_subkey: (bool) False by default
         :param lenval: (bool) False by default
@@ -360,7 +378,7 @@ class YamrFormat(Format):
                    "enable_table_index": enable_table_index}
         attributes = get_value(attributes, {})
         all_attributes = Format._make_attributes(attributes, defaults, options)
-        super(YamrFormat, self).__init__("yamr", all_attributes)
+        super(YamrFormat, self).__init__("yamr", all_attributes, raw)
         self._load_row = self._read_lenval_values if self.lenval else self._read_delimited_values
         self.fields_number = 3 if self.has_subkey else 2
 
@@ -369,7 +387,8 @@ class YamrFormat(Format):
     field_separator = Format._create_property("fs")
     record_separator = Format._create_property("rs")
 
-    def load_row(self, stream, unparsed=False):
+    def load_row(self, stream, raw=None):
+        unparsed = self._is_raw(raw)
         result_of_loading = self._load_row(stream, unparsed)
         if unparsed:
             return result_of_loading
@@ -377,10 +396,16 @@ class YamrFormat(Format):
             return None
         return Record(*result_of_loading)
 
-    def load_rows(self, stream):
+    def load_rows(self, stream, raw=None):
+        unparsed = self._is_raw(raw)
         table_index = 0
         while True:
-            fields = self._load_row(stream, unparsed=False)
+            row = self._load_row(stream, unparsed=unparsed)
+            if unparsed and row:
+                yield row
+                continue
+
+            fields = row
             if not fields:
                 break
             if len(fields) == 1:
@@ -430,7 +455,7 @@ class YamrFormat(Format):
             return ''.join(fields)
         return fields
 
-    def dump_row(self, row, stream):
+    def _dump_row(self, row, stream):
         fields = row.items()
 
         if self.lenval:
@@ -444,7 +469,7 @@ class YamrFormat(Format):
             stream.write(fields[-1])
             stream.write(self.attributes["rs"])
 
-    def dump_rows(self, rows, stream):
+    def _dump_rows(self, rows, stream):
         table_index = 0
         for row in rows:
             new_table_index = row.tableIndex
@@ -465,13 +490,16 @@ class JsonFormat(Format):
     .. seealso:: `JSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#json>`_
     """
 
-    def __init__(self, attributes=None, process_table_index=True, table_index_field_name="table_index"):
+    def __init__(self, process_table_index=True, table_index_field_name="table_index", attributes=None, raw=None):
         attributes = get_value(attributes, {})
-        super(JsonFormat, self).__init__("json", attributes)
+        super(JsonFormat, self).__init__("json", attributes, raw)
         self.process_table_index = process_table_index
         self.table_index_field_name = table_index_field_name
 
-    def _loads(self, string):
+    def _loads(self, string, raw):
+        if raw:
+            return string
+        string = string.rstrip("\n")
         if cjson is not None:
             return cjson.decode(string)
         return json.loads(string)
@@ -486,13 +514,11 @@ class JsonFormat(Format):
             return cjson.encode(obj)
         return json.dumps(obj)
 
-    def load_row(self, stream, unparsed=False):
+    def load_row(self, stream, raw=None):
         row = stream.readline()
-        if unparsed:
-            return row
         if not row:
             return None
-        return self._loads(row.rstrip("\n"))
+        return self._loads(row, self._is_raw(raw))
 
     def _process_input_rows(self, rows):
         table_index = None
@@ -506,17 +532,18 @@ class JsonFormat(Format):
                     row[self.table_index_field_name] = table_index
                 yield row
 
-    def load_rows(self, stream):
+    def load_rows(self, stream, raw=None):
+        raw = self._is_raw(raw)
         def _load_rows(stream):
             for line in stream:
-                yield self._loads(line)
+                yield self._loads(line, raw)
 
         rows = _load_rows(stream)
-        if self.process_table_index:
+        if self.process_table_index and not raw:
             return self._process_input_rows(rows)
         return rows
 
-    def dump_row(self, row, stream):
+    def _dump_row(self, row, stream):
         self._dump(row, stream)
         stream.write("\n")
 
@@ -533,7 +560,7 @@ class JsonFormat(Format):
                 del row[self.table_index_field_name]
             yield row
 
-    def dump_rows(self, rows, stream):
+    def _dump_rows(self, rows, stream):
         if self.process_table_index:
             rows = self._process_output_rows(rows)
         for row in rows:
@@ -543,7 +570,7 @@ class JsonFormat(Format):
         return self._dumps(row)
 
     def loads_row(self, string):
-        return self._loads(string)
+        return self._loads(string, raw=False)
 
 class YamredDsvFormat(YamrFormat):
     """
@@ -553,7 +580,7 @@ class YamredDsvFormat(YamrFormat):
     """
 
     def __init__(self, key_column_names=None, subkey_column_names=None,
-                 has_subkey=None, lenval=None, attributes=None):
+                 has_subkey=None, lenval=None, attributes=None, raw=None):
         """
         :param key_column_names: (list of strings)
         :param subkey_column_names: (list of strings)
@@ -568,7 +595,7 @@ class YamredDsvFormat(YamrFormat):
         all_attributes = Format._make_attributes(attributes, defaults, options)
         require(all_attributes.has_key("key_column_names"),
                 YtFormatError("YamredDsvFormat require 'key_column_names' attribute"))
-        super(YamredDsvFormat, self).__init__(attributes=all_attributes)
+        super(YamredDsvFormat, self).__init__(attributes=all_attributes, raw=raw)
         self._name = yson.to_yson_type("yamred_dsv", self.attributes)
 
     key_column_names = Format._create_property("key_column_names")
@@ -584,7 +611,8 @@ class SchemafulDsvFormat(Format):
     """
 
     def __init__(self, columns=None, enable_escaping=None,
-                 enable_table_index=None, table_index_column=None, attributes=None):
+                 enable_table_index=None, table_index_column=None,
+                 attributes=None, raw=None):
         """
         :param columns: (list of strings) mandatory parameter!
         :param enable_escaping: (bool) process escaped symbols, True by default
@@ -603,7 +631,7 @@ class SchemafulDsvFormat(Format):
         all_attributes = Format._make_attributes(attributes, defaults, options)
         require(all_attributes.has_key("columns"),
                 YtFormatError("SchemafulDsvFormat require 'columns' attribute"))
-        super(SchemafulDsvFormat, self).__init__("schemaful_dsv", all_attributes)
+        super(SchemafulDsvFormat, self).__init__("schemaful_dsv", all_attributes, raw)
         if self.enable_table_index:
             self._columns = [table_index_column] + self.columns
         else:
@@ -617,25 +645,25 @@ class SchemafulDsvFormat(Format):
 
     table_index_column = Format._create_property("table_index_column")
 
-    def load_row(self, stream, unparsed=False):
+    def load_row(self, stream, raw=None):
         line = stream.readline()
-        if unparsed:
-            return line
         if not line:
             return None
+        if self._is_raw(raw):
+            return line
         parsed_line = self._parse(line)
         if self.enable_table_index:
             parsed_line[self.table_index_column] = int(parsed_line[self.table_index_column])
         return parsed_line
 
-    def load_rows(self, stream):
+    def load_rows(self, stream, raw=None):
         while True:
-            row = self.load_row(stream)
+            row = self.load_row(stream, raw)
             if not row:
                 break
             yield row
 
-    def dump_row(self, row, stream):
+    def _dump_row(self, row, stream):
         def escape(string):
             if not self.enable_escaping:
                 return string
@@ -649,7 +677,7 @@ class SchemafulDsvFormat(Format):
         stream.write("\n")
 
 
-    def dump_rows(self, rows, stream):
+    def _dump_rows(self, rows, stream):
         for row in rows:
             self.dump_row(row, stream)
 
@@ -667,9 +695,9 @@ class SchemafulDsvFormat(Format):
 class SchemedDsvFormat(SchemafulDsvFormat):
     """.. note:: Deprecated."""
 
-    def __init__(self, columns, attributes=None):
+    def __init__(self, columns, attributes=None, raw=None):
         attributes = get_value(attributes, {})
-        super(SchemedDsvFormat, self).__init__(columns=columns, attributes=attributes)
+        super(SchemedDsvFormat, self).__init__(columns=columns, attributes=attributes, raw=raw)
         self._name = yson.to_yson_type("schemed_dsv", self.attributes)
 
 # TODO(veronikaiv): do it beautiful way!
