@@ -237,7 +237,7 @@ IMapNodePtr TRequestExecutor::GetParameters()
 
     BuildYsonFluently(builder.get())
         .BeginMap()
-            .Do(BIND(&TRequestExecutor::BuildArgs, Unretained(this)))
+            .Do(BIND(&TRequestExecutor::BuildParameters, Unretained(this)))
         .EndMap();
 
     auto parameters = builder->EndTree()->AsMap();
@@ -269,7 +269,7 @@ TFormat TRequestExecutor::GetFormat(EDataType dataType, const TNullable<TYsonStr
     }
 }
 
-void TRequestExecutor::BuildArgs(IYsonConsumer* consumer)
+void TRequestExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     UNUSED(consumer);
 }
@@ -292,7 +292,7 @@ TTransactedExecutor::TTransactedExecutor(
     CmdLine.add(PingAncestorTxsArg);
 }
 
-void TTransactedExecutor::BuildArgs(IYsonConsumer* consumer)
+void TTransactedExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     TNullable<TTransactionId> txId;
     if (LabeledTxArg.isSet()) {
@@ -312,7 +312,7 @@ void TTransactedExecutor::BuildArgs(IYsonConsumer* consumer)
         })
         .Item("ping_ancestor_transactions").Value(PingAncestorTxsArg.getValue());
 
-    TRequestExecutor::BuildArgs(consumer);
+    TRequestExecutor::BuildParameters(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

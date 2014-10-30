@@ -35,7 +35,7 @@ private:
     TCLAP::ValueArg<Stroka> CommandArg;
     TCLAP::MultiArg<NYPath::TRichYPath> FileArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
     virtual NScheduler::EOperationType GetOperationType() const override;
 };
@@ -59,7 +59,7 @@ private:
     TCLAP::SwitchArg CombineArg;
     TCLAP::ValueArg<Stroka> MergeByArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
     virtual NScheduler::EOperationType GetOperationType() const override;
 };
@@ -77,7 +77,7 @@ private:
     TCLAP::ValueArg<NYPath::TRichYPath> OutArg;
     TCLAP::ValueArg<Stroka> SortByArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
     virtual NScheduler::EOperationType GetOperationType() const override;
 };
@@ -94,7 +94,7 @@ private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
     TCLAP::SwitchArg CombineArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
     virtual NScheduler::EOperationType GetOperationType() const override;
 };
@@ -114,7 +114,7 @@ private:
     TCLAP::MultiArg<NYPath::TRichYPath> FileArg;
     TCLAP::ValueArg<Stroka> ReduceByArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
     virtual NScheduler::EOperationType GetOperationType() const override;
 };
@@ -139,7 +139,7 @@ private:
     TCLAP::ValueArg<Stroka> SortByArg;
     TCLAP::ValueArg<Stroka> ReduceByArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
     virtual NScheduler::EOperationType GetOperationType() const override;
 };
@@ -155,7 +155,7 @@ public:
 private:
     TCLAP::UnlabeledValueArg<Stroka> OpArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
@@ -170,7 +170,7 @@ public:
 private:
     TCLAP::UnlabeledValueArg<Stroka> OpArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
@@ -185,7 +185,7 @@ public:
 private:
     TCLAP::UnlabeledValueArg<Stroka> OpArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 

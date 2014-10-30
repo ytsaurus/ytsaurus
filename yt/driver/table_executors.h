@@ -18,7 +18,7 @@ public:
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
@@ -38,7 +38,7 @@ private:
     bool UseStdIn;
     TStringStream Stream;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
     virtual TInputStream* GetInputStream() override;
 };
@@ -56,7 +56,7 @@ protected:
     TCLAP::ValueArg<int> FirstTabletIndexArg;
     TCLAP::ValueArg<int> LastTabletIndexArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
 
 };
 
@@ -69,7 +69,7 @@ public:
     TMountTableExecutor();
 
 private:
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
@@ -84,7 +84,7 @@ public:
 private:
     TCLAP::SwitchArg ForceArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
@@ -97,7 +97,7 @@ public:
     TRemountTableExecutor();
 
 private:
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
@@ -112,7 +112,7 @@ public:
 private:
     TCLAP::UnlabeledMultiArg<Stroka> PivotKeysArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
@@ -132,7 +132,7 @@ private:
     bool UseStdIn;
     TStringStream Stream;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
     virtual TInputStream* GetInputStream() override;
 };
@@ -151,7 +151,7 @@ private:
     TCLAP::ValueArg<int> InputRowLimitArg;
     TCLAP::ValueArg<int> OutputRowLimitArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
@@ -168,7 +168,7 @@ private:
     TCLAP::UnlabeledValueArg<Stroka> KeyArg;
     TCLAP::ValueArg<NTransactionClient::TTimestamp> TimestampArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
@@ -184,7 +184,7 @@ private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
     TCLAP::UnlabeledValueArg<Stroka> KeyArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 

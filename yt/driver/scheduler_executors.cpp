@@ -47,7 +47,7 @@ void TStartOpExecutor::DoExecute(const TDriverRequest& request)
     requestCopy.Parameters->AddChild(
         ConvertToNode(TFormat(EFormatType::Yson)),
         "output_format");
-    
+
     requestCopy.OutputStream = CreateAsyncOutputStream(&output);
 
     auto response = Driver->Execute(requestCopy).Get();
@@ -77,7 +77,7 @@ TMapExecutor::TMapExecutor()
     CmdLine.add(FileArg);
 }
 
-void TMapExecutor::BuildArgs(IYsonConsumer* consumer)
+void TMapExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto inputs = PreprocessYPaths(InArg.getValue());
     auto outputs = PreprocessYPaths(OutArg.getValue());
@@ -93,7 +93,7 @@ void TMapExecutor::BuildArgs(IYsonConsumer* consumer)
             .EndMap()
         .EndMap();
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TMapExecutor::GetCommandName() const
@@ -124,7 +124,7 @@ TMergeExecutor::TMergeExecutor()
     CmdLine.add(MergeByArg);
 }
 
-void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
+void TMergeExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto inputs = PreprocessYPaths(InArg.getValue());
     auto outputs = PreprocessYPath(OutArg.getValue());
@@ -141,7 +141,7 @@ void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
             })
         .EndMap();
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TMergeExecutor::GetCommandName() const
@@ -166,7 +166,7 @@ TSortExecutor::TSortExecutor()
     CmdLine.add(SortByArg);
 }
 
-void TSortExecutor::BuildArgs(IYsonConsumer* consumer)
+void TSortExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto inputs = PreprocessYPaths(InArg.getValue());
     auto outputs = PreprocessYPath(OutArg.getValue());
@@ -179,7 +179,7 @@ void TSortExecutor::BuildArgs(IYsonConsumer* consumer)
             .Item("sort_by").Value(sortBy)
         .EndMap();
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TSortExecutor::GetCommandName() const
@@ -202,7 +202,7 @@ TEraseExecutor::TEraseExecutor()
     CmdLine.add(CombineArg);
 }
 
-void TEraseExecutor::BuildArgs(IYsonConsumer* consumer)
+void TEraseExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -212,7 +212,7 @@ void TEraseExecutor::BuildArgs(IYsonConsumer* consumer)
             .Item("combine_chunks").Value(CombineArg.getValue())
         .EndMap();
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TEraseExecutor::GetCommandName() const
@@ -243,7 +243,7 @@ TReduceExecutor::TReduceExecutor()
     CmdLine.add(ReduceByArg);
 }
 
-void TReduceExecutor::BuildArgs(IYsonConsumer* consumer)
+void TReduceExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto inputs = PreprocessYPaths(InArg.getValue());
     auto outputs = PreprocessYPaths(OutArg.getValue());
@@ -263,7 +263,7 @@ void TReduceExecutor::BuildArgs(IYsonConsumer* consumer)
             .EndMap()
         .EndMap();
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TReduceExecutor::GetCommandName() const
@@ -302,7 +302,7 @@ TMapReduceExecutor::TMapReduceExecutor()
     CmdLine.add(ReduceByArg);
 }
 
-void TMapReduceExecutor::BuildArgs(IYsonConsumer* consumer)
+void TMapReduceExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto inputs = PreprocessYPaths(InArg.getValue());
     auto outputs = PreprocessYPaths(OutArg.getValue());
@@ -341,7 +341,7 @@ void TMapReduceExecutor::BuildArgs(IYsonConsumer* consumer)
             .EndMap()
        .EndMap();
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TMapReduceExecutor::GetCommandName() const
@@ -362,12 +362,12 @@ TAbortOperationExecutor::TAbortOperationExecutor()
     CmdLine.add(OpArg);
 }
 
-void TAbortOperationExecutor::BuildArgs(IYsonConsumer* consumer)
+void TAbortOperationExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("operation_id").Value(OpArg.getValue());
 
-    TRequestExecutor::BuildArgs(consumer);
+    TRequestExecutor::BuildParameters(consumer);
 }
 
 Stroka TAbortOperationExecutor::GetCommandName() const
@@ -383,12 +383,12 @@ TSuspendOperationExecutor::TSuspendOperationExecutor()
     CmdLine.add(OpArg);
 }
 
-void TSuspendOperationExecutor::BuildArgs(IYsonConsumer* consumer)
+void TSuspendOperationExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("operation_id").Value(OpArg.getValue());
 
-    TRequestExecutor::BuildArgs(consumer);
+    TRequestExecutor::BuildParameters(consumer);
 }
 
 Stroka TSuspendOperationExecutor::GetCommandName() const
@@ -404,12 +404,12 @@ TResumeOperationExecutor::TResumeOperationExecutor()
     CmdLine.add(OpArg);
 }
 
-void TResumeOperationExecutor::BuildArgs(IYsonConsumer* consumer)
+void TResumeOperationExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("operation_id").Value(OpArg.getValue());
 
-    TRequestExecutor::BuildArgs(consumer);
+    TRequestExecutor::BuildParameters(consumer);
 }
 
 Stroka TResumeOperationExecutor::GetCommandName() const

@@ -18,7 +18,7 @@ public:
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
@@ -37,7 +37,7 @@ private:
     bool UseStdIn;
     TStringStream Stream;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
     virtual TInputStream* GetInputStream() override;
 };

@@ -76,20 +76,20 @@ TUpdateMembershipExecutor::TUpdateMembershipExecutor()
     CmdLine.add(GroupArg);
 }
 
-void TUpdateMembershipExecutor::BuildArgs(IYsonConsumer* consumer)
+void TUpdateMembershipExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("group").Value(GroupArg.getValue())
         .Item("member").Value(MemberArg.getValue());
-    TRequestExecutor::BuildArgs(consumer);
+    TRequestExecutor::BuildParameters(consumer);
 }
 
-Stroka TAddMemberExecutor::GetCommandName() const 
+Stroka TAddMemberExecutor::GetCommandName() const
 {
     return "add_member";
 }
 
-Stroka TRemoveMemberExecutor::GetCommandName() const 
+Stroka TRemoveMemberExecutor::GetCommandName() const
 {
     return "remove_member";
 }
@@ -107,7 +107,7 @@ TCheckPermissionExecutor::TCheckPermissionExecutor()
     CmdLine.add(PathArg);
 }
 
-void TCheckPermissionExecutor::BuildArgs(IYsonConsumer* consumer)
+void TCheckPermissionExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -116,7 +116,7 @@ void TCheckPermissionExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("permission").Value(PermissionArg.getValue())
         .Item("path").Value(path);
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TCheckPermissionExecutor::GetCommandName() const

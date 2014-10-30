@@ -54,12 +54,12 @@ Stroka TAbortTransactionExecutor::GetCommandName() const
     return "abort_tx";
 }
 
-void TAbortTransactionExecutor::BuildArgs(NYson::IYsonConsumer* consumer)
+void TAbortTransactionExecutor::BuildParameters(NYson::IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("force").Value(ForceArg.getValue());
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
