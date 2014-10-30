@@ -114,8 +114,7 @@ class TestLogBrokerIntegration(testing.AsyncTestCase):
     def init(self):
         self.source_id = uuid.uuid4().hex
 
-        source_id = uuid.uuid4().hex
-        self.l = fennel.LogBroker(service_id=self.service_id, source_id=source_id, io_loop=self.io_loop)
+        self.l = fennel.LogBroker(service_id=self.service_id, source_id=self.source_id, io_loop=self.io_loop)
         seqno = yield self.l.connect('kafka01ft.stat.yandex.net')
         assert seqno == 0
         self.stop()
@@ -314,8 +313,11 @@ class WorldSerialization(object):
         return future
 
     def get_current_stream(self):
-        self.log.debug("Current index: %d", self._index)
-        return self._description[self._index][0]
+        if self._index < len(self._description):
+            self.log.debug("Current index: %d", self._index)
+            return self._description[self._index][0]
+        else:
+            return None
 
     def get_current_call(self):
         self.log.debug("Current index: %d", self._index)
@@ -327,7 +329,6 @@ class WorldSerialization(object):
         for f in self._index_change_futures:
             f.set_result(None)
         del self._index_change_futures[:]
-        self.log.info("End of move_to_next_call")
 
 
 class FakeIOStream(object):
@@ -358,11 +359,16 @@ class FakeIOStream(object):
 
         while True:
             if self._serializaton.get_current_stream() == self._name:
-                expected_name, expected_args, expected_kwargs, return_value = self._serializaton.get_current_call()
-                assert expected_name == name
-                self._compare_lists(expected_args, args)
-                self._compare_dicts(expected_kwargs, kwargs)
-                self._serializaton.move_to_next_call()
+                try:
+                    expected_name, expected_args, expected_kwargs, return_value = self._serializaton.get_current_call()
+                    assert expected_name == name
+                    self._compare_lists(expected_args, args)
+                    self._compare_dicts(expected_kwargs, kwargs)
+                    self._serializaton.move_to_next_call()
+                except Exception:
+                    self.log.error("Unhandled exception", exc_info=True)
+                    raise
+
                 if issubclass(type(return_value), Exception):
                     raise return_value
                 else:
@@ -438,3 +444,122 @@ Vary: Accept-Encoding\r\n\r\n"""
         yield self.s.connect(self.endpoint)
         message = yield self.s.read_message()
         assert message.type == "ping"
+
+
+class TestLogBroker(testing.AsyncTestCase):
+    good_response = """HTTP/1.1 200 OK
+Server: nginx/1.4.4
+Date: Wed, 19 Mar 2014 11:09:54 GMT
+Content-Type: text/plain
+Transfer-Encoding: chunked
+Connection: keep-alive
+Vary: Accept-Encoding
+Session: 00291e7c-eedf-42cd-99cc-f18331b9db77
+Seqno: 0
+Lines: 218
+PartOffset: 396
+Topic: rt3.fol--other
+Partition: 0\r\n\r\n"""
+
+    def setUp(self):
+        super(TestLogBroker, self).setUp()
+        self._world_serialization = WorldSerialization()
+
+        self._service_id = "fenneltest"
+        self._source_id = uuid.uuid4().hex
+
+        self.logbroker = fennel.LogBroker(service_id=self._service_id, source_id=self._source_id, io_loop=self.io_loop, connection_factory=self._world_serialization)
+
+    @testing.gen_test
+    def test_save_one_chunk(self):
+        ack_response = "chunk=0\toffset=0\tseqno=32\tpart_offset=111"
+        self._world_serialization.expect(
+            call("session", "write", None, FakeIOStream.IGNORE),
+            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("push", "write", None, FakeIOStream.IGNORE),
+            call("push", "read_until_close", None, streaming_callback=FakeIOStream.IGNORE),
+            call("push", "write", None, FakeIOStream.IGNORE),
+            call("session", "read_until", "{0}\r\n".format(hex(len(ack_response))[2:]), "\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("session", "read_bytes", "{0}\r\n".format(ack_response), len(ack_response) + 2),
+        )
+        yield self.logbroker.connect('kafka01ft.stat.yandex.net')
+        seqno = yield self.logbroker.save_chunk(32, [{}])
+        assert seqno == 32
+
+    @testing.gen_test
+    def test_save_two_ordered_chunks(self):
+        seqnos = [ 32, 50 ]
+        ack_response = ["chunk=0\toffset=0\tseqno={0}\tpart_offset=111".format(seqno) for seqno in seqnos]
+        self._world_serialization.expect(
+            call("session", "write", None, FakeIOStream.IGNORE),
+            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("push", "write", None, FakeIOStream.IGNORE),
+            call("push", "read_until_close", None, streaming_callback=FakeIOStream.IGNORE),
+        )
+        for response in ack_response:
+            self._world_serialization.expect(
+                call("push", "write", None, FakeIOStream.IGNORE),
+                call("session", "read_until", "{0}\r\n".format(self.get_hex_length(response)), "\r\n", max_bytes=FakeIOStream.IGNORE),
+                call("session", "read_bytes", "{0}\r\n".format(response), len(response) + 2),
+            )
+
+        yield self.logbroker.connect('kafka01ft.stat.yandex.net')
+        for expected_seqno in seqnos:
+            seqno = yield self.logbroker.save_chunk(expected_seqno, [{}])
+            assert expected_seqno == seqno
+
+    @testing.gen_test
+    def test_save_two_unordered_chunks(self):
+        ack_response = [
+            "chunk=0\toffset=0\tseqno=50\tpart_offset=111",
+            "skip\tchunk=0\toffset=0\tseqno=32"
+        ]
+        self._world_serialization.expect(
+            call("session", "write", None, FakeIOStream.IGNORE),
+            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("push", "write", None, FakeIOStream.IGNORE),
+            call("push", "read_until_close", None, streaming_callback=FakeIOStream.IGNORE),
+        )
+        for response in ack_response:
+            self._world_serialization.expect(
+                call("push", "write", None, FakeIOStream.IGNORE),
+                call("session", "read_until", "{0}\r\n".format(self.get_hex_length(response)), "\r\n", max_bytes=FakeIOStream.IGNORE),
+                call("session", "read_bytes", "{0}\r\n".format(response), len(response) + 2),
+            )
+
+        yield self.logbroker.connect('kafka01ft.stat.yandex.net')
+
+        seqno = yield self.logbroker.save_chunk(50, [{}])
+        assert seqno == 50
+        seqno = yield self.logbroker.save_chunk(32, [{}])
+        assert seqno == 50
+
+    @testing.gen_test
+    def test_ack_dont_send_future_futures(self):
+        ack_response = [
+            "chunk=0\toffset=0\tseqno=32\tpart_offset=111",
+        ]
+        self._world_serialization.expect(
+            call("session", "write", None, FakeIOStream.IGNORE),
+            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("push", "write", None, FakeIOStream.IGNORE),
+            call("push", "read_until_close", None, streaming_callback=FakeIOStream.IGNORE),
+            call("push", "write", None, FakeIOStream.IGNORE),
+            call("push", "write", None, FakeIOStream.IGNORE),
+        )
+        for response in ack_response:
+            self._world_serialization.expect(
+                call("session", "read_until", "{0}\r\n".format(self.get_hex_length(response)), "\r\n", max_bytes=FakeIOStream.IGNORE),
+                call("session", "read_bytes", "{0}\r\n".format(response), len(response) + 2),
+            )
+
+        yield self.logbroker.connect('kafka01ft.stat.yandex.net')
+
+        f1 = self.logbroker.save_chunk(32, [{}])
+        f2 = self.logbroker.save_chunk(50, [{}])
+        seqno = yield f1
+        assert seqno == 32
+        assert not f2.done()
+
+    def get_hex_length(self, text):
+        return hex(len(text))[2:]

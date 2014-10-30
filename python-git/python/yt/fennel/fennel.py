@@ -367,7 +367,7 @@ def _transform_record(record):
 class LogBroker(object):
     log = logging.getLogger("LogBroker")
 
-    def __init__(self, service_id, source_id, io_loop=None, IOStreamClass=None):
+    def __init__(self, service_id, source_id, io_loop=None, connection_factory=None):
         self._service_id = service_id
         self._source_id = source_id
 
@@ -379,19 +379,19 @@ class LogBroker(object):
         self._stopped = False
 
         self._io_loop = io_loop or ioloop.IOLoop.instance()
-        self.IOStreamClass = IOStreamClass or iostream.IOStream
+        self._connection_factory = connection_factory or tcpclient.TCPClient(io_loop=self._io_loop)
 
     @gen.coroutine
     def connect(self, hostname, timeout=None):
         assert self._session is None
         assert self._push is None
 
-        self._session = SessionStream(service_id=self._service_id, source_id=self._source_id, io_loop=self._io_loop)
+        self._session = SessionStream(service_id=self._service_id, source_id=self._source_id, io_loop=self._io_loop, connection_factory=self._connection_factory)
         self.log.info("Connect session stream")
         session_id = yield self._session.connect((hostname, 80))
         self._update_last_acked_seqno(int(self._session.get_attributes()["seqno"]))
 
-        self._push = PushStream(io_loop=self._io_loop)
+        self._push = PushStream(io_loop=self._io_loop, connection_factory=self._connection_factory)
         self.log.info("Connect push stream")
         yield self._push.connect((hostname, 9000), session_id=session_id)
 
@@ -577,7 +577,7 @@ class SessionStream(object):
                 raise BadProtocol()
             if body_size == 0:
                 self.log.error("HTTP response is finished")
-                data = yield gen.Task(self._iostream.read_until_close)
+                data = yield self._iostream.read_until_close()
                 self.log.debug("Session trailers: %s", data)
                 raise SessionEnd()
             else:
@@ -592,6 +592,7 @@ class SessionStream(object):
             if self._iostream is not None:
                 self._iostream.close()
                 self._iostream = None
+            raise
 
     def _parse(self, line):
         if line.startswith("ping"):
@@ -617,7 +618,6 @@ class SessionStream(object):
             else:
                 attributes[key] = value
         return SessionMessage(type_, attributes)
-
 
 
 class PushStream(object):
