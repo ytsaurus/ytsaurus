@@ -1406,20 +1406,29 @@ void ValidateList(TEditList<T> l)
 
 void TDynamicMemoryStore::Validate()
 {
-    if (Id_.Parts64[0] != 3023746395693 || Id_.Parts64[1] != 10977936408649)
-        return;
-
-    auto it = Rows_->FindEqualTo(TKeyWrapper{B.GetRow()});
-    if (!it.IsValid())
-        return;
-
-    auto row = it.GetCurrent();
-    ValidateList(row.GetTimestampList(ETimestampListKind::Write, KeyColumnCount_, ColumnLockCount_));
-    ValidateList(row.GetTimestampList(ETimestampListKind::Delete, KeyColumnCount_, ColumnLockCount_));
-
-    for (int i = KeyColumnCount_; i < SchemaColumnCount_; ++i) {
-        ValidateList(row.GetFixedValueList(i, KeyColumnCount_, ColumnLockCount_));
+    for (auto rowIt = Rows_->FindGreaterThanOrEqualTo(TKeyWrapper{MinKey().Get()});
+         rowIt.IsValid();
+         rowIt.MoveNext())
+    {
+        auto row = rowIt.GetCurrent();
+        ValidateList(row.GetTimestampList(ETimestampListKind::Write, KeyColumnCount_, ColumnLockCount_));
+        ValidateList(row.GetTimestampList(ETimestampListKind::Delete, KeyColumnCount_, ColumnLockCount_));
     }
+
+//    if (Id_.Parts64[0] != 3023746395693 || Id_.Parts64[1] != 10977936408649)
+//        return;
+//
+//    auto it = Rows_->FindEqualTo(TKeyWrapper{B.GetRow()});
+//    if (!it.IsValid())
+//        return;
+//
+//    auto row = it.GetCurrent();
+//    ValidateList(row.GetTimestampList(ETimestampListKind::Write, KeyColumnCount_, ColumnLockCount_));
+//    ValidateList(row.GetTimestampList(ETimestampListKind::Delete, KeyColumnCount_, ColumnLockCount_));
+//
+//    for (int i = KeyColumnCount_; i < SchemaColumnCount_; ++i) {
+//        ValidateList(row.GetFixedValueList(i, KeyColumnCount_, ColumnLockCount_));
+//    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
