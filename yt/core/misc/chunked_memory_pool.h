@@ -29,7 +29,7 @@ public:
         : TChunkedMemoryPool(
             chunkSize,
             maxSmallBlockSizeRatio,
-        GetRefCountedTypeCookie<TTag>())
+            GetRefCountedTypeCookie<TTag>())
     { }
 
     //! Allocates #sizes bytes without any alignment.
