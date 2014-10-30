@@ -452,18 +452,19 @@ class LogBroker(object):
 
     def _set_futures(self, future_value):
         try:
-            is_exception = isinstance(type(future_value), Exception)
+            is_exception = issubclass(type(future_value), Exception)
             if is_exception:
+                self.log.debug("Set all futures to exception %r", future_value)
                 for key, value in self._save_chunk_futures.iteritems():
                     value.set_exception(future_value)
+
+                self._save_chunk_futures.clear()
             else:
                 seqnos = self._save_chunk_futures.keys()
                 for seqno in seqnos:
                     if seqno <= future_value:
                         f = self._save_chunk_futures.pop(seqno)
                         f.set_result(future_value)
-
-            self._save_chunk_futures.clear()
         except:
             self.log.error("Unhandled exception:", exc_info=True)
             raise
