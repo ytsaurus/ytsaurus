@@ -142,7 +142,7 @@ public:
     template <class TTag>
     static TSharedRef Allocate(size_t size, bool initializeStorage = true)
     {
-        return Allocate(size, initializeStorage, GetRefCountedTypeCookie<TDefaultSharedBlobTag>());
+        return Allocate(size, initializeStorage, GetRefCountedTypeCookie<TTag>());
     }
 
     //! Allocates a new shared block of memory.
