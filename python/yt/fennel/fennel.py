@@ -541,7 +541,7 @@ class SessionStream(object):
 
                 raise gen.Return(self._id)
             except (IOError, SessionIdNotFound) as e:
-                self.log.error("IO Error. Try reconnect...", exc_info=True)
+                self.log.error("Error occured. Try reconnect...", exc_info=True)
                 yield sleep_future(1.0, self._io_loop)
             except gen.Return:
                 raise
