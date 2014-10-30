@@ -33,7 +33,6 @@ void TAsyncStreamState::Fail(const TError& error)
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (!IsActive_) {
-            YASSERT(!StaticError.Get().IsOK());
             return;
         }
 
