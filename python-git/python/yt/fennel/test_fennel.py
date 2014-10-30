@@ -412,7 +412,7 @@ Vary: Accept-Encoding\r\n\r\n"""
     def setUp(self):
         super(TestSessionStream, self).setUp()
         self._world_serialization = WorldSerialization()
-        self.s = fennel.SessionStream(connection_factory=self._world_serialization)
+        self.s = fennel.SessionStream(io_loop=self.io_loop, connection_factory=self._world_serialization)
 
     @testing.gen_test
     def test_basic(self):
@@ -424,9 +424,10 @@ Vary: Accept-Encoding\r\n\r\n"""
         assert result == "00291e7c-eedf-42cd-99cc-f18331b9db77"
 
     @testing.gen_test
-    def test_reconnect(self):
-        self._connect_failures = 1
+    def test_session_id_missing(self):
         self._world_serialization.expect(
+            call("session", "write", None, FakeIOStream.IGNORE),
+            call("session", "read_until", self.session_id_missing_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
             call("session", "write", None, FakeIOStream.IGNORE),
             call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
         )
