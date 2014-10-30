@@ -97,9 +97,11 @@ def test_convert_to_from():
         compare(data, data_after)
 
 
-class TestLogBrokerIntegration(testing.AsyncTestCase):
-    service_id = "fenneltest"
+KAFKA_ENDPOINT = "kafka01ft.stat.yandex.net"
+TEST_SERVICE_ID = "fenneltest"
 
+
+class TestLogBrokerIntegration(testing.AsyncTestCase):
     def setUp(self):
         super(TestLogBrokerIntegration, self).setUp()
         self.l = None
@@ -114,8 +116,8 @@ class TestLogBrokerIntegration(testing.AsyncTestCase):
     def init(self):
         self.source_id = uuid.uuid4().hex
 
-        self.l = fennel.LogBroker(service_id=self.service_id, source_id=self.source_id, io_loop=self.io_loop)
-        seqno = yield self.l.connect('kafka01ft.stat.yandex.net')
+        self.l = fennel.LogBroker(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
+        seqno = yield self.l.connect(KAFKA_ENDPOINT)
         assert seqno == 0
         self.stop()
 
@@ -144,14 +146,14 @@ class TestSessionStreamIntegraion(testing.AsyncTestCase):
     @testing.gen_test
     def test_connect(self):
         s = fennel.SessionStream(io_loop=self.io_loop)
-        session_id = yield s.connect((u'kafka01ft.stat.yandex.net', 80))
+        session_id = yield s.connect((KAFKA_ENDPOINT, 80))
         assert session_id is not None
         assert "seqno" in s.get_attributes()
 
     @testing.gen_test
     def test_get_ping(self):
         s = fennel.SessionStream(io_loop=self.io_loop)
-        session_id = yield s.connect((u'kafka01ft.stat.yandex.net', 80))
+        session_id = yield s.connect((KAFKA_ENDPOINT, 80))
         assert session_id is not None
         message = yield s.read_message()
         assert message.type == "ping"
@@ -170,7 +172,7 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
     def init(self):
         self.source_id = uuid.uuid4().hex
 
-        self.s = fennel.SessionStream(service_id=self.service_id, source_id=self.source_id, io_loop=self.io_loop)
+        self.s = fennel.SessionStream(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
         session_id = yield self.s.connect((self.hostname, 80))
         assert session_id is not None
 
@@ -270,7 +272,7 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
         self.p.stop()
         self.s.stop()
 
-        self.s = fennel.SessionStream(service_id=self.service_id, source_id=self.source_id, io_loop=self.io_loop)
+        self.s = fennel.SessionStream(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
         session_id = yield self.s.connect((self.hostname, 80))
         assert session_id is not None
 
@@ -407,7 +409,7 @@ Transfer-Encoding: chunked
 Connection: keep-alive
 Vary: Accept-Encoding\r\n\r\n"""
 
-    endpoint = (u'kafka01ft.stat.yandex.net', 80)
+    endpoint = (KAFKA_ENDPOINT, 80)
 
     def setUp(self):
         super(TestSessionStream, self).setUp()
@@ -483,7 +485,7 @@ Partition: 0\r\n\r\n"""
             call("session", "read_until", "{0}\r\n".format(hex(len(ack_response))[2:]), "\r\n", max_bytes=FakeIOStream.IGNORE),
             call("session", "read_bytes", "{0}\r\n".format(ack_response), len(ack_response) + 2),
         )
-        yield self.logbroker.connect('kafka01ft.stat.yandex.net')
+        yield self.logbroker.connect(KAFKA_ENDPOINT)
         seqno = yield self.logbroker.save_chunk(32, [{}])
         assert seqno == 32
 
@@ -504,7 +506,7 @@ Partition: 0\r\n\r\n"""
                 call("session", "read_bytes", "{0}\r\n".format(response), len(response) + 2),
             )
 
-        yield self.logbroker.connect('kafka01ft.stat.yandex.net')
+        yield self.logbroker.connect(KAFKA_ENDPOINT)
         for expected_seqno in seqnos:
             seqno = yield self.logbroker.save_chunk(expected_seqno, [{}])
             assert expected_seqno == seqno
@@ -528,7 +530,7 @@ Partition: 0\r\n\r\n"""
                 call("session", "read_bytes", "{0}\r\n".format(response), len(response) + 2),
             )
 
-        yield self.logbroker.connect('kafka01ft.stat.yandex.net')
+        yield self.logbroker.connect(KAFKA_ENDPOINT)
 
         seqno = yield self.logbroker.save_chunk(50, [{}])
         assert seqno == 50
@@ -554,7 +556,7 @@ Partition: 0\r\n\r\n"""
                 call("session", "read_bytes", "{0}\r\n".format(response), len(response) + 2),
             )
 
-        yield self.logbroker.connect('kafka01ft.stat.yandex.net')
+        yield self.logbroker.connect(KAFKA_ENDPOINT)
 
         f1 = self.logbroker.save_chunk(32, [{}])
         f2 = self.logbroker.save_chunk(50, [{}])
