@@ -670,16 +670,11 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     return result;
 }
 
-TDynamicRow TDynamicMemoryStore::MigrateRow(
-    TTransaction* transaction,
-    const TDynamicRowRef& rowRef)
+TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicRow row)
 {
     Validate();
-    auto row = rowRef.Row;
 
     auto migrateLocksAndValues = [&] (TDynamicRow migratedRow) {
-        auto migratedRowRef = TDynamicRowRef(this, migratedRow);
-
         auto* locks = row.BeginLocks(KeyColumnCount_);
         auto* migratedLocks = migratedRow.BeginLocks(KeyColumnCount_);
 
@@ -691,16 +686,12 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
             auto* migratedLock = migratedLocks;
             for (int index = 0; index < ColumnLockCount_; ++index, ++lock, ++migratedLock) {
                 if (lock->Transaction == transaction) {
-                    YASSERT(lock->RowIndex != TLockDescriptor::InvalidRowIndex);
                     YASSERT(lock->PrepareTimestamp != NotPreparedTimestamp);
                     YASSERT(!migratedLock->Transaction);
-                    YASSERT(migratedLock->RowIndex == TLockDescriptor::InvalidRowIndex);
                     YASSERT(migratedLock->PrepareTimestamp == NotPreparedTimestamp);
                     migratedLock->Transaction = lock->Transaction;
-                    migratedLock->RowIndex = lock->RowIndex;
                     migratedLock->PrepareTimestamp = lock->PrepareTimestamp;
                     migratedLock->LastCommitTimestamp = std::max(migratedLock->LastCommitTimestamp, lock->LastCommitTimestamp);
-                    migratedLock->Transaction->LockedRows()[migratedLock->RowIndex] = migratedRowRef;
                     if (index == TDynamicRow::PrimaryLockIndex) {
                         YASSERT(!migratedRow.GetDeleteLockFlag());
                         migratedRow.SetDeleteLockFlag(row.GetDeleteLockFlag());
@@ -768,6 +759,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
         existingKeyConsumer);
 
     OnMemoryUsageUpdated();
+
     Validate();
 
     return result;
@@ -776,18 +768,9 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
 void TDynamicMemoryStore::ConfirmRow(TTransaction* transaction, TDynamicRow row)
 {
     Validate();
-    int rowIndex = static_cast<int>(transaction->LockedRows().size());
+
     transaction->LockedRows().push_back(TDynamicRowRef(this, row));
 
-    {
-        auto* lock = row.BeginLocks(KeyColumnCount_);
-        for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
-            if (lock->Transaction == transaction) {
-                YASSERT(lock->RowIndex == TLockDescriptor::InvalidRowIndex);
-                lock->RowIndex = rowIndex;
-            }
-        }
-    }
     Validate();
 }
 
@@ -811,6 +794,7 @@ void TDynamicMemoryStore::PrepareRow(TTransaction* transaction, TDynamicRow row)
 void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
 {
     Validate();
+
     auto commitTimestamp = transaction->GetCommitTimestamp();
     YASSERT(commitTimestamp != NullTimestamp);
 
@@ -840,7 +824,6 @@ void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
         for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
             if (lock->Transaction == transaction) {
                 lock->Transaction = nullptr;
-                lock->RowIndex = TLockDescriptor::InvalidRowIndex;
                 lock->PrepareTimestamp = NotPreparedTimestamp;
                 YASSERT(lock->LastCommitTimestamp <= commitTimestamp);
                 lock->LastCommitTimestamp = commitTimestamp;
@@ -854,6 +837,7 @@ void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
 
     MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
     MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
+
     Validate();
 }
 
@@ -867,7 +851,6 @@ void TDynamicMemoryStore::AbortRow(TTransaction* transaction, TDynamicRow row)
         for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
             if (lock->Transaction == transaction) {
                 lock->Transaction = nullptr;
-                lock->RowIndex = TLockDescriptor::InvalidRowIndex;
                 lock->PrepareTimestamp = NotPreparedTimestamp;
             }
         }
@@ -988,9 +971,7 @@ void TDynamicMemoryStore::AcquireRowLocks(
     bool deleteFlag)
 {
     Validate();
-    int rowIndex = TLockDescriptor::InvalidRowIndex;
     if (!prelock) {
-        rowIndex = static_cast<int>(transaction->LockedRows().size());
         transaction->LockedRows().push_back(TDynamicRowRef(this, row));
     }
     
@@ -1003,8 +984,6 @@ void TDynamicMemoryStore::AcquireRowLocks(
             if ((lockMask & lockMaskBit) || (lockMask & TDynamicRow::PrimaryLockMask)) {
                 YASSERT(!lock->Transaction);
                 lock->Transaction = transaction;
-                YASSERT(lock->RowIndex == TLockDescriptor::InvalidRowIndex);
-                lock->RowIndex = rowIndex;
                 YASSERT(lock->PrepareTimestamp == NotPreparedTimestamp);
             }
         }

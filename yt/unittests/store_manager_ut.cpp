@@ -329,7 +329,7 @@ TEST_F(TSingleLockStoreManagerTest, MigrateRow)
     EXPECT_EQ(0, store2->GetLockCount());
 
     auto key = BuildKey("1");
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, AsyncLastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, AsyncLastCommittedTimestamp), Stroka("key=1;a=1")));
     EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, AsyncLastCommittedTimestamp), Stroka("key=1;a=1")));
 }
 
@@ -849,7 +849,7 @@ TEST_F(TMultiLockStoreManagerTest, DeleteTakesPrimaryLock)
     EXPECT_EQ(1, store->GetLockCount());
 }
 
-TEST_F(TMultiLockStoreManagerTest, MigrateRow)
+TEST_F(TMultiLockStoreManagerTest, MigrateRow1)
 {
     auto key = BuildKey("1");
 
@@ -888,7 +888,7 @@ TEST_F(TMultiLockStoreManagerTest, MigrateRow)
     EXPECT_EQ(1, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, AsyncLastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, AsyncLastCommittedTimestamp), Stroka("key=1;a=1")));
     EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, AsyncLastCommittedTimestamp), Stroka("key=1;a=1")));
 
     CommitTransaction(transaction2.get());
@@ -897,7 +897,7 @@ TEST_F(TMultiLockStoreManagerTest, MigrateRow)
     EXPECT_EQ(0, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, AsyncLastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, AsyncLastCommittedTimestamp), Stroka("key=1;a=1;b=3.14")));
     EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, AsyncLastCommittedTimestamp), Stroka("key=1;a=1;b=3.14")));
 }
 
@@ -952,7 +952,7 @@ TEST_F(TMultiLockStoreManagerTest, MigrateRow2)
     EXPECT_EQ(0, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, AsyncLastCommittedTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(store1, key, AsyncLastCommittedTimestamp), Stroka("key=1;a=1")));
     EXPECT_TRUE(AreRowsEqual(LookupRow(store2, key, AsyncLastCommittedTimestamp), Stroka("key=1;a=1;b=3.14")));
 }
 

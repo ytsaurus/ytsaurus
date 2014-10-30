@@ -40,10 +40,7 @@ static_assert(
 
 struct TLockDescriptor
 {
-    static const int InvalidRowIndex = -1;
-
     TTransaction* Transaction;
-    ui32 RowIndex; // index in TTransaction::LockedRows
     TTimestamp PrepareTimestamp;
     TTimestamp LastCommitTimestamp;
 };
@@ -284,7 +281,6 @@ public:
         {
             auto* lock = row.BeginLocks(keyColumnCount);
             for (int index = 0; index < columnLockCount; ++index, ++lock) {
-                lock->RowIndex = TLockDescriptor::InvalidRowIndex;
                 lock->PrepareTimestamp = NVersionedTableClient::NotPreparedTimestamp;
                 lock->LastCommitTimestamp = NVersionedTableClient::MinTimestamp;
             }

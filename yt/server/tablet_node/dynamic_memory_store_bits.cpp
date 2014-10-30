@@ -12,8 +12,6 @@ using namespace NVersionedTableClient;
 
 #ifndef _win_
 
-const int TLockDescriptor::InvalidRowIndex;
-
 const int TDynamicRow::PrimaryLockIndex;
 const ui32 TDynamicRow::PrimaryLockMask;
 const ui32 TDynamicRow::AllLocksMask;

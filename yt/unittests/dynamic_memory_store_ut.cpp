@@ -125,11 +125,9 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockWriteAndCommit)
     ASSERT_FALSE(row.GetDeleteLockFlag());
     const auto& lock = GetLock(row);
     ASSERT_EQ(transaction.get(), lock.Transaction);
-    ASSERT_EQ(TLockDescriptor::InvalidRowIndex, lock.RowIndex);
     ASSERT_TRUE(transaction->LockedRows().empty());
 
     ConfirmRow(transaction.get(), row);
-    ASSERT_EQ(0, lock.RowIndex);
     ASSERT_EQ(1, transaction->LockedRows().size());
     ASSERT_TRUE(transaction->LockedRows()[0].Row == row);
 
@@ -143,7 +141,6 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockWriteAndCommit)
 
     ASSERT_FALSE(row.GetDeleteLockFlag());
     ASSERT_EQ(nullptr, lock.Transaction);
-    ASSERT_EQ(TLockDescriptor::InvalidRowIndex, lock.RowIndex);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), Null));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), rowString));
@@ -167,11 +164,9 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockDeleteAndCommit)
     ASSERT_TRUE(row.GetDeleteLockFlag());
     const auto& lock = GetLock(row);
     ASSERT_EQ(transaction.get(), lock.Transaction);
-    ASSERT_EQ(TLockDescriptor::InvalidRowIndex, lock.RowIndex);
     ASSERT_TRUE(transaction->LockedRows().empty());
 
     ConfirmRow(transaction.get(), row);
-    ASSERT_EQ(0, lock.RowIndex);
     ASSERT_EQ(1, transaction->LockedRows().size());
     ASSERT_TRUE(transaction->LockedRows()[0].Row == row);
 
@@ -185,7 +180,6 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockDeleteAndCommit)
 
     ASSERT_FALSE(row.GetDeleteLockFlag());
     ASSERT_EQ(nullptr, lock.Transaction);
-    ASSERT_EQ(TLockDescriptor::InvalidRowIndex, lock.RowIndex);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), Null));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), Null));
@@ -258,7 +252,6 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteAndAbort)
 
     const auto& lock = GetLock(row);
     ASSERT_EQ(nullptr, lock.Transaction);
-    ASSERT_EQ(TLockDescriptor::InvalidRowIndex, lock.RowIndex);
 }
 
 TEST_F(TSingleLockDynamicMemoryStoreTest, Delete)

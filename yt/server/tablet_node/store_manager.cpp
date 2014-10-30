@@ -190,12 +190,9 @@ void TStoreManager::CommitRow(TTransaction* transaction, const TDynamicRowRef& r
     if (rowRef.Store == activeStore) {
         activeStore->CommitRow(transaction, rowRef.Row);
     } else {
-        // NB: MigrateRow may change rowRef if the latter references
-        // an element from transaction->LockedRows().
-        auto* store = rowRef.Store;
-        auto migratedRow = activeStore->MigrateRow(transaction, rowRef);
-        store->CommitRow(transaction, rowRef.Row);
-        CheckForUnlockedStore(store);
+        auto migratedRow = activeStore->MigrateRow(transaction, rowRef.Row);
+        rowRef.Store->CommitRow(transaction, rowRef.Row);
+        CheckForUnlockedStore(rowRef.Store);
         activeStore->CommitRow(transaction, migratedRow);
     }
 }

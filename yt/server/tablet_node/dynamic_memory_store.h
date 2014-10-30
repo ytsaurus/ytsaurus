@@ -48,7 +48,7 @@ public:
 
     TDynamicRow MigrateRow(
         TTransaction* transaction,
-        const TDynamicRowRef& rowRef);
+        const TDynamicRow row);
 
     void ConfirmRow(TTransaction* transaction, TDynamicRow row);
     void PrepareRow(TTransaction* transaction, TDynamicRow row);
