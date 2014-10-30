@@ -694,11 +694,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
                 if (list) {
                     const auto& srcValue = list.Back();
                     if (srcValue.Timestamp == UncommittedTimestamp) {
-                        auto migratedList = TValueList::Allocate(RowBuffer_.GetAlignedPool(), InitialEditListCapacity);
-                        migratedRow.SetFixedValueList(columnIndex, migratedList, KeyColumnCount_, ColumnLockCount_);
-                        CaptureValue(migratedList.BeginPush(), srcValue);
-                        migratedList.EndPush();
-                        ++StoreValueCount_;
+                        AddUncommittedFixedValue(migratedRow, srcValue);
                     }
                 }
             }
@@ -1006,6 +1002,7 @@ void TDynamicMemoryStore::DropUncommittedValues(TDynamicRow row)
 
 void TDynamicMemoryStore::AddFixedValue(TDynamicRow row, const TVersionedValue& value)
 {
+    YASSERT(value.Id >= KeyColumnCount_ && value.Id < SchemaColumnCount_);
     auto list = row.GetFixedValueList(value.Id, KeyColumnCount_, ColumnLockCount_);
 
     if (list) {
