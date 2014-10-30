@@ -50,6 +50,8 @@ static const double ReallocationFactor = 1.1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TKeyMemoryPoolTag { };
+
 class TSortingReader
     : public ISyncReader
 {
@@ -73,6 +75,7 @@ public:
         , EstimatedRowCount(estimatedRowCount)
         , TotalRowCount(0)
         , ReadRowCount(0)
+        , KeyMemoryPool(TKeyMemoryPoolTag())
         , CurrentKey(TKey::Allocate(&KeyMemoryPool, KeyColumnCount))
         , SortComparer(this)
         , MergeComparer(this)

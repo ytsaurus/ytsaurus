@@ -285,7 +285,10 @@ public:
                 LOG_DEBUG("Writer opened");
 
                 TRowBuffer rowBuffer;
-                TChunkedMemoryPool scratchSpace;
+
+                struct TScratchMemoryPoolTag { };
+                TChunkedMemoryPool scratchSpace { TScratchMemoryPoolTag() };
+
                 std::vector<TRow> batch;
                 batch.reserve(MaxRowsPerWrite);
 

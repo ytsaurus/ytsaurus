@@ -198,7 +198,10 @@ public:
             LOG_INFO("Writing");
             {
                 TRow row;
-                TChunkedMemoryPool keyMemoryPool;
+
+                struct TKeyMemoryPoolTag {};
+                TChunkedMemoryPool keyMemoryPool { TKeyMemoryPoolTag() };
+
                 auto key = TKey::Allocate(&keyMemoryPool, keyColumnCount);
                 for (size_t progressIndex = 0; progressIndex < rowIndexBuffer.size(); ++progressIndex) {
                     row.clear();

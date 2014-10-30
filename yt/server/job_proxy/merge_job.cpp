@@ -134,7 +134,9 @@ public:
             {
                 NYson::TStatelessLexer lexer;
                 // Unsorted write - use dummy key.
-                TChunkedMemoryPool keyMemoryPool;
+                struct TKeyMemoryPoolTag {};
+                TChunkedMemoryPool keyMemoryPool { TKeyMemoryPoolTag() };
+                
                 int keyColumnCount = KeyColumns ? KeyColumns->size() : 0;
                 auto key = TKey::Allocate(&keyMemoryPool, keyColumnCount);
 

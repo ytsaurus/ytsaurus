@@ -762,6 +762,7 @@ TTableChunkReader::TTableChunkReader(
     , SequentialReader(nullptr)
     , Channel(channel)
     , Options(options)
+    , KeyMemoryPool(TTableChunkReaderMemoryPoolTag())
     , TableIndex(tableIndex)
     , StartTableRowIndex(startTableRowIndex)
     , CurrentRowIndex(-1)

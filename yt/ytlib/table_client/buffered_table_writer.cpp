@@ -72,7 +72,8 @@ public:
     }
 
 private:
-    TChunkedMemoryPool MemoryPool_;
+    struct TRowBufferMemoryPoolTag {};
+    TChunkedMemoryPool MemoryPool_ { TRowBufferMemoryPoolTag() };
 
     TStringBuf Capture(const TStringBuf& value)
     {

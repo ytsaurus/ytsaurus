@@ -66,6 +66,7 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     , Partitioner(partitioner)
     , Facade(this)
     , BasicMetaSize(0)
+    , Pool(TPartitionChunkWriterMemoryPoolTag())
 {
     int keyColumnCount = Options->KeyColumns.Get().size();
     PartitionKey = TKey::Allocate(&Pool, keyColumnCount);

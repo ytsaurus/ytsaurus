@@ -86,6 +86,8 @@ public:
     int GetTableIndex() const;
 
 private:
+    struct TTableChunkReaderMemoryPoolTag {};
+
     struct TColumnInfo
     {
         int KeyIndex;

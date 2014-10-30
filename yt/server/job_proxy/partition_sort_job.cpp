@@ -207,7 +207,10 @@ public:
 
                 TMemoryInput input;
                 TRow row;
-                TChunkedMemoryPool keyMemoryPool;
+
+                struct TKeyMemoryPoolTag {};
+                TChunkedMemoryPool keyMemoryPool { TKeyMemoryPoolTag() };
+                
                 auto key = TKey::Allocate(&keyMemoryPool, keyColumnCount);
                 bool isRowReady = false;
 

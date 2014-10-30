@@ -67,6 +67,7 @@ TTableChunkWriter::TTableChunkWriter(
     : TChunkWriterBase(config, options, chunkWriter)
     , Facade(this)
     , Channels(options->Channels)
+    , CurrentKeyMemoryPool(TTableChunkWriterMemoryPoolTag())
     , LastKey(std::move(lastKey))
     , SamplesSize(0)
     , AverageSampleSize(0)

@@ -73,6 +73,8 @@ public:
     void WriteRowUnsafe(const TRow& row);
 
 private:
+    struct TPartitionChunkWriterMemoryPoolTag {};
+
     IPartitioner* Partitioner;
     TPartitionChunkWriterFacade Facade;
 

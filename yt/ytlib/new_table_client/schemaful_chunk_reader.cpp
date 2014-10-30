@@ -68,6 +68,8 @@ public:
     virtual TAsyncError GetReadyEvent() final override;
 
 private:
+    struct TChunkReaderMemoryPoolTag { };
+
     struct TColumn
     {
         int IndexInBlock;
@@ -122,6 +124,7 @@ TChunkReader::TChunkReader(
     , ChunkReader(std::move(chunkReader))
     , UncompressedBlockCache(std::move(uncompressedBlockCache))
     , IncludeAllColumns(false)
+    , MemoryPool(TChunkReaderMemoryPoolTag())
     , CurrentBlockIndex(0)
     , Logger(TableClientLogger)
 {
@@ -365,6 +368,8 @@ public:
     virtual TAsyncError GetReadyEvent() override;
 
 private:
+    struct TTableChunkReaderAdaptorMemoryPoolTag { };
+
     TTableChunkReaderPtr UnderlyingReader_;
     TTableSchema Schema_;
     TChunkedMemoryPool MemoryPool_;
@@ -376,6 +381,7 @@ private:
 TTableChunkReaderAdapter::TTableChunkReaderAdapter(
     TTableChunkReaderPtr underlyingReader)
     : UnderlyingReader_(underlyingReader)
+    , MemoryPool_(TTableChunkReaderAdaptorMemoryPoolTag())
 { }
 
 TAsyncError TTableChunkReaderAdapter::Open(const TTableSchema& schema)

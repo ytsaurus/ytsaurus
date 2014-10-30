@@ -101,6 +101,8 @@ private:
         { }
     };
 
+    struct TTableChunkWriterMemoryPoolTag { };
+
     TTableChunkWriterFacade Facade;
     NChunkClient::TChannels Channels;
 
