@@ -46,10 +46,7 @@ def main():
 
     raw = __attributes.get("is_raw", False)
 
-    if raw:
-        __records = sys.stdin
-    else:
-        __records = __input_format.load_rows(sys.stdin)
+    __records = __input_format.load_rows(sys.stdin, raw=raw)
 
     if __operation_type == "mapper" or raw:
         if __attributes.get("is_aggregator", False):
@@ -62,11 +59,7 @@ def main():
                 itertools.starmap(__operation,
                     itertools.groupby(__records, lambda rec: extract_key(rec, __keys))))
 
-    if raw:
-        for line in __result:
-            sys.stdout.write(line)
-    else:
-        __output_format.dump_rows(__result, sys.stdout)
+    __output_format.dump_rows(__result, sys.stdout, raw=raw)
 
     # Read out all input
     #for rec in __records:
