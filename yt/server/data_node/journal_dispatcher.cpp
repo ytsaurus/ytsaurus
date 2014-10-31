@@ -141,10 +141,15 @@ public:
         record.Header.RecordId = -1;
         AppendMultiplexedRecord(record, nullptr);
 
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            RemoveChangelogFromActive(chunk->GetId());
+        }
+
         return BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk)
-            .Guarded()
-            .AsyncVia(chunk->GetLocation()->GetWritePoolInvoker())
-            .Run();
+                .Guarded()
+                .AsyncVia(chunk->GetLocation()->GetWritePoolInvoker())
+                .Run();
     }
 
     void CloseChangelog(IChunkPtr chunk)
@@ -178,9 +183,42 @@ private:
 
     //! The set of changelogs whose records were added into the current multiplexed changelog.
     //! Safeguards marking multiplexed changelogs as clean.
-    yhash_set<TCachedChangelogPtr> ActiveChangelogs_;
+    //! NB: Changelogs are removed by chunk id, hence the use of |yhash_map| rather than |yhash_set|.
+    yhash_map<TChunkId, TCachedChangelogPtr> ActiveChangelogs_;
 
     TPeriodicExecutorPtr CleanupExecutor_;
+
+
+    void AddChangelogToActive(const TChunkId& chunkId, TCachedChangelogPtr changelog)
+    {
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
+        if (ActiveChangelogs_.insert(std::make_pair(chunkId, changelog)).second) {
+            LOG_DEBUG("Changelog is added to active set (ChunkId: %v)",
+                chunkId);
+        }
+    }
+
+    void RemoveChangelogFromActive(const TChunkId& chunkId)
+    {
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
+        if (ActiveChangelogs_.erase(chunkId) == 1) {
+            LOG_DEBUG("Changelog is removed from active set (ChunkId: %v)",
+                chunkId);
+        }
+    }
+
+    void ClearActiveChangelogs()
+    {
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
+        for (const auto& pair : ActiveChangelogs_) {
+            LOG_DEBUG("Changelog is removed from active set (ChunkId: %v)",
+                pair.first);
+        }
+        ActiveChangelogs_.clear();
+    }
 
 
     IChangelogPtr DoCreateChangelog(IChunkPtr chunk)
@@ -823,7 +861,10 @@ TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::CreateChangelog(
         auto location = chunk->GetLocation();
 
         TInsertCookie cookie(chunkId);
-        YCHECK(BeginInsert(&cookie));
+        if (!BeginInsert(&cookie)) {
+            THROW_ERROR_EXCEPTION("Journal chunk %v is still busy",
+                chunkId);
+        }
 
         auto futureChangelogOrError = BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunk)
             .Guarded()
@@ -866,7 +907,7 @@ TAsyncError TJournalDispatcher::TImpl::AppendMultiplexedRecord(
     TGuard<TSpinLock> guard(SpinLock_);
 
     if (changelog) {
-        ActiveChangelogs_.insert(changelog);
+        AddChangelogToActive(changelog->GetKey(), changelog);
     }
 
     // Construct the multiplexed data record and append it.
@@ -887,10 +928,11 @@ TAsyncError TJournalDispatcher::TImpl::AppendMultiplexedRecord(
         // * last appended records in all active changelogs to get flushed
         std::vector<TAsyncError> cleanResults;
         cleanResults.push_back(multiplexedFlushResult);
-        for (auto changelog : ActiveChangelogs_) {
+        for (const auto& pair : ActiveChangelogs_) {
+            const auto& changelog = pair.second;
             cleanResults.push_back(changelog->GetLastSplitFlushResult());
         }
-        ActiveChangelogs_.clear();
+        ClearActiveChangelogs();
 
         guard.Release();
 
