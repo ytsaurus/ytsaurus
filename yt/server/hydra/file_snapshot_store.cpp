@@ -208,7 +208,7 @@ public:
                     FacadeInput_ = FileInput_.get();
                 } else {
                     CodecInput_.reset(new TSnappyDecompress(FileInput_.get()));
-                    FakeCheckpointableInput_ = CreateFakeCheckpointableInputStream(CodecInput_.get(), legacyHeader.DataLength);
+                    FakeCheckpointableInput_ = CreateFakeCheckpointableInputStream(CodecInput_.get(), 128ll * (1ll << 30));
                     FacadeInput_ = FakeCheckpointableInput_.get();
                 }
             } else {
