@@ -86,9 +86,6 @@ public:
         , Config_(config)
         , Bootstrap_(bootstrap)
         , Logger(DataNodeLogger)
-        , JobState_(EJobState::Waiting)
-        , JobPhase_(EJobPhase::Created)
-        , Progress_(0.0)
     {
         JobSpec_.Swap(&jobSpec);
 
@@ -189,10 +186,10 @@ protected:
 
     NLog::TLogger Logger;
 
-    EJobState JobState_;
-    EJobPhase JobPhase_;
+    EJobState JobState_ = EJobState::Waiting;
+    EJobPhase JobPhase_ = EJobPhase::Created;
 
-    double Progress_;
+    double Progress_ = 0.0;
 
     TFuture<void> JobFuture_;
 
@@ -214,7 +211,8 @@ protected:
 
     void GuardedRun()
     {
-        LOG_INFO("Job started");
+        LOG_INFO("Job started (JobType: %v)",
+            EJobType(JobSpec_.type()));
         try {
             DoRun();
         } catch (const std::exception& ex) {
