@@ -57,6 +57,18 @@ def sleep_future(seconds, io_loop=None):
     return future
 
 
+class ExceptionLoggingContext(object):
+    def __init__(self, logger):
+        self._logger = logger
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, typ, value, tb):
+        if value is not None:
+            self._logger.error("Uncaught exception", exc_info=(typ, value, tb))
+
+
 class EventLog(object):
     log = logging.getLogger("EventLog")
 
@@ -420,27 +432,28 @@ class LogBroker(object):
 
     @gen.coroutine
     def read_session(self):
-        while not self._stopped:
-            try:
-                message = yield self._session.read_message()
-            except (RuntimeError, IOError) as e:
-                self._abort(e)
-            else:
-                self.log.debug("Get %r message", message)
-                if message.type == "ping":
-                    pass
-                elif message.type == "skip":
-                    skip_seqno = message.attributes["seqno"]
-                    f = self._save_chunk_futures.pop(skip_seqno, None)
-                    if f:
-                        if skip_seqno > self._last_acked_seqno:
-                            self._update_last_acked_seqno(skip_seqno)
-                        f.set_result(self._last_acked_seqno)
-                elif message.type == "ack":
-                    assert self._last_acked_seqno <= message.attributes["seqno"]
+        with ExceptionLoggingContext(self.log):
+            while not self._stopped:
+                try:
+                    message = yield self._session.read_message()
+                except (RuntimeError, IOError) as e:
+                    self._abort(e)
+                else:
+                    self.log.debug("Get %r message", message)
+                    if message.type == "ping":
+                        pass
+                    elif message.type == "skip":
+                        skip_seqno = message.attributes["seqno"]
+                        f = self._save_chunk_futures.pop(skip_seqno, None)
+                        if f:
+                            if skip_seqno > self._last_acked_seqno:
+                                self._update_last_acked_seqno(skip_seqno)
+                            f.set_result(self._last_acked_seqno)
+                    elif message.type == "ack":
+                        assert self._last_acked_seqno <= message.attributes["seqno"]
 
-                    self._update_last_acked_seqno(message.attributes["seqno"])
-                    self._set_futures(self._last_acked_seqno)
+                        self._update_last_acked_seqno(message.attributes["seqno"])
+                        self._set_futures(self._last_acked_seqno)
 
     def _abort(self, e):
         self.log.info("Abort LogBroker client", exc_info=e)
@@ -451,7 +464,7 @@ class LogBroker(object):
         assert len(self._save_chunk_futures) == 0
 
     def _set_futures(self, future_value):
-        try:
+        with ExceptionLoggingContext(self.log):
             is_exception = issubclass(type(future_value), Exception)
             if is_exception:
                 self.log.debug("Set all futures to exception %r", future_value)
@@ -465,9 +478,6 @@ class LogBroker(object):
                     if seqno <= future_value:
                         f = self._save_chunk_futures.pop(seqno)
                         f.set_result(future_value)
-        except:
-            self.log.error("Unhandled exception:", exc_info=True)
-            raise
 
     def _update_last_acked_seqno(self, value):
         self.log.debug("Update last acked seqno. Old: %s. New: %s", self._last_acked_seqno, value)
@@ -475,8 +485,10 @@ class LogBroker(object):
 
     def stop(self):
         assert len(self._save_chunk_futures) == 0
+        self.log.info("Stop push stream...")
         self._push.stop()
         self._push = None
+        self.log.info("Stop session stream...")
         self._session.stop()
         self._session = None
         self._stopped = True
@@ -514,6 +526,7 @@ class SessionStream(object):
                 self.log.info("Create a session. Endpoint: %s", endpoint)
 
                 self._iostream = yield self._connection_factory.connect(endpoint[0], endpoint[1])
+
                 self._iostream.write(
                     "GET /rt/session?"
                     "ident={ident}&"
@@ -667,12 +680,14 @@ class PushStream(object):
         return self._iostream.write(data)
 
     def _dump_output(self, data):
-        self.log.debug("Received data from push stream for session %s: %s", self._session_id, data)
+        with ExceptionLoggingContext(self.log):
+            self.log.debug("Received data from push stream for session %s: %s", self._session_id, data)
 
     def _post_close(self, data):
-        if data:
-            self.log.debug("Received data from push stream for session %s: %s", self._session_id, data)
-        self.log.debug("The push stream for session %s was closed", self._session_id)
+        with ExceptionLoggingContext(self.log):
+            if data:
+                self.log.debug("Received data from push stream for session %s: %s", self._session_id, data)
+            self.log.debug("The push stream for session %s was closed", self._session_id)
 
 
 class Application(object):
