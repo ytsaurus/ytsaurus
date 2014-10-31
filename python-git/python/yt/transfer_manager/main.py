@@ -30,6 +30,7 @@ import traceback
 from copy import deepcopy
 from datetime import datetime
 from collections import defaultdict
+from subprocess32 import TimeoutExpired
 
 from threading import RLock, Thread
 from multiprocessing import Process, Queue
@@ -411,7 +412,8 @@ class Application(object):
            self._yt.check_permission(user, "administer", self._auth_path)["action"] != "allow":
             raise RequestFailed("There is no permission to abort task.")
 
-    def _precheck(self, task):
+    def _precheck(self, task, ignore_timeout=False, yamr_timeout=None):
+        # TODO(ignat): add timeout for yt
         logger.info("Making precheck for task %s", task.id)
         source_client = task.get_source_client(self._clusters)
         destination_client = task.get_destination_client(self._clusters)
@@ -423,28 +425,40 @@ class Application(object):
            task.destination_cluster not in self._availability_graph[task.source_cluster]:
             raise yt.YtError("Cluster {} not available from {}".format(task.destination_cluster, task.source_cluster))
 
-        if source_client._type == "yamr" and source_client.is_empty(task.source_table) or \
-           source_client._type == "yt" and (
-                not source_client.exists(task.source_table) or
-                source_client.get_attribute(task.source_table, "row_count") == 0):
-            raise yt.YtError("Source table {} is empty".format(task.source_table))
+        try:
+            if yamr_timeout is not None:
+                if source_client._type == "yamr":
+                    source_client._light_command_timeout = yamr_timeout
+                if destination_client._type == "yamr":
+                    destination_client._light_command_timeout = yamr_timeout
 
-        if source_client._type == "yt" and destination_client._type == "yamr":
-            path = yt.TablePath(task.source_table, end_index=1, simplify=False)
-            keys = list(source_client.read_table(path, format=yt.JsonFormat(), raw=False).next())
-            if set(keys + ["subkey"]) != set(["key", "subkey", "value"]):
-                raise yt.YtError("Keys in the source table must be a subset of ('key', 'subkey', 'value')")
+            if source_client._type == "yamr" and source_client.is_empty(task.source_table) or \
+               source_client._type == "yt" and (
+                    not source_client.exists(task.source_table) or
+                    source_client.get_attribute(task.source_table, "row_count") == 0):
+                raise yt.YtError("Source table {} is empty".format(task.source_table))
 
-        if destination_client._type == "yt":
-            destination_dir = os.path.dirname(task.destination_table)
-            if not destination_client.exists(destination_dir):
-                raise yt.YtError("Destination directory {} should exist".format(destination_dir))
-            destination_user = self._yt.get_user_name(task.destination_cluster_token)
-            if destination_user is None or destination_client.check_permission(destination_user, "write", destination_dir)["action"] != "allow":
-                raise yt.YtError("There is no permission to write to {}. Please log in.".format(task.destination_table))
+            if source_client._type == "yt" and destination_client._type == "yamr":
+                path = yt.TablePath(task.source_table, end_index=1, simplify=False)
+                keys = list(source_client.read_table(path, format=yt.JsonFormat(), raw=False).next())
+                if set(keys + ["subkey"]) != set(["key", "subkey", "value"]):
+                    raise yt.YtError("Keys in the source table must be a subset of ('key', 'subkey', 'value')")
 
-        if destination_client._type == "kiwi" and self.kiwi_transmitter is None:
-            raise yt.YtError("Transimission cluster for transfer to kiwi is not configured")
+            if destination_client._type == "yt":
+                destination_dir = os.path.dirname(task.destination_table)
+                if not destination_client.exists(destination_dir):
+                    raise yt.YtError("Destination directory {} should exist".format(destination_dir))
+                destination_user = self._yt.get_user_name(task.destination_cluster_token)
+                if destination_user is None or destination_client.check_permission(destination_user, "write", destination_dir)["action"] != "allow":
+                    raise yt.YtError("There is no permission to write to {}. Please log in.".format(task.destination_table))
+
+            if destination_client._type == "kiwi" and self.kiwi_transmitter is None:
+                raise yt.YtError("Transimission cluster for transfer to kiwi is not configured")
+        except TimeoutExpired:
+            logger.info("Precheck for task %s timed out", task.id)
+            if not ignore_timeout:
+                raise
+            return
 
         logger.info("Precheck for task %s completed", task.id)
 
@@ -685,7 +699,7 @@ class Application(object):
             raise RequestFailed("Cannot create task", inner_errors=[yt.YtError(error.message)])
 
         try:
-            self._precheck(task)
+            self._precheck(task, ignore_timeout=True, yamr_timeout=5.0)
         except yt.YtError as error:
             raise RequestFailed("Precheck failed", inner_errors=[error])
 
