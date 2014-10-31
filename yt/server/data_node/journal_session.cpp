@@ -50,11 +50,11 @@ TAsyncError TJournalSession::DoStart()
         Location_,
         TChunkDescriptor(ChunkId_));
 
-    auto chunkStore = Bootstrap_->GetChunkStore();
-    chunkStore->RegisterNewChunk(Chunk_);
-
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
     auto asyncChangelog = dispatcher->CreateChangelog(Chunk_, Options_.OptimizeForLatency);
+
+    auto chunkStore = Bootstrap_->GetChunkStore();
+    chunkStore->RegisterNewChunk(Chunk_);
 
     auto this_ = MakeStrong(this);
     return asyncChangelog.Apply(BIND([this, this_] (const TErrorOr<IChangelogPtr>& result) -> TError {
