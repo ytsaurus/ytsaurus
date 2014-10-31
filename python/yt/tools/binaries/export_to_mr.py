@@ -33,9 +33,6 @@ def export_table(object, args):
     logger.info("Exporting '%s' to '%s'", src, dst)
 
     yt_client = Yt(params.yt_proxy, token=params.yt_token)
-    if params.fastbone:
-        yt_client.hosts = "hosts/fb"
-
     yamr_client = Yamr(binary=params.mapreduce_binary,
                        server=params.mr_server,
                        server_port=params.mr_server_port,
@@ -43,7 +40,6 @@ def export_table(object, args):
                        proxies=params.mr_proxy,
                        proxy_port=params.mr_proxy_port,
                        fetch_info_from_http=params.fetch_info_from_http,
-                       fastbone=params.fastbone,
                        mr_user=params.mr_user)
 
     if not yt_client.exists(src):
@@ -57,7 +53,7 @@ def export_table(object, args):
 
 
     if params.copy_type == "pull":
-        copy_yt_to_yamr_pull( yt_client, yamr_client, src, dst)
+        copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, fastbone=params.fastbone)
     else:
         user_slots_path = "//sys/pools/{0}/@resource_limits/user_slots".format(params.yt_pool)
         if not yt.exists(user_slots_path):
@@ -67,7 +63,7 @@ def export_table(object, args):
             "title": "Remote copy from YT to Yamr",
             "pool": params.yt_pool}
 
-        copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, spec_template=spec)
+        copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone=params.fastbone, spec_template=spec)
 
 def export_table_wrapper(object, args):
     try:

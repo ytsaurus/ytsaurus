@@ -46,7 +46,7 @@ def _check_call(command, **kwargs):
     logger.info("Command '{}' successfully executed".format(command))
 
 class Yamr(object):
-    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", fastbone=False, opts="", timeout=None, max_failed_jobs=None):
+    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", opts="", timeout=None, max_failed_jobs=None):
         self.binary = binary
         self.binary_name = os.path.basename(binary)
         self.server = self._make_address(server, server_port)
@@ -60,7 +60,6 @@ class Yamr(object):
         self.cache = {}
         self.mr_user = mr_user
         self.opts = opts
-        self.fastbone = fastbone
 
         if timeout is None:
             timeout = 60.0
@@ -84,6 +83,8 @@ class Yamr(object):
             address = address.rsplit(":", 1)[0]
         return "{0}:{1}".format(address, port)
 
+    def _make_fastbone(self, fastbone):
+        return "-opt net_table=fastbone" if fastbone else ""
 
     def get_field_from_page(self, table, field):
         """ Extract value of given field from http page of the table """
@@ -157,7 +158,7 @@ class Yamr(object):
             error.inner_errors = [YamrError(stderr, proc.returncode)]
             raise error
 
-    def create_read_range_commands(self, ranges, table):
+    def create_read_range_commands(self, ranges, table, fastbone):
         commands = []
         transaction_id = generate_uuid()
         for i, range in enumerate(ranges):
@@ -166,17 +167,15 @@ class Yamr(object):
                 command = 'curl "http://{0}/table/{1}?subkey=1&lenval=1&startindex={2}&endindex={3}"'\
                         .format(self.proxies[i % len(self.proxies)], quote_plus(table), start, end)
             else:
-                fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
                 shared_tx_str = ("-sharedtransactionid yt_" + transaction_id) if self.supports_shared_transactions else ""
                 command = '{0} MR_USER={1} USER=yt ./{2} -server {3} {4} -read {5}:[{6},{7}] -lenval -subkey {8}\n'\
-                        .format(self.opts, self.mr_user, self.binary_name, self.server, fastbone_str, table, start, end, shared_tx_str)
+                        .format(self.opts, self.mr_user, self.binary_name, self.server, self._make_fastbone(fastbone), table, start, end, shared_tx_str)
             commands.append(command)
         return commands
 
-    def get_write_command(self, table):
-        fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
+    def get_write_command(self, table, fastbone):
         return "{0} USER=yt MR_USER={1} ./{2} -server {3} {4} -append -lenval -subkey -write {5}"\
-                .format(self.opts, self.mr_user, self.binary_name, self.server, fastbone_str, table)
+                .format(self.opts, self.mr_user, self.binary_name, self.server, self._make_fastbone(fastbone), table)
 
     def run_map(self, command, src, dst, files=None, opts=""):
         if files is None:
@@ -185,8 +184,7 @@ class Yamr(object):
             .format(self.mr_user, self.binary, self.server, command, src, dst, self.max_failed_jobs, " ".join("-file " + file for file in files), opts)
         _check_call(shell_command, shell=True)
 
-    def remote_copy(self, remote_server, src, dst):
-        fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
+    def remote_copy(self, remote_server, src, dst, fastbone):
         shell_command = "MR_USER={0} {1} -srcserver {2} -server {3} -copy -src {4} -dst {5} {6}"\
-            .format(self.mr_user, self.binary, remote_server, self.server, src, dst, fastbone_str)
+            .format(self.mr_user, self.binary, remote_server, self.server, src, dst, self._make_fastbone(fastbone))
         _check_call(shell_command, shell=True)

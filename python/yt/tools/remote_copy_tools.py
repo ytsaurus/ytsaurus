@@ -125,7 +125,7 @@ def run_operation_and_notify(message_queue, yt_client, run_operation):
     strategy.wait()
 
 
-def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone=True, spec_template=None, message_queue=None):
+def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, spec_template=None, message_queue=None):
     if spec_template is None:
         spec_template = {}
 
@@ -172,7 +172,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
         shutil.rmtree(tmp_dir)
 
 
-def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, spec_template, message_queue=None):
+def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_template=None, message_queue=None):
     proxies = yamr_client.proxies
     if not proxies:
         proxies = [yamr_client.server]
@@ -189,7 +189,7 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, spec_template, messag
     src = temp_yamr_table
 
     ranges = _split_rows(record_count, 1024 * yt.common.MB, yamr_client.data_size(src))
-    read_commands = yamr_client.create_read_range_commands(ranges, src)
+    read_commands = yamr_client.create_read_range_commands(ranges, src, fastbone=fastbone)
     temp_table = yt_client.create_temp_table(prefix=os.path.basename(src))
     yt_client.write_table(temp_table, read_commands, format=yt.SchemafulDsvFormat(columns=["command"]))
 
@@ -299,7 +299,7 @@ while True:
     finally:
         shutil.rmtree(tmp_dir)
 
-def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, spec_template=None, message_queue=None):
+def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, spec_template=None, message_queue=None):
     if not yamr_client.is_empty(dst):
         yamr_client.drop(dst)
 
@@ -310,7 +310,7 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, spec_template=None, m
     spec = deepcopy(spec_template)
     spec["data_size_per_job"] = 2 * 1024 * yt.common.MB
 
-    write_command = yamr_client.get_write_command(dst)
+    write_command = yamr_client.get_write_command(dst, fastbone=fastbone)
     logger.info("Running map '%s'", write_command)
 
     run_operation_and_notify(
