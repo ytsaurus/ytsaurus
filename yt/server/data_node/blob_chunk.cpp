@@ -362,11 +362,14 @@ TCachedBlobChunk::TCachedBlobChunk(
 TCachedBlobChunk::~TCachedBlobChunk()
 {
     // This check ensures that we don't remove any chunks from cache upon shutdown.
-    if (!ChunkCache_.IsExpired()) {
-        LOG_INFO("Chunk is evicted from cache (ChunkId: %v)", GetId());
-        EvictFromCache();
-        AsyncRemove();
-    }
+    if (ChunkCache_.IsExpired())
+        return;
+
+    EvictFromCache();
+    AsyncRemove();
+
+    LOG_INFO("Cached blob chunk destroyed (ChunkId: %v)",
+        GetId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

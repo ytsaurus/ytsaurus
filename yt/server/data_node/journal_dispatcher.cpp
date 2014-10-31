@@ -454,6 +454,8 @@ public:
         if (changelogOrError.IsOK()) {
             Owner_->ChangelogDispatcher_->CloseChangelog(changelogOrError.Value());
         }
+        LOG_DEBUG("Cached changelog destroyed (ChunkId: %v)",
+            GetKey());
     }
 
     virtual TSharedRef GetMeta() const override
