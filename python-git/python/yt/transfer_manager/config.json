@@ -5,28 +5,28 @@
             "options": {
                 "proxy": "kant.yt.yandex.net"
             },
-            "remote_copy_network": "fastbone"
+            "fastbone": true
         },
         "smith": {
             "type": "yt",
             "options": {
                 "proxy": "smith.yt.yandex.net"
             },
-            "remote_copy_network": "fastbone"
+            "fastbone": true
         },
         "plato": {
             "type": "yt",
             "options": {
                 "proxy": "plato.yt.yandex.net"
             },
-            "remote_copy_network": "fastbone"
+            "fastbone": true
         },
         "marx": {
             "type": "yt",
             "options": {
                 "proxy": "marx.yt.yandex.net"
             },
-            "remote_copy_network": "default"
+            "fastbone": false
         },
         "cedar": {
             "type": "yamr",
@@ -36,9 +36,9 @@
                 "binary": "/opt/cron/tools/mapreduce",
                 "server_port": 8013,
                 "http_port": 13013,
-                "fastbone": true,
                 "viewer": "https://specto.yandex.ru/cedar-viewer/"
-            }
+            },
+            "fastbone": true
         },
         "betula": {
             "type": "yamr",
@@ -47,9 +47,9 @@
                 "binary": "/opt/cron/tools/betula/mapreduce",
                 "server_port": 8013,
                 "http_port": 13013,
-                "fastbone": true,
                 "viewer": "https://specto.yandex.ru/betula-viewer/"
-            }
+            },
+            "fastbone": true
         },
         "apterix": {
             "type": "kiwi",
@@ -65,9 +65,9 @@
                 "opts": "MR_NET_TABLE=ipv6",
                 "binary": "/opt/cron/tools/mapreduce",
                 "server_port": 8013,
-                "http_port": 13013,
-                "fastbone": false
-            }
+                "http_port": 13013
+            },
+            "fastbone": false
         }
     },
     "kiwi_transmitter": {
