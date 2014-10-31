@@ -387,8 +387,14 @@ def _transform_record(record):
     return record
 
 
+class ChunkTooBigError(Exception):
+    pass
+
+
 class LogBroker(object):
     log = logging.getLogger("LogBroker")
+
+    MAX_CHUNK_SIZE = 10 * 1024 * 1024
 
     def __init__(self, service_id, source_id, io_loop=None, connection_factory=None):
         self._service_id = service_id
@@ -424,9 +430,14 @@ class LogBroker(object):
     def save_chunk(self, seqno, data, timeout=None):
         assert not seqno in self._save_chunk_futures
 
-        serialized_data = serialize_chunk(0, seqno, 0, data)
-        self._push.write_chunk(serialized_data)
         f = gen.Future()
+
+        serialized_data = serialize_chunk(0, seqno, 0, data)
+        if len(serialized_data) > self.MAX_CHUNK_SIZE:
+            f.set_exception(ChunkTooBigError())
+            return f
+
+        self._push.write_chunk(serialized_data)
         self._save_chunk_futures[seqno] = f
         return f
 
@@ -494,10 +505,10 @@ class LogBroker(object):
         self._stopped = True
 
 
-class SessionEnd(RuntimeError):
+class SessionEndError(RuntimeError):
     pass
 
-class BadProtocol(RuntimeError):
+class BadProtocolError(RuntimeError):
     pass
 
 
@@ -549,15 +560,15 @@ class SessionStream(object):
 
                 if not "seqno" in self._attributes:
                     self.log.error("There is no seqno header in session response")
-                    raise BadProtocol("There is no seqno header in session response")
+                    raise BadProtocolError("There is no seqno header in session response")
                 if not "session" in self._attributes:
-                    self.log.error("There is no seqno header in session response")
-                    raise BadProtocol("There is no seqno header in session response")
+                    self.log.error("There is no session header in session response")
+                    raise BadProtocolError("There is no session header in session response")
 
                 self._id = self._attributes["session"]
 
                 raise gen.Return(self._id)
-            except (IOError, BadProtocol) as e:
+            except (IOError, BadProtocolError) as e:
                 self.log.error("Error occured. Try reconnect...", exc_info=True)
                 yield sleep_future(1.0, self._io_loop)
             except gen.Return:
@@ -591,12 +602,12 @@ class SessionStream(object):
                 body_size = int(headers_raw, 16)
             except ValueError:
                 self.log.error("[%s] Bad HTTP chunk header format", self._id)
-                raise BadProtocol()
+                raise BadProtocolError()
             if body_size == 0:
                 self.log.error("[%s] HTTP response is finished", self._id)
                 data = yield self._iostream.read_until_close()
                 self.log.debug("[%s] Session trailers: %s", self._id, data)
-                raise SessionEnd()
+                raise SessionEndError()
             else:
                 data = yield self._iostream.read_bytes(body_size + 2)
                 self.log.debug("[%s] Process status: %s", self._id, data.strip())
@@ -627,7 +638,8 @@ class SessionStream(object):
                 key, value = record.split("=", 1)
                 value = int(value)
             except ValueError:
-                raise BadProtocol()
+                self.log.error("Unable to parse record %s", record, exc_info=True)
+                raise BadProtocolError("Unable to parse record")
             else:
                 attributes[key] = value
         return SessionMessage(type_, attributes)
@@ -721,9 +733,19 @@ class Application(object):
                 self._last_acked_seqno = yield self._log_broker.connect(hostname)
 
                 while True:
-                    data = self._event_log.get_data(self._last_acked_seqno, self._chunk_size)
-                    data = _pre_process(data)
-                    self._last_acked_seqno = yield self._log_broker.save_chunk(self._last_acked_seqno + self._chunk_size, data)
+                    chunk_size = self._chunk_size
+                    saved = False
+                    while not saved:
+                        try:
+                            data = self._event_log.get_data(self._last_acked_seqno, chunk_size)
+                            data = _pre_process(data)
+                            self._last_acked_seqno = yield self._log_broker.save_chunk(self._last_acked_seqno + self._chunk_size, data)
+                        except ChunkTooBigError:
+                            new_chunk_size = max(100, chunk_size / 2)
+                            self.log.error("%d table rows forms chunk which is too big. Use small chunk size: %d", chunk_size, new_chunk_size)
+                            chunk_size = new_chunk_size
+                        else:
+                            saved = True
             except Exception:
                 self.log.error("Unhandled exception. Try to reconnect...", exc_info=True)
                 self._log_broker.stop()
