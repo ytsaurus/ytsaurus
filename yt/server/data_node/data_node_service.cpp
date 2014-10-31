@@ -153,9 +153,8 @@ private:
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->StartSession(chunkId, options);
-        session->Start().Subscribe(BIND([=] (const TError& error) {
-            context->Reply(error);
-        }));
+        auto result = session->Start();
+        context->ReplyFrom(result);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FinishChunk)
