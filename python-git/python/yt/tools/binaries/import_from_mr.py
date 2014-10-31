@@ -39,7 +39,6 @@ def import_table(object, args):
                     proxy_port=params.mr_proxy_port,
                     fetch_info_from_http=params.fetch_info_from_http,
                     mr_user=params.mr_user,
-                    fastbone=params.fastbone,
                     timeout=300.0)
 
         yt_client = Yt(yt.config.http.PROXY, token=yt.config.http.TOKEN)
@@ -59,11 +58,11 @@ def import_table(object, args):
 
         logger.info("Destination table '%s' created", dst)
 
-        spec_template = {
+        spec = {
             "pool": params.yt_pool,
             "job_io": {"table_writer": {"max_row_weight": 32 * 1024 * 1024}}
         }
-        copy_yamr_to_yt_pull(yamr, yt_client, src, dst, spec_template)
+        copy_yamr_to_yt_pull(yamr, yt_client, src, dst, fastbone=params.fastbone, spec_template=spec)
 
         if params.erasure_codec is not None and params.erasure_codec == "none":
             params.erasure_codec = None
