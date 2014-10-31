@@ -184,9 +184,8 @@ public:
             YCHECK(TabletIdToSnapshot_.insert(std::make_pair(tablet->GetId(), snapshot)).second);
         }
 
-        LOG_INFO("Tablet snapshot registered (TabletId: %v, CellId: %v)",
-            tablet->GetId(),
-            tablet->GetSlot()->GetCellId());
+        LOG_INFO("Tablet snapshot registered (TabletId: %v)",
+            tablet->GetId());
     }
 
     void UnregisterTabletSnapshot(TTablet* tablet)
@@ -201,9 +200,8 @@ public:
             TabletIdToSnapshot_.erase(tablet->GetId());
         }
 
-        LOG_INFO("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
-            tablet->GetId(),
-            tablet->GetSlot()->GetCellId());
+        LOG_INFO("Tablet snapshot unregistered (TabletId: %v)",
+            tablet->GetId());
     }
 
     void UpdateTabletSnapshot(TTablet* tablet)
