@@ -675,7 +675,7 @@ class SchemedDsvFormat(SchemafulDsvFormat):
 # TODO(veronikaiv): do it beautiful way!
 Format._copy_docs()
 
-def create_format(yson_name, attributes=None):
+def create_format(yson_name, attributes=None, **kwargs):
     """Create format by yson string.
 
     :param yson_name: YSON string like ``'<lenval=false;has_subkey=false>yamr'``
@@ -698,7 +698,7 @@ def create_format(yson_name, attributes=None):
                       "yson": YsonFormat,
                       "json": JsonFormat}
     try:
-        return NAME_TO_FORMAT[name](attributes=attributes)
+        return NAME_TO_FORMAT[name](attributes=attributes, **kwargs)
     except KeyError:
         raise YtFormatError("Incorrect format " + name)
 
