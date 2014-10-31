@@ -491,6 +491,21 @@ Partition: 0\r\n\r\n"""
         assert seqno == 32
 
     @testing.gen_test
+    def test_save_one_big_chunk(self):
+        self._world_serialization.expect(
+            call("session", "write", None, FakeIOStream.IGNORE),
+            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("push", "write", None, FakeIOStream.IGNORE),
+            call("push", "read_until_close", None, streaming_callback=FakeIOStream.IGNORE),
+            call("push", "write", None, FakeIOStream.IGNORE),
+        )
+        yield self.logbroker.connect(KAFKA_ENDPOINT)
+        fennel.LogBroker.MAX_CHUNK_SIZE = 1000
+        big_data = [{"key_{0}".format(i): "some_value"} for i in xrange(10**3)]
+        with pytest.raises(fennel.ChunkTooBigError):
+            yield self.logbroker.save_chunk(32, big_data)
+
+    @testing.gen_test
     def test_save_two_ordered_chunks(self):
         seqnos = [ 32, 50 ]
         ack_response = ["chunk=0\toffset=0\tseqno={0}\tpart_offset=111".format(seqno) for seqno in seqnos]
@@ -579,7 +594,7 @@ Partition: 0\r\n\r\n"""
             call("session", "close", None),
         )
         yield self.logbroker.connect(KAFKA_ENDPOINT)
-        with pytest.raises(fennel.SessionEnd):
+        with pytest.raises(fennel.SessionEndError):
             seqno = yield self.logbroker.save_chunk(32, [{}])
 
     @testing.gen_test
