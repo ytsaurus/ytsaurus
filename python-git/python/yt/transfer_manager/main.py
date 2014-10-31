@@ -75,7 +75,7 @@ class Task(object):
     # NB: destination table is missing if we copy to kiwi
     def __init__(self, source_cluster, source_table, destination_cluster, creation_time, id, state, user,
                  destination_table=None, source_cluster_token=None, token=None, destination_cluster_token=None, mr_user=None, error=None,
-                 start_time=None, finish_time=None, copy_method=None, progress=None, meta=None):
+                 start_time=None, finish_time=None, copy_method=None, progress=None, meta=None, backend_tag=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.source_cluster_token = get_value(source_cluster_token, token)
@@ -94,6 +94,8 @@ class Task(object):
         self.token = get_value(token, "")
         self.copy_method = get_value(copy_method, "pull")
         self.progress = progress
+
+        self.backend_tag = backend_tag
 
         # Special field to store meta-information for web-interface
         self.meta = meta
@@ -547,7 +549,13 @@ class Application(object):
             self._precheck(task)
 
             title = "Supervised by transfer task " + task.id
-            task_spec = {"title": title, "transfer_task_id": task.id}
+            task_spec = {
+                "title": title,
+                "transfer_manager": {
+                    "task_id": task.id,
+                    "backend_tag": task.backend_tag
+                }
+            }
 
             source_client = task.get_source_client(self._clusters)
             destination_client = task.get_destination_client(self._clusters)
