@@ -60,6 +60,13 @@ class SafeThread(Thread):
 
         super(SafeThread, self).__init__(group=group, target=safe_run, name=name, args=args, kwargs=kwargs)
 
+def filter_out_keys(dict, keys):
+    result = deepcopy(dict)
+    for key in keys:
+        if key in result:
+            del result[key]
+    return result
+
 def now():
     return str(datetime.utcnow().isoformat() + "Z")
 
@@ -268,7 +275,6 @@ class Application(object):
             if type == "yt":
                 self._clusters[name] = Yt(**options)
                 self._clusters[name]._pools = cluster_description.get("pools", {})
-                self._clusters[name]._network = cluster_description.get("remote_copy_network")
                 self._clusters[name]._version = cluster_description.get("version", 0)
             elif type == "yamr":
                 if "viewer" in options:
@@ -281,6 +287,7 @@ class Application(object):
 
             self._clusters[name]._name = name
             self._clusters[name]._type = type
+            self._clusters[name]._parameters = filter_out_keys(cluster_description, ["type", "options"])
 
         self._availability_graph = deepcopy(config["availability_graph"])
 
@@ -530,7 +537,11 @@ class Application(object):
 
             source_client = task.get_source_client(self._clusters)
             destination_client = task.get_destination_client(self._clusters)
-            options = self._availability_graph[task.source_cluster][task.destination_cluster]
+            parameters = self._availability_graph[task.source_cluster][task.destination_cluster]
+
+            # Calculate fastbone
+            fastbone = source_client._parameters["fastbone"] and destination_client._parameters["fastbone"]
+            fastbone = parameters.get("fastbone", fastbone)
 
             if source_client._type == "yt" and destination_client._type == "yt":
                 logger.info("Running YT -> YT remote copy operation")
@@ -541,9 +552,11 @@ class Application(object):
                         destination_client,
                         task.source_table,
                         task.destination_table,
-                        fastbone=options.get("fastbone", True),
+                        fastbone=fastbone,
                         spec_template=task_spec)
                 else:
+                    network_name = "fastbone" if fastbone else "default"
+                    network_name = parameters.get("network_name", network_name)
                     run_operation_and_notify(
                         message_queue,
                         destination_client,
@@ -552,7 +565,7 @@ class Application(object):
                                 task.source_table,
                                 task.destination_table,
                                 cluster_name=source_client._name,
-                                network_name=source_client._network,
+                                network_name=network_name,
                                 spec=task_spec,
                                 remote_cluster_token=task.source_cluster_token,
                                 strategy=strategy))
@@ -565,6 +578,7 @@ class Application(object):
                         destination_client,
                         task.source_table,
                         task.destination_table,
+                        fastbone=fastbone,
                         spec_template=task_spec,
                         message_queue=message_queue)
                 else:
@@ -573,7 +587,7 @@ class Application(object):
                         destination_client,
                         task.source_table,
                         task.destination_table,
-                        fastbone=options.get("fastbone", True),
+                        fastbone=fastbone,
                         message_queue=message_queue)
             elif source_client._type == "yamr" and destination_client._type == "yt":
                 task_spec["pool"] = self._get_pool(destination_client, source_client._name)
@@ -583,20 +597,22 @@ class Application(object):
                     destination_client,
                     task.source_table,
                     task.destination_table,
+                    fastbone=fastbone,
                     spec_template=task_spec,
                     message_queue=message_queue)
             elif source_client._type == "yamr" and destination_client._type == "yamr":
                 destination_client.remote_copy(
                     source_client.server,
                     task.source_table,
-                    task.destination_table)
+                    task.destination_table,
+                    fastbone=fastbone)
             elif source_client._type == "yt" and destination_client._type == "kiwi":
                 copy_yt_to_kiwi(
                     source_client,
                     destination_client,
                     self.kiwi_transmitter,
                     task.source_table,
-                    fastbone=options.get("fastbone", True))
+                    fastbone=fastbone)
             else:
                 raise Exception("Incorrect cluster types: {} source and {} destination".format(
                                 source_client._type,
@@ -768,23 +784,22 @@ DEFAULT_CONFIG = {
             "options": {
                 "proxy": "kant.yt.yandex.net",
             },
-            "remote_copy_network": "fastbone",
+            "fastbone": True
         },
         "smith": {
             "type": "yt",
             "options": {
                 "proxy": "smith.yt.yandex.net",
             },
-            # TODO: support it by client, move to options.
-            "remote_copy_network": "fastbone",
-            "version": 1
+            "version": 1,
+            "fastbone": True
         },
         "plato": {
             "type": "yt",
             "options": {
                 "proxy": "plato.yt.yandex.net",
             },
-            "remote_copy_network": "fastbone",
+            "fastbone": True
         },
         "cedar": {
             "type": "yamr",
@@ -794,9 +809,9 @@ DEFAULT_CONFIG = {
                 "binary": "/Berkanavt/bin/mapreduce-dev",
                 "server_port": 8013,
                 "http_port": 13013,
-                "fastbone": True,
                 "viewer": "https://specto.yandex.ru/cedar-viewer/"
-            }
+            },
+            "fastbone": True
         },
         "redwood": {
             "type": "yamr",
@@ -805,17 +820,18 @@ DEFAULT_CONFIG = {
                 "binary": "/Berkanavt/bin/mapreduce-dev",
                 "server_port": 8013,
                 "http_port": 13013,
-                "fastbone": True,
                 "viewer": "https://specto.yandex.ru/redwood-viewer/",
                 "timeout": 300
-            }
+            },
+            "fastbone": True
         },
         "apterix": {
             "type": "kiwi",
             "options": {
                 "url": "fb-kiwi1500.search.yandex.net",
                 "kwworm": "/home/monster/kwworm"
-            }
+            },
+            "fastbone": True
         }
     },
     "kiwi_transmitter": {
