@@ -33,12 +33,11 @@ std::unique_ptr<ICheckpointableInputStream> CreateCheckpointableInputStream(
 std::unique_ptr<ICheckpointableOutputStream> CreateCheckpointableOutputStream(
     TOutputStream* underlyingStream);
 
-//! Wraps an input stream constructing another one whose binary content
+//! Wraps a given input stream constructing another one whose binary content
 //! can be parsed by a checkpointable stream parser as a single block.
 //! Used for migrating pre-0.17 snapshots that were not checkpointable.
-std::unique_ptr<TInputStream> CreateFakeCheckpointableInputStream(
-    TInputStream* underlyingStream,
-    size_t underlyingStreamLength);
+std::unique_ptr<TInputStream> EscapsulateAsCheckpointableInputStream(
+    TInputStream* underlyingStream);
 
 ////////////////////////////////////////////////////////////////////////////////
 

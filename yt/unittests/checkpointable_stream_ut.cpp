@@ -76,12 +76,12 @@ TEST(TCheckpointableStreamTest, Checkpoints)
     EXPECT_EQ(0, input->Read(buffer.data(), 10));
 }
 
-TEST(TCheckpointableStreamTest, Fake)
+TEST(TCheckpointableStreamTest, Encapsulated)
 {
     Stroka data("this is a test");
     TStringInput rawInput(data);
-    auto fakeInput = CreateFakeCheckpointableInputStream(&rawInput, data.length());
-    auto checkpointableInput = CreateCheckpointableInputStream(fakeInput.get());
+    auto encapsulatedInput = EscapsulateAsCheckpointableInputStream(&rawInput);
+    auto checkpointableInput = CreateCheckpointableInputStream(encapsulatedInput.get());
     checkpointableInput->SkipToCheckpoint();
     EXPECT_EQ(data, checkpointableInput->ReadAll());
 }

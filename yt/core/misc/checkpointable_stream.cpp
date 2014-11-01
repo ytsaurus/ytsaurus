@@ -10,7 +10,7 @@ namespace {
 struct TBlockHeader
 {
     static const ui64 CheckpointSentinel = 0;
-    static const ui64 CheckpointsDisabledMask = 0x80000000U;
+    static const ui64 CheckpointsDisabled = 0xffffffffU;
 
     ui64 Length;
 };
@@ -38,7 +38,7 @@ public:
             if (!EnsureBlock()) {
                 break;
             }
-            if (CheckpointsDisabled_) {
+            if (BlockLength_ == TBlockHeader::CheckpointsDisabled) {
                 break;
             }
             if (BlockLength_ == TBlockHeader::CheckpointSentinel) {
@@ -59,27 +59,29 @@ private:
     size_t BlockLength_;
     size_t BlockOffset_;
     bool HasBlock_ = false;
-    bool CheckpointsDisabled_ = false;
 
 
     virtual size_t DoRead(void* buf_, size_t len) override
     {
-        char* buf = reinterpret_cast<char*>(buf_);
-
-        size_t pos = 0;
-        while (pos < len) {
-            if (!EnsureBlock()) {
-                break;
+        if (BlockLength_ == TBlockHeader::CheckpointsDisabled) {
+            return UnderlyingStream_->Read(buf_, len);
+        } else {
+            char* buf = reinterpret_cast<char*>(buf_);
+            size_t pos = 0;
+            while (pos < len) {
+                if (!EnsureBlock()) {
+                    break;
+                }
+                size_t size = std::min(BlockLength_ - BlockOffset_, len - pos);
+                YCHECK(UnderlyingStream_->Load(buf + pos, size) == size);
+                pos += size;
+                BlockOffset_ += size;
+                if (BlockOffset_ == BlockLength_) {
+                    HasBlock_ = false;
+                }
             }
-            i64 size = std::min(BlockLength_ - BlockOffset_, len - pos);
-            YCHECK(UnderlyingStream_->Load(buf + pos, size) == size);
-            pos += size;
-            BlockOffset_ += size;
-            if (BlockOffset_ == BlockLength_) {
-                HasBlock_ = false;
-            }
+            return pos;
         }
-        return pos;
     }
 
     bool EnsureBlock()
@@ -94,9 +96,8 @@ private:
             }
 
             HasBlock_ = true;
-            BlockLength_ = header.Length & ~TBlockHeader::CheckpointsDisabledMask;
+            BlockLength_ = header.Length;
             BlockOffset_ = 0;
-            CheckpointsDisabled_ = header.Length & TBlockHeader::CheckpointsDisabledMask;
         }
 
         return true;
@@ -113,19 +114,18 @@ std::unique_ptr<ICheckpointableInputStream> CreateCheckpointableInputStream(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFakeCheckpointableInputStream
+class TEnscapsulatedCheckpointableInputStream
     : public TInputStream
 {
 public:
-    explicit TFakeCheckpointableInputStream(
-        TInputStream* underlyingStream,
-        size_t underlyingStreamLength)
+    explicit TEnscapsulatedCheckpointableInputStream(
+        TInputStream* underlyingStream)
         : UnderlyingStream_(underlyingStream)
         , FakeHeaderOffset_(0)
-        , FakeHeader_({underlyingStreamLength | TBlockHeader::CheckpointsDisabledMask})
+        , FakeHeader_({TBlockHeader::CheckpointsDisabled})
     { }
 
-    ~TFakeCheckpointableInputStream() throw()
+    ~TEnscapsulatedCheckpointableInputStream() throw()
     { }
 
 private:
@@ -149,13 +149,11 @@ private:
 
 };
 
-std::unique_ptr<TInputStream> CreateFakeCheckpointableInputStream(
-    TInputStream* underlyingStream,
-    size_t underlyingStreamLength)
+std::unique_ptr<TInputStream> EscapsulateAsCheckpointableInputStream(
+    TInputStream* underlyingStream)
 {
-    return std::unique_ptr<TInputStream>(new TFakeCheckpointableInputStream(
-        underlyingStream,
-        underlyingStreamLength));
+    return std::unique_ptr<TInputStream>(new TEnscapsulatedCheckpointableInputStream(
+        underlyingStream));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
