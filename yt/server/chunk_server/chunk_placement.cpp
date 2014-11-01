@@ -377,8 +377,8 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
 double TChunkPlacement::GetFillFactor(TNode* node) const
 {
     const auto& statistics = node->Statistics();
-    return statistics.total_used_space() /
-        (1.0 + statistics.total_used_space() + statistics.total_available_space());
+    auto freeSpace = statistics.total_available_space() - statistics.total_low_watermark_space();
+    return statistics.total_used_space() / std::max(1.0, static_cast<double>(freeSpace + statistics.total_used_space()));
 }
 
 bool TChunkPlacement::IsFull(TNode* node)

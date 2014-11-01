@@ -135,6 +135,11 @@ i64 TLocation::GetTotalSpace() const
     }
 }
 
+i64 TLocation::GetLowWatermarkSpace() const
+{
+    return Config->LowWatermark;
+}
+
 TBootstrap* TLocation::GetBootstrap() const
 {
     return Bootstrap;

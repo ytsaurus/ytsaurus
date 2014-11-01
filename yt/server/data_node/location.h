@@ -69,6 +69,10 @@ public:
     //! Never throws.
     i64 GetTotalSpace() const;
 
+    //! Returns the space reserved for low watermark.
+    //! Never throws.
+    i64 GetLowWatermarkSpace() const;
+
     //! Returns the bootstrap.
     NCellNode::TBootstrap* GetBootstrap() const;
 
