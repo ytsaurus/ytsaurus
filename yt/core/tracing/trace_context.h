@@ -20,7 +20,6 @@ public:
 
     bool IsEnabled() const;
 
-    static TTraceContext CreateRoot();
     TTraceContext CreateChild() const;
 
     DEFINE_BYVAL_RO_PROPERTY(TTraceId, TraceId);
@@ -30,7 +29,10 @@ public:
 
 Stroka ToString(const TTraceContext& context);
 
-extern TTraceContext NullTraceContext;
+TTraceContext CreateChildTraceContext();
+TTraceContext CreateRootTraceContext();
+
+extern const TTraceContext NullTraceContext;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,9 +74,6 @@ bool IsTracingEnabled();
 
 void PushContext(const TTraceContext& context);
 void PopContext();
-
-TTraceContext CreateChildTraceContext();
-TTraceContext CreateRootTraceContext();
 
 ////////////////////////////////////////////////////////////////////////////////
 

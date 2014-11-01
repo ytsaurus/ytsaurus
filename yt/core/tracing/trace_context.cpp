@@ -56,14 +56,6 @@ bool TTraceContext::IsEnabled() const
     return TraceId_ != InvalidTraceId;
 }
 
-TTraceContext TTraceContext::CreateRoot()
-{
-    return TTraceContext(
-        GenerateTraceId(),
-        InvalidSpanId,
-        InvalidSpanId);
-}
-
 TTraceContext TTraceContext::CreateChild() const
 {
     return TTraceContext(TraceId_, GenerateSpanId(), SpanId_);
@@ -77,7 +69,7 @@ Stroka ToString(const TTraceContext& context)
         context.GetParentSpanId());
 }
 
-TTraceContext NullTraceContext;
+const TTraceContext NullTraceContext;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -197,7 +189,10 @@ TTraceContext CreateChildTraceContext()
 
 TTraceContext CreateRootTraceContext()
 {
-    return TTraceContext::CreateRoot();
+    return TTraceContext(
+        GenerateTraceId(),
+        InvalidSpanId,
+        InvalidSpanId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
