@@ -46,6 +46,7 @@ def get_master_config():
 {
     master = {
         addresses = [ ];
+        cell_tag = 0;
         cell_id = "ffffffff-ffffffff-ffffffff-ffffffff";
     };
 
@@ -113,12 +114,14 @@ def get_scheduler_config():
     cluster_connection = {
         master = {
             addresses = [ ];
+            cell_tag = 0;
             cell_id = "ffffffff-ffffffff-ffffffff-ffffffff";
             rpc_timeout = 5000;
         };
 
         master_cache = {
             addresses = [ ];
+            cell_tag = 0;
             cell_id = "ffffffff-ffffffff-ffffffff-ffffffff";
             soft_backoff_time = 100;
             hard_backoff_time = 100;
@@ -173,12 +176,14 @@ def get_node_config():
     cluster_connection = {
         master = {
             addresses = [ ];
+            cell_tag = 0;
             cell_id = "ffffffff-ffffffff-ffffffff-ffffffff";
             rpc_timeout = 5000;
         };
 
         master_cache = {
             addresses = [ ];
+            cell_tag = 0;
             cell_id = "ffffffff-ffffffff-ffffffff-ffffffff";
             soft_backoff_time = 100;
             hard_backoff_time = 100;
@@ -300,12 +305,14 @@ def get_driver_config():
 {
     master = {
         addresses = [ ];
+        cell_tag = 0;
         cell_id = "ffffffff-ffffffff-ffffffff-ffffffff";
         rpc_timeout = 5000;
     };
 
     master_cache = {
         addresses = [ ];
+        cell_tag = 0;
         cell_id = "ffffffff-ffffffff-ffffffff-ffffffff";
         soft_backoff_time = 100;
         hard_backoff_time = 100;
