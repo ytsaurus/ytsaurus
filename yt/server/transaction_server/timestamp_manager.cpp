@@ -23,6 +23,8 @@
 
 #include <server/transaction_server/timestamp_manager.pb.h>
 
+#include <time.h>
+
 namespace NYT {
 namespace NTransactionServer {
 
@@ -187,8 +189,7 @@ private:
         if (!Active_)
             return;
 
-        auto now = TInstant::Now();
-        ui64 nowSeconds = now.Seconds();
+        ui64 nowSeconds = ::time(nullptr);
         ui64 prevSeconds = (CurrentTimestamp_ >> TimestampCounterWidth);
         
         if (nowSeconds == prevSeconds)
