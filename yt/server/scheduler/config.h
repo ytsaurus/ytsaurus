@@ -164,6 +164,9 @@ public:
     //! Maximum number of input tables an operation can have.
     int MaxInputTableCount;
 
+    //! Maximum number of files per user job.
+    int MaxUserFileCount;
+
     //! Maximum number of jobs to start within a single heartbeat.
     TNullable<int> MaxStartedJobsPerHeartbeat;
 
@@ -297,7 +300,11 @@ public:
 
         RegisterParameter("max_input_table_count", MaxInputTableCount)
             .Default(1000)
-            .GreaterThan(1);
+            .GreaterThan(0);
+
+        RegisterParameter("max_user_file_count", MaxUserFileCount)
+            .Default(1000)
+            .GreaterThan(0);
 
         RegisterParameter("max_output_table_count", MaxOutputTableCount)
             .Default(20)

@@ -1433,6 +1433,18 @@ private:
     i64 StartRowIndex;
     TNullable<int> TeleportOutputTable;
 
+
+    virtual void DoInitialize() override
+    {
+        TSortedMergeControllerBase::DoInitialize();
+
+        if (Spec->Reducer && Spec->Reducer->FilePaths.size() > Config->MaxUserFileCount) {
+            THROW_ERROR_EXCEPTION("Too many user files in reducer: maximum allowed %d, actual %" PRISZT,
+                Config->MaxUserFileCount,
+                Spec->Reducer->FilePaths.size());
+        }
+    }
+
     virtual bool IsRowCountPreserved() const override
     {
         return false;
