@@ -18,7 +18,6 @@ class TPeerConnectionConfig
     , public NRpc::TBalancingChannelConfig
 {
 public:
-    //! Id of the cell.
     TCellId CellId;
 
     TPeerConnectionConfig()

@@ -69,7 +69,8 @@ class TTransactionManager::TImpl
 public:
     TImpl(
         TTransactionManagerConfigPtr config,
-        const TCellId& masterCellId,
+        TCellTag cellTag,
+        const TCellId& cellId,
         IChannelPtr channel,
         ITimestampProviderPtr timestampProvider,
         TCellDirectoryPtr cellDirectory);
@@ -87,7 +88,8 @@ private:
 
     TTransactionManagerConfigPtr Config_;
     IChannelPtr MasterChannel_;
-    TCellId MasterCellId_;
+    TCellTag CellTag_;
+    TCellId CellId_;
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;
 
@@ -150,7 +152,7 @@ public:
         State_ = EState::Active;
 
         YCHECK(CellIdToStartTransactionResult_.insert(std::make_pair(
-            Owner_->MasterCellId_,
+            Owner_->CellId_,
             MakePromise<TError>(TError()))).second);
     
         Register();
@@ -213,7 +215,7 @@ public:
         }
 
         auto coordinatorCellId = Type_ == ETransactionType::Master
-            ? Owner_->MasterCellId_
+            ? Owner_->CellId_
             : *participantGuids.begin();
 
         LOG_INFO("Committing transaction (TransactionId: %v, CoordinatorCellId: %v)",
@@ -518,7 +520,7 @@ private:
         Id_ = FromProto<TTransactionId>(rsp->object_ids(0));
         
         YCHECK(CellIdToStartTransactionResult_.insert(std::make_pair(
-            Owner_->MasterCellId_,
+            Owner_->CellId_,
             MakePromise<TError>(TError()))).second);
 
         LOG_INFO("Master transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
@@ -539,7 +541,7 @@ private:
     {
         Id_ = MakeId(
             EObjectType::TabletTransaction,
-            0, // TODO(babenko): cell id?
+            Owner_->CellTag_,
             static_cast<ui64>(StartTimestamp_),
             TabletTransactionCounter++);
 
@@ -629,7 +631,7 @@ private:
                 auto req = proxy.PingTransaction();
                 ToProto(req->mutable_transaction_id(), Transaction_->Id_);
 
-                if (cellId == Transaction_->Owner_->MasterCellId_) {
+                if (cellId == Transaction_->Owner_->CellId_) {
                     auto* reqExt = req->MutableExtension(NProto::TReqPingTransactionExt::ping_transaction_ext);
                     reqExt->set_ping_ancestors(Transaction_->PingAncestors_);
                 }
@@ -844,7 +846,7 @@ private:
     {
         switch (Type_) {
             case ETransactionType::Master:
-                return Owner_->MasterCellId_;
+                return Owner_->CellId_;
             
             case ETransactionType::Tablet: {
                 auto ids = GetParticipantGuids();
@@ -878,13 +880,15 @@ private:
 
 TTransactionManager::TImpl::TImpl(
     TTransactionManagerConfigPtr config,
-    const TCellId& masterCellId,
+    TCellTag cellTag,
+    const TCellId& cellId,
     IChannelPtr masterChannel,
     ITimestampProviderPtr timestampProvider,
     TCellDirectoryPtr cellDirectory)
     : Config_(config)
     , MasterChannel_(masterChannel)
-    , MasterCellId_(masterCellId)
+    , CellTag_(cellTag)
+    , CellId_(cellId)
     , TimestampProvider_(timestampProvider)
     , CellDirectory_(cellDirectory)
 {
@@ -1002,13 +1006,15 @@ DELEGATE_SIGNAL(TTransaction, void(), Aborted, *Impl_);
 
 TTransactionManager::TTransactionManager(
     TTransactionManagerConfigPtr config,
-    const TCellId& masterCellId,
+    TCellTag cellTag,
+    const TCellId& cellId,
     IChannelPtr masterChannel,
     ITimestampProviderPtr timestampProvider,
     TCellDirectoryPtr cellDirectory)
     : Impl_(New<TImpl>(
         config,
-    masterCellId,
+        cellTag,
+        cellId,
         masterChannel,
         timestampProvider,
         cellDirectory))

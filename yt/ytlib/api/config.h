@@ -8,6 +8,8 @@
 
 #include <core/compression/public.h>
 
+#include <ytlib/object_client/public.h>
+
 #include <ytlib/hydra/config.h>
 
 #include <ytlib/transaction_client/public.h>
@@ -37,6 +39,9 @@ class TMasterConnectionConfig
     : public NHydra::TPeerConnectionConfig
 {
 public:
+    //! Cell tag.
+    NObjectClient::TCellTag CellTag = 0;
+
     //! Timeout for RPC requests to masters.
     TDuration RpcTimeout;
 

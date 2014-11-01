@@ -54,6 +54,8 @@ function stubDriver(echo)
         "proxy": {
             "driver": {
                 "master": {
+                    "cell_tag" : 0,
+                    "cell_id" : "ffffffff-ffffffff-ffffffff-ffffffff",
                     "addresses": [ ]
                 }
             },

@@ -18,6 +18,7 @@ namespace NApi {
 
 TMasterConnectionConfig::TMasterConnectionConfig()
 {
+    RegisterParameter("cell_tag", CellTag);
     RegisterParameter("rpc_timeout", RpcTimeout)
         .Default(TDuration::Seconds(15));
 }
