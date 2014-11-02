@@ -236,10 +236,7 @@ def make_request(command_name, params,
         stream=stream,
         response_should_be_json=response_should_be_json)
 
-    # Hide token for security reasons
-    if "Authorization" in headers:
-        headers["Authorization"] = "x" * 32
-    print_info("Response header %r", response.headers())
+    print_info("Response headers %r", response.headers())
 
     # Determine type of response data and return it
     if return_content:
