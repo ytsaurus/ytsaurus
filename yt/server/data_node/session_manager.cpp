@@ -249,7 +249,11 @@ TAsyncError TSession::SendBlocks(
     }
 
     auto throttler = Bootstrap->GetOutThrottler(Type);
+    LOG_DEBUG("Waiting input throttler (start block index: %d, requested size: %" PRISZT ")",
+        startBlockIndex,
+        requestSize);
     return throttler->Throttle(requestSize).Apply(BIND([=] () {
+        LOG_DEBUG("Input throttler release request (start block index: %d)", startBlockIndex);
         return DoSendBlocks(req);
     }));
 }
