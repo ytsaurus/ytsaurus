@@ -47,7 +47,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, Version);
 
     // Used to mark visited chunk lists with "unique" marks.
-    DEFINE_BYVAL_RW_PROPERTY(TAtomic, VisitMark);
+    DEFINE_BYVAL_RW_PROPERTY(ui64, VisitMark);
 
     static ui64 GenerateVisitMark();
 
