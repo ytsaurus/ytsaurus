@@ -305,9 +305,9 @@ TObjectManager::TObjectManager(
     : TMasterAutomatonPart(bootstrap)
     , Config_(config)
     , Profiler(ObjectServerProfiler)
-    , RootService_(New<TRootService>(Bootstrap))
-    , ObjectResolver_(new TObjectResolver(Bootstrap))
-    , GarbageCollector_(New<TGarbageCollector>(Config_, Bootstrap))
+    , RootService_(New<TRootService>(Bootstrap_))
+    , ObjectResolver_(new TObjectResolver(Bootstrap_))
+    , GarbageCollector_(New<TGarbageCollector>(Config_, Bootstrap_))
 {
     YCHECK(config);
     YCHECK(bootstrap);
@@ -335,18 +335,18 @@ TObjectManager::TObjectManager(
         "ObjectManager.Schemas",
         BIND(&TObjectManager::SaveSchemas, Unretained(this)));
 
-    RegisterHandler(CreateMasterTypeHandler(Bootstrap));
+    RegisterHandler(CreateMasterTypeHandler(Bootstrap_));
 
     RegisterMethod(BIND(&TObjectManager::HydraExecute, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::HydraDestroyObjects, Unretained(this)));
 
-    MasterObjectId_ = MakeWellKnownId(EObjectType::Master, Bootstrap->GetCellTag());
+    MasterObjectId_ = MakeWellKnownId(EObjectType::Master, Bootstrap_->GetCellTag());
 }
 
 void TObjectManager::Initialize()
 {
     ProfilingExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap->GetHydraFacade()->GetAutomatonInvoker(),
+        Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(),
         BIND(&TObjectManager::OnProfiling, MakeWeak(this)),
         ProfilingPeriod);
     ProfilingExecutor_->Start();
@@ -424,10 +424,10 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     if (HasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
         auto& schemaEntry = TypeToEntry_[static_cast<int>(schemaType)];
-        schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap, type);
+        schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap_, type);
         LOG_INFO("Type registered (Type: %v, SchemaObjectId: %v)",
             type,
-            MakeSchemaObjectId(type, Bootstrap->GetCellTag()));
+            MakeSchemaObjectId(type, Bootstrap_->GetCellTag()));
     } else {
         LOG_INFO("Type registered (Type: %v)",
             type);
@@ -469,7 +469,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto* mutationContext = Bootstrap
+    auto* mutationContext = Bootstrap_
         ->GetHydraFacade()
         ->GetHydraManager()
         ->GetMutationContext();
@@ -483,7 +483,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 
     TObjectId id(
         random,
-        (Bootstrap->GetCellTag() << 16) + typeValue,
+        (Bootstrap_->GetCellTag() << 16) + typeValue,
         version.RecordId,
         version.SegmentId);
 
@@ -618,14 +618,14 @@ void TObjectManager::DoClear()
     MasterObject_.reset(new TMasterObject(MasterObjectId_));
     MasterObject_->RefObject();
 
-    MasterProxy_ = CreateMasterProxy(Bootstrap, MasterObject_.get());
+    MasterProxy_ = CreateMasterProxy(Bootstrap_, MasterObject_.get());
 
     for (auto type : RegisteredTypes_)  {
         auto& entry = TypeToEntry_[static_cast<int>(type)];
         if (HasSchema(type)) {
-            entry.SchemaObject.reset(new TSchemaObject(MakeSchemaObjectId(type, Bootstrap->GetCellTag())));
+            entry.SchemaObject.reset(new TSchemaObject(MakeSchemaObjectId(type, Bootstrap_->GetCellTag())));
             entry.SchemaObject->RefObject();
-            entry.SchemaProxy = CreateSchemaProxy(Bootstrap, entry.SchemaObject.get());
+            entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject.get());
         }
     }
 
@@ -799,7 +799,7 @@ void TObjectManager::MergeAttributes(
 TMutationPtr TObjectManager::CreateExecuteMutation(const NProto::TReqExecute& request)
 {
     return CreateMutation(
-        Bootstrap->GetHydraFacade()->GetHydraManager(),
+        Bootstrap_->GetHydraFacade()->GetHydraManager(),
         request,
         this,
         &TObjectManager::HydraExecute);
@@ -808,7 +808,7 @@ TMutationPtr TObjectManager::CreateExecuteMutation(const NProto::TReqExecute& re
 TMutationPtr TObjectManager::CreateDestroyObjectsMutation(const NProto::TReqDestroyObjects& request)
 {
     return CreateMutation(
-        Bootstrap->GetHydraFacade()->GetHydraManager(),
+        Bootstrap_->GetHydraFacade()->GetHydraManager(),
         request,
         this,
         &TObjectManager::HydraDestroyObjects);
@@ -887,7 +887,7 @@ TObjectBase* TObjectManager::CreateObject(
             YUNREACHABLE();
     }
 
-    auto securityManager = Bootstrap->GetSecurityManager();
+    auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
 
     auto* schema = FindSchema(type);
@@ -918,7 +918,7 @@ TObjectBase* TObjectManager::CreateObject(
     auto* stagingTransaction = handler->GetStagingTransaction(object);
     if (stagingTransaction) {
         YCHECK(transaction == stagingTransaction);
-        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->StageObject(transaction, object);
     } else {
         YCHECK(object->GetObjectRefCounter() > 0);
@@ -947,13 +947,13 @@ void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceC
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     // Validate that mutating requests are only being invoked inside mutations or recovery.
-    auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
+    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     const auto& headerExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
     YCHECK(!headerExt.mutating() ||
            hydraManager->IsMutating() ||
            hydraManager->IsRecovery());
 
-    auto securityManager = Bootstrap->GetSecurityManager();
+    auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
 
     auto objectId = proxy->GetVersionedId();
@@ -983,7 +983,7 @@ void TObjectManager::ExecuteMutatingRequest(
     auto asyncResponseMessage = context->GetAsyncResponseMessage();
 
     try {
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetUserOrThrow(userId);
         TAuthenticatedUserGuard userGuard(securityManager, user);
         ExecuteVerb(RootService_, context);
@@ -992,7 +992,7 @@ void TObjectManager::ExecuteMutatingRequest(
     }
 
     if (mutationId != NullMutationId) {
-        auto responseKeeper = Bootstrap->GetHydraFacade()->GetResponseKeeper();
+        auto responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
         asyncResponseMessage
             .Subscribe(BIND([=] (const TSharedRefArray& message) {
                 responseKeeper->EndRequest(mutationId, message);

@@ -96,7 +96,7 @@ public:
 
     void Initialize()
     {
-        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
     }
@@ -106,7 +106,7 @@ public:
         const TReqRegisterNode& request)
     {
         return CreateMutation(
-            Bootstrap->GetHydraFacade()->GetHydraManager(),
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request);
     }
 
@@ -114,7 +114,7 @@ public:
         const TReqUnregisterNode& request)
     {
         return CreateMutation(
-            Bootstrap->GetHydraFacade()->GetHydraManager(),
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request);
     }
 
@@ -122,14 +122,14 @@ public:
         const TReqRemoveNode& request)
     {
         return CreateMutation(
-            Bootstrap->GetHydraFacade()->GetHydraManager(),
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request);
     }
 
     TMutationPtr CreateFullHeartbeatMutation(
         TCtxFullHeartbeatPtr context)
     {
-        return CreateMutation(Bootstrap->GetHydraFacade()->GetHydraManager())
+        return CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
             ->SetAction(BIND(
                 &TImpl::HydraFullHeartbeat,
@@ -141,7 +141,7 @@ public:
     TMutationPtr CreateIncrementalHeartbeatMutation(
         TCtxIncrementalHeartbeatPtr context)
     {
-        return CreateMutation(Bootstrap->GetHydraFacade()->GetHydraManager())
+        return CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
             ->SetAction(BIND(
                 &TImpl::HydraIncrementalHeartbeat,
@@ -291,7 +291,7 @@ private:
 
     IMapNodePtr DoFindNodeConfig(const Stroka& address)
     {
-        auto cypressManager = Bootstrap->GetCypressManager();
+        auto cypressManager = Bootstrap_->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
         auto nodesMap = resolver->ResolvePath("//sys/nodes")->AsMap();
         auto nodeNode = nodesMap->FindChild(address);
@@ -568,14 +568,14 @@ private:
         if (!transaction)
             return;
 
-        auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
+        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         const auto* mutationContext = hydraManager->GetMutationContext();
 
         auto timeout = GetNodeLeaseTimeout(node);
         transaction->SetTimeout(timeout);
 
         try {
-            auto objectManager = Bootstrap->GetObjectManager();
+            auto objectManager = Bootstrap_->GetObjectManager();
             auto rootService = objectManager->GetRootService();
             auto nodePath = GetNodePath(node);
             SyncYPathSet(rootService, nodePath + "/@last_seen_time", ConvertToYsonString(mutationContext->GetTimestamp()));
@@ -584,7 +584,7 @@ private:
         }
 
         if (IsLeader()) {
-            auto transactionManager = Bootstrap->GetTransactionManager();
+            auto transactionManager = Bootstrap_->GetTransactionManager();
             transactionManager->PingTransaction(transaction);
         }
     }
@@ -627,7 +627,7 @@ private:
             auto config = GetNodeConfigByAddress(address);
             auto nodeId = GenerateNodeId();
 
-            auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
+            auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
             const auto* mutationContext = hydraManager->GetMutationContext();
 
             auto* node = new TNode(
@@ -644,8 +644,8 @@ private:
             
             UpdateNodeCounters(node, +1);
 
-            auto transactionManager = Bootstrap->GetTransactionManager();
-            auto objectManager = Bootstrap->GetObjectManager();
+            auto transactionManager = Bootstrap_->GetTransactionManager();
+            auto objectManager = Bootstrap_->GetObjectManager();
             auto rootService = objectManager->GetRootService();
             auto nodePath = GetNodePath(node);
 
@@ -727,7 +727,7 @@ private:
             UnregisterLeaseTransaction(node);
             
             if (transaction && transaction->GetState() == ETransactionState::Active) {
-                auto transactionManager = Bootstrap->GetTransactionManager();
+                auto transactionManager = Bootstrap_->GetTransactionManager();
                 transactionManager->AbortTransaction(transaction, false);
             }
 
@@ -787,7 +787,7 @@ private:
         request.set_node_id(node->GetId());
 
         auto mutation = CreateUnregisterNodeMutation(request);
-        Bootstrap
+        Bootstrap_
             ->GetHydraFacade()
             ->GetEpochAutomatonInvoker()
             ->Invoke(BIND(IgnoreResult(&TMutation::Commit), mutation));
@@ -806,7 +806,7 @@ private:
             request.set_node_id(node->GetId());
 
             auto mutation = CreateRemoveNodeMutation(request);
-            Bootstrap
+            Bootstrap_
                 ->GetHydraFacade()
                 ->GetEpochAutomatonInvoker()
                 ->Invoke(BIND(IgnoreResult(&TMutation::Commit), mutation));

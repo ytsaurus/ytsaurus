@@ -239,7 +239,7 @@ public:
             "SecurityManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 
-        auto cellTag = Bootstrap->GetCellTag();
+        auto cellTag = Bootstrap_->GetCellTag();
 
         SysAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xffffffffffffffff);
         TmpAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffe);
@@ -256,7 +256,7 @@ public:
 
     void Initialize()
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TAccountTypeHandler>(this));
         objectManager->RegisterHandler(New<TUserTypeHandler>(this));
         objectManager->RegisterHandler(New<TGroupTypeHandler>(this));
@@ -272,7 +272,7 @@ public:
         const NProto::TReqUpdateRequestStatistics& request)
     {
         return CreateMutation(
-            Bootstrap->GetHydraFacade()->GetHydraManager(),
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
             this,
             &TImpl::UpdateRequestStatistics);
@@ -288,7 +288,7 @@ public:
                 name);
         }
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Account);
         return DoCreateAccount(id, name);
     }
@@ -341,7 +341,7 @@ public:
         if (oldAccount == account)
             return;
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
 
         bool isAccountingEnabled = IsUncommittedAccountingEnabled(node);
 
@@ -367,7 +367,7 @@ public:
         if (!account)
             return;
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
 
         bool isAccountingEnabled = IsUncommittedAccountingEnabled(node);
 
@@ -458,7 +458,7 @@ public:
                 name);
         }
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::User);
         return DoCreateUser(id, name);
     }
@@ -528,7 +528,7 @@ public:
                 name);
         }
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Group);
         return DoCreateGroup(id, name);
     }
@@ -659,14 +659,14 @@ public:
 
     EPermissionSet GetSupportedPermissions(TObjectBase* object)
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto handler = objectManager->GetHandler(object);
         return handler->GetSupportedPermissions();
     }
 
     TAccessControlDescriptor* FindAcd(TObjectBase* object)
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto handler = objectManager->GetHandler(object);
         return handler->FindAcd(object);
     }
@@ -681,7 +681,7 @@ public:
     TAccessControlList GetEffectiveAcl(NObjectServer::TObjectBase* object)
     {
         TAccessControlList result;
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         while (object) {
             auto handler = objectManager->GetHandler(object);
             auto* acd = handler->FindAcd(object);
@@ -729,7 +729,7 @@ public:
         }
 
         // Slow lane: check ACLs through the object hierarchy.
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto* currentObject = object;
         while (currentObject) {
             auto handler = objectManager->GetHandler(currentObject);
@@ -795,7 +795,7 @@ public:
     {
         auto result = CheckPermission(object, user, permission);
         if (result.Action == ESecurityAction::Deny) {
-            auto objectManager = Bootstrap->GetObjectManager();
+            auto objectManager = Bootstrap_->GetObjectManager();
             TError error;
             if (result.Object && result.Subject) {
                 error = TError(
@@ -1178,7 +1178,7 @@ private:
         if (RecomputeResources_) {
             LOG_INFO("Recomputing resource usage");
 
-            YCHECK(Bootstrap->GetTransactionManager()->Transactions().GetSize() == 0);
+            YCHECK(Bootstrap_->GetTransactionManager()->Transactions().GetSize() == 0);
 
             for (const auto& pair : AccountMap_) {
                 auto* account = pair.second;
@@ -1186,7 +1186,7 @@ private:
                 account->CommittedResourceUsage() = ZeroClusterResources();
             }
 
-            auto cypressManager = Bootstrap->GetCypressManager();
+            auto cypressManager = Bootstrap_->GetCypressManager();
             for (const auto& pair : cypressManager->Nodes()) {
                 auto* node = pair.second;
                 auto resourceUsage = node->GetResourceUsage();
@@ -1235,7 +1235,7 @@ private:
 
     void InitDefaultSchemaAcds()
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         for (auto type : objectManager->GetRegisteredTypes()) {
             if (HasSchema(type)) {
                 auto* schema = objectManager->GetSchema(type);
@@ -1387,7 +1387,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Group, TGroup, TGroupId, Gr
 ///////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->AccountMap_)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->AccountMap_)
     , Owner_(owner)
 { }
 
@@ -1415,7 +1415,7 @@ IObjectProxyPtr TSecurityManager::TAccountTypeHandler::DoGetProxy(
     TTransaction* transaction)
 {
     UNUSED(transaction);
-    return CreateAccountProxy(Owner_->Bootstrap, account);
+    return CreateAccountProxy(Owner_->Bootstrap_, account);
 }
 
 void TSecurityManager::TAccountTypeHandler::DoDestroy(TAccount* account)
@@ -1426,7 +1426,7 @@ void TSecurityManager::TAccountTypeHandler::DoDestroy(TAccount* account)
 ///////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->UserMap_)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->UserMap_)
     , Owner_(owner)
 { }
 
@@ -1454,7 +1454,7 @@ IObjectProxyPtr TSecurityManager::TUserTypeHandler::DoGetProxy(
     TTransaction* transaction)
 {
     UNUSED(transaction);
-    return CreateUserProxy(Owner_->Bootstrap, user);
+    return CreateUserProxy(Owner_->Bootstrap_, user);
 }
 
 void TSecurityManager::TUserTypeHandler::DoDestroy(TUser* user)
@@ -1465,7 +1465,7 @@ void TSecurityManager::TUserTypeHandler::DoDestroy(TUser* user)
 ///////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->GroupMap_)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->GroupMap_)
     , Owner_(owner)
 { }
 
@@ -1493,7 +1493,7 @@ IObjectProxyPtr TSecurityManager::TGroupTypeHandler::DoGetProxy(
     TTransaction* transaction)
 {
     UNUSED(transaction);
-    return CreateGroupProxy(Owner_->Bootstrap, group);
+    return CreateGroupProxy(Owner_->Bootstrap_, group);
 }
 
 void TSecurityManager::TGroupTypeHandler::DoDestroy(TGroup* group)

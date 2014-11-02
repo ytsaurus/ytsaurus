@@ -65,7 +65,7 @@ class TMasterAutomatonPart
     : public NHydra::TCompositeAutomatonPart
 {
 protected:
-    TBootstrap* Bootstrap;
+    TBootstrap* Bootstrap_;
 
     explicit TMasterAutomatonPart(TBootstrap* bootstrap);
 

@@ -176,9 +176,9 @@ public:
         NCellMaster::TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap)
         , Config_(config)
-        , TabletTracker_(New<TTabletTracker>(Config_, Bootstrap))
+        , TabletTracker_(New<TTabletTracker>(Config_, Bootstrap_))
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
         RegisterLoader(
             "TabletManager.Keys",
@@ -202,7 +202,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletStores, Unretained(this)));
 
-        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
@@ -210,7 +210,7 @@ public:
 
     void Initialize()
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TTabletCellTypeHandler>(this));
         objectManager->RegisterHandler(New<TTabletTypeHandler>(this));
     }
@@ -220,7 +220,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TabletCell);
         auto cell_ = std::make_unique<TTabletCell>(id);
         auto* cell = cell_.get();
@@ -234,15 +234,15 @@ public:
         // Make the fake reference.
         YCHECK(cell->RefObject() == 1);   
 
-        auto hiveManager = Bootstrap->GetHiveManager();
+        auto hiveManager = Bootstrap_->GetHiveManager();
         hiveManager->CreateMailbox(id);
 
         auto cellMapNodeProxy = GetCellMapNode();
 
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Bootstrap_->GetSecurityManager();
         auto* sysAccount = securityManager->GetSysAccount();
 
-        auto cypressManager = Bootstrap->GetCypressManager();
+        auto cypressManager = Bootstrap_->GetCypressManager();
         auto nodeFactory = cypressManager->CreateNodeFactory(
             nullptr,
             sysAccount,
@@ -289,7 +289,7 @@ public:
             }
         }
 
-        auto hiveManager = Bootstrap->GetHiveManager();
+        auto hiveManager = Bootstrap_->GetHiveManager();
         hiveManager->RemoveMailbox(cell->GetId());
     }
 
@@ -298,7 +298,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Tablet);
         auto* tablet = new TTablet(id);
         tablet->SetTable(table);
@@ -334,7 +334,7 @@ public:
 
     TTableSchema GetTableSchema(TTableNode* table)
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto tableProxy = objectManager->GetProxy(table);
         // COMPAT(babenko): schema must be mandatory
         return tableProxy->Attributes().Get<TTableSchema>("schema", TTableSchema());
@@ -379,8 +379,8 @@ public:
             hintedCell = GetTabletCellOrThrow(cellId); // may throw
         }
 
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto chunkManager = Bootstrap->GetChunkManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto chunkManager = Bootstrap_->GetChunkManager();
 
         const auto& tablets = table->Tablets();
 
@@ -455,7 +455,7 @@ public:
                 descriptor->mutable_chunk_meta()->CopyFrom(chunk->ChunkMeta());
             }
 
-            auto hiveManager = Bootstrap->GetHiveManager();
+            auto hiveManager = Bootstrap_->GetHiveManager();
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
             hiveManager->PostMessage(mailbox, req);
 
@@ -518,7 +518,7 @@ public:
                     tablet->GetId(),
                     cell->GetId());
 
-                auto hiveManager = Bootstrap->GetHiveManager();
+                auto hiveManager = Bootstrap_->GetHiveManager();
 
                 {
                     TReqRemountTablet request;
@@ -543,7 +543,7 @@ public:
             0,
             static_cast<int>(table->Tablets().size()) - 1);
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         for (auto* tablet : table->Tablets()) {
             YCHECK(tablet->GetState() == ETabletState::Unmounted);
             objectManager->UnrefObject(tablet);
@@ -561,8 +561,8 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
 
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto chunkManager = Bootstrap->GetChunkManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto chunkManager = Bootstrap_->GetChunkManager();
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
@@ -855,7 +855,7 @@ private:
                 cellId);
         };
 
-        auto hydraFacade = Bootstrap->GetHydraFacade();
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
         auto hydraManager = hydraFacade->GetHydraManager();
         auto* mutationContext = hydraManager->GetMutationContext();
         const auto& address = node->GetAddress();
@@ -990,7 +990,7 @@ private:
             
         for (const auto& cellInfo : request.hive_cells()) {
             auto cellId = FromProto<TCellId>(cellInfo.cell_id());
-            if (cellId == Bootstrap->GetCellId())
+            if (cellId == Bootstrap_->GetCellId())
                 continue;
 
             auto* cell = FindTabletCell(cellId);
@@ -1037,10 +1037,10 @@ private:
         if (!IsObjectAlive(cell))
             return;
 
-        auto hydraFacade = Bootstrap->GetHydraFacade();
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
         auto hydraManager = hydraFacade->GetHydraManager();
         auto* mutationContext = hydraManager->GetMutationContext();
-        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
 
         YCHECK(request.node_ids_size() == cell->Peers().size());
         for (TPeerId peerId = 0; peerId < request.node_ids_size(); ++peerId) {
@@ -1147,7 +1147,7 @@ private:
             tablet->GetId(),
             cell->GetId());
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         tablet->SetState(ETabletState::Unmounted);
         tablet->SetCell(nullptr);
 
@@ -1177,7 +1177,7 @@ private:
         if (!IsObjectAlive(table))
             return;
 
-        auto cypressManager = Bootstrap->GetCypressManager();
+        auto cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetModified(table, nullptr);
 
         TRspUpdateTabletStores response;
@@ -1186,8 +1186,8 @@ private:
         response.mutable_stores_to_remove()->MergeFrom(request.stores_to_remove());
 
         try {
-            auto chunkManager = Bootstrap->GetChunkManager();
-            auto securityManager = Bootstrap->GetSecurityManager();
+            auto chunkManager = Bootstrap_->GetChunkManager();
+            auto securityManager = Bootstrap_->GetSecurityManager();
 
             // Collect all changes first.
             std::vector<TChunkTree*> chunksToAttach;
@@ -1244,7 +1244,7 @@ private:
             ToProto(response.mutable_error(), error);
         }
 
-        auto hiveManager = Bootstrap->GetHiveManager();
+        auto hiveManager = Bootstrap_->GetHiveManager();
         auto* mailbox = hiveManager->GetMailbox(cell->GetId());
         hiveManager->PostMessage(mailbox, response);
     }
@@ -1256,7 +1256,7 @@ private:
 
         TabletTracker_->Start();
 
-        auto cellDirectory = Bootstrap->GetCellDirectory();
+        auto cellDirectory = Bootstrap_->GetCellDirectory();
         cellDirectory->Clear();
 
         for (const auto& pair : TabletCellMap_) {
@@ -1265,7 +1265,7 @@ private:
         }
 
         CleanupExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker(),
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
             BIND(&TImpl::OnCleanup, MakeWeak(this)),
             CleanupPeriod);
         CleanupExecutor_->Start();
@@ -1304,7 +1304,7 @@ private:
 
     void UpdateCellDirectory(TTabletCell* cell)
     {
-        auto cellDirectory = Bootstrap->GetCellDirectory();
+        auto cellDirectory = Bootstrap_->GetCellDirectory();
         cellDirectory->RegisterCell(
             cell->GetConfig()->ToElection(cell->GetId()),
             cell->GetConfigVersion());
@@ -1344,7 +1344,7 @@ private:
                 return lhs->GetId() < rhs->GetId();
             });
 
-        auto* mutationContext = Bootstrap->GetHydraFacade()->GetHydraManager()->GetMutationContext();
+        auto* mutationContext = Bootstrap_->GetHydraFacade()->GetHydraManager()->GetMutationContext();
         int index = mutationContext->RandomGenerator().Generate<size_t>() % cells.size();
         return cells[index];
     }
@@ -1369,7 +1369,7 @@ private:
 
                 tablet->SetState(ETabletState::Unmounting);
 
-                auto hiveManager = Bootstrap->GetHiveManager();
+                auto hiveManager = Bootstrap_->GetHiveManager();
 
                 {
                     TReqUnmountTablet request;
@@ -1392,7 +1392,7 @@ private:
         TYsonString* serializedMountConfig,
         TYsonString* serializedWriterOptions)
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto tableProxy = objectManager->GetProxy(table);
         const auto& tableAttributes = tableProxy->Attributes();
 
@@ -1450,7 +1450,7 @@ private:
 
     IMapNodePtr GetCellMapNode()
     {
-        auto cypressManager = Bootstrap->GetCypressManager();
+        auto cypressManager = Bootstrap_->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
         return resolver->ResolvePath("//sys/tablet_cells")->AsMap();
     }
@@ -1458,7 +1458,7 @@ private:
 
     void OnCleanup()
     {
-        auto cypressManager = Bootstrap->GetCypressManager();
+        auto cypressManager = Bootstrap_->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
         for (const auto& pair : TabletCellMap_) {
             const auto& cellId = pair.first;
@@ -1490,7 +1490,7 @@ private:
             std::sort(snapshotIds.begin(), snapshotIds.end());
             int thresholdId = snapshotIds[snapshotIds.size() - Config_->MaxSnapshotsToKeep];
 
-            auto objectManager = Bootstrap->GetObjectManager();
+            auto objectManager = Bootstrap_->GetObjectManager();
             auto rootService = objectManager->GetRootService();
 
             for (const auto& key : snapshotKeys) {
@@ -1561,7 +1561,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TTabletId, T
 ///////////////////////////////////////////////////////////////////////////////
 
 TTabletManager::TTabletCellTypeHandler::TTabletCellTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->TabletCellMap_)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->TabletCellMap_)
     , Owner_(owner)
 { }
 
@@ -1585,7 +1585,7 @@ void TTabletManager::TTabletCellTypeHandler::DoDestroy(TTabletCell* cell)
 ///////////////////////////////////////////////////////////////////////////////
 
 TTabletManager::TTabletTypeHandler::TTabletTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->TabletMap_)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->TabletMap_)
     , Owner_(owner)
 { }
 

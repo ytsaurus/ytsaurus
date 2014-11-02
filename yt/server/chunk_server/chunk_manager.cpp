@@ -254,7 +254,7 @@ public:
         TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap)
         , Config_(config)
-        , ChunkTreeBalancer_(Bootstrap)
+        , ChunkTreeBalancer_(Bootstrap_)
         , Profiler(ChunkServerProfiler)
         , AddChunkCounter_("/add_chunk_rate")
         , RemoveChunkCounter_("/remove_chunk_rate")
@@ -282,13 +282,13 @@ public:
 
     void Initialize()
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TChunkTypeHandler>(this));
         objectManager->RegisterHandler(New<TErasureChunkTypeHandler>(this));
         objectManager->RegisterHandler(New<TJournalChunkTypeHandler>(this));
         objectManager->RegisterHandler(New<TChunkListTypeHandler>(this));
 
-        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeRemoved(BIND(&TImpl::OnNodeRemoved, MakeWeak(this)));
@@ -297,7 +297,7 @@ public:
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap->GetHydraFacade()->GetAutomatonInvoker(),
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             ProfilingPeriod);
         ProfilingExecutor_->Start();
@@ -308,7 +308,7 @@ public:
         const NProto::TReqUpdateChunkProperties& request)
     {
         return CreateMutation(
-            Bootstrap->GetHydraFacade()->GetHydraManager(),
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
             this,
             &TImpl::UpdateChunkProperties);
@@ -332,7 +332,7 @@ public:
     TChunk* CreateChunk(EObjectType type)
     {
         Profiler.Increment(AddChunkCounter_);
-        auto id = Bootstrap->GetObjectManager()->GenerateId(type);
+        auto id = Bootstrap_->GetObjectManager()->GenerateId(type);
         auto* chunk = new TChunk(id);
         ChunkMap_.Insert(id, chunk);
         return chunk;
@@ -340,7 +340,7 @@ public:
 
     TChunkList* CreateChunkList()
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::ChunkList);
         auto* chunkList = new TChunkList(id);
         ChunkListMap_.Insert(id, chunkList);
@@ -361,7 +361,7 @@ public:
                 chunkList->GetId());
         }
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         NChunkServer::AttachToChunkList(
             chunkList,
             childrenBegin,
@@ -397,7 +397,7 @@ public:
         TChunkTree** childrenBegin,
         TChunkTree** childrenEnd)
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         NChunkServer::DetachFromChunkList(
             chunkList,
             childrenBegin,
@@ -455,9 +455,9 @@ public:
         chunk->ChunkInfo().Swap(chunkInfo);
         chunk->ChunkMeta().Swap(chunkMeta);
 
-        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
 
-        auto* mutationContext = Bootstrap->GetHydraFacade()->GetHydraManager()->GetMutationContext();
+        auto* mutationContext = Bootstrap_->GetHydraFacade()->GetHydraManager()->GetMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
         for (auto replica : replicas) {
@@ -495,7 +495,7 @@ public:
         if (chunk->IsStaged() && !chunk->IsJournal()) {
             auto* stagingTransaction = chunk->GetStagingTransaction();
             auto* stagingAccount = chunk->GetStagingAccount();
-            auto securityManager = Bootstrap->GetSecurityManager();
+            auto securityManager = Bootstrap_->GetSecurityManager();
             auto delta = chunk->GetResourceUsage();
             securityManager->UpdateAccountStagingUsage(stagingTransaction, stagingAccount, delta);
         }
@@ -513,7 +513,7 @@ public:
         if (chunk->IsStaged() && chunk->IsConfirmed() && !chunk->IsJournal()) {
             auto* stagingTransaction = chunk->GetStagingTransaction();
             auto* stagingAccount = chunk->GetStagingAccount();
-            auto securityManager = Bootstrap->GetSecurityManager();
+            auto securityManager = Bootstrap_->GetSecurityManager();
             auto delta = -chunk->GetResourceUsage();
             securityManager->UpdateAccountStagingUsage(stagingTransaction, stagingAccount, delta);
         }
@@ -528,7 +528,7 @@ public:
         chunkList->SetStagingAccount(nullptr);
 
         if (recursive) {
-            auto transactionManager = Bootstrap->GetTransactionManager();
+            auto transactionManager = Bootstrap_->GetTransactionManager();
             for (auto* child : chunkList->Children()) {
                 transactionManager->UnstageObject(child, recursive);
             }
@@ -563,7 +563,7 @@ public:
         YCHECK(chunkList->Parents().empty());
         chunkList->IncrementVersion();
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         for (auto* child : chunkList->Children()) {
             ResetChunkTreeParent(chunkList, child);
             objectManager->UnrefObject(child);
@@ -722,7 +722,7 @@ public:
             });
 
         auto owningNodes = GetOwningNodes(chunk);
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Bootstrap_->GetSecurityManager();
         for (auto* node : owningNodes) {
             securityManager->UpdateAccountNodeUsage(node);
         }
@@ -829,7 +829,7 @@ private:
 
     void DestroyChunkList(TChunkList* chunkList)
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         // Drop references to children.
         for (auto* child : chunkList->Children()) {
             ResetChunkTreeParent(chunkList, child);
@@ -916,7 +916,7 @@ private:
             ProcessRemovedChunk(node, chunkInfo);
         }
 
-        auto* mutationContext = Bootstrap->GetHydraFacade()->GetHydraManager()->GetMutationContext();
+        auto* mutationContext = Bootstrap_->GetHydraFacade()->GetHydraManager()->GetMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
         auto& unapprovedReplicas = node->UnapprovedReplicas();
@@ -1010,7 +1010,7 @@ private:
     virtual void OnAfterSnapshotLoaded() override
     {
         // Compute chunk replica count.
-        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
         TotalReplicaCount_ = 0;
         for (const auto& pair : nodeTracker->Nodes()) {
             auto* node = pair.second;
@@ -1138,9 +1138,9 @@ private:
     {
         LOG_INFO("Scheduling full chunk refresh");
         PROFILE_TIMING ("/full_chunk_refresh_schedule_time") {
-            ChunkPlacement_ = New<TChunkPlacement>(Config_, Bootstrap);
-            ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap, ChunkPlacement_);
-            ChunkSealer_ = New<TChunkSealer>(Config_, Bootstrap);
+            ChunkPlacement_ = New<TChunkPlacement>(Config_, Bootstrap_);
+            ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_);
+            ChunkSealer_ = New<TChunkSealer>(Config_, Bootstrap_);
         }
         LOG_INFO("Full chunk refresh scheduled");
     }
@@ -1377,7 +1377,7 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, QuorumMissi
 ///////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkTypeHandlerBase::TChunkTypeHandlerBase(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->ChunkMap_)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->ChunkMap_)
     , Owner_(owner)
 { }
 
@@ -1452,7 +1452,7 @@ void TChunkManager::TChunkTypeHandlerBase::DoUnstage(
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->ChunkListMap_)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->ChunkListMap_)
     , Owner_(owner)
 { }
 

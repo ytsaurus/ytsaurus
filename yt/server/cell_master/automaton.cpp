@@ -30,7 +30,7 @@ TMasterAutomatonPart::TMasterAutomatonPart(TBootstrap* bootstrap)
     : TCompositeAutomatonPart(
         bootstrap->GetHydraFacade()->GetHydraManager(),
         bootstrap->GetHydraFacade()->GetAutomaton())
-    , Bootstrap(bootstrap)
+    , Bootstrap_(bootstrap)
 { }
 
 bool TMasterAutomatonPart::ValidateSnapshotVersion(int version)
@@ -52,7 +52,7 @@ void TMasterAutomatonPart::RegisterSaver(
         priority,
         name,
         BIND([=] () {
-            auto& context = Bootstrap->GetHydraFacade()->GetAutomaton()->SaveContext();
+            auto& context = Bootstrap_->GetHydraFacade()->GetAutomaton()->SaveContext();
             saver.Run(context);
         }));
 }
@@ -64,7 +64,7 @@ void TMasterAutomatonPart::RegisterLoader(
     TCompositeAutomatonPart::RegisterLoader(
         name,
         BIND([=] () {
-            auto& context = Bootstrap->GetHydraFacade()->GetAutomaton()->LoadContext();
+            auto& context = Bootstrap_->GetHydraFacade()->GetAutomaton()->LoadContext();
             loader.Run(context);
         }));
 }

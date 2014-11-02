@@ -196,7 +196,7 @@ class TTransactionManager::TTransactionTypeHandler
 {
 public:
     explicit TTransactionTypeHandler(TTransactionManager* owner)
-        : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->TransactionMap)
+        : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->TransactionMap)
     { }
 
     virtual EObjectType GetType() const override
@@ -258,7 +258,7 @@ TTransactionManager::TTransactionManager(
     : TMasterAutomatonPart(bootstrap)
     , Config(config)
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
     RegisterLoader(
         "TransactionManager.Keys",
@@ -279,7 +279,7 @@ TTransactionManager::TTransactionManager(
 
 void TTransactionManager::Initialize()
 {
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
     objectManager->RegisterHandler(New<TTransactionTypeHandler>(this));
 }
 
@@ -287,7 +287,7 @@ TTransaction* TTransactionManager::StartTransaction(TTransaction* parent, TNulla
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
     auto id = objectManager->GenerateId(EObjectType::Transaction);
 
     auto* transaction = new TTransaction(id);
@@ -313,7 +313,7 @@ TTransaction* TTransactionManager::StartTransaction(TTransaction* parent, TNulla
 
     transaction->SetState(ETransactionState::Active);
 
-    auto* mutationContext = Bootstrap
+    auto* mutationContext = Bootstrap_
         ->GetHydraFacade()
         ->GetHydraManager()
         ->GetMutationContext();
@@ -365,7 +365,7 @@ void TTransactionManager::AbortTransaction(TTransaction* transaction, bool force
         transaction->ThrowInvalidState();
     }
 
-    auto securityManager = Bootstrap->GetSecurityManager();
+    auto securityManager = Bootstrap_->GetSecurityManager();
     securityManager->ValidatePermission(transaction, EPermission::Write);
 
     auto id = transaction->GetId();
@@ -395,7 +395,7 @@ void TTransactionManager::FinishTransaction(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
 
     for (auto* object : transaction->StagedObjects()) {
         auto handler = objectManager->GetHandler(object);
@@ -566,7 +566,7 @@ void TTransactionManager::OnStopLeading()
 
 void TTransactionManager::CreateLease(TTransaction* transaction, TDuration timeout)
 {
-    auto hydraFacade = Bootstrap->GetHydraFacade();
+    auto hydraFacade = Bootstrap_->GetHydraFacade();
     auto lease = TLeaseManager::CreateLease(
         timeout,
         BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction->GetId())
@@ -592,7 +592,7 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
 
     LOG_DEBUG("Transaction lease expired (TransactionId: %v)", id);
 
-    auto transactionSupervisor = Bootstrap->GetTransactionSupervisor();
+    auto transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
     transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (const TError& error) {
         if (!error.IsOK()) {
             LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
@@ -620,7 +620,7 @@ void TTransactionManager::StageObject(TTransaction* transaction, TObjectBase* ob
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
     YCHECK(transaction->StagedObjects().insert(object).second);
     objectManager->RefObject(object);
 }
@@ -629,7 +629,7 @@ void TTransactionManager::UnstageObject(TObjectBase* object, bool recursive)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
     auto handler = objectManager->GetHandler(object);
     auto* transaction = handler->GetStagingTransaction(object);
 
@@ -645,7 +645,7 @@ void TTransactionManager::StageNode(TTransaction* transaction, TCypressNodeBase*
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
     transaction->StagedNodes().push_back(node);
     objectManager->RefObject(node);
 }
@@ -662,7 +662,7 @@ void TTransactionManager::PrepareTransactionCommit(
         transaction->ThrowInvalidState();
     }
 
-    auto securityManager = Bootstrap->GetSecurityManager();
+    auto securityManager = Bootstrap_->GetSecurityManager();
     securityManager->ValidatePermission(transaction, EPermission::Write);
 
     if (!transaction->NestedTransactions().empty()) {

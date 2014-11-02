@@ -346,7 +346,7 @@ class TCypressManager::TLockTypeHandler
 {
 public:
     explicit TLockTypeHandler(TCypressManager* owner)
-        : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->LockMap)
+        : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->LockMap)
     { }
 
     virtual EObjectType GetType() const override
@@ -445,18 +445,18 @@ TCypressManager::TCypressManager(
 {
     VERIFY_INVOKER_AFFINITY(bootstrap->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
-    auto cellTag = Bootstrap->GetCellTag();
+    auto cellTag = Bootstrap_->GetCellTag();
     RootNodeId = MakeWellKnownId(EObjectType::MapNode, cellTag);
 
-    RegisterHandler(New<TStringNodeTypeHandler>(Bootstrap));
-    RegisterHandler(New<TInt64NodeTypeHandler>(Bootstrap));
-    RegisterHandler(New<TUint64NodeTypeHandler>(Bootstrap));
-    RegisterHandler(New<TDoubleNodeTypeHandler>(Bootstrap));
-    RegisterHandler(New<TBooleanNodeTypeHandler>(Bootstrap));
-    RegisterHandler(New<TMapNodeTypeHandler>(Bootstrap));
-    RegisterHandler(New<TListNodeTypeHandler>(Bootstrap));
-    RegisterHandler(New<TLinkNodeTypeHandler>(Bootstrap));
-    RegisterHandler(New<TDocumentNodeTypeHandler>(Bootstrap));
+    RegisterHandler(New<TStringNodeTypeHandler>(Bootstrap_));
+    RegisterHandler(New<TInt64NodeTypeHandler>(Bootstrap_));
+    RegisterHandler(New<TUint64NodeTypeHandler>(Bootstrap_));
+    RegisterHandler(New<TDoubleNodeTypeHandler>(Bootstrap_));
+    RegisterHandler(New<TBooleanNodeTypeHandler>(Bootstrap_));
+    RegisterHandler(New<TMapNodeTypeHandler>(Bootstrap_));
+    RegisterHandler(New<TListNodeTypeHandler>(Bootstrap_));
+    RegisterHandler(New<TLinkNodeTypeHandler>(Bootstrap_));
+    RegisterHandler(New<TDocumentNodeTypeHandler>(Bootstrap_));
 
     RegisterLoader(
         "Cypress.Keys",
@@ -479,7 +479,7 @@ TCypressManager::TCypressManager(
 
 void TCypressManager::Initialize()
 {
-    auto transactionManager = Bootstrap->GetTransactionManager();
+    auto transactionManager = Bootstrap_->GetTransactionManager();
     transactionManager->SubscribeTransactionCommitted(BIND(
         &TCypressManager::OnTransactionCommitted,
         MakeStrong(this)));
@@ -487,7 +487,7 @@ void TCypressManager::Initialize()
         &TCypressManager::OnTransactionAborted,
         MakeStrong(this)));
 
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
     objectManager->RegisterHandler(New<TLockTypeHandler>(this));
 }
 
@@ -503,8 +503,8 @@ void TCypressManager::RegisterHandler(INodeTypeHandlerPtr handler)
     YCHECK(!TypeToHandler[typeValue]);
     TypeToHandler[typeValue] = handler;
 
-    auto objectManager = Bootstrap->GetObjectManager();
-    objectManager->RegisterHandler(New<TNodeTypeHandler>(Bootstrap, type));
+    auto objectManager = Bootstrap_->GetObjectManager();
+    objectManager->RegisterHandler(New<TNodeTypeHandler>(Bootstrap_, type));
 }
 
 INodeTypeHandlerPtr TCypressManager::FindHandler(EObjectType type)
@@ -537,7 +537,7 @@ TMutationPtr TCypressManager::CreateUpdateAccessStatisticsMutation(
     const NProto::TReqUpdateAccessStatistics& request)
 {
    return CreateMutation(
-        Bootstrap->GetHydraFacade()->GetHydraManager(),
+        Bootstrap_->GetHydraFacade()->GetHydraManager(),
         request,
         this,
         &TCypressManager::UpdateAccessStatistics);
@@ -549,7 +549,7 @@ ICypressNodeFactoryPtr TCypressManager::CreateNodeFactory(
     bool preserveAccount)
 {
     return New<TNodeFactory>(
-        Bootstrap,
+        Bootstrap_,
         transaction,
         account,
         preserveAccount);
@@ -569,7 +569,7 @@ TCypressNodeBase* TCypressManager::CreateNode(
     RegisterNode(node);
 
     // Set account.
-    auto securityManager = Bootstrap->GetSecurityManager();
+    auto securityManager = Bootstrap_->GetSecurityManager();
     auto* account = factory->GetNewNodeAccount();
     securityManager->SetAccount(node, account);
 
@@ -603,7 +603,7 @@ TCypressNodeBase* TCypressManager::CloneNode(
     YCHECK(factory);
 
     // Validate account access _before_ creating the actual copy.
-    auto securityManager = Bootstrap->GetSecurityManager();
+    auto securityManager = Bootstrap_->GetSecurityManager();
     auto* account = factory->GetClonedNodeAccount(sourceNode);
     securityManager->ValidatePermission(account, EPermission::Use);
 
@@ -647,7 +647,7 @@ INodeResolverPtr TCypressManager::CreateResolver(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    return New<TYPathResolver>(Bootstrap, transaction);
+    return New<TYPathResolver>(Bootstrap_, transaction);
 }
 
 TCypressNodeBase* TCypressManager::FindNode(
@@ -982,7 +982,7 @@ TLock* TCypressManager::DoCreateLock(
     TTransaction* transaction,
     const TLockRequest& request)
 {
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
 
     auto id = objectManager->GenerateId(EObjectType::Lock);
 
@@ -1197,8 +1197,8 @@ TCypressNodeBase* TCypressManager::BranchNode(
     YCHECK(transaction);
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto securityManager = Bootstrap->GetSecurityManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
+    auto securityManager = Bootstrap_->GetSecurityManager();
 
     const auto& id = originatingNode->GetId();
 
@@ -1315,7 +1315,7 @@ void TCypressManager::InitBuiltin()
     RootNode = FindNode(TVersionedNodeId(RootNodeId));
     if (!RootNode) {
         // Create the root.
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Bootstrap_->GetSecurityManager();
         RootNode = new TMapNode(TVersionedNodeId(RootNodeId));
         RootNode->SetTrunkNode(RootNode);
         RootNode->SetAccount(securityManager->GetSysAccount());
@@ -1362,9 +1362,9 @@ void TCypressManager::RegisterNode(TCypressNodeBase* node)
 
     const auto& nodeId = node->GetId();
 
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
 
-    auto* mutationContext = Bootstrap
+    auto* mutationContext = Bootstrap_
         ->GetHydraFacade()
         ->GetHydraManager()
         ->GetMutationContext();
@@ -1397,7 +1397,7 @@ void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)
     TCypressNodeBase::TLockStateMap lockStateMap;
     trunkNode->LockStateMap().swap(lockStateMap);
 
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
 
     for (auto* lock : acquiredLocks) {
         lock->SetTrunkNode(nullptr);
@@ -1441,7 +1441,7 @@ void TCypressManager::OnTransactionAborted(TTransaction* transaction)
 void TCypressManager::ReleaseLocks(TTransaction* transaction, bool promote)
 {
     auto* parentTransaction = transaction->GetParent();
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
 
     TTransaction::TLockSet locks;
     transaction->Locks().swap(locks);
@@ -1498,7 +1498,7 @@ void TCypressManager::ListSubtreeNodes(
 {
     YCHECK(trunkNode->IsTrunk());
 
-    auto transactionManager = Bootstrap->GetTransactionManager();
+    auto transactionManager = Bootstrap_->GetTransactionManager();
 
     if (includeRoot) {
         subtreeNodes->push_back(trunkNode);
@@ -1551,8 +1551,8 @@ void TCypressManager::MergeNode(
     TTransaction* transaction,
     TCypressNodeBase* branchedNode)
 {
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto securityManager = Bootstrap->GetSecurityManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
+    auto securityManager = Bootstrap_->GetSecurityManager();
 
     auto handler = GetHandler(branchedNode);
 
@@ -1606,7 +1606,7 @@ void TCypressManager::MergeNodes(TTransaction* transaction)
 
 void TCypressManager::RemoveBranchedNode(TCypressNodeBase* branchedNode)
 {
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
 
     auto handler = GetHandler(branchedNode);
 
