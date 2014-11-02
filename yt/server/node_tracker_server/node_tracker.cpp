@@ -515,12 +515,6 @@ private:
     {
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
-            if (!node->GetTransaction()) {
-                LOG_INFO("Missing node transaction, retrying unregistration (NodeId: %v, Address: %v)",
-                    node->GetId(),
-                    node->GetAddress());
-                PostUnregisterNodeMutation(node);
-            }
             if (node->GetState() == ENodeState::Unregistered) {
                 NodeRemovalQueue_.push_back(node);
             }
@@ -552,14 +546,14 @@ private:
         YCHECK(TransactionToNodeMap_.insert(std::make_pair(transaction, node)).second);
     }
 
-    void UnregisterLeaseTransaction(TNode* node)
+    TTransaction* UnregisterLeaseTransaction(TNode* node)
     {
         auto* transaction = node->GetTransaction();
-        if (!transaction)
-            return;
-
-        YCHECK(TransactionToNodeMap_.erase(transaction) == 1);
+        if (transaction) {
+            YCHECK(TransactionToNodeMap_.erase(transaction) == 1);
+        }
         node->SetTransaction(nullptr);
+        return transaction;
     }
 
     void RenewNodeLease(TNode* node)
@@ -612,11 +606,7 @@ private:
             node->GetId(),
             node->GetAddress());
 
-        UnregisterLeaseTransaction(node);
-
-        if (IsLeader()) {
-            PostUnregisterNodeMutation(node);
-        }
+        DoUnregisterNode(node, true);
     }
 
 
@@ -723,11 +713,11 @@ private:
     void DoUnregisterNode(TNode* node, bool scheduleRemoval)
     {
         PROFILE_TIMING ("/node_unregister_time") {
-            auto* transaction = node->GetTransaction();
-            UnregisterLeaseTransaction(node);
-            
+            auto* transaction = UnregisterLeaseTransaction(node);
             if (transaction && transaction->GetState() == ETransactionState::Active) {
                 auto transactionManager = Bootstrap_->GetTransactionManager();
+                // NB: This will trigger OnTransactionFinished, however we've already evicted the
+                // lease so the latter call is no-op.
                 transactionManager->AbortTransaction(transaction, false);
             }
 
