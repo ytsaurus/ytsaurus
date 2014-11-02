@@ -835,5 +835,5 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NChunkServer
-} // NYT
+} // namespace NChunkServer
+} // namespace NYT
