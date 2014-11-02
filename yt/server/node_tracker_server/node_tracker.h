@@ -73,6 +73,9 @@ public:
     //! Fired when a node gets unregistered.
     DECLARE_SIGNAL(void(TNode* node), NodeUnregistered);
 
+    //! Fired when a node gets removed.
+    DECLARE_SIGNAL(void(TNode* node), NodeRemoved);
+
     //! Fired when node configuration changes.
     DECLARE_SIGNAL(void(TNode* node), NodeConfigUpdated);
 
@@ -118,7 +121,7 @@ public:
 private:
     class TImpl;
     
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
 

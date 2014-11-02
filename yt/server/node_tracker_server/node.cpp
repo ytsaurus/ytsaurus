@@ -58,7 +58,6 @@ TNode::TNode(TNodeId id)
 
 void TNode::Init()
 {
-    UnregisterPending_ = false;
     VisitMark_ = 0;
     LoadRank_ = -1;
     Transaction_ = nullptr;

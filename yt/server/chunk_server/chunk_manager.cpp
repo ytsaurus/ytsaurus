@@ -291,6 +291,7 @@ public:
         auto nodeTracker = Bootstrap->GetNodeTracker();
         nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeRemoved(BIND(&TImpl::OnNodeRemoved, MakeWeak(this)));
         nodeTracker->SubscribeNodeConfigUpdated(BIND(&TImpl::OnNodeConfigUpdated, MakeWeak(this)));
         nodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnFullHeartbeat, MakeWeak(this)));
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
@@ -850,20 +851,23 @@ private:
 
     void OnNodeUnregistered(TNode* node)
     {
-        for (auto replica : node->StoredReplicas()) {
-            RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::NodeUnregistered);
-        }
-
-        for (auto replica : node->CachedReplicas()) {
-            RemoveChunkReplica(node, replica, true, ERemoveReplicaReason::NodeUnregistered);
-        }
-
         if (ChunkPlacement_) {
             ChunkPlacement_->OnNodeUnregistered(node);
         }
 
         if (ChunkReplicator_) {
             ChunkReplicator_->OnNodeUnregistered(node);
+        }
+    }
+
+    void OnNodeRemoved(TNode* node)
+    {
+        for (auto replica : node->StoredReplicas()) {
+            RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::NodeRemoved);
+        }
+
+        for (auto replica : node->CachedReplicas()) {
+            RemoveChunkReplica(node, replica, true, ERemoveReplicaReason::NodeRemoved);
         }
     }
 
@@ -1202,7 +1206,7 @@ private:
         (IncrementalHeartbeat)
         (FailedToApprove)
         (ChunkIsDead)
-        (NodeUnregistered)
+        (NodeRemoved)
     );
 
     void RemoveChunkReplica(TNode* node, TChunkPtrWithIndex chunkWithIndex, bool cached, ERemoveReplicaReason reason)
@@ -1227,7 +1231,7 @@ private:
             case ERemoveReplicaReason::ChunkIsDead:
                 node->RemoveReplica(chunkWithIndex, cached);
                 break;
-            case ERemoveReplicaReason::NodeUnregistered:
+            case ERemoveReplicaReason::NodeRemoved:
                 // Do nothing.
                 break;
             default:
@@ -1238,7 +1242,7 @@ private:
         if (!IsRecovery()) {
             LOG_EVENT(
                 Logger,
-                reason == ERemoveReplicaReason::NodeUnregistered ||
+                reason == ERemoveReplicaReason::NodeRemoved ||
                 reason == ERemoveReplicaReason::ChunkIsDead
                 ? NLog::ELogLevel::Trace : NLog::ELogLevel::Debug,
                 "Chunk replica removed (ChunkId: %v, Cached: %v, Reason: %v, NodeId: %v, Address: %v)",

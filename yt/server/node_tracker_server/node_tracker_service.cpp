@@ -75,13 +75,13 @@ private:
         auto nodeTracker = Bootstrap->GetNodeTracker();
         int fullHeartbeatQueueSize = FullHeartbeatMethodInfo->QueueSizeCounter.Current;
         int registeredNodeCount = nodeTracker->GetRegisteredNodeCount();
-        if (fullHeartbeatQueueSize + registeredNodeCount > Config->MaxFullHeartbeatQueueSizeLimit) {
+        if (fullHeartbeatQueueSize + registeredNodeCount > Config->MaxFullHeartbeatQueueSize) {
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Full heartbeat throttling is active")
                 << TErrorAttribute("queue_size", fullHeartbeatQueueSize)
                 << TErrorAttribute("registered_node_count", registeredNodeCount)
-                << TErrorAttribute("limit", Config->MaxFullHeartbeatQueueSizeLimit));
+                << TErrorAttribute("limit", Config->MaxFullHeartbeatQueueSize));
             return;
         }
 

@@ -312,7 +312,7 @@ bool TChunkPlacement::IsValidWriteTarget(
     EObjectType chunkType)
 {
     if (node->GetState() != ENodeState::Online) {
-        // Do not write anything to nodes before first heartbeat.
+        // Do not write anything to a node before its first heartbeat or after the it is unregistered.
         return false;
     }
 

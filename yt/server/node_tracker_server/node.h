@@ -29,6 +29,8 @@ DECLARE_ENUM(ENodeState,
     (Registered)
     // Registered and reported the first heartbeat.
     (Online)
+    // Known but unregistered, placed into removal queue.
+    (Unregistered)
 );
 
 class TNode
@@ -41,8 +43,7 @@ public:
     typedef NChunkServer::TJobPtr TJobPtr;
 
     // Transient properties.
-    DEFINE_BYVAL_RW_PROPERTY(bool, UnregisterPending);
-    DEFINE_BYVAL_RW_PROPERTY(TAtomic, VisitMark);
+    DEFINE_BYVAL_RW_PROPERTY(ui64, VisitMark);
     DEFINE_BYVAL_RW_PROPERTY(int, LoadRank);
 
     DEFINE_BYVAL_RO_PROPERTY(TNodeId, Id);

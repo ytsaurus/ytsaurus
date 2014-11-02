@@ -16,6 +16,7 @@ namespace NNodeTrackerServer {
 namespace NProto {
 
 class TReqUnregisterNode;
+class TReqRemoveNode;
 
 } // namespace NProto
 

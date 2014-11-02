@@ -35,6 +35,8 @@
 #include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/serialize.h>
 
+#include <deque>
+
 namespace NYT {
 namespace NNodeTrackerServer {
 
@@ -65,12 +67,11 @@ public:
         TNodeTrackerConfigPtr config,
         TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap)
-        , Config(config)
-        , OnlineNodeCount(0)
-        , RegisteredNodeCount(0)
+        , Config_(config)
     {
         RegisterMethod(BIND(&TImpl::HydraRegisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnregisterNode, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraRemoveNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFullHeartbeat, Unretained(this), nullptr));
         RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this), nullptr, nullptr));
 
@@ -111,6 +112,14 @@ public:
 
     TMutationPtr CreateUnregisterNodeMutation(
         const TReqUnregisterNode& request)
+    {
+        return CreateMutation(
+            Bootstrap->GetHydraFacade()->GetHydraManager(),
+            request);
+    }
+
+    TMutationPtr CreateRemoveNodeMutation(
+        const TReqRemoveNode& request)
     {
         return CreateMutation(
             Bootstrap->GetHydraFacade()->GetHydraManager(),
@@ -162,6 +171,7 @@ public:
 
     DEFINE_SIGNAL(void(TNode* node), NodeRegistered);
     DEFINE_SIGNAL(void(TNode* node), NodeUnregistered);
+    DEFINE_SIGNAL(void(TNode* node), NodeRemoved);
     DEFINE_SIGNAL(void(TNode* node), NodeConfigUpdated);
     DEFINE_SIGNAL(void(TNode* node, const TReqFullHeartbeat& request), FullHeartbeat);
     DEFINE_SIGNAL(void(TNode* node, const TReqIncrementalHeartbeat& request, TRspIncrementalHeartbeat* response), IncrementalHeartbeat);
@@ -169,8 +179,8 @@ public:
 
     TNode* FindNodeByAddress(const Stroka& address)
     {
-        auto it = AddressToNodeMap.find(address);
-        return it == AddressToNodeMap.end() ? nullptr : it->second;
+        auto it = AddressToNodeMap_.find(address);
+        return it == AddressToNodeMap_.end() ? nullptr : it->second;
     }
 
     TNode* GetNodeByAddress(const Stroka& address)
@@ -182,8 +192,8 @@ public:
 
     TNode* FindNodeByHostName(const Stroka& hostName)
     {
-        auto it = HostNameToNodeMap.find(hostName);
-        return it == AddressToNodeMap.end() ? nullptr : it->second;
+        auto it = HostNameToNodeMap_.find(hostName);
+        return it == AddressToNodeMap_.end() ? nullptr : it->second;
     }
 
     TNode* GetNodeOrThrow(TNodeId id)
@@ -224,7 +234,7 @@ public:
     TTotalNodeStatistics GetTotalNodeStatistics()
     {
         TTotalNodeStatistics result;
-        for (const auto& pair : NodeMap) {
+        for (const auto& pair : NodeMap_) {
             const auto* node = pair.second;
             const auto& statistics = node->Statistics();
             result.AvailableSpace += statistics.total_available_space();
@@ -237,38 +247,41 @@ public:
 
     int GetRegisteredNodeCount()
     {
-        return RegisteredNodeCount;
+        return RegisteredNodeCount_;
     }
 
     int GetOnlineNodeCount()
     {
-        return OnlineNodeCount;
+        return OnlineNodeCount_;
     }
 
 private:
-    TNodeTrackerConfigPtr Config;
+    TNodeTrackerConfigPtr Config_;
 
-    int OnlineNodeCount;
-    int RegisteredNodeCount;
+    TIdGenerator NodeIdGenerator_;
+    NHydra::TEntityMap<TNodeId, TNode> NodeMap_;
 
-    TIdGenerator NodeIdGenerator;
+    int OnlineNodeCount_ = 0;
+    int RegisteredNodeCount_ = 0;
 
-    NHydra::TEntityMap<TNodeId, TNode> NodeMap;
-    yhash_map<Stroka, TNode*> AddressToNodeMap;
-    yhash_multimap<Stroka, TNode*> HostNameToNodeMap;
-    yhash_map<TTransaction*, TNode*> TransactionToNodeMap;
+    yhash_map<Stroka, TNode*> AddressToNodeMap_;
+    yhash_multimap<Stroka, TNode*> HostNameToNodeMap_;
+    yhash_map<TTransaction*, TNode*> TransactionToNodeMap_;
+
+    std::deque<TNode*> NodeRemovalQueue_;
+    int PendingRemoveNodeMutationCount_ = 0;
 
 
     TNodeId GenerateNodeId()
     {
         TNodeId id;
         while (true) {
-            id = NodeIdGenerator.Next();
+            id = NodeIdGenerator_.Next();
             // Beware of sentinels!
             if (id == InvalidNodeId) {
                 // Just wait for the next attempt.
             } else if (id > MaxNodeId) {
-                NodeIdGenerator.Reset();
+                NodeIdGenerator_.Reset();
             } else {
                 break;
             }
@@ -307,7 +320,8 @@ private:
                 LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %v, ExistingId: %v)",
                     address,
                     existingNode->GetId());
-                DoUnregisterNode(existingNode);
+                DoUnregisterNode(existingNode, false);
+                DoRemoveNode(existingNode);
             }
         }
 
@@ -322,33 +336,48 @@ private:
     {
         auto nodeId = request.node_id();
 
-        // Allow nodeId to be invalid, just ignore such obsolete requests.
         auto* node = FindNode(nodeId);
         if (!node)
             return;
+        if (node->GetState() != ENodeState::Registered && node->GetState() != ENodeState::Online)
+            return;
 
-        DoUnregisterNode(node);
+        DoUnregisterNode(node, true);
+    }
+
+    void HydraRemoveNode(const TReqRemoveNode& request)
+    {
+        auto nodeId = request.node_id();
+
+        auto* node = FindNode(nodeId);
+        if (!node)
+            return;
+        if (node->GetState() != ENodeState::Unregistered)
+            return;
+
+        DoRemoveNode(node);
     }
 
     void HydraFullHeartbeat(
         TCtxFullHeartbeatPtr context,
         const TReqFullHeartbeat& request)
     {
+        auto nodeId = request.node_id();
+        const auto& statistics = request.statistics();
+
+        auto* node = FindNode(nodeId);
+        if (!node)
+            return;
+        if (node->GetState() != ENodeState::Registered)
+            return;
+
         PROFILE_TIMING ("/full_heartbeat_time") {
-            auto nodeId = request.node_id();
-            const auto& statistics = request.statistics();
-
-            auto* node = FindNode(nodeId);
-            if (!node)
-                return;
-
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetAddress(),
                 node->GetState(),
                 statistics);
 
-            YCHECK(node->GetState() == ENodeState::Registered);
             UpdateNodeCounters(node, -1);
             node->SetState(ENodeState::Online);
             UpdateNodeCounters(node, +1);
@@ -370,21 +399,21 @@ private:
         TRspIncrementalHeartbeat* response,
         const TReqIncrementalHeartbeat& request)
     {
+        auto nodeId = request.node_id();
+        const auto& statistics = request.statistics();
+
+        auto* node = FindNode(nodeId);
+        if (!node)
+            return;
+        if (node->GetState() != ENodeState::Online)
+            return;
+
         PROFILE_TIMING ("/incremental_heartbeat_time") {
-            auto nodeId = request.node_id();
-            const auto& statistics = request.statistics();
-
-            auto* node = FindNode(nodeId);
-            if (!node)
-                return;
-
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetAddress(),
                 node->GetState(),
                 statistics);
-
-            YCHECK(node->GetState() == ENodeState::Online);
 
             node->Statistics() = statistics;
             node->Alerts() = FromProto<Stroka>(request.alerts());
@@ -398,54 +427,57 @@ private:
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
-        NodeMap.SaveKeys(context);
+        NodeMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
-        Save(context, NodeIdGenerator);
-        NodeMap.SaveValues(context);
+        Save(context, NodeIdGenerator_);
+        NodeMap_.SaveValues(context);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
-        NodeMap.LoadKeys(context);
+        NodeMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
-        Load(context, NodeIdGenerator);
-        NodeMap.LoadValues(context);
+        Load(context, NodeIdGenerator_);
+        NodeMap_.LoadValues(context);
     }
 
     virtual void Clear() override
     {
-        NodeIdGenerator.Reset();
-        NodeMap.Clear();
-        
-        AddressToNodeMap.clear();
-        HostNameToNodeMap.clear();
-        TransactionToNodeMap.clear();
+        NodeIdGenerator_.Reset();
+        NodeMap_.Clear();
 
-        OnlineNodeCount = 0;
-        RegisteredNodeCount = 0;
+        AddressToNodeMap_.clear();
+        HostNameToNodeMap_.clear();
+        TransactionToNodeMap_.clear();
+
+        OnlineNodeCount_ = 0;
+        RegisteredNodeCount_ = 0;
+
+        NodeRemovalQueue_.clear();
+        PendingRemoveNodeMutationCount_ = 0;
     }
 
     virtual void OnAfterSnapshotLoaded() override
     {
-        AddressToNodeMap.clear();
-        HostNameToNodeMap.clear();
-        TransactionToNodeMap.clear();
+        AddressToNodeMap_.clear();
+        HostNameToNodeMap_.clear();
+        TransactionToNodeMap_.clear();
 
-        OnlineNodeCount = 0;
-        RegisteredNodeCount = 0;
+        OnlineNodeCount_ = 0;
+        RegisteredNodeCount_ = 0;
 
-        for (const auto& pair : NodeMap) {
+        for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
             const auto& address = node->GetAddress();
 
-            YCHECK(AddressToNodeMap.insert(std::make_pair(address, node)).second);
-            HostNameToNodeMap.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
+            YCHECK(AddressToNodeMap_.insert(std::make_pair(address, node)).second);
+            HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
 
             UpdateNodeCounters(node, +1);
 
@@ -460,7 +492,7 @@ private:
         Profiler.SetEnabled(false);
 
         // Reset runtime info.
-        for (const auto& pair : NodeMap) {
+        for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
             node->ResetHints();
             node->ClearChunkRemovalQueue();
@@ -473,7 +505,7 @@ private:
     {
         Profiler.SetEnabled(true);
 
-        for (const auto& pair : NodeMap) {
+        for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
             RefreshNodeConfig(node);
         }
@@ -481,15 +513,20 @@ private:
 
     virtual void OnLeaderActive() override
     {
-        for (const auto& pair : NodeMap) {
+        for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
             if (!node->GetTransaction()) {
                 LOG_INFO("Missing node transaction, retrying unregistration (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetAddress());
-                PostUnregisterCommit(node);
+                PostUnregisterNodeMutation(node);
+            }
+            if (node->GetState() == ENodeState::Unregistered) {
+                NodeRemovalQueue_.push_back(node);
             }
         }
+
+        MaybePostRemoveNodeMutations();
     }
 
 
@@ -497,10 +534,10 @@ private:
     {
         switch (node->GetState()) {
             case ENodeState::Registered:
-                RegisteredNodeCount += delta;
+                RegisteredNodeCount_ += delta;
                 break;
             case ENodeState::Online:
-                OnlineNodeCount += delta;
+                OnlineNodeCount_ += delta;
                 break;
             default:
                 break;
@@ -512,7 +549,7 @@ private:
     {
         auto* transaction = node->GetTransaction();
         YCHECK(transaction);
-        YCHECK(TransactionToNodeMap.insert(std::make_pair(transaction, node)).second);
+        YCHECK(TransactionToNodeMap_.insert(std::make_pair(transaction, node)).second);
     }
 
     void UnregisterLeaseTransaction(TNode* node)
@@ -521,7 +558,7 @@ private:
         if (!transaction)
             return;
 
-        YCHECK(TransactionToNodeMap.erase(transaction) == 1);
+        YCHECK(TransactionToNodeMap_.erase(transaction) == 1);
         node->SetTransaction(nullptr);
     }
 
@@ -556,9 +593,9 @@ private:
     {
         switch (node->GetState()) {
             case ENodeState::Registered:
-                return Config->RegisteredNodeTimeout;
+                return Config_->RegisteredNodeTimeout;
             case ENodeState::Online:
-                return Config->OnlineNodeTimeout;
+                return Config_->OnlineNodeTimeout;
             default:
                 YUNREACHABLE();
         }
@@ -566,8 +603,8 @@ private:
 
     void OnTransactionFinished(TTransaction* transaction)
     {
-        auto it = TransactionToNodeMap.find(transaction);
-        if (it == TransactionToNodeMap.end())
+        auto it = TransactionToNodeMap_.find(transaction);
+        if (it == TransactionToNodeMap_.end())
             return;
 
         auto* node = it->second;
@@ -578,7 +615,7 @@ private:
         UnregisterLeaseTransaction(node);
 
         if (IsLeader()) {
-            PostUnregisterCommit(node);
+            PostUnregisterNodeMutation(node);
         }
     }
 
@@ -601,9 +638,9 @@ private:
             node->SetState(ENodeState::Registered);
             node->Statistics() = statistics;
 
-            NodeMap.Insert(nodeId, node);
-            AddressToNodeMap.insert(std::make_pair(address, node));
-            HostNameToNodeMap.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
+            NodeMap_.Insert(nodeId, node);
+            AddressToNodeMap_.insert(std::make_pair(address, node));
+            HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
             
             UpdateNodeCounters(node, +1);
 
@@ -683,15 +720,9 @@ private:
         }
     }
 
-    void DoUnregisterNode(TNode* node)
+    void DoUnregisterNode(TNode* node, bool scheduleRemoval)
     {
         PROFILE_TIMING ("/node_unregister_time") {
-            auto nodeId = node->GetId();
-
-            LOG_INFO_UNLESS(IsRecovery(), "Node unregistered (NodeId: %v, Address: %v)",
-                nodeId,
-                node->GetAddress());
-
             auto* transaction = node->GetTransaction();
             UnregisterLeaseTransaction(node);
             
@@ -701,41 +732,87 @@ private:
             }
 
             const auto& address = node->GetAddress();
-            YCHECK(AddressToNodeMap.erase(address) == 1);
+            YCHECK(AddressToNodeMap_.erase(address) == 1);
             {
-                auto hostNameRange = HostNameToNodeMap.equal_range(Stroka(GetServiceHostName(address)));
+                auto hostNameRange = HostNameToNodeMap_.equal_range(Stroka(GetServiceHostName(address)));
                 for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
                     if (it->second == node) {
-                        HostNameToNodeMap.erase(it);
+                        HostNameToNodeMap_.erase(it);
                         break;
                     }
                 }
             }
 
             UpdateNodeCounters(node, -1);
-
+            node->SetState(ENodeState::Unregistered);
             NodeUnregistered_.Fire(node);
 
-            NodeMap.Remove(nodeId);
+            if (scheduleRemoval && IsLeader()) {
+                NodeRemovalQueue_.push_back(node);
+                MaybePostRemoveNodeMutations();
+            }
+
+            LOG_INFO_UNLESS(IsRecovery(), "Node unregistered (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetAddress());
+        }
+    }
+
+    void DoRemoveNode(TNode* node)
+    {
+        PROFILE_TIMING ("/node_remove_time") {
+            // Make copies, node will die soon.
+            auto nodeId = node->GetId();
+            auto address = node->GetAddress();
+
+            NodeRemoved_.Fire(node);
+
+            NodeMap_.Remove(nodeId);
+
+            LOG_INFO_UNLESS(IsRecovery(), "Node removed (NodeId: %v, Address: %v)",
+                nodeId,
+                address);
+
+            if (IsLeader()) {
+                YCHECK(--PendingRemoveNodeMutationCount_ >= 0);
+                MaybePostRemoveNodeMutations();
+            }
         }
     }
 
 
-    void PostUnregisterCommit(TNode* node)
+    void PostUnregisterNodeMutation(TNode* node)
     {
-        // Prevent multiple attempts to unregister the node.
-        if (node->GetUnregisterPending())
-            return;
-        node->SetUnregisterPending(true);
+        TReqUnregisterNode request;
+        request.set_node_id(node->GetId());
 
-        auto nodeId = node->GetId();
+        auto mutation = CreateUnregisterNodeMutation(request);
+        Bootstrap
+            ->GetHydraFacade()
+            ->GetEpochAutomatonInvoker()
+            ->Invoke(BIND(IgnoreResult(&TMutation::Commit), mutation));
+    }
 
-        TReqUnregisterNode message;
-        message.set_node_id(nodeId);
+    void MaybePostRemoveNodeMutations()
+    {
+        while (
+            !NodeRemovalQueue_.empty() &&
+            PendingRemoveNodeMutationCount_ < Config_->MaxConcurrentNodeRemoveMutations)
+        {
+            const auto* node = NodeRemovalQueue_.front();
+            NodeRemovalQueue_.pop_front();
 
-        auto mutation = CreateUnregisterNodeMutation(message);
-        auto invoker = Bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker();
-        invoker->Invoke(BIND(IgnoreResult(&TMutation::Commit), mutation));
+            TReqRemoveNode request;
+            request.set_node_id(node->GetId());
+
+            auto mutation = CreateRemoveNodeMutation(request);
+            Bootstrap
+                ->GetHydraFacade()
+                ->GetEpochAutomatonInvoker()
+                ->Invoke(BIND(IgnoreResult(&TMutation::Commit), mutation));
+
+            ++PendingRemoveNodeMutationCount_;
+        }
     }
 
 
@@ -745,26 +822,26 @@ private:
             LOG_INFO_UNLESS(IsRecovery(), "Node banned (Address: %v)",
                 node->GetAddress());
             if (IsLeader()) {
-                PostUnregisterCommit(node);
+                PostUnregisterNodeMutation(node);
             }
         }
     }
 
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, TNodeId, NodeMap)
+DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, TNodeId, NodeMap_)
 
 ///////////////////////////////////////////////////////////////////////////////
 
 TNodeTracker::TNodeTracker(
     TNodeTrackerConfigPtr config,
     TBootstrap* bootstrap)
-    : Impl(New<TImpl>(config, bootstrap))
+    : Impl_(New<TImpl>(config, bootstrap))
 { }
 
 void TNodeTracker::Initialize()
 {
-    Impl->Initialize();
+    Impl_->Initialize();
 }
 
 TNodeTracker::~TNodeTracker()
@@ -772,85 +849,86 @@ TNodeTracker::~TNodeTracker()
 
 TNode* TNodeTracker::FindNodeByAddress(const Stroka& address)
 {
-    return Impl->FindNodeByAddress(address);
+    return Impl_->FindNodeByAddress(address);
 }
 
 TNode* TNodeTracker::GetNodeByAddress(const Stroka& address)
 {
-    return Impl->GetNodeByAddress(address);
+    return Impl_->GetNodeByAddress(address);
 }
 
 TNode* TNodeTracker::FindNodeByHostName(const Stroka& hostName)
 {
-    return Impl->FindNodeByHostName(hostName);
+    return Impl_->FindNodeByHostName(hostName);
 }
 
 TNode* TNodeTracker::GetNodeOrThrow(TNodeId id)
 {
-    return Impl->GetNodeOrThrow(id);
+    return Impl_->GetNodeOrThrow(id);
 }
 
 TNodeConfigPtr TNodeTracker::FindNodeConfigByAddress(const Stroka& address)
 {
-    return Impl->FindNodeConfigByAddress(address);
+    return Impl_->FindNodeConfigByAddress(address);
 }
 
 TNodeConfigPtr TNodeTracker::GetNodeConfigByAddress(const Stroka& address)
 {
-    return Impl->GetNodeConfigByAddress(address);
+    return Impl_->GetNodeConfigByAddress(address);
 }
 
 TMutationPtr TNodeTracker::CreateRegisterNodeMutation(
     const TReqRegisterNode& request)
 {
-    return Impl->CreateRegisterNodeMutation(request);
+    return Impl_->CreateRegisterNodeMutation(request);
 }
 
 TMutationPtr TNodeTracker::CreateUnregisterNodeMutation(
     const TReqUnregisterNode& request)
 {
-    return Impl->CreateUnregisterNodeMutation(request);
+    return Impl_->CreateUnregisterNodeMutation(request);
 }
 
 TMutationPtr TNodeTracker::CreateFullHeartbeatMutation(
     TCtxFullHeartbeatPtr context)
 {
-    return Impl->CreateFullHeartbeatMutation(context);
+    return Impl_->CreateFullHeartbeatMutation(context);
 }
 
 TMutationPtr TNodeTracker::CreateIncrementalHeartbeatMutation(
     TCtxIncrementalHeartbeatPtr context)
 {
-    return Impl->CreateIncrementalHeartbeatMutation(context);
+    return Impl_->CreateIncrementalHeartbeatMutation(context);
 }
 
 void TNodeTracker::RefreshNodeConfig(TNode* node)
 {
-    return Impl->RefreshNodeConfig(node);
+    return Impl_->RefreshNodeConfig(node);
 }
 
 TTotalNodeStatistics TNodeTracker::GetTotalNodeStatistics()
 {
-    return Impl->GetTotalNodeStatistics();
+    return Impl_->GetTotalNodeStatistics();
 }
 
 int TNodeTracker::GetRegisteredNodeCount()
 {
-    return Impl->GetRegisteredNodeCount();
+    return Impl_->GetRegisteredNodeCount();
 }
 
 int TNodeTracker::GetOnlineNodeCount()
 {
-    return Impl->GetOnlineNodeCount();
+    return Impl_->GetOnlineNodeCount();
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, TNodeId, *Impl)
+DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, TNodeId, *Impl_)
 
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRegistered, *Impl);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeUnregistered, *Impl);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeConfigUpdated, *Impl);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqFullHeartbeat&), FullHeartbeat, *Impl);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqIncrementalHeartbeat&, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRegistered, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeUnregistered, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRemoved, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeConfigUpdated, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqFullHeartbeat&), FullHeartbeat, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqIncrementalHeartbeat&, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl_);
 
 ///////////////////////////////////////////////////////////////////////////////
 
