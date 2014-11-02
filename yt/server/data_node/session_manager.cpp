@@ -220,7 +220,12 @@ TAsyncError TSession::PutBlocks(
     EnqueueWrites();
 
     auto throttler = Bootstrap->GetInThrottler(Type);
-    return throttler->Throttle(requestSize).Apply(BIND([] () {
+    LOG_DEBUG("Waiting for input throttler (StartBlockIndex: %d, RequestSize: %" PRISZT ")",
+        startBlockIndex,
+        requestSize);
+    auto this_ = MakeStrong(this);
+    return throttler->Throttle(requestSize).Apply(BIND([this, this_, startBlockIndex] () {
+        LOG_DEBUG("Input throttler request released (StartBlockIndex: %d)", startBlockIndex);
         return TError();
     }));
 }
@@ -249,11 +254,12 @@ TAsyncError TSession::SendBlocks(
     }
 
     auto throttler = Bootstrap->GetOutThrottler(Type);
-    LOG_DEBUG("Waiting input throttler (start block index: %d, requested size: %" PRISZT ")",
+    LOG_DEBUG("Waiting for input throttler (StartBlockIndex: %d, RequestSize: %" PRISZT ")",
         startBlockIndex,
         requestSize);
-    return throttler->Throttle(requestSize).Apply(BIND([=] () {
-        LOG_DEBUG("Input throttler release request (start block index: %d)", startBlockIndex);
+    auto this_ = MakeStrong(this);
+    return throttler->Throttle(requestSize).Apply(BIND([this, this_, req, startBlockIndex] () {
+        LOG_DEBUG("Input throttler request released (StartBlockIndex: %d)", startBlockIndex);
         return DoSendBlocks(req);
     }));
 }
