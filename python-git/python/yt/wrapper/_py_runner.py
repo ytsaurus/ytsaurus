@@ -52,23 +52,23 @@ def main():
         sys.stderr.write("Yson bindings not found. Using python version of yson is deprecated.")
         sys.exit(1)
 
-    __records = __input_format.load_rows(sys.stdin, raw=raw)
+    __rows = __input_format.load_rows(sys.stdin, raw=raw)
 
     if __operation_type == "mapper" or raw:
         if __attributes.get("is_aggregator", False):
-            __result = __operation(__records)
+            __result = __operation(__rows)
         else:
-            __result = itertools.chain.from_iterable(itertools.imap(__operation, __records))
+            __result = itertools.chain.from_iterable(itertools.imap(__operation, __rows))
     else:
         __result = \
             itertools.chain.from_iterable(
                 itertools.starmap(__operation,
-                    itertools.groupby(__records, lambda rec: extract_key(rec, __keys))))
+                    itertools.groupby(__rows, lambda row: extract_key(row, __keys))))
 
     __output_format.dump_rows(__result, sys.stdout, raw=raw)
 
     # Read out all input
-    for rec in __records:
+    for row in __rows:
         pass
 
 if __name__ == "__main__":
