@@ -34,6 +34,8 @@ def main():
     __operation, __attributes, __operation_type, __input_format, __output_format, __keys = load(open(__operation_dump))
 
     import yt.wrapper.format_config as format_config
+    import yt.yson 
+    from yt.wrapper.format import YsonFormat
     config_dict = load(open(__config_dump_filename))
     for key, value in config_dict.iteritems():
         format_config.__dict__[key] = value
@@ -45,6 +47,10 @@ def main():
         return
 
     raw = __attributes.get("is_raw", False)
+
+    if isinstance(__input_format, YsonFormat) and yt.yson.TYPE != "BINARY":
+        sys.stderr.write("Yson bindings not found. Using python version of yson is deprecated.")
+        sys.exit(1)
 
     __records = __input_format.load_rows(sys.stdin, raw=raw)
 

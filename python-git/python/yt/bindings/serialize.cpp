@@ -116,39 +116,38 @@ TPythonObjectBuilder::TPythonObjectBuilder(bool alwaysCreateAttributes)
 
 void TPythonObjectBuilder::OnStringScalar(const TStringBuf& value)
 {
-    auto obj = PyString_FromStringAndSize(~value, value.size());
-    AddObject(obj, YsonString);
+    Py::_XDECREF(AddObject(PyString_FromStringAndSize(~value, value.size()), YsonString));
 }
 
 void TPythonObjectBuilder::OnInt64Scalar(i64 value)
 {
-    AddObject(PyInt_FromLong(value), YsonInt64);
+    Py::_XDECREF(AddObject(PyInt_FromLong(value), YsonInt64));
 }
 
 void TPythonObjectBuilder::OnUint64Scalar(ui64 value)
 {
-    AddObject(PyLong_FromUnsignedLongLong(value), YsonUint64);
+    Py::_XDECREF(AddObject(PyLong_FromUnsignedLongLong(value), YsonUint64));
 }
 
 void TPythonObjectBuilder::OnDoubleScalar(double value)
 {
-    AddObject(PyFloat_FromDouble(value), YsonDouble);
+    Py::_XDECREF(AddObject(PyFloat_FromDouble(value), YsonDouble));
 }
 
 void TPythonObjectBuilder::OnBooleanScalar(bool value)
 {
-    AddObject(PyBool_FromLong(value ? 1 : 0), YsonBoolean);
+    Py::_XDECREF(AddObject(PyBool_FromLong(value ? 1 : 0), YsonBoolean));
 }
 
 void TPythonObjectBuilder::OnEntity()
 {
-    AddObject(YsonEntity);
+    Py::_XDECREF(AddObject(YsonEntity));
 }
 
 void TPythonObjectBuilder::OnBeginList()
 {
     auto obj = AddObject(Py::List().ptr(), YsonList);
-    Push(Py::Object(obj), EObjectType::List);
+    Push(Py::Object(obj, true), EObjectType::List);
 }
 
 void TPythonObjectBuilder::OnListItem()
@@ -163,7 +162,7 @@ void TPythonObjectBuilder::OnEndList()
 void TPythonObjectBuilder::OnBeginMap()
 {
     auto obj = AddObject(PyDict_New(), YsonMap);
-    Push(Py::Object(obj), EObjectType::Map);
+    Push(Py::Object(obj, true), EObjectType::Map);
 }
 
 void TPythonObjectBuilder::OnKeyedItem(const TStringBuf& key)
@@ -178,7 +177,7 @@ void TPythonObjectBuilder::OnEndMap()
 
 void TPythonObjectBuilder::OnBeginAttributes()
 {
-    auto obj = YsonMap.apply(Py::Tuple());
+    auto obj = Py::Dict();
     Push(obj, EObjectType::Attributes);
 }
 
@@ -194,7 +193,11 @@ PyObject* TPythonObjectBuilder::AddObject(PyObject* obj, const Py::Callable& typ
     }
 
     if (Attributes_) {
-        return AddObject(type.apply(Py::TupleN(Py::Object(obj))).ptr());
+        auto ysonObj = type.apply(Py::TupleN(Py::Object(obj)));
+        auto ysonObjPtr = ysonObj.ptr();
+        Py::_XDECREF(obj);
+        Py::_XINCREF(ysonObjPtr);
+        return AddObject(ysonObjPtr);
     } else {
         return AddObject(obj);
     }
@@ -202,7 +205,10 @@ PyObject* TPythonObjectBuilder::AddObject(PyObject* obj, const Py::Callable& typ
 
 PyObject* TPythonObjectBuilder::AddObject(const Py::Callable& type)
 {
-    return AddObject(type.apply(Py::Tuple()).ptr());
+    auto ysonObj = type.apply(Py::Tuple());
+    auto ysonObjPtr = ysonObj.ptr();
+    Py::_XINCREF(ysonObjPtr);
+    return AddObject(ysonObjPtr);
 }
 
 PyObject* TPythonObjectBuilder::AddObject(PyObject* obj)
@@ -221,6 +227,7 @@ PyObject* TPythonObjectBuilder::AddObject(PyObject* obj)
         auto keyObj = PyString_FromStringAndSize(~Keys_.top(), Keys_.top().size());
         PyDict_SetItem(*ObjectStack_.top().first, keyObj, obj);
         Keys_.pop();
+        Py::_XDECREF(keyObj);
     }
 
     return obj;
