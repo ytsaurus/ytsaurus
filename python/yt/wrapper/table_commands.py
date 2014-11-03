@@ -317,9 +317,10 @@ def _make_operation_request(command_name, spec, strategy,
         def finish_transaction():
             transaction.__exit__(*sys.exc_info())
 
+        transaction.__enter__()
         with KeyboardInterruptsCatcher(finish_transaction):
-            with transaction:
-                _manage_operation(finalizer)
+            _manage_operation(finalizer)
+            transaction.__exit__(None, None, None)
 
 def _get_format_from_tables(tables, ignore_unexisting_tables):
     """Try to get format from tables, raise YtError if tables have different _format attribute"""
