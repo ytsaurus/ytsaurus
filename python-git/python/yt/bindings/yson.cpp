@@ -321,6 +321,9 @@ private:
                 while (item = PyIter_Next(*iterator)) {
                     Serialize(Py::Object(item, true), &writer, ignoreInnerAttributes);
                 }
+                if (PyErr_Occurred()) {
+                    throw Py::Exception();
+                }
             } catch (const NYT::TErrorException& error) {
                 throw CreateYsonError(error.what());
             }
