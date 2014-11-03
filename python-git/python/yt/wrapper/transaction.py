@@ -63,10 +63,9 @@ class Transaction(object):
             if not self.null:
                 if type is not None:
                     logger.warning(
-                        "Error: (type=%s, value=%s, traceback=%s), aborting transaction %s ...",
+                        "Error: (type=%s, value=%s), aborting transaction %s ...",
                         type,
                         value,
-                        tb.format_exc(traceback).replace("\n", "\\n"),
                         self.transaction_id)
 
                 try:
