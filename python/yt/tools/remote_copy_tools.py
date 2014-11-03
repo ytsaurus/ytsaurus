@@ -182,7 +182,7 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_templa
 
     logger.info("Importing table '%s' (row count: %d, sorted: %d)", src, record_count, sorted)
 
-    yt_client.create_table(dst, recursive=True, ignore_existing=True)
+    yt_client.mkdir(os.path.dirname(dst), recursive=True)
 
     temp_yamr_table = "tmp/yt/" + generate_uuid()
     yamr_client.copy(src, temp_yamr_table)
