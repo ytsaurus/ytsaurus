@@ -113,8 +113,6 @@ void TEncodingWriter::VerifyVector(
         LOG_FATAL_IF(
             !TRef::AreBitwiseEqual(TRef(begin, block.Size()), block),
             "Compression verification failed");
-        begin += block.Size();
-        Semaphore.Release(block.Size());
     }
 }
 
@@ -126,7 +124,6 @@ void TEncodingWriter::VerifyBlock(
     LOG_FATAL_IF(
         !TRef::AreBitwiseEqual(decompressedBlock, origin),
         "Compression verification failed");
-    Semaphore.Release(origin.Size());
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
