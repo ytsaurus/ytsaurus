@@ -108,11 +108,12 @@ void TEncodingWriter::VerifyVector(
 {
     auto decompressedBlock = Codec->Decompress(compressedBlock);
 
-    char* begin = decompressedBlock.Begin();
+    char* current = decompressedBlock.Begin();
     FOREACH (const auto& block, origin) {
         LOG_FATAL_IF(
-            !TRef::AreBitwiseEqual(TRef(begin, block.Size()), block),
+            !TRef::AreBitwiseEqual(TRef(current, block.Size()), block),
             "Compression verification failed");
+        current += block.Size();
     }
 }
 
