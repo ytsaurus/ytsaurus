@@ -17,8 +17,6 @@ set( SRCS
   ${BASE}/dsv_writer_ut.cpp
   ${BASE}/enum_ut.cpp
   ${BASE}/erasure_ut.cpp
-  ${BASE}/fibers_ut.cpp
-  ${BASE}/foreach_ut.cpp
   ${BASE}/guid_ut.cpp
   ${BASE}/heap_ut.cpp
   ${BASE}/intrusive_ptr_ut.cpp
