@@ -139,12 +139,13 @@ private:
     std::unique_ptr<TBlobOutput> Buffer;
     TBlobOutput PreviousBuffer;
     std::unique_ptr<NYson::IYsonConsumer> Consumer;
+
+    bool CheckDataFullyConsumed;
+
     int Position;
 
     bool HasData;
     bool IsFinished;
-
-    bool CheckDataFullyConsumed;
 };
 
 ////////////////////////////////////////////////////////////////////
