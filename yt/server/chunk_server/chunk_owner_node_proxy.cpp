@@ -213,6 +213,7 @@ bool TFetchChunkVisitor::OnChunk(
         chunkSpec->add_replicas(NYT::ToProto<ui32>(replica));
     }
 
+    ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
     chunkSpec->set_erasure_codec(erasureCodecId);
 
     if (Context->Request().fetch_all_meta_extensions()) {
