@@ -26,17 +26,10 @@ public:
         callback.Run();
     }
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual void VerifyAffinity() const override
-    {
-        YUNREACHABLE();
-    }
-
     virtual TThreadId GetThreadId() const override
     {
         return InvalidThreadId;
     }
-#endif
 };
 
 IInvokerPtr GetSyncInvoker()
@@ -53,17 +46,10 @@ public:
     virtual void Invoke(const TClosure& /*callback*/) override
     { }
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual void VerifyAffinity() const override
-    {
-        YUNREACHABLE();
-    }
-
     virtual TThreadId GetThreadId() const override
     {
         return InvalidThreadId;
     }
-#endif
 };
 
 IInvokerPtr GetNullInvoker()

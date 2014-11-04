@@ -37,17 +37,10 @@ public:
         }));
     }
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual void VerifyAffinity() const override
-    {
-        UnderlyingInvoker_->VerifyAffinity();
-    }
-
     virtual NConcurrency::TThreadId GetThreadId() const override
     {
         return UnderlyingInvoker_->GetThreadId();
     }
-#endif
 
 private:
     TCancelableContextPtr Context_;

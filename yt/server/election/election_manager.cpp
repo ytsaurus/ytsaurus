@@ -534,7 +534,7 @@ TElectionManager::TImpl::TImpl(
     YCHECK(ControlInvoker);
     YCHECK(ElectionCallbacks);
     YCHECK(RpcServer);
-    VERIFY_INVOKER_THREAD_AFFINITY(controlInvoker, ControlThread);
+    VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 
     Logger.AddTag("CellId: %v, SelfPeerId: %v",
         CellManager->GetCellId(),

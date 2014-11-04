@@ -66,9 +66,9 @@ public:
 
         TimestampQueue_ = New<TActionQueue>("Timestamp");
         TimestampInvoker_ = TimestampQueue_->GetInvoker();
+        VERIFY_INVOKER_AFFINITY(TimestampInvoker_, TimestampThread);
 
-        VERIFY_INVOKER_THREAD_AFFINITY(TimestampInvoker_, TimestampThread);
-        VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
+        VERIFY_INVOKER_AFFINITY(AutomatonInvoker_, AutomatonThread);
 
         CalibrationExecutor_ = New<TPeriodicExecutor>(
             TimestampInvoker_,

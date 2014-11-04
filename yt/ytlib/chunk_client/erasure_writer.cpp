@@ -149,8 +149,7 @@ public:
         , Writers_(writers)
     {
         YCHECK(writers.size() == codec->GetTotalPartCount());
-        VERIFY_INVOKER_THREAD_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
-
+        VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
         ChunkInfo_.set_disk_space(0);
     }
 

@@ -29,7 +29,7 @@ TFollowerTracker::TFollowerTracker(
     YCHECK(CellManager_);
     YCHECK(DecoratedAutomaton_);
     YCHECK(EpochContext_);
-    VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
+    VERIFY_INVOKER_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
 
     Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 

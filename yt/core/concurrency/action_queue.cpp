@@ -62,7 +62,7 @@ public:
             enableProfiling))
     {
         Thread_->Start();
-        Queue_->AddThreadId(Thread_->GetId());
+        Queue_->SetThreadId(Thread_->GetId());
     }
 
     ~TImpl()
@@ -148,7 +148,7 @@ public:
                 GetBucketTagIds(threadName, bucketNames[index]),
                 true,
                 true);
-            queue->AddThreadId(GetId());
+            queue->SetThreadId(GetId());
         }
     }
 
@@ -283,7 +283,6 @@ public:
                 true);
             Threads_.push_back(thread);
             thread->Start();
-            Queue_->AddThreadId(thread->GetId());
         }
     }
 
@@ -355,18 +354,10 @@ public:
         TrySchedule();
     }
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual void VerifyAffinity() const override
-    {
-        YCHECK(CurrentRunningInvoker_ == this);
-        UnderlyingInvoker_->VerifyAffinity();
-    }
-
-    virtual TThreadId GetThreadId() const override
+    virtual NConcurrency::TThreadId GetThreadId() const override
     {
         return UnderlyingInvoker_->GetThreadId();
     }
-#endif
 
 private:
     IInvokerPtr UnderlyingInvoker_;
@@ -374,8 +365,6 @@ private:
     std::atomic_flag Lock_;
     bool LockReleased_;
     TClosure FinishedCallback_;
-
-    static PER_THREAD TSerializedInvoker* CurrentRunningInvoker_;
 
 
     class TInvocationGuard
@@ -420,16 +409,11 @@ private:
 
         LockReleased_ = false;
 
-        YASSERT(!CurrentRunningInvoker_);
-        CurrentRunningInvoker_ = this;
-
         // Execute as many callbacks as possible to minimize context switches.
         TClosure callback;
         while (Queue_.Dequeue(&callback)) {
             callback.Run();
         }
-
-        CurrentRunningInvoker_ = nullptr;
     }
 
     void OnFinished()
@@ -442,8 +426,6 @@ private:
     }
 
 };
-
-PER_THREAD TSerializedInvoker* TSerializedInvoker::CurrentRunningInvoker_ = nullptr;
 
 IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker)
 {
@@ -478,17 +460,10 @@ public:
         UnderlyingInvoker_->Invoke(callback);
     }
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual void VerifyAffinity() const override
-    {
-        UnderlyingInvoker_->VerifyAffinity();
-    }
-
     virtual TThreadId GetThreadId() const override
     {
         return UnderlyingInvoker_->GetThreadId();
     }
-#endif
 
 private:
     IInvokerPtr UnderlyingInvoker_;
@@ -544,17 +519,10 @@ public:
         return UnderlyingInvoker_->Invoke(callback);
     }
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual void VerifyAffinity() const override
-    {
-        UnderlyingInvoker_->VerifyAffinity();
-    }
-
-    virtual TThreadId GetThreadId() const override
+    virtual NConcurrency::TThreadId GetThreadId() const override
     {
         return UnderlyingInvoker_->GetThreadId();
     }
-#endif
 
 private:
     IInvokerPtr UnderlyingInvoker_;
@@ -586,18 +554,10 @@ public:
         ScheduleMore();
     }
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual void VerifyAffinity() const override
-    {
-        YCHECK(CurrentRunningInvoker_ == this);
-        UnderlyingInvoker_->VerifyAffinity();
-    }
-
     virtual TThreadId GetThreadId() const
     {
         return UnderlyingInvoker_->GetThreadId();
     }
-#endif
 
 private:
     IInvokerPtr UnderlyingInvoker_;
@@ -606,8 +566,7 @@ private:
     std::atomic<int> Semaphore_;
     TLockFreeQueue<TClosure> Queue_;
 
-    static PER_THREAD TBoundedConcurrencyInvoker* CurrentSchedulingInvoker_;
-    static PER_THREAD TBoundedConcurrencyInvoker* CurrentRunningInvoker_;
+    static PER_THREAD TBoundedConcurrencyInvoker* CurrentScheduler_;
 
 
     class TInvocationGuard
@@ -634,14 +593,8 @@ private:
 
     void RunCallback(TClosure callback, TInvocationGuard /*invocationGuard*/)
     {
-        TCurrentInvokerGuard guard(UnderlyingInvoker_); // sic!
-
-        YASSERT(!CurrentRunningInvoker_);
-        CurrentRunningInvoker_ = this;
-
+        TCurrentInvokerGuard currentInvokerGuard(UnderlyingInvoker_); // sic!
         callback.Run();
-
-        CurrentRunningInvoker_ = nullptr;
     }
 
     void OnFinished()
@@ -653,7 +606,7 @@ private:
     void ScheduleMore()
     {
         // Prevent reenterant invocations.
-        if (CurrentSchedulingInvoker_ == this)
+        if (CurrentScheduler_ == this)
             return;
 
         while (true) {
@@ -667,8 +620,8 @@ private:
             }
 
             // If UnderlyingInvoker_ is already terminated, Invoke may drop the guard right away.
-            // Protect by setting CurrentSchedulingInvoker_ and checking it on entering ScheduleMore.
-            CurrentSchedulingInvoker_ = this;
+            // Protect by setting CurrentScheduler_ and checking it on entering ScheduleMore.
+            CurrentScheduler_ = this;
 
             UnderlyingInvoker_->Invoke(BIND(
                 &TBoundedConcurrencyInvoker::RunCallback,
@@ -677,7 +630,7 @@ private:
                 Passed(TInvocationGuard(this))));
 
             // Don't leave a dangling pointer behind.
-            CurrentSchedulingInvoker_ = nullptr;
+            CurrentScheduler_ = nullptr;
         }        
     }
 
@@ -697,8 +650,7 @@ private:
 
 };
 
-PER_THREAD TBoundedConcurrencyInvoker* TBoundedConcurrencyInvoker::CurrentSchedulingInvoker_ = nullptr;
-PER_THREAD TBoundedConcurrencyInvoker* TBoundedConcurrencyInvoker::CurrentRunningInvoker_ = nullptr;
+PER_THREAD TBoundedConcurrencyInvoker* TBoundedConcurrencyInvoker::CurrentScheduler_ = nullptr;
 
 IInvokerPtr CreateBoundedConcurrencyInvoker(
     IInvokerPtr underlyingInvoker,

@@ -178,7 +178,7 @@ public:
         , Config_(config)
         , TabletTracker_(New<TTabletTracker>(Config_, Bootstrap_))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
         RegisterLoader(
             "TabletManager.Keys",

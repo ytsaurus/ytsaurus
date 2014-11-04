@@ -34,7 +34,7 @@ TSequentialReader::TSequentialReader(
     , Codec_(NCompression::GetCodec(codecId))
     , Logger(ChunkClientLogger)
 {
-    VERIFY_INVOKER_THREAD_AFFINITY(TDispatcher::Get()->GetReaderInvoker(), ReaderThread);
+    VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetReaderInvoker(), ReaderThread);
     YCHECK(ChunkReader_);
 
     Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());

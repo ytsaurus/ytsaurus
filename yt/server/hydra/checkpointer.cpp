@@ -346,8 +346,8 @@ TCheckpointer::TCheckpointer(
     YCHECK(LeaderCommitter_);
     YCHECK(SnapshotStore_);
     YCHECK(EpochContext_);
-    VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
-    VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochUserAutomatonInvoker, AutomatonThread);
+    VERIFY_INVOKER_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
+    VERIFY_INVOKER_AFFINITY(EpochContext_->EpochUserAutomatonInvoker, AutomatonThread);
 
     Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 }

@@ -42,7 +42,9 @@ TChunkWriterBase::TChunkWriterBase(
     , CurrentUncompressedSize(0)
     , CurrentBufferCapacity(0)
     , LargestBlockSize(0)
-{ }
+{
+    VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
+}
 
 const TNullable<TKeyColumns>& TChunkWriterBase::GetKeyColumns() const
 {

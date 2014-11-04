@@ -117,8 +117,8 @@ public:
     {
         YCHECK(config);
         YCHECK(bootstrap);
-        VERIFY_INVOKER_THREAD_AFFINITY(GetControlInvoker(), ControlThread);
-        VERIFY_INVOKER_THREAD_AFFINITY(GetSnapshotIOInvoker(), SnapshotIOThread);
+        VERIFY_INVOKER_AFFINITY(GetControlInvoker(), ControlThread);
+        VERIFY_INVOKER_AFFINITY(GetSnapshotIOInvoker(), SnapshotIOThread);
 
         auto localHostName = TAddressResolver::Get()->GetLocalHostName();
         int port = Bootstrap_->GetConfig()->RpcPort;

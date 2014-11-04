@@ -84,7 +84,7 @@ TTabletTracker::TTabletTracker(
 {
     YCHECK(Config_);
     YCHECK(Bootstrap_);
-    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 }
 
 void TTabletTracker::Start()

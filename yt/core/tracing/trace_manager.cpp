@@ -37,7 +37,7 @@ public:
         , Config_(New<TTraceManagerConfig>())
     {
         Thread_->Start();
-        InvokerQueue_->AddThreadId(Thread_->GetId());
+        InvokerQueue_->SetThreadId(Thread_->GetId());
     }
 
     void Configure(NYTree::INodePtr node, const NYTree::TYPath& path)
