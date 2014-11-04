@@ -111,7 +111,7 @@ public:
     }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual NConcurrency::TThreadId GetThreadId() const = 0;
+    virtual NConcurrency::TThreadId GetThreadId() const override
     {
         return NConcurrency::InvalidThreadId;
     }
