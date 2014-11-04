@@ -7,6 +7,10 @@
 
 #include <core/actions/signal.h>
 
+#include <ytlib/node_tracker_client/public.h>
+
+#include <ytlib/chunk_client/chunk_replica.h>
+
 #include <server/cell_node/public.h>
 
 namespace NYT {
@@ -59,7 +63,10 @@ public:
      *  The download process is asynchronous.
      *  If the chunk is already cached, it returns a pre-set result.
      */
-    TAsyncDownloadResult DownloadChunk(const TChunkId& chunkId);
+    TAsyncDownloadResult DownloadChunk(
+        const TChunkId& chunkId,
+        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory = nullptr,
+        const NChunkClient::TChunkReplicaList& seedReplicas = NChunkClient::TChunkReplicaList());
 
     //! Raised when a chunk is added to the cache.
     DECLARE_SIGNAL(void(TChunkPtr), ChunkAdded);

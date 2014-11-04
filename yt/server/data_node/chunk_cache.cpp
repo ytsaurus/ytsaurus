@@ -104,7 +104,10 @@ public:
         Register(chunk);
     }
 
-    TAsyncDownloadResult Download(const TChunkId& chunkId)
+    TAsyncDownloadResult Download(
+        const TChunkId& chunkId,
+        TNodeDirectoryPtr nodeDirectory,
+        const TChunkReplicaList& seedReplicas)
     {
         LOG_INFO("Getting chunk from cache (ChunkId: %s)",
             ~ToString(chunkId));
@@ -112,7 +115,12 @@ public:
         std::shared_ptr<TInsertCookie> cookie = std::make_shared<TInsertCookie>(chunkId);
         if (BeginInsert(cookie.get())) {
             LOG_INFO("Loading chunk into cache (ChunkId: %s)", ~ToString(chunkId));
-            auto session = New<TDownloadSession>(this, chunkId, cookie);
+            auto session = New<TDownloadSession>(
+                this,
+                chunkId,
+                nodeDirectory ? nodeDirectory : New<TNodeDirectory>(),
+                seedReplicas,
+                cookie);
             session->Start();
         } else {
             LOG_INFO("Chunk is already cached (ChunkId: %s)", ~ToString(chunkId));
@@ -189,12 +197,15 @@ private:
         TDownloadSession(
             TImpl* owner,
             const TChunkId& chunkId,
+            TNodeDirectoryPtr nodeDirectory,
+            const TChunkReplicaList& seedReplicas,
             const std::shared_ptr<TInsertCookie>& cookie)
             : Owner(owner)
             , ChunkId(chunkId)
             , Cookie(cookie)
             , WriteInvoker(CreateSerializedInvoker(Owner->Location->GetWriteInvoker()))
-            , NodeDirectory(New<TNodeDirectory>())
+            , NodeDirectory(nodeDirectory)
+            , SeedReplicas(seedReplicas)
             , Logger(DataNodeLogger)
         {
             Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId)));
@@ -208,7 +219,8 @@ private:
                 Owner->Bootstrap->GetMasterChannel(),
                 NodeDirectory,
                 Owner->Bootstrap->GetLocalDescriptor(),
-                ChunkId);
+                ChunkId,
+                SeedReplicas);
 
             WriteInvoker->Invoke(BIND(&TThis::DoStart, MakeStrong(this)));
         }
@@ -220,6 +232,7 @@ private:
         std::shared_ptr<TInsertCookie> Cookie;
         IInvokerPtr WriteInvoker;
         TNodeDirectoryPtr NodeDirectory;
+        TChunkReplicaList SeedReplicas;
 
         TFileWriterPtr FileWriter;
         IAsyncReaderPtr RemoteReader;
@@ -403,11 +416,14 @@ int TChunkCache::GetChunkCount()
     return Impl->GetSize();
 }
 
-TChunkCache::TAsyncDownloadResult TChunkCache::DownloadChunk(const TChunkId& chunkId)
+TChunkCache::TAsyncDownloadResult TChunkCache::DownloadChunk(
+    const TChunkId& chunkId,
+    TNodeDirectoryPtr nodeDirectory,
+    const TChunkReplicaList& seedReplicas)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Impl->Download(chunkId);
+    return Impl->Download(chunkId, nodeDirectory, seedReplicas);
 }
 
 const TGuid& TChunkCache::GetCellGuid() const

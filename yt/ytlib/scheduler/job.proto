@@ -95,18 +95,16 @@ message TSchedulerJobResultExt
 
 message TRegularFileDescriptor
 {
-    required NYT.NChunkClient.NProto.TRspFetch file = 1;
-
     required bool executable = 2;
-
     required string file_name = 3;
+    repeated NChunkClient.NProto.TChunkSpec chunks = 4;
 }
 
 message TTableFileDescriptor
 {
-    required NYT.NChunkClient.NProto.TRspFetch table = 1;
     required bytes format = 2;
     required string file_name = 3;
+    repeated NChunkClient.NProto.TChunkSpec chunks = 4;
 }
 
 // Specification for starting user code during a job.
@@ -153,6 +151,8 @@ message TUserJobSpec
     optional bool enable_accounting = 15 [default = false];
 
     optional bool check_input_fully_consumed = 16 [default = false];
+
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 17;
 }
 
 // User code result.
