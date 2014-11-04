@@ -69,6 +69,9 @@ public:
     //! Maximum number of chunks to process during a properties update scan.
     int MaxChunksPerPropertiesUpdate;
 
+    //! Maximum number of cached replicas to be returned on fetch request.
+    int MaxCachedReplicasPerFetch;
+
     TChunkManagerConfig()
     {
         RegisterParameter("disable_chunk_replicator", DisableChunkReplicator)
@@ -115,6 +118,10 @@ public:
             .Default(TDuration::MilliSeconds(1000));
         RegisterParameter("max_chunks_per_properties_update", MaxChunksPerPropertiesUpdate)
             .Default(10000);
+
+        RegisterParameter("max_cached_replicas_per_fetch", MaxCachedReplicasPerFetch)
+            .GreaterThanOrEqual(0)
+            .Default(20);
     }
 };
 

@@ -3475,19 +3475,30 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->add_environment(Sprintf("YT_OPERATION_ID=%s",
         ~ToString(Operation->GetId())));
 
+    auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+    auto registerChunks = [&] (
+        const NChunkClient::NProto::TRspFetch& response,
+        google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs)
+    {
+        nodeDirectory->MergeFrom(response.node_directory());
+        chunkSpecs->MergeFrom(response.chunks());
+    };
+
     FOREACH (const auto& file, regularFiles) {
-        auto *descriptor = jobSpec->add_regular_files();
-        *descriptor->mutable_file() = file.FetchResponse;
+        auto* descriptor = jobSpec->add_regular_files();
         descriptor->set_executable(file.Executable);
         descriptor->set_file_name(file.FileName);
+        registerChunks(file.FetchResponse, descriptor->mutable_chunks());
     }
 
     FOREACH (const auto& file, tableFiles) {
         auto* descriptor = jobSpec->add_table_files();
-        *descriptor->mutable_table() = file.FetchResponse;
         descriptor->set_file_name(file.FileName);
         descriptor->set_format(file.Format.Data());
+        registerChunks(file.FetchResponse, descriptor->mutable_chunks());
     }
+
+    nodeDirectory->DumpTo(jobSpec->mutable_node_directory());
 }
 
 void TOperationControllerBase::InitUserJobSpec(

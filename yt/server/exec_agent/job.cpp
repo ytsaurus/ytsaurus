@@ -65,6 +65,7 @@ using namespace NJobProxy;
 using namespace NYTree;
 using namespace NYson;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NFileClient;
@@ -298,7 +299,7 @@ private:
 
     std::vector<NDataNode::TCachedChunkPtr> CachedChunks;
 
-    // Special node directory used to read cached chunks.
+    TNodeId LocalNodeId = InvalidNodeId;
     TNodeDirectoryPtr NodeDirectory;
 
     IProxyControllerPtr ProxyController;
@@ -424,6 +425,8 @@ private:
         if (!userJobSpec)
             return;
 
+        NodeDirectory->MergeFrom(userJobSpec->node_directory());
+
         FOREACH (const auto& descriptor, userJobSpec->regular_files()) {
             PrepareRegularFile(descriptor);
         }
@@ -520,22 +523,28 @@ private:
     }
 
 
-    TFuture<void> DownloadChunks(const NChunkClient::NProto::TRspFetch& fetchRsp)
+    TFuture<void> DownloadChunks(const google::protobuf::RepeatedPtrField<TChunkSpec>& chunkSpecs)
     {
         auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
         auto chunkCache = Bootstrap->GetChunkCache();
         auto this_ = MakeStrong(this);
 
-        FOREACH (const auto chunk, fetchRsp.chunks()) {
-            auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
-
+        FOREACH (const auto& chunkSpec, chunkSpecs) {
+            auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+            auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+        
             if (IsErasureChunkId(chunkId)) {
                 DoAbort(TError("Cannot download erasure chunk %s", ~ToString(chunkId)));
                 break;
             }
 
+            auto asyncChunkOrError = chunkCache->DownloadChunk(
+                chunkId,
+                NodeDirectory,
+                seedReplicas);
+
             awaiter->Await(
-                chunkCache->DownloadChunk(chunkId),
+                asyncChunkOrError,
                 BIND([=](NDataNode::TChunkCache::TDownloadResult result) {
                     if (!result.IsOK()) {
                         auto wrappedError = TError(
@@ -552,16 +561,15 @@ private:
         return awaiter->Complete();
     }
 
-    std::vector<NChunkClient::NProto::TChunkSpec>
-    PatchCachedChunkReplicas(const NChunkClient::NProto::TRspFetch& fetchRsp)
+    std::vector<TChunkSpec> PatchCachedChunkReplicas(const google::protobuf::RepeatedPtrField<TChunkSpec>& chunkSpecs)
     {
-        std::vector<NChunkClient::NProto::TChunkSpec> chunks;
-        chunks.insert(chunks.end(), fetchRsp.chunks().begin(), fetchRsp.chunks().end());
-        FOREACH (auto& chunk, chunks) {
-            chunk.clear_replicas();
-            chunk.add_replicas(ToProto<ui32>(TChunkReplica(InvalidNodeId, 0)));
+        std::vector<TChunkSpec> result;
+        result.insert(result.end(), chunkSpecs.begin(),chunkSpecs.end());
+        FOREACH (auto& chunkSpec, result) {
+            chunkSpec.clear_replicas();
+            chunkSpec.add_replicas(ToProto<ui32>(TChunkReplica(LocalNodeId, 0)));
         }
-        return chunks;
+        return result;
     }
 
     void PrepareRegularFile(const TRegularFileDescriptor& descriptor)
@@ -575,21 +583,22 @@ private:
 
     bool CanPrepareRegularFileViaSymlink(const TRegularFileDescriptor& descriptor)
     {
-        if (descriptor.file().chunks_size() != 1) {
+        if (descriptor.chunks_size() != 1) {
             return false;
         }
 
-        const auto& chunk = descriptor.file().chunks(0);
-        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk.extensions());
+        const auto& chunkSpec = descriptor.chunks(0);
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.extensions());
         auto compressionCodecId = NCompression::ECodec(miscExt.compression_codec());
-        auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
+        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
         return !IsErasureChunkId(chunkId) && (compressionCodecId == NCompression::ECodec::None);
     }
 
     void PrepareRegularFileViaSymlink(const TRegularFileDescriptor& descriptor)
     {
-        const auto& chunkSpec = descriptor.file().chunks(0);
+        const auto& chunkSpec = descriptor.chunks(0);
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+        auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
         const auto& fileName = descriptor.file_name();
 
         LOG_INFO("Preparing regular user file via symlink (FileName: %s, ChunkId: %s)",
@@ -597,7 +606,10 @@ private:
             ~ToString(chunkId));
 
         auto chunkCache = Bootstrap->GetChunkCache();
-        auto chunkOrError = CheckedWaitFor(chunkCache->DownloadChunk(chunkId));
+        auto chunkOrError = CheckedWaitFor(chunkCache->DownloadChunk(
+            chunkId,
+            NodeDirectory,
+            seedReplicas));
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
         THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError, "Failed to download user file %s",
             ~fileName.Quote());
@@ -627,12 +639,12 @@ private:
 
         LOG_INFO("Preparing regular user file via download (FileName: %s, ChunkCount: %d)",
             ~fileName,
-            static_cast<int>(descriptor.file().chunks_size()));
+            static_cast<int>(descriptor.chunks_size()));
 
-        CheckedWaitFor(DownloadChunks(descriptor.file()));
+        CheckedWaitFor(DownloadChunks(descriptor.chunks()));
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
 
-        auto chunks = PatchCachedChunkReplicas(descriptor.file());
+        auto chunkSpecs = PatchCachedChunkReplicas(descriptor.chunks());
         auto config = New<TFileReaderConfig>();
 
         auto provider = New<TFileChunkReaderProvider>(config);
@@ -644,7 +656,7 @@ private:
             Bootstrap->GetMasterChannel(),
             Bootstrap->GetBlockStore()->GetBlockCache(),
             NodeDirectory,
-            std::move(chunks),
+            std::move(chunkSpecs),
             provider);
 
         try {
@@ -684,18 +696,18 @@ private:
     {
         LOG_INFO("Preparing user table file (FileName: %s, ChunkCount: %d)",
             ~descriptor.file_name(),
-            static_cast<int>(descriptor.table().chunks_size()));
+            static_cast<int>(descriptor.chunks_size()));
 
-        CheckedWaitFor(DownloadChunks(descriptor.table()));
+        CheckedWaitFor(DownloadChunks(descriptor.chunks()));
 
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
 
-        auto chunks = PatchCachedChunkReplicas(descriptor.table());
+        auto chunkSpecs = PatchCachedChunkReplicas(descriptor.chunks());
 
         auto config = New<TTableReaderConfig>();
 
         auto readerProvider = New<TTableChunkReaderProvider>(
-            chunks,
+            chunkSpecs,
             config);
 
         auto asyncReader = New<TTableChunkSequenceReader>(
@@ -703,7 +715,7 @@ private:
             Bootstrap->GetMasterChannel(),
             Bootstrap->GetBlockStore()->GetBlockCache(),
             NodeDirectory,
-            std::move(chunks),
+            std::move(chunkSpecs),
             readerProvider);
 
         auto syncReader = CreateSyncReader(asyncReader);

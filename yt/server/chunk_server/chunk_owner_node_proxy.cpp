@@ -12,10 +12,12 @@
 #include <core/ytree/system_attribute_provider.h>
 #include <core/ytree/attribute_helpers.h>
 
+#include <core/erasure/codec.h>
+
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 
-#include <core/erasure/codec.h>
+#include <server/cell_master/config.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -155,6 +157,7 @@ bool TFetchChunkVisitor::OnChunk(
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto chunkManager = Bootstrap->GetChunkManager();
+    const auto& config = Bootstrap->GetConfig()->ChunkManager;
 
     if (!chunk->IsConfirmed()) {
         ReplyError(TError("Cannot fetch a table containing an unconfirmed chunk %s",
@@ -171,25 +174,45 @@ bool TFetchChunkVisitor::OnChunk(
     }
 
     // Default value for non-erasure chunks.
-    int firstParityPartIndex = 1;
-    
+    int firstSkippedPartIndex = 1;
     auto erasureCodecId = chunk->GetErasureCodec();
     if (erasureCodecId != NErasure::ECodec::None) {
         auto erasureCodec = NErasure::GetCodec(erasureCodecId);
-        firstParityPartIndex = FetchParityReplicas 
+        firstSkippedPartIndex = FetchParityReplicas
             ? erasureCodec->GetTotalPartCount()
             : erasureCodec->GetDataPartCount();
     }
 
-    auto replicas = chunk->GetReplicas();
-    FOREACH (auto replica, replicas) {
-        if (replica.GetIndex() < firstParityPartIndex) {
-            NodeDirectoryBuilder.Add(replica);
-            chunkSpec->add_replicas(NYT::ToProto<ui32>(replica));
+    TSmallVector<TNodePtrWithIndex, TypicalReplicaCount> replicas;
+    auto addReplica = [&] (TNodePtrWithIndex replica) -> bool {
+        if (replica.GetIndex() < firstSkippedPartIndex) {
+            replicas.push_back(replica);
+            return true;
+        } else {
+            return false;
+        }
+    };
+
+    for (auto replica : chunk->StoredReplicas()) {
+        addReplica(replica);
+    }
+
+    if (chunk->CachedReplicas()) {
+        int cachedReplicaCount = 0;
+        for (auto replica : *chunk->CachedReplicas()) {
+            if (cachedReplicaCount >= config->MaxCachedReplicasPerFetch)
+                break;
+            if (addReplica(replica)) {
+                ++cachedReplicaCount;
+            }
         }
     }
 
-    ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
+    for (auto replica : replicas) {
+        NodeDirectoryBuilder.Add(replica);
+        chunkSpec->add_replicas(NYT::ToProto<ui32>(replica));
+    }
+
     chunkSpec->set_erasure_codec(erasureCodecId);
 
     if (Context->Request().fetch_all_meta_extensions()) {
@@ -798,7 +821,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 
     visitor->Complete();
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

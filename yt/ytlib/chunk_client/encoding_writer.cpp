@@ -102,11 +102,26 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& vectorized
     ProcessCompressedBlock(compressedBlock, sizeToRelease);
 }
 
+// TODO(babenko): remove this when merging with master
+template <class T>
+size_t GetTotalSize(const std::vector<T>& parts)
+{
+    size_t size = 0;
+    for (const auto& part : parts) {
+        size += part.Size();
+    }
+    return size;
+}
+
 void TEncodingWriter::VerifyVector(
     const std::vector<TSharedRef>& origin,
     const TSharedRef& compressedBlock)
 {
     auto decompressedBlock = Codec->Decompress(compressedBlock);
+    
+    LOG_FATAL_IF(
+        decompressedBlock.Size() != GetTotalSize(origin),
+        "Compression verification failed");
 
     char* current = decompressedBlock.Begin();
     FOREACH (const auto& block, origin) {
