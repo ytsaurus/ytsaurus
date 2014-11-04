@@ -85,19 +85,19 @@ void Invoke(
     node::MakeCallback(Object::New(), callback, ARRAY_SIZE(args), args);
 }
 
-class TUvInvoker
+class TUVInvoker
     : public IInvoker
 {
 public:
-    explicit TUvInvoker(uv_loop_t* loop)
+    explicit TUVInvoker(uv_loop_t* loop)
         : QueueSize(0)
     {
         memset(&AsyncHandle, 0, sizeof(AsyncHandle));
-        YCHECK(uv_async_init(loop, &AsyncHandle, &TUvInvoker::Callback) == 0);
+        YCHECK(uv_async_init(loop, &AsyncHandle, &TUVInvoker::Callback) == 0);
         AsyncHandle.data = this;
     }
 
-    ~TUvInvoker()
+    ~TUVInvoker()
     {
         uv_close((uv_handle_t*)&AsyncHandle, nullptr);
     }
@@ -110,11 +110,17 @@ public:
         YCHECK(uv_async_send(&AsyncHandle) == 0);
     }
 
-    virtual NConcurrency::TThreadId GetThreadId() const override
+#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
+    virtual NConcurrency::TThreadId GetThreadId() const = 0;
     {
         return NConcurrency::InvalidThreadId;
     }
 
+    virtual void VerifyAffinity() const override
+    {
+        YUNREACHABLE();
+    }
+#endif
 
 private:
     uv_async_t AsyncHandle;
@@ -132,7 +138,7 @@ private:
         YCHECK(status == 0);
         YCHECK(handle->data);
 
-        reinterpret_cast<TUvInvoker*>(handle->data)->CallbackImpl();
+        reinterpret_cast<TUVInvoker*>(handle->data)->CallbackImpl();
     }
 
     void CallbackImpl()
@@ -158,8 +164,8 @@ private:
 
 // uv_default_loop() is a static singleton object, so it is safe to call
 // function at the binding time.
-TLazyIntrusivePtr<TUvInvoker> DefaultUvInvoker(BIND(
-    &New<TUvInvoker, uv_loop_t* const&>,
+TLazyIntrusivePtr<TUVInvoker> DefaultUVInvoker(BIND(
+    &New<TUVInvoker, uv_loop_t* const&>,
     uv_default_loop()));
 
 class TResponseParametersConsumer
@@ -197,7 +203,7 @@ public:
         if (!flushFuture) {
             TGuard<TSpinLock> guard(Lock_);
             if (!FlushFuture_) {
-                FlushFuture_ = FlushClosure_.AsyncVia(DefaultUvInvoker.Get()).Run();
+                FlushFuture_ = FlushClosure_.AsyncVia(DefaultUVInvoker.Get()).Run();
             }
             return FlushFuture_;
         }
