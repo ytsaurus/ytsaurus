@@ -71,7 +71,7 @@ TMasterConnector::TMasterConnector(TDataNodeConfigPtr config, TBootstrap* bootst
     , State_(EState::Offline)
     , NodeId_(InvalidNodeId)
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_, ControlThread);
+    VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
     YCHECK(Config_);
     YCHECK(Bootstrap_);
 }

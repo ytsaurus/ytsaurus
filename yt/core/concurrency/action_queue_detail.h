@@ -68,10 +68,14 @@ public:
         bool enableLogging,
         bool enableProfiling);
 
-    void SetThreadId(TThreadId threadId);
+    void AddThreadId(TThreadId threadId);
 
     virtual void Invoke(const TClosure& callback) override;
+
+#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     virtual TThreadId GetThreadId() const override;
+    virtual void VerifyAffinity() const override;
+#endif
 
     void Shutdown();
 
@@ -85,7 +89,7 @@ public:
 
 private:
     TEventCount* EventCount;
-    TThreadId ThreadId;
+    std::vector<TThreadId> ThreadIds;
     bool EnableLogging;
 
     std::atomic<bool> Running;
@@ -235,7 +239,11 @@ protected:
         explicit TInvoker(TEVSchedulerThread* owner);
 
         virtual void Invoke(const TClosure& callback) override;
+
+#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
         virtual TThreadId GetThreadId() const override;
+        virtual void VerifyAffinity() const override;
+#endif
 
     private:
         TEVSchedulerThread* Owner;

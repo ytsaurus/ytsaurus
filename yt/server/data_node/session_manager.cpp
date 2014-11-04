@@ -52,7 +52,7 @@ TSessionManager::TSessionManager(
 {
     YCHECK(config);
     YCHECK(bootstrap);
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 }
 
 ISessionPtr TSessionManager::FindSession(const TChunkId& chunkId)

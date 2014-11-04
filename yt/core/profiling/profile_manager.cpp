@@ -58,7 +58,7 @@ public:
     void Start()
     {
         Thread->Start();
-        Queue->SetThreadId(Thread->GetId());
+        Queue->AddThreadId(Thread->GetId());
 #ifdef _linux_
         ResourceTracker->Start();
 #endif

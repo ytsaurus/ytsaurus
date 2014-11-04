@@ -43,7 +43,7 @@ TRecovery::TRecovery(
     YCHECK(ChangelogStore_);
     YCHECK(SnapshotStore_);
     YCHECK(EpochContext_);
-    VERIFY_INVOKER_AFFINITY(EpochContext_->EpochSystemAutomatonInvoker, AutomatonThread);
+    VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochSystemAutomatonInvoker, AutomatonThread);
 
     Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 }

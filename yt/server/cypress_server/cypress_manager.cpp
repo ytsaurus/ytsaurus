@@ -443,7 +443,7 @@ TCypressManager::TCypressManager(
     , AccessTracker(New<TAccessTracker>(config, bootstrap))
     , RecomputeKeyColumns(false)
 {
-    VERIFY_INVOKER_AFFINITY(bootstrap->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
+    VERIFY_INVOKER_THREAD_AFFINITY(bootstrap->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
     auto cellTag = Bootstrap_->GetCellTag();
     RootNodeId = MakeWellKnownId(EObjectType::MapNode, cellTag);

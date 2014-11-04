@@ -58,7 +58,7 @@ public:
         , Config_(config)
         , Bootstrap_(bootstrap)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
     }
 
     void Initialize()

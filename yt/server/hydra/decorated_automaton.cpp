@@ -136,10 +136,17 @@ public:
             callback));
     }
 
+#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
+    virtual void VerifyAffinity() const override
+    {
+        UnderlyingInvoker_->VerifyAffinity();
+    }
+
     virtual NConcurrency::TThreadId GetThreadId() const override
     {
         return UnderlyingInvoker_->GetThreadId();
     }
+#endif
 
 private:
     TDecoratedAutomatonPtr Owner_;
@@ -173,10 +180,17 @@ public:
             Passed(std::move(guard))));
     }
 
+#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
+    virtual void VerifyAffinity() const override
+    {
+        Owner_->AutomatonInvoker_->VerifyAffinity();
+    }
+
     virtual NConcurrency::TThreadId GetThreadId() const override
     {
         return Owner_->AutomatonInvoker_->GetThreadId();
     }
+#endif
 
 private:
     TDecoratedAutomaton* Owner_;
@@ -290,8 +304,8 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     YCHECK(SnapshotStore_);
     YCHECK(ChangelogStore_);
 
-    VERIFY_INVOKER_AFFINITY(AutomatonInvoker_, AutomatonThread);
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_, ControlThread);
+    VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
+    VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
 
     Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 

@@ -125,9 +125,9 @@ public:
         , ControlState_(EPeerState::None)
         , Profiler(HydraProfiler)
     {
-        VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
-        VERIFY_INVOKER_AFFINITY(automatonInvoker, AutomatonThread);
-        VERIFY_INVOKER_AFFINITY(GetHydraIOInvoker(), IOThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(controlInvoker, ControlThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(automatonInvoker, AutomatonThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(GetHydraIOInvoker(), IOThread);
 
         Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 

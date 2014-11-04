@@ -89,7 +89,7 @@ public:
         , ChangelogCodec_(GetCodec(Config_->ChangelogCodec))
         , OnStoreMemoryUsageUpdated_(BIND(&TImpl::OnStoreMemoryUsageUpdated, MakeWeak(this)))
     {
-        VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
         RegisterLoader(
             "TabletManager.Keys",

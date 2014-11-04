@@ -32,7 +32,6 @@ TInvokerQueue::TInvokerQueue(
     bool enableLogging,
     bool enableProfiling)
     : EventCount(eventCount)
-    , ThreadId(InvalidThreadId)
     , EnableLogging(enableLogging)
     // XXX(babenko): VS2013 Nov CTP does not have a proper ctor :(
     // , Running(true)
@@ -49,9 +48,9 @@ TInvokerQueue::TInvokerQueue(
     Profiler.SetEnabled(enableProfiling);
 }
 
-void TInvokerQueue::SetThreadId(TThreadId threadId)
+void TInvokerQueue::AddThreadId(TThreadId threadId)
 {
-    ThreadId = threadId;
+    ThreadIds.push_back(threadId);
 }
 
 void TInvokerQueue::Invoke(const TClosure& callback)
@@ -81,10 +80,18 @@ void TInvokerQueue::Invoke(const TClosure& callback)
     EventCount->Notify();
 }
 
+#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
 TThreadId TInvokerQueue::GetThreadId() const
 {
-    return ThreadId;
+    return ThreadIds.size() == 1 ? ThreadIds[0] : InvalidThreadId;
 }
+
+void TInvokerQueue::VerifyAffinity() const
+{
+    auto currentThreadId = GetCurrentThreadId();
+    YCHECK(std::find(ThreadIds.begin(), ThreadIds.end(), currentThreadId) != ThreadIds.end());
+}
+#endif
 
 void TInvokerQueue::Shutdown()
 {
@@ -189,6 +196,7 @@ void TSchedulerThread::Start()
         ThreadName);
 
     Thread.Start();
+    ThreadId = TThreadId(Thread.SystemId());
 
     OnStart();
 
@@ -227,8 +235,7 @@ void TSchedulerThread::ThreadMain()
     VERIFY_THREAD_AFFINITY(HomeThread);
 
     TCurrentSchedulerGuard guard(this);
-    ThreadId = GetCurrentThreadId();
-    SetCurrentThreadName(~ThreadName);
+    SetCurrentThreadName(ThreadName.c_str());
 
     // Hold this strongly.
     auto this_ = MakeStrong(this);
@@ -423,7 +430,7 @@ void TSchedulerThread::OnContextSwitch()
 
 TThreadId TSchedulerThread::GetId() const
 {
-    return TThreadId(Thread.SystemId());
+    return ThreadId;
 }
 
 bool TSchedulerThread::IsRunning() const
@@ -654,10 +661,18 @@ void TEVSchedulerThread::TInvoker::Invoke(const TClosure& callback)
     Owner->CallbackWatcher.send();
 }
 
+#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
 TThreadId TEVSchedulerThread::TInvoker::GetThreadId() const
 {
     return Owner->ThreadId;
 }
+
+void TEVSchedulerThread::TInvoker::VerifyAffinity() const
+{
+    auto currentThreadId = GetCurrentThreadId();
+    YCHECK(currentThreadId == Owner->ThreadId);
+}
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 

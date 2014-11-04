@@ -38,49 +38,49 @@ class TThreadAffinitySlot
 {
 public:
     TThreadAffinitySlot()
-        : BoundId(InvalidThreadId)
+        : BoundId_(InvalidThreadId)
     { }
 
     void Check(TThreadId threadId = GetCurrentThreadId())
     {
         YCHECK(threadId != InvalidThreadId);
         auto expectedId = InvalidThreadId;
-        if (!BoundId.compare_exchange_strong(expectedId, threadId)) {
+        if (!BoundId_.compare_exchange_strong(expectedId, threadId)) {
             YCHECK(expectedId == threadId);
         }
     }
 
 private:
-    std::atomic<TThreadId> BoundId;
+    std::atomic<TThreadId> BoundId_;
 
 };
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
+    #define DECLARE_THREAD_AFFINITY_SLOT(slot) \
+        mutable ::NYT::NConcurrency::TThreadAffinitySlot PP_CONCAT(slot, _Slot)
 
-#define DECLARE_THREAD_AFFINITY_SLOT(slot) \
-    mutable ::NYT::NConcurrency::TThreadAffinitySlot PP_CONCAT(slot, __Slot)
+    #define VERIFY_THREAD_AFFINITY(slot) \
+        PP_CONCAT(slot, _Slot).Check()
 
-#define VERIFY_THREAD_AFFINITY(slot) \
-    PP_CONCAT(slot, __Slot).Check()
+    #define VERIFY_SPINLOCK_AFFINITY(spinLock) \
+        YCHECK((spinLock).IsLocked());
 
-#define VERIFY_SPINLOCK_AFFINITY(spinLock) \
-    YCHECK((spinLock).IsLocked());
+    #define VERIFY_INVOKER_AFFINITY(invoker) \
+        (invoker)->VerifyAffinity()
 
-#define VERIFY_INVOKER_AFFINITY(invoker, slot) \
-    PP_CONCAT(slot, __Slot).Check((invoker)->GetThreadId());
-
+    #define VERIFY_INVOKER_THREAD_AFFINITY(invoker, slot) \
+        PP_CONCAT(slot, _Slot).Check((invoker)->GetThreadId());
 #else
-
-// Expand macros to null but take care of the trailing semicolon.
-#define DECLARE_THREAD_AFFINITY_SLOT(slot)     struct PP_CONCAT(TNullThreadAffinitySlot__,  __LINE__) { }
-#define VERIFY_THREAD_AFFINITY(slot)           do { } while (0)
-#define VERIFY_SPINLOCK_AFFINITY(spinLock)     do { } while (0)
-#define VERIFY_INVOKER_AFFINITY(invoker, slot) do { } while (0)
-
+    // Expand macros to null but take care of the trailing semicolon.
+    #define DECLARE_THREAD_AFFINITY_SLOT(slot)             struct PP_CONCAT(TNullThreadAffinitySlot_,  __LINE__) { }
+    #define VERIFY_THREAD_AFFINITY(slot)                   do { } while (0)
+    #define VERIFY_SPINLOCK_AFFINITY(spinLock)             do { } while (0)
+    #define VERIFY_INVOKER_AFFINITY(invoker)               do { } while (0)
+    #define VERIFY_INVOKER_THREAD_AFFINITY(invoker, slot)  do { } while (0)
 #endif
 
 //! This is a mere declaration and intentionally does not check anything.
-#define VERIFY_THREAD_AFFINITY_ANY()           do { } while (0)
+#define VERIFY_THREAD_AFFINITY_ANY()                 do { } while (0)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -236,7 +236,7 @@ public:
         Writers_.insert(std::make_pair(DefaultStderrWriterName, New<TStderrLogWriter>()));
 
         LoggingThread_->Start();
-        EventQueue_->SetThreadId(LoggingThread_->GetId());
+        EventQueue_->AddThreadId(LoggingThread_->GetId());
     }
 
     void Configure(INodePtr node, const TYPath& path = "")
