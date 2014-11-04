@@ -220,7 +220,14 @@ TAsyncError TSession::PutBlocks(
     EnqueueWrites();
 
     auto throttler = Bootstrap->GetInThrottler(Type);
-    return throttler->Throttle(requestSize).Apply(BIND([] () {
+    LOG_DEBUG("Started waiting for input throttler (StartBlockIndex: %d, RequestSize: %" PRISZT ")",
+        startBlockIndex,
+        requestSize);
+    auto this_ = MakeStrong(this);
+    return throttler->Throttle(requestSize).Apply(BIND([this, this_, startBlockIndex, requestSize] () {
+        LOG_DEBUG("Finished waiting for input throttler (StartBlockIndex: %d, RequestSize: %" PRISZT ")",
+            startBlockIndex,
+            requestSize);
         return TError();
     }));
 }
@@ -249,7 +256,14 @@ TAsyncError TSession::SendBlocks(
     }
 
     auto throttler = Bootstrap->GetOutThrottler(Type);
-    return throttler->Throttle(requestSize).Apply(BIND([=] () {
+    LOG_DEBUG("Started waiting for input throttler (StartBlockIndex: %d, RequestSize: %" PRISZT ")",
+        startBlockIndex,
+        requestSize);
+    auto this_ = MakeStrong(this);
+    return throttler->Throttle(requestSize).Apply(BIND([this, this_, req, startBlockIndex, requestSize] () {
+        LOG_DEBUG("Finished waiting for input throttler (StartBlockIndex: %d, RequestSize: %" PRISZT ")",
+            startBlockIndex,
+            requestSize);
         return DoSendBlocks(req);
     }));
 }

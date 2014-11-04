@@ -191,6 +191,7 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     TNodeStatistics result;
 
     i64 totalAvailableSpace = 0;
+    i64 totalLowWatermarkSpace = 0;
     i64 totalUsedSpace = 0;
     int totalChunkCount = 0;
     int totalSessionCount = 0;
@@ -209,6 +210,7 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
 
         if (location->IsEnabled()) {
             totalAvailableSpace += location->GetAvailableSpace();
+            totalLowWatermarkSpace += location->GetLowWatermarkSpace();
             full &= location->IsFull();
         }
 
@@ -218,6 +220,7 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     }
 
     result.set_total_available_space(totalAvailableSpace);
+    result.set_total_low_watermark_space(totalLowWatermarkSpace);
     result.set_total_used_space(totalUsedSpace);
     result.set_total_chunk_count(totalChunkCount);
     result.set_full(full);
