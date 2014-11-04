@@ -111,6 +111,7 @@ void TEncodingWriter::VerifyVector(
     char* current = decompressedBlock.Begin();
     FOREACH (const auto& block, origin) {
         LOG_FATAL_IF(
+            current + block.Size() > decompressedBlock.End() ||
             !TRef::AreBitwiseEqual(TRef(current, block.Size()), block),
             "Compression verification failed");
         current += block.Size();
