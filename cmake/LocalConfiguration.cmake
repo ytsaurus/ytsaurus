@@ -91,13 +91,36 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-sign-compare -Wno-parentheses -Wno-unused-local-typedefs")
   endif()
 
+  set(_vendor_id)
+  set(_cpu_family)
+  set(_cpu_model)
+  set(_cpu_flags)
+
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    file(READ "/proc/cpuinfo" _cpuinfo)
+    string(REGEX REPLACE ".*vendor_id[ \t]*:[ \t]+([a-zA-Z0-9_-]+).*" "\\1" _vendor_id "${_cpuinfo}")
+    string(REGEX REPLACE ".*cpu family[ \t]*:[ \t]+([a-zA-Z0-9_-]+).*" "\\1" _cpu_family "${_cpuinfo}")
+    string(REGEX REPLACE ".*model[ \t]*:[ \t]+([a-zA-Z0-9_-]+).*" "\\1" _cpu_model "${_cpuinfo}")
+    string(REGEX REPLACE ".*flags[ \t]*:[ \t]+([a-zA-Z0-9_-]+).*" "\\1" _cpu_flags "${_cpuinfo}")
+ elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    get_filename_component(_vendor_id "[HKEY_LOCAL_MACHINE\\Hardware\\Description\\System\\CentralProcessor\\0;VendorIdentifier]" NAME CACHE)
+    get_filename_component(_cpu_id "[HKEY_LOCAL_MACHINE\\Hardware\\Description\\System\\CentralProcessor\\0;Identifier]" NAME CACHE)
+    mark_as_advanced(_vendor_id _cpu_id)
+    string(REGEX REPLACE ".* Family ([0-9]+) .*" "\\1" _cpu_family "${_cpu_id}")
+    string(REGEX REPLACE ".* Model ([0-9]+) .*" "\\1" _cpu_model "${_cpu_id}")
+  endif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+
   if(NOT CMAKE_COMPILER_IS_CLANG)
     # These are configuration-specific compilation flags.
     # http://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html
     # Note that inlined version of memcmp is not used due to performance regressions in GCC.
     # http://gcc.gnu.org/bugzilla/show_bug.cgi?id=43052
     # http://gcc.gnu.org/onlinedocs/gcc-4.1.2/gcc/Other-Builtins.html
-    set(ARCH_FLAGS "-march=native -msse -msse2 -msse3 -msse4 -msse4.1 -msse4.2 -mno-avx -mpclmul" )
+    
+    if(_vendor_id STREQUAL "GenuineIntel")
+      set(ARCH_FLAGS "-march=native -msse -msse2 -msse3 -msse4 -msse4.1 -msse4.2 -mno-avx -mpclmul" )
+    endif(_vendor_id STREQUAL "GenuineIntel")
+
     set(ARCH_FLAGS "${ARCH_FLAGS} -fno-builtin-memcmp  -fno-builtin-memcpy  -fno-builtin-memset")
     set(ARCH_FLAGS "${ARCH_FLAGS} -fno-builtin-strcat  -fno-builtin-strchr  -fno-builtin-strcmp")
     set(ARCH_FLAGS "${ARCH_FLAGS} -fno-builtin-strcpy  -fno-builtin-strcspn -fno-builtin-strlen")
