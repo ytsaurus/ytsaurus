@@ -45,15 +45,13 @@ public:
     void MakeLink(
         const Stroka& linkName,
         const Stroka& targetPath,
-        bool isExecutable);
+        bool isExecutable) noexcept;
 
     //! Writes data from producer to #fileName.
     void MakeFile(
         const Stroka& fileName, 
         std::function<void (TOutputStream*)> dataProducer, 
         bool isExecutable = false);
-
-    void MakeEmptyFile(const Stroka& fileName);
 
     const Stroka& GetWorkingDirectory() const;
 
@@ -75,6 +73,8 @@ private:
 
     void DoCleanSandbox();
     void DoCleanProcessGroups();
+
+    void LogErrorAndExit(const TError& error);
 
 };
 

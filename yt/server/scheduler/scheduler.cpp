@@ -1679,6 +1679,7 @@ private:
         LogEventFluently(ELogEventType::OperationCompleted)
             .Item("operation_id").Value(operation->GetId())
             .Item("spec").Value(operation->GetSpec())
+            .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
             .Item("start_time").Value(operation->GetStartTime())
             .Item("finish_time").Value(operation->GetFinishTime());
 
@@ -1735,6 +1736,7 @@ private:
         LogEventFluently(logEventType)
             .Item("operation_id").Value(operation->GetId())
             .Item("spec").Value(operation->GetSpec())
+            .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
             .Item("start_time").Value(operation->GetStartTime())
             .Item("finish_time").Value(operation->GetFinishTime())
             .Item("error").Value(error);
