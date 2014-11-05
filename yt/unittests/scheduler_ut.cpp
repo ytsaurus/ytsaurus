@@ -187,6 +187,8 @@ TEST_W(TSchedulerTest, CurrentInvokerAfterSwitch2)
     EXPECT_EQ(invoker, GetCurrentInvoker());
 }
 
+#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
+
 TEST_W(TSchedulerTest, InvokerAffinity1)
 {
     auto invoker = Queue1->GetInvoker();
@@ -206,6 +208,8 @@ TEST_W(TSchedulerTest, InvokerAffinity2)
     VERIFY_INVOKER_AFFINITY(invoker);
     VERIFY_INVOKER_AFFINITY(Queue1->GetInvoker());
 }
+
+#endif
 
 TEST_F(TSchedulerTest, CurrentInvokerSync)
 {
