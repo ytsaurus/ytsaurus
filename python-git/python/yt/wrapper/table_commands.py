@@ -520,7 +520,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             logger.info("read_table with retries ignore response_type option")
 
         title = "Python wrapper: read {0}".format(to_name(table, client=client))
-        tx = PingableTransaction(timeout=config.http.REQUEST_TIMEOUT,
+        tx = PingableTransaction(timeout=config.http.get_timeout(),
                                  attributes={"title": title},
                                  client=client)
         tx.__enter__()

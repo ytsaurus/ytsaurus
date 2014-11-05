@@ -15,7 +15,7 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
     path = to_table(path, client=client)
 
     title = "Python wrapper: {0} {1}".format(command_name, path.name)
-    with PingableTransaction(timeout=config.http.REQUEST_TIMEOUT,
+    with PingableTransaction(timeout=config.http.get_timeout(),
                              attributes={"title": title},
                              client=client):
         create_object(path.name)
@@ -32,7 +32,7 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                 for attempt in xrange(config.http.REQUEST_RETRY_COUNT):
                     current_time = datetime.now()
                     try:
-                        with PingableTransaction(timeout=config.http.REQUEST_TIMEOUT, client=client):
+                        with PingableTransaction(timeout=config.http.get_timeout(), client=client):
                             params["path"] = path.get_json()
                             _make_transactional_request(
                                 command_name,
