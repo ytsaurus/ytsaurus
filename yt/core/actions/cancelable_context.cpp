@@ -2,66 +2,56 @@
 #include "cancelable_context.h"
 #include "callback.h"
 #include "invoker_util.h"
+#include "invoker_detail.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCancelableContext::TCancelableInvoker
-    : public IInvoker
+    : public TInvokerWrapper
 {
 public:
     TCancelableInvoker(
         TCancelableContextPtr context,
         IInvokerPtr underlyingInvoker)
-        : Context_(std::move(context))
-        , UnderlyingInvoker_(std::move(underlyingInvoker))
+        : TInvokerWrapper(std::move(underlyingInvoker))
+        , Context_(std::move(context))
     {
         YCHECK(Context_);
-        YCHECK(UnderlyingInvoker_);
     }
 
     virtual void Invoke(const TClosure& callback) override
     {
         YASSERT(callback);
 
-        if (Context_->Canceled)
+        if (Context_->Canceled_)
             return;
 
         auto this_ = MakeStrong(this);
         return UnderlyingInvoker_->Invoke(BIND([this, this_, callback] {
-            if (!Context_->Canceled) {
+            if (!Context_->Canceled_) {
                 TCurrentInvokerGuard guard(this_);
                 callback.Run();
             }
         }));
     }
 
-    virtual NConcurrency::TThreadId GetThreadId() const override
-    {
-        return UnderlyingInvoker_->GetThreadId();
-    }
-
 private:
     TCancelableContextPtr Context_;
-    IInvokerPtr UnderlyingInvoker_;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCancelableContext::TCancelableContext()
-    : Canceled(false)
-{ }
-
 bool TCancelableContext::IsCanceled() const
 {
-    return Canceled;
+    return Canceled_;
 }
 
 void TCancelableContext::Cancel()
 {
-    Canceled = true;
+    Canceled_ = true;
 }
 
 IInvokerPtr TCancelableContext::CreateInvoker(IInvokerPtr underlyingInvoker)

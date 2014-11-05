@@ -32,9 +32,7 @@ class TFiber;
 } // namespace NConcurrency
 
 IInvokerPtr GetCurrentInvoker();
-
 void SetCurrentInvoker(IInvokerPtr invoker);
-
 void SetCurrentInvoker(IInvokerPtr invoker, NConcurrency::TFiber* fiber);
 
 //! Swaps the current active invoker with a provided one.

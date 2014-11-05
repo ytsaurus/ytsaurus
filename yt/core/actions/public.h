@@ -26,14 +26,10 @@ class TPromise;
 template <>
 class TPromise<void>;
 
-struct IInvoker;
-typedef TIntrusivePtr<IInvoker> IInvokerPtr;
+DECLARE_REFCOUNTED_STRUCT(IInvoker)
+DECLARE_REFCOUNTED_STRUCT(IPrioritizedInvoker)
 
-struct IPrioritizedInvoker;
-typedef TIntrusivePtr<IPrioritizedInvoker> IPrioritizedInvokerPtr;
-
-class TCancelableContext;
-typedef TIntrusivePtr<TCancelableContext> TCancelableContextPtr;
+DECLARE_REFCOUNTED_CLASS(TCancelableContext)
 
 ///////////////////////////////////////////////////////////////////////////////
 

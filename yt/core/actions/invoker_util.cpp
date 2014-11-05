@@ -134,6 +134,8 @@ void SetCurrentInvoker(IInvokerPtr invoker, TFiber* fiber)
     *CurrentInvoker().Get(fiber) = std::move(invoker);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TCurrentInvokerGuard::TCurrentInvokerGuard(IInvokerPtr invoker)
     : SavedInvoker_(std::move(invoker))
 {

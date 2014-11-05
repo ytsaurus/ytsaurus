@@ -16,8 +16,6 @@ class TCancelableContext
     : public TRefCounted
 {
 public:
-    TCancelableContext();
-
     //! Returns True iff the context is canceled.
     bool IsCanceled() const;
 
@@ -36,9 +34,11 @@ public:
 private:
     class TCancelableInvoker;
 
-    volatile bool Canceled;
+    volatile bool Canceled_ = false;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TCancelableContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 

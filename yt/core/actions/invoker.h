@@ -20,6 +20,10 @@ struct IInvoker
     virtual NConcurrency::TThreadId GetThreadId() const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IInvoker)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IPrioritizedInvoker
     : public virtual IInvoker
 {
@@ -35,6 +39,8 @@ struct IPrioritizedInvoker
      */
     virtual void Invoke(const TClosure& callback, i64 priority) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IPrioritizedInvoker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
