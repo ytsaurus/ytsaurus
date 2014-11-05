@@ -1,15 +1,17 @@
-#!/bin/sh -eux
+#!/bin/bash -eux
 
 set +u
-if [ -z "$USER_SESSIONS_PERIOD" ]; then
+if ! [[ -v USER_SESSIONS_PERIOD ]]; then
     echo "You must specify USER_SESSIONS_PERIOD" >&2
     exit 1
 fi
-if [ -z "$USER_SESSIONS_FRAUDS_PERIOD" ]; then
+if ! [[ -v USER_SESSIONS_FRAUDS_PERIOD ]]; then
     USER_SESSIONS_FRAUDS_PERIOD="$USER_SESSIONS_PERIOD"
+fi
+if ! [[ -v USER_SESSIONS_SPY_LOG_PERIOD ]]; then
     USER_SESSIONS_SPY_LOG_PERIOD="$USER_SESSIONS_PERIOD"
 fi
-if [ -z "$FAST" ]; then
+if ! [[ -v FAST ]]; then
     FAST=0
 fi
 set -u
