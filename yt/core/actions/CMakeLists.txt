@@ -5,6 +5,7 @@ set( SRCS
   ${BASE}/cancelable_context.cpp
   ${BASE}/future.cpp
   ${BASE}/invoker_util.cpp
+  ${BASE}/invoker_detail.cpp
 )
 set( HDRS
   ${BASE}/bind_helpers.h
@@ -18,6 +19,7 @@ set( HDRS
   ${BASE}/future.h
   ${BASE}/invoker.h
   ${BASE}/invoker_util.h
+  ${BASE}/invoker_detail.h
   ${BASE}/signal.h
   ${BASE}/signal-inl.h
   ${BASE}/public.h

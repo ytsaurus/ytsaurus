@@ -134,7 +134,7 @@ public:
 
         auto invoker = Slot->GetInvoker();
 
-        VERIFY_INVOKER_AFFINITY(invoker, JobThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(invoker, JobThread);
 
         invoker->Invoke(BIND(&TJob::DoRun, MakeWeak(this)));
     }

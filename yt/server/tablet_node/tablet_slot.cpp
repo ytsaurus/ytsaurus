@@ -86,7 +86,7 @@ public:
             EAutomatonThreadQueue::GetDomainNames()))
         , Logger(TabletNodeLogger)
     {
-        VERIFY_INVOKER_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
 
         SetCellId(NullCellId);
         ResetEpochInvokers();

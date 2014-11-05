@@ -258,7 +258,7 @@ TTransactionManager::TTransactionManager(
     : TMasterAutomatonPart(bootstrap)
     , Config(config)
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
     RegisterLoader(
         "TransactionManager.Keys",

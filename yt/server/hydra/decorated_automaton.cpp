@@ -8,6 +8,8 @@
 #include "mutation_context.h"
 #include "snapshot_discovery.h"
 
+#include <core/actions/invoker_detail.h>
+
 #include <core/concurrency/scheduler.h>
 
 #include <core/rpc/response_keeper.h>
@@ -105,14 +107,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDecoratedAutomaton::TGuardedUserInvoker
-    : public IInvoker
+    : public TInvokerWrapper
 {
 public:
     TGuardedUserInvoker(
         TDecoratedAutomatonPtr decoratedAutomaton,
         IInvokerPtr underlyingInvoker)
-        : Owner_(decoratedAutomaton)
-        , UnderlyingInvoker_(underlyingInvoker)
+        : TInvokerWrapper(std::move(underlyingInvoker))
+        , Owner_(decoratedAutomaton)
     { }
 
     virtual void Invoke(const TClosure& callback) override
@@ -136,25 +138,20 @@ public:
             callback));
     }
 
-    virtual NConcurrency::TThreadId GetThreadId() const override
-    {
-        return UnderlyingInvoker_->GetThreadId();
-    }
-
 private:
     TDecoratedAutomatonPtr Owner_;
-    IInvokerPtr UnderlyingInvoker_;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDecoratedAutomaton::TSystemInvoker
-    : public IInvoker
+    : public TInvokerWrapper
 {
 public:
     explicit TSystemInvoker(TDecoratedAutomaton* decoratedAutomaton)
-        : Owner_(decoratedAutomaton)
+        : TInvokerWrapper(decoratedAutomaton->AutomatonInvoker_)
+        , Owner_(decoratedAutomaton)
     { }
 
     virtual void Invoke(const TClosure& callback) override
@@ -171,11 +168,6 @@ public:
             MakeStrong(this),
             callback,
             Passed(std::move(guard))));
-    }
-
-    virtual NConcurrency::TThreadId GetThreadId() const override
-    {
-        return Owner_->AutomatonInvoker_->GetThreadId();
     }
 
 private:
@@ -290,8 +282,8 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     YCHECK(SnapshotStore_);
     YCHECK(ChangelogStore_);
 
-    VERIFY_INVOKER_AFFINITY(AutomatonInvoker_, AutomatonThread);
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_, ControlThread);
+    VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
+    VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
 
     Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 

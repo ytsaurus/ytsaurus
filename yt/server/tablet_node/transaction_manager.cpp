@@ -55,7 +55,7 @@ public:
         , Config_(config)
         , Logger(TabletNodeLogger)
     {
-        VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
         Logger.AddTag("CellId: %v", Slot_->GetCellId());
 

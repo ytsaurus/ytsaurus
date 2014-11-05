@@ -187,6 +187,26 @@ TEST_W(TSchedulerTest, CurrentInvokerAfterSwitch2)
     EXPECT_EQ(invoker, GetCurrentInvoker());
 }
 
+TEST_W(TSchedulerTest, InvokerAffinity1)
+{
+    auto invoker = Queue1->GetInvoker();
+
+    SwitchTo(invoker);
+
+    VERIFY_INVOKER_AFFINITY(invoker);
+}
+
+TEST_W(TSchedulerTest, InvokerAffinity2)
+{
+    auto context = New<TCancelableContext>();
+    auto invoker = context->CreateInvoker(Queue1->GetInvoker());
+
+    SwitchTo(invoker);
+
+    VERIFY_INVOKER_AFFINITY(invoker);
+    VERIFY_INVOKER_AFFINITY(Queue1->GetInvoker());
+}
+
 TEST_F(TSchedulerTest, CurrentInvokerSync)
 {
     EXPECT_EQ(GetSyncInvoker(), GetCurrentInvoker())

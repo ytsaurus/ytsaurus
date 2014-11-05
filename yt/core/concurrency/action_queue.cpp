@@ -3,6 +3,7 @@
 #include "action_queue_detail.h"
 
 #include <core/actions/invoker_util.h>
+#include <core/actions/invoker_detail.h>
 
 #include <core/ypath/token.h>
 
@@ -338,11 +339,11 @@ TCallback<TThreadPoolPtr()> TThreadPool::CreateFactory(int queueCount, const Str
 ///////////////////////////////////////////////////////////////////////////////
 
 class TSerializedInvoker
-    : public IInvoker
+    : public TInvokerWrapper
 {
 public:
     explicit TSerializedInvoker(IInvokerPtr underlyingInvoker)
-        : UnderlyingInvoker_(std::move(underlyingInvoker))
+        : TInvokerWrapper(std::move(underlyingInvoker))
         , FinishedCallback_(BIND(&TSerializedInvoker::OnFinished, MakeWeak(this)))
     {
         Lock_.clear();
@@ -354,17 +355,13 @@ public:
         TrySchedule();
     }
 
-    virtual NConcurrency::TThreadId GetThreadId() const override
-    {
-        return UnderlyingInvoker_->GetThreadId();
-    }
-
 private:
-    IInvokerPtr UnderlyingInvoker_;
     TLockFreeQueue<TClosure> Queue_;
     std::atomic_flag Lock_;
     bool LockReleased_;
     TClosure FinishedCallback_;
+
+    static PER_THREAD TSerializedInvoker* CurrentRunningInvoker_;
 
 
     class TInvocationGuard
@@ -435,11 +432,12 @@ IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TPrioritizedInvoker
-    : public IPrioritizedInvoker
+    : public TInvokerWrapper
+    , public virtual IPrioritizedInvoker
 {
 public:
     explicit TPrioritizedInvoker(IInvokerPtr underlyingInvoker)
-        : UnderlyingInvoker_(std::move(underlyingInvoker))
+        : TInvokerWrapper(std::move(underlyingInvoker))
     { }
 
     virtual void Invoke(const TClosure& callback, i64 priority) override
@@ -455,19 +453,7 @@ public:
         UnderlyingInvoker_->Invoke(BIND(&TPrioritizedInvoker::DoExecute, MakeStrong(this)));
     }
 
-    virtual void Invoke(const TClosure& callback) override
-    {
-        UnderlyingInvoker_->Invoke(callback);
-    }
-
-    virtual TThreadId GetThreadId() const override
-    {
-        return UnderlyingInvoker_->GetThreadId();
-    }
-
 private:
-    IInvokerPtr UnderlyingInvoker_;
-
     struct TEntry
     {
         TClosure Callback;
@@ -502,31 +488,18 @@ IPrioritizedInvokerPtr CreatePrioritizedInvoker(IInvokerPtr underlyingInvoker)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TFakePrioritizedInvoker
-    : public IPrioritizedInvoker
+    : public TInvokerWrapper
+    , public virtual IPrioritizedInvoker
 {
 public:
     explicit TFakePrioritizedInvoker(IInvokerPtr underlyingInvoker)
-        : UnderlyingInvoker_(std::move(underlyingInvoker))
+        : TInvokerWrapper(std::move(underlyingInvoker))
     { }
 
     virtual void Invoke(const TClosure& callback, i64 /*priority*/) override
     {
         return UnderlyingInvoker_->Invoke(callback);
     }
-
-    virtual void Invoke(const TClosure& callback) override
-    {
-        return UnderlyingInvoker_->Invoke(callback);
-    }
-
-    virtual NConcurrency::TThreadId GetThreadId() const override
-    {
-        return UnderlyingInvoker_->GetThreadId();
-    }
-
-private:
-    IInvokerPtr UnderlyingInvoker_;
-
 };
 
 IPrioritizedInvokerPtr CreateFakePrioritizedInvoker(IInvokerPtr underlyingInvoker)
@@ -537,13 +510,13 @@ IPrioritizedInvokerPtr CreateFakePrioritizedInvoker(IInvokerPtr underlyingInvoke
 ///////////////////////////////////////////////////////////////////////////////
 
 class TBoundedConcurrencyInvoker
-    : public IInvoker
+    : public TInvokerWrapper
 {
 public:
     TBoundedConcurrencyInvoker(
         IInvokerPtr underlyingInvoker,
         int maxConcurrentInvocations)
-        : UnderlyingInvoker_(underlyingInvoker)
+        : TInvokerWrapper(std::move(underlyingInvoker))
         , MaxConcurrentInvocations_(maxConcurrentInvocations)
         , Semaphore_(0)
     { }
@@ -554,19 +527,13 @@ public:
         ScheduleMore();
     }
 
-    virtual TThreadId GetThreadId() const
-    {
-        return UnderlyingInvoker_->GetThreadId();
-    }
-
 private:
-    IInvokerPtr UnderlyingInvoker_;
     int MaxConcurrentInvocations_;
 
     std::atomic<int> Semaphore_;
     TLockFreeQueue<TClosure> Queue_;
 
-    static PER_THREAD TBoundedConcurrencyInvoker* CurrentScheduler_;
+    static PER_THREAD TBoundedConcurrencyInvoker* CurrentSchedulingInvoker_;
 
 
     class TInvocationGuard
@@ -593,7 +560,7 @@ private:
 
     void RunCallback(TClosure callback, TInvocationGuard /*invocationGuard*/)
     {
-        TCurrentInvokerGuard currentInvokerGuard(UnderlyingInvoker_); // sic!
+        TCurrentInvokerGuard guard(UnderlyingInvoker_); // sic!
         callback.Run();
     }
 
@@ -606,7 +573,7 @@ private:
     void ScheduleMore()
     {
         // Prevent reenterant invocations.
-        if (CurrentScheduler_ == this)
+        if (CurrentSchedulingInvoker_ == this)
             return;
 
         while (true) {
@@ -620,8 +587,8 @@ private:
             }
 
             // If UnderlyingInvoker_ is already terminated, Invoke may drop the guard right away.
-            // Protect by setting CurrentScheduler_ and checking it on entering ScheduleMore.
-            CurrentScheduler_ = this;
+            // Protect by setting CurrentSchedulingInvoker_ and checking it on entering ScheduleMore.
+            CurrentSchedulingInvoker_ = this;
 
             UnderlyingInvoker_->Invoke(BIND(
                 &TBoundedConcurrencyInvoker::RunCallback,
@@ -630,7 +597,7 @@ private:
                 Passed(TInvocationGuard(this))));
 
             // Don't leave a dangling pointer behind.
-            CurrentScheduler_ = nullptr;
+            CurrentSchedulingInvoker_ = nullptr;
         }        
     }
 
@@ -650,7 +617,7 @@ private:
 
 };
 
-PER_THREAD TBoundedConcurrencyInvoker* TBoundedConcurrencyInvoker::CurrentScheduler_ = nullptr;
+PER_THREAD TBoundedConcurrencyInvoker* TBoundedConcurrencyInvoker::CurrentSchedulingInvoker_ = nullptr;
 
 IInvokerPtr CreateBoundedConcurrencyInvoker(
     IInvokerPtr underlyingInvoker,

@@ -32,7 +32,6 @@ TInvokerQueue::TInvokerQueue(
     bool enableLogging,
     bool enableProfiling)
     : EventCount(eventCount)
-    , ThreadId(InvalidThreadId)
     , EnableLogging(enableLogging)
     // XXX(babenko): VS2013 Nov CTP does not have a proper ctor :(
     // , Running(true)
@@ -81,10 +80,17 @@ void TInvokerQueue::Invoke(const TClosure& callback)
     EventCount->Notify();
 }
 
+#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
 TThreadId TInvokerQueue::GetThreadId() const
 {
     return ThreadId;
 }
+
+bool TInvokerQueue::CheckAffinity(IInvokerPtr invoker) const
+{
+    return invoker.Get() == this;
+}
+#endif
 
 void TInvokerQueue::Shutdown()
 {
@@ -189,6 +195,7 @@ void TSchedulerThread::Start()
         ThreadName);
 
     Thread.Start();
+    ThreadId = TThreadId(Thread.SystemId());
 
     OnStart();
 
@@ -227,8 +234,7 @@ void TSchedulerThread::ThreadMain()
     VERIFY_THREAD_AFFINITY(HomeThread);
 
     TCurrentSchedulerGuard guard(this);
-    ThreadId = GetCurrentThreadId();
-    SetCurrentThreadName(~ThreadName);
+    SetCurrentThreadName(ThreadName.c_str());
 
     // Hold this strongly.
     auto this_ = MakeStrong(this);
@@ -423,7 +429,7 @@ void TSchedulerThread::OnContextSwitch()
 
 TThreadId TSchedulerThread::GetId() const
 {
-    return TThreadId(Thread.SystemId());
+    return ThreadId;
 }
 
 bool TSchedulerThread::IsRunning() const
@@ -654,10 +660,17 @@ void TEVSchedulerThread::TInvoker::Invoke(const TClosure& callback)
     Owner->CallbackWatcher.send();
 }
 
+#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
 TThreadId TEVSchedulerThread::TInvoker::GetThreadId() const
 {
     return Owner->ThreadId;
 }
+
+bool TEVSchedulerThread::TInvoker::CheckAffinity(IInvokerPtr invoker) const
+{
+    return invoker.Get() == this;
+}
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 
