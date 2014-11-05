@@ -115,14 +115,14 @@ def get_operation_state(operation, client=None):
     :param operation: (string) operation id.
     Raise `YtError` if operation doesn't exists
     """
-    old_request_timeout = config.http.REQUEST_TIMEOUT
-    config.http.REQUEST_TIMEOUT = config.OPERATION_TRANSACTION_TIMEOUT
+    old_retry_count = config.http.REQUEST_RETRY_COUNT
+    config.http.REQUEST_RETRY_COUNT = config.OPERATION_GET_STATE_RETRY_COUNT
 
     operation_path = os.path.join(OPERATIONS_PATH, operation)
     require(exists(operation_path, client=client), YtError("Operation %s doesn't exist" % operation))
     state = OperationState(get_attribute(operation_path, "state", client=client))
 
-    config.http.REQUEST_TIMEOUT = old_request_timeout
+    config.http.REQUEST_RETRY_COUNT = old_retry_count
 
     return state
 
