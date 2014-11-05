@@ -7,9 +7,9 @@ import cStringIO
 from cStringIO import StringIO
 
 class Request(object):
-    def __init__ (self, command_name, arguments=None, input_stream=None, output_stream=None, user=None):
+    def __init__ (self, command_name, parameters=None, input_stream=None, output_stream=None, user=None):
         self.command_name = command_name
-        self.arguments = arguments
+        self.parameters = parameters
         self.input_stream = input_stream
         self.output_stream = output_stream
         self.user = user
@@ -32,12 +32,12 @@ def make_request(driver, request):
 
     yson_format = to_yson_type("yson", attributes={"format": "text"})
 
-    if description.input_type() != "null" and request.arguments.get("input_format") is None:
-        request.arguments["input_format"] = yson_format
+    if description.input_type() != "null" and request.parameters.get("input_format") is None:
+        request.parameters["input_format"] = yson_format
 
     if description.output_type() != "null" and request.output_stream is None:
-        if request.arguments.get("output_format") is None:
-            request.arguments["output_format"] = yson_format
+        if request.parameters.get("output_format") is None:
+            request.parameters["output_format"] = yson_format
         if request.command_name in ["read", "download"]:
             request.output_stream = BufferedStream(size=64 * 1024 * 1024)
             response = driver.execute(request)
