@@ -184,14 +184,14 @@ TTraceContext CreateChildTraceContext()
     const auto& current = GetCurrentTraceContext();
     return current.IsEnabled()
         ? current.CreateChild()
-        : current;
+        : NullTraceContext;
 }
 
 TTraceContext CreateRootTraceContext()
 {
     return TTraceContext(
         GenerateTraceId(),
-        InvalidSpanId,
+        GenerateSpanId(),
         InvalidSpanId);
 }
 
