@@ -88,7 +88,6 @@ class TUVInvoker
 {
 public:
     explicit TUVInvoker(uv_loop_t* loop)
-        : QueueSize(0)
     {
         memset(&AsyncHandle, 0, sizeof(AsyncHandle));
         YCHECK(uv_async_init(loop, &AsyncHandle, &TUVInvoker::Callback) == 0);
@@ -103,7 +102,6 @@ public:
     virtual bool Invoke(const TClosure& action) override
     {
         Queue.Enqueue(action);
-        AtomicIncrement(QueueSize);
 
         YCHECK(uv_async_send(&AsyncHandle) == 0);
 
@@ -121,9 +119,6 @@ private:
 
     TClosure Action;
     TLockFreeQueue<TClosure> Queue;
-    TAtomic QueueSize;
-
-    static const int ActionsPerTick = 100;
 
     static void Callback(uv_async_t* handle, int status)
     {
@@ -138,27 +133,17 @@ private:
     void CallbackImpl()
     {
         YCHECK(!Action);
-
-        int actionsRan = 0;
         while (Queue.Dequeue(&Action)) {
-            AtomicDecrement(QueueSize);
-
             Action.Run();
             Action.Reset();
-
-            if (++actionsRan >= ActionsPerTick) {
-                YCHECK(uv_async_send(&AsyncHandle) == 0);
-                break;
-            }
         }
-
         YCHECK(!Action);
     }
 };
 
 // uv_default_loop() is a static singleton object, so it is safe to call
 // function at the binding time.
-TLazyIntrusivePtr<TUVInvoker> DefaultUvInvoker(BIND(
+TLazyIntrusivePtr<TUVInvoker> DefaultUVInvoker(BIND(
     &New<TUVInvoker, uv_loop_t* const&>,
     uv_default_loop()));
 
@@ -197,7 +182,7 @@ public:
         if (!flushFuture) {
             TGuard<TSpinLock> guard(Lock_);
             if (!FlushFuture_) {
-                FlushFuture_ = FlushClosure_.AsyncVia(DefaultUvInvoker.Get()).Run();
+                FlushFuture_ = FlushClosure_.AsyncVia(DefaultUVInvoker.Get()).Run();
             }
             return FlushFuture_;
         }
