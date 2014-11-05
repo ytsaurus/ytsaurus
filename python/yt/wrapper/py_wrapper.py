@@ -139,11 +139,15 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
                                                       prefix="_main_module", suffix=".py")
     main_module_type = "PY_SOURCE"
     if is_running_interactively():
-        function_source_filename = inspect.getfile(function)
-        # If function is defined in terminal path is <stdin> or
-        # <ipython-input-*>
-        if not os.path.exists(function_source_filename):
+        try:
+            function_source_filename = inspect.getfile(function)
+        except TypeError:
             function_source_filename = None
+        else:
+            # If function is defined in terminal path is <stdin> or
+            # <ipython-input-*>
+            if not os.path.exists(function_source_filename):
+                function_source_filename = None
     else:
         function_source_filename = sys.modules['__main__'].__file__
         if function_source_filename.endswith("pyc"):
