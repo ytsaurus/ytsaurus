@@ -61,6 +61,8 @@ TEST_W(TSchedulerTest, SimpleAsync)
     EXPECT_EQ(7, a + b);
 }
 
+#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
+
 TEST_W(TSchedulerTest, SwitchToInvoker1)
 {
     auto invoker = Queue1->GetInvoker();
@@ -97,6 +99,8 @@ TEST_W(TSchedulerTest, SwitchToInvoker2)
         EXPECT_EQ(GetCurrentThreadId(), id2);
     }
 }
+
+#endif
 
 TEST_W(TSchedulerTest, SwitchToCancelableInvoker1)
 {
