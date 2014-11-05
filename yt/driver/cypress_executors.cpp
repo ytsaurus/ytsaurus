@@ -20,7 +20,7 @@ TGetExecutor::TGetExecutor()
     CmdLine.add(AttributeArg);
 }
 
-void TGetExecutor::BuildArgs(IYsonConsumer* consumer)
+void TGetExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -28,7 +28,7 @@ void TGetExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("path").Value(path)
         .Item("attributes").List(AttributeArg);
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TGetExecutor::GetCommandName() const
@@ -47,7 +47,7 @@ TSetExecutor::TSetExecutor()
     CmdLine.add(ValueArg);
 }
 
-void TSetExecutor::BuildArgs(IYsonConsumer* consumer)
+void TSetExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -60,7 +60,7 @@ void TSetExecutor::BuildArgs(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)
         .Item("path").Value(path);
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 TInputStream* TSetExecutor::GetInputStream()
@@ -90,7 +90,7 @@ TRemoveExecutor::TRemoveExecutor()
     CmdLine.add(ForceArg);
 }
 
-void TRemoveExecutor::BuildArgs(IYsonConsumer* consumer)
+void TRemoveExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -99,7 +99,7 @@ void TRemoveExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("recursive").Value(!NonRecursiveArg.getValue())
         .Item("force").Value(ForceArg.getValue());
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TRemoveExecutor::GetCommandName() const
@@ -117,7 +117,7 @@ TListExecutor::TListExecutor()
     CmdLine.add(AttributeArg);
 }
 
-void TListExecutor::BuildArgs(IYsonConsumer* consumer)
+void TListExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -125,7 +125,7 @@ void TListExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("path").Value(path)
         .Item("attributes").List(AttributeArg);
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TListExecutor::GetCommandName() const
@@ -147,7 +147,7 @@ TCreateExecutor::TCreateExecutor()
     CmdLine.add(IgnoreExistingArg);
 }
 
-void TCreateExecutor::BuildArgs(IYsonConsumer* consumer)
+void TCreateExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path =
         PathArg.isSet()
@@ -162,7 +162,7 @@ void TCreateExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("recursive").Value(RecursiveArg.getValue())
         .Item("ignore_existing").Value(IgnoreExistingArg.getValue());
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TCreateExecutor::GetCommandName() const
@@ -183,7 +183,7 @@ TLockExecutor::TLockExecutor()
     CmdLine.add(WaitableArg);
 }
 
-void TLockExecutor::BuildArgs(IYsonConsumer* consumer)
+void TLockExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -192,7 +192,7 @@ void TLockExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("mode").Value(FormatEnum(ModeArg.getValue()))
         .Item("waitable").Value(WaitableArg.getValue());
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TLockExecutor::GetCommandName() const
@@ -213,7 +213,7 @@ TCopyExecutor::TCopyExecutor()
     CmdLine.add(PreserveAccountArg);
 }
 
-void TCopyExecutor::BuildArgs(IYsonConsumer* consumer)
+void TCopyExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto sourcePath = PreprocessYPath(SourcePathArg.getValue());
     auto destinationPath = PreprocessYPath(DestinationPathArg.getValue());
@@ -223,7 +223,7 @@ void TCopyExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("destination_path").Value(destinationPath)
         .Item("preserve_account").Value(PreserveAccountArg.getValue());
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TCopyExecutor::GetCommandName() const
@@ -242,7 +242,7 @@ TMoveExecutor::TMoveExecutor()
     CmdLine.add(DestinationPathArg);
 }
 
-void TMoveExecutor::BuildArgs(IYsonConsumer* consumer)
+void TMoveExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto sourcePath = PreprocessYPath(SourcePathArg.getValue());
     auto destinationPath = PreprocessYPath(DestinationPathArg.getValue());
@@ -251,7 +251,7 @@ void TMoveExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("source_path").Value(sourcePath)
         .Item("destination_path").Value(destinationPath);
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TMoveExecutor::GetCommandName() const
@@ -268,14 +268,14 @@ TExistsExecutor::TExistsExecutor()
     CmdLine.add(PathArg);
 }
 
-void TExistsExecutor::BuildArgs(IYsonConsumer* consumer)
+void TExistsExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
         .Item("path").Value(path);
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TExistsExecutor::GetCommandName() const
@@ -297,7 +297,7 @@ TLinkExecutor::TLinkExecutor()
     CmdLine.add(IgnoreExistingArg);
 }
 
-void TLinkExecutor::BuildArgs(IYsonConsumer* consumer)
+void TLinkExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto targetPath = PreprocessYPath(TargetPathArg.getValue());
     auto linkPath = PreprocessYPath(LinkPathArg.getValue());
@@ -308,7 +308,7 @@ void TLinkExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("recursive").Value(RecursiveArg.getValue())
         .Item("ignore_existing").Value(IgnoreExistingArg.getValue());
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TLinkExecutor::GetCommandName() const

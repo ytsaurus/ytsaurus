@@ -313,14 +313,14 @@ struct TExecuteRequest
     void SetCommand(
         Stroka commandName,
         Stroka authenticatedUser,
-        INodePtr arguments,
+        INodePtr parameters,
         ui64 requestId)
     {
         DriverRequest.CommandName = std::move(commandName);
         DriverRequest.AuthenticatedUser = std::move(authenticatedUser);
-        DriverRequest.Arguments = arguments->AsMap();
+        DriverRequest.Parameters = parameters->AsMap();
 
-        auto trace = DriverRequest.Arguments->FindChild("trace");
+        auto trace = DriverRequest.Parameters->FindChild("trace");
         if (trace && ConvertTo<bool>(trace)) {
             TraceContext = NTracing::CreateRootTraceContext();
             if (requestId) {

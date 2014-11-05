@@ -41,7 +41,7 @@ struct TDriverRequest
     NConcurrency::IAsyncOutputStreamPtr OutputStream;
 
     //! A map containing command parameters.
-    NYTree::IMapNodePtr Arguments;
+    NYTree::IMapNodePtr Parameters;
 
     //! Name of the user issuing the request.
     Stroka AuthenticatedUser = NSecurityClient::RootUserName;

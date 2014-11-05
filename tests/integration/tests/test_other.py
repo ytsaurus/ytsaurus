@@ -30,7 +30,7 @@ class TestResourceLeak(YTEnvSetup):
         create('file', '//tmp/file')
 
         try:
-            command("upload", arguments={"path": "//tmp/file", "tx": tx}, input_stream=InputStream())
+            command("upload", parameters={"path": "//tmp/file", "tx": tx}, input_stream=InputStream())
         except YtError:
             time.sleep(1)
             # now check that there are no temp files

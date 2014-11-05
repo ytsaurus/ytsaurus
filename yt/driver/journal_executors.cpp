@@ -20,14 +20,14 @@ TReadJournalExecutor::TReadJournalExecutor()
     CmdLine.add(PathArg);
 }
 
-void TReadJournalExecutor::BuildArgs(IYsonConsumer* consumer)
+void TReadJournalExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
         .Item("path").Value(path);
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TReadJournalExecutor::GetCommandName() const
@@ -46,7 +46,7 @@ TWriteJournalExecutor::TWriteJournalExecutor()
     CmdLine.add(ValueArg);
 }
 
-void TWriteJournalExecutor::BuildArgs(IYsonConsumer* consumer)
+void TWriteJournalExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -59,7 +59,7 @@ void TWriteJournalExecutor::BuildArgs(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)
         .Item("path").Value(path);
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 TInputStream* TWriteJournalExecutor::GetInputStream()

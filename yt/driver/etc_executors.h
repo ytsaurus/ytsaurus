@@ -49,7 +49,7 @@ private:
     TUnlabeledStringArg MemberArg;
     TUnlabeledStringArg GroupArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
 
 };
 
@@ -82,7 +82,7 @@ private:
     TCLAP::UnlabeledValueArg<NYTree::EPermission> PermissionArg;
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
 
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 

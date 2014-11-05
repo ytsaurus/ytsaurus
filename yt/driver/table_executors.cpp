@@ -20,14 +20,14 @@ TReadTableExecutor::TReadTableExecutor()
     CmdLine.add(PathArg);
 }
 
-void TReadTableExecutor::BuildArgs(IYsonConsumer* consumer)
+void TReadTableExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
         .Item("path").Value(path);
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TReadTableExecutor::GetCommandName() const
@@ -48,7 +48,7 @@ TWriteTableExecutor::TWriteTableExecutor()
     CmdLine.add(SortedByArg);
 }
 
-void TWriteTableExecutor::BuildArgs(IYsonConsumer* consumer)
+void TWriteTableExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
     auto sortedBy = ConvertTo< std::vector<Stroka> >(TYsonString(SortedByArg.getValue(), EYsonType::ListFragment));
@@ -66,7 +66,7 @@ void TWriteTableExecutor::BuildArgs(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)
         .Item("path").Value(path);
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 TInputStream* TWriteTableExecutor::GetInputStream()
@@ -91,7 +91,7 @@ TTabletExecutor::TTabletExecutor()
     CmdLine.add(LastTabletIndexArg);
 }
 
-void TTabletExecutor::BuildArgs(IYsonConsumer* consumer)
+void TTabletExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -110,12 +110,12 @@ void TTabletExecutor::BuildArgs(IYsonConsumer* consumer)
 TMountTableExecutor::TMountTableExecutor()
 { }
 
-void TMountTableExecutor::BuildArgs(IYsonConsumer* consumer)
+void TMountTableExecutor::BuildParameters(IYsonConsumer* consumer)
 {
-    TTabletExecutor::BuildArgs(consumer);
+    TTabletExecutor::BuildParameters(consumer);
 }
 
-Stroka TMountTableExecutor::GetCommandName() const 
+Stroka TMountTableExecutor::GetCommandName() const
 {
     return "mount_table";
 }
@@ -128,15 +128,15 @@ TUnmountTableExecutor::TUnmountTableExecutor()
     CmdLine.add(ForceArg);
 }
 
-void TUnmountTableExecutor::BuildArgs(IYsonConsumer* consumer)
+void TUnmountTableExecutor::BuildParameters(IYsonConsumer* consumer)
 {
-    TTabletExecutor::BuildArgs(consumer);
+    TTabletExecutor::BuildParameters(consumer);
 
     BuildYsonMapFluently(consumer)
         .Item("force").Value(ForceArg.getValue());
 }
 
-Stroka TUnmountTableExecutor::GetCommandName() const 
+Stroka TUnmountTableExecutor::GetCommandName() const
 {
     return "unmount_table";
 }
@@ -146,12 +146,12 @@ Stroka TUnmountTableExecutor::GetCommandName() const
 TRemountTableExecutor::TRemountTableExecutor()
 { }
 
-void TRemountTableExecutor::BuildArgs(IYsonConsumer* consumer)
+void TRemountTableExecutor::BuildParameters(IYsonConsumer* consumer)
 {
-    TTabletExecutor::BuildArgs(consumer);
+    TTabletExecutor::BuildParameters(consumer);
 }
 
-Stroka TRemountTableExecutor::GetCommandName() const 
+Stroka TRemountTableExecutor::GetCommandName() const
 {
     return "remount_table";
 }
@@ -164,9 +164,9 @@ TReshardTableExecutor::TReshardTableExecutor()
     CmdLine.add(PivotKeysArg);
 }
 
-void TReshardTableExecutor::BuildArgs(IYsonConsumer* consumer)
+void TReshardTableExecutor::BuildParameters(IYsonConsumer* consumer)
 {
-    TTabletExecutor::BuildArgs(consumer);
+    TTabletExecutor::BuildParameters(consumer);
 
     std::vector<TOwningKey> pivotKeys;
     for (const auto& key : PivotKeysArg) {
@@ -177,7 +177,7 @@ void TReshardTableExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("pivot_keys").Value(pivotKeys);
 }
 
-Stroka TReshardTableExecutor::GetCommandName() const 
+Stroka TReshardTableExecutor::GetCommandName() const
 {
     return "reshard_table";
 }
@@ -195,7 +195,7 @@ TInsertExecutor::TInsertExecutor()
     CmdLine.add(ValueArg);
 }
 
-void TInsertExecutor::BuildArgs(IYsonConsumer* consumer)
+void TInsertExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -209,7 +209,7 @@ void TInsertExecutor::BuildArgs(IYsonConsumer* consumer)
         .Item("path").Value(path)
         .Item("update").Value(UpdateArg.getValue());
 
-    TRequestExecutor::BuildArgs(consumer);
+    TRequestExecutor::BuildParameters(consumer);
 }
 
 TInputStream* TInsertExecutor::GetInputStream()
@@ -236,7 +236,7 @@ TSelectExecutor::TSelectExecutor()
     CmdLine.add(OutputRowLimitArg);
 }
 
-void TSelectExecutor::BuildArgs(IYsonConsumer* consumer)
+void TSelectExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("query").Value(QueryArg.getValue())
@@ -251,7 +251,7 @@ void TSelectExecutor::BuildArgs(IYsonConsumer* consumer)
         });
 }
 
-Stroka TSelectExecutor::GetCommandName() const 
+Stroka TSelectExecutor::GetCommandName() const
 {
     return "select";
 }
@@ -268,7 +268,7 @@ TLookupExecutor::TLookupExecutor()
     CmdLine.add(TimestampArg);
 }
 
-void TLookupExecutor::BuildArgs(IYsonConsumer* consumer)
+void TLookupExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
     auto key = ConvertTo<std::vector<INodePtr>>(TYsonString(KeyArg.getValue(), EYsonType::ListFragment));
@@ -296,7 +296,7 @@ TDeleteExecutor::TDeleteExecutor()
     CmdLine.add(KeyArg);
 }
 
-void TDeleteExecutor::BuildArgs(IYsonConsumer* consumer)
+void TDeleteExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
     auto key = ConvertTo<std::vector<INodePtr>>(TYsonString(KeyArg.getValue(), EYsonType::ListFragment));

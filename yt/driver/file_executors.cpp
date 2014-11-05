@@ -20,14 +20,14 @@ TWriteFileExecutor::TWriteFileExecutor()
     CmdLine.add(PathArg);
 }
 
-void TWriteFileExecutor::BuildArgs(IYsonConsumer* consumer)
+void TWriteFileExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
         .Item("path").Value(path);
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TWriteFileExecutor::GetCommandName() const
@@ -43,14 +43,14 @@ TReadFileExecutor::TReadFileExecutor()
     CmdLine.add(PathArg);
 }
 
-void TReadFileExecutor::BuildArgs(IYsonConsumer* consumer)
+void TReadFileExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
         .Item("path").Value(path);
 
-    TTransactedExecutor::BuildArgs(consumer);
+    TTransactedExecutor::BuildParameters(consumer);
 }
 
 Stroka TReadFileExecutor::GetCommandName() const

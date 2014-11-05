@@ -54,7 +54,7 @@ private:
     TCLAP::SwitchArg ForceArg;
 
     virtual Stroka GetCommandName() const override;
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
