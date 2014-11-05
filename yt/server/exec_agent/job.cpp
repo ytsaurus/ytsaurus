@@ -617,17 +617,10 @@ private:
         auto chunk = chunkOrError.Value();
         CachedChunks.push_back(chunk);
 
-        try {
-            Slot->MakeLink(
-                fileName,
-                chunk->GetFileName(),
-                descriptor.executable());
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION(
-                "Failed to create a symlink for %s",
-                ~fileName.Quote())
-                << ex;
-        }
+        Slot->MakeLink(
+            fileName,
+            chunk->GetFileName(),
+            descriptor.executable());
 
         LOG_INFO("Regular user file prepared successfully (FileName: %s)",
             ~fileName);
