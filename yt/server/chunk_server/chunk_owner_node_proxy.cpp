@@ -30,7 +30,6 @@ namespace NChunkServer {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
 using namespace NCypressServer;
 using namespace NTransactionServer;
 using namespace NYson;
@@ -39,8 +38,9 @@ using namespace NNodeTrackerServer;
 using namespace NVersionedTableClient;
 using namespace NObjectClient;
 
-using NChunkClient::TChannel;
-using NChunkClient::TReadLimit;
+using NChunkClient::NProto::TReqFetch;
+using NChunkClient::NProto::TRspFetch;
+using NChunkClient::NProto::TMiscExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,13 +57,16 @@ public:
         TChunkList* chunkList,
         TCtxFetchPtr context,
         const TChannel& channel,
-        bool fetchParityReplicas)
+        bool fetchParityReplicas,
+        const std::vector<TReadRange>& ranges)
         : Bootstrap_(bootstrap)
         , Config_(config)
         , ChunkList_(chunkList)
         , Context_(context)
         , Channel_(channel)
         , FetchParityReplicas_(fetchParityReplicas)
+        , Ranges_(ranges)
+        , CurrentRange_(0)
         , NodeDirectoryBuilder_(context->Response().mutable_node_directory())
     {
         if (!Context_->Request().fetch_all_meta_extensions()) {
@@ -73,29 +76,21 @@ public:
         }
     }
 
-    void StartSession(const TReadLimit& lowerBound, const TReadLimit& upperBound)
+    void Run()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        ++SessionCount_;
+        if (Ranges_.empty()) {
+            ReplySuccess();
+            return;
+        }
 
         TraverseChunkTree(
             CreatePreemptableChunkTraverserCallbacks(Bootstrap_),
             this,
             ChunkList_,
-            lowerBound,
-            upperBound);
-    }
-
-    void Complete()
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-            YCHECK(!Completed_);
-
-        Completed_ = true;
-        if (SessionCount_ == 0 && !Finished_) {
-            ReplySuccess();
-        }
+            Ranges_[CurrentRange_].LowerLimit(),
+            Ranges_[CurrentRange_].UpperLimit());
     }
 
 private:
@@ -106,10 +101,11 @@ private:
     TChannel Channel_;
     bool FetchParityReplicas_;
 
+    std::vector<TReadRange> Ranges_;
+    int CurrentRange_;
+
     yhash_set<int> ExtensionTags_;
     TNodeDirectoryBuilder NodeDirectoryBuilder_;
-    int SessionCount_ = 0;
-    bool Completed_ = false;
     bool Finished_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -143,7 +139,7 @@ private:
                         lowerLimit.SetRowIndex(0);
                     }
                     ToProto(chunkSpec.mutable_lower_limit(), lowerLimit);
-                    
+
                     auto upperLimit = FromProto<TReadLimit>(chunkSpec.upper_limit());
                     i64 upperLimitRowIndex = upperLimit.HasRowIndex() ? upperLimit.GetRowIndex() : std::numeric_limits<i64>::max();
                     upperLimit.SetRowIndex(std::min(upperLimitRowIndex, quorumRowCount));
@@ -243,9 +239,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        --SessionCount_;
-        YCHECK(SessionCount_ >= 0);
-
         ReplyError(error);
     }
 
@@ -253,11 +246,18 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        --SessionCount_;
-        YCHECK(SessionCount_ >= 0);
-
-        if (Completed_ && !Finished_ && SessionCount_ == 0) {
-            ReplySuccess();
+        CurrentRange_ += 1;
+        if (CurrentRange_ == Ranges_.size()) {
+            if (CurrentRange_ == Ranges_.size() && !Finished_) {
+                ReplySuccess();
+            }
+        } else {
+            TraverseChunkTree(
+                CreatePreemptableChunkTraverserCallbacks(Bootstrap_),
+                this,
+                ChunkList_,
+                Ranges_[CurrentRange_].LowerLimit(),
+                Ranges_[CurrentRange_].UpperLimit());
         }
     }
 
@@ -576,7 +576,7 @@ TAsyncError TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
             const_cast<TChunkList*>(chunkList),
             consumer);
     }
-    
+
     if (key == "erasure_statistics") {
         struct TExtractErasureCodec
         {
@@ -676,8 +676,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 
 void TChunkOwnerNodeProxy::ValidateFetchParameters(
     const TChannel& /*channel*/,
-    const TReadLimit& /*upperLimit*/,
-    const TReadLimit& /*lowerLimit*/)
+    const std::vector<TReadRange>& /*ranges*/)
 { }
 
 void TChunkOwnerNodeProxy::Clear()
@@ -798,15 +797,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
     auto channel = request->has_channel()
         ? NYT::FromProto<TChannel>(request->channel())
         : TChannel::Universal();
-    auto lowerLimit = request->has_lower_limit()
-        ? NYT::FromProto<TReadLimit>(request->lower_limit())
-        : TReadLimit();
-    auto upperLimit = request->has_upper_limit()
-        ? NYT::FromProto<TReadLimit>(request->upper_limit())
-        : TReadLimit();
     bool fetchParityReplicas = request->fetch_parity_replicas();
 
-    ValidateFetchParameters(channel, lowerLimit, upperLimit);
+    std::vector<TReadRange> ranges = FromProto<TReadRange>(request->ranges());
+    ValidateFetchParameters(channel, ranges);
 
     const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     auto* chunkList = node->GetChunkList();
@@ -817,20 +811,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         chunkList,
         context,
         channel,
-        fetchParityReplicas);
+        fetchParityReplicas,
+        ranges);
 
-    if (request->complement()) {
-        if (lowerLimit.HasRowIndex() || lowerLimit.HasKey()) {
-            visitor->StartSession(TReadLimit(), lowerLimit);
-        }
-        if (upperLimit.HasRowIndex() || upperLimit.HasKey()) {
-            visitor->StartSession(upperLimit, TReadLimit());
-        }
-    } else {
-        visitor->StartSession(lowerLimit, upperLimit);
-    }
-
-    visitor->Complete();
+    visitor->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

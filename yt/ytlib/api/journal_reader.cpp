@@ -26,7 +26,7 @@
 
 namespace NYT {
 namespace NApi {
-    
+
 using namespace NConcurrency;
 using namespace NYPath;
 using namespace NNodeTrackerClient;
@@ -122,13 +122,21 @@ private:
 
         {
             auto req = TJournalYPathProxy::Fetch(Path_);
+
+            TReadLimit lowerLimit, upperLimit;
             i64 firstRowIndex = Options_.FirstRowIndex.Get(0);
             if (Options_.FirstRowIndex) {
-                req->mutable_lower_limit()->set_row_index(firstRowIndex);
+                lowerLimit.SetRowIndex(firstRowIndex);
             }
             if (Options_.RowCount) {
-                req->mutable_upper_limit()->set_row_index(firstRowIndex + *Options_.RowCount);
+                upperLimit.SetRowIndex(firstRowIndex + *Options_.RowCount);
             }
+
+            TReadRange range;
+            range.LowerLimit() = lowerLimit;
+            range.UpperLimit() = upperLimit;
+            ToProto(req->mutable_ranges(), std::vector<TReadRange>({range}));
+
             SetTransactionId(req, Transaction_);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);

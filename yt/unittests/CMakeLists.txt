@@ -34,6 +34,7 @@ set( SRCS
   ${BASE}/preprocessor_ut.cpp
   ${BASE}/process_ut.cpp
   ${BASE}/random_ut.cpp
+  ${BASE}/read_limit_ut.cpp
   ${BASE}/ref_counted_tracker_ut.cpp
   ${BASE}/rpc_ut.cpp
   ${BASE}/schema_ut.cpp

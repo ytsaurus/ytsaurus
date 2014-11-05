@@ -32,7 +32,7 @@
 
 namespace NYT {
 namespace NApi {
-    
+
 using namespace NRpc;
 using namespace NYTree;
 using namespace NConcurrency;
@@ -125,13 +125,18 @@ private:
 
         {
             auto req = TFileYPathProxy::Fetch(Path_);
+
+            TReadLimit lowerLimit, upperLimit;
             i64 offset = Options_.Offset.Get(0);
             if (Options_.Offset) {
-                req->mutable_lower_limit()->set_offset(offset);
+                lowerLimit.SetOffset(offset);
             }
             if (Options_.Length) {
-                req->mutable_upper_limit()->set_offset(offset + *Options_.Length);
+                upperLimit.SetOffset(offset + *Options_.Length);
             }
+
+            ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange(lowerLimit, upperLimit)}));
+
             SetTransactionId(req, Transaction_);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
@@ -193,7 +198,7 @@ private:
         if (IsFinished_) {
             return TSharedRef();
         }
-        
+
         if (!IsFirstBlock_ && !Reader_->FetchNext()) {
             auto result = WaitFor(Reader_->GetReadyEvent());
             THROW_ERROR_EXCEPTION_IF_FAILED(result);

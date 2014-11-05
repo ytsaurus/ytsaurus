@@ -42,8 +42,7 @@ public:
     // Attribute accessors.
     bool GetAppend() const;
     NChunkClient::TChannel GetChannel() const;
-    NChunkClient::TReadLimit GetLowerLimit() const;
-    NChunkClient::TReadLimit GetUpperLimit() const;
+    std::vector<NChunkClient::TReadRange> GetRanges() const;
 
 private:
     TYPath Path_;

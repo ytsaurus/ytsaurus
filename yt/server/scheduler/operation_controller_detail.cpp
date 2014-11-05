@@ -100,7 +100,6 @@ void TOperationControllerBase::TInputTable::Persist(TPersistenceContext& context
 
     using NYT::Persist;
     Persist(context, FetchResponse);
-    Persist(context, ComplementFetch);
     Persist(context, KeyColumns);
 }
 
@@ -2575,7 +2574,6 @@ void TOperationControllerBase::RequestInputObjects()
         {
             auto req = TTableYPathProxy::Fetch(path);
             req->set_fetch_all_meta_extensions(true);
-            req->set_complement(table.ComplementFetch);
             req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
             InitializeFetchRequest(req.Get(), table.Path);
             SetTransactionId(req, Operation->GetInputTransaction());

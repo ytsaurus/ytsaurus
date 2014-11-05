@@ -14,14 +14,10 @@ namespace NFileServer {
 
 using namespace NChunkServer;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
 using namespace NCypressServer;
 using namespace NYTree;
 using namespace NTransactionServer;
 using namespace NCellMaster;
-
-using NChunkClient::TChannel;
-using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,17 +77,20 @@ private:
 
     virtual void ValidateFetchParameters(
         const TChannel& channel,
-        const TReadLimit& upperLimit,
-        const TReadLimit& lowerLimit) override
+        const std::vector<TReadRange>& ranges) override
     {
         if (!channel.IsUniversal()) {
             THROW_ERROR_EXCEPTION("Column selectors are not supported for files");
         }
 
-        if (upperLimit.HasKey() || upperLimit.HasRowIndex() ||
-            lowerLimit.HasKey() || lowerLimit.HasRowIndex())
-        {
-            THROW_ERROR_EXCEPTION("Row selectors are not supported for files");
+        for (const auto& range : ranges) {
+            const auto& lowerLimit = range.LowerLimit();
+            const auto& upperLimit = range.UpperLimit();
+            if (upperLimit.HasKey() || upperLimit.HasRowIndex() ||
+                lowerLimit.HasKey() || lowerLimit.HasRowIndex())
+            {
+                THROW_ERROR_EXCEPTION("Row selectors are not supported for files");
+            }
         }
     }
 

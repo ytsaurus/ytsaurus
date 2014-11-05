@@ -39,6 +39,7 @@ const NYson::ETokenType::EDomain BeginTupleToken = NYson::ETokenType::LeftParent
 const NYson::ETokenType::EDomain EndTupleToken = NYson::ETokenType::RightParenthesis;
 const NYson::ETokenType::EDomain KeySeparatorToken = NYson::ETokenType::Comma;
 const NYson::ETokenType::EDomain RangeToken = NYson::ETokenType::Colon;
+const NYson::ETokenType::EDomain RangeSeparatorToken = NYson::ETokenType::Comma;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -267,11 +268,10 @@ void ParseKeyPart(
 
 void ParseRowLimit(
     NYson::TTokenizer& tokenizer,
-    NYson::ETokenType separator,
+    std::vector<NYson::ETokenType> separators,
     TReadLimit* limit)
 {
-    if (tokenizer.GetCurrentType() == separator) {
-        tokenizer.ParseNext();
+    if (std::find(separators.begin(), separators.end(), tokenizer.GetCurrentType()) != separators.end()) {
         return;
     }
 
@@ -314,25 +314,32 @@ void ParseRowLimit(
         limit->SetKey(key);
     }
 
-    tokenizer.CurrentToken().CheckType(separator);
-    tokenizer.ParseNext();
+    tokenizer.CurrentToken().CheckType(separators);
 }
 
-void ParseRowLimits(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes)
+void ParseRowRanges(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes)
 {
     if (tokenizer.GetCurrentType() == BeginRowSelectorToken) {
         tokenizer.ParseNext();
 
-        TReadLimit lowerLimit, upperLimit;
-        ParseRowLimit(tokenizer, RangeToken, &lowerLimit);
-        ParseRowLimit(tokenizer, EndRowSelectorToken, &upperLimit);
+        std::vector<TReadRange> ranges;
 
-        if (!lowerLimit.IsTrivial()) {
-            attributes->Set("lower_limit", lowerLimit);
+        bool finished = false;
+        while (!finished) {
+            TReadLimit lowerLimit, upperLimit;
+            ParseRowLimit(tokenizer, {RangeToken}, &lowerLimit);
+            tokenizer.ParseNext();
+
+            ParseRowLimit(tokenizer, {RangeSeparatorToken, EndRowSelectorToken}, &upperLimit);
+            if (tokenizer.CurrentToken().GetType() == EndRowSelectorToken) {
+                finished = true;
+            }
+            tokenizer.ParseNext();
+
+            ranges.push_back(TReadRange(lowerLimit, upperLimit));
         }
-        if (!upperLimit.IsTrivial()) {
-            attributes->Set("upper_limit", upperLimit);
-        }
+
+        attributes->Set("ranges", ConvertToYsonString(ranges));
     }
 }
 
@@ -355,10 +362,9 @@ TRichYPath TRichYPath::Parse(const Stroka& str)
         NYson::TTokenizer ysonTokenizer(rangeStr);
         ysonTokenizer.ParseNext();
         ParseChannel(ysonTokenizer, attributes.get());
-        ParseRowLimits(ysonTokenizer, attributes.get());
+        ParseRowRanges(ysonTokenizer, attributes.get());
         ysonTokenizer.CurrentToken().CheckType(NYson::ETokenType::EndOfStream);
     }
-
     return TRichYPath(path, *attributes);
 }
 
@@ -385,22 +391,33 @@ void TRichYPath::Load(TStreamLoadContext& context)
 
 bool TRichYPath::GetAppend() const
 {
-    return Attributes_->Get("append", false);
+    return Attributes().Get("append", false);
 }
 
 TChannel TRichYPath::GetChannel() const
 {
-    return Attributes_->Get("channel", TChannel::Universal());
+    return Attributes().Get("channel", TChannel::Universal());
 }
 
-TReadLimit TRichYPath::GetLowerLimit() const
+std::vector<NChunkClient::TReadRange> TRichYPath::GetRanges() const
 {
-    return Attributes_->Get("lower_limit", TReadLimit());
-}
+    // COMPAT(ignat): lower and upper limit attributes processed for compatibility.
+    auto lowerLimitAttribute = Attributes().Find<TReadLimit>("lower_limit");
+    auto upperLimitAttribute = Attributes().Find<TReadLimit>("upper_limit");
+    auto rangesAttribute = Attributes().Find<std::vector<TReadLimit>>("ranges");
+    if ((lowerLimitAttribute || upperLimitAttribute) && rangesAttribute) {
+        THROW_ERROR_EXCEPTION("lower_limit or upper_limit conflicts with ranges attribute");
+    }
 
-TReadLimit TRichYPath::GetUpperLimit() const
-{
-    return Attributes_->Get("upper_limit", TReadLimit());
+    if (lowerLimitAttribute || upperLimitAttribute) {
+        return std::vector<TReadRange>({
+            TReadRange(
+                Attributes().Get("lower_limit", TReadLimit()),
+                Attributes().Get("upper_limit", TReadLimit())
+            )});
+    } else {
+        return Attributes().Get("ranges", std::vector<TReadRange>({TReadRange()}));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -439,19 +456,7 @@ void InitializeFetchRequest(
         ToProto(request->mutable_channel(), channel);
     }
 
-    auto lowerLimit = richPath.GetLowerLimit();
-    if (lowerLimit.IsTrivial()) {
-        request->clear_lower_limit();
-    } else {
-        ToProto(request->mutable_lower_limit(), lowerLimit);
-    }
-
-    auto upperLimit = richPath.GetUpperLimit();
-    if (upperLimit.IsTrivial()) {
-        request->clear_upper_limit();
-    } else {
-        ToProto(request->mutable_upper_limit(), upperLimit);
-    }
+    ToProto(request->mutable_ranges(), richPath.GetRanges());
 }
 
 void Serialize(const TRichYPath& richPath, IYsonConsumer* consumer)

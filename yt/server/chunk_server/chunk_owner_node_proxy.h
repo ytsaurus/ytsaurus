@@ -36,8 +36,7 @@ protected:
         const TNullable<NYTree::TYsonString>& newValue) override;
     virtual void ValidateFetchParameters(
         const NChunkClient::TChannel& channel,
-        const NChunkClient::TReadLimit& upperLimit,
-        const NChunkClient::TReadLimit& lowerLimit);
+        const std::vector<NChunkClient::TReadRange>& ranges);
     virtual void Clear();
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;

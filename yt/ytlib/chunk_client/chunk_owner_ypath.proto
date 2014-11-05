@@ -34,13 +34,14 @@ message TReqFetch
     repeated int32 extension_tags = 3;
 
     // Deprecated = 5;
-
-	optional bool complement = 6 [default = false];
+    // Deprecated = 6;
 	optional NChunkClient.NProto.TChannel channel = 7;
-	optional NChunkClient.NProto.TReadLimit lower_limit = 8;
-	optional NChunkClient.NProto.TReadLimit upper_limit = 9;
+    // Deprecated = 8;
+    // Deprecated = 9;
 	
     optional bool fetch_parity_replicas = 10 [default = false];
+
+    repeated TReadRange ranges = 11;
 }
 
 message TRspFetch

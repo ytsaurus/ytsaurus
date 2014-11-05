@@ -75,5 +75,34 @@ void Deserialize(TReadLimit& readLimit, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReadRange
+{
+public:
+    TReadRange();
+    TReadRange(const TReadLimit& lowerLimit, const TReadLimit& upperLimit);
+
+    explicit TReadRange(const NProto::TReadRange& range);
+    explicit TReadRange(NProto::TReadRange&& range);
+    TReadRange& operator= (const NProto::TReadRange& range);
+    TReadRange& operator= (NProto::TReadRange&& range);
+
+    DEFINE_BYREF_RW_PROPERTY(TReadLimit, LowerLimit);
+    DEFINE_BYREF_RW_PROPERTY(TReadLimit, UpperLimit);
+
+private:
+    void InitCopy(const NProto::TReadRange& range);
+    void InitMove(NProto::TReadRange&& range);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TReadRange* protoReadRange, const TReadRange& readRange);
+void FromProto(TReadRange* readRange, const NProto::TReadRange& protoReadRange);
+
+void Serialize(const TReadRange& readRange, NYson::IYsonConsumer* consumer);
+void Deserialize(TReadRange& readRange, NYTree::INodePtr node);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkClient
 } // namespace NYT

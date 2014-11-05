@@ -111,6 +111,10 @@ class TestTables(YTEnvSetup):
         assert read('//tmp/table[:#3]') == [{'a': 0}, {'b' : 1}, {'c' : 2}]
         assert read('//tmp/table[#2:]') == [{'c' : 2}, {'d' : 3}]
 
+        # multiple ranges
+        assert read('//tmp/table[:,:]') == [{'a': 0}, {'b' : 1}, {'c' : 2}, {'d' : 3}] * 2
+        assert read('//tmp/table[#1:#2,#3:#4]') == [{"b": 1}, {"d": 3}]
+
         # reading key selectors from unsorted table
         with pytest.raises(YtError): read('//tmp/table[:a]')
 
@@ -137,8 +141,10 @@ class TestTables(YTEnvSetup):
         assert read('//tmp/table[(a, 4) : (b, 20, 18.)]') == [v2, v3]
         assert read('//tmp/table[c:]') == [v5]
         assert read('//tmp/table[:(a, 10)]') == [v1]
+        assert read('//tmp/table[:(a, 10),:(a, 10)]') == [v1, v1]
         assert read('//tmp/table[:(a, 11)]') == [v1, v2]
         assert read('//tmp/table[:]') == [v1, v2, v3, v4, v5]
+        assert read('//tmp/table[a : b , b : c]') == [v1, v2, v3, v4]
 
         # combination of row and key selectors
         assert read('//tmp/table{i}[aa: (b, 10)]') == [{'i' : 5}]

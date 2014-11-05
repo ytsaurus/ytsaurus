@@ -302,7 +302,7 @@ TEST_F(TYPathTest, ParseRichYPath1)
     EXPECT_TRUE(
         AreNodesEqual(
             ConvertToNode(path.Attributes()),
-            ConvertToNode(TYsonString("{a=b;channel=[a;b]; upper_limit={key=[2]};lower_limit={key=[1]}}"))));
+            ConvertToNode(TYsonString("{a=b;channel=[a;b]; ranges=[{upper_limit={key=[2]};lower_limit={key=[1]}}]}"))));
 }
 
 TEST_F(TYPathTest, ParseRichYPath2)
@@ -332,7 +332,7 @@ TEST_F(TYPathTest, ParseRichYPath4)
     EXPECT_TRUE(
         AreNodesEqual(
             ConvertToNode(path.Attributes()),
-            ConvertToNode(EmptyAttributes())));
+            ConvertToNode(TYsonString("{ranges=[{}]}"))));
 }
 
 TEST_F(TYPathTest, ParseRichYPath5)
@@ -342,7 +342,21 @@ TEST_F(TYPathTest, ParseRichYPath5)
     EXPECT_TRUE(
         AreNodesEqual(
             ConvertToNode(path.Attributes()),
-            ConvertToNode(TYsonString("{lower_limit={key=[x;y]};upper_limit={key=[a;b]}}"))));
+            ConvertToNode(TYsonString("{ranges=[{lower_limit={key=[x;y]};upper_limit={key=[a;b]}}]}"))));
+}
+
+TEST_F(TYPathTest, ParseRichYPath6)
+{
+    auto path = NYPath::TRichYPath::Parse("//home[#1:#2,x:y]");
+    EXPECT_EQ(path.GetPath(), "//home");
+    EXPECT_TRUE(
+        AreNodesEqual(
+            ConvertToNode(path.Attributes()),
+            ConvertToNode(TYsonString(
+                "{ranges=["
+                    "{lower_limit={row_index=1};upper_limit={row_index=2}};"
+                    "{lower_limit={key=[x]};upper_limit={key=[y]}}"
+                "]}"))));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

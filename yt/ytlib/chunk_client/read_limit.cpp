@@ -249,5 +249,94 @@ void Deserialize(TReadLimit& readLimit, INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TReadRange::TReadRange()
+    : LowerLimit_(TReadLimit())
+    , UpperLimit_(TReadLimit())
+{ }
+
+TReadRange::TReadRange(const TReadLimit& lowerLimit, const TReadLimit& upperLimit)
+    : LowerLimit_(lowerLimit)
+    , UpperLimit_(upperLimit)
+{ }
+
+TReadRange::TReadRange(const NProto::TReadRange& range)
+{
+    InitCopy(range);
+}
+
+TReadRange::TReadRange(NProto::TReadRange&& range)
+{
+    InitMove(std::move(range));
+}
+
+TReadRange& TReadRange::operator= (const NProto::TReadRange& range)
+{
+    InitCopy(range);
+    return *this;
+}
+
+TReadRange& TReadRange::operator= (NProto::TReadRange&& range)
+{
+    InitMove(std::move(range));
+    return *this;
+}
+
+void TReadRange::InitCopy(const NProto::TReadRange& range)
+{
+    LowerLimit_ = range.has_lower_limit() ? TReadLimit(range.lower_limit()) : TReadLimit();
+    UpperLimit_ = range.has_upper_limit() ? TReadLimit(range.upper_limit()) : TReadLimit();
+}
+
+void TReadRange::InitMove(NProto::TReadRange&& range)
+{
+    LowerLimit_ = std::move(range.has_lower_limit() ? TReadLimit(range.lower_limit()) : TReadLimit());
+    UpperLimit_ = std::move(range.has_upper_limit() ? TReadLimit(range.upper_limit()) : TReadLimit());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TReadRange* protoReadRange, const TReadRange& readRange)
+{
+    if (!readRange.LowerLimit().IsTrivial()) {
+        *protoReadRange->mutable_lower_limit() = NYT::ToProto<NProto::TReadLimit>(readRange.LowerLimit());
+    }
+    if (!readRange.UpperLimit().IsTrivial()) {
+        *protoReadRange->mutable_upper_limit() = NYT::ToProto<NProto::TReadLimit>(readRange.UpperLimit());
+    }
+}
+
+void FromProto(TReadRange* readRange, const NProto::TReadRange& protoReadRange)
+{
+    *readRange = TReadRange(protoReadRange);
+}
+
+void Serialize(const TReadRange& readRange, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .DoIf(!readRange.LowerLimit().IsTrivial(), [&] (TFluentMap fluent) {
+                fluent.Item("lower_limit").Value(readRange.LowerLimit());
+            })
+            .DoIf(!readRange.UpperLimit().IsTrivial(), [&] (TFluentMap fluent) {
+                fluent.Item("upper_limit").Value(readRange.UpperLimit());
+            })
+        .EndMap();
+
+}
+
+void Deserialize(TReadRange& readRange, NYTree::INodePtr node)
+{
+    readRange = TReadRange();
+    auto attributes = ConvertToAttributes(node);
+    if (attributes->Contains("lower_limit")) {
+        readRange.LowerLimit() = attributes->Get<TReadLimit>("lower_limit");
+    }
+    if (attributes->Contains("upper_limit")) {
+        readRange.UpperLimit() = attributes->Get<TReadLimit>("upper_limit");
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkClient
 } // namespace NYT

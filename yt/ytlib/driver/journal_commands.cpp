@@ -10,6 +10,8 @@
 
 #include <core/ytree/fluent.h>
 
+#include <ytlib/chunk_client/read_limit.h>
+
 #include <ytlib/formats/format.h>
 #include <ytlib/formats/parser.h>
 
@@ -23,33 +25,60 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NFormats;
 using namespace NConcurrency;
+using namespace NChunkClient;
 using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TReadJournalCommand::DoExecute()
 {
+    auto checkLimit = [] (const TReadLimit& limit) {
+        if (limit.HasKey()) {
+            THROW_ERROR_EXCEPTION("Reading key range is not supported in journals");
+        }
+        if (limit.HasChunkIndex()) {
+            THROW_ERROR_EXCEPTION("Reading chunk index range is not supported in journals");
+        }
+        if (limit.HasOffset()) {
+            THROW_ERROR_EXCEPTION("Reading offset range is not supported in journals");
+        }
+    };
+
     auto config = UpdateYsonSerializable(
         Context_->GetConfig()->JournalReader,
         Request_->GetOptions());
 
+    auto path = Request_->Path.Normalize();
+
+    if (path.GetRanges().size() > 1) {
+        THROW_ERROR_EXCEPTION("Reading multiple ranges is not supported in journals");
+    }
+
     TJournalReaderOptions options;
-    auto lowerLimit = Request_->Path.GetLowerLimit();
-    i64 lowerRowLImit = 0;
-    if (lowerLimit.HasRowIndex()) {
-        options.FirstRowIndex = lowerRowLImit = lowerLimit.GetRowIndex();
+    if (path.GetRanges().size() == 1) {
+        auto range = path.GetRanges()[0];
+        checkLimit(range.LowerLimit());
+        checkLimit(range.UpperLimit());
+
+        if (range.LowerLimit().HasRowIndex()) {
+            options.FirstRowIndex = range.LowerLimit().GetRowIndex();
+        } else {
+            options.FirstRowIndex = static_cast<i64>(0);
+        }
+
+        if (range.UpperLimit().HasRowIndex()) {
+            options.RowCount = range.UpperLimit().GetRowIndex() - *options.FirstRowIndex;
+            options.FirstRowIndex = range.LowerLimit().GetRowIndex();
+        }
     }
-    auto upperLimit = Request_->Path.GetUpperLimit();
-    if (upperLimit.HasRowIndex()) {
-        options.RowCount = upperLimit.GetRowIndex() - lowerRowLImit;
-    }
+
     SetTransactionalOptions(&options);
 
     auto reader = Context_->GetClient()->CreateJournalReader(
         Request_->Path.GetPath(),
         options,
         config);
-    
+
     {
         auto error = WaitFor(reader->Open());
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
@@ -124,7 +153,7 @@ private:
 
         std::vector<TSharedRef> rows;
         rows.push_back(TSharedRef::FromString(Stroka(value)));
-        
+
         auto error = Writer_->Write(rows).Get(); //WaitFor(Writer_->Write(rows));
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
 

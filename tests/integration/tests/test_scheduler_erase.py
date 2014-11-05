@@ -66,6 +66,9 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         assert read(self.table) == [self.v[3]]
         assert get(self.table + '/@chunk_count') == 1
 
+        with pytest.raises(YtError):
+            erase(self.table + '[#1:#2,#3:#4]')
+
     # test combine when actually no data is removed
     def test_combine_without_remove(self):
         self._prepare_table()

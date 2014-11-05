@@ -45,4 +45,10 @@ message TReadLimit
     optional bytes key = 4;
 }
 
+message TReadRange
+{
+    optional TReadLimit lower_limit = 1;
+    optional TReadLimit upper_limit = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

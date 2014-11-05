@@ -16,6 +16,7 @@
 
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/read_limit.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
@@ -45,6 +46,8 @@ using namespace NConcurrency;
 using namespace NVersionedTableClient;
 
 using NVersionedTableClient::TOwningKey;
+using NChunkClient::TReadRange;
+using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -771,9 +774,25 @@ private:
 
         // For erase operation the rowset specified by the user must actually be negated.
         {
-            auto& table = InputTables[0];
-            table.ComplementFetch = true;
+            auto& path = InputTables[0].Path;
+            auto ranges = path.GetRanges();
+            if (ranges.size() > 1) {
+                THROW_ERROR_EXCEPTION("Multiple ranges are not supported for erase");
+            } else if (ranges.size() == 1) {
+                std::vector<TReadRange> complementRanges;
+                auto range = ranges[0];
+                if (!range.LowerLimit().IsTrivial()) {
+                    complementRanges.push_back(TReadRange(TReadLimit(), range.LowerLimit()));
+                }
+                if (!range.UpperLimit().IsTrivial()) {
+                    complementRanges.push_back(TReadRange(range.UpperLimit(), TReadLimit()));
+                }
+                path.Attributes().Set("ranges", complementRanges);
+            } else {
+                path.Attributes().Set("ranges", std::vector<TReadRange>());
+            }
         }
+
         // ...and the output table must be cleared (regardless of "overwrite" attribute).
         {
             auto& table = OutputTables[0];

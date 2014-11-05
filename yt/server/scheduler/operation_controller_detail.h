@@ -192,12 +192,7 @@ protected:
     struct TInputTable
         : public TUserTableBase
     {
-        TInputTable()
-            : ComplementFetch(false)
-        { }
-
         NChunkClient::NProto::TRspFetch FetchResponse;
-        bool ComplementFetch;
         TNullable< std::vector<Stroka> > KeyColumns;
 
         void Persist(TPersistenceContext& context);
