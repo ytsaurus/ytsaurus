@@ -80,7 +80,7 @@ def _get_read_from_yt_command(yt_client, src, format, fastbone):
     if fastbone:
         hosts = "hosts/fb"
 
-    return """PATH=".:$PATH" PYTHONPATH=. YT_RETRY_READ=0 YT_TOKEN={0} YT_HOSTS="{1}" """\
+    return """PATH=".:$PATH" PYTHONPATH=. YT_RETRY_READ=1 YT_TOKEN={0} YT_HOSTS="{1}" """\
            """yt2 read "{2}"'[#'"${{start}}"':#'"${{end}}"']' --format '{3}' --proxy {4}"""\
            .format(token, hosts, src, format, yt_client.proxy)
 
