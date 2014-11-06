@@ -201,14 +201,27 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
         serialized_data = fennel.serialize_chunk(0, seqno, 0, data)
         return self.p.write_chunk(serialized_data)
 
-    @testing.gen_test
-    def test_basic(self):
-        yield self.write_chunk(1)
+    @gen.coroutine
+    def get_skip_message(self):
+        message = None
+        while message is None or message.type == "ping":
+            message = yield self.s.read_message()
+        assert message.type == "skip"
+        raise gen.Return(message)
 
+    @gen.coroutine
+    def get_ack_message(self):
         message = None
         while message is None or message.type == "ping":
             message = yield self.s.read_message()
         assert message.type == "ack"
+        raise gen.Return(message)
+
+    @testing.gen_test
+    def test_basic(self):
+        yield self.write_chunk(1)
+
+        message = yield self.get_ack_message()
         assert message.attributes["seqno"] == 1
 
     @testing.gen_test
@@ -243,10 +256,7 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
     def test_two_unordered(self):
         yield self.write_chunk(20)
 
-        message = None
-        while message is None or message.type == "ping":
-            message = yield self.s.read_message()
-        assert message.type == "ack"
+        message = yield self.get_ack_message()
         assert message.attributes["seqno"] == 20
 
         yield self.write_chunk(10)
@@ -260,29 +270,17 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
     @testing.gen_test
     def test_two_equal(self):
         yield self.write_chunk(20)
-
-        message = None
-        while message is None or message.type == "ping":
-            message = yield self.s.read_message()
-        assert message.type == "ack"
+        message = yield self.get_ack_message()
         assert message.attributes["seqno"] == 20
 
         yield self.write_chunk(20)
-
-        message = None
-        while message is None or message.type == "ping":
-            message = yield self.s.read_message()
-        assert message.type == "skip"
+        message = yield self.get_skip_message()
         assert message.attributes["seqno"] == 20
 
     @testing.gen_test
     def test_session_seqno(self):
         yield self.write_chunk(20)
-
-        message = None
-        while message is None or message.type == "ping":
-            message = yield self.s.read_message()
-        assert message.type == "ack"
+        message = yield self.get_ack_message()
         assert message.attributes["seqno"] == 20
 
         self.p.stop()
@@ -300,11 +298,7 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
     @testing.gen_test
     def test_two_parallel_sessions(self):
         yield self.write_chunk(20)
-
-        message = None
-        while message is None or message.type == "ping":
-            message = yield self.s.read_message()
-        assert message.type == "ack"
+        message = yield self.get_ack_message()
         assert message.attributes["seqno"] == 20
 
         s = fennel.SessionStream(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
@@ -314,11 +308,7 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
         assert int(s.get_attribute("seqno")) == 20
 
         yield self.write_chunk(40)
-
-        message = None
-        while message is None or message.type == "ping":
-            message = yield self.s.read_message()
-        assert message.type == "ack"
+        message = yield self.get_ack_message()
         assert message.attributes["seqno"] == 40
 
     @testing.gen_test
@@ -327,10 +317,7 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
         serialized_data = fennel.serialize_chunk(0, 42, 0, data)
         self.p.write_chunk(serialized_data)
 
-        message = None
-        while message is None or message.type == "ping":
-            message = yield self.s.read_message()
-        assert message.type == "ack"
+        message = yield self.get_ack_message()
         assert message.attributes["seqno"] == 42
 
 
