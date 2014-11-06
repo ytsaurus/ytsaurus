@@ -105,8 +105,10 @@ class TestLogBrokerIntegration(testing.AsyncTestCase):
     def setUp(self):
         super(TestLogBrokerIntegration, self).setUp()
         self.l = None
+        self._inited = False
         self.init()
         self.wait()
+        assert self._inited
 
     def tearDown(self):
         self.l.stop()
@@ -114,12 +116,15 @@ class TestLogBrokerIntegration(testing.AsyncTestCase):
 
     @gen.coroutine
     def init(self):
-        self.source_id = uuid.uuid4().hex
+        try:
+            self.source_id = uuid.uuid4().hex
 
-        self.l = fennel.LogBroker(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
-        seqno = yield self.l.connect(KAFKA_ENDPOINT)
-        assert seqno == 0
-        self.stop()
+            self.l = fennel.LogBroker(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
+            seqno = yield self.l.connect(KAFKA_ENDPOINT)
+            assert seqno == 0
+            self._inited = True
+        finally:
+            self.stop()
 
     @testing.gen_test
     def test_save_one_chunk(self):
@@ -165,20 +170,25 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
 
     def setUp(self):
         super(TestSessionPushStreamIntegration, self).setUp()
+        self._inited = False
         self.init()
         self.wait()
+        assert self._inited
 
     @gen.coroutine
     def init(self):
-        self.source_id = uuid.uuid4().hex
+        try:
+            self.source_id = uuid.uuid4().hex
 
-        self.s = fennel.SessionStream(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
-        session_id = yield self.s.connect((self.hostname, 80))
-        assert session_id is not None
+            self.s = fennel.SessionStream(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
+            session_id = yield self.s.connect((self.hostname, 80))
+            assert session_id is not None
 
-        self.p = fennel.PushStream(io_loop=self.io_loop)
-        yield self.p.connect((self.hostname, 9000), session_id=session_id)
-        self.stop()
+            self.p = fennel.PushStream(io_loop=self.io_loop)
+            yield self.p.connect((self.hostname, 9000), session_id=session_id)
+            self._inited = True
+        finally:
+            self.stop()
 
     def write_chunk(self, seqno):
         data = [{}]
