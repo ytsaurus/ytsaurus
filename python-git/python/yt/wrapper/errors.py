@@ -20,7 +20,8 @@ class YtResponseError(YtError):
         self.url = url
         self.headers = headers
         self.error = error
-        self.message = "Response to request {0} with headers {1} contains error.".format(self.url, self.headers)
+        self.message = "Received an error while requesting {0}. Request headers are {1}"\
+            .format(url, json.dumps(headers, indent=4, sort_keys=True))
         self.inner_errors = [self.error]
 
     def __str__(self):
