@@ -14,11 +14,13 @@ namespace NErasure {
 
 namespace {
 
+struct TLrcTag { };
+
 TSharedRef Xor(const std::vector<TSharedRef>& refs)
 {
     // TODO(ignat): optimize it using SSE
     size_t size = refs.front().Size();
-    TBlob result(size); // this also fills it with zeros
+    auto result = TBlob(TLrcTag(), size); // this also fills it with zeros
     for (const auto& ref : refs) {
         const char* data = ref.Begin();
         for (size_t pos = 0; pos < size; ++pos) {

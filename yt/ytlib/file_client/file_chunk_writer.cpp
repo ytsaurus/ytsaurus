@@ -14,6 +14,8 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCompressedFileChunkBlockTag { };
+
 TFileChunkWriter::TFileChunkWriter(
     TFileChunkWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
@@ -23,6 +25,7 @@ TFileChunkWriter::TFileChunkWriter(
     , EncodingWriter(New<TEncodingWriter>(config, options, chunkWriter))
     , ChunkWriter(chunkWriter)
     , Facade(this)
+    , Buffer(TCompressedFileChunkBlockTag())
     , Size(0)
     , BlockCount(0)
     , Logger(FileClientLogger)
@@ -61,8 +64,7 @@ void TFileChunkWriter::FlushBlock()
     auto* block = BlocksExt.add_blocks();
     block->set_size(Buffer.Size());
 
-    struct TCompressedFileChunkBlockTag { };
-    EncodingWriter->WriteBlock(TSharedRef::FromBlob<TCompressedFileChunkBlockTag>(std::move(Buffer)));
+    EncodingWriter->WriteBlock(TSharedRef::FromBlob(std::move(Buffer)));
 
     Buffer.Clear();
     ++BlockCount;

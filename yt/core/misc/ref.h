@@ -156,8 +156,8 @@ public:
     //! The memory is marked with a given tag.
     static TSharedRef Allocate(size_t size, bool initializeStorage, TRefCountedTypeCookie tagCookie)
     {
-        TBlob blob(size, initializeStorage);
-        return FromBlob(std::move(blob), tagCookie);
+        auto blob = TBlob(tagCookie, size, initializeStorage);
+        return FromBlob(std::move(blob));
     }
 
 
@@ -198,34 +198,14 @@ public:
         return TSharedRef(std::move(holder), ref);
     }
 
-
-    //! Creates a reference to the whole blob taking ownership of its content.
-    //! The memory is marked with a given tag.
-    template <class TTag>
-    static TSharedRef FromBlob(TBlob&& blob)
-    {
-        return FromBlob(std::move(blob), GetRefCountedTypeCookie<TTag>());
-    }
-
     //! Creates a reference to the whole blob taking ownership of its content.
     //! The memory is marked with TDefaultSharedBlobTag.
     static TSharedRef FromBlob(TBlob&& blob)
     {
-        return FromBlob<TDefaultSharedBlobTag>(std::move(blob));
-    }
-
-    //! Creates a reference to the whole blob taking ownership of its content.
-    //! The memory is marked with a given tag.
-    static TSharedRef FromBlob(TBlob&& blob, TRefCountedTypeCookie tagCookie)
-    {
         auto holder = New<TBlobHolder>(std::move(blob));
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        holder->InitializeTracking(tagCookie);
-#endif
         auto ref = TRef::FromBlob(holder->Blob_);
         return TSharedRef(std::move(holder), ref);
     }
-
 
     //! Creates a reference to a portion of currently held data.
     TSharedRef Slice(const TRef& sliceRef) const
@@ -328,18 +308,11 @@ private:
     {
     public:
         explicit TBlobHolder(TBlob&& blob);
-        ~TBlobHolder();
 
     private:
         friend class TSharedRef;
 
         TBlob Blob_;
-
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        TRefCountedTypeCookie Cookie_;
-        void InitializeTracking(TRefCountedTypeCookie cookie);
-        void FinalizeTracking();
-#endif
     };
 
     class TStringHolder

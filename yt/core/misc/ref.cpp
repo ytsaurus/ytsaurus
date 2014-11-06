@@ -23,34 +23,7 @@ bool TRef::AreBitwiseEqual(const TRef& lhs, const TRef& rhs)
 
 TSharedRef::TBlobHolder::TBlobHolder(TBlob&& blob)
     : Blob_(std::move(blob))
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    , Cookie_(NullRefCountedTypeCookie)
-#endif
 { }
-
-TSharedRef::TBlobHolder::~TBlobHolder()
-{
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    FinalizeTracking();
-#endif
-}
-
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-
-void TSharedRef::TBlobHolder::InitializeTracking(TRefCountedTypeCookie cookie)
-{
-    YASSERT(Cookie_ == NullRefCountedTypeCookie);
-    Cookie_ = cookie;
-    TRefCountedTracker::Get()->Allocate(Cookie_, Blob_.Size());
-}
-
-void TSharedRef::TBlobHolder::FinalizeTracking()
-{
-    YASSERT(Cookie_ != NullRefCountedTypeCookie);
-    TRefCountedTracker::Get()->Free(Cookie_, Blob_.Size());
-}
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

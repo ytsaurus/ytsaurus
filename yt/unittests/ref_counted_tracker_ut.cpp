@@ -36,6 +36,30 @@ public:
 
 typedef TIntrusivePtr<TSimpleObject> TSimpleObjectPtr;
 
+class TBlobTag
+{
+public:
+    static i64 GetAliveObjectsCount()
+    {
+        return TRefCountedTracker::Get()->GetObjectsAlive(GetRefCountedTypeKey<TBlobTag>());
+    }
+
+    static i64 GetAllocatedObjectsCount()
+    {
+        return TRefCountedTracker::Get()->GetObjectsAllocated(GetRefCountedTypeKey<TBlobTag>());
+    }
+
+    static i64 GetAliveBytesCount()
+    {
+        return TRefCountedTracker::Get()->GetAliveBytes(GetRefCountedTypeKey<TBlobTag>());
+    }
+
+    static i64 GetAllocatedBytesCount()
+    {
+        return TRefCountedTracker::Get()->GetAllocatedBytes(GetRefCountedTypeKey<TBlobTag>());
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TRefCountedTrackerTest, Singlethreaded)
@@ -92,6 +116,40 @@ TEST(TRefCountedTrackerTest, Multithreaded)
 
     EXPECT_EQ(allocatedBase + 2, TSimpleObject::GetAllocatedCount());
     EXPECT_EQ(1, TSimpleObject::GetAliveCount());
+}
+
+TEST(TRefCountedTrackerTest, TBlobAllocatedMemoryTracker)
+{
+    auto allocatedBytesBase = TBlobTag::GetAllocatedBytesCount();
+    auto allocatedObjectsBase = TBlobTag::GetAllocatedObjectsCount();
+
+    EXPECT_EQ(0, TBlobTag::GetAliveBytesCount());
+    EXPECT_EQ(0, TBlobTag::GetAliveObjectsCount());
+    EXPECT_EQ(allocatedBytesBase, TBlobTag::GetAllocatedBytesCount());
+    EXPECT_EQ(allocatedObjectsBase, TBlobTag::GetAllocatedObjectsCount());
+
+    auto blob = TBlob(TBlobTag(), 1);
+    auto blobCapacity1 = blob.Capacity();
+
+    EXPECT_EQ(blobCapacity1, TBlobTag::GetAliveBytesCount());
+    EXPECT_EQ(1, TBlobTag::GetAliveObjectsCount());
+    EXPECT_EQ(allocatedBytesBase + blobCapacity1, TBlobTag::GetAllocatedBytesCount());
+    EXPECT_EQ(allocatedObjectsBase + 1, TBlobTag::GetAllocatedObjectsCount());
+
+    blob.Resize(3000);
+    auto blobCapacity2 = blob.Capacity();
+
+    EXPECT_EQ(blobCapacity2, TBlobTag::GetAliveBytesCount());
+    EXPECT_EQ(1, TBlobTag::GetAliveObjectsCount());
+    EXPECT_EQ(allocatedBytesBase + blobCapacity1 + blobCapacity2, TBlobTag::GetAllocatedBytesCount());
+    EXPECT_EQ(allocatedObjectsBase + 1, TBlobTag::GetAllocatedObjectsCount());
+
+    blob = TBlob(TBlobTag());
+
+    EXPECT_EQ(0, TBlobTag::GetAliveBytesCount());
+    EXPECT_EQ(0, TBlobTag::GetAliveObjectsCount());
+    EXPECT_EQ(allocatedBytesBase + blobCapacity1 + blobCapacity2, TBlobTag::GetAllocatedBytesCount());
+    EXPECT_EQ(allocatedObjectsBase + 1, TBlobTag::GetAllocatedObjectsCount());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

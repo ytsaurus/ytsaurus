@@ -35,6 +35,11 @@ public:
         GetPerThreadSlot(cookie)->Allocate(size);
     }
 
+    FORCED_INLINE void Reallocate(TRefCountedTypeCookie cookie, size_t sizeFreed, size_t sizeAllocated)
+    {
+        GetPerThreadSlot(cookie)->Reallocate(sizeFreed, sizeAllocated);
+    }
+
     FORCED_INLINE void Free(TRefCountedTypeCookie cookie, size_t size)
     {
         GetPerThreadSlot(cookie)->Free(size);
@@ -72,6 +77,12 @@ private:
         {
             ++ObjectsAllocated_;
             BytesAllocated_ += size;
+        }
+
+        FORCED_INLINE void Reallocate(i64 sizeFreed, i64 sizeAllocated)
+        {
+            BytesFreed_ += sizeFreed;
+            BytesAllocated_ += sizeAllocated;
         }
 
         FORCED_INLINE void Free(i64 size)

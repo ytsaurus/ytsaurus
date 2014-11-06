@@ -167,6 +167,8 @@ void PrepareUserJobPipe(int fd)
 
 ////////////////////////////////////////////////////////////////////
 
+struct TOutputPipeTag { };
+
 TOutputPipe::TOutputPipe(
     int fd[2],
     TOutputStream* output,
@@ -174,7 +176,7 @@ TOutputPipe::TOutputPipe(
     : OutputStream(output)
     , JobDescriptor(jobDescriptor)
     , Pipe(fd)
-    , Buffer(OutputBufferSize)
+    , Buffer(TOutputPipeTag(), OutputBufferSize)
     , Reader(New<NPipes::TAsyncReader>(Pipe.ReadFd))
 {
     YCHECK(JobDescriptor);
@@ -195,7 +197,7 @@ TError TOutputPipe::DoAll()
 
 TError TOutputPipe::ReadAll()
 {
-    TBlob buffer(InputBufferSize, false);
+    auto buffer = TBlob(TOutputPipeTag(), InputBufferSize, false);
     while (true) {
         auto result = WaitFor(Reader->Read(buffer.Begin(), buffer.Size()));
         if (!result.IsOK()) {

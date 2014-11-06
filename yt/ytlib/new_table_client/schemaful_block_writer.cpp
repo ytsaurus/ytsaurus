@@ -19,14 +19,19 @@ static const double ZeroDouble = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBlockWriterTag { };
+
 TBlockWriter::TBlockWriter(const std::vector<int> columnSizes)
-    : VariableColumnCount(0)
+    : VariableColumn(TBlockWriterTag())
+    , VariableBuffer(TBlockWriterTag())
+    , FixedBuffer(TBlockWriterTag())
+    , VariableColumnCount(0)
     , VariableOffset(0)
     , RowCount(0)
     , RowSize(0)
 {
     for (auto size: columnSizes) {
-        TColumn column;
+        TColumn column{TChunkedOutputStream(TBlockWriterTag())};
         column.ValueSize = size;
         FixedColumns.push_back(column);
         RowSize += size;

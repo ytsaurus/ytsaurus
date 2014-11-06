@@ -50,6 +50,8 @@ static NProfiling::TAggregateCounter PendingOutSize("/pending_out_size");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTcpConnectionTag { };
+
 TTcpConnection::TTcpConnection(
     TTcpBusConfigPtr config,
     TTcpDispatcherThreadPtr dispatcherThread,
@@ -75,7 +77,7 @@ TTcpConnection::TTcpConnection(
     , Logger(BusLogger)
     , Profiler(BusProfiler)
     , MessageEnqueuedCallback_(BIND(&TTcpConnection::OnMessageEnqueuedThunk, MakeWeak(this)))
-    , ReadBuffer_(MinBatchReadSize)
+    , ReadBuffer_(TTcpConnectionTag(), MinBatchReadSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(handler);
@@ -104,7 +106,7 @@ TTcpConnection::TTcpConnection(
 
     MessageEnqueuedCallbackPending_.store(false);
 
-    WriteBuffers_.push_back(std::make_unique<TBlob>());
+    WriteBuffers_.push_back(std::make_unique<TBlob>(TTcpConnectionTag()));
     WriteBuffers_[0]->Reserve(MaxBatchWriteSize);
 
     UpdateConnectionCount(+1);
@@ -908,7 +910,7 @@ bool TTcpConnection::MaybeEncodeFragments()
         if (buffer->Size() + fragment.Size() > buffer->Capacity()) {
             // Make sure we never reallocate.
             flushCoalesced();
-            WriteBuffers_.push_back(std::unique_ptr<TBlob>(new TBlob()));
+            WriteBuffers_.push_back(std::make_unique<TBlob>(TTcpConnectionTag()));
             buffer = WriteBuffers_.back().get();
             buffer->Reserve(std::max(MaxBatchWriteSize, fragment.Size()));
         }

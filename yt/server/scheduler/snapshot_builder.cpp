@@ -44,6 +44,8 @@ static const size_t RemoteWriteBufferSize = (size_t) 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSnapshotBuilderTag { };
+
 TSnapshotBuilder::TSnapshotBuilder(
     TSchedulerConfigPtr config,
     TSchedulerPtr scheduler,
@@ -209,7 +211,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
             }
 
-            TBlob buffer(RemoteWriteBufferSize, false);
+            auto buffer = TBlob(TSnapshotBuilderTag(), RemoteWriteBufferSize, false);
             TFileInput fileInput(job.FileName);
             TBufferedInput bufferedInput(&fileInput, RemoteWriteBufferSize);
 

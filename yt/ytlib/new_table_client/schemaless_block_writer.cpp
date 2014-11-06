@@ -10,14 +10,18 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct THorizontalSchemalessBlockWriterTag { };
+
 int THorizontalSchemalessBlockWriter::FormatVersion = ETableChunkFormat::SchemalessHorizontal;
 
 THorizontalSchemalessBlockWriter::THorizontalSchemalessBlockWriter()
     : RowCount_(0)
+    , Offsets_(THorizontalSchemalessBlockWriterTag())
+    , Data_(THorizontalSchemalessBlockWriterTag())
 { }
 
 THorizontalSchemalessBlockWriter::THorizontalSchemalessBlockWriter(int /* keyColumns */)
-    : RowCount_(0)
+    : THorizontalSchemalessBlockWriter()
 { }
 
 void THorizontalSchemalessBlockWriter::WriteRow(TUnversionedRow row)

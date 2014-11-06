@@ -6,13 +6,13 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkedOutputStream::TChunkedOutputStream(
+    TRefCountedTypeCookie tagCookie,
     size_t initialReserveSize,
-    size_t maxReserveSize,
-    TRefCountedTypeCookie tagCookie)
+    size_t maxReserveSize)
     : MaxReserveSize_(RoundUpToPage(maxReserveSize))
     , CurrentReserveSize_(RoundUpToPage(initialReserveSize))
-    , TagCookie_(tagCookie)
     , FinishedSize_(0)
+    , CurrentChunk_(tagCookie, 0, true)
 {
     YCHECK(MaxReserveSize_ > 0);
 
@@ -27,7 +27,7 @@ TChunkedOutputStream::~TChunkedOutputStream() throw()
 
 std::vector<TSharedRef> TChunkedOutputStream::Flush()
 {
-    FinishedChunks_.push_back(TSharedRef::FromBlob(std::move(CurrentChunk_), TagCookie_));
+    FinishedChunks_.push_back(TSharedRef::FromBlob(std::move(CurrentChunk_)));
 
     YASSERT(CurrentChunk_.IsEmpty());
     FinishedSize_ = 0;
@@ -57,7 +57,7 @@ void TChunkedOutputStream::DoWrite(const void* buffer, size_t length)
         YASSERT(CurrentChunk_.Size() == CurrentChunk_.Capacity());
 
         FinishedSize_ += CurrentChunk_.Size();
-        FinishedChunks_.push_back(TSharedRef::FromBlob<TChunkedOutputStreamTag>(std::move(CurrentChunk_)));
+        FinishedChunks_.push_back(TSharedRef::FromBlob(std::move(CurrentChunk_)));
 
         YASSERT(CurrentChunk_.IsEmpty());
 
@@ -73,7 +73,7 @@ char* TChunkedOutputStream::Preallocate(size_t size)
     size_t available = CurrentChunk_.Capacity() - CurrentChunk_.Size();
     if (available < size) {
         FinishedSize_ += CurrentChunk_.Size();
-        FinishedChunks_.push_back(TSharedRef::FromBlob<TChunkedOutputStreamTag>(std::move(CurrentChunk_)));
+        FinishedChunks_.push_back(TSharedRef::FromBlob(std::move(CurrentChunk_)));
 
         CurrentReserveSize_ = std::min(2 * CurrentReserveSize_, MaxReserveSize_);
 

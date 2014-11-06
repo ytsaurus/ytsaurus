@@ -69,8 +69,8 @@ TEST(TPipeIOHolder, CanInstantiate)
 
 TBlob ReadAll(TAsyncReaderPtr reader, bool useWaitFor)
 {
-    TBlob buffer(1024 * 1024);
-    TBlob whole;
+    auto buffer = TBlob(TDefaultBlobTag(), 1024 * 1024);
+    auto whole = TBlob(TDefaultBlobTag());
 
     while (true)  {
         TErrorOr<size_t> result;
@@ -143,7 +143,8 @@ TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
     Writer->Write(message.c_str(), message.size()).Get();
     Writer->Close();
 
-    TBlob data(1), whole;
+    auto data = TBlob(TDefaultBlobTag(), 1);
+    auto whole = TBlob(TDefaultBlobTag());
 
     while (true)
     {

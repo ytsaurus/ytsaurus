@@ -41,6 +41,8 @@ namespace NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLzCompressedTag { };
+
 int Lz4CompressionBound(const std::vector<int>& lengths)
 {
     int bound = sizeof(THeader);
@@ -136,7 +138,7 @@ void Lz4Decompress(StreamSource* source, TBlob* output)
         size_t newSize = outputPos + header.InputSize;
         output->Resize(newSize, false);
 
-        TBlob input(header.OutputSize, false);
+        auto input = TBlob(TLzCompressedTag(), header.OutputSize, false);
         Read(source, input.Begin(), input.Size());
 
         YCHECK(LZ4_uncompress(input.Begin(), output->Begin() + outputPos, header.InputSize) >= 0);
@@ -190,7 +192,7 @@ void QuickLzDecompress(StreamSource* source, TBlob* output)
         size_t newSize = outputPos + header.InputSize;
         output->Resize(newSize, false);
 
-        TBlob input(header.OutputSize, false);
+        auto input = TBlob(TLzCompressedTag(), header.OutputSize, false);
         Read(source, input.Begin(), input.Size());
 
         YCHECK(qlz_decompress(input.Begin(), output->Begin() + outputPos, &state) >= 0);

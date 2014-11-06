@@ -239,7 +239,7 @@ TEST_F(TRpcTest, ManyAsyncRequests)
 DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttachments)
 {
     for (const auto& attachment : request->Attachments()) {
-        TBlob data;
+        auto data = TBlob(TDefaultBlobTag());
         data.Append(attachment);
         data.Append("_", 1);
         response->Attachments().push_back(TSharedRef::FromBlob(std::move(data)));

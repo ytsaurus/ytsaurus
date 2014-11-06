@@ -38,9 +38,10 @@ public:
         ++BitSize_;
     }
 
+    template <class TTag>
     TSharedRef Flush()
     {
-        TBlob blob(Data_.data(), Size());
+        auto blob = TBlob(TTag(), Data_.data(), Size());
         return TSharedRef::FromBlob(std::move(blob));
     }
 
