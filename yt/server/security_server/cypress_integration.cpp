@@ -34,7 +34,7 @@ std::vector<Stroka> ToNames(const std::vector<T>& objects)
 {
     std::vector<Stroka> names;
     names.reserve(objects.size());
-    for (auto* object : objects) {
+    for (const auto* object : objects) {
         names.push_back(object->GetName());
     }
     return names;

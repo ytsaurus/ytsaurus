@@ -1392,29 +1392,22 @@ TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TSecurityManager::TAccountTypeHandler::Create(
-    TTransaction* transaction,
-    TAccount* account,
+    TTransaction* /*transaction*/,
+    TAccount* /*account*/,
     IAttributeDictionary* attributes,
-    TReqCreateObjects* request,
-    TRspCreateObjects* response)
+    TReqCreateObjects* /*request*/,
+    TRspCreateObjects* /*response*/)
 {
-    UNUSED(transaction);
-    UNUSED(account);
-    UNUSED(request);
-    UNUSED(response);
-
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
 
-    auto* newAccount = Owner_->CreateAccount(name);
-    return newAccount;
+    return Owner_->CreateAccount(name);
 }
 
 IObjectProxyPtr TSecurityManager::TAccountTypeHandler::DoGetProxy(
     TAccount* account,
-    TTransaction* transaction)
+    TTransaction* /*transaction*/)
 {
-    UNUSED(transaction);
     return CreateAccountProxy(Owner_->Bootstrap_, account);
 }
 
@@ -1431,29 +1424,22 @@ TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TSecurityManager::TUserTypeHandler::Create(
-    TTransaction* transaction,
-    TAccount* account,
+    TTransaction* /*transaction*/,
+    TAccount* /*account*/,
     IAttributeDictionary* attributes,
-    TReqCreateObjects* request,
-    TRspCreateObjects* response)
+    TReqCreateObjects* /*request*/,
+    TRspCreateObjects* /*response*/)
 {
-    UNUSED(transaction);
-    UNUSED(account);
-    UNUSED(request);
-    UNUSED(response);
-
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
 
-    auto* newUser = Owner_->CreateUser(name);
-    return newUser;
+    return Owner_->CreateUser(name);
 }
 
 IObjectProxyPtr TSecurityManager::TUserTypeHandler::DoGetProxy(
     TUser* user,
-    TTransaction* transaction)
+    TTransaction* /*transaction*/)
 {
-    UNUSED(transaction);
     return CreateUserProxy(Owner_->Bootstrap_, user);
 }
 
@@ -1470,29 +1456,22 @@ TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TSecurityManager::TGroupTypeHandler::Create(
-    TTransaction* transaction,
-    TAccount* account,
+    TTransaction* /*transaction*/,
+    TAccount* /*account*/,
     IAttributeDictionary* attributes,
-    TReqCreateObjects* request,
-    TRspCreateObjects* response)
+    TReqCreateObjects* /*request*/,
+    TRspCreateObjects* /*response*/)
 {
-    UNUSED(transaction);
-    UNUSED(account);
-    UNUSED(request);
-    UNUSED(response);
-
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
 
-    auto* newGroup = Owner_->CreateGroup(name);
-    return newGroup;
+    return Owner_->CreateGroup(name);
 }
 
 IObjectProxyPtr TSecurityManager::TGroupTypeHandler::DoGetProxy(
     TGroup* group,
-    TTransaction* transaction)
+    TTransaction* /*transaction*/)
 {
-    UNUSED(transaction);
     return CreateGroupProxy(Owner_->Bootstrap_, group);
 }
 

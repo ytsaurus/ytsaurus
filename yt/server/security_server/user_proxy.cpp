@@ -50,7 +50,7 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
-        auto* user = this->GetThisTypedImpl();
+        auto* user = GetThisTypedImpl();
         auto securityManager = Bootstrap->GetSecurityManager();
 
         if (key == "banned") {
@@ -88,8 +88,8 @@ private:
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
-        auto* user = this->GetThisTypedImpl();
-        auto securityManager = this->Bootstrap->GetSecurityManager();
+        auto* user = GetThisTypedImpl();
+        auto securityManager = Bootstrap->GetSecurityManager();
 
         if (key == "banned") {
             auto banned = ConvertTo<bool>(value);
