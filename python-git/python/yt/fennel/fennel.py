@@ -524,6 +524,8 @@ SessionMessage = collections.namedtuple("SessionMessage", ["type", "attributes"]
 class SessionStream(object):
     log = logging.getLogger("SessionStream")
 
+    SESSION_TIMEOUT = datetime.timedelta(minutes=5)
+
     def __init__(self, service_id=None, source_id=None, logtype=None, io_loop=None, connection_factory=None):
         self._id = None
         self._attributes = None
@@ -538,11 +540,18 @@ class SessionStream(object):
 
     @gen.coroutine
     def connect(self, endpoint, timeout=None):
+        if timeout is None:
+            timeout = self.SESSION_TIMEOUT
+
         while True:
             try:
                 self.log.info("Create a session. Endpoint: %s", endpoint)
 
-                self._iostream = yield self._connection_factory.connect(endpoint[0], endpoint[1])
+                self._iostream = yield gen.with_timeout(
+                    timeout,
+                    self._connection_factory.connect(endpoint[0], endpoint[1]),
+                    self._io_loop
+                    )
 
                 self._iostream.write(
                     "GET /rt/session?"
@@ -559,7 +568,11 @@ class SessionStream(object):
                     )
 
                 self.log.info("The session stream has been created")
-                metadata_raw = yield self._iostream.read_until("\r\n\r\n", max_bytes=1024*1024)
+                metadata_raw = yield gen.with_timeout(
+                    timeout,
+                    self._iostream.read_until("\r\n\r\n", max_bytes=1024*1024),
+                    self._io_loop
+                    )
 
                 self.log.debug("Parse response %s", metadata_raw)
                 self.parse_metadata(metadata_raw[:-4])
@@ -574,7 +587,7 @@ class SessionStream(object):
                 self._id = self._attributes["session"]
 
                 raise gen.Return(self._id)
-            except (IOError, BadProtocolError) as e:
+            except (IOError, BadProtocolError, gen.TimeoutError) as e:
                 self.log.error("Error occured. Try reconnect...", exc_info=True)
                 yield sleep_future(1.0, self._io_loop)
             except gen.Return:
@@ -602,8 +615,15 @@ class SessionStream(object):
 
     @gen.coroutine
     def read_message(self, timeout=None):
+        if timeout is None:
+            timeout = self.SESSION_TIMEOUT
+
         try:
-            headers_raw = yield self._iostream.read_until("\r\n", max_bytes=4*1024)
+            headers_raw = yield gen.with_timeout(
+                timeout,
+                self._iostream.read_until("\r\n", max_bytes=4*1024),
+                self._io_loop
+                )
             try:
                 body_size = int(headers_raw, 16)
             except ValueError:
@@ -611,11 +631,19 @@ class SessionStream(object):
                 raise BadProtocolError()
             if body_size == 0:
                 self.log.error("[%s] HTTP response is finished", self._id)
-                data = yield self._iostream.read_until_close()
+                data = yield gen.with_timeout(
+                    timeout,
+                    self._iostream.read_until_close(),
+                    self._io_loop
+                    )
                 self.log.debug("[%s] Session trailers: %s", self._id, data)
                 raise SessionEndError()
             else:
-                data = yield self._iostream.read_bytes(body_size + 2)
+                data = yield gen.with_timeout(
+                    timeout,
+                    self._iostream.read_bytes(body_size + 2),
+                    self._io_loop
+                    )
                 self.log.debug("[%s] Process status: %s", self._id, data.strip())
                 raise gen.Return(self._parse(data.strip()))
         except gen.Return:
@@ -654,6 +682,8 @@ class SessionStream(object):
 class PushStream(object):
     log = logging.getLogger("PushStream")
 
+    PUSH_TIMEOUT = datetime.timedelta(minutes=5)
+
     def __init__(self, io_loop=None, connection_factory=None):
         self._iostream = None
         self._session_id = None
@@ -663,11 +693,18 @@ class PushStream(object):
 
     @gen.coroutine
     def connect(self, endpoint, session_id, timeout=None):
+        if timeout is None:
+            timeout = self.PUSH_TIMEOUT
+
         self._session_id = session_id
 
         self.log.info("Create a push channel for session %s. Endpoint: %s", self._session_id, endpoint)
 
-        self._iostream = yield self._connection_factory.connect(endpoint[0], endpoint[1])
+        self._iostream = yield gen.with_timeout(
+            timeout,
+            self._connection_factory.connect(endpoint[0], endpoint[1]),
+            self._io_loop
+            )
         self._iostream.write(
             "PUT /rt/store HTTP/1.1\r\n"
             "Host: {host}\r\n"
