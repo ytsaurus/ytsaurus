@@ -400,6 +400,8 @@ class LogBroker(object):
         self._service_id = service_id
         self._source_id = source_id
 
+        self._chunk_id = 0
+
         self._session = None
         self._push = None
 
@@ -432,11 +434,13 @@ class LogBroker(object):
 
         f = gen.Future()
 
-        serialized_data = serialize_chunk(0, seqno, 0, data)
+        serialized_data = serialize_chunk(self._chunk_id, seqno, 0, data)
+        self._chunk_id += 1
         if len(serialized_data) > self.MAX_CHUNK_SIZE:
             f.set_exception(ChunkTooBigError())
             return f
 
+        self.log.debug("Save chunk %d with seqno %d. Its size equals to %d", self._chunk_id - 1, seqno, len(serialized_data))
         self._push.write_chunk(serialized_data)
         self._save_chunk_futures[seqno] = f
         return f
@@ -460,6 +464,8 @@ class LogBroker(object):
                             if skip_seqno > self._last_acked_seqno:
                                 self._update_last_acked_seqno(skip_seqno)
                             f.set_result(self._last_acked_seqno)
+                        else:
+                            self.log.error("Get skip message for unknown seqno: %s", skip_seqno)
                     elif message.type == "ack":
                         assert self._last_acked_seqno <= message.attributes["seqno"]
 
