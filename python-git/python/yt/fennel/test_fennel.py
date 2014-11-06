@@ -105,10 +105,12 @@ class TestLogBrokerIntegration(testing.AsyncTestCase):
     def setUp(self):
         super(TestLogBrokerIntegration, self).setUp()
         self.l = None
+        self._init_exception_info = None
         self._inited = False
         self.init()
         self.wait()
-        assert self._inited
+        if self._init_exception_info:
+            raise sys._init_exception_info
 
     def tearDown(self):
         self.l.stop()
@@ -122,7 +124,8 @@ class TestLogBrokerIntegration(testing.AsyncTestCase):
             self.l = fennel.LogBroker(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
             seqno = yield self.l.connect(KAFKA_ENDPOINT)
             assert seqno == 0
-            self._inited = True
+        except BaseException as e:
+            self._init_exception_info = sys.exc_info()
         finally:
             self.stop()
 
@@ -170,10 +173,12 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
 
     def setUp(self):
         super(TestSessionPushStreamIntegration, self).setUp()
-        self._inited = False
+        self._session_id = None
+        self._init_exception_info = None
         self.init()
         self.wait()
-        assert self._inited
+        if self._init_exception_info:
+            raise self._init_exception_info
 
     @gen.coroutine
     def init(self):
@@ -181,12 +186,13 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
             self.source_id = uuid.uuid4().hex
 
             self.s = fennel.SessionStream(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
-            session_id = yield self.s.connect((self.hostname, 80))
-            assert session_id is not None
+            self._session_id = yield self.s.connect((self.hostname, 80))
+            assert self._session_id is not None
 
             self.p = fennel.PushStream(io_loop=self.io_loop)
-            yield self.p.connect((self.hostname, 9000), session_id=session_id)
-            self._inited = True
+            yield self.p.connect((self.hostname, 9000), session_id=self._session_id)
+        except BaseException as e:
+            self._init_exception_info = sys.exc_info()
         finally:
             self.stop()
 
@@ -290,6 +296,42 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
         yield self.p.connect((self.hostname, 9000), session_id=session_id)
 
         assert int(self.s.get_attribute("seqno")) == 20
+
+    @testing.gen_test
+    def test_two_parallel_sessions(self):
+        yield self.write_chunk(20)
+
+        message = None
+        while message is None or message.type == "ping":
+            message = yield self.s.read_message()
+        assert message.type == "ack"
+        assert message.attributes["seqno"] == 20
+
+        s = fennel.SessionStream(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
+        session_id = yield s.connect((KAFKA_ENDPOINT, 80))
+        assert session_id is not None
+        assert session_id != self._session_id
+        assert int(s.get_attribute("seqno")) == 20
+
+        yield self.write_chunk(40)
+
+        message = None
+        while message is None or message.type == "ping":
+            message = yield self.s.read_message()
+        assert message.type == "ack"
+        assert message.attributes["seqno"] == 40
+
+    @testing.gen_test
+    def test_save_empty_chunk(self):
+        data = []
+        serialized_data = fennel.serialize_chunk(0, 42, 0, data)
+        self.p.write_chunk(serialized_data)
+
+        message = None
+        while message is None or message.type == "ping":
+            message = yield self.s.read_message()
+        assert message.type == "ack"
+        assert message.attributes["seqno"] == 42
 
 
 # Good tests
