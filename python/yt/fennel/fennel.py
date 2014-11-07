@@ -117,20 +117,6 @@ class EventLog(object):
             raise EventLog.NotEnoughDataError("Not enough data. Got only {0} rows".format(len(result)))
         return result
 
-    def monitor(self, threshold):
-        with self.yt.Transaction():
-            first_row = self.yt.get(self._number_of_first_row_attr)
-            row_to_save = int(self.get_next_row_to_save())
-            real_row_to_save = row_to_save - first_row
-
-            row_count = self.yt.get(self._row_count)
-
-            lag = row_count - real_row_to_save
-            if lag > threshold:
-                sys.stdout.write("2;  Lag equals to: %d\n" % (lag,))
-            else:
-                sys.stdout.write("0; Lag equals to: %d\n" % (lag,))
-
     def archive(self, count = None):
         try:
             self.log.debug("Archive table has %d rows", yt.get(self._archive_table_name + "/@row_count"))
@@ -144,12 +130,6 @@ class EventLog(object):
         data_size_per_job = max(1, int(desired_chunk_size / ratio))
 
         count = count or yt.get(self._table_name + "/@row_count")
-        max_count = yt.get(self._row_to_save_attr) - yt.get(self._number_of_first_row_attr)
-
-        if count > max_count:
-            self.log.info("One of rows which are requested to archive is not pushed to LogBroker yet. Set count to %d", max_count)
-            count = max_count
-
         self.log.info("Archive %s rows from event log", count)
 
         partition = yt.TablePath(
@@ -222,17 +202,8 @@ class EventLog(object):
         except:
             pass
 
-
-    def set_next_row_to_save(self, row_number):
-        self.yt.set(self._row_to_save_attr, row_number)
-
-    def get_next_row_to_save(self):
-        return self.yt.get(self._row_to_save_attr)
-
     def initialize(self):
         with self.yt.Transaction():
-            if not self.yt.exists(self._row_to_save_attr):
-                self.yt.set(self._row_to_save_attr, 0)
             if not self.yt.exists(self._number_of_first_row_attr):
                 self.yt.set(self._number_of_first_row_attr, 0)
 
