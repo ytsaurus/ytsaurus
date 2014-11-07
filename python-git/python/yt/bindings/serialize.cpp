@@ -146,7 +146,7 @@ void TPythonObjectBuilder::OnEntity()
 
 void TPythonObjectBuilder::OnBeginList()
 {
-    auto obj = AddObject(Py::List().ptr(), YsonList);
+    auto obj = AddObject(PyList_New(0), YsonList);
     Push(Py::Object(obj, true), EObjectType::List);
 }
 
