@@ -104,6 +104,7 @@ private:
 
     void OnRowBlocked(
         IStore* store,
+        IInvokerPtr invoker,
         TDynamicRow row,
         int lockIndex);
     void WaitForBlockedRow(

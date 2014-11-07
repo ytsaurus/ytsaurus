@@ -426,7 +426,11 @@ TDynamicMemoryStorePtr TStoreManager::CreateDynamicMemoryStore(const TStoreId& s
     
     // NB: Slot can be null in tests.
     if (Tablet_->GetSlot()) {
-        store->SubscribeRowBlocked(BIND(&TStoreManager::OnRowBlocked, MakeWeak(this), store.Get()));
+        store->SubscribeRowBlocked(BIND(
+            &TStoreManager::OnRowBlocked,
+            MakeWeak(this),
+            store.Get(),
+            Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read)));
     }
 
     return store;
@@ -461,7 +465,11 @@ bool TStoreManager::IsRecovery() const
     return slot ? slot->GetHydraManager()->IsRecovery() : false;
 }
 
-void TStoreManager::OnRowBlocked(IStore* store, TDynamicRow row, int lockIndex)
+void TStoreManager::OnRowBlocked(
+    IStore* store,
+    IInvokerPtr invoker,
+    TDynamicRow row,
+    int lockIndex)
 {
     const auto& lock = row.BeginLocks(KeyColumnCount_)[lockIndex];
     const auto* transaction = lock.Transaction;
@@ -473,7 +481,7 @@ void TStoreManager::OnRowBlocked(IStore* store, TDynamicRow row, int lockIndex)
             row,
             lockIndex,
             transaction->GetId())
-        .AsyncVia(Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read))
+        .AsyncVia(invoker)
         .Run());
 }
 
