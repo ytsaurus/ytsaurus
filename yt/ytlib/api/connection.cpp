@@ -19,6 +19,7 @@
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/chunk_replica.h>
+#include <ytlib/chunk_client/read_limit.h>
 
 #include <ytlib/hive/cell_directory.h>
 
@@ -594,6 +595,7 @@ private:
         TObjectServiceProxy proxy(MasterChannel_);
 
         auto req = TTableYPathProxy::Fetch(FromObjectId(tableId));
+        ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
         req->set_fetch_all_meta_extensions(true);
 
         auto rsp = WaitFor(proxy.Execute(req));

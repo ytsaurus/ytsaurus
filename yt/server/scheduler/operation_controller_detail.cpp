@@ -2573,6 +2573,7 @@ void TOperationControllerBase::RequestInputObjects()
         }
         {
             auto req = TTableYPathProxy::Fetch(path);
+            ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
             req->set_fetch_all_meta_extensions(true);
             req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
             InitializeFetchRequest(req.Get(), table.Path);
@@ -2777,6 +2778,7 @@ void TOperationControllerBase::RequestFileObjects()
         }
         {
             auto req = TFileYPathProxy::Fetch(path);
+            ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
             SetTransactionId(req, Operation->GetInputTransaction()->GetId());
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
             batchReq->AddRequest(req, "fetch_regular_file");
@@ -2794,6 +2796,7 @@ void TOperationControllerBase::RequestFileObjects()
         }
         {
             auto req = TTableYPathProxy::Fetch(path);
+            ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
             req->set_fetch_all_meta_extensions(true);
             InitializeFetchRequest(req.Get(), file.Path);
             SetTransactionId(req, Operation->GetInputTransaction()->GetId());
