@@ -330,6 +330,11 @@ int TLrc::GetParityPartCount() const
     return ParityPartCount_;
 }
 
+int TLrc::GetGuaranteedRepairablePartCount()
+{
+    return 3; // magic number :)
+}
+
 int TLrc::GetWordSize() const
 {
     return WordSize_ * 8;

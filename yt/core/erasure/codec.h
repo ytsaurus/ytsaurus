@@ -65,6 +65,9 @@ struct ICodec
     //! Returns the number of parity blocks this codec can handle.
     virtual int GetParityPartCount() const = 0;
 
+    //! Returns the maximum number of blocks that can always be repaired when missing.
+    virtual int GetGuaranteedRepairablePartCount() = 0;
+
     //! Every block passed to this codec must have size divisible by the result of #GetWordSize.
     virtual int GetWordSize() const = 0;
 

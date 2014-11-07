@@ -17,7 +17,10 @@ class TCauchyReedSolomon
     : public ICodec
 {
 public:
-    TCauchyReedSolomon(int blockCount, int parityCount, int wordSize);
+    TCauchyReedSolomon(
+        int dataPartCount,
+        int parityPartCount,
+        int wordSize);
 
     virtual std::vector<TSharedRef> Encode(const std::vector<TSharedRef>& blocks) const override;
 
@@ -34,6 +37,8 @@ public:
     virtual int GetDataPartCount() const override;
 
     virtual int GetParityPartCount() const override;
+
+    virtual int GetGuaranteedRepairablePartCount() override;
 
     virtual int GetWordSize() const override;
 

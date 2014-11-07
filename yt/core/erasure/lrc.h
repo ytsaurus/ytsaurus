@@ -8,7 +8,7 @@ namespace NErasure {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! Locally Reconstructible Codes
+//! Locally Reconstructable Codes
 /*!
  *  See https://www.usenix.org/conference/usenixfederatedconferencesweek/erasure-coding-windows-azure-storage
  *  for more details.
@@ -17,7 +17,7 @@ class TLrc
     : public ICodec
 {
 public:
-    explicit TLrc(int blockCount);
+    explicit TLrc(int dataPartCount);
 
     virtual std::vector<TSharedRef> Encode(const std::vector<TSharedRef>& blocks) const override;
 
@@ -34,6 +34,8 @@ public:
     virtual int GetDataPartCount() const override;
 
     virtual int GetParityPartCount() const override;
+
+    virtual int GetGuaranteedRepairablePartCount() override;
 
     virtual int GetWordSize() const override;
 
