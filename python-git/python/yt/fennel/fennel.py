@@ -117,16 +117,6 @@ class EventLog(object):
             raise EventLog.NotEnoughDataError("Not enough data. Got only {0} rows".format(len(result)))
         return result
 
-    def truncate(self, count):
-        with self.yt.Transaction():
-            first_row = self.yt.get(self._number_of_first_row_attr)
-            first_row += count
-            self.yt.set(self._number_of_first_row_attr, first_row)
-            self.yt.run_erase(yt.TablePath(
-                self._table_name,
-                start_index=0,
-                end_index=count))
-
     def monitor(self, threshold):
         with self.yt.Transaction():
             first_row = self.yt.get(self._number_of_first_row_attr)
@@ -896,13 +886,6 @@ def init(table_name, proxy_path, **kwargs):
     event_log.initialize()
 
 
-def truncate(table_name, proxy_path, **kwargs):
-    yt.config.set_proxy(proxy_path)
-    event_log = EventLog(yt, table_name=table_name)
-    count = int(kwargs.get("count", 10**6))
-    event_log.truncate(count)
-
-
 def archive(table_name, proxy_path, **kwargs):
     yt.config.set_proxy(proxy_path)
     event_log = EventLog(yt, table_name=table_name)
@@ -926,12 +909,9 @@ def run():
     options.define("service_id", default=DEFAULT_SERVICE_ID, help="[logbroker] service id")
     options.define("source_id", default=DEFAULT_SOURCE_ID, help="[logbroker] source id")
 
-    options.define("count", default=None, help="number of rows to truncate")
-
     options.define("threshold", default=10**6, help="threshold of lag size to generate error")
 
     options.define("init", default=False, help="init and exit")
-    options.define("truncate", default=False, help="truncate and exit")
     options.define("monitor", default=False, help="output status and exit")
     options.define("version", default=False, help="output version and exit")
     options.define("archive", default=False, help="archive and exit")
@@ -959,9 +939,7 @@ def run():
     def log_exit():
         logging.debug("Exited")
 
-    if options.options.truncate:
-        func = truncate
-    elif options.options.init:
+    if options.options.init:
         func = init
     elif options.options.monitor:
         func = monitor
