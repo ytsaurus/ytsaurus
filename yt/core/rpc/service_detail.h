@@ -10,6 +10,8 @@
 
 #include <core/concurrency/action_queue.h>
 
+#include <core/misc/object_pool.h>
+
 #include <core/compression/codec.h>
 
 #include <core/logging/log.h>
@@ -37,8 +39,8 @@ class TTypedServiceRequest
 public:
     typedef TRequestMessage TMessage;
 
-    explicit TTypedServiceRequest(IServiceContext* context)
-        : Context(context)
+    TTypedServiceRequest()
+        : Context(nullptr)
     { }
 
     std::vector<TSharedRef>& Attachments()
@@ -52,6 +54,9 @@ public:
     }
 
 private:
+    template <class TRequestMessage_>
+    friend class TTypedServiceContextBase;
+
     IServiceContext* Context;
 
 };
@@ -65,8 +70,8 @@ class TTypedServiceResponse
 public:
     typedef TResponseMessage TMessage;
 
-    explicit TTypedServiceResponse(IServiceContext* context)
-        : Context(context)
+    TTypedServiceResponse()
+        : Context(nullptr)
     { }
 
     std::vector<TSharedRef>& Attachments()
@@ -80,6 +85,9 @@ public:
     }
 
 private:
+    template <class TRequestMessage_, class TResponseMessage_>
+    friend class TTypedServiceContext;
+
     IServiceContext* Context;
 
 };
@@ -125,12 +133,14 @@ public:
         : TServiceContextWrapper(std::move(context))
         , Logger(RpcServerLogger)
         , Options(options)
-        , Request_(this)
     { }
 
     bool DeserializeRequest()
     {
-        if (!DeserializeFromProtoWithEnvelope(&Request_, UnderlyingContext->GetRequestBody())) {
+        Request_ = ObjectPool<TTypedRequest>().Allocate();
+        Request_->Context = UnderlyingContext.Get();
+
+        if (!DeserializeFromProtoWithEnvelope(Request_.get(), UnderlyingContext->GetRequestBody())) {
             UnderlyingContext->Reply(TError(
                 EErrorCode::ProtocolError,
                 "Error deserializing request body"));
@@ -142,19 +152,19 @@ public:
 
     const TTypedRequest& Request() const
     {
-        return Request_;
+        return *Request_;
     }
 
     TTypedRequest& Request()
     {
-        return Request_;
+        return *Request_;
     }
 
 protected:
     NLog::TLogger& Logger;
     THandlerInvocationOptions Options;
 
-    TTypedRequest Request_;
+    typename TObjectPool<TTypedRequest>::TValuePtr Request_;
 
 };
 
@@ -177,17 +187,19 @@ public:
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
         : TBase(std::move(context), options)
-        , Response_(this)
-    { }
+    {
+        Response_ = ObjectPool<TTypedResponse>().Allocate();
+        Response_->Context = this->UnderlyingContext.Get();
+    }
 
     const TTypedResponse& Response() const
     {
-        return Response_;
+        return *Response_;
     }
 
     TTypedResponse& Response()
     {
-        return Response_;
+        return *Response_;
     }
 
     using IServiceContext::Reply;
@@ -214,16 +226,15 @@ public:
     }
 
 private:
-    TTypedResponse Response_;
-
-
     void SerializeResponseAndReply()
     {
         TSharedRef data;
-        YCHECK(SerializeToProtoWithEnvelope(Response_, &data, this->Options.ResponseCodec));
+        YCHECK(SerializeToProtoWithEnvelope(*Response_, &data, this->Options.ResponseCodec));
         this->UnderlyingContext->SetResponseBody(std::move(data));
         this->UnderlyingContext->Reply(TError());
     }
+
+    typename TObjectPool<TTypedResponse>::TValuePtr Response_;
 
 };
 
