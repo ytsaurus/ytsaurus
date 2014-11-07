@@ -34,7 +34,7 @@ import collections
 
 
 DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
-DEFAULT_ADVICER_URL = "http://cellar-t.stat.yandex.net/advise"
+DEFAULT_LOGBROKER_URL = "http://cellar-t.stat.yandex.net/advise"
 DEFAULT_CHUNK_SIZE = 4000
 DEFAULT_SERVICE_ID = "yt"
 DEFAULT_SOURCE_ID = "tramsmm43"
@@ -739,7 +739,7 @@ class Application(object):
             try:
                 self._log_broker = LogBroker(self._service_id, self._source_id, io_loop=self._io_loop)
 
-                hostname = self._get_hostname()
+                hostname = _get_logbroker_hostname(logbroker_url=self._logbroker_url)
                 self._last_acked_seqno = yield self._log_broker.connect(hostname)
 
                 while True:
@@ -762,16 +762,6 @@ class Application(object):
                 self._log_broker = None
                 yield sleep_future(1, self._io_loop)
 
-    def _get_hostname(self):
-        self.log.info("Getting adviced logbroker endpoint hostname...")
-        response = requests.get("http://{0}/advice".format(self._logbroker_url), headers={"ClientHost": socket.getfqdn()})
-        if not response.ok:
-            raise RuntimeError("Unable to get adviced logbroker endpoint hostname")
-        host = response.text.strip()
-
-        self.log.info("Adviced endpoint hostname: %s", host)
-        return host
-
 
 class LastSeqnoGetter(object):
     log = logging.getLogger("LastSeqnoGetter")
@@ -781,28 +771,12 @@ class LastSeqnoGetter(object):
         self._last_seqno = None
         self._last_seqno_ex = None
 
-        self._threshold = 10**5
         self._logbroker_url = logbroker_url
-
         self._service_id = service_id
         self._source_id = source_id
 
         self._io_loop = io_loop or ioloop.IOLoop.instance()
         self._connection_factory = connection_factory or tcpclient.TCPClient(io_loop=self._io_loop)
-
-    def monitor(self):
-        try:
-            self.fetch_seqno()
-            row_count = self._event_log.get_row_count()
-        except Exception:
-            self.log.error("Unhandled exception", exp_info=True)
-            sys.stdout.write("2; Internal error.")
-        else:
-            lag = row_count - self._last_seqno
-            if lag > self._threshold:
-                sys.stdout.write("2;  Lag equals to: %d\n" % (lag,))
-            else:
-                sys.stdout.write("0; Lag equals to: %d\n" % (lag,))
 
     def get(self):
         self._io_loop.add_callback(self._get_seqno)
@@ -841,14 +815,14 @@ def get_last_seqno(**kwargs):
     return getter.get()
 
 
-def main(proxy_path, table_name, service_id, source_id, **kwargs):
-    app = Application(proxy_path, "kafka01ft.stat.yandex.net", table_name, service_id, source_id)
+def main(proxy_path, table_name, logbroker_url, service_id, source_id, **kwargs):
+    app = Application(proxy_path, logbroker_url, table_name, service_id, source_id)
     app.start()
 
 
-def monitor(table_name, proxy_path, threshold, service_id, source_id, **kwargs):
+def monitor(proxy_path, table_name, threshold, logbroker_url, service_id, source_id, **kwargs):
     try:
-        last_seqno = get_last_seqno(logbroker_url="kafka01ft.stat.yandex.net", service_id=service_id, source_id=source_id)
+        last_seqno = get_last_seqno(logbroker_url=logbroker_url, service_id=service_id, source_id=source_id)
         yt.config.set_proxy(proxy_path)
         event_log = EventLog(yt, table_name)
         row_count = event_log.get_row_count()
@@ -888,7 +862,7 @@ def run():
 
     options.define("cluster_name", default="", help="[logbroker] name of source cluster")
     options.define("logtype", default="", help="[logbroker] log type")
-    options.define("advicer_url", default=DEFAULT_ADVICER_URL, help="[logbroker] url to get adviced kafka endpoint")
+    options.define("logbroker_url", default=DEFAULT_LOGBROKER_URL, help="[logbroker] url to get adviced kafka endpoint")
     options.define("service_id", default=DEFAULT_SERVICE_ID, help="[logbroker] service id")
     options.define("source_id", default=DEFAULT_SOURCE_ID, help="[logbroker] source id")
 
