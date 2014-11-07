@@ -18,8 +18,6 @@ TChunkedOutputStream::TChunkedOutputStream(size_t maxReserveSize, size_t initial
     }
 
     YCHECK(MaxReserveSize > 0);
-
-    IncompleteChunk.Reserve(CurrentReserveSize);
 }
 
 TChunkedOutputStream::~TChunkedOutputStream() throw()
@@ -31,7 +29,6 @@ std::vector<TSharedRef> TChunkedOutputStream::FlushBuffer()
 
     YASSERT(IncompleteChunk.IsEmpty());
     CompleteSize = 0;
-    IncompleteChunk.Reserve(CurrentReserveSize);
 
     return std::move(CompleteChunks);
 }
@@ -48,6 +45,10 @@ size_t TChunkedOutputStream::GetCapacity() const
 
 void TChunkedOutputStream::DoWrite(const void* buffer, size_t length)
 {
+    if (!IncompleteChunk.Capacity()) {
+        IncompleteChunk.Reserve(CurrentReserveSize);
+    }
+
     const auto spaceAvailable = std::min(length, IncompleteChunk.Capacity() - IncompleteChunk.Size());
     const auto spaceRequired = length - spaceAvailable;
 
