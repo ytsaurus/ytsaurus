@@ -34,7 +34,7 @@ import collections
 
 
 DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
-DEFAULT_LOGBROKER_URL = "http://cellar-t.stat.yandex.net/advise"
+DEFAULT_LOGBROKER_URL = "cellar-t.stat.yandex.net"
 DEFAULT_CHUNK_SIZE = 4000
 DEFAULT_SERVICE_ID = "yt"
 DEFAULT_SOURCE_ID = "tramsmm43"
@@ -75,9 +75,9 @@ class EventLog(object):
     class NotEnoughDataError(RuntimeError):
         pass
 
-    def __init__(self, yt, table_name=None):
+    def __init__(self, yt, table_name):
         self.yt = yt
-        self._table_name = table_name or "//tmp/event_log"
+        self._table_name = table_name
         self._archive_table_name = self._table_name + ".archive"
         self._number_of_first_row_attr = "{0}/@number_of_first_row".format(self._table_name)
         self._row_to_save_attr = "{0}/@row_to_save".format(self._table_name)
@@ -493,14 +493,14 @@ class SessionStream(object):
 
     SESSION_TIMEOUT = datetime.timedelta(minutes=5)
 
-    def __init__(self, service_id=None, source_id=None, logtype=None, io_loop=None, connection_factory=None):
+    def __init__(self, service_id, source_id, logtype=None, io_loop=None, connection_factory=None):
         self._id = None
         self._attributes = None
         self._iostream = None
 
         self._logtype = logtype
-        self._service_id = service_id or DEFAULT_SERVICE_ID
-        self._source_id = source_id or DEFAULT_SOURCE_ID
+        self._service_id = service_id
+        self._source_id = source_id
 
         self._io_loop = io_loop or ioloop.IOLoop.instance()
         self._connection_factory = connection_factory or tcpclient.TCPClient(io_loop=self._io_loop)
@@ -800,7 +800,7 @@ class LastSeqnoGetter(object):
             self._io_loop.stop()
 
 def _get_logbroker_hostname(logbroker_url):
-    log.info("Getting adviced logbroker endpoint hostname...")
+    log.info("Getting adviced logbroker endpoint hostname for %s...", logbroker_url)
     response = requests.get("http://{0}/advice".format(logbroker_url), headers={"ClientHost": socket.getfqdn()})
     if not response.ok:
         raise RuntimeError("Unable to get adviced logbroker endpoint hostname")
