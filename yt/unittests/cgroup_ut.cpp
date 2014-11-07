@@ -450,6 +450,16 @@ TEST(CGroup, Bug)
 
     auto group = CreateCGroup<TMemory>("something_different");
 
+    group.ForceEmpty();
+    int iterations = 0;
+    while (group.GetUsageInBytes() != 0) {
+        sleep(1);
+        ++iterations;
+        if (iterations > 10) {
+            ASSERT_TRUE(false);
+        }
+    }
+
     i64 num = 1;
     auto exitBarier = ::eventfd(0, 0);
     auto initBarier = ::eventfd(0, 0);
