@@ -192,8 +192,7 @@ private:
 
             if (PyFile_Check(streamArg.ptr())) {
                 FILE* file = PyFile_AsFile(streamArg.ptr());
-                int fd = fileno(file);
-                inputStream.reset(new TFileInput(TFile(fd)));
+                inputStream.reset(new TFileInput(Duplicate(file)));
             } else {
                 inputStream.reset(new TInputStreamWrap(streamArg));
             }
@@ -260,16 +259,15 @@ private:
 
         // Holds outputStreamWrap if passed non-trivial stream argument
         std::unique_ptr<TOutputStreamWrap> outputStreamWrap;
-        std::unique_ptr<TBufferedOutput> bufferedOutputStream;
         std::unique_ptr<TFileOutput> fileOutput;
+        std::unique_ptr<TBufferedOutput> bufferedOutputStream;
 
         if (!outputStream) {
             auto streamArg = ExtractArgument(args, kwargs, "stream");
 
             if (PyFile_Check(streamArg.ptr())) {
                 FILE* file = PyFile_AsFile(streamArg.ptr());
-                int fd = fileno(file);
-                fileOutput.reset(new TFileOutput(TFile(fd)));
+                fileOutput.reset(new TFileOutput(Duplicate(file)));
                 outputStream = fileOutput.get();
             } else {
                 outputStreamWrap.reset(new TOutputStreamWrap(streamArg));
