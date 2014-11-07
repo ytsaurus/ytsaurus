@@ -604,29 +604,27 @@ private:
                 }
             }
 
+            {
+                TGuard<TSpinLock> guard(MemoryLock);
+
+                if (Memory.IsCreated()) {
+                    auto statistics = Memory.GetStatistics();
+                    int old_rss = rss;
+                    rss = statistics.Rss + statistics.MappedFile;
+
+                    if ((rss > 1.05 * old_rss) && (old_rss > 0)) {
+                        LOG_ERROR("JobId: %v. Memory usage measures by cgroup %v is much bigger than old way %v",
+                            JobId,
+                            old_rss,
+                            rss);
+                    }
+                }
+            }
+
             LOG_DEBUG("Get memory usage (JobId: %v, Rss: %v, MemoryLimit: %v)",
                 JobId,
                 rss,
                 memoryLimit);
-
-            {
-                TGuard<TSpinLock> guard(MemoryLock);
-
-                if (!Memory.IsCreated()) {
-                    return;
-                }
-
-                auto statistics = Memory.GetStatistics();
-                int old_rss = rss;
-                rss = statistics.Rss + statistics.MappedFile;
-
-                if ((rss > 1.05 * old_rss) && (old_rss > 0)) {
-                    LOG_ERROR("JobId: %v. Memory usage measures by cgroup %v is much bigger than old way %v",
-                        JobId,
-                        old_rss,
-                        rss);
-                }
-            }
 
             if (rss > memoryLimit) {
                 SetError(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
