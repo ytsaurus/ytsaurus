@@ -83,6 +83,12 @@ class EventLog(object):
         self._row_to_save_attr = "{0}/@row_to_save".format(self._table_name)
         self._row_count = "{0}/@row_count".format(self._table_name)
 
+    def get_row_count(self):
+        with yt.Transaction():
+            first_row = self.yt.get(self._number_of_first_row_attr)
+            row_count = self.yt.get(self._row_count)
+            return row_count + first_row
+
     def get_data(self, begin, count):
         with self.yt.Transaction():
             rows_removed = self.yt.get(self._number_of_first_row_attr)
@@ -806,9 +812,82 @@ class Application(object):
         return host
 
 
+class MonitorApplication(object):
+    log = logging.getLogger("MonitorApplication")
+
+    def __init__(self, proxy_path, logbroker_url, table_name, service_id, source_id,
+                 io_loop=None, connection_factory=None):
+        yt.config.set_proxy(proxy_path)
+
+        self._last_seqno = None
+        self._last_seqno_ex = None
+
+        self._threshold = 10**5
+        self._chunk_size = 4000
+        self._logbroker_url = logbroker_url
+
+        self._service_id = service_id
+        self._source_id = source_id
+
+        self._io_loop = io_loop or ioloop.IOLoop.instance()
+        self._connection_factory = connection_factory or tcpclient.TCPClient(io_loop=self._io_loop)
+
+        self._event_log = EventLog(yt, table_name=table_name)
+        self._session_stream = None
+
+    def monitor(self):
+        try:
+            self.fetch_seqno()
+            row_count = self._event_log.get_row_count()
+        except Exception:
+            self.log.error("Unhandled exception", exp_info=True)
+            sys.stdout.write("2; Internal error.")
+        else:
+            lag = row_count - self._last_seqno
+            if lag > self._threshold:
+                sys.stdout.write("2;  Lag equals to: %d\n" % (lag,))
+            else:
+                sys.stdout.write("0; Lag equals to: %d\n" % (lag,))
+
+    def fetch_seqno(self):
+        self._io_loop.add_callback(self._get_seqno)
+        self._io_loop.start()
+        if self._last_seqno_ex is not None:
+            raise self._last_seqno_ex
+
+    @gen.coroutine
+    def _get_seqno(self):
+        try:
+            with ExceptionLoggingContext(self.log):
+                hostname = self._get_hostname()
+                self._session = SessionStream(service_id=self._service_id, source_id=self._source_id, io_loop=self._io_loop, connection_factory=self._connection_factory)
+                self.log.info("Connect session stream")
+                session_id = yield self._session.connect((hostname, 80))
+                self._last_seqno = int(self._session.get_attribute("seqno"))
+        except Exception as e:
+            self._last_seqno_ex = e
+        finally:
+            self._io_loop.stop()
+
+    def _get_hostname(self):
+        self.log.info("Getting adviced logbroker endpoint hostname...")
+        response = requests.get("http://{0}/advice".format(self._logbroker_url), headers={"ClientHost": socket.getfqdn()})
+        if not response.ok:
+            raise RuntimeError("Unable to get adviced logbroker endpoint hostname")
+        host = response.text.strip()
+
+        self.log.info("Adviced endpoint hostname: %s", host)
+        return host
+
+
 def main(proxy_path, table_name, service_id, source_id, **kwargs):
     app = Application(proxy_path, "kafka01ft.stat.yandex.net", table_name, service_id, source_id)
     app.start()
+
+
+def monitor(table_name, proxy_path, threshold, service_id, source_id, **kwargs):
+    monitor_app = MonitorApplication(proxy_path, "kafka01ft.stat.yandex.net", table_name, service_id, source_id)
+    monitor_app.monitor()
 
 
 def init(table_name, proxy_path, **kwargs):
@@ -822,12 +901,6 @@ def truncate(table_name, proxy_path, **kwargs):
     event_log = EventLog(yt, table_name=table_name)
     count = int(kwargs.get("count", 10**6))
     event_log.truncate(count)
-
-
-def monitor(table_name, proxy_path, threshold, **kwargs):
-    yt.config.set_proxy(proxy_path)
-    event_log = EventLog(yt, table_name=table_name)
-    event_log.monitor(threshold)
 
 
 def archive(table_name, proxy_path, **kwargs):
