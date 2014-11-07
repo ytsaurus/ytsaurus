@@ -112,6 +112,10 @@ public:
             GetSyncInvoker(),
             BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
             config->MemoryWatchdogPeriod);
+        BlockIOWatchdogExecutor = New<TPeriodicExecutor>(
+            GetSyncInvoker(),
+            BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
+            config->BlockIOWatchdogPeriod);
     }
 
     virtual NJobTrackerClient::NProto::TJobResult Run() override
@@ -230,7 +234,9 @@ public:
         LOG_INFO("Job process started");
 
         MemoryWatchdogExecutor->Start();
+        BlockIOWatchdogExecutor->Start();
         DoJobIO();
+        BlockIOWatchdogExecutor->Stop();
         MemoryWatchdogExecutor->Stop();
 
         LOG_INFO(JobExitError, "Job process completed");
@@ -265,13 +271,16 @@ public:
             RetrieveStatistics(CpuAccounting, [&] (NCGroup::TCpuAccounting& cgroup) {
                     CpuAccountingStats = cgroup.GetStatistics();
                 });
-            RetrieveStatistics(BlockIO, [&] (NCGroup::TBlockIO& cgroup) {
-                    BlockIOStats = cgroup.GetStatistics();
-                });
-
             DestroyCGroup(CpuAccounting);
-            DestroyCGroup(BlockIO);
             DestroyCGroup(Freezer);
+
+            {
+                TGuard<TSpinLock> guard(BlockIOLock);
+                RetrieveStatistics(BlockIO, [&] (NCGroup::TBlockIO& cgroup) {
+                        BlockIOStats = cgroup.GetStatistics();
+                    });
+                DestroyCGroup(BlockIO);
+            }
 
             if (config->EnableCGroupMemoryHierarchy)
             {
@@ -644,6 +653,55 @@ private:
         }
     }
 
+    void CheckBlockIOUsage()
+    {
+        auto host = Host.Lock();
+        if (!host)
+            return;
+
+        int threshold = host->GetConfig()->IOThreshold;
+        if (threshold < 0) {
+            return;
+        }
+
+        try {
+            TGuard<TSpinLock> guard(BlockIOLock);
+
+            if (!BlockIO.IsCreated()) {
+                return;
+            }
+
+            auto serviceIOs = BlockIO.GetIOServiced();
+
+            for (const auto& item : serviceIOs) {
+                auto operations = item.Value;
+
+                size_t k = 0;
+                while ((k < CurrentServicedIOs.size()) && (item.DeviceId != CurrentServicedIOs[k].DeviceId)) {
+                    ++k;
+                }
+
+                if (k < CurrentServicedIOs.size()) {
+                    YCHECK(item.DeviceId == CurrentServicedIOs[k].DeviceId);
+                    operations -= CurrentServicedIOs[k].Value;
+                }
+
+                if (operations < 0) {
+                    LOG_WARNING("%v < 0 operations where serviced for %v device after the last check", operations, item.DeviceId);
+                }
+
+                if (operations > threshold) {
+                    BlockIO.ThrottleOperations(item.DeviceId, threshold);
+                }
+            }
+
+            CurrentServicedIOs = serviceIOs;
+        } catch (const std::exception& ex) {
+            SetError(ex);
+            KillUserJob();
+        }
+    }
+
     virtual NJobTrackerClient::NProto::TJobStatistics GetStatistics() const override
     {
         NJobTrackerClient::NProto::TJobStatistics result;
@@ -734,6 +792,7 @@ private:
     i64 MemoryUsage;
 
     TPeriodicExecutorPtr MemoryWatchdogExecutor;
+    TPeriodicExecutorPtr BlockIOWatchdogExecutor;
 
     std::unique_ptr<TTableOutput> StatisticsOutput;
     std::unique_ptr<TErrorOutput> ErrorOutput;
@@ -749,6 +808,8 @@ private:
 
     NCGroup::TBlockIO BlockIO;
     NCGroup::TBlockIO::TStatistics BlockIOStats;
+    std::vector<NCGroup::TBlockIO::TStatisticsItem> CurrentServicedIOs;
+    TSpinLock BlockIOLock;
 
     NCGroup::TMemory Memory;
     TSpinLock MemoryLock;

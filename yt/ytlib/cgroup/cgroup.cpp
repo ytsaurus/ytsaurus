@@ -314,6 +314,16 @@ void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const
 #endif
 }
 
+void TNonOwningCGroup::Append(const Stroka& name, const Stroka& value) const
+{
+    YCHECK(!IsNull());
+#ifdef _linux_
+    auto path = NFS::CombinePaths(FullPath_, name);
+    TFileOutput output(TFile(path, OpenMode::ForAppend));
+    output << value;
+#endif
+}
+
 bool TNonOwningCGroup::IsNull() const
 {
     return FullPath_.Empty();
@@ -509,6 +519,50 @@ TBlockIO::TStatistics TBlockIO::GetStatistics()
     }
 #endif
     return result;
+}
+
+std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetIOServiceBytes()
+{
+    return GetDetailedStatistics("blkio.io_service_bytes");
+}
+
+std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetIOServiced()
+{
+    return GetDetailedStatistics("blkio.io_serviced");
+}
+
+std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const char* filename)
+{
+    std::vector<TBlockIO::TStatisticsItem> result;
+#ifdef _linux_
+    auto path = NFS::CombinePaths(GetFullPath(), filename);
+    auto values = ReadAllValues(path);
+
+    int lineNumber = 0;
+    while (3 * lineNumber + 2 < values.size()) {
+        TStatisticsItem item;
+        item.DeviceId = values[3 * lineNumber];
+        item.Type = values[3 * lineNumber + 1];
+        item.Value = FromString<i64>(values[3 * lineNumber + 2]);
+
+        if (!item.DeviceId.has_prefix("8:")) {
+            THROW_ERROR_EXCEPTION("Unable to parse %Qv: %v should start from 8:", path, item.DeviceId);
+        }
+
+        if ((item.Type == "Read") || (item.Type == "Write")) {
+            result.push_back(item);
+        }
+        ++lineNumber;
+    }
+#endif
+    return result;
+}
+
+void TBlockIO::ThrottleOperations(const Stroka& deviceId, i64 operations)
+{
+    Stroka value = Format("%v %v", deviceId, operations);
+    Append("blkio.throttle.read_iops_device", value);
+    Append("blkio.throttle.write_iops_device", value);
 }
 
 void ToProto(NProto::TBlockIOStatistics* protoStats, const TBlockIO::TStatistics& stats)

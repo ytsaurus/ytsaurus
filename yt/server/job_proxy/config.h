@@ -37,6 +37,8 @@ public:
     TDuration HeartbeatPeriod;
 
     TDuration MemoryWatchdogPeriod;
+
+    TDuration BlockIOWatchdogPeriod;
     
     TAddressResolverConfigPtr AddressResolver;
 
@@ -47,6 +49,8 @@ public:
     bool EnableCGroupMemoryHierarchy;
 
     int UserId;
+
+    int IOThreshold;
 
     NScheduler::TJobIOConfigPtr JobIO;
 
@@ -69,6 +73,9 @@ public:
         
         RegisterParameter("memory_watchdog_period", MemoryWatchdogPeriod)
             .Default(TDuration::Seconds(1));
+        RegisterParameter("block_io_watchdog_period", BlockIOWatchdogPeriod)
+            .Default(TDuration::Seconds(60));
+
         RegisterParameter("address_resolver", AddressResolver)
             .DefaultNew();
         RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
@@ -79,6 +86,9 @@ public:
             .Default(false);
         
         RegisterParameter("user_id", UserId).
+            Default(-1);
+
+        RegisterParameter("io_threshold", IOThreshold).
             Default(-1);
         
         RegisterParameter("job_io", JobIO)

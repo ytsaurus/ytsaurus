@@ -70,6 +70,7 @@ public:
 
     Stroka Get(const Stroka& name) const;
     void Set(const Stroka& name, const Stroka& value) const;
+    void Append(const Stroka& name, const Stroka& value) const;
 
     bool IsNull() const;
     std::vector<int> GetTasks() const;
@@ -137,8 +138,23 @@ public:
         i64 BytesWritten;
     };
 
+    struct TStatisticsItem
+    {
+        Stroka DeviceId;
+        Stroka Type;
+        i64 Value;
+    };
+
     explicit TBlockIO(const Stroka& name);
     TStatistics GetStatistics();
+
+    std::vector<TStatisticsItem> GetIOServiceBytes();
+    std::vector<TStatisticsItem> GetIOServiced();
+
+    void ThrottleOperations(const Stroka& deviceId, i64 operations);
+
+private:
+    std::vector<TBlockIO::TStatisticsItem> GetDetailedStatistics(const char* filename);
 };
 
 void ToProto(NProto::TBlockIOStatistics* protoStats, const TBlockIO::TStatistics& stats);
