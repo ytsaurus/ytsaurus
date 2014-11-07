@@ -658,6 +658,8 @@ private:
             return;
 
         int threshold = host->GetConfig()->IOThreshold;
+        int period = host->GetConfig()->BlockIOWatchdogPeriod.Seconds();
+
         if (threshold < 0) {
             return;
         }
@@ -672,6 +674,8 @@ private:
             auto serviceIOs = BlockIO.GetIOServiced();
 
             for (const auto& item : serviceIOs) {
+                LOG_DEBUG("%v %v operation for %v device", item.DeviceId, item.Type, item.Value);
+
                 auto operations = item.Value;
 
                 size_t k = 0;
@@ -689,7 +693,9 @@ private:
                 }
 
                 if (operations > threshold) {
-                    BlockIO.ThrottleOperations(item.DeviceId, threshold);
+                    LOG_INFO("Woodpecker has been detected. Limit it to %v operations", threshold / period);
+
+                    BlockIO.ThrottleOperations(item.DeviceId, threshold / period);
                 }
             }
 
