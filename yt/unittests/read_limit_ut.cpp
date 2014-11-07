@@ -9,6 +9,8 @@ namespace NYT {
 namespace NChunkClient {
 namespace {
 
+////////////////////////////////////////////////////////////////////////////////
+
 using namespace NYTree;
 
 template<typename T>
@@ -40,6 +42,8 @@ TEST(TReadRangeTest, Simple2)
     EXPECT_EQ(1, range.LowerLimit().GetRowIndex());
     EXPECT_EQ(2, range.UpperLimit().GetRowIndex());
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NChunkClient

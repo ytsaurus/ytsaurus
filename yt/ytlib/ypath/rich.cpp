@@ -406,7 +406,7 @@ std::vector<NChunkClient::TReadRange> TRichYPath::GetRanges() const
     auto upperLimitAttribute = Attributes().Find<TReadLimit>("upper_limit");
     auto rangesAttribute = Attributes().Find<std::vector<TReadLimit>>("ranges");
     if ((lowerLimitAttribute || upperLimitAttribute) && rangesAttribute) {
-        THROW_ERROR_EXCEPTION("lower_limit or upper_limit conflicts with ranges attribute");
+        THROW_ERROR_EXCEPTION("Path contains both multiple (\"ranges\" attribute) and single ranges (\"lower_limit\" or \"upper_limit\" attributes), which is forbidden");
     }
 
     if (lowerLimitAttribute || upperLimitAttribute) {

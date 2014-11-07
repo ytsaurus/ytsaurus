@@ -777,17 +777,17 @@ private:
             auto& path = InputTables[0].Path;
             auto ranges = path.GetRanges();
             if (ranges.size() > 1) {
-                THROW_ERROR_EXCEPTION("Multiple ranges are not supported for erase");
+                THROW_ERROR_EXCEPTION("Erase operation does not support tables with multiple ranges");
             } else if (ranges.size() == 1) {
-                std::vector<TReadRange> complementRanges;
-                auto range = ranges[0];
+                std::vector<TReadRange> complementaryRanges;
+                const auto& range = ranges[0];
                 if (!range.LowerLimit().IsTrivial()) {
-                    complementRanges.push_back(TReadRange(TReadLimit(), range.LowerLimit()));
+                    complementaryRanges.push_back(TReadRange(TReadLimit(), range.LowerLimit()));
                 }
                 if (!range.UpperLimit().IsTrivial()) {
-                    complementRanges.push_back(TReadRange(range.UpperLimit(), TReadLimit()));
+                    complementaryRanges.push_back(TReadRange(range.UpperLimit(), TReadLimit()));
                 }
-                path.Attributes().Set("ranges", complementRanges);
+                path.Attributes().Set("ranges", complementaryRanges);
             } else {
                 path.Attributes().Set("ranges", std::vector<TReadRange>());
             }

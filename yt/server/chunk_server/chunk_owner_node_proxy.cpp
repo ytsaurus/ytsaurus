@@ -66,7 +66,6 @@ public:
         , Channel_(channel)
         , FetchParityReplicas_(fetchParityReplicas)
         , Ranges_(ranges)
-        , CurrentRange_(0)
         , NodeDirectoryBuilder_(context->Response().mutable_node_directory())
     {
         if (!Context_->Request().fetch_all_meta_extensions()) {
@@ -89,8 +88,8 @@ public:
             CreatePreemptableChunkTraverserCallbacks(Bootstrap_),
             this,
             ChunkList_,
-            Ranges_[CurrentRange_].LowerLimit(),
-            Ranges_[CurrentRange_].UpperLimit());
+            Ranges_[CurrentRangeIndex_].LowerLimit(),
+            Ranges_[CurrentRangeIndex_].UpperLimit());
     }
 
 private:
@@ -102,7 +101,7 @@ private:
     bool FetchParityReplicas_;
 
     std::vector<TReadRange> Ranges_;
-    int CurrentRange_;
+    int CurrentRangeIndex_ = 0;
 
     yhash_set<int> ExtensionTags_;
     TNodeDirectoryBuilder NodeDirectoryBuilder_;
@@ -246,9 +245,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        CurrentRange_ += 1;
-        if (CurrentRange_ == Ranges_.size()) {
-            if (CurrentRange_ == Ranges_.size() && !Finished_) {
+        CurrentRangeIndex_ += 1;
+        if (CurrentRangeIndex_ == Ranges_.size()) {
+            if (CurrentRangeIndex_ == Ranges_.size() && !Finished_) {
                 ReplySuccess();
             }
         } else {
@@ -256,8 +255,8 @@ private:
                 CreatePreemptableChunkTraverserCallbacks(Bootstrap_),
                 this,
                 ChunkList_,
-                Ranges_[CurrentRange_].LowerLimit(),
-                Ranges_[CurrentRange_].UpperLimit());
+                Ranges_[CurrentRangeIndex_].LowerLimit(),
+                Ranges_[CurrentRangeIndex_].UpperLimit());
         }
     }
 
@@ -799,7 +798,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         : TChannel::Universal();
     bool fetchParityReplicas = request->fetch_parity_replicas();
 
-    std::vector<TReadRange> ranges = FromProto<TReadRange>(request->ranges());
+    auto ranges = FromProto<TReadRange>(request->ranges());
     ValidateFetchParameters(channel, ranges);
 
     const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
