@@ -600,6 +600,25 @@ private:
                 rss,
                 memoryLimit);
 
+            {
+                TGuard<TSpinLock> guard(MemoryLock);
+
+                if (!Memory.IsCreated()) {
+                    return;
+                }
+
+                auto statistics = Memory.GetStatistics();
+                int old_rss = rss;
+                rss = statistics.Rss + statistics.MappedFile;
+
+                if ((rss > 1.05 * old_rss) && (old_rss > 0)) {
+                    LOG_ERROR("JobId: %v. Memory usage measures by cgroup %v is much bigger than old way %v",
+                        JobId,
+                        old_rss,
+                        rss);
+                }
+            }
+
             if (rss > memoryLimit) {
                 SetError(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
                     << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds())
@@ -618,19 +637,6 @@ private:
                 auto resourceUsage = host->GetResourceUsage();
                 resourceUsage.set_memory(resourceUsage.memory() + delta);
                 host->SetResourceUsage(resourceUsage);
-            }
-
-            {
-                TGuard<TSpinLock> guard(MemoryLock);
-
-                if (!Memory.IsCreated()) {
-                    return;
-                }
-
-                auto statistics = Memory.GetStatistics();
-                LOG_DEBUG("Memory usage. Old way: %" PRId64 ", CGroup way: %" PRId64,
-                    rss,
-                    statistics.Rss + statistics.MappedFile);
             }
         } catch (const std::exception& ex) {
             SetError(ex);
