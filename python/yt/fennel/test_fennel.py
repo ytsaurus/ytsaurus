@@ -19,6 +19,10 @@ import inspect
 pytestmark = pytest.mark.skipif("sys.version_info < (2,7)", reason="requires python2.7")
 
 
+KAFKA_ENDPOINT = "kafka01ft.stat.yandex.net"
+TEST_SERVICE_ID = "fenneltest"
+
+
 def test_compression_external():
     p = subprocess.Popen(["gzip", "-d"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdoutdata, stderrdata = p.communicate(fennel.gzip_compress("Hello"))
@@ -97,10 +101,6 @@ def test_convert_to_from():
         compare(data, data_after)
 
 
-KAFKA_ENDPOINT = "kafka01ft.stat.yandex.net"
-TEST_SERVICE_ID = "fenneltest"
-
-
 class TestLogBrokerIntegration(testing.AsyncTestCase):
     def setUp(self):
         super(TestLogBrokerIntegration, self).setUp()
@@ -153,14 +153,16 @@ class TestLogBrokerIntegration(testing.AsyncTestCase):
 class TestSessionStreamIntegraion(testing.AsyncTestCase):
     @testing.gen_test
     def test_connect(self):
-        s = fennel.SessionStream(io_loop=self.io_loop)
+        source_id = uuid.uuid4().hex
+        s = fennel.SessionStream(service_id=TEST_SERVICE_ID, source_id=source_id, io_loop=self.io_loop)
         session_id = yield s.connect((KAFKA_ENDPOINT, 80))
         assert session_id is not None
         s.get_attribute("seqno")
 
     @testing.gen_test
     def test_get_ping(self):
-        s = fennel.SessionStream(io_loop=self.io_loop)
+        source_id = uuid.uuid4().hex
+        s = fennel.SessionStream(service_id=TEST_SERVICE_ID, source_id=source_id, io_loop=self.io_loop)
         session_id = yield s.connect((KAFKA_ENDPOINT, 80))
         assert session_id is not None
         message = yield s.read_message()
@@ -454,7 +456,7 @@ Vary: Accept-Encoding\r\n\r\n"""
     def setUp(self):
         super(TestSessionStream, self).setUp()
         self._world_serialization = WorldSerialization()
-        self.s = fennel.SessionStream(io_loop=self.io_loop, connection_factory=self._world_serialization)
+        self.s = fennel.SessionStream(service_id=TEST_SERVICE_ID, source_id="", io_loop=self.io_loop, connection_factory=self._world_serialization)
 
     @testing.gen_test
     def test_basic(self):
