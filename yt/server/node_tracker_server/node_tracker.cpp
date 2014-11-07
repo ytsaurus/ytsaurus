@@ -355,6 +355,10 @@ private:
         if (node->GetState() != ENodeState::Unregistered)
             return;
 
+        if (IsLeader()) {
+            YCHECK(--PendingRemoveNodeMutationCount_ >= 0);
+        }
+
         DoRemoveNode(node);
     }
 
@@ -764,7 +768,6 @@ private:
                 address);
 
             if (IsLeader()) {
-                YCHECK(--PendingRemoveNodeMutationCount_ >= 0);
                 MaybePostRemoveNodeMutations();
             }
         }
@@ -795,13 +798,13 @@ private:
             TReqRemoveNode request;
             request.set_node_id(node->GetId());
 
+            ++PendingRemoveNodeMutationCount_;
+
             auto mutation = CreateRemoveNodeMutation(request);
             Bootstrap_
                 ->GetHydraFacade()
                 ->GetEpochAutomatonInvoker()
                 ->Invoke(BIND(IgnoreResult(&TMutation::Commit), mutation));
-
-            ++PendingRemoveNodeMutationCount_;
         }
     }
 
