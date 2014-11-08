@@ -170,6 +170,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(InvokersSpinLock_);
+        YCHECK(!EpochAutomatonInvokers_.empty());
         return EpochAutomatonInvokers_[queue];
     }
 
@@ -178,6 +179,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(InvokersSpinLock_);
+        YCHECK(!GuardedAutomatonInvokers_.empty());
         return GuardedAutomatonInvokers_[queue];
     }
 

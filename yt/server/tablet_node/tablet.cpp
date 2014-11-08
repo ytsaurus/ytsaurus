@@ -454,6 +454,7 @@ void TTablet::StopEpoch()
 
 IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
 {
+    YCHECK(!EpochAutomatonInvokers_.empty());
     return EpochAutomatonInvokers_[queue];
 }
 
