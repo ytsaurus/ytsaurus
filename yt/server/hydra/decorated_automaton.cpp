@@ -682,7 +682,6 @@ TVersion TDecoratedAutomaton::GetAutomatonVersion() const
     return AutomatonVersion_;
 }
 
-
 void TDecoratedAutomaton::RotateAutomatonVersion(int segmentId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
