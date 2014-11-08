@@ -123,11 +123,12 @@ public:
         if (!guard)
             return;
 
-        if (Owner_->GetState() != EPeerState::Leading &&
-            Owner_->GetState() != EPeerState::Following)
-            return;
+        auto this_ = MakeStrong(this);
+        auto doInvoke = [this, this_] (IInvokerPtr invoker, const TClosure& callback) {
+            if (Owner_->GetState() != EPeerState::Leading &&
+                Owner_->GetState() != EPeerState::Following)
+                return;
 
-        auto doInvoke = [] (IInvokerPtr invoker, const TClosure& callback) {
             TCurrentInvokerGuard guard(std::move(invoker));
             callback.Run();
         };
