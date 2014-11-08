@@ -957,8 +957,7 @@ private:
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-            // Let's be neat and omit changelog rotation for the very first run.
-            if (DecoratedAutomaton_->GetLoggedVersion() != TVersion()) {
+            {
                 auto result = WaitFor(epochContext->Checkpointer->RotateChangelog());
                 VERIFY_THREAD_AFFINITY(AutomatonThread);
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
