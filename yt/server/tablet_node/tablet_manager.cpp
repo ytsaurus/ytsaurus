@@ -442,24 +442,12 @@ private:
 
     virtual void OnStartFollowing() override
     {
-        YCHECK(PrelockedTransactions_.empty());
-
-        for (const auto& pair : TabletMap_) {
-            auto* tablet = pair.second;
-            StartTabletEpoch(tablet);
-        }
+        YUNREACHABLE();
     }
 
     virtual void OnStopFollowing() override
     {
-        YCHECK(PrelockedTransactions_.empty());
-
-        for (const auto& pair : TabletMap_) {
-            auto* tablet = pair.second;
-            StopTabletEpoch(tablet);
-        }
-
-        OrphanedStores_.clear();
+        YUNREACHABLE();
     }
 
 
