@@ -179,7 +179,6 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(InvokersSpinLock_);
-        YCHECK(!GuardedAutomatonInvokers_.empty());
         return GuardedAutomatonInvokers_[queue];
     }
 
