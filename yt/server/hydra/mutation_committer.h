@@ -145,6 +145,7 @@ private:
 
     TSpinLock BatchSpinLock_;
     TBatchPtr CurrentBatch_;
+    TAsyncError PrevBatchQuorumFlushResult_ = OKFuture;
     NConcurrency::TDelayedExecutorCookie BatchTimeoutCookie_;
 
     NConcurrency::TPeriodicExecutorPtr AutoCheckpointCheckExecutor_;

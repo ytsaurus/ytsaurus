@@ -354,7 +354,9 @@ TAsyncError TLeaderCommitter::GetQuorumFlushResult()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     TGuard<TSpinLock> guard(BatchSpinLock_);
-    return CurrentBatch_ ? CurrentBatch_->GetQuorumFlushResult() : OKFuture;
+    return CurrentBatch_
+        ? CurrentBatch_->GetQuorumFlushResult()
+        : PrevBatchQuorumFlushResult_;
 }
 
 void TLeaderCommitter::SuspendLogging()
@@ -414,6 +416,8 @@ void TLeaderCommitter::FlushCurrentBatch()
     YCHECK(CurrentBatch_);
 
     CurrentBatch_->Flush();
+    PrevBatchQuorumFlushResult_ = CurrentBatch_->GetQuorumFlushResult();
+
     CurrentBatch_.Reset();
 
     TDelayedExecutor::CancelAndClear(BatchTimeoutCookie_);
