@@ -788,6 +788,8 @@ private:
                     complementaryRanges.push_back(TReadRange(range.UpperLimit(), TReadLimit()));
                 }
                 path.Attributes().Set("ranges", complementaryRanges);
+                path.Attributes().Remove("lower_limit");
+                path.Attributes().Remove("upper_limit");
             } else {
                 path.Attributes().Set("ranges", std::vector<TReadRange>());
             }
