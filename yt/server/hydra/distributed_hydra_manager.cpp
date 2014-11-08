@@ -315,27 +315,30 @@ public:
 
         auto this_ = MakeStrong(this);
         return BIND([this, this_] (IYsonConsumer* consumer) {
-            auto tracker = GetFollowerTrackerAsync();
+            VERIFY_THREAD_AFFINITY(ControlThread);
+
+            auto followerTracker = ControlEpochContext_ ? ControlEpochContext_->FollowerTracker : nullptr;
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("state").Value(ControlState_)
                     .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
                     .Item("elections").Do(ElectionManager_->GetMonitoringProducer())
-                    .DoIf(tracker, [=] (TFluentMap fluent) {
+                    .DoIf(
+                        followerTracker, [=] (TFluentMap fluent) {
                         fluent
                             .Item("has_active_quorum").Value(IsActiveLeader())
                             .Item("active_followers").DoListFor(
                                 0,
                                 CellManager_->GetPeerCount(),
                                 [=] (TFluentList fluent, TPeerId id) {
-                                    if (tracker->IsFollowerActive(id)) {
+                                    if (followerTracker->IsFollowerActive(id)) {
                                         fluent.Item().Value(id);
                                     }
                                 });
                     })
                 .EndMap();
-        });
+        }).Via(ControlInvoker_);
     }
 
     virtual TFuture<TErrorOr<TMutationResponse>> CommitMutation(const TMutationRequest& request) override
@@ -1136,13 +1139,6 @@ private:
                 currentEpochId,
                 epochId);
         }
-    }
-
-
-    TFollowerTrackerPtr GetFollowerTrackerAsync() const
-    {
-        auto epochContext = ControlEpochContext_;
-        return epochContext ? epochContext->FollowerTracker : nullptr;
     }
 
 
