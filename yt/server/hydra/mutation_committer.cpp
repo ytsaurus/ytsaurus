@@ -33,7 +33,7 @@ static const auto AutoCheckpointCheckPeriod = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommitter::TCommitter(
+TCommitterBase::TCommitterBase(
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
@@ -54,7 +54,7 @@ TCommitter::TCommitter(
     Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 }
 
-TCommitter::~TCommitter()
+TCommitterBase::~TCommitterBase()
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -278,7 +278,7 @@ TLeaderCommitter::TLeaderCommitter(
     IChangelogStorePtr changelogStore,
     TEpochContext* epochContext,
     const NProfiling::TProfiler& profiler)
-    : TCommitter(
+    : TCommitterBase(
         cellManager,
         decoratedAutomaton,
         epochContext,
@@ -494,7 +494,7 @@ TFollowerCommitter::TFollowerCommitter(
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
     const NProfiling::TProfiler& profiler)
-    : TCommitter(
+    : TCommitterBase(
         cellManager,
         decoratedAutomaton,
         epochContext,
@@ -508,7 +508,7 @@ TAsyncError TFollowerCommitter::LogMutations(
     TVersion expectedVersion,
     const std::vector<TSharedRef>& recordsData)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (LoggingSuspended_) {
         TPendingMutation pendingMutation;
@@ -519,14 +519,7 @@ TAsyncError TFollowerCommitter::LogMutations(
         return pendingMutation.Promise;
     }
 
-    return
-        BIND(
-            &TFollowerCommitter::DoLogMutations,
-            MakeStrong(this),
-            expectedVersion,
-            recordsData)
-        .AsyncVia(EpochContext_->EpochUserAutomatonInvoker)
-        .Run();
+    return DoLogMutations(expectedVersion, recordsData);
 }
 
 TAsyncError TFollowerCommitter::DoLogMutations(

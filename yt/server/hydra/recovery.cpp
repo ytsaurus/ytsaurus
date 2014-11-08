@@ -22,7 +22,7 @@ using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRecovery::TRecovery(
+TRecoveryBase::TRecoveryBase(
     TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
@@ -48,7 +48,7 @@ TRecovery::TRecovery(
     Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 }
 
-void TRecovery::RecoverToVersion(TVersion targetVersion)
+void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -141,7 +141,7 @@ void TRecovery::RecoverToVersion(TVersion targetVersion)
     }
 }
 
-void TRecovery::SyncChangelog(IChangelogPtr changelog, int changelogId)
+void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -198,7 +198,7 @@ void TRecovery::SyncChangelog(IChangelogPtr changelog, int changelogId)
     }
 }
 
-void TRecovery::ReplayChangelog(IChangelogPtr changelog, int changelogId, int targetRecordId)
+void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, int targetRecordId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -270,7 +270,7 @@ TLeaderRecovery::TLeaderRecovery(
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
     TEpochContext* epochContext)
-    : TRecovery(
+    : TRecoveryBase(
         config,
         cellManager,
         decoratedAutomaton,
@@ -314,7 +314,7 @@ TFollowerRecovery::TFollowerRecovery(
     ISnapshotStorePtr snapshotStore,
     TEpochContext* epochContext,
     TVersion syncVersion)
-    : TRecovery(
+    : TRecoveryBase(
         config,
         cellManager,
         decoratedAutomaton,

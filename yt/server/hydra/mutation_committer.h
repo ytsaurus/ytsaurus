@@ -21,22 +21,18 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A common base for TFollowerCommitter and TLeaderCommitter.
-class TCommitter
+class TCommitterBase
     : public TRefCounted
 {
-public:
-    TCommitter(
+protected:
+    TCommitterBase(
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
         const NProfiling::TProfiler& profiler);
 
-    ~TCommitter();
+    ~TCommitterBase();
 
-protected:
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     NElection::TCellManagerPtr CellManager_;
     TDecoratedAutomatonPtr DecoratedAutomaton_;
@@ -48,13 +44,20 @@ protected:
     NLog::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
- };
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manages commits carried out by a leader.
+/*!
+ *  \note Thread affinity: AutomatonThread
+ */
 class TLeaderCommitter
-    : public TCommitter
+    : public TCommitterBase
 {
 public:
     //! Creates an instance.
@@ -72,8 +75,6 @@ public:
     /*!
      *  A distributed commit is completed when the mutation is received, applied,
      *  and flushed to the changelog by a quorum of replicas.
-     *
-     *  \note Thread affinity: AutomatonThread
      */
     TFuture<TErrorOr<TMutationResponse>> Commit(const TMutationRequest& request);
 
@@ -82,34 +83,19 @@ public:
 
     //! Returns a future that is set when all mutations submitted to #Commit are
     //! flushed by a quorum of changelogs.
-    /*!
-     *  \note Thread affinity: AutomatonThread
-     */
     TAsyncError GetQuorumFlushResult();
 
     //! Temporarily suspends writing mutations to the changelog and keeps them in memory.
-    /*!
-     *  \note Thread affinity: AutomatonThread
-     */
     void SuspendLogging();
 
     //! Resumes an earlier suspended mutation logging and sends out all pending mutations.
-    /*!
-     *  \note Thread affinity: AutomatonThread
-     */
     void ResumeLogging();
 
 
     //! Raised each time a checkpoint is needed.
-    /*!
-     *  \note Thread affinity: AutomatonThread
-     */
     DEFINE_SIGNAL(void(), CheckpointNeeded);
 
     //! Raised on commit failure.
-    /*!
-     *  \note Thread affinity: AutomatonThread
-     */
     DEFINE_SIGNAL(void(const TError& error), CommitFailed);
 
 
@@ -157,8 +143,11 @@ DEFINE_REFCOUNTED_TYPE(TLeaderCommitter)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manages commits carried out by a follower.
+/*!
+ *  \note Thread affinity: AutomatonThread
+ */
 class TFollowerCommitter
-    : public TCommitter
+    : public TCommitterBase
 {
 public:
     //! Creates an instance.
@@ -171,9 +160,6 @@ public:
     ~TFollowerCommitter();
 
     //! Logs a batch of mutations at the follower.
-    /*!
-     *  \note Thread affinity: ControlThread
-     */
     TAsyncError LogMutations(
         TVersion expectedVersion,
         const std::vector<TSharedRef>& recordsData);
@@ -182,15 +168,9 @@ public:
     bool IsLoggingSuspended() const;
 
     //! Temporarily suspends writing mutations to the changelog and keeps them in memory.
-    /*!
-     *  \note Thread affinity: ControlThread
-     */
     void SuspendLogging();
 
     //! Resumes an earlier suspended mutation logging and logs out all pending mutations.
-    /*!
-     *  \note Thread affinity: ControlThread
-     */
     void ResumeLogging();
 
 private:

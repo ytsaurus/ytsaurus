@@ -15,12 +15,11 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Base class for both leader and follower recovery models.
-class TRecovery
+class TRecoveryBase
     : public TRefCounted
 {
-public:
-    TRecovery(
+protected:
+    TRecoveryBase(
         TDistributedHydraManagerConfigPtr config,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
@@ -28,7 +27,6 @@ public:
         ISnapshotStorePtr snapshotStore,
         TEpochContext* epochContext);
 
-protected:
     //! Must be derived the the inheritors to control the recovery behavior.
     virtual bool IsLeader() const = 0;
 
@@ -66,9 +64,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Drives leader recovery.
+//! Drives the leader recovery.
+/*!
+ *  \note
+ *  Thread affinity: any
+ */
 class TLeaderRecovery
-    : public TRecovery
+    : public TRecoveryBase
 {
 public:
     TLeaderRecovery(
@@ -93,9 +95,13 @@ DEFINE_REFCOUNTED_TYPE(TLeaderRecovery)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Drives follower recovery.
+//! Drives the follower recovery.
+/*!
+ *  \note
+ *  Thread affinity: any
+ */
 class TFollowerRecovery
-    : public TRecovery
+    : public TRecoveryBase
 {
 public:
     TFollowerRecovery(

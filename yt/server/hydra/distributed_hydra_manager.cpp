@@ -448,6 +448,18 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LogMutations)
     {
+        // LogMutations and RotateChangelog handling must start in Control Thread
+        // since during recovery Automaton Thread may be busy for prolonged periods of time
+        // and we must still be able to capture and postpone the relevant mutations.
+        //
+        // Additionally, it is vital for LogMutations, BuildSnapshot, and RotateChangelog handlers
+        // to follow the same thread transition pattern (start in ControlThread, then switch to
+        // Automaton Thread) to ensure consisent callbacks ordering.
+        //
+        // E.g. BulidSnapshot and RotateChangelog calls rely on the fact than all mutations
+        // that were previously sent via LogMutations are accepted (and the logged version is
+        // propaged appropriately).
+
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto epochId = FromProto<TEpochId>(request->epoch_id());
@@ -464,7 +476,8 @@ private:
         if (ControlState_ != EPeerState::Following && ControlState_ != EPeerState::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
                 NHydra::EErrorCode::InvalidState,
-                "Cannot apply mutations while not following");
+                "Cannot accept mutations in %Qlv state",
+                ControlState_);
         }
 
         ValidateEpoch(epochId);
@@ -472,8 +485,8 @@ private:
 
         switch (ControlState_) {
             case EPeerState::Following: {
-                SwitchTo(epochContext->EpochControlInvoker);
-                VERIFY_THREAD_AFFINITY(ControlThread);
+                SwitchTo(epochContext->EpochSystemAutomatonInvoker);
+                VERIFY_THREAD_AFFINITY(AutomatonThread);
 
                 try {
                     auto error = WaitFor(epochContext->FollowerCommitter->LogMutations(
@@ -494,7 +507,9 @@ private:
             case EPeerState::FollowerRecovery: {
                 try {
                     CheckForSyncPing(startVersion);
-                    epochContext->FollowerRecovery->PostponeMutations(startVersion, request->Attachments());
+                    epochContext->FollowerRecovery->PostponeMutations(
+                        startVersion,
+                        request->Attachments());
                 } catch (const std::exception& ex) {
                     LOG_WARNING(ex, "Error postponing mutations during recovery");
                     Restart();
@@ -529,7 +544,8 @@ private:
         if (ControlState_ != EPeerState::Following && ControlState_ != EPeerState::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
                 NHydra::EErrorCode::InvalidState,
-                "Cannot process follower ping while not following");
+                "Cannot handle follower ping in %Qlv state",
+                ControlState_);
         }
 
         ValidateEpoch(epochId);
@@ -557,8 +573,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, BuildSnapshot)
     {
-        UNUSED(response);
         VERIFY_THREAD_AFFINITY(ControlThread);
+        UNUSED(response);
 
         auto epochId = FromProto<TEpochId>(request->epoch_id());
         auto version = TVersion::FromRevision(request->revision());
@@ -570,7 +586,8 @@ private:
         if (ControlState_ != EPeerState::Following) {
             THROW_ERROR_EXCEPTION(
                 NHydra::EErrorCode::InvalidState,
-                "Cannot build snapshot while not following");
+                "Cannot build snapshot in %Qlv state",
+                ControlState_);
         }
 
         ValidateEpoch(epochId);
@@ -583,9 +600,9 @@ private:
             Restart();
             context->Reply(TError(
                 NHydra::EErrorCode::InvalidVersion,
-                "Invalid logged version: expected %v, received %v",
-                DecoratedAutomaton_->GetLoggedVersion(),
-                version));
+                "Invalid logged version: expected %v, actual %v",
+                version,
+                DecoratedAutomaton_->GetLoggedVersion()));
             return;
         }
 
@@ -600,8 +617,9 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, RotateChangelog)
     {
-        UNUSED(response);
+        // See LogMutations.
         VERIFY_THREAD_AFFINITY(ControlThread);
+        UNUSED(response);
 
         auto epochId = FromProto<TEpochId>(request->epoch_id());
         auto version = TVersion::FromRevision(request->revision());
@@ -613,7 +631,8 @@ private:
         if (ControlState_ != EPeerState::Following && ControlState_  != EPeerState::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
                 NHydra::EErrorCode::InvalidState,
-                "Cannot rotate changelog while not following");
+                "Cannot rotate changelog while in %Qlv state",
+                ControlState_);
         }
 
         ValidateEpoch(epochId);
@@ -628,9 +647,9 @@ private:
                     if (DecoratedAutomaton_->GetLoggedVersion() != version) {
                         THROW_ERROR_EXCEPTION(
                             NHydra::EErrorCode::InvalidVersion,
-                            "Invalid logged version: expected %v, received %v",
-                            DecoratedAutomaton_->GetLoggedVersion(),
-                            version);
+                            "Invalid logged version: expected %v, actual %v",
+                            version,
+                            DecoratedAutomaton_->GetLoggedVersion());
                     }
 
                     auto followerCommitter = epochContext->FollowerCommitter;
@@ -934,7 +953,7 @@ private:
             VERIFY_THREAD_AFFINITY(ControlThread);
 
             epochContext->ActiveLeader = true;
-            ActiveLeader_ = false;
+            ActiveLeader_ = true;
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1067,7 +1086,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(ControlState_ == EPeerState::FollowerRecovery);
 
-        auto epochContext = ControlEpochContext_.Get();
+        auto* epochContext = ControlEpochContext_.Get();
 
         // Check if sync ping is already received.
         if (epochContext->FollowerRecovery)
