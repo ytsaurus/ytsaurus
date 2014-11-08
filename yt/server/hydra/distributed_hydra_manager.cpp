@@ -502,16 +502,9 @@ private:
             }
 
             case EPeerState::FollowerRecovery: {
-                auto followerRecovery = epochContext->FollowerRecovery;
-                if (!followerRecovery) {
-                    // NB: No restart.
-                    THROW_ERROR_EXCEPTION(
-                        NHydra::EErrorCode::InvalidState,
-                        "Sync ping is not received yet");
-                }
-
                 try {
-                    followerRecovery->PostponeMutations(startVersion, request->Attachments());
+                    CheckForSyncPing(startVersion);
+                    epochContext->FollowerRecovery->PostponeMutations(startVersion, request->Attachments());
                 } catch (const std::exception& ex) {
                     LOG_WARNING(ex, "Error postponing mutations during recovery");
                     Restart();
@@ -559,23 +552,7 @@ private:
                 break;
 
             case EPeerState::FollowerRecovery:
-                if (!epochContext->FollowerRecovery) {
-                    LOG_INFO("Received sync ping from leader (Version: %v, EpochId: %v)",
-                        loggedVersion,
-                        epochId);
-
-                    epochContext->FollowerRecovery = New<TFollowerRecovery>(
-                        Config_,
-                        CellManager_,
-                        DecoratedAutomaton_,
-                        ChangelogStore_,
-                        SnapshotStore_,
-                        epochContext,
-                        loggedVersion);
-
-                    epochContext->EpochControlInvoker->Invoke(
-                        BIND(&TDistributedHydraManager::RecoverFollower, MakeStrong(this)));
-                }
+                CheckForSyncPing(loggedVersion);
                 break;
 
             default:
@@ -1092,6 +1069,33 @@ private:
         DecoratedAutomaton_->OnStopFollowing();
 
         Participate();
+    }
+
+    void CheckForSyncPing(TVersion version)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(ControlState_ == EPeerState::FollowerRecovery);
+
+        auto epochContext = ControlEpochContext_.Get();
+
+        // Check if sync ping is already received.
+        if (epochContext->FollowerRecovery)
+            return;
+
+        LOG_INFO("Received sync ping from leader (Version: %v)",
+            version);
+
+        epochContext->FollowerRecovery = New<TFollowerRecovery>(
+            Config_,
+            CellManager_,
+            DecoratedAutomaton_,
+            ChangelogStore_,
+            SnapshotStore_,
+            epochContext,
+            version);
+
+        epochContext->EpochControlInvoker->Invoke(
+            BIND(&TDistributedHydraManager::RecoverFollower, MakeStrong(this)));
     }
 
 
