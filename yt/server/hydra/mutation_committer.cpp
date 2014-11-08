@@ -207,7 +207,7 @@ private:
             NHydra::EErrorCode::MaybeCommitted,
             "Mutations are uncertain: %v out of %v commits were successful",
             FlushCount_,
-            Owner_->CellManager_->GetQuorumCount()));
+            Owner_->CellManager_->GetPeerCount()));
     }
 
 
