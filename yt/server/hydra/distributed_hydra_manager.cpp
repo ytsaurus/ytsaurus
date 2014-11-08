@@ -122,6 +122,7 @@ public:
         , ChangelogStore_(changelogStore)
         , SnapshotStore_(snapshotStore)
         , ReadOnly_(false)
+        , ActiveLeader_(false)
         , ControlState_(EPeerState::None)
         , Profiler(HydraProfiler)
     {
@@ -234,8 +235,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto epochContext = ControlEpochContext_;
-        return epochContext ? epochContext->IsActiveLeader : false;
+        return ActiveLeader_;
     }
 
     virtual NElection::TEpochContextPtr GetControlEpochContext() const override
@@ -291,7 +291,7 @@ public:
                 "Not an active leader"));
         }
 
-        if (!epochContext->IsActiveLeader) {
+        if (!epochContext->ActiveLeader) {
             return MakeFuture<TErrorOr<int>>(TError(
                 NHydra::EErrorCode::NoQuorum,
                 "No active quorum"));
@@ -315,30 +315,16 @@ public:
 
         auto this_ = MakeStrong(this);
         return BIND([this, this_] (IYsonConsumer* consumer) {
-            VERIFY_THREAD_AFFINITY(ControlThread);
-
-            auto followerTracker = ControlEpochContext_ ? ControlEpochContext_->FollowerTracker : nullptr;
+            VERIFY_THREAD_AFFINITY_ANY();
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("state").Value(ControlState_)
                     .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
                     .Item("elections").Do(ElectionManager_->GetMonitoringProducer())
-                    .DoIf(
-                        followerTracker, [=] (TFluentMap fluent) {
-                        fluent
-                            .Item("has_active_quorum").Value(IsActiveLeader())
-                            .Item("active_followers").DoListFor(
-                                0,
-                                CellManager_->GetPeerCount(),
-                                [=] (TFluentList fluent, TPeerId id) {
-                                    if (followerTracker->IsFollowerActive(id)) {
-                                        fluent.Item().Value(id);
-                                    }
-                                });
-                    })
+                    .Item("has_active_quorum").Value(ActiveLeader_)
                 .EndMap();
-        }).Via(ControlInvoker_);
+        });
     }
 
     virtual TFuture<TErrorOr<TMutationResponse>> CommitMutation(const TMutationRequest& request) override
@@ -359,7 +345,7 @@ public:
         }
 
         auto epochContext = AutomatonEpochContext_;
-        if (!epochContext || !epochContext->IsActiveLeader) {
+        if (!epochContext || !epochContext->ActiveLeader) {
             return MakeFuture<TErrorOr<TMutationResponse>>(TError(
                 NHydra::EErrorCode::NoQuorum,
                 "Not an active leader"));
@@ -394,6 +380,7 @@ private:
     IChangelogStorePtr ChangelogStore_;
     ISnapshotStorePtr SnapshotStore_;
     std::atomic<bool> ReadOnly_;
+    std::atomic<bool> ActiveLeader_;
     EPeerState ControlState_;
 
     TVersion ReachableVersion_;
@@ -798,7 +785,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(GetAutomatonState() == EPeerState::Leading);
-        YCHECK(epochContext->IsActiveLeader);
+        YCHECK(epochContext->ActiveLeader);
 
         auto checkpointer = epochContext->Checkpointer;
         if (checkpointer->CanBuildSnapshot()) {
@@ -946,7 +933,8 @@ private:
             SwitchTo(epochContext->EpochControlInvoker);
             VERIFY_THREAD_AFFINITY(ControlThread);
 
-            epochContext->IsActiveLeader = true;
+            epochContext->ActiveLeader = true;
+            ActiveLeader_ = false;
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1124,9 +1112,10 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YCHECK(ControlEpochContext_);
-        ControlEpochContext_->IsActiveLeader = false;
+        ControlEpochContext_->ActiveLeader = false;
         ControlEpochContext_->CancelableContext->Cancel();
         ControlEpochContext_.Reset();
+        ActiveLeader_ = false;
     }
 
     void ValidateEpoch(const TEpochId& epochId)

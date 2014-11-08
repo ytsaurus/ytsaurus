@@ -40,7 +40,7 @@ struct TEpochContext
     TLeaderCommitterPtr LeaderCommitter;
     TFollowerCommitterPtr FollowerCommitter;
     TFollowerTrackerPtr FollowerTracker;
-    bool IsActiveLeader = false;
+    bool ActiveLeader = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TEpochContext)
