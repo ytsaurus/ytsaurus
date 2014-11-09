@@ -24,11 +24,9 @@ TYamredDsvConsumer::TYamredDsvConsumer(TOutputStream* stream, TYamredDsvFormatCo
     YCHECK(Config);
 
     for (const auto& name : Config->KeyColumnNames) {
-        YCHECK(KeyColumnNames.insert(name));
         YCHECK(KeyFields.insert(std::make_pair(name, TColumnValue())).second);
     }
     for (const auto& name : Config->SubkeyColumnNames) {
-        YCHECK(SubkeyColumnNames.insert(name));
         YCHECK(SubkeyFields.insert(std::make_pair(name, TColumnValue())).second);
     }
 }
@@ -90,7 +88,7 @@ void TYamredDsvConsumer::OnStringScalar(const TStringBuf& value)
 
     // Compare size before search for optimization.
     // It is not safe in case of repeated keys. Be careful!
-    if (KeyCount < KeyColumnNames.size()) {
+    if (KeyCount < KeyFields.size()) {
         auto it = KeyFields.find(ColumnName);
         if (it != KeyFields.end()) {
             it->second.Value = value;
@@ -101,7 +99,7 @@ void TYamredDsvConsumer::OnStringScalar(const TStringBuf& value)
         }
     }
 
-    if (SubkeyCount < SubkeyColumnNames.size()) {
+    if (SubkeyCount < SubkeyFields.size()) {
         auto it = SubkeyFields.find(ColumnName);
         if (it != SubkeyFields.end()) {
             it->second.Value = value;

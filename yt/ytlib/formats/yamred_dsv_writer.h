@@ -76,9 +76,6 @@ private:
     TStringBuf ColumnName;
     NTableClient::EControlAttribute ControlAttribute;
 
-    TSmallSet<TStringBuf, 4> KeyColumnNames;
-    TSmallSet<TStringBuf, 4> SubkeyColumnNames;
-
     TDictionary KeyFields;
     i32 KeyCount;
     ui32 KeyLength;
