@@ -1,4 +1,4 @@
-//===- llvm/ADT/TSmallSet.h - 'Normally small' sets --------------*- C++ -*-===//
+//===- llvm/ADT/SmallSet.h - 'Normally small' sets --------------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines the TSmallSet class.
+// This file defines the SmallSet class.
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,7 +19,7 @@
 
 namespace NYT {
 
-/// TSmallSet - This maintains a set of unique values, optimizing for the case
+/// SmallSet - This maintains a set of unique values, optimizing for the case
 /// when the set is small (less than N).  In this case, the set can be
 /// maintained with no mallocs.  If the set gets large, we expand to using an
 /// std::set to maintain reasonable lookup times.
@@ -27,7 +27,8 @@ namespace NYT {
 /// Note that this set does not provide a way to iterate over members in the
 /// set.
 template <typename T, unsigned N,  typename C = std::less<T> >
-class TSmallSet {
+class SmallSet
+{
   /// Use a SmallVector to hold the elements here (even though it will never
   /// reach its 'large' stage) to avoid calling the default ctors of elements
   /// we will never use.
@@ -36,7 +37,7 @@ class TSmallSet {
   typedef typename SmallVector<T, N>::const_iterator VIterator;
   typedef typename SmallVector<T, N>::iterator mutable_iterator;
 public:
-  TSmallSet() {}
+  SmallSet() {}
 
   bool empty() const { return Vector.empty() && Set.empty(); }
   unsigned size() const {
