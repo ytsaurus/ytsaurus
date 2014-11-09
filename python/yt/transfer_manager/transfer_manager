@@ -411,11 +411,11 @@ class Application(object):
                 raise IncorrectTokenError("Authorization token is incorrect: " + token)
         return token, user
 
-    def _check_permission(self, id, authorization_header):
+    def _check_permission(self, id, authorization_header, action_name):
         _, user = self._get_token_and_user(authorization_header)
         if self._tasks[id].user != user and \
            self._yt.check_permission(user, "administer", self._auth_path)["action"] != "allow":
-            raise RequestFailed("There is no permission to abort task.")
+            raise RequestFailed("{0} task is not permitted.".format(action_name))
 
     def _precheck(self, task, ignore_timeout=False, yamr_timeout=None):
         # TODO(ignat): add timeout for yt
@@ -731,7 +731,7 @@ class Application(object):
 
         logger.info("Aboring task %s", id)
 
-        self._check_permission(id, request.headers.get("Authorization", ""))
+        self._check_permission(id, request.headers.get("Authorization", ""), "Aborting")
 
         if id in self._task_processes:
             process, _ = self._task_processes[id]
@@ -754,7 +754,7 @@ class Application(object):
 
         logger.info("Restarting task %s", id)
 
-        self._check_permission(id, request.headers.get("Authorization", ""))
+        self._check_permission(id, request.headers.get("Authorization", ""), "Restarting")
         if self._tasks[id].state not in ["completed", "aborted", "failed"]:
             raise RequestFailed("Cannot restart task in state " + self._tasks[id].state)
 
@@ -778,7 +778,7 @@ class Application(object):
         if id not in self._tasks:
             return "Unknown task " + id, 400
 
-        self._check_permission(id, request.headers.get("Authorization", ""))
+        self._check_permission(id, request.headers.get("Authorization", ""), "Deleting")
         if self._tasks[id].state not in ["completed", "aborted", "failed"]:
             raise RequestFailed("Cannot delete running task " + self._tasks[id].state)
 
