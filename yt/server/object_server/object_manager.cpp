@@ -958,7 +958,7 @@ void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceC
 
     auto objectId = proxy->GetVersionedId();
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, Mutating: %v, User: %v)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, Mutating: %lv, User: %v)",
         context->GetService(),
         context->GetMethod(),
         GetRequestYPath(context),

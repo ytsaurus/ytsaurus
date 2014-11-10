@@ -141,7 +141,7 @@ private:
         options.SyncOnClose = request->sync_on_close();
         options.OptimizeForLatency = request->sync_on_close();
 
-        context->SetRequestInfo("ChunkId: %v, SessionType: %v, SyncOnClose: %v, OptimizeForLatency: %v",
+        context->SetRequestInfo("ChunkId: %v, SessionType: %v, SyncOnClose: %lv, OptimizeForLatency: %lv",
             chunkId,
             options.SessionType,
             options.SyncOnClose,
@@ -233,7 +233,7 @@ private:
         bool enableCaching = request->enable_caching();
         bool flushBlocks = request->flush_blocks();
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, EnableCaching: %v, FlushBlocks: %v",
+        context->SetRequestInfo("BlockIds: %v:%v-%v, EnableCaching: %lv, FlushBlocks: %lv",
             chunkId,
             firstBlockIndex,
             lastBlockIndex,
@@ -345,7 +345,7 @@ private:
             bool enableCaching = request.enable_caching();
             auto sessionType = EReadSessionType(request.session_type());
 
-            Context_->SetRequestInfo("BlockIds: %v:%v, EnableCaching: %v, SessionType: %v",
+            Context_->SetRequestInfo("BlockIds: %v:%v, EnableCaching: %lv, SessionType: %lv",
                 chunkId,
                 JoinToString(request.block_indexes()),
                 enableCaching,
@@ -456,7 +456,7 @@ private:
                 }
             }
 
-            Context_->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
+            Context_->SetResponseInfo("HasCompleteChunk: %lv, Throttling: %lv, BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
                 response.has_complete_chunk(),
                 response.throttling(),
                 BlocksWithData_.load(),
@@ -562,7 +562,7 @@ private:
             const auto& request = Context_->Request();
             auto& response = Context_->Response();
 
-            Context_->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksSize: %v",
+            Context_->SetResponseInfo("HasCompleteChunk: %lv, Throttling: %lv, BlocksWithData: %v, BlocksSize: %v",
                 response.has_complete_chunk(),
                 response.throttling(),
                 BlocksWithData_,
@@ -592,7 +592,7 @@ private:
             ? TNullable<int>(request->partition_tag())
             : Null;
 
-        context->SetRequestInfo("ChunkId: %v, AllExtensionTags: %v, ExtensionTags: [%v], PartitionTag: %v",
+        context->SetRequestInfo("ChunkId: %v, AllExtensionTags: %lv, ExtensionTags: [%v], PartitionTag: %v",
             chunkId,
             request->all_extension_tags(),
             JoinToString(extensionTags),

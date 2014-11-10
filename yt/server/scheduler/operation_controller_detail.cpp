@@ -542,7 +542,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 
     LOG_INFO(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
-        "Approximate: %v, DataSize: %v (%v local), RowCount: %v, ResourceLimits: {%v})",
+        "Approximate: %lv, DataSize: %v (%v local), RowCount: %v, ResourceLimits: {%v})",
         joblet->Job->GetId(),
         Controller->Operation->GetId(),
         jobType,

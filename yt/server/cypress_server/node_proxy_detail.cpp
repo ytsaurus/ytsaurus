@@ -703,7 +703,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
             mode);
     }
 
-    context->SetRequestInfo("Mode: %v, Waitable: %v",
+    context->SetRequestInfo("Mode: %v, Waitable: %lv",
         mode,
         waitable);
 
@@ -734,7 +734,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto type = EObjectType(request->type());
     const auto& path = GetRequestYPath(context);
 
-    context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v",
+    context->SetRequestInfo("Type: %v, IgnoreExisting: %lv, Recursive: %lv",
         type,
         request->ignore_existing(),
         request->recursive());
@@ -788,7 +788,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     bool removeSource = request->remove_source();
     auto targetPath = GetRequestYPath(context);
 
-    context->SetRequestInfo("SourcePath: %v, PreserveAccount: %v, RemoveSource: %v",
+    context->SetRequestInfo("SourcePath: %v, PreserveAccount: %lv, RemoveSource: %lv",
         sourcePath,
         preserveAccount,
         removeSource);
