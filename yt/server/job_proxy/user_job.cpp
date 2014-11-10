@@ -204,9 +204,9 @@ public:
             Process.AddArgument("--enable-core-dumps");
         }
 
-        if (config->UserId > 0) {
+        if (config->UserId.HasValue()) {
             Process.AddArgument("--uid");
-            Process.AddArgument(::ToString(config->UserId));
+            Process.AddArgument(::ToString(config->UserId.Get()));
 
             if (UserJobSpec.enable_io_prio()) {
                 Process.AddArgument("--enable-io-prio");
@@ -574,10 +574,10 @@ private:
         if (!host)
             return;
 
-        int uid = host->GetConfig()->UserId;
-        if (uid <= 0) {
+        if (!host->GetConfig()->UserId.HasValue()) {
             return;
         }
+        int uid = host->GetConfig()->UserId.Get();
 
         try {
             auto pids = GetPidsByUid(uid);

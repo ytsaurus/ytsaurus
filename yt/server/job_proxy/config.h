@@ -48,7 +48,7 @@ public:
 
     bool EnableCGroupMemoryHierarchy;
 
-    int UserId;
+    TNullable<int> UserId;
 
     TNullable<int> IopsThreshold;
 
@@ -85,8 +85,8 @@ public:
         RegisterParameter("enable_cgroup_memory_hierarchy", EnableCGroupMemoryHierarchy)
             .Default(false);
         
-        RegisterParameter("user_id", UserId).
-            Default(-1);
+        RegisterParameter("user_id", UserId)
+            .Default();
 
         RegisterParameter("iops_threshold", IopsThreshold);
         
