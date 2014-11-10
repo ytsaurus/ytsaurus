@@ -50,7 +50,7 @@ public:
 
     int UserId;
 
-    int IOThreshold;
+    TNullable<int> IopsThreshold;
 
     NScheduler::TJobIOConfigPtr JobIO;
 
@@ -88,8 +88,7 @@ public:
         RegisterParameter("user_id", UserId).
             Default(-1);
 
-        RegisterParameter("io_threshold", IOThreshold).
-            Default(-1);
+        RegisterParameter("iops_threshold", IopsThreshold);
         
         RegisterParameter("job_io", JobIO)
             .DefaultNew();

@@ -657,10 +657,10 @@ private:
         if (!host)
             return;
 
-        int threshold = host->GetConfig()->IOThreshold;
-        int period = host->GetConfig()->BlockIOWatchdogPeriod.Seconds();
+        auto period = host->GetConfig()->BlockIOWatchdogPeriod;
+        auto iopsThreshold = host->GetConfig()->IopsThreshold;
 
-        if (threshold < 0) {
+        if (iopsThreshold.HasValue()) {
             return;
         }
 
@@ -692,10 +692,10 @@ private:
                     LOG_WARNING("%v < 0 operations where serviced for %v device after the last check", operations, item.DeviceId);
                 }
 
-                if (operations > threshold) {
-                    LOG_INFO("Woodpecker has been detected. Limit it to %v operations", threshold / period);
+                if (operations > iopsThreshold.Get() * period.Seconds()) {
+                    LOG_INFO("Woodpecker has been detected. Limit it to %v operations", iopsThreshold.Get());
 
-                    BlockIO.ThrottleOperations(item.DeviceId, threshold / period);
+                    BlockIO.ThrottleOperations(item.DeviceId, iopsThreshold.Get());
                 }
             }
 
