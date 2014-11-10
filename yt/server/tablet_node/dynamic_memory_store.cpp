@@ -801,8 +801,13 @@ void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
 
     Unlock();
 
-    MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
-    MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
+    // NB: Don't update min/max timestamps for passive stores since
+    // others are relying on its properties to remain constant.
+    // See, e.g., TStoreManager::MaxTimestampToStore_.
+    if (State_ == EStoreState::ActiveDynamic) {
+        MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
+        MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
+    }
 }
 
 void TDynamicMemoryStore::AbortRow(TTransaction* transaction, TDynamicRow row)
