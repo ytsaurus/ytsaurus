@@ -869,11 +869,15 @@ bool TDynamicMemoryStore::WaitWhileBlocked(
         if (lockIndex < 0)
             break;
 
+        const auto& lock = row.BeginLocks(KeyColumnCount_)[lockIndex];
+        auto transactionId = lock.Transaction->GetId();
+
         blocked = true;
         RowBlocked_.Fire(row, lockIndex);
 
         if (NProfiling::GetCpuInstant() > deadline) {
             THROW_ERROR_EXCEPTION("Timed out waiting on blocked row")
+                << TErrorAttribute("transaction_id", transactionId)
                 << TErrorAttribute("tablet_id", Tablet_->GetId())
                 << TErrorAttribute("key", RowToKey(Tablet_, row))
                 << TErrorAttribute("timeout", Config_->MaxBlockedRowWaitTime);
