@@ -544,7 +544,12 @@ bool TOperationControllerBase::TTask::IsPending() const
 
 bool TOperationControllerBase::TTask::IsCompleted() const
 {
-    return GetChunkPoolOutput()->IsCompleted();
+    return IsActive() && GetChunkPoolOutput()->IsCompleted();
+}
+
+bool TOperationControllerBase::TTask::IsActive() const
+{
+    return true;
 }
 
 i64 TOperationControllerBase::TTask::GetTotalDataSize() const

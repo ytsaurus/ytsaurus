@@ -530,11 +530,6 @@ protected:
         TSortControllerBase* Controller;
         TPartition* Partition;
 
-        virtual bool IsActive() const
-        {
-            return true;
-        }
-
     };
 
     //! Base class implementing sort phase for sort operations

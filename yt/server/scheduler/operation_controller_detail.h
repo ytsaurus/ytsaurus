@@ -440,6 +440,8 @@ protected:
         bool IsPending() const;
         bool IsCompleted() const;
 
+        virtual bool IsActive() const;
+
         i64 GetTotalDataSize() const;
         i64 GetCompletedDataSize() const;
         i64 GetPendingDataSize() const;
