@@ -356,8 +356,12 @@ private:
         auto* transaction = new TTransaction(transactionId);
         TransactionMap_.Insert(transactionId, transaction);
 
+        auto hydraManager = Slot_->GetHydraManager();
+        const auto* mutationContext = hydraManager->GetMutationContext();
+
         transaction->SetTimeout(timeout);
         transaction->SetStartTimestamp(startTimestamp);
+        transaction->SetStartTime(mutationContext->GetTimestamp());
         transaction->SetState(ETransactionState::Active);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %v, Timeout: %v)",
