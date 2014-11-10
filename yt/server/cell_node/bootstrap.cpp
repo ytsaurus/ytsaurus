@@ -239,6 +239,7 @@ void TBootstrap::DoRun()
     JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
 
     JobProxyConfig->MemoryWatchdogPeriod = Config->ExecAgent->MemoryWatchdogPeriod;
+    JobProxyConfig->BlockIOWatchdogPeriod = Config->ExecAgent->BlockIOWatchdogPeriod;
 
     JobProxyConfig->Logging = Config->ExecAgent->JobProxyLogging;
     JobProxyConfig->Tracing = Config->ExecAgent->JobProxyTracing;
@@ -247,6 +248,8 @@ void TBootstrap::DoRun()
 
     JobProxyConfig->ForceEnableAccounting = Config->ExecAgent->ForceEnableAccounting;
     JobProxyConfig->EnableCGroupMemoryHierarchy = Config->ExecAgent->EnableCGroupMemoryHierarchy;
+
+    JobProxyConfig->IopsThreshold = Config->ExecAgent->IopsThreshold;
 
     JobProxyConfig->SandboxName = SandboxDirectoryName;
     JobProxyConfig->AddressResolver = Config->AddressResolver;

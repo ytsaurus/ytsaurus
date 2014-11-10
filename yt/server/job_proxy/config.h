@@ -88,7 +88,8 @@ public:
         RegisterParameter("user_id", UserId)
             .Default();
 
-        RegisterParameter("iops_threshold", IopsThreshold);
+        RegisterParameter("iops_threshold", IopsThreshold)
+            .Default();
         
         RegisterParameter("job_io", JobIO)
             .DefaultNew();

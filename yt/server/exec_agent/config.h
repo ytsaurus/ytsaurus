@@ -122,6 +122,9 @@ public:
 
     TDuration SupervisorRpcTimeout;
     TDuration MemoryWatchdogPeriod;
+    TDuration BlockIOWatchdogPeriod;
+
+    TNullable<int> IopsThreshold;
 
     double MemoryLimitMultiplier;
     bool ForceEnableAccounting;
@@ -147,6 +150,8 @@ public:
             .Default(TDuration::Seconds(30));
         RegisterParameter("memory_watchdog_period", MemoryWatchdogPeriod)
             .Default(TDuration::Seconds(1));
+        RegisterParameter("block_io_watchdog_period", BlockIOWatchdogPeriod)
+            .Default(TDuration::Seconds(60));
 
         RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
@@ -154,6 +159,9 @@ public:
             .Default(false);
         RegisterParameter("enable_cgroup_memory_hierarchy", EnableCGroupMemoryHierarchy)
             .Default(false);
+
+        RegisterParameter("iops_threshold", IopsThreshold)
+            .Default();
     }
 };
 
