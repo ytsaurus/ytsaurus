@@ -1188,8 +1188,12 @@ private:
             VERIFY_THREAD_AFFINITY(AutomatonThread);
             store->SetBackingStore(nullptr);
             LOG_DEBUG("Backing store released (StoreId: %v)", store->GetId());
-        }).Via(tablet->GetEpochAutomatonInvoker());
-        TDelayedExecutor::Submit(callback, tablet->GetConfig()->BackingStoreRetentionTime);
+        });
+        TDelayedExecutor::Submit(
+            // NB: Submit the callback via the regular automaton invoker, not the epoch one since
+            // we need the store to be released even if the epoch ends.
+            callback.Via(tablet->GetSlot()->GetAutomatonInvoker()),
+            tablet->GetConfig()->BackingStoreRetentionTime);
     }
 
 
