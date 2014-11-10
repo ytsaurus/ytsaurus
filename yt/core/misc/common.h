@@ -41,7 +41,7 @@
     // This define enables logging with TRACE level.
     #define YT_ENABLE_TRACE_LOGGING
 
-    // This define enables tracking of bind location
+    // This define enables tracking of BIND callbacks location.
     #define YT_ENABLE_BIND_LOCATION_TRACKING
 #endif
 
