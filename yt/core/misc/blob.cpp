@@ -1,26 +1,22 @@
 #include "stdafx.h"
 #include "blob.h"
 #include "ref.h"
+#include "ref_counted_tracker.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t InitialBlobCapacity = 16;
-static const double BlobCapacityMultiplier = 2.0;
+const size_t InitialBlobCapacity = 16;
+const double BlobCapacityMultiplier = 2.0;
 
-TBlob::TBlob()
+TBlob::TBlob(TRefCountedTypeCookie tagCookie, size_t size, bool initiailizeStorage)
 {
-    Reset();
-}
-
-TBlob::TBlob(size_t size, bool initiailizeStorage /*= true*/)
-{
+    SetTypeCookie(tagCookie);
     if (size == 0) {
         Reset();
     } else {
-        Capacity_ = std::max(size, InitialBlobCapacity);
-        Begin_ = new char[Capacity_];
+        Allocate(std::max(size, InitialBlobCapacity));
         Size_ = size;
         if (initiailizeStorage) {
             memset(Begin_, 0, Size_);
@@ -28,13 +24,20 @@ TBlob::TBlob(size_t size, bool initiailizeStorage /*= true*/)
     }
 }
 
+TBlob::TBlob(TRefCountedTypeCookie tagCookie, const void* data, size_t size)
+{
+    SetTypeCookie(tagCookie);
+    Reset();
+    Append(data, size);
+}
+
 TBlob::TBlob(const TBlob& other)
 {
+    SetTypeCookie(other);
     if (other.Size_ == 0) {
         Reset();
     } else {
-        Capacity_ = std::max(InitialBlobCapacity, other.Size_);
-        Begin_ = new char[Capacity_];
+        Allocate(std::max(InitialBlobCapacity, other.Size_));
         memcpy(Begin_, other.Begin_, other.Size_);
         Size_ = other.Size_;
     }
@@ -45,28 +48,19 @@ TBlob::TBlob(TBlob&& other)
     , Size_(other.Size_)
     , Capacity_(other.Capacity_)
 {
+    SetTypeCookie(other);
     other.Reset();
-}
-
-TBlob::TBlob(const void* data, size_t size)
-{
-    Reset();
-    Append(data, size);
 }
 
 TBlob::~TBlob()
 {
-    delete[] Begin_;
+    Free();
 }
 
 void TBlob::Reserve(size_t newCapacity)
 {
     if (newCapacity > Capacity_) {
-        char* newBegin = new char[newCapacity];
-        memcpy(newBegin, Begin_, Size_);
-        delete[] Begin_;
-        Begin_ = newBegin;
-        Capacity_ = newCapacity;
+        Reallocate(newCapacity);
     }
 }
 
@@ -74,15 +68,13 @@ void TBlob::Resize(size_t newSize, bool initializeStorage /*= true*/)
 {
     if (newSize > Size_) {
         if (newSize > Capacity_) {
+            size_t newCapacity;
             if (Capacity_ == 0) {
-                Capacity_ = std::max(InitialBlobCapacity, newSize);
+                newCapacity = std::max(InitialBlobCapacity, newSize);
             } else {
-                Capacity_ = std::max(static_cast<size_t>(Capacity_ * BlobCapacityMultiplier), newSize);
+                newCapacity = std::max(static_cast<size_t>(Capacity_ * BlobCapacityMultiplier), newSize);
             }
-            char* newBegin = new char[Capacity_];
-            memcpy(newBegin, Begin_, Size_);
-            delete[] Begin_;
-            Begin_ = newBegin;
+            Reallocate(newCapacity);
         }
         if (initializeStorage) {
             memset(Begin_ + Size_, 0, newSize - Size_);
@@ -94,12 +86,12 @@ void TBlob::Resize(size_t newSize, bool initializeStorage /*= true*/)
 TBlob& TBlob::operator = (const TBlob& rhs)
 {
     if (this != &rhs) {
-        delete[] Begin_;
+        Free();
+        SetTypeCookie(rhs);
         if (rhs.Size_ == 0) {
             Reset();
         } else {
-            Capacity_ = std::max(InitialBlobCapacity, rhs.Size_);
-            Begin_ = new char[Capacity_];
+            Allocate(std::max(InitialBlobCapacity, rhs.Size_));
             memcpy(Begin_, rhs.Begin_, rhs.Size_);
             Size_ = rhs.Size_;
         }
@@ -110,7 +102,8 @@ TBlob& TBlob::operator = (const TBlob& rhs)
 TBlob& TBlob::operator = (TBlob&& rhs)
 {
     if (this != &rhs) {
-        delete[] Begin_;
+        Free();
+        SetTypeCookie(rhs);
         Begin_ = rhs.Begin_;
         Size_ = rhs.Size_;
         Capacity_ = rhs.Capacity_;
@@ -147,8 +140,56 @@ void TBlob::Append(char ch)
 
 void TBlob::Reset()
 {
-    Begin_ = nullptr;   
+    Begin_ = nullptr;
     Size_ = Capacity_ = 0;
+}
+
+void TBlob::Allocate(size_t newCapacity)
+{
+    Begin_ = new char[newCapacity];
+    Capacity_ = newCapacity;
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    TRefCountedTracker::Get()->Allocate(TypeCookie_, newCapacity);
+#endif
+}
+void TBlob::Reallocate(size_t newCapacity)
+{
+    if (Begin_ == nullptr) {
+        Allocate(newCapacity);
+        return;
+    }
+    char* newBegin = new char[newCapacity];
+    memcpy(newBegin, Begin_, Size_);
+    delete[] Begin_;
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    TRefCountedTracker::Get()->Reallocate(TypeCookie_, Capacity_, newCapacity);
+#endif
+    Begin_ = newBegin;
+    Capacity_ = newCapacity;
+}
+
+void TBlob::Free()
+{
+    if (Begin_ == nullptr) {
+        return;
+    }
+    delete[] Begin_;
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    TRefCountedTracker::Get()->Free(TypeCookie_, Capacity_);
+#endif
+}
+
+void TBlob::SetTypeCookie(TRefCountedTypeCookie tagCookie)
+{
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    TypeCookie_ = tagCookie;
+#endif
+}
+void TBlob::SetTypeCookie(const TBlob& other)
+{
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+    TypeCookie_ = other.TypeCookie_;
+#endif
 }
 
 void swap(TBlob& left, TBlob& right)
@@ -157,6 +198,9 @@ void swap(TBlob& left, TBlob& right)
         std::swap(left.Begin_, right.Begin_);
         std::swap(left.Size_, right.Size_);
         std::swap(left.Capacity_, right.Capacity_);
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+        std::swap(left.TypeCookie_, right.TypeCookie_);
+#endif
     }
 }
 

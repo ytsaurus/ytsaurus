@@ -1151,6 +1151,7 @@ TUnversionedValue* TUnversionedRowBuilder::GetValue(int index)
 
 TUnversionedOwningRowBuilder::TUnversionedOwningRowBuilder(int initialValueCapacity /*= 16*/)
     : InitialValueCapacity_(initialValueCapacity)
+    , RowData_(TOwningRowTag())
 {
     Reset();
 }
@@ -1200,7 +1201,7 @@ TUnversionedValue* TUnversionedOwningRowBuilder::EndValues()
 TUnversionedOwningRow TUnversionedOwningRowBuilder::FinishRow()
 {
     auto row = TUnversionedOwningRow(
-        TSharedRef::FromBlob<TOwningRowTag>(std::move(RowData_)),
+        TSharedRef::FromBlob(std::move(RowData_)),
         std::move(StringData_));
     Reset();
     return row;

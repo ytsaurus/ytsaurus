@@ -9,27 +9,30 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkedOutputStreamTag { };
-
 class TChunkedOutputStream
     : public TOutputStream
 {
-public:
-    explicit TChunkedOutputStream(
-        size_t initialReserveSize = 4 * 1024,
-        size_t maxReserveSize = 64 * 1024,
-        TRefCountedTypeCookie tagCookie = GetRefCountedTypeCookie<TChunkedOutputStreamTag>());
+    struct TChunkedOutputStreamTag { };
 
-    template <class TTag>
+public:
+    TChunkedOutputStream(
+        TRefCountedTypeCookie tagCookie,
+        size_t initialReserveSize,
+        size_t maxReserveSize);
+
+    template <class TTag = TChunkedOutputStreamTag>
     explicit TChunkedOutputStream(
         TTag tag = TTag(),
         size_t initialReserveSize = 4 * 1024,
         size_t maxReserveSize = 64 * 1024)
-        : TChunkedOutputStream(
-            initialReserveSize,
-            maxReserveSize,
-            GetRefCountedTypeCookie<TTag>())
+        : TChunkedOutputStream(GetRefCountedTypeCookie<TTag>(), initialReserveSize, maxReserveSize)
     { }
+
+    //! Remind user about the tag argument.
+    template <typename U> TChunkedOutputStream(i32, U size = 0) = delete;
+    template <typename U> TChunkedOutputStream(i64, U size = 0) = delete;
+    template <typename U> TChunkedOutputStream(ui32, U size = 0) = delete;
+    template <typename U> TChunkedOutputStream(ui64, U size = 0) = delete;
 
     ~TChunkedOutputStream() throw();
 
@@ -39,7 +42,7 @@ public:
 
     //! Returns the number of bytes actually written.
     size_t GetSize() const;
-    
+
     //! Returns the number of bytes actually written plus unused capacity in the
     //! last chunk.
     size_t GetCapacity() const;
@@ -57,13 +60,11 @@ public:
 private:
     size_t MaxReserveSize_;
     size_t CurrentReserveSize_;
-    TRefCountedTypeCookie TagCookie_;
 
     size_t FinishedSize_;
 
     TBlob CurrentChunk_;
     std::vector<TSharedRef> FinishedChunks_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

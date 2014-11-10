@@ -32,15 +32,15 @@ protected:
         const TSharedRef& ref)
     {
         auto guard = CreateTraceContextGuard(compress);
-        
+
         ByteArraySource input(ref.Begin(), ref.Size());
         TRACE_ANNOTATION("input_size", ref.Size());
-        
-        TBlob output;
+
+        auto output = TBlob(TBlockTag());
         converter(&input, &output);
         TRACE_ANNOTATION("output_size", output.Size());
-        
-        return TSharedRef::FromBlob<TBlockTag>(std::move(output));
+
+        return TSharedRef::FromBlob(std::move(output));
     }
 
     template <class TBlockTag>
@@ -67,14 +67,14 @@ protected:
         }
         TRACE_ANNOTATION("input_size", totalInputSize);
 
-        TBlob output;
+        auto output = TBlob(TBlockTag());
         output.Reserve(outputSizeEstimator(inputSizes));
 
         TVectorRefsSource input(refs);
         converter(&input, &output);
         TRACE_ANNOTATION("output_size", output.Size());
 
-        return TSharedRef::FromBlob<TBlockTag>(std::move(output));
+        return TSharedRef::FromBlob(std::move(output));
     }
 
 private:

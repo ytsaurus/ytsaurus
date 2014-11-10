@@ -49,7 +49,7 @@ TEST(TErasureCodingTest, RandomText)
         std::vector<TSharedRef> dataBlocks;
         for (int i = 0; i < codec->GetDataPartCount(); ++i) {
             char* begin = data.data() + i * 64;
-            NYT::TBlob blob(begin, 64);
+            auto blob = NYT::TBlob(NYT::TDefaultBlobTag(), begin, 64);
             dataBlocks.push_back(TSharedRef::FromBlob(std::move(blob)));
         }
 
@@ -354,7 +354,7 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
     // Prepare data
     std::vector<TSharedRef> dataRefs;
     for (int i = 0; i < 20; ++i) {
-        NYT::TBlob data(100);
+        auto data = NYT::TBlob(NYT::TDefaultBlobTag(), 100);
         for (int i = 0; i < 100; ++i) {
             data[i] = static_cast<char>('a' + (std::abs(rand.random()) % 26));
         }

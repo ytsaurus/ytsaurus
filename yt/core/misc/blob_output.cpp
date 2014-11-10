@@ -8,9 +8,11 @@ namespace NYT {
 struct TBlobOutputTag { };
 
 TBlobOutput::TBlobOutput()
+    : Blob_(TBlobOutputTag())
 { }
 
 TBlobOutput::TBlobOutput(size_t capacity)
+    : TBlobOutput()
 {
     Reserve(capacity);
 }
@@ -35,7 +37,7 @@ void TBlobOutput::Clear()
 
 TSharedRef TBlobOutput::Flush()
 {
-    return TSharedRef::FromBlob<TBlobOutputTag>(std::move(Blob_));
+    return TSharedRef::FromBlob(std::move(Blob_));
 }
 
 void swap(TBlobOutput& left, TBlobOutput& right)

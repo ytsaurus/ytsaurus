@@ -17,6 +17,8 @@ static const i64 NullValue = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSimpleVersionedBlockWriterTag { };
+
 TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(
     const TTableSchema& schema,
     const TKeyColumns& keyColumns)
@@ -25,6 +27,10 @@ TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(
     , Schema_(schema)
     , SchemaColumnCount_(schema.Columns().size())
     , KeyColumnCount_(keyColumns.size())
+    , KeyStream_(TSimpleVersionedBlockWriterTag())
+    , ValueStream_(TSimpleVersionedBlockWriterTag())
+    , TimestampStream_(TSimpleVersionedBlockWriterTag())
+    , StringDataStream_(TSimpleVersionedBlockWriterTag())
 { }
 
 void TSimpleVersionedBlockWriter::WriteRow(
@@ -105,8 +111,8 @@ TBlock TSimpleVersionedBlockWriter::FlushBlock()
     auto timestamps = TimestampStream_.Flush();
     blockParts.insert(blockParts.end(), timestamps.begin(), timestamps.end());
 
-    blockParts.insert(blockParts.end(), KeyNullFlags_.Flush());
-    blockParts.insert(blockParts.end(), ValueNullFlags_.Flush());
+    blockParts.insert(blockParts.end(), KeyNullFlags_.Flush<TSimpleVersionedBlockWriterTag>());
+    blockParts.insert(blockParts.end(), ValueNullFlags_.Flush<TSimpleVersionedBlockWriterTag>());
 
     auto strings = StringDataStream_.Flush();
     blockParts.insert(blockParts.end(), strings.begin(), strings.end());
