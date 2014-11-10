@@ -84,7 +84,7 @@ private:
 
     NProto::TPartitionsExt PartitionsExt;
 
-    void PrepareBlock();
+    virtual void PrepareBlock() override;
     void OnFinalBlocksWritten(TError error);
 
 };

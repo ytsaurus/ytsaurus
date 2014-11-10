@@ -132,7 +132,7 @@ private:
     NProto::TBoundaryKeysExt BoundaryKeysExt;
     NProto::TIndexExt IndexExt;
 
-    void PrepareBlock();
+    virtual void PrepareBlock() override;
 
     void OnFinalBlocksWritten(TError error);
 
