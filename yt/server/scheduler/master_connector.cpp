@@ -1321,6 +1321,8 @@ private:
         auto operationPath = GetOperationPath(operation->GetId());
         auto controller = operation->GetController();
 
+        GenerateMutationId(batchReq);
+
         // Set state.
         {
             auto req = TYPathProxy::Set(operationPath + "/@state");
