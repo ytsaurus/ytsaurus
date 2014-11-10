@@ -53,6 +53,29 @@ class TestEventLog(YTEnvSetup):
                 assert int(stats['cpu']['user_time']) > 0
         assert "operation_started" in event_types
 
+    @pytest.mark.skipif("socket.gethostname() != 'build01-01g'")
+    def test_block_io_accounting(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write('//tmp/t1', [{"a": "b"}])
+        op_id = map(in_='//tmp/t1', out='//tmp/t2', command="cat; sync; echo 1 | sudo tee /proc/sys/vm/drop_caches 1>/dev/null; sudo dd if=/dev/sda of=something bs=4K count=1000 1>/dev/null; sleep 2")
+
+        # wait for scheduler to dump the event log
+        time.sleep(6)
+        res = read('//sys/scheduler/event_log')
+        exist = False
+        job_completed_line_exist = False
+        for item in res:
+            if item['event_type'] == 'job_completed' and item['operation_id'] == op_id:
+                job_completed_line_exist = True
+                stats = item['statistics']
+                for key in ['cpu', 'block_io']:
+                    assert key in stats
+                if int(stats['block_io']['total_sectors']) > 0:
+                    exist = True
+        assert job_completed_line_exist
+        assert exist
+
 
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
@@ -90,26 +113,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
         statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
         assert statistics['k1']['max'] == 4
         assert statistics['k2']['count'] == 2
-
-    @pytest.mark.skipif("socket.gethostname() != 'build01-01g'")
-    def test_block_io_accounting(self):
-        create('table', '//tmp/t1')
-        create('table', '//tmp/t2')
-        write('//tmp/t1', [{"a": "b"}])
-        op_id = map(in_='//tmp/t1', out='//tmp/t2', command="cat; sync; echo 1 | sudo tee /proc/sys/vm/drop_caches 1>/dev/null; sudo dd if=/dev/sda of=something bs=4K count=1000 1>/dev/null; sleep 2")
-
-        # wait for scheduler to dump the event log
-        time.sleep(1)
-        res = read('//sys/scheduler/event_log')
-        exist = False
-        for item in res:
-            if item['event_type'] == 'job_completed' and item['operation_id'] == op_id:
-                stats = item['statistics']
-                for key in ['cpu', 'block_io']:
-                    assert key in stats
-                if int(stats['block_io']['total_sectors']) > 0:
-                    exist = True
-        assert exist
 
     @only_linux
     def test_one_chunk(self):
