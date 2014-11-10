@@ -157,11 +157,11 @@ public:
     
         Register();
 
-        LOG_INFO("Master transaction attached (TransactionId: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
+        LOG_INFO("Master transaction attached (TransactionId: %v, AutoAbort: %lv, Ping: %lv, PingAncestors: %lv)",
             Id_,
-            FormatBool(AutoAbort_),
-            FormatBool(Ping_),
-            FormatBool(PingAncestors_));
+            AutoAbort_,
+            Ping_,
+            PingAncestors_);
 
         if (Ping_) {
             RunPeriodicPings();
@@ -523,12 +523,12 @@ private:
             Owner_->CellId_,
             MakePromise<TError>(TError()))).second);
 
-        LOG_INFO("Master transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
+        LOG_INFO("Master transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %lv, Ping: %lv, PingAncestors: %lv)",
             Id_,
             StartTimestamp_,
-            FormatBool(AutoAbort_),
-            FormatBool(Ping_),
-            FormatBool(PingAncestors_));
+            AutoAbort_,
+            Ping_,
+            PingAncestors_);
 
         if (Ping_) {
             RunPeriodicPings();
@@ -547,10 +547,10 @@ private:
 
         State_ = EState::Active;
 
-        LOG_INFO("Tablet transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v)",
+        LOG_INFO("Tablet transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %lv)",
             Id_,
             StartTimestamp_,
-            FormatBool(AutoAbort_));
+            AutoAbort_);
 
         // Start ping scheduling.
         // Participants will be added into it upon arrival.

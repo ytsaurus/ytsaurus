@@ -348,13 +348,13 @@ void TSelectCommand::DoExecute()
     const auto& statistics = queryStatisticsOrError.Value();
     
     LOG_INFO(
-        "Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
+        "Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, IncompleteInput: %lv, IncompleteOutput: %lv)",
         statistics.RowsRead,
         statistics.RowsWritten,
         statistics.AsyncTime.MilliSeconds(),
         statistics.SyncTime.MilliSeconds(),
-        FormatBool(statistics.IncompleteInput),
-        FormatBool(statistics.IncompleteOutput));
+        statistics.IncompleteInput,
+        statistics.IncompleteOutput);
 
     BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
         .Item("rows_read").Value(statistics.RowsRead)

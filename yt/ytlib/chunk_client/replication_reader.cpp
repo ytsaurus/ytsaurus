@@ -95,11 +95,11 @@ public:
             GetSeedsPromise_ = MakePromise(TGetSeedsResult(InitialSeedReplicas_));
         }
 
-        LOG_INFO("Reader initialized (InitialSeedReplicas: [%v], FetchPromPeers: %v, LocalDescriptor: %v, EnableCaching: %v, Network: %v)",
+        LOG_INFO("Reader initialized (InitialSeedReplicas: [%v], FetchPromPeers: %lv, LocalDescriptor: %v, EnableCaching: %lv, Network: %v)",
             JoinToString(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
-            FormatBool(Config_->FetchFromPeers),
+            Config_->FetchFromPeers,
             LocalDescriptor_ ? ToString(LocalDescriptor_->GetAddressOrThrow(NetworkName_)) : "<Null>",
-            FormatBool(Config_->EnableCaching),
+            Config_->EnableCaching,
             NetworkName_);
     }
 
