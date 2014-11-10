@@ -609,14 +609,14 @@ private:
 
                 if (Memory.IsCreated()) {
                     auto statistics = Memory.GetStatistics();
-                    int old_rss = rss;
+                    int oldRss = rss;
                     rss = statistics.Rss + statistics.MappedFile;
 
-                    if ((rss > 1.05 * old_rss) && (old_rss > 0)) {
-                        LOG_ERROR("JobId: %v. Memory usage measures by cgroup %v is much bigger than old way %v",
-                            JobId,
-                            old_rss,
-                            rss);
+                    if (rss > 1.05 * oldRss && oldRss > 0) {
+                        LOG_ERROR("Memory usage measures by cgroup is much bigger than via procfs: %v > %v (JobId: %v)",
+                            oldRss,
+                            rss,
+                            JobId);
                     }
                 }
             }
@@ -671,15 +671,15 @@ private:
                 return;
             }
 
-            auto serviceIOs = BlockIO.GetIOServiced();
+            auto servicedIOs = BlockIO.GetIOServiced();
 
-            for (const auto& item : serviceIOs) {
+            for (const auto& item : servicedIOs) {
                 LOG_DEBUG("%v %v operation for %v device", item.DeviceId, item.Type, item.Value);
 
                 auto operations = item.Value;
 
                 size_t k = 0;
-                while ((k < CurrentServicedIOs.size()) && (item.DeviceId != CurrentServicedIOs[k].DeviceId)) {
+                while (k < CurrentServicedIOs.size() && item.DeviceId != CurrentServicedIOs[k].DeviceId) {
                     ++k;
                 }
 
@@ -689,7 +689,9 @@ private:
                 }
 
                 if (operations < 0) {
-                    LOG_WARNING("%v < 0 operations where serviced for %v device after the last check", operations, item.DeviceId);
+                    LOG_WARNING("%v < 0 operations where serviced for %v device after the last check",
+                        operations,
+                        item.DeviceId);
                 }
 
                 if (operations > iopsThreshold.Get() * period.Seconds()) {
@@ -699,7 +701,7 @@ private:
                 }
             }
 
-            CurrentServicedIOs = serviceIOs;
+            CurrentServicedIOs = servicedIOs;
         } catch (const std::exception& ex) {
             SetError(ex);
             KillUserJob();

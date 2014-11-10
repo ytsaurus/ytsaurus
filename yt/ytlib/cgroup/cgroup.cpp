@@ -468,6 +468,9 @@ TBlockIO::TBlockIO(const Stroka& name)
     : TCGroup("blkio", name)
 { }
 
+// For more information about format of data
+// read https://www.kernel.org/doc/Documentation/cgroups/blkio-controller.txt
+
 TBlockIO::TStatistics TBlockIO::GetStatistics()
 {
     TBlockIO::TStatistics result;
@@ -481,10 +484,10 @@ TBlockIO::TStatistics TBlockIO::GetStatistics()
         while (3 * lineNumber + 2 < values.size()) {
             const Stroka& deviceId = values[3 * lineNumber];
             const Stroka& type = values[3 * lineNumber + 1];
-            i64 bytes = FromString<i64>(values[3 * lineNumber + 2]);
+            auto bytes = FromString<i64>(values[3 * lineNumber + 2]);
 
             if (!deviceId.has_prefix("8:")) {
-                THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start from 8:", ~path.Quote(), ~deviceId);
+                THROW_ERROR_EXCEPTION("Unable to parse %Qv: %v should start with \"8:\"", path, deviceId);
             }
 
             if (type == "Read") {
@@ -493,7 +496,7 @@ TBlockIO::TStatistics TBlockIO::GetStatistics()
                 result.BytesWritten += bytes;
             } else {
                 if (type != "Sync" && type != "Async" && type != "Total") {
-                    THROW_ERROR_EXCEPTION("Unable to parse %s: unexpected stat type %s", ~path.Quote(), ~type);
+                    THROW_ERROR_EXCEPTION("Unable to parse %v: unexpected stat type %v", path, type);
                 }
             }
             ++lineNumber;
@@ -507,10 +510,10 @@ TBlockIO::TStatistics TBlockIO::GetStatistics()
         int lineNumber = 0;
         while (2 * lineNumber < values.size()) {
             const Stroka& deviceId = values[2 * lineNumber];
-            i64 sectors = FromString<i64>(values[2 * lineNumber + 1]);
+            auto sectors = FromString<i64>(values[2 * lineNumber + 1]);
 
             if (!deviceId.has_prefix("8:")) {
-                THROW_ERROR_EXCEPTION("Unable to parse %Qv: %v should start from 8:", path, deviceId);
+                THROW_ERROR_EXCEPTION("Unable to parse %Qv: %v should start with \"8:\"", path, deviceId);
             }
 
             result.TotalSectors += sectors;
@@ -546,10 +549,10 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
         item.Value = FromString<i64>(values[3 * lineNumber + 2]);
 
         if (!item.DeviceId.has_prefix("8:")) {
-            THROW_ERROR_EXCEPTION("Unable to parse %Qv: %v should start from 8:", path, item.DeviceId);
+            THROW_ERROR_EXCEPTION("Unable to parse %Qv: %v should start with \"8:\"", path, item.DeviceId);
         }
 
-        if ((item.Type == "Read") || (item.Type == "Write")) {
+        if (item.Type == "Read" || item.Type == "Write") {
             result.push_back(item);
         }
         ++lineNumber;
@@ -560,7 +563,7 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
 
 void TBlockIO::ThrottleOperations(const Stroka& deviceId, i64 operations)
 {
-    Stroka value = Format("%v %v", deviceId, operations);
+    auto value = Format("%v %v", deviceId, operations);
     Append("blkio.throttle.read_iops_device", value);
     Append("blkio.throttle.write_iops_device", value);
 }
@@ -591,8 +594,8 @@ TMemory::TStatistics TMemory::GetStatistics()
         auto values = ReadAllValues(NFS::CombinePaths(FullPath_, "memory.stat"));
         int lineNumber = 0;
         while (2 * lineNumber + 1 < values.size()) {
-            const Stroka& type = values[2 * lineNumber];
-            const i64 value = FromString<i64>(values[2 * lineNumber + 1]);
+            const auto& type = values[2 * lineNumber];
+            const auto value = FromString<i64>(values[2 * lineNumber + 1]);
             if (type == "rss") {
                 result.Rss = value;
             }
