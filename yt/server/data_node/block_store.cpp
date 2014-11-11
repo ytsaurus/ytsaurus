@@ -115,7 +115,7 @@ public:
         }
     }
 
-    TAsyncGetBlockResult GetBlock(
+    TAsyncGetBlockResult FindBlock(
         const TChunkId& chunkId,
         int blockIndex,
         i64 priority,
@@ -163,7 +163,7 @@ public:
                 Passed(std::move(readGuard))));
     }
 
-    TAsyncGetBlocksResult GetBlocks(
+    TAsyncGetBlocksResult FindBlocks(
         const TChunkId& chunkId,
         int firstBlockIndex,
         int blockCount,
@@ -339,26 +339,26 @@ void TBlockStore::Initialize()
 TBlockStore::~TBlockStore()
 { }
 
-TFuture<TBlockStore::TGetBlockResult> TBlockStore::GetBlock(
+TFuture<TBlockStore::TGetBlockResult> TBlockStore::FindBlock(
     const TChunkId& chunkId,
     int blockIndex,
     i64 priority,
     bool enableCaching)
 {
-    return StoreImpl_->GetBlock(
+    return StoreImpl_->FindBlock(
         chunkId,
         blockIndex,
         priority,
         enableCaching);
 }
 
-TFuture<TBlockStore::TGetBlocksResult> TBlockStore::GetBlocks(
+TFuture<TBlockStore::TGetBlocksResult> TBlockStore::FindBlocks(
     const TChunkId& chunkId,
     int firstBlockIndex,
     int blockCount,
     i64 priority)
 {
-    return StoreImpl_->GetBlocks(
+    return StoreImpl_->FindBlocks(
         chunkId,
         firstBlockIndex,
         blockCount,

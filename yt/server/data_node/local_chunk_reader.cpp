@@ -105,14 +105,14 @@ private:
             i64 priority = 0;
             for (int index = 0; index < static_cast<int>(blockIndexes.size()); ++index) {
                 auto asyncResult = BIND(
-                    &TBlockStore::GetBlock,
+                    &TBlockStore::FindBlock,
                     blockStore,
                     Owner_->Chunk_->GetId(),
                     blockIndexes[index],
                     priority,
                     Owner_->Config_->EnableCaching);
                 auto handler = BIND(
-                    &TReadSession::OnBlockFetched,
+                    &TReadSession::OnBlockFound,
                     MakeStrong(this),
                     index,
                     blockIndexes[index]);
@@ -139,17 +139,26 @@ private:
         std::vector<TSharedRef> Blocks_;
 
 
-        void OnBlockFetched(int index, int blockIndex, TBlockStore::TGetBlockResult result)
+        void OnBlockFound(int index, int blockIndex, TBlockStore::TGetBlockResult result)
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            if (!result.IsOK() || !result.Value()) {
+            if (!result.IsOK()) {
                 Promise_.TrySet(TError(
                     NDataNode::EErrorCode::LocalChunkReaderFailed,
                     "Error reading local chunk block %v:%v",
                     Owner_->Chunk_->GetId(),
                     blockIndex)
                     << result);
+                return;
+            }
+
+            if (!result.Value()) {
+                Promise_.TrySet(TError(
+                    NDataNode::EErrorCode::LocalChunkReaderFailed,
+                    "Local chunk block %v:%v is not available",
+                    Owner_->Chunk_->GetId(),
+                    blockIndex));
                 return;
             }
 

@@ -106,6 +106,7 @@ private:
 
 
     NDataNode::IChunkPtr PrepareChunk();
+    NDataNode::IChunkPtr DoFindChunk();
     NChunkClient::IChunkReaderPtr PrepareChunkReader(
         NDataNode::IChunkPtr chunk);
     NVersionedTableClient::TCachedVersionedChunkMetaPtr PrepareCachedVersionedChunkMeta(

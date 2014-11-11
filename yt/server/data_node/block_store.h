@@ -56,16 +56,15 @@ public:
     typedef TErrorOr<std::vector<TSharedRef>> TGetBlocksResult;
     typedef TFuture<TGetBlocksResult> TAsyncGetBlocksResult;
 
-    //! Asynchronously retrieves a block from the store.
+    //! Asynchronously retrieves a single block from the store.
     /*!
      *  Fetching an already-cached block is cheap (i.e. requires no context switch).
      *  Fetching an uncached block enqueues a disk-read action to the appropriate IO queue.
-     * 
-     *  If the requested block does not exist then an error is returned.
-     *  However, if the requested chunk is missing then cache lookup is performed.
-     *  In the latter case null may be returned for non-existing blocks.
+     *
+     *  If some unrecoverable IO error happens during retrieval then the latter error is returned.
+     *  If the whole chunk or its particular block does not exist then null TSharedRef is returned.
      */
-    TAsyncGetBlockResult GetBlock(
+    TAsyncGetBlockResult FindBlock(
         const TChunkId& chunkId,
         int blockIndex,
         i64 priority,
@@ -73,10 +72,12 @@ public:
 
     //! Asynchronously retrieves a range of blocks from the store.
     /*!
+     *  If some unrecoverable IO error happens during retrieval then the latter error is returned.
+     *
      *  The resulting list may contain less blocks than requested.
      *  An empty list indicates that the requested blocks are all out of range.
      */
-    TAsyncGetBlocksResult GetBlocks(
+    TAsyncGetBlocksResult FindBlocks(
         const TChunkId& chunkId,
         int firstBlockIndex,
         int blockCount,

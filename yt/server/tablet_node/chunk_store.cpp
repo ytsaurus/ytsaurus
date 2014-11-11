@@ -33,6 +33,7 @@
 #include <server/data_node/local_chunk_reader.h>
 #include <server/data_node/block_store.h>
 #include <server/data_node/chunk_registry.h>
+#include <server/data_node/chunk.h>
 
 #include <server/query_agent/config.h>
 
@@ -333,7 +334,7 @@ IChunkPtr TChunkStore::PrepareChunk()
     }
 
     auto chunkRegistry = Bootstrap_->GetChunkRegistry();
-    auto asyncChunk = BIND(&TChunkRegistry::FindChunk, chunkRegistry, Id_)
+    auto asyncChunk = BIND(&TChunkStore::DoFindChunk, MakeStrong(this))
         .AsyncVia(Bootstrap_->GetControlInvoker())
         .Run();
     auto chunk = WaitFor(asyncChunk);
@@ -353,6 +354,19 @@ IChunkPtr TChunkStore::PrepareChunk()
         }),
         ChunkExpirationTimeout);
 
+    return chunk;
+}
+
+IChunkPtr TChunkStore::DoFindChunk()
+{
+    auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+    auto chunk = chunkRegistry->FindChunk(Id_);
+    if (!chunk) {
+        return nullptr;
+    }
+    if (chunk->IsRemoveScheduled()) {
+        return nullptr;
+    }
     return chunk;
 }
 

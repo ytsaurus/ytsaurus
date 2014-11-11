@@ -401,11 +401,12 @@ private:
         auto blockStore = Bootstrap_->GetBlockStore();
 
         while (blockIndex < blockCount) {
-            auto getResult = WaitFor(blockStore->GetBlocks(
-                ChunkId_,
-                blockIndex,
-                blockCount - blockIndex,
-                FetchPriority));
+            auto getResult = WaitFor(
+                blockStore->FindBlocks(
+                    ChunkId_,
+                    blockIndex,
+                    blockCount - blockIndex,
+                    FetchPriority));
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 getResult, 
                 "Error reading chunk %v during replication",

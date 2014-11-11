@@ -391,13 +391,13 @@ private:
                         blockIndex);
 
                     Awaiter_->Await(
-                        blockStore->GetBlock(
+                        blockStore->FindBlock(
                             chunkId,
                             blockIndex,
                             priority,
                             enableCaching),
                         BIND(
-                            &TGetBlockSetSession::OnGotBlock,
+                            &TGetBlockSetSession::OnBlockFound,
                             MakeStrong(this),
                             index));
 
@@ -421,7 +421,7 @@ private:
         std::atomic<i64> BlocksSize_;
 
 
-        void OnGotBlock(int index, TBlockStore::TGetBlockResult result)
+        void OnBlockFound(int index, TBlockStore::TGetBlockResult result)
         {
             if (!result.IsOK()) {
                 // Something went wrong while fetching the blocks.
@@ -520,7 +520,7 @@ private:
                 OnComplete();
             } else {
                 blockStore
-                    ->GetBlocks(
+                    ->FindBlocks(
                         chunkId,
                         firstBlockIndex,
                         blockCount,
