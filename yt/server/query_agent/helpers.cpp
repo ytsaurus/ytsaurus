@@ -4,7 +4,6 @@
 #include <core/logging/log.h>
 
 #include <server/data_node/public.h>
-#include <Python/Python.h>
 
 namespace NYT {
 namespace NQueryAgent {
