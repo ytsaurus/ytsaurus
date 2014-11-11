@@ -128,6 +128,12 @@ TFuture<void> TChunkBase::ScheduleRemove()
     return RemovedPromise_;
 }
 
+bool TChunkBase::IsRemoveScheduled() const
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+    return static_cast<bool>(RemovedPromise_);
+}
+
 void TChunkBase::StartAsyncRemove()
 {
     EvictFromCache();

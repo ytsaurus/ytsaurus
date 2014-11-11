@@ -96,6 +96,9 @@ struct IChunk
      */
     virtual TFuture<void> ScheduleRemove() = 0;
 
+    //! Returns |true| if #ScheduleRemove was called.
+    virtual bool IsRemoveScheduled() const = 0;
+
     //! Performs synchronous physical removal of chunk files.
     //! For journal chunks this call bypasses multiplexed changelogs.
     //! Only called during initialization.

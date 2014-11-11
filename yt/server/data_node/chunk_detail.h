@@ -44,6 +44,7 @@ public:
     virtual bool IsReadLockAcquired() const override;
 
     virtual TFuture<void> ScheduleRemove() override;
+    virtual bool IsRemoveScheduled() const override;
 
 protected:
     NCellNode::TBootstrap* Bootstrap_;
