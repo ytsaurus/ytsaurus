@@ -53,6 +53,7 @@ public:
     TNullable<bool> ResponseHeavy;
     TNullable<NCompression::ECodec> ResponseCodec;
     TNullable<int> MaxQueueSize;
+    TNullable<int> MaxConcurrency;
 
     TMethodConfig()
     {
@@ -63,6 +64,8 @@ public:
         RegisterParameter("response_codec", ResponseCodec)
             .Default();
         RegisterParameter("max_queue_size", MaxQueueSize)
+            .Default();
+        RegisterParameter("max_concurrency", MaxConcurrency)
             .Default();
     }
 };

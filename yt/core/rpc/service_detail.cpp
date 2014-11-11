@@ -575,6 +575,9 @@ void TServiceBase::Configure(INodePtr configNode)
             if (methodConfig->MaxQueueSize) {
                 descriptor.SetMaxQueueSize(*methodConfig->MaxQueueSize);
             }
+            if (methodConfig->MaxConcurrency) {
+                descriptor.SetMaxConcurrency(*methodConfig->MaxConcurrency);
+            }
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error configuring RPC service %v",
