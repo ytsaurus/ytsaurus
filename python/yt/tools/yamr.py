@@ -39,9 +39,7 @@ def _check_call(command, **kwargs):
         raise
 
     if proc.returncode != 0:
-        error = YamrError("Command '{0}' failed".format(command))
-        error.inner_errors = [YamrError(stderrdata, proc.returncode)]
-        raise error
+        raise YamrError("Command '{0}' failed".format(command), code=proc.returncode, attributes={"details": stderrdata})
 
     logger.info("Command '{}' successfully executed".format(command))
 
