@@ -509,8 +509,9 @@ class Application(object):
                             assert False, "Incorrect message type: " + message["type"]
 
                     if not process.is_alive() and not completed and error is None:
-                        logger.warning("Process dead without any messages")
-                        error = {"message": "Process dead without any messages", "code": 1}
+                        message = "Process died silently"
+                        logger.warning(message)
+                        error = {"message": message, "code": 1}
 
                     if process.aborted or error is not None or completed:
                         self._tasks[id].finish_time = now()
