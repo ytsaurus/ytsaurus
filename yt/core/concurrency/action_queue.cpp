@@ -440,6 +440,8 @@ public:
         : TInvokerWrapper(std::move(underlyingInvoker))
     { }
 
+    using TInvokerWrapper::Invoke;
+
     virtual void Invoke(const TClosure& callback, i64 priority) override
     {
         {
@@ -495,6 +497,8 @@ public:
     explicit TFakePrioritizedInvoker(IInvokerPtr underlyingInvoker)
         : TInvokerWrapper(std::move(underlyingInvoker))
     { }
+
+    using TInvokerWrapper::Invoke;
 
     virtual void Invoke(const TClosure& callback, i64 /*priority*/) override
     {
