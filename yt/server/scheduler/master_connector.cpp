@@ -628,7 +628,7 @@ private:
 
             for (const auto& id : AbortingOperationIds) {
                 auto req = TYPathProxy::Set(GetOperationPath(id) + "/@state");
-                req->set_value(ConvertToYsonString(EOperationState::Aborted).Data());
+                req->set_value(ConvertToYsonString(EOperationState(EOperationState::Aborted)).Data());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req, "abort_operation");
             }
