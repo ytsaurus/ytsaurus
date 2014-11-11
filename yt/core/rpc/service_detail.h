@@ -387,7 +387,7 @@ protected:
         int MaxQueueSize = 10000;
 
         //! Maximum number of requests executing concurrently.
-        int MaxConcurrency = 32;
+        int MaxConcurrency = 1000;
 
         //! Should requests be reordered based on start time?
         bool EnableReorder = false;
