@@ -531,7 +531,7 @@ class Application(object):
 
                 for id in self._pending_tasks:
                     if not self._can_run(self._tasks[id]):
-                        logger.info("Task %s cannot be run", id)
+                        logger.info("Task %s cannot be started", id)
                         continue
                     self._running_task_queues[self._tasks[id].get_queue_id()].append(id)
                     self._tasks[id].start_time = now()
@@ -659,8 +659,11 @@ class Application(object):
             message_queue.put({
                 "type": "error",
                 "error": {
-                    "message": "\n".join([traceback.format_exc(), str(error)]),
-                    "code": 1
+                    "message": str(error),
+                    "code": 1,
+                    "attributes": {
+                        "details": traceback.format_exc()
+                    }
                 }
             })
 
