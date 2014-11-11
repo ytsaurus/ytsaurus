@@ -240,10 +240,10 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
 
 void TYamrDelimitedBaseParser::ThrowIncorrectFormat() const
 {
-    THROW_ERROR_EXCEPTION("Unexpected symbol in YAMR row: expected %v, found %v (%v)",
-        ~Stroka(FieldSeparator).Quote(),
-        ~Stroka(RecordSeparator).Quote(),
-        ~GetDebugInfo());
+    THROW_ERROR_EXCEPTION("Unexpected symbol in YAMR row: expected %Qv, found %Qv (%v)",
+        Stroka(FieldSeparator),
+        Stroka(RecordSeparator),
+        GetDebugInfo());
 }
 
 void TYamrDelimitedBaseParser::OnRangeConsumed(const char* begin, const char* end)

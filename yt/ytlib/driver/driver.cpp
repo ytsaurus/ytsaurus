@@ -160,8 +160,8 @@ public:
         auto it = Commands.find(request.CommandName);
         if (it == Commands.end()) {
             return MakePromise(TDriverResponse(TError(
-                "Unknown command %s",
-                ~request.CommandName.Quote())));
+                "Unknown command %Qv",
+                request.CommandName)));
         }
 
         LOG_INFO("Command started (Command: %v, User: %v)",

@@ -36,8 +36,8 @@ void TFileReader::Open()
     TChunkMetaHeader metaHeader;
     ReadPod(metaInput, metaHeader);
     if (metaHeader.Signature != TChunkMetaHeader::ExpectedSignature) {
-        THROW_ERROR_EXCEPTION("Incorrect header signature in chunk meta file %s: expected %" PRIx64 ", actual %" PRIx64,
-            ~FileName_.Quote(),
+        THROW_ERROR_EXCEPTION("Incorrect header signature in chunk meta file %Qv: expected %v, actual %v",
+            FileName_,
             TChunkMetaHeader::ExpectedSignature,
             metaHeader.Signature);
     }
@@ -47,15 +47,15 @@ void TFileReader::Open()
 
     auto checksum = GetChecksum(metaBlobRef);
     if (checksum != metaHeader.Checksum) {
-        THROW_ERROR_EXCEPTION("Incorrect checksum in chunk meta file %s: expected %" PRIx64 ", actual %" PRIx64,
-            ~FileName_.Quote(),
+        THROW_ERROR_EXCEPTION("Incorrect checksum in chunk meta file %Qv: expected %v, actual %v",
+            FileName_,
             metaHeader.Checksum,
             checksum);
     }
 
     if (!DeserializeFromProtoWithEnvelope(&Meta_, metaBlobRef)) {
-        THROW_ERROR_EXCEPTION("Failed to parse chunk meta file %s",
-            ~FileName_.Quote());
+        THROW_ERROR_EXCEPTION("Failed to parse chunk meta file %Qv",
+            FileName_);
     }
 
     BlocksExt_ = GetProtoExtension<TBlocksExt>(Meta_.extensions());
@@ -126,9 +126,9 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
 
     auto checksum = GetChecksum(data);
     if (checksum != blockInfo.checksum()) {
-        THROW_ERROR_EXCEPTION("Incorrect checksum of block %d in chunk data file %s: expected %" PRIx64 ", actual %" PRIx64,
+        THROW_ERROR_EXCEPTION("Incorrect checksum of block %v in chunk data file %Qv: expected %v, actual %v",
             blockIndex,
-            ~FileName_,
+            FileName_,
             blockInfo.checksum(),
             checksum);
     }

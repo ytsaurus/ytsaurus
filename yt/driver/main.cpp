@@ -211,7 +211,7 @@ private:
     {
         auto it = Executors.find(commandName);
         if (it == Executors.end()) {
-            THROW_ERROR_EXCEPTION("Unknown command %s", ~commandName.Quote());
+            THROW_ERROR_EXCEPTION("Unknown command %Qv", commandName);
         }
         return it->second;
     }

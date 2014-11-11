@@ -842,7 +842,7 @@ private:
                     continue;
                 }
                 if (AddressToNode_.find(address) == AddressToNode_.end()) {
-                    LOG_WARNING("Node %s is not registered in scheduler", ~address);
+                    LOG_WARNING("Node %v is not registered in scheduler", address);
                     continue;
                 }
 

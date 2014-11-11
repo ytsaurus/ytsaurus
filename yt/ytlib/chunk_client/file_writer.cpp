@@ -109,7 +109,7 @@ TAsyncError TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMeta
         DataFile_.reset();
     } catch (const std::exception& ex) {
         return MakeFuture(
-            TError("Failed to close chunk data file %s", ~FileName_)
+            TError("Failed to close chunk data file %Qv", FileName_)
             << ex);
     }
 
@@ -149,8 +149,8 @@ TAsyncError TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMeta
         NFS::Rename(FileName_ + NFS::TempFileSuffix, FileName_);
     } catch (const std::exception& ex) {
         return MakeFuture(TError(
-            "Failed to write chunk meta to %s",
-            ~chunkMetaFileName.Quote())
+            "Failed to write chunk meta to %Qv",
+            chunkMetaFileName)
             << ex);
     }
 

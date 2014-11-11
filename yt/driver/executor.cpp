@@ -76,12 +76,12 @@ Stroka TExecutor::GetConfigFileName()
     throw std::runtime_error(Format(
         "Configuration file cannot be found. Please specify it using one of the following methods:\n"
         "1) --config command-line option\n"
-        "2) %s environment variable\n"
-        "3) per-user file %s\n"
-        "4) system-wide file %s",
+        "2) %v environment variable\n"
+        "3) per-user file %Qv\n"
+        "4) system-wide file %Qv",
         ConfigEnvVar,
-        ~user.Quote(),
-        ~system.Quote()));
+        user,
+        system));
 }
 
 void TExecutor::InitConfig()

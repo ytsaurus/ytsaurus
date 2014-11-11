@@ -647,7 +647,7 @@ bool TMemory::IsOomEnabled() const
     const auto path = NFS::CombinePaths(GetFullPath(), "memory.oom_control");
     auto values = ReadAllValues(path);
     if (values.size() != 4) {
-        THROW_ERROR_EXCEPTION("Unable to parse %s: expected 4 values, got %d", ~path.Quote(), values.size());
+        THROW_ERROR_EXCEPTION("Unable to parse %Qv: expected 4 values, got %d", path, values.size());
     }
     for (int i = 0; i < 2; ++i) {
         if (values[2 * i] == "oom_kill_disable") {
@@ -657,12 +657,12 @@ bool TMemory::IsOomEnabled() const
             } else if (isDisabled == "1") {
                 return false;
             } else {
-                THROW_ERROR_EXCEPTION("Unexpected value for oom_kill_disable. Expected '0' or '1'. Got: %s",
-                    ~isDisabled.Quote());
+                THROW_ERROR_EXCEPTION("Unexpected value for oom_kill_disable. Expected '0' or '1'. Got: %Qv",
+                    isDisabled);
             }
         }
     }
-    THROW_ERROR_EXCEPTION("Unable to find 'oom_kill_disable' in %s", ~path.Quote());
+    THROW_ERROR_EXCEPTION("Unable to find 'oom_kill_disable' in %Qv", path);
 #else
     return false;
 #endif

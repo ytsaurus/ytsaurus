@@ -2287,7 +2287,7 @@ namespace NAst {
 
 void TParser::error(const location_type& location, const std::string& message)
 {
-    THROW_ERROR_EXCEPTION("Error while parsing query: %s", message.c_str())
+    THROW_ERROR_EXCEPTION("Error while parsing query: %v", message)
         << TErrorAttribute("query_range", Format("%v-%v", location.first, location.second));
 }
 

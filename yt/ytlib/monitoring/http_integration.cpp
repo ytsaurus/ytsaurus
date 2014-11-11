@@ -49,8 +49,8 @@ void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
     for (const auto& param : params) {
         auto eqIndex = param.find_first_of('=');
         if (eqIndex == Stroka::npos) {
-            THROW_ERROR_EXCEPTION("Missing value of query parameter %s",
-                ~param.Quote());
+            THROW_ERROR_EXCEPTION("Missing value of query parameter %Qv",
+                param);
         }
         if (eqIndex == 0) {
             THROW_ERROR_EXCEPTION("Empty query parameter name");

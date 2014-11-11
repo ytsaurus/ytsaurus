@@ -164,7 +164,7 @@ void TJsonParser::TImpl::OnError(const char* data, int len)
         1,
         reinterpret_cast<const unsigned char*>(data),
         len);
-    TError error("Error parsing JSON: %s", errorMessage);
+    TError error("Error parsing JSON: %v", errorMessage);
     yajl_free_error(YajlHandle_, errorMessage);
     yajl_free(YajlHandle_);
     THROW_ERROR_EXCEPTION(error);
