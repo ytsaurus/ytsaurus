@@ -569,10 +569,11 @@ private:
                 if (frontMessageId != mailbox->GetLastIncomingMessageId() + 1)
                     break;
 
-                LOG_DEBUG_UNLESS(IsRecovery(), "Consuming incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
+                LOG_DEBUG_UNLESS(IsRecovery(), "Consuming incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
                     mailbox->GetCellId(),
                     SelfCellId_,
-                    frontMessageId);
+                    frontMessageId,
+                    frontMessage.type());
 
                 TMutationRequest request;
                 request.Type = frontMessage.type();
