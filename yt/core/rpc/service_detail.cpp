@@ -396,7 +396,7 @@ void TServiceBase::OnRequest(
         if (runtimeInfo->Descriptor.OneWay != oneWay) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::ProtocolError,
-                "One-way flag mismatch for method %v:%v: expected %v, actual %v",
+                "One-way flag mismatch for method %v:%v: expected %lv, actual %lv",
                 ServiceId_.ServiceName,
                 method,
                 runtimeInfo->Descriptor.OneWay,
@@ -627,7 +627,7 @@ DEFINE_RPC_SERVICE_METHOD(TServiceBase, Discover)
     response->set_up(IsUp());
     ToProto(response->mutable_suggested_addresses(), SuggestAddresses());
 
-    context->SetResponseInfo("Up: %v, SuggestedAddresses: [%v]",
+    context->SetResponseInfo("Up: %lv, SuggestedAddresses: [%v]",
         response->up(),
         JoinToString(response->suggested_addresses()));
 

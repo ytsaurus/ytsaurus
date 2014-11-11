@@ -212,7 +212,7 @@ IMPLEMENT_SUPPORTS_VERB_RESOLVE(
 void TSupportsExistsBase::Reply(TCtxExistsPtr context, bool value)
 {
     context->Response().set_value(value);
-    context->SetResponseInfo("Result: %v", value);
+    context->SetResponseInfo("Result: %lv", value);
     context->Reply();
 }
 
@@ -580,7 +580,7 @@ void TSupportsAttributes::ExistsAttribute(
 
     DoExistsAttribute(path).Subscribe(BIND([=] (bool result) {
         response->set_value(result);
-        context->SetResponseInfo("Result: %v", result);
+        context->SetResponseInfo("Result: %lv", result);
         context->Reply();
     }));
 }

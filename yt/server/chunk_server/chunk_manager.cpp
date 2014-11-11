@@ -1180,7 +1180,7 @@ private:
             LOG_EVENT(
                 Logger,
                 reason == EAddReplicaReason::FullHeartbeat ? NLog::ELogLevel::Trace : NLog::ELogLevel::Debug,
-                "Chunk replica added (ChunkId: %v, Cached: %v, NodeId: %v, Address: %v)",
+                "Chunk replica added (ChunkId: %v, Cached: %lv, NodeId: %v, Address: %v)",
                 chunkWithIndex,
                 cached,
                 nodeId,
@@ -1216,7 +1216,7 @@ private:
         TNodePtrWithIndex nodeWithIndex(node, chunkWithIndex.GetIndex());
 
         if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !node->HasReplica(chunkWithIndex, cached)) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk replica is already removed (ChunkId: %v, Cached: %v, Reason: %v, NodeId: %v, Address: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk replica is already removed (ChunkId: %v, Cached: %lv, Reason: %v, NodeId: %v, Address: %v)",
                 chunkWithIndex,
                 cached,
                 reason,
@@ -1245,7 +1245,7 @@ private:
                 reason == ERemoveReplicaReason::NodeRemoved ||
                 reason == ERemoveReplicaReason::ChunkIsDead
                 ? NLog::ELogLevel::Trace : NLog::ELogLevel::Debug,
-                "Chunk replica removed (ChunkId: %v, Cached: %v, Reason: %v, NodeId: %v, Address: %v)",
+                "Chunk replica removed (ChunkId: %v, Cached: %lv, Reason: %v, NodeId: %v, Address: %v)",
                 chunkWithIndex,
                 cached,
                 reason,
@@ -1336,7 +1336,7 @@ private:
 
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
         if (!IsObjectAlive(chunk)) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %v, Cached: %v, Address: %v, NodeId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %v, Cached: %lv, Address: %v, NodeId: %v)",
                  chunkIdWithIndex,
                  cached,
                  node->GetAddress(),
@@ -1423,7 +1423,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     LOG_DEBUG_UNLESS(Owner_->IsRecovery(),
         "Chunk created "
         "(ChunkId: %v, TransactionId: %v, Account: %v, ReplicationFactor: %v, "
-        "ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, Movable: %v, Vital: %v)",
+        "ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, Movable: %lv, Vital: %lv)",
         chunk->GetId(),
         transaction->GetId(),
         account->GetName(),

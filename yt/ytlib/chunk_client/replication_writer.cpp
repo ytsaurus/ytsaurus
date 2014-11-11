@@ -579,7 +579,7 @@ void TReplicationWriter::DoOpen()
             StartSessions(AllocateTargets());
         }
 
-        LOG_INFO("Writer opened (Addresses: [%v], EnableCaching: %v, SessionType: %v)",
+        LOG_INFO("Writer opened (Addresses: [%v], EnableCaching: %lv, SessionType: %v)",
             JoinToString(Nodes_),
             Config_->EnableCaching,
             SessionType_);

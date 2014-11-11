@@ -47,7 +47,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 
     bool ignoreOpaque = request->ignore_opaque();
 
-    context->SetRequestInfo("AttributeFilterMode: %v, IgnoreOpaque: %v",
+    context->SetRequestInfo("AttributeFilterMode: %v, IgnoreOpaque: %lv",
         attributeFilter.Mode,
         ignoreOpaque);
 

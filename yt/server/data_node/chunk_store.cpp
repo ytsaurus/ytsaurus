@@ -181,7 +181,7 @@ void TChunkStore::DoRegisterChunk(const TChunkEntry& entry)
             break;
 
         case EObjectType::JournalChunk:
-            LOG_DEBUG("Journal chunk registered (ChunkId: %v, Version: %v, Sealed: %v, Active: %v)",
+            LOG_DEBUG("Journal chunk registered (ChunkId: %v, Version: %v, Sealed: %lv, Active: %lv)",
                 chunk->GetId(),
                 chunk->GetVersion(),
                 chunk->GetInfo().sealed(),
@@ -217,7 +217,7 @@ void TChunkStore::UpdateExistingChunk(IChunkPtr chunk)
 
     switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
         case EObjectType::JournalChunk:
-            LOG_DEBUG("Journal chunk updated (ChunkId: %v, Version: %v, Sealed: %v, Active: %v)",
+            LOG_DEBUG("Journal chunk updated (ChunkId: %v, Version: %v, Sealed: %lv, Active: %lv)",
                 chunk->GetId(),
                 chunk->GetVersion(),
                 chunk->GetInfo().sealed(),
