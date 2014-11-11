@@ -3,6 +3,7 @@
 import config
 import yt.logger as logger
 from common import YtError, get_backoff
+from errors import format_error
 from table import to_table
 from transaction import PingableTransaction
 from transaction_commands import _make_transactional_request
@@ -47,7 +48,7 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                             raise
                         backoff = get_backoff(config.http.REQUEST_RETRY_TIMEOUT, current_time)
                         if backoff:
-                            logger.warning("%s. Sleep for %.2lf seconds...", str(err), backoff)
+                            logger.warning("%s. Sleep for %.2lf seconds...", format_error(err), backoff)
                             time.sleep(backoff)
                         logger.warning("New retry (%d) ...", attempt + 2)
         else:
