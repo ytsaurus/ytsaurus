@@ -86,7 +86,7 @@ auto TOldMultiChunkSequentialWriter<TProvider>::GetCurrentWriter() -> TFacade*
     }
 
     if (CurrentSession.ChunkWriter->GetMetaSize() > Config->MaxMetaSize) {
-        LOG_DEBUG("Switching to next chunk: meta is too large (ChunkMetaSize: %" PRId64 ")",
+        LOG_DEBUG("Switching to next chunk: meta is too large (ChunkMetaSize: %v)",
             CurrentSession.ChunkWriter->GetMetaSize());
 
         SwitchSession();
@@ -97,7 +97,7 @@ auto TOldMultiChunkSequentialWriter<TProvider>::GetCurrentWriter() -> TFacade*
         if (expectedInputSize > Config->DesiredChunkSize ||
             CurrentSession.ChunkWriter->GetDataSize() > 2 * Config->DesiredChunkSize)
         {
-            LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %" PRId64 ", ExpectedInputSize: %" PRId64 ", DesiredChunkSize: %" PRId64 ")",
+            LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %v, ExpectedInputSize: %v, DesiredChunkSize: %v)",
                 CurrentSession.ChunkWriter->GetDataSize(),
                 expectedInputSize,
                 Config->DesiredChunkSize);

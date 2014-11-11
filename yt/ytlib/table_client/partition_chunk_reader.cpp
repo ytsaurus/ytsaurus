@@ -136,7 +136,7 @@ void TPartitionChunkReader::OnNextBlock(TError error)
         return;
     }
 
-    LOG_DEBUG("Switching to next block at row %" PRId64, RowIndex_);
+    LOG_DEBUG("Switching to next block at row %v", RowIndex_);
 
     Blocks.push_back(SequentialReader->GetCurrentBlock());
     YCHECK(Blocks.back().Size() > 0);

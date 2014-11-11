@@ -103,7 +103,7 @@ void TJsonCallbacks::AccountMemory(i64 memory)
     memory += sizeof(NYTree::INodePtr);
     if (ConsumedMemory_ + memory > MemoryLimit_) {
         THROW_ERROR_EXCEPTION(
-            "Memory limit exceeded while parsing JSON: allocated %" PRId64 ", limit %" PRId64,
+            "Memory limit exceeded while parsing JSON: allocated %v, limit %v",
             ConsumedMemory_ + memory,
             MemoryLimit_);
     }

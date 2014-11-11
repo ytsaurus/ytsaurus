@@ -330,7 +330,7 @@ private:
             }
         }
 
-        LOG_DEBUG("Reading rows %" PRId64 "-%" PRId64,
+        LOG_DEBUG("Reading rows %v-%v",
             chunkReader->StartRowIndex,
             chunkReader->EndRowIndex);
 
@@ -569,7 +569,7 @@ private:
         }
 
         while (true) {
-            LOG_TRACE("Validating row %" PRId64, chunkReader->CurrentRowIndex);
+            LOG_TRACE("Validating row %v", chunkReader->CurrentRowIndex);
             if (!chunkReader->GetFacade()) {
                 // We have already exceed right reading limit.
                 break;

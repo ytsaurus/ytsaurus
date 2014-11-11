@@ -126,7 +126,7 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig)
     auto newAddresses = newConfig->Addresses;
 
     if (addresses.size() != newAddresses.size()) {
-        THROW_ERROR_EXCEPTION("Cannot change cell size from %" PRISZT " to %" PRISZT,
+        THROW_ERROR_EXCEPTION("Cannot change cell size from %v to %v",
             addresses.size(),
             newAddresses.size());
     }

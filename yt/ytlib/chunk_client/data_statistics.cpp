@@ -76,8 +76,7 @@ void Serialize(const TDataStatistics& statistics, NYson::IYsonConsumer* consumer
 Stroka ToString(const TDataStatistics& statistics)
 {
     return Format(
-        "UncompressedDataSize: %v, CompressedDataSize: %" PRId64
-        ", RowCount: %v, ChunkCount: %v",
+        "UncompressedDataSize: %v, CompressedDataSize: %v, RowCount: %v, ChunkCount: %v",
         statistics.uncompressed_data_size(),
         statistics.compressed_data_size(),
         statistics.row_count(),

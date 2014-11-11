@@ -400,7 +400,7 @@ public:
     {
         ProtocolVersion_ = ReadInt64();
         if (ProtocolVersion_ != CurrentProtocolVersion) {
-            THROW_ERROR_EXCEPTION("Unsupported wire protocol version %" PRId64,
+            THROW_ERROR_EXCEPTION("Unsupported wire protocol version %v",
                 ProtocolVersion_);
         }
     }
@@ -501,8 +501,8 @@ private:
             case EValueType::String:
             case EValueType::Any:
                 if (value->Length > MaxStringValueLength) {
-                    THROW_ERROR_EXCEPTION("Value is too long: length %" PRId64 ", limit %" PRId64,
-                        static_cast<i64>(value->Length),
+                    THROW_ERROR_EXCEPTION("Value is too long: length %v, limit %v",
+                        value->Length,
                         MaxStringValueLength);
                 }
                 value->Data.String = UnalignedPool_.AllocateUnaligned(value->Length);

@@ -63,7 +63,7 @@ void TChunkWriterBase::CheckBufferCapacity()
 {
     if (Config->MaxBufferSize < CurrentBufferCapacity) {
         State.Fail(TError(
-            "\"max_buffer_size\" limit too low: %" PRId64 " < %" PRId64,
+            "\"max_buffer_size\" limit too low: %v < %v",
             Config->MaxBufferSize,
             CurrentBufferCapacity));
     }
@@ -131,7 +131,7 @@ void TChunkWriterBase::AdjustBufferHeap(int updatedBufferIndex)
 
 void TChunkWriterBase::PopBufferHeap()
 {
-    LOG_DEBUG("Block is finished (CurrentBufferCapacity: %" PRId64 ", CurrentBlockSize: %" PRId64 ")",
+    LOG_DEBUG("Block is finished (CurrentBufferCapacity: %v, CurrentBlockSize: %v)",
         CurrentBufferCapacity,
         BuffersHeap.front()->GetDataSize());
 

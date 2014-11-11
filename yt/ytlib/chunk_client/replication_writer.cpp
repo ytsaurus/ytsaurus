@@ -671,7 +671,7 @@ void TReplicationWriter::OnWindowShifted(int lastFlushedBlock)
         if (group->GetEndBlockIndex() > lastFlushedBlock)
             return;
 
-        LOG_DEBUG("Window shifted (Blocks: %v-%v, Size: %" PRId64 ")",
+        LOG_DEBUG("Window shifted (Blocks: %v-%v, Size: %v)",
             group->GetStartBlockIndex(),
             group->GetEndBlockIndex(),
             group->GetSize());

@@ -245,7 +245,7 @@ TFileChunkReaderPtr TFileChunkReaderProvider::CreateReader(
     }
 
     LOG_INFO(
-        "Creating file chunk reader (StartOffset: %" PRId64 ", EndOffset: %" PRId64 ")",
+        "Creating file chunk reader (StartOffset: %v, EndOffset: %v)",
         startOffset,
         endOffset);
 

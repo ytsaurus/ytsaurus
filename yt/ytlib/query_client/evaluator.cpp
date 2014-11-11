@@ -324,7 +324,7 @@ public:
                     THROW_ERROR_EXCEPTION_IF_FAILED(error);
                 }
 
-                LOG_DEBUG("Finished evaluating plan fragment (RowBufferCapacity: %" PRISZT ", ScratchSpaceCapacity: %" PRISZT ")",
+                LOG_DEBUG("Finished evaluating plan fragment (RowBufferCapacity: %v, ScratchSpaceCapacity: %v)",
                     rowBuffer.GetCapacity(),
                     scratchSpace.GetCapacity());
 
