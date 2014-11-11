@@ -80,9 +80,15 @@ def _get_read_from_yt_command(yt_client, src, format, fastbone):
     if fastbone:
         hosts = "hosts/fb"
 
-    return """PATH=".:$PATH" PYTHONPATH=. YT_RETRY_READ=1 YT_TOKEN={0} YT_HOSTS="{1}" """\
-           """yt2 read "{2}"'[#'"${{start}}"':#'"${{end}}"']' --format '{3}' --proxy {4}"""\
-           .format(token, hosts, src, format, yt_client.proxy)
+    command = """PATH=".:$PATH" PYTHONPATH=. YT_RETRY_READ=1 YT_TOKEN={0} YT_HOSTS="{1}" """\
+              """yt2 read "{2}"'[#'"${{start}}"':#'"${{end}}"']' --format '{3}' --proxy {4}"""\
+              .format(token, hosts, src, format, yt_client.proxy)
+
+    transaction = yt_client._get_transaction()[0]
+    if yt_client._get_transaction()[0] != "0-0-0-0":
+        command += " --tx " + transaction
+
+    return command
 
 def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pack=False):
     files = []
@@ -270,11 +276,6 @@ while True:
     count += 1""",
         tmp_dir)
 
-    files = _prepare_read_from_yt_command(yt_client, src, "<has_subkey=true;lenval=true>yamr", tmp_dir, fastbone, pack=True)
-    files.append(lenval_to_nums_file)
-
-    command = "python lenval_to_nums.py | bash read_from_yt.sh"
-
     try:
         with yt_client.PingableTransaction():
             yt_client.lock(src, mode="snapshot")
@@ -286,6 +287,11 @@ while True:
             temp_yamr_table = "tmp/yt/" + generate_uuid()
             yamr_client.write(temp_yamr_table,
                               "".join(["\t".join(map(str, range)) + "\n" for range in ranges]))
+
+            files = _prepare_read_from_yt_command(yt_client, src, "<has_subkey=true;lenval=true>yamr", tmp_dir, fastbone, pack=True)
+            files.append(lenval_to_nums_file)
+
+            command = "python lenval_to_nums.py | bash read_from_yt.sh"
 
             yamr_client.run_map(command, temp_yamr_table, dst, files=files,
                                 opts="-subkey -lenval -jobcount {0} -opt cpu.intensive.mode=1".format(job_count))
