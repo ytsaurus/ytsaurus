@@ -363,7 +363,7 @@ void Deserialize(TChannel& channel, INodePtr node)
                     }
 
                     default:
-                        THROW_ERROR_EXCEPTION("Channel range description cannot contain %d items",
+                        THROW_ERROR_EXCEPTION("Channel range description cannot contain %v items",
                             listChild->GetChildCount());
                 };
                 break;

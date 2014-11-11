@@ -107,7 +107,7 @@ void TClusterDirectory::UpdateCluster(
 {
     auto addNewCluster = [&] (const TCluster& cluster) {
         if (CellTagToCluster_.find(cluster.CellTag) != CellTagToCluster_.end()) {
-            THROW_ERROR_EXCEPTION("Duplicate cell id %d", cluster.CellTag);
+            THROW_ERROR_EXCEPTION("Duplicate cell id %v", cluster.CellTag);
         }
         CellTagToCluster_[cluster.CellTag] = cluster;
         NameToCluster_[cluster.Name] = cluster;

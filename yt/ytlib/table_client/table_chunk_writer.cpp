@@ -367,7 +367,7 @@ TAsyncError TTableChunkWriter::Close()
 {
     YASSERT(!State.IsClosed());
 
-    LOG_DEBUG("Closing writer (KeyColumnCount: %d)", static_cast<int>(ColumnNames.size()));
+    LOG_DEBUG("Closing writer (KeyColumnCount: %v)", ColumnNames.size());
 
     if (SamplesExt.items_size() == 0) {
         SamplesExt.add_items()->CopyFrom(FirstSample);

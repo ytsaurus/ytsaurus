@@ -60,7 +60,7 @@ void TFileChunkWriter::FlushBlock()
     if (Buffer.IsEmpty())
         return;
 
-    LOG_INFO("Writing block (BlockIndex: %d)", BlockCount);
+    LOG_INFO("Writing block (BlockIndex: %v)", BlockCount);
     auto* block = BlocksExt.add_blocks();
     block->set_size(Buffer.Size());
 
@@ -113,8 +113,8 @@ void TFileChunkWriter::OnFinalBlocksWritten(TError error)
 
 void TFileChunkWriter::Write(const TRef& data)
 {
-    LOG_DEBUG("Writing data (Size: %d)",
-        static_cast<int>(data.Size()));
+    LOG_DEBUG("Writing data (Size: %v)",
+        data.Size());
 
     if (data.Empty())
         return;

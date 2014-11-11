@@ -57,8 +57,8 @@ void TSamplesFetcher::AddChunk(TRefCountedChunkSpecPtr chunk)
 
 TAsyncError TSamplesFetcher::Fetch()
 {
-    LOG_DEBUG("Started fetching chunk samples (ChunkCount: %d, DesiredSampleCount: %" PRId64 ")",
-        static_cast<int>(Chunks_.size()),
+    LOG_DEBUG("Started fetching chunk samples (ChunkCount: %v, DesiredSampleCount: %v)",
+        Chunks_.size(),
         DesiredSampleCount_);
 
     if (TotalDataSize_ < DesiredSampleCount_) {
@@ -135,7 +135,7 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
             continue;
         }
 
-        LOG_TRACE("Received %d samples for chunk #%d",
+        LOG_TRACE("Received %v samples for chunk #%v",
             sampleResponse.keys_size(),
             requestedChunkIndexes[index]);
 

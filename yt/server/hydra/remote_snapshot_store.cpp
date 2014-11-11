@@ -191,7 +191,7 @@ private:
 
     ISnapshotReaderPtr DoCreateReader(int snapshotId)
     {
-        LOG_DEBUG("Requesting parameters for snapshot %d from remote store",
+        LOG_DEBUG("Requesting parameters for snapshot %v from remote store",
             snapshotId);
 
         auto remotePath = GetRemotePath(snapshotId);

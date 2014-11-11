@@ -217,7 +217,7 @@ private:
 
     void ScheduleBufferFlush(TBuffer* buffer)
     {
-        LOG_DEBUG("Scheduling table chunk flush (BufferIndex: %d)",
+        LOG_DEBUG("Scheduling table chunk flush (BufferIndex: %v)",
             buffer->GetIndex());
 
         TDispatcher::Get()->GetWriterInvoker()->Invoke(BIND(
@@ -260,7 +260,7 @@ private:
             }
 
             writer->Close();
-            LOG_DEBUG("Buffered table chunk flushed successfully (BufferIndex: %d)",
+            LOG_DEBUG("Buffered table chunk flushed successfully (BufferIndex: %v)",
                 buffer->GetIndex());
 
             buffer->Clear();
@@ -271,7 +271,7 @@ private:
                 EmptyBuffers_.push(buffer);
             }
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Buffered table chunk write failed, will retry later (BufferIndex: %d)",
+            LOG_WARNING(ex, "Buffered table chunk write failed, will retry later (BufferIndex: %v)",
                 buffer->GetIndex());
 
             ScheduleDelayedRetry(buffer);

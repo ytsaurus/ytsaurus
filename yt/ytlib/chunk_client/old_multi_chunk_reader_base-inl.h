@@ -116,7 +116,7 @@ TOldMultiChunkReaderBase<TChunkReader>::TOldMultiChunkReaderBase(
         PrefetchWindow = std::min(PrefetchWindow, MaxPrefetchWindow);
     }
 
-    LOG_DEBUG("Preparing reader (PrefetchWindow: %d)", PrefetchWindow);
+    LOG_DEBUG("Preparing reader (PrefetchWindow: %v)", PrefetchWindow);
 }
 
 template <class TChunkReader>
@@ -187,7 +187,7 @@ void TOldMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
 template <class TChunkReader>
 void TOldMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(const TSession& session)
 {
-    LOG_DEBUG("Chunk opened (ChunkIndex: %d)", session.ChunkIndex);
+    LOG_DEBUG("Chunk opened (ChunkIndex: %v)", session.ChunkIndex);
     ReaderProvider->OnReaderOpened(session.Reader, ChunkSpecs[session.ChunkIndex]);
 
     FetchingCompleteAwaiter->Await(session.Reader->GetFetchingCompleteEvent());

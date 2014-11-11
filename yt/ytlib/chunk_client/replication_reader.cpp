@@ -438,7 +438,7 @@ protected:
             return;
 
         int passCount = reader->Config_->PassCount;
-        LOG_INFO("Pass completed: %d of %d",
+        LOG_INFO("Pass completed: %v of %v",
             PassIndex_ + 1,
             passCount);
 
@@ -760,7 +760,7 @@ private:
             int blockIndex = req->block_indexes(index);
             TBlockId blockId(reader->ChunkId_, blockIndex);
 
-            LOG_INFO("Block received (Block: %d)",
+            LOG_INFO("Block received (Block: %v)",
                 blockIndex);
 
             // Only keep source address if P2P is on.
@@ -803,7 +803,7 @@ private:
             BanPeer(adddress);
         }
 
-        LOG_INFO("Finished processing block response (BlocksReceived: %d, BytesReceived: %" PRId64 ")",
+        LOG_INFO("Finished processing block response (BlocksReceived: %v, BytesReceived: %v)",
             blocksReceived,
             bytesReceived);
 
@@ -1025,7 +1025,7 @@ private:
             BanPeer(address);
         }
 
-        LOG_INFO("Finished processing block response (BlocksReceived: %d, BytesReceived: %" PRId64 ")",
+        LOG_INFO("Finished processing block response (BlocksReceived: %v, BytesReceived: %v)",
             blocksReceived,
             bytesReceived);
 
@@ -1035,7 +1035,7 @@ private:
 
     void OnSessionSucceeded()
     {
-        LOG_INFO("Some blocks are fetched (Blocks: %d-%d)",
+        LOG_INFO("Some blocks are fetched (Blocks: %v-%v)",
             FirstBlockIndex_,
             FirstBlockIndex_ + static_cast<int>(FetchedBlocks_.size()) - 1);
 

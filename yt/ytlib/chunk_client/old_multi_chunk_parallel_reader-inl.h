@@ -111,7 +111,7 @@ void TOldMultiChunkParallelReader<TChunkReader>::FinishReader(
 {
     VERIFY_THREAD_AFFINITY(TBase::ReaderThread);
 
-    LOG_DEBUG("Reader finished (ChunkIndex: %d)", session.ChunkIndex);
+    LOG_DEBUG("Reader finished (ChunkIndex: %v)", session.ChunkIndex);
 
     if (ReaderProvider->KeepInMemory()) {
         CompleteSessions[session.ChunkIndex] = session;

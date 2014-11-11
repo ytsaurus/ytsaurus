@@ -51,8 +51,8 @@ TAsyncError TFetcherBase::Fetch()
 
 void TFetcherBase::StartFetchingRound()
 {
-    LOG_DEBUG("Start fetching round (UnfetchedChunkCount: %d)",
-        static_cast<int>(UnfetchedChunkIndexes_.size()));
+    LOG_DEBUG("Start fetching round (UnfetchedChunkCount: %v)",
+        UnfetchedChunkIndexes_.size());
 
     // Construct address -> chunk* map.
     typedef yhash_map<TNodeId, std::vector<int> > TNodeIdToChunkIndexes;

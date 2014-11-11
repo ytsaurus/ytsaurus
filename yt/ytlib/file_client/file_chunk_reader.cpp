@@ -73,7 +73,7 @@ void TFileChunkReader::OnGotMeta(NChunkClient::IChunkReader::TGetMetaResult resu
     }
 
     if (chunkMeta.version() != FormatVersion) {
-        auto error = TError("Invalid file chunk format version: expected %d, actual %d",
+        auto error = TError("Invalid file chunk format version: expected %v, actual %v",
             FormatVersion,
             chunkMeta.version());
         LOG_WARNING(error);

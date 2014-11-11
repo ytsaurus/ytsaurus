@@ -33,7 +33,7 @@ TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
     TTransactionId transactionId)
 {
     auto uploadReplicationFactor = std::min(options->ReplicationFactor, config->UploadReplicationFactor);
-    LOG_DEBUG("Creating chunk (ReplicationFactor: %d, UploadReplicationFactor: %d)",
+    LOG_DEBUG("Creating chunk (ReplicationFactor: %v, UploadReplicationFactor: %v)",
         options->ReplicationFactor,
         uploadReplicationFactor);
 

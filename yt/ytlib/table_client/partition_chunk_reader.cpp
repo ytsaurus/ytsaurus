@@ -83,11 +83,11 @@ void TPartitionChunkReader::OnGotMeta(IChunkReader::TGetMetaResult result)
     const auto& chunkMeta = result.Value();
 
     if (chunkMeta.type() != EChunkType::Table) {
-        LOG_FATAL("Invalid chunk type %d", chunkMeta.type());
+        LOG_FATAL("Invalid chunk type %v", chunkMeta.type());
     }
 
     if (chunkMeta.version() != FormatVersion) {
-        OnFail(TError("Invalid chunk format version: expected %d, actual %d",
+        OnFail(TError("Invalid chunk format version: expected %v, actual %v",
             FormatVersion,
             chunkMeta.version()));
         return;
@@ -114,8 +114,8 @@ void TPartitionChunkReader::OnGotMeta(IChunkReader::TGetMetaResult result)
         UncompressedBlockCache,
         CodecId);
 
-    LOG_INFO("Reading %d blocks for partition %d",
-        static_cast<int>(blockSequence.size()),
+    LOG_INFO("Reading %v blocks for partition %v",
+        blockSequence.size(),
         PartitionTag);
 
     Blocks.reserve(blockSequence.size());

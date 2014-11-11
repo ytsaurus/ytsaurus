@@ -70,9 +70,9 @@ private:
         }
 
         if (fields.size() != fieldNames.size()) {
-            THROW_ERROR_EXCEPTION("Invalid number of key fields in YAMRed DSV: expected %d, actual %d",
-                static_cast<int>(fieldNames.size()),
-                static_cast<int>(fields.size()));
+            THROW_ERROR_EXCEPTION("Invalid number of key fields in YAMRed DSV: expected %v, actual %v",
+                fieldNames.size(),
+                fields.size());
         }
 
         for (int i = 0; i < fields.size(); ++i) {

@@ -647,7 +647,7 @@ bool TMemory::IsOomEnabled() const
     const auto path = NFS::CombinePaths(GetFullPath(), "memory.oom_control");
     auto values = ReadAllValues(path);
     if (values.size() != 4) {
-        THROW_ERROR_EXCEPTION("Unable to parse %Qv: expected 4 values, got %d", path, values.size());
+        THROW_ERROR_EXCEPTION("Unable to parse %Qv: expected 4 values, got %v", path, values.size());
     }
     for (int i = 0; i < 2; ++i) {
         if (values[2 * i] == "oom_kill_disable") {

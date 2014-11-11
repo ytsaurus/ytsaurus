@@ -42,7 +42,7 @@ void TTableConsumer::OnInt64Scalar(i64 value)
             case EControlAttribute::TableIndex: {
                 if (value < 0 || value >= Writers.size()) {
                     THROW_ERROR_EXCEPTION(
-                        "Invalid table index: expected in range [0, %d], actual %" PRId64,
+                        "Invalid table index: expected in range [0, %v], actual %v",
                         static_cast<int>(Writers.size()) - 1,
                         value)
                         << TErrorAttribute("row_index", Writer->GetRowCount());
@@ -240,7 +240,7 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
 
         if (RowBuffer.Size() > NTableClient::MaxRowWeightLimit) {
             THROW_ERROR_EXCEPTION(
-                "Row weight is too large (%d > %" PRId64 ")",
+                "Row weight is too large (%v > %v)",
                 RowBuffer.Size(),
                 NTableClient::MaxRowWeightLimit);
         }

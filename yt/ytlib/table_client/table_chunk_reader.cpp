@@ -351,7 +351,7 @@ private:
         LOG_DEBUG("Selected channels [%v]", JoinToString(SelectedChannels));
 
         auto blockSequence = GetBlockReadSequence(chunkReader);
-        LOG_DEBUG("Reading %d blocks", static_cast<int>(blockSequence.size()));
+        LOG_DEBUG("Reading %v blocks", blockSequence.size());
 
         chunkReader->SequentialReader = New<TSequentialReader>(
             SequentialConfig,
@@ -506,10 +506,10 @@ private:
 
         auto& channelIdx = SelectedChannels[selectedChannelIndex];
 
-        LOG_DEBUG("Fetched starting block for channel %d", channelIdx);
+        LOG_DEBUG("Fetched starting block for channel %v", channelIdx);
 
         if (!error.IsOK()) {
-            auto error = TError("Failed to download starting block for channel %d",
+            auto error = TError("Failed to download starting block for channel %v",
                 channelIdx);
             OnFail(error, chunkReader);
             return;
@@ -530,7 +530,7 @@ private:
             YCHECK(channelReader->NextRow());
         }
 
-        LOG_DEBUG("Skipped initial rows for channel %d", channelIdx);
+        LOG_DEBUG("Skipped initial rows for channel %v", channelIdx);
 
         ++selectedChannelIndex;
         if (selectedChannelIndex < SelectedChannels.size()) {
@@ -702,7 +702,7 @@ public:
         }
 
         if (blockSequence.empty()) {
-            LOG_DEBUG("Nothing to read for partition %d", chunkReader->PartitionTag);
+            LOG_DEBUG("Nothing to read for partition %v", chunkReader->PartitionTag);
             chunkReader->CurrentRowIndex = chunkReader->EndRowIndex;
             chunkReader->Initializer.Reset();
             chunkReader->IsFinished = true;
@@ -717,8 +717,8 @@ public:
             UncompressedBlockCache,
             NCompression::ECodec(miscExt.compression_codec()));
 
-        LOG_DEBUG("Reading %d blocks for partition %d",
-            static_cast<int>(blockSequence.size()),
+        LOG_DEBUG("Reading %v blocks for partition %v",
+            blockSequence.size(),
             chunkReader->PartitionTag);
 
         chunkReader->ChannelReaders.push_back(New<TChannelReader>(

@@ -25,8 +25,8 @@ TOldMultiChunkSequentialReader<TChunkReader>::TOldMultiChunkSequentialReader(
         readerProvider)
     , CurrentReaderIndex(-1)
 {
-    LOG_DEBUG("Multi chunk sequential reader created (ChunkCount: %d)",
-        static_cast<int>(ChunkSpecs.size()));
+    LOG_DEBUG("Multi chunk sequential reader created (ChunkCount: %v)",
+        ChunkSpecs.size());
 
     Sessions.reserve(ChunkSpecs.size());
     for (int i = 0; i < static_cast<int>(ChunkSpecs.size()); ++i) {
@@ -66,7 +66,7 @@ void TOldMultiChunkSequentialReader<TChunkReader>::OnReaderOpened(
         TBase::AddFailedChunk(session);
         State.Fail(error);
     } else {
-        LOG_DEBUG("Chunk opened (ChunkIndex: %d)", session.ChunkIndex);
+        LOG_DEBUG("Chunk opened (ChunkIndex: %v)", session.ChunkIndex);
         TBase::ProcessOpenedReader(session);
     }
     Sessions[session.ChunkIndex].Set(session);
@@ -80,7 +80,7 @@ void TOldMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk(
         Sessions[CurrentReaderIndex - 1].Reset();
     }
 
-    LOG_DEBUG("Switching to reader %d", CurrentReaderIndex);
+    LOG_DEBUG("Switching to reader %v", CurrentReaderIndex);
     YCHECK(!CurrentSession.Reader);
 
     if (nextSession.Reader) {

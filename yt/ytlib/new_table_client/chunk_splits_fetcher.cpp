@@ -51,8 +51,8 @@ TChunkSplitsFetcher::TChunkSplitsFetcher(
 
 TAsyncError TChunkSplitsFetcher::Fetch()
 {
-    LOG_DEBUG("Started fetching chunk splits (ChunkCount: %d)",
-        static_cast<int>(Chunks_.size()));
+    LOG_DEBUG("Started fetching chunk splits (ChunkCount: %v)",
+        Chunks_.size());
     return TFetcherBase::Fetch();
 }
 
@@ -125,7 +125,7 @@ void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
             continue;
         }
 
-        LOG_TRACE("Received %d chunk splits for chunk #%d",
+        LOG_TRACE("Received %v chunk splits for chunk #%v",
             responseChunks.chunk_specs_size(),
             requestedChunkIndexes[i]);
 
