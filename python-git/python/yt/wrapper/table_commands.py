@@ -52,7 +52,7 @@ import config
 import py_wrapper
 from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, \
                    is_prefix, get_value, compose, bool_to_string, chunk_iter_lines, get_version, MB
-from errors import YtError, YtNetworkError
+from errors import YtError, YtNetworkError, format_error
 from driver import read_content, get_host_for_heavy_operation, make_request, ResponseStream
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
@@ -542,7 +542,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 except YtNetworkError as err:
                     if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
                         raise
-                    logger.warning(str(err))
+                    logger.warning(format_error(err))
                     logger.warning("New retry (%d) ...", attempt + 2)
 
         def iter_with_retries(iter):
@@ -554,7 +554,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                     except tuple(list(NETWORK_ERRORS) + [YtNetworkError]) as err:
                         if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
                             raise
-                        logger.warning(str(err))
+                        logger.warning(format_error(err))
                         logger.warning("New retry (%d) ...", attempt + 2)
             except exceptions.GeneratorExit:
                 tx.__exit__(None, None, None)
