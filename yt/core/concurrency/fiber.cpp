@@ -311,7 +311,7 @@ private:
 
 class TFiber::TImpl
 {
-    DEFINE_BYVAL_RO_PROPERTY(EFiberState, State);
+    std::atomic<int> State_;
 
 public:
     TImpl(TFiber* owner)
@@ -341,11 +341,11 @@ public:
 
         // Root fiber can never be destroyed.
         YCHECK(!(
-            State_ == EFiberState::Running &&
+            State_.load() == EFiberState::Running &&
             !Stack_ &&
             Callee_));
 
-        if (State_ == EFiberState::Suspended) {
+        if (State_.load() == EFiberState::Suspended) {
             // Most likely that the fiber has been abandoned
             // after being submitted to an invoker.
             // Give the callee the last chance to finish.
@@ -353,9 +353,9 @@ public:
         }
 
         YCHECK(
-            State_ == EFiberState::Initialized ||
-            State_ == EFiberState::Terminated ||
-            State_ == EFiberState::Exception);
+            State_.load() == EFiberState::Initialized ||
+            State_.load() == EFiberState::Terminated ||
+            State_.load() == EFiberState::Exception);
 
         for (int index = 0; index < static_cast<int>(Fls_.size()); ++index) {
             FlsRegistry[index].Dtor(Fls_[index]);
@@ -367,6 +367,11 @@ public:
         InitTls();
 
         return CurrentFiber;
+    }
+
+    EFiberState GetState() const
+    {
+        return EFiberState(State_);
     }
 
     bool Yielded() const
@@ -388,8 +393,8 @@ public:
     void Run()
     {
         YCHECK(
-            State_ == EFiberState::Initialized ||
-            State_ == EFiberState::Suspended);
+            State_.load() == EFiberState::Initialized ||
+            State_.load() == EFiberState::Suspended);
 
         YCHECK(!Caller_);
         Caller_ = TFiber::GetCurrent();
@@ -398,12 +403,12 @@ public:
         }
         SetCurrent(Owner_);
 
-        YCHECK(Caller_->Impl_->State_ == EFiberState::Running);
+        YCHECK(Caller_->Impl_->State_.load() == EFiberState::Running);
         State_ = EFiberState::Running;
 
         Caller_->Impl_->TransferTo(this);
 
-        YCHECK(Caller_->Impl_->State_ == EFiberState::Running);
+        YCHECK(Caller_->Impl_->State_.load() == EFiberState::Running);
 
         SetCurrent(Caller_);
         if (Caller_ && !Caller_->IsTerminating()) {
@@ -418,11 +423,11 @@ public:
         WaitFor_.Swap(waitFor);
 
         YCHECK(
-            State_ == EFiberState::Terminated ||
-            State_ == EFiberState::Exception ||
-            State_ == EFiberState::Suspended);
+            State_.load() == EFiberState::Terminated ||
+            State_.load() == EFiberState::Exception ||
+            State_.load() == EFiberState::Suspended);
 
-        if (State_ == EFiberState::Exception) {
+        if (State_.load() == EFiberState::Exception) {
             // Rethrow the propagated exception.
 
             YCHECK(!Canceled_);
@@ -453,12 +458,12 @@ public:
         // from a root fiber.
         YCHECK(Caller_);
 
-        YCHECK(State_ == EFiberState::Running);
+        YCHECK(State_.load() == EFiberState::Running);
         State_ = EFiberState::Suspended;
         Yielded_ = true;
 
         TransferTo(Caller_->Impl_.get());
-        YCHECK(State_ == EFiberState::Running);
+        YCHECK(State_.load() == EFiberState::Running);
 
         // Throw TFiberTerminatedException if cancellation is requested.
         if (Canceled_) {
@@ -480,9 +485,9 @@ public:
         YASSERT(!Caller_);
         YASSERT(Exception_ == std::exception_ptr());
         YCHECK(
-            State_ == EFiberState::Initialized ||
-            State_ == EFiberState::Terminated ||
-            State_ == EFiberState::Exception);
+            State_.load() == EFiberState::Initialized ||
+            State_.load() == EFiberState::Terminated ||
+            State_.load() == EFiberState::Exception);
 
         Context_.Reset(
             Stack_->GetStack(),
@@ -504,15 +509,15 @@ public:
     {
         YCHECK(exception);
         YCHECK(
-            State_ == EFiberState::Initialized ||
-            State_ == EFiberState::Suspended);
+            State_.load() == EFiberState::Initialized ||
+            State_.load() == EFiberState::Suspended);
 
         Exception_ = std::move(exception);
     }
 
     void Cancel()
     {
-        switch (State_) {
+        switch (State_.load()) {
             case EFiberState::Initialized:
             case EFiberState::Terminated:
             case EFiberState::Exception:
@@ -708,11 +713,11 @@ private:
             State_ = EFiberState::Terminated;
         } else {
             try {
-                YCHECK(State_ == EFiberState::Running);
+                YCHECK(State_.load() == EFiberState::Running);
 
                 Callee_.Run();
 
-                YCHECK(State_ == EFiberState::Running);
+                YCHECK(State_.load() == EFiberState::Running);
                 State_ = EFiberState::Terminated;
             } catch (const TFiberTerminatedException&) {
                 // Thrown intentionally, ignore.
