@@ -472,16 +472,13 @@ void TStoreManager::OnRowBlocked(
     TDynamicRow row,
     int lockIndex)
 {
-    const auto& lock = row.BeginLocks(KeyColumnCount_)[lockIndex];
-    const auto* transaction = lock.Transaction;
     WaitFor(
         BIND(
             &TStoreManager::WaitForBlockedRow,
             MakeStrong(this),
             MakeStrong(store),
             row,
-            lockIndex,
-            transaction->GetId())
+            lockIndex)
         .AsyncVia(slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read))
         .Run());
 }
@@ -489,18 +486,17 @@ void TStoreManager::OnRowBlocked(
 void TStoreManager::WaitForBlockedRow(
     IStorePtr /*store*/,
     TDynamicRow row,
-    int lockIndex,
-    const TTransactionId& transactionId)
+    int lockIndex)
 {
-    auto transactionManager = Tablet_->GetSlot()->GetTransactionManager();
-    auto* transaction = transactionManager->FindTransaction(transactionId);
+    const auto& lock = row.BeginLocks(KeyColumnCount_)[lockIndex];
+    const auto* transaction = lock.Transaction;
     if (!transaction)
         return;
 
     LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v)",
         RowToKey(Tablet_, row),
         lockIndex,
-        transactionId);
+        transaction->GetId());
     WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum));
 }
 

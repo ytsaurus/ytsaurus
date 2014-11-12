@@ -110,8 +110,7 @@ private:
     void WaitForBlockedRow(
         IStorePtr store,
         TDynamicRow row,
-        int lockIndex,
-        const TTransactionId& transactionId);
+        int lockIndex);
 
 };
 
