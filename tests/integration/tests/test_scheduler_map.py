@@ -135,11 +135,12 @@ class TestEventLog(YTEnvSetup):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write('//tmp/t1', [{"a": "b"}])
-        op_id = map(in_='//tmp/t1', out='//tmp/t2', command="cat; sync; echo 1 | sudo tee /proc/sys/vm/drop_caches 1>/dev/null; sudo dd if=/dev/sda of=something bs=4K count=1000 1>/dev/null; sleep 2")
+        op_id = map(in_='//tmp/t1', out='//tmp/t2', command="cat; sudo dd if=/dev/sda of=/dev/null bs=4K count=1000 iflag=direct 1>/dev/null;")
 
         # wait for scheduler to dump the event log
         time.sleep(6)
         res = read('//sys/scheduler/event_log')
+        total_sectors = None
         exist = False
         job_completed_line_exist = False
         for item in res:
@@ -148,10 +149,9 @@ class TestEventLog(YTEnvSetup):
                 stats = item['statistics']
                 for key in ['cpu', 'block_io']:
                     assert key in stats
-                if int(stats['block_io']['total_sectors']) > 0:
-                    exist = True
+                total_sectors = int(stats['block_io']['total_sectors'])
         assert job_completed_line_exist
-        assert exist
+        assert total_sectors == 8000
 
 
 class TestSchedulerMapCommands(YTEnvSetup):
