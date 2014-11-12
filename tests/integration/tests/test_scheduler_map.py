@@ -11,6 +11,83 @@ from yt_commands import *
 
 ##################################################################
 
+class TestWoodpecker(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        'scheduler' : {
+            'event_log' : {
+                'flush_period' : 5000
+            }
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        'exec_agent' : {
+            'slot_manager' : {
+                'enable_cgroups' : 'false'
+            },
+            'force_enable_accounting' : 'true',
+            'iops_threshold' : 5,
+            'block_io_watchdog_period' : 8000
+        }
+    }
+
+    FAIL_IF_HIT_LIMIT="""
+sleep 10
+
+CURRENT_BLKIO_CGROUP=/sys/fs/cgroup/blkio`grep blkio /proc/self/cgroup | cut -d: -f 3`
+echo Current blkio cgroup: $CURRENT_BLKIO_CGROUP >&2
+
+echo "blkio.io_serviced content:" >&2
+cat $CURRENT_BLKIO_CGROUP/blkio.io_serviced >&2
+echo '===' >&2
+
+echo "blkio.throttle.read_iops_device content:" >&2
+CONTENT=`cat $CURRENT_BLKIO_CGROUP/blkio.throttle.read_iops_device`
+echo $CONTENT >&2
+echo $CONTENT | grep ' 5' 1>/dev/null
+"""
+    def _get_stderr(self, op_id):
+        jobs_path = '//sys/operations/' + op_id + '/jobs'
+        for job_id in ls(jobs_path):
+            return download(jobs_path + '/' + job_id + '/stderr')
+
+    @pytest.mark.skipif("socket.gethostname() != 'build01-01g'")
+    def test_hitlimit(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write('//tmp/t1', [{"a": "b"}])
+        command="""cat
+sudo dd if=/dev/sda of=/dev/null bs=16K count=100 iflag=direct 1>/dev/null
+"""
+        command += self.FAIL_IF_HIT_LIMIT
+        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=1'])
+
+        track_op(op_id)
+        print self._get_stderr(op_id)
+
+    @pytest.mark.skipif("socket.gethostname() != 'build01-01g'")
+    def test_do_not_hitlimit(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write('//tmp/t1', [{"a": "b"}])
+        command="""
+cat
+sudo dd if=/dev/sda of=/dev/null bs=1600K count=1 iflag=direct 1>/dev/null
+"""
+        command += self.FAIL_IF_HIT_LIMIT
+        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=1'])
+
+        with pytest.raises(YtError):
+            try:
+                track_op(op_id)
+            finally:
+                print self._get_stderr(op_id)
+
+
 class TestEventLog(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5

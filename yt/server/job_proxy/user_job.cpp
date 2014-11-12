@@ -660,7 +660,7 @@ private:
         auto period = host->GetConfig()->BlockIOWatchdogPeriod;
         auto iopsThreshold = host->GetConfig()->IopsThreshold;
 
-        if (iopsThreshold.HasValue()) {
+        if (!iopsThreshold.HasValue()) {
             return;
         }
 
@@ -674,17 +674,18 @@ private:
             auto servicedIOs = BlockIO.GetIOServiced();
 
             for (const auto& item : servicedIOs) {
-                LOG_DEBUG("%v %v operation for %v device", item.DeviceId, item.Type, item.Value);
+                LOG_DEBUG("%v %v operation for %v device", item.Value, item.Type, item.DeviceId);
 
                 auto operations = item.Value;
 
                 size_t k = 0;
-                while (k < CurrentServicedIOs.size() && item.DeviceId != CurrentServicedIOs[k].DeviceId) {
+                while (k < CurrentServicedIOs.size() && (item.DeviceId != CurrentServicedIOs[k].DeviceId || item.Type != CurrentServicedIOs[k].Type)) {
                     ++k;
                 }
 
                 if (k < CurrentServicedIOs.size()) {
                     YCHECK(item.DeviceId == CurrentServicedIOs[k].DeviceId);
+                    YCHECK(item.Type == CurrentServicedIOs[k].Type);
                     operations -= CurrentServicedIOs[k].Value;
                 }
 
