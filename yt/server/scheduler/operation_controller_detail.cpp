@@ -6,16 +6,6 @@
 #include "helpers.h"
 #include "master_connector.h"
 
-#include <core/concurrency/scheduler.h>
-
-#include <core/rpc/helpers.h>
-
-#include <core/erasure/codec.h>
-
-#include <core/ytree/fluent.h>
-#include <core/ytree/convert.h>
-#include <core/ytree/attribute_helpers.h>
-
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/helpers.h>
 
@@ -46,6 +36,18 @@
 #include <ytlib/cgroup/statistics.h>
 
 #include <ytlib/api/connection.h>
+
+#include <core/concurrency/scheduler.h>
+
+#include <core/rpc/helpers.h>
+
+#include <core/erasure/codec.h>
+
+#include <core/ytree/fluent.h>
+#include <core/ytree/convert.h>
+#include <core/ytree/attribute_helpers.h>
+
+#include <util/string/cast.h>
 
 #include <cmath>
 
@@ -99,7 +101,8 @@ void TOperationControllerBase::TInputTable::Persist(TPersistenceContext& context
     TUserTableBase::Persist(context);
 
     using NYT::Persist;
-    Persist(context, FetchResponse);
+    Persist(context, ChunkCount);
+    Persist(context, Chunks);
     Persist(context, KeyColumns);
 }
 
@@ -2555,6 +2558,65 @@ void TOperationControllerBase::ValidateFileTypes()
     LOG_INFO("File types received");
 }
 
+void TOperationControllerBase::FetchInputTables()
+{
+    TObjectServiceProxy proxy(AuthenticatedInputMasterClient->GetMasterChannel());
+    auto batchReq = proxy.ExecuteBatch();
+
+    for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
+        const auto& table = InputTables[tableIndex];
+
+        for (auto range : table.Path.GetRanges()) {
+            for (i64 index = 0; index * Config->MaxChunkCountPerFetch < table.ChunkCount; ++index) {
+                auto chunkCountLowerLimit = index * Config->MaxChunkCountPerFetch;
+                if (range.LowerLimit().HasChunkIndex()) {
+                    chunkCountLowerLimit = std::max(chunkCountLowerLimit, range.LowerLimit().GetChunkIndex());
+                }
+                range.LowerLimit().SetChunkIndex(chunkCountLowerLimit);
+
+                auto chunkCountUpperLimit = (index + 1) * Config->MaxChunkCountPerFetch;
+                if (range.UpperLimit().HasChunkIndex()) {
+                    chunkCountUpperLimit = std::min(chunkCountUpperLimit, range.UpperLimit().GetChunkIndex());
+                }
+                range.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
+
+                auto req = TTableYPathProxy::Fetch(FromObjectId(table.ObjectId));
+                InitializeFetchRequest(req.Get(), table.Path);
+                ToProto(req->mutable_ranges(), std::vector<TReadRange>({range}));
+                req->set_fetch_all_meta_extensions(true);
+                req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
+                SetTransactionId(req, Operation->GetInputTransaction());
+                batchReq->AddRequest(req, "fetch_input_table_" + ::ToString(tableIndex));
+            }
+        }
+    }
+
+    auto batchRsp = WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error fetching input tables");
+
+    for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
+        auto& table = InputTables[tableIndex];
+
+        if (table.Path.GetRanges().empty()) {
+            continue;
+        }
+
+        auto fetchRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_input_table_" + ::ToString(tableIndex));
+        for (const auto& rsp : fetchRsps) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching input table %v", table.Path.GetPath());
+
+            NodeDirectory->MergeFrom(rsp->node_directory());
+
+            for (const auto& chunk : rsp->chunks()) {
+                table.Chunks.push_back(chunk);
+            }
+        }
+        LOG_INFO("Input table fetched (Path: %v, ChunkCount: %v)",
+            table.Path.GetPath(),
+            table.Chunks.size());
+    }
+}
+
 void TOperationControllerBase::RequestInputObjects()
 {
     LOG_INFO("Requesting input objects");
@@ -2572,19 +2634,11 @@ void TOperationControllerBase::RequestInputObjects()
             batchReq->AddRequest(req, "lock_in");
         }
         {
-            auto req = TTableYPathProxy::Fetch(path);
-            ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
-            req->set_fetch_all_meta_extensions(true);
-            req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
-            InitializeFetchRequest(req.Get(), table.Path);
-            SetTransactionId(req, Operation->GetInputTransaction());
-            batchReq->AddRequest(req, "fetch_in");
-        }
-        {
             auto req = TYPathProxy::Get(path);
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("sorted");
             attributeFilter.Keys.push_back("sorted_by");
+            attributeFilter.Keys.push_back("chunk_count");
             ToProto(req->mutable_attribute_filter(), attributeFilter);
             SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "get_in_attributes");
@@ -2595,7 +2649,6 @@ void TOperationControllerBase::RequestInputObjects()
     THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error requesting input objects");
 
     {
-        auto fetchInRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_in");
         auto lockInRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_in");
         auto getInAttributesRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_in_attributes");
         for (int index = 0; index < static_cast<int>(InputTables.size()); ++index) {
@@ -2603,23 +2656,9 @@ void TOperationControllerBase::RequestInputObjects()
             auto path = table.Path.GetPath();
             {
                 auto rsp = lockInRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking input table %v",
-                    path);
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking input table %v", path);
 
-                LOG_INFO("Input table locked (Path: %v)",
-                    path);
-            }
-            {
-                auto rsp = fetchInRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching input table %v",
-                    path);
-
-                NodeDirectory->MergeFrom(rsp->node_directory());
-
-                table.FetchResponse.Swap(rsp.Get());
-                LOG_INFO("Input table fetched (Path: %v, ChunkCount: %v)",
-                    path,
-                    table.FetchResponse.chunks_size());
+                LOG_INFO("Input table locked (Path: %v)", path);
             }
             {
                 auto rsp = getInAttributesRsps[index];
@@ -2638,9 +2677,13 @@ void TOperationControllerBase::RequestInputObjects()
                     LOG_INFO("Input table is not sorted (Path: %v)",
                         path);
                 }
+
+                table.ChunkCount = attributes.Get<int>("chunk_count");
             }
         }
     }
+
+    FetchInputTables();
 
     LOG_INFO("Input object recieved");
 }
@@ -2746,6 +2789,57 @@ void TOperationControllerBase::RequestOutputObjects()
     LOG_INFO("Output objects recieved");
 }
 
+void TOperationControllerBase::FetchFileObjects()
+{
+    TObjectServiceProxy proxy(AuthenticatedMasterClient->GetMasterChannel());
+    auto batchReq = proxy.ExecuteBatch();
+
+    for (const auto& file : RegularFiles) {
+        auto path = file.Path.GetPath();
+        auto req = TFileYPathProxy::Fetch(path);
+        ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
+        SetTransactionId(req, Operation->GetInputTransaction());
+        req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+        batchReq->AddRequest(req, "fetch_regular_files");
+    }
+
+    for (const auto& file : TableFiles) {
+        auto path = file.Path.GetPath();
+        auto req = TTableYPathProxy::Fetch(path);
+        ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
+        req->set_fetch_all_meta_extensions(true);
+        InitializeFetchRequest(req.Get(), file.Path);
+        SetTransactionId(req, Operation->GetInputTransaction());
+        batchReq->AddRequest(req, "fetch_table_files");
+    }
+
+    auto batchRsp = WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error requesting file objects");
+
+    auto fetchRegularFileRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetch>("fetch_regular_files");
+    for (int index = 0; index < static_cast<int>(RegularFiles.size()); ++index) {
+        auto& file = RegularFiles[index];
+        auto rsp = fetchRegularFileRsps[index];
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching regular file %v", file.Path.GetPath());
+
+        file.FetchResponse.Swap(rsp.Get());
+
+        LOG_INFO("Regular file fetched (Path: %v)", file.Path.GetPath());
+    }
+
+    auto fetchTableFileRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_table_files");
+    for (int index = 0; index < static_cast<int>(TableFiles.size()); ++index) {
+        auto& file = TableFiles[index];
+        auto rsp = fetchTableFileRsps[index];
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching table file chunks");
+
+        NodeDirectory->MergeFrom(rsp->node_directory());
+
+        file.FetchResponse.Swap(rsp.Get());
+        LOG_INFO("Table file fetched (Path: %v)", file.Path.GetPath());
+    }
+}
+
 void TOperationControllerBase::RequestFileObjects()
 {
     LOG_INFO("Requesting file objects");
@@ -2773,15 +2867,10 @@ void TOperationControllerBase::RequestFileObjects()
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("executable");
             attributeFilter.Keys.push_back("file_name");
+            attributeFilter.Keys.push_back("chunk_count");
+            attributeFilter.Keys.push_back("uncompressed_data_size");
             ToProto(req->mutable_attribute_filter(), attributeFilter);
             batchReq->AddRequest(req, "get_regular_file_attributes");
-        }
-        {
-            auto req = TFileYPathProxy::Fetch(path);
-            ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
-            SetTransactionId(req, Operation->GetInputTransaction());
-            req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-            batchReq->AddRequest(req, "fetch_regular_file");
         }
     }
 
@@ -2795,22 +2884,18 @@ void TOperationControllerBase::RequestFileObjects()
             batchReq->AddRequest(req, "lock_table_file");
         }
         {
-            auto req = TTableYPathProxy::Fetch(path);
-            ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
-            req->set_fetch_all_meta_extensions(true);
-            InitializeFetchRequest(req.Get(), file.Path);
-            SetTransactionId(req, Operation->GetInputTransaction());
-            batchReq->AddRequest(req, "fetch_table_file_chunks");
-        }
-        {
             auto req = TYPathProxy::GetKey(path);
             SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "get_table_file_name");
         }
         {
-            auto req = TYPathProxy::Get(path + "/@uncompressed_data_size");
+            auto req = TYPathProxy::Get(path);
+            TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
+            attributeFilter.Keys.push_back("chunk_count");
+            attributeFilter.Keys.push_back("uncompressed_data_size");
+            ToProto(req->mutable_attribute_filter(), attributeFilter);
             SetTransactionId(req, Operation->GetInputTransaction());
-            batchReq->AddRequest(req, "get_table_file_size");
+            batchReq->AddRequest(req, "get_table_file_attributes");
         }
     }
 
@@ -2837,7 +2922,6 @@ void TOperationControllerBase::RequestFileObjects()
 
     {
         auto lockRegularFileRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_regular_file");
-        auto fetchRegularFileRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetch>("fetch_regular_file");
         auto getRegularFileNameRsps = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_regular_file_name");
         auto getRegularFileAttributesRsps = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_regular_file_attributes");
         for (int index = 0; index < static_cast<int>(RegularFiles.size()); ++index) {
@@ -2871,20 +2955,25 @@ void TOperationControllerBase::RequestFileObjects()
                 file.FileName = attributes.Get<Stroka>("file_name", file.FileName);
                 file.Executable = attributes.Get<bool>("executable", false);
 
-                LOG_INFO("Regular file attributes received (Path: %v)",
-                    path);
-            }
-            {
-                auto rsp = fetchRegularFileRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(
-                    *rsp,
-                    "Error fetching regular file %v",
-                    path);
+                i64 fileSize = attributes.Get<i64>("uncompressed_data_size");
+                if (fileSize > Config->MaxFileSize) {
+                    THROW_ERROR_EXCEPTION(
+                        "Regular file %v exceeds size limit: %v > %v",
+                        path,
+                        fileSize,
+                        Config->MaxFileSize);
+                }
 
-                file.FetchResponse.Swap(rsp.Get());
+                i64 chunkCount = attributes.Get<i64>("chunk_count");
+                if (chunkCount > Config->MaxChunkCountPerFetch) {
+                    THROW_ERROR_EXCEPTION(
+                        "Regular file %v exceeds chunk count limit: %v > %v",
+                        path,
+                        chunkCount,
+                        Config->MaxChunkCountPerFetch);
+                }
 
-                LOG_INFO("Regular file fetched (Path: %v)",
-                    path);
+                LOG_INFO("Regular file attributes received (Path: %v)", path);
             }
 
             file.FileName = file.Path.Attributes().Get<Stroka>("file_name", file.FileName);
@@ -2896,9 +2985,8 @@ void TOperationControllerBase::RequestFileObjects()
 
     {
         auto lockTableFileRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_table_file");
-        auto getTableFileSizeRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_table_file_size");
-        auto fetchTableFileRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_table_file_chunks");
         auto getTableFileNameRsps = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_table_file_name");
+        auto getTableFileAttributesRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_table_file_attributes");
         for (int index = 0; index < static_cast<int>(TableFiles.size()); ++index) {
             auto& file = TableFiles[index];
             auto path = file.Path.GetPath();
@@ -2911,50 +2999,50 @@ void TOperationControllerBase::RequestFileObjects()
                     path);
             }
             {
-                auto rsp = getTableFileSizeRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table file size");
-                i64 tableSize = ConvertTo<i64>(TYsonString(rsp->value()));
-                if (tableSize > Config->MaxTableFileSize) {
-                    THROW_ERROR_EXCEPTION(
-                        "Table file %v exceeds size limit: %v > %v",
-                        path,
-                        tableSize,
-                        Config->MaxTableFileSize);
-                }
-            }
-            std::vector<TChunkId> chunkIds;
-            {
-                auto rsp = fetchTableFileRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching table file chunks");
-
-                NodeDirectory->MergeFrom(rsp->node_directory());
-
-                for (const auto& chunk : rsp->chunks()) {
-                    chunkIds.push_back(FromProto<TChunkId>(chunk.chunk_id()));
-                }
-
-                file.FetchResponse.Swap(rsp.Get());
-                LOG_INFO("Table file fetched (Path: %v)",
-                    path);
-            }
-            {
                 auto rsp = getTableFileNameRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table file name");
 
                 auto key = ConvertTo<Stroka>(TYsonString(rsp->value()));
                 file.FileName = file.Path.Attributes().Get<Stroka>("file_name", key);
                 file.Format = file.Path.Attributes().GetYson("format");
+            }
+            {
+                auto rsp = getTableFileAttributesRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table file attributes");
 
-                LOG_INFO("Table file attributes received (Path: %v, FileName: %v, Format: %v, ChunkIds: [%v])",
+                auto node = ConvertToNode(TYsonString(rsp->value()));
+                const auto& attributes = node->Attributes();
+
+                i64 tableFileSize = attributes.Get<i64>("uncompressed_data_size");
+                if (tableFileSize > Config->MaxFileSize) {
+                    THROW_ERROR_EXCEPTION(
+                        "Table file %v exceeds size limit: %v > %v",
+                        path,
+                        tableFileSize,
+                        Config->MaxFileSize);
+                }
+
+                i64 chunkCount = attributes.Get<i64>("chunk_count");
+                if (chunkCount > Config->MaxChunkCountPerFetch) {
+                    THROW_ERROR_EXCEPTION(
+                        "Table file %v exceeds chunk count limit: %v > %v",
+                        path,
+                        chunkCount,
+                        Config->MaxChunkCountPerFetch);
+                }
+
+                LOG_INFO("Table file attributes received (Path: %v, FileName: %v, Format: %v, Size: %v)",
                     path,
                     file.FileName,
                     file.Format.Data(),
-                    JoinToString(chunkIds));
+                    tableFileSize);
             }
 
             validateUserFileName(file);
         }
     }
+
+    FetchFileObjects();
 
     LOG_INFO("File objects received");
 }
@@ -2962,7 +3050,7 @@ void TOperationControllerBase::RequestFileObjects()
 void TOperationControllerBase::CollectTotals()
 {
     for (const auto& table : InputTables) {
-        for (const auto& chunk : table.FetchResponse.chunks()) {
+        for (const auto& chunk : table.Chunks) {
             i64 chunkDataSize;
             i64 chunkRowCount;
             i64 chunkValueCount;
@@ -2991,7 +3079,7 @@ std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunk
     std::vector<TRefCountedChunkSpecPtr> result;
     for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
         const auto& table = InputTables[tableIndex];
-        for (const auto& chunkSpec : table.FetchResponse.chunks()) {
+        for (const auto& chunkSpec : table.Chunks) {
             auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
             if (IsUnavailable(chunkSpec, NeedsAllChunkParts())) {
                 switch (Spec->UnavailableChunkStrategy) {

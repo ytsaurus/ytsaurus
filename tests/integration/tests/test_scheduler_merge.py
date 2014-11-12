@@ -310,4 +310,13 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read('//tmp/t_in') == [v, v, v, v]
         assert get('//tmp/t_in/@chunk_count') == 3 # only result of merge is combined
 
+    def test_selectors(self):
+        self._prepare_tables()
+
+        merge(mode='unordered',
+              in_=[self.t1 + "[:#1]", self.t2 + "[#1:#2]"],
+              out='//tmp/t_out')
+
+        self.assertItemsEqual(read('//tmp/t_out'), self.v1[:1] + self.v2[1:2])
+        assert get('//tmp/t_out/@chunk_count') == 2
 

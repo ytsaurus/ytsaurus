@@ -192,7 +192,9 @@ protected:
     struct TInputTable
         : public TUserTableBase
     {
-        NChunkClient::NProto::TRspFetch FetchResponse;
+        // Number of chunks in the whole table (without range selectors).
+        int ChunkCount = -1;
+        std::vector<NChunkClient::NProto::TChunkSpec> Chunks;
         TNullable< std::vector<Stroka> > KeyColumns;
 
         void Persist(TPersistenceContext& context);
@@ -600,8 +602,10 @@ protected:
     void GetInputObjectIds();
     void GetOutputObjectIds();
     void ValidateFileTypes();
+    void FetchInputTables();
     void RequestInputObjects();
     void RequestOutputObjects();
+    void FetchFileObjects();
     void RequestFileObjects();
     void CreateLivePreviewTables();
     void PrepareLivePreviewTablesForUpdate();
@@ -719,13 +723,13 @@ protected:
 
     //! Enables sorted output from user jobs.
     virtual bool IsSortedOutputSupported() const;
-    
+
     //! Enables fetching all input replicas (not only data)
     virtual bool IsParityReplicasFetchEnabled() const;
 
     //! If |true| then all jobs started within the operation must
     //! preserve row count. This invariant is checked for each completed job.
-    //! Should a violation be discovered, the operation fails. 
+    //! Should a violation be discovered, the operation fails.
     virtual bool IsRowCountPreserved() const;
 
     std::vector<Stroka> CheckInputTablesSorted(

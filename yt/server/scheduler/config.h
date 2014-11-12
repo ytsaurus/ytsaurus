@@ -128,6 +128,9 @@ public:
     //! more chunk lists than previously.
     double ChunkListAllocationMultiplier;
 
+    //! Maximum number of chunks per single fetch.
+    int MaxChunkCountPerFetch;
+
     //! Maximum number of chunk trees to attach per request.
     int MaxChildrenPerAttachRequest;
 
@@ -153,8 +156,8 @@ public:
     //! Maximum number of operations that can be run concurrently.
     int MaxOperationCount;
 
-    //! Maximum size of table allowed to be passed as a file to jobs.
-    i64 MaxTableFileSize;
+    //! Maximum size of file allowed to be passed to jobs.
+    i64 MaxFileSize;
 
     //! Maximum number of output tables an operation can have.
     int MaxOutputTableCount;
@@ -260,6 +263,10 @@ public:
             .Default(2.0)
             .GreaterThan(1.0);
 
+        RegisterParameter("max_chunk_count_per_fetch", MaxChunkCountPerFetch)
+            .Default(100000)
+            .GreaterThan(0);
+
         RegisterParameter("max_children_per_attach_request", MaxChildrenPerAttachRequest)
             .Default(10000)
             .GreaterThan(0);
@@ -288,8 +295,8 @@ public:
             .Default(2000)
             .GreaterThan(0);
 
-        RegisterParameter("table_file_size_limit", MaxTableFileSize)
-            .Default((i64) 2 * 1024 * 1024 * 1024);
+        RegisterParameter("max_file_size", MaxFileSize)
+            .Default((i64) 10 * 1024 * 1024 * 1024);
 
         RegisterParameter("max_input_table_count", MaxInputTableCount)
             .Default(1000)
