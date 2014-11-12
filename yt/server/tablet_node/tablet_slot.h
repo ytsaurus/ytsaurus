@@ -48,7 +48,7 @@ public:
     TTabletAutomatonPtr GetAutomaton() const;
 
     // These methods are thread-safe.
-    // They may return |nullptr| is the invoker of a requested type is not available.
+    // They may return null invoker (see #GetNullInvoker) if the invoker of the requested type is not available.
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
