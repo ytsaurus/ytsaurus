@@ -130,40 +130,42 @@ TKeyTrieNode ExtractMultipleConstraints(
         Stroka functionName(functionExpr->FunctionName);
         functionName.to_lower();
 
-        auto lhsExpr = functionExpr->Arguments[0];
-        auto rhsExpr = functionExpr->Arguments[1];
-
-        auto referenceExpr = rhsExpr->As<TReferenceExpression>();
-        auto constantExpr = lhsExpr->As<TLiteralExpression>();
-
         auto result = TKeyTrieNode::Universal();
 
-        if (functionName == "is_prefix" && referenceExpr && constantExpr) {
-            int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
-            if (keyPartIndex >= 0) {
-                auto value = TValue(constantExpr->Value);
+        if (functionName == "is_prefix") {
+            auto lhsExpr = functionExpr->Arguments[0];
+            auto rhsExpr = functionExpr->Arguments[1];
 
-                YCHECK(value.Type == EValueType::String);
+            auto referenceExpr = rhsExpr->As<TReferenceExpression>();
+            auto constantExpr = lhsExpr->As<TLiteralExpression>();
 
-                result.Offset = keyPartIndex;
-                result.Bounds.emplace_back(value, true);
+            if (referenceExpr && constantExpr) {
+                int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
+                if (keyPartIndex >= 0) {
+                    auto value = TValue(constantExpr->Value);
 
-                ui32 length = value.Length;
-                while (length > 0 && value.Data.String[length - 1] == std::numeric_limits<char>::max()) {
-                    --length;
+                    YCHECK(value.Type == EValueType::String);
+
+                    result.Offset = keyPartIndex;
+                    result.Bounds.emplace_back(value, true);
+
+                    ui32 length = value.Length;
+                    while (length > 0 && value.Data.String[length - 1] == std::numeric_limits<char>::max()) {
+                        --length;
+                    }
+
+                    if (length > 0) {
+                        char* newValue = rowBuffer->GetUnalignedPool()->AllocateUnaligned(length);
+                        memcpy(newValue, value.Data.String, length);
+                        ++newValue[length - 1];
+
+                        value.Length = length;
+                        value.Data.String = newValue;
+                    } else {
+                        value = MakeSentinelValue<TUnversionedValue>(EValueType::Max);
+                    }
+                    result.Bounds.emplace_back(value, false);
                 }
-
-                if (length > 0) {
-                    char* newValue = rowBuffer->GetUnalignedPool()->AllocateUnaligned(length);
-                    memcpy(newValue, value.Data.String, length);
-                    ++newValue[length - 1];
-
-                    value.Length = length;
-                    value.Data.String = newValue;
-                } else {
-                    value = MakeSentinelValue<TUnversionedValue>(EValueType::Max);
-                }
-                result.Bounds.emplace_back(value, false);
             }
         }
 
