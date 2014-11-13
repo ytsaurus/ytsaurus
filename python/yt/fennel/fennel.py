@@ -313,10 +313,13 @@ def parse_tskv_row(converted_row):
 def convert_from_parsed(converted_row):
     result = dict()
     for key, value in converted_row.iteritems():
+        new_value = value
         try:
-            new_value = json.loads(value)
+            if isinstance(new_value, basestring):
+                new_value = json.loads(new_value)
         except ValueError:
-            new_value = value
+            pass
+
         result[key] = new_value
     return result
 
@@ -370,6 +373,15 @@ def _transform_record(record, cluster_name, log_name):
     except:
         log.error("Unable to transform record: %r", record)
         raise
+    return record
+
+def _untransform_record(record):
+    record.pop("cluster_name", None)
+    record.pop("tskv_format", None)
+    record.pop("timezone", None)
+    microseconds = record.pop("microseconds", 0)
+    timestamp = record["timestamp"]
+    record["timestamp"] = revert_timestamp(timestamp, microseconds)
     return record
 
 
