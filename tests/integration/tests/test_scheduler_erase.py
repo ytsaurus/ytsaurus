@@ -12,14 +12,6 @@ class TestSchedulerEraseCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {
-        'exec_agent' : {
-            'slot_manager' : {
-                'enable_cgroups' : 'false'
-            },
-        }
-    }
-
     def test_empty_in(self):
         create('table', '//tmp/table')
         erase('//tmp/table[#0:#10]')

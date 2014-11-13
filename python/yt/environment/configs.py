@@ -233,6 +233,7 @@ def get_node_config():
         };
 
         slot_manager = {
+            enable_cgroups = false;
             path = "";
         };
 

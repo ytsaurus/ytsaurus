@@ -11,14 +11,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {
-        'exec_agent' : {
-            'slot_manager' : {
-                'enable_cgroups' : 'false'
-            },
-        }
-    }
-
     def _prepare_tables(self):
         t1 = '//tmp/t1'
         create('table', t1)

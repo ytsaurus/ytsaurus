@@ -22,20 +22,17 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
-        'scheduler' : {
-            'enable_accounting': 'true'
-        }
-    }
-
-    DELTA_NODE_CONFIG = \
-        {'exec_agent' :
-            {'slot_manager' :
-                  {'enforce_job_control'    : 'true',
-                   'enable_cgroups'         : 'false',
-                   'memory_watchdog_period' : 100}
+    DELTA_NODE_CONFIG = {
+        'exec_agent' : {
+            'slot_manager' : {
+                'force_enable_accounting' : 'true',
+                'enable_cgroup_memory_hierarchy' : 'true',
+                'enforce_job_control'    : 'true',
+                'enable_cgroups'         : 'false',
+                'memory_watchdog_period' : 100
             }
         }
+    }
 
     #pytest.mark.xfail(run = False, reason = 'Set-uid-root before running.')
     @only_linux

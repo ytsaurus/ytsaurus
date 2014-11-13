@@ -37,9 +37,6 @@ class TestWoodpecker(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         'exec_agent' : {
-            'slot_manager' : {
-                'enable_cgroups' : 'false'
-            },
             'force_enable_accounting' : 'true',
             'iops_threshold' : 5,
             'block_io_watchdog_period' : 8000
@@ -114,9 +111,6 @@ class TestEventLog(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         'exec_agent' : {
-            'slot_manager' : {
-                'enable_cgroups' : 'false'
-            },
             'force_enable_accounting' : 'true'
         }
     }
@@ -169,14 +163,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-
-    DELTA_NODE_CONFIG = {
-        'exec_agent' : {
-            'slot_manager' : {
-                'enable_cgroups' : 'false'
-            },
-        }
-    }
 
     def test_empty_table(self):
         create('table', '//tmp/t1')
