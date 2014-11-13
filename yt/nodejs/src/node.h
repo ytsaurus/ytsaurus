@@ -25,7 +25,6 @@ public:
     static v8::Persistent<v8::FunctionTemplate> ConstructorTemplate;
     static void Initialize(v8::Handle<v8::Object> target);
     static bool HasInstance(v8::Handle<v8::Value> value);
-    static v8::Handle<v8::Value> NewInstance();
 
     static NYTree::INodePtr UnwrapNode(v8::Handle<v8::Value> value);
 
