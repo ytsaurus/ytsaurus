@@ -44,9 +44,12 @@ def test_event_log_timestamp_parse():
     assert d.date().day == 2
 
 
-def test_normilize_timestamp():
-    assert fennel.normilize_timestamp("2014-10-02T15:31:24.887386Z") == "2014-10-02 15:31:24"
-    assert fennel.normilize_timestamp("2014-10-10T14:07:22.295882Z") == "2014-10-10 14:07:22"
+def test_normalize_timestamp():
+    assert fennel.normalize_timestamp("2014-10-02T15:31:24.887386Z")[0] == "2014-10-02 15:31:24"
+    assert fennel.normalize_timestamp("2014-10-10T14:07:22.295882Z")[0] == "2014-10-10 14:07:22"
+
+def test_normalize_revert():
+    assert fennel.revert_timestamp(*fennel.normalize_timestamp("2014-10-02T15:31:24.887386Z")) == "2014-10-02T15:31:24.887386Z"
 
 
 def test_tskv_value_escape_encode():
