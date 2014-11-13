@@ -196,6 +196,9 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         ValidateTabletMounted(tablet);
+        if (transaction->GetState() != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
         ValidateMemoryLimit();
 
         // Protect from tablet disposal.
