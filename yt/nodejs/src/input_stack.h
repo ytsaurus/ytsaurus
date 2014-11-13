@@ -10,7 +10,7 @@ namespace NNodeJS {
 
 class TNodeJSInputStack
     : public TInputStream
-    , public TGrowingStreamStack<TInputStream, 3>
+    , public TGrowingInputStreamStack
 {
 public:
     TNodeJSInputStack(TInputStreamWrap* base);

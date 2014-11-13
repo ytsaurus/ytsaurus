@@ -21,7 +21,7 @@ Object.defineProperty(
     "output_type_as_integer",
     { enumerable: false, value: binding.EDataType_Structured });
 
-var FAKE_UPLOAD_PREPARAMETERS = new binding.TNodeWrap({ type: "file" });
+var FAKE_UPLOAD_PREPARAMETERS = binding.CreateV8Node({ type: "file" });
 
 function YtDriverFacadeV1(driver)
 {

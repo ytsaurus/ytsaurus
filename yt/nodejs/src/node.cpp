@@ -201,30 +201,23 @@ INodePtr ConvertV8ValueToNode(Handle<Value> value)
     return builder->EndTree();
 }
 
-INodePtr ConvertV8BytesToNode(const char* buffer, size_t length, ECompression compression, INodePtr format)
+Handle<Value> ConvertNodeToV8Value(const INodePtr& node)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    return scope.Close(ProduceV8(node));
+}
+
+INodePtr ConvertBytesToNode(
+    const char* buffer,
+    size_t length,
+    ECompression compression,
+    INodePtr format)
 {
     TMemoryInput baseStream(buffer, length);
-    TGrowingStreamStack<TInputStream, 2> streamStack(&baseStream);
-
-    switch (compression) {
-        case ECompression::None:
-            break;
-        case ECompression::Gzip:
-        case ECompression::Deflate:
-            streamStack.Add<TZLibDecompress>();
-            break;
-        case ECompression::LZO:
-            streamStack.Add<TLzoDecompress>();
-            break;
-        case ECompression::LZF:
-            streamStack.Add<TLzfDecompress>();
-            break;
-        case ECompression::Snappy:
-            streamStack.Add<TSnappyDecompress>();
-            break;
-        default:
-            YUNREACHABLE();
-    }
+    TGrowingInputStreamStack streamStack(&baseStream);
+    AddCompressionToStack(streamStack, compression);
 
     return ConvertToNode(CreateProducerForFormat(
         ConvertTo<TFormat>(std::move(format)),
@@ -232,12 +225,25 @@ INodePtr ConvertV8BytesToNode(const char* buffer, size_t length, ECompression co
         streamStack.Top()));
 }
 
-Handle<Value> ConvertNodeToV8Value(const INodePtr& node)
+Stroka ConvertNodeToBytes(
+    INodePtr node,
+    ECompression compression,
+    INodePtr format)
 {
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
+    Stroka result;
+    TStringOutput baseStream(result);
+    TGrowingOutputStreamStack streamStack(&baseStream);
+    AddCompressionToStack(streamStack, compression);
 
-    return scope.Close(ProduceV8(node));
+    auto consumer = CreateConsumerForFormat(
+        ConvertTo<TFormat>(std::move(format)),
+        EDataType::Structured,
+        streamStack.Top());
+    Serialize(std::move(node), consumer.get());
+    streamStack.Top()->Flush();
+    streamStack.Top()->Finish();
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -273,17 +279,16 @@ void TNodeWrap::Initialize(Handle<Object> target)
     ConstructorTemplate->SetClassName(String::NewSymbol("TNodeWrap"));
 
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Print", TNodeWrap::Print);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Traverse", TNodeWrap::Traverse);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Get", TNodeWrap::Get);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "GetByYPath", TNodeWrap::GetByYPath);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "SetByYPath", TNodeWrap::SetByYPath);
 
     target->Set(
         String::NewSymbol("TNodeWrap"),
         ConstructorTemplate->GetFunction());
-
     target->Set(
         String::NewSymbol("CreateMergedNode"),
         FunctionTemplate::New(TNodeWrap::CreateMerged)->GetFunction());
-
     target->Set(
         String::NewSymbol("CreateV8Node"),
         FunctionTemplate::New(TNodeWrap::CreateV8)->GetFunction());
@@ -316,7 +321,7 @@ Handle<Value> TNodeWrap::New(const Arguments& args)
         INodePtr node;
 
         /****/ if (args.Length() == 0) {
-            node = NULL;
+            node = nullptr;
         } else if (args.Length() == 1) {
             auto arg = args[0];
             if (arg->IsObject()) {
@@ -325,7 +330,7 @@ Handle<Value> TNodeWrap::New(const Arguments& args)
                 String::Utf8Value argValue(arg->ToString());
                 node = ConvertToNode(TYsonString(Stroka(*argValue, argValue.length())));
             } else if (arg->IsNull() || arg->IsUndefined()) {
-                node = NULL;
+                node = nullptr;
             } else {
                 THROW_ERROR_EXCEPTION(
                     "1-ary constructor of TNodeWrap can consume either Object or String or Null or Undefined");
@@ -339,14 +344,14 @@ Handle<Value> TNodeWrap::New(const Arguments& args)
 
             auto arg = args[0];
             if (node::Buffer::HasInstance(arg)) {
-                node = ConvertV8BytesToNode(
+                node = ConvertBytesToNode(
                     node::Buffer::Data(arg->ToObject()),
                     node::Buffer::Length(arg->ToObject()),
                     compression,
                     format);
             } else if (arg->IsString()) {
                 String::Utf8Value argValue(arg->ToString());
-                node = ConvertV8BytesToNode(
+                node = ConvertBytesToNode(
                     *argValue,
                     argValue.length(),
                     compression,
@@ -376,8 +381,8 @@ Handle<Value> TNodeWrap::CreateMerged(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    INodePtr delta = NULL;
-    INodePtr result = NULL;
+    INodePtr delta;
+    INodePtr result;
 
     try {
         for (int i = 0; i < args.Length(); ++i) {
@@ -389,7 +394,9 @@ Handle<Value> TNodeWrap::CreateMerged(const Arguments& args)
             }
 
             delta = TNodeWrap::UnwrapNode(args[i]);
-            result = result ? UpdateNode(std::move(result), std::move(delta)) : std::move(delta);
+            result = result
+                ? UpdateNode(std::move(result), std::move(delta))
+                : std::move(delta);
         }
     } catch (const std::exception& ex) {
         return ThrowException(ConvertErrorToV8(ex));
@@ -410,7 +417,7 @@ Handle<Value> TNodeWrap::CreateV8(const Arguments& args)
 
     YASSERT(args.Length() == 1);
 
-    INodePtr node = NULL;
+    INodePtr node;
 
     try {
         node = ConvertV8ValueToNode(args[0]);
@@ -431,19 +438,47 @@ Handle<Value> TNodeWrap::Print(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 0);
+    YASSERT(args.Length() == 0 || args.Length() == 2);
 
     INodePtr node = TNodeWrap::UnwrapNode(args.This());
+    Handle<Value> handle = Undefined();
 
-    auto string = ConvertToYsonString(node, EYsonFormat::Text);
-    auto handle = String::New(string.Data().c_str(), string.Data().length());
+    if (args.Length() == 0) {
+        auto string = ConvertToYsonString(node, EYsonFormat::Text);
+        handle = String::New(string.Data().c_str(), string.Data().length());
+    } else if (args.Length() == 2) {
+        EXPECT_THAT_IS(args[0], Uint32);
+        EXPECT_THAT_HAS_INSTANCE(args[1], TNodeWrap);
+
+        ECompression compression = (ECompression)args[0]->Uint32Value();
+        INodePtr format = TNodeWrap::UnwrapNode(args[1]);
+
+        auto result = ConvertNodeToBytes(
+            std::move(node),
+            compression,
+            std::move(format));
+        handle = String::New(result.c_str(), result.length());
+    }
 
     return scope.Close(std::move(handle));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeWrap::Traverse(const Arguments& args)
+Handle<Value> TNodeWrap::Get(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YASSERT(args.Length() == 0);
+
+    INodePtr node = TNodeWrap::UnwrapNode(args.This());
+    return scope.Close(ProduceV8(node));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TNodeWrap::GetByYPath(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -470,15 +505,28 @@ Handle<Value> TNodeWrap::Traverse(const Arguments& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeWrap::Get(const Arguments& args)
+Handle<Value> TNodeWrap::SetByYPath(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 0);
+    YASSERT(args.Length() == 2);
+
+    EXPECT_THAT_IS(args[0], String);
+    EXPECT_THAT_HAS_INSTANCE(args[1], TNodeWrap);
 
     INodePtr node = TNodeWrap::UnwrapNode(args.This());
-    return scope.Close(ProduceV8(node));
+    String::AsciiValue pathValue(args[0]->ToString());
+    TStringBuf path(*pathValue, pathValue.length());
+    INodePtr value = TNodeWrap::UnwrapNode(args[1]);
+
+    try {
+        SetNodeByYPath(std::move(node), Stroka(path), std::move(value));
+    } catch (const std::exception& ex) {
+        return ThrowException(ConvertErrorToV8(ex));
+    }
+
+    return args.This();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

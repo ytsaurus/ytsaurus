@@ -78,9 +78,11 @@ TDataNodeService::TDataNodeService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlock));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlocks)
-        .SetEnableReorder(true));
+        .SetEnableReorder(true)
+        .SetMaxQueueSize(5000));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
-        .SetEnableReorder(true));
+        .SetEnableReorder(true)
+        .SetMaxQueueSize(5000));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
         .SetOneWay(true));
