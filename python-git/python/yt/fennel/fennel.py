@@ -224,9 +224,16 @@ def gzip_decompress(text):
         return f.read()
 
 
-def normilize_timestamp(ts):
-    dt = datetime.datetime.strptime(ts.split(".")[0], "%Y-%m-%dT%H:%M:%S")
-    return dt.isoformat(' ')
+def normalize_timestamp(ts):
+    dt = datetime.datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S.%fZ")
+    microseconds = dt.microsecond
+    dt -= datetime.timedelta(microseconds=microseconds)
+    return dt.isoformat(' '), microseconds
+
+def revert_timestamp(normalized_ts, microseconds):
+    dt = datetime.datetime.strptime(normalized_ts, "%Y-%m-%d %H:%M:%S")
+    dt += datetime.timedelta(microseconds=microseconds)
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
 ESCAPE_MAP = {
@@ -294,14 +301,23 @@ def convert_to(row):
     return result
 
 def convert_from(converted_row):
+    return convert_from_parsed(parse_tskv_row(converted_row))
+
+def parse_tskv_row(converted_row):
     result = dict()
     for kv in converted_row.split('\t')[1:]:
         key, value = kv.split('=', 1)
-        try:
-            value = json.loads(value)
-        except ValueError:
-            pass
         result[key] = value
+    return result
+
+def convert_from_parsed(converted_row):
+    result = dict()
+    for key, value in converted_row.iteritems():
+        try:
+            new_value = json.loads(value)
+        except ValueError:
+            new_value = value
+        result[key] = new_value
     return result
 
 
@@ -345,7 +361,9 @@ def _pre_process(data, **args):
 
 def _transform_record(record, cluster_name, log_name):
     try:
-        record["timestamp"] = normilize_timestamp(record["timestamp"])
+        normalized_ts, microseconds = normalize_timestamp(record["timestamp"])
+        record["timestamp"] = normalized_ts
+        record["microseconds"] = microseconds
         record["cluster_name"] = cluster_name
         record["tskv_format"] = log_name
         record["timezone"] = "+0000"
