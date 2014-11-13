@@ -820,6 +820,15 @@ def main(proxy_path, table_name, logbroker_url, service_id, source_id, **kwargs)
     app.start()
 
 
+def print_last_seqno(logbroker_url, service_id, source_id, **kwargs):
+    try:
+        last_seqno = get_last_seqno(logbroker_url=logbroker_url, service_id=service_id, source_id=source_id)
+        sys.stdout.write("Last seqno: {0}\n".format(last_seqno))
+    except Exception:
+        log.error("Unhandled exception", exc_info=True)
+        sys.stderr.write("Internal error\n")
+
+
 def monitor(proxy_path, table_name, threshold, logbroker_url, service_id, source_id, **kwargs):
     try:
         last_seqno = get_last_seqno(logbroker_url=logbroker_url, service_id=service_id, source_id=source_id)
@@ -828,7 +837,7 @@ def monitor(proxy_path, table_name, threshold, logbroker_url, service_id, source
         row_count = event_log.get_row_count()
     except Exception:
         log.error("Unhandled exception", exc_info=True)
-        sys.stdout.write("2; Internal error.")
+        sys.stdout.write("2; Internal error\n")
     else:
         lag = row_count - last_seqno
         if lag > threshold:
@@ -872,6 +881,7 @@ def run():
     options.define("monitor", default=False, help="output status and exit")
     options.define("version", default=False, help="output version and exit")
     options.define("archive", default=False, help="archive and exit")
+    options.define("print_last_seqno", default=False, help="print last seqno and exit")
 
     options.define("log_dir", metavar="PATH", default="/var/log/fennel", help="log directory")
 
@@ -902,6 +912,8 @@ def run():
         func = monitor
     elif options.options.archive:
         func = archive
+    elif options.options.print_last_seqno:
+        func = print_last_seqno
     else:
         func = main
 
