@@ -787,7 +787,9 @@ YtCommand.prototype._execute = function(cb) {
                 "Got a response parameter",
                 { key: key, value: value.Print() });
 
-            self.response_parameters.SetByYPath(key, value);
+            self.response_parameters.SetByYPath(
+                "/" + utils.escapeYPath(key),
+                value);
 
             // If headers are not sent yet, then update the header value.
             if (!self.rsp._header) {
