@@ -25,7 +25,8 @@ def get_user_name(token, proxy=None, client=None):
     response = make_request_with_retries(
         "post",
         "http://{0}/auth/login".format(proxy),
-        data="token=" + token)
+        data="token=" + token,
+        response_should_be_json=True)
     login = response.json()["login"]
     if not login:
         return None
