@@ -56,7 +56,8 @@
             "options": {
                 "url": "fb-kiwi1500.search.yandex.net",
                 "kwworm": "/home/monster/kwworm"
-            }
+            },
+            "fastbone": true
         },
         "bsmr": {
             "type": "yamr",
