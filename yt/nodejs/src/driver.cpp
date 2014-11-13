@@ -182,7 +182,9 @@ public:
         if (!flushFuture) {
             TGuard<TSpinLock> guard(Lock_);
             if (!FlushFuture_) {
-                FlushFuture_ = FlushClosure_.AsyncVia(DefaultUVInvoker.Get()).Run();
+                FlushFuture_ = FlushClosure_
+                    .AsyncVia(DefaultUVInvoker.Get())
+                    .Run();
             }
             return FlushFuture_;
         }
@@ -215,8 +217,8 @@ private:
 
         FOREACH(const auto& bit, bitsToFlush) {
             auto keyHandle = String::New(std::get<0>(bit).c_str());
-            auto valueHandle = ConvertNodeToV8Value(std::get<1>(bit));
-
+            auto valueHandle = TNodeWrap::ConstructorTemplate->GetFunction()->NewInstance();
+            node::ObjectWrap::Unwrap<TNodeWrap>(valueHandle)->SetNode(std::get<1>(bit));
             Invoke(Callback_, keyHandle, valueHandle);
         }
     }
@@ -514,8 +516,7 @@ Handle<Value> TDriverWrap::FindCommandDescriptor(const Arguments& args)
     HandleScope scope;
 
     // Unwrap object.
-    TDriverWrap* driver =
-        ObjectWrap::Unwrap<TDriverWrap>(args.This());
+    TDriverWrap* driver = ObjectWrap::Unwrap<TDriverWrap>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 1);
@@ -548,8 +549,7 @@ Handle<Value> TDriverWrap::GetCommandDescriptors(const Arguments& args)
     HandleScope scope;
 
     // Unwrap.
-    TDriverWrap* driver =
-        ObjectWrap::Unwrap<TDriverWrap>(args.This());
+    TDriverWrap* driver = ObjectWrap::Unwrap<TDriverWrap>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 0);

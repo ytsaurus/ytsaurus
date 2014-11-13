@@ -8,7 +8,6 @@ namespace NYT {
 namespace NNodeJS {
 
 NYTree::INodePtr ConvertV8ValueToNode(v8::Handle<v8::Value> value);
-NYTree::INodePtr ConvertV8BytesToNode(const char* buffer, size_t length, ECompression compression, NYTree::INodePtr format);
 v8::Handle<v8::Value> ConvertNodeToV8Value(const NYTree::INodePtr& node);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,6 +25,7 @@ public:
     static v8::Persistent<v8::FunctionTemplate> ConstructorTemplate;
     static void Initialize(v8::Handle<v8::Object> target);
     static bool HasInstance(v8::Handle<v8::Value> value);
+    static v8::Handle<v8::Value> NewInstance();
 
     static NYTree::INodePtr UnwrapNode(v8::Handle<v8::Value> value);
 
@@ -35,8 +35,9 @@ public:
     static v8::Handle<v8::Value> CreateV8(const v8::Arguments& args);
 
     static v8::Handle<v8::Value> Print(const v8::Arguments& args);
-    static v8::Handle<v8::Value> Traverse(const v8::Arguments& args);
     static v8::Handle<v8::Value> Get(const v8::Arguments& args);
+    static v8::Handle<v8::Value> GetByYPath(const v8::Arguments& args);
+    static v8::Handle<v8::Value> SetByYPath(const v8::Arguments& args);
 
     // Synchronous C++ API.
     NYTree::INodePtr GetNode();

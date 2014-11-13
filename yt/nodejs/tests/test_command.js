@@ -380,7 +380,7 @@ describe("YtCommand - input format selection", function() {
         function(rsp) {
             rsp.should.be.http2xx;
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].Traverse("/input_format").Print().should.eql('"json"');
+            stub.firstCall.args[6].GetByYPath("/input_format").Print().should.eql('"json"');
         }, done).end();
     });
 
@@ -390,7 +390,7 @@ describe("YtCommand - input format selection", function() {
         function(rsp) {
             rsp.should.be.http2xx;
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].Traverse("/input_format").Print().should.eql('<"format"="text">"yson"');
+            stub.firstCall.args[6].GetByYPath("/input_format").Print().should.eql('<"format"="text">"yson"');
         }, done).end();
     });
 
@@ -400,7 +400,7 @@ describe("YtCommand - input format selection", function() {
         function(rsp) {
             rsp.should.be.http2xx;
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].Traverse("/input_format").Print().should.eql('"yson"');
+            stub.firstCall.args[6].GetByYPath("/input_format").Print().should.eql('"yson"');
         }, done).end();
     });
 
@@ -411,7 +411,7 @@ describe("YtCommand - input format selection", function() {
         function(rsp) {
             rsp.should.be.http2xx;
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].Traverse("/input_format").Print().should.eql('"dsv"');
+            stub.firstCall.args[6].GetByYPath("/input_format").Print().should.eql('"dsv"');
         }, done).end();
     });
 
@@ -428,7 +428,7 @@ describe("YtCommand - input format selection", function() {
         function(rsp) {
             rsp.should.be.http2xx;
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].Traverse("/input_format").Print().should.eql('<"foo"="bar">"yson"');
+            stub.firstCall.args[6].GetByYPath("/input_format").Print().should.eql('<"foo"="bar">"yson"');
         }, done).end();
     });
 
@@ -485,7 +485,7 @@ describe("YtCommand - output format selection", function() {
             rsp.should.be.http2xx;
             rsp.should.have.content_type("application/json");
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].Traverse("/output_format").Print().should.eql('"json"');
+            stub.firstCall.args[6].GetByYPath("/output_format").Print().should.eql('"json"');
         }, done).end();
     });
 
@@ -496,7 +496,7 @@ describe("YtCommand - output format selection", function() {
             rsp.should.be.http2xx;
             rsp.should.have.content_type("application/x-yt-yson-text");
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].Traverse("/output_format").Print().should.eql('<"format"="text">"yson"');
+            stub.firstCall.args[6].GetByYPath("/output_format").Print().should.eql('<"format"="text">"yson"');
         }, done).end();
     });
 
@@ -507,7 +507,7 @@ describe("YtCommand - output format selection", function() {
             rsp.should.be.http2xx;
             rsp.should.have.content_type("application/octet-stream");
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].Traverse("/output_format").Print().should.eql('"yson"');
+            stub.firstCall.args[6].GetByYPath("/output_format").Print().should.eql('"yson"');
         }, done).end();
     });
 
@@ -519,7 +519,7 @@ describe("YtCommand - output format selection", function() {
             rsp.should.be.http2xx;
             rsp.should.have.content_type("text/tab-separated-values");
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].Traverse("/output_format").Print().should.eql('"dsv"');
+            stub.firstCall.args[6].GetByYPath("/output_format").Print().should.eql('"dsv"');
         }, done).end();
     });
 
@@ -537,7 +537,7 @@ describe("YtCommand - output format selection", function() {
             rsp.should.be.http2xx;
             rsp.should.not.have.content_type;
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].Traverse("/output_format").Print().should.eql('<"foo"="bar">"yson"');
+            stub.firstCall.args[6].GetByYPath("/output_format").Print().should.eql('<"foo"="bar">"yson"');
         }, done).end();
     });
 

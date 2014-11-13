@@ -22,45 +22,45 @@ var _VERSION_TO_FACADE = {
 
 // This mapping defines how MIME types map onto YT format specifications.
 var _MIME_TO_FORMAT = {
-    "application/json": new binding.TNodeWrap({
+    "application/json": binding.CreateV8Node({
         $value: "json"
     }),
-    "application/x-yamr-delimited": new binding.TNodeWrap({
+    "application/x-yamr-delimited": binding.CreateV8Node({
         $attributes: { lenval: false, has_subkey: false },
         $value: "yamr",
     }),
-    "application/x-yamr-lenval": new binding.TNodeWrap({
+    "application/x-yamr-lenval": binding.CreateV8Node({
         $attributes: { lenval: true, has_subkey: false },
         $value: "yamr"
     }),
-    "application/x-yamr-subkey-delimited": new binding.TNodeWrap({
+    "application/x-yamr-subkey-delimited": binding.CreateV8Node({
         $attributes: { lenval: false, has_subkey: true },
         $value: "yamr"
     }),
-    "application/x-yamr-subkey-lenval": new binding.TNodeWrap({
+    "application/x-yamr-subkey-lenval": binding.CreateV8Node({
         $attributes: { lenval: true, has_subkey: true },
         $value: "yamr"
     }),
-    "application/x-yt-yson-binary": new binding.TNodeWrap({
+    "application/x-yt-yson-binary": binding.CreateV8Node({
         $attributes: { format: "binary" },
         $value: "yson"
     }),
-    "application/x-yt-yson-pretty": new binding.TNodeWrap({
+    "application/x-yt-yson-pretty": binding.CreateV8Node({
         $attributes: { format: "pretty" },
         $value: "yson"
     }),
-    "application/x-yt-yson-text": new binding.TNodeWrap({
+    "application/x-yt-yson-text": binding.CreateV8Node({
         $attributes: { format: "text" },
         $value: "yson"
     }),
-    "text/csv": new binding.TNodeWrap({
+    "text/csv": binding.CreateV8Node({
         $attributes: { record_separator: ",", key_value_separator: ":" },
         $value: "dsv"
     }),
-    "text/tab-separated-values": new binding.TNodeWrap({
+    "text/tab-separated-values": binding.CreateV8Node({
         $value: "dsv"
     }),
-    "text/x-tskv": new binding.TNodeWrap({
+    "text/x-tskv": binding.CreateV8Node({
         $attributes: { line_prefix: "tskv" },
         $value: "dsv"
     }),
@@ -106,8 +106,8 @@ var _ENCODING_TO_COMPRESSION = {
 
 var _ENCODING_ALL = Object.keys(_ENCODING_TO_COMPRESSION);
 
-var _PREDEFINED_JSON_FORMAT = new binding.TNodeWrap({ $value: "json" });
-var _PREDEFINED_YSON_FORMAT = new binding.TNodeWrap({ $value: "yson" });
+var _PREDEFINED_JSON_FORMAT = binding.CreateV8Node("json");
+var _PREDEFINED_YSON_FORMAT = binding.CreateV8Node("yson");
 
 // === HTTP Status Codes
 // http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
@@ -144,7 +144,7 @@ function YtCommand(logger, driver, coordinator, watcher, rate_check_cache, pause
     this.user = undefined;
 
     this.parameters = undefined;
-    this.response_parameters = {};
+    this.response_parameters = binding.CreateV8Node({});
 
     this.descriptor = undefined;
 
@@ -210,20 +210,20 @@ YtCommand.prototype._epilogue = function(result) {
     "use strict";
     this.__DBG("_epilogue");
 
+    var extra_headers = {
+        "X-YT-Error": result.toJson(),
+        "X-YT-Response-Code": utils.escapeHeader(result.getCode()),
+        "X-YT-Response-Message": utils.escapeHeader(result.getMessage()),
+        "X-YT-Response-Parameters": this.response_parameters.Print(binding.ECompression_None, _PREDEFINED_JSON_FORMAT),
+    };
     var sent_headers = !!this.rsp._header;
     if (!sent_headers) {
         this.rsp.removeHeader("Trailer");
-        this.rsp.setHeader("X-YT-Error", result.toJson());
-        this.rsp.setHeader("X-YT-Response-Code", utils.escapeHeader(result.getCode()));
-        this.rsp.setHeader("X-YT-Response-Message", utils.escapeHeader(result.getMessage()));
-        this.rsp.setHeader("X-YT-Response-Parameters", JSON.stringify(this.response_parameters));
+        for (var p in extra_headers) {
+            this.rsp.setHeader(p, extra_headers[p]);
+        }
     } else if (!this.omit_trailers) {
-        this.rsp.addTrailers({
-            "X-YT-Error": result.toJson(),
-            "X-YT-Response-Code": utils.escapeHeader(result.getCode()),
-            "X-YT-Response-Message": utils.escapeHeader(result.getMessage()),
-            "X-YT-Response-Parameters": JSON.stringify(this.response_parameters),
-        });
+        this.rsp.addTrailers(extra_headers);
     }
 
     this.logger.debug("Done (" + (result.isOK() ? "success" : "failure") + ")", {
@@ -648,7 +648,7 @@ YtCommand.prototype._captureParameters = function() {
             input_format: this.input_format,
             output_format: this.output_format
         };
-        from_formats = new binding.TNodeWrap(from_formats);
+        from_formats = binding.CreateV8Node(from_formats);
     } catch (err) {
         throw new YtError("Unable to parse formats.", err);
     }
@@ -662,7 +662,7 @@ YtCommand.prototype._captureParameters = function() {
             this.mime_type = "application/octet-stream";
         }
 
-        from_url = new binding.TNodeWrap(from_url);
+        from_url = binding.CreateV8Node(from_url);
     } catch (err) {
         throw new YtError("Unable to parse parameters from the query string.", err);
     }
@@ -785,15 +785,17 @@ YtCommand.prototype._execute = function(cb) {
         function(key, value) {
             self.logger.debug(
                 "Got a response parameter",
-                { key: key, value: value });
+                { key: key, value: value.Print() });
 
-            self.response_parameters[key] = value;
+            self.response_parameters.SetByYPath(key, value);
 
             // If headers are not sent yet, then update the header value.
             if (!self.rsp._header) {
                 self.rsp.setHeader(
                     "X-YT-Response-Parameters",
-                    JSON.stringify(self.response_parameters));
+                    self.response_parameters.Print(
+                        binding.ECompression_None,
+                        _PREDEFINED_JSON_FORMAT));
             }
         })
     .spread(

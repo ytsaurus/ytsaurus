@@ -7,10 +7,11 @@ namespace NNodeJS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, size_t N>
+template <class T>
 class TGrowingStreamStack
 {
 public:
+    static constexpr size_t N = 3;
     static_assert(N >= 1, "You have to provide a base stream to grow on.");
 
     TGrowingStreamStack(T* base)
@@ -101,6 +102,12 @@ private:
     TPtr Stack[N];
     TPtr* Head;
 };
+
+typedef TGrowingStreamStack<TInputStream> TGrowingInputStreamStack;
+typedef TGrowingStreamStack<TOutputStream> TGrowingOutputStreamStack;
+
+void AddCompressionToStack(TGrowingInputStreamStack& stack, ECompression compression);
+void AddCompressionToStack(TGrowingOutputStreamStack& stack, ECompression compression);
 
 ////////////////////////////////////////////////////////////////////////////////
 
