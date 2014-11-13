@@ -2,14 +2,25 @@ import pytest
 import time
 import __builtin__
 import os
-import socket
 import tempfile
+import subprocess
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 
 ##################################################################
+
+def can_perform_block_io_tests():
+    try:
+        subprocess.check_output(["ls", "-l", "/dev/sda"])
+        return subprocess.check_output(["sudo", "-n", "-l", "dd"]).strip() == "/bin/dd"
+    except subprocess.CalledProcessError:
+        return False
+
+
+block_io_mark = pytest.mark.skipif("not can_perform_block_io_tests()")
+
 
 class TestWoodpecker(YTEnvSetup):
     NUM_MASTERS = 3
@@ -55,13 +66,13 @@ echo $CONTENT | grep ' 5' 1>/dev/null
         for job_id in ls(jobs_path):
             return download(jobs_path + '/' + job_id + '/stderr')
 
-    @pytest.mark.skipif("socket.gethostname() != 'build01-01g'")
+    @block_io_mark
     def test_hitlimit(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write('//tmp/t1', [{"a": "b"}])
         command="""cat
-sudo dd if=/dev/sda of=/dev/null bs=16K count=100 iflag=direct 1>/dev/null
+sudo -n dd if=/dev/sda of=/dev/null bs=16K count=100 iflag=direct 1>/dev/null
 """
         command += self.FAIL_IF_HIT_LIMIT
         op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=1'])
@@ -69,14 +80,14 @@ sudo dd if=/dev/sda of=/dev/null bs=16K count=100 iflag=direct 1>/dev/null
         track_op(op_id)
         print self._get_stderr(op_id)
 
-    @pytest.mark.skipif("socket.gethostname() != 'build01-01g'")
+    @block_io_mark
     def test_do_not_hitlimit(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write('//tmp/t1', [{"a": "b"}])
         command="""
 cat
-sudo dd if=/dev/sda of=/dev/null bs=1600K count=1 iflag=direct 1>/dev/null
+sudo -n dd if=/dev/sda of=/dev/null bs=1600K count=1 iflag=direct 1>/dev/null
 """
         command += self.FAIL_IF_HIT_LIMIT
         op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=1'])
@@ -130,12 +141,12 @@ class TestEventLog(YTEnvSetup):
                 assert int(stats['cpu']['user_time']) > 0
         assert "operation_started" in event_types
 
-    @pytest.mark.skipif("socket.gethostname() != 'build01-01g'")
+    @block_io_mark
     def test_block_io_accounting(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write('//tmp/t1', [{"a": "b"}])
-        op_id = map(in_='//tmp/t1', out='//tmp/t2', command="cat; sudo dd if=/dev/sda of=/dev/null bs=4K count=1000 iflag=direct 1>/dev/null;")
+        op_id = map(in_='//tmp/t1', out='//tmp/t2', command="cat; sudo -n dd if=/dev/sda of=/dev/null bs=4K count=1000 iflag=direct 1>/dev/null;")
 
         # wait for scheduler to dump the event log
         time.sleep(6)
