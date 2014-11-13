@@ -38,6 +38,7 @@ DEFAULT_LOGBROKER_URL = "cellar-t.stat.yandex.net"
 DEFAULT_CHUNK_SIZE = 4000
 DEFAULT_SERVICE_ID = "yt"
 DEFAULT_SOURCE_ID = "tramsmm43"
+DEFAULT_LOG_NAME = "yt-scheduler-log"
 
 CHUNK_HEADER_FORMAT = "<QQQ"
 CHUNK_HEADER_SIZE = struct.calcsize(CHUNK_HEADER_FORMAT)
@@ -339,14 +340,14 @@ def get_endpoint(self, advicer_url):
     log.info("Adviced endpoint: %s", host)
     return (host, 80)
 
-def _pre_process(data):
-    return [_transform_record(record) for record in data]
+def _pre_process(data, **args):
+    return [_transform_record(record, **args) for record in data]
 
-def _transform_record(record):
+def _transform_record(record, cluster_name, log_name):
     try:
         record["timestamp"] = normilize_timestamp(record["timestamp"])
-        record["cluster_name"] = "CLUSTER_NAME"
-        record["tskv_format"] = "LOG_NAME"
+        record["cluster_name"] = cluster_name
+        record["tskv_format"] = log_name
         record["timezone"] = "+0000"
     except:
         log.error("Unable to transform record: %r", record)
@@ -715,7 +716,9 @@ class PushStream(object):
 class Application(object):
     log = logging.getLogger("Application")
 
-    def __init__(self, proxy_path, logbroker_url, table_name, service_id, source_id):
+    def __init__(self, proxy_path, logbroker_url, table_name,
+                 service_id, source_id,
+                 cluster_name, log_name):
         yt.config.set_proxy(proxy_path)
 
         self._last_acked_seqno = None
@@ -724,6 +727,9 @@ class Application(object):
 
         self._service_id = service_id
         self._source_id = source_id
+
+        self._cluster_name = cluster_name
+        self._log_name = log_name
 
         self._io_loop = ioloop.IOLoop.instance()
         self._event_log = EventLog(yt, table_name=table_name)
@@ -748,7 +754,7 @@ class Application(object):
                     while not saved:
                         try:
                             data = self._event_log.get_data(self._last_acked_seqno, chunk_size)
-                            data = _pre_process(data)
+                            data = _pre_process(data, cluster_name=self._cluster_name, log_name=self._log_name)
                             self._last_acked_seqno = yield self._log_broker.save_chunk(self._last_acked_seqno + self._chunk_size, data)
                         except ChunkTooBigError:
                             new_chunk_size = max(100, chunk_size / 2)
@@ -815,8 +821,12 @@ def get_last_seqno(**kwargs):
     return getter.get()
 
 
-def main(proxy_path, table_name, logbroker_url, service_id, source_id, **kwargs):
-    app = Application(proxy_path, logbroker_url, table_name, service_id, source_id)
+def main(proxy_path, table_name, logbroker_url,
+         service_id, source_id,
+         cluster_name, log_name, **kwargs):
+    app = Application(proxy_path, logbroker_url, table_name,
+                      service_id, source_id,
+                      cluster_name, log_name)
     app.start()
 
 
@@ -870,6 +880,7 @@ def run():
     options.define("chunk_size", default=DEFAULT_CHUNK_SIZE, help="size of chunk in rows")
 
     options.define("cluster_name", default="", help="[logbroker] name of source cluster")
+    options.define("log_name", default=DEFAULT_LOG_NAME, help="[logbroker] name of source cluster")
     options.define("logtype", default="", help="[logbroker] log type")
     options.define("logbroker_url", default=DEFAULT_LOGBROKER_URL, help="[logbroker] url to get adviced kafka endpoint")
     options.define("service_id", default=DEFAULT_SERVICE_ID, help="[logbroker] service id")
