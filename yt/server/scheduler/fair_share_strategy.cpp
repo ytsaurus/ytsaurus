@@ -280,14 +280,7 @@ public:
 
     virtual bool ScheduleJob(ISchedulingContext* context, bool starvingOnly) override
     {
-        ISchedulableElementPtr bestChild;
-        for (const auto& child : GetSchedulableChildren()) {
-            if (!bestChild ||
-                child->Attributes().SatisfactionRatio < bestChild->Attributes().SatisfactionRatio)
-            {
-                bestChild = child;
-            }
-        }
+        auto bestChild = GetBestChild();
 
         if (!bestChild) {
             return false;
@@ -428,7 +421,7 @@ protected:
 
     void ComputeFifo()
     {
-        auto bestChild = GetBestFifoChild(false);
+        auto bestChild = GetBestChildFifo(false);
         for (const auto& child : Children) {
             auto& childAttributes = child->Attributes();
             if (child == bestChild) {
@@ -520,20 +513,32 @@ protected:
         }
     }
 
-    std::vector<ISchedulableElementPtr> GetSchedulableChildrenFairShare()
-    {
-        return GetActiveChildren();
-    }
-
     std::vector<ISchedulableElementPtr> GetSchedulableChildrenFifo()
     {
-        auto bestChild = GetBestFifoChild(true);
+        auto bestChild = GetBestChildFifo(true);
         return bestChild
             ? std::vector<ISchedulableElementPtr>(1, bestChild)
             : std::vector<ISchedulableElementPtr>();
     }
 
-    ISchedulableElementPtr GetBestFifoChild(bool needsActive)
+    std::vector<ISchedulableElementPtr> GetSchedulableChildrenFairShare()
+    {
+        return GetActiveChildren();
+    }
+
+    ISchedulableElementPtr GetBestChild()
+    {
+        switch (Mode) {
+            case ESchedulingMode::Fifo:
+                return GetBestChildFifo(true);
+            case ESchedulingMode::FairShare:
+                return GetBestChildFairShare();
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    ISchedulableElementPtr GetBestChildFifo(bool needsActive)
     {
         auto isBetter = [] (const ISchedulableElementPtr& lhs, const ISchedulableElementPtr& rhs) -> bool {
             if (lhs->GetWeight() > rhs->GetWeight()) {
@@ -555,7 +560,19 @@ protected:
 
             bestChild = child;
         }
+        return bestChild;
+    }
 
+    ISchedulableElementPtr GetBestChildFairShare()
+    {
+        ISchedulableElementPtr bestChild;
+        for (const auto& child : GetSchedulableChildrenFairShare()) {
+            if (!bestChild ||
+                child->Attributes().SatisfactionRatio < bestChild->Attributes().SatisfactionRatio)
+            {
+                bestChild = child;
+            }
+        }
         return bestChild;
     }
 
