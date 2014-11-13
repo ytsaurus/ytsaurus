@@ -27,7 +27,7 @@ TSlot::TSlot(
     TSlotManagerConfigPtr config,
     const Stroka& path,
     int slotIndex,
-    int userId)
+    TNullable<int> userId)
     : IsFree_(true)
     , IsClean_(true)
     , Path_(path)
@@ -90,7 +90,7 @@ bool TSlot::IsFree() const
     return IsFree_;
 }
 
-int TSlot::GetUserId() const
+TNullable<int> TSlot::GetUserId() const
 {
     return UserId_;
 }
@@ -114,10 +114,10 @@ void TSlot::DoCleanSandbox()
 {
     try {
         if (NFS::Exists(SandboxPath_)) {
-            if (UserId_ == EmptyUserId) {
-                NFS::RemoveRecursive(SandboxPath_);
-            } else {
+            if (UserId_.HasValue()) {
                 RunCleaner(SandboxPath_);
+            } else {
+                NFS::RemoveRecursive(SandboxPath_);
             }
         }
         IsClean_ = true;

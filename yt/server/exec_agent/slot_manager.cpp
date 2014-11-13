@@ -58,7 +58,10 @@ void TSlotManager::Initialize(int slotCount)
         for (int slotId = 0; slotId < slotCount; ++slotId) {
             auto slotName = ToString(slotId);
             auto slotPath = NFS::CombinePaths(Config->Path, slotName);
-            int userId = jobControlEnabled ? Config->StartUid + slotId : EmptyUserId;
+            TNullable<int> userId;
+            if (jobControlEnabled) {
+                userId = Config->StartUid + slotId;
+            }
             auto slot = New<TSlot>(Config, slotPath, slotId, userId);
             slot->Initialize();
             Slots.push_back(slot);

@@ -9,8 +9,6 @@ namespace NExecAgent {
 NLog::TLogger ExecAgentLogger("ExecAgent");
 NProfiling::TProfiler ExecAgentProfiler("/exec_agent");
 
-const int EmptyUserId = -1;
-
 const Stroka SandboxDirectoryName("sandbox");
 
 ////////////////////////////////////////////////////////////////////

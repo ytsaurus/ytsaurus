@@ -15,8 +15,6 @@ extern const Stroka ProxyConfigFileName;
 
 extern const Stroka SandboxDirectoryName;
 
-extern const int EmptyUserId;
-
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NExecAgent

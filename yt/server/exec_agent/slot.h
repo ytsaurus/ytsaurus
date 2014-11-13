@@ -27,12 +27,12 @@ public:
         TSlotManagerConfigPtr config,
         const Stroka& path,
         int slotIndex,
-        int userId);
+        TNullable<int> userId);
 
     void Initialize();
 
     bool IsFree() const;
-    int GetUserId() const;
+    TNullable<int> GetUserId() const;
     const NCGroup::TNonOwningCGroup& GetProcessGroup() const;
     std::vector<Stroka> GetCGroupPaths() const;
 
@@ -63,7 +63,7 @@ private:
 
     Stroka Path_;
     int SlotIndex;
-    int UserId_;
+    TNullable<int> UserId_;
 
     Stroka SandboxPath_;
 
