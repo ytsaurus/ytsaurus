@@ -316,6 +316,7 @@ class Application(object):
         self.kiwi_transmitter = None
         if "kiwi_transmitter" in config:
             self.kiwi_transmitter = Yt(**config["kiwi_transmitter"])
+            self.kiwi_transmitter._name = self.kiwi_transmitter.proxy.split(".")[0]
 
 
     def _configure_logging(self, logging_node):
@@ -638,7 +639,8 @@ class Application(object):
                     destination_client,
                     self.kiwi_transmitter,
                     task.source_table,
-                    fastbone=fastbone)
+                    fastbone=fastbone,
+                    message_queue=message_queue)
             else:
                 raise Exception("Incorrect cluster types: {} source and {} destination".format(
                                 source_client._type,

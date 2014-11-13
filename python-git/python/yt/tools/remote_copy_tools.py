@@ -430,8 +430,8 @@ while True:
 def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
     ranges = _split_rows_yt(yt_client, src, 256 * yt.common.MB)
     fastbone = kwargs.get("fastbone", True)
-    if "fasbone" in kwargs:
-        del kwargs["fasbone"]
+    if "fastbone" in kwargs:
+        del kwargs["fastbone"]
     read_command = _get_read_from_yt_command(yt_client, src, "<lenval=true>yamr", fastbone)
     _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command=read_command, ranges=ranges, **kwargs)
 
