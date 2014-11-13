@@ -249,6 +249,8 @@ public:
     {
         // Compute local satisfaction ratio.
         TSchedulerElementBase::PrescheduleJob(node, starvingOnly);
+        // Start times bubble up from leaf nodes with operations.
+        MinSubtreeStartTime = TInstant::Max();
 
         if (!Attributes_.Active)
             return;
@@ -263,9 +265,14 @@ public:
         for (const auto& child : GetActiveChildren()) {
             child->PrescheduleJob(node, starvingOnly);
             if (child->Attributes().Active) {
+                // We need to evaluate both MinSubtreeStartTime and SatisfactionRatio
+                // because parent can use different scheduling mode.
+                MinSubtreeStartTime = std::min(MinSubtreeStartTime, child->GetStartTime());
+
                 Attributes_.SatisfactionRatio = std::min(
                     Attributes_.SatisfactionRatio,
                     child->Attributes().SatisfactionRatio);
+
                 Attributes_.Active = true;
             }
         }
@@ -273,14 +280,7 @@ public:
 
     virtual bool ScheduleJob(ISchedulingContext* context, bool starvingOnly) override
     {
-        ISchedulableElementPtr bestChild;
-        for (const auto& child : GetActiveChildren()) {
-            if (!bestChild ||
-                child->Attributes().SatisfactionRatio < bestChild->Attributes().SatisfactionRatio)
-            {
-                bestChild = child;
-            }
-        }
+        auto bestChild = GetBestChild();
 
         if (!bestChild) {
             return false;
@@ -321,6 +321,7 @@ protected:
 
     yhash_set<ISchedulableElementPtr> Children;
 
+    TInstant MinSubtreeStartTime;
 
     // Given a non-descending continuous |f|, |f(0) = 0|, and a scalar |a|,
     // computes |x \in [0,1]| s.t. |f(x) = a|.
@@ -420,7 +421,7 @@ protected:
 
     void ComputeFifo()
     {
-        auto bestChild = GetBestFifoChild(false);
+        auto bestChild = GetBestChildFifo(false);
         for (const auto& child : Children) {
             auto& childAttributes = child->Attributes();
             if (child == bestChild) {
@@ -490,18 +491,6 @@ protected:
 
     std::vector<ISchedulableElementPtr> GetActiveChildren()
     {
-        switch (Mode) {
-            case ESchedulingMode::Fifo:
-                return GetActiveChildrenFifo();
-            case ESchedulingMode::FairShare:
-                return GetActiveChildrenFairShare();
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    std::vector<ISchedulableElementPtr> GetActiveChildrenFairShare()
-    {
         std::vector<ISchedulableElementPtr> result;
         result.reserve(Children.size());
         for (const auto& child : Children) {
@@ -512,15 +501,19 @@ protected:
         return result;
     }
 
-    std::vector<ISchedulableElementPtr> GetActiveChildrenFifo()
+    ISchedulableElementPtr GetBestChild()
     {
-        auto bestChild = GetBestFifoChild(true);
-        return bestChild
-            ? std::vector<ISchedulableElementPtr>(1, bestChild)
-            : std::vector<ISchedulableElementPtr>();
+        switch (Mode) {
+            case ESchedulingMode::Fifo:
+                return GetBestChildFifo(true);
+            case ESchedulingMode::FairShare:
+                return GetBestChildFairShare();
+            default:
+                YUNREACHABLE();
+        }
     }
 
-    ISchedulableElementPtr GetBestFifoChild(bool needsActive)
+    ISchedulableElementPtr GetBestChildFifo(bool needsActive)
     {
         auto isBetter = [] (const ISchedulableElementPtr& lhs, const ISchedulableElementPtr& rhs) -> bool {
             if (lhs->GetWeight() > rhs->GetWeight()) {
@@ -542,7 +535,19 @@ protected:
 
             bestChild = child;
         }
+        return bestChild;
+    }
 
+    ISchedulableElementPtr GetBestChildFairShare()
+    {
+        ISchedulableElementPtr bestChild;
+        for (const auto& child : GetActiveChildren()) {
+            if (!bestChild ||
+                child->Attributes().SatisfactionRatio < bestChild->Attributes().SatisfactionRatio)
+            {
+                bestChild = child;
+            }
+        }
         return bestChild;
     }
 
@@ -608,11 +613,10 @@ public:
         DefaultConfigured = true;
     }
 
-
     virtual TInstant GetStartTime() const override
     {
-        // Makes no sense for pools since the root is in fair-share mode.
-        return TInstant();
+        // For pools StartTime is equal to minimal start time among active children
+        return MinSubtreeStartTime;
     }
 
     virtual double GetWeight() const override
