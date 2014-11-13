@@ -21,8 +21,6 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 CurrentProtocolVersion = 3;
-
 static const size_t ReaderAlignedChunkSize = 16384;
 static const size_t ReaderUnalignedChunkSize = 16384;
 
@@ -88,7 +86,6 @@ public:
         , Current_(nullptr)
     {
         EnsureCapacity(WriterInitialBufferCapacity);
-        WriteInt64(CurrentProtocolVersion);
     }
 
     void WriteCommand(EWireProtocolCommand command)
@@ -397,12 +394,31 @@ public:
         , UnalignedPool_(
         	TUnalignedWireProtocolReaderPoolTag(),
             ReaderUnalignedChunkSize)
+    { }
+
+    bool IsFinished() const
     {
-        ProtocolVersion_ = ReadInt64();
-        if (ProtocolVersion_ != CurrentProtocolVersion) {
-            THROW_ERROR_EXCEPTION("Unsupported wire protocol version %v",
-                ProtocolVersion_);
-        }
+        return Current_ == Data_.End();
+    }
+
+    TSharedRef GetConsumedPart() const
+    {
+        return Data_.Slice(TRef(const_cast<char*>(Data_.Begin()), const_cast<char*>(Current_)));
+    }
+
+    TSharedRef GetRemainingPart() const
+    {
+        return Data_.Slice(TRef(const_cast<char*>(Current_), const_cast<char*>(Data_.End())));
+    }
+
+    const char* GetCurrent() const
+    {
+        return Current_;
+    }
+
+    void SetCurrent(const char* current)
+    {
+        Current_ = current;
     }
 
     EWireProtocolCommand ReadCommand()
@@ -445,8 +461,6 @@ public:
 private:
     TSharedRef Data_;
     const char* Current_;
-
-    i64 ProtocolVersion_;
 
     TChunkedMemoryPool AlignedPool_;
     TChunkedMemoryPool UnalignedPool_;
@@ -540,6 +554,31 @@ TWireProtocolReader::TWireProtocolReader(const TSharedRef& data)
 
 TWireProtocolReader::~TWireProtocolReader()
 { }
+
+bool TWireProtocolReader::IsFinished() const
+{
+    return Impl_->IsFinished();
+}
+
+TSharedRef TWireProtocolReader::GetConsumedPart() const
+{
+    return Impl_->GetConsumedPart();
+}
+
+TSharedRef TWireProtocolReader::GetRemainingPart() const
+{
+    return Impl_->GetRemainingPart();
+}
+
+const char* TWireProtocolReader::GetCurrent() const
+{
+    return Impl_->GetCurrent();
+}
+
+void TWireProtocolReader::SetCurrent(const char* current)
+{
+    Impl_->SetCurrent(current);
+}
 
 EWireProtocolCommand TWireProtocolReader::ReadCommand()
 {

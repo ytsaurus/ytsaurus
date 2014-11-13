@@ -15,14 +15,9 @@ namespace NTabletClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(EWireProtocolCommand,
-    // Sentinels:
-
-    ((End)(0))
-
-
     // Read commands:
     
-    ((LookupRows)(100))
+    ((LookupRows)(1))
     // Finds rows with given keys and fetches their components.
     //
     // Input:
@@ -35,7 +30,7 @@ DECLARE_ENUM(EWireProtocolCommand,
 
     // Write commands:
 
-    ((WriteRow)(200))
+    ((WriteRow)(100))
     // Inserts a new row or completely replaces an existing one with matching key.
     //
     // Input:
@@ -44,7 +39,7 @@ DECLARE_ENUM(EWireProtocolCommand,
     // Output:
     //   None
 
-    ((DeleteRow)(201))
+    ((DeleteRow)(101))
     // Deletes a row with a given key, if it exists.
     //
     // Input:
@@ -55,8 +50,8 @@ DECLARE_ENUM(EWireProtocolCommand,
 
 
     // Rowset commands:
-    ((RowsetChunk)(300))
-    ((EndOfRowset)(301))
+    ((RowsetChunk)(200))
+    ((EndOfRowset)(201))
 
 );
 
@@ -102,6 +97,13 @@ class TWireProtocolReader
 public:
     explicit TWireProtocolReader(const TSharedRef& data);
     ~TWireProtocolReader();
+
+    bool IsFinished() const;
+    TSharedRef GetConsumedPart() const;
+    TSharedRef GetRemainingPart() const;
+
+    const char* GetCurrent() const;
+    void SetCurrent(const char* current);
 
     EWireProtocolCommand ReadCommand();
 

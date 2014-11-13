@@ -71,7 +71,7 @@ void TStoreManager::Initialize()
     KeyColumnCount_ = Tablet_->GetKeyColumnCount();
 
     for (const auto& pair : Tablet_->Stores()) {
-        auto store = pair.second;
+        const auto& store = pair.second;
         if (store->GetState() != EStoreState::ActiveDynamic) {
             MaxTimestampToStore_.insert(std::make_pair(store->GetMaxTimestamp(), store));
         }
@@ -133,17 +133,12 @@ TDynamicRowRef TStoreManager::WriteRow(
             lockMask);
     }
 
-    TDynamicMemoryStorePtr store;
-    TDynamicRow dynamicRow;
-    do {
-        store = Tablet_->GetActiveStore();
-        dynamicRow = store->WriteRow(
-            transaction,
-            row,
-            prelock,
-            lockMask);
-    } while (!dynamicRow);
-
+    const auto& store = Tablet_->GetActiveStore();
+    auto dynamicRow = store->WriteRow(
+        transaction,
+        row,
+        prelock,
+        lockMask);
     return TDynamicRowRef(store.Get(), dynamicRow);
 }
 
@@ -161,16 +156,11 @@ TDynamicRowRef TStoreManager::DeleteRow(
             TDynamicRow::PrimaryLockMask);
     }
 
-    TDynamicMemoryStorePtr store;
-    TDynamicRow dynamicRow;
-    do {
-        store = Tablet_->GetActiveStore();
-        dynamicRow = store->DeleteRow(
-            transaction,
-            key,
-            prelock);
-    } while (!dynamicRow);
-
+    const auto& store = Tablet_->GetActiveStore();
+    auto dynamicRow = store->DeleteRow(
+        transaction,
+        key,
+        prelock);
     return TDynamicRowRef(store.Get(), dynamicRow);
 }
 
@@ -352,7 +342,7 @@ void TStoreManager::RotateStores(bool createNew)
     RotationScheduled_ = false;
     LastRotated_ = TInstant::Now();
 
-    auto store = Tablet_->GetActiveStore();
+    const auto& store = Tablet_->GetActiveStore();
     YCHECK(store);
 
     store->SetState(EStoreState::PassiveDynamic);
@@ -424,15 +414,11 @@ TDynamicMemoryStorePtr TStoreManager::CreateDynamicMemoryStore(const TStoreId& s
         storeId,
         Tablet_);
     
-    auto slot = Tablet_->GetSlot();
-    // NB: Slot can be null in tests.
-    if (slot) {
-        store->SubscribeRowBlocked(BIND(
-            &TStoreManager::OnRowBlocked,
-            MakeWeak(this),
-            store.Get(),
-            slot));
-    }
+    store->SubscribeRowBlocked(BIND(
+        &TStoreManager::OnRowBlocked,
+        MakeWeak(this),
+        store.Get(),
+        Tablet_->GetSlot()));
 
     return store;
 }
@@ -472,18 +458,22 @@ void TStoreManager::OnRowBlocked(
     TDynamicRow row,
     int lockIndex)
 {
+    // NB: slot can be null in tests.
+    auto invoker = slot
+        ? slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read)
+        : GetCurrentInvoker();
     WaitFor(
-        BIND(
-            &TStoreManager::WaitForBlockedRow,
-            MakeStrong(this),
-            MakeStrong(store),
-            row,
-            lockIndex)
-        .AsyncVia(slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read))
+    BIND(
+        &TStoreManager::WaitOnBlockedRow,
+        MakeStrong(this),
+        MakeStrong(store),
+        row,
+        lockIndex)
+        .AsyncVia(invoker)
         .Run());
 }
 
-void TStoreManager::WaitForBlockedRow(
+void TStoreManager::WaitOnBlockedRow(
     IStorePtr /*store*/,
     TDynamicRow row,
     int lockIndex)

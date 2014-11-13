@@ -107,7 +107,7 @@ private:
         TTabletSlotPtr slot,
         TDynamicRow row,
         int lockIndex);
-    void WaitForBlockedRow(
+    void WaitOnBlockedRow(
         IStorePtr store,
         TDynamicRow row,
         int lockIndex);

@@ -12,6 +12,7 @@
 #include <core/compression/helpers.h>
 
 #include <ytlib/tablet_client/tablet_service_proxy.h>
+#include <ytlib/tablet_client/wire_protocol.h>
 
 #include <server/hydra/hydra_service.h>
 
@@ -95,28 +96,32 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Read)
     {
-        ValidateActiveLeader();
-
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto timestamp = TTimestamp(request->timestamp());
+        auto requestData = DecompressWithEnvelope(request->Attachments());
+
         context->SetRequestInfo("TabletId: %v, Timestamp: %v",
             tabletId,
             timestamp);
-
-        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
-        auto tabletManager = tabletSnapshot->Slot->GetTabletManager();
-
-        auto requestData = DecompressWithEnvelope(request->Attachments());
 
         NQueryAgent::ExecuteRequestWithRetries(
             Bootstrap_->GetConfig()->QueryAgent->MaxQueryRetries,
             Logger,
             [&] () {
-                auto responseData = tabletManager->Read(
+                ValidateActiveLeader();
+
+                auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+                auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
+                auto tabletManager = tabletSnapshot->Slot->GetTabletManager();
+
+                TWireProtocolReader reader(requestData);
+                TWireProtocolWriter writer;
+                tabletManager->Read(
                     tabletSnapshot,
                     timestamp,
-                    requestData);
+                    &reader,
+                    &writer);
+                auto responseData = writer.Flush();
                 auto responseCodec = request->has_response_codec()
                     ? ECodec(request->response_codec())
                     : ECodec(ECodec::None);
@@ -127,26 +132,30 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write)
     {
-        ValidateActiveLeader();
-
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());
+        TWireProtocolReader reader(requestData);
+
         context->SetRequestInfo("TransactionId: %v, TabletId: %v",
             transactionId,
             tabletId);
 
-        auto transactionManager = Slot_->GetTransactionManager();
-        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
+        while (!reader.IsFinished()) {
+            ValidateActiveLeader();
 
-        auto tabletManager = Slot_->GetTabletManager();
-        auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
+            // NB: May yield in Write, need to re-fetch tablet and transaction on every iteration.
+            auto tabletManager = Slot_->GetTabletManager();
+            auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
 
-        auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());
+            auto transactionManager = Slot_->GetTransactionManager();
+            auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
-        tabletManager->Write(
-            tablet,
-            transaction,
-            requestData);
+            tabletManager->Write(
+                tablet,
+                transaction,
+                &reader);
+        }
 
         context->Reply();
     }

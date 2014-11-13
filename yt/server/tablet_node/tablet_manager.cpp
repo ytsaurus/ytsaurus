@@ -17,6 +17,7 @@
 
 #include <core/misc/ring_queue.h>
 #include <core/misc/string.h>
+#include <core/misc/nullable.h>
 
 #include <core/ytree/fluent.h>
 
@@ -168,79 +169,87 @@ public:
     }
 
 
-    std::vector<TSharedRef> Read(
+    void Read(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
-        const TSharedRef& requestData)
+        TWireProtocolReader* reader,
+        TWireProtocolWriter* writer)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         ValidateReadTimestamp(timestamp);
 
-        TWireProtocolReader reader(requestData);
-        TWireProtocolWriter writer;
-
-        while (ExecuteSingleRead(
-            tabletSnapshot,
-            timestamp,
-            &reader,
-            &writer))
-        { }
-
-        return writer.Flush();
+        while (!reader->IsFinished()) {
+            ExecuteSingleRead(
+                tabletSnapshot,
+                timestamp,
+                reader,
+                writer);
+        }
     }
 
     void Write(
         TTablet* tablet,
         TTransaction* transaction,
-        const TSharedRef& requestData)
+        TWireProtocolReader* reader)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        ValidateMemoryLimit();
         ValidateTabletMounted(tablet);
-        if (transaction->GetState() != ETransactionState::Active) {
-            transaction->ThrowInvalidState();
-        }
+        ValidateMemoryLimit();
 
         // Protect from tablet disposal.
         TCurrentInvokerGuard guard(tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
 
-        int commandsSucceded = 0;
         int prelockedCountBefore = PrelockedTransactions_.size();
-        TError error;
-        try {
-            TWireProtocolReader reader(requestData);
-            while (ExecuteSingleWrite(tablet,  transaction, &reader, true)) {
-                ++commandsSucceded;
+
+        TNullable<TError> error;
+        TNullable<TRowBlockedException> rowBlockedEx;
+
+        while (!reader->IsFinished()) {
+            const char* readerCheckpoint = reader->GetCurrent();
+            try {
+                ExecuteSingleWrite(tablet, transaction, reader, true);
+            } catch (const TRowBlockedException& ex) {
+                reader->SetCurrent(readerCheckpoint);
+                rowBlockedEx = ex;
+                break;
+            } catch (const std::exception& ex) {
+                error = ex;
+                break;
             }
-        } catch (const std::exception& ex) {
-            error = ex;
         }
 
         int prelockedCountAfter = PrelockedTransactions_.size();
         int prelockedCountDelta = prelockedCountAfter - prelockedCountBefore;
+        if (prelockedCountDelta > 0) {
+            LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v)",
+                transaction->GetId(),
+                tablet->GetId(),
+                prelockedCountDelta);
 
-        LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v, CommandsSucceded: %v)",
-            transaction->GetId(),
-            tablet->GetId(),
-            prelockedCountDelta,
-            commandsSucceded);
+            auto requestData = reader->GetConsumedPart();
+            auto compressedRequestData = ChangelogCodec_->Compress(requestData);
 
-        auto compressedRequestData = ChangelogCodec_->Compress(requestData);
+            TReqExecuteWrite hydraRequest;
+            ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
+            ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
+            hydraRequest.set_codec(ChangelogCodec_->GetId());
+            hydraRequest.set_compressed_data(ToString(compressedRequestData));
+            CreateMutation(Slot_->GetHydraManager(), hydraRequest)
+                ->SetAction(BIND(&TImpl::HydraLeaderExecuteWrite, MakeStrong(this), prelockedCountDelta))
+                ->Commit();
+        }
 
-        TReqExecuteWrite hydraRequest;
-        ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
-        ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
-        hydraRequest.set_commands_succeded(commandsSucceded);
-        hydraRequest.set_codec(ChangelogCodec_->GetId());
-        hydraRequest.set_compressed_data(ToString(compressedRequestData));
-        CreateMutation(Slot_->GetHydraManager(), hydraRequest)
-            ->SetAction(BIND(&TImpl::HydraLeaderExecuteWrite, MakeStrong(this), prelockedCountDelta))
-            ->Commit();
+        if (rowBlockedEx) {
+            rowBlockedEx->GetStore()->WaitOnBlockedRow(
+                rowBlockedEx->GetRow(),
+                rowBlockedEx->GetLockMask(),
+                rowBlockedEx->GetTimestamp());
+        }
 
-        if (!error.IsOK()) {
-            THROW_ERROR error;
+        if (error) {
+            THROW_ERROR *error;
         }
     }
 
@@ -249,7 +258,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto storeManager = tablet->GetStoreManager();
+        const auto& storeManager = tablet->GetStoreManager();
         switch (TypeFromId(storeId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
@@ -528,7 +537,7 @@ private:
                 SetStoreOrphaned(pair.second);
             }
 
-            auto storeManager = tablet->GetStoreManager();
+            const auto& storeManager = tablet->GetStoreManager();
             for (auto store : storeManager->GetLockedStores()) {
                 SetStoreOrphaned(store);
             }
@@ -662,26 +671,23 @@ private:
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = GetTablet(tabletId);
 
-        int commandsSucceded = request.commands_succeded();
         auto codecId = ECodec(request.codec());
         auto* codec = GetCodec(codecId);
         auto compressedRequestData = TSharedRef::FromString(request.compressed_data());
         auto requestData = codec->Decompress(compressedRequestData);
 
-        TWireProtocolReader reader(requestData);
-
         try {
-            for (int index = 0; index < commandsSucceded; ++index) {
-                YCHECK(ExecuteSingleWrite(tablet, transaction, &reader, false));
+            TWireProtocolReader reader(requestData);
+            while (!reader.IsFinished()) {
+                ExecuteSingleWrite(tablet, transaction, &reader, false);
             }
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Error executing writes");
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %v, TabletId: %v, CommandsSucceded: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %v, TabletId: %v)",
             transaction->GetId(),
-            tablet->GetId(),
-            commandsSucceded);
+            tablet->GetId());
     }
 
     void HydraRotateStore(const TReqRotateStore& request)
@@ -767,7 +773,7 @@ private:
                 }
             }
         } else {
-            auto storeManager = tablet->GetStoreManager();
+            const auto& storeManager = tablet->GetStoreManager();
             std::vector<TStoreId> addedStoreIds;
             for (const auto& descriptor : response.stores_to_add()) {
                 auto storeId = FromProto<TChunkId>(descriptor.store_id());
@@ -1004,17 +1010,13 @@ private:
     }
 
 
-    bool ExecuteSingleRead(
+    void ExecuteSingleRead(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
     {
         auto command = reader->ReadCommand();
-        if (command == EWireProtocolCommand::End) {
-            return false;
-        }
-
         switch (command) {
             case EWireProtocolCommand::LookupRows:
                 LookupRows(
@@ -1029,23 +1031,19 @@ private:
                 THROW_ERROR_EXCEPTION("Unknown read command %v",
                     command);
         }
-
-        return true;
     }
 
-    bool ExecuteSingleWrite(
+    void ExecuteSingleWrite(
         TTablet* tablet,
         TTransaction* transaction,
         TWireProtocolReader* reader,
         bool prelock)
     {
-        auto command = reader->ReadCommand();
-        if (command == EWireProtocolCommand::End) {
-            return false;
-        }
-            
         const auto& storeManager = tablet->GetStoreManager();
+
         TDynamicRowRef rowRef;
+
+        auto command = reader->ReadCommand();
         switch (command) {
             case EWireProtocolCommand::WriteRow: {
                 TReqWriteRow req;
@@ -1079,8 +1077,6 @@ private:
             PrelockedTransactions_.push(transaction);
             transaction->PrelockedRows().push(rowRef);
         }
-
-        return true;
     }
 
 
@@ -1125,8 +1121,7 @@ private:
 
     void RotateStores(TTablet* tablet, bool createNew)
     {
-        auto storeManager = tablet->GetStoreManager();
-        storeManager->RotateStores(createNew);
+        tablet->GetStoreManager()->RotateStores(createNew);
     }
 
 
@@ -1323,26 +1318,28 @@ void TTabletManager::BackoffStore(IStorePtr store, EStoreState state)
     Impl_->BackoffStore(store, state);
 }
 
-std::vector<TSharedRef> TTabletManager::Read(
+void TTabletManager::Read(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
-    const TSharedRef& requestData)
+    TWireProtocolReader* reader,
+    TWireProtocolWriter* writer)
  {
-    return Impl_->Read(
+    Impl_->Read(
         std::move(tabletSnapshot),
         timestamp,
-        requestData);
+        reader,
+        writer);
 }
 
 void TTabletManager::Write(
     TTablet* tablet,
     TTransaction* transaction,
-    const TSharedRef& requestData)
+    TWireProtocolReader* reader)
 {
     Impl_->Write(
         tablet,
         transaction,
-        requestData);
+        reader);
 }
 
 IStorePtr TTabletManager::CreateStore(TTablet* tablet, const TStoreId& storeId)

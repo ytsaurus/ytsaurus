@@ -184,7 +184,7 @@ protected:
 
     TVersionedRow ProduceSingleRowVersion(TDynamicRow dynamicRow)
     {
-        Store_->WaitWhileBlocked(dynamicRow, LockMask_, Timestamp_);
+        Store_->WaitOnBlockedRow(dynamicRow, LockMask_, Timestamp_);
 
         auto writeTimestampList = dynamicRow.GetTimestampList(ETimestampListKind::Write, KeyColumnCount_, ColumnLockCount_);
         const auto* writeTimestampPtr = SearchList(
@@ -548,6 +548,34 @@ int TDynamicMemoryStore::Unlock()
     return result;
 }
 
+void TDynamicMemoryStore::WaitOnBlockedRow(
+    TDynamicRow row,
+    ui32 lockMask,
+    TTimestamp timestamp)
+{
+    if (timestamp == AsyncLastCommittedTimestamp)
+        return;
+
+    auto now = NProfiling::GetCpuInstant();
+    auto deadline = now + NProfiling::DurationToCpuDuration(Config_->MaxBlockedRowWaitTime);
+
+    while (true) {
+        int lockIndex = GetBlockingLockIndex(row, lockMask, timestamp);
+        if (lockIndex < 0)
+            break;
+
+        RowBlocked_.Fire(row, lockIndex);
+
+        if (NProfiling::GetCpuInstant() > deadline) {
+            THROW_ERROR_EXCEPTION("Timed out waiting on blocked row")
+                << TErrorAttribute("lock", Tablet_->LockIndexToName()[lockIndex])
+                << TErrorAttribute("tablet_id", Tablet_->GetId())
+                << TErrorAttribute("key", RowToKey(Tablet_, row))
+                << TErrorAttribute("timeout", Config_->MaxBlockedRowWaitTime);
+        }
+    }
+}
+
 TDynamicRow TDynamicMemoryStore::WriteRow(
     TTransaction* transaction,
     TUnversionedRow row,
@@ -582,11 +610,8 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
     };
 
     auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
-        // Make sure the row is not blocked. Bail out if we spinned.
-        if (WaitWhileBlocked(dynamicRow, lockMask, transaction->GetStartTimestamp())) {
-            YCHECK(prelock);
-            return;
-        }
+        // Make sure the row is not blocked.
+        ValidateRowNotBlocked(dynamicRow, lockMask, transaction->GetStartTimestamp());
 
         // Check for lock conflicts and acquire the lock.
         CheckRowLocks(dynamicRow, transaction, lockMask);
@@ -628,11 +653,8 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     };
 
     auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
-        // Make sure the row is not blocked. Bail out if we spinned.
-        if (WaitWhileBlocked(dynamicRow, TDynamicRow::PrimaryLockMask, transaction->GetStartTimestamp())) {
-            YCHECK(prelock);
-            return;
-        }
+        // Make sure the row is not blocked.
+        ValidateRowNotBlocked(dynamicRow, TDynamicRow::PrimaryLockMask, transaction->GetStartTimestamp());
 
         // Check for lock conflicts and acquire the lock.
         CheckRowLocks(dynamicRow, transaction, TDynamicRow::PrimaryLockMask);
@@ -856,36 +878,15 @@ int TDynamicMemoryStore::GetBlockingLockIndex(
     return -1;
 }
 
-bool TDynamicMemoryStore::WaitWhileBlocked(
+void TDynamicMemoryStore::ValidateRowNotBlocked(
     TDynamicRow row,
     ui32 lockMask,
     TTimestamp timestamp)
 {
-    if (timestamp == AsyncLastCommittedTimestamp) {
-        return false;
+    int lockIndex = GetBlockingLockIndex(row, lockMask, timestamp);
+    if (lockIndex >= 0) {
+        throw TRowBlockedException(this, row, lockMask, timestamp);
     }
-
-    auto now = NProfiling::GetCpuInstant();
-    auto deadline = now + NProfiling::DurationToCpuDuration(Config_->MaxBlockedRowWaitTime);
-
-    bool blocked = false;
-    while (true) {
-        int lockIndex = GetBlockingLockIndex(row, lockMask, timestamp);
-        if (lockIndex < 0)
-            break;
-
-        blocked = true;
-        RowBlocked_.Fire(row, lockIndex);
-
-        if (NProfiling::GetCpuInstant() > deadline) {
-            THROW_ERROR_EXCEPTION("Timed out waiting on blocked row")
-                << TErrorAttribute("lock", Tablet_->LockIndexToName()[lockIndex])
-                << TErrorAttribute("tablet_id", Tablet_->GetId())
-                << TErrorAttribute("key", RowToKey(Tablet_, row))
-                << TErrorAttribute("timeout", Config_->MaxBlockedRowWaitTime);
-        }
-    }
-    return blocked;
 }
 
 void TDynamicMemoryStore::CheckRowLocks(

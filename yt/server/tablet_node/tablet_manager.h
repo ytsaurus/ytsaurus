@@ -44,15 +44,16 @@ public:
     void BackoffStore(IStorePtr store, EStoreState state);
 
 
-    std::vector<TSharedRef> Read(
+    void Read(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
-        const TSharedRef& requestData);
+        NTabletClient::TWireProtocolReader* reader,
+        NTabletClient::TWireProtocolWriter* writer);
 
     void Write(
         TTablet* tablet,
         TTransaction* transaction,
-        const TSharedRef& requestData);
+        NTabletClient::TWireProtocolReader* reader);
 
 
     IStorePtr CreateStore(TTablet* tablet, const TStoreId& storeId);

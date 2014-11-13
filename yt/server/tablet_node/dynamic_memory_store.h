@@ -6,6 +6,7 @@
 #include "transaction.h"
 
 #include <core/misc/public.h>
+#include <core/misc/property.h>
 
 #include <core/actions/signal.h>
 
@@ -17,6 +18,30 @@
 
 namespace NYT {
 namespace NTabletNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRowBlockedException
+    : public std::exception
+{
+public:
+    TRowBlockedException(
+        TDynamicMemoryStorePtr store,
+        TDynamicRow row,
+        ui32 lockMask,
+        TTimestamp timestamp)
+        : Store_(std::move(store))
+        , Row_(row)
+        , LockMask_(lockMask)
+        , Timestamp_(timestamp)
+    { }
+
+    DEFINE_BYVAL_RO_PROPERTY(TDynamicMemoryStorePtr, Store);
+    DEFINE_BYVAL_RO_PROPERTY(TDynamicRow, Row);
+    DEFINE_BYVAL_RO_PROPERTY(ui32, LockMask);
+    DEFINE_BYVAL_RO_PROPERTY(TTimestamp, Timestamp);
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,12 +60,27 @@ public:
     int Lock();
     int Unlock();
 
+    void WaitOnBlockedRow(
+        TDynamicRow row,
+        ui32 lockMask,
+        TTimestamp timestamp);
+
+    //! Writes the row taking the needed locks.
+    /*!
+     *  On lock failure, throws TErrorException explaining the cause.
+     *  If a blocked row is encountered, throws TRowBlockedException.
+     */
     TDynamicRow WriteRow(
         TTransaction* transaction,
         NVersionedTableClient::TUnversionedRow row,
         bool prelock,
         ui32 lockMask);
 
+    //! Deletes the row taking the needed locks.
+    /*!
+     *  On lock failure, throws TErrorException explaining the cause.
+     *  If a blocked row is encountered, throws TRowBlockedException.
+     */
     TDynamicRow DeleteRow(
         TTransaction* transaction,
         TKey key,
@@ -131,7 +171,7 @@ private:
         TDynamicRow row,
         ui32 lockMask,
         TTimestamp timestamp);
-    bool WaitWhileBlocked(
+    void ValidateRowNotBlocked(
         TDynamicRow row,
         ui32 lockMask,
         TTimestamp timestamp);

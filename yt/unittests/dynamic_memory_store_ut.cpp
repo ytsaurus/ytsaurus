@@ -553,6 +553,30 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedCommit)
     EXPECT_TRUE(blocked);
 }
 
+TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedTimeout)
+{
+    auto key = BuildKey("1");
+
+    auto transaction = StartTransaction();
+
+    auto row = WriteRow(transaction.get(), BuildRow("key=1;a=1"), false);
+
+    PrepareTransaction(transaction.get());
+    PrepareRow(transaction.get(), row);
+
+    bool blocked = false;
+    Store_->SubscribeRowBlocked(BIND([&] (TDynamicRow blockedRow, int lockIndex) {
+        blocked = true;
+        Sleep(TDuration::MilliSeconds(10));
+    }));
+
+    // Blocked, timeout.
+    EXPECT_ANY_THROW({
+        LookupRow(key, SyncLastCommittedTimestamp);
+    });
+    EXPECT_TRUE(blocked);
+}
+
 TEST_F(TSingleLockDynamicMemoryStoreTest, WriteNotBlocked)
 {
     auto inputRow = BuildRow("key=1;a=1");
@@ -588,46 +612,12 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteBlocked)
     PrepareTransaction(transaction1.get());
     PrepareRow(transaction1.get(), row);
 
-    bool blocked = false;
-    Store_->SubscribeRowBlocked(BIND([&] (TDynamicRow blockedRow, int lockIndex) {
-        EXPECT_EQ(TDynamicRow::PrimaryLockIndex, lockIndex);
-        EXPECT_EQ(blockedRow, row);
-        CommitTransaction(transaction1.get());
-        CommitRow(transaction1.get(), row);
-        blocked = true;
-    }));
-
     auto transaction2 = StartTransaction();
 
     // Blocked, no value is written.
-    EXPECT_FALSE(WriteRow(transaction2.get(), inputRow, true));
-    EXPECT_TRUE(blocked);
-}
-
-TEST_F(TSingleLockDynamicMemoryStoreTest, WriteBlockedTimeout)
-{
-    auto inputRow = BuildRow("key=1;a=1");
-
-    auto transaction1 = StartTransaction();
-
-    auto row = WriteRow(transaction1.get(), inputRow, false);
-
-    PrepareTransaction(transaction1.get());
-    PrepareRow(transaction1.get(), row);
-
-    bool blocked = false;
-    Store_->SubscribeRowBlocked(BIND([&] (TDynamicRow blockedRow, int lockIndex) {
-        blocked = true;
-        Sleep(TDuration::MilliSeconds(10));
-    }));
-
-    auto transaction2 = StartTransaction();
-
-    // Blocked, timeout.
-    EXPECT_ANY_THROW({
+    EXPECT_THROW({
         WriteRow(transaction2.get(), inputRow, true);
-    });
-    EXPECT_TRUE(blocked);
+    }, TRowBlockedException);
 }
 
 TEST_F(TSingleLockDynamicMemoryStoreTest, ArbitraryKeyLength)

@@ -535,8 +535,7 @@ private:
                 writer.WriteCommand(EWireProtocolCommand::LookupRows);
                 writer.WriteMessage(req);
                 writer.WriteUnversionedRowset(batch->Keys, &IdMapping_);
-                writer.WriteCommand(EWireProtocolCommand::End);
-                
+
                 batch->RequestData = NCompression::CompressWithEnvelope(
                     writer.Flush(),
                     Config_->LookupRequestCodec);
@@ -1452,7 +1451,6 @@ private:
         {
             // Do all the heavy lifting here.
             for (auto& batch : Batches_) {
-                batch->Writer.WriteCommand(EWireProtocolCommand::End);
                 batch->RequestData = NCompression::CompressWithEnvelope(
                     batch->Writer.Flush(),
                     Config_->WriteRequestCodec);;

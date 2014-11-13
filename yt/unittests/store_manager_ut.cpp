@@ -604,79 +604,11 @@ TEST_F(TSingleLockStoreManagerTest, WriteBlockedWrite)
 
     auto transaction2 = StartTransaction(transaction1->GetPrepareTimestamp() + 10);
 
-    bool blocked = false;
-    GetCurrentInvoker()->Invoke(BIND([&] () {
-        CommitTransaction(transaction1.get());
-        CommitRow(transaction1.get(), rowRef1);
-        blocked = true;
-    }));
-
-    auto rowRef2 = WriteRow(transaction2.get(), BuildRow("key=1;a=1").Get(), true);
-
-    EXPECT_TRUE(blocked);
-    EXPECT_EQ(rowRef1, rowRef2);
-    EXPECT_EQ(1, store->GetLockCount());
-    EXPECT_LE(transaction1->GetCommitTimestamp(), transaction2->GetStartTimestamp());
-}
-
-TEST_F(TSingleLockStoreManagerTest, WriteBlockedWriteConflict)
-{
-    auto store = Tablet_->GetActiveStore();
-    EXPECT_EQ(0, store->GetLockCount());
-
-    auto transaction1 = StartTransaction();
-    auto rowRef1 = WriteRow(transaction1.get(), BuildRow("key=1;a=1").Get(), false);
-    EXPECT_EQ(store, rowRef1.Store);
-
-    PrepareTransaction(transaction1.get());
-    PrepareRow(transaction1.get(), rowRef1);
-
-    auto transaction2 = StartTransaction();
-
-    bool blocked = false;
-    GetCurrentInvoker()->Invoke(BIND([&] () {
-        CommitTransaction(transaction1.get());
-        CommitRow(transaction1.get(), rowRef1);
-        blocked = true;
-    }));
-
-    EXPECT_ANY_THROW({
+    EXPECT_THROW({
         WriteRow(transaction2.get(), BuildRow("key=1;a=1").Get(), true);
-    });
-    EXPECT_TRUE(blocked);
-    EXPECT_EQ(0, store->GetLockCount());
-}
+    }, TRowBlockedException);
 
-TEST_F(TSingleLockStoreManagerTest, WriteBlockedWriteRotate)
-{
-    auto store1 = Tablet_->GetActiveStore();
-    EXPECT_EQ(0, store1->GetLockCount());
-
-    auto transaction1 = StartTransaction();
-    auto rowRef1 = WriteRow(transaction1.get(), BuildRow("key=1;a=1").Get(), false);
-    EXPECT_EQ(store1, rowRef1.Store);
-
-    PrepareTransaction(transaction1.get());
-    PrepareRow(transaction1.get(), rowRef1);
-
-    auto transaction2 = StartTransaction(transaction1->GetPrepareTimestamp() + 10);
-
-    bool blocked = false;
-    GetCurrentInvoker()->Invoke(BIND([&] () {
-        CommitTransaction(transaction1.get());
-        CommitRow(transaction1.get(), rowRef1);
-        Rotate();
-        blocked = true;
-    }));
-
-    auto rowRef2 = WriteRow(transaction2.get(), BuildRow("key=1;a=1").Get(), true);
-    auto store2 = Tablet_->GetActiveStore();
-    EXPECT_TRUE(blocked);
-    EXPECT_EQ(store1, rowRef1.Store);
-    EXPECT_EQ(store2, rowRef2.Store);
-    EXPECT_EQ(0, store1->GetLockCount());
-    EXPECT_EQ(1, store2->GetLockCount());
-    EXPECT_LE(transaction1->GetCommitTimestamp(), transaction2->GetStartTimestamp());
+    EXPECT_EQ(1, store->GetLockCount());
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -22,7 +22,7 @@ public:
 
     static int GetProtocolVersion()
     {
-        return 2;
+        return 3;
     }
 
     explicit TTabletServiceProxy(NRpc::IChannelPtr channel)

@@ -44,9 +44,8 @@ message TReqExecuteWrite
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required NYT.NProto.TGuid tablet_id = 2;
-    required int32 commands_succeded = 3;
-    required int32 codec = 4;
-    required bytes compressed_data = 5;
+    required int32 codec = 3;
+    required bytes compressed_data = 4;
 }
 
 message TReqRotateStore
