@@ -249,7 +249,7 @@ public:
     {
         // Compute local satisfaction ratio.
         TSchedulerElementBase::PrescheduleJob(node, starvingOnly);
-        // Start times bubble up from leaf nodes with operations
+        // Start times bubble up from leaf nodes with operations.
         MinSubtreeStartTime = TInstant::Max();
 
         if (!Attributes_.Active)
@@ -266,10 +266,8 @@ public:
             child->PrescheduleJob(node, starvingOnly);
             if (child->Attributes().Active) {
                 // We need to evaluate both MinSubtreeStartTime and SatisfactionRatio
-                // because parent can use different SchedulingMode
-                MinSubtreeStartTime = std::min(
-                    MinSubtreeStartTime,
-                    child->GetStartTime());
+                // because parent can use different scheduling mode.
+                MinSubtreeStartTime = std::min(MinSubtreeStartTime, child->GetStartTime());
 
                 Attributes_.SatisfactionRatio = std::min(
                     Attributes_.SatisfactionRatio,
