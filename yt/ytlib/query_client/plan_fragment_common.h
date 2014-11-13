@@ -32,6 +32,9 @@ DECLARE_ENUM(EBinaryOp,
 
 const char* GetBinaryOpcodeLexeme(EBinaryOp opcode);
 
+// Reverse binary opcode for compariosn operations.
+EBinaryOp GetReversedBinaryOpcode(EBinaryOp opcode);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

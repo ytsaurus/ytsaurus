@@ -26,6 +26,20 @@ const char* GetBinaryOpcodeLexeme(EBinaryOp opcode)
     YUNREACHABLE();
 }
 
+// Reverse binary opcode for compariosn operations.
+EBinaryOp GetReversedBinaryOpcode(EBinaryOp opcode)
+{
+    switch (opcode) {
+        case EBinaryOp::Equal:          return EBinaryOp::Equal;
+        case EBinaryOp::Less:           return EBinaryOp::Greater;
+        case EBinaryOp::LessOrEqual:    return EBinaryOp::GreaterOrEqual;
+        case EBinaryOp::Greater:        return EBinaryOp::Less;
+        case EBinaryOp::GreaterOrEqual: return EBinaryOp::LessOrEqual;
+        default:                        return opcode;
+    }
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

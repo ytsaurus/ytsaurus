@@ -54,20 +54,7 @@ TKeyTrieNode ExtractMultipleConstraints(
             if (rhsExpr->As<TReferenceExpression>()) {
                 // Ensure that references are on the left.
                 std::swap(lhsExpr, rhsExpr);
-                switch (opcode) {
-                    case EBinaryOp::Equal:
-                        opcode = EBinaryOp::Equal;
-                    case EBinaryOp::Less:
-                        opcode = EBinaryOp::Greater;
-                    case EBinaryOp::LessOrEqual:
-                        opcode = EBinaryOp::GreaterOrEqual;
-                    case EBinaryOp::Greater:
-                        opcode = EBinaryOp::Less;
-                    case EBinaryOp::GreaterOrEqual:
-                        opcode = EBinaryOp::LessOrEqual;
-                    default:
-                        break;
-                }
+                opcode = GetReversedBinaryOpcode(opcode);
             }
 
             auto referenceExpr = lhsExpr->As<TReferenceExpression>();
@@ -294,20 +281,7 @@ TConstExpressionPtr RefinePredicate(
             if (rhsExpr->As<TReferenceExpression>()) {
                 // Ensure that references are on the left.
                 std::swap(lhsExpr, rhsExpr);
-                switch (opcode) {
-                    case EBinaryOp::Equal:
-                        opcode = EBinaryOp::Equal;
-                    case EBinaryOp::Less:
-                        opcode = EBinaryOp::Greater;
-                    case EBinaryOp::LessOrEqual:
-                        opcode = EBinaryOp::GreaterOrEqual;
-                    case EBinaryOp::Greater:
-                        opcode = EBinaryOp::Less;
-                    case EBinaryOp::GreaterOrEqual:
-                        opcode = EBinaryOp::LessOrEqual;
-                    default:
-                        break;
-                }
+                opcode = GetReversedBinaryOpcode(opcode);
             }
 
             auto referenceExpr = lhsExpr->As<TReferenceExpression>();

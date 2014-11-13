@@ -671,6 +671,29 @@ TEST_P(TRefineKeyRangeTest, Basic)
     }
 }
 
+TEST_P(TRefineKeyRangeTest, BasicReversed)
+{
+    auto testCase = GetParam();
+
+    auto expr = Make<TBinaryOpExpression>(GetReversedBinaryOpcode(testCase.ConstraintOpcode),
+        Make<TLiteralExpression>(MakeInt64(testCase.ConstraintValue)),
+        Make<TReferenceExpression>(testCase.ConstraintColumnName));
+
+    auto result = RefineKeyRange(
+        GetSampleKeyColumns(),
+        std::make_pair(
+            testCase.GetInitialLeftBound(),
+            testCase.GetInitialRightBound()),
+        expr);
+
+    if (testCase.ResultIsEmpty) {
+        ExpectIsEmpty(result);
+    } else {
+        EXPECT_EQ(testCase.GetResultingLeftBound(), result.first);
+        EXPECT_EQ(testCase.GetResultingRightBound(), result.second);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Here is a guideline on how to read this cases table.
 //
