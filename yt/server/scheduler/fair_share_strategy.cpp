@@ -501,31 +501,6 @@ protected:
         return result;
     }
 
-    std::vector<ISchedulableElementPtr> GetSchedulableChildren()
-    {
-        switch (Mode) {
-            case ESchedulingMode::Fifo:
-                return GetSchedulableChildrenFifo();
-            case ESchedulingMode::FairShare:
-                return GetSchedulableChildrenFairShare();
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    std::vector<ISchedulableElementPtr> GetSchedulableChildrenFifo()
-    {
-        auto bestChild = GetBestChildFifo(true);
-        return bestChild
-            ? std::vector<ISchedulableElementPtr>(1, bestChild)
-            : std::vector<ISchedulableElementPtr>();
-    }
-
-    std::vector<ISchedulableElementPtr> GetSchedulableChildrenFairShare()
-    {
-        return GetActiveChildren();
-    }
-
     ISchedulableElementPtr GetBestChild()
     {
         switch (Mode) {
@@ -566,7 +541,7 @@ protected:
     ISchedulableElementPtr GetBestChildFairShare()
     {
         ISchedulableElementPtr bestChild;
-        for (const auto& child : GetSchedulableChildrenFairShare()) {
+        for (const auto& child : GetActiveChildren()) {
             if (!bestChild ||
                 child->Attributes().SatisfactionRatio < bestChild->Attributes().SatisfactionRatio)
             {
