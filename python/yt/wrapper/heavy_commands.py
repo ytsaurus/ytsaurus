@@ -2,12 +2,13 @@
 
 import config
 import yt.logger as logger
-from common import YtError, get_backoff
+from common import get_backoff
 from errors import format_error
 from table import to_table
 from transaction import PingableTransaction
 from transaction_commands import _make_transactional_request
 from driver import get_host_for_heavy_operation
+from http import RETRIABLE_ERRORS
 
 import time
 from datetime import datetime
@@ -43,7 +44,7 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                                 retry_unavailable_proxy=False,
                                 client=client)
                         break
-                    except YtError as err:
+                    except RETRIABLE_ERRORS as err:
                         if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
                             raise
                         backoff = get_backoff(config.http.REQUEST_RETRY_TIMEOUT, current_time)

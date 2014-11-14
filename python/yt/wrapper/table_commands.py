@@ -52,7 +52,7 @@ import config
 import py_wrapper
 from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, \
                    is_prefix, get_value, compose, bool_to_string, chunk_iter_lines, get_version, MB
-from errors import YtError, YtNetworkError, format_error
+from errors import YtError, format_error
 from driver import read_content, get_host_for_heavy_operation, make_request, ResponseStream
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
@@ -65,7 +65,7 @@ from transaction import PingableTransaction, Transaction
 from format import create_format, YsonFormat
 from lock import lock
 from heavy_commands import make_heavy_request
-from http import NETWORK_ERRORS
+from http import RETRIABLE_ERRORS
 import yt.logger as logger
 
 from yt.yson import yson_to_json
@@ -516,6 +516,12 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
 
         return read_content(response, raw, format, get_value(response_type, "iter_lines"))
     else:
+        class YtResponseParametersEmptyError(Exception):
+            pass
+
+        retriable_errors = list(RETRIABLE_ERRORS)
+        retriable_errors.append(YtResponseParametersEmptyError)
+
         if response_type is not None:
             logger.info("read_table with retries ignore response_type option")
 
@@ -539,7 +545,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             for attempt in xrange(config.http.REQUEST_RETRY_COUNT):
                 try:
                     return func()
-                except YtNetworkError as err:
+                except tuple(retriable_errors) as err:
                     if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
                         raise
                     logger.warning(format_error(err))
@@ -551,7 +557,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                     try:
                         for elem in iter():
                             yield elem
-                    except tuple(list(NETWORK_ERRORS) + [YtNetworkError]) as err:
+                    except tuple(retriable_errors) as err:
                         if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
                             raise
                         logger.warning(format_error(err))
@@ -572,7 +578,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 proxy=get_host_for_heavy_operation(),
                 client=client)
             if "X-YT-Response-Parameters" not in response.headers():
-                raise YtNetworkError("X-YT-Response-Parameters missing (bug in proxy)")
+                raise YtResponseParametersEmptyError("X-YT-Response-Parameters missing (bug in proxy)")
             rsp_params = json.loads(response.headers()["X-YT-Response-Parameters"])
             return rsp_params.get("start_row_index", None)
 

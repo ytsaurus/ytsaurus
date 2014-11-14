@@ -49,12 +49,7 @@ class YtResponseError(YtError):
         """Request rate limit exceeded."""
         return int(self.error["code"]) == 904
 
-class YtNetworkError(YtError):
-    """
-    Error occurred while sending an HTTP request.
-
-    Typically it wraps some underlying error.
-    """
+class YtRequestRateLimitExceeded(YtResponseError):
     pass
 
 class YtProxyUnavailable(YtError):
