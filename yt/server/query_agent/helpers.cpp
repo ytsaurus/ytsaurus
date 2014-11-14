@@ -3,6 +3,8 @@
 
 #include <core/logging/log.h>
 
+#include <ytlib/chunk_client/public.h>
+
 #include <server/data_node/public.h>
 
 namespace NYT {
@@ -12,10 +14,9 @@ namespace NQueryAgent {
 
 bool IsRetriableError(const TError& error)
 {
-    if (error.FindMatching(NDataNode::EErrorCode::LocalChunkReaderFailed)) {
-        return true;
-    }
-    return false;
+    return
+        error.FindMatching(NDataNode::EErrorCode::LocalChunkReaderFailed) ||
+        error.FindMatching(NChunkClient::EErrorCode::NoSuchChunk);
 }
 
 void ExecuteRequestWithRetries(
