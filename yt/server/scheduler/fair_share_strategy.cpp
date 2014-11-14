@@ -391,7 +391,7 @@ protected:
                 GetMinResourceRatio(limits, totalLimits),
                 child->GetMaxShareRatio());
 
-            childAttributes.DominantResource = GetDominantResource(demand, totalLimits);
+            childAttributes.DominantResource = GetDominantResource(child->ResourceUsage(), totalLimits);
 
             i64 dominantTotalLimits = GetResource(totalLimits, childAttributes.DominantResource);
             i64 dominantDemand = GetResource(demand, childAttributes.DominantResource);
