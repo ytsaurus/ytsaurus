@@ -715,6 +715,9 @@ class Application(object):
         except TypeError as error:
             raise RequestFailed("Cannot create task", inner_errors=[yt.YtError(error.message)])
 
+        if len(self._pending_tasks) > self._pending_task_limit:
+            raise RequestFailed("Too many pending tasks (>{0})".format(len(self._pending_tasks)))
+
         try:
             self._precheck(task, ignore_timeout=True, yamr_timeout=5.0)
         except yt.YtError as error:
