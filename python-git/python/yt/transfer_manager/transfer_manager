@@ -715,7 +715,7 @@ class Application(object):
         except TypeError as error:
             raise RequestFailed("Cannot create task", inner_errors=[yt.YtError(error.message)])
 
-        if len(self._pending_tasks) > self._pending_task_limit:
+        if len(self._pending_tasks) > self._config["pending_task_limit"]:
             raise RequestFailed("Too many pending tasks (>{0})".format(len(self._pending_tasks)))
 
         try:
@@ -880,6 +880,7 @@ DEFAULT_CONFIG = {
         "redwood": ["cedar", "kant", "smith", "plato"]
     },
     "default_mr_user": "userdata",
+    "pending_task_limit": 500,
     "path": "//home/ignat/transfer_manager_test",
     "proxy": "kant.yt.yandex.net",
     "token": "93b4cacc08aa4538a79a76c21e99c0fb",
