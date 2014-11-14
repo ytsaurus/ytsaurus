@@ -3,7 +3,13 @@
 import errors_config
 from yt.common import YtError
 
+from copy import deepcopy
 import simplejson as json
+
+def hide_token(headers):
+    if "Authorization" in headers:
+        headers["Authorization"] = "x" * 32
+    return headers
 
 class YtOperationFailedError(YtError):
     """Operation failed during WaitStrategy.process_operation."""
@@ -18,10 +24,10 @@ class YtResponseError(YtError):
     def __init__(self, url, headers, error):
         super(YtResponseError, self).__init__(repr(error))
         self.url = url
-        self.headers = headers
+        self.headers = deepcopy(headers)
         self.error = error
         self.message = "Received an error while requesting {0}. Request headers are {1}"\
-            .format(url, json.dumps(headers, indent=4, sort_keys=True))
+            .format(url, json.dumps(hide_token(self.headers), indent=4, sort_keys=True))
         self.inner_errors = [self.error]
 
     def __str__(self):
