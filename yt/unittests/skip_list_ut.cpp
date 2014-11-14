@@ -95,6 +95,31 @@ TEST_F(TSkipListTest, 1to10)
     EXPECT_FALSE(List.FindEqualTo(11).IsValid());
 }
 
+TEST_F(TSkipListTest, 20to0skip2)
+{
+    for (int i = 20; i > 0; i -=2) {
+        EXPECT_TRUE(List.Insert(i));
+    }
+    EXPECT_EQ(List.GetSize(), 10);
+
+    for (int i = 3; i < 21; i+=2) {
+        auto it = List.FindLessThanOrEqualTo(i);
+        for (int j = i-1; j > 0; j -= 2) {
+            EXPECT_TRUE(it.IsValid());
+            EXPECT_EQ(it.GetCurrent(), j);
+            it.MovePrev();
+        }
+        EXPECT_FALSE(it.IsValid());
+    }
+
+    for (int i = 2; i < 21; i += 2) {
+        EXPECT_TRUE(List.FindEqualTo(i).IsValid());
+    }
+
+    EXPECT_FALSE(List.FindEqualTo(-1).IsValid());
+    EXPECT_FALSE(List.FindEqualTo(21).IsValid());
+}
+
 TEST_F(TSkipListTest, Random100000)
 {
     srand(42);

@@ -55,6 +55,9 @@ public:
 
         TIterator& operator = (const TIterator& other);
 
+        //! Advances the iterator to the previous item.
+        void MovePrev();
+
         //! Advances the iterator to the next item.
         void MoveNext();
 
@@ -65,7 +68,7 @@ public:
         const TKey& GetCurrent() const;
 
     private:
-        const TSkipList* Owner_;
+        const TNode* Head_;
         const TNode* Current_;
 
     };
@@ -81,6 +84,11 @@ public:
     template <class TPivot>
     TIterator FindGreaterThanOrEqualTo(const TPivot& pivot) const;
 
+    //! Returns an iterator pointing to the largest key that compares less than or
+    //! equal to |pivot|. If no such key is found then returns an invalid iterator.
+    template <class TPivot>
+    TIterator FindLessThanOrEqualTo(const TPivot& pivot) const;
+
 private:
     static const int MaxHeight = 12;
     static const int InverseProbability = 4;
@@ -88,19 +96,23 @@ private:
     class TNode
     {
     public:
-        TNode(const TKey& key, int height);
+        explicit TNode(const TKey& key);
 
         const TKey& GetKey() const;
 
+        TNode* GetPrev(int height) const;
         TNode* GetNext(int height) const;
+        void SetPrev(int height, TNode* next);
         void SetNext(int height, TNode* next);
 
         void InsertAfter(int height, TNode** prevs);
 
+        static size_t GetByteSize(int height);
+
     private:
         const TKey Key_;
-        std::atomic<TNode*> Next_[1]; // variable-size array with actual size up to MaxHeight
-
+        using TLink = std::pair<std::atomic<TNode*>, std::atomic<TNode*>>;
+        TLink Link_[1]; // variable-size array with actual size up to MaxHeight
     };
 
     static_assert(sizeof(std::atomic<TNode*>) == sizeof(intptr_t), "std::atomic<TNode*> does not seem to be lock-free.");

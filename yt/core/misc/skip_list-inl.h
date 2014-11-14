@@ -15,7 +15,7 @@ namespace NYT {
 
 template <class TKey, class TComparer>
 TSkipList<TKey, TComparer>::TIterator::TIterator()
-    : Owner_(nullptr)
+    : Head_(nullptr)
     , Current_(nullptr)
 { }
 
@@ -23,13 +23,13 @@ template <class TKey, class TComparer>
 TSkipList<TKey, TComparer>::TIterator::TIterator(
     const TSkipList* owner,
     const TNode* current)
-    : Owner_(owner)
+    : Head_(owner->Head_)
     , Current_(current)
 { }
 
 template <class TKey, class TComparer>
 TSkipList<TKey, TComparer>::TIterator::TIterator(const TIterator& other)
-    : Owner_(other.Owner_)
+    : Head_(other.Head_)
     , Current_(other.Current_)
 { }
 
@@ -43,21 +43,27 @@ const TKey& TSkipList<TKey, TComparer>::TIterator::GetCurrent() const
 template <class TKey, class TComparer>
 bool TSkipList<TKey, TComparer>::TIterator::IsValid() const
 {
-    return Current_;
+    return Current_ != Head_;
+}
+
+template <class TKey, class TComparer>
+void TSkipList<TKey, TComparer>::TIterator::MovePrev()
+{
+    YASSERT(IsValid());
+    Current_ = Current_->GetPrev(0);
 }
 
 template <class TKey, class TComparer>
 void TSkipList<TKey, TComparer>::TIterator::MoveNext()
 {
-    if (Current_) {
-        Current_ = Current_->GetNext(0);
-    }
+    YASSERT(IsValid());
+    Current_ = Current_->GetNext(0);
 }
 
 template <class TKey, class TComparer>
 typename TSkipList<TKey, TComparer>::TIterator& TSkipList<TKey, TComparer>::TIterator::operator=(const TIterator& other)
 {
-    Owner_ = other.Owner_;
+    Head_ = other.Head_;
     Current_ = other.Current_;
     return *this;
 }
@@ -65,11 +71,9 @@ typename TSkipList<TKey, TComparer>::TIterator& TSkipList<TKey, TComparer>::TIte
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TComparer>
-TSkipList<TKey, TComparer>::TNode::TNode(const TKey& key, int height)
+TSkipList<TKey, TComparer>::TNode::TNode(const TKey& key)
     : Key_(key)
-{
-    ::memset(Next_, 0, sizeof(intptr_t) * height);
-}
+{ }
 
 template <class TKey, class TComparer>
 const TKey& TSkipList<TKey, TComparer>::TNode::GetKey() const
@@ -78,24 +82,47 @@ const TKey& TSkipList<TKey, TComparer>::TNode::GetKey() const
 }
 
 template <class TKey, class TComparer>
+typename TSkipList<TKey, TComparer>::TNode* TSkipList<TKey, TComparer>::TNode::GetPrev(int height) const
+{
+    return Link_[height].first;
+}
+
+template <class TKey, class TComparer>
 typename TSkipList<TKey, TComparer>::TNode* TSkipList<TKey, TComparer>::TNode::GetNext(int height) const
 {
-    return Next_[height];
+    return Link_[height].second;
+}
+
+template <class TKey, class TComparer>
+void TSkipList<TKey, TComparer>::TNode::SetPrev(int height, TNode* next)
+{
+    Link_[height].first = next;
 }
 
 template <class TKey, class TComparer>
 void TSkipList<TKey, TComparer>::TNode::SetNext(int height, TNode* next)
 {
-    Next_[height] = next;
+    Link_[height].second = next;
 }
 
 template <class TKey, class TComparer>
 void TSkipList<TKey, TComparer>::TNode::InsertAfter(int height, TNode** prevs)
 {
     for (int index = 0; index < height; ++index) {
-        SetNext(index, prevs[index]->GetNext(index));
+        // NB: GetPrev->GetPrev->GetNext may return this, not Prev.
+        auto next = prevs[index]->GetNext(index);
+        SetNext(index, next);
+        SetPrev(index, prevs[index]);
+        next->SetPrev(index, this);
         prevs[index]->SetNext(index, this);
     }
+}
+
+template <class TKey, class TComparer>
+size_t TSkipList<TKey, TComparer>::TNode::GetByteSize(int height)
+{
+    // -1 since Link_ is of size 1.
+    return sizeof(TNode) + sizeof(TLink) * (height - 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,7 +167,7 @@ void TSkipList<TKey, TComparer>::Insert(
     TNode* prevs[MaxHeight];
 
     auto* lowerBound = DoFindGreaterThanOrEqualTo(pivot, prevs);
-    if (lowerBound && Comparer_(lowerBound->GetKey(), pivot) == 0) {
+    if (lowerBound != Head_ && Comparer_(lowerBound->GetKey(), pivot) == 0) {
         existingKeyConsumer(lowerBound->GetKey());
         return;
     }
@@ -175,10 +202,24 @@ bool TSkipList<TKey, TComparer>::Insert(const TKey& key)
 
 template <class TKey, class TComparer>
 template <class TPivot>
+typename TSkipList<TKey, TComparer>::TIterator TSkipList<TKey, TComparer>::FindLessThanOrEqualTo(const TPivot& pivot) const
+{
+    auto* lowerBound = DoFindGreaterThanOrEqualTo(pivot, nullptr);
+    if (lowerBound != Head_ && Comparer_(lowerBound->GetKey(), pivot) == 0) {
+        return TIterator(this, lowerBound);
+    }
+    lowerBound = lowerBound->GetPrev(0);
+    return lowerBound != Head_
+        ? TIterator(this, lowerBound)
+        : TIterator();
+}
+
+template <class TKey, class TComparer>
+template <class TPivot>
 typename TSkipList<TKey, TComparer>::TIterator TSkipList<TKey, TComparer>::FindGreaterThanOrEqualTo(const TPivot& pivot) const
 {
     auto* lowerBound = DoFindGreaterThanOrEqualTo(pivot, nullptr);
-    return lowerBound
+    return lowerBound != Head_
         ? TIterator(this, lowerBound)
         : TIterator();
 }
@@ -188,7 +229,7 @@ template <class TPivot>
 typename TSkipList<TKey, TComparer>::TIterator TSkipList<TKey, TComparer>::FindEqualTo(const TPivot& pivot) const
 {
     auto* lowerBound = DoFindGreaterThanOrEqualTo(pivot, nullptr);
-    return lowerBound && Comparer_(lowerBound->GetKey(), pivot) == 0
+    return lowerBound != Head_ && Comparer_(lowerBound->GetKey(), pivot) == 0
         ? TIterator(this, lowerBound)
         : TIterator();
 }
@@ -206,17 +247,20 @@ int TSkipList<TKey, TComparer>::GenerateHeight()
 template <class TKey, class TComparer>
 typename TSkipList<TKey, TComparer>::TNode* TSkipList<TKey, TComparer>::AllocateNode(const TKey& key, int height)
 {
-    // -1 since Next_ is of size 1
-    size_t size = sizeof(TNode) + sizeof(intptr_t) * (height - 1);
-    auto* buffer = Pool_->AllocateAligned(size);
-    new (buffer)TNode(key, height);
+    auto* buffer = Pool_->AllocateAligned(TNode::GetByteSize(height));
+    new (buffer)TNode(key);
     return reinterpret_cast<TNode*>(buffer);
 }
 
 template <class TKey, class TComparer>
 typename TSkipList<TKey, TComparer>::TNode* TSkipList<TKey, TComparer>::AllocateHeadNode()
 {
-    return AllocateNode(TKey(), MaxHeight);
+    auto head = AllocateNode(TKey(), MaxHeight);
+    for (int index = 0; index < MaxHeight; ++index) {
+        head->SetNext(index, head);
+        head->SetPrev(index, head);
+    }
+    return head;
 }
 
 template <class TKey, class TComparer>
@@ -227,7 +271,7 @@ typename TSkipList<TKey, TComparer>::TNode* TSkipList<TKey, TComparer>::DoFindGr
     int height = Height_ - 1;
     while (true) {
         auto* next = current->GetNext(height);
-        if (next && Comparer_(next->GetKey(), pivot) < 0) {
+        if (next != Head_ && Comparer_(next->GetKey(), pivot) < 0) {
             current = next;
         } else {
             if (prevs) {
@@ -236,7 +280,7 @@ typename TSkipList<TKey, TComparer>::TNode* TSkipList<TKey, TComparer>::DoFindGr
             if (height > 0) {
                 --height;
             } else {
-                return next == Head_ ? nullptr : next;
+                return next;
             }
         }
     }
