@@ -37,8 +37,13 @@ Stroka OnResponse(NYTree::TYPathProxy::TRspGetPtr rsp)
 
     // TODO(babenko): maybe extract method
     TStringStream output;
-    auto writer = NFormats::CreateJsonConsumer(&output);
-    Consume(TYsonString(rsp->value()), writer.get());
+    try {
+        auto writer = NFormats::CreateJsonConsumer(&output);
+        Consume(TYsonString(rsp->value()), writer.get());
+    } catch (const std::exception& ex) {
+        // TODO(sandello): Proper JSON escaping here.
+        return FormatInternalServerErrorResponse(ToString(ex.what()).Quote());
+    }
 
     return FormatOKResponse(output.Str());
 }
