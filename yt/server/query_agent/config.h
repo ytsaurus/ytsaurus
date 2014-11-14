@@ -30,7 +30,7 @@ public:
             .Default(4);
         RegisterParameter("max_subsplits_per_tablet", MaxSubsplitsPerTablet)
             .GreaterThan(0)
-            .Default(4);
+            .Default(64);
         RegisterParameter("max_query_retries", MaxQueryRetries)
             .GreaterThanOrEqual(1)
             .Default(10);
