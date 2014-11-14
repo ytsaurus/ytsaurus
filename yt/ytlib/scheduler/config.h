@@ -461,7 +461,7 @@ public:
         RegisterParameter("sort_assignment_timeout", SortAssignmentTimeout)
             .Default(TDuration::Seconds(5));
         RegisterParameter("shuffle_network_limit", ShuffleNetworkLimit)
-            .Default(10);
+            .Default(0);
 
         RegisterParameter("sort_by", SortBy)
             .NonEmpty();
