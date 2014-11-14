@@ -120,11 +120,7 @@ private:
     {
         auto this_ = MakeStrong(this);
         Invoker_->Invoke(BIND([this, this_, context] () {
-            try {
-                ExecuteVerb(UnderlyingService_, context);
-            } catch (const std::exception& ex) {
-                context->Reply(ex);
-            }
+            ExecuteVerb(UnderlyingService_, context);
         }));
         return true;
     }
