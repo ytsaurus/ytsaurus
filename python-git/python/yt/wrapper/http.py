@@ -2,7 +2,7 @@ import http_config
 import config
 import yt.logger as logger
 from common import require, get_backoff, get_value
-from errors import YtError, YtNetworkError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtResponseError
+from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtResponseError, YtRequestRateLimitExceeded
 
 import os
 import string
@@ -16,7 +16,7 @@ from httplib import BadStatusLine
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from yt.packages.requests import HTTPError, ConnectionError, Timeout
-NETWORK_ERRORS = (HTTPError, ConnectionError, Timeout, httplib.IncompleteRead, SocketError, BadStatusLine)
+RETRIABLE_ERRORS = (HTTPError, ConnectionError, Timeout, httplib.IncompleteRead, SocketError, BadStatusLine, YtRequestRateLimitExceeded, YtIncorrectResponse)
 
 session_ = yt.packages.requests.Session()
 def get_session():
@@ -90,11 +90,9 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
     if timeout is not None:
         timeout = http_config.REQUEST_RETRY_TIMEOUT / 1000.0
 
-    network_errors = list(NETWORK_ERRORS)
-    network_errors.append(YtIncorrectResponse)
-    network_errors.append(YtResponseError)
+    retriable_errors = list(RETRIABLE_ERRORS)
     if retry_unavailable_proxy:
-        network_errors.append(YtProxyUnavailable)
+        retriable_errors.append(YtProxyUnavailable)
 
     for attempt in xrange(http_config.REQUEST_RETRY_COUNT):
         current_time = datetime.now()
@@ -107,6 +105,10 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                     raise YtResponseError(url, kwargs.get("headers", {}), Response(error.response).error())
                 else:
                     raise
+            except YtResponseError as error:
+                if error.is_request_rate_limit_exceeded():
+                    raise YtRequestRateLimitExceeded(error)
+                raise
 
             # Sometimes (quite often) we obtain incomplete response with empty body where expected to be JSON.
             # So we should retry this request.
@@ -119,12 +121,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
 
             return response
 
-        except tuple(network_errors) as error:
-            # We consider only request rate limit exceeded as retryable error among
-            # possible response errors
-            if isinstance(error, YtResponseError) and not error.is_request_rate_limit_exceeded():
-                raise
-
+        except tuple(retriable_errors) as error:
             message =  "HTTP %s request %s has failed with error %s, message: '%s', headers: %s" % (method, url, type(error), str(error), kwargs.get("headers", {}))
             if make_retries and attempt + 1 < http_config.REQUEST_RETRY_COUNT:
                 backoff = get_backoff(http_config.REQUEST_RETRY_TIMEOUT, current_time)
@@ -132,9 +129,6 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                     logger.warning("%s. Sleep for %.2lf seconds...", message, backoff)
                     time.sleep(backoff)
                 logger.warning("New retry (%d) ...", attempt + 2)
-            elif not isinstance(error, YtError):
-                # We wrapping network errors to simplify catching such errors later.
-                raise YtNetworkError(message)
             else:
                 raise
 
