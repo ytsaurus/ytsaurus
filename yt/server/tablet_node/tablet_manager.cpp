@@ -211,13 +211,17 @@ public:
 
         while (!reader->IsFinished()) {
             const char* readerCheckpoint = reader->GetCurrent();
+            auto rewindReader = [&] () {
+                reader->SetCurrent(readerCheckpoint);
+            };
             try {
                 ExecuteSingleWrite(tablet, transaction, reader, true);
             } catch (const TRowBlockedException& ex) {
-                reader->SetCurrent(readerCheckpoint);
+                rewindReader();
                 rowBlockedEx = ex;
                 break;
             } catch (const std::exception& ex) {
+                rewindReader();
                 error = ex;
                 break;
             }
