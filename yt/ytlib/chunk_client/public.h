@@ -75,6 +75,7 @@ DECLARE_ENUM(EErrorCode,
     ((OutOfSpace)               (710))
     ((IOError)                  (711))
     ((MasterCommunicationFailed)(712))
+    ((NoSuchChunkTree)          (713))
 );
 
 //! Values must be contiguous.
