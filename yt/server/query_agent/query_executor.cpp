@@ -460,13 +460,6 @@ private:
             auto upperBound = GetUpperBoundFromDataSplit(split);
             auto timestamp = GetTimestampFromDataSplit(split);
 
-            LOG_DEBUG("Creating reader for tablet split (TabletId: %v, CellId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v)",
-                tabletId,
-                tabletSnapshot->Slot->GetCellId(),
-                lowerBound,
-                upperBound,
-                timestamp);
-
             return CreateSchemafulTabletReader(
                 Bootstrap_->GetQueryPoolInvoker(),
                 std::move(tabletSnapshot),

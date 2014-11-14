@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "tablet_reader.h"
 #include "tablet.h"
+#include "tablet_slot.h"
 #include "partition.h"
 #include "store.h"
 #include "row_merger.h"
@@ -29,6 +30,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = TabletNodeLogger;
 static const size_t MaxRowsPerRead = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -365,6 +367,14 @@ private:
             takePartition(*it);
         }
 
+        LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v, StoreIds: [%v])",
+            TabletSnapshot_->TabletId,
+            TabletSnapshot_->Slot->GetCellId(),
+            LowerBound_,
+            UpperBound_,
+            Timestamp_,
+            JoinToString(stores, TStoreIdFormatter()));
+
         if (stores.size() > TabletSnapshot_->Config->MaxReadFanIn) {
             THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
                 << TErrorAttribute("tablet_id", TabletSnapshot_->TabletId)
@@ -461,6 +471,14 @@ private:
 
     void DoOpen()
     {
+        LOG_DEBUG("Creating versioned tablet reader (TabletId: %v, CellId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v, StoreIds: [%v])",
+            TabletSnapshot_->TabletId,
+            TabletSnapshot_->Slot->GetCellId(),
+            LowerBound_,
+            UpperBound_,
+            Timestamp_,
+            JoinToString(Stores_, TStoreIdFormatter()));
+
         TTabletReaderBase::DoOpen(TColumnFilter(), Stores_);
     }
 
