@@ -115,11 +115,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
             if response.raw_response.status_code == 503:
                 raise YtProxyUnavailable("Retrying response with code 503 and body %s" % response.content())
             if not response.is_ok():
-                headers = kwargs.get("headers", {})
-                # Hide token for security reasons
-                if "Authorization" in headers:
-                    headers["Authorization"] = "x" * 32
-                raise YtResponseError(url, headers, response.error())
+                raise YtResponseError(url, kwargs.get("headers", {}), response.error())
 
             return response
 
