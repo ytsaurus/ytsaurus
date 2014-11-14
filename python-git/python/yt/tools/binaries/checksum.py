@@ -20,6 +20,8 @@ def md5(obj):
     elif isinstance(obj, list):
         for value in obj:
             h.update(md5(value))
+    elif isinstance(obj, unicode):
+        h.update(obj.encode("utf-8"))
     else:
         h.update(str(obj))
 
