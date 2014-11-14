@@ -68,7 +68,7 @@ template <class TKey, class TComparer>
 TSkipList<TKey, TComparer>::TNode::TNode(const TKey& key, int height)
     : Key_(key)
 {
-    ::memset(const_cast<intptr_t*>(Next_), 0, sizeof (TAtomic)* height);
+    ::memset(Next_, 0, sizeof(intptr_t) * height);
 }
 
 template <class TKey, class TComparer>
@@ -80,13 +80,13 @@ const TKey& TSkipList<TKey, TComparer>::TNode::GetKey() const
 template <class TKey, class TComparer>
 typename TSkipList<TKey, TComparer>::TNode* TSkipList<TKey, TComparer>::TNode::GetNext(int height) const
 {
-    return reinterpret_cast<TNode*>(AtomicGet(Next_[height]));
+    return Next_[height];
 }
 
 template <class TKey, class TComparer>
 void TSkipList<TKey, TComparer>::TNode::SetNext(int height, TNode* next)
 {
-    AtomicSet(Next_[height], reinterpret_cast<intptr_t>(next));
+    Next_[height] = next;
 }
 
 template <class TKey, class TComparer>
@@ -145,7 +145,7 @@ void TSkipList<TKey, TComparer>::Insert(
         return;
     }
 
-    int currentHeight = AtomicGet(Height_);
+    int currentHeight = Height_;
     int randomHeight = GenerateHeight();
 
     // Upgrade current height if needed.
@@ -153,13 +153,13 @@ void TSkipList<TKey, TComparer>::Insert(
         for (int index = currentHeight; index < randomHeight; ++index) {
             prevs[index] = Head_;
         }
-        AtomicSet(Height_, randomHeight);
+        Height_ = randomHeight;
     }
 
     // Insert a new node.
     auto* node = AllocateNode(newKeyProvider(), randomHeight);
     node->InsertAfter(randomHeight, prevs);
-    AtomicIncrement(Size_);
+    ++Size_;
 }
 
 template <class TKey, class TComparer>
@@ -207,7 +207,7 @@ template <class TKey, class TComparer>
 typename TSkipList<TKey, TComparer>::TNode* TSkipList<TKey, TComparer>::AllocateNode(const TKey& key, int height)
 {
     // -1 since Next_ is of size 1
-    size_t size = sizeof (TNode) + sizeof (TAtomic) * (height - 1);
+    size_t size = sizeof(TNode) + sizeof(intptr_t) * (height - 1);
     auto* buffer = Pool_->AllocateAligned(size);
     new (buffer)TNode(key, height);
     return reinterpret_cast<TNode*>(buffer);
@@ -224,7 +224,7 @@ template <class TPivot>
 typename TSkipList<TKey, TComparer>::TNode* TSkipList<TKey, TComparer>::DoFindGreaterThanOrEqualTo(const TPivot& pivot, TNode** prevs) const
 {
     auto* current = Head_;
-    int height = AtomicGet(Height_) - 1;
+    int height = Height_ - 1;
     while (true) {
         auto* next = current->GetNext(height);
         if (next && Comparer_(next->GetKey(), pivot) < 0) {

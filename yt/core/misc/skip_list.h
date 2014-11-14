@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <atomic>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,16 +99,19 @@ private:
 
     private:
         const TKey Key_;
-        TAtomic Next_[1]; // variable-size array with actual size up to MaxHeight
+        std::atomic<TNode*> Next_[1]; // variable-size array with actual size up to MaxHeight
 
     };
+
+    static_assert(sizeof(std::atomic<TNode*>) == sizeof(intptr_t), "std::atomic<TNode*> does not seem to be lock-free.");
+
 
     TChunkedMemoryPool* const Pool_;
     const TComparer Comparer_;
     TNode* const Head_;
 
-    TAtomic Size_;
-    TAtomic Height_;
+    std::atomic<int> Size_;
+    std::atomic<int> Height_;
 
 
     static int GenerateHeight();
