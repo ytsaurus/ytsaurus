@@ -101,13 +101,15 @@ TChunkIdWithIndex DecodeChunkId(const TChunkId& id);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkReplicaAddressFormatter
+class TChunkReplicaAddressFormatter
 {
+public:
     explicit TChunkReplicaAddressFormatter(NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
 
     Stroka operator() (TChunkReplica replica) const;
 
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
+private:
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 
 };
 

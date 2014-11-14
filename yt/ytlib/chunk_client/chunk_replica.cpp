@@ -60,12 +60,12 @@ Stroka ToString(TChunkReplica replica)
 }
 
 TChunkReplicaAddressFormatter::TChunkReplicaAddressFormatter(TNodeDirectoryPtr nodeDirectory)
-    : NodeDirectory(nodeDirectory)
+    : NodeDirectory_(nodeDirectory)
 { }
 
 Stroka TChunkReplicaAddressFormatter::operator () (TChunkReplica replica) const
 {
-    const auto& descriptor = NodeDirectory->GetDescriptor(replica.GetNodeId());
+    const auto& descriptor = NodeDirectory_->GetDescriptor(replica.GetNodeId());
     return Format("%v/%v", descriptor.GetDefaultAddress(), replica.GetIndex());
 }
 
