@@ -640,7 +640,9 @@ private:
             auto chunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
 
             if (!chunk) {
-                auto error = TError("No such chunk %v",
+                auto error = TError(
+                    NChunkClient::EErrorCode::NoSuchChunk,
+                    "No such chunk %v",
                     chunkId);
                 LOG_ERROR(error);
                 ToProto(splittedChunk->mutable_error(), error);
@@ -898,7 +900,9 @@ private:
             auto chunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
 
             if (!chunk) {
-                auto error = TError("No such chunk %v",
+                auto error = TError(
+                    NChunkClient::EErrorCode::NoSuchChunk,
+                    "No such chunk %v",
                     chunkId);
                 LOG_WARNING(error);
                 ToProto(sampleResponse->mutable_error(), error);

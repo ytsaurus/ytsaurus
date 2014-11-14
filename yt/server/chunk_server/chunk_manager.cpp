@@ -643,7 +643,10 @@ public:
     {
         auto* chunk = FindChunk(id);
         if (!IsObjectAlive(chunk)) {
-            THROW_ERROR_EXCEPTION("No such chunk %v", id);
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::NoSuchChunk,
+                "No such chunk %v",
+                id);
         }
         return chunk;
     }
@@ -675,7 +678,10 @@ public:
     {
         auto* chunkTree = FindChunkTree(id);
         if (!IsObjectAlive(chunkTree)) {
-            THROW_ERROR_EXCEPTION("No such chunk tree %v", id);
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::NoSuchChunkTree,
+                "No such chunk tree %v",
+                id);
         }
         return chunkTree;
     }

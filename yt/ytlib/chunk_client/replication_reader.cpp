@@ -212,7 +212,10 @@ private:
         YCHECK(rsp->chunks_size() <= 1);
         if (rsp->chunks_size() == 0) {
             YCHECK(!GetSeedsPromise_.IsSet());
-            GetSeedsPromise_.Set(TError("No such chunk %v", ChunkId_));
+            GetSeedsPromise_.Set(TError(
+                NChunkClient::EErrorCode::NoSuchChunk,
+                "No such chunk %v",
+                ChunkId_));
             return;
         }
         const auto& chunkInfo = rsp->chunks(0);
