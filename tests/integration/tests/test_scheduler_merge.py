@@ -309,5 +309,3 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert read('//tmp/t_in') == [v, v, v, v]
         assert get('//tmp/t_in/@chunk_count') == 3 # only result of merge is combined
-
-
