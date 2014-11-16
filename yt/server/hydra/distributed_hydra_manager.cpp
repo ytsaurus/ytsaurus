@@ -151,6 +151,7 @@ public:
             controlInvoker,
             New<TElectionCallbacks>(this),
             rpcServer);
+        ElectionManagerMonitoringProducer_ = ElectionManager_->GetMonitoringProducer();
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
@@ -321,7 +322,7 @@ public:
                     .Item("state").Value(ControlState_)
                     .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
-                    .Item("elections").Do(ElectionManager_->GetMonitoringProducer())
+                    .Item("elections").Do(ElectionManagerMonitoringProducer_)
                     .Item("has_active_quorum").Value(ActiveLeader_)
                 .EndMap();
         });
@@ -387,6 +388,8 @@ private:
 
     // NB: Cyclic references: this -> ElectionManager -> Callbacks -> this
     TElectionManagerPtr ElectionManager_;
+    TYsonProducer ElectionManagerMonitoringProducer_;
+
     TDecoratedAutomatonPtr DecoratedAutomaton_;
 
     TEpochContextPtr ControlEpochContext_;
@@ -725,7 +728,9 @@ private:
 
     void Restart()
     {
-        ElectionManager_->Stop();
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        ControlInvoker_->Invoke(BIND(&TDistributedHydraManager::DoRestart, MakeStrong(this)));
     }
 
 
@@ -734,6 +739,15 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         AutomatonEpochContext_.Reset();
+    }
+
+    void DoRestart()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (ElectionManager_) {
+            ElectionManager_->Stop();
+        }
     }
 
     void DoParticipate()
