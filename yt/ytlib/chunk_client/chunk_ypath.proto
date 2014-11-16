@@ -53,7 +53,8 @@ message TReqCreateChunkExt
     // Can this chunk be balanced to other nodes?
     optional bool movable = 5 [default = true];
 
-    required bool vital = 6 [default = false];
+    // Should this chunk be marked as vital?
+    optional bool vital = 6 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
