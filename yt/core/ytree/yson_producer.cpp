@@ -8,16 +8,19 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYsonProducer::TYsonProducer()
+{ }
+
 TYsonProducer::TYsonProducer(TYsonCallback callback, EYsonType type)
     : Type_(type)
-    , Callback(callback)
+    , Callback_(std::move(callback))
 {
-    YASSERT(Callback);
+    YASSERT(Callback_);
 }
 
 void TYsonProducer::Run(IYsonConsumer* consumer) const
 {
-    Callback.Run(consumer);
+    Callback_.Run(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

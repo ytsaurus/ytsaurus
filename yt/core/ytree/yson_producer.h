@@ -20,16 +20,18 @@ typedef TCallback<void(NYson::IYsonConsumer*)> TYsonCallback;
 class TYsonProducer
 {
 public:
+    DEFINE_BYVAL_RO_PROPERTY(NYson::EYsonType, Type);
+
+public:
+    TYsonProducer();
     TYsonProducer(
         TYsonCallback callback,
         NYson::EYsonType type = NYson::EYsonType::Node);
 
     void Run(NYson::IYsonConsumer* consumer) const;
 
-    DEFINE_BYVAL_RO_PROPERTY(NYson::EYsonType, Type);
-
 private:
-    TYsonCallback Callback;
+    TYsonCallback Callback_;
 
 };
 
