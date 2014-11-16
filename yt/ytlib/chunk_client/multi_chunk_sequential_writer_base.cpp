@@ -210,7 +210,6 @@ void TMultiChunkSequentialWriterBase::CreateNextSession()
         LOG_WARNING(error);
         CompletionError_.TrySet(error);
     }
-
 }
 
 void TMultiChunkSequentialWriterBase::SwitchSession()
