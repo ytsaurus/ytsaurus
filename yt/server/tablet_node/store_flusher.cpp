@@ -259,9 +259,10 @@ private:
         auto hydraManager = slot->GetHydraManager();
         auto tabletManager = slot->GetTabletManager();
         auto tabletId = tablet->GetId();
-        auto writerOptions = tablet->GetWriterOptions();
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
+        auto writerOptions = CloneYsonSerializable(tablet->GetWriterOptions());
+        writerOptions->ChunksEden = true;
 
         YCHECK(store->GetState() == EStoreState::Flushing);
 
