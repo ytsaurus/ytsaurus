@@ -13,6 +13,8 @@
 
 #include <server/node_tracker_server/public.h>
 
+#include <map>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -42,7 +44,7 @@ using NObjectClient::NullTransactionId;
 
 using NNodeTrackerServer::TNode;
 using NNodeTrackerServer::TNodeList;
-using NNodeTrackerServer::TNodeSet;
+using NNodeTrackerServer::TSortedNodeList;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,10 +91,14 @@ DECLARE_FLAGGED_ENUM(EChunkStatus,
     ((QuorumMissing)     (0x0020))
     ((Safe)              (0x0040))
     ((Sealed)            (0x0080))
+    ((UnsafelyPlaced)    (0x0100))
 );
 
 typedef std::list<TChunk*> TChunkRepairQueue;
 typedef TChunkRepairQueue::iterator TChunkRepairQueueIterator;
+
+typedef std::multimap<double, NNodeTrackerServer::TNode*> TFillFactorToNodeMap;
+typedef TFillFactorToNodeMap::iterator TFillFactorToNodeIterator;
 
 ////////////////////////////////////////////////////////////////////////////////
 

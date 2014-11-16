@@ -73,8 +73,11 @@ class YTEnvSetup(YTEnv):
             groups = yt_commands.get_groups()
             self._remove_groups(groups)
 
-            tablet_cells = yt_commands.ls('//sys/tablet_cells')
+            tablet_cells = yt_commands.get_tablet_cells()
             self._remove_tablet_cells(tablet_cells)
+
+            racks = yt_commands.get_racks()
+            self._remove_racks(racks)
 
     def _abort_transactions(self, txs):
         for tx in txs:
@@ -101,6 +104,10 @@ class YTEnvSetup(YTEnv):
     def _remove_tablet_cells(self, cells):
         for id in cells:
             yt_commands.remove_tablet_cell(id)
+
+    def _remove_racks(self, racks):
+        for rack in racks:
+            yt_commands.remove_rack(rack)
 
 # decorator form
 ATTRS = [

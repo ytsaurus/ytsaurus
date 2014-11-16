@@ -3,12 +3,14 @@
 #include "public.h"
 
 #include <core/misc/property.h>
+#include <core/misc/nullable.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
 #include <ytlib/hydra/public.h>
 
+#include <server/chunk_server/public.h>
 #include <server/chunk_server/chunk_replica.h>
 
 #include <server/transaction_server/public.h>
@@ -56,12 +58,15 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
 
+    DEFINE_BYVAL_RW_PROPERTY(TRack*, Rack);
+
     // Lease tracking.
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
 
     // Chunk Manager stuff.
     DEFINE_BYVAL_RW_PROPERTY(bool, Decommissioned); // kept in sync with |GetConfig()->Decommissioned|.
-    
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<NChunkServer::TFillFactorToNodeIterator>, FillFactorIterator);
+
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, StoredReplicas);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, CachedReplicas);
     

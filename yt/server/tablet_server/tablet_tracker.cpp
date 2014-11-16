@@ -49,7 +49,7 @@ public:
 
     TNode* TryAllocate(
         TTabletCell* cell,
-        const TSmallSet<Stroka, TypicalCellSize>& forbiddenAddresses)
+        const SmallSet<Stroka, TypicalCellSize>& forbiddenAddresses)
     {
         for (auto it = MinusSpareSlotsToNode_.begin(); it != MinusSpareSlotsToNode_.end(); ++it) {
             int spare = it->first;
@@ -138,7 +138,7 @@ void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
         request.add_node_ids(InvalidNodeId);
     }
 
-    TSmallSet<Stroka, TypicalCellSize> forbiddenAddresses;
+    SmallSet<Stroka, TypicalCellSize> forbiddenAddresses;
     for (const auto& peer : cell->Peers()) {
         if (peer.Address) {
             forbiddenAddresses.insert(*peer.Address);

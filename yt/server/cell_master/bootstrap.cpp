@@ -405,6 +405,7 @@ void TBootstrap::DoRun()
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::DataMissingChunkMap));
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ParityMissingChunkMap));
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::QuorumMissingChunkMap));
+    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::UnsafelyPlacedChunkMap));
     CypressManager->RegisterHandler(CreateChunkListMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateTransactionMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateTopmostTransactionMapTypeHandler(this));
@@ -412,6 +413,7 @@ void TBootstrap::DoRun()
     CypressManager->RegisterHandler(CreateOrchidTypeHandler(this));
     CypressManager->RegisterHandler(CreateCellNodeTypeHandler(this));
     CypressManager->RegisterHandler(CreateCellNodeMapTypeHandler(this));
+    CypressManager->RegisterHandler(CreateRackMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateFileTypeHandler(this));
     CypressManager->RegisterHandler(CreateTableTypeHandler(this));
     CypressManager->RegisterHandler(CreateJournalTypeHandler(this));

@@ -413,6 +413,15 @@ def remove_tablet_cell(id):
     remove('//sys/tablet_cells/' + id)
     gc_collect()
 
+def create_rack(name, **kwargs):
+    kwargs["type"] = "rack"
+    kwargs["attributes"] = {'name': name}
+    command('create', kwargs)
+
+def remove_rack(name, **kwargs):
+    remove('//sys/racks/' + name, **kwargs)
+    gc_collect()
+    
 #########################################
 # Helpers:
 
@@ -439,5 +448,16 @@ def get_users():
 def get_groups():
     gc_collect()
     return ls('//sys/groups')
+
+def get_tablet_cells():
+    gc_collect()
+    return ls('//sys/tablet_cells')
+
+def get_racks():
+    gc_collect()
+    return ls('//sys/racks')
+
+def get_nodes():
+    return ls('//sys/nodes')
 
 #########################################

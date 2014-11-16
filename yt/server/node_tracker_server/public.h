@@ -2,7 +2,6 @@
 
 #include <core/misc/common.h>
 #include <core/misc/small_vector.h>
-#include <core/misc/small_set.h>
 
 #include <ytlib/node_tracker_client/public.h>
 
@@ -18,10 +17,17 @@ namespace NProto {
 class TReqUnregisterNode;
 class TReqRemoveNode;
 
+typedef NNodeTrackerClient::NProto::TReqRegisterNode TReqRegisterNode;
+typedef NNodeTrackerClient::NProto::TReqIncrementalHeartbeat TReqIncrementalHeartbeat;
+typedef NNodeTrackerClient::NProto::TReqFullHeartbeat TReqFullHeartbeat;
+
 } // namespace NProto
 
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::InvalidNodeId;
+
+using NNodeTrackerClient::TRackId;
+using NNodeTrackerClient::NullRackId;
 
 using NNodeTrackerClient::TNodeDescriptor;
 
@@ -32,7 +38,13 @@ DECLARE_REFCOUNTED_CLASS(TNodeConfig)
 
 class TNode;
 typedef SmallVector<TNode*, NChunkClient::TypicalReplicaCount> TNodeList;
-typedef TSmallSet<TNode*, NChunkClient::TypicalReplicaCount> TNodeSet;
+typedef TNodeList TSortedNodeList; // to clarify the semantics
+
+class TRack;
+typedef ui64 TRackSet;
+const int MaxRackCount = 63;
+const int NullRackIndex = 0;
+const int NullRackMask = 1ULL;
 
 ///////////////////////////////////////////////////////////////////////////////
 

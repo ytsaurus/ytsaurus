@@ -2,6 +2,8 @@
 
 #include <core/misc/common.h>
 
+#include <ytlib/object_client/public.h>
+
 namespace NYT {
 namespace NNodeTrackerClient {
 
@@ -28,6 +30,9 @@ typedef i32 TNodeId;
 const TNodeId InvalidNodeId = 0;
 const TNodeId MaxNodeId = (1 << 28) - 1; // TNodeId must fit into 28 bits (see TChunkReplica)
 
+typedef NObjectClient::TObjectId TRackId;
+extern const TRackId NullRackId;
+
 class TNodeDescriptor;
 class TNodeDirectoryBuilder;
 
@@ -39,6 +44,7 @@ DECLARE_ENUM(EErrorCode,
     ((NoSuchNode)    (300))
     ((InvalidState)  (301))
     ((NoSuchNetwork) (302))
+    ((NoSuchRack)    (303))
 );
 
 ///////////////////////////////////////////////////////////////////////////////

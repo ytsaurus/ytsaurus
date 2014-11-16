@@ -60,6 +60,7 @@ void TNode::Init()
 {
     VisitMark_ = 0;
     LoadRank_ = -1;
+    Rack_ = nullptr;
     Transaction_ = nullptr;
     Decommissioned_ = Config_->Decommissioned;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
@@ -154,6 +155,8 @@ void TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
         for (auto& queue : ChunkReplicationQueues_) {
             queue.erase(genericReplica);
         }
+
+        ChunkSealQueue_.erase(chunk);
     }
 }
 

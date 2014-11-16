@@ -2,6 +2,7 @@
 #include "chunk_replicator.h"
 #include "chunk_placement.h"
 #include "job.h"
+#include "chunk.h"
 #include "chunk_list.h"
 #include "chunk_owner_base.h"
 #include "chunk_tree_traversing.h"
@@ -32,6 +33,7 @@
 
 #include <server/node_tracker_server/node_tracker.h>
 #include <server/node_tracker_server/node.h>
+#include <server/node_tracker_server/rack.h>
 #include <server/node_tracker_server/node_directory_builder.h>
 
 #include <server/cypress_server/node.h>
@@ -176,6 +178,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     int replicaCount = 0;
     int decommissionedReplicaCount = 0;
     TNodePtrWithIndexList decommissionedReplicas;
+    TRackSet usedRacks = 0;
+    int usedRackCount = 0;
 
     for (auto replica : chunk->StoredReplicas()) {
         if (IsReplicaDecommissioned(replica)) {
@@ -183,6 +187,12 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
             decommissionedReplicas.push_back(replica);
         } else {
             ++replicaCount;
+        }
+        const auto* rack = replica.GetPtr()->GetRack();
+        auto rackMask = rack == nullptr ? NullRackMask : rack->GetIndexMask();
+        if (!(usedRacks & rackMask)) {
+            usedRacks |= rackMask;
+            ++usedRackCount;
         }
     }
 
@@ -195,17 +205,28 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     
     if (replicaCount < replicationFactor && replicaCount + decommissionedReplicaCount > 0) {
         result.Status |= EChunkStatus::Underreplicated;
-        result.ReplicationRequests.push_back(TJobRequest(GenericChunkReplicaIndex, replicationFactor - replicaCount));
     }
 
     if (replicaCount == replicationFactor && decommissionedReplicaCount > 0) {
         result.Status |= EChunkStatus::Overreplicated;
-        result.DecommissionedRemovalRequests.append(decommissionedReplicas.begin(), decommissionedReplicas.end());
+        result.DecommissionedRemovalReplicas.append(decommissionedReplicas.begin(), decommissionedReplicas.end());
     }
 
     if (replicaCount > replicationFactor) {
         result.Status |= EChunkStatus::Overreplicated;
-        result.BalancingRemovalRequests.push_back(TJobRequest(GenericChunkReplicaIndex, replicaCount - replicationFactor));
+        result.BalancingRemovalIndexes.push_back(GenericChunkReplicaIndex);
+    }
+
+    if (usedRackCount == 1 && !(usedRacks & NullRackMask)) {
+        // A regular chunk is considered placed unsafely if all of its replicas are placed in
+        // one non-null rack.
+        result.Status |= EChunkStatus::UnsafelyPlaced;
+    }
+
+    if (result.Status & EChunkStatus(EChunkStatus::Underreplicated | EChunkStatus::UnsafelyPlaced) &&
+        replicaCount + decommissionedReplicaCount > 0)
+    {
+        result.ReplicationIndexes.push_back(GenericChunkReplicaIndex);
     }
 
     return result;
@@ -218,7 +239,10 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
     int totalPartCount = codec->GetTotalPartCount();
     int dataPartCount = codec->GetDataPartCount();
-    std::array<TNodePtrWithIndexList, ChunkReplicaIndexBound> decommissionedReplicas;
+    int maxReplicasPerRack = codec->GetGuaranteedRepairablePartCount();
+    std::array<TNodePtrWithIndexList, ChunkReplicaIndexBound> decommissionedReplicas{};
+    std::array<ui8, MaxRackCount + 1> perRackReplicaCounters{};
+    int unsafelyPlacedReplicaIndex = -1; // an arbitrary replica collocated with too may others within a single rack
 
     auto mark = TNode::GenerateVisitMark();
 
@@ -232,6 +256,15 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
             ++result.ReplicaCount[index];
         }
         node->SetVisitMark(mark);
+        const auto* rack = node->GetRack();
+        if (rack) {
+            int rackIndex = rack->GetIndex();
+            if (++perRackReplicaCounters[rackIndex] > maxReplicasPerRack) {
+                // An erasure chunk is considered placed unsafely if some non-null rack
+                // contains more replicas than returned by ICodec::GetGuaranteedRepairablePartCount.
+                unsafelyPlacedReplicaIndex = index;
+            }
+        }
     }
 
     NErasure::TPartIndexSet erasedIndexes;
@@ -242,17 +275,17 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         if (replicaCount >= 1 && decommissionedReplicaCount > 0) {
             result.Status |= EChunkStatus::Overreplicated;
             const auto& replicas = decommissionedReplicas[index];
-            result.DecommissionedRemovalRequests.append(replicas.begin(), replicas.end());
+            result.DecommissionedRemovalReplicas.append(replicas.begin(), replicas.end());
         }
 
         if (replicaCount > 1 && decommissionedReplicaCount == 0) {
             result.Status |= EChunkStatus::Overreplicated;
-            result.BalancingRemovalRequests.push_back(TJobRequest(index, replicaCount - 1));
+            result.BalancingRemovalIndexes.push_back(index);
         }
 
         if (replicaCount == 0 && decommissionedReplicaCount > 0) {
             result.Status |= EChunkStatus::Underreplicated;
-            result.ReplicationRequests.push_back(TJobRequest(index, 1));
+            result.ReplicationIndexes.push_back(index);
         }
         
         if (replicaCount == 0 && decommissionedReplicaCount == 0) {
@@ -269,6 +302,13 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         result.Status |= EChunkStatus::Lost;
     }
 
+    if (unsafelyPlacedReplicaIndex != -1) {
+        result.Status |= EChunkStatus::UnsafelyPlaced;
+        if (result.ReplicationIndexes.empty()) {
+            result.ReplicationIndexes.push_back(unsafelyPlacedReplicaIndex);
+        }
+    }
+
     return result;
 }
 
@@ -276,7 +316,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
 {
     TChunkStatistics result;
 
-    // Cf. ComputeRegularChunkStatistics.
     int replicationFactor = chunk->GetReplicationFactor();
     int readQuorum = chunk->GetReadQuorum();
 
@@ -285,6 +324,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
     int sealedReplicaCount = 0;
     int unsealedReplicaCount = 0;
     TNodePtrWithIndexList decommissionedReplicas;
+    TRackSet usedRacks = 0;
+    bool hasUnsafelyPlacedReplicas = false;
 
     for (auto replica : chunk->StoredReplicas()) {
         if (replica.GetIndex() == EJournalReplicaType::Sealed) {
@@ -297,6 +338,17 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
             decommissionedReplicas.push_back(replica);
         } else {
             ++replicaCount;
+        }
+        const auto* rack = replica.GetPtr()->GetRack();
+        if (rack) {
+            auto rackMask = rack->GetIndexMask();
+            if (usedRacks & rackMask) {
+                // A journal chunk is considered placed unsafely if some non-null rack
+                // contains more than one of its replicas.
+                hasUnsafelyPlacedReplicas = true;
+            } else {
+                usedRacks |= rackMask;
+            }
         }
     }
 
@@ -312,22 +364,32 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
 
         if (replicaCount < replicationFactor && sealedReplicaCount > 0) {
             result.Status |= EChunkStatus::Underreplicated;
-            result.ReplicationRequests.push_back(TJobRequest(GenericChunkReplicaIndex, replicationFactor - replicaCount));
+            result.ReplicationIndexes.push_back(GenericChunkReplicaIndex);
         }
 
         if (replicaCount == replicationFactor && decommissionedReplicaCount > 0 && unsealedReplicaCount == 0) {
             result.Status |= EChunkStatus::Overreplicated;
-            result.DecommissionedRemovalRequests.append(decommissionedReplicas.begin(), decommissionedReplicas.end());
+            result.DecommissionedRemovalReplicas.append(decommissionedReplicas.begin(), decommissionedReplicas.end());
         }
 
         if (replicaCount > replicationFactor && unsealedReplicaCount == 0) {
             result.Status |= EChunkStatus::Overreplicated;
-            result.BalancingRemovalRequests.push_back(TJobRequest(GenericChunkReplicaIndex, replicaCount - replicationFactor));
+            result.BalancingRemovalIndexes.push_back(GenericChunkReplicaIndex);
         }
     }
     
     if (replicaCount + decommissionedReplicaCount < readQuorum && sealedReplicaCount == 0) {
         result.Status |= EChunkStatus::QuorumMissing;
+    }
+
+    if (hasUnsafelyPlacedReplicas) {
+        result.Status |= EChunkStatus::UnsafelyPlaced;
+    }
+
+    if (result.Status & EChunkStatus(EChunkStatus::Underreplicated | EChunkStatus::UnsafelyPlaced) &&
+        sealedReplicaCount > 0)
+    {
+        result.ReplicationIndexes.push_back(GenericChunkReplicaIndex);
     }
 
     return result;
@@ -494,7 +556,6 @@ bool TChunkReplicator::CreateReplicationJob(
 {
     auto* chunk = chunkWithIndex.GetPtr();
     int index = chunkWithIndex.GetIndex();
-    auto chunkType = TypeFromId(chunk->GetId());
 
     if (!IsObjectAlive(chunk)) {
         return true;
@@ -512,17 +573,29 @@ bool TChunkReplicator::CreateReplicationJob(
     auto statistics = ComputeChunkStatistics(chunk);
     int replicaCount = statistics.ReplicaCount[index];
     int decommissionedReplicaCount = statistics.DecommissionedReplicaCount[index];
-    if (replicaCount + decommissionedReplicaCount == 0 || replicaCount >= replicationFactor) {
+
+    if (replicaCount + decommissionedReplicaCount == 0) {
+        return true;
+    }
+
+    int replicasNeeded;
+    if (statistics.Status & EChunkStatus::Underreplicated) {
+        replicasNeeded = replicationFactor - replicaCount;
+    } else if (statistics.Status & EChunkStatus::UnsafelyPlaced) {
+        replicasNeeded = 1;
+    } else {
         return true;
     }
 
     // TODO(babenko): journal replication currently does not support fan-out > 1
-    int replicasNeeded = chunk->IsJournal() ? 1 : replicationFactor - replicaCount;
+    if (chunk->IsJournal()) {
+        replicasNeeded = 1;
+    }
+
     auto targets = ChunkPlacement_->AllocateWriteTargets(
         chunk,
         replicasNeeded,
-        EWriteSessionType::Replication,
-        chunkType);
+        EWriteSessionType::Replication);
     if (targets.empty()) {
         return false;
     }
@@ -553,16 +626,12 @@ bool TChunkReplicator::CreateBalancingJob(
 {
     TChunkIdWithIndex chunkIdWithIndex(chunkWithIndex.GetPtr()->GetId(), chunkWithIndex.GetIndex());
     auto* chunk = chunkWithIndex.GetPtr();
-    auto chunkType = TypeFromId(chunk->GetId());
 
     if (chunk->GetRefreshScheduled()) {
         return true;
     }
 
-    auto* target = ChunkPlacement_->AllocateBalancingTarget(
-        chunkWithIndex,
-        maxFillFactor,
-        chunkType);
+    auto* target = ChunkPlacement_->AllocateBalancingTarget(chunkWithIndex, maxFillFactor);
     if (!target) {
         return false;
     }
@@ -637,8 +706,6 @@ bool TChunkReplicator::CreateRepairJob(
         return true;
     }
 
-    auto chunkType = TypeFromId(chunk->GetId());
-
     auto codecId = chunk->GetErasureCodec();
     auto* codec = NErasure::GetCodec(codecId);
     auto totalPartCount = codec->GetTotalPartCount();
@@ -660,8 +727,7 @@ bool TChunkReplicator::CreateRepairJob(
     auto targets = ChunkPlacement_->AllocateWriteTargets(
         chunk,
         erasedIndexCount,
-        EWriteSessionType::Repair,
-        chunkType);
+        EWriteSessionType::Repair);
     if (targets.empty()) {
         return false;
     }
@@ -915,30 +981,32 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         YCHECK(QuorumMissingChunks_.insert(chunk).second);
     }
 
+    if (statistics.Status & EChunkStatus::UnsafelyPlaced) {
+        YCHECK(UnsafelyPlacedChunks_.insert(chunk).second);
+    }
+
     if (!HasRunningJobs(chunk)) {
         ResetChunkJobs(chunk);
 
         if (statistics.Status & EChunkStatus::Overreplicated) {
-            for (auto nodeWithIndex : statistics.DecommissionedRemovalRequests) {
+            for (auto nodeWithIndex : statistics.DecommissionedRemovalReplicas) {
                 int index = nodeWithIndex.GetIndex();
                 TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), index);
                 nodeWithIndex.GetPtr()->AddToChunkRemovalQueue(chunkIdWithIndex);
             }
 
-            for (const auto& request : statistics.BalancingRemovalRequests) {
-                int index = request.Index;
+            for (int index : statistics.BalancingRemovalIndexes) {
                 TChunkPtrWithIndex chunkWithIndex(chunk, index);
                 TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), index);
-                auto targets = ChunkPlacement_->GetRemovalTargets(chunkWithIndex, request.Count);
-                for (auto* target : targets) {
+                auto* target = ChunkPlacement_->GetRemovalTarget(chunkWithIndex);
+                if (target) {
                     target->AddToChunkRemovalQueue(chunkIdWithIndex);
                 }
             }
         }
 
-        if (statistics.Status & EChunkStatus::Underreplicated) {
-            for (const auto& request : statistics.ReplicationRequests) {
-                int index = request.Index;
+        if (statistics.Status & (EChunkStatus::Underreplicated | EChunkStatus::UnsafelyPlaced)) {
+            for (int index : statistics.ReplicationIndexes) {
                 TChunkPtrWithIndex chunkWithIndex(chunk, index);
                 TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), index);
 
@@ -980,6 +1048,7 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
     LostVitalChunks_.erase(chunk);
     UnderreplicatedChunks_.erase(chunk);
     OverreplicatedChunks_.erase(chunk);
+    UnsafelyPlacedChunks_.erase(chunk);
 
     if (chunk->IsErasure()) {
         DataMissingChunks_.erase(chunk);

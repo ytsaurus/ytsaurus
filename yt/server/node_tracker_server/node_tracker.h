@@ -19,14 +19,6 @@ namespace NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto {
-
-typedef NNodeTrackerClient::NProto::TReqRegisterNode TReqRegisterNode;
-typedef NNodeTrackerClient::NProto::TReqIncrementalHeartbeat TReqIncrementalHeartbeat;
-typedef NNodeTrackerClient::NProto::TReqFullHeartbeat TReqFullHeartbeat;
-
-} // namespace NProto
-
 class TNodeTracker
     : public TRefCounted
 {
@@ -66,6 +58,8 @@ public:
 
 
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode, TNodeId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Rack, TRack, TRackId);
+
 
     //! Fired when a node gets registered.
     DECLARE_SIGNAL(void(TNode* node), NodeRegistered);
@@ -102,12 +96,34 @@ public:
     //! Returns a node with a given id (throws if none).
     TNode* GetNodeOrThrow(TNodeId id);
 
+    //! Returns the list of (default) addresses of nodes belonging to a given rack.
+    /*!
+     *  #rack can be |nullptr|.
+     */
+    std::vector<Stroka> GetNodeAddressesByRack(const TRack* rack);
+
 
     //! Returns node configuration (extracted from //sys/nodes) or |nullptr| is there's none.
     TNodeConfigPtr FindNodeConfigByAddress(const Stroka& address);
 
     //! Similar to #FindNodeConfigByAddress but returns a default instance instead of |nullptr|.
     TNodeConfigPtr GetNodeConfigByAddress(const Stroka& address);
+
+
+    //! Creates a new rack with a given name. Throws on name conflict.
+    TRack* CreateRack(const Stroka& name);
+
+    //! Destroys an existing rack.
+    void DestroyRack(TRack* rack);
+
+    //! Renames an existing racks. Throws on name conflict.
+    void RenameRack(TRack* rack, const Stroka& newName);
+
+    //! Returns a rack with a given name (|nullptr| if none).
+    TRack* FindRackByName(const Stroka& name);
+
+    //! Returns a rack with a given name (throws if none).
+    TRack* GetRackByNameOrThrow(const Stroka& name);
 
 
     NNodeTrackerClient::TTotalNodeStatistics GetTotalNodeStatistics();
@@ -120,7 +136,8 @@ public:
 
 private:
     class TImpl;
-    
+    class TRackTypeHandler;
+
     TIntrusivePtr<TImpl> Impl_;
 
 };

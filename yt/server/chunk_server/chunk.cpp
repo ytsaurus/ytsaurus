@@ -388,6 +388,23 @@ TChunkProperties TChunk::GetChunkProperties() const
     return result;
 }
 
+int TChunk::GetMaxReplicasPerRack() const
+{
+    switch (GetType()) {
+        case EObjectType::Chunk:
+            return GetReplicationFactor() - 1;
+
+        case EObjectType::ErasureChunk:
+            return NErasure::GetCodec(GetErasureCodec())->GetGuaranteedRepairablePartCount();
+
+        case EObjectType::JournalChunk:
+            return 1;
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer

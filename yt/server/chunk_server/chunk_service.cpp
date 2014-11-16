@@ -94,21 +94,20 @@ private:
         
         auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
 
-        TNodeSet forbiddenNodeSet;
-        TNodeList forbiddenNodeList;
+        TSortedNodeList forbiddenNodes;
         for (const auto& address : forbiddenAddresses) {
             auto* node = nodeTracker->FindNodeByAddress(address);
             if (node) {
-                forbiddenNodeSet.insert(node);
-                forbiddenNodeList.push_back(node);
+                forbiddenNodes.push_back(node);
             }
         }
+        std::sort(forbiddenNodes.begin(), forbiddenNodes.end());
 
         auto targets = chunkManager->AllocateWriteTargets(
+            chunk,
             targetCount,
-            &forbiddenNodeSet,
-            preferredHostName,
-            chunk->GetType());
+            &forbiddenNodes,
+            preferredHostName);
 
         if (targets.empty()) {
             THROW_ERROR_EXCEPTION("Not enough data nodes available");

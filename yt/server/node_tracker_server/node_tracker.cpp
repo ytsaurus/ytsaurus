@@ -2,6 +2,8 @@
 #include "node_tracker.h"
 #include "config.h"
 #include "node.h"
+#include "rack.h"
+#include "rack_proxy.h"
 #include "private.h"
 
 #include <core/misc/id_generator.h>
@@ -30,6 +32,7 @@
 
 #include <server/object_server/object_manager.h>
 #include <server/object_server/attribute_set.h>
+#include <server/object_server/type_handler_detail.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
@@ -46,16 +49,59 @@ using namespace NYPath;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NHydra;
-using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NNodeTrackerServer::NProto;
 using namespace NTransactionServer;
+using namespace NSecurityServer;
+using namespace NObjectServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = NodeTrackerServerLogger;
 static auto& Profiler = NodeTrackerServerProfiler;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNodeTracker::TRackTypeHandler
+    : public TObjectTypeHandlerWithMapBase<TRack>
+{
+public:
+    explicit TRackTypeHandler(TImpl* owner);
+
+    virtual EObjectType GetType() const override
+    {
+        return EObjectType::Rack;
+    }
+
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
+    {
+        return TTypeCreationOptions(
+            EObjectTransactionMode::Forbidden,
+            EObjectAccountMode::Forbidden);
+    }
+
+    virtual TObjectBase* Create(
+        TTransaction* transaction,
+        TAccount* account,
+        IAttributeDictionary* attributes,
+        TReqCreateObjects* request,
+        TRspCreateObjects* response) override;
+
+private:
+    TImpl* Owner_;
+
+    virtual Stroka DoGetName(TRack* rack) override
+    {
+        return Format("rack %Qv", rack->GetName());
+    }
+
+    virtual IObjectProxyPtr DoGetProxy(TRack* rack, TTransaction* transaction) override;
+
+    virtual void DoDestroy(TRack* rack) override;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,6 +145,9 @@ public:
         auto transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RegisterHandler(New<TRackTypeHandler>(this));
     }
 
 
@@ -154,7 +203,7 @@ public:
 
     void RefreshNodeConfig(TNode* node)
     {
-        auto attributes = DoFindNodeConfig(node->GetAddress());
+        auto attributes = FindNodeAttributes(node->GetAddress());
         if (!attributes)
             return;
 
@@ -168,6 +217,7 @@ public:
 
 
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode, TNodeId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Rack, TRack, TRackId);
 
     DEFINE_SIGNAL(void(TNode* node), NodeRegistered);
     DEFINE_SIGNAL(void(TNode* node), NodeUnregistered);
@@ -208,10 +258,129 @@ public:
         return node;
     }
 
+    std::vector<Stroka> GetNodeAddressesByRack(const TRack* rack)
+    {
+        auto nodesMap = FindNodesMap();
+        if (!nodesMap) {
+            return std::vector<Stroka>();
+        }
+
+        auto allAddresses = nodesMap->GetKeys();
+        // Just in case, to make the behavior fully deterministic.
+        std::sort(allAddresses.begin(), allAddresses.end());
+
+        std::vector<Stroka> matchingAddresses;
+        for (const auto& address : allAddresses) {
+            auto nodeNode = nodesMap->GetChild(address);
+            auto* nodeAttributes = nodeNode->MutableAttributes();
+            auto nodeRack = nodeAttributes->Find<Stroka>("rack");
+            if (nodeRack && rack && *nodeRack == rack->GetName() ||
+                !nodeRack && !rack)
+            {
+                matchingAddresses.push_back(address);
+            }
+        }
+
+        return matchingAddresses;
+    }
+
+
+    TRack* CreateRack(const Stroka& name)
+    {
+        if (FindRackByName(name)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Rack %Qv already exists",
+                name);
+        }
+
+        if (RackMap_.GetSize() >= MaxRackCount) {
+            THROW_ERROR_EXCEPTION("Rack count limit %v is reached",
+                MaxRackCount);
+        }
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::Rack);
+
+        auto* rack = new TRack(id);
+        rack->SetName(name);
+        rack->SetIndex(AllocateRackIndex());
+
+        RackMap_.Insert(id, rack);
+        YCHECK(NameToRackMap_.insert(std::make_pair(name, rack)).second);
+
+        // Make the fake reference.
+        YCHECK(rack->RefObject() == 1);
+
+        return rack;
+    }
+
+    void DestroyRack(TRack* rack)
+    {
+        // Unbind nodes from this rack.
+        auto addresses = GetNodeAddressesByRack(rack);
+        AssignNodesToRack(addresses, nullptr);
+
+        // Remove rack from maps.
+        YCHECK(NameToRackMap_.erase(rack->GetName()) == 1);
+        FreeRackIndex(rack->GetIndex());
+
+        // Notify the subscribers about the node changes.
+        for (const auto& address : addresses) {
+            auto* node = FindNodeByAddress(address);
+            if (node) {
+                RefreshNodeConfig(node);
+            }
+        }
+    }
+
+    void RenameRack(TRack* rack, const Stroka& newName)
+    {
+        if (rack->GetName() == newName)
+            return;
+
+        if (FindRackByName(newName)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Rack %Qv already exists",
+                newName);
+        }
+
+        // Temporarily unbind nodes from this rack.
+        auto addresses = GetNodeAddressesByRack(rack);
+        AssignNodesToRack(addresses, nullptr);
+
+        // Update name.
+        YCHECK(NameToRackMap_.erase(rack->GetName()) == 1);
+        YCHECK(NameToRackMap_.insert(std::make_pair(newName, rack)).second);
+        rack->SetName(newName);
+
+        // Rebind nodes back.
+        AssignNodesToRack(addresses, rack);
+    }
+
+    TRack* FindRackByName(const Stroka& name)
+    {
+        auto it = NameToRackMap_.find(name);
+        return it == NameToRackMap_.end() ? nullptr : it->second;
+    }
+
+    TRack* GetRackByNameOrThrow(const Stroka& name)
+    {
+        auto* rack = FindRackByName(name);
+        if (!rack) {
+            THROW_ERROR_EXCEPTION(
+                NNodeTrackerClient::EErrorCode::NoSuchRack,
+                "No such rack %Qv",
+                name);
+        }
+        return rack;
+    }
+
 
     TNodeConfigPtr FindNodeConfigByAddress(const Stroka& address)
     {
-        auto attributes = DoFindNodeConfig(address);
+        auto attributes = FindNodeAttributes(address);
         if (!attributes) {
             return nullptr;
         }
@@ -256,17 +425,23 @@ public:
     }
 
 private:
+    friend class TRackTypeHandler;
+
     TNodeTrackerConfigPtr Config_;
 
     TIdGenerator NodeIdGenerator_;
     NHydra::TEntityMap<TNodeId, TNode> NodeMap_;
+    NHydra::TEntityMap<TRackId, TRack> RackMap_;
 
     int OnlineNodeCount_ = 0;
     int RegisteredNodeCount_ = 0;
 
+    TRackSet UsedRackIndexes_ = 0;
+
     yhash_map<Stroka, TNode*> AddressToNodeMap_;
     yhash_multimap<Stroka, TNode*> HostNameToNodeMap_;
     yhash_map<TTransaction*, TNode*> TransactionToNodeMap_;
+    yhash_map<Stroka, TRack*> NameToRackMap_;
 
     std::deque<TNode*> NodeRemovalQueue_;
     int PendingRemoveNodeMutationCount_ = 0;
@@ -289,21 +464,41 @@ private:
         return id;
     }
 
-    IMapNodePtr DoFindNodeConfig(const Stroka& address)
+
+
+    static TYPath GetNodePath(const Stroka& address)
     {
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        auto resolver = cypressManager->CreateResolver();
-        auto nodesMap = resolver->ResolvePath("//sys/nodes")->AsMap();
-        auto nodeNode = nodesMap->FindChild(address);
-        if (!nodeNode) {
-            return nullptr;
-        }
-        return nodeNode->Attributes().ToMap();
+        return "//sys/nodes/" + ToYPathLiteral(address);
     }
 
     static TYPath GetNodePath(TNode* node)
     {
-        return "//sys/nodes/" + ToYPathLiteral(node->GetAddress());
+        return GetNodePath(node->GetAddress());
+    }
+
+
+    IMapNodePtr FindNodesMap()
+    {
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        auto resolver = cypressManager->CreateResolver();
+        auto node = resolver->ResolvePath("//sys/nodes");
+        return node ? node->AsMap() : nullptr;
+    }
+
+    IMapNodePtr FindNodeNode(const Stroka& address)
+    {
+        auto nodesMap = FindNodesMap();
+        if (!nodesMap) {
+            return nullptr;
+        }
+        auto nodeNode = nodesMap->FindChild(address);
+        return nodeNode ? nodeNode->AsMap() : nullptr;
+    }
+
+    IMapNodePtr FindNodeAttributes(const Stroka& address)
+    {
+        auto nodeNode = FindNodeNode(address);
+        return nodeNode ? nodeNode->Attributes().ToMap() : nullptr;
     }
 
 
@@ -432,33 +627,46 @@ private:
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
         NodeMap_.SaveKeys(context);
+        RackMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
         Save(context, NodeIdGenerator_);
         NodeMap_.SaveValues(context);
+        RackMap_.SaveValues(context);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
         NodeMap_.LoadKeys(context);
+        // COMPAT(babenko)
+        if (context.GetVersion() >= 103) {
+            RackMap_.LoadKeys(context);
+        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         Load(context, NodeIdGenerator_);
         NodeMap_.LoadValues(context);
+        // COMPAT(babenko)
+        if (context.GetVersion() >= 103) {
+            RackMap_.LoadValues(context);
+        }
     }
 
     virtual void Clear() override
     {
         NodeIdGenerator_.Reset();
         NodeMap_.Clear();
+        RackMap_.Clear();
 
         AddressToNodeMap_.clear();
         HostNameToNodeMap_.clear();
         TransactionToNodeMap_.clear();
+
+        NameToRackMap_.clear();
 
         OnlineNodeCount_ = 0;
         RegisteredNodeCount_ = 0;
@@ -488,6 +696,17 @@ private:
             if (node->GetTransaction()) {
                 RegisterLeaseTransaction(node);
             }
+        }
+
+        UsedRackIndexes_ = 0;
+        for (const auto& pair : RackMap_) {
+            auto* rack = pair.second;
+
+            YCHECK(NameToRackMap_.insert(std::make_pair(rack->GetName(), rack)).second);
+
+            auto rackIndexMask = rack->GetIndexMask();
+            YCHECK(!(UsedRackIndexes_ & rackIndexMask));
+            UsedRackIndexes_ |= rackIndexMask;
         }
     }
 
@@ -811,11 +1030,71 @@ private:
 
     void OnNodeConfigUpdated(TNode* node)
     {
-        if (node->GetConfig()->Banned) {
-            LOG_INFO_UNLESS(IsRecovery(), "Node banned (Address: %v)",
+        auto config = node->GetConfig();
+
+        if (config->Banned) {
+            LOG_INFO_UNLESS(IsRecovery(), "Node banned (NodeId: %v, Address: %v)",
+                node->GetId(),
                 node->GetAddress());
             if (IsLeader()) {
                 PostUnregisterNodeMutation(node);
+            }
+        }
+
+        if (config->Rack) {
+            auto* rack = FindRackByName(*config->Rack);
+            if (rack) {
+                LOG_INFO_UNLESS(IsRecovery(), "Node rack set (NodeId: %v, Address: %v, Rack: %v)",
+                    node->GetId(),
+                    node->GetAddress(),
+                    *config->Rack);
+            } else {
+                // This should not happen. But let's issue an error instead of crashing.
+                LOG_ERROR_UNLESS(IsRecovery(), "Unknown rack set to node (NodeId: %v, Address: %v, Rack: %v)",
+                    node->GetId(),
+                    node->GetAddress(),
+                    *config->Rack);
+            }
+            node->SetRack(rack);
+        } else {
+            LOG_INFO_UNLESS(IsRecovery(), "Node rack reset (NodeId: %v, Address: %)",
+                node->GetId(),
+                node->GetAddress());
+            node->SetRack(nullptr);
+        }
+    }
+
+
+    int AllocateRackIndex()
+    {
+        for (int index = 0; index < MaxRackCount; ++index) {
+            if (index == NullRackIndex)
+                continue;
+            auto mask = 1ULL << index;
+            if (!(UsedRackIndexes_ & mask)) {
+                UsedRackIndexes_ |= mask;
+                return index;
+            }
+        }
+        YUNREACHABLE();
+    }
+
+    void FreeRackIndex(int index)
+    {
+        auto mask = 1ULL << index;
+        YCHECK(UsedRackIndexes_ & mask);
+        UsedRackIndexes_ &= ~mask;
+    }
+
+    void AssignNodesToRack(const std::vector<Stroka>& addresses, TRack* rack)
+    {
+        for (const auto& address : addresses) {
+            auto node = FindNodeNode(address);
+            YCHECK(node);
+            if (rack) {
+                node->MutableAttributes()->Set("rack", rack->GetName());
+            } else {
+                node->MutableAttributes()->Remove("rack");
             }
         }
     }
@@ -823,6 +1102,7 @@ private:
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, TNodeId, NodeMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Rack, TRack, TRackId, RackMap_)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -860,6 +1140,11 @@ TNode* TNodeTracker::GetNodeOrThrow(TNodeId id)
     return Impl_->GetNodeOrThrow(id);
 }
 
+std::vector<Stroka> TNodeTracker::GetNodeAddressesByRack(const TRack* rack)
+{
+    return Impl_->GetNodeAddressesByRack(rack);
+}
+
 TNodeConfigPtr TNodeTracker::FindNodeConfigByAddress(const Stroka& address)
 {
     return Impl_->FindNodeConfigByAddress(address);
@@ -868,6 +1153,31 @@ TNodeConfigPtr TNodeTracker::FindNodeConfigByAddress(const Stroka& address)
 TNodeConfigPtr TNodeTracker::GetNodeConfigByAddress(const Stroka& address)
 {
     return Impl_->GetNodeConfigByAddress(address);
+}
+
+TRack* TNodeTracker::CreateRack(const Stroka& name)
+{
+    return Impl_->CreateRack(name);
+}
+
+void TNodeTracker::DestroyRack(TRack* rack)
+{
+    Impl_->DestroyRack(rack);
+}
+
+void TNodeTracker::RenameRack(TRack* rack, const Stroka& newName)
+{
+    Impl_->RenameRack(rack, newName);
+}
+
+TRack* TNodeTracker::FindRackByName(const Stroka& name)
+{
+    return Impl_->FindRackByName(name);
+}
+
+TRack* TNodeTracker::GetRackByNameOrThrow(const Stroka& name)
+{
+    return Impl_->GetRackByNameOrThrow(name);
 }
 
 TMutationPtr TNodeTracker::CreateRegisterNodeMutation(
@@ -915,6 +1225,7 @@ int TNodeTracker::GetOnlineNodeCount()
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, TNodeId, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Rack, TRack, TRackId, *Impl_)
 
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRegistered, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeUnregistered, *Impl_);
@@ -922,6 +1233,38 @@ DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRemoved, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeConfigUpdated, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqFullHeartbeat&), FullHeartbeat, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqIncrementalHeartbeat&, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl_);
+
+///////////////////////////////////////////////////////////////////////////////
+
+TNodeTracker::TRackTypeHandler::TRackTypeHandler(TImpl* owner)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->RackMap_)
+    , Owner_(owner)
+{ }
+
+TObjectBase* TNodeTracker::TRackTypeHandler::Create(
+    TTransaction* /*transaction*/,
+    TAccount* /*account*/,
+    IAttributeDictionary* attributes,
+    TReqCreateObjects* /*request*/,
+    TRspCreateObjects* /*response*/)
+{
+    auto name = attributes->Get<Stroka>("name");
+    attributes->Remove("name");
+
+    return Owner_->CreateRack(name);
+}
+
+IObjectProxyPtr TNodeTracker::TRackTypeHandler::DoGetProxy(
+    TRack* rack,
+    TTransaction* /*transaction*/)
+{
+    return CreateRackProxy(Owner_->Bootstrap_, rack);
+}
+
+void TNodeTracker::TRackTypeHandler::DoDestroy(TRack* rack)
+{
+    Owner_->DestroyRack(rack);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 

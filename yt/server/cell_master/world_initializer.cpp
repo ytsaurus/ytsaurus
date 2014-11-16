@@ -272,6 +272,11 @@ private:
                     .EndMap());
 
             CreateNode(
+                "//sys/racks",
+                transactionId,
+                EObjectType::RackMap);
+
+            CreateNode(
                 "//sys/masters",
                 transactionId,
                 EObjectType::MapNode,
@@ -342,6 +347,11 @@ private:
                 "//sys/quorum_missing_chunks",
                 transactionId,
                 EObjectType::QuorumMissingChunkMap);
+
+            CreateNode(
+                "//sys/unsafely_placed_chunks",
+                transactionId,
+                EObjectType::UnsafelyPlacedChunkMap);
 
             CreateNode(
                 "//sys/chunk_lists",

@@ -49,6 +49,7 @@ class TNodeConfig
 public:
     bool Banned;
     bool Decommissioned;
+    TNullable<Stroka> Rack;
 
     TNodeConfig()
     {
@@ -56,6 +57,8 @@ public:
             .Default(false);
         RegisterParameter("decommissioned", Decommissioned)
             .Default(false);
+        RegisterParameter("rack", Rack)
+            .Default();
     }
 };
 

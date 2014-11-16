@@ -48,12 +48,12 @@ public:
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, DataMissingChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, ParityMissingChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, QuorumMissingChunks);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnsafelyPlacedChunks);
 
     void OnChunkDestroyed(TChunk* chunk);
 
     void ScheduleChunkRefresh(const TChunkId& chunkId);
     void ScheduleChunkRefresh(TChunk* chunk);
-
     void ScheduleNodeRefresh(TNode* node);
 
     void ScheduleUnknownChunkRemoval(TNode* node, const NChunkClient::TChunkIdWithIndex& chunkdIdWithIndex);
@@ -83,20 +83,6 @@ public:
     int GetPropertiesUpdateListSize() const;
 
 private:
-    struct TJobRequest
-    {
-        TJobRequest(int index, int count)
-            : Index(index)
-            , Count(count)
-        { }
-
-        //! Replica index the request applies to.
-        int Index;
-
-        //! Number of replicas to create/remove.
-        int Count;
-    };
-
     struct TChunkStatistics
     {
         TChunkStatistics();
@@ -109,17 +95,14 @@ private:
         //! Number of decommissioned replicas, per each replica index.
         int DecommissionedReplicaCount[NChunkClient::ChunkReplicaIndexBound];
 
-        //! Recommended replications.
-        SmallVector<TJobRequest, TypicalReplicaCount> ReplicationRequests;
+        //! Indexes of replicas whose replication is advised.
+        SmallVector<int, TypicalReplicaCount> ReplicationIndexes;
         
-        //! Recommended removals of decommissioned replicas. 
-        TNodePtrWithIndexList DecommissionedRemovalRequests;
+        //! Decommissioned replicas whose removal is advised.
+        SmallVector<TNodePtrWithIndex, TypicalReplicaCount> DecommissionedRemovalReplicas;
 
-        //! Recommended removals to active replicas.
-        //! Removal targets must be selected among most loaded nodes.
-        //! This can only be nonempty if |DecommissionedRemovalRequests| is empty.
-        SmallVector<TJobRequest, TypicalReplicaCount> BalancingRemovalRequests;
-        
+        //! Indexes of replicas whose removal is advised for balancing.
+        SmallVector<int, TypicalReplicaCount> BalancingRemovalIndexes;
     };
 
     struct TRefreshEntry

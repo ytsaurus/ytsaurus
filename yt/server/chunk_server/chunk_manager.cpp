@@ -316,17 +316,17 @@ public:
 
 
     TNodeList AllocateWriteTargets(
+        TChunk* chunk,
         int replicaCount,
-        const TNodeSet* forbiddenNodes,
-        const TNullable<Stroka>& preferredHostName,
-        EObjectType chunkType)
+        const TSortedNodeList* forbiddenNodes,
+        const TNullable<Stroka>& preferredHostName)
     {
         return ChunkPlacement_->AllocateWriteTargets(
+            chunk,
             replicaCount,
             forbiddenNodes,
             preferredHostName,
-            EWriteSessionType::User,
-            chunkType);
+            EWriteSessionType::User);
     }
 
     TChunk* CreateChunk(EObjectType type)
@@ -610,6 +610,7 @@ public:
     const yhash_set<TChunk*>& DataMissingChunks() const;
     const yhash_set<TChunk*>& ParityMissingChunks() const;
     const yhash_set<TChunk*>& QuorumMissingChunks() const;
+    const yhash_set<TChunk*>& UnsafelyPlacedChunks() const;
 
 
     int GetTotalReplicaCount()
@@ -626,6 +627,11 @@ public:
     void ScheduleChunkRefresh(TChunk* chunk)
     {
         ChunkReplicator_->ScheduleChunkRefresh(chunk);
+    }
+
+    void ScheduleNodeRefresh(TNode* node)
+    {
+        ChunkReplicator_->ScheduleNodeRefresh(node);
     }
 
     void ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree)
@@ -882,16 +888,19 @@ private:
         const auto& config = node->GetConfig();
         if (config->Decommissioned != node->GetDecommissioned()) {
             if (config->Decommissioned) {
-                LOG_INFO_UNLESS(IsRecovery(), "Node decommissioned (Address: %v)", node->GetAddress());
+                LOG_INFO_UNLESS(IsRecovery(), "Node decommissioned (NodeId: %v, Address: %v)",
+                    node->GetId(),
+                    node->GetAddress());
             } else {
-                LOG_INFO_UNLESS(IsRecovery(), "Node is no longer decommissioned (Address: %v)", node->GetAddress());
+                LOG_INFO_UNLESS(IsRecovery(), "Node is no longer decommissioned (NodeId: %v, Address: %v)",
+                    node->GetId(),
+                    node->GetAddress());
             }
-
             node->SetDecommissioned(config->Decommissioned);
+        }
 
-            if (ChunkReplicator_) {
-                ChunkReplicator_->ScheduleNodeRefresh(node);
-            }
+        if (ChunkReplicator_) {
+            ChunkReplicator_->ScheduleNodeRefresh(node);
         }
     }
 
@@ -1153,12 +1162,16 @@ private:
 
     virtual void OnLeaderActive() override
     {
+        ChunkPlacement_->Start();
         ChunkReplicator_->Start();
         ChunkSealer_->Start();
     }
 
     virtual void OnStopLeading() override
     {
+        if (ChunkPlacement_) {
+            ChunkPlacement_->Stop();
+        }
         if (ChunkReplicator_) {
             ChunkReplicator_->Stop();
         }
@@ -1379,6 +1392,7 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, Underreplic
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, DataMissingChunks, *ChunkReplicator_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, ParityMissingChunks, *ChunkReplicator_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, QuorumMissingChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, UnsafelyPlacedChunks, *ChunkReplicator_);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -1531,16 +1545,16 @@ TChunkTree* TChunkManager::GetChunkTreeOrThrow(const TChunkTreeId& id)
 }
 
 TNodeList TChunkManager::AllocateWriteTargets(
+    TChunk* chunk,
     int replicaCount,
-    const TNodeSet* forbiddenNodes,
-    const TNullable<Stroka>& preferredHostName,
-    EObjectType chunkType)
+    const TSortedNodeList* forbiddenNodes,
+    const TNullable<Stroka>& preferredHostName)
 {
     return Impl_->AllocateWriteTargets(
+        chunk,
         replicaCount,
         forbiddenNodes,
-        preferredHostName,
-        chunkType);
+        preferredHostName);
 }
 
 TMutationPtr TChunkManager::CreateUpdateChunkPropertiesMutation(
@@ -1676,6 +1690,11 @@ void TChunkManager::ScheduleChunkRefresh(TChunk* chunk)
     Impl_->ScheduleChunkRefresh(chunk);
 }
 
+void TChunkManager::ScheduleNodeRefresh(TNode* node)
+{
+    Impl_->ScheduleNodeRefresh(node);
+}
+
 void TChunkManager::ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree)
 {
     Impl_->ScheduleChunkPropertiesUpdate(chunkTree);
@@ -1716,6 +1735,7 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, UnderreplicatedChu
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, DataMissingChunks, *Impl_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, ParityMissingChunks, *Impl_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, QuorumMissingChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, UnsafelyPlacedChunks, *Impl_);
 
 ///////////////////////////////////////////////////////////////////////////////
 

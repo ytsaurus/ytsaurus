@@ -27,18 +27,19 @@ class TVirtualChunkMap
 {
 public:
     TVirtualChunkMap(TBootstrap* bootstrap, EObjectType type)
-        : Bootstrap(bootstrap)
-        , Type(type)
+        : Bootstrap_(bootstrap)
+        , Type_(type)
     { }
 
 private:
-    TBootstrap* Bootstrap;
-    EObjectType Type;
+    TBootstrap* Bootstrap_;
+    EObjectType Type_;
+
 
     const yhash_set<TChunk*>& GetFilteredChunks() const
     {
-        auto chunkManager = Bootstrap->GetChunkManager();
-        switch (Type) {
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        switch (Type_) {
             case EObjectType::LostChunkMap:
                 return chunkManager->LostChunks();
             case EObjectType::LostVitalChunkMap:
@@ -53,6 +54,8 @@ private:
                 return chunkManager->ParityMissingChunks();
             case EObjectType::QuorumMissingChunkMap:
                 return chunkManager->QuorumMissingChunks();
+            case EObjectType::UnsafelyPlacedChunkMap:
+                return chunkManager->UnsafelyPlacedChunks();
             default:
                 YUNREACHABLE();
         }
@@ -60,7 +63,7 @@ private:
 
     bool CheckFilter(TChunk* chunk) const
     {
-        if (Type == EObjectType::ChunkMap) {
+        if (Type_ == EObjectType::ChunkMap) {
             return true;
         }
 
@@ -71,8 +74,8 @@ private:
     virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
         std::vector<TObjectId> ids;
-        if (Type == EObjectType::ChunkMap) {
-            auto chunkManager = Bootstrap->GetChunkManager();
+        if (Type_ == EObjectType::ChunkMap) {
+            auto chunkManager = Bootstrap_->GetChunkManager();
             ids = ToObjectIds(GetValues(chunkManager->Chunks(), sizeLimit));
         } else {
             const auto& chunks = GetFilteredChunks();
@@ -85,8 +88,8 @@ private:
 
     virtual size_t GetSize() const override
     {
-        if (Type == EObjectType::ChunkMap) {
-            auto chunkManager = Bootstrap->GetChunkManager();
+        if (Type_ == EObjectType::ChunkMap) {
+            auto chunkManager = Bootstrap_->GetChunkManager();
             return chunkManager->Chunks().GetSize();
         } else {
             return GetFilteredChunks().size();
@@ -97,7 +100,7 @@ private:
     {
         auto id = TChunkId::FromString(key);
 
-        auto chunkManager = Bootstrap->GetChunkManager();
+        auto chunkManager = Bootstrap_->GetChunkManager();
         auto* chunk = chunkManager->FindChunk(id);
         if (!IsObjectAlive(chunk)) {
             return nullptr;
@@ -107,7 +110,7 @@ private:
             return nullptr;
         }
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(chunk);
     }
 };

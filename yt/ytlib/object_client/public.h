@@ -38,18 +38,20 @@ typedef ui16 TCellTag;
 //! Describes the runtime type of an object.
 DECLARE_ENUM(EObjectType,
     // Does not represent any actual type.
-    ((Null)                       (0))
+    ((Null)                       (  0))
 
     // The following represent non-versioned objects.
     // These must be created by calling TMasterYPathProxy::CreateObjects.
 
     // Transaction Manager stuff
-    ((Transaction)                (1))
-    ((TabletTransaction)          (2))
-
+    ((Transaction)                (  1))
+    ((TransactionMap)             (407))
+    ((TopmostTransactionMap)      (418))
+    ((TabletTransaction)          (  2))
+    ((LockMap)                    (422))
+        
     // Chunk Manager stuff
     ((Chunk)                      (100))
-    ((ChunkList)                  (101))
     ((ErasureChunk)               (102)) // erasure chunk as a whole
     ((ErasureChunkPart_0)         (103)) // erasure chunk parts, mnemonic names are for debugging convenience only
     ((ErasureChunkPart_1)         (104))
@@ -68,7 +70,18 @@ DECLARE_ENUM(EObjectType,
     ((ErasureChunkPart_14)        (117))
     ((ErasureChunkPart_15)        (118))
     ((JournalChunk)               (119))
-
+    ((ChunkMap)                   (402))
+    ((LostChunkMap)               (403))
+    ((LostVitalChunkMap)          (413))
+    ((OverreplicatedChunkMap)     (404))
+    ((UnderreplicatedChunkMap)    (405))
+    ((DataMissingChunkMap)        (419))
+    ((ParityMissingChunkMap)      (420))
+    ((QuorumMissingChunkMap)      (424))
+    ((UnsafelyPlacedChunkMap)     (120))
+    ((ChunkList)                  (101))
+    ((ChunkListMap)               (406))
+        
     // The following represent versioned objects (AKA Cypress nodes).
     // These must be created by calling TCypressYPathProxy::Create.
     // NB: When adding a new type, don't forget to update IsVersionedType.
@@ -89,42 +102,34 @@ DECLARE_ENUM(EObjectType,
     ((File)                       (400))
     ((Table)                      (401))
     ((Journal)                    (423))
-    ((ChunkMap)                   (402))
-    ((LostChunkMap)               (403))
-    ((OverreplicatedChunkMap)     (404))
-    ((UnderreplicatedChunkMap)    (405))
-    ((DataMissingChunkMap)        (419))
-    ((ParityMissingChunkMap)      (420))
-    ((QuorumMissingChunkMap)      (424))
-    ((ChunkListMap)               (406))
-    ((TransactionMap)             (407))
-    ((TopmostTransactionMap)      (418))
-    ((CellNodeMap)                (408))
-    ((CellNode)                   (410))
     ((Orchid)                     (412))
-    ((LostVitalChunkMap)          (413))
-    ((AccountMap)                 (414))
-    ((UserMap)                    (415))
-    ((GroupMap)                   (416))
     ((Link)                       (417))
     ((Document)                   (421))
-    ((LockMap)                    (422))
-
-    // Security stuff
+    
+    // Security Manager stuff
     ((Account)                    (500))
+    ((AccountMap)                 (414))
     ((User)                       (501))
+    ((UserMap)                    (415))
     ((Group)                      (502))
-
+    ((GroupMap)                   (416))
+    
     // Global stuff
-    // A mysterious creature representing master as a whole.
+    // A mysterious creature representing the master as a whole.
     ((Master)                     (600))
 
-    // Tablet stuff
+    // Tablet Manager stuff
     ((TabletCell)                 (700))
     ((TabletCellNode)             (701))
     ((Tablet)                     (702))
     ((TabletMap)                  (703))
     ((DynamicMemoryTabletStore)   (704))
+    
+    // Node Tracker stuff
+    ((CellNodeMap)                (408))
+    ((CellNode)                   (410))
+    ((Rack)                       (800))
+    ((RackMap)                    (801))
 
 );
 

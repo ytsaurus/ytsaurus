@@ -49,10 +49,10 @@ public:
     TChunkTree* GetChunkTreeOrThrow(const TChunkTreeId& id);
 
     TNodeList AllocateWriteTargets(
+        TChunk* chunk,
         int replicaCount,
-        const TNodeSet* forbiddenNodes,
-        const TNullable<Stroka>& preferredHostName,
-        NObjectClient::EObjectType chunkType);
+        const TSortedNodeList* forbiddenNodes,
+        const TNullable<Stroka>& preferredHostName);
 
     TChunk* CreateChunk(NObjectServer::EObjectType type);
     TChunkList* CreateChunkList();
@@ -107,6 +107,7 @@ public:
     bool IsReplicatorEnabled();
 
     void ScheduleChunkRefresh(TChunk* chunk);
+    void ScheduleNodeRefresh(TNode* node);
     void ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree);
     void ScheduleChunkSeal(TChunk* chunk);
 
@@ -117,6 +118,7 @@ public:
     const yhash_set<TChunk*>& DataMissingChunks() const;
     const yhash_set<TChunk*>& ParityMissingChunks() const;
     const yhash_set<TChunk*>& QuorumMissingChunks() const;
+    const yhash_set<TChunk*>& UnsafelyPlacedChunks() const;
 
     //! Returns the total number of all chunk replicas.
     int GetTotalReplicaCount();

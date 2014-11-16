@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 #include "node.h"
+#include "rack.h"
 #include "node_tracker.h"
 #include "config.h"
 
@@ -19,6 +20,8 @@
 
 #include <server/tablet_server/tablet_cell.h>
 
+#include <server/object_server/object.h>
+
 #include <server/cell_master/bootstrap.h>
 
 namespace NYT {
@@ -33,6 +36,24 @@ using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient::NProto;
+using namespace NObjectServer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+template <class T>
+std::vector<Stroka> ToNames(const std::vector<T>& objects)
+{
+    std::vector<Stroka> names;
+    names.reserve(objects.size());
+    for (const auto* object : objects) {
+        names.push_back(object->GetName());
+    }
+    return names;
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -174,27 +195,34 @@ private:
 
     virtual void ValidateCustomAttributeUpdate(
         const Stroka& key,
-        const TNullable<TYsonString>& oldValue,
+        const TNullable<TYsonString>& /*oldValue*/,
         const TNullable<TYsonString>& newValue) override
     {
-        UNUSED(oldValue);
-
-        // Forbid to remove configuration attributes.
-        static auto nodeConfigKeys = New<TNodeConfig>()->GetRegisteredKeys();
-        if (!newValue &&
-            std::find(nodeConfigKeys.begin(), nodeConfigKeys.end(), key) != nodeConfigKeys.end())
-        {
-            ThrowCannotRemoveAttribute(key);
-        }
-
-        // Update the attributes and check if they still deserialize OK.
-        auto attributes = Attributes().Clone();
-        if (newValue) {
-            attributes->Set(key, *newValue);
+        if (key == "rack") {
+            // Validate rack name.
+            if (newValue) {
+                auto name = ConvertTo<Stroka>(*newValue);
+                auto nodeTracker = Bootstrap->GetNodeTracker();
+                nodeTracker->GetRackByNameOrThrow(name);
+            }
         } else {
-            attributes->Remove(key);
+            // Forbid to remove configuration attributes.
+            static auto nodeConfigKeys = New<TNodeConfig>()->GetRegisteredKeys();
+            if (!newValue &&
+                std::find(nodeConfigKeys.begin(), nodeConfigKeys.end(), key) != nodeConfigKeys.end())
+            {
+                ThrowCannotRemoveAttribute(key);
+            }
+
+            // Update the attributes and check if they still deserialize OK.
+            auto attributes = Attributes().Clone();
+            if (newValue) {
+                attributes->Set(key, *newValue);
+            } else {
+                attributes->Remove(key);
+            }
+            ConvertTo<TNodeConfigPtr>(attributes->ToMap());
         }
-        ConvertTo<TNodeConfigPtr>(attributes->ToMap());
     }
 
     virtual void OnCustomAttributesUpdated() override
@@ -336,11 +364,11 @@ private:
     }
 };
 
-class TNodeMapTypeHandler
+class TCellNodeMapTypeHandler
     : public TMapNodeTypeHandler
 {
 public:
-    explicit TNodeMapTypeHandler(TBootstrap* bootstrap)
+    explicit TCellNodeMapTypeHandler(TBootstrap* bootstrap)
         : TMapNodeTypeHandler(bootstrap)
     { }
 
@@ -367,7 +395,57 @@ INodeTypeHandlerPtr CreateCellNodeMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
-    return New<TNodeMapTypeHandler>(bootstrap);
+    return New<TCellNodeMapTypeHandler>(bootstrap);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualRackMap
+    : public TVirtualMapBase
+{
+public:
+    explicit TVirtualRackMap(TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+    { }
+
+private:
+    TBootstrap* Bootstrap_;
+
+    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
+    {
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        return ToNames(GetValues(nodeTracker->Racks(), sizeLimit));
+    }
+
+    virtual size_t GetSize() const override
+    {
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        return nodeTracker->Racks().GetSize();
+    }
+
+    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+    {
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        auto* rack = nodeTracker->FindRackByName(Stroka(key));
+        if (!IsObjectAlive(rack)) {
+            return nullptr;
+        }
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        return objectManager->GetProxy(rack);
+    }
+};
+
+INodeTypeHandlerPtr CreateRackMapTypeHandler(TBootstrap* bootstrap)
+{
+    YCHECK(bootstrap);
+
+    auto service = New<TVirtualRackMap>(bootstrap);
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        EObjectType::RackMap,
+        service,
+        EVirtualNodeOptions(EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
