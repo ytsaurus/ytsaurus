@@ -21,20 +21,16 @@ TEncodingChunkWriter::TEncodingChunkWriter(
     IChunkWriterPtr asyncWriter)
     : ChunkWriter_(asyncWriter)
     , EncodingWriter_(New<TEncodingWriter>(config, options, asyncWriter))
-    , CurrentBlockIndex_(0)
-    , LargestBlockSize_(0)
-{ 
+{
     MiscExt_.set_compression_codec(options->CompressionCodec);
+    MiscExt_.set_eden(options->ChunksEden);
 }
 
 void TEncodingChunkWriter::WriteBlock(std::vector<TSharedRef>&& data)
 {
     ++CurrentBlockIndex_;
 
-    i64 blockSize = 0;
-    for (auto& part : data) {
-        blockSize += part.Size();
-    }
+    i64 blockSize = GetTotalSize(data);
     LargestBlockSize_ = std::max(LargestBlockSize_, blockSize);
 
     EncodingWriter_->WriteBlock(std::move(data));

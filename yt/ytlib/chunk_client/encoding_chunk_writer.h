@@ -15,6 +15,7 @@ namespace NChunkClient {
 class TEncodingChunkWriter
     : public virtual TRefCounted
 {
+public:
     DEFINE_BYREF_RW_PROPERTY(NProto::TChunkMeta, Meta);
     DEFINE_BYREF_RW_PROPERTY(NProto::TMiscExt, MiscExt);
 
@@ -38,8 +39,8 @@ private:
     IChunkWriterPtr ChunkWriter_;
     TEncodingWriterPtr EncodingWriter_;
 
-    int CurrentBlockIndex_;
-    i64 LargestBlockSize_;
+    int CurrentBlockIndex_ = 0;
+    i64 LargestBlockSize_ = 0;
 
 };
 

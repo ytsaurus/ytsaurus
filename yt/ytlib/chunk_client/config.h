@@ -235,11 +235,14 @@ class TEncodingWriterOptions
 {
 public:
     NCompression::ECodec CompressionCodec;
+    bool ChunksEden;
 
     TEncodingWriterOptions()
     {
         RegisterParameter("compression_codec", CompressionCodec)
             .Default(NCompression::ECodec::None);
+        RegisterParameter("chunks_eden", ChunksEden)
+            .Default(false);
     }
 };
 

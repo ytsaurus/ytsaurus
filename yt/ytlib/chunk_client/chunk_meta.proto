@@ -62,6 +62,9 @@ message TMiscExt
 
     // Is the chunk sealed (journals only)?
     optional bool sealed = 13;
+
+    // Does this chunk belong to Eden (dynamic tables only)?
+    optional bool eden = 14 [default = false];
 }
 
 message TPartInfo

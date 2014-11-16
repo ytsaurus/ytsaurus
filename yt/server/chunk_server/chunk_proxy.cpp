@@ -106,6 +106,7 @@ private:
         attributes->push_back(TAttributeInfo("max_key", hasBoundaryKeysExt));        
         attributes->push_back(TAttributeInfo("read_quorum", chunk->IsJournal()));
         attributes->push_back(TAttributeInfo("write_quorum", chunk->IsJournal()));
+        attributes->push_back(TAttributeInfo("eden", chunk->IsConfirmed()));
         TBase::ListSystemAttributes(attributes);
     }
 
@@ -348,6 +349,12 @@ private:
             if (key == "write_quorum" && chunk->IsJournal()) {
                 BuildYsonFluently(consumer)
                     .Value(chunk->GetWriteQuorum());
+                return true;
+            }
+
+            if (key == "eden") {
+                BuildYsonFluently(consumer)
+                    .Value(miscExt.eden());
                 return true;
             }
         }
