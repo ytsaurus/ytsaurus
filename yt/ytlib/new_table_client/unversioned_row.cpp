@@ -620,7 +620,7 @@ void ValidateClientDataRow(
 {
     ValidateRowValueCount(row.GetCount());
 
-    bool keyColumnFlags[MaxKeyColumnCount] = {};
+    bool keyColumnFlags[MaxKeyColumnCount] {};
     int keyColumnSeen = 0;
     for (const auto* it = row.Begin(); it != row.End(); ++it) {
         const auto& value = *it;
@@ -717,7 +717,7 @@ void ValidateClientKey(
             key.GetCount());
     }
 
-    bool keyColumnFlags[MaxKeyColumnCount] = {};
+    bool keyColumnFlags[MaxKeyColumnCount] {};
     for (int index = 0; index < keyColumnCount; ++index) {
         const auto& value = key[index];
         ValidateKeyValue(value);
