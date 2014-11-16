@@ -38,8 +38,9 @@ public:
 
 protected:
     TChunkWriterConfigPtr Config_;
+    TChunkWriterOptionsPtr Options_;
     TKeyColumns KeyColumns_;
-    i64 RowCount_;
+    i64 RowCount_ = 0;
 
     NChunkClient::TEncodingChunkWriterPtr EncodingChunkWriter_;
 
@@ -59,13 +60,13 @@ private:
     std::unique_ptr<IBlockWriter> BlockWriter_;
 
     NProto::TBlockMetaExt BlockMetaExt_;
-    i64 BlockMetaExtSize_;
+    i64 BlockMetaExtSize_ = 0;
 
     NProto::TSamplesExt SamplesExt_;
-    i64 SamplesExtSize_;
-    double AverageSampleSize_;
+    i64 SamplesExtSize_ = 0;
+    double AverageSampleSize_ = 0;
 
-    i64 DataWeight_;
+    i64 DataWeight_ = 0;
 
 
     TError DoClose();

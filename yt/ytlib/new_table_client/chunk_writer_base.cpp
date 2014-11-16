@@ -13,13 +13,13 @@
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
-
 namespace NYT {
 namespace NVersionedTableClient {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,16 +28,12 @@ TChunkWriterBase::TChunkWriterBase(
     TChunkWriterOptionsPtr options,
     IChunkWriterPtr asyncWriter,
     // We pass key columns here in order to use TChunkWriterBase and
-    // TSortedChunkWriterBase as template base interchangably.
+    // TSortedChunkWriterBase as template base interchangeably.
     const TKeyColumns& keyColumns)
     : Config_(config)
+    , Options_(options)
     , KeyColumns_(keyColumns)
-    , RowCount_(0)
-    , EncodingChunkWriter_(New<TEncodingChunkWriter>(config, options, asyncWriter))
-    , BlockMetaExtSize_(0)
-    , SamplesExtSize_(0)
-    , AverageSampleSize_(0.0)
-    , DataWeight_(0)
+    , EncodingChunkWriter_(New<TEncodingChunkWriter>(Config_, Options_, asyncWriter))
 { }
 
 TAsyncError TChunkWriterBase::Open()
@@ -155,8 +151,6 @@ void TChunkWriterBase::FinishBlock()
 
 TError TChunkWriterBase::DoClose()
 {
-    using NYT::ToProto;
-
     if (BlockWriter_->GetRowCount() > 0) {
         FinishBlock();
     }
