@@ -66,6 +66,12 @@ YtAuthority.prototype.authenticate = function(logger, party, token)
         enumerable: true
     });
 
+    // Reject empty tokens.
+    if (token === "") {
+        result.realm = "empty";
+        return result;
+    }
+
     // This is a fast function so we are not using the promise chain here.
     // We want to behave as fast as possible for these cases. So no fancy shit.
     if (this._syncCheckCache(context, result)) {
