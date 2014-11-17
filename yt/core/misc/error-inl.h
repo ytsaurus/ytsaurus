@@ -54,6 +54,11 @@ TError::TErrorOr(int code, const char* format, const TArgs&... args)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+TErrorOr<T>::TErrorOr()
+    : Value_()
+{ }
+
+template <class T>
 TErrorOr<T>::TErrorOr(T&& value) noexcept
     : Value_(std::move(value))
 { }
@@ -66,7 +71,7 @@ TErrorOr<T>::TErrorOr(const T& value)
 template <class T>
 TErrorOr<T>::TErrorOr(const TError& other)
     : TError(other)
-      , Value_()
+    , Value_()
 { }
 
 template <class T>

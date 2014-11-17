@@ -18,7 +18,6 @@
 #include <ytlib/api/journal_writer.h>
 
 #include <ytlib/hydra/hydra_manager.pb.h>
-#include <Foundation/Foundation.h>
 
 namespace NYT {
 namespace NHydra {
