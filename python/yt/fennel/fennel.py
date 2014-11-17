@@ -472,10 +472,8 @@ class LogBroker(object):
 
     def _abort(self, e):
         self.log.info("Abort LogBroker client", exc_info=e)
-        if not self._stopped:
-            self._set_futures(e)
-            self.stop()
-
+        self._set_futures(e)
+        self.stop()
         assert len(self._save_chunk_futures) == 0
 
     def _set_futures(self, future_value):
@@ -499,14 +497,20 @@ class LogBroker(object):
         self._last_acked_seqno = value
 
     def stop(self):
-        assert len(self._save_chunk_futures) == 0
-        self.log.info("Stop push stream...")
-        self._push.stop()
-        self._push = None
-        self.log.info("Stop session stream...")
-        self._session.stop()
-        self._session = None
-        self._stopped = True
+        if not self._stopped:
+            try:
+                assert len(self._save_chunk_futures) == 0
+                self.log.info("Stop push stream...")
+                self._push.stop()
+                self.log.info("Stop session stream...")
+                self._session.stop()
+            except:
+                self.log.error("Unhandled exception while stopping LogBroker", exc_info=True)
+                raise
+            finally:
+                self._push = None
+                self._session = None
+                self._stopped = True
 
 
 class SessionEndError(RuntimeError):
