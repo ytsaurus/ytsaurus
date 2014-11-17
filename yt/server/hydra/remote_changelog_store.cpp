@@ -18,6 +18,7 @@
 #include <ytlib/api/journal_writer.h>
 
 #include <ytlib/hydra/hydra_manager.pb.h>
+#include <Foundation/Foundation.h>
 
 namespace NYT {
 namespace NHydra {
@@ -143,6 +144,7 @@ private:
         {
             TGetNodeOptions options;
             options.AttributeFilter.Mode = EAttributeFilterMode::MatchingOnly;
+            options.AttributeFilter.Keys.push_back("sealed");
             options.AttributeFilter.Keys.push_back("prev_record_count");
             options.AttributeFilter.Keys.push_back("uncompressed_data_size");
             auto result = WaitFor(MasterClient_->GetNode(path, options));
@@ -157,6 +159,12 @@ private:
 
             auto node = ConvertToNode(result.Value());
             const auto& attributes = node->Attributes();
+
+            if (!attributes.Get<bool>("sealed")) {
+                THROW_ERROR_EXCEPTION("Changelog %v in remote store %v is not sealed",
+                    id,
+                    RemotePath_);
+            }
 
             TChangelogMeta meta;
             meta.set_prev_record_count(attributes.Get<int>("prev_record_count"));
