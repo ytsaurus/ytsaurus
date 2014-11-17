@@ -199,6 +199,4 @@ describe("ApplicationAuth", function() {
             token: "foobar"
         }));
     });
-
-
 });

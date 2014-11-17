@@ -15,6 +15,8 @@
 
 #include <core/ytree/serialize.h>
 
+#include <core/logging/log_manager.h>
+
 #include <ytlib/transaction_client/transaction.h>
 
 #include <ytlib/file_client/file_ypath_proxy.h>
@@ -379,9 +381,9 @@ private:
             TYsonWriter writer(&output, EYsonFormat::Pretty);
             proxyConfig->Save(&writer);
         } catch (const std::exception& ex) {
-            auto error = TError(EErrorCode::ConfigCreationFailed, "Error saving job proxy config")
-                << ex;
-            THROW_ERROR error;
+            LOG_ERROR(ex, "Error saving job proxy config (Path: %s)", ~proxyConfigPath);
+            NLog::TLogManager::Get()->Shutdown();
+            _exit(1);
         }
     }
 

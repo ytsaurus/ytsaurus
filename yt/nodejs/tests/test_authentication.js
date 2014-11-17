@@ -195,6 +195,14 @@ describe("YtAuthentication", function() {
         }, done).end();
     });
 
+    it("should reject empty tokens", function(done) {
+        ask("GET", "/",
+        { "Authorization": "OAuth" },
+        function(rsp) {
+            rsp.statusCode.should.eql(401);
+        }, done).end();
+    });
+
     it("should retry failed requests", function(done) {
         var mock = nock("http://localhost:9000")
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=retryable-token")
@@ -303,5 +311,4 @@ describe("YtAuthentication", function() {
             mock.verify();
         }, done).end();
     });
-
 });
