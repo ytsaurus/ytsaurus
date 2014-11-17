@@ -268,15 +268,17 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndex chunkWithIndex)
 
     std::array<i8, MaxRackCount> perRackCounters{};
     for (auto replica : chunk->StoredReplicas()) {
-        auto* node = replica.GetPtr();
-        const auto* rack = node->GetRack();
+        const auto* rack = replica.GetPtr()->GetRack();
         if (rack) {
             ++perRackCounters[rack->GetIndex()];
         }
     }
 
-    TNode* rackWinner = nullptr; // an arbitrary node from a rack with too many replicas
-    TNode* fillFactorWinner = nullptr; // a node with the largest fill factor
+    // An arbitrary node from a rack with too many replicas.
+    TNode* rackWinner = nullptr;
+    // A node with the largest fill factor.
+    TNode* fillFactorWinner = nullptr;
+    
     for (auto replica : chunk->StoredReplicas()) {
         if (chunk->IsRegular() ||
             chunk->IsErasure() && replica.GetIndex() == chunkWithIndex.GetIndex() ||
