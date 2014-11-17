@@ -287,6 +287,10 @@ public:
 
     TRack* CreateRack(const Stroka& name)
     {
+        if (name.empty()) {
+            THROW_ERROR_EXCEPTION("Rack name cannot be empty");
+        }
+
         if (FindRackByName(name)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,

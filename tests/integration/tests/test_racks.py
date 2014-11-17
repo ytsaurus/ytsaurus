@@ -80,6 +80,9 @@ class TestRacks(YTEnvSetup):
         assert get_racks() == ['r']
         assert get('//sys/racks/r/@name') == 'r'
 
+    def test_empty_name_fail(self):
+        with pytest.raises(YtError): create_rack('')
+
     def test_duplicate_name_fail(self):
         create_rack('r')
         with pytest.raises(YtError): create_rack('r')

@@ -69,6 +69,9 @@ class TestAccounts(YTEnvSetup):
         create_account('max')
         with pytest.raises(YtError): create_account('max')
 
+    def test_empty_name_fail(self):
+        with pytest.raises(YtError): create_account('')
+
     def test_account_attr1(self):
         set('//tmp/a', {})
         assert get('//tmp/a/@account') == 'tmp'

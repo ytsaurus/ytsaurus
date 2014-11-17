@@ -281,6 +281,10 @@ public:
 
     TAccount* CreateAccount(const Stroka& name)
     {
+        if (name.empty()) {
+            THROW_ERROR_EXCEPTION("Account name cannot be empty");
+        }
+
         if (FindAccountByName(name)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
@@ -444,6 +448,10 @@ public:
 
     TUser* CreateUser(const Stroka& name)
     {
+        if (name.empty()) {
+            THROW_ERROR_EXCEPTION("User name cannot be empty");
+        }
+
         if (FindUserByName(name)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
@@ -514,6 +522,10 @@ public:
 
     TGroup* CreateGroup(const Stroka& name)
     {
+        if (name.empty()) {
+            THROW_ERROR_EXCEPTION("Group name cannot be empty");
+        }
+
         if (FindGroupByName(name)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,

@@ -14,6 +14,10 @@ class TestAcls(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    def test_empty_names_fail(self):
+        with pytest.raises(YtError): create_user('')
+        with pytest.raises(YtError): create_group('')
+
     def test_missing_user_name(self):
         with pytest.raises(YtError): command('create', {'type': 'user'})
 
