@@ -50,7 +50,8 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::Document ||
         type == EObjectType::LockMap ||
         type == EObjectType::TabletMap ||
-        type == EObjectType::TabletCellNode;
+        type == EObjectType::TabletCellNode ||
+        type == EObjectType::RackMap;
 }
 
 bool IsUserType(EObjectType type)
