@@ -36,6 +36,8 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::DataMissingChunkMap ||
         type == EObjectType::ParityMissingChunkMap ||
         type == EObjectType::QuorumMissingChunkMap ||
+        type == EObjectType::UnsafelyPlacedChunkMap ||
+        type == EObjectType::RackMap ||
         type == EObjectType::ChunkListMap ||
         type == EObjectType::TransactionMap ||
         type == EObjectType::TopmostTransactionMap ||
@@ -50,8 +52,7 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::Document ||
         type == EObjectType::LockMap ||
         type == EObjectType::TabletMap ||
-        type == EObjectType::TabletCellNode ||
-        type == EObjectType::RackMap;
+        type == EObjectType::TabletCellNode;
 }
 
 bool IsUserType(EObjectType type)
