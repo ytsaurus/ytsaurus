@@ -69,7 +69,7 @@ else()
   target_link_libraries( ytserver
     ytext-lfalloc
   )
-  set_target_properties( yt
+  set_target_properties( ytserver
     PROPERTIES
     LINK_FLAGS "-static-libstdc++"
   )
