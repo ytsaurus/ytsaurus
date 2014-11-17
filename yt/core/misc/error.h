@@ -200,75 +200,23 @@ class TErrorOr
     : public TError
 {
 public:
-    TErrorOr()
-        : Value_()
-    { }
+    TErrorOr();
+    TErrorOr(const T& value);
+    TErrorOr(T&& value) noexcept;
+    TErrorOr(const TErrorOr<T>& other);
+    TErrorOr(const TError& other);
+    TErrorOr(const std::exception& ex);
+    template <class U>
+    TErrorOr(const TErrorOr<U>& other);
 
-    TErrorOr(const T& value)
-        : Value_(value)
-    { }
+    const T& Value() const;
+    T& Value();
 
-    TErrorOr(T&& value) noexcept
-        : Value_(std::move(value))
-    { }
-
-    TErrorOr(const TErrorOr<T>& other)
-        : TError(other)
-        , Value_(other.Value_)
-    { }
-
-    TErrorOr(const TError& other)
-        : TError(other)
-        , Value_()
-    { }
-
-    TErrorOr(const std::exception& ex)
-        : TError(ex)
-    { }
-
-    template <class TOther>
-    TErrorOr(const TErrorOr<TOther>& other)
-        : TError(other)
-        , Value_(other.Value())
-    { }
-
-    const T& Value() const
-    {
-        YCHECK(IsOK());
-        return Value_;
-    }
-
-    T& Value()
-    {
-        YCHECK(IsOK());
-        return Value_;
-    }
-
-    const T& ValueOrThrow() const
-    {
-        if (!IsOK()) {
-            THROW_ERROR *this;
-        }
-        return Value_;
-    }
-
-    T& ValueOrThrow()
-    {
-        if (!IsOK()) {
-            THROW_ERROR *this;
-        }
-        return Value_;
-    }
+    const T& ValueOrThrow() const;
+    T& ValueOrThrow();
 
     template <class U>
-    TErrorOr<U> As() const
-    {
-        if (IsOK()) {
-            return Value_;
-        } else {
-            return TError(*this);
-        }
-    }
+    TErrorOr<U> As() const;
 
 private:
     T Value_;
@@ -276,10 +224,7 @@ private:
 };
 
 template <class T>
-Stroka ToString(const TErrorOr<T>& valueOrError)
-{
-    return ToString(TError(valueOrError));
-}
+Stroka ToString(const TErrorOr<T>& valueOrError);
 
 ////////////////////////////////////////////////////////////////////////////////
 

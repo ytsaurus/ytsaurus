@@ -53,6 +53,91 @@ TError::TErrorOr(int code, const char* format, const TArgs&... args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+TErrorOr<T>::TErrorOr(T&& value) noexcept
+    : Value_(std::move(value))
+{ }
+
+template <class T>
+TErrorOr<T>::TErrorOr(const T& value)
+    : Value_(value)
+{ }
+
+template <class T>
+TErrorOr<T>::TErrorOr(const TError& other)
+    : TError(other)
+      , Value_()
+{ }
+
+template <class T>
+TErrorOr<T>::TErrorOr(const TErrorOr<T>& other)
+    : TError(other)
+    , Value_(other.Value_)
+{ }
+
+template <class T>
+template <class TOther>
+TErrorOr<T>::TErrorOr(const TErrorOr<TOther>& other)
+    : TError(other)
+    , Value_(other.Value())
+{ }
+
+template <class T>
+TErrorOr<T>::TErrorOr(const std::exception& ex)
+    : TError(ex)
+{ }
+
+template <class T>
+template <class U>
+TErrorOr<U> TErrorOr<T>::As() const
+{
+    if (IsOK()) {
+        return Value_;
+    } else {
+        return TError(*this);
+    }
+}
+
+template <class T>
+T& TErrorOr<T>::ValueOrThrow()
+{
+    if (!IsOK()) {
+        THROW_ERROR *this;
+    }
+    return Value_;
+}
+
+template <class T>
+const T& TErrorOr<T>::ValueOrThrow() const
+{
+    if (!IsOK()) {
+        THROW_ERROR *this;
+    }
+    return Value_;
+}
+
+template <class T>
+T& TErrorOr<T>::Value()
+{
+    YCHECK(IsOK());
+    return Value_;
+}
+
+template <class T>
+const T& TErrorOr<T>::Value() const
+{
+    YCHECK(IsOK());
+    return Value_;
+}
+
+template <class T>
+Stroka ToString(const TErrorOr<T>& valueOrError)
+{
+    return ToString(TError(valueOrError));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NDetail {
 
 template <class TSignature>
