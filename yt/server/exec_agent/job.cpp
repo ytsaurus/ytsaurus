@@ -379,9 +379,9 @@ private:
             TYsonWriter writer(&output, EYsonFormat::Pretty);
             proxyConfig->Save(&writer);
         } catch (const std::exception& ex) {
-            auto error = TError(EErrorCode::ConfigCreationFailed, "Error saving job proxy config")
-                << ex;
-            THROW_ERROR error;
+            LOG_ERROR(ex, "Error saving job proxy config (Path: %s)", ~proxyConfigPath);
+            NLog::TLogManager::Get()->Shutdown();
+            _exit(1);
         }
     }
 

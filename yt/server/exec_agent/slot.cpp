@@ -165,7 +165,7 @@ void TSlot::InitSandbox()
     try {
         NFS::ForcePath(SandboxPath, 0777);
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Failed to create sandbox directory %s", ~SandboxPath.Quote());
+        LogErrorAndExit(TError("Failed to create sandbox directory %s", ~SandboxPath.Quote()) << ex);
     }
 
     LOG_INFO("Created slot sandbox directory %s", ~SandboxPath.Quote());
