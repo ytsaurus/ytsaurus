@@ -432,13 +432,15 @@ class LogBroker(object):
 
         f = gen.Future()
 
+        ts = self._get_timestamp_for(data)
+
         serialized_data = serialize_chunk(self._chunk_id, seqno, 0, data)
         self._chunk_id += 1
         if len(serialized_data) > self.MAX_CHUNK_SIZE:
             f.set_exception(ChunkTooBigError())
             return f
 
-        self.log.debug("Save chunk %d with seqno %d. Its size equals to %d", self._chunk_id - 1, seqno, len(serialized_data))
+        self.log.debug("Save chunk %d with seqno %d. Timestamp: %s. Its size equals to %d", self._chunk_id - 1, seqno, ts, len(serialized_data))
         self._push.write_chunk(serialized_data)
         self._save_chunk_futures[seqno] = f
         return f
@@ -469,6 +471,12 @@ class LogBroker(object):
 
                         self._update_last_acked_seqno(message.attributes["seqno"])
                         self._set_futures(self._last_acked_seqno)
+
+    def _get_timestamp_for(self, data):
+        if len(data) > 0 and "timestamp" in data[0]:
+            return data[0]["timestamp"]
+        else:
+            return None
 
     def _abort(self, e):
         self.log.info("Abort LogBroker client", exc_info=e)
