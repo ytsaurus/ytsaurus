@@ -97,7 +97,7 @@ template <class U>
 TErrorOr<U> TErrorOr<T>::As() const
 {
     if (IsOK()) {
-        return Value_;
+        return static_cast<U>(Value_);
     } else {
         return TError(*this);
     }
