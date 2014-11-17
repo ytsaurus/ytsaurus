@@ -284,13 +284,15 @@ private:
                 persistentTimestamp);
         }).Via(invoker);
 
-        auto deadline = TInstant::Seconds(PersistentTimestamp_ >> TimestampCounterWidth);
-        if (TInstant::Now() >= deadline) {
+        ui64 deadlineSeconds = PersistentTimestamp_ >> TimestampCounterWidth;
+        ui64 nowSeconds = ::time(nullptr);
+        if (nowSeconds > deadlineSeconds) {
             callback.Run();
         } else {
-            LOG_INFO("Timestamp generation postponed until %v to ensure monotonicity",
-                deadline);
-            TDelayedExecutor::Submit(callback, deadline);
+            auto delay = TDuration::Seconds(deadlineSeconds - nowSeconds + 1); // +1 to be sure
+            LOG_INFO("Timestamp generation postponed for %v to ensure monotonicity",
+                delay);
+            TDelayedExecutor::Submit(callback, delay);
         }
     }
 
@@ -319,6 +321,9 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         PersistentTimestamp_ = request.timestamp();
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Persistent timestamp updated (Timestamp: %v)",
+            PersistentTimestamp_);
     }
 
 
