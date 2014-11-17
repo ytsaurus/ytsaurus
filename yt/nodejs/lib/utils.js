@@ -29,6 +29,7 @@ exports.redirectTo = function(rsp, target, code)
     rsp.removeHeader("Vary");
     rsp.removeHeader("Transfer-Encoding");
     rsp.removeHeader("Content-Encoding");
+    rsp.removeHeader("Content-Disposition");
     rsp.removeHeader("Content-Type");
     rsp.setHeader("Location", target);
     rsp.setHeader("Content-Length", 0);
@@ -45,6 +46,7 @@ exports.dispatchAs = function(rsp, body, type)
     rsp.removeHeader("Vary");
     rsp.removeHeader("Transfer-Encoding");
     rsp.removeHeader("Content-Encoding");
+    rsp.removeHeader("Content-Disposition");
     if (typeof(type) === "string") {
         rsp.setHeader("Content-Type", type);
     } else {
