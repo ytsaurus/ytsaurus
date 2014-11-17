@@ -90,10 +90,8 @@ void SetupFormatter(TPatternFormatter* formatter, const TLogEvent& event)
 
 void FormatDateTime(TMessageBuffer* out, TInstant dateTime)
 {
-    timeval timeVal = dateTime.TimeVal();
     tm localTime;
     dateTime.LocalTime(&localTime);
-
     AppendNumber4(out, localTime.tm_year + 1900);
     out->AppendChar('-');
     AppendNumber2(out, localTime.tm_mon + 1);
@@ -106,7 +104,7 @@ void FormatDateTime(TMessageBuffer* out, TInstant dateTime)
     out->AppendChar(':');
     AppendNumber2(out, localTime.tm_sec);
     out->AppendChar(',');
-    AppendNumber3(out, static_cast<int>(timeVal.tv_usec / 1000));
+    AppendNumber3(out, dateTime.MilliSecondsOfSecond());
 }
 
 void FormatLevel(TMessageBuffer* out, ELogLevel level)
