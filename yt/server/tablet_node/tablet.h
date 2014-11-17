@@ -144,7 +144,7 @@ private:
 
     std::unique_ptr<TPartition> Eden_;
 
-    TPartitionList  Partitions_;
+    TPartitionList Partitions_;
 
     yhash_map<TStoreId, IStorePtr> Stores_;
     TDynamicMemoryStorePtr ActiveStore_;
