@@ -615,7 +615,7 @@ public:
 
     virtual TInstant GetStartTime() const override
     {
-        // For pools StartTime is equal to minimal start time among active children
+        // For pools StartTime is equal to minimal start time among active children.
         return MinSubtreeStartTime;
     }
 
