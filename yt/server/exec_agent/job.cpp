@@ -15,6 +15,8 @@
 
 #include <core/ytree/serialize.h>
 
+#include <core/logging/log_manager.h>
+
 #include <ytlib/transaction_client/transaction.h>
 
 #include <ytlib/file_client/file_ypath_proxy.h>
