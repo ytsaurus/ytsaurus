@@ -263,7 +263,11 @@ public:
     template <class U>
     TErrorOr<U> As() const
     {
-        return IsOK() ? TErrorOr<U>(Value_) : TErrorOr<U>(*this);
+        if (IsOK()) {
+            return Value_;
+        } else {
+            return TError(*this);
+        }
     }
 
 private:
