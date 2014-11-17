@@ -14,7 +14,8 @@ class FilterAndRemoveMicroseconds(object):
     def __call__(self, item):
         timestamp = item["timestamp"]
         dt = datetime.datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
-        if dt.date() == self._date:
+        moscow_dt = dt + datetime.timedelta(hours=3)
+        if moscow_dt.date() == self._date:
             iso, microseconds = fennel.normalize_timestamp(timestamp)
             item["timestamp"] = fennel.revert_timestamp(iso, 0)
             yield item
@@ -22,7 +23,7 @@ class FilterAndRemoveMicroseconds(object):
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:
-        sys.stderr.write("Usage: {0} table_input table_output\n".format(sys.argv[0]));
+        sys.stderr.write("Usage: {0} table_input table_output DATE\n".format(sys.argv[0]));
     else:
         table_input = sys.argv[1]
         table_output = sys.argv[2]
