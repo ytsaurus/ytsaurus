@@ -1,6 +1,8 @@
 #!/usr/bin/python
 
-import yt.wrapper as yt
+from yt.wrapper import errors
+from yt.wrapper import client
+from yt.wrapper import format
 
 try:
     from yt.fennel.version import VERSION
@@ -83,6 +85,7 @@ class EventLog(object):
         self._archive_table_name = self._table_name + ".archive"
         self._number_of_first_row_attr = "{0}/@number_of_first_row".format(self._table_name)
         self._row_count_attr = "{0}/@row_count".format(self._table_name)
+        self._archive_row_count_attr = "{0}/@row_count".format(self._archive_table_name)
 
     def get_row_count(self):
         with self.yt.Transaction():
@@ -98,7 +101,7 @@ class EventLog(object):
             result = []
             if begin < 0:
                 self.log.warning("%d < 0", begin)
-                archive_row_count = self.yt.get("{0}/@row_count".format(self._archive_table_name))
+                archive_row_count = self.yt.get(self._archive_row_count_attr)
                 archive_begin = archive_row_count + begin
                 result.extend(self.yt.read_table(yt.TablePath(
                     self._archive_table_name,
@@ -120,7 +123,7 @@ class EventLog(object):
 
     def archive(self, count=None):
         try:
-            self.log.debug("Archive table has %d rows", self.yt.get(self._archive_table_name + "/@row_count"))
+            self.log.debug("Archive table has %d rows", self.yt.get(self._archive_row_count_attr))
         except:
             pass
 
@@ -130,7 +133,7 @@ class EventLog(object):
         ratio = 0.137
         data_size_per_job = max(1, int(desired_chunk_size / ratio))
 
-        count = count or self.yt.get(self._table_name + "/@row_count")
+        count = count or self.yt.get(self._row_count_attr)
         self.log.info("Archive %s rows from event log", count)
 
         partition = self.yt.TablePath(
@@ -170,7 +173,7 @@ class EventLog(object):
                         }
                     )
                     finished = True
-            except yt.common.YtError as e:
+            except errors.YtError as e:
                 self.log.error("Unhandled exception", exc_info=True)
                 self.log.info("Retry again in %d seconds...", backoff_time)
                 time.sleep(backoff_time)
@@ -190,7 +193,7 @@ class EventLog(object):
                     self.yt.run_erase(partition)
                     self.yt.set(self._number_of_first_row_attr, first_row)
                 finished = True
-            except yt.common.YtError as e:
+            except errors.YtError as e:
                 self.log.error("Unhandled exception", exc_info=True)
 
                 self.log.info("Retry again in %d seconds...", backoff_time)
@@ -199,7 +202,7 @@ class EventLog(object):
                 backoff_time = min(backoff_time * 2, 180)
 
         try:
-            self.log.debug("Archive table has %d rows", self.yt.get(self._archive_table_name + "/@row_count"))
+            self.log.debug("Archive table has %d rows", self.yt.get(self._archive_row_count_attr))
         except:
             pass
 
@@ -223,6 +226,7 @@ def gzip_decompress(text):
         f.rewind()
         return f.read()
 
+#==========================================
 
 def normalize_timestamp(ts):
     dt = datetime.datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S.%fZ")
@@ -235,82 +239,19 @@ def revert_timestamp(normalized_ts, microseconds):
     dt += datetime.timedelta(microseconds=microseconds)
     return dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
+#==========================================
 
-ESCAPE_MAP = {
-    "\0": "\\0",
-    "\r": "\\r",
-    "\n": "\\n",
-    "\t": "\\t",
-    "\\": "\\\\",
-    "=": "\\="
-}
-
-UNESCAPE_MAP = {
-    "0": "\0",
-    "r": "\r",
-    "n": "\n",
-    "t": "\t",
-    "\\": "\\",
-    "=": "="
-}
-
-TSKV_KEY_ESCAPE = frozenset(['\0', '\r', '\n', '\t', '\\', '='])
-TSKV_VALUE_ESCAPE = frozenset(['\0', '\r', '\n', '\t', '\\'])
-
-def escape_encode(line, escape_chars=TSKV_VALUE_ESCAPE):
-    result = ""
-    start = 0
-    index = 0
-    for c in line:
-        if c in escape_chars:
-            result += line[start:index]
-            result += ESCAPE_MAP[c]
-            start = index + 1
-
-        index += 1
-    result += line[start:index]
-    return result
-
-def escape_decode(line):
-    result = ""
-    previousIsSlash = False
-    for c in line:
-        if previousIsSlash:
-            result += UNESCAPE_MAP[c]
-            previousIsSlash = False
-        else:
-            if c == '\\':
-                previousIsSlash = True
-            else:
-                result += c
-    return result
-
-
-def convert_to(row):
-    result = "tskv"
-
+def convert_to_tskved_json(row):
+    result = {}
     for key, value in row.iteritems():
         if isinstance(value, basestring):
             pass
         else:
             value = json.dumps(value)
-
-        result += "\t" + escape_encode(key, escape_chars=TSKV_KEY_ESCAPE) \
-          + "=" + escape_encode(value, escape_chars=TSKV_VALUE_ESCAPE);
-
-    return result
-
-def convert_from(converted_row):
-    return convert_from_parsed(parse_tskv_row(converted_row))
-
-def parse_tskv_row(converted_row):
-    result = dict()
-    for kv in converted_row.split('\t')[1:]:
-        key, value = kv.split('=', 1)
         result[key] = value
     return result
 
-def convert_from_parsed(converted_row):
+def convert_from_tskved_json(converted_row):
     result = dict()
     for key, value in converted_row.iteritems():
         new_value = value
@@ -323,10 +264,25 @@ def convert_from_parsed(converted_row):
         result[key] = new_value
     return result
 
+#==========================================
+
+def convert_to(row):
+    stream = StringIO.StringIO()
+    stream.write("tskv\t")
+    row = convert_to_tskved_json(row)
+    format.DsvFormat(enable_escaping=True).dump_row(row, stream)
+    return stream.getvalue()
+
+def convert_from(converted_row):
+    stream = StringIO.StringIO(converted_row)
+    stream.seek(len("tskv\t"))
+    return convert_from_tskved_json(format.DsvFormat(enable_escaping=True).load_row(stream))
+
+#==========================================
 
 def serialize_chunk(chunk_id, seqno, lines, data):
     serialized_data = struct.pack(CHUNK_HEADER_FORMAT, chunk_id, seqno, lines)
-    serialized_data += gzip_compress("\n".join([convert_to(row) for row in data]))
+    serialized_data += gzip_compress("".join([convert_to(row) for row in data]))
     return serialized_data
 
 
@@ -752,8 +708,6 @@ class Application(object):
     def __init__(self, proxy_path, logbroker_url, table_name,
                  service_id, source_id,
                  cluster_name, log_name):
-        yt.config.set_proxy(proxy_path)
-
         self._last_acked_seqno = None
         self._chunk_size = 4000
         self._logbroker_url = logbroker_url
@@ -768,7 +722,8 @@ class Application(object):
         self._log_name = log_name
 
         self._io_loop = ioloop.IOLoop.instance()
-        self._event_log = EventLog(yt, table_name=table_name)
+
+        self._event_log = EventLog(client.Yt(proxy_path), table_name=table_name)
         self._log_broker = None
 
     def start(self):
@@ -881,8 +836,7 @@ def print_last_seqno(logbroker_url, service_id, source_id, **kwargs):
 def monitor(proxy_path, table_name, threshold, logbroker_url, service_id, source_id, **kwargs):
     try:
         last_seqno = get_last_seqno(logbroker_url=logbroker_url, service_id=service_id, source_id=source_id)
-        yt.config.set_proxy(proxy_path)
-        event_log = EventLog(yt, table_name)
+        event_log = EventLog(client.Yt(proxy_path), table_name=table_name)
         row_count = event_log.get_row_count()
     except Exception:
         log.error("Unhandled exception", exc_info=True)
@@ -896,14 +850,12 @@ def monitor(proxy_path, table_name, threshold, logbroker_url, service_id, source
 
 
 def init(table_name, proxy_path, **kwargs):
-    yt.config.set_proxy(proxy_path)
-    event_log = EventLog(yt, table_name=table_name)
+    event_log = EventLog(client.Yt(proxy_path), table_name=table_name)
     event_log.initialize()
 
 
 def archive(table_name, proxy_path, **kwargs):
-    yt.config.set_proxy(proxy_path)
-    event_log = EventLog(yt, table_name=table_name)
+    event_log = EventLog(client.Yt(proxy_path), table_name=table_name)
     count = kwargs.get("count", None)
     if count is not None:
         count = int(count)
