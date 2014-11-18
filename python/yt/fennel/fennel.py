@@ -37,10 +37,8 @@ import collections
 
 
 DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
-DEFAULT_LOGBROKER_URL = "cellar-t.stat.yandex.net"
 DEFAULT_CHUNK_SIZE = 4000
 DEFAULT_SERVICE_ID = "yt"
-DEFAULT_SOURCE_ID = "tramsmm43"
 DEFAULT_LOG_NAME = "yt-scheduler-log"
 
 CHUNK_HEADER_FORMAT = "<QQQ"
@@ -548,7 +546,7 @@ class SessionStream(object):
 
         while True:
             try:
-                self.log.info("Create a session. Endpoint: %s", endpoint)
+                self.log.info("Create a session. Endpoint: %s. Service id: %s. Source id: %s", endpoint, self._service_id, self._source_id)
 
                 self._iostream = yield gen.with_timeout(
                     timeout,
@@ -763,6 +761,9 @@ class Application(object):
         self._service_id = service_id
         self._source_id = source_id
 
+        if self._source_id is None:
+            raise RuntimeError("Source id is not set")
+
         self._cluster_name = cluster_name
         self._log_name = log_name
 
@@ -920,9 +921,9 @@ def run():
     options.define("cluster_name", default="", help="[logbroker] name of source cluster")
     options.define("log_name", default=DEFAULT_LOG_NAME, help="[logbroker] name of source cluster")
     options.define("logtype", default="", help="[logbroker] log type")
-    options.define("logbroker_url", default=DEFAULT_LOGBROKER_URL, help="[logbroker] url to get adviced kafka endpoint")
+    options.define("logbroker_url", default="", help="[logbroker] url to get adviced kafka endpoint")
     options.define("service_id", default=DEFAULT_SERVICE_ID, help="[logbroker] service id")
-    options.define("source_id", default=DEFAULT_SOURCE_ID, help="[logbroker] source id")
+    options.define("source_id", help="[logbroker] source id")
 
     options.define("threshold", default=10**6, help="threshold of lag size to generate error")
 
