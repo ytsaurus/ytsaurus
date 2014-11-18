@@ -36,7 +36,7 @@ protected:
         ChangelogStoreConfig = New<TFileChangelogStoreConfig>();
         ChangelogStoreConfig->Path = "FileChangelog";
 
-        ChangelogStore = CreateLocalChangelogStore("changelog_thread", ChangelogStoreConfig);
+        ChangelogStore = CreateLocalChangelogStore("ChangelogFlush", ChangelogStoreConfig);
 
         TSharedRef ref;
         auto changelogOrError = ChangelogStore->CreateChangelog(0, ref).Get();
