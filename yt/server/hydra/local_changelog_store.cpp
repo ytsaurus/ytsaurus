@@ -82,12 +82,12 @@ private:
 
 };
 
-class TFileChangelogStore
+class TLocalChangelogStore
     : public TAsyncSlruCacheBase<int, TCachedLocalChangelog>
     , public IChangelogStore
 {
 public:
-    TFileChangelogStore(
+    TLocalChangelogStore(
         const Stroka& threadName,
         TFileChangelogStoreConfigPtr config)
         : TAsyncSlruCacheBase(config->ChangelogReaderCache)
@@ -108,7 +108,7 @@ public:
 
     virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(int id, const TSharedRef& meta) override
     {
-        return BIND(&TFileChangelogStore::DoCreateChangelog, MakeStrong(this))
+        return BIND(&TLocalChangelogStore::DoCreateChangelog, MakeStrong(this))
             .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(id, meta);
@@ -116,7 +116,7 @@ public:
 
     virtual TFuture<TErrorOr<IChangelogPtr>> OpenChangelog(int id) override
     {
-        return BIND(&TFileChangelogStore::DoOpenChangelog, MakeStrong(this))
+        return BIND(&TLocalChangelogStore::DoOpenChangelog, MakeStrong(this))
             .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(id);
@@ -124,7 +124,7 @@ public:
 
     virtual TFuture<TErrorOr<int>> GetLatestChangelogId(int initialId) override
     {
-        return BIND(&TFileChangelogStore::DoGetLatestChangelogId, MakeStrong(this))
+        return BIND(&TLocalChangelogStore::DoGetLatestChangelogId, MakeStrong(this))
             .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(initialId);
@@ -225,7 +225,7 @@ IChangelogStorePtr CreateLocalChangelogStore(
     const Stroka& threadName,
     TFileChangelogStoreConfigPtr config)
 {
-    auto store = New<TFileChangelogStore>(
+    auto store = New<TLocalChangelogStore>(
         threadName,
         config);
     store->Start();
