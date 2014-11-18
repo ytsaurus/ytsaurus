@@ -3,6 +3,8 @@
 from yt.wrapper import errors
 from yt.wrapper import client
 from yt.wrapper import format
+from yt.wrapper import table
+from yt.wrapper.config import set_proxy
 
 try:
     from yt.fennel.version import VERSION
@@ -103,7 +105,7 @@ class EventLog(object):
                 self.log.warning("%d < 0", begin)
                 archive_row_count = self.yt.get(self._archive_row_count_attr)
                 archive_begin = archive_row_count + begin
-                result.extend(self.yt.read_table(yt.TablePath(
+                result.extend(self.yt.read_table(table.TablePath(
                     self._archive_table_name,
                     start_index=archive_begin,
                     end_index=archive_begin + count), format="json", raw=False))
@@ -112,7 +114,7 @@ class EventLog(object):
                 self._table_name,
                 begin,
                 count)
-            result.extend(self.yt.read_table(yt.TablePath(
+            result.extend(self.yt.read_table(table.TablePath(
                 self._table_name,
                 start_index=begin,
                 end_index=begin + count), format="json", raw=False))
@@ -136,7 +138,7 @@ class EventLog(object):
         count = count or self.yt.get(self._row_count_attr)
         self.log.info("Archive %s rows from event log", count)
 
-        partition = self.yt.TablePath(
+        partition = table.TablePath(
             self._table_name,
             start_index=0,
             end_index=count)
@@ -158,7 +160,7 @@ class EventLog(object):
                     self.log.info("Run merge...")
                     self.yt.run_merge(
                         source_table=partition,
-                        destination_table=yt.TablePath(self._archive_table_name, append=True),
+                        destination_table=table.TablePath(self._archive_table_name, append=True),
                         mode="ordered",
                         compression_codec="gzip_best_compression",
                         spec={
@@ -196,10 +198,14 @@ class EventLog(object):
             except errors.YtError as e:
                 self.log.error("Unhandled exception", exc_info=True)
 
+                if tries > 20:
+                    self.log.error("Too many retries. Reraise")
+                    raise
+
                 self.log.info("Retry again in %d seconds...", backoff_time)
                 time.sleep(backoff_time)
                 tries += 1
-                backoff_time = min(backoff_time * 2, 180)
+                backoff_time = min(backoff_time * 2, 600)
 
         try:
             self.log.debug("Archive table has %d rows", self.yt.get(self._archive_row_count_attr))
@@ -723,6 +729,7 @@ class Application(object):
 
         self._io_loop = ioloop.IOLoop.instance()
 
+        set_proxy(proxy_path)
         self._event_log = EventLog(client.Yt(proxy_path), table_name=table_name)
         self._log_broker = None
 
@@ -836,6 +843,7 @@ def print_last_seqno(logbroker_url, service_id, source_id, **kwargs):
 def monitor(proxy_path, table_name, threshold, logbroker_url, service_id, source_id, **kwargs):
     try:
         last_seqno = get_last_seqno(logbroker_url=logbroker_url, service_id=service_id, source_id=source_id)
+        set_proxy(proxy_path)
         event_log = EventLog(client.Yt(proxy_path), table_name=table_name)
         row_count = event_log.get_row_count()
     except Exception:
@@ -850,11 +858,13 @@ def monitor(proxy_path, table_name, threshold, logbroker_url, service_id, source
 
 
 def init(table_name, proxy_path, **kwargs):
+    set_proxy(proxy_path)
     event_log = EventLog(client.Yt(proxy_path), table_name=table_name)
     event_log.initialize()
 
 
 def archive(table_name, proxy_path, **kwargs):
+    set_proxy(proxy_path)
     event_log = EventLog(client.Yt(proxy_path), table_name=table_name)
     count = kwargs.get("count", None)
     if count is not None:
