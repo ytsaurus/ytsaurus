@@ -16,8 +16,8 @@ var __DBG = require("./debug").that("C", "Command");
 
 // This mapping defines the supported API versions.
 var _VERSION_TO_FACADE = {
-    "v1": require("./driver_facade_v1").that,
     "v2": require("./driver_facade_v2").that,
+    "v3": require("./driver_facade_v3").that,
 };
 
 // This mapping defines how MIME types map onto YT format specifications.
@@ -292,13 +292,11 @@ YtCommand.prototype._getName = function() {
 
     var p = versioned_name.indexOf("/");
     if (p === -1) {
-        if (!/^v[0-9]+/.test(versioned_name)) {
-            // COMPAT(sandello): Treat everything as V1.
-            version = "v1";
-            name = versioned_name;
-        } else {
+        if (/^v[0-9]+$/.test(versioned_name)) {
             version = versioned_name;
             name = "";
+        } else {
+            throw new YtError("Unspecified API version");
         }
     } else {
         version = versioned_name.substr(0, p);

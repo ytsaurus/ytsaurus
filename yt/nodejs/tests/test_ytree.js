@@ -176,6 +176,14 @@ describe("ytree & ypath", function() {
         result.GetByYPath("/c").Print().should.eql("\"bar\"");
         result.Get().should.eql({ b: "foo", c: "bar" });
     });
+    it("should get attributes", function() {
+        var node = binding.CreateV8Node({ $value: "foo", $attributes: { a: "a", b: "b" } });
+        node.GetAttribute("a").Print().should.eql("\"a\"");
+        node.SetAttribute("a", binding.CreateV8Node(42));
+        node.GetAttribute("a").Print().should.eql("42");
+        node.SetAttribute("c", binding.CreateV8Node(17));
+        node.GetAttribute("c").Print().should.eql("17");
+    });
 });
 
 describe("ytree merging", function() {
