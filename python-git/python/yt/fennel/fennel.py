@@ -791,6 +791,9 @@ class Application(object):
                             data = self._event_log.get_data(self._last_acked_seqno, chunk_size)
                             data = _preprocess(data, cluster_name=self._cluster_name, log_name=self._log_name)
                             self._last_acked_seqno = yield self._log_broker.save_chunk(self._last_acked_seqno + self._chunk_size, data)
+                        except EventLog.NotEnoughDataError:
+                            self.log.info("Not enough data in the event log", exc_info=True)
+                            yield sleep_future(30.0, self._io_loop)
                         except ChunkTooBigError:
                             new_chunk_size = max(100, chunk_size / 2)
                             self.log.error("%d table rows forms chunk which is too big. Use small chunk size: %d", chunk_size, new_chunk_size)
