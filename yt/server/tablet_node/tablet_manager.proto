@@ -9,12 +9,18 @@ import "yt/server/tablet_server/tablet_manager.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TChunkStoreDescriptor
+{
+    required NYT.NProto.TGuid store_id = 1;
+    required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 2;
+}
+
 message TReqMountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt schema = 2;
     required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 3;
-    repeated NYT.NTabletServer.NProto.TAddStoreDescriptor chunk_stores = 4;
+    repeated TChunkStoreDescriptor chunk_stores = 4;
     required bytes pivot_key = 5;
     required bytes next_pivot_key = 6;
     required string mount_config = 7;
