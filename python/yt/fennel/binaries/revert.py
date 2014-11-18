@@ -21,7 +21,7 @@ class ConvertFrom(object):
         if cluster_name == self._cluster_name:
             for field_name in LOGBROKER_FIELDS:
                 del item[field_name]
-            yield fennel._untransform_record(fennel.convert_from_parsed(item))
+            yield fennel._untransform_record(fennel.convert_from_tskved_json(item))
 
 
 if __name__ == "__main__":

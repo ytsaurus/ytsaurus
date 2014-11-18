@@ -52,29 +52,6 @@ def test_normalize_revert():
     assert fennel.revert_timestamp(*fennel.normalize_timestamp("2014-10-02T15:31:24.887386Z")) == "2014-10-02T15:31:24.887386Z"
 
 
-def test_tskv_value_escape_encode():
-    assert fennel.escape_encode("Hello") == "Hello"
-    assert fennel.escape_encode("Hello\nworld") == "Hello\\nworld"
-    assert fennel.escape_encode("\\ is slash, but \0 is zero char") == "\\\\ is slash, but \\0 is zero char"
-
-
-def test_tskv_key_escape_encode():
-    assert fennel.escape_encode("Complex=key", escape_chars=fennel.TSKV_KEY_ESCAPE) == "Complex\\=key"
-
-
-def check_identity(identity, parameter):
-    assert identity(parameter) == parameter
-
-
-def test_tskv_escape_value_encode_decode():
-    def identity(line):
-        return fennel.escape_decode(fennel.escape_encode(line))
-
-    check_identity(identity, "\\ is slash, but \0 is zero char")
-    check_identity(identity, "Hello")
-    check_identity(identity, "Hello\nworld")
-
-
 def compare_types(left, right):
     if isinstance(left, basestring) and isinstance(right, basestring):
         pass
