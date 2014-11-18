@@ -507,9 +507,11 @@ class LogBroker(object):
             try:
                 assert len(self._save_chunk_futures) == 0
                 self.log.info("Stop push stream...")
-                self._push.stop()
+                if self._push:
+                    self._push.stop()
                 self.log.info("Stop session stream...")
-                self._session.stop()
+                if self._session:
+                    self._session.stop()
             except:
                 self.log.error("Unhandled exception while stopping LogBroker", exc_info=True)
                 raise
