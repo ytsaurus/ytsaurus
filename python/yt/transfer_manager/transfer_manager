@@ -489,7 +489,7 @@ class Application(object):
                 logger.info("Progress: %d running, %d pending tasks found", len(self._task_processes), len(self._pending_tasks))
 
                 for id, (process, message_queue) in self._task_processes.items():
-                    logger.info("Processing task %s", id)
+                    logger.info("Task %s running", id)
                     error = None
                     completed = False
                     while not message_queue.empty():
@@ -528,11 +528,9 @@ class Application(object):
                         self._running_task_queues[self._tasks[id].get_queue_id()].remove(id)
                         del self._task_processes[id]
 
-                    logger.info("Task %s processed", id)
-
                 for id in self._pending_tasks:
                     if not self._can_run(self._tasks[id]):
-                        logger.info("Task %s cannot be started", id)
+                        logger.info("Task %s pending", id)
                         continue
                     self._running_task_queues[self._tasks[id].get_queue_id()].append(id)
                     self._tasks[id].start_time = now()
@@ -880,7 +878,7 @@ DEFAULT_CONFIG = {
         "redwood": ["cedar", "kant", "smith", "plato"]
     },
     "default_mr_user": "userdata",
-    "pending_task_limit": 500,
+    "pending_task_limit": 5000,
     "path": "//home/ignat/transfer_manager_test",
     "proxy": "kant.yt.yandex.net",
     "token": "93b4cacc08aa4538a79a76c21e99c0fb",
