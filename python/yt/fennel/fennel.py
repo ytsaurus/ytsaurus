@@ -346,17 +346,6 @@ def parse_chunk(serialized_data):
 
     return data
 
-def get_endpoint(self, advicer_url):
-    log.info("Getting adviced logbroker endpoint...")
-    response = requests.get(advicer_url, headers={"ClientHost": socket.getfqdn()})
-    if not response.ok:
-        log.error("Unable to get adviced logbroker endpoint")
-        return None
-    host = response.text.strip()
-
-    log.info("Adviced endpoint: %s", host)
-    return (host, 80)
-
 def _preprocess(data, **args):
     return [_transform_record(record, **args) for record in data]
 
