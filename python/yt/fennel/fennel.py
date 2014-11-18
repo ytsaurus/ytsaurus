@@ -7,6 +7,10 @@ try:
 except ImportError:
     VERSION="unknown"
 
+import tornado
+assert tornado.version_info > (4,)
+
+
 from tornado import ioloop
 from tornado import gen
 from tornado import tcpclient
