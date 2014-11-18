@@ -8,7 +8,6 @@ except ImportError:
     VERSION="unknown"
 
 from tornado import ioloop
-from tornado import iostream
 from tornado import gen
 from tornado import tcpclient
 from tornado import options
@@ -81,13 +80,12 @@ class EventLog(object):
         self._table_name = table_name
         self._archive_table_name = self._table_name + ".archive"
         self._number_of_first_row_attr = "{0}/@number_of_first_row".format(self._table_name)
-        self._row_to_save_attr = "{0}/@row_to_save".format(self._table_name)
-        self._row_count = "{0}/@row_count".format(self._table_name)
+        self._row_count_attr = "{0}/@row_count".format(self._table_name)
 
     def get_row_count(self):
-        with yt.Transaction():
+        with self.yt.Transaction():
             first_row = self.yt.get(self._number_of_first_row_attr)
-            row_count = self.yt.get(self._row_count)
+            row_count = self.yt.get(self._row_count_attr)
             return row_count + first_row
 
     def get_data(self, begin, count):
@@ -100,27 +98,27 @@ class EventLog(object):
                 self.log.warning("%d < 0", begin)
                 archive_row_count = self.yt.get("{0}/@row_count".format(self._archive_table_name))
                 archive_begin = archive_row_count + begin
-                result.extend([item for item in self.yt.read_table(yt.TablePath(
+                result.extend(self.yt.read_table(yt.TablePath(
                     self._archive_table_name,
                     start_index=archive_begin,
-                    end_index=archive_begin + count), format="json", raw=False)])
+                    end_index=archive_begin + count), format="json", raw=False))
 
             self.log.debug("Reading %s event log. Begin: %d, count: %d",
                 self._table_name,
                 begin,
                 count)
-            result.extend([item for item in self.yt.read_table(yt.TablePath(
+            result.extend(self.yt.read_table(yt.TablePath(
                 self._table_name,
                 start_index=begin,
-                end_index=begin + count), format="json", raw=False)])
+                end_index=begin + count), format="json", raw=False))
             self.log.debug("Reading is finished")
         if len(result) != count:
             raise EventLog.NotEnoughDataError("Not enough data. Got only {0} rows".format(len(result)))
         return result
 
-    def archive(self, count = None):
+    def archive(self, count=None):
         try:
-            self.log.debug("Archive table has %d rows", yt.get(self._archive_table_name + "/@row_count"))
+            self.log.debug("Archive table has %d rows", self.yt.get(self._archive_table_name + "/@row_count"))
         except:
             pass
 
@@ -130,10 +128,10 @@ class EventLog(object):
         ratio = 0.137
         data_size_per_job = max(1, int(desired_chunk_size / ratio))
 
-        count = count or yt.get(self._table_name + "/@row_count")
+        count = count or self.yt.get(self._table_name + "/@row_count")
         self.log.info("Archive %s rows from event log", count)
 
-        partition = yt.TablePath(
+        partition = self.yt.TablePath(
             self._table_name,
             start_index=0,
             end_index=count)
@@ -199,7 +197,7 @@ class EventLog(object):
                 backoff_time = min(backoff_time * 2, 180)
 
         try:
-            self.log.debug("Archive table has %d rows", yt.get(self._archive_table_name + "/@row_count"))
+            self.log.debug("Archive table has %d rows", self.yt.get(self._archive_table_name + "/@row_count"))
         except:
             pass
 
@@ -359,7 +357,7 @@ def get_endpoint(self, advicer_url):
     log.info("Adviced endpoint: %s", host)
     return (host, 80)
 
-def _pre_process(data, **args):
+def _preprocess(data, **args):
     return [_transform_record(record, **args) for record in data]
 
 def _transform_record(record, cluster_name, log_name):
@@ -796,7 +794,7 @@ class Application(object):
                     while not saved:
                         try:
                             data = self._event_log.get_data(self._last_acked_seqno, chunk_size)
-                            data = _pre_process(data, cluster_name=self._cluster_name, log_name=self._log_name)
+                            data = _preprocess(data, cluster_name=self._cluster_name, log_name=self._log_name)
                             self._last_acked_seqno = yield self._log_broker.save_chunk(self._last_acked_seqno + self._chunk_size, data)
                         except ChunkTooBigError:
                             new_chunk_size = max(100, chunk_size / 2)
