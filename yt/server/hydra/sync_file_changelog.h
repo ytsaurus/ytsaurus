@@ -11,6 +11,9 @@ namespace NHydra {
 
 //! A fully synchronous file-based changelog implementation.
 /*!
+ *  The instances are fully thread-safe, at the cost of taking mutex on each invocation.
+ *  Thus even trivial getters like #GetRecordCount are pretty expensive.
+ *
  *  See IChangelog for a similar partly asynchronous interface.
  */
 class TSyncFileChangelog

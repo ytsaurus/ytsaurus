@@ -195,10 +195,9 @@ private:
         TSharedRef Blob;
     };
 
-    void CreateIndexFile();
 
-    void DoAppend(const TRef& record);
-    void DoAppend(const std::vector<TSharedRef>& records);
+    //! Creates an empty index file.
+    void CreateIndexFile();
 
     //! Processes currently read or written record to changelog.
     /*! Checks correctness of record id, updates the index, record count,
@@ -221,15 +220,17 @@ private:
     //! Reads changelog starting from the last indexed record until the end of file.
     void ReadChangelogUntilEnd(const TChangelogHeader& header);
 
+
     const Stroka FileName_;
     const Stroka IndexFileName_;
     const TFileChangelogConfigPtr Config_;
 
-    bool Open_;
-    int RecordCount_;
-    int SealedRecordCount_;
-    i64 CurrentBlockSize_;
-    i64 CurrentFilePosition_;
+    bool Open_ = false;
+    bool Sealed_ = false;
+    int RecordCount_ = -1;
+    int SealedRecordCount_ = TChangelogHeader::UnsealedRecordCount;
+    i64 CurrentBlockSize_ = -1;
+    i64 CurrentFilePosition_ = -1;
     TInstant LastFlushed_;
 
     TSharedRef Meta_;

@@ -8,6 +8,8 @@
 #include <core/misc/serialize.h>
 #include <core/misc/blob_output.h>
 
+#include <core/concurrency/thread_affinity.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -198,11 +200,6 @@ TSyncFileChangelog::TImpl::TImpl(
     : FileName_(path)
     , IndexFileName_(path + "." + ChangelogIndexExtension)
     , Config_(config)
-    , Open_(false)
-    , RecordCount_(-1)
-    , SealedRecordCount_(TChangelogHeader::UnsealedRecordCount)
-    , CurrentBlockSize_(-1)
-    , CurrentFilePosition_(-1)
     , LastFlushed_(TInstant::Now())
     , Logger(HydraLogger)
 {
@@ -211,132 +208,119 @@ TSyncFileChangelog::TImpl::TImpl(
 
 TFileChangelogConfigPtr TSyncFileChangelog::TImpl::GetConfig() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Config_;
 }
 
 const Stroka& TSyncFileChangelog::TImpl::GetFileName() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return FileName_;
-}
-
-void TSyncFileChangelog::TImpl::CreateIndexFile()
-{
-    auto tempFileName = IndexFileName_ + NFS::TempFileSuffix;
-    TFile tempFile(tempFileName, WrOnly|CreateAlways);
-
-    TChangelogIndexHeader header(0);
-    WritePod(tempFile, header);
-
-    tempFile.Flush();
-    tempFile.Close();
-
-    ReplaceFile(tempFileName, IndexFileName_);
-
-    IndexFile_ = std::make_unique<TFile>(IndexFileName_, RdWr);
-    IndexFile_->Flock(LOCK_EX | LOCK_NB);
-    IndexFile_->Seek(0, sEnd);
 }
 
 void TSyncFileChangelog::TImpl::Create(const TSharedRef& meta)
 {
-    YCHECK(!Open_);
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TMutex> guard(Mutex_);
 
     LOG_DEBUG("Creating changelog");
+
+    YCHECK(!Open_);
 
     Meta_ = meta;
     RecordCount_ = 0;
     Open_ = true;
 
+    // Data file.
+    i64 currentFilePosition;
     {
-        TGuard<TMutex> guard(Mutex_);
+        auto tempFileName = FileName_ + NFS::TempFileSuffix;
+        TFileWrapper tempFile(tempFileName, WrOnly|CreateAlways);
 
-        // Data file.
-        i64 currentFilePosition;
-        {
-            auto tempFileName = FileName_ + NFS::TempFileSuffix;
-            TFileWrapper tempFile(tempFileName, WrOnly|CreateAlways);
+        TChangelogHeader header(
+            Meta_.Size(),
+            TChangelogHeader::UnsealedRecordCount);
+        WritePod(tempFile, header);
 
-            TChangelogHeader header(
-                Meta_.Size(),
-                TChangelogHeader::UnsealedRecordCount);
-            WritePod(tempFile, header);
+        WritePadded(tempFile, Meta_);
 
-            WritePadded(tempFile, Meta_);
+        currentFilePosition = tempFile.GetPosition();
+        YCHECK(currentFilePosition == header.HeaderSize);
 
-            currentFilePosition = tempFile.GetPosition();
-            YCHECK(currentFilePosition == header.HeaderSize);
+        tempFile.Flush();
+        tempFile.Close();
 
-            tempFile.Flush();
-            tempFile.Close();
+        ReplaceFile(tempFileName, FileName_);
 
-            ReplaceFile(tempFileName, FileName_);
-
-            DataFile_ = std::make_unique<TFileWrapper>(FileName_, RdWr);
-            DataFile_->Flock(LOCK_EX | LOCK_NB);
-            DataFile_->Seek(0, sEnd);
-        }
-
-        // Index file.
-        CreateIndexFile();
-
-        CurrentFilePosition_ = currentFilePosition;
-        CurrentBlockSize_ = 0;
+        DataFile_ = std::make_unique<TFileWrapper>(FileName_, RdWr);
+        DataFile_->Flock(LOCK_EX | LOCK_NB);
+        DataFile_->Seek(0, sEnd);
     }
+
+    // Index file.
+    CreateIndexFile();
+
+    CurrentFilePosition_ = currentFilePosition;
+    CurrentBlockSize_ = 0;
 
     LOG_DEBUG("Changelog created");
 }
 
 void TSyncFileChangelog::TImpl::Open()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TMutex> guard(Mutex_);
+
     YCHECK(!Open_);
 
     LOG_DEBUG("Opening changelog");
 
-    {
-        TGuard<TMutex> guard(Mutex_);
+    DataFile_.reset(new TFileWrapper(FileName_, RdWr|Seq));
+    DataFile_->Flock(LOCK_EX | LOCK_NB);
 
-        DataFile_.reset(new TFileWrapper(FileName_, RdWr|Seq));
-        DataFile_->Flock(LOCK_EX | LOCK_NB);
+    // Read and check changelog header.
+    TChangelogHeader header;
+    ReadPod(*DataFile_, header);
+    ValidateSignature(header);
 
-        // Read and check changelog header.
-        TChangelogHeader header;
-        ReadPod(*DataFile_, header);
-        ValidateSignature(header);
+    // Read meta.
+    Meta_ = TSharedRef::Allocate(header.MetaSize);
+    ReadPadded(*DataFile_, Meta_);
 
-        // Read meta.
-        Meta_ = TSharedRef::Allocate(header.MetaSize);
-        ReadPadded(*DataFile_, Meta_);
+    Open_ = true;
+    SealedRecordCount_ = header.SealedRecordCount;
+    Sealed_ = (SealedRecordCount_ != TChangelogHeader::UnsealedRecordCount);
 
-        Open_ = true;
-        SealedRecordCount_ = header.SealedRecordCount;
+    ReadIndex(header);
+    ReadChangelogUntilEnd(header);
 
-        ReadIndex(header);
-        ReadChangelogUntilEnd(header);
-
-        if (IsSealed() && SealedRecordCount_ != RecordCount_) {
-            THROW_ERROR_EXCEPTION(
-                "Incorrect changelog: number or records (%v) less than sealed number (%v)",
-                RecordCount_,
-                SealedRecordCount_);
-        }
+    if (Sealed_ && SealedRecordCount_ != RecordCount_) {
+        THROW_ERROR_EXCEPTION(
+            "Sealed record count does not match total record count: %v != %v",
+            RecordCount_,
+            SealedRecordCount_);
     }
-
 
     LOG_DEBUG("Changelog opened (RecordCount: %v, Sealed: %lv)",
         RecordCount_,
-        IsSealed());
+        Sealed_);
 }
 
 void TSyncFileChangelog::TImpl::Close()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TMutex> guard(Mutex_);
+
     if (!Open_)
         return;
 
-    {
-        TGuard<TMutex> guard(Mutex_);
-        DataFile_->Close();
-        IndexFile_->Close();
-    }
+    DataFile_->Close();
+    IndexFile_->Close();
 
     LOG_DEBUG("Changelog closed");
 
@@ -347,39 +331,39 @@ void TSyncFileChangelog::TImpl::Append(
     int firstRecordId,
     const std::vector<TSharedRef>& records)
 {
-    YCHECK(Open_);
-    YCHECK(!IsSealed());
-    YCHECK(firstRecordId == RecordCount_);
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TMutex> guard(Mutex_);
 
     LOG_DEBUG("Appending %v records to changelog",
         records.size());
 
-    {
-        TGuard<TMutex> guard(Mutex_);
+    YCHECK(Open_);
+    YCHECK(!Sealed_);
+    YCHECK(firstRecordId == RecordCount_);
 
-        // Write records to one blob in memory.
-        TBlobOutput memoryOutput;
-        int currentRecordCount = RecordCount_;
-        std::vector<int> recordSizes;
-        for (int i = 0; i < records.size(); ++i) {
-            auto record = records[i];
-            int recordId = currentRecordCount + i;
+    // Write records to one blob in memory.
+    TBlobOutput memoryOutput;
+    int currentRecordCount = RecordCount_;
+    std::vector<int> recordSizes;
+    for (int i = 0; i < records.size(); ++i) {
+        auto record = records[i];
+        int recordId = currentRecordCount + i;
 
-            int totalSize = 0;
-            TChangelogRecordHeader header(recordId, record.Size(), GetChecksum(record));
-            totalSize += WritePodPadded(memoryOutput, header);
-            totalSize += WritePadded(memoryOutput, record);
-            recordSizes.push_back(totalSize);
-        }
+        int totalSize = 0;
+        TChangelogRecordHeader header(recordId, record.Size(), GetChecksum(record));
+        totalSize += WritePodPadded(memoryOutput, header);
+        totalSize += WritePadded(memoryOutput, record);
+        recordSizes.push_back(totalSize);
+    }
 
-        // Write blob to file.
-        DataFile_->Seek(0, sEnd);
-        DataFile_->Write(memoryOutput.Begin(), memoryOutput.Size());
+    // Write blob to file.
+    DataFile_->Seek(0, sEnd);
+    DataFile_->Write(memoryOutput.Begin(), memoryOutput.Size());
 
-        // Process written records (update index, et c).
-        for (int i = 0; i < records.size(); ++i) {
-            ProcessRecord(currentRecordCount + i, recordSizes[i]);
-        }
+    // Process written records (update index, et c).
+    for (int i = 0; i < records.size(); ++i) {
+        ProcessRecord(currentRecordCount + i, recordSizes[i]);
     }
 }
 
@@ -388,6 +372,10 @@ std::vector<TSharedRef> TSyncFileChangelog::TImpl::Read(
     int maxRecords,
     i64 maxBytes)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TMutex> guard(Mutex_);
+
     // Sanity check.
     YCHECK(firstRecordId >= 0);
     YCHECK(maxRecords >= 0);
@@ -439,40 +427,59 @@ std::vector<TSharedRef> TSyncFileChangelog::TImpl::Read(
 
 TSharedRef TSyncFileChangelog::TImpl::GetMeta() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TMutex> guard(Mutex_);
+
     return Meta_;
 }
 
 int TSyncFileChangelog::TImpl::GetRecordCount() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TMutex> guard(Mutex_);
+
     return RecordCount_;
 }
 
 i64 TSyncFileChangelog::TImpl::GetDataSize() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TMutex> guard(Mutex_);
+
     return CurrentFilePosition_;
 }
 
 bool TSyncFileChangelog::TImpl::IsSealed() const
 {
-    return SealedRecordCount_ != TChangelogHeader::UnsealedRecordCount;
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TMutex> guard(Mutex_);
+
+    return Sealed_;
 }
 
 void TSyncFileChangelog::TImpl::Seal(int recordCount)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TMutex> guard(Mutex_);
+
     YCHECK(Open_);
-    YCHECK(!IsSealed());
+    YCHECK(!Sealed_);
     YCHECK(recordCount >= 0);
 
     LOG_DEBUG("Sealing changelog with %v records", recordCount);
 
     auto oldRecordCount = RecordCount_;
 
-    SealedRecordCount_ = RecordCount_ = recordCount;
+    RecordCount_ = recordCount;
+    SealedRecordCount_ = recordCount;
+    Sealed_ = true;
 
-    {
-        TGuard<TMutex> guard(Mutex_);
-        UpdateLogHeader();
-    }
+    UpdateLogHeader();
 
     if (oldRecordCount != recordCount) {
         auto envelope = ReadEnvelope(recordCount, recordCount);
@@ -502,16 +509,12 @@ void TSyncFileChangelog::TImpl::Seal(int recordCount)
         CurrentBlockSize_ = readSize;
         CurrentFilePosition_ = envelope.GetStartPosition() + readSize;
 
-        {
-            TGuard<TMutex> guard(Mutex_);
+        IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
+        UpdateIndexHeader();
 
-            IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
-            UpdateIndexHeader();
-
-            DataFile_->Resize(CurrentFilePosition_);
-            DataFile_->Flush();
-            DataFile_->Seek(0, sEnd);
-        }
+        DataFile_->Resize(CurrentFilePosition_);
+        DataFile_->Flush();
+        DataFile_->Seek(0, sEnd);
     }
 
     LOG_DEBUG("Changelog sealed");
@@ -519,37 +522,44 @@ void TSyncFileChangelog::TImpl::Seal(int recordCount)
 
 void TSyncFileChangelog::TImpl::Unseal()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TMutex> guard(Mutex_);
+
     YCHECK(Open_);
-    YCHECK(IsSealed());
+    YCHECK(Sealed_);
 
     LOG_DEBUG("Unsealing changelog");
 
     SealedRecordCount_ = TChangelogHeader::UnsealedRecordCount;
+    Sealed_ = false;
 
-    {
-        TGuard<TMutex> guard(Mutex_);
-        UpdateLogHeader();
-    }
+    UpdateLogHeader();
 
     LOG_DEBUG("Changelog unsealed");
 }
 
 void TSyncFileChangelog::TImpl::Flush()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TMutex> guard(Mutex_);
+
     LOG_DEBUG("Flushing changelog");
 
-    {
-        TGuard<TMutex> guard(Mutex_);
-        DataFile_->Flush();
-        IndexFile_->Flush();
-        LastFlushed_ = TInstant::Now();
-    }
+    DataFile_->Flush();
+    IndexFile_->Flush();
+    LastFlushed_ = TInstant::Now();
 
     LOG_DEBUG("Changelog flushed");
 }
 
 TInstant TSyncFileChangelog::TImpl::GetLastFlushed()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TMutex> guard(Mutex_);
+
     return LastFlushed_;
 }
 
@@ -576,6 +586,24 @@ void TSyncFileChangelog::TImpl::ProcessRecord(int recordId, int totalSize)
     CurrentBlockSize_ += totalSize;
     CurrentFilePosition_ += totalSize;
     RecordCount_ += 1;
+}
+
+void TSyncFileChangelog::TImpl::CreateIndexFile()
+{
+    auto tempFileName = IndexFileName_ + NFS::TempFileSuffix;
+    TFile tempFile(tempFileName, WrOnly|CreateAlways);
+
+    TChangelogIndexHeader header(0);
+    WritePod(tempFile, header);
+
+    tempFile.Flush();
+    tempFile.Close();
+
+    ReplaceFile(tempFileName, IndexFileName_);
+
+    IndexFile_ = std::make_unique<TFile>(IndexFileName_, RdWr);
+    IndexFile_->Flock(LOCK_EX | LOCK_NB);
+    IndexFile_->Seek(0, sEnd);
 }
 
 void TSyncFileChangelog::TImpl::ReadIndex(const TChangelogHeader& header)
@@ -605,7 +633,7 @@ void TSyncFileChangelog::TImpl::ReadIndex(const TChangelogHeader& header)
 
             TChangelogIndexRecord indexRecord;
             ReadPod(indexStream, indexRecord);
-            if (IsSealed() && indexRecord.RecordId >= SealedRecordCount_) {
+            if (Sealed_ && indexRecord.RecordId >= SealedRecordCount_) {
                 break;
             }
             Index_.push_back(indexRecord);
@@ -629,9 +657,7 @@ void TSyncFileChangelog::TImpl::UpdateLogHeader()
     DataFile_->Flush();
     i64 oldPosition = DataFile_->GetPosition();
     DataFile_->Seek(0, sSet);
-    TChangelogHeader header(
-        Meta_.Size(),
-        SealedRecordCount_);
+    TChangelogHeader header(Meta_.Size(), SealedRecordCount_);
     WritePod(*DataFile_, header);
     DataFile_->Seek(oldPosition, sSet);
 }
@@ -701,9 +727,6 @@ TSyncFileChangelog::TImpl::TEnvelopeData TSyncFileChangelog::TImpl::ReadEnvelope
     i64 maxBytes)
 {
     YCHECK(!Index_.empty());
-
-    // Index can be changed during Append.
-    TGuard<TMutex> guard(Mutex_);
 
     TEnvelopeData result;
     result.LowerBound = *LastNotGreater(Index_, TChangelogIndexRecord(firstRecordId, -1), CompareRecordIds);
