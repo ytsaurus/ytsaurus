@@ -633,6 +633,7 @@ class Application(object):
                     task.destination_table,
                     fastbone=fastbone)
             elif source_client._type == "yt" and destination_client._type == "kiwi":
+                task_spec["pool"] = self._get_pool(self.kiwi_transmitter, "{0}_{1}".format(source_client._name, destination_client._name))
                 copy_yt_to_kiwi(
                     source_client,
                     destination_client,
