@@ -368,9 +368,10 @@ class Application(object):
 
     def _change_task_state(self, id, new_state):
         with self._mutex:
+            old_state = self._tasks[id].state
             self._tasks[id].state = new_state
             self._yt.set(os.path.join(self._tasks_path, id), self._tasks[id].dict())
-            logger.info("Task %s %s", id, new_state)
+            logger.info("Task %s change state: %s -> %s", id, old_state, new_state)
 
     def _dump_task(self, id):
         with self._mutex:
@@ -547,7 +548,7 @@ class Application(object):
     def _execute_task(self, task, message_queue):
         prctl.set_pdeathsig(signal.SIGINT)
 
-        logger.info("Executing task %s", task.id)
+        logger.info("Start executing task %s", task.id)
         try:
             self._precheck(task)
 
@@ -722,13 +723,11 @@ class Application(object):
             raise RequestFailed("Precheck failed", inner_errors=[error])
 
         if not request.args.get("dry_run", False):
+            self._yt.set(os.path.join(self._tasks_path, task.id), task.dict())
             with self._mutex:
                 self._tasks[task.id] = task
                 self._pending_tasks.append(task.id)
-
-            self._yt.set(os.path.join(self._tasks_path, task.id), task.dict())
-
-        logger.info("Task %s added", task.id)
+            logger.info("Task %s added", task.id)
 
         return task.id
 
