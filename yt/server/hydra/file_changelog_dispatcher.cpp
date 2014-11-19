@@ -66,7 +66,7 @@ public:
         TAsyncError result;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            YCHECK(!SealForced_ && !UnsealForced_);
+            YCHECK(!SealRequested_ && !UnsealRequested_);
             AppendQueue_.push_back(std::move(data));
             ByteSize_ += data.Size();
             YCHECK(FlushPromise_);
@@ -98,8 +98,8 @@ public:
         TAsyncError result;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            YCHECK(!SealForced_ && !UnsealForced_);
-            SealForced_ = true;
+            YCHECK(!SealRequested_ && !UnsealRequested_);
+            SealRequested_ = true;
             SealRecordCount_ = recordCount;
             result = SealPromise_ = NewPromise<TError>();
         }
@@ -114,9 +114,24 @@ public:
         TAsyncError result;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            YCHECK(!SealForced_ && !UnsealForced_);
-            UnsealForced_ = true;
+            YCHECK(!SealRequested_ && !UnsealRequested_);
+            UnsealRequested_ = true;
             result = UnsealPromise_ = NewPromise<TError>();
+        }
+
+        return result;
+    }
+
+    TAsyncError AsyncClose()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TAsyncError result;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            YCHECK(!CloseRequested_);
+            CloseRequested_ = true;
+            result = ClosePromise_ = NewPromise<TError>();
         }
 
         return result;
@@ -141,11 +156,15 @@ public:
             return true;
         }
 
-        if (SealForced_) {
+        if (SealRequested_) {
             return true;
         }
 
-        if (UnsealForced_) {
+        if (UnsealRequested_) {
+            return true;
+        }
+
+        if (CloseRequested_) {
             return true;
         }
 
@@ -159,6 +178,7 @@ public:
         MaybeSyncFlush();
         MaybeSyncSeal();
         MaybeSyncUnseal();
+        MaybeSyncClose();
     }
 
     bool TrySweep()
@@ -173,11 +193,15 @@ public:
                 return false;
             }
 
-            if (SealForced_ && !SealPromise_.IsSet()) {
+            if (SealRequested_ && !SealPromise_.IsSet()) {
                 return false;
             }
 
-            if (UnsealForced_ && !UnsealPromise_.IsSet()) {
+            if (UnsealRequested_ && !UnsealPromise_.IsSet()) {
+                return false;
+            }
+
+            if (CloseRequested_ && !ClosePromise_.IsSet()) {
                 return false;
             }
 
@@ -262,8 +286,9 @@ public:
 private:
     TSyncFileChangelogPtr Changelog_;
 
-    TSpinLock SpinLock_;
     std::atomic<int> UseCount_;
+
+    TSpinLock SpinLock_;
 
     //! Number of records flushed to the underlying sync changelog.
     int FlushedRecordCount_ = 0;
@@ -279,11 +304,14 @@ private:
     bool FlushForced_ = false;
 
     TAsyncErrorPromise SealPromise_;
-    bool SealForced_ = false;
+    bool SealRequested_ = false;
     int SealRecordCount_ = -1;
 
     TAsyncErrorPromise UnsealPromise_;
-    bool UnsealForced_ = false;
+    bool UnsealRequested_ = false;
+
+    TAsyncErrorPromise ClosePromise_;
+    bool CloseRequested_ = false;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(SyncThread);
@@ -326,11 +354,11 @@ private:
         TAsyncErrorPromise promise;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            if (!SealForced_)
+            if (!SealRequested_)
                 return;
             promise = SealPromise_;
             SealPromise_.Reset();
-            SealForced_ = false;
+            SealRequested_ = false;
         }
 
         while (true) {
@@ -354,15 +382,34 @@ private:
         TAsyncErrorPromise promise;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            if (!UnsealForced_)
+            if (!UnsealRequested_)
                 return;
             promise = UnsealPromise_;
             UnsealPromise_.Reset();
-            UnsealForced_ = false;
+            UnsealRequested_ = false;
         }
 
         PROFILE_TIMING("/changelog_unseal_io_time") {
             Changelog_->Unseal();
+        }
+
+        promise.Set(TError());
+    }
+
+    void MaybeSyncClose()
+    {
+        TAsyncErrorPromise promise;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (!CloseRequested_)
+                return;
+            promise = ClosePromise_;
+            ClosePromise_.Reset();
+            CloseRequested_ = false;
+        }
+
+        PROFILE_TIMING("/changelog_close_io_time") {
+            Changelog_->Close();
         }
 
         promise.Set(TError());
@@ -452,12 +499,6 @@ public:
         return queue ? queue->AsyncFlush() : OKFuture;
     }
 
-    void Close(TSyncFileChangelogPtr changelog)
-    {
-        RemoveQueue(changelog);
-        changelog->Close();
-    }
-
     TAsyncError Seal(TSyncFileChangelogPtr changelog, int recordCount)
     {
         auto queue = GetQueueAndLock(changelog);
@@ -476,10 +517,13 @@ public:
         return result;
     }
 
-    void Remove(TSyncFileChangelogPtr changelog)
+    TAsyncError Close(TSyncFileChangelogPtr changelog)
     {
-        Close(changelog);
-        RemoveChangelogFiles(changelog->GetFileName());
+        auto queue = GetQueueAndLock(changelog);
+        auto result = queue->AsyncClose();
+        queue->Unlock();
+        Wakeup();
+        return result;
     }
 
 private:
@@ -527,21 +571,15 @@ private:
         } else {
             queue = New<TChangelogQueue>(changelog);
             YCHECK(QueueMap_.insert(std::make_pair(changelog, queue)).second);
-            LOG_DEBUG("Changelog queue created (Path: %v)", changelog->GetFileName());
+            LOG_DEBUG("Changelog queue created (Path: %v)",
+                changelog->GetFileName());
         }
 
         queue->Lock();
         return queue;
     }
 
-    void RemoveQueue(TSyncFileChangelogPtr changelog)
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        QueueMap_.erase(changelog);
-        LOG_DEBUG("Changelog queue removed (Path: %v)", changelog->GetFileName());
-    }
-
-    void FlushQueues()
+    void RunPendingActions()
     {
         // Take a snapshot.
         std::vector<TChangelogQueuePtr> queues;
@@ -555,7 +593,7 @@ private:
             }
         }
 
-        // Flush and seal the changelogs.
+        // Run pending actions for the queues in the snapshot.
         for (auto queue : queues) {
             queue->RunPendingActions();
         }
@@ -570,7 +608,8 @@ private:
             auto queue = jt->second;
             if (queue->TrySweep()) {
                 QueueMap_.erase(jt);
-                LOG_DEBUG("Changelog queue removed (Path: %v)", queue->GetChangelog()->GetFileName());
+                LOG_DEBUG("Changelog queue removed (Path: %v)",
+                    queue->GetChangelog()->GetFileName());
             }
         }
     }
@@ -589,7 +628,7 @@ private:
     void ProcessQueues()
     {
         ProcessQueuesCallbackPending_ = false;
-        FlushQueues();
+        RunPendingActions();
         SweepQueues();
     }
 
@@ -611,6 +650,11 @@ public:
         , RecordCount_(changelog->GetRecordCount())
         , DataSize_(changelog->GetDataSize())
     { }
+
+    ~TFileChangelog()
+    {
+        Close();
+    }
 
     virtual int GetRecordCount() const override
     {
@@ -669,14 +713,9 @@ public:
         return DispatcherImpl_->Unseal(SyncChangelog_);
     }
 
-    void Close()
+    virtual TAsyncError Close() override
     {
-        DispatcherImpl_->Close(SyncChangelog_);
-    }
-
-    void Remove()
-    {
-        DispatcherImpl_->Remove(SyncChangelog_);
+        return DispatcherImpl_->Close(SyncChangelog_);
     }
 
 private:
@@ -729,20 +768,6 @@ IChangelogPtr TFileChangelogDispatcher::OpenChangelog(
     syncChangelog->Open();
 
     return New<TFileChangelog>(this, config, syncChangelog);
-}
-
-void TFileChangelogDispatcher::CloseChangelog(IChangelogPtr changelog)
-{
-    auto* fileChangelog = dynamic_cast<TFileChangelog*>(changelog.Get());
-    YCHECK(fileChangelog);
-    fileChangelog->Close();
-}
-
-void TFileChangelogDispatcher::RemoveChangelog(IChangelogPtr changelog)
-{
-    auto* fileChangelog = dynamic_cast<TFileChangelog*>(changelog.Get());
-    YCHECK(fileChangelog);
-    fileChangelog->Remove();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

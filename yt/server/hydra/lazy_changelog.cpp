@@ -124,6 +124,16 @@ public:
         }));
     }
 
+    virtual TAsyncError Close() override
+    {
+        return FutureChangelogOrError_.Apply(BIND([=] (const TErrorOr<IChangelogPtr> changelogOrError) -> TAsyncError {
+            if (!changelogOrError.IsOK()) {
+                return MakeFuture<TError>(TError(changelogOrError));
+            }
+            return changelogOrError.Value()->Close();
+        }));
+    }
+
 private:
     TFuture<TErrorOr<IChangelogPtr>> FutureChangelogOrError_;
 

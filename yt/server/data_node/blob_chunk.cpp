@@ -290,12 +290,6 @@ void TBlobChunkBase::AdjustReadRange(
     *blockCount = blockIndex - firstBlockIndex;
 }
 
-void TBlobChunkBase::EvictFromCache()
-{
-    auto readerCache = Bootstrap_->GetBlobReaderCache();
-    readerCache->EvictReader(this);
-}
-
 void TBlobChunkBase::SyncRemove()
 {
     DoSyncRemove(GetFileName());
@@ -326,6 +320,9 @@ TFuture<void> TBlobChunkBase::AsyncRemove()
 
 void TBlobChunkBase::DoSyncRemove(const Stroka& dataFileName)
 {
+    auto readerCache = Bootstrap_->GetBlobReaderCache();
+    readerCache->EvictReader(this);
+
     RemoveChunkFiles(dataFileName);
 }
 
@@ -365,11 +362,10 @@ TCachedBlobChunk::~TCachedBlobChunk()
     if (ChunkCache_.IsExpired())
         return;
 
-    EvictFromCache();
     AsyncRemove();
 
     LOG_INFO("Cached blob chunk destroyed (ChunkId: %v)",
-        GetId());
+        Id_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

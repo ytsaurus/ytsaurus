@@ -206,16 +206,18 @@ private:
         yhash_set<int> ids;
 
         for (const auto& key : keys) {
+            int id;
             try {
-                int id = FromString<int>(key);
-                YCHECK(ids.insert(id).second);
-                if (id >= initialId && (id > latestId || latestId == NonexistingSegmentId)) {
-                    latestId = id;
-                }
+                id = FromString<int>(key);
             } catch (const std::exception&) {
                 LOG_WARNING("Unrecognized item %Qv in remote store %v",
                     key,
                     RemotePath_);
+                continue;
+            }
+            YCHECK(ids.insert(id).second);
+            if (id >= initialId && (id > latestId || latestId == NonexistingSegmentId)) {
+                latestId = id;
             }
         }
 
@@ -340,6 +342,12 @@ private:
         virtual TAsyncError Unseal() override
         {
             YUNREACHABLE();
+        }
+
+        virtual TAsyncError Close() override
+        {
+            YCHECK(Writer_);
+            return Writer_->Close();
         }
 
     private:

@@ -130,38 +130,10 @@ public:
         bool enableMultiplexing);
 
     TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(
-        IChunkPtr chunk,
+        TJournalChunkPtr chunk,
         bool enableMultiplexing);
 
-    TAsyncError RemoveChangelog(IChunkPtr chunk)
-    {
-        TMultiplexedRecord record;
-        record.Header.Type = EMultiplexedRecordType::Remove;
-        record.Header.ChunkId = chunk->GetId();
-        record.Header.RecordId = -1;
-        AppendMultiplexedRecord(record, nullptr);
-
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            RemoveChangelogFromActive(chunk->GetId());
-        }
-
-        return BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk)
-                .Guarded()
-                .AsyncVia(chunk->GetLocation()->GetWritePoolInvoker())
-                .Run();
-    }
-
-    void CloseChangelog(IChunkPtr chunk)
-    {
-        auto journalChunk = chunk->AsJournalChunk();
-        if (journalChunk->HasAttachedChangelog()) {
-            auto changelog = journalChunk->GetAttachedChangelog();
-            ChangelogDispatcher_->CloseChangelog(changelog);
-            journalChunk->DetachChangelog();
-        }
-        TAsyncSlruCacheBase::TryRemove(chunk->GetId());
-    }
+    TAsyncError RemoveChangelog(TJournalChunkPtr chunk);
 
 private:
     friend class TCachedChangelog;
@@ -277,7 +249,7 @@ private:
                 auto cachedChangelog = New<TCachedChangelog>(
                     this,
                     chunkId,
-                    MakeFuture<TErrorOr<IChangelogPtr>>(changelog),
+                    changelog,
                     enableMultiplexing);
                 cookie.EndInsert(cachedChangelog);
             } catch (const std::exception& ex) {
@@ -296,18 +268,17 @@ private:
             chunkId);
     }
 
-    void DoRemoveChangelog(IChunkPtr chunk)
+    void DoRemoveChangelog(TJournalChunkPtr chunk)
     {
         const auto& chunkId = chunk->GetId();
 
-        LOG_DEBUG("Started removing journal chunk files (ChunkId: %v)",
-            chunkId);
+        TAsyncSlruCacheBase::TryRemove(chunkId);
 
         auto location = chunk->GetLocation();
         auto& Profiler = location->Profiler();
         PROFILE_TIMING("/journal_chunk_remove_time") {
             try {
-                RemoveChangelogFiles(chunk->GetFileName());
+                chunk->SyncRemove();
             } catch (const std::exception& ex) {
                 auto error = TError(
                     NChunkClient::EErrorCode::IOError,
@@ -317,9 +288,6 @@ private:
                 THROW_ERROR error;
             }
         }
-
-        LOG_DEBUG("Finished removing journal chunk files (ChunkId: %v)",
-            chunkId);
     }
 
 
@@ -468,30 +436,17 @@ public:
     TCachedChangelog(
         TImplPtr owner,
         const TChunkId& chunkId,
-        TFuture<TErrorOr<IChangelogPtr>> futureChangelogOrError,
+        IChangelogPtr underlyingChangelog,
         bool enableMultiplexing)
         : TAsyncCacheValueBase<TChunkId, TCachedChangelog>(chunkId)
         , Owner_(owner)
-        , FutureChangelogOrError_(futureChangelogOrError)
         , EnableMultiplexing_(enableMultiplexing)
-    {
-        auto changelogOrError = FutureChangelogOrError_.TryGet();
-        if (changelogOrError && changelogOrError->IsOK()) {
-            UnderlyingChangelog_ = changelogOrError->Value();
-        } else {
-            UnderlyingChangelog_ = CreateLazyChangelog(futureChangelogOrError);
-        }
-
-        LastSplitFlushResult_ = UnderlyingChangelog_->Flush();
-    }
+        , UnderlyingChangelog_(underlyingChangelog)
+        , LastSplitFlushResult_(UnderlyingChangelog_->Flush())
+    { }
 
     ~TCachedChangelog()
     {
-        // TODO(babenko): avoid blocking
-        auto changelogOrError = FutureChangelogOrError_.Get();
-        if (changelogOrError.IsOK()) {
-            Owner_->ChangelogDispatcher_->CloseChangelog(changelogOrError.Value());
-        }
         LOG_DEBUG("Cached changelog destroyed (ChunkId: %v)",
             GetKey());
     }
@@ -559,6 +514,11 @@ public:
         return UnderlyingChangelog_->Unseal();
     }
 
+    virtual TAsyncError Close() override
+    {
+        return UnderlyingChangelog_->Close();
+    }
+
     TAsyncError GetLastSplitFlushResult() const
     {
         YASSERT(EnableMultiplexing_);
@@ -567,10 +527,9 @@ public:
 
 private:
     TImplPtr Owner_;
-    TFuture<TErrorOr<IChangelogPtr>> FutureChangelogOrError_;
     bool EnableMultiplexing_;
-
     IChangelogPtr UnderlyingChangelog_;
+
     TAsyncError LastSplitFlushResult_;
 
 };
@@ -616,8 +575,9 @@ public:
             ReplayChangelog(id);
         }
 
-        for (auto& pair : SplitMap_) {
-            auto& entry = pair.second;
+        for (const auto& pair : SplitMap_) {
+            const auto& entry = pair.second;
+            entry.Changelog->Close().Get();
             entry.Chunk->DetachChangelog();
         }
 
@@ -758,7 +718,8 @@ private:
         if (!chunk)
             return;
 
-        Owner_->DoRemoveChangelog(chunk);
+        auto journalChunk = chunk->AsJournalChunk();
+        Owner_->DoRemoveChangelog(journalChunk);
         chunkStore->UnregisterChunk(chunk);
     }
 
@@ -834,7 +795,9 @@ TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::OpenChangelog(
     auto result = cookie.GetValue();
 
     if (inserted) {
-        location->GetWritePoolInvoker()->Invoke(BIND(
+        // NB: Changelogs are opened, created, closed and removed within changelog's dispatcher
+        // invoker to ensure proper ordering of these events.
+        ChangelogDispatcher_->GetInvoker()->Invoke(BIND(
             &TImpl::DoOpenChangelog,
             MakeStrong(this),
             location,
@@ -849,7 +812,7 @@ TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::OpenChangelog(
 }
 
 TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::CreateChangelog(
-    IChunkPtr chunk,
+    TJournalChunkPtr chunk,
     bool enableMultiplexing)
 {
     try {
@@ -858,7 +821,6 @@ TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::CreateChangelog(
         }
 
         const auto& chunkId = chunk->GetId();
-        auto location = chunk->GetLocation();
 
         TInsertCookie cookie(chunkId);
         if (!BeginInsert(&cookie)) {
@@ -866,15 +828,18 @@ TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::CreateChangelog(
                 chunkId);
         }
 
+        // See remark on invoker choice above.
         auto futureChangelogOrError = BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunk)
             .Guarded()
-            .AsyncVia(location->GetWritePoolInvoker())
+            .AsyncVia(ChangelogDispatcher_->GetInvoker())
             .Run();
+
+        auto lazyChangelog = CreateLazyChangelog(futureChangelogOrError);
 
         auto cachedChangelog = New<TCachedChangelog>(
             this,
             chunkId,
-            futureChangelogOrError,
+            lazyChangelog,
             enableMultiplexing);
         cookie.EndInsert(cachedChangelog);
 
@@ -896,6 +861,26 @@ TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::CreateChangelog(
     } catch (const std::exception& ex) {
         return MakeFuture<TErrorOr<IChangelogPtr>>(ex);
     }
+}
+
+TAsyncError TJournalDispatcher::TImpl::RemoveChangelog(TJournalChunkPtr chunk)
+{
+    TMultiplexedRecord record;
+    record.Header.Type = EMultiplexedRecordType::Remove;
+    record.Header.ChunkId = chunk->GetId();
+    record.Header.RecordId = -1;
+    AppendMultiplexedRecord(record, nullptr);
+
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        RemoveChangelogFromActive(chunk->GetId());
+    }
+
+    // See remark on invoker choice above.
+    return BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk)
+        .Guarded()
+        .AsyncVia(ChangelogDispatcher_->GetInvoker())
+        .Run();
 }
 
 TAsyncError TJournalDispatcher::TImpl::AppendMultiplexedRecord(
@@ -1006,20 +991,15 @@ TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::OpenChangelog(
 }
 
 TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::CreateChangelog(
-    IChunkPtr chunk,
+    TJournalChunkPtr chunk,
     bool enableMultiplexing)
 {
     return Impl_->CreateChangelog(chunk, enableMultiplexing);
 }
 
-TAsyncError TJournalDispatcher::RemoveChangelog(IChunkPtr chunk)
+TAsyncError TJournalDispatcher::RemoveChangelog(TJournalChunkPtr chunk)
 {
     return Impl_->RemoveChangelog(chunk);
-}
-
-void TJournalDispatcher::CloseChangelog(IChunkPtr chunk)
-{
-    Impl_->CloseChangelog(chunk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

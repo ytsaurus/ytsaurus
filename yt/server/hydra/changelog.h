@@ -70,6 +70,14 @@ struct IChangelog
      */
     virtual TAsyncError Unseal() = 0;
 
+    //! Asynchronously flushes and closes the changelog, releasing all underlying resources.
+    /*
+     *  Examining the result is useful when a certain underlying implementation is expected.
+     *  E.g. if this changelog is backed by a local file, the returned promise is set
+     *  when the file is closed.
+     */
+    virtual TAsyncError Close() = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IChangelog)

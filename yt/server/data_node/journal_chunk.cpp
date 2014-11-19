@@ -185,15 +185,25 @@ void TJournalChunk::UpdateCachedParams() const
     }
 }
 
-void TJournalChunk::EvictFromCache()
-{
-    auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    dispatcher->CloseChangelog(this);
-}
-
 void TJournalChunk::SyncRemove()
 {
-    RemoveChangelogFiles(GetFileName());
+    if (Changelog_) {
+        LOG_DEBUG("Started closing journal chunk files (ChunkId: %v)",
+            Id_);
+        auto error = WaitFor(Changelog_->Close());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        LOG_DEBUG("Finished closing journal chunk files (ChunkId: %v)",
+            Id_);
+        Changelog_.Reset();
+    }
+
+    {
+        LOG_DEBUG("Started removing journal chunk files (ChunkId: %v)",
+            Id_);
+        RemoveChangelogFiles(GetFileName());
+        LOG_DEBUG("Finished removing journal chunk files (ChunkId: %v)",
+            Id_);
+    }
 }
 
 TFuture<void> TJournalChunk::AsyncRemove()
@@ -210,6 +220,7 @@ TFuture<void> TJournalChunk::AsyncRemove()
 
 void TJournalChunk::AttachChangelog(IChangelogPtr changelog)
 {
+    YCHECK(!IsRemoveScheduled());
     YCHECK(!Changelog_);
     Changelog_ = changelog;
 
@@ -218,18 +229,23 @@ void TJournalChunk::AttachChangelog(IChangelogPtr changelog)
 
 void TJournalChunk::DetachChangelog()
 {
+    YCHECK(!IsRemoveScheduled());
+
     UpdateCachedParams();
     Changelog_.Reset();
 }
 
 bool TJournalChunk::HasAttachedChangelog() const
 {
+    YCHECK(!IsRemoveScheduled());
+
     return Changelog_ != nullptr;
 }
 
 IChangelogPtr TJournalChunk::GetAttachedChangelog() const
 {
-    YCHECK(Changelog_);
+    YCHECK(!IsRemoveScheduled());
+
     return Changelog_;
 }
 
@@ -249,6 +265,35 @@ bool TJournalChunk::IsSealed() const
 {
     UpdateCachedParams();
     return CachedSealed_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJournalChunkChangelogGuard::TJournalChunkChangelogGuard(
+    TJournalChunkPtr chunk,
+    IChangelogPtr changelog)
+    : Chunk_(chunk)
+{
+    Chunk_->AttachChangelog(changelog);
+}
+
+TJournalChunkChangelogGuard& TJournalChunkChangelogGuard::operator=(TJournalChunkChangelogGuard&& other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+TJournalChunkChangelogGuard::~TJournalChunkChangelogGuard()
+{
+    if (Chunk_) {
+        Chunk_->DetachChangelog();
+    }
+}
+
+void swap(TJournalChunkChangelogGuard& lhs, TJournalChunkChangelogGuard& rhs)
+{
+    using std::swap;
+    swap(lhs.Chunk_, rhs.Chunk_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

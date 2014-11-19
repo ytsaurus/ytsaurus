@@ -38,7 +38,6 @@ protected:
         const NChunkClient::NProto::TChunkMeta* meta);
     ~TBlobChunkBase();
 
-    virtual void EvictFromCache() override;
     virtual TFuture<void> AsyncRemove() override;
 
 private:

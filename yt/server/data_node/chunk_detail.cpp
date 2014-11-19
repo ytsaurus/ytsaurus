@@ -136,8 +136,6 @@ bool TChunkBase::IsRemoveScheduled() const
 
 void TChunkBase::StartAsyncRemove()
 {
-    EvictFromCache();
-
     auto this_ = MakeStrong(this);
     AsyncRemove().Subscribe(BIND([=] () {
         this_->RemovedPromise_.Set();

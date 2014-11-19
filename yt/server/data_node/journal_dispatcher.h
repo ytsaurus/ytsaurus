@@ -37,15 +37,11 @@ public:
 
     //! Asynchronously creates a new changelog corresponding to a given journal chunk.
     TFuture<TErrorOr<NHydra::IChangelogPtr>> CreateChangelog(
-        IChunkPtr chunk,
+        TJournalChunkPtr chunk,
         bool enableMultiplexing);
 
     //! Asynchronously removes files of a given journal chunk.
-    TAsyncError RemoveChangelog(IChunkPtr chunk);
-
-    //! Synchronously closes and evicts the changelog corresponding
-    //! to a given journal chunk.
-    void CloseChangelog(IChunkPtr chunk);
+    TAsyncError RemoveChangelog(TJournalChunkPtr chunk);
 
 private:
     class TCachedChangelog;

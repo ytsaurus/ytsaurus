@@ -77,6 +77,11 @@ public:
         return UnderlyingChangelog_->Unseal();
     }
 
+    virtual TAsyncError Close() override
+    {
+        return UnderlyingChangelog_->Close();
+    }
+
 private:
     IChangelogPtr UnderlyingChangelog_;
 

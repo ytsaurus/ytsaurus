@@ -200,7 +200,6 @@ TSyncFileChangelog::TImpl::TImpl(
     : FileName_(path)
     , IndexFileName_(path + "." + ChangelogIndexExtension)
     , Config_(config)
-    , LastFlushed_(TInstant::Now())
     , Logger(HydraLogger)
 {
     Logger.AddTag("Path: %v", path);
@@ -319,7 +318,10 @@ void TSyncFileChangelog::TImpl::Close()
     if (!Open_)
         return;
 
+    DataFile_->Flush();
     DataFile_->Close();
+
+    IndexFile_->Flush();
     IndexFile_->Close();
 
     LOG_DEBUG("Changelog closed");

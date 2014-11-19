@@ -66,7 +66,6 @@ protected:
         const TChunkId& id);
 
     void StartAsyncRemove();
-    virtual void EvictFromCache() = 0;
     virtual TFuture<void> AsyncRemove() = 0;
 
     TRefCountedChunkMetaPtr FilterCachedMeta(const std::vector<int>* tags) const;

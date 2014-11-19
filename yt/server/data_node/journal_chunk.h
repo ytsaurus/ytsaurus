@@ -53,7 +53,6 @@ private:
 
     void UpdateCachedParams() const;
 
-    virtual void EvictFromCache() override;
     virtual TFuture<void> AsyncRemove() override;
 
     void DoReadBlocks(
@@ -64,6 +63,25 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TJournalChunk)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJournalChunkChangelogGuard
+{
+public:
+    TJournalChunkChangelogGuard() = default;
+    TJournalChunkChangelogGuard(TJournalChunkPtr chunk, NHydra::IChangelogPtr changelog);
+    TJournalChunkChangelogGuard(TJournalChunkChangelogGuard&& other) = default;
+    ~TJournalChunkChangelogGuard();
+
+    TJournalChunkChangelogGuard& operator = (TJournalChunkChangelogGuard&& other);
+
+    friend void swap(TJournalChunkChangelogGuard& lhs, TJournalChunkChangelogGuard& rhs);
+
+private:
+    TJournalChunkPtr Chunk_;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

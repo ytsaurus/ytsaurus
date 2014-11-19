@@ -288,6 +288,7 @@ public:
 
 protected:
     IChunkPtr Chunk_;
+    TChunkReadGuard ChunkReadGuard_;
 
     virtual void DoPrepare()
     {
@@ -297,6 +298,12 @@ protected:
         Chunk_ = chunkStore->FindChunk(ChunkId_);
         if (!Chunk_) {
             SetFailed(TError("Chunk %v is missing", ChunkId_));
+            return;
+        }
+
+        ChunkReadGuard_ = TChunkReadGuard::TryAcquire(Chunk_);
+        if (!ChunkReadGuard_) {
+            SetFailed(TError("Cannot lock chunk %v", ChunkId_));
             return;
         }
     }
@@ -603,12 +610,6 @@ private:
                 ChunkId_);
         }
 
-        auto journalChunk = Chunk_->AsJournalChunk();
-        if (journalChunk->HasAttachedChangelog()) {
-            THROW_ERROR_EXCEPTION("Journal chunk %v is already being written to",
-                ChunkId_);
-        }
-
         auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
         auto location = Chunk_->GetLocation();
 
@@ -616,80 +617,81 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
         auto changelog = changelogOrError.Value();
 
+        auto journalChunk = Chunk_->AsJournalChunk();
+        if (journalChunk->HasAttachedChangelog()) {
+            THROW_ERROR_EXCEPTION("Journal chunk %v is already being written to",
+                ChunkId_);
+        }
+
+        TJournalChunkChangelogGuard changelogGuard(journalChunk, changelog);
+
         if (changelog->IsSealed()) {
             LOG_INFO("Chunk %v is already sealed",
                 ChunkId_);
             return;
         }
 
-        journalChunk->AttachChangelog(changelog);
-        try {
-            i64 currentRowCount = changelog->GetRecordCount();
-            i64 sealRowCount = SealJobSpecExt_.row_count();
-            if (currentRowCount < sealRowCount) {
-                LOG_INFO("Started downloading missing journal chunk rows (Rows: %v-%v)",
+        i64 currentRowCount = changelog->GetRecordCount();
+        i64 sealRowCount = SealJobSpecExt_.row_count();
+        if (currentRowCount < sealRowCount) {
+            LOG_INFO("Started downloading missing journal chunk rows (Rows: %v-%v)",
+                currentRowCount,
+                sealRowCount - 1);
+
+            auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+            nodeDirectory->MergeFrom(SealJobSpecExt_.node_directory());
+
+            auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(SealJobSpecExt_.replicas());
+
+            auto reader = CreateReplicationReader(
+                Config_->SealReader,
+                Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
+                Bootstrap_->GetMasterClient()->GetMasterChannel(),
+                nodeDirectory,
+                Null,
+                ChunkId_,
+                replicas,
+                DefaultNetworkName,
+                EReadSessionType::Replication,
+                Bootstrap_->GetReplicationInThrottler());
+
+            while (currentRowCount < sealRowCount) {
+                auto blocksOrError = WaitFor(reader->ReadBlocks(
                     currentRowCount,
-                    sealRowCount - 1);
+                    sealRowCount - currentRowCount));
+                THROW_ERROR_EXCEPTION_IF_FAILED(blocksOrError);
 
-                auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-                nodeDirectory->MergeFrom(SealJobSpecExt_.node_directory());
+                const auto& blocks = blocksOrError.Value();
+                int blockCount = static_cast<int>(blocks.size());
 
-                auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(SealJobSpecExt_.replicas());
-
-                auto reader = CreateReplicationReader(
-                    Config_->SealReader,
-                    Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
-                    Bootstrap_->GetMasterClient()->GetMasterChannel(),
-                    nodeDirectory,
-                    Null,
-                    ChunkId_,
-                    replicas,
-                    DefaultNetworkName,
-                    EReadSessionType::Replication,
-                    Bootstrap_->GetReplicationInThrottler());
-
-                while (currentRowCount < sealRowCount) {
-                    auto blocksOrError = WaitFor(reader->ReadBlocks(
+                if (blockCount == 0) {
+                    THROW_ERROR_EXCEPTION("Cannot download missing rows %v-%v to seal chunk %v",
                         currentRowCount,
-                        sealRowCount - currentRowCount));
-                    THROW_ERROR_EXCEPTION_IF_FAILED(blocksOrError);
-
-                    const auto& blocks = blocksOrError.Value();
-                    int blockCount = static_cast<int>(blocks.size());
-
-                    if (blockCount == 0) {
-                        THROW_ERROR_EXCEPTION("Cannot download missing rows %v-%v to seal chunk %v",
-                            currentRowCount,
-                            sealRowCount - 1,
-                            ChunkId_);
-                    }
-
-                    LOG_INFO("Journal chunk rows downloaded (Blocks: %v-%v)",
-                        currentRowCount,
-                        currentRowCount + blockCount - 1);
-
-                    for (const auto& block : blocks) {
-                        changelog->Append(block);
-                    }
-
-                    currentRowCount += blockCount;
+                        sealRowCount - 1,
+                        ChunkId_);
                 }
 
-                LOG_INFO("Finished downloading missing journal chunk rows");
+                LOG_INFO("Journal chunk rows downloaded (Blocks: %v-%v)",
+                    currentRowCount,
+                    currentRowCount + blockCount - 1);
+
+                for (const auto& block : blocks) {
+                    changelog->Append(block);
+                }
+
+                currentRowCount += blockCount;
             }
 
-            LOG_INFO("Started sealing journal chunk (RowCount: %v)",
-                sealRowCount);
-            {
-                auto error = WaitFor(changelog->Seal(sealRowCount));
-                THROW_ERROR_EXCEPTION_IF_FAILED(error);
-            }
-            LOG_INFO("Finished sealing journal chunk");
-        } catch (...) {
-            journalChunk->DetachChangelog();
-            throw;
+            LOG_INFO("Finished downloading missing journal chunk rows");
         }
-        journalChunk->DetachChangelog();
+
+        LOG_INFO("Started sealing journal chunk (RowCount: %v)",
+            sealRowCount);
+        {
+            auto error = WaitFor(changelog->Seal(sealRowCount));
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        }
+        LOG_INFO("Finished sealing journal chunk");
 
         auto chunkStore = Bootstrap_->GetChunkStore();
         chunkStore->UpdateExistingChunk(Chunk_);
