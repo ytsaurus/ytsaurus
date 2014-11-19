@@ -82,7 +82,6 @@ void ScanOpHelper(
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
-
     std::vector<TRow> rows;
     rows.reserve(MaxRowsPerRead);
 
@@ -115,9 +114,9 @@ void ScanOpHelper(
 
         rows.clear();
 
-        if (!hasMoreData
-            || executionContext->InputRowLimit <= 0
-            || executionContext->OutputRowLimit <= 0) {
+        if (!hasMoreData ||
+            executionContext->InputRowLimit <= 0 ||
+            executionContext->OutputRowLimit <= 0) {
             break;
         }
 
