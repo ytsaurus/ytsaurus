@@ -607,7 +607,7 @@ class SessionStream(object):
                     self._iostream.read_bytes(body_size + 2),
                     self._io_loop
                     )
-                self.log.debug("[%s] Process status: %s", self._id, data.strip())
+                self.log.debug("[%s] Process status: '%s'", self._id, data.strip().encode("string_encode"))
                 raise gen.Return(self._parse(data.strip()))
         except gen.Return:
             raise
