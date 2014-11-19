@@ -97,10 +97,12 @@ public:
         JobState_ = EJobState::Running;
         JobPhase_ = EJobPhase::Running;
 
-        DoPrepare();
-
-        if (JobState_ != EJobState::Running)
+        try {
+            DoPrepare();
+        } catch (const std::exception& ex) {
+            SetFailed(ex);
             return;
+        }
 
         JobFuture_ = BIND(&TChunkJobBase::GuardedRun, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetControlInvoker())
@@ -290,22 +292,13 @@ protected:
     IChunkPtr Chunk_;
     TChunkReadGuard ChunkReadGuard_;
 
+
     virtual void DoPrepare()
     {
         TChunkJobBase::DoPrepare();
 
         auto chunkStore = Bootstrap_->GetChunkStore();
-        Chunk_ = chunkStore->FindChunk(ChunkId_);
-        if (!Chunk_) {
-            SetFailed(TError("Chunk %v is missing", ChunkId_));
-            return;
-        }
-
-        ChunkReadGuard_ = TChunkReadGuard::TryAcquire(Chunk_);
-        if (!ChunkReadGuard_) {
-            SetFailed(TError("Cannot lock chunk %v", ChunkId_));
-            return;
-        }
+        Chunk_ = chunkStore->GetChunkOrThrow(ChunkId_);
     }
 
 };
@@ -368,6 +361,7 @@ public:
 
 private:
     TReplicateChunkJobSpecExt ReplicateChunkJobSpecExt_;
+
 
     virtual void DoRun() override
     {
@@ -493,6 +487,7 @@ public:
 private:
     TRepairChunkJobSpecExt RepairJobSpecExt_;
 
+
     virtual void DoRun() override
     {
         auto codecId = NErasure::ECodec(RepairJobSpecExt_.erasure_codec());
@@ -603,10 +598,17 @@ public:
 private:
     TSealChunkJobSpecExt SealJobSpecExt_;
 
+
     virtual void DoRun() override
     {
         if (Chunk_->IsActive()) {
             THROW_ERROR_EXCEPTION("Cannot seal an active journal chunk %v",
+                ChunkId_);
+        }
+
+        auto readGuard = TChunkReadGuard::TryAcquire(Chunk_);
+        if (!readGuard) {
+            THROW_ERROR_EXCEPTION("Cannot lock chunk %v",
                 ChunkId_);
         }
 
