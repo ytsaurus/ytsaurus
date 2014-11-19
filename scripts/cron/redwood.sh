@@ -40,13 +40,18 @@ fi
 
 /opt/cron/tools/remove.py $REMOVE_QUEUE
 
-import_from_mr.py \
-    --tables-queue "$IMPORT_QUEUE" \
-    --destination-dir "$IMPORT_PATH" \
-    --mapreduce-binary "/Berkanavt/bin/mapreduce-dev" \
-    --mr-server "redwood00.search.yandex.net" \
-    --compression-codec "gzip_best_compression" --erasure-codec "lrc_12_2_2" \
-    --yt-pool "redwood_restricted" \
+IMPORT_COMMAND='
+import_from_mr.py
+    --tables-queue '"$IMPORT_QUEUE"'
+    --destination-dir '"$IMPORT_PATH"'
+    --mapreduce-binary /Berkanavt/bin/mapreduce-dev
+    --mr-server redwood00.search.yandex.net
+    --compression-codec gzip_best_compression
+    --erasure-codec lrc_12_2_2
+    --yt-pool redwood_restricted
     --fastbone
+'
+
+/opt/cron/tools/run_parallel.sh "$IMPORT_COMMAND" 4 "/dev/stdout"
 
 /opt/cron/tools/link.py $LINK_QUEUE
