@@ -136,7 +136,8 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
         spec_template = {}
 
     tmp_dir = tempfile.mkdtemp()
-    files = _prepare_read_from_yt_command(source_client, src, "yson", tmp_dir, fastbone)
+    # TODO(ignat): switch to yson after implementation of load_row
+    files = _prepare_read_from_yt_command(source_client, src, "json", tmp_dir, fastbone)
 
     try:
         with source_client.PingableTransaction():
@@ -157,7 +158,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             destination_client.create("table", dst, ignore_existing=True)
             destination_client.run_map("bash read_from_yt.sh", temp_table, dst, files=files, spec=spec,
                                        input_format=yt.SchemafulDsvFormat(columns=["start", "end"]),
-                                       output_format=yt.YsonFormat())
+                                       output_format=yt.JsonFormat())
 
             result_row_count = destination_client.records_count(dst)
             if row_count != result_row_count:
