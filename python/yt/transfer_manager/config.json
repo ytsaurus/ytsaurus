@@ -51,6 +51,13 @@
             },
             "fastbone": true
         },
+        "flux": {
+            "type": "yt",
+            "options": {
+                "proxy": "flux.yt.yandex.net",
+                "token": "93b4cacc08aa4538a79a76c21e99c0fb"
+            }
+        },
         "apterix": {
             "type": "kiwi",
             "options": {
@@ -71,10 +78,7 @@
             "fastbone": false
         }
     },
-    "kiwi_transmitter": {
-        "proxy": "flux.yt.yandex.net",
-        "token": "93b4cacc08aa4538a79a76c21e99c0fb"
-    },
+    "kiwi_transmitter": "flux",
     "availability_graph": {
         "kant": ["cedar", "betula", "smith", "plato", "bsmr"],
         "smith": ["cedar", "betula", "kant", "plato"],
@@ -84,6 +88,10 @@
         "betula": ["kant", "smith", "plato"],
         "bsmr": ["kant"]
     },
+    "pending_tasks_limit": 5000,
+    "pending_tasks_limit_per_user": 500,
+    "running_tasks_limit_per_direction": 10,
+
     "path": "//home/ignat/transfer_manager",
     "proxy": "kant.yt.yandex.net",
     "token": "93b4cacc08aa4538a79a76c21e99c0fb",
