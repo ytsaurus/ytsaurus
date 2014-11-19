@@ -4,7 +4,8 @@ from common import get_value
 from errors import YtResponseError
 from transaction_commands import start_transaction, commit_transaction, abort_transaction, ping_transaction
 
-import traceback as tb
+import sys
+from thread import interrupt_main
 from time import sleep
 from threading import Thread
 from datetime import datetime, timedelta
@@ -129,7 +130,10 @@ class PingTransaction(Thread):
 
     def run(self):
         while self.is_running:
-            ping_transaction(self.transaction, client=self.client)
+            try:
+                ping_transaction(self.transaction, client=self.client)
+            except:
+                interrupt_main()
             start_time = datetime.now()
             while datetime.now() - start_time < timedelta(seconds=self.delay):
                 sleep(self.step)
