@@ -840,7 +840,7 @@ private:
         LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, PartitionIndex: %v, DataSize: %v, Keys: %v)",
             tablet->GetId(),
             partitionIndex,
-            partition->GetTotalDataSize(),
+            partition->GetDataSize(),
             JoinToString(pivotKeys, Stroka(" .. ")));
 
         tablet->SplitPartition(partitionIndex, pivotKeys);
@@ -1227,6 +1227,7 @@ private:
                 .Item("next_pivot_key").Value(partition->GetNextPivotKey())
                 .Item("sample_key_count").Value(partition->SampleKeys().size())
                 .Item("sampling_needed").Value(partition->GetSamplingNeeded())
+                .Item("uncompressed_data_size").Value(partition->GetDataSize()())
                 .Item("stores").DoMapFor(partition->Stores(), [&] (TFluentMap fluent, const IStorePtr& store) {
                     fluent
                         .Item(ToString(store->GetId()))
