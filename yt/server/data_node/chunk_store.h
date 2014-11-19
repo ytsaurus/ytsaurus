@@ -57,6 +57,9 @@ public:
     //! Finds chunk by id. Returns |nullptr| if no chunk exists.
     IChunkPtr FindChunk(const TChunkId& chunkId) const;
 
+    //! Finds chunk by id. Throws if no chunk exists.
+    IChunkPtr GetChunkOrThrow(const TChunkId& chunkId) const;
+
     //! Physically removes the chunk.
     /*!
      *  This call also evicts the reader from the cache thus hopefully closing the file.

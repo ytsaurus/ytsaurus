@@ -273,6 +273,18 @@ IChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
     return it == ChunkMap_.end() ? nullptr : it->second.Chunk;
 }
 
+IChunkPtr TChunkStore::GetChunkOrThrow(const TChunkId& chunkId) const
+{
+    auto chunk = FindChunk(chunkId);
+    if (!chunk) {
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::NoSuchChunk,
+            "No such chunk %v",
+            chunkId);
+    }
+    return chunk;
+}
+
 TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
