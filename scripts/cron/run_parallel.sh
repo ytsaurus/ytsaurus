@@ -19,7 +19,7 @@ cleanup() {
     done
 }
 
-trap cleanup SIGINT
+trap cleanup SIGINT SIGTERM
 
 set +x
 while true; do
