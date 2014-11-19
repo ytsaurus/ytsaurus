@@ -644,7 +644,7 @@ private:
                     NChunkClient::EErrorCode::NoSuchChunk,
                     "No such chunk %v",
                     chunkId);
-                LOG_ERROR(error);
+                LOG_WARNING(error);
                 ToProto(splittedChunk->mutable_error(), error);
             } else {
                 awaiter->Await(
