@@ -125,13 +125,13 @@ class Task(object):
             client.mr_user = self.mr_user
         return client
 
-    def dict(self, hide_token=False):
+    def dict(self, hide_token=False, fields=None):
         result = deepcopy(self.__dict__)
         if hide_token:
             for key in ["token", "source_cluster_token", "destination_cluster_token"] or key.startswith("_"):
                 del result[key]
         for key in result.keys():
-            if result[key] is None:
+            if result[key] is None or (fields is not None and key not in fields):
                 del result[key]
         return result
 
@@ -839,7 +839,18 @@ class Application(object):
         if id not in self._tasks:
             return "Unknown task " + id, 400
 
-        return jsonify(**self._get_task_description(self._tasks[id]))
+        task = self._tasks[id]
+        task_description = task.dict(hide_token=True)
+        queue_index = 1
+        with self._mutex:
+            for id in self._pending_tasks:
+                if id == task.id:
+                    task_description["queue_index"] = queue_index
+                    break
+                if self._tasks[id].get_queue_id() == task.get_queue_id():
+                    queue_index += 1
+
+        return jsonify(**task_description)
 
     def delete_task(self, id):
         if id not in self._tasks:
@@ -856,12 +867,30 @@ class Application(object):
         return ""
 
     def get_tasks(self):
+        with self._mutex:
+            tasks = deepcopy(self._tasks)
+            pending_tasks = deepcopy(self._pending_tasks)
+
         user = request.args.get("user")
-        tasks = self._tasks.values()
+        fields = request.args.get("fields")
         if user is not None:
             tasks = [task.user == user for task in tasks]
 
-        return Response(json.dumps(map(self._get_task_description, tasks)), mimetype='application/json')
+        tasks_queue_indexes = {}
+        queue_sizes = defaultdict(lambda: 0)
+        for id in pending_tasks:
+            queue_id = tasks[id].get_queue_id()
+            queue_sizes[queue_id] += 1
+            tasks_queue_indexes[id] = queue_sizes[queue_id]
+
+        tasks_descriptions = []
+        for id, task in tasks.iteritems():
+            description = task.dict(hide_token=True, fields=fields)
+            if id in tasks_queue_indexes:
+                description["queue_index"] = tasks_queue_indexes[id]
+            tasks_descriptions.append(description)
+
+        return Response(json.dumps(tasks_descriptions), mimetype='application/json')
 
     def config(self):
         return jsonify(self._config)
