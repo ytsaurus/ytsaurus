@@ -76,7 +76,7 @@ class Task(object):
     # NB: destination table is missing if we copy to kiwi
     def __init__(self, source_cluster, source_table, destination_cluster, creation_time, id, state, user,
                  destination_table=None, source_cluster_token=None, token=None, destination_cluster_token=None, mr_user=None, error=None,
-                 start_time=None, finish_time=None, copy_method=None, progress=None, meta=None, backend_tag=None):
+                 start_time=None, finish_time=None, copy_method=None, progress=None, backend_tag=None, pool=None, meta=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.source_cluster_token = get_value(source_cluster_token, token)
@@ -97,6 +97,7 @@ class Task(object):
         self.progress = progress
 
         self.backend_tag = backend_tag
+        self.pool = pool
 
         # Special field to store meta-information for web-interface
         self.meta = meta
@@ -127,7 +128,7 @@ class Task(object):
     def dict(self, hide_token=False):
         result = deepcopy(self.__dict__)
         if hide_token:
-            for key in ["token", "source_cluster_token", "destination_cluster_token"]:
+            for key in ["token", "source_cluster_token", "destination_cluster_token"] or key.startswith("_"):
                 del result[key]
         for key in result.keys():
             if result[key] is None:
@@ -315,8 +316,12 @@ class Application(object):
 
         self.kiwi_transmitter = None
         if "kiwi_transmitter" in config:
-            self.kiwi_transmitter = Yt(**config["kiwi_transmitter"])
-            self.kiwi_transmitter._name = self.kiwi_transmitter.proxy.split(".")[0]
+            name = config["kiwi_transmitter"]
+            if name not in self._clusters:
+                raise yt.YtError("Incorrect kiwi transmitter, clustter {} is missing".format(name))
+            self.kiwi_transmitter = self._clusters[name]
+            if self.kiwi_transmitter._type != "yt":
+                raise yt.YtError("Kiwi transmitter must be YT cluster")
 
 
     def _configure_logging(self, logging_node):
@@ -349,10 +354,14 @@ class Application(object):
         self._tasks = {}
 
         # From ... to task ids
-        self._running_task_queues = defaultdict(lambda: [])
+        self._running_tasks_queues = defaultdict(lambda: [])
+        self._runned_during_heartbeat = set()
 
         # List of tasks sorted by creation time
         self._pending_tasks = []
+
+        # Number of pending tasks per user
+        self._pending_tasks_per_user = defaultdict(lambda: 0)
 
         for id, options in self._yt.get(tasks_path).iteritems():
             task = Task(**options)
@@ -360,11 +369,15 @@ class Application(object):
             if task.state == "running":
                 self._change_task_state(id, "pending")
             if task.state == "pending":
-                self._pending_tasks.append(task.id)
+                self._append_pending_task(task)
 
         self._pending_tasks.sort(key=lambda id: self._tasks[id].creation_time)
 
         logger.info("Tasks load")
+
+    def _append_pending_task(self, task):
+        self._pending_tasks.append(task.id)
+        self._pending_tasks_per_user[task.user] += 1
 
     def _change_task_state(self, id, new_state):
         with self._mutex:
@@ -377,7 +390,6 @@ class Application(object):
         with self._mutex:
             self._yt.set(os.path.join(self._tasks_path, id), self._tasks[id].dict())
 
-
     def _create_pool(self, yt_client, destination_cluster_name):
         pool_name = "transfer_" + destination_cluster_name
         pool_path = "//sys/pools/transfer_manager/" + pool_name
@@ -387,14 +399,36 @@ class Application(object):
             yt_client.create("map_node", pool_path, recursive=True, ignore_existing=True)
             yt_client.set(pool_path + "/@resource_limits", {"user_slots": 200})
             yt_client.set(pool_path + "/@mode", "fifo")
-        return pool_path
+        return pool_name
 
-    def _get_pool(self, yt_client, name):
-        if name in yt_client._pools:
-            return yt_client._pools[name]
+    # Return pair: active client, that run copy operation and passive client.
+    def _get_active_and_passive_clients(self, task):
+        source_client = task.get_source_client(self._clusters)
+        destination_client = task.get_destination_client(self._clusters)
+
+        if destination_client._type == "yamr":
+            if source_client._type == "yt" and task.copy_method == "push":
+                return source_client, destination_client
+            return destination_client, source_client
+        elif destination_client._type == "yt":
+            return destination_client, source_client
+        else: # _type == "kiwi"
+            return self.kiwi_transmitter, source_client
+
+    def _initialize_pool(self, task):
+        if task.pool is not None:
+            return
+
+        active_client, passive_client = self._get_active_and_passive_clients(task)
+        if active_client._type != "yt":
+            return
+
+        name = passive_client._name
+        if name in active_client._pools:
+            pool = active_client._pools[name]
         else:
-            return self._create_pool(yt_client, name)
-
+            pool = self._create_pool(active_client, name)
+        task.pool = pool
 
     def _get_token(self, authorization_header):
         words = authorization_header.split()
@@ -469,9 +503,26 @@ class Application(object):
 
         logger.info("Precheck for task %s completed", task.id)
 
-
     def _can_run(self, task):
-        return not self._running_task_queues[task.get_queue_id()]
+        if task.get_queue_id() in self._runned_during_heartbeat:
+            return False
+        if len(self._running_tasks_queues[task.get_queue_id()]) >= self._config["running_tasks_limit_per_direction"]:
+            return False
+
+        client, _ = self._get_active_and_passive_clients(task)
+        if client._type == "yt":
+            pool_info = client.get("//sys/scheduler/orchid/scheduler/pools/" + task.pool)
+            usage_ratio = 0.0
+            for resource, usage in pool_info["resource_usage"].iteritems():
+                limit = pool_info["resource_limits"][resource]
+                if limit == 0:
+                    usage_ratio = 1.0
+                else:
+                    usage_ratio = max(usage_ratio, float(usage) / limit)
+            if usage_ratio > 0.95:
+                return False
+
+        return True
 
     def _execute_tasks(self):
         while True:
@@ -485,8 +536,6 @@ class Application(object):
             logger.info("Processing tasks")
 
             with self._mutex:
-                self._pending_tasks = filter(lambda id: self._tasks[id].state == "pending", self._pending_tasks)
-
                 logger.info("Progress: %d running, %d pending tasks found", len(self._task_processes), len(self._pending_tasks))
 
                 for id, (process, message_queue) in self._task_processes.items():
@@ -526,22 +575,31 @@ class Application(object):
                             self._change_task_state(id, "failed")
 
                         self._dump_task(id)
-                        self._running_task_queues[self._tasks[id].get_queue_id()].remove(id)
+                        self._running_tasks_queues[self._tasks[id].get_queue_id()].remove(id)
                         del self._task_processes[id]
 
                 for id in self._pending_tasks:
                     if not self._can_run(self._tasks[id]):
                         logger.info("Task %s pending", id)
                         continue
-                    self._running_task_queues[self._tasks[id].get_queue_id()].append(id)
+
+                    queue_id = self._tasks[id].get_queue_id()
+                    self._running_tasks_queues[queue_id].append(id)
+                    self._runned_during_heartbeat.add(queue_id)
+                    self._pending_tasks_per_user[self._tasks[id].user] -= 1
+
                     self._tasks[id].start_time = now()
                     self._tasks[id].progress = {"operations": []}
                     self._change_task_state(id, "running")
+
                     queue = Queue()
                     task_process = Process(target=lambda: self._execute_task(self._tasks[id], queue))
                     task_process.aborted = False
                     task_process.start()
                     self._task_processes[id] = (task_process, queue)
+
+                self._pending_tasks = filter(lambda id: self._tasks[id].state == "pending", self._pending_tasks)
+                self._runned_during_heartbeat.clear()
 
             time.sleep(self._sleep_step)
 
@@ -558,7 +616,8 @@ class Application(object):
                 "transfer_manager": {
                     "task_id": task.id,
                     "backend_tag": task.backend_tag
-                }
+                },
+                "pool": task.pool
             }
 
             source_client = task.get_source_client(self._clusters)
@@ -572,7 +631,6 @@ class Application(object):
             if source_client._type == "yt" and destination_client._type == "yt":
                 logger.info("Running YT -> YT remote copy operation")
                 if source_client._version != destination_client._version:
-                    task_spec["pool"] = self._get_pool(destination_client, source_client._name)
                     copy_yt_to_yt_through_proxy(
                         source_client,
                         destination_client,
@@ -598,7 +656,6 @@ class Application(object):
             elif source_client._type == "yt" and destination_client._type == "yamr":
                 logger.info("Running YT -> YAMR remote copy")
                 if task.copy_method == "push":
-                    task_spec["pool"] = self._get_pool(source_client, destination_client._name)
                     copy_yt_to_yamr_push(
                         source_client,
                         destination_client,
@@ -616,7 +673,6 @@ class Application(object):
                         fastbone=fastbone,
                         message_queue=message_queue)
             elif source_client._type == "yamr" and destination_client._type == "yt":
-                task_spec["pool"] = self._get_pool(destination_client, source_client._name)
                 logger.info("Running YAMR -> YT remote copy")
                 copy_yamr_to_yt_pull(
                     source_client,
@@ -633,7 +689,6 @@ class Application(object):
                     task.destination_table,
                     fastbone=fastbone)
             elif source_client._type == "yt" and destination_client._type == "kiwi":
-                task_spec["pool"] = self._get_pool(self.kiwi_transmitter, "{0}_{1}".format(source_client._name, destination_client._name))
                 copy_yt_to_kiwi(
                     source_client,
                     destination_client,
@@ -715,8 +770,11 @@ class Application(object):
         except TypeError as error:
             raise RequestFailed("Cannot create task", inner_errors=[yt.YtError(error.message)])
 
-        if len(self._pending_tasks) > self._config["pending_task_limit"]:
+        if len(self._pending_tasks) > self._config["pending_tasks_limit"]:
             raise RequestFailed("Too many pending tasks (>{0})".format(len(self._pending_tasks)))
+
+        if self._pending_tasks_per_user[task.user] > self._config["pending_tasks_limit_per_user"]:
+            raise RequestFailed("Too many pending tasks per user (>{0})".format(self._pending_tasks_per_user[task.user]))
 
         try:
             self._precheck(task, ignore_timeout=True, yamr_timeout=5.0)
@@ -724,10 +782,12 @@ class Application(object):
             raise RequestFailed("Precheck failed", inner_errors=[error])
 
         if not request.args.get("dry_run", False):
+            self._initialize_pool(task)
             self._yt.set(os.path.join(self._tasks_path, task.id), task.dict())
             with self._mutex:
                 self._tasks[task.id] = task
                 self._pending_tasks.append(task.id)
+                self._pending_tasks_per_user[task.user] += 1
             logger.info("Task %s added", task.id)
 
         return task.id
@@ -857,6 +917,13 @@ DEFAULT_CONFIG = {
             },
             "fastbone": True
         },
+        "flux": {
+            "type": "yt",
+            "options": {
+                "proxy": "flux.yt.yandex.net",
+                "token": "93b4cacc08aa4538a79a76c21e99c0fb"
+            }
+        },
         "apterix": {
             "type": "kiwi",
             "options": {
@@ -866,10 +933,7 @@ DEFAULT_CONFIG = {
             "fastbone": True
         }
     },
-    "kiwi_transmitter": {
-        "proxy": "flux.yt.yandex.net",
-        "token": "93b4cacc08aa4538a79a76c21e99c0fb"
-    },
+    "kiwi_transmitter": "flux",
     "availability_graph": {
         "kant": ["cedar", "redwood", "smith", "plato"],
         "smith": ["cedar", "redwood", "kant", "plato"],
@@ -878,7 +942,10 @@ DEFAULT_CONFIG = {
         "redwood": ["cedar", "kant", "smith", "plato"]
     },
     "default_mr_user": "userdata",
-    "pending_task_limit": 5000,
+    "pending_tasks_limit": 5000,
+    "pending_tasks_limit_per_user": 500,
+    "running_tasks_limit_per_direction": 10,
+
     "path": "//home/ignat/transfer_manager_test",
     "proxy": "kant.yt.yandex.net",
     "token": "93b4cacc08aa4538a79a76c21e99c0fb",
