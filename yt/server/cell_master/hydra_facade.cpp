@@ -210,13 +210,16 @@ private:
         for (const auto& fileName : snapshotFileNames) {
             if (NFS::GetFileExtension(fileName) != SnapshotExtension)
                 continue;
+
+            int snapshotId;
             try {
-                int snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
-                snapshotIds.push_back(snapshotId);
+                snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
             } catch (const std::exception& ex) {
                 LOG_WARNING("Unrecognized item %Qv in snapshot store",
                     fileName);
+                continue;
             }
+            snapshotIds.push_back(snapshotId);
         }
 
         if (snapshotIds.size() <= Config_->HydraManager->MaxSnapshotsToKeep)
@@ -249,16 +252,23 @@ private:
             if (NFS::GetFileExtension(fileName) != ChangelogExtension)
                 continue;
 
+            int changelogId;
             try {
-                int changelogId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
-                if (changelogId < thresholdId) {
-                    LOG_INFO("Removing changelog %v",
-                        changelogId);
-                    RemoveChangelogFiles(NFS::CombinePaths(changelogsPath, fileName));
-                }
+                changelogId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
             } catch (const std::exception& ex) {
                 LOG_WARNING("Unrecognized item %Qv in changelog store",
                     fileName);
+                continue;
+            }
+            if (changelogId < thresholdId) {
+                LOG_INFO("Removing changelog %v",
+                    changelogId);
+                try {
+                    RemoveChangelogFiles(NFS::CombinePaths(changelogsPath, fileName));
+                } catch (const std::exception& ex) {
+                    LOG_WARNING("Error removing stale changelog %Qv from changelog store",
+                        fileName);
+                }
             }
         }
     }

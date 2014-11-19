@@ -229,15 +229,17 @@ private:
         auto keys = ConvertTo<std::vector<Stroka>>(result.Value());
         int lastestSnapshotId = NonexistingSegmentId;
         for (const auto& key : keys) {
+            int id;
             try {
-                int id = FromString<int>(key);
-                if (id <= maxSnapshotId && id > lastestSnapshotId) {
-                    lastestSnapshotId = id;
-                }
+                id = FromString<int>(key);
             } catch (const std::exception& ex) {
                 LOG_WARNING("Unrecognized item %Qv in remote store %v",
                     key,
                     RemotePath_);
+                continue;
+            }
+            if (id <= maxSnapshotId && id > lastestSnapshotId) {
+                lastestSnapshotId = id;
             }
         }
 

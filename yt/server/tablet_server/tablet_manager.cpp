@@ -1474,14 +1474,16 @@ private:
             std::vector<int> snapshotIds;
             auto snapshotKeys = SyncYPathList(snapshotsMap, "");
             for (const auto& key : snapshotKeys) {
+                int snapshotId;
                 try {
-                    int snapshotId = FromString<int>(key);
-                    snapshotIds.push_back(snapshotId);
+                    snapshotId = FromString<int>(key);
                 } catch (const std::exception& ex) {
                     LOG_WARNING("Unrecognized item %Qv in tablet snapshot store (CellId: %v)",
                         key,
                         cellId);
+                    continue;
                 }
+                snapshotIds.push_back(snapshotId);
             }
 
             if (snapshotIds.size() <= Config_->MaxSnapshotsToKeep)
@@ -1525,29 +1527,31 @@ private:
 
             auto changelogKeys = SyncYPathList(changelogsMap, "");
             for (const auto& key : changelogKeys) {
+                int changelogId;
                 try {
-                    int changelogId = FromString<int>(key);
-                    if (changelogId < thresholdId) {
-                        LOG_INFO("Removing tablet cell changelog %v (CellId: %v)",
-                            changelogId,
-                            cellId);
-                        auto req = TYPathProxy::Remove(changelogsPath + "/" + key);
-                        ExecuteVerb(rootService, req).Subscribe(BIND([=] (TYPathProxy::TRspRemovePtr rsp) {
-                            if (rsp->IsOK()) {
-                                LOG_INFO("Tablet cell changelog %v removed successfully (CellId: %v)",
-                                    changelogId,
-                                    cellId);
-                            } else {
-                                LOG_INFO(*rsp, "Error removing tablet cell changelog %v (CellId: %v)",
-                                    changelogId,
-                                    cellId);
-                            }
-                        }));;
-                    }
+                    changelogId = FromString<int>(key);
                 } catch (const std::exception& ex) {
                     LOG_WARNING("Unrecognized item %Qv in tablet changelog store (CellId: %v)",
                         key,
                         cellId);
+                    continue;
+                }
+                if (changelogId < thresholdId) {
+                    LOG_INFO("Removing tablet cell changelog %v (CellId: %v)",
+                        changelogId,
+                        cellId);
+                    auto req = TYPathProxy::Remove(changelogsPath + "/" + key);
+                    ExecuteVerb(rootService, req).Subscribe(BIND([=] (TYPathProxy::TRspRemovePtr rsp) {
+                        if (rsp->IsOK()) {
+                            LOG_INFO("Tablet cell changelog %v removed successfully (CellId: %v)",
+                                changelogId,
+                                cellId);
+                        } else {
+                            LOG_INFO(*rsp, "Error removing tablet cell changelog %v (CellId: %v)",
+                                changelogId,
+                                cellId);
+                        }
+                    }));;
                 }
             }
         }
