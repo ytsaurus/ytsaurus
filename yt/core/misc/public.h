@@ -58,6 +58,8 @@ template <class> struct TStaticInstanceMixin;
 template <class> struct TRefCountedInstanceMixin;
 template <class> struct THeapInstanceMixin;
 
+typedef ui64 TChecksum;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(EErrorCode,

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public.h"
 #include "ref.h"
 
 #include <util/stream/input.h>
@@ -8,8 +9,6 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-typedef ui64 TChecksum;
 
 TChecksum GetChecksum(TRef data);
 
