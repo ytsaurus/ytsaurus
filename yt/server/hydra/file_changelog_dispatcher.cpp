@@ -6,7 +6,6 @@
 #include "private.h"
 
 #include <core/misc/fs.h>
-#include <core/misc/async_cache.h>
 
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/action_queue.h>
