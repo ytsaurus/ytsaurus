@@ -24,12 +24,14 @@
 #include <core/compression/codec.h>
 
 #include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
 
 #include <ytlib/tablet_client/config.h>
 #include <ytlib/tablet_client/wire_protocol.h>
 #include <ytlib/tablet_client/wire_protocol.pb.h>
 
 #include <ytlib/chunk_client/block_cache.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/object_client/helpers.h>
 
@@ -498,8 +500,34 @@ private:
 
         TabletMap_.Insert(tabletId, tablet);
 
+        std::vector<std::pair<TOwningKey, int>> chunkBoundaries;
+
         for (const auto& descriptor : request.chunk_stores()) {
-            YCHECK(descriptor.has_chunk_meta());
+            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(descriptor.chunk_meta().extensions());
+            if (!miscExt.eden()) {
+                auto boundaryKeysExt = GetProtoExtension<NVersionedTableClient::NProto::TBoundaryKeysExt>(descriptor.chunk_meta().extensions());
+                auto minKey = FromProto<TOwningKey>(boundaryKeysExt.min());
+                auto maxKey = FromProto<TOwningKey>(boundaryKeysExt.max());
+                chunkBoundaries.push_back(std::make_pair(minKey, 1));
+                chunkBoundaries.push_back(std::make_pair(maxKey, -1));
+            }
+        }
+
+        if (!chunkBoundaries.empty()) {
+            std::sort(chunkBoundaries.begin(), chunkBoundaries.end());
+            std::vector<TOwningKey> pivots{pivotKey};
+            int depth = 0;
+            for (const auto& boundary : chunkBoundaries) {
+                if (boundary.second == 1 && depth == 0 && boundary.first > pivotKey) {
+                    pivots.push_back(boundary.first);
+                }
+                depth += boundary.second;
+            }
+            YCHECK(tablet->Partitions().size() == 1);
+            tablet->SplitPartition(0, pivots);
+        }
+
+        for (const auto& descriptor : request.chunk_stores()) {
             auto chunkId = FromProto<TChunkId>(descriptor.store_id());
             auto store = storeManager->CreateChunkStore(Bootstrap_, chunkId, &descriptor.chunk_meta());
             storeManager->AddStore(store);
