@@ -424,7 +424,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, BuildSnapshot)
 {
     bool setReadOnly = request->set_read_only();
 
-    context->SetRequestInfo("SetReadOnly: %lv",
+    context->SetRequestInfo("SetReadOnly: %v",
         setReadOnly);
 
     auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();

@@ -157,7 +157,7 @@ public:
     
         Register();
 
-        LOG_INFO("Master transaction attached (TransactionId: %v, AutoAbort: %lv, Ping: %lv, PingAncestors: %lv)",
+        LOG_INFO("Master transaction attached (TransactionId: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
             Id_,
             AutoAbort_,
             Ping_,
@@ -523,7 +523,7 @@ private:
             Owner_->CellId_,
             MakePromise<TError>(TError()))).second);
 
-        LOG_INFO("Master transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %lv, Ping: %lv, PingAncestors: %lv)",
+        LOG_INFO("Master transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
             Id_,
             StartTimestamp_,
             AutoAbort_,
@@ -547,7 +547,7 @@ private:
 
         State_ = EState::Active;
 
-        LOG_INFO("Tablet transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %lv)",
+        LOG_INFO("Tablet transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v)",
             Id_,
             StartTimestamp_,
             AutoAbort_);

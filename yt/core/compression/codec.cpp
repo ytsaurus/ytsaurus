@@ -270,7 +270,7 @@ ICodec* GetCodec(ECodec id)
             static TNoneCodec result;
             return &result;
         }
-        
+
         case ECodec::Snappy: {
             static TSnappyCodec result;
             return &result;

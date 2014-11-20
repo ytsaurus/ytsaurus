@@ -69,7 +69,7 @@ private:
         if (node->GetState() != ENodeState::Online) {
             context->Reply(TError(
                 NNodeTrackerClient::EErrorCode::InvalidState,
-                "Cannot process a heartbeat in %lv state",
+                "Cannot process a heartbeat in %v state",
                 node->GetState()));
             return;
         }

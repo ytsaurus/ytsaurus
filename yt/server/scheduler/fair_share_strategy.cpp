@@ -1078,7 +1078,7 @@ public:
         return Format(
             "Scheduling = {Status: %v, DominantResource: %v, Demand: %.4lf, "
             "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf, "
-            "Starving: %lv, Weight: %v, "
+            "Starving: %v, Weight: %v, "
             "PreemptableRunningJobs: %v}",
             element->GetStatus(),
             attributes.DominantResource,

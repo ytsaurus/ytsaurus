@@ -260,7 +260,7 @@ public:
                 SealedRecordCount_);
         }
 
-        LOG_DEBUG("Changelog opened (RecordCount: %v, Sealed: %lv)",
+        LOG_DEBUG("Changelog opened (RecordCount: %v, Sealed: %v)",
             RecordCount_,
             Sealed_);
     }

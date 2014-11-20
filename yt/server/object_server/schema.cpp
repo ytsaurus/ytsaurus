@@ -70,7 +70,7 @@ private:
         if (key == "type") {
             auto type = TypeFromSchemaType(TypeFromId(GetId()));
             BuildYsonFluently(consumer)
-                .Value(Format("schema:%lv", type));
+                .Value(Format("schema:%v", type));
             return true;
         }
 

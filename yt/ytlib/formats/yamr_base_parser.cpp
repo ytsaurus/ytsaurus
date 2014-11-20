@@ -332,7 +332,7 @@ const char* TYamrLenvalBaseParser::ConsumeLength(const char* begin, const char* 
             BytesToRead = 4;
             State = EState::InsideTableSwitch;
         } else {
-            THROW_ERROR_EXCEPTION("Unexpected table switch instruction (State: %lv)", State);
+            THROW_ERROR_EXCEPTION("Unexpected table switch instruction (State: %v)", State);
         }
     }
 

@@ -32,7 +32,7 @@ Stroka ToString(TChunkPtrWithIndex value)
             chunk->GetId(),
             index);
     } else if (chunk->IsJournal()) {
-        return Format("%v/%lv",
+        return Format("%v/%v",
             chunk->GetId(),
             EJournalReplicaType(index));
     } else {

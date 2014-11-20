@@ -35,7 +35,7 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, LookupSnapshot)
     int maxSnapshotId = request->max_snapshot_id();
     bool exactId = request->exact_id();
 
-    context->SetRequestInfo("MaxSnapshotId: %v, ExactId: %lv",
+    context->SetRequestInfo("MaxSnapshotId: %v, ExactId: %v",
         maxSnapshotId,
         exactId);
 

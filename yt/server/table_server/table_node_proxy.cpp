@@ -336,7 +336,7 @@ private:
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->first_tablet_index();
         bool force = request->force();
-        context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, Force: %lv",
+        context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, Force: %v",
             firstTabletIndex,
             lastTabletIndex,
             force);

@@ -348,7 +348,7 @@ void TSelectCommand::DoExecute()
     const auto& statistics = queryStatisticsOrError.Value();
     
     LOG_INFO(
-        "Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, IncompleteInput: %lv, IncompleteOutput: %lv)",
+        "Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
         statistics.RowsRead,
         statistics.RowsWritten,
         statistics.AsyncTime.MilliSeconds(),

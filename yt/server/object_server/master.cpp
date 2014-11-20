@@ -115,7 +115,7 @@ private:
 
         auto objectId = FromProto<TObjectId>(request->object_id());
         bool recursive = request->recursive();
-        context->SetRequestInfo("ObjectId: %v, Recursive: %lv",
+        context->SetRequestInfo("ObjectId: %v, Recursive: %v",
             objectId,
             recursive);
 
