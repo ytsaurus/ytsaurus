@@ -1227,7 +1227,7 @@ private:
                 .Item("next_pivot_key").Value(partition->GetNextPivotKey())
                 .Item("sample_key_count").Value(partition->SampleKeys().size())
                 .Item("sampling_needed").Value(partition->GetSamplingNeeded())
-                .Item("uncompressed_data_size").Value(partition->GetDataSize()())
+                .Item("uncompressed_data_size").Value(partition->GetDataSize())
                 .Item("stores").DoMapFor(partition->Stores(), [&] (TFluentMap fluent, const IStorePtr& store) {
                     fluent
                         .Item(ToString(store->GetId()))
