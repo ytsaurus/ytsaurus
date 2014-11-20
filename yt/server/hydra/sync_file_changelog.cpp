@@ -629,11 +629,9 @@ private:
 
             CurrentBlockSize_ = 0;
             Index_.push_back(TChangelogIndexRecord(recordId, CurrentFilePosition_));
-            {
-                std::lock_guard<std::mutex> guard(Mutex_);
-                WritePod(*IndexFile_, Index_.back());
-                UpdateIndexHeader();
-            }
+            WritePod(*IndexFile_, Index_.back());
+            UpdateIndexHeader();
+
             LOG_DEBUG("Changelog index record added (RecordId: %v, Offset: %v)",
                 recordId,
                 CurrentFilePosition_);
