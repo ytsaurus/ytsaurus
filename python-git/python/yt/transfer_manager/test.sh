@@ -1,5 +1,7 @@
 #!/bin/bash -eu
 
+PORT=5000
+
 die() {
     echo $@
     exit 1
@@ -15,36 +17,36 @@ check() {
     [ "${first}" = "${second}" ] || die "Test fail $1 does not equal $2"
 }
 
+request() {
+    local method="$1" && shift
+    local path="$1" && shift
+    curl -X "$method" -sS -k -L -f "http://localhost:${PORT}/${path}" \
+         -H "Content-Type: application/json" \
+         -H "Authorization: OAuth $YT_TOKEN" \
+         "$@"
+}
+
 get_task() {
     local id="$1"
-    curl -X GET -s -k -L -f "http://localhost:5010/tasks/$id/" \
-         -H "Content-Type: application/json" \
-         -H "Authorization: OAuth $YT_TOKEN"
+    request "GET" "tasks/$id/"
 }
 
 run_task() {
     local body="$1"
     log "Running task $body"
-    curl -X POST -s -k -L -f "http://localhost:5010/tasks/" \
-         -H "Content-Type: application/json" \
-         -H "Authorization: OAuth $YT_TOKEN" \
-         -d "$1"
+    request "POST" "tasks/" -d "$1"
 }
 
 abort_task() {
     local id="$1"
     log "Aborting task $id"
-    curl -X POST -s -k -L -f "http://localhost:5010/tasks/$id/abort/" \
-         -H "Content-Type: application/json" \
-         -H "Authorization: OAuth $YT_TOKEN"
+    request "POST" "tasks/$id/abort/"
 }
 
 restart_task() {
     local id="$1"
     log "Restarting task $id"
-    curl -X POST -s -k -L -f "http://localhost:5010/tasks/$id/restart/" \
-         -H "Content-Type: application/json" \
-         -H "Authorization: OAuth $YT_TOKEN"
+    request "POST" "tasks/$id/restart/"
 }
 
 wait_task() {

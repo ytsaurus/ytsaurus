@@ -33,10 +33,22 @@
             "options": {
                 "server": "cedar00.search.yandex.net",
                 "opts": "MR_NET_TABLE=ipv6",
-                "binary": "/opt/cron/tools/mapreduce",
+                "binary": "/Berkanavt/bin/mapreduce-dev",
                 "server_port": 8013,
                 "http_port": 13013,
                 "viewer": "https://specto.yandex.ru/cedar-viewer/"
+            },
+            "fastbone": true
+        },
+        "redwood": {
+            "type": "yamr",
+            "options": {
+                "server": "redwood00.search.yandex.net",
+                "binary": "/Berkanavt/bin/mapreduce",
+                "server_port": 8013,
+                "http_port": 13013,
+                "viewer": "https://specto.yandex.ru/redwood-viewer/",
+                "timeout": 300
             },
             "fastbone": true
         },
@@ -44,7 +56,7 @@
             "type": "yamr",
             "options": {
                 "server": "betula00.yandex.ru",
-                "binary": "/opt/cron/tools/betula/mapreduce",
+                "binary": "/Berkanavt/bin/mapreduce-dev",
                 "server_port": 8013,
                 "http_port": 13013,
                 "viewer": "https://specto.yandex.ru/betula-viewer/"
@@ -71,7 +83,7 @@
             "options": {
                 "server": "bsmr-server.yandex.ru",
                 "opts": "MR_NET_TABLE=ipv6",
-                "binary": "/opt/cron/tools/mapreduce",
+                "binary": "/Berkanavt/bin/mapreduce-dev",
                 "server_port": 8013,
                 "http_port": 13013
             },
@@ -84,8 +96,9 @@
         "smith": ["cedar", "betula", "kant", "plato"],
         "plato": ["cedar", "betula", "kant", "smith", "apterix"],
         "marx": ["plato"],
-        "cedar": ["kant", "smith", "plato"],
-        "betula": ["kant", "smith", "plato"],
+        "cedar": ["kant", "smith", "plato", "redwood", "betula"],
+        "betula": ["kant", "smith", "plato", "cedar", "redwood"],
+        "redwood": ["cedar", "betula"],
         "bsmr": ["kant"]
     },
     "pending_tasks_limit": 5000,
