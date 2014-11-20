@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
+from yt.yson.yson_types import *
 from yt.yson import to_yson_type
 from yt.yson.test import YsonParserTestBase
 
@@ -45,6 +46,43 @@ class TestYsonStream(YsonParserTestBase, unittest.TestCase):
         self.assertEqual('"\\0"', dumps("\x00"))
         self.assertEqual('\x01\x02\x00', dumps("\x00", yson_format="binary"))
 
+    def test_none(self):
+        self.assertEqual("#", dumps(None))
+        self.assertEqual("#", dumps(YsonEntity()))
+
+        self.assertTrue(loads("#", always_create_attributes=False) is None)
+        self.assertEqual(YsonEntity(), loads("#"))
+
+    def test_always_create_attributes(self):
+        obj = loads("{a=[b;1]}")
+        self.assertTrue(isinstance(obj, YsonMap))
+        self.assertTrue(isinstance(obj["a"], YsonList))
+        self.assertTrue(isinstance(obj["a"][0], YsonString))
+        self.assertTrue(isinstance(obj["a"][1], YsonInt64))
+
+        obj = loads("{a=[b;1]}", always_create_attributes=False)
+        self.assertFalse(isinstance(obj, YsonMap))
+        self.assertFalse(isinstance(obj["a"], YsonList))
+        self.assertFalse(isinstance(obj["a"][0], YsonString))
+        self.assertFalse(isinstance(obj["a"][1], YsonInt64))
+        self.assertTrue(isinstance(obj, dict))
+        self.assertTrue(isinstance(obj["a"], list))
+        self.assertTrue(isinstance(obj["a"][0], str))
+        self.assertTrue(isinstance(obj["a"][1], int))
+
+        obj = loads("{a=[b;<attr=#>1]}", always_create_attributes=False)
+        self.assertFalse(isinstance(obj, YsonMap))
+        self.assertFalse(isinstance(obj["a"], YsonList))
+        self.assertFalse(isinstance(obj["a"][0], YsonString))
+        self.assertTrue(isinstance(obj["a"][1], YsonInt64))
+        self.assertTrue(obj["a"][1].attributes["attr"] is None)
+
+    def test_ignore_inner_attributes(self):
+        map = YsonMap()
+        map["value"] = YsonEntity()
+        map["value"].attributes = {"attr": 10}
+        self.assertEqual('{"value"=<"attr"=10>#}', dumps(map))
+        self.assertEqual('{"value"=#}', dumps(map, ignore_inner_attributes=True))
 
 if __name__ == "__main__":
     unittest.main()
