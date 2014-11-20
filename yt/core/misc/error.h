@@ -119,6 +119,7 @@ struct TErrorAttribute
 TError operator << (TError error, const TErrorAttribute& attribute);
 TError operator << (TError error, const TError& innerError);
 TError operator << (TError error, const std::vector<TError>& innerErrors);
+TError operator << (TError error, std::unique_ptr<NYTree::IAttributeDictionary> attributes);
 
 TError operator >>= (const TErrorAttribute& attribute, TError error);
 

@@ -384,6 +384,14 @@ TError operator << (TError error, const std::vector<TError>& innerErrors)
     return error;
 }
 
+TError operator << (TError error, std::unique_ptr<NYTree::IAttributeDictionary> attributes)
+{
+    for (const auto& key : attributes->List()) {
+        error.Attributes().SetYson(key, attributes->GetYson(key));
+    }
+    return error;
+}
+
 TError operator >>= (const TErrorAttribute& attribute, TError error)
 {
     return error << attribute;
