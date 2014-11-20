@@ -49,10 +49,10 @@ protected:
 
         TUnversionedRow row = TUnversionedRow::Allocate(&MemoryPool, 5);
         row[0] = MakeUnversionedStringValue("a", 0);
-        row[1] = MakeUnversionedIntegerValue(1, 3);
+        row[1] = MakeUnversionedInt64Value(1, 3);
         row[2] = MakeUnversionedDoubleValue(1.5, 2);
-        row[3] = MakeUnversionedIntegerValue(8, 5);
-        row[4] = MakeUnversionedIntegerValue(7, 7);
+        row[3] = MakeUnversionedInt64Value(8, 5);
+        row[4] = MakeUnversionedInt64Value(7, 7);
 
         blockWriter.WriteRow(row);
 
@@ -72,7 +72,7 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
 
     TUnversionedRow row = TUnversionedRow::Allocate(&MemoryPool, 2);
         row[0] = MakeUnversionedDoubleValue(1.5, 0);
-        row[1] = MakeVersionedIntegerValue(7, 1);
+        row[1] = MakeVersionedInt64Value(7, 1);
 
     std::vector<TUnversionedRow> rows;
     rows.push_back(row);
@@ -100,15 +100,15 @@ TEST_F(TSchemalessBlocksTestOneRow, SkipToKey)
     {
         TUnversionedOwningRowBuilder builder;
         builder.AddValue(MakeUnversionedStringValue("a"));
-        builder.AddValue(MakeUnversionedIntegerValue(0));
+        builder.AddValue(MakeUnversionedInt64Value(0));
 
-        EXPECT_TRUE(blockReader.SkipToKey(builder.GetRowAndReset()));
+        EXPECT_TRUE(blockReader.SkipToKey(builder.FinishRow()));
     } {
         TUnversionedOwningRowBuilder builder;
         builder.AddValue(MakeUnversionedStringValue("a"));
-        builder.AddValue(MakeUnversionedIntegerValue(2));
+        builder.AddValue(MakeUnversionedInt64Value(2));
 
-        EXPECT_FALSE(blockReader.SkipToKey(builder.GetRowAndReset()));
+        EXPECT_FALSE(blockReader.SkipToKey(builder.FinishRow()));
     }
 }
 
@@ -138,7 +138,7 @@ protected:
         std::vector<TUnversionedRow> result;
         for (int i = beginIndex; i < endIndex ; ++i) {
             TUnversionedRow row = TUnversionedRow::Allocate(&MemoryPool, 2);
-            row[0] = MakeUnversionedIntegerValue(i, 0);
+            row[0] = MakeUnversionedInt64Value(i, 0);
             row[1] = MakeUnversionedStringValue("big data", 1);
             result.push_back(row);
         }
@@ -158,8 +158,8 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToKey)
         2);
 
     TUnversionedOwningRowBuilder builder;
-    builder.AddValue(MakeUnversionedIntegerValue(42));
-    EXPECT_TRUE(blockReader.SkipToKey(builder.GetRowAndReset()));
+    builder.AddValue(MakeUnversionedInt64Value(42));
+    EXPECT_TRUE(blockReader.SkipToKey(builder.FinishRow()));
 
     CheckResult(blockReader, MakeRows(42, 1000));
 }
