@@ -13,8 +13,11 @@ from yt_commands import *
 
 def can_perform_block_io_tests():
     try:
-        subprocess.check_output(["ls", "-l", "/dev/sda"])
+        subprocess.check_call(["ls", "-l", "/dev/sda"])
         return subprocess.check_output(["sudo", "-n", "-l", "dd"]).strip() == "/bin/dd"
+    except AttributeError:
+        # python 2.6 subprocess module does not have check_output function
+        return False
     except subprocess.CalledProcessError:
         return False
 
