@@ -2,8 +2,9 @@
 #include "file_snapshot_store.h"
 #include "snapshot.h"
 #include "config.h"
-#include "private.h"
 #include "file_helpers.h"
+#include "format.h"
+#include "private.h"
 
 #include <core/misc/fs.h>
 #include <core/misc/serialize.h>
@@ -28,70 +29,6 @@ using namespace NHydra::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = HydraLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-#pragma pack(push, 4)
-
-struct TSnapshotHeader
-{
-    static const ui64 ExpectedSignature;
-
-    ui64 Signature = ExpectedSignature;
-    i32 SnapshotId = 0;
-    ui64 CompressedLength = 0;
-    ui64 UncompressedLength = 0;
-    ui64 Checksum = 0;
-    i32 Codec = ECodec::None;
-    i32 MetaSize;
-
-    void Validate() const
-    {
-        if (Signature != ExpectedSignature) {
-            LOG_FATAL("Invalid signature: expected %v, found %v",
-                ExpectedSignature,
-                Signature);
-        }
-    }
-};
-
-const ui64 TSnapshotHeader::ExpectedSignature =  0x3330303053535459ull; // YTSS0003
-
-static_assert(sizeof(TSnapshotHeader) == 44, "Binary size of TSnapshotHeader has changed.");
-
-#pragma pack(pop)
-
-////////////////////////////////////////////////////////////////////////////////
-
-#pragma pack(push, 4)
-
-// COMPAT(babenko)
-struct TSnapshotHeader_0_16
-{
-    static const ui64 ExpectedSignature =  0x3130303053535459ull; // YTSS0001
-
-    ui64 Signature = 0;
-    i32 SnapshotId = 0;
-    TEpochId Epoch;
-    i32 PrevRecordCount = 0;
-    ui64 DataLength = 0;
-    ui64 Checksum = 0;
-};
-
-static_assert(sizeof(TSnapshotHeader_0_16) == 48, "Binary size of TSnapshotHeader_0_16 has changed.");
-
-#pragma pack(pop)
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NHydra
-} // namespace NYT
-
-DECLARE_PODTYPE(NYT::NHydra::TSnapshotHeader)
-DECLARE_PODTYPE(NYT::NHydra::TSnapshotHeader_0_16)
-
-namespace NYT {
-namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 

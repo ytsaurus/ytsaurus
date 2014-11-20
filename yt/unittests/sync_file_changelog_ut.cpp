@@ -4,7 +4,7 @@
 #include <server/hydra/config.h>
 #include <server/hydra/changelog.h>
 #include <server/hydra/sync_file_changelog.h>
-#include <server/hydra/sync_file_changelog_impl.h>
+#include <server/hydra/format.h>
 
 #include <core/profiling/scoped_timer.h>
 

@@ -6,7 +6,7 @@ set( SRCS
   ${BASE}/persistent_response_keeper.cpp
   ${BASE}/file_helpers.cpp
   ${BASE}/sync_file_changelog.cpp
-  ${BASE}/sync_file_changelog_impl.cpp
+  ${BASE}/format.cpp
   ${BASE}/file_changelog_dispatcher.cpp
   ${BASE}/local_changelog_store.cpp
   ${BASE}/file_snapshot_store.cpp
@@ -43,7 +43,7 @@ set( HDRS
   ${BASE}/file_helpers-inl.h
   ${BASE}/changelog.h
   ${BASE}/sync_file_changelog.h
-  ${BASE}/sync_file_changelog_impl.h
+  ${BASE}/format.h
   ${BASE}/file_changelog_dispatcher.h
   ${BASE}/local_changelog_store.h
   ${BASE}/config.h
