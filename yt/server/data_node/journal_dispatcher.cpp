@@ -516,6 +516,7 @@ public:
 
     virtual TAsyncError Close() override
     {
+        Owner_->TryRemove(this);
         return UnderlyingChangelog_->Close();
     }
 
