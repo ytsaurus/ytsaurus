@@ -65,7 +65,12 @@ public:
         TAsyncError result;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            YCHECK(!SealRequested_ && !UnsealRequested_);
+            YCHECK(
+                !SealRequested_ &&
+                !UnsealRequested_ &&
+                !Sealed_ &&
+                !CloseRequested_ &&
+                !Closed_);
             AppendQueue_.push_back(std::move(data));
             ByteSize_ += data.Size();
             YCHECK(FlushPromise_);
@@ -174,7 +179,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(SyncThread);
 
-        MaybeSyncFlush();
+        SyncFlush();
         MaybeSyncSeal();
         MaybeSyncUnseal();
         MaybeSyncClose();
@@ -312,11 +317,14 @@ private:
     TAsyncErrorPromise ClosePromise_;
     bool CloseRequested_ = false;
 
+    bool Sealed_ = false;
+    bool Closed_ = false;
+
 
     DECLARE_THREAD_AFFINITY_SLOT(SyncThread);
 
 
-    void MaybeSyncFlush()
+    void SyncFlush()
     {
         TAsyncErrorPromise flushPromise;
         {
@@ -348,6 +356,19 @@ private:
         flushPromise.Set(TError());
     }
 
+    void SyncFlushAll()
+    {
+        while (true) {
+            {
+                TGuard<TSpinLock> guard(SpinLock_);
+                if (AppendQueue_.empty())
+                    break;
+            }
+            SyncFlush();
+        }
+    }
+
+
     void MaybeSyncSeal()
     {
         TAsyncErrorPromise promise;
@@ -358,16 +379,10 @@ private:
             promise = SealPromise_;
             SealPromise_.Reset();
             SealRequested_ = false;
+            Sealed_ = true;
         }
 
-        while (true) {
-            {
-                TGuard<TSpinLock> guard(SpinLock_);
-                if (AppendQueue_.empty())
-                    break;
-            }
-            MaybeSyncFlush();
-        }
+        SyncFlushAll();
 
         PROFILE_TIMING("/changelog_seal_io_time") {
             Changelog_->Seal(SealRecordCount_);
@@ -386,6 +401,7 @@ private:
             promise = UnsealPromise_;
             UnsealPromise_.Reset();
             UnsealRequested_ = false;
+            Sealed_ = false;
         }
 
         PROFILE_TIMING("/changelog_unseal_io_time") {
@@ -405,7 +421,10 @@ private:
             promise = ClosePromise_;
             ClosePromise_.Reset();
             CloseRequested_ = false;
+            Closed_ = true;
         }
+
+        SyncFlushAll();
 
         PROFILE_TIMING("/changelog_close_io_time") {
             Changelog_->Close();
