@@ -52,7 +52,7 @@ import config
 import py_wrapper
 from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, \
                    is_prefix, get_value, compose, bool_to_string, chunk_iter_lines, get_version, MB
-from errors import YtError, format_error
+from errors import YtIncorrectResponse, YtError, format_error
 from driver import read_content, get_host_for_heavy_operation, make_request, ResponseStream
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
@@ -516,12 +516,6 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
 
         return read_content(response, raw, format, get_value(response_type, "iter_lines"))
     else:
-        class YtResponseParametersEmptyError(Exception):
-            pass
-
-        retriable_errors = list(RETRIABLE_ERRORS)
-        retriable_errors.append(YtResponseParametersEmptyError)
-
         if response_type is not None:
             logger.info("read_table with retries ignore response_type option")
 
@@ -545,7 +539,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             for attempt in xrange(config.http.REQUEST_RETRY_COUNT):
                 try:
                     return func()
-                except tuple(retriable_errors) as err:
+                except RETRIABLE_ERRORS as err:
                     if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
                         raise
                     logger.warning(format_error(err))
@@ -557,7 +551,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                     try:
                         for elem in iter():
                             yield elem
-                    except tuple(retriable_errors) as err:
+                    except RETRIABLE_ERRORS as err:
                         if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
                             raise
                         logger.warning(format_error(err))
@@ -578,7 +572,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 proxy=get_host_for_heavy_operation(),
                 client=client)
             if "X-YT-Response-Parameters" not in response.headers():
-                raise YtResponseParametersEmptyError("X-YT-Response-Parameters missing (bug in proxy)")
+                raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)")
             rsp_params = json.loads(response.headers()["X-YT-Response-Parameters"])
             return rsp_params.get("start_row_index", None)
 
