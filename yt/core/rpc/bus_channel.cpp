@@ -46,23 +46,38 @@ struct TMethodDescriptor
     NProfiling::TTagIdList TagIds;
 };
 
-TSpinLock MethodDescriptorLock;
-yhash_map<std::pair<Stroka, Stroka>, TMethodDescriptor> MethodDescriptors;
-
-const TMethodDescriptor& GetMethodDescriptor(const Stroka& service, const Stroka& method)
+class TMethodDescriptorRegistry
 {
-    TGuard<TSpinLock> guard(MethodDescriptorLock);
-    auto pair = std::make_pair(service, method);
-    auto it = MethodDescriptors.find(pair);
-    if (it == MethodDescriptors.end()) {
-        TMethodDescriptor descriptor;
-        auto* profilingManager = NProfiling::TProfileManager::Get();
-        descriptor.TagIds.push_back(profilingManager->RegisterTag("service", TYsonString(service)));
-        descriptor.TagIds.push_back(profilingManager->RegisterTag("method", TYsonString(method)));
-        it = MethodDescriptors.insert(std::make_pair(pair, descriptor)).first;
+public:
+    static TMethodDescriptorRegistry* Get()
+    {
+        return TSingleton::Get();
     }
-    return it->second;
-}
+
+    const TMethodDescriptor& GetMethodDescriptor(const Stroka& service, const Stroka& method)
+    {
+        TGuard<TSpinLock> guard(MethodDescriptorLock_);
+        auto pair = std::make_pair(service, method);
+        auto it = MethodDescriptors_.find(pair);
+        if (it == MethodDescriptors_.end()) {
+            TMethodDescriptor descriptor;
+            auto* profilingManager = NProfiling::TProfileManager::Get();
+            descriptor.TagIds.push_back(profilingManager->RegisterTag("service", TYsonString(service)));
+            descriptor.TagIds.push_back(profilingManager->RegisterTag("method", TYsonString(method)));
+            it = MethodDescriptors_.insert(std::make_pair(pair, descriptor)).first;
+        }
+        return it->second;
+    }
+
+    DECLARE_SINGLETON_DEFAULT_MIXIN(TMethodDescriptorRegistry);
+
+private:
+    TMethodDescriptorRegistry() = default;
+    ~TMethodDescriptorRegistry() = default;
+
+    TSpinLock MethodDescriptorLock_;
+    yhash_map<std::pair<Stroka, Stroka>, TMethodDescriptor> MethodDescriptors_;
+};
 
 } // namespace
 
@@ -219,7 +234,8 @@ private:
 
             auto requestId = request->GetRequestId();
 
-            const auto& descriptor = GetMethodDescriptor(request->GetService(), request->GetMethod());
+            const auto& descriptor = TMethodDescriptorRegistry::Get()
+                ->GetMethodDescriptor(request->GetService(), request->GetMethod());
 
             TActiveRequest activeRequest;
             activeRequest.ClientRequest = request;
