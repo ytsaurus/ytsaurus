@@ -543,11 +543,12 @@ private:
             StartTabletEpoch(tablet);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, StoreCount: %v, Keys: %v .. %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, StoreCount: %v, Keys: %v .. %v, PartitionCount: %v)",
             tabletId,
             request.chunk_stores_size(),
             pivotKey,
-            nextPivotKey);
+            nextPivotKey,
+            tablet->Partitions().size());
     }
 
     void HydraUnmountTablet(const TReqUnmountTablet& request)
