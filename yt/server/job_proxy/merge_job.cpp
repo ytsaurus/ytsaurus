@@ -29,6 +29,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Profiler = JobProxyProfiler;
+static const auto& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,6 +72,7 @@ public:
             New<TMultiChunkReaderOptions>(),
             host->GetMasterChannel(),
             host->GetCompressedBlockCache(),
+            host->GetUncompressedBlockCache(),
             host->GetNodeDirectory(),
             std::move(chunkSpecs),
             nameTable,

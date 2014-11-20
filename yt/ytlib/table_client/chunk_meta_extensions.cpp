@@ -34,21 +34,21 @@ TChunkMeta FilterChunkMetaByPartitionTag(const TChunkMeta& chunkMeta, int partit
             }
         }
 
-        ToProto(channelsExt.mutable_items(0)->mutable_blocks(), filteredBlocks);
+        NYT::ToProto(channelsExt.mutable_items(0)->mutable_blocks(), filteredBlocks);
         SetProtoExtension(filteredChunkMeta.mutable_extensions(), channelsExt);
     } else {
         // New chunks.
         auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(chunkMeta.extensions());
 
         std::vector<TBlockMeta> filteredBlocks;
-        for (const auto& blockMeta : blockMetaExt.entries()) {
+        for (const auto& blockMeta : blockMetaExt.blocks()) {
             YCHECK(blockMeta.partition_index() != DefaultPartitionTag);
             if (blockMeta.partition_index() == partitionTag) {
                 filteredBlocks.push_back(blockMeta);
             }
         }
 
-        ToProto(blockMetaExt.mutable_entries(), filteredBlocks);
+        NYT::ToProto(blockMetaExt.mutable_blocks(), filteredBlocks);
         SetProtoExtension(filteredChunkMeta.mutable_extensions(), blockMetaExt);
     }
 

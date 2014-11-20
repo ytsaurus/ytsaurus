@@ -82,7 +82,7 @@ TMultiChunkReaderBase::TMultiChunkReaderBase(
     , IsOpen_(false)
     , OpenedReaderCount_(0)
 {
-    Logger.AddTag(Sprintf("Reader: %p", this));
+    Logger.AddTag("Reader: %p", this);
 
     Config_ = CloneYsonSerializable(config);
 
@@ -218,7 +218,7 @@ void TMultiChunkReaderBase::DoOpenNextChunk()
     YCHECK(ActiveReaders_.insert(reader).second);
 }
 
-IReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunkSpec& chunkSpec)
+IChunkReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunkSpec& chunkSpec)
 {
     auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
     auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
@@ -247,7 +247,7 @@ IReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunkSpec& chunkSpec
     auto* erasureCodec = GetCodec(erasureCodecId);
     auto dataPartCount = erasureCodec->GetDataPartCount();
 
-    std::vector<IReaderPtr> readers;
+    std::vector<IChunkReaderPtr> readers;
     readers.reserve(dataPartCount);
 
     auto it = replicas.begin();
@@ -273,7 +273,7 @@ IReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunkSpec& chunkSpec
     }
     
     YCHECK(readers.size() == dataPartCount);
-    return CreateNonReparingErasureReader(readers);
+    return CreateNonRepairingErasureReader(readers);
 }
 
 void TMultiChunkReaderBase::OnReaderFinished()

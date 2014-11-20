@@ -12,7 +12,7 @@
 #include <core/concurrency/nonblocking_queue.h>
 #include <core/concurrency/public.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <core/rpc/public.h>
 
@@ -56,7 +56,7 @@ protected:
         }
     };
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     TMultiChunkReaderConfigPtr Config_;
     TMultiChunkReaderOptionsPtr Options_;
@@ -71,7 +71,9 @@ protected:
 
     virtual TError DoOpen() = 0;
 
-    virtual IChunkReaderBasePtr CreateTemplateReader(const NProto::TChunkSpec& chunkSpec, IReaderPtr asyncReader) = 0;
+    virtual IChunkReaderBasePtr CreateTemplateReader(
+        const NProto::TChunkSpec& chunkSpec,
+        IChunkReaderPtr asyncReader) = 0;
 
     virtual void OnReaderOpened(IChunkReaderBasePtr chunkReader, int chunkIndex) = 0;
 
@@ -114,7 +116,7 @@ private:
     std::vector<IChunkReaderBasePtr> FinishedReaders_;
 
 
-    IReaderPtr CreateRemoteReader(const NProto::TChunkSpec& chunkSpec);
+    IChunkReaderPtr CreateRemoteReader(const NProto::TChunkSpec& chunkSpec);
 
     void OpenNextChunk();
     void DoOpenNextChunk();

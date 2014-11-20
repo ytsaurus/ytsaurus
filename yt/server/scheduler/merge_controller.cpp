@@ -42,6 +42,9 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NVersionedTableClient;
 
+using NChunkClient::TReadRange;
+using NChunkClient::TReadLimit;
+
 ////////////////////////////////////////////////////////////////////
 
 static NProfiling::TProfiler Profiler("/operations/merge");

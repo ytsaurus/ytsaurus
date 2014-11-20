@@ -27,7 +27,7 @@ void THorizontalSchemalessBlockWriter::WriteRow(TUnversionedRow row)
 
     WritePod(Offsets_, static_cast<ui32>(Data_.GetSize()));
 
-    int size = MaxVarUInt32Size;
+    int size = MaxVarUint32Size;
     for (auto it = row.Begin(); it != row.End(); ++it) {
         size += GetByteSize(*it);
     }
@@ -35,7 +35,7 @@ void THorizontalSchemalessBlockWriter::WriteRow(TUnversionedRow row)
     char* begin = Data_.Preallocate(size);
     char* current = begin;
 
-    current += WriteVarUInt32(current, static_cast<ui32>(row.GetCount()));
+    current += WriteVarUint32(current, static_cast<ui32>(row.GetCount()));
     for (auto it = row.Begin(); it != row.End(); ++it) {
         current += WriteValue(current, *it);
     }

@@ -23,8 +23,9 @@ public:
         TChunkReaderConfigPtr config,
         const NChunkClient::TReadLimit& lowerLimit,
         const NChunkClient::TReadLimit& upperLimit,
-        NChunkClient::IReaderPtr underlyingReader,
-        const NChunkClient::NProto::TMiscExt& misc);
+        NChunkClient::IChunkReaderPtr underlyingReader,
+        const NChunkClient::NProto::TMiscExt& misc,
+        NChunkClient::IBlockCachePtr uncompressedBlockCache);
 
     virtual TAsyncError Open() override;
 
@@ -35,14 +36,16 @@ public:
     virtual TFuture<void> GetFetchingCompletedEvent();
 
 protected:
-    mutable NLog::TTaggedLogger Logger;
+    mutable NLog::TLogger Logger;
 
     TChunkReaderConfigPtr Config_;
 
     NChunkClient::TReadLimit LowerLimit_;
     NChunkClient::TReadLimit UpperLimit_;
 
-    NChunkClient::IReaderPtr UnderlyingReader_;
+    NChunkClient::IBlockCachePtr UncompressedBlockCache_;
+
+    NChunkClient::IChunkReaderPtr UnderlyingReader_;
     NChunkClient::TSequentialReaderPtr SequentialReader_;
 
     NChunkClient::NProto::TMiscExt Misc_;

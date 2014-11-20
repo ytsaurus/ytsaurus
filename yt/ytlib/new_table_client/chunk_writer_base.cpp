@@ -26,7 +26,7 @@ using NYT::ToProto;
 TChunkWriterBase::TChunkWriterBase(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    IWriterPtr asyncWriter,
+    IChunkWriterPtr asyncWriter,
     // We pass key columns here in order to use TChunkWriterBase and
     // TSortedChunkWriterBase as template base interchangably.
     const TKeyColumns& keyColumns)
@@ -100,10 +100,10 @@ void TChunkWriterBase::FillCommonMeta(TChunkMeta* meta) const
 void TChunkWriterBase::RegisterBlock(TBlock& block)
 {
     block.Meta.set_chunk_row_count(RowCount_);
-    block.Meta.set_block_index(BlockMetaExt_.entries_size());
+    block.Meta.set_block_index(BlockMetaExt_.blocks_size());
 
     BlockMetaExtSize_ += block.Meta.ByteSize();
-    BlockMetaExt_.add_entries()->Swap(&block.Meta);
+    BlockMetaExt_.add_blocks()->Swap(&block.Meta);
 
     EncodingChunkWriter_->WriteBlock(std::move(block.Data));
 }
@@ -133,7 +133,7 @@ TError TChunkWriterBase::DoClose()
 TSequentialChunkWriterBase::TSequentialChunkWriterBase(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    IWriterPtr asyncWriter,
+    IChunkWriterPtr asyncWriter,
     // We pass key columns here in order to use TSequentialChunkWriterBase and
     // TSortedChunkWriterBase as a template base interchangably.
     const TKeyColumns& keyColumns)

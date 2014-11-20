@@ -12,6 +12,8 @@
 
 #include <core/concurrency/parallel_awaiter.h>
 
+#include <core/logging/log.h>
+
 #include <core/rpc/public.h>
 
 
@@ -49,18 +51,18 @@ public:
     NProto::TDataStatistics GetDataStatistics() const;
 
 protected:
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     bool VerifyActive();
     bool TrySwitchSession();
 
-    virtual IChunkWriterBasePtr CreateTemplateWriter(IWriterPtr underlyingWriter) = 0;
+    virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) = 0;
 
 private:
     struct TSession
     {
         IChunkWriterBasePtr TemplateWriter;
-        IWriterPtr UnderlyingWriter;
+        IChunkWriterPtr UnderlyingWriter;
         std::vector<TChunkReplica> Replicas;
         TChunkId ChunkId;
 
@@ -123,8 +125,58 @@ private:
     TFuture<void> FinishSession(const TSession& session);
     void DoFinishSession(const TSession& session);
 
-    virtual IChunkWriterBasePtr CreateFrontalWriter(IWriterPtr underlyingWriter) = 0;
+};
 
+////////////////////////////////////////////////////////////////////////////////
+
+template <class IMultiChunkWriter, class ISpecificChunkWriter, class... TWriteArgs>
+class TMultiChunkWriterBase
+    : public TNontemplateMultiChunkWriterBase
+    , public IMultiChunkWriter
+{
+public:
+    typedef TIntrusivePtr<ISpecificChunkWriter> ISpecificChunkWriterPtr;
+
+    TMultiChunkWriterBase(
+        TMultiChunkWriterConfigPtr config,
+        TMultiChunkWriterOptionsPtr options,
+        NRpc::IChannelPtr masterChannel,
+        const NTransactionClient::TTransactionId& transactionId,
+        const TChunkListId& parentChunkListId,
+        std::function<ISpecificChunkWriterPtr(IChunkWriterPtr)> createChunkWriter)
+        : TNontemplateMultiChunkWriterBase(
+            config, 
+            options, 
+            masterChannel, 
+            transactionId, 
+            parentChunkListId)
+        , CreateChunkWriter_(createChunkWriter)
+    { }
+
+    virtual bool Write(TWriteArgs... args) override {
+        if (!VerifyActive()) {
+            return false;
+        }
+
+        // Return true if current writer is ready for more data and
+        // we didn't switch to the next chunk.
+        bool readyForMore = CurrentWriter_->Write(std::forward<TWriteArgs>(args)...);
+        bool switched = false;
+        if (readyForMore) {
+            switched = TrySwitchSession();
+        }
+        return readyForMore && !switched;
+    }
+
+protected:
+    ISpecificChunkWriterPtr CurrentWriter_;
+    std::function<ISpecificChunkWriterPtr(IChunkWriterPtr)> CreateChunkWriter_;
+
+    virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) override
+    {
+        CurrentWriter_ = CreateChunkWriter_(underlyingWriter);
+        return CurrentWriter_;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

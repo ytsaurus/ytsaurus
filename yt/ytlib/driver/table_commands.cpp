@@ -77,7 +77,7 @@ void TReadTableCommand::DoExecute()
         config,
         Context_->GetClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
-        Context_->GetClient()->GetConnection()->GetBlockCache(),
+        Context_->GetClient()->GetConnection()->GetCompressedBlockCache(),
         Request_->Path,
         nameTable);
 

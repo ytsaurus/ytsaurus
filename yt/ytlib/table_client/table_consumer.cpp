@@ -454,9 +454,9 @@ void TTableConsumerBase::OnInt64Scalar(i64 value)
     if (Depth_ == 0) {
         ThrowMapExpected();
     } else if (Depth_ == 1) {
-        WriteValue(MakeUnversionedIntegerValue(value, ColumnIndex_));
+        WriteValue(MakeUnversionedInt64Value(value, ColumnIndex_));
     } else {
-        WriteValue(MakeInt64Value<TUnversionedValue>(value, ColumnIndex_));
+        ValueWriter_.OnInt64Scalar(value);
     }
 }
 
@@ -881,7 +881,7 @@ void TWritingTableConsumer::OnValue(const TUnversionedValue& value)
 
 void TWritingTableConsumer::OnEndRow()
 {
-    OwningRows_.emplace_back(Builder_.GetRowAndReset());
+    OwningRows_.emplace_back(Builder_.FinishRow());
     const auto& row = OwningRows_.back();
 
     CurrentSize_ += row.GetSize();
@@ -894,7 +894,7 @@ void TWritingTableConsumer::OnEndRow()
     }
 }
 
-void TWritingTableConsumer::OnControlIntegerScalar(i64 value)
+void TWritingTableConsumer::OnControlInt64Scalar(i64 value)
 {
     YCHECK(ControlAttribute_ == EControlAttribute::TableIndex);
 

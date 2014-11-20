@@ -242,7 +242,7 @@ void TVersionedChunkWriter::FinishBlock()
 {
     auto block = BlockWriter_->FlushBlock();
     block.Meta.set_chunk_row_count(RowCount_);
-    block.Meta.set_block_index(BlockMetaExt_.entries_size());
+    block.Meta.set_block_index(BlockMetaExt_.blocks_size());
 
     BlockMetaExtSize_ += block.Meta.ByteSize();
 
@@ -319,75 +319,6 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedMultiChunkWriter
-    : public TMultiChunkWriterBase<IVersionedChunkWriter>
-    , public IVersionedMultiChunkWriter
-{
-public:
-    TVersionedMultiChunkWriter(
-        TTableWriterConfigPtr config,
-        TTableWriterOptionsPtr options,
-        const TTableSchema& schema,
-        const TKeyColumns& keyColumns,
-        IChannelPtr masterChannel,
-        const TTransactionId& transactionId,
-        const TChunkListId& parentChunkListId = NChunkClient::NullChunkListId);
-
-    virtual bool Write(const std::vector<TVersionedRow>& rows) override;
-
-private:
-    TTableWriterConfigPtr Config_;
-    TTableWriterOptionsPtr Options_;
-    TTableSchema Schema_;
-    TKeyColumns KeyColumns_;
-
-    IVersionedWriter* CurrentWriter_;
-
-
-    virtual IChunkWriterBasePtr CreateChunkWriter(IChunkWriterPtr underlyingWriter) override;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TVersionedMultiChunkWriter::TVersionedMultiChunkWriter(
-    TTableWriterConfigPtr config,
-    TTableWriterOptionsPtr options,
-    const TTableSchema& schema,
-    const TKeyColumns& keyColumns,
-    IChannelPtr masterChannel,
-    const TTransactionId& transactionId,
-    const TChunkListId& parentChunkListId)
-    : TMultiChunkWriterBase<IVersionedChunkWriter>(
-          config,
-          options,
-          masterChannel,
-          transactionId,
-          parentChunkListId)
-    , Config_(config)
-    , Options_(options)
-    , Schema_(schema)
-    , KeyColumns_(keyColumns)
-{ }
-
-bool TVersionedMultiChunkWriter::Write(const std::vector<TVersionedRow> &rows)
-{
-    if (!VerifyActive()) {
-        return false;
-    }
-
-    // Return true if current writer is ready for more data and
-    // we didn't switch to the next chunk.
-    return CurrentWriter_->Write(rows) && !TrySwitchSession();
-}
-
-IVersionedChunkWriterBasePtr TVersionedMultiChunkWriter::CreateChunkWriter(IChunkWriterPtr underlyingWriter)
-{
-    return CreateVersionedChunkWriter(Config_, Options_, Schema_, KeyColumns_, underlyingWriter);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
@@ -397,7 +328,27 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     const NTransactionClient::TTransactionId& transactionId,
     const TChunkListId& parentChunkListId)
 {
-    return New<TVersionedMultiChunkWriter>(config, options, schema, keyColumns, masterChannel, transactionId, parentChunkListId);
+    typedef TMultiChunkWriterBase<
+        IVersionedMultiChunkWriter,
+        IVersionedChunkWriter,
+        const std::vector<TVersionedRow>&> TVersionedMultiChunkWriter;
+
+    auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
+        return CreateVersionedChunkWriter(
+            config,
+            options,
+            schema,
+            keyColumns,
+            underlyingWriter);
+    };
+
+    return New<TVersionedMultiChunkWriter>(
+        config,
+        options,
+        masterChannel,
+        transactionId,
+        parentChunkListId,
+        createChunkWriter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

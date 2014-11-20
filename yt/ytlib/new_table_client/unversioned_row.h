@@ -592,7 +592,7 @@ public:
 
     int GetSize() const
     {
-        return StringData.length() + RowData.Size();
+        return StringData_.length() + RowData_.Size();
     }
 
     void Save(TStreamSaveContext& context) const;

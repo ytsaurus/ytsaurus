@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "row_base.h"
+
 #include <ytlib/chunk_client/schema.h>
 
 #include <core/logging/log.h>

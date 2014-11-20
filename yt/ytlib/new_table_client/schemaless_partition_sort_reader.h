@@ -19,7 +19,8 @@ namespace NVersionedTableClient {
 ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     NChunkClient::TMultiChunkReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    NChunkClient::IBlockCachePtr blockCache,
+    NChunkClient::IBlockCachePtr compressedBlockCache,
+    NChunkClient::IBlockCachePtr uncompressedBlockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TKeyColumns& keyColumns,
     TNameTablePtr nameTable,
