@@ -138,6 +138,11 @@ bool TOldMultiChunkSequentialReader<TChunkReader>::FetchNext()
 template <class TChunkReader>
 void TOldMultiChunkSequentialReader<TChunkReader>::OnItemFetched(TError error)
 {
+    // Reader may have already failed, e.g. if prefetched chunk failed to open.
+    if (!State.IsActive()) {
+        return;
+    }
+
     YCHECK(State.HasRunningOperation());
 
     if (!error.IsOK()) {

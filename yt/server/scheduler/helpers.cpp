@@ -9,6 +9,8 @@
 
 #include <ytlib/node_tracker_client/helpers.h>
 
+#include <ytlib/security_client/public.h>
+
 #include <ytlib/api/connection.h>
 
 #include <core/concurrency/fiber.h>
@@ -22,6 +24,7 @@ using namespace NYTree;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NConcurrency;
+using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -61,6 +64,7 @@ void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
         .Item("state").Value(FormatEnum(state))
         .Item("address").Value(job->GetNode()->GetAddress())
         .Item("start_time").Value(job->GetStartTime())
+        .Item("account").Value(TmpAccountName)
         .DoIf(job->GetFinishTime().HasValue(), [=] (TFluentMap fluent) {
             fluent.Item("finish_time").Value(job->GetFinishTime().Get());
         })

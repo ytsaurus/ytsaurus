@@ -10,7 +10,7 @@ namespace NNodeJS {
 
 class TNodeJSOutputStack
     : public TOutputStream
-    , public TGrowingStreamStack<TOutputStream, 3>
+    , public TGrowingOutputStreamStack
 {
 public:
     TNodeJSOutputStack(TOutputStreamWrap* base);

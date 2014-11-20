@@ -24,6 +24,7 @@ message TNodeStatistics
     optional int32 total_user_session_count = 4;
     optional int32 total_replication_session_count = 7;
     optional int32 total_repair_session_count = 8;
+    optional int64 total_low_watermark_space = 9;
     optional bool full = 5;
     repeated TLocationStatistics locations = 6;
     optional int32 max_replication_session_count = 9;

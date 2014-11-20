@@ -100,11 +100,14 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlocks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)
-            .SetEnableReorder(true));
+            .SetEnableReorder(true)
+            .SetMaxQueueSize(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange)
-            .SetEnableReorder(true));
+            .SetEnableReorder(true)
+            .SetMaxQueueSize(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
-            .SetEnableReorder(true));
+            .SetEnableReorder(true)
+            .SetMaxQueueSize(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
             .SetOneWay(true));

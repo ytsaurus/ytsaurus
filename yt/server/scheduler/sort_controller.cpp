@@ -532,11 +532,6 @@ protected:
         TSortControllerBase* Controller;
         TPartition* Partition;
 
-        virtual bool IsActive() const
-        {
-            return true;
-        }
-
     };
 
     //! Base class implementing sort phase for sort operations
@@ -2219,6 +2214,24 @@ private:
     virtual void DoInitialize() override
     {
         TSortControllerBase::DoInitialize();
+
+        if (Spec->Mapper && Spec->Mapper->FilePaths.size() > Config->MaxUserFileCount) {
+            THROW_ERROR_EXCEPTION("Too many user files in maper: maximum allowed %d, actual %" PRISZT,
+                Config->MaxUserFileCount,
+                Spec->Mapper->FilePaths.size());
+        }
+
+        if (Spec->Reducer && Spec->Reducer->FilePaths.size() > Config->MaxUserFileCount) {
+            THROW_ERROR_EXCEPTION("Too many user files in reducer: maximum allowed %d, actual %" PRISZT,
+                Config->MaxUserFileCount,
+                Spec->Reducer->FilePaths.size());
+        }
+
+        if (Spec->ReduceCombiner && Spec->ReduceCombiner->FilePaths.size() > Config->MaxUserFileCount) {
+            THROW_ERROR_EXCEPTION("Too many user files in reduce combiner: maximum allowed %d, actual %" PRISZT,
+                Config->MaxUserFileCount,
+                Spec->ReduceCombiner->FilePaths.size());
+        }
 
         if (!CheckKeyColumnsCompatible(Spec->SortBy, Spec->ReduceBy)) {
             THROW_ERROR_EXCEPTION("Reduce columns %v are not compatible with sort columns %v",

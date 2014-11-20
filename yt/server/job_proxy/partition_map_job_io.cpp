@@ -10,6 +10,7 @@
 #include <ytlib/table_client/partition_chunk_writer.h>
 #include <ytlib/table_client/sync_writer.h>
 
+#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 
 #include <core/ytree/yson_string.h>
@@ -26,8 +27,11 @@ namespace NJobProxy {
 
 using namespace NTableClient;
 using namespace NTransactionServer;
+using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NChunkServer;
 using namespace NYTree;
+using namespace NYson;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NJobTrackerClient::NProto;
@@ -58,6 +62,11 @@ public:
         return 1;
     }
 
+    virtual std::unique_ptr<TTableProducer> CreateTableInput(int index, IYsonConsumer* consumer) override
+    {
+        return DoCreateTableInput<TMultiChunkSequentialReader>(index, consumer);
+    }
+
     virtual ISyncWriterPtr CreateTableOutput(int index) override
     {
         YCHECK(index == 0);
@@ -74,7 +83,7 @@ public:
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->KeyColumns = KeyColumns;
 
-        auto writerProvider = New<TPartitionChunkWriterProvider>(
+        auto WriterProvider = New<TPartitionChunkWriterProvider>(
             IOConfig->TableWriter,
             options,
             Partitioner.get());
@@ -82,7 +91,7 @@ public:
         Writer = CreateSyncWriter<TPartitionChunkWriterProvider>(New<TWriter>(
             IOConfig->TableWriter,
             options,
-            writerProvider,
+            WriterProvider,
             Host->GetMasterChannel(),
             transactionId,
             chunkListId));
@@ -97,8 +106,18 @@ public:
         ToProto(schedulerResultExt->mutable_chunks(), Writer->GetWrittenChunks());
     }
 
+    virtual TDataStatistics GetOutputDataStatistics() const override
+    {
+        if (WriterProvider) {
+            return WriterProvider->GetDataStatistics();
+        } else {
+            return ZeroDataStatistics();
+        }
+    }
+
 private:
     std::unique_ptr<IPartitioner> Partitioner;
+    TPartitionChunkWriterProviderPtr WriterProvider;
     TKeyColumns KeyColumns;
     ISyncWriterUnsafePtr Writer;
 

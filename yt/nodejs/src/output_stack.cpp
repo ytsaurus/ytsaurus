@@ -30,32 +30,7 @@ TOutputStreamWrap* TNodeJSOutputStack::GetBaseStream()
 
 void TNodeJSOutputStack::AddCompression(ECompression compression)
 {
-    switch (compression) {
-        case ECompression::None:
-            break;
-        case ECompression::Gzip:
-            Add<TZLibCompress>(ZLib::GZip, 4, DefaultStreamBufferSize);
-            break;
-        case ECompression::Deflate:
-            Add<TZLibCompress>(ZLib::ZLib, 4, DefaultStreamBufferSize);
-            break;
-        case ECompression::LZOP:
-            Add<TLzopCompress>(DefaultStreamBufferSize);
-            break;
-        case ECompression::LZO:
-            Add<TLzoCompress>(DefaultStreamBufferSize);
-            break;
-        case ECompression::LZF:
-            Add<TLzfCompress>(DefaultStreamBufferSize);
-            break;
-        case ECompression::Snappy:
-            Add<TSnappyCompress>(DefaultStreamBufferSize);
-            break;
-        default:
-            YUNREACHABLE();
-    }
-
-    Add<TBufferedOutput>()->SetPropagateMode(true);
+    AddCompressionToStack(*this, compression);
 }
 
 bool TNodeJSOutputStack::HasAnyData()

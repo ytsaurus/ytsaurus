@@ -2,11 +2,6 @@
 
 #include "public.h"
 
-#include <core/rpc/config.h>
-#include <core/rpc/retrying_channel.h>
-
-#include <core/ytree/yson_serializable.h>
-
 #include <ytlib/ypath/rich.h>
 
 #include <ytlib/api/config.h>
@@ -16,6 +11,16 @@
 #include <ytlib/formats/format.h>
 
 #include <ytlib/node_tracker_client/public.h>
+
+#include <server/security_server/acl.h>
+
+#include <core/formats/format.h>
+
+#include <core/rpc/config.h>
+#include <core/rpc/retrying_channel.h>
+
+#include <core/ytree/fluent.h>
+#include <core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -57,6 +62,9 @@ public:
     //! Codec used for compressing intermediate output during shuffle.
     NCompression::ECodec IntermediateCompressionCodec;
 
+    //! Acl used for intermediate tables and stderrs.
+    NYTree::INodePtr IntermediateDataAcl;
+
     //! What to do during initialization if some chunks are unavailable.
     EUnavailableChunkAction UnavailableChunkStrategy;
 
@@ -80,6 +88,19 @@ public:
             .Default("intermediate");
         RegisterParameter("intermediate_compression_codec", IntermediateCompressionCodec)
             .Default(NCompression::ECodec::Lz4);
+        RegisterParameter("intermediate_data_acl", IntermediateDataAcl)
+            .Default(NYTree::BuildYsonNodeFluently()
+                .BeginList()
+                    .Item().BeginMap()
+                        .Item("action").Value("allow")
+                        .Item("subjects").BeginList()
+                            .Item().Value("everyone")
+                        .EndList()
+                        .Item("permissions").BeginList()
+                            .Item().Value("read")
+                        .EndList()
+                    .EndMap()
+                .EndList());
 
         RegisterParameter("unavailable_chunk_strategy", UnavailableChunkStrategy)
             .Default(EUnavailableChunkAction::Wait);
@@ -99,7 +120,7 @@ public:
 
         RegisterParameter("title", Title)
             .Default(Null);
-        
+
         RegisterParameter("scheduling_tag", SchedulingTag)
             .Default(Null);
 

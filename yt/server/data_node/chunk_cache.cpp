@@ -118,10 +118,13 @@ public:
         Register(chunk);
     }
 
-    TAsyncDownloadResult Download(const TChunkId& chunkId)
+    TAsyncDownloadResult Download(
+        const TChunkId& chunkId,
+        TNodeDirectoryPtr nodeDirectory,
+        const TChunkReplicaList& seedReplicas)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        
+
         LOG_INFO("Getting chunk from cache (ChunkId: %v)",
             chunkId);
 
@@ -137,8 +140,10 @@ public:
                 &TImpl::DoDownloadChunk,
                 MakeStrong(this),
                 chunkId,
+                nodeDirectory ? std::move(nodeDirectory) : New<TNodeDirectory>(),
+                seedReplicas,
                 Passed(std::move(cookie))));
-        } else {    
+        } else {
             LOG_INFO("Chunk is already cached (ChunkId: %v)",
                 chunkId);
         }
@@ -213,24 +218,28 @@ private:
     }
 
 
-    void DoDownloadChunk(const TChunkId& chunkId, TInsertCookie cookie)
+    void DoDownloadChunk(
+        const TChunkId& chunkId,
+        TNodeDirectoryPtr nodeDirectory,
+        const TChunkReplicaList& seedReplicas,
+        TInsertCookie cookie)
     {
         NLog::TLogger Logger(DataNodeLogger);
         Logger.AddTag("ChunkId: %v", chunkId);
 
         try {
-            auto nodeDirectory = New<TNodeDirectory>();
-
             auto chunkReader = CreateReplicationReader(
                 Config_->CacheRemoteReader,
                 Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(),
                 nodeDirectory,
                 Bootstrap_->GetLocalDescriptor(),
-                chunkId);
+                chunkId,
+                seedReplicas);
 
             auto fileName = Location_->GetChunkFileName(chunkId);
             auto chunkWriter = New<TFileWriter>(fileName);
+
             try {
                 NFS::ForcePath(NFS::GetDirectoryName(fileName));
                 auto asyncError = chunkWriter->Open();
@@ -356,11 +365,14 @@ int TChunkCache::GetChunkCount()
     return Impl_->GetSize();
 }
 
-TChunkCache::TAsyncDownloadResult TChunkCache::DownloadChunk(const TChunkId& chunkId)
+TChunkCache::TAsyncDownloadResult TChunkCache::DownloadChunk(
+    const TChunkId& chunkId,
+    TNodeDirectoryPtr nodeDirectory,
+    const TChunkReplicaList& seedReplicas)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Impl_->Download(chunkId);
+    return Impl_->Download(chunkId, nodeDirectory, seedReplicas);
 }
 
 bool TChunkCache::IsEnabled() const

@@ -233,6 +233,12 @@ private:
     {
         TOperationControllerBase::DoInitialize();
 
+        if (Spec->Mapper && Spec->Mapper->FilePaths.size() > Config->MaxUserFileCount) {
+            THROW_ERROR_EXCEPTION("Too many user files in mapper: maximum allowed %d, actual %" PRISZT,
+                Config->MaxUserFileCount,
+                Spec->Mapper->FilePaths.size());
+        }
+
         MapTaskGroup = New<TTaskGroup>();
         RegisterTaskGroup(MapTaskGroup);
     }

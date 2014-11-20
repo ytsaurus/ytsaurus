@@ -39,6 +39,10 @@ protected:
         TChunkWriterOptionsPtr options,
         NChunkClient::IChunkWriterPtr chunkWriter);
 
+    TError FlushBlocks();
+
+    virtual void PrepareBlock() = 0;
+
     const TChunkWriterConfigPtr Config;
     const TChunkWriterOptionsPtr Options;
     const NChunkClient::IChunkWriterPtr ChunkWriter;

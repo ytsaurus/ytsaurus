@@ -104,6 +104,11 @@ public:
         return Connected;
     }
 
+    IInvokerPtr GetCancelableControlInvoker() const
+    {
+        return CancelableControlInvoker;
+    }
+
 
     TAsyncError CreateOperationNode(TOperationPtr operation)
     {
@@ -627,7 +632,7 @@ private:
 
             for (const auto& id : AbortingOperationIds) {
                 auto req = TYPathProxy::Set(GetOperationPath(id) + "/@state");
-                req->set_value(ConvertToYsonString(EOperationState::Aborted).Data());
+                req->set_value(ConvertToYsonString(EOperationState(EOperationState::Aborted)).Data());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req, "abort_operation");
             }
@@ -1299,6 +1304,8 @@ private:
         auto operationPath = GetOperationPath(operation->GetId());
         auto controller = operation->GetController();
 
+        GenerateMutationId(batchReq);
+
         // Set state.
         {
             auto req = TYPathProxy::Set(operationPath + "/@state");
@@ -1411,6 +1418,9 @@ private:
                         auto failContextRootPath = GetFailContextRootPath(operation->GetId(), job->GetId());
                         auto req = TYPathProxy::Set(failContextRootPath);
                         req->set_value(BuildYsonStringFluently()
+                            .BeginAttributes()
+                                .Item("account").Value(TmpAccountName)
+                            .EndAttributes()
                             .BeginMap()
                             .EndMap()
                             .Data());
@@ -1794,6 +1804,11 @@ void TMasterConnector::Start()
 bool TMasterConnector::IsConnected() const
 {
     return Impl->IsConnected();
+}
+
+IInvokerPtr TMasterConnector::GetCancelableControlInvoker() const
+{
+    return Impl->GetCancelableControlInvoker();
 }
 
 TAsyncError TMasterConnector::CreateOperationNode(TOperationPtr operation)

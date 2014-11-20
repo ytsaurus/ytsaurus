@@ -179,6 +179,7 @@ private:
         }
 
         auto chunkManager = Bootstrap_->GetChunkManager();
+        const auto& config = Bootstrap_->GetConfig()->ChunkManager;
 
         if (!chunk->IsConfirmed()) {
             ReplyError(TError("Cannot fetch an object containing an unconfirmed chunk %v",
@@ -200,12 +201,34 @@ private:
                 ? std::numeric_limits<int>::max() // all replicas are feasible
                 : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
 
-        auto replicas = chunk->GetReplicas();
-        for (auto replica : replicas) {
+        SmallVector<TNodePtrWithIndex, TypicalReplicaCount> replicas;
+        auto addReplica = [&] (TNodePtrWithIndex replica) -> bool {
             if (replica.GetIndex() < firstInfeasibleReplicaIndex) {
-                NodeDirectoryBuilder_.Add(replica);
-                chunkSpec->add_replicas(NYT::ToProto<ui32>(replica));
+                replicas.push_back(replica);
+                return true;
+            } else {
+                return false;
             }
+        };
+
+        for (auto replica : chunk->StoredReplicas()) {
+            addReplica(replica);
+        }
+
+        if (chunk->CachedReplicas()) {
+            int cachedReplicaCount = 0;
+            for (auto replica : *chunk->CachedReplicas()) {
+                if (cachedReplicaCount >= config->MaxCachedReplicasPerFetch)
+                    break;
+                if (addReplica(replica)) {
+                    ++cachedReplicaCount;
+                }
+            }
+        }
+
+        for (auto replica : replicas) {
+            NodeDirectoryBuilder.Add(replica);
+            chunkSpec->add_replicas(NYT::ToProto<ui32>(replica));
         }
 
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());

@@ -19,7 +19,6 @@ TChunkedOutputStream::TChunkedOutputStream(
     if (CurrentReserveSize_ > MaxReserveSize_) {
         CurrentReserveSize_ = MaxReserveSize_;
     }
-    CurrentChunk_.Reserve(CurrentReserveSize_);
 }
 
 TChunkedOutputStream::~TChunkedOutputStream() throw()
@@ -31,7 +30,6 @@ std::vector<TSharedRef> TChunkedOutputStream::Flush()
 
     YASSERT(CurrentChunk_.IsEmpty());
     FinishedSize_ = 0;
-    CurrentChunk_.Reserve(CurrentReserveSize_);
 
     return std::move(FinishedChunks_);
 }
@@ -48,6 +46,10 @@ size_t TChunkedOutputStream::GetCapacity() const
 
 void TChunkedOutputStream::DoWrite(const void* buffer, size_t length)
 {
+    if (!CurrentChunk_.Capacity()) {
+        CurrentChunk_.Reserve(CurrentReserveSize_);
+    }
+
     const auto spaceAvailable = std::min(length, CurrentChunk_.Capacity() - CurrentChunk_.Size());
     const auto spaceRequired = length - spaceAvailable;
 

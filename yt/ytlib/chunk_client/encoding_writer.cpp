@@ -72,20 +72,13 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& block)
 
     int sizeToRelease = -compressedBlock.Size();
 
-    if (!Config->VerifyCompression) {
-        // We immediately release original data.
-        sizeToRelease += block.Size();
+    if (Config->VerifyCompression) {
+        VerifyBlock(block, compressedBlock);
     }
+
+    sizeToRelease += block.Size();
 
     ProcessCompressedBlock(compressedBlock, sizeToRelease);
-
-    if (Config->VerifyCompression) {
-        TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(BIND(
-            &TEncodingWriter::VerifyBlock,
-            MakeWeak(this),
-            block,
-            compressedBlock));
-    }
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
@@ -98,42 +91,47 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& vectorized
 
     i64 sizeToRelease = -static_cast<i64>(compressedBlock.Size());
 
-    if (!Config->VerifyCompression) {
-        // We immediately release original data.
-        for (const auto& part : vectorizedBlock) {
-            sizeToRelease += part.Size();
-        }
+    if (Config->VerifyCompression) {
+        VerifyVector(vectorizedBlock, compressedBlock);
+    }
+
+    for (const auto& part : vectorizedBlock) {
+        sizeToRelease += part.Size();
     }
 
     ProcessCompressedBlock(compressedBlock, sizeToRelease);
-
-    if (Config->VerifyCompression) {
-        TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(BIND(
-            &TEncodingWriter::VerifyVector,
-            MakeWeak(this),
-            vectorizedBlock,
-            compressedBlock));
-    }
 }
 
-// Verification is run in thread pool without serialized invoker guard.
+// TODO(babenko): remove this when merging with master
+template <class T>
+size_t GetTotalSize(const std::vector<T>& parts)
+{
+    size_t size = 0;
+    for (const auto& part : parts) {
+        size += part.Size();
+    }
+    return size;
+}
+
 void TEncodingWriter::VerifyVector(
     const std::vector<TSharedRef>& origin,
     const TSharedRef& compressedBlock)
 {
     auto decompressedBlock = Codec->Decompress(compressedBlock);
+    
+    LOG_FATAL_IF(
+        decompressedBlock.Size() != GetTotalSize(origin),
+        "Compression verification failed");
 
-    char* begin = decompressedBlock.Begin();
+    char* current = decompressedBlock.Begin();
     for (const auto& block : origin) {
         LOG_FATAL_IF(
-            !TRef::AreBitwiseEqual(TRef(begin, block.Size()), block),
+            !TRef::AreBitwiseEqual(TRef(current, block.Size()), block),
             "Compression verification failed");
-        begin += block.Size();
-        Semaphore.Release(block.Size());
+        current += block.Size();
     }
 }
 
-// Verification is run in compression thread pool without serialized invoker guard.
 void TEncodingWriter::VerifyBlock(
     const TSharedRef& origin,
     const TSharedRef& compressedBlock)
@@ -142,7 +140,6 @@ void TEncodingWriter::VerifyBlock(
     LOG_FATAL_IF(
         !TRef::AreBitwiseEqual(decompressedBlock, origin),
         "Compression verification failed");
-    Semaphore.Release(origin.Size());
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).

@@ -168,6 +168,7 @@ void TProgressCounter::Persist(TStreamPersistenceContext& context)
     Persist(context, Completed_);
     Persist(context, Pending_);
     Persist(context, Failed_);
+    Persist(context, Lost_);
     Persist(context, Aborted_);
 }
 

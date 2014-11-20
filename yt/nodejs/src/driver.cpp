@@ -90,7 +90,6 @@ class TUVInvoker
 {
 public:
     explicit TUVInvoker(uv_loop_t* loop)
-        : QueueSize(0)
     {
         memset(&AsyncHandle, 0, sizeof(AsyncHandle));
         YCHECK(uv_async_init(loop, &AsyncHandle, &TUVInvoker::Callback) == 0);
@@ -105,7 +104,6 @@ public:
     virtual void Invoke(const TClosure& callback) override
     {
         Queue.Enqueue(callback);
-        AtomicIncrement(QueueSize);
 
         YCHECK(uv_async_send(&AsyncHandle) == 0);
     }
@@ -127,9 +125,6 @@ private:
 
     TClosure Action;
     TLockFreeQueue<TClosure> Queue;
-    TAtomic QueueSize;
-
-    static const int ActionsPerTick = 100;
 
     static void Callback(uv_async_t* handle, int status)
     {
@@ -144,20 +139,10 @@ private:
     void CallbackImpl()
     {
         YCHECK(!Action);
-
-        int actionsRan = 0;
         while (Queue.Dequeue(&Action)) {
-            AtomicDecrement(QueueSize);
-
             Action.Run();
             Action.Reset();
-
-            if (++actionsRan >= ActionsPerTick) {
-                YCHECK(uv_async_send(&AsyncHandle) == 0);
-                break;
-            }
         }
-
         YCHECK(!Action);
     }
 };
@@ -203,7 +188,9 @@ public:
         if (!flushFuture) {
             TGuard<TSpinLock> guard(Lock_);
             if (!FlushFuture_) {
-                FlushFuture_ = FlushClosure_.AsyncVia(DefaultUVInvoker.Get()).Run();
+                FlushFuture_ = FlushClosure_
+                    .AsyncVia(DefaultUVInvoker.Get())
+                    .Run();
             }
             return FlushFuture_;
         }
@@ -236,8 +223,8 @@ private:
 
         for (const auto& bit : bitsToFlush) {
             auto keyHandle = String::New(std::get<0>(bit).c_str());
-            auto valueHandle = ConvertNodeToV8Value(std::get<1>(bit));
-
+            auto valueHandle = TNodeWrap::ConstructorTemplate->GetFunction()->NewInstance();
+            node::ObjectWrap::Unwrap<TNodeWrap>(valueHandle)->SetNode(std::get<1>(bit));
             Invoke(Callback_, keyHandle, valueHandle);
         }
     }
@@ -549,8 +536,7 @@ Handle<Value> TDriverWrap::FindCommandDescriptor(const Arguments& args)
     HandleScope scope;
 
     // Unwrap object.
-    TDriverWrap* driver =
-        ObjectWrap::Unwrap<TDriverWrap>(args.This());
+    TDriverWrap* driver = ObjectWrap::Unwrap<TDriverWrap>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 1);
@@ -583,8 +569,7 @@ Handle<Value> TDriverWrap::GetCommandDescriptors(const Arguments& args)
     HandleScope scope;
 
     // Unwrap.
-    TDriverWrap* driver =
-        ObjectWrap::Unwrap<TDriverWrap>(args.This());
+    TDriverWrap* driver = ObjectWrap::Unwrap<TDriverWrap>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 0);

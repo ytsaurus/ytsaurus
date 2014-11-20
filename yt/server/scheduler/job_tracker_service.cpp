@@ -37,7 +37,8 @@ public:
                 .SetRequestHeavy(true)
                 .SetResponseHeavy(true)
                 .SetResponseCodec(NCompression::ECodec::Lz4)
-                .SetInvoker(bootstrap->GetControlInvoker(EControlQueue::Heartbeat)));
+                .SetInvoker(bootstrap->GetControlInvoker(EControlQueue::Heartbeat))
+                .SetMaxQueueSize(50));
     }
 
 private:

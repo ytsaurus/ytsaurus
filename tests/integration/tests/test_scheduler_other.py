@@ -145,7 +145,7 @@ class TestSchedulingTags(YTEnvSetup):
         write('//tmp/t_in', [{"foo": "bar"} for _ in xrange(20)])
 
         set("//sys/nodes/{0}/@scheduling_tags".format(self.node), ["tagB"])
-        time.sleep(1.0)
+        time.sleep(1.2)
         op_id = map(dont_track=True, command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagB", "job_count": 20})
         track_op(op_id)
         time.sleep(0.5)
