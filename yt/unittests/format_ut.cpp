@@ -82,7 +82,7 @@ DECLARE_ENUM(EColor,
 TEST(TFormatTest, Enum)
 {
     EXPECT_EQ("Red", Format("%v", EColor(EColor::Red)));
-    EXPECT_EQ("red", Format("%v", EColor(EColor::Red)));
+    EXPECT_EQ("red", Format("%lv", EColor(EColor::Red)));
 
     EXPECT_EQ("BlackAndWhite", Format("%v", EColor(EColor::BlackAndWhite)));
     EXPECT_EQ("black_and_white", Format("%v", EColor(EColor::BlackAndWhite)));
@@ -94,8 +94,8 @@ TEST(TFormatTest, Bool)
 {
     EXPECT_EQ("True", Format("%v", true));
     EXPECT_EQ("False", Format("%v", false));
-    EXPECT_EQ("true", Format("%v", true));
-    EXPECT_EQ("false", Format("%v", false));
+    EXPECT_EQ("true", Format("%lv", true));
+    EXPECT_EQ("false", Format("%lv", false));
 }
 
 TEST(TFormatTest, Quotes)
