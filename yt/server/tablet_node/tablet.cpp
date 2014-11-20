@@ -38,7 +38,7 @@ TTabletSnapshot::GetIntersectingPartitions(
         Partitions.end(),
         lowerBound,
         [] (const TOwningKey& key, const TPartitionSnapshotPtr& partition) {
-            return key < partition->SampleKeys[0];
+            return key < partition->PivotKey;
         });
 
     if (beginIt != Partitions.begin()) {
@@ -46,7 +46,7 @@ TTabletSnapshot::GetIntersectingPartitions(
     }
 
     auto endIt = beginIt;
-    while (endIt != Partitions.end() && upperBound > (*endIt)->SampleKeys[0]) {
+    while (endIt != Partitions.end() && upperBound > (*endIt)->PivotKey) {
         ++endIt;
     }
 
@@ -60,7 +60,7 @@ TPartitionSnapshotPtr TTabletSnapshot::FindContainingPartition(TKey key)
         Partitions.end(),
         key,
         [] (TKey key, const TPartitionSnapshotPtr& partition) {
-            return key < partition->SampleKeys[0].Get();
+            return key < partition->PivotKey.Get();
         });
 
     return it == Partitions.begin() ? nullptr : *(--it);
@@ -248,7 +248,6 @@ void TTablet::CreateInitialPartition()
         static_cast<int>(Partitions_.size()));
     partition->SetPivotKey(PivotKey_);
     partition->SetNextPivotKey(NextPivotKey_);
-    partition->SampleKeys().push_back(partition->GetPivotKey());
     Partitions_.push_back(std::move(partition));
 }
 
@@ -284,6 +283,9 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
 
     for (int i = firstIndex; i <= lastIndex; ++i) {
         const auto& existingPartition = Partitions_[i];
+        if (i > firstIndex) {
+            mergedPartition->SampleKeys().push_back(existingPartition->GetPivotKey());
+        }
         mergedPartition->SampleKeys().insert(
             mergedPartition->SampleKeys().end(),
             existingPartition->SampleKeys().begin(),
@@ -305,23 +307,32 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
     auto existingPartition = std::move(Partitions_[index]);
     YCHECK(existingPartition->GetPivotKey() == pivotKeys[0]);
 
-    for (int i = index + 1; i < static_cast<int>(Partitions_.size()); ++i) {
-        Partitions_[i]->SetIndex(i + static_cast<int>(pivotKeys.size()) - 1);
+    for (int partitionIndex = index + 1; partitionIndex < Partitions_.size(); ++partitionIndex) {
+        Partitions_[partitionIndex]->SetIndex(partitionIndex + pivotKeys.size() - 1);
     }
 
     std::vector<std::unique_ptr<TPartition>> splitPartitions;
-    for (int i = 0; i < static_cast<int>(pivotKeys.size()); ++i) {
+    auto& sampleKeys = Partitions_[index]->SampleKeys();
+    int sampleKeyIndex = 0;
+    for (int pivotKeyIndex = 0; pivotKeyIndex < pivotKeys.size(); ++pivotKeyIndex) {
         auto partition = std::make_unique<TPartition>(
             this,
-            index + i);
-        partition->SetPivotKey(pivotKeys[i]);
-        partition->SetNextPivotKey(
-            i == static_cast<int>(pivotKeys.size()) - 1
+            index + pivotKeyIndex);
+        auto thisPivotKey = pivotKeys[pivotKeyIndex];
+        auto nextPivotKey = (pivotKeyIndex == pivotKeys.size() - 1)
             ? existingPartition->GetNextPivotKey()
-            : pivotKeys[i + 1]);
-        // TODO(babenko): keep samples from existing partition
-        partition->SampleKeys().push_back(partition->GetPivotKey());
-        partition->SetSamplingNeeded(true);
+            : pivotKeys[pivotKeyIndex + 1];
+        partition->SetPivotKey(thisPivotKey);
+        partition->SetNextPivotKey(nextPivotKey);
+
+        if (sampleKeys[sampleKeyIndex] == thisPivotKey) {
+            ++sampleKeyIndex;
+        }
+        YCHECK(sampleKeyIndex >= sampleKeys.size() || sampleKeys[sampleKeyIndex] > thisPivotKey);
+        while (sampleKeyIndex < sampleKeys.size() && sampleKeys[sampleKeyIndex] < nextPivotKey) {
+            partition->SampleKeys().push_back(sampleKeys[sampleKeyIndex]);
+            ++sampleKeyIndex;
+        }
         splitPartitions.push_back(std::move(partition));
     }
 

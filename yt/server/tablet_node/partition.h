@@ -14,6 +14,7 @@ namespace NTabletNode {
 struct TPartitionSnapshot
     : public TIntrinsicRefCounted
 {
+    TOwningKey PivotKey;
     std::vector<TOwningKey> SampleKeys;
     std::vector<IStorePtr> Stores;
 };

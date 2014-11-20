@@ -917,6 +917,7 @@ private:
             request.sample_keys_size());
 
         partition->SampleKeys() = FromProto<TOwningKey>(request.sample_keys());
+        YCHECK(partition->SampleKeys().empty() || partition->SampleKeys()[0] > partition->GetPivotKey());
         partition->SetSamplingNeeded(false);
         UpdateTabletSnapshot(tablet);
     }

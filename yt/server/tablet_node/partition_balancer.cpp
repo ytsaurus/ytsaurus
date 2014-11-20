@@ -248,9 +248,6 @@ private:
 
         try {
             auto samples = GetPartitionSamples(partition, config->SamplesPerPartition - 1);
-            if (samples.empty() || samples.front() > partition->GetPivotKey()) {
-                samples.insert(samples.begin(), partition->GetPivotKey());
-            }
             samples.erase(
                 std::unique(samples.begin(), samples.end()),
                 samples.end());
@@ -340,7 +337,7 @@ private:
                 samples.begin(),
                 samples.end(),
                 [&] (const TOwningKey& key) {
-                    return key < partition->GetPivotKey() || key >= partition->GetNextPivotKey();
+                    return key <= partition->GetPivotKey() || key >= partition->GetNextPivotKey();
                 }),
             samples.end());
 

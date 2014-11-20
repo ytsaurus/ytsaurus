@@ -81,6 +81,7 @@ i64 TPartition::GetUnmergedRowCount() const
 TPartitionSnapshotPtr TPartition::BuildSnapshot() const
 {
     auto snapshot = New<TPartitionSnapshot>();
+    snapshot->PivotKey = PivotKey_;
     snapshot->SampleKeys = SampleKeys_;
     snapshot->Stores.insert(snapshot->Stores.end(), Stores_.begin(), Stores_.end());
     return snapshot;
