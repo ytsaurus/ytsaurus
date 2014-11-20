@@ -162,7 +162,13 @@ class TestNativeMode(YtTestBase, YTEnv):
         yt.create_table(table)
         self.check([], yt.read_table(table))
 
+        yt.write_table(table, "x=1\n")
+        self.check(["x=1\n"], yt.read_table(table))
+
         yt.write_table(table, ["x=1\n"])
+        self.check(["x=1\n"], yt.read_table(table))
+
+        yt.write_table(table, iter(["x=1\n"]))
         self.check(["x=1\n"], yt.read_table(table))
 
         yt.write_table(yt.TablePath(table, append=True), ["y=1\n"])
