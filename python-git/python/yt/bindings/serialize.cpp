@@ -141,7 +141,8 @@ void TPythonObjectBuilder::OnBooleanScalar(bool value)
 
 void TPythonObjectBuilder::OnEntity()
 {
-    Py::_XDECREF(AddObject(YsonEntity));
+    Py_INCREF(Py_None);
+    Py::_XDECREF(AddObject(Py_None, YsonEntity));
 }
 
 void TPythonObjectBuilder::OnBeginList()
