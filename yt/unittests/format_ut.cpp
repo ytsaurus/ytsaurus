@@ -85,7 +85,7 @@ TEST(TFormatTest, Enum)
     EXPECT_EQ("red", Format("%lv", EColor(EColor::Red)));
 
     EXPECT_EQ("BlackAndWhite", Format("%v", EColor(EColor::BlackAndWhite)));
-    EXPECT_EQ("black_and_white", Format("%v", EColor(EColor::BlackAndWhite)));
+    EXPECT_EQ("black_and_white", Format("%lv", EColor(EColor::BlackAndWhite)));
 
     EXPECT_EQ("EColor(100)", Format("%v", EColor(100)));
 }
