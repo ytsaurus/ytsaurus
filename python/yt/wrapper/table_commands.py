@@ -429,19 +429,19 @@ def write_table(table, input_stream, format=None, table_writer=None,
         params["table_writer"] = table_writer
 
     def split_rows(stream):
-        if isinstance(stream, types.ListType):
-            for row in stream:
-                yield row
-        else:
-            if isinstance(stream, str):
-                stream = StringIO(stream)
+        if isinstance(stream, str):
+            stream = StringIO(stream)
 
+        if hasattr(stream, "read"):
             while True:
                 row = format.load_row(stream, raw=True)
                 if row:
                     yield row
                 else:
                     return
+        else:
+            for row in stream:
+                yield row
 
     def chunked_iter(stream):
         while True:
