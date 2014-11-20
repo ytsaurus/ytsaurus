@@ -1431,8 +1431,7 @@ private:
         TTabletCommitSession(
             TTransactionPtr owner,
             TTabletInfoPtr tabletInfo)
-            : Owner_(owner)
-            , TransactionId_(owner->Transaction_->GetId())
+            : TransactionId_(owner->Transaction_->GetId())
             , TabletId_(tabletInfo->TabletId)
             , Config_(owner->Client_->Connection_->GetConfig())
         { }
@@ -1462,8 +1461,6 @@ private:
         }
 
     private:
-        TTransactionPtr Owner_;
-
         TTransactionId TransactionId_;
         TTabletId TabletId_;
         TConnectionConfigPtr Config_;
