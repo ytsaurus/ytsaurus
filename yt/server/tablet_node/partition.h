@@ -49,7 +49,7 @@ public:
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
 
-    i64 GetTotalDataSize() const;
+    i64 GetDataSize() const;
 
     TPartitionSnapshotPtr BuildSnapshot() const;
 

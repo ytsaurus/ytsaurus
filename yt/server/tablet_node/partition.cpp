@@ -60,7 +60,7 @@ void TPartition::Load(TLoadContext& context)
     }
 }
 
-i64 TPartition::GetTotalDataSize() const
+i64 TPartition::GetDataSize() const
 {
     i64 result = 0;
     for (const auto& store : Stores_) {

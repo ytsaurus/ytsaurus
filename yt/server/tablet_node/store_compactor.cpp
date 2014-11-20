@@ -166,7 +166,7 @@ private:
         // Let Partition Balancer do its job.
         auto* tablet = partition->GetTablet();
         auto config = tablet->GetConfig();
-        if (partition->GetTotalDataSize() > config->MaxPartitionDataSize)
+        if (partition->GetDataSize() > config->MaxPartitionDataSize)
             return;
 
         auto stores = PickStoresForCompaction(config, partition);

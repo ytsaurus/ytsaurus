@@ -88,7 +88,7 @@ private:
 
     void ScanPartition(TTabletSlotPtr slot, TPartition* partition)
     {
-        i64 dataSize = partition->GetTotalDataSize();
+        i64 dataSize = partition->GetDataSize();
         
         auto* tablet = partition->GetTablet();
         int partitionCount = static_cast<int>(tablet->Partitions().size());
@@ -104,7 +104,7 @@ private:
             }
         }
         
-        if (dataSize + tablet->GetEden()->GetTotalDataSize() < config->MinPartitionDataSize && partitionCount > 1) {
+        if (dataSize + tablet->GetEden()->GetDataSize() < config->MinPartitionDataSize && partitionCount > 1) {
             int firstPartitionIndex = partition->GetIndex();
             int lastPartitionIndex = firstPartitionIndex + 1;
 
