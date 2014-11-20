@@ -1128,10 +1128,15 @@ EStoreType TDynamicMemoryStore::GetType() const
     return EStoreType::DynamicMemory;
 }
 
-i64 TDynamicMemoryStore::GetDataSize() const
+i64 TDynamicMemoryStore::GetUncompressedDataSize() const
 {
     // Ignore memory stores when deciding to compact.
     return 0;
+}
+
+i64 TDynamicMemoryStore::GetRowCount() const
+{
+    return Rows_->GetSize();
 }
 
 TOwningKey TDynamicMemoryStore::GetMinKey() const

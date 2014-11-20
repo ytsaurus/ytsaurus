@@ -60,11 +60,20 @@ void TPartition::Load(TLoadContext& context)
     }
 }
 
-i64 TPartition::GetDataSize() const
+i64 TPartition::GetUncompressedDataSize() const
 {
     i64 result = 0;
     for (const auto& store : Stores_) {
-        result += store->GetDataSize();
+        result += store->GetUncompressedDataSize();
+    }
+    return result;
+}
+
+i64 TPartition::GetUnmergedRowCount() const
+{
+    i64 result = 0;
+    for (const auto& store : Stores_) {
+        result += store->GetRowCount();
     }
     return result;
 }

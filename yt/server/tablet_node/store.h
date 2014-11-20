@@ -20,7 +20,8 @@ struct IStore
 
     virtual TTablet* GetTablet() const = 0;
 
-    virtual i64 GetDataSize() const = 0;
+    virtual i64 GetUncompressedDataSize() const = 0;
+    virtual i64 GetRowCount() const = 0;
 
     virtual EStoreType GetType() const = 0;
 

@@ -49,7 +49,8 @@ public:
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
 
-    i64 GetDataSize() const;
+    i64 GetUncompressedDataSize() const;
+    i64 GetUnmergedRowCount() const;
 
     TPartitionSnapshotPtr BuildSnapshot() const;
 

@@ -116,7 +116,7 @@ private:
 
         i64 dataSize = 0;
         for (auto store : stores) {
-            dataSize += store->GetDataSize();
+            dataSize += store->GetUncompressedDataSize();
         }
 
         // Check if partitioning is needed.
@@ -166,7 +166,7 @@ private:
         // Let Partition Balancer do its job.
         auto* tablet = partition->GetTablet();
         auto config = tablet->GetConfig();
-        if (partition->GetDataSize() > config->MaxPartitionDataSize)
+        if (partition->GetUncompressedDataSize() > config->MaxPartitionDataSize)
             return;
 
         auto stores = PickStoresForCompaction(config, partition);
@@ -233,14 +233,14 @@ private:
             candidates.begin(),
             candidates.end(),
             [] (TChunkStorePtr lhs, TChunkStorePtr rhs) {
-                return lhs->GetDataSize() < rhs->GetDataSize();
+                return lhs->GetUncompressedDataSize() < rhs->GetUncompressedDataSize();
             });
 
         for (int i = 0; i < candidates.size(); ++i) {
             i64 dataSizeSum = 0;
             int j = i;
             while (j < candidates.size() && j < i + config->MaxCompactionFanIn) {
-                i64 dataSize = candidates[j]->GetDataSize();
+                i64 dataSize = candidates[j]->GetUncompressedDataSize();
                 if (j > i && dataSize > config->CompactionDataSizeBase && dataSize > dataSizeSum * config->CompactionDataSizeRatio)
                     break;
                 dataSizeSum += dataSize;
@@ -309,7 +309,7 @@ private:
         try {
             i64 dataSize = 0;
             for (auto store : stores) {
-                dataSize += store->GetDataSize();
+                dataSize += store->GetUncompressedDataSize();
             }
 
             TTimestamp currentTimestamp;
@@ -557,7 +557,7 @@ private:
         try {
             i64 dataSize = 0;
             for (auto store : stores) {
-                dataSize += store->GetDataSize();
+                dataSize += store->GetUncompressedDataSize();
             }
 
             TTimestamp currentTimestamp;

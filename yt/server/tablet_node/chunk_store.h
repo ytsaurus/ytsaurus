@@ -49,7 +49,8 @@ public:
     // IStore implementation.
     virtual EStoreType GetType() const override;
 
-    virtual i64 GetDataSize() const override;
+    virtual i64 GetUncompressedDataSize() const override;
+    virtual i64 GetRowCount() const override;
 
     virtual TOwningKey GetMinKey() const override;
     virtual TOwningKey GetMaxKey() const override;
@@ -88,6 +89,7 @@ private:
     TTimestamp MinTimestamp_;
     TTimestamp MaxTimestamp_;
     i64 DataSize_ = -1;
+    i64 RowCount_ = -1;
 
     NChunkClient::NProto::TChunkMeta ChunkMeta_;
 

@@ -177,9 +177,14 @@ EStoreType TChunkStore::GetType() const
     return EStoreType::Chunk;
 }
 
-i64 TChunkStore::GetDataSize() const
+i64 TChunkStore::GetUncompressedDataSize() const
 {
     return DataSize_;
+}
+
+i64 TChunkStore::GetRowCount() const
+{
+    return 0;
 }
 
 TOwningKey TChunkStore::GetMinKey() const
@@ -456,6 +461,7 @@ void TChunkStore::PrecacheProperties()
     // Precache frequently used values.
     auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
     DataSize_ = miscExt.uncompressed_data_size();
+    RowCount_ = miscExt.row_count();
     MinTimestamp_ = miscExt.min_timestamp();
     MaxTimestamp_ = miscExt.max_timestamp();
 
