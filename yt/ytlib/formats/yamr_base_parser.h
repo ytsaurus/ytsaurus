@@ -3,6 +3,8 @@
 #include "parser.h"
 #include "yamr_table.h"
 
+#include <core/ytree/attributes.h>
+
 namespace NYT {
 namespace NFormats {
 
@@ -73,7 +75,9 @@ private:
     void OnRangeConsumed(const char* begin, const char* end);
     void AppendToContextBuffer(char symbol);
 
-    Stroka GetDebugInfo() const;
+    Stroka GetContext() const;
+    std::unique_ptr<NYTree::IAttributeDictionary> GetDebugInfo() const;
+
 
     IYamrConsumerPtr Consumer;
 
@@ -117,8 +121,6 @@ public:
     virtual void Finish() override;
 
 private:
-    Stroka GetDebugInfo() const;
-
     const char* Consume(const char* begin, const char* end);
     const char* ConsumeInt(const char* begin, const char* end);
     const char* ConsumeLength(const char* begin, const char* end);

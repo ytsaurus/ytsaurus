@@ -6,12 +6,15 @@
 
 #include <core/yson/consumer.h>
 
+#include <core/ytree/attribute_helpers.h>
+
 #include <ytlib/table_client/public.h>
 
 namespace NYT {
 namespace NFormats {
 
 using namespace NYTree;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,11 +24,10 @@ TYamrConsumerBase::TYamrConsumerBase(NYson::IYsonConsumer* consumer)
 
 void TYamrConsumerBase::SwitchTable(i64 tableIndex)
 {
-    static const Stroka key = FormatEnum(NTableClient::EControlAttribute(
-        NTableClient::EControlAttribute::TableIndex));
+    static const Stroka Key = FormatEnum(EControlAttribute(EControlAttribute::TableIndex));
     Consumer->OnListItem();
     Consumer->OnBeginAttributes();
-    Consumer->OnKeyedItem(key);
+    Consumer->OnKeyedItem(Key);
     Consumer->OnInt64Scalar(tableIndex);
     Consumer->OnEndAttributes();
     Consumer->OnEntity();
@@ -85,19 +87,25 @@ void TYamrDelimitedBaseParser::Finish()
     }
 }
 
-Stroka TYamrDelimitedBaseParser::GetDebugInfo() const
+Stroka TYamrDelimitedBaseParser::GetContext() const
 {
-    Stroka context;
+    Stroka result;
     const char* last = ContextBuffer + BufferPosition;
     if (Offset >= ContextBufferSize) {
-        context.append(last, ContextBuffer + ContextBufferSize);
+        result.append(last, ContextBuffer + ContextBufferSize);
     }
-    context.append(ContextBuffer, last);
-    return Format("Offset: %v, Record: %v, State: %v, Context: %Qv",
-            Offset,
-            Record,
-            State,
-            context);
+    result.append(ContextBuffer, last);
+    return result;
+}
+
+std::unique_ptr<IAttributeDictionary> TYamrDelimitedBaseParser::GetDebugInfo() const
+{
+    auto result = CreateEphemeralAttributes();
+    result->Set("context", GetContext());
+    result->Set("offset", Offset);
+    result->Set("record", Record);
+    result->Set("state", State);
+    return result;
 }
 
 void TYamrDelimitedBaseParser::ProcessTableSwitch(const TStringBuf& tableIndex)
@@ -109,7 +117,8 @@ void TYamrDelimitedBaseParser::ProcessTableSwitch(const TStringBuf& tableIndex)
          value = FromString<i64>(tableIndex);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("YAMR line %Qv cannot be parsed as a table switch; did you forget a record separator?",
-            tableIndex);
+            tableIndex)
+            << GetDebugInfo();
     }
     Consumer->SwitchTable(value);
 }
@@ -187,11 +196,12 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
     const char* next = FindNext(begin, end, State == EState::InsideValue ? Table.ValueStops : Table.KeyStops);
     if (next == end) {
         CurrentToken.append(begin, next);
-        if (CurrentToken.length() > NTableClient::MaxRowWeightLimit) {
+        if (CurrentToken.length() > MaxRowWeightLimit) {
             THROW_ERROR_EXCEPTION(
                 "YAMR token length limit exceeded: %v > %v",
                 CurrentToken.length(),
-                NTableClient::MaxRowWeightLimit);
+                MaxRowWeightLimit)
+                << GetDebugInfo();
         }
         return end;
     }
@@ -204,46 +214,46 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
     }
 
     switch (State) {
-    case EState::InsideKey:
-        if (*next == RecordSeparator) {
-            return ProcessToken(&TYamrDelimitedBaseParser::ProcessTableSwitch, begin, next);
-        }
+        case EState::InsideKey:
+            if (*next == RecordSeparator) {
+                return ProcessToken(&TYamrDelimitedBaseParser::ProcessTableSwitch, begin, next);
+            }
 
-        if (*next == FieldSeparator) {
-            return ProcessToken(&TYamrDelimitedBaseParser::ProcessKey, begin, next);
-        }
-        break;
+            if (*next == FieldSeparator) {
+                return ProcessToken(&TYamrDelimitedBaseParser::ProcessKey, begin, next);
+            }
+            break;
 
-    case EState::InsideSubkey:
-        if (*next == FieldSeparator) {
-            return ProcessToken(&TYamrDelimitedBaseParser::ProcessSubkey, begin, next);
-        }
+        case EState::InsideSubkey:
+            if (*next == FieldSeparator) {
+                return ProcessToken(&TYamrDelimitedBaseParser::ProcessSubkey, begin, next);
+            }
 
-        if (*next == RecordSeparator) {
-            // Look yamr_parser_yt.cpp: IncompleteRows() for details.
-            return ProcessToken(&TYamrDelimitedBaseParser::ProcessSubkeyBadFormat, begin, next);
-        }
-        break;
+            if (*next == RecordSeparator) {
+                // Look yamr_parser_yt.cpp: IncompleteRows() for details.
+                return ProcessToken(&TYamrDelimitedBaseParser::ProcessSubkeyBadFormat, begin, next);
+            }
+            break;
 
-    case EState::InsideValue:
-        if (*next == RecordSeparator) {
-            return ProcessToken(&TYamrDelimitedBaseParser::ProcessValue, begin, next);
-        }
-        break;
-
-    };
+        case EState::InsideValue:
+            if (*next == RecordSeparator) {
+                return ProcessToken(&TYamrDelimitedBaseParser::ProcessValue, begin, next);
+            }
+            break;
+    }
 
     ThrowIncorrectFormat();
-    // To supress warnings.
+
+    // To suppress warnings.
     YUNREACHABLE();
 }
 
 void TYamrDelimitedBaseParser::ThrowIncorrectFormat() const
 {
-    THROW_ERROR_EXCEPTION("Unexpected symbol in YAMR row: expected %Qv, found %Qv (%v)",
-        Stroka(FieldSeparator),
-        Stroka(RecordSeparator),
-        GetDebugInfo());
+    THROW_ERROR_EXCEPTION("Unexpected symbol in YAMR row: expected %Qv, found %Qv",
+        FieldSeparator,
+        RecordSeparator)
+        << GetDebugInfo();
 }
 
 void TYamrDelimitedBaseParser::OnRangeConsumed(const char* begin, const char* end)
@@ -264,17 +274,16 @@ void TYamrDelimitedBaseParser::AppendToContextBuffer(char symbol)
     }
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TYamrLenvalBaseParser::TYamrLenvalBaseParser(
     IYamrConsumerPtr consumer,
     bool hasSubkey)
-        : Consumer(consumer)
-        , HasSubkey(hasSubkey)
-        , ReadingLength(true)
-        , BytesToRead(4)
-        , State(EState::InsideKey)
+    : Consumer(consumer)
+    , HasSubkey(hasSubkey)
+    , ReadingLength(true)
+    , BytesToRead(4)
+    , State(EState::InsideKey)
 { }
 
 void TYamrLenvalBaseParser::Read(const TStringBuf& data)
@@ -332,15 +341,15 @@ const char* TYamrLenvalBaseParser::ConsumeLength(const char* begin, const char* 
             BytesToRead = 4;
             State = EState::InsideTableSwitch;
         } else {
-            THROW_ERROR_EXCEPTION("Unexpected table switch instruction (State: %v)", State);
+            THROW_ERROR_EXCEPTION("Unexpected table switch instruction");
         }
     }
 
-    if (BytesToRead > NTableClient::MaxRowWeightLimit) {
+    if (BytesToRead > MaxRowWeightLimit) {
         THROW_ERROR_EXCEPTION(
             "YAMR lenval length limit exceeded: %v > %v",
             BytesToRead,
-            NTableClient::MaxRowWeightLimit);
+            MaxRowWeightLimit);
     }
 
     return next;
