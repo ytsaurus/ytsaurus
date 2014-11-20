@@ -9,6 +9,7 @@
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
+#include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/data_statistics.h>
 #include <ytlib/chunk_client/memory_reader.h>
 #include <ytlib/chunk_client/memory_writer.h>
@@ -70,7 +71,7 @@ protected:
     ISchemalessReaderPtr ChunkReader;
     ISchemalessChunkWriterPtr ChunkWriter;
 
-    IReaderPtr MemoryReader;
+    IChunkReaderPtr MemoryReader;
     TMemoryWriterPtr MemoryWriter;
 
     TChunkMeta MasterMeta;
@@ -103,7 +104,7 @@ protected:
         for (int i = startIndex; i < endIndex; ++i) {
             TUnversionedRow row = TUnversionedRow::Allocate(&MemoryPool, 4);
             row[0] = MakeUnversionedStringValue(A, 0);
-            row[1] = MakeUnversionedIntegerValue(i, 1);
+            row[1] = MakeUnversionedInt64Value(i, 1);
             row[2] = MakeUnversionedSentinelValue(EValueType::Null, 2);
 
             row[3] = MakeUnversionedDoubleValue(3.1415, 3 + (i % 2));
@@ -139,6 +140,7 @@ TEST_F(TSchemalessChunksTest, ReadAllUnsorted)
         New<TChunkReaderConfig>(),
         MemoryReader,
         NameTable,
+        GetNullBlockCache(),
         TKeyColumns(),
         MasterMeta,
         TReadLimit(),
@@ -178,6 +180,7 @@ TEST_F(TSchemalessChunksTest, EmptyRead)
         New<TChunkReaderConfig>(),
         MemoryReader,
         NameTable,
+        GetNullBlockCache(),
         TKeyColumns(),
         MasterMeta,
         lowerLimit,
@@ -215,23 +218,24 @@ TEST_F(TSchemalessChunksTest, ReadSortedRange)
 
     TUnversionedOwningRowBuilder lowerBuilder;
     lowerBuilder.AddValue(MakeUnversionedStringValue(A, 0));
-    lowerBuilder.AddValue(MakeUnversionedIntegerValue(100000, 1));
+    lowerBuilder.AddValue(MakeUnversionedInt64Value(100000, 1));
 
     TReadLimit lowerLimit;
-    lowerLimit.SetKey(lowerBuilder.GetRowAndReset());
+    lowerLimit.SetKey(lowerBuilder.FinishRow());
 
     TUnversionedOwningRowBuilder upperBuilder;
     upperBuilder.AddValue(MakeUnversionedStringValue(A, 0));
-    upperBuilder.AddValue(MakeUnversionedIntegerValue(900000, 1));
+    upperBuilder.AddValue(MakeUnversionedInt64Value(900000, 1));
 
     TReadLimit upperLimit;
     upperLimit.SetRowIndex(800000);
-    upperLimit.SetKey(upperBuilder.GetRowAndReset());
+    upperLimit.SetKey(upperBuilder.FinishRow());
 
     auto chunkReader = CreateSchemalessChunkReader(
         New<TChunkReaderConfig>(),
         MemoryReader,
         NameTable,
+        GetNullBlockCache(),
         TKeyColumns(),
         MasterMeta,
         lowerLimit,

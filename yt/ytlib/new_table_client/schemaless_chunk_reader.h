@@ -95,7 +95,8 @@ ISchemalessTableReaderPtr CreateSchemalessTableReader(
     TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NTransactionClient::TTransactionPtr transaction,
-    NChunkClient::IBlockCachePtr blockCache,
+    NChunkClient::IBlockCachePtr compressedBlockCache,
+    NChunkClient::IBlockCachePtr uncompressedBlockCache,
     const NYPath::TRichYPath& richPath,
     TNameTablePtr nameTable);
 
