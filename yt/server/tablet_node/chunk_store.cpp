@@ -184,7 +184,7 @@ i64 TChunkStore::GetUncompressedDataSize() const
 
 i64 TChunkStore::GetRowCount() const
 {
-    return 0;
+    return RowCount_;
 }
 
 TOwningKey TChunkStore::GetMinKey() const
