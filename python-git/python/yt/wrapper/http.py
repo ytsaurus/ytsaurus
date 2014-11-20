@@ -110,10 +110,13 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                     raise YtRequestRateLimitExceeded(error)
                 raise
 
-            # Sometimes (quite often) we obtain incomplete response with empty body where expected to be JSON.
-            # So we should retry this request.
-            if response_should_be_json and not response.content():
-                raise YtIncorrectResponse("Response should be json but has empty body")
+            # Sometimes (quite often) we obtain incomplete response with body expected to be JSON.
+            # So we should retry such requests.
+            if response_should_be_json:
+                try:
+                    json.loads(response.content())
+                except json.JSONDecodeError:
+                    raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)")
             if response.raw_response.status_code == 503:
                 raise YtProxyUnavailable("Retrying response with code 503 and body %s" % response.content())
             if not response.is_ok():
