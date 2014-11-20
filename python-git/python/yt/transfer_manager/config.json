@@ -98,7 +98,7 @@
         "marx": ["plato"],
         "cedar": ["kant", "smith", "plato", "redwood", "betula"],
         "betula": ["kant", "smith", "plato", "cedar", "redwood"],
-        "redwood": ["cedar", "betula"],
+        "redwood": ["plato", "kant", "smith", "cedar", "betula"],
         "bsmr": ["kant"]
     },
     "pending_tasks_limit": 5000,
