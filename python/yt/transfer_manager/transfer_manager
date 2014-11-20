@@ -13,6 +13,7 @@ from yt.tools.remote_copy_tools import \
 from yt.wrapper.client import Yt
 from yt.wrapper.common import generate_uuid, get_value
 from yt.transfer_manager.flask_helpers import process_gzip
+from yt.transfer_manager.logging_server import LogRecordSocketReceiver
 import yt.wrapper as yt
 
 from flask import Flask, request, jsonify, Response, make_response
@@ -148,6 +149,13 @@ class Application(object):
 
         self._load_config(config)
         self._path = config["path"]
+        self._logging_port = self._config["port"] + 1
+
+        # Run logging process. It inherits current logging configuration.
+        self._logging_process = Process(target=self._run_logging_server, name="LoggingThread")
+        self._logging_process.start()
+        # Replace current logger with socket logger.
+        logger.LOGGER.handlers = [logging.handlers.SocketHandler('localhost', self._logging_port)]
 
         self._sleep_step = 0.5
 
@@ -335,12 +343,17 @@ class Application(object):
         new_logger = logging.getLogger("Transfer manager")
         new_logger.propagate = False
         new_logger.setLevel(level)
-        new_logger.addHandler(handler)
+        new_logger.handlers = [handler]
         new_logger.handlers[0].setFormatter(logger.BASIC_FORMATTER)
         logger.LOGGER = new_logger
 
         logging.getLogger('werkzeug').setLevel(level)
         logging.getLogger('werkzeug').addHandler(handler)
+
+    def _run_logging_server(self):
+        socket_reciever = LogRecordSocketReceiver(lambda record: logger.LOGGER.handle(record),
+                                                  port=self._logging_port)
+        socket_reciever.serve_until_stopped()
 
     def _load_tasks(self, tasks_path): #, archived_tasks_path):
         logger.info("Loading tasks from cypress")

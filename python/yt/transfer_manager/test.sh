@@ -1,6 +1,9 @@
 #!/bin/bash -eu
 
-PORT=5000
+PORT=5010
+if [ -z "$YT_TOKEN" ]; then
+    export YT_TOKEN=$(cat ~/.yt/token)
+fi
 
 die() {
     echo $@

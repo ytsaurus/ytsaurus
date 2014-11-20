@@ -108,6 +108,10 @@
     "path": "//home/ignat/transfer_manager",
     "proxy": "kant.yt.yandex.net",
     "token": "93b4cacc08aa4538a79a76c21e99c0fb",
-    "port": 5000
+    "port": 6000,
+
+    "logging": {
+        "filename": "log"
+    }
 }
 
