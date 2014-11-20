@@ -543,11 +543,11 @@ private:
             StartTabletEpoch(tablet);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, StoreCount: %v, Keys: %v .. %v, PartitionCount: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, Keys: %v .. %v, StoreCount: %v, PartitionCount: %v)",
             tabletId,
-            request.chunk_stores_size(),
             pivotKey,
             nextPivotKey,
+            request.chunk_stores_size(),
             tablet->Partitions().size());
     }
 
