@@ -55,6 +55,7 @@ public:
             config->JobIO->NewTableReader,
             host->GetMasterChannel(),
             host->GetCompressedBlockCache(),
+            host->GetUncompressedBlockCache(),
             host->GetNodeDirectory(),
             keyColumns,
             nameTable,

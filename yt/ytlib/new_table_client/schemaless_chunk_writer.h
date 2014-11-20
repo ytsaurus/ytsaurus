@@ -37,7 +37,7 @@ ISchemalessChunkWriterPtr CreatePartitionChunkWriter(
     TChunkWriterOptionsPtr options,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    NChunkClient::IWriterPtr asyncWriter,
+    NChunkClient::IChunkWriterPtr underlyingWriter,
     IPartitioner* partitioner);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -24,8 +24,9 @@ class TPartitionChunkReader
 public:
     TPartitionChunkReader(
         TChunkReaderConfigPtr config,
-        NChunkClient::IReaderPtr underlyingReader,
+        NChunkClient::IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
+        NChunkClient::IBlockCachePtr uncompressedBlockCache,
         const TKeyColumns& keyColumns,
         const NChunkClient::NProto::TChunkMeta& masterMeta,
         int partitionTag);
@@ -121,7 +122,8 @@ public:
         NChunkClient::TMultiChunkReaderConfigPtr config,
         NChunkClient::TMultiChunkReaderOptionsPtr options,
         NRpc::IChannelPtr masterChannel,
-        NChunkClient::IBlockCachePtr blockCache,
+        NChunkClient::IBlockCachePtr compressedBlockCache,
+        NChunkClient::IBlockCachePtr uncompressedBlockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
         TNameTablePtr nameTable,
@@ -133,6 +135,8 @@ public:
         TRowPointerInsertIterator& rowPointerInserter,
         i64* rowCount);
 private:
+    NChunkClient::IBlockCachePtr UncompressedBlockCache_;
+
     TNameTablePtr NameTable_;
     TKeyColumns KeyColumns_;
 
@@ -141,7 +145,7 @@ private:
 
     virtual NChunkClient::IChunkReaderBasePtr CreateTemplateReader(
         const NChunkClient::NProto::TChunkSpec& chunkSpec,
-        NChunkClient::IReaderPtr asyncReader) override;
+        NChunkClient::IChunkReaderPtr asyncReader) override;
 
     virtual void OnReaderSwitched() override;
 

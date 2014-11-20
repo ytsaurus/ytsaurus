@@ -37,6 +37,7 @@ public:
     NApi::TJournalWriterConfigPtr JournalWriter;
     bool ReadFromFollowers;
     i64 ReadBufferRowCount;
+    i64 ReadBufferSize;
 
     i64 WriteBufferSize;
     int LightPoolSize;
@@ -62,6 +63,8 @@ public:
             .Default(false);
         RegisterParameter("read_buffer_row_count", ReadBufferRowCount)
             .Default((i64) 10000);
+        RegisterParameter("read_buffer_size", ReadBufferSize)
+            .Default((i64) 1 * 1024 * 1024);
         RegisterParameter("write_buffer_size", WriteBufferSize)
             .Default((i64) 1 * 1024 * 1024);
         RegisterParameter("light_pool_size", LightPoolSize)

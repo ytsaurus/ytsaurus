@@ -154,13 +154,23 @@ private:
         }
     }
 
-bool TFetchChunkVisitor::OnChunk(
-    TChunk* chunk,
-    i64 rowIndex,
-    const TReadLimit& lowerLimit,
-    const TReadLimit& upperLimit)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    void ReplyError(const TError& error)
+    {
+        if (Finished_)
+            return;
+
+        Finished_ = true;
+
+        Context_->Reply(error);
+    }
+
+    bool OnChunk(
+        TChunk* chunk,
+        i64 rowIndex,
+        const TReadLimit& lowerLimit,
+        const TReadLimit& upperLimit)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (Context_->Response().chunks_size() >= Config_->MaxChunksPerFetch) {
             ReplyError(TError("Attempt to fetch too many chunks in a single request")
@@ -237,13 +247,13 @@ bool TFetchChunkVisitor::OnChunk(
                 ExtensionTags_);
         }
 
-    // Try to keep responses small -- avoid producing redundant limits.
-    if (!IsTrivial(lowerLimit)) {
-        ToProto(chunkSpec->mutable_lower_limit(), lowerLimit);
-    }
-    if (!IsTrivial(upperLimit)) {
-        ToProto(chunkSpec->mutable_upper_limit(), upperLimit);
-    }
+        // Try to keep responses small -- avoid producing redundant limits.
+        if (!IsTrivial(lowerLimit)) {
+            ToProto(chunkSpec->mutable_lower_limit(), lowerLimit);
+        }
+        if (!IsTrivial(upperLimit)) {
+            ToProto(chunkSpec->mutable_upper_limit(), upperLimit);
+        }
 
         return true;
     }

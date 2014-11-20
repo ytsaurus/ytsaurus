@@ -5,7 +5,7 @@
 #include "config.h"
 #include "private.h"
 
-#include <ytlib/chunk_client/reader.h>
+#include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
 #include <core/compression/codec.h>
@@ -27,12 +27,14 @@ TChunkReaderBase::TChunkReaderBase(
     TChunkReaderConfigPtr config,
     const NChunkClient::TReadLimit& lowerLimit,
     const NChunkClient::TReadLimit& upperLimit,
-    NChunkClient::IReaderPtr underlyingReader,
-    const NChunkClient::NProto::TMiscExt& misc)
+    NChunkClient::IChunkReaderPtr underlyingReader,
+    const NChunkClient::NProto::TMiscExt& misc,
+    IBlockCachePtr uncompressedBlockCache)
     : Logger(TableClientLogger)
     , Config_(config)
     , LowerLimit_(lowerLimit)
     , UpperLimit_(upperLimit)
+    , UncompressedBlockCache_(uncompressedBlockCache)
     , UnderlyingReader_(underlyingReader)
     , Misc_(misc)
     , BlockEnded_(false)
@@ -64,12 +66,14 @@ TError TChunkReaderBase::DoOpen()
             Config_,
             std::move(blocks),
             UnderlyingReader_,
+            UncompressedBlockCache_,
             ECodec(Misc_.compression_codec()));
 
-        YCHECK(SequentialReader_->HasNext());
+        YCHECK(SequentialReader_->HasMoreBlocks());
 
-        auto error = WaitFor(SequentialReader_->AsyncNextBlock());
-        RETURN_IF_ERROR(error);
+        auto error = WaitFor(SequentialReader_->FetchNextBlock());
+        if (!error.IsOK())
+            return error;
 
         InitFirstBlock();
 
@@ -81,7 +85,7 @@ TError TChunkReaderBase::DoOpen()
 
 TError TChunkReaderBase::DoSwitchBlock()
 {
-    auto error = WaitFor(SequentialReader_->AsyncNextBlock());
+    auto error = WaitFor(SequentialReader_->FetchNextBlock());
 
     if (error.IsOK()) {
         InitNextBlock();
@@ -93,7 +97,7 @@ TError TChunkReaderBase::DoSwitchBlock()
 bool TChunkReaderBase::OnBlockEnded()
 {
     BlockEnded_ = false;
-    if (SequentialReader_->HasNext()) {
+    if (SequentialReader_->HasMoreBlocks()) {
         ReadyEvent_ = BIND(&TChunkReaderBase::DoSwitchBlock, MakeStrong(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
             .Run();
@@ -105,15 +109,15 @@ bool TChunkReaderBase::OnBlockEnded()
 
 int TChunkReaderBase::GetBeginBlockIndex(const TBlockMetaExt& blockMeta) const
 {
-    auto& blockMetaEntries = blockMeta.entries();
+    auto& blockMetaEntries = blockMeta.blocks();
     int beginBlockIndex = 0;
     if (LowerLimit_.HasRowIndex()) {
         if (LowerLimit_.GetRowIndex() >= Misc_.row_count()) {
             LOG_DEBUG(
-                "Lower limit overstep chunk boundaries (LowerLimit: %s, RowCount: %" PRId64 ")",
-                ~ToString(LowerLimit_),
+                "Lower limit overstep chunk boundaries (LowerLimit: %v, RowCount: %v)",
+                LowerLimit_,
                 Misc_.row_count());
-            return blockMeta.entries_size();
+            return blockMeta.blocks_size();
         }
 
         // To make search symmetrical with blockIndex we ignore last block.
@@ -150,9 +154,9 @@ int TChunkReaderBase::GetBeginBlockIndex(const TBlockIndexExt& blockIndex, const
         FromProto(&maxKey, boundaryKeys.max());
         if (LowerLimit_.GetKey() > maxKey) {
             LOG_DEBUG(
-                "Lower limit overstep chunk boundaries (LowerLimit: %s, MaxKey: %s)",
-                ~ToString(LowerLimit_),
-                ~ToString(maxKey));
+                "Lower limit overstep chunk boundaries (LowerLimit: %v, MaxKey: %v)",
+                LowerLimit_,
+                maxKey);
 
             return blockIndex.entries_size();
         }
@@ -182,7 +186,7 @@ int TChunkReaderBase::GetBeginBlockIndex(const TBlockIndexExt& blockIndex, const
 
 int TChunkReaderBase::GetEndBlockIndex(const TBlockMetaExt& blockMeta) const
 {
-    auto& blockMetaEntries = blockMeta.entries();
+    auto& blockMetaEntries = blockMeta.blocks();
     int endBlockIndex = blockMetaEntries.size();
 
     if (UpperLimit_.HasRowIndex()) {

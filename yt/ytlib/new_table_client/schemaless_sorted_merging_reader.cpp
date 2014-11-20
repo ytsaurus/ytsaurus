@@ -10,7 +10,7 @@
 
 #include <core/concurrency/scheduler.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <core/misc/heap.h>
 
@@ -58,7 +58,7 @@ private:
         int CurrentRowIndex;
     };
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     bool EnableTableIndex_;
 

@@ -34,7 +34,7 @@ template <class TSignature>
 class TCoroutine;
 
 template <class T>
-class TNonBlockingQueue;
+class TNonblockingQueue;
 
 typedef size_t TThreadId;
 const size_t InvalidThreadId = 0;

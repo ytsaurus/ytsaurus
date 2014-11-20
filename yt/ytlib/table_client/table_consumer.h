@@ -249,7 +249,7 @@ private:
     virtual void OnValue(const NVersionedTableClient::TUnversionedValue& value) override;
     virtual void OnEndRow() override;
 
-    virtual void OnControlIntegerScalar(i64 value) override;
+    virtual void OnControlInt64Scalar(i64 value) override;
 
 };
 

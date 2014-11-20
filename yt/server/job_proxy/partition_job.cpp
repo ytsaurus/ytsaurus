@@ -55,6 +55,7 @@ public:
             New<TMultiChunkReaderOptions>(),
             host->GetMasterChannel(),
             host->GetCompressedBlockCache(),
+            host->GetUncompressedBlockCache(),
             host->GetNodeDirectory(),
             std::move(chunkSpecs),
             nameTable,
