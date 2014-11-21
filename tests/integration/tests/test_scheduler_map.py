@@ -184,11 +184,11 @@ class TestSchedulerMapCommands(YTEnvSetup):
             command=(
                 r'cat; python -c "'
                 r'import os; '
-                r'os.write(5, \"{ k1=4}; {k2=-7};{k2=1};\"); '
+                r'os.write(5, \"{ cpu={ k1=4; k3=7 }}; {k2=-7};{k2=1};\"); '
                 r'os.close(5);"'))
 
         statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
-        assert statistics['k1']['max'] == 4
+        assert statistics['cpu']['k1']['max'] == 4
         assert statistics['k2']['count'] == 2
 
     @only_linux
