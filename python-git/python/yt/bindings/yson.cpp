@@ -299,6 +299,12 @@ private:
             indent = Py::Int(arg).asLongLong();
         }
 
+        bool booleanAsString = true;
+        if (HasArgument(args, kwargs, "boolean_as_string")) {
+            auto arg = ExtractArgument(args, kwargs, "boolean_as_string");
+            booleanAsString = Py::Boolean(arg);
+        }
+
         bool ignoreInnerAttributes = false;
         if (HasArgument(args, kwargs, "ignore_inner_attributes")) {
             auto arg = ExtractArgument(args, kwargs, "ignore_inner_attributes");
@@ -309,7 +315,7 @@ private:
             throw CreateYsonError("Incorrect arguments");
         }
 
-        NYson::TYsonWriter writer(outputStream, ysonFormat, ysonType, false, indent);
+        NYson::TYsonWriter writer(outputStream, ysonFormat, ysonType, false, booleanAsString, indent);
         if (ysonType == NYson::EYsonType::Node) {
             try {
                 Serialize(obj, &writer, ignoreInnerAttributes);
