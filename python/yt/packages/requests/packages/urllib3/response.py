@@ -233,6 +233,11 @@ class HTTPResponse(object):
                            original_response=r,
                            **response_kw)
 
+    def trailers(self):
+        if hasattr(self._fp, "_trailers"):
+            return self._fp._trailers
+        return None
+
     # Backwards-compatibility methods for httplib.HTTPResponse
     def getheaders(self):
         return self.headers

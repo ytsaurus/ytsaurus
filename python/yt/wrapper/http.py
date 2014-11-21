@@ -34,9 +34,15 @@ if http_config.FORCE_IPV4 or http_config.FORCE_IPV6:
     # replace the original socket.getaddrinfo by our version
     socket.getaddrinfo = getAddrInfoWrapper
 
+def parse_error_from_headers(headers):
+    if int(headers.get("x-yt-response-code", 0)) != 0:
+        return json.loads(headers["x-yt-error"])
+    return None
+
 class Response(object):
-    def __init__(self, raw_response):
+    def __init__(self, raw_response, request_headers):
         self.raw_response = raw_response
+        self.request_headers = request_headers
         self._return_code_processed = False
 
     def error(self):
@@ -73,8 +79,9 @@ class Response(object):
                             self.raw_response.headers.get("X-YT-Request-ID", "absent"),
                             url_base))
             self._error = self.raw_response.json()
-        elif int(self.raw_response.headers.get("x-yt-response-code", 0)) != 0:
-            self._error = json.loads(self.raw_response.headers["x-yt-error"])
+        error = parse_error_from_headers(self.raw_response.headers)
+        if error is not None:
+            self._error = error
         self._return_code_processed = True
 
 def _process_request_backoff(current_time):
@@ -97,12 +104,13 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
     for attempt in xrange(http_config.REQUEST_RETRY_COUNT):
         current_time = datetime.now()
         _process_request_backoff(current_time)
+        headers = kwargs.get("headers", {})
         try:
             try:
-                response = Response(get_session().request(method, url, timeout=timeout, **kwargs))
+                response = Response(get_session().request(method, url, timeout=timeout, **kwargs), headers)
             except ConnectionError as error:
                 if hasattr(error, "response"):
-                    raise YtResponseError(url, kwargs.get("headers", {}), Response(error.response).error())
+                    raise YtResponseError(url, headers, Response(error.response, headers).error())
                 else:
                     raise
             except YtResponseError as error:

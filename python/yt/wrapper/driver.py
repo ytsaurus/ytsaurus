@@ -3,8 +3,8 @@ import config
 import yt.logger as logger
 from compression_wrapper import create_zlib_generator
 from common import require, generate_uuid, bool_to_string, get_value, get_version
-from errors import YtError
-from http import make_get_request_with_retries, make_request_with_retries, get_token, get_api, get_proxy_url
+from errors import YtError, YtResponseError
+from http import make_get_request_with_retries, make_request_with_retries, get_token, get_api, get_proxy_url, parse_error_from_headers
 from command import parse_commands
 
 from yt.yson.convert import json_to_yson
@@ -34,6 +34,7 @@ def escape_utf8(obj):
 class ResponseStream(object):
     """Iterator over response"""
     def __init__(self, response, iter_type):
+        self.request_headers = response.request_headers
         self.response = response.raw_response
         self.iter_type = iter_type
         self._buffer = ""
@@ -81,6 +82,11 @@ class ResponseStream(object):
                 return False
             return True
         except StopIteration:
+            trailers = self.response.trailers()
+            error = parse_error_from_headers(trailers)
+            if error is not None:
+                raise YtResponseError(self.response.url, self.request_headers, error)
+
             return False
 
     def __iter__(self):

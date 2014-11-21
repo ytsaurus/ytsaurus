@@ -11,12 +11,8 @@ import errno
 from socket import error as SocketError, timeout as SocketTimeout
 from .util import resolve_cert_reqs, resolve_ssl_version, assert_fingerprint
 
-try: # Python 3
-    from http.client import HTTPConnection, HTTPException
-    from http.client import HTTP_PORT, HTTPS_PORT
-except ImportError:
-    from httplib import HTTPConnection, HTTPException
-    from httplib import HTTP_PORT, HTTPS_PORT
+from packages.httplib import HTTPConnection, HTTPException
+from packages.httplib import HTTP_PORT, HTTPS_PORT
 
 try: # Python 3
     from queue import LifoQueue, Empty, Full
@@ -29,10 +25,7 @@ try: # Compiled with SSL?
     BaseSSLError = None
     ssl = None
 
-    try: # Python 3
-        from http.client import HTTPSConnection
-    except ImportError:
-        from httplib import HTTPSConnection
+    from packages.httplib import HTTPSConnection
 
     import ssl
     BaseSSLError = ssl.SSLError
