@@ -27,7 +27,7 @@ protected:
         ISnapshotStorePtr snapshotStore,
         TEpochContext* epochContext);
 
-    //! Must be derived the the inheritors to control the recovery behavior.
+    //! Must be derived by the inheritors to control the recovery behavior.
     virtual bool IsLeader() const = 0;
 
     //! Recovers to the desired state by first loading an appropriate snapshot
