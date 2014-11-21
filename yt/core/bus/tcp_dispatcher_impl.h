@@ -57,10 +57,8 @@ private:
     std::vector<TTcpDispatcherStatistics> Statistics_;
     yhash_set<IEventLoopObjectPtr> Objects_;
 
-
     void DoRegister(IEventLoopObjectPtr object);
     void DoUnregister(IEventLoopObjectPtr object);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TTcpDispatcherThread)
@@ -77,17 +75,18 @@ public:
     TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType) const;
 
     TTcpDispatcherThreadPtr AllocateThread();
-    
+
 private:
     friend TTcpDispatcher;
-    
+
     TImpl();
+
+    ~TImpl();
 
     std::vector<TTcpDispatcherThreadPtr> Threads_;
 
     TSpinLock SpinLock_;
     TRandomGenerator ThreadIdGenerator_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

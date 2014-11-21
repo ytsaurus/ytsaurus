@@ -124,6 +124,13 @@ TTcpDispatcher::TImpl::TImpl()
     }
 }
 
+TTcpDispatcher::TImpl::~TImpl()
+{
+    for (const auto& thread : Threads_) {
+        thread->Shutdown();
+    }
+}
+
 TTcpDispatcher::TImpl* TTcpDispatcher::TImpl::Get()
 {
     return TTcpDispatcher::Get()->Impl.get();
