@@ -1413,6 +1413,7 @@ private:
         writerOptions->Account = table->GetAccount()->GetName();
         writerOptions->CompressionCodec = tableAttributes.Get<NCompression::ECodec>("compression_codec");
         writerOptions->ErasureCodec = tableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+        writerOptions->ChunksVital = tableAttributes.Get<bool>("vital");
         *serializedWriterOptions = ConvertToYsonString(writerOptions);
     }
 
