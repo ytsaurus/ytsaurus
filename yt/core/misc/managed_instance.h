@@ -99,10 +99,8 @@ private:
     std::atomic<TObject*> Instance_;
 
     // OH DAT C++!
-    static constexpr TObject* GetBeingConstructedMarker()
-    {
-        return 0x1;
-    }
+    static constexpr TObject* const BeingConstructedMarker_ =
+        __builtin_constant_p((TObject*) 0x1) ? (TObject*) 0x1 : (TObject*) 0x1;
 
     static constexpr int Priority_ =
         NDetail::TGetPriority<TObject>::value;
@@ -127,7 +125,7 @@ public:
 
         // Loading with 'acquire' semantics to ensure that thread sees all instance data.
         auto value = Instance_.load(std::memory_order_acquire);
-        if (UNLIKELY(value == nullptr || value == GetBeingConstructedMarker())) {
+        if (UNLIKELY(value == nullptr || value == BeingConstructedMarker_)) {
             // Keep function inlineable.
             value = GetSlow();
         }
@@ -143,7 +141,7 @@ public:
 
         // Loading with 'acquire' semantics to ensure that thread sees all instance data.
         auto value = Instance_.load(std::memory_order_acquire);
-        if (UNLIKELY(value == nullptr || value == GetBeingConstructedMarker())) {
+        if (UNLIKELY(value == nullptr || value == BeingConstructedMarker_)) {
             value = nullptr;
         }
         return value;
@@ -159,7 +157,7 @@ private:
     {
         TObject* value = nullptr;
 
-        if (Instance_.compare_exchange_strong(value, GetBeingConstructedMarker(), std::memory_order_acquire)) {
+        if (Instance_.compare_exchange_strong(value, BeingConstructedMarker_, std::memory_order_acquire)) {
             // Construct the object.
             value = TMixin::New();
 
@@ -178,7 +176,7 @@ private:
                     Priority_);
             }
         } else {
-            while (value == GetBeingConstructedMarker()) {
+            while (value == BeingConstructedMarker_) {
                 ThreadYield();
                 value = Instance_.load(std::memory_order_acquire);
             }
@@ -191,7 +189,7 @@ private:
     {
         auto value = Instance_.load(std::memory_order_acquire);
 
-        while (value == GetBeingConstructedMarker()) {
+        while (value == BeingConstructedMarker_) {
             ThreadYield();
             value = Instance_.load(std::memory_order_acquire);
         }
@@ -206,7 +204,7 @@ private:
     {
         auto value = Instance_.load(std::memory_order_acquire);
 
-        Instance_.store(GetBeingConstructedMarker(), std::memory_order_release);
+        Instance_.store(BeingConstructedMarker_, std::memory_order_release);
         if (value) {
             TMixin::Reset(value);
         }
