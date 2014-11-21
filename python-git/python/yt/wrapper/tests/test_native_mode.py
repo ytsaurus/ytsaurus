@@ -630,6 +630,17 @@ class TestNativeMode(YtTestBase, YTEnv):
             for field in ("@table_index", "TableIndex", "_table_index_"):
                 assert field not in row
 
+    def test_attached_mode(self):
+        table = TEST_DIR + "/table"
+
+        yt.config.DETACHED = 0
+        try:
+            yt.write_table(table, ["x=1\n"])
+            yt.run_map("cat", table, table)
+            self.assertItemsEqual(["x=1\n"], yt.read_table(table))
+        finally:
+            yt.config.DETACHED = 1
+
 # Map method for test operations with python entities
 class ChangeX__(object):
     def __call__(self, rec):

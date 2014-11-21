@@ -310,7 +310,7 @@ def _make_operation_request(command_name, spec, strategy,
         _manage_operation(finalizer)
     else:
         transaction = PingableTransaction(
-            config.OPERATION_TRANSACTION_TIMEOUT,
+            timeout=config.http.get_timeout(),
             attributes={"title": "Python wrapper: envelope transaction of operation"},
             client=client)
 
