@@ -761,8 +761,12 @@ class HTTPConnection:
 
     def connect(self):
         """Connect to the host and port specified in __init__."""
-        self.sock = socket.create_connection((self.host,self.port),
-                                             self.timeout, self.source_address)
+        if "source_address" in socket.create_connection.func_code.co_varnames:
+            self.sock = socket.create_connection((self.host,self.port),
+                                                 self.timeout, self.source_address)
+        else:
+            self.sock = socket.create_connection((self.host,self.port),
+                                                 self.timeout)
 
         if self._tunnel_host:
             self._tunnel()
@@ -1161,8 +1165,13 @@ else:
         def connect(self):
             "Connect to a host on a given (SSL) port."
 
-            sock = socket.create_connection((self.host, self.port),
-                                            self.timeout, self.source_address)
+            if "source_address" in socket.create_connection.func_code.co_varnames:
+                sock = socket.create_connection((self.host, self.port),
+                                                self.timeout, self.source_address)
+            else:
+                sock = socket.create_connection((self.host, self.port),
+                                                self.timeout)
+
             if self._tunnel_host:
                 self.sock = sock
                 self._tunnel()
