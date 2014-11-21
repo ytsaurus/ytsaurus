@@ -588,7 +588,7 @@ private:
     ISchemalessWriterPtr UnderlyingWriter_;
 
 
-    TError DoOpen();
+    void DoOpen();
     TError FetchTableInfo();
     TError CreateUploadTransaction();
 
@@ -629,6 +629,7 @@ TAsyncError TSchemalessTableWriter::Open()
     LOG_INFO("Opening table writer");
 
     return BIND(&TSchemalessTableWriter::DoOpen, MakeStrong(this))
+        .Guarded()
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
 }
@@ -780,20 +781,18 @@ TError TSchemalessTableWriter::FetchTableInfo()
     return TError();
 }
 
-TError TSchemalessTableWriter::DoOpen()
+void TSchemalessTableWriter::DoOpen()
 {
     {
         auto error = CreateUploadTransaction();
-        if (!error.IsOK())
-            return error;
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
     LOG_INFO("Upload transaction created (TransactionId: %v)", UploadTransaction_->GetId());
 
     {
         auto error = FetchTableInfo();
-        if (!error.IsOK())
-            return error;
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
     UnderlyingWriter_ = CreateSchemalessMultiChunkWriter(
@@ -807,18 +806,15 @@ TError TSchemalessTableWriter::DoOpen()
         true);
 
     auto error = WaitFor(UnderlyingWriter_->Open());
-    if (!error.IsOK()) {
-        return TError(
-            "Error opening table chunk writer (Path: %v, TransactionId: %v)", 
-            RichPath_.GetPath(),
-            TransactionId_) << error;
-    }
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        error, 
+        "Error opening table chunk writer (Path: %v, TransactionId: %v)", 
+        RichPath_.GetPath(),
+        TransactionId_);
 
     if (Transaction_) {
         ListenTransaction(Transaction_);
     }
-
-    return TError();
 }
 
 TError TSchemalessTableWriter::DoClose()
