@@ -279,7 +279,7 @@ class YsonFormat(Format):
     .. seealso:: `YSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yson>`_
     """
 
-    def __init__(self, format=None, process_table_index=True, ignore_inner_attributes=False,
+    def __init__(self, format=None, process_table_index=True, ignore_inner_attributes=False, boolean_as_string=True,
                  attributes=None, raw=None):
         """
         :param format: (one of "text" (default), "pretty", "binary") output format \
@@ -293,6 +293,7 @@ class YsonFormat(Format):
         super(YsonFormat, self).__init__("yson", all_attributes, raw)
         self.process_table_index = process_table_index
         self.ignore_inner_attributes = ignore_inner_attributes
+        self.boolean_as_string = boolean_as_string
 
     def _check_bindings(self):
         require(yson.TYPE == "BINARY", YtError("Yson bindings required"))
@@ -348,7 +349,12 @@ class YsonFormat(Format):
         self._check_bindings()
         if self.process_table_index:
             rows = self._process_output_rows(rows)
-        yson.dump(rows, stream, yson_type="list_fragment", yson_format=self.attributes["format"], ignore_inner_attributes=self.ignore_inner_attributes)
+
+        kwargs = {}
+        if yson.TYPE == "binary":
+            kwargs = {"ignore_inner_attributes": self.ignore_inner_attributes,
+                      "boolean_as_string": self.boolean_as_string}
+        yson.dump(rows, stream, yson_type="list_fragment", yson_format=self.attributes["format"], **kwargs)
 
 class YamrFormat(Format):
     """
