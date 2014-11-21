@@ -43,6 +43,7 @@ protected:
 
         NameTable = New<TNameTable>();
         MemoryWriter = New<TMemoryWriter>();
+        MemoryWriter->Open();
 
         KeyColumns = {"k1", "k2", "k3"};
         EXPECT_EQ(0, NameTable->RegisterName("k1"));
