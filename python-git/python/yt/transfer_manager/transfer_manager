@@ -351,6 +351,7 @@ class Application(object):
         logging.getLogger('werkzeug').addHandler(handler)
 
     def _run_logging_server(self):
+        prctl.set_pdeathsig(signal.SIGINT)
         socket_reciever = LogRecordSocketReceiver(lambda record: logger.LOGGER.handle(record),
                                                   port=self._logging_port)
         socket_reciever.serve_until_stopped()
@@ -369,6 +370,7 @@ class Application(object):
         # From ... to task ids
         self._running_tasks_queues = defaultdict(lambda: [])
         self._runned_during_heartbeat = set()
+        self._cached_can_run = defaultdict(lambda: defaultdict(lambda: None))
 
         # List of tasks sorted by creation time
         self._pending_tasks = []
@@ -412,6 +414,8 @@ class Application(object):
             yt_client.create("map_node", pool_path, recursive=True, ignore_existing=True)
             yt_client.set(pool_path + "/@resource_limits", {"user_slots": 200})
             yt_client.set(pool_path + "/@mode", "fifo")
+        while not yt_client.exists("//sys/scheduler/orchid/scheduler/pools/" + pool_name):
+            time.sleep(0.5)
         return pool_name
 
     # Return pair: active client, that run copy operation and passive client.
@@ -524,6 +528,9 @@ class Application(object):
 
         client, _ = self._get_active_and_passive_clients(task)
         if client._type == "yt":
+            if self._cached_can_run[client._name][task.pool] is not None:
+                return self._cached_can_run[client._name][task.pool]
+
             pool_info = client.get("//sys/scheduler/orchid/scheduler/pools/" + task.pool)
             usage_ratio = 0.0
             for resource, usage in pool_info["resource_usage"].iteritems():
@@ -533,7 +540,12 @@ class Application(object):
                 else:
                     usage_ratio = max(usage_ratio, float(usage) / limit)
             if usage_ratio > 0.95:
-                return False
+                result = False
+            else:
+                result = True
+
+            self._cached_can_run[client._name][task.pool] = result
+            return result
 
         return True
 
@@ -548,6 +560,7 @@ class Application(object):
 
             logger.info("Processing tasks")
 
+            self._cached_can_run.clear()
             with self._mutex:
                 logger.info("Progress: %d running, %d pending tasks found", len(self._task_processes), len(self._pending_tasks))
 
@@ -572,7 +585,8 @@ class Application(object):
                         else:
                             assert False, "Incorrect message type: " + message["type"]
 
-                    if not process.is_alive() and not completed and error is None:
+
+                    if not process.is_alive() and not (process.aborted or error is not None or completed):
                         message = "Process died silently"
                         logger.warning(message)
                         error = {"message": message, "code": 1}
@@ -811,19 +825,19 @@ class Application(object):
 
         logger.info("Aboring task %s", id)
 
-        self._check_permission(id, request.headers.get("Authorization", ""), "Aborting")
+        with self._mutex:
+            self._check_permission(id, request.headers.get("Authorization", ""), "Aborting")
 
-        if id in self._task_processes:
-            process, _ = self._task_processes[id]
-            process.aborted = True
+            if id in self._task_processes:
+                process, _ = self._task_processes[id]
+                process.aborted = True
 
-            os.kill(process.pid, signal.SIGINT)
-            time.sleep(0.5)
-            if process.is_alive():
-                process.terminate()
+                os.kill(process.pid, signal.SIGINT)
+                time.sleep(0.5)
+                if process.is_alive():
+                    process.terminate()
 
-        if self._tasks[id].state not in ["aborted", "completed", "failed"]:
-            with self._mutex:
+            if self._tasks[id].state not in ["aborted", "completed", "failed"]:
                 self._change_task_state(id, "aborted")
 
         return ""
@@ -834,17 +848,18 @@ class Application(object):
 
         logger.info("Restarting task %s", id)
 
-        self._check_permission(id, request.headers.get("Authorization", ""), "Restarting")
-        if self._tasks[id].state not in ["completed", "aborted", "failed"]:
-            raise RequestFailed("Cannot restart task in state " + self._tasks[id].state)
+        with self._mutex:
+            self._check_permission(id, request.headers.get("Authorization", ""), "Restarting")
+            if self._tasks[id].state not in ["completed", "aborted", "failed"]:
+                raise RequestFailed("Cannot restart task in state " + self._tasks[id].state)
 
-        self._tasks[id].state = "pending"
-        self._tasks[id].creation_time = now()
-        self._tasks[id].finish_time = None
-        self._tasks[id].progress = None
-        self._tasks[id].error = None
-        self._dump_task(id)
-        self._pending_tasks.append(id)
+            self._tasks[id].state = "pending"
+            self._tasks[id].creation_time = now()
+            self._tasks[id].finish_time = None
+            self._tasks[id].progress = None
+            self._tasks[id].error = None
+            self._dump_task(id)
+            self._pending_tasks.append(id)
 
         return ""
 
@@ -852,16 +867,19 @@ class Application(object):
         if id not in self._tasks:
             return "Unknown task " + id, 400
 
-        task = self._tasks[id]
+        with self._mutex:
+            tasks = deepcopy(self._tasks)
+            pending_tasks = deepcopy(self._pending_tasks)
+
+        task = tasks[id]
         task_description = task.dict(hide_token=True)
         queue_index = 1
-        with self._mutex:
-            for id in self._pending_tasks:
-                if id == task.id:
-                    task_description["queue_index"] = queue_index
-                    break
-                if self._tasks[id].get_queue_id() == task.get_queue_id():
-                    queue_index += 1
+        for id in pending_tasks:
+            if id == task.id:
+                task_description["queue_index"] = queue_index
+                break
+            if tasks[id].get_queue_id() == task.get_queue_id():
+                queue_index += 1
 
         return jsonify(**task_description)
 
@@ -870,12 +888,12 @@ class Application(object):
             return "Unknown task " + id, 400
 
         self._check_permission(id, request.headers.get("Authorization", ""), "Deleting")
-        if self._tasks[id].state not in ["completed", "aborted", "failed"]:
-            raise RequestFailed("Cannot delete running task " + self._tasks[id].state)
 
         with self._mutex:
+            if self._tasks[id].state not in ["completed", "aborted", "failed"]:
+                raise RequestFailed("Cannot delete running task " + self._tasks[id].state)
             self._yt.remove(os.path.join(self._tasks_path, id), recursive=True)
-        del self._tasks[id]
+            del self._tasks[id]
 
         return ""
 
