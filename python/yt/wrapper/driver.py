@@ -75,18 +75,21 @@ class ResponseStream(object):
         return "".join(result)
 
     def _fetch(self):
-        try:
-            self._buffer = self._iter_content.next()
-            self._pos = 0
-            if not self._buffer:
-                return False
-            return True
-        except StopIteration:
+        def process_trailers():
             trailers = self.response.trailers()
             error = parse_error_from_headers(trailers)
             if error is not None:
                 raise YtResponseError(self.response.url, self.request_headers, error)
 
+        try:
+            self._buffer = self._iter_content.next()
+            self._pos = 0
+            if not self._buffer:
+                process_trailers()
+                return False
+            return True
+        except StopIteration:
+            process_trailers()
             return False
 
     def __iter__(self):
