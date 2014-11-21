@@ -147,6 +147,8 @@ TEST_F(TSingletonTest, CtorAndDtorAreCalled)
     EXPECT_EQ(nullptr, TMyHeapObject::TryGet());
 }
 
+#ifndef _win_
+
 TEST_F(TSingletonTest, ZeroAfterFork)
 {
     // Object should be alive after first access.
@@ -216,6 +218,8 @@ TEST_F(TSingletonTest, ZeroAfterFork)
     EXPECT_EQ(2, TMyStaticObject::CtorCalls);
     EXPECT_EQ(2, TMyStaticObject::DtorCalls);
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

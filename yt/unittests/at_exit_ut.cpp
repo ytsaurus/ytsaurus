@@ -28,6 +28,8 @@ TEST(TAtExitTest, AtExit)
     EXPECT_EQ("ADBC", s);
 }
 
+#ifndef _win_
+
 TEST(TAtExitTest, AtFork)
 {
     std::string s;
@@ -49,6 +51,8 @@ TEST(TAtExitTest, AtFork)
         _exit(0);
     }
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

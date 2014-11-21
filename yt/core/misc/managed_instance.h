@@ -99,18 +99,24 @@ private:
     std::atomic<TObject*> Instance_;
 
     // OH DAT C++!
-    static constexpr TObject* const BeingConstructedMarker_ =
-        __builtin_constant_p((TObject*) 0x1) ? (TObject*) 0x1 : (TObject*) 0x1;
+    static TObject* GetBeingConstructedMarker()
+    {
+        return (TObject*) 0x1;
+    }
 
     static constexpr int Priority_ =
-        NDetail::TGetPriority<TObject>::value;
+        NYT::NDetail::TGetPriority<TObject>::value;
     static constexpr bool DeleteAtExit_ =
-        NDetail::TGetDeleteAtExit<TObject>::value;
+        NYT::NDetail::TGetDeleteAtExit<TObject>::value;
     static constexpr bool ResetAtFork_ =
-        NDetail::TGetResetAtFork<TObject>::value;
+        NYT::NDetail::TGetResetAtFork<TObject>::value;
 
 public:
+#ifdef _win_
+    TManagedInstance() noexcept = default;
+#else
     constexpr TManagedInstance() noexcept = default;
+#endif
 
     TManagedInstance(const TManagedInstance&) = delete;
 
@@ -118,14 +124,16 @@ public:
 
     TObject* Get()
     {
+#ifndef _win_
         // Basically, check that managed instances could be const-initialized.
         static_assert(
             std::is_literal_type<TManagedInstance>::value,
             "Managed instances must be of a literal type.");
+#endif
 
         // Loading with 'acquire' semantics to ensure that thread sees all instance data.
         auto value = Instance_.load(std::memory_order_acquire);
-        if (UNLIKELY(value == nullptr || value == BeingConstructedMarker_)) {
+        if (UNLIKELY(value == nullptr || value == GetBeingConstructedMarker())) {
             // Keep function inlineable.
             value = GetSlow();
         }
@@ -134,14 +142,16 @@ public:
 
     TObject* TryGet()
     {
+#ifndef _win_
         // Basically, check that managed instances could be const-initialized.
         static_assert(
             std::is_literal_type<TManagedInstance>::value,
             "Managed instances must be of a literal type.");
+#endif
 
         // Loading with 'acquire' semantics to ensure that thread sees all instance data.
         auto value = Instance_.load(std::memory_order_acquire);
-        if (UNLIKELY(value == nullptr || value == BeingConstructedMarker_)) {
+        if (UNLIKELY(value == nullptr || value == GetBeingConstructedMarker())) {
             value = nullptr;
         }
         return value;
@@ -157,7 +167,7 @@ private:
     {
         TObject* value = nullptr;
 
-        if (Instance_.compare_exchange_strong(value, BeingConstructedMarker_, std::memory_order_acquire)) {
+        if (Instance_.compare_exchange_strong(value, GetBeingConstructedMarker(), std::memory_order_acquire)) {
             // Construct the object.
             value = TMixin::New();
 
@@ -176,7 +186,7 @@ private:
                     Priority_);
             }
         } else {
-            while (value == BeingConstructedMarker_) {
+            while (value == GetBeingConstructedMarker()) {
                 ThreadYield();
                 value = Instance_.load(std::memory_order_acquire);
             }
@@ -189,7 +199,7 @@ private:
     {
         auto value = Instance_.load(std::memory_order_acquire);
 
-        while (value == BeingConstructedMarker_) {
+        while (value == GetBeingConstructedMarker()) {
             ThreadYield();
             value = Instance_.load(std::memory_order_acquire);
         }
@@ -204,7 +214,7 @@ private:
     {
         auto value = Instance_.load(std::memory_order_acquire);
 
-        Instance_.store(BeingConstructedMarker_, std::memory_order_release);
+        Instance_.store(GetBeingConstructedMarker(), std::memory_order_release);
         if (value) {
             TMixin::Reset(value);
         }

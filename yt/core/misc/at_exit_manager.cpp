@@ -185,10 +185,12 @@ private:
 
         std::call_once(GlobalCallbacks, [] () {
             YCHECK(atexit(&TAtExitManager::GlobalAtExitCallback) == 0);
+#ifndef _win_
             YCHECK(pthread_atfork(
                 &TAtExitManager::GlobalAtForkPrepareCallback,
                 &TAtExitManager::GlobalAtForkParentCallback,
                 &TAtExitManager::GlobalAtForkChildCallback) == 0);
+#endif
         });
     }
 
