@@ -22,9 +22,7 @@ class TChunkOwnerBase
 public:
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
     DEFINE_BYVAL_RW_PROPERTY(NChunkClient::EUpdateMode, UpdateMode);
-
     DEFINE_BYVAL_RW_PROPERTY(int, ReplicationFactor);
-
     DEFINE_BYVAL_RW_PROPERTY(bool, Vital);
 
 public:
