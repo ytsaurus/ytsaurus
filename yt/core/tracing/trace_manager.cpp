@@ -40,6 +40,12 @@ public:
         InvokerQueue_->SetThreadId(Thread_->GetId());
     }
 
+    ~TImpl()
+    {
+        InvokerQueue_->Shutdown();
+        Thread_->Shutdown();
+    }
+
     void Configure(NYTree::INodePtr node, const NYTree::TYPath& path)
     {
         Config_ = New<TTraceManagerConfig>();
@@ -69,12 +75,6 @@ public:
             LOG_ERROR(ex, "Error while configuring tracing");
         }
    }
-
-    void Shutdown()
-    {
-        InvokerQueue_->Shutdown();
-        Thread_->Shutdown();
-    }
 
     void Enqueue(
         const NTracing::TTraceContext& context,
@@ -189,7 +189,6 @@ private:
         InvokerQueue_->EndExecute(&CurrentAction_);
     }
 
-
     bool IsPushEnabled()
     {
         return Config_->Address.HasValue() && Channel_;
@@ -284,9 +283,7 @@ TTraceManager::TTraceManager()
 { }
 
 TTraceManager::~TTraceManager()
-{
-    Impl_->Shutdown();
-}
+{ }
 
 void TTraceManager::Configure(NYTree::INodePtr node, const NYPath::TYPath& path)
 {
