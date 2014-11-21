@@ -684,3 +684,9 @@ class Response(object):
 
     def close(self):
         return self.raw.release_conn()
+
+    def trailers(self):
+        trailers = self.raw.trailers()
+        if trailers is not None:
+            return CaseInsensitiveDict(trailers)
+        return trailers
