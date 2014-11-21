@@ -8,6 +8,8 @@ def to_yson_type(value, attributes = None):
         result = YsonString(str(bytearray(value, 'utf-8')))
     if isinstance(value, str):
         result = YsonString(value)
+    elif value is False or value is True:
+        return YsonBoolean(value)
     elif isinstance(value, int):
         result = YsonInt64(value)
     elif isinstance(value, float):
