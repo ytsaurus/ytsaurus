@@ -335,7 +335,7 @@ public:
             FormatResources(GetTotalResourceLimits()));
 
         // Spawn a new fiber where all startup logic will work asynchronously.
-        BIND(&TThis::DoStartOperation, MakeStrong(this), operation)
+        BIND(&TImpl::DoStartOperation, MakeStrong(this), operation)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
 

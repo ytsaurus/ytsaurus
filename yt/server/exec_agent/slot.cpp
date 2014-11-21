@@ -34,7 +34,7 @@ TSlot::TSlot(
     : IsFree_(true)
     , IsClean_(true)
     , Path_(path)
-    , SlotIndex(slotIndex)
+    , SlotIndex_(slotIndex)
     , UserId_(userId)
     , SlotThread_(New<TActionQueue>(Format("ExecSlot:%v", slotIndex)))
     , ProcessGroup_("freezer", GetSlotProcessGroup(slotIndex))
@@ -42,7 +42,7 @@ TSlot::TSlot(
     , Logger(ExecAgentLogger)
     , Config_(config)
 {
-    Logger.AddTag("Slot: %v", SlotIndex);
+    Logger.AddTag("Slot: %v", SlotIndex_);
 }
 
 void TSlot::Initialize()
@@ -107,7 +107,7 @@ std::vector<Stroka> TSlot::GetCGroupPaths() const
 {
     std::vector<Stroka> result;
     if (Config_->EnableCGroups) {
-        auto subgroupName = GetSlotProcessGroup(SlotId);
+        auto subgroupName = GetSlotProcessGroup(SlotIndex_);
 
         for (const auto& type : NCGroup::GetSupportedCGroups()) {
             NCGroup::TNonOwningCGroup group(type, subgroupName);
@@ -146,7 +146,7 @@ void TSlot::DoCleanProcessGroups()
         }
     } catch (const std::exception& ex) {
         auto wrappedError = TError("Failed to clean slot subcgroups for slot %v",
-            SlotIndex) << ex;
+            SlotIndex_) << ex;
         LOG_ERROR(wrappedError);
         THROW_ERROR wrappedError;
     }

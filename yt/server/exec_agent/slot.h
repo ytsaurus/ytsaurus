@@ -62,7 +62,7 @@ private:
     bool IsClean_;
 
     Stroka Path_;
-    int SlotIndex;
+    int SlotIndex_;
     TNullable<int> UserId_;
 
     Stroka SandboxPath_;

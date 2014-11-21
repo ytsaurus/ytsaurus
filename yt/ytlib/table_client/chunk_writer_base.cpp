@@ -190,18 +190,21 @@ TError TChunkWriterBase::FlushBlocks()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    while (BuffersHeap.front()->GetCurrentSize() > 0) {
-        PrepareBlock();
-        if (EncodingWriter->IsReady()) {
-            continue;
-        }
-     
-        auto error = WaitFor(EncodingWriter->GetReadyEvent());
-        // ToDo(psushin): fix when moving to master.
-        RETURN_IF_ERROR(error);
-    }
+    try {
+        while (BuffersHeap.front()->GetDataSize() > 0) {
+            PrepareBlock();
+            if (EncodingWriter->IsReady()) {
+                continue;
+            }
 
-    return WaitFor(EncodingWriter->AsyncFlush());
+            auto error = WaitFor(EncodingWriter->GetReadyEvent());
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        }
+
+        return WaitFor(EncodingWriter->Flush());
+    } catch (const std::exception& ex) {
+        return ex;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

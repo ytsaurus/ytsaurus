@@ -174,7 +174,7 @@ private:
 
         if (Context_->Response().chunks_size() >= Config_->MaxChunksPerFetch) {
             ReplyError(TError("Attempt to fetch too many chunks in a single request")
-                       << TErrorAttribute("limit", Config_->MaxChunksPerFetch));
+                << TErrorAttribute("limit", Config_->MaxChunksPerFetch));
             return false;
         }
 
@@ -227,7 +227,7 @@ private:
         }
 
         for (auto replica : replicas) {
-            NodeDirectoryBuilder.Add(replica);
+            NodeDirectoryBuilder_.Add(replica);
             chunkSpec->add_replicas(NYT::ToProto<ui32>(replica));
         }
 

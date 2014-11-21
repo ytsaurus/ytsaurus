@@ -10,7 +10,7 @@
 #include <ytlib/table_client/partition_chunk_writer.h>
 #include <ytlib/table_client/sync_writer.h>
 
-#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 
 #include <core/ytree/yson_string.h>
@@ -64,7 +64,7 @@ public:
 
     virtual std::unique_ptr<TTableProducer> CreateTableInput(int index, IYsonConsumer* consumer) override
     {
-        return DoCreateTableInput<TMultiChunkSequentialReader>(index, consumer);
+        return DoCreateTableInput<TOldMultiChunkSequentialReader>(index, consumer);
     }
 
     virtual ISyncWriterPtr CreateTableOutput(int index) override

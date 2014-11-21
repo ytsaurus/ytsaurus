@@ -16,6 +16,7 @@
 #include <core/ytree/serialize.h>
 
 #include <core/logging/log.h>
+#include <core/logging/log_manager.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
@@ -523,13 +524,14 @@ private:
         return JobResult.HasValue();
     }
 
-    TFuture<void> DownloadChunks(const NChunkClient::NProto::TRspFetch& fetchRsp)
+    TFuture<void> DownloadChunks(
+        const google::protobuf::RepeatedPtrField<NYT::NChunkClient::NProto::TChunkSpec>& chunks)
     {
         auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
         auto chunkCache = Bootstrap->GetChunkCache();
         auto this_ = MakeStrong(this);
 
-        for (const auto chunk : fetchRsp.chunks()) {
+        for (const auto chunk : chunks) {
             auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
             auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunk.replicas());
 
@@ -561,15 +563,16 @@ private:
         return awaiter->Complete();
     }
 
-    std::vector<TChunkSpec> PatchCachedChunkReplicas(const NChunkClient::NProto::TRspFetch& fetchRsp)
+    std::vector<TChunkSpec> PatchCachedChunkReplicas(
+        const google::protobuf::RepeatedPtrField<NYT::NChunkClient::NProto::TChunkSpec>& chunks)
     {
-        std::vector<NChunkClient::NProto::TChunkSpec> chunks;
-        chunks.insert(chunks.end(), fetchRsp.chunks().begin(), fetchRsp.chunks().end());
-        for (auto& chunk : chunks) {
+        std::vector<NChunkClient::NProto::TChunkSpec> result;
+        result.insert(result.end(), chunks.begin(), chunks.end());
+        for (auto& chunk : result) {
             chunk.clear_replicas();
             chunk.add_replicas(ToProto<ui32>(TChunkReplica(InvalidNodeId, 0)));
         }
-        return chunks;
+        return result;
     }
 
     void PrepareRegularFile(const TRegularFileDescriptor& descriptor)
@@ -614,12 +617,12 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError, "Failed to download user file %Qv",
             fileName);
 
-        auto chunk = chunkOrError.Value();
-        CachedChunks.push_back(chunk);
+        auto result = chunkOrError.Value();
+        CachedChunks.push_back(result);
 
         try {
             Slot->MakeLink(
-                chunk->GetFileName(),
+                result->GetFileName(),
                 fileName,
                 descriptor.executable());
         } catch (const std::exception& ex) {
@@ -639,7 +642,7 @@ private:
 
         LOG_INFO("Preparing regular user file via download (FileName: %v, ChunkCount: %v)",
             fileName,
-            descriptor.file().chunks_size());
+            descriptor.chunks_size());
 
         CheckedWaitFor(DownloadChunks(descriptor.chunks()));
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
@@ -696,9 +699,11 @@ private:
 
     void PrepareTableFile(const TTableFileDescriptor& descriptor)
     {
+        const auto& fileName = descriptor.file_name();
+
         LOG_INFO("Preparing user table file (FileName: %v, ChunkCount: %v)",
             descriptor.file_name(),
-            descriptor.table().chunks_size());
+            descriptor.chunks_size());
 
         CheckedWaitFor(DownloadChunks(descriptor.chunks()));
 
@@ -723,7 +728,7 @@ private:
 
         auto syncReader = CreateSyncReader(asyncReader);
         auto format = ConvertTo<NFormats::TFormat>(TYsonString(descriptor.format()));
-        auto fileName = descriptor.file_name();
+
         try {
             syncReader->Open();
 

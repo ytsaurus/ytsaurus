@@ -14,8 +14,6 @@
 
 #include <server/security_server/acl.h>
 
-#include <core/formats/format.h>
-
 #include <core/rpc/config.h>
 #include <core/rpc/retrying_channel.h>
 
