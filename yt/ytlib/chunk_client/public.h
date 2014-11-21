@@ -17,6 +17,8 @@ class TChunkSpec;
 class TChunkMeta;
 class TMiscExt;
 
+class TReadRange;
+
 class TReqFetch;
 
 } // namespace NProto
