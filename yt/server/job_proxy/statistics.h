@@ -61,7 +61,7 @@ class TStatisticsConverter
 {
 public:
     typedef TCallback<void(const TStatistics&)> TStatisticsConsumer;
-    explicit TStatisticsConverter(TStatisticsConsumer consumer);
+    explicit TStatisticsConverter(TStatisticsConsumer consumer, const NYPath::TYPath& location);
 
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnInt64Scalar(i64 value) override;
@@ -83,6 +83,7 @@ public:
 
 private:
     int Depth_;
+    NYPath::TYPath Location_;
     std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;
     TStatisticsConsumer Consumer_;
 

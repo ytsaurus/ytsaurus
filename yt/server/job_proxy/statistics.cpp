@@ -128,8 +128,9 @@ void Deserialize(TStatistics& value, NYTree::INodePtr node)
 
 ////////////////////////////////////////////////////////////////////
 
-TStatisticsConverter::TStatisticsConverter(TStatisticsConsumer consumer)
+TStatisticsConverter::TStatisticsConverter(TStatisticsConsumer consumer, const NYPath::TYPath& location)
     : Depth_(0)
+    , Location_(location)
     , TreeBuilder_(NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory()))
     , Consumer_(consumer)
 { }
@@ -199,7 +200,15 @@ void TStatisticsConverter::OnEndMap()
     --Depth_;
     if (Depth_ == 0) {
         TStatistics statistics;
-        ConvertToStatistics(statistics, TreeBuilder_->EndTree());
+        NYTree::INodePtr parsed;
+        if (Location_ == "") {
+            parsed = TreeBuilder_->EndTree();
+        } else {
+            parsed = NYTree::GetEphemeralNodeFactory()->CreateMap();
+            ForceYPath(parsed, Location_);
+            SetNodeByYPath(parsed, Location_, TreeBuilder_->EndTree());
+        }
+        ConvertToStatistics(statistics, parsed);
         Consumer_.Run(statistics);
     }
 }

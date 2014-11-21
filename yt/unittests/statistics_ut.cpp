@@ -109,14 +109,14 @@ private:
 TEST(TStatisticsConverter, Integration)
 {
     TMergeStatisticsConsumer statisticsConsumer;
-    auto consumer = std::make_unique<TStatisticsConverter>(BIND(&TMergeStatisticsConsumer::Consume, &statisticsConsumer));
+    auto consumer = std::make_unique<TStatisticsConverter>(BIND(&TMergeStatisticsConsumer::Consume, &statisticsConsumer), "/something");
     auto parser = CreateParserForFormat(TFormat(EFormatType::Yson), EDataType::Tabular, consumer.get());
     TTableOutput output(std::move(parser), std::move(consumer));
     output.Write("{ k1=4}; {k2=-7}");
 
     const auto& stats = statisticsConsumer.GetStatistics();
-    EXPECT_EQ(4, stats.GetStatistic("/k1").GetSum());
-    EXPECT_EQ(-7, stats.GetStatistic("/k2").GetSum());
+    EXPECT_EQ(4, stats.GetStatistic("/something/k1").GetSum());
+    EXPECT_EQ(-7, stats.GetStatistic("/something/k2").GetSum());
 }
 
 ////////////////////////////////////////////////////////////////////

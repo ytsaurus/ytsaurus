@@ -188,8 +188,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 r'os.close(5);"'))
 
         statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
-        assert statistics['cpu']['k1']['max'] == 4
-        assert statistics['k2']['count'] == 2
+        assert statistics['user']['cpu']['k1']['max'] == 4
+        assert statistics['user']['k2']['count'] == 2
 
     @only_linux
     def test_one_chunk(self):
