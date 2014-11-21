@@ -652,7 +652,7 @@ class Application(object):
             parameters = self._availability_graph[task.source_cluster][task.destination_cluster]
 
             # Calculate fastbone
-            fastbone = source_client._parameters["fastbone"] and destination_client._parameters["fastbone"]
+            fastbone = source_client._parameters.get("fastbone", False) and destination_client._parameters.get("fastbone", False)
             fastbone = parameters.get("fastbone", fastbone)
 
             if source_client._type == "yt" and destination_client._type == "yt":
