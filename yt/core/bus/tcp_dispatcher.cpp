@@ -48,9 +48,7 @@ TTcpDispatcher::TTcpDispatcher()
 { }
 
 TTcpDispatcher::~TTcpDispatcher()
-{
-    Impl->Shutdown();
-}
+{ }
 
 TTcpDispatcher* TTcpDispatcher::Get()
 {

@@ -136,13 +136,6 @@ TTcpDispatcher::TImpl* TTcpDispatcher::TImpl::Get()
     return TTcpDispatcher::Get()->Impl.get();
 }
 
-void TTcpDispatcher::TImpl::Shutdown()
-{
-    for (auto thread : Threads_) {
-        thread->Shutdown();
-    }
-}
-
 TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType interfaceType) const
 {
     // This is racy but should be OK as an approximation.

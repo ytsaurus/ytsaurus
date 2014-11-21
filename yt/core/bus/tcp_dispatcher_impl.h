@@ -70,7 +70,9 @@ class TTcpDispatcher::TImpl
 public:
     static TImpl* Get();
 
-    void Shutdown();
+    TImpl();
+
+    ~TImpl();
 
     TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType) const;
 
@@ -78,11 +80,6 @@ public:
 
 private:
     friend TTcpDispatcher;
-
-    TImpl();
-
-    ~TImpl();
-
     std::vector<TTcpDispatcherThreadPtr> Threads_;
 
     TSpinLock SpinLock_;
