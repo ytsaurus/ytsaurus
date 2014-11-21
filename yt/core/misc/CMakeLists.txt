@@ -81,6 +81,7 @@ set( HDRS
   ${BASE}/lazy_ptr.h
   ${BASE}/lease_manager.h
   ${BASE}/lfalloc_helpers.h
+  ${BASE}/managed_instance.h
   ${BASE}/mpl.h
   ${BASE}/nullable.h
   ${BASE}/object_pool-inl.h
