@@ -168,6 +168,9 @@ class TestNativeMode(YtTestBase, YTEnv):
         yt.write_table(table, ["x=1\n"])
         self.check(["x=1\n"], yt.read_table(table))
 
+        yt.write_table(table, [{"x": 1}], raw=False)
+        self.check(["x=1\n"], yt.read_table(table))
+
         yt.write_table(table, iter(["x=1\n"]))
         self.check(["x=1\n"], yt.read_table(table))
 
