@@ -390,8 +390,12 @@ class Application(object):
                 self._change_task_state(id, "pending")
             if task.state == "pending":
                 self._append_pending_task(task)
-            if task.pool is None:
-                self._initialize_pool(task)
+            if task.state == "pending" and task.pool is None:
+                try:
+                    self._initialize_pool(task)
+                except yt.YtError:
+                    logger.warning("Failed to initialize pool of task %s", id)
+                    self._change_task_state(id, "failed")
 
         self._pending_tasks.sort(key=lambda id: self._tasks[id].creation_time)
 
