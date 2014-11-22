@@ -218,8 +218,9 @@ private:
         if (chunk->CachedReplicas()) {
             int cachedReplicaCount = 0;
             for (auto replica : *chunk->CachedReplicas()) {
-                if (cachedReplicaCount >= config->MaxCachedReplicasPerFetch)
+                if (cachedReplicaCount >= config->MaxCachedReplicasPerFetch) {
                     break;
+                }
                 if (addReplica(replica)) {
                     ++cachedReplicaCount;
                 }
