@@ -430,6 +430,47 @@ TEST_F(TVersionedRowMergerTest, KeepLatest4)
     EXPECT_FALSE(merger.BuildMergedRow());
 }
 
+TEST_F(TVersionedRowMergerTest, KeepLatest5)
+{
+    auto config = New<TRetentionConfig>();
+    config->MinDataVersions = 3;
+    config->MaxDataVersions = 3;
+
+    TChunkedMemoryPool pool;
+    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000000), SecondsToTimestamp(400));
+
+    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
+    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2"));
+    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3"));
+    merger.AddPartialRow(BuildVersionedRow("0", "", { 150, 250 }));
+
+    EXPECT_EQ(
+        BuildVersionedRow(
+            "0",
+            "<id=1;ts=200> 2; <id=1;ts=300> 3;",
+            { 250 }),
+        merger.BuildMergedRow());
+}
+
+TEST_F(TVersionedRowMergerTest, KeepLatest6)
+{
+    auto config = New<TRetentionConfig>();
+    config->MinDataVersions = 2;
+    config->MaxDataVersions = 2;
+
+    TChunkedMemoryPool pool;
+    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000000), SecondsToTimestamp(150));
+
+    merger.AddPartialRow(BuildVersionedRow("0", "", { 100, 200, 300 }));
+
+    EXPECT_EQ(
+        BuildVersionedRow(
+            "0",
+            "",
+            { 200, 300 }),
+        merger.BuildMergedRow());
+}
+
 TEST_F(TVersionedRowMergerTest, Expire1)
 {
     auto config = New<TRetentionConfig>();
@@ -504,6 +545,26 @@ TEST_F(TVersionedRowMergerTest, DeleteOnly)
             "0",
             "",
             { 100 }),
+        merger.BuildMergedRow());
+}
+
+TEST_F(TVersionedRowMergerTest, ManyDeletes)
+{
+    auto config = New<TRetentionConfig>();
+    config->MinDataVersions = 10;
+
+    TChunkedMemoryPool pool;
+    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000), 0);
+
+    merger.AddPartialRow(BuildVersionedRow("0", "", { 200 }));
+    merger.AddPartialRow(BuildVersionedRow("0", "", { 100 }));
+    merger.AddPartialRow(BuildVersionedRow("0", "", { 300 }));
+
+    EXPECT_EQ(
+        BuildVersionedRow(
+            "0",
+            "",
+            { 100, 200, 300 }),
         merger.BuildMergedRow());
 }
 
