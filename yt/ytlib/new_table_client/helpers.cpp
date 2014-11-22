@@ -4,24 +4,21 @@
 
 #include "schemaless_reader.h"
 #include "schemaless_writer.h"
-#include "unversioned_row.h"
 
 #include <ytlib/formats/parser.h>
 
-#include <ytlib/table_client/table_consumer.h>
-
 #include <core/concurrency/scheduler.h>
+
 
 namespace NYT {
 namespace NVersionedTableClient {
 
 using namespace NConcurrency;
 using namespace NFormats;
-using namespace NTableClient;
 
 //////////////////////////////////////////////////////////////////////////////////
 
-TTableOutput::TTableOutput(const TFormat& format, TWritingTableConsumer* consumer)
+TTableOutput::TTableOutput(const TFormat& format, NYson::IYsonConsumer* consumer)
     : Consumer_(consumer)
     , Parser_(CreateParserForFormat(format, EDataType::Tabular, consumer))
     , IsParserValid_(true)
@@ -35,7 +32,6 @@ void TTableOutput::DoWrite(const void* buf, size_t len)
     YCHECK(IsParserValid_);
     try {
         Parser_->Read(TStringBuf(static_cast<const char*>(buf), len));
-        Consumer_->Flush();
     } catch (const std::exception& ex) {
         IsParserValid_ = false;
         throw;
@@ -47,17 +43,15 @@ void TTableOutput::DoFinish()
     if (IsParserValid_) {
         // Dump everything into consumer.
         Parser_->Finish();
-        // Flush everything into writer.
-        Consumer_->Flush();
     }
 }
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void ReadToWriter(ISchemalessReaderPtr reader, ISchemalessWriterPtr writer, int rowBufferSize)
+void PipeReaderToWriter(ISchemalessReaderPtr reader, ISchemalessWriterPtr writer, int bufferRowCount)
 {
     std::vector<TUnversionedRow> rows;
-    rows.reserve(rowBufferSize);
+    rows.reserve(bufferRowCount);
 
     while (reader->Read(&rows)) {
         if (rows.empty()) {
@@ -74,13 +68,13 @@ void ReadToWriter(ISchemalessReaderPtr reader, ISchemalessWriterPtr writer, int 
     YCHECK(rows.empty());
 }
 
-void ReadToOutputStream(
-    TOutputStream* output,
+void PipeInputToOutput(
     TInputStream* input,
-    int readBufferSize)
+    TOutputStream* output,
+    int bufferSize)
 {
     struct TWriteBufferTag { };
-    auto buffer = TSharedRef::Allocate<TWriteBufferTag>(readBufferSize);
+    TBlob buffer(TWriteBufferTag(), bufferSize);
 
     while (true) {
         size_t length = input->Read(buffer.Begin(), buffer.Size());

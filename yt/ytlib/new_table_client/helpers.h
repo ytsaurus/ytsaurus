@@ -6,6 +6,8 @@
 
 #include <ytlib/formats/format.h>
 
+#include <core/yson/public.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -15,7 +17,7 @@ class TTableOutput
     : public TOutputStream
 {
 public:
-    TTableOutput(const NFormats::TFormat& format, NTableClient::TWritingTableConsumer* consumer);
+    TTableOutput(const NFormats::TFormat& format, NYson::IYsonConsumer* consumer);
     ~TTableOutput() throw();
 
 private:
@@ -23,7 +25,7 @@ private:
     void DoFinish();
 
 
-    NTableClient::TWritingTableConsumer* Consumer_;
+    NYson::IYsonConsumer* Consumer_;
     std::unique_ptr<NFormats::IParser> Parser_;
     bool IsParserValid_;
 
@@ -31,12 +33,9 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void ReadToWriter(ISchemalessReaderPtr reader, ISchemalessWriterPtr writer, int rowBufferSize);
+void PipeReaderToWriter(ISchemalessReaderPtr reader, ISchemalessWriterPtr writer, int bufferRowCount);
 
-void ReadToOutputStream(
-    TOutputStream* output,
-    TInputStream* input,
-    int readBufferSize);
+void PipeInputToOutput(TInputStream* input, TOutputStream* output, int bufferSize);
 
 //////////////////////////////////////////////////////////////////////////////////
 
