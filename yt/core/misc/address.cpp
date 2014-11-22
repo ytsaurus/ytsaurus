@@ -469,6 +469,12 @@ private:
 
     Stroka DoGetLocalHostName()
     {
+        // Prevent reentrant lookups from TError::ctor().
+        {
+            TGuard<TSpinLock> guard(LocalHostLock_);
+            LocalHostName_ = "<unknown>";
+        }
+
         if (Config_->LocalHostFqdn) {
             LOG_INFO("Localhost FQDN overriden to %v", Config_->LocalHostFqdn);
             return *Config_->LocalHostFqdn;
@@ -478,10 +484,6 @@ private:
 
         char hostName[1024] = {};
         if (gethostname(hostName, sizeof(hostName) - 1) != 0) {
-            {
-                TGuard<TSpinLock> guard(LocalHostLock_);
-                LocalHostName_ = "<unknown>";
-            }
             THROW_ERROR_EXCEPTION("Unable to determine localhost FQDN: gethostname failed")
                 << TError::FromSystem();
         }
@@ -490,19 +492,11 @@ private:
 
         auto result = DoResolve(hostName, &canonicalName);
         if (!result.IsOK()) {
-            {
-                TGuard<TSpinLock> guard(LocalHostLock_);
-                LocalHostName_ = "<unknown>";
-            }
             THROW_ERROR_EXCEPTION("Unable to determine localhost FQDN: getaddrinfo failed")
                 << result;
         }
 
         if (canonicalName.empty()) {
-            {
-                TGuard<TSpinLock> guard(LocalHostLock_);
-                LocalHostName_ = "<unknown>";
-            }
             THROW_ERROR_EXCEPTION("Unable to determine localhost FQDN: no matching addrinfo entry found", hostName);
         }
 
@@ -510,6 +504,7 @@ private:
             TGuard<TSpinLock> guard(LocalHostLock_);
             LocalHostName_ = canonicalName;
         }
+
         LOG_INFO("Localhost FQDN resolved by getaddrinfo: %v", canonicalName);
 
         return canonicalName;
