@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "lock_proxy.h"
 #include "lock.h"
+#include "node.h"
 #include "private.h"
 
 #include <core/ytree/fluent.h>
@@ -41,6 +42,7 @@ private:
         const auto* lock = GetThisTypedImpl();
         attributes->push_back("state");
         attributes->push_back("transaction_id");
+        attributes->push_back("node_id");
         attributes->push_back("mode");
         attributes->push_back(TAttributeInfo("child_key", lock->Request().ChildKey.HasValue()));
         attributes->push_back(TAttributeInfo("attribute_key", lock->Request().AttributeKey.HasValue()));
@@ -60,6 +62,12 @@ private:
         if (key == "transaction_id") {
             BuildYsonFluently(consumer)
                 .Value(lock->GetTransaction()->GetId());
+            return true;
+        }
+
+        if (key == "node_id") {
+            BuildYsonFluently(consumer)
+                .Value(lock->GetTrunkNode()->GetId());
             return true;
         }
 
