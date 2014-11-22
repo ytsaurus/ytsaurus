@@ -101,6 +101,7 @@
         "redwood": ["plato", "kant", "smith", "cedar", "betula"],
         "bsmr": ["kant"]
     },
+    "scheduling_backoff": 5,
     "pending_tasks_limit": 5000,
     "pending_tasks_limit_per_user": 500,
     "running_tasks_limit_per_direction": 10,
