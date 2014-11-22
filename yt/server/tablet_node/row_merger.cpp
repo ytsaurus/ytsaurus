@@ -194,13 +194,13 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         return TVersionedRow();
     }
 
-    // Sort delete timestamps and remove duplicates.
+    // Sort delete timestamps in ascending order and remove duplicates.
     std::sort(DeleteTimestamps_.begin(), DeleteTimestamps_.end());
     DeleteTimestamps_.erase(
         std::unique(DeleteTimestamps_.begin(), DeleteTimestamps_.end()),
         DeleteTimestamps_.end());
 
-    // Sort input values by (id, timestamp).
+    // Sort input values by |(id, timestamp)|.
     std::sort(
         PartialValues_.begin(),
         PartialValues_.end(),
@@ -259,13 +259,13 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         }
 #endif
 
-        // Compute safety limit by min_versions.
+        // Compute safety limit by MinDataVersions.
         auto safetyEndIt = ColumnValues_.begin();
         if (ColumnValues_.size() > Config_->MinDataVersions) {
             safetyEndIt = ColumnValues_.end() - Config_->MinDataVersions;
         }
 
-        // Adjust safety limit by min_ttl.
+        // Adjust safety limit by MinDataTtl.
         while (safetyEndIt != ColumnValues_.begin()) {
             auto timestamp = (safetyEndIt - 1)->Timestamp;
             if (timestamp < CurrentTimestamp_ &&
@@ -276,7 +276,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
             --safetyEndIt;
         }
 
-        // Compute retention limit by max_versions and max_ttl.
+        // Compute retention limit by MaxDataVersions and MaxDataTtl.
         auto retentionBeginIt = safetyEndIt;
         while (retentionBeginIt != ColumnValues_.begin()) {
             if (std::distance(retentionBeginIt, ColumnValues_.end()) >= Config_->MaxDataVersions)
@@ -293,9 +293,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         // Save output values and timestamps.
         for (auto it = retentionBeginIt; it != ColumnValues_.end(); ++it) {
             const auto& value = *it;
-            if (value.Type == EValueType::TheBottom) {
-                //DeleteTimestamps_.push_back(value.Timestamp);
-            } else {
+            if (value.Type != EValueType::TheBottom) {
                 WriteTimestamps_.push_back(value.Timestamp);
                 MergedValues_.push_back(*it);
             }
@@ -315,11 +313,14 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
 
     // Delete redundant tombstones preceding major timestamp.
     {
-        auto latestWriteTimestamp = WriteTimestamps_.empty()
+        auto earliestWriteTimestamp = WriteTimestamps_.empty()
             ? MaxTimestamp
-            : WriteTimestamps_.back();
+            : WriteTimestamps_.front();
+        printf("lwts %" PRId64 "\n", earliestWriteTimestamp);
+        printf("mts %" PRId64 "\n", MajorTimestamp_);
         auto it = DeleteTimestamps_.begin();
-        while (it != DeleteTimestamps_.end() && (*it > latestWriteTimestamp || *it >= MajorTimestamp_)) {
+        while (it != DeleteTimestamps_.end() && (*it > earliestWriteTimestamp || *it >= MajorTimestamp_)) {
+            printf("skip\n");
             ++it;
         }
         DeleteTimestamps_.erase(it, DeleteTimestamps_.end());
