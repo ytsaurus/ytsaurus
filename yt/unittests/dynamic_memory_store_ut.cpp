@@ -731,6 +731,34 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, ConcurrentWrites2)
     EXPECT_EQ(ts2, GetLock(row, 2).LastCommitTimestamp);
 }
 
+TEST_F(TMultiLockDynamicMemoryStoreTest, ConcurrentWrites3)
+{
+    auto key = BuildKey("1");
+
+    auto transaction1 = StartTransaction();
+    auto transaction2 = StartTransaction();
+
+    auto row1 = WriteRow(transaction1.get(), BuildRow("key=1;b=3.14", false), true, LockMask2);
+    PrepareTransaction(transaction1.get());
+    PrepareRow(transaction1.get(), row1);
+
+    auto row2 = WriteRow(transaction2.get(), BuildRow("key=1;a=1", false), true, LockMask1);
+    EXPECT_EQ(row1, row2);
+    PrepareTransaction(transaction2.get());
+    PrepareRow(transaction2.get(), row2);
+
+    AbortTransaction(transaction1.get());
+    AbortRow(transaction1.get(), row1);
+
+    auto ts2 = CommitTransaction(transaction2.get());
+    CommitRow(transaction2.get(), row2);
+
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), Stroka("key=1;a=1")));
+    EXPECT_EQ(MinTimestamp, GetLock(row2).LastCommitTimestamp);
+    EXPECT_EQ(ts2, GetLock(row2, 1).LastCommitTimestamp);
+    EXPECT_EQ(MinTimestamp, GetLock(row2, 2).LastCommitTimestamp);
+}
+
 TEST_F(TMultiLockDynamicMemoryStoreTest, WriteWriteConflict1)
 {
     auto key = BuildKey("1");

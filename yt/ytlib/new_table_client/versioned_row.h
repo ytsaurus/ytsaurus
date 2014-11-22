@@ -81,7 +81,6 @@ inline TVersionedValue MakeVersionedAnyValue(const TStringBuf& value, TTimestamp
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Header which precedes row values in memory layout.
 struct TVersionedRowHeader
 {
     ui16 ValueCount;
@@ -115,6 +114,26 @@ size_t GetVersionedRowDataSize(
     int writeTimestampCount,
     int deleteTimestampCount);
 
+//! A row with versioned data.
+/*!
+ *  A lightweight wrapper around |TVersionedRowHeader*|.
+ *
+ *  Provides access to the following parts:
+ *  1) write timestamps, sorted in decreasing order;
+ *     at most one if a specific revision is requested;
+ *  2) delete timestamps, sorted in decreasing order;
+ *     at most one if a specific revision is requested;
+ *  3) unversioned keys;
+ *  4) versioned values, sorted in ascending order by |(id,timestamp)|;
+ *     no position-to-id matching is ever assumed.
+ *
+ *  Memory layout:
+ *  1) TVersionedRowHeader
+ *  2) TTimestamp per each write timestamp (#TVersionedRowHeader::WriteTimestampCount)
+ *  3) TTimestamp per each delete timestamp (#TVersionedRowHeader::DeleteTimestampCount)
+ *  4) TUnversionedValue per each key (#TVersionedRowHeader::KeyCount)
+ *  5) TVersionedValue per each value (#TVersionedRowHeader::ValueCount)
+ */
 class TVersionedRow
 {
 public:

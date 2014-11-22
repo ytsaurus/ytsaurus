@@ -70,12 +70,9 @@ void TTransaction::Save(TSaveContext& context) const
             int lockIndex = columnIndexToLockIndex[columnIndex];
             if (locks[lockIndex].Transaction == this) {
                 auto list = rowRef.Row.GetFixedValueList(columnIndex, keyColumnCount, columnLockCount);
-                if (list) {
-                    const auto& value = list.Back();
-                    if (value.Timestamp == UncommittedTimestamp) {
-                        NVersionedTableClient::Save(context, TUnversionedValue(value));
-                        lockMask |= (1 << lockIndex);
-                    }
+                if (list && list.HasUncommitted()) {
+                    NVersionedTableClient::Save(context, TUnversionedValue(list.GetUncommitted()));
+                    lockMask |= (1 << lockIndex);
                 }
             }
         }

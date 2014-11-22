@@ -185,7 +185,6 @@ inline TUnversionedValue MakeUnversionedAnyValue(const TStringBuf& value, int id
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Header which precedes row values in memory layout.
 struct TUnversionedRowHeader
 {
     ui32 Count;
@@ -275,7 +274,17 @@ i64 GetDataWeight(TUnversionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A lightweight wrapper around TUnversionedRowHeader* plus an array of values.
+//! A row with unversioned data.
+/*!
+ *  A lightweight wrapper around |TUnversionedRowHeader*|.
+ *
+ *  Provides access to a sequence of unversioned values.
+ *  If data is schemaful then the positions of values must exactly match their ids.
+ *
+ *  Memory layout:
+ *  1) TUnversionedRowHeader
+ *  2) TUnversionedValue per each value (#TUnversionedRowHeader::ValueCount)
+ */
 class TUnversionedRow
 {
 public:

@@ -315,12 +315,9 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
     {
         auto earliestWriteTimestamp = WriteTimestamps_.empty()
             ? MaxTimestamp
-            : WriteTimestamps_.front();
-        printf("lwts %" PRId64 "\n", earliestWriteTimestamp);
-        printf("mts %" PRId64 "\n", MajorTimestamp_);
+            : WriteTimestamps_.back();
         auto it = DeleteTimestamps_.begin();
         while (it != DeleteTimestamps_.end() && (*it > earliestWriteTimestamp || *it >= MajorTimestamp_)) {
-            printf("skip\n");
             ++it;
         }
         DeleteTimestamps_.erase(it, DeleteTimestamps_.end());

@@ -7,6 +7,8 @@
 
 #include <ytlib/new_table_client/unversioned_row.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -50,25 +52,38 @@ struct TDynamicRowHeader
     ui32 NullKeyMask;
     ui32 DeleteLockFlag : 1;
     ui32 Padding : 31;
-
-    // Variable-size part:
-    // * TDynamicValueData per each key column
-    // * TLockDescriptor per each lock group
-    // * TEditListHeader* for timestamps
-    // * TEditListHeader* per each fixed non-key column
 };
 
 struct TEditListHeader
 {
-    TEditListHeader* Next;
-    ui16 Size;
+    //! Pointer to the successor list with smaller timestamps.
+    std::atomic<TEditListHeader*> Successor;
+
+    //! Number of committed slots in the list.
+    //! Only updated _after_ the slot is written to.
+    std::atomic<ui16> Size;
+
+    //! Number of uncommitted slots in the list (following the committed ones).
+    //! Either 0 or 1.
+    ui16 UncommittedSize;
+
+    //! Sum of (committed) sizes of all successors.
     ui16 SuccessorsSize;
+
+    //! Number of slots in the list.
     ui16 Capacity;
-    ui16 Padding;
 
     // Variable-size part:
-    // * |Capacity| TVersionedValue-s
+    // * |Capacity| slots, with increasing timestamps.
 };
+
+static_assert(
+    sizeof(std::atomic<TEditListHeader*>) == sizeof(intptr_t),
+    "std::atomic<TEditListHeader*> does not seem to be lock-free.");
+
+static_assert(
+    sizeof(std::atomic<ui16>) == sizeof(ui16),
+    "std::atomic<ui16> does not seem to be lock-free.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,31 +107,39 @@ public:
         auto* header = reinterpret_cast<TEditListHeader*>(pool->AllocateAligned(
             sizeof(TEditListHeader) +
             capacity * sizeof(T)));
+        ::memset(header, 0, sizeof(TEditListHeader));
         header->Capacity = capacity;
-        header->Size = 0;
-        header->SuccessorsSize = 0;
-        header->Next = nullptr;
         return TEditList(header);
     }
 
 
-    explicit operator bool()
+    explicit operator bool() const
     {
         return Header_ != nullptr;
     }
 
-
-    TEditList GetNext() const
+    bool operator == (TEditList<T> other) const
     {
-        return TEditList(Header_->Next);
+        return Header_ == other.Header_;
     }
 
-    void SetNext(TEditList next)
+    bool operator != (TEditList<T> other) const
     {
-        Header_->Next = next.Header_;
-        if (next.Header_) {
-            Header_->SuccessorsSize = next.Header_->Size + next.Header_->SuccessorsSize;
-        }
+        return !(*this == other);
+    }
+
+
+    TEditList GetSuccessor() const
+    {
+        return TEditList(Header_->Successor);
+    }
+
+    void SetSuccessor(TEditList successor)
+    {
+        YASSERT(!HasUncommitted());
+        YASSERT(successor && !successor.HasUncommitted());
+        Header_->Successor = successor.Header_;
+        Header_->SuccessorsSize = successor.GetFullSize();
     }
 
 
@@ -128,6 +151,11 @@ public:
     int GetSuccessorsSize() const
     {
         return Header_->SuccessorsSize;
+    }
+
+    int GetFullSize() const
+    {
+        return GetSize() + GetSuccessorsSize();
     }
 
     int GetCapacity() const
@@ -169,29 +197,16 @@ public:
     }
 
 
-    const T& Front() const
+    const T& GetUncommitted() const
     {
-        YASSERT(GetSize() > 0);
-        return *Begin();
+        YASSERT(HasUncommitted());
+        return (*this)[GetSize()];
     }
 
-    T& Front()
+    T& GetUncommitted()
     {
-        YASSERT(GetSize() > 0);
-        return *Begin();
-    }
-    
-
-    const T& Back() const
-    {
-        YASSERT(GetSize() > 0);
-        return *(End() - 1);
-    }
-
-    T& Back()
-    {
-        YASSERT(GetSize() > 0);
-        return *(End() - 1);
+        YASSERT(HasUncommitted());
+        return (*this)[GetSize()];
     }
 
 
@@ -202,21 +217,30 @@ public:
         ++Header_->Size;
     }
 
-    T* BeginPush()
+    T* Prepare()
     {
+        YASSERT(Header_->UncommittedSize == 0);
         YASSERT(Header_->Size < Header_->Capacity);
+        ++Header_->UncommittedSize;
         return End();
     }
 
-    void EndPush()
+    bool HasUncommitted() const
     {
+        return Header_ && Header_->UncommittedSize > 0;
+    }
+
+    void Commit()
+    {
+        YASSERT(Header_->UncommittedSize == 1);
+        Header_->UncommittedSize = 0;
         ++Header_->Size;
     }
 
-    int Pop()
+    void Abort()
     {
-        YASSERT(GetSize() > 0);
-        return --Header_->Size;
+        YASSERT(Header_->UncommittedSize == 1);
+        Header_->UncommittedSize = 0;
     }
 
 private:
@@ -240,7 +264,24 @@ DECLARE_ENUM(ETimestampListKind,
     (Delete)
 );
 
-//! A lightweight wrapper around TDynamicRowHeader*.
+//! A row within TDynamicMemoryStore.
+/*!
+ *  A lightweight wrapper around |TDynamicRowHeader*|.
+ *
+ *  Provides access to the following parts:
+ *  1) keys
+ *  2) locks
+ *  3) edit lists for write and delete timestamps
+ *  4) edit lists for versioned values per each fixed non-key column
+ *
+ *  Memory layout:
+ *  1) TDynamicRowHeader
+ *  2) TDynamicValueData per each key column
+ *  3) TLockDescriptor per each lock group
+ *  4) TEditListHeader* for write timestamps
+ *  5) TEditListHeader* for delete timestamps
+ *  6) TEditListHeader* per each fixed non-key column
+ */
 class TDynamicRow
 {
 public:

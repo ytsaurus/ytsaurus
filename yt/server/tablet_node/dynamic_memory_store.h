@@ -188,10 +188,7 @@ private:
         ui32 lockMask,
         bool deleteFlag);
 
-    void DropUncommittedValues(TDynamicRow row);
-
-    void AddFixedValue(TDynamicRow row, const TVersionedValue& value);
-    void AddUncommittedFixedValue(TDynamicRow row, const TUnversionedValue& value);
+    TValueList AddUncommittedFixedValue(TDynamicRow row, const TVersionedValue& value);
 
     void AddTimestamp(TDynamicRow row, TTimestamp timestamp, ETimestampListKind kind);
     void SetKeys(TDynamicRow row, TUnversionedRow key);
