@@ -18,8 +18,8 @@
 #include <ytlib/chunk_client/memory_reader.h>
 #include <ytlib/chunk_client/memory_writer.h>
 
-#include <ytlib/table_client/table_writer.h>
-#include <ytlib/table_client/table_consumer.h>
+//#include <ytlib/table_client/table_writer.h>
+//#include <ytlib/table_client/table_consumer.h>
 
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/helpers.h>
@@ -30,6 +30,7 @@
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
 #include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/new_table_client/table_consumer.h>
 
 #include <ytlib/tablet_client/table_mount_cache.h>
 
@@ -49,7 +50,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NFormats;
 using namespace NChunkClient;
-using namespace NTableClient;
+//using namespace NTableClient;
 using namespace NQueryClient;
 using namespace NConcurrency;
 using namespace NTransactionClient;
@@ -96,7 +97,7 @@ void TReadTableCommand::DoExecute()
 
     auto writer = CreateSchemalessWriterForFormat(format, nameTable, output.get());
 
-    ReadToWriter(reader, writer, Context_->GetConfig()->ReadBufferRowCount);
+    PipeReaderToWriter(reader, writer, Context_->GetConfig()->ReadBufferRowCount);
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -111,12 +112,8 @@ void TWriteTableCommand::DoExecute()
         config,
         Request_->GetOptions());
 
-    TWritingTableConsumer consumer;
-
     auto keyColumns = Request_->Path.Attributes().Get<TKeyColumns>("sorted_by", TKeyColumns());
-    for (const auto& column : keyColumns) {
-        consumer.GetNameTable()->RegisterName(column);
-    }
+    auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
     auto writer = CreateSchemalessTableWriter(
         config,
@@ -132,12 +129,15 @@ void TWriteTableCommand::DoExecute()
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
-    consumer.AddWriter(writer);
+    auto writingConsumer = New<TWritingValueConsumer>(writer, nameTable);
+    TTableConsumer consumer(writingConsumer);
 
     TTableOutput output(Context_->GetInputFormat(), &consumer);
     auto input = CreateSyncInputStream(Context_->Request().InputStream);
 
-    ReadToOutputStream(&output, input.get(), config->BlockSize);
+    PipeInputToOutput(input.get(), &output, config->BlockSize);
+
+    writingConsumer->Flush();
 
     auto error = WaitFor(writer->Close());
     THROW_ERROR_EXCEPTION_IF_FAILED(error);
@@ -240,31 +240,20 @@ void TInsertCommand::DoExecute()
         .ValueOrThrow();
 
     // Parse input data.
-    TBuildingTableConsumer consumer(
+    auto valueConsumer = New<TBuildingValueConsumer>(
         tableInfo->Schema,
         tableInfo->KeyColumns);
-    consumer.SetTreatMissingAsNull(!Request_->Update);
-    consumer.SetAllowNonSchemaColumns(false);
 
-    auto format = Context_->GetInputFormat();
-    auto parser = CreateParserForFormat(format, EDataType::Tabular, &consumer);
+    valueConsumer->SetTreatMissingAsNull(!Request_->Update);
+
+    TTableConsumer consumer(valueConsumer);
+    TTableOutput output(Context_->GetInputFormat(), &consumer);
+    auto input = CreateSyncInputStream(Context_->Request().InputStream);
+
+    PipeInputToOutput(input.get(), &output, config->BlockSize);
 
     struct TWriteBufferTag { };
-    auto buffer = TSharedRef::Allocate<TWriteBufferTag>(config->BlockSize);
-
-    auto input = Context_->Request().InputStream;
-
-    while (true) {
-        auto bytesRead = WaitFor(input->Read(buffer.Begin(), buffer.Size()));
-        THROW_ERROR_EXCEPTION_IF_FAILED(bytesRead);
-
-        if (bytesRead.Value() == 0)
-            break;
-
-        parser->Read(TStringBuf(buffer.Begin(), bytesRead.Value()));
-    }
-
-    parser->Finish();
+    TBlob buffer(TWriteBufferTag(), config->BlockSize);
 
     // Write data into the tablets.
 
@@ -274,13 +263,13 @@ void TInsertCommand::DoExecute()
 
     // Convert to non-owning.
     std::vector<TUnversionedRow> rows;
-    for (const auto& row : consumer.Rows()) {
+    for (const auto& row : valueConsumer->Rows()) {
         rows.emplace_back(row.Get());
     }
 
     transaction->WriteRows(
         Request_->Path.GetPath(),
-        consumer.GetNameTable(),
+        valueConsumer->GetNameTable(),
         std::move(rows));
 
     auto commitResult = WaitFor(transaction->Commit());

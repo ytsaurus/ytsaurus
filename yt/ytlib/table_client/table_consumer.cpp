@@ -125,7 +125,7 @@ void TLegacyTableConsumer::OnEntity()
             break;
 
         case ELegacyTableConsumerControlState::ExpectEntity:
-	        YCHECK(Depth == 0);
+            YCHECK(Depth == 0);
             // Successfully processed control statement.
             ControlState = ELegacyTableConsumerControlState::None;
             return;

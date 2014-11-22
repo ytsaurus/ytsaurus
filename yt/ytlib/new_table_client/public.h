@@ -150,6 +150,8 @@ DECLARE_REFCOUNTED_CLASS(TCachedVersionedChunkMeta)
 
 DECLARE_REFCOUNTED_STRUCT(IVersionedLookuper)
 
+DECLARE_REFCOUNTED_STRUCT(IValueConsumer)
+
 DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterOptions)
 
 typedef TMultiChunkWriterOptions TTableWriterOptions;
