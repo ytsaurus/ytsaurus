@@ -401,7 +401,7 @@ def create_temp_table(path=None, prefix=None, client=None):
     return name
 
 def write_table(table, input_stream, format=None, table_writer=None,
-                replication_factor=None, compression_codec=None, client=None):
+                replication_factor=None, compression_codec=None, client=None, raw=True):
     """Write rows from input_stream to table.
 
     :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
@@ -433,6 +433,8 @@ def write_table(table, input_stream, format=None, table_writer=None,
             stream = StringIO(stream)
 
         if hasattr(stream, "read"):
+            if not raw:
+                raise YtError("Passing raw=False and stream as input forbidden")
             while True:
                 row = format.load_row(stream, raw=True)
                 if row:
@@ -441,7 +443,10 @@ def write_table(table, input_stream, format=None, table_writer=None,
                     return
         else:
             for row in stream:
-                yield row
+                if raw:
+                    yield row
+                else:
+                    yield format.dumps_row(row)
 
     def chunked_iter(stream):
         while True:
