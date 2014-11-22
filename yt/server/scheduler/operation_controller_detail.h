@@ -238,8 +238,9 @@ protected:
 
         std::vector<TEndpoint> Endpoints;
 
-        void Persist(TPersistenceContext& context);
+        NYTree::TYsonString EffectiveAcl;
 
+        void Persist(TPersistenceContext& context);
     };
 
     std::vector<TOutputTable> OutputTables;
