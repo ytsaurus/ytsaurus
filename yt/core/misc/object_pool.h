@@ -37,7 +37,7 @@ public:
     void Reclaim(T* obj);
 
     DECLARE_SINGLETON_DEFAULT_MIXIN(TObjectPool);
-    DECLARE_SINGLETON_PRIORITY(TObjectPool, 30);
+    DECLARE_SINGLETON_PRIORITY(TObjectPool, 40);
 
 private:
     struct THeader

@@ -8,7 +8,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TAtExitTest, AtExit)
+TEST(TAtExitTest, AtExitManual)
 {
     std::string s;
 
@@ -25,6 +25,24 @@ TEST(TAtExitTest, AtExit)
     EXPECT_EQ("ADBC", s);
 
     manager.FireAtExit();
+    EXPECT_EQ("ADBC", s);
+}
+
+TEST(TAtExitTest, AtExitAutomatic)
+{
+    std::string s;
+
+    {
+        TShadowingAtExitManager manager;
+
+        manager.RegisterAtExit([&s] () { s.push_back('A'); }, 10);
+        manager.RegisterAtExit([&s] () { s.push_back('B'); }, 20);
+        manager.RegisterAtExit([&s] () { s.push_back('C'); });
+        manager.RegisterAtExit([&s] () { s.push_back('D'); }, 10);
+
+        EXPECT_EQ("", s);
+    }
+
     EXPECT_EQ("ADBC", s);
 }
 

@@ -68,21 +68,35 @@ public:
         }
     }
 
-    void AtExitHook()
+    void FireAtExit()
     {
-        std::lock_guard<std::mutex> guard(Mutex_);
         // Flush AtExit queue.
-        while (!AtExitQueue_.empty()) {
-            AtExitQueue_.top().Callback();
-            AtExitQueue_.pop();
+        while (true) {
+            std::vector<TItem> items;
+            {
+                std::lock_guard<std::mutex> guard(Mutex_);
+                if (AtExitQueue_.empty()) {
+                    break;
+                }
+                items.clear();
+                items.reserve(AtExitQueue_.size());
+                while (!AtExitQueue_.empty()) {
+                    items.emplace_back(AtExitQueue_.top());
+                    AtExitQueue_.pop();
+                }
+            }
+            for (auto&& item : items) {
+                item.Callback();
+            }
         }
+
         // Just clear AtFork queues.
         ClearQueue(AtForkPrepareQueue_);
         ClearQueue(AtForkParentQueue_);
         ClearQueue(AtForkChildQueue_);
     }
 
-    void AtForkPrepareHook()
+    void FireAtForkPrepare()
     {
         Mutex_.lock();
         try {
@@ -93,7 +107,7 @@ public:
         }
     }
 
-    void AtForkParentHook()
+    void FireAtForkParent()
     {
         try {
             RunQueue(AtForkParentQueue_);
@@ -104,7 +118,7 @@ public:
         Mutex_.unlock();
     }
 
-    void AtForkChildHook()
+    void FireAtForkChild()
     {
         try {
             RunQueue(AtForkChildQueue_);
@@ -211,7 +225,9 @@ TAtExitManager::TAtExitManager(bool allowShadowing)
 { }
 
 TAtExitManager::~TAtExitManager()
-{ }
+{
+    Impl_->FireAtExit();
+}
 
 void TAtExitManager::RegisterAtExit(std::function<void()> callback, size_t priority)
 {
@@ -237,22 +253,22 @@ void TAtExitManager::RegisterAtFork(
 
 void TAtExitManager::FireAtExit()
 {
-    Impl_->AtExitHook();
+    Impl_->FireAtExit();
 }
 
 void TAtExitManager::FireAtForkPrepare()
 {
-    Impl_->AtForkPrepareHook();
+    Impl_->FireAtForkPrepare();
 }
 
 void TAtExitManager::FireAtForkParent()
 {
-    Impl_->AtForkParentHook();
+    Impl_->FireAtForkParent();
 }
 
 void TAtExitManager::FireAtForkChild()
 {
-    Impl_->AtForkChildHook();
+    Impl_->FireAtForkChild();
 }
 
 void TAtExitManager::GlobalAtExitCallback()

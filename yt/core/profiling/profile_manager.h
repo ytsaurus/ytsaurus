@@ -91,7 +91,7 @@ public:
     }
 
     DECLARE_SINGLETON_MIXIN(TProfileManager, TStaticInstanceMixin);
-    DECLARE_SINGLETON_PRIORITY(TProfileManager, 10);
+    DECLARE_SINGLETON_PRIORITY(TProfileManager, 30);
 
 private:
     TProfileManager();

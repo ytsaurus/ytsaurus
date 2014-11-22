@@ -45,7 +45,9 @@ struct TRefCountedInstanceMixin
 {
     TObject* New()
     {
-        return new TObject(); // Leaves a dangling reference.
+        auto object = NYT::New<TObject>();
+        object->Ref(); // Leaves a dangling reference.
+        return object.Get();
     }
 
     void Delete(TObject* object)

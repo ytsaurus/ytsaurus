@@ -74,7 +74,9 @@ DECLARE_ENUM(EErrorCode,
 
 #define DECLARE_SINGLETON_MIXIN(type, mixin) private: \
     typedef ::NYT::TSingleton<type, mixin<type>> TSingleton; \
-    friend struct mixin<type>
+    friend struct mixin<type>; \
+    template <class U, class... As> \
+	friend ::NYT::TIntrusivePtr<U> NYT::New(As&&... args);
 #define DECLARE_SINGLETON_DEFAULT_MIXIN(type) \
     DECLARE_SINGLETON_MIXIN(type, ::NYT::THeapInstanceMixin)
 #define DECLARE_SINGLETON_PRIORITY(type, value) public: \
