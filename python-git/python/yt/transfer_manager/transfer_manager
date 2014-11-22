@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
-import yt.logger as logger
+from yt.transfer_manager.flask_helpers import process_gzip
+
+from yt.tools.logging_server import LogRecordSocketReceiver
 from yt.tools.yamr import Yamr
 from yt.tools.remote_copy_tools import \
     copy_yamr_to_yt_pull, \
@@ -10,10 +12,10 @@ from yt.tools.remote_copy_tools import \
     copy_yt_to_yt_through_proxy, \
     run_operation_and_notify, \
     Kiwi
+
 from yt.wrapper.client import Yt
 from yt.wrapper.common import generate_uuid, get_value
-from yt.transfer_manager.flask_helpers import process_gzip
-from yt.transfer_manager.logging_server import LogRecordSocketReceiver
+import yt.logger as logger
 import yt.wrapper as yt
 
 from flask import Flask, request, jsonify, Response, make_response
@@ -30,10 +32,9 @@ import thread
 import argparse
 import traceback
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import defaultdict
 from subprocess32 import TimeoutExpired
-
 from threading import RLock, Thread
 from multiprocessing import Process, Queue
 
@@ -57,9 +58,13 @@ class SafeThread(Thread):
                 target(*args, **kwargs)
             except KeyboardInterrupt:
                 thread.interrupt_main()
+                time.sleep(0.5)
+                os.kill(self._parent_pid, signal.SIGTERM)
             except:
                 logger.exception("Unknown exception")
                 os.kill(self._parent_pid, signal.SIGINT)
+                time.sleep(0.5)
+                os.kill(self._parent_pid, signal.SIGTERM)
 
         super(SafeThread, self).__init__(group=group, target=safe_run, name=name, args=args, kwargs=kwargs)
 
@@ -370,7 +375,7 @@ class Application(object):
         # From ... to task ids
         self._running_tasks_queues = defaultdict(lambda: [])
         self._runned_during_heartbeat = set()
-        self._cached_can_run = defaultdict(lambda: defaultdict(lambda: None))
+        self._last_scheduled_time = defaultdict(lambda: datetime(year=1970, month=1, day=1))
 
         # List of tasks sorted by creation time
         self._pending_tasks = []
@@ -525,12 +530,11 @@ class Application(object):
             return False
         if len(self._running_tasks_queues[task.get_queue_id()]) >= self._config["running_tasks_limit_per_direction"]:
             return False
+        if datetime.now() - self._last_scheduled_time[task.get_queue_id()] < timedelta(seconds=self._config["scheduling_backoff"]):
+            return False
 
         client, _ = self._get_active_and_passive_clients(task)
         if client._type == "yt":
-            if self._cached_can_run[client._name][task.pool] is not None:
-                return self._cached_can_run[client._name][task.pool]
-
             pool_info = client.get("//sys/scheduler/orchid/scheduler/pools/" + task.pool)
             usage_ratio = 0.0
             for resource, usage in pool_info["resource_usage"].iteritems():
@@ -544,7 +548,6 @@ class Application(object):
             else:
                 result = True
 
-            self._cached_can_run[client._name][task.pool] = result
             return result
 
         return True
@@ -560,7 +563,6 @@ class Application(object):
 
             logger.info("Processing tasks")
 
-            self._cached_can_run.clear()
             with self._mutex:
                 logger.info("Progress: %d running, %d pending tasks found", len(self._task_processes), len(self._pending_tasks))
 
@@ -611,6 +613,7 @@ class Application(object):
                         continue
 
                     queue_id = self._tasks[id].get_queue_id()
+                    self._last_scheduled_time[queue_id] = datetime.now()
                     self._running_tasks_queues[queue_id].append(id)
                     self._runned_during_heartbeat.add(queue_id)
                     self._pending_tasks_per_user[self._tasks[id].user] -= 1
@@ -1002,6 +1005,7 @@ DEFAULT_CONFIG = {
         "redwood": ["cedar", "kant", "smith", "plato"]
     },
     "default_mr_user": "userdata",
+    "scheduling_backoff": 5,
     "pending_tasks_limit": 5000,
     "pending_tasks_limit_per_user": 500,
     "running_tasks_limit_per_direction": 10,
