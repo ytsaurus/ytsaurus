@@ -1148,7 +1148,7 @@ private:
         auto node = New<TExecNode>(descriptor);
 
         auto lease = TLeaseManager::CreateLease(
-            Config_->NodeHearbeatTimeout,
+            Config_->NodeHeartbeatTimeout,
             BIND(&TImpl::UnregisterNode, MakeWeak(this), node)
                 .Via(GetControlInvoker()));
 

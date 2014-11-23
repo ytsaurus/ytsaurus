@@ -83,7 +83,7 @@ public:
     TDuration ConnectRetryBackoffTime;
 
     //! Timeout for node expiration.
-    TDuration NodeHearbeatTimeout;
+    TDuration NodeHeartbeatTimeout;
 
     TDuration TransactionsRefreshPeriod;
 
@@ -218,7 +218,7 @@ public:
     {
         RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
             .Default(TDuration::Seconds(15));
-        RegisterParameter("node_heartbeat_timeout", NodeHearbeatTimeout)
+        RegisterParameter("node_heartbeat_timeout", NodeHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         RegisterParameter("transactions_refresh_period", TransactionsRefreshPeriod)
             .Default(TDuration::Seconds(3));
