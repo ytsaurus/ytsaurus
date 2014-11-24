@@ -82,6 +82,10 @@ Bind(
     NYT::NDetail::TCheckReferencesInBoundArgs<typename TTypedBindState::TBoundArgsPack> checkReferencesInBoundArgs;
     NYT::NDetail::TCheckParamsIsRawPtrToRefCountedType<TAs...> checkParamsIsRawPtrToRefCountedType;
 
+    UNUSED(checkFirstArgument);
+    UNUSED(checkReferencesInBoundArgs);
+    UNUSED(checkParamsIsRawPtrToRefCountedType);
+
     return TCallback<typename TTypedBindState::TUnboundSignature>(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
         NewWithLocation<TTypedBindState, TTag, Counter>(
