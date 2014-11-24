@@ -392,7 +392,7 @@ int TChunk::GetMaxReplicasPerRack() const
 {
     switch (GetType()) {
         case EObjectType::Chunk:
-            return GetReplicationFactor() - 1;
+            return std::max(GetReplicationFactor() - 1, 1);
 
         case EObjectType::ErasureChunk:
             return NErasure::GetCodec(GetErasureCodec())->GetGuaranteedRepairablePartCount();
