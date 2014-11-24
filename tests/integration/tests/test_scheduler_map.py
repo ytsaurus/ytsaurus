@@ -166,17 +166,16 @@ class TestEventLog(YTEnvSetup):
         assert total_sectors == 8000
 
 
-class TestSchedulerMapCommands(YTEnvSetup):
+class TestUserStatistics(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    def test_empty_table(self):
-        create('table', '//tmp/t1')
-        create('table', '//tmp/t2')
-        map(in_='//tmp/t1', out='//tmp/t2', command='cat')
-
-        assert read('//tmp/t2') == []
+    DELTA_NODE_CONFIG = {
+        'exec_agent' : {
+            'force_enable_accounting' : 'true'
+        }
+    }
 
     def test_job_statistics(self):
         create('table', '//tmp/t1')
@@ -194,6 +193,85 @@ class TestSchedulerMapCommands(YTEnvSetup):
         statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
         assert statistics['user']['cpu']['k1']['max'] == 4
         assert statistics['user']['k2']['count'] == 2
+
+    def test_multiple_job_statistics(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write('//tmp/t1', [{"a": "b"} for i in range(2)])
+
+        op_id = map(in_="//tmp/t1", out="//tmp/t2", command="cat", opt=["/spec/job_count=2"])
+        statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
+        assert statistics['system']['user_job']['cpu']['user']['count'] == 2
+
+    def test_job_statistics_progress(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write('//tmp/t1', [{"a": "b"} for i in xrange(2)])
+
+        to_delete = []
+        tmpdir = tempfile.mkdtemp(prefix="job_statistics_progress")
+        to_delete.append(tmpdir)
+
+        for i in range(2):
+            path = os.path.join(tmpdir, str(i))
+            os.mkdir(path)
+            to_delete.append(path)
+            if i == 0:
+                keeper_filename = os.path.join(path, "keep")
+                with open(keeper_filename, "w") as f:
+                    f.close()
+                to_delete.append(keeper_filename)
+
+        command = '''cat > /dev/null;
+            DIR={0}
+            if [ "$YT_START_ROW_INDEX" = "0" ]; then
+              cat $DIR/$YT_START_ROW_INDEX/keep 1>&2
+              until rmdir $DIR/$YT_START_ROW_INDEX 2>/dev/null; do sleep 1; done;
+            fi
+            exit 0;
+            '''.format(tmpdir)
+
+        try:
+            op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command, opt=["/spec/max_failed_job_count=1", "/spec/job_count=2"])
+
+            tries = 0
+            statistics = {}
+
+            while not statistics:
+                time.sleep(1)
+                tries += 1
+                print get("//sys/operations/{0}/jobs/@count".format(op_id))
+                statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
+                if tries > 10:
+                    break
+
+            assert statistics['system']['user_job']['cpu']['user']['count'] == 1
+
+            os.unlink(keeper_filename)
+            track_op(op_id)
+
+            statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
+            assert statistics['system']['user_job']['cpu']['user']['count'] == 2
+        finally:
+            to_delete.reverse()
+            for filename in to_delete:
+                try:
+                    os.unlink(filename)
+                except:
+                    pass
+
+
+class TestSchedulerMapCommands(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    def test_empty_table(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        map(in_='//tmp/t1', out='//tmp/t2', command='cat')
+
+        assert read('//tmp/t2') == []
 
     @only_linux
     def test_one_chunk(self):

@@ -309,6 +309,10 @@ public:
             }
         }
 
+        AddStatistic("/system/job_proxy/input", JobIO->GetInputDataStatistics());
+        AddStatistic("/system/job_proxy/output", JobIO->GetOutputDataStatistics());
+        Statistics.Add("/system/user_job/time", TSummary(static_cast<i64>(GetElapsedTime().MilliSeconds())));
+
         if (JobExitError.IsOK()) {
             JobIO->PopulateResult(&result);
         }
@@ -729,7 +733,7 @@ private:
             ToProto(result.mutable_block_io(), BlockIOStats);
         }
 
-        if (!UserJobSpec.use_yamr_descriptors()) {
+        {
             TGuard<TSpinLock> guard(SpinLock);
             ToProto(result.mutable_statistics(), ConvertToYsonString(Statistics).Data());
         }
