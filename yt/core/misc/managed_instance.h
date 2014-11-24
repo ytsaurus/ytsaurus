@@ -101,9 +101,9 @@ private:
     std::atomic<TObject*> Instance_;
 
     // OH DAT C++!
-    static TObject* GetBeingConstructedMarker()
+    static inline TObject* GetBeingConstructedMarker()
     {
-        return (TObject*) 0x1;
+        return reinterpret_cast<TObject*>(0x1);
     }
 
     static constexpr int Priority_ =
@@ -207,8 +207,12 @@ private:
         }
 
         if (Instance_.compare_exchange_strong(value, nullptr, std::memory_order_release)) {
-            // Destruct the object.
-            TMixin::Delete(value);
+            // Instance may be dead already if the parent process triggered
+            // an exit event and called fork(); then the child may receive
+            // a nullptr during its termination.
+            if (value) {
+                TMixin::Delete(value);
+            }
         }
     }
 
@@ -217,6 +221,7 @@ private:
         auto value = Instance_.load(std::memory_order_acquire);
 
         Instance_.store(GetBeingConstructedMarker(), std::memory_order_release);
+        // Instance may be dead already if we, for example, do two fork()s in a row.
         if (value) {
             TMixin::Reset(value);
         }
