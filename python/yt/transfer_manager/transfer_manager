@@ -44,6 +44,9 @@ class RequestFailed(yt.YtError):
 class IncorrectTokenError(RequestFailed):
     pass
 
+class SchedulingError(yt.YtError):
+    pass
+
 class SafeThread(Thread):
     def __init__(self, group=None, target=None, name=None, terminate=None, args=None, kwargs=None):
         self._parent_pid = os.getpid()
@@ -394,7 +397,7 @@ class Application(object):
                 try:
                     self._initialize_pool(task)
                 except yt.YtError:
-                    logger.warning("Failed to initialize pool of task %s", id)
+                    logger.exception("Failed to initialize pool of task %s", id)
                     self._change_task_state(id, "failed")
 
         self._pending_tasks.sort(key=lambda id: self._tasks[id].creation_time)
@@ -541,6 +544,12 @@ class Application(object):
 
         client, _ = self._get_active_and_passive_clients(task)
         if client._type == "yt":
+            if task.pool is None:
+                raise SchedulingError("Task has no pool")
+            pool_path = "//sys/scheduler/orchid/scheduler/pools/" + task.pool
+            if not client.exists(pool_path):
+                raise SchedulingError("Pool %s does not exist" % task.pool)
+
             pool_info = client.get("//sys/scheduler/orchid/scheduler/pools/" + task.pool)
             usage_ratio = 0.0
             for resource, usage in pool_info["resource_usage"].iteritems():
@@ -614,8 +623,13 @@ class Application(object):
                         del self._task_processes[id]
 
                 for id in self._pending_tasks:
-                    if not self._can_run(self._tasks[id]):
-                        logger.info("Task %s pending", id)
+                    try:
+                        if not self._can_run(self._tasks[id]):
+                            logger.info("Task %s pending", id)
+                            continue
+                    except SchedulingError as error:
+                        self._tasks[id].error = error.simplify()
+                        self._change_task_state(id, "failed")
                         continue
 
                     queue_id = self._tasks[id].get_queue_id()
@@ -644,9 +658,6 @@ class Application(object):
 
         logger.info("Start executing task %s", task.id)
         try:
-            if task.pool is None:
-                raise yt.YtError("Task has no pool")
-
             self._precheck(task)
 
             title = "Supervised by transfer task " + task.id
