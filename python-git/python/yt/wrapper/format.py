@@ -351,7 +351,7 @@ class YsonFormat(Format):
             rows = self._process_output_rows(rows)
 
         kwargs = {}
-        if yson.TYPE == "binary":
+        if yson.TYPE == "BINARY":
             kwargs = {"ignore_inner_attributes": self.ignore_inner_attributes,
                       "boolean_as_string": self.boolean_as_string}
         yson.dump(rows, stream, yson_type="list_fragment", yson_format=self.attributes["format"], **kwargs)

@@ -110,6 +110,7 @@ class PingTransaction(Thread):
         self.transaction = transaction
         self.delay = delay
         self.is_running = True
+        self.daemon = True
         self.step = min(self.delay, config.TRANSACTION_SLEEP_PERIOD / 1000.0) # in seconds
         self.client = client
 
