@@ -93,7 +93,7 @@ ISessionPtr TSessionManager::StartSession(
     auto session = CreateSession(chunkId, options);
 
     session->SubscribeFinished(
-        BIND(&TSessionManager::OnSessionFinished, MakeStrong(this), session.Get())
+        BIND(&TSessionManager::OnSessionFinished, MakeStrong(this), Unretained(session.Get()))
             .Via(Bootstrap_->GetControlInvoker()));
 
     RegisterSession(session);

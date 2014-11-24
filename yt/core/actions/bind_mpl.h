@@ -384,6 +384,8 @@ struct TCheckIsRawPtrToRefCountedTypeHelper
     static_assert(
         !NYT::NDetail::TIsRawPtrToRefCountedType<T>::Value,
         "T has reference-counted type and should not be bound by the raw pointer");
+
+    typedef T TType;
 };
 
 template <class T>
@@ -392,14 +394,21 @@ struct TCheckArgIsNonConstReference
     static_assert(
         !NYT::NDetail::TIsNonConstReference<T>::Value,
         "T is a non-const reference and should not be bound.");
+
+    typedef T TType;
 };
 
-template <class TSignature>
-struct TCheckReferencesInSignature;
+template <class TArgsPack>
+struct TCheckReferencesInBoundArgs;
 
-template <class R, class... TArgs>
-struct TCheckReferencesInSignature<R(TArgs...)>
-    : NYT::NMpl::TTypesPack<TCheckArgIsNonConstReference<TArgs>...>
+template <class... TArgs>
+struct TCheckReferencesInBoundArgs<NMpl::TTypesPack<TArgs...>>
+    : NYT::NMpl::TTypesPack<typename TCheckArgIsNonConstReference<TArgs>::TType...>
+{ };
+
+template <class... TArgs>
+struct TCheckParamsIsRawPtrToRefCountedType
+    : NYT::NMpl::TTypesPack<typename TCheckIsRawPtrToRefCountedTypeHelper<TArgs>::TType...>
 { };
 
 ////////////////////////////////////////////////////////////////////////////////

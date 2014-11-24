@@ -72,15 +72,15 @@ Bind(
     // Binding a raw pointer can result in invocation with dead parameters,
     // because #TBindState do not hold references to parameters.
 
-    typedef NYT::NDetail::TCheckFirstArgument<TRunnable, TAs...> TCheckFirstArgument;
-    typedef NYT::NDetail::TCheckReferencesInSignature<typename TRunnable::TSignature> TCheckReferencesInSignature;
-    typedef NYT::NMpl::TTypesPack<NYT::NDetail::TCheckIsRawPtrToRefCountedTypeHelper<TAs>...> TCheckParamsIsRawPtrToRefCountedType;
-
     typedef NYT::NDetail::TBindState<
             TRunnable,
             TSignature,
             void(typename NMpl::TDecay<TAs>::TType...)
         > TTypedBindState;
+
+    NYT::NDetail::TCheckFirstArgument<TRunnable, TAs...> checkFirstArgument;
+    NYT::NDetail::TCheckReferencesInBoundArgs<typename TTypedBindState::TBoundArgsPack> checkReferencesInBoundArgs;
+    NYT::NDetail::TCheckParamsIsRawPtrToRefCountedType<TAs...> checkParamsIsRawPtrToRefCountedType;
 
     return TCallback<typename TTypedBindState::TUnboundSignature>(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING

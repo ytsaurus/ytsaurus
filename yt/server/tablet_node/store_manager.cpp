@@ -417,8 +417,8 @@ TDynamicMemoryStorePtr TStoreManager::CreateDynamicMemoryStore(const TStoreId& s
     store->SubscribeRowBlocked(BIND(
         &TStoreManager::OnRowBlocked,
         MakeWeak(this),
-        store.Get(),
-        Tablet_->GetSlot()));
+        Unretained(store.Get()),
+        MakeStrong(Tablet_->GetSlot())));
 
     return store;
 }

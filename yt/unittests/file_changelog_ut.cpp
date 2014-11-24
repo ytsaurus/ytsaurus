@@ -88,7 +88,7 @@ TEST_F(TFileChangelogTest, ReadTrailingRecords)
             flushResult.Get();
         }
         if (recordIndex % 10 == 0) {
-            readResult = BIND(&ReadRecord, Changelog.Get(), recordIndex).AsyncVia(Invoker).Run();
+            readResult = BIND(&ReadRecord, Unretained(Changelog.Get()), recordIndex).AsyncVia(Invoker).Run();
         }
     }
     readResult.Get();
