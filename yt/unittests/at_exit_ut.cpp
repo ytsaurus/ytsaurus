@@ -22,10 +22,10 @@ TEST(TAtExitTest, AtExitManual)
     EXPECT_EQ("", s);
 
     manager.FireAtExit();
-    EXPECT_EQ("ADBC", s);
+    EXPECT_EQ("CADB", s);
 
     manager.FireAtExit();
-    EXPECT_EQ("ADBC", s);
+    EXPECT_EQ("CADB", s);
 }
 
 TEST(TAtExitTest, AtExitAutomatic)
@@ -43,7 +43,7 @@ TEST(TAtExitTest, AtExitAutomatic)
         EXPECT_EQ("", s);
     }
 
-    EXPECT_EQ("ADBC", s);
+    EXPECT_EQ("CADB", s);
 }
 
 #ifndef _win_

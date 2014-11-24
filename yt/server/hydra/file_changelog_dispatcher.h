@@ -17,8 +17,6 @@ public:
     explicit TFileChangelogDispatcher(const Stroka& threadName);
     ~TFileChangelogDispatcher();
 
-    void Shutdown();
-
     //! Returns the invoker managed by the dispatcher.
     IInvokerPtr GetInvoker();
 

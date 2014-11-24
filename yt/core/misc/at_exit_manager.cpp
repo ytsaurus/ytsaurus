@@ -15,7 +15,8 @@ class TAtExitManager::TImpl
 {
 public:
     TImpl(TAtExitManager* this_, bool allowShadowing)
-        : Shadowed_(nullptr)
+        : MinimalPriority_(0)
+        , Shadowed_(nullptr)
         , This_(this_)
     {
         Push(allowShadowing);
@@ -28,9 +29,10 @@ public:
 
     void RegisterAtExit(
         std::function<void()> callback,
-        size_t priority = std::numeric_limits<size_t>::max())
+        size_t priority = 0)
     {
         std::lock_guard<std::mutex> guard(Mutex_);
+        YCHECK(priority >= MinimalPriority_);
         AtExitQueue_.emplace(TItem{
             std::move(callback),
             priority,
@@ -42,9 +44,10 @@ public:
         std::function<void()> prepareCallback,
         std::function<void()> parentCallback,
         std::function<void()> childCallback,
-        size_t priority = std::numeric_limits<size_t>::max())
+        size_t priority = 0)
     {
         std::lock_guard<std::mutex> guard(Mutex_);
+        YCHECK(priority >= MinimalPriority_);
         if (prepareCallback) {
             AtForkPrepareQueue_.emplace(TItem{
                 std::move(prepareCallback),
@@ -72,28 +75,34 @@ public:
     {
         // Flush AtExit queue.
         while (true) {
-            std::vector<TItem> items;
+            decltype(AtExitQueue_) queue;
             {
                 std::lock_guard<std::mutex> guard(Mutex_);
-                if (AtExitQueue_.empty()) {
-                    break;
-                }
-                items.clear();
-                items.reserve(AtExitQueue_.size());
-                while (!AtExitQueue_.empty()) {
-                    items.emplace_back(AtExitQueue_.top());
-                    AtExitQueue_.pop();
-                }
+                std::swap(AtExitQueue_, queue);
             }
-            for (auto&& item : items) {
-                item.Callback();
+            if (queue.empty()) {
+                break;
+            }
+            while (!queue.empty()) {
+                {
+                    std::lock_guard<std::mutex> guard(Mutex_);
+                    MinimalPriority_ = std::max(MinimalPriority_, queue.top().Priority);
+                }
+                queue.top().Callback();
+                queue.pop();
             }
         }
 
-        // Just clear AtFork queues.
-        ClearQueue(AtForkPrepareQueue_);
-        ClearQueue(AtForkParentQueue_);
-        ClearQueue(AtForkChildQueue_);
+        {
+            std::lock_guard<std::mutex> guard(Mutex_);
+            // Just clear AtFork queues.
+            YCHECK(AtExitQueue_.empty());
+            ClearQueue(AtForkPrepareQueue_);
+            ClearQueue(AtForkParentQueue_);
+            ClearQueue(AtForkChildQueue_);
+            // Effectively reset this instance.
+            MinimalPriority_ = 0;
+        }
     }
 
     void FireAtForkPrepare()
@@ -156,6 +165,7 @@ private:
     };
 
     std::mutex Mutex_;
+    size_t MinimalPriority_;
     std::priority_queue<TItem, std::vector<TItem>, TIncreasingPriority> AtExitQueue_;
     std::priority_queue<TItem, std::vector<TItem>, TDecreasingPriority> AtForkPrepareQueue_;
     std::priority_queue<TItem, std::vector<TItem>, TIncreasingPriority> AtForkParentQueue_;

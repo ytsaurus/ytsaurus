@@ -18,13 +18,13 @@ public:
 
     static void RegisterAtExit(
         std::function<void()> callback,
-        size_t priority = std::numeric_limits<size_t>::max());
+        size_t priority = 0);
 
     static void RegisterAtFork(
         std::function<void()> prepareCallback,
         std::function<void()> parentCallback,
         std::function<void()> childCallback,
-        size_t priority = std::numeric_limits<size_t>::max());
+        size_t priority = 0);
 
 protected:
     explicit TAtExitManager(bool allowShadowing);

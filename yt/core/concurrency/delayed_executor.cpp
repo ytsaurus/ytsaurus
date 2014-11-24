@@ -96,6 +96,7 @@ public:
     }
 
     DECLARE_SINGLETON_MIXIN(TImpl, TRefCountedInstanceMixin);
+    DECLARE_SINGLETON_PRIORITY(TImpl, 60);
 
 private:
     TImpl()
@@ -121,7 +122,6 @@ private:
     //! Enqueued from any thread, dequeued from the dedicated thread.
     TMultipleProducerSingleConsumerLockFreeStack<TDelayedExecutorEntryPtr> SubmitQueue_;
     TMultipleProducerSingleConsumerLockFreeStack<TDelayedExecutorEntryPtr> CancelQueue_;
-
 
     virtual void OnShutdown() override
     {

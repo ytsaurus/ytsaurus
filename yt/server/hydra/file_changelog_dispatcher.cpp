@@ -457,11 +457,6 @@ public:
 
     ~TImpl()
     {
-        Shutdown();
-    }
-
-    void Shutdown()
-    {
         PeriodicExecutor_->Stop();
         ActionQueue_->Shutdown();
     }
@@ -756,11 +751,6 @@ TFileChangelogDispatcher::TFileChangelogDispatcher(const Stroka& threadName)
 
 TFileChangelogDispatcher::~TFileChangelogDispatcher()
 { }
-
-void TFileChangelogDispatcher::Shutdown()
-{
-    Impl_->Shutdown();
-}
 
 IInvokerPtr TFileChangelogDispatcher::GetInvoker()
 {
