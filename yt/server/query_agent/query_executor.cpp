@@ -203,7 +203,9 @@ public:
         auto queryStatistics = WaitFor(asyncResultOrError).ValueOrThrow();
 
         for (auto const& subqueryStatistics : subqueriesStatistics) {
-            queryStatistics += subqueryStatistics.Get().ValueOrThrow();
+            if (subqueryStatistics.IsSet()) {
+                queryStatistics += subqueryStatistics.Get().ValueOrThrow();
+            }            
         }
         
         return queryStatistics; 

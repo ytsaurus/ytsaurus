@@ -413,7 +413,9 @@ public:
         auto queryStatistics = Evaluator_->Run(topQuery, std::move(mergingReader), std::move(writer));
 
         for (auto const& subqueryStatistics : subqueriesStatistics) {
-            queryStatistics += subqueryStatistics.Get().ValueOrThrow();
+            if (subqueryStatistics.IsSet()) {
+                queryStatistics += subqueryStatistics.Get().ValueOrThrow();
+            }
         }
         
         return queryStatistics;
@@ -487,6 +489,7 @@ public:
         auto queryStatistics = Evaluator_->Run(topquery, std::move(mergingReader), std::move(writer));
 
         for (auto const& subqueryStatistics : subqueriesStatistics) {
+            YCHECK(subqueryStatistics.IsSet());
             queryStatistics += subqueryStatistics.Get().ValueOrThrow();
         }
         
