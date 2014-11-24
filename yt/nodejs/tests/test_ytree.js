@@ -128,8 +128,8 @@ describe("yson conversion specifics", function() {
             "{\"a\":true,\"b\":false}",
             binding.ECompression_None,
             binding.CreateV8Node("json"));
-        node.Traverse("/a").Get().should.eql(true);
-        node.Traverse("/b").Get().should.eql(false);
+        node.GetByYPath("/a").Get().should.eql(true);
+        node.GetByYPath("/b").Get().should.eql(false);
     });
 
     it("should properly pass integers back and forth", function() {
