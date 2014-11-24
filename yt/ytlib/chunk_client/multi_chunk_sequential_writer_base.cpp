@@ -163,12 +163,12 @@ void TMultiChunkSequentialWriterBase::CreateNextSession()
 
         auto* reqExt = req->MutableExtension(NProto::TReqCreateChunkExt::create_chunk_ext);
         reqExt->set_movable(Config_->ChunksMovable);
+        reqExt->set_replication_factor(Options_->ReplicationFactor);
         reqExt->set_vital(Options_->ChunksVital);
         reqExt->set_erasure_codec(Options_->ErasureCodec);
 
         auto rsp = WaitFor(objectProxy.Execute(req));
 
-        
         THROW_ERROR_EXCEPTION_IF_FAILED(
             *rsp,
             NChunkClient::EErrorCode::MasterCommunicationFailed,
