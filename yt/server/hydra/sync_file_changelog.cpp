@@ -779,7 +779,7 @@ private:
                         RecordCount_,
                         CurrentFilePosition_);
                 } else {
-                    LOG_ERROR("Excess records found, sealed changelog trimmed (RecordId: %v, Offset: %v)",
+                    LOG_ERROR("Excessive records found, sealed changelog trimmed (RecordId: %v, Offset: %v)",
                         RecordCount_,
                         CurrentFilePosition_);
                 }
