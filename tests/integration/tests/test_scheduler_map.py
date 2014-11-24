@@ -122,7 +122,11 @@ class TestEventLog(YTEnvSetup):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write('//tmp/t1', [{"a": "b"}])
-        map(in_='//tmp/t1', out='//tmp/t2', command="cat; bash -c 'for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done' >/dev/null")
+        op_id = map(in_='//tmp/t1', out='//tmp/t2', command="cat; bash -c 'for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done' >/dev/null")
+
+        statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
+        assert statistics['system']['user_job']['cpu']['user']['sum'] > 0
+        assert statistics['system']['user_job']['block_io']['bytes_read']['sum'] is not None
 
         # wait for scheduler to dump the event log
         time.sleep(6)

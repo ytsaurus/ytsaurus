@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/yson/public.h>
+
 #include <ytlib/cgroup/statistics.pb.h>
 
 #include <util/generic/stroka.h>
@@ -124,6 +126,7 @@ public:
 };
 
 void ToProto(NProto::TCpuAccountingStatistics* protoStats, const TCpuAccounting::TStatistics& stats);
+void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -161,6 +164,7 @@ private:
 };
 
 void ToProto(NProto::TBlockIOStatistics* protoStats, const TBlockIO::TStatistics& stats);
+void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

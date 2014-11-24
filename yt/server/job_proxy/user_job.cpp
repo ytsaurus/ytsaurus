@@ -295,6 +295,9 @@ public:
 
                 DestroyCGroup(Memory);
             }
+
+            AddStatistic("/system/user_job/cpu", CpuAccountingStats);
+            AddStatistic("/system/user_job/block_io", BlockIOStats);
         }
 
         if (ErrorOutput) {
@@ -732,6 +735,13 @@ private:
         }
 
         return result;
+    }
+
+    template <typename T>
+    void AddStatistic(const NYPath::TYPath& path, const T& statistics)
+    {
+        TStatisticsConverter consumer(BIND(&TUserJob::ConsumeStatistics, this), path);
+        Serialize(statistics, &consumer);
     }
 
     void CreateCGroup(NCGroup::TCGroup& cgroup)

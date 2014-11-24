@@ -2,6 +2,11 @@
 #include "private.h"
 #include "cgroup.h"
 
+#include <core/ytree/fluent.h>
+#include <core/ytree/serialize.h>
+#include <core/ytree/convert.h>
+#include <core/ytree/tree_builder.h>
+
 #include <core/misc/fs.h>
 #include <core/misc/error.h>
 #include <core/misc/process.h>
@@ -466,6 +471,15 @@ void ToProto(NProto::TCpuAccountingStatistics* protoStats, const TCpuAccounting:
     protoStats->set_system_time(stats.SystemTime.MilliSeconds());
 }
 
+void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("user").Value(static_cast<i64>(statistics.UserTime.MilliSeconds()))
+            .Item("system").Value(static_cast<i64>(statistics.SystemTime.MilliSeconds()))
+        .EndMap();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlockIO::TStatistics::TStatistics()
@@ -583,6 +597,15 @@ void ToProto(NProto::TBlockIOStatistics* protoStats, const TBlockIO::TStatistics
     protoStats->set_total_sectors(stats.TotalSectors);
     protoStats->set_bytes_read(stats.BytesRead);
     protoStats->set_bytes_written(stats.BytesWritten);
+}
+
+void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("bytes_read").Value(statistics.BytesRead)
+            .Item("bytes_written").Value(statistics.BytesWritten)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
