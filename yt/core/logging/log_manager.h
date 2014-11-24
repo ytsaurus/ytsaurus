@@ -33,7 +33,6 @@ public:
 
 private:
     TLogManager();
-
     ~TLogManager();
 
     class TImpl;

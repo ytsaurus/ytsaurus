@@ -708,7 +708,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TLogManager::TLogManager()
-    : Impl(new TImpl())
+    : Impl(New<TImpl>())
 { }
 
 TLogManager::~TLogManager()

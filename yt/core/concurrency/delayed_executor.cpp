@@ -46,7 +46,6 @@ struct TDelayedExecutorEntry
     TInstant Deadline;
     TClosure Callback;
     TNullable<std::set<TDelayedExecutorCookie, TComparer>::iterator> Iterator;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TDelayedExecutorEntry)
@@ -74,7 +73,7 @@ public:
         return entry;
     }
 
-    void Cancel(TDelayedExecutorCookie entry)
+    void Cancel(const TDelayedExecutorCookie& entry)
     {
         if (entry && IsRunning()) {
             CancelQueue_.Enqueue(std::move(entry));
@@ -90,15 +89,6 @@ public:
         entry.Reset();
     }
 
-    static TImpl* Get()
-    {
-        return TSingleton::Get();
-    }
-
-    DECLARE_SINGLETON_MIXIN(TImpl, TRefCountedInstanceMixin);
-    DECLARE_SINGLETON_PRIORITY(TImpl, 60);
-
-private:
     TImpl()
         : TEVSchedulerThread("DelayedExecutor", false)
         , PeriodicWatcher_(EventLoop)
@@ -109,11 +99,7 @@ private:
         Start();
     }
 
-    ~TImpl()
-    {
-        Shutdown();
-    }
-
+private:
     ev::periodic PeriodicWatcher_;
 
     //! Only touched from the dedicated thread.
@@ -171,29 +157,42 @@ private:
         SubmitQueue_.DequeueAll();
         CancelQueue_.DequeueAll();
     }
-
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
+TDelayedExecutor::TDelayedExecutor()
+    : Impl_(New<TImpl>())
+{ }
+
+TDelayedExecutor::~TDelayedExecutor()
+{
+    Impl_->Shutdown();
+}
+
+TDelayedExecutor* TDelayedExecutor::Get()
+{
+    return TSingleton::Get();
+}
+
 TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TDuration delay)
 {
-    return TImpl::Get()->Submit(std::move(callback), delay);
+    return Get()->Impl_->Submit(std::move(callback), delay);
 }
 
 TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TInstant deadline)
 {
-    return TImpl::Get()->Submit(std::move(callback), deadline);
+    return Get()->Impl_->Submit(std::move(callback), deadline);
 }
 
-void TDelayedExecutor::Cancel(TDelayedExecutorCookie entry)
+void TDelayedExecutor::Cancel(const TDelayedExecutorCookie& entry)
 {
-    TImpl::Get()->Cancel(std::move(entry));
+    Get()->Impl_->Cancel(std::move(entry));
 }
 
 void TDelayedExecutor::CancelAndClear(TDelayedExecutorCookie& entry)
 {
-    TImpl::Get()->CancelAndClear(entry);
+    Get()->Impl_->CancelAndClear(entry);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

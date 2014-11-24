@@ -95,12 +95,10 @@ public:
 
 private:
     TProfileManager();
-
     ~TProfileManager();
 
     class TImpl;
     std::unique_ptr<TImpl> Impl_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
