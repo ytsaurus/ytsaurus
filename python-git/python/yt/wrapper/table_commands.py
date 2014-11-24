@@ -180,7 +180,8 @@ class TempfilesManager(object):
 
     def create_tempfile(self, *args, **kwargs):
         """Use syntax tempfile.mkstemp"""
-        _, filepath = tempfile.mkstemp(*args, **kwargs)
+        fd, filepath = tempfile.mkstemp(*args, **kwargs)
+        os.close(fd)
         self._tempfiles_pool.append(filepath)
         return filepath
 
