@@ -83,7 +83,7 @@ public:
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->KeyColumns = KeyColumns;
 
-        auto WriterProvider = New<TPartitionChunkWriterProvider>(
+        WriterProvider = New<TPartitionChunkWriterProvider>(
             IOConfig->TableWriter,
             options,
             Partitioner.get());
