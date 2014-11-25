@@ -201,7 +201,7 @@ void TStatisticsConverter::OnEndMap()
     if (Depth_ == 0) {
         TStatistics statistics;
         NYTree::INodePtr parsed;
-        if (Location_ == "") {
+        if (Location_.empty()) {
             parsed = TreeBuilder_->EndTree();
         } else {
             parsed = NYTree::GetEphemeralNodeFactory()->CreateMap();
