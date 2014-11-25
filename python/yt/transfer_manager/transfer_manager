@@ -756,6 +756,9 @@ class Application(object):
         except KeyboardInterrupt:
             pass
         except yt.YtError as error:
+            if isinstance(error, yt.YtOperationFailedError):
+                error.attributes["details"] = error.attributes["stderrs"]
+                del error.attributes["stderrs"]
             logger.exception("Task {} failed with error {}".format(task.id, yt.errors.format_error(error)))
             message_queue.put({
                 "type": "error",

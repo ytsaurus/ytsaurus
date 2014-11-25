@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from yt.wrapper.common import die
+from yt.wrapper.cli_helpers import die
 import yt.wrapper as yt
 
 import os

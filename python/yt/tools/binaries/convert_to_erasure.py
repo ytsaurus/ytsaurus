@@ -3,7 +3,7 @@
 from yt.tools.convertion_tools import convert_to_erasure
 
 import yt.wrapper as yt
-from yt.wrapper.common import die
+from yt.wrapper.cli_helpers import die
 
 import sys
 import traceback
