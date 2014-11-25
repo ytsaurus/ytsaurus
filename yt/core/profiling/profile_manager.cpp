@@ -18,6 +18,8 @@
 #include <core/ytree/ypath_client.h>
 #include <core/ytree/fluent.h>
 
+#include <core/logging/log.h>
+
 namespace NYT {
 namespace NProfiling  {
 
@@ -26,6 +28,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static NLog::TLogger Logger("Profiling");
 static TProfiler ProfilingProfiler("/profiling", EmptyTagIds, true);
 // TODO(babenko): make configurable
 static const TDuration MaxKeepInterval = TDuration::Minutes(5);
@@ -40,7 +43,7 @@ public:
         , Queue(New<TInvokerQueue>(
             &EventCount,
             EmptyTagIds,
-            false,
+            true,
             false))
         , Thread(New<TThread>(this))
         , Root(GetEphemeralNodeFactory()->CreateMap())
@@ -203,6 +206,11 @@ private:
     private:
         std::deque<TStoredSample> Samples;
 
+        virtual NLog::TLogger CreateLogger() const override
+        {
+            return NProfiling::Logger;
+        }
+
         virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
         {
             DISPATCH_YPATH_SERVICE_METHOD(Get);
@@ -257,7 +265,7 @@ private:
                 &owner->EventCount,
                 "Profiling",
                 EmptyTagIds,
-                false,
+                true,
                 false)
             , Owner(owner)
         { }
@@ -341,6 +349,7 @@ private:
             return it->second;
         }
 
+        LOG_DEBUG("Creating bucket %v", path);
         auto bucket = New<TBucket>();
         YCHECK(PathToBucket.insert(std::make_pair(path, bucket)).second);
 
@@ -373,19 +382,19 @@ TProfileManager::TProfileManager()
     : Impl_(new TImpl())
 { }
 
-TProfileManager::~TProfileManager()
-{
-    Impl_->Shutdown();
-}
-
 TProfileManager* TProfileManager::Get()
 {
-    return TSingleton::Get();
+    return Singleton<TProfileManager>();
 }
 
 void TProfileManager::Start()
 {
     Impl_->Start();
+}
+
+void TProfileManager::Shutdown()
+{
+    Impl_->Shutdown();
 }
 
 void TProfileManager::Enqueue(const TQueuedSample& sample, bool selfProfiling)

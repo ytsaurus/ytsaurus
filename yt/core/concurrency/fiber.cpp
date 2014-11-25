@@ -4,7 +4,6 @@
 #include "scheduler.h"
 #include "fls.h"
 
-#include <core/misc/managed_instance.h>
 #include <core/misc/lazy_ptr.h>
 
 namespace NYT {
@@ -121,23 +120,8 @@ void TFiber::Trampoline(void* opaque)
 
 namespace NDetail {
 
-class TUnwindDispatcher
-{
-public:
-    TUnwindDispatcher()
-        : UnwindThread_(TActionQueue::CreateFactory("Unwind", false, false))
-    { }
-
-    IInvokerPtr GetInvoker()
-    {
-        return UnwindThread_->GetInvoker();
-    }
-
-private:
-    TLazyIntrusivePtr<TActionQueue> UnwindThread_;
-};
-
-static TManagedInstance<TUnwindDispatcher> UnwindDispatcher;
+static TLazyIntrusivePtr<TActionQueue> UnwindThread(
+    TActionQueue::CreateFactory("Unwind", false, false));
 
 TClosure GetCurrentFiberCanceler()
 {
@@ -159,8 +143,15 @@ void UnwindFiber(TFiberPtr fiber)
     fiber->Cancel();
 
     BIND(&ResumeFiber, Passed(std::move(fiber)))
-        .Via(UnwindDispatcher->GetInvoker())
+        .Via(UnwindThread->GetInvoker())
         .Run();
+}
+
+void ShutdownUnwindThread()
+{
+    if (UnwindThread.HasValue()) {
+        UnwindThread->Shutdown();
+    }
 }
 
 } // namespace NDetail

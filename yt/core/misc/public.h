@@ -53,11 +53,6 @@ struct ICheckpointableOutputStream;
 
 DECLARE_REFCOUNTED_CLASS(TSlruCacheConfig)
 
-template <class, class> class TSingleton;
-template <class> struct TStaticInstanceMixin;
-template <class> struct TRefCountedInstanceMixin;
-template <class> struct THeapInstanceMixin;
-
 typedef ui64 TChecksum;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -71,18 +66,3 @@ DECLARE_ENUM(EErrorCode,
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
-
-#define DECLARE_SINGLETON_MIXIN(type, mixin) private: \
-    typedef ::NYT::TSingleton<type, mixin<type>> TSingleton; \
-    friend struct mixin<type>; \
-    template <class U, class... As> \
-	friend ::NYT::TIntrusivePtr<U> NYT::New(As&&... args);
-#define DECLARE_SINGLETON_DEFAULT_MIXIN(type) \
-    DECLARE_SINGLETON_MIXIN(type, ::NYT::THeapInstanceMixin)
-#define DECLARE_SINGLETON_PRIORITY(type, value) public: \
-    static constexpr int Priority = value
-#define DECLARE_SINGLETON_DELETE_AT_EXIT(type, flag) public: \
-    static constexpr bool DeleteAtExit = flag
-#define DECLARE_SINGLETON_RESET_AT_FORK(type, flag) public: \
-    static constexpr bool ResetAtFork = flag
-

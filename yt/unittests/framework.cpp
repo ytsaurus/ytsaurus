@@ -23,13 +23,6 @@ Stroka GenerateRandomFileName(const char* prefix)
         RandomNumber<ui64>());
 }
 
-TShadowingAtExitManager::TShadowingAtExitManager()
-    : TAtExitManager(true)
-{ }
-
-TShadowingAtExitManager::~TShadowingAtExitManager()
-{ }
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

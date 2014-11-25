@@ -12,7 +12,6 @@
 
 #include <core/misc/preprocessor.h>
 #include <core/misc/enum.h>
-#include <core/misc/at_exit_manager.h>
 
 #include <core/actions/public.h>
 
@@ -22,22 +21,6 @@ namespace NYT {
 
 //! A tiny helper function to generate random file names.
 Stroka GenerateRandomFileName(const char* prefix);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TShadowingAtExitManager
-    : public TAtExitManager
-{
-public:
-    TShadowingAtExitManager();
-
-    ~TShadowingAtExitManager();
-
-    using TAtExitManager::FireAtExit;
-    using TAtExitManager::FireAtForkPrepare;
-    using TAtExitManager::FireAtForkParent;
-    using TAtExitManager::FireAtForkChild;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

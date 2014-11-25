@@ -46,6 +46,7 @@ struct TDelayedExecutorEntry
     TInstant Deadline;
     TClosure Callback;
     TNullable<std::set<TDelayedExecutorCookie, TComparer>::iterator> Iterator;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TDelayedExecutorEntry)
@@ -56,6 +57,18 @@ class TDelayedExecutor::TImpl
     : public TEVSchedulerThread
 {
 public:
+    TImpl()
+        : TEVSchedulerThread(
+            "DelayedExecutor",
+            false)
+        , PeriodicWatcher_(EventLoop)
+    {
+        PeriodicWatcher_.set<TImpl, &TImpl::OnTimer>(this);
+        PeriodicWatcher_.start(0, TimeQuantum.SecondsFloat());
+
+        Start();
+    }
+
     TDelayedExecutorCookie Submit(TClosure callback, TDuration delay)
     {
         return Submit(std::move(callback), delay.ToDeadLine());
@@ -73,7 +86,7 @@ public:
         return entry;
     }
 
-    void Cancel(const TDelayedExecutorCookie& entry)
+    void Cancel(TDelayedExecutorCookie entry)
     {
         if (entry && IsRunning()) {
             CancelQueue_.Enqueue(std::move(entry));
@@ -89,16 +102,6 @@ public:
         entry.Reset();
     }
 
-    TImpl()
-        : TEVSchedulerThread("DelayedExecutor", false)
-        , PeriodicWatcher_(EventLoop)
-    {
-        PeriodicWatcher_.set<TImpl, &TImpl::OnTimer>(this);
-        PeriodicWatcher_.start(0, TimeQuantum.SecondsFloat());
-
-        Start();
-    }
-
 private:
     ev::periodic PeriodicWatcher_;
 
@@ -108,6 +111,7 @@ private:
     //! Enqueued from any thread, dequeued from the dedicated thread.
     TMultipleProducerSingleConsumerLockFreeStack<TDelayedExecutorEntryPtr> SubmitQueue_;
     TMultipleProducerSingleConsumerLockFreeStack<TDelayedExecutorEntryPtr> CancelQueue_;
+
 
     virtual void OnShutdown() override
     {
@@ -157,42 +161,34 @@ private:
         SubmitQueue_.DequeueAll();
         CancelQueue_.DequeueAll();
     }
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TDelayedExecutor::TDelayedExecutor()
-    : Impl_(New<TImpl>())
-{ }
-
-TDelayedExecutor::~TDelayedExecutor()
-{
-    Impl_->Shutdown();
-}
-
-TDelayedExecutor* TDelayedExecutor::Get()
-{
-    return TSingleton::Get();
-}
-
 TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TDuration delay)
 {
-    return Get()->Impl_->Submit(std::move(callback), delay);
+    return RefCountedSingleton<TImpl>()->Submit(std::move(callback), delay);
 }
 
 TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TInstant deadline)
 {
-    return Get()->Impl_->Submit(std::move(callback), deadline);
+    return RefCountedSingleton<TImpl>()->Submit(std::move(callback), deadline);
 }
 
-void TDelayedExecutor::Cancel(const TDelayedExecutorCookie& entry)
+void TDelayedExecutor::Cancel(TDelayedExecutorCookie entry)
 {
-    Get()->Impl_->Cancel(std::move(entry));
+    RefCountedSingleton<TImpl>()->Cancel(std::move(entry));
 }
 
 void TDelayedExecutor::CancelAndClear(TDelayedExecutorCookie& entry)
 {
-    Get()->Impl_->CancelAndClear(entry);
+    RefCountedSingleton<TImpl>()->CancelAndClear(entry);
+}
+
+void TDelayedExecutor::Shutdown()
+{
+    RefCountedSingleton<TImpl>()->Shutdown();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -186,7 +186,7 @@ TSchedulerThread::TSchedulerThread(
 TSchedulerThread::~TSchedulerThread()
 {
     YCHECK(!IsRunning());
-    Thread.Join();
+    Thread.Detach();
 }
 
 void TSchedulerThread::Start()

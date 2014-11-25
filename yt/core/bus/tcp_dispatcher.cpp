@@ -3,8 +3,6 @@
 #include "tcp_dispatcher_impl.h"
 #include "tcp_connection.h"
 
-#include <core/misc/singleton.h>
-
 namespace NYT {
 namespace NBus {
 
@@ -47,12 +45,14 @@ TTcpDispatcher::TTcpDispatcher()
     : Impl(new TImpl())
 { }
 
-TTcpDispatcher::~TTcpDispatcher()
-{ }
-
 TTcpDispatcher* TTcpDispatcher::Get()
 {
-    return TSingleton::Get();
+    return Singleton<TTcpDispatcher>();
+}
+
+void TTcpDispatcher::Shutdown()
+{
+    Impl->Shutdown();
 }
 
 TTcpDispatcherStatistics TTcpDispatcher::GetStatistics(ETcpInterfaceType interfaceType)

@@ -2,8 +2,6 @@
 #include "io_dispatcher.h"
 #include "io_dispatcher_impl.h"
 
-#include <core/misc/singleton.h>
-
 namespace NYT {
 namespace NPipes {
 
@@ -17,12 +15,12 @@ TIODispatcher::TIODispatcher()
 
 TIODispatcher::~TIODispatcher()
 {
-    Impl_->Shutdown();
+    Shutdown();
 }
 
 TIODispatcher* TIODispatcher::Get()
 {
-    return TSingleton::Get();
+    return Singleton<TIODispatcher>();
 }
 
 TAsyncError TIODispatcher::AsyncRegister(IFDWatcherPtr watcher)
@@ -33,6 +31,11 @@ TAsyncError TIODispatcher::AsyncRegister(IFDWatcherPtr watcher)
 TAsyncError TIODispatcher::AsyncUnregister(IFDWatcherPtr watcher)
 {
     return Impl_->AsyncUnregister(watcher);
+}
+
+void TIODispatcher::Shutdown()
+{
+    return Impl_->Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

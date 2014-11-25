@@ -2,7 +2,6 @@
 #include "cypress_integration.h"
 
 #include <core/misc/lazy_ptr.h>
-#include <core/misc/singleton.h>
 
 #include <core/concurrency/action_queue.h>
 
@@ -15,7 +14,9 @@
 
 #include <core/rpc/channel.h>
 #include <core/rpc/message.h>
-#include <core/rpc/caching_bus_channel_factory-inl.h>
+#include <core/rpc/caching_channel_factory.h>
+#include <core/rpc/bus_channel.h>
+#include <core/rpc/helpers.h>
 
 #include <ytlib/orchid/orchid_service_proxy.h>
 
@@ -49,32 +50,10 @@ using namespace NConcurrency;
 
 static const auto& Logger = OrchidLogger;
 
-struct TOrchidTag;
+static IChannelFactoryPtr ChannelFactory(CreateCachingChannelFactory(GetBusChannelFactory()));
+static TLazyIntrusivePtr<TActionQueue> OrchidQueue(TActionQueue::CreateFactory("Orchid"));
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TOrchidDispatcher
-{
-public:
-    static TOrchidDispatcher* Get()
-    {
-        return TSingleton::Get();
-    }
-
-    IInvokerPtr GetInvoker()
-    {
-        return Thread_->GetInvoker();
-    }
-
-    DECLARE_SINGLETON_DEFAULT_MIXIN(TOrchidDispatcher);
-
-private:
-    TOrchidDispatcher()
-        : Thread_(TActionQueue::CreateFactory("Orchid"))
-    { }
-
-    TLazyIntrusivePtr<TActionQueue> Thread_;
-};
 
 class TOrchidYPathService
     : public IYPathService
@@ -106,8 +85,7 @@ public:
 
         auto manifest = LoadManifest();
 
-        auto channel = GetCachingBusChannelFactory<TOrchidTag>()
-            ->CreateChannel(manifest->RemoteAddress);
+        auto channel = ChannelFactory->CreateChannel(manifest->RemoteAddress);
 
         TOrchidServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(manifest->Timeout);
@@ -143,7 +121,7 @@ public:
                 manifest,
                 path,
                 method)
-            .Via(TOrchidDispatcher::Get()->GetInvoker()));
+            .Via(OrchidQueue->GetInvoker()));
     }
 
     virtual NLog::TLogger GetLogger() const override

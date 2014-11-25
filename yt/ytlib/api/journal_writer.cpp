@@ -235,8 +235,8 @@ private:
 
             explicit TNode(const TNodeDescriptor& descriptor)
                 : Descriptor(descriptor)
-                , LightProxy(GetLightNodeChannelFactory()->CreateChannel(descriptor.GetDefaultAddress()))
-                , HeavyProxy(GetHeavyNodeChannelFactory()->CreateChannel(descriptor.GetDefaultAddress()))
+                , LightProxy(LightNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress()))
+                , HeavyProxy(HeavyNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress()))
             { }
         };
 

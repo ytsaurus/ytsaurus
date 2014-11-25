@@ -1,7 +1,9 @@
 #include "stdafx.h"
 #include "private.h"
 
-#include <core/rpc/caching_bus_channel_factory-inl.h>
+#include <core/rpc/channel.h>
+#include <core/rpc/caching_channel_factory.h>
+#include <core/rpc/bus_channel.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -11,12 +13,7 @@ namespace NDataNode {
 NLog::TLogger DataNodeLogger("DataNode");
 NProfiling::TProfiler DataNodeProfiler("/data_node");
 
-struct TDataNodeTag;
-
-NRpc::IChannelFactoryPtr GetDataNodeChannelFactory()
-{
-    return NRpc::GetCachingBusChannelFactory<TDataNodeTag>();
-}
+NRpc::IChannelFactoryPtr ChannelFactory(NRpc::CreateCachingChannelFactory(NRpc::GetBusChannelFactory()));
 
 Stroka CellIdFileName("cell_id");
 

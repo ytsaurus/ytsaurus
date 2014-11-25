@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <core/misc/public.h>
-
 #include <core/concurrency/action_queue.h>
 
 namespace NYT {
@@ -14,17 +12,15 @@ namespace NRpc {
 class TDispatcher
 {
 public:
+    TDispatcher();
+
     static TDispatcher* Get();
 
     IInvokerPtr GetPoolInvoker();
 
-    DECLARE_SINGLETON_DEFAULT_MIXIN(TDispatcher);
+    void Shutdown();
 
 private:
-    TDispatcher();
-
-    ~TDispatcher();
-
     NConcurrency::TThreadPoolPtr ThreadPool;
 
 };

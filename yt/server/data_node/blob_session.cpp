@@ -195,7 +195,7 @@ TAsyncError TBlobSession::DoSendBlocks(
     int blockCount,
     const TNodeDescriptor& target)
 {
-    TDataNodeServiceProxy proxy(GetDataNodeChannelFactory()->CreateChannel(target.GetDefaultAddress()));
+    TDataNodeServiceProxy proxy(ChannelFactory->CreateChannel(target.GetDefaultAddress()));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
     auto req = proxy.PutBlocks();

@@ -46,38 +46,23 @@ struct TMethodDescriptor
     NProfiling::TTagIdList TagIds;
 };
 
-class TMethodDescriptorRegistry
+TSpinLock MethodDescriptorLock;
+yhash_map<std::pair<Stroka, Stroka>, TMethodDescriptor> MethodDescriptors;
+
+const TMethodDescriptor& GetMethodDescriptor(const Stroka& service, const Stroka& method)
 {
-public:
-    static TMethodDescriptorRegistry* Get()
-    {
-        return TSingleton::Get();
+    TGuard<TSpinLock> guard(MethodDescriptorLock);
+    auto pair = std::make_pair(service, method);
+    auto it = MethodDescriptors.find(pair);
+    if (it == MethodDescriptors.end()) {
+        TMethodDescriptor descriptor;
+        auto* profilingManager = NProfiling::TProfileManager::Get();
+        descriptor.TagIds.push_back(profilingManager->RegisterTag("service", TYsonString(service)));
+        descriptor.TagIds.push_back(profilingManager->RegisterTag("method", TYsonString(method)));
+        it = MethodDescriptors.insert(std::make_pair(pair, descriptor)).first;
     }
-
-    const TMethodDescriptor& GetMethodDescriptor(const Stroka& service, const Stroka& method)
-    {
-        TGuard<TSpinLock> guard(MethodDescriptorLock_);
-        auto pair = std::make_pair(service, method);
-        auto it = MethodDescriptors_.find(pair);
-        if (it == MethodDescriptors_.end()) {
-            TMethodDescriptor descriptor;
-            auto* profilingManager = NProfiling::TProfileManager::Get();
-            descriptor.TagIds.push_back(profilingManager->RegisterTag("service", TYsonString(service)));
-            descriptor.TagIds.push_back(profilingManager->RegisterTag("method", TYsonString(method)));
-            it = MethodDescriptors_.insert(std::make_pair(pair, descriptor)).first;
-        }
-        return it->second;
-    }
-
-    DECLARE_SINGLETON_DEFAULT_MIXIN(TMethodDescriptorRegistry);
-
-private:
-    TMethodDescriptorRegistry() = default;
-    ~TMethodDescriptorRegistry() = default;
-
-    TSpinLock MethodDescriptorLock_;
-    yhash_map<std::pair<Stroka, Stroka>, TMethodDescriptor> MethodDescriptors_;
-};
+    return it->second;
+}
 
 } // namespace
 
@@ -234,8 +219,7 @@ private:
 
             auto requestId = request->GetRequestId();
 
-            const auto& descriptor = TMethodDescriptorRegistry::Get()
-                ->GetMethodDescriptor(request->GetService(), request->GetMethod());
+            const auto& descriptor = GetMethodDescriptor(request->GetService(), request->GetMethod());
 
             TActiveRequest activeRequest;
             activeRequest.ClientRequest = request;
@@ -596,21 +580,15 @@ public:
     virtual IChannelPtr CreateChannel(const Stroka& address) override
     {
         auto config = New<TTcpBusClientConfig>(address);
-        auto client = CreateTcpBusClient(std::move(config));
-        return CreateBusChannel(std::move(client));
+        auto client = CreateTcpBusClient(config);
+        return CreateBusChannel(client);
     }
 
-    static TBusChannelFactory* Get()
-    {
-        return TSingleton::Get();
-    }
-
-    DECLARE_SINGLETON_MIXIN(TBusChannelFactory, TRefCountedInstanceMixin);
 };
 
 IChannelFactoryPtr GetBusChannelFactory()
 {
-    return TBusChannelFactory::Get();
+    return RefCountedSingleton<TBusChannelFactory>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

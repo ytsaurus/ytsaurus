@@ -1,4 +1,5 @@
 var binding = require("../lib/ytnode");
+process.on("exit", binding.ShutdownSingletons);
 
 var YtError = require("../lib/error").that;
 

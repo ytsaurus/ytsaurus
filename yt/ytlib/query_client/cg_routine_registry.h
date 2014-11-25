@@ -30,12 +30,11 @@ public:
 
     TTypeBuilder GetTypeBuilder(const Stroka& symbol) const;
 
-    DECLARE_SINGLETON_DEFAULT_MIXIN(TRoutineRegistry);
-
 private:
     TRoutineRegistry();
-
     ~TRoutineRegistry();
+
+    DECLARE_SINGLETON_FRIEND(TRoutineRegistry);
 
     bool RegisterRoutineImpl(
         const char* symbol,

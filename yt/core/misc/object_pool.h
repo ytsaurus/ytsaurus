@@ -4,7 +4,7 @@
 
 #include <util/thread/lfqueue.h>
 
-#include <core/misc/singleton.h>
+#include <util/generic/singleton.h>
 
 #include <core/profiling/public.h>
 
@@ -28,16 +28,11 @@ class TObjectPool
 public:
     typedef std::shared_ptr<T> TValuePtr;
 
-    static TObjectPool* Get();
-
     //! Either creates a fresh instance or returns a pooled one.
     TValuePtr Allocate();
 
     //! Calls #TPooledObjectTraits::Clean and returns the instance back into the pool.
     void Reclaim(T* obj);
-
-    DECLARE_SINGLETON_DEFAULT_MIXIN(TObjectPool);
-    DECLARE_SINGLETON_PRIORITY(TObjectPool, 40);
 
 private:
     struct THeader
@@ -50,9 +45,7 @@ private:
     TLockFreeQueue<T*> PooledObjects_;
     std::atomic<int> PoolSize_;
 
-    TObjectPool() = default;
-
-    ~TObjectPool() = default;
+    TObjectPool();
 
     T* AllocateInstance();
     void FreeInstance(T* obj);
@@ -60,6 +53,7 @@ private:
     THeader* GetHeader(T* obj);
     bool IsExpired(const THeader* header);
 
+    DECLARE_SINGLETON_FRIEND(TObjectPool<T>)
 };
 
 template <class T>

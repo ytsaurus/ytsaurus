@@ -55,8 +55,8 @@ struct TNode
     TNode(int index, const TNodeDescriptor& descriptor)
         : Index(index)
         , Descriptor(descriptor)
-        , LightProxy(GetLightNodeChannelFactory()->CreateChannel(descriptor.GetDefaultAddress()))
-        , HeavyProxy(GetHeavyNodeChannelFactory()->CreateChannel(descriptor.GetDefaultAddress()))
+        , LightProxy(LightNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress()))
+        , HeavyProxy(HeavyNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress()))
     {
         Canceled.clear();
     }
@@ -532,7 +532,7 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     auto address = nodeDescriptor.GetDefaultAddress();
     LOG_DEBUG("Starting write session (Address: %v)", address);
 
-    TDataNodeServiceProxy proxy(GetLightNodeChannelFactory()->CreateChannel(address));
+    TDataNodeServiceProxy proxy(LightNodeChannelFactory->CreateChannel(address));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
     auto req = proxy.StartChunk();

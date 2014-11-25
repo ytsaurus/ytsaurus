@@ -1,6 +1,5 @@
 #include "stdafx.h"
 
-#include <core/misc/at_exit_manager.h>
 #include <core/misc/crash_handler.h>
 #include <core/misc/address.h>
 #include <core/misc/proc.h>
@@ -16,6 +15,8 @@
 #include <core/ytree/yson_serializable.h>
 
 #include <ytlib/scheduler/config.h>
+
+#include <ytlib/shutdown.h>
 
 #include <ytlib/misc/tclap_helpers.h>
 
@@ -508,6 +509,8 @@ int Main(int argc, const char* argv[])
         exitCode = EExitCode::BootstrapError;
     }
 
+    Shutdown();
+
     return exitCode;
 }
 
@@ -517,6 +520,5 @@ int Main(int argc, const char* argv[])
 
 int main(int argc, const char* argv[])
 {
-    auto manager = std::make_unique<NYT::TAtExitManager>();
     return NYT::Main(argc, argv);
 }

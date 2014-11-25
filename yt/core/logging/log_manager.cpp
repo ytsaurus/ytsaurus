@@ -8,7 +8,6 @@
 #include <core/misc/pattern_formatter.h>
 #include <core/misc/raw_formatter.h>
 #include <core/misc/hash.h>
-#include <core/misc/singleton.h>
 
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>
@@ -708,25 +707,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TLogManager::TLogManager()
-    : Impl(New<TImpl>())
+    : Impl(new TImpl())
 { }
-
-TLogManager::~TLogManager()
-{
-    Impl->Shutdown();
-}
 
 TLogManager* TLogManager::Get()
 {
-    return TSingleton::Get();
-}
-
-void TLogManager::Shutdown()
-{
-    auto instance = TSingleton::TryGet();
-    if (instance) {
-        instance->Impl->Shutdown();
-    }
+    return Singleton<TLogManager>();
 }
 
 void TLogManager::Configure(INodePtr node)
@@ -737,6 +723,11 @@ void TLogManager::Configure(INodePtr node)
 void TLogManager::Configure(const Stroka& fileName, const TYPath& path)
 {
     Impl->Configure(fileName, path);
+}
+
+void TLogManager::Shutdown()
+{
+    Impl->Shutdown();
 }
 
 int TLogManager::GetVersion() const

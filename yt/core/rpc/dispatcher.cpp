@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "dispatcher.h"
 
-#include <core/misc/singleton.h>
-
 #include <util/generic/singleton.h>
 
 namespace NYT {
@@ -18,19 +16,19 @@ TDispatcher::TDispatcher()
     : ThreadPool(New<NConcurrency::TThreadPool>(ThreadPoolSize, "Rpc"))
 { }
 
-TDispatcher::~TDispatcher()
-{
-    ThreadPool->Shutdown();
-}
-
 TDispatcher* TDispatcher::Get()
 {
-    return TSingleton::Get();
+    return Singleton<TDispatcher>();
 }
 
 IInvokerPtr TDispatcher::GetPoolInvoker()
 {
     return ThreadPool->GetInvoker();
+}
+
+void TDispatcher::Shutdown()
+{
+    ThreadPool->Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

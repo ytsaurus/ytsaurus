@@ -4,8 +4,6 @@
 
 #include <core/actions/invoker.h>
 
-#include <core/misc/public.h>
-
 #include <core/ytree/yson_string.h>
 #include <core/ytree/convert.h>
 
@@ -62,6 +60,12 @@ public:
      */
     void Start();
 
+    //! Shuts down the profiling system.
+    /*!
+     *  After this call #Enqueue has no effect.
+     */
+    void Shutdown();
+
     //! Enqueues a new sample for processing.
     void Enqueue(const TQueuedSample& sample, bool selfProfiling);
 
@@ -90,15 +94,14 @@ public:
         return RegisterTag(tag);
     }
 
-    DECLARE_SINGLETON_MIXIN(TProfileManager, TStaticInstanceMixin);
-    DECLARE_SINGLETON_PRIORITY(TProfileManager, 30);
-
 private:
     TProfileManager();
-    ~TProfileManager();
+
+    DECLARE_SINGLETON_FRIEND(TProfileManager);
 
     class TImpl;
     std::unique_ptr<TImpl> Impl_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

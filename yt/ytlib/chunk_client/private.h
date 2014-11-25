@@ -12,10 +12,10 @@ namespace NChunkClient {
 extern NLog::TLogger ChunkClientLogger;
 
 //! For heavy requests (e.g. PutBlocks).
-NRpc::IChannelFactoryPtr GetHeavyNodeChannelFactory();
+extern NRpc::IChannelFactoryPtr HeavyNodeChannelFactory;
 
 // For light requests (e.g. SendBlocks, GetBlocks, etc).
-NRpc::IChannelFactoryPtr GetLightNodeChannelFactory();
+extern NRpc::IChannelFactoryPtr LightNodeChannelFactory;
 
 const int MaxPrefetchWindow = 250;
 
@@ -27,7 +27,6 @@ typedef i64 TChunkOffset;
 
 //! A suffix to distinguish chunk meta files.
 extern const char* const ChunkMetaSuffix;
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

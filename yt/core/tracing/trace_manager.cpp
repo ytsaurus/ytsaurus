@@ -40,12 +40,6 @@ public:
         InvokerQueue_->SetThreadId(Thread_->GetId());
     }
 
-    ~TImpl()
-    {
-        InvokerQueue_->Shutdown();
-        Thread_->Shutdown();
-    }
-
     void Configure(NYTree::INodePtr node, const NYTree::TYPath& path)
     {
         Config_ = New<TTraceManagerConfig>();
@@ -75,6 +69,12 @@ public:
             LOG_ERROR(ex, "Error while configuring tracing");
         }
    }
+
+    void Shutdown()
+    {
+        InvokerQueue_->Shutdown();
+        Thread_->Shutdown();
+    }
 
     void Enqueue(
         const NTracing::TTraceContext& context,
@@ -189,6 +189,7 @@ private:
         InvokerQueue_->EndExecute(&CurrentAction_);
     }
 
+
     bool IsPushEnabled()
     {
         return Config_->Address.HasValue() && Channel_;
@@ -249,10 +250,14 @@ private:
 
     NProto::TEndpoint GetLocalEndpoint()
     {
-        auto address = TAddressResolver::Get()->GetLocalHostAddress();
+        auto* addressResolver = TAddressResolver::Get();
+        auto addressOrError = addressResolver->Resolve(addressResolver->GetLocalHostName()).Get();
+        if (!addressOrError.IsOK()) {
+            LOG_FATAL(addressOrError, "Error determining local endpoint address");
+        }
 
         NProto::TEndpoint endpoint;
-        const auto& sockAddr = address.GetSockAddr();
+        const auto& sockAddr = addressOrError.Value().GetSockAddr();
         switch (sockAddr->sa_family) {
             case AF_INET: {
                 auto* typedAddr = reinterpret_cast<const sockaddr_in*>(sockAddr);
@@ -262,14 +267,15 @@ private:
             }
             case AF_INET6: {
                 auto* typedAddr = reinterpret_cast<const sockaddr_in6*>(sockAddr);
-                // Hack: IPv6 -> IPv4. :)
+                // hack: ipv6 -> ipv4 :)
                 const ui32* fake = reinterpret_cast<const ui32*>(typedAddr->sin6_addr.s6_addr + 12);
                 endpoint.set_address(LittleToBig(*fake));
                 endpoint.set_port(Config_->EndpointPort);
                 break;
             }
+
             default:
-                LOG_FATAL("Neither v4 nor v6 address is known for local endpoint; reported local address is %v", address);
+                LOG_FATAL("Neither v4 nor v6 address is known for local endpoint");
         }
 
         return endpoint;
@@ -280,9 +286,6 @@ private:
 
 TTraceManager::TTraceManager()
     : Impl_(new TImpl())
-{ }
-
-TTraceManager::~TTraceManager()
 { }
 
 void TTraceManager::Configure(NYTree::INodePtr node, const NYPath::TYPath& path)
@@ -297,7 +300,12 @@ void TTraceManager::Configure(const Stroka& fileName, const NYPath::TYPath& path
 
 TTraceManager* TTraceManager::Get()
 {
-    return TSingleton::Get();
+    return Singleton<TTraceManager>();
+}
+
+void TTraceManager::Shutdown()
+{
+    Impl_->Shutdown();
 }
 
 void TTraceManager::Enqueue(

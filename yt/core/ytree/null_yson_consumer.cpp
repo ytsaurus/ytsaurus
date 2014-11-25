@@ -2,8 +2,7 @@
 #include "null_yson_consumer.h"
 
 #include <core/yson/consumer.h>
-
-#include <core/misc/singleton.h>
+#include "yson_string.h"
 
 namespace NYT {
 namespace NYTree {
@@ -74,21 +73,11 @@ class TNullYsonConsumer
         UNUSED(yson);
         UNUSED(type);
     }
-
-public:
-    static TNullYsonConsumer* Get()
-    {
-        return TSingleton::Get();
-    }
-
-    DECLARE_SINGLETON_DEFAULT_MIXIN(TNullYsonConsumer);
-    DECLARE_SINGLETON_DELETE_AT_EXIT(TNullYsonConsumer, false);
-    DECLARE_SINGLETON_RESET_AT_FORK(TNullYsonConsumer, false);
 };
 
 IYsonConsumer* GetNullYsonConsumer()
 {
-    return TNullYsonConsumer::Get();
+    return Singleton<TNullYsonConsumer>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

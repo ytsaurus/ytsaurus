@@ -504,19 +504,11 @@ public:
     virtual void Commit() override
     { }
 
-    static TEphemeralNodeFactory* Get()
-    {
-        return TSingleton::Get();
-    }
-
-    DECLARE_SINGLETON_MIXIN(TEphemeralNodeFactory, TRefCountedInstanceMixin);
-    DECLARE_SINGLETON_DELETE_AT_EXIT(TEphemeralNodeFactory, false);
-    DECLARE_SINGLETON_RESET_AT_FORK(TEphemeralNodeFactory, false);
 };
 
 INodeFactoryPtr GetEphemeralNodeFactory()
 {
-    return TEphemeralNodeFactory::Get();
+    return RefCountedSingleton<TEphemeralNodeFactory>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

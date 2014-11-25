@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/at_exit_manager.h>
+#include <ytlib/shutdown.h>
 
 #include <core/ytree/convert.h>
 #include <core/ytree/ephemeral_node_factory.h>
@@ -24,9 +24,6 @@ class TYTEnvironment
 public:
     virtual void SetUp() override
     {
-        YCHECK(!AtExitManager_);
-        AtExitManager_ = std::make_unique<NYT::TAtExitManager>();
-
         if (!getenv("YT_LOG_LEVEL") && !getenv("YT_LOG_CATEGORIES")) {
             return;
         }
@@ -74,11 +71,8 @@ public:
 
     virtual void TearDown() override
     {
-        AtExitManager_.reset();
+        NYT::Shutdown();
     }
-
-private:
-    std::unique_ptr<NYT::TAtExitManager> AtExitManager_;
 
 };
 

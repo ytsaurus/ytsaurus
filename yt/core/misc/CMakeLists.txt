@@ -4,7 +4,6 @@ set( SRCS
   ${BASE}/address.cpp
   ${BASE}/assert.cpp
   ${BASE}/async_stream_state.cpp
-  ${BASE}/at_exit_manager.cpp
   ${BASE}/backtrace.cpp
   ${BASE}/blob.cpp
   ${BASE}/blob_output.cpp
@@ -47,7 +46,6 @@ set( HDRS
   ${BASE}/address.h
   ${BASE}/assert.h
   ${BASE}/async_stream_state.h
-  ${BASE}/at_exit_manager.h
   ${BASE}/backtrace.h
   ${BASE}/bitmap.h
   ${BASE}/blob.h
@@ -81,7 +79,6 @@ set( HDRS
   ${BASE}/lazy_ptr.h
   ${BASE}/lease_manager.h
   ${BASE}/lfalloc_helpers.h
-  ${BASE}/managed_instance.h
   ${BASE}/mpl.h
   ${BASE}/nullable.h
   ${BASE}/object_pool-inl.h

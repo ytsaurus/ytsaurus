@@ -3,6 +3,7 @@ var zlib = require("zlib");
 var buffertools = require("buffertools");
 
 var binding = require("../lib/ytnode");
+process.on("exit", binding.ShutdownSingletons);
 
 var YtReadableStream = require("../lib/readable_stream.js").that;
 var YtWritableStream = require("../lib/writable_stream.js").that;

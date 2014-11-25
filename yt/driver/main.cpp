@@ -11,13 +11,18 @@
 
 #include <core/yson/parser.h>
 
-#include <core/misc/at_exit_manager.h>
 #include <core/misc/crash_handler.h>
 #include <core/misc/collection_helpers.h>
+
+#include <ytlib/shutdown.h>
 
 #include <ytlib/driver/driver.h>
 #include <ytlib/driver/config.h>
 #include <ytlib/driver/private.h>
+
+#include <ytlib/shutdown.h>
+
+#include <ytlib/shutdown.h>
 
 #include <server/exec_agent/config.h>
 
@@ -147,6 +152,8 @@ public:
             ExitCode = EExitCode::Error;
         }
 
+        Shutdown();
+
         return ExitCode;
     }
 
@@ -177,6 +184,7 @@ private:
         static volatile sig_atomic_t inProgress = false;
         if (!inProgress) {
             inProgress = true;
+            Shutdown();
             exit(0);
         }
     }
@@ -215,7 +223,6 @@ private:
 
 int main(int argc, const char* argv[])
 {
-    NYT::TAtExitManager manager;
     NYT::TDriverProgram program;
     return program.Main(argc, argv);
 }

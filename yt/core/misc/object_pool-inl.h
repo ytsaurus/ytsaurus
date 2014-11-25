@@ -15,10 +15,9 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TObjectPool<T>* TObjectPool<T>::Get()
-{
-    return TSingleton::Get();
-}
+TObjectPool<T>::TObjectPool()
+    : PoolSize_(0)
+{ }
 
 template <class T>
 typename TObjectPool<T>::TValuePtr TObjectPool<T>::Allocate()
@@ -38,7 +37,7 @@ typename TObjectPool<T>::TValuePtr TObjectPool<T>::Allocate()
     if (!obj) {
         obj = AllocateInstance();
     }
-
+    
     return TValuePtr(obj, [] (T* obj) {
         ObjectPool<T>().Reclaim(obj);
     });
@@ -107,7 +106,7 @@ bool TObjectPool<T>::IsExpired(const THeader* header)
 template <class T>
 TObjectPool<T>& ObjectPool()
 {
-    return *TObjectPool<T>::Get();
+    return *Singleton<TObjectPool<T>>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

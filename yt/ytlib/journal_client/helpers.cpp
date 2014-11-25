@@ -81,7 +81,7 @@ private:
         }
 
         for (const auto& descriptor : Replicas_) {
-            auto channel = GetLightNodeChannelFactory()->CreateChannel(descriptor.GetDefaultAddress());
+            auto channel = LightNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress());
             TDataNodeServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Timeout_);
             auto req = proxy.FinishChunk();
@@ -192,7 +192,7 @@ private:
 
         auto awaiter = New<TParallelAwaiter>(GetCurrentInvoker());
         for (const auto& descriptor : Replicas_) {
-            auto channel = GetLightNodeChannelFactory()->CreateChannel(descriptor.GetDefaultAddress());
+            auto channel = LightNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress());
             TDataNodeServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Timeout_);
             auto req = proxy.GetChunkMeta();

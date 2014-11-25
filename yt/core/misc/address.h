@@ -7,6 +7,8 @@
 
 #include <core/actions/future.h>
 
+#include <core/concurrency/periodic_executor.h>
+
 #ifdef _WIN32
     #include <ws2tcpip.h>
 #else
@@ -66,11 +68,8 @@ class TNetworkAddress
 {
 public:
     TNetworkAddress();
-    TNetworkAddress(const TNetworkAddress& other);
     TNetworkAddress(const TNetworkAddress& other, int port);
     explicit TNetworkAddress(const sockaddr& other, socklen_t length = 0);
-
-    ~TNetworkAddress();
 
     sockaddr* GetSockAddr();
     const sockaddr* GetSockAddr() const;
@@ -84,6 +83,7 @@ private:
     socklen_t Length;
 
     static socklen_t GetGenericLength(const sockaddr& sockAddr);
+
 };
 
 Stroka ToString(const TNetworkAddress& address, bool withPort = true);
@@ -94,21 +94,24 @@ Stroka ToString(const TNetworkAddress& address, bool withPort = true);
 class TAddressResolver
 {
 public:
+    // TODO(babenko): move to private
+    TAddressResolver();
+
     //! Returns the singleton instance.
     static TAddressResolver* Get();
+
+    //! Shuts down all internals of address resolver.
+    void Shutdown();
 
     //! Resolves #address asynchronously.
     /*!
      *  Calls |getaddrinfo| and returns the first entry belonging to |AF_INET| or |AF_INET6| family.
      *  Caches successful resolutions.
      */
-    TFuture<TErrorOr<TNetworkAddress>> Resolve(const Stroka& address);
+    TFuture< TErrorOr<TNetworkAddress> > Resolve(const Stroka& address);
 
     //! Returns the FQDN of the local host.
     Stroka GetLocalHostName();
-
-    //! Returns the address of the local host.
-    TNetworkAddress GetLocalHostAddress();
 
     //! Removes all cached resolutions.
     void PurgeCache();
@@ -116,15 +119,21 @@ public:
     //! Updates resolver configuration.
     void Configure(TAddressResolverConfigPtr config);
 
-    DECLARE_SINGLETON_DEFAULT_MIXIN(TAddressResolver);
-
 private:
-    TAddressResolver();
+    TAddressResolverConfigPtr Config;
 
-    ~TAddressResolver();
+    TSpinLock CacheLock;
+    yhash_map<Stroka, TNetworkAddress> Cache;
 
-    class TImpl;
-    std::unique_ptr<TImpl> Impl_;
+    TSpinLock LocalHostLock;
+    NConcurrency::TPeriodicExecutorPtr LocalHostChecker;
+    bool GetLocalHostNameFailed;
+    Stroka CachedLocalHostName;
+
+    TErrorOr<TNetworkAddress> DoResolve(const Stroka& hostName);
+    Stroka DoGetLocalHostName();
+    void CheckLocalHostResolution();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

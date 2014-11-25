@@ -1,8 +1,6 @@
 #include "config.h"
 #include "dispatcher.h"
 
-#include <core/misc/singleton.h>
-
 namespace NYT {
 namespace NChunkClient {
 
@@ -27,28 +25,9 @@ TDispatcher::TDispatcher()
         "Erasure"))
 { }
 
-TDispatcher::~TDispatcher()
-{
-    if (ReaderThread_.HasValue()) {
-        ReaderThread_->Shutdown();
-    }
-
-    if (WriterThread_.HasValue()) {
-        WriterThread_->Shutdown();
-    }
-
-    if (CompressionThreadPool_.HasValue()) {
-        CompressionThreadPool_->Shutdown();
-    }
-
-    if (ErasureThreadPool_.HasValue()) {
-        ErasureThreadPool_->Shutdown();
-    }
-}
-
 TDispatcher* TDispatcher::Get()
 {
-    return TSingleton::Get();
+    return Singleton<TDispatcher>();
 }
 
 void TDispatcher::Configure(TDispatcherConfigPtr config)
@@ -88,6 +67,25 @@ IInvokerPtr TDispatcher::GetCompressionPoolInvoker()
 IInvokerPtr TDispatcher::GetErasurePoolInvoker()
 {
     return ErasureThreadPool_->GetInvoker();
+}
+
+void TDispatcher::Shutdown()
+{
+    if (ReaderThread_.HasValue()) {
+        ReaderThread_->Shutdown();
+    }
+
+    if (WriterThread_.HasValue()) {
+        WriterThread_->Shutdown();
+    }
+
+    if (CompressionThreadPool_.HasValue()) {
+        CompressionThreadPool_->Shutdown();
+    }
+
+    if (ErasureThreadPool_.HasValue()) {
+        ErasureThreadPool_->Shutdown();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
