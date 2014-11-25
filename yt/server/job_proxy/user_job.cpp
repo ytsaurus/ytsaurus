@@ -223,11 +223,7 @@ public:
             Process.AddEnvVar(formatter.Format(UserJobSpec.environment(i)));
         }
 
-        auto error = Process.Spawn();
-        if (!error.IsOK()) {
-            THROW_ERROR_EXCEPTION("Failed to spawn the job")
-                << error;
-        }
+        Process.Spawn();
 
         NJobTrackerClient::NProto::TJobResult result;
 
@@ -530,9 +526,7 @@ private:
         LOG_DEBUG("Done processing job outputs");
 
         auto error = Process.Wait();
-        if (!error.IsOK()) {
-            SetError(error);
-        }
+        SetError(error);
 
         LOG_DEBUG("Child process has finished");
 

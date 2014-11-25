@@ -13,35 +13,30 @@ namespace {
 TEST(TProcessTest, Basic)
 {
     TProcess p("/bin/ls");
-    auto error = p.Spawn();
-    ASSERT_TRUE(error.IsOK());
+    ASSERT_NO_THROW(p.Spawn());
     p.Wait();
 }
 
 TEST(TProcessTest, InvalidPath)
 {
     TProcess p("/some/bad/path/binary");
-    auto error = p.Spawn();
-
-    ASSERT_FALSE(error.IsOK());
+    ASSERT_THROW(p.Spawn(), std::exception);
 }
 
 TEST(TProcessTest, BadDup)
 {
     TProcess p("/bin/date");
     p.AddDup2FileAction(1000, 1);
-    auto error = p.Spawn();
-    ASSERT_FALSE(error.IsOK());
+    ASSERT_THROW(p.Spawn(), std::exception);
 }
 
 TEST(TProcessTest, GoodDup)
 {
     TProcess p("/bin/date");
     p.AddDup2FileAction(2, 3);
-    auto error = p.Spawn();
-    ASSERT_TRUE(error.IsOK());
+    ASSERT_NO_THROW(p.Spawn());
 
-    error = p.Wait();
+    auto error = p.Wait();
     ASSERT_TRUE(error.IsOK()) << ToString(error);
 }
 
@@ -52,11 +47,8 @@ TEST(TProcess, IgnoreCloseInvalidFd)
     p.AddArgument("exit 0");
     p.AddCloseFileAction(74);
 
-    auto error = p.Spawn();
-    ASSERT_TRUE(error.IsOK()) << ToString(error);
-
-    error = p.Wait();
-    ASSERT_TRUE(error.IsOK()) << ToString(error);
+    ASSERT_NO_THROW(p.Spawn());
+    ASSERT_NO_THROW(p.Wait());
 }
 
 TEST(TProcessTest, ProcessReturnCode0)
@@ -65,10 +57,9 @@ TEST(TProcessTest, ProcessReturnCode0)
     p.AddArgument("-c");
     p.AddArgument("exit 0");
 
-    auto error = p.Spawn();
-    ASSERT_TRUE(error.IsOK());
+    ASSERT_NO_THROW(p.Spawn());
 
-    error = p.Wait();
+    auto error = p.Wait();
     ASSERT_TRUE(error.IsOK()) << ToString(error);
 }
 
@@ -78,10 +69,9 @@ TEST(TProcessTest, ProcessReturnCode1)
     p.AddArgument("-c");
     p.AddArgument("exit 1");
 
-    auto error = p.Spawn();
-    ASSERT_TRUE(error.IsOK());
+    ASSERT_NO_THROW(p.Spawn());
 
-    error = p.Wait();
+    auto error = p.Wait();
     ASSERT_FALSE(error.IsOK()) << ToString(error);
 }
 
@@ -91,10 +81,9 @@ TEST(TProcessTest, Params1)
     p.AddArgument("-c");
     p.AddArgument("if test 3 -gt 1; then exit 7; fi");
 
-    auto error = p.Spawn();
-    ASSERT_TRUE(error.IsOK());
+    ASSERT_NO_THROW(p.Spawn());
 
-    error = p.Wait();
+    auto error = p.Wait();
     EXPECT_FALSE(error.IsOK());
 }
 
@@ -104,10 +93,9 @@ TEST(TProcessTest, Params2)
     p.AddArgument("-c");
     p.AddArgument("if test 1 -gt 3; then exit 7; fi");
 
-    auto error = p.Spawn();
-    ASSERT_TRUE(error.IsOK());
+    ASSERT_NO_THROW(p.Spawn());
 
-    error = p.Wait();
+    auto error = p.Wait();
     EXPECT_TRUE(error.IsOK()) << ToString(error);
 }
 
@@ -121,10 +109,9 @@ TEST(TProcessTest, InheritEnvironment)
     p.AddArgument("-c");
     p.AddArgument("if test $SPAWN_TEST_ENV_VAR = 42; then exit 7; fi");
 
-    auto error = p.Spawn();
-    ASSERT_TRUE(error.IsOK());
+    ASSERT_NO_THROW(p.Spawn());
 
-    error = p.Wait();
+    auto error = p.Wait();
     EXPECT_FALSE(error.IsOK());
 
     unsetenv(name);

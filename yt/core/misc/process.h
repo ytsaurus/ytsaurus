@@ -9,24 +9,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-DECLARE_ENUM(EFileAction,
-    ((Close) (1))
-    ((Dup2) (2))
-);
-
-struct TSpawnFileAction
-{
-    EFileAction Type;
-    int Param1;
-    int Param2;
-};
-
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 // Read this
 // http://ewontfix.com/7/
 // before modification
@@ -46,33 +28,35 @@ public:
     void AddCloseFileAction(int fd);
     void AddDup2FileAction(int oldFd, int newFd);
 
-    TError Spawn();
+    void Spawn();
     TError Wait();
 
     int GetProcessId() const;
 
 private:
+    struct TSpawnAction
+    {
+        std::function<bool()> Callback;
+        Stroka ErrorMessage;
+    };
+
+
     bool Finished_;
     int Status_;
     int ProcessId_;
+    Stroka Path_;
+
     TPipe Pipe_;
-    TPipe ChildPipe_;
-    std::vector<char> Path_;
-    std::vector<std::vector<char>> StringHolder_;
+    std::vector<Stroka> StringHolder_;
     std::vector<char*> Args_;
     std::vector<char*> Env_;
-    std::vector<NDetail::TSpawnFileAction> FileActions_;
+    std::vector<TSpawnAction> SpawnActions_;
 
-    const char* GetPath() const;
     char* Capture(TStringBuf arg);
 
     void DoSpawn();
-    void ChildErrorHandler(int errorType);
+
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-TError SafeAtomicCloseExecPipe(int pipefd[2]);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -24,44 +24,37 @@ namespace NYT {
 
 static NLog::TLogger Logger("Process");
 
-static const int InvalidFd = -1;
 static const pid_t InvalidProcessId = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError SafeAtomicCloseExecPipe(int pipefd[2])
+void SafeAtomicCloseExecPipe(int pipefd[2])
 {
 #if defined(_linux_)
-    auto result = pipe2(pipefd, O_CLOEXEC);
+    auto result = ::pipe2(pipefd, O_CLOEXEC);
     if (result == -1) {
-        return TError("Error creating pipe")
-            << TError::FromSystem();
+        THROW_ERROR_EXCEPTION("Error creating pipe") << TError::FromSystem();
     }
-    return TError();
 #elif defined(_darwin_)
     {
-        int result = pipe(pipefd);
+        int result = ::pipe(pipefd);
         if (result == -1) {
-            return TError("Error creating pipe: pipe creation failed")
-                << TError::FromSystem();
+            THROW_ERROR_EXCEPTION("Error creating pipe: pipe creation failed") << TError::FromSystem();
         }
     }
     for (int index = 0; index < 2; ++index) {
         int getResult = ::fcntl(pipefd[index], F_GETFL);
         if (getResult == -1) {
-            return TError("Error creating pipe: fcntl failed to get descriptor flags")
-                << TError::FromSystem();
+            THROW_ERROR_EXCEPTION("Error creating pipe: fcntl failed to get descriptor flags") << TError::FromSystem();
         }
 
         int setResult = ::fcntl(pipefd[index], F_SETFL, getResult | FD_CLOEXEC);
         if (setResult == -1) {
-            return TError("Error creating pipe: fcntl failed to set descriptor flags")
-                << TError::FromSystem();
+            THROW_ERROR_EXCEPTION("Error creating pipe: fcntl failed to set descriptor flags") << TError::FromSystem();
         }
     }
-    return TError();
 #else
-    return TError("Windows is not supported");
+    THROW_ERROR_EXCEPTION("Windows is not supported");
 #endif
 }
 
@@ -71,18 +64,15 @@ TProcess::TProcess(const Stroka& path, bool copyEnv)
     : Finished_(false)
     , Status_(0)
     , ProcessId_(InvalidProcessId)
+    // Stroka is guaranteed to be zero-terminated.
+    // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/StrokaAndTStringBuf#sobstvennosimvoly
+    , Path_(path) 
 {
-    Path_.insert(Path_.end(), path.begin(), path.end());
-    Path_.push_back(0);
-
     AddArgument(NFS::GetFileName(path));
 
     if (copyEnv) {
-        char** envIt = environ;
-        while (*envIt) {
-            const char* const item = *envIt;
-            Env_.push_back(Capture(TStringBuf(item)));
-            ++envIt;
+        for (char** envIt = environ; *envIt; ++envIt) {
+            Env_.push_back(Capture(*envIt));
         }
     }
 }
@@ -93,14 +83,14 @@ TProcess::~TProcess()
         YCHECK(Finished_);
     }
 
-    if (Pipe_.ReadFd != InvalidFd) {
+    if (Pipe_.ReadFd != TPipe::InvalidFd) {
         ::close(Pipe_.ReadFd);
-        Pipe_.ReadFd = InvalidFd;
+        Pipe_.ReadFd = TPipe::InvalidFd;
     }
 
-    if (Pipe_.WriteFd != InvalidFd) {
+    if (Pipe_.WriteFd != TPipe::InvalidFd) {
         ::close(Pipe_.WriteFd);
-        Pipe_.WriteFd = InvalidFd;
+        Pipe_.WriteFd = TPipe::InvalidFd;
     }
 }
 
@@ -120,26 +110,33 @@ void TProcess::AddEnvVar(TStringBuf var)
 
 void TProcess::AddCloseFileAction(int fd)
 {
-    FileActions_.push_back(NDetail::TSpawnFileAction{NDetail::EFileAction::Close, fd, -1});
+    TSpawnAction action = {
+        std::bind(TryClose, fd),
+        Format("Error closing %v file descriptor in the child", fd)
+    };
+
+    SpawnActions_.push_back(action);
 }
 
 void TProcess::AddDup2FileAction(int oldFd, int newFd)
 {
-    FileActions_.push_back(NDetail::TSpawnFileAction{NDetail::EFileAction::Dup2, oldFd, newFd});
+    TSpawnAction action = {
+        std::bind(TryDup2, oldFd, newFd),
+        Format("Error duplicating %v file descriptor to %v in the child", oldFd, newFd)
+    };
+
+    SpawnActions_.push_back(action);
 }
 
-TError TProcess::Spawn()
+void TProcess::Spawn()
 {
 #ifdef _win_
-    return TError("Windows is not supported");
+    THROW_ERROR_EXCEPTION("Windows is not supported");
 #else
     YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
 
     int pipe[2];
-    auto error = SafeAtomicCloseExecPipe(pipe);
-    if (!error.IsOK()) {
-        return error;
-    }
+    SafeAtomicCloseExecPipe(pipe);
     Pipe_ = TPipe(pipe);
 
     LOG_DEBUG("Process arguments: %v", JoinToString(Args_));
@@ -148,11 +145,16 @@ TError TProcess::Spawn()
     Env_.push_back(nullptr);
     Args_.push_back(nullptr);
 
-    ChildPipe_ = Pipe_;
+    bool useVFork = SpawnActions_.empty();
+
+    SpawnActions_.push_back(TSpawnAction {
+        std::bind(TryExecve, ~Path_, Args_.data(), Env_.data()),
+        "Error starting child process: execve failed"
+    });
 
     int pid = -1;
-    if (FileActions_.empty()) {
-        // one is not allowed to call close and dup2 after vfork
+    if (useVFork) {
+        // One is not allowed to call close and dup2 after vfork.
         pid = vfork();
     } else {
         pid = fork();
@@ -163,45 +165,33 @@ TError TProcess::Spawn()
     }
 
     if (pid < 0) {
-        return TError("Error starting child process: clone failed")
-            << TErrorAttribute("path", GetPath())
+        THROW_ERROR_EXCEPTION("Error starting child process: %v failed", useVFork ? "vfork" : "fork")
+            << TErrorAttribute("path", Path_)
             << TError::FromSystem();
     }
 
     YCHECK(::close(Pipe_.WriteFd) == 0);
-    Pipe_.WriteFd = InvalidFd;
+    Pipe_.WriteFd = TPipe::InvalidFd;
 
-    {
-        int data[2];
-        if (::read(Pipe_.ReadFd, &data, sizeof(data)) == sizeof(data)) {
-            ::waitpid(pid, nullptr, 0);
-            Finished_ = true;
-            auto errorType = data[0];
-            auto errorCode = data[1];
-            if (errorType == -1) {
-                return TError("Error waiting for child process to finish: execve failed")
-                    << TError::FromSystem(errorCode);
-            } else if (errorType < FileActions_.size()) {
-                const auto& action = FileActions_[errorType];
-                if (action.Type == NDetail::EFileAction::Close) {
-                    return TError("Error closing %v file descriptor in the child", action.Param1)
-                        << TError::FromSystem(errorCode);
-                } else if (action.Type == NDetail::EFileAction::Dup2) {
-                    return TError("Error duplication %v file descriptor to %v in the child",
-                        action.Param1,
-                        action.Param2)
-                        << TError::FromSystem(errorCode);
-                } else {
-                    YUNREACHABLE();
-                }
-            } else {
-                YUNREACHABLE();
-            }
-        }
+    int data[2];
+    int res = ::read(Pipe_.ReadFd, &data, sizeof(data));
+    if (res == 0) {
+        // Child successfully spawned.
+        ProcessId_ = pid;
+        return;
     }
 
-    ProcessId_ = pid;
-    return TError();
+    YCHECK(res == sizeof(data));
+
+    ::waitpid(pid, nullptr, 0);
+    Finished_ = true;
+
+    int actionIndex = data[0];
+    int errorCode = data[1];
+
+    YCHECK(0 <= actionIndex && actionIndex < SpawnActions_.size());
+    const auto& action = SpawnActions_[actionIndex];
+    THROW_ERROR_EXCEPTION("%v", action.ErrorMessage) << TError::FromSystem(errorCode);
 #endif
 }
 
@@ -215,18 +205,12 @@ TError TProcess::Wait()
     Finished_ = true;
 
     if (result < 0) {
-        return TError::FromSystem();
+        return TError("waitpid failed") << TError::FromSystem();
     }
 
     YCHECK(result == ProcessId_);
-
     return StatusToError(Status_);
 #endif
-}
-
-const char* TProcess::GetPath() const
-{
-    return Path_.data();
 }
 
 int TProcess::GetProcessId() const
@@ -236,69 +220,28 @@ int TProcess::GetProcessId() const
 
 char* TProcess::Capture(TStringBuf arg)
 {
-    std::vector<char> holder(arg.data(), arg.data() + arg.length());
-    if (holder.empty() || (holder.back() != '\0')) {
-        holder.push_back('\0');
-    }
-    StringHolder_.push_back(std::move(holder));
-    return StringHolder_.back().data();
+    StringHolder_.push_back(Stroka(arg));
+    return const_cast<char*>(~StringHolder_.back());
 }
 
 void TProcess::DoSpawn()
 {
-    YASSERT(ChildPipe_.WriteFd != InvalidFd);
+    YCHECK(Pipe_.WriteFd != TPipe::InvalidFd);
 
-    int index = 0;
-    for (const auto& action: FileActions_) {
-        if (action.Type == NDetail::EFileAction::Close) {
-            while (true) {
-                auto res = ::close(action.Param1);
-                if (res == -1) {
-                    if (errno == EINTR) {
-                        continue;
-                    } else if (errno == EBADF) {
-                        break;
-                    } else {
-                        ChildErrorHandler(index);
-                    }
-                } else {
-                    break;
-                }
-            }
-        } else if (action.Type == NDetail::EFileAction::Dup2) {
-            while (true) {
-                auto res = ::dup2(action.Param1, action.Param2);
-                if (res == -1) {
-                    if (errno == EINTR || errno == EBUSY) {
-                        continue;
-                    } else {
-                        ChildErrorHandler(index);
-                    }
-                } else {
-                    break;
-                }
-            }
-        } else {
-            YUNREACHABLE();
+    for (int actionIndex = 0; actionIndex < SpawnActions_.size(); ++actionIndex) {
+        auto& action = SpawnActions_[actionIndex];
+        if (!action.Callback()) {
+            // Report error through the pipe.
+            int data[] = {
+                actionIndex,
+                errno
+            };
+
+            // According to pipe(7) write of small buffer is atomic.
+            YCHECK(::write(Pipe_.WriteFd, &data, sizeof(data)) == sizeof(data));
+            _exit(1);
         }
-        ++index;
     }
-
-    ::execve(Path_.data(), Args_.data(), Env_.data());
-    ChildErrorHandler(-1);
-}
-
-void TProcess::ChildErrorHandler(int errorType)
-{
-    int data[] = {
-        errorType,
-        errno
-    };
-
-    // according to pipe(7) write of small buffer is atomic
-    while (::write(ChildPipe_.WriteFd, &data, sizeof(data)) < 0);
-
-    _exit(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

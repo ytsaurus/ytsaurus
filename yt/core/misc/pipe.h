@@ -6,6 +6,8 @@ namespace NYT {
 
 struct TPipe
 {
+    static const int InvalidFd;
+
     int ReadFd;
     int WriteFd;
 

@@ -4,6 +4,7 @@
 #include "process.h"
 
 #include <core/logging/log.h>
+
 #include <core/misc/string.h>
 
 #include <core/ytree/convert.h>
@@ -108,15 +109,9 @@ void RunCleaner(const Stroka& path)
             path) << error;
     };
 
-    auto error = process.Spawn();
-    if (!error.IsOK()) {
-        throwError(error);
-    }
-
-    error = process.Wait();
-    if (!error.IsOK()) {
-        throwError(error);
-    }
+    process.Spawn();
+    auto error = process.Wait();
+    THROW_ERROR_EXCEPTION_IF_FAILED(error);
 }
 
 void RemoveDirAsRoot(const Stroka& path)
@@ -179,26 +174,101 @@ void CloseAllDescriptors()
 #endif
 }
 
-void SafeClose(int fd)
+bool TryExecve(const char *path, char* const argv[], char* const env[])
+{
+    ::execve(path, argv, env);
+    // If we are still here, it's an error.
+    return false;
+}
+
+bool TryDup2(int oldFd, int newFd)
 {
     while (true) {
-        auto res = close(fd);
-        if (res == -1) {
-            switch (errno) {
-            case EINTR:
-                break;
+        auto res = ::dup2(oldFd, newFd);
+        
+        if (res != -1) {
+            return true;
+        }
+        
+        if (errno == EINTR || errno == EBUSY) {
+            continue;
+        } 
 
-            default:
-                THROW_ERROR_EXCEPTION("close failed")
-                    << TError::FromSystem();
-            }
-        } else {
-            return;
+        return false;
+    }
+}
+
+bool TryClose(int fd)
+{
+    while (true) {
+        auto res = ::close(fd);
+        if (res != -1) {
+            return true;
+        }
+         
+        switch (errno) {
+            case EINTR:
+                continue;
+            case EBADF:
+                return true;
+            default: 
+                return false;
         }
     }
 }
 
+void SafeClose(int fd)
+{
+    if (!TryClose(fd)) {
+        THROW_ERROR TError::FromSystem();
+    }
+}
+
+void SafeDup2(int oldFd, int newFd)
+{
+    if (!TryDup2(oldFd, newFd)) {
+        THROW_ERROR_EXCEPTION("dup2 failed")
+            << TErrorAttribute("old_fd", oldFd)
+            << TErrorAttribute("new_fd", newFd)
+            << TError::FromSystem();
+    }
+}
+
 #else
+
+bool TryClose(int fd)
+{
+    UNUSED(fd);
+    YUNIMPLEMENTED();
+}
+
+void SafeClose(int fd)
+{
+    UNUSED(fd);
+    YUNIMPLEMENTED();
+}
+
+bool TryDup2(int oldFd, int newFd)
+{
+    UNUSED(oldFd);
+    UNUSED(newFd);
+    YUNIMPLEMENTED();
+}
+
+void SafeDup2(int oldFd, int newFd)
+{
+    UNUSED(oldFd);
+    UNUSED(newFd);
+    YUNIMPLEMENTED();
+}
+
+bool TryExecve(const char *path, const char* argv[], const char* env[])
+{
+    UNUSED(path);
+    UNUSED(argv);
+    UNUSED(env);
+    YUNIMPLEMENTED();
+}
 
 TError StatusToError(int status)
 {

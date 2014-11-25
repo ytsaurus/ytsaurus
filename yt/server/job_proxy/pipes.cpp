@@ -61,29 +61,6 @@ int SafeDup(int oldFd)
     }
 }
 
-void SafeDup2(int oldFd, int newFd)
-{
-    while (true) {
-        auto res = dup2(oldFd, newFd);
-
-        if (res == -1) {
-            switch (errno) {
-            case EINTR:
-            case EBUSY:
-                break;
-
-            default:
-                THROW_ERROR_EXCEPTION("dup2 failed")
-                    << TErrorAttribute("old_fd", oldFd)
-                    << TErrorAttribute("new_fd", newFd)
-                    << TError::FromSystem();
-            }
-        } else {
-            return;
-        }
-    }
-}
-
 int SafePipe(int fd[2])
 {
     auto res = pipe(fd);

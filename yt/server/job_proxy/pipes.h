@@ -16,7 +16,6 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////
 
 int SafeDup(int oldFd);
-void SafeDup2(int oldFd, int newFd);
 int SafePipe(int fd[2]);
 void SafeMakeNonblocking(int fd);
 

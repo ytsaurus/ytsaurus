@@ -214,16 +214,11 @@ void RunKiller(const Stroka& processGroupPath)
     process.AddArgument(processGroupPath);
 
     // We are forking here in order not to give the root privileges to the parent process ever,
-    // because we cannot know what other threads are doing.
-    auto error = process.Spawn();
-    if (!error.IsOK()) {
-        throwError(error);
-    }
+    // because we cannot know what the other threads are doing.
+    process.Spawn();
 
-    error = process.Wait();
-    if (!error.IsOK()) {
-        throwError(error);
-    }
+    auto error = process.Wait();
+    THROW_ERROR_EXCEPTION_IF_FAILED(error);
 #endif
 }
 

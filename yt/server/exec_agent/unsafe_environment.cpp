@@ -102,11 +102,7 @@ public:
 
         LOG_INFO("Spawning a job proxy (Path: %v)", ProxyPath);
 
-        auto error = Process.Spawn();
-        if (!error.IsOK()) {
-            THROW_ERROR_EXCEPTION("Failed to start job proxy: Spawn failed")
-                << error;
-        }
+        Process.Spawn();
 
         LOG_INFO("Job proxy started (ProcessId: %v)",
             Process.GetProcessId());
@@ -166,6 +162,12 @@ private:
         }
     }
 
+    TError GetError() const 
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        return Error;
+    }
+
     static void* ThreadFunc(void* param)
     {
         auto controller = MakeStrong(static_cast<TUnsafeProxyController*>(param));
@@ -179,15 +181,13 @@ private:
         LOG_INFO("Waiting for job proxy to finish");
 
         auto error = Process.Wait();
+        
+        SetError(error);
+        LOG_INFO(error, "Job proxy finished");
+
         Waited = true;
 
-        auto wrappedError = error.IsOK()
-            ? TError()
-            : TError("Job proxy failed") << error;
-        SetError(wrappedError);
-        LOG_INFO(wrappedError, "Job proxy finished");
-
-        OnExit.Set(Error);
+        OnExit.Set(GetError());
     }
 
 
