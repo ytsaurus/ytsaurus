@@ -15,8 +15,6 @@ ctypes.cdll.LoadLibrary("libc.so.6")
 LIBC = ctypes.CDLL('libc.so.6')
 PR_SET_PDEATHSIG = 1
 
-STDERR_LIMIT = 50000
-
 def set_pdeathsig():
     LIBC.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
 
@@ -41,7 +39,7 @@ def _check_call(command, **kwargs):
         raise
 
     if proc.returncode != 0:
-        raise YamrError("Command '{0}' failed".format(command), code=proc.returncode, attributes={"details": stderrdata[:STDERR_LIMIT]})
+        raise YamrError("Command '{0}' failed".format(command), code=proc.returncode, attributes={"stderrs": stderrdata})
 
     logger.info("Command '{}' successfully executed".format(command))
 
