@@ -44,6 +44,9 @@ class TJob
     //! Some rough approximation that is updated with every heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
 
+    //! Some rough approximation that is updated with every heartbeat.
+    DEFINE_BYVAL_RW_PROPERTY(double, Progress);
+
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
 

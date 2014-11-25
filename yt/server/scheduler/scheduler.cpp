@@ -1916,6 +1916,7 @@ private:
                         case EJobState::Running: {
                             LOG_DEBUG("Job is running");
                             job->SetState(state);
+                            job->SetProgress(jobStatus->progress());
                             OnJobRunning(job, *jobStatus);
                             auto delta = jobStatus->resource_usage() - job->ResourceUsage();
                             JobUpdated_.Fire(job, delta);

@@ -455,6 +455,48 @@ class TestSchedulerMapCommands(YTEnvSetup):
             except:
                 pass
 
+    def test_job_progress(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write('//tmp/t1', [{"foo": "bar"} for i in xrange(10**6)])
+
+        tmpdir = tempfile.mkdtemp(prefix="job_progress")
+        keeper_filename = os.path.join(tmpdir, "keep")
+
+        try:
+            with open(keeper_filename, "w") as f:
+                f.close()
+
+                op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command="""
+                    DIR={0}
+                    until rmdir $DIR 2>/dev/null; do sleep 1; done;
+                    cat
+                    """.format(tmpdir))
+
+            while True:
+                try:
+                    job_id, _1 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)).popitem()
+                    time.sleep(0.1)
+                except KeyError:
+                    pass
+                else:
+                    break
+
+            progress = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op_id, job_id))
+            assert progress >= 0
+            os.unlink(keeper_filename)
+
+            track_op(op_id)
+        finally:
+            try:
+                os.unlink(keeper_filename)
+            except OSError:
+                pass
+            try:
+                os.unlink(tmpdir)
+            except OSError:
+                pass
+
     def test_invalid_output_record(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
