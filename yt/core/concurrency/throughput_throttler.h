@@ -8,6 +8,10 @@
 
 #include <core/ypath/public.h>
 
+#include <core/logging/log.h>
+
+#include <core/profiling/profiler.h>
+
 namespace NYT {
 namespace NConcurrency {
 
@@ -57,13 +61,10 @@ struct IThroughputThrottler
 DEFINE_REFCOUNTED_TYPE(IThroughputThrottler)
 
 //! Returns a throttler from #config.
-IThroughputThrottlerPtr CreateLimitedThrottler(TThroughputThrottlerConfigPtr config);
-
-//! Creates a wrapper that delegates all calls to #underlyingThrottler and
-//! captures profiling statistics.
-IThroughputThrottlerPtr CreateProfilingThrottlerWrapper(
-    IThroughputThrottlerPtr underlyingThrottler,
-    const NYPath::TYPath& pathPrefix);
+IThroughputThrottlerPtr CreateLimitedThrottler(
+    TThroughputThrottlerConfigPtr config,
+    NLog::TLogger logger = NLog::TLogger(),
+    NProfiling::TProfiler profiler = NProfiling::TProfiler());
 
 //! Returns a throttler that imposes no throughput limit.
 IThroughputThrottlerPtr GetUnlimitedThrottler();

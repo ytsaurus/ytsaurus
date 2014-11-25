@@ -21,15 +21,26 @@ class TLimitedThroughputThrottler
     : public IThroughputThrottler
 {
 public:
-    explicit TLimitedThroughputThrottler(TThroughputThrottlerConfigPtr config)
-        : ThroughputPerPeriod(static_cast<i64>(config->Period.SecondsFloat() * (*config->Limit)))
-        , Available(ThroughputPerPeriod)
+    TLimitedThroughputThrottler(
+        TThroughputThrottlerConfigPtr config,
+        NLog::TLogger logger,
+        NProfiling::TProfiler profiler)
+        : Config_(config)
+        , Logger(logger)
+        , Profiler(profiler)
+        , TotalCounter_("/total")
+        , RateCounter_("/rate")
     {
-        PeriodicExecutor = New<TPeriodicExecutor>(
-            GetSyncInvoker(),
-            BIND(&TLimitedThroughputThrottler::OnTick, MakeWeak(this)),
-            config->Period);
-        PeriodicExecutor->Start();
+        if (Config_->Limit) {
+            ThroughputPerPeriod_ = static_cast<i64>(Config_->Period.SecondsFloat() * (*Config_->Limit));
+            Available_ = ThroughputPerPeriod_;
+
+            PeriodicExecutor_ = New<TPeriodicExecutor>(
+                GetSyncInvoker(),
+                BIND(&TLimitedThroughputThrottler::OnTick, MakeWeak(this)),
+                config->Period);
+            PeriodicExecutor_->Start();
+        }
     }
 
     virtual TFuture<void> Throttle(i64 count) override
@@ -37,23 +48,27 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count >= 0);
 
-        if (count == 0) {
+        Profiler.Increment(TotalCounter_, count);
+        Profiler.Increment(RateCounter_, count);
+
+        if (count == 0 || !Config_->Limit) {
             return VoidFuture;
         }
 
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(SpinLock_);
 
-        if (Available > 0) {
+        if (Available_ > 0) {
             // Execute immediately.
-            Available -= count;
+            Available_ -= count;
             return VoidFuture;
         }
 
         // Enqueue request to be executed later.
+        LOG_DEBUG("Started waiting for throttler (Count: %v)", count);
         TRequest request;
         request.Count = count;
         request.Promise = NewPromise();
-        Requests.push(request);
+        Requests_.push(request);
         return request.Promise;
     }
 
@@ -64,13 +79,20 @@ private:
         TPromise<void> Promise;
     };
 
-    i64 ThroughputPerPeriod;
-    TPeriodicExecutorPtr PeriodicExecutor;
+    TThroughputThrottlerConfigPtr Config_;
+    NLog::TLogger Logger;
+    NProfiling::TProfiler Profiler;
+    NProfiling::TAggregateCounter TotalCounter_;
+    NProfiling::TRateCounter RateCounter_;
+
+    i64 ThroughputPerPeriod_ = -1;
+    TPeriodicExecutorPtr PeriodicExecutor_;
 
     //! Protects the section immediately following it.
-    TSpinLock SpinLock;
-    i64 Available;
-    std::queue<TRequest> Requests;
+    TSpinLock SpinLock_;
+    i64 Available_ = -1;
+    std::queue<TRequest> Requests_;
+
 
     void OnTick()
     {
@@ -79,13 +101,14 @@ private:
         std::vector<TPromise<void>> releaseList;
 
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            Available += ThroughputPerPeriod;
-            while (!Requests.empty() && Available > 0) {
-                auto& request = Requests.front();
-                Available -= request.Count;
+            TGuard<TSpinLock> guard(SpinLock_);
+            Available_ += ThroughputPerPeriod_;
+            while (!Requests_.empty() && Available_ > 0) {
+                auto& request = Requests_.front();
+                LOG_DEBUG("Finished waiting for throttler (Count: %v)", request.Count);
+                Available_ -= request.Count;
                 releaseList.push_back(std::move(request.Promise));
-                Requests.pop();
+                Requests_.pop();
             }
         }
 
@@ -95,50 +118,15 @@ private:
     }
 };
 
-IThroughputThrottlerPtr CreateLimitedThrottler(TThroughputThrottlerConfigPtr config)
+IThroughputThrottlerPtr CreateLimitedThrottler(
+    TThroughputThrottlerConfigPtr config,
+    NLog::TLogger logger,
+    NProfiling::TProfiler profiler)
 {
-    return config->Limit
-           ? New<TLimitedThroughputThrottler>(config)
-           : GetUnlimitedThrottler();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TProfilingThrottlerWrapper
-    : public IThroughputThrottler
-{
-public:
-    TProfilingThrottlerWrapper(
-        IThroughputThrottlerPtr underlyingThrottler,
-        const NYPath::TYPath& pathPrefix)
-        : UnderlyingThrottler(underlyingThrottler)
-        , Profiler(pathPrefix)
-        , TotalCounter("/total")
-        , RateCounter("/rate")
-    { }
-
-    virtual TFuture<void> Throttle(i64 count) override
-    {
-        Profiler.Increment(TotalCounter, count);
-        Profiler.Increment(RateCounter, count);
-        return UnderlyingThrottler->Throttle(count);
-    }
-
-private:
-    IThroughputThrottlerPtr UnderlyingThrottler;
-    NProfiling::TProfiler Profiler;
-    NProfiling::TAggregateCounter TotalCounter;
-    NProfiling::TRateCounter RateCounter;
-
-};
-
-IThroughputThrottlerPtr CreateProfilingThrottlerWrapper(
-    IThroughputThrottlerPtr underlyingThrottler,
-    const NYPath::TYPath& pathPrefix)
-{
-    return New<TProfilingThrottlerWrapper>(
-        underlyingThrottler,
-        pathPrefix);
+    return New<TLimitedThroughputThrottler>(
+        config,
+        logger,
+        profiler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

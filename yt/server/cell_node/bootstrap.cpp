@@ -229,18 +229,20 @@ void TBootstrap::DoRun()
 
     ChunkCache = New<TChunkCache>(Config->DataNode, this);
 
-    ReplicationInThrottler = CreateProfilingThrottlerWrapper(
-        CreateLimitedThrottler(Config->DataNode->ReplicationInThrottler),
-        DataNodeProfiler.GetPathPrefix() + "/replication_in");
-    ReplicationOutThrottler = CreateProfilingThrottlerWrapper(
-        CreateLimitedThrottler(Config->DataNode->ReplicationOutThrottler),
-        DataNodeProfiler.GetPathPrefix() + "/replication_out");
-    RepairInThrottler = CreateProfilingThrottlerWrapper(
-        CreateLimitedThrottler(Config->DataNode->RepairInThrottler),
-        DataNodeProfiler.GetPathPrefix() + "/repair_in");
-    RepairOutThrottler = CreateProfilingThrottlerWrapper(
-        CreateLimitedThrottler(Config->DataNode->RepairOutThrottler),
-        DataNodeProfiler.GetPathPrefix() + "/repair_out");
+    auto createThrottler = [] (TThroughputThrottlerConfigPtr config, const Stroka& name) -> IThroughputThrottlerPtr {
+        auto logger = DataNodeLogger;
+        logger.AddTag("Throttler: %v", name);
+
+        auto profiler = NProfiling::TProfiler(
+            DataNodeProfiler.GetPathPrefix() + "/" +
+            CamelCaseToUnderscoreCase(name));
+
+        return CreateLimitedThrottler(config, logger, profiler);
+    };
+    ReplicationInThrottler = createThrottler(Config->DataNode->ReplicationInThrottler, "ReplicationIn");
+    ReplicationOutThrottler = createThrottler(Config->DataNode->ReplicationOutThrottler, "ReplicationOut");
+    RepairInThrottler = createThrottler(Config->DataNode->RepairInThrottler, "RepairIn");
+    RepairOutThrottler = createThrottler(Config->DataNode->RepairOutThrottler, "RepairOut");
 
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
