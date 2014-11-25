@@ -414,12 +414,17 @@ YtCommand.prototype._redirectHeavyRequests = function() {
     this.__DBG("_redirectHeavyRequests");
 
     if (this.descriptor.is_heavy && this.coordinator.getSelf().role !== "data") {
-        var target =
-            "http://" +
-            this.coordinator.allocateDataProxy().host +
-            this.req.originalUrl;
-        utils.redirectTo(this.rsp, target, 307);
-        throw new YtError();
+        var target = this.coordinator.allocateDataProxy();
+        if (typeof(target) !== "undefined") {
+            var targetUrl =
+                "http://" +
+                this.coordinator.allocateDataProxy().host +
+                this.req.originalUrl;
+            utils.redirectTo(this.rsp, targetUrl, 307);
+            throw new YtError();
+        } else {
+            throw new YtError("There are no data proxies available.");
+        }
     }
 };
 
