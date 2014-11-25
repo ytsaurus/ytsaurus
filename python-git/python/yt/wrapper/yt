@@ -2,13 +2,12 @@
 
 from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
 
-from yt.wrapper.common import die, writelines_silently
+from yt.wrapper.cli_helpers import writelines_silently, run_main
 import yt.wrapper as yt
 import yt.yson as yson
 
 import os
 import sys
-import traceback
 import simplejson as json
 import fnmatch
 import shlex
@@ -708,13 +707,4 @@ def main():
     args.func(**func_args)
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        die("Shutdown requested... exiting")
-    except yt.YtError as error:
-        die(str(error), error.code)
-    except Exception:
-        traceback.print_exc(file=sys.stderr)
-        die()
-
+    run_main(main)

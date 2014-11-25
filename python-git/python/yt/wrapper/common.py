@@ -1,10 +1,8 @@
 """Some common useful misc"""
 
-import yt.logger as logger
 from yt.common import require, flatten, update, which, YtError, update_from_env
 import yt.yson as yson
 
-import os
 import sys
 import random
 from datetime import datetime
@@ -121,13 +119,6 @@ def chunk_iter_lines(lines, chunk_size):
             chunk = []
     yield chunk
 
-def die(message=None, return_code=1):
-    if message is not None:
-        print >>sys.stderr, message
-    if "YT_LOG_EXIT_CODE" in os.environ:
-        logger.error("Exiting with code %d", return_code)
-    sys.exit(return_code)
-
 def get_backoff(timeout, start_time):
     def get_total_seconds(timedelta):
         return timedelta.microseconds * 1e-6 + timedelta.seconds + timedelta.days * (24 * 3600)
@@ -146,21 +137,3 @@ def get_version():
     except:
         return "unknown"
 
-def writelines_silently(lines):
-    try:
-        for line in lines:
-            sys.stdout.write(line)
-    except IOError as err:
-        # Trying to detect case of broken pipe
-        if err.errno == 32:
-            sys.exit(1)
-        raise
-    except Exception:
-        raise
-    except:
-        # Case of keyboard abort
-        try:
-            sys.stdout.flush()
-        except IOError:
-            sys.exit(1)
-        raise

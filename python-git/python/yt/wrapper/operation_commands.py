@@ -310,13 +310,14 @@ class WaitStrategy(object):
         if self.check_result and state.is_failed():
             operation_result = get_operation_result(operation, client=client)
             stderrs = get_stderrs(operation, only_failed_jobs=True, client=client)
-            message = "Operation {0} {1}.\n"\
-                      "Operation result: {2}\n\n"\
+            message = "Operation {0} {1}. Result: {2}"\
                 .format(operation, str(state),
                         operation_result)
+
+            attributes = {}
             if stderrs:
-                message += "Failed jobs:\n{0}\n\n".format(stderrs)
-            raise YtOperationFailedError(message)
+                attributes["stderrs"] = stderrs
+            raise YtOperationFailedError(message, attributes=attributes)
 
         stderr_level = logging._levelNames[config.STDERR_LOGGING_LEVEL]
         if logger.LOGGER.isEnabledFor(stderr_level):

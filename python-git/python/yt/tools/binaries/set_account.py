@@ -2,7 +2,7 @@
 
 import yt.logger as logger
 import yt.wrapper as yt
-from yt.wrapper.common import die
+from yt.wrapper.cli_helpers import die
 
 import argparse
 import sys
