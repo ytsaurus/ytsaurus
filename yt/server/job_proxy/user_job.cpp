@@ -739,7 +739,7 @@ private:
     template <typename T>
     void AddStatistic(const NYPath::TYPath& path, const T& statistics)
     {
-        TStatisticsConverter consumer(BIND(&TUserJob::ConsumeStatistics, this), path);
+        TStatisticsConverter consumer(BIND(&TUserJob::ConsumeStatistics, MakeWeak(this)), path);
         Serialize(statistics, &consumer);
     }
 
