@@ -139,6 +139,8 @@ public:
 
         i64 BytesRead;
         i64 BytesWritten;
+        i64 IORead;
+        i64 IOWrite;
     };
 
     struct TStatisticsItem

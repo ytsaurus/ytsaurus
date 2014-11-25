@@ -146,7 +146,7 @@ class TestEventLog(YTEnvSetup):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write('//tmp/t1', [{"a": "b"}])
-        op_id = map(in_='//tmp/t1', out='//tmp/t2', command="cat; sudo -n dd if=/dev/sda of=/dev/null bs=4K count=1000 iflag=direct 1>/dev/null;")
+        op_id = map(in_='//tmp/t1', out='//tmp/t2', command="cat; sudo -n dd if=/dev/sda of=/dev/null bs=160K count=50 iflag=direct 1>/dev/null;")
 
         # wait for scheduler to dump the event log
         time.sleep(6)
@@ -159,8 +159,10 @@ class TestEventLog(YTEnvSetup):
                 job_completed_line_exist = True
                 stats = item['statistics']
                 bytes_read = stats['user_job']['system']['block_io']['bytes_read']['max']
+                io_read = stats['user_job']['system']['block_io']['io_read']['max']
         assert job_completed_line_exist
-        assert bytes_read == 4*1024*1000
+        assert bytes_read == 160*1024*50
+        assert io_read == 50
 
 
 class TestUserStatistics(YTEnvSetup):

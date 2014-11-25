@@ -487,49 +487,21 @@ TBlockIO::TStatistics TBlockIO::GetStatistics()
 {
     TBlockIO::TStatistics result;
 #ifdef _linux_
-    {
-        auto path = NFS::CombinePaths(GetFullPath(), "blkio.io_service_bytes");
-        auto values = ReadAllValues(path);
-
-        result.BytesRead = result.BytesWritten = 0;
-        int lineNumber = 0;
-        while (3 * lineNumber + 2 < values.size()) {
-            const Stroka& deviceId = values[3 * lineNumber];
-            const Stroka& type = values[3 * lineNumber + 1];
-            auto bytes = FromString<i64>(values[3 * lineNumber + 2]);
-
-            if (!deviceId.has_prefix("8:")) {
-                THROW_ERROR_EXCEPTION("Unable to parse %Qv: %v should start with \"8:\"", path, deviceId);
-            }
-
-            if (type == "Read") {
-                result.BytesRead += bytes;
-            } else if (type == "Write") {
-                result.BytesWritten += bytes;
-            } else {
-                if (type != "Sync" && type != "Async" && type != "Total") {
-                    THROW_ERROR_EXCEPTION("Unable to parse %v: unexpected stat type %v", path, type);
-                }
-            }
-            ++lineNumber;
+    auto bytesStats = GetDetailedStatistics("blkio.io_service_bytes");
+    for (const auto& item : bytesStats) {
+        if (item.Type == "Read") {
+            result.BytesRead += item.Value;
+        } else if (item.Type == "Write") {
+            result.BytesWritten += item.Value;
         }
     }
-    {
-        auto path = NFS::CombinePaths(GetFullPath(), "blkio.sectors");
-        auto values = ReadAllValues(path);
 
-        result.TotalSectors = 0;
-        int lineNumber = 0;
-        while (2 * lineNumber < values.size()) {
-            const Stroka& deviceId = values[2 * lineNumber];
-            auto sectors = FromString<i64>(values[2 * lineNumber + 1]);
-
-            if (!deviceId.has_prefix("8:")) {
-                THROW_ERROR_EXCEPTION("Unable to parse %Qv: %v should start with \"8:\"", path, deviceId);
-            }
-
-            result.TotalSectors += sectors;
-            ++lineNumber;
+    auto IOsStats = GetDetailedStatistics("blkio.io_serviced");
+    for (const auto& item : IOsStats) {
+        if (item.Type == "Read") {
+            result.IORead += item.Value;
+        } else if (item.Type == "Write") {
+            result.IOWrite += item.Value;
         }
     }
 #endif
@@ -586,6 +558,8 @@ void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* co
         .BeginMap()
             .Item("bytes_read").Value(statistics.BytesRead)
             .Item("bytes_written").Value(statistics.BytesWritten)
+            .Item("io_read").Value(statistics.IORead)
+            .Item("io_write").Value(statistics.IOWrite)
         .EndMap();
 }
 
