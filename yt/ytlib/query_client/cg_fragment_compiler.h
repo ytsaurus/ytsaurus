@@ -2,15 +2,16 @@
 
 #include "cg_types.h"
 
+#include <core/codegen/module.h>
+
 namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef std::function<
-    llvm::Function*(
+    TCGQueryCallback (
         const TConstQueryPtr&,
-        const TCGFragment&,
         const TCGBinding&)
     > TCGFragmentCompiler;
 

@@ -1,12 +1,8 @@
 #include "stdafx.h"
-#include "cg_fragment.h"
-#include "cg_routine_registry.h"
-
 #include "private.h"
-
-#include <core/misc/lazy_ptr.h>
-
-#include <core/concurrency/action_queue.h>
+#include "init.h"
+#include "module.h"
+#include "routine_registry.h"
 
 #include <llvm/ADT/Triple.h>
 
@@ -29,9 +25,11 @@
 #include <llvm/Support/Host.h>
 
 namespace NYT {
-namespace NQueryClient {
+namespace NCodegen {
 
-static const auto& Logger = QueryClientLogger;
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = CodegenLogger;
 
 static bool DumpIR()
 {
@@ -45,7 +43,8 @@ class TCGMemoryManager
     : public llvm::SectionMemoryManager
 {
 public:
-    TCGMemoryManager()
+    TCGMemoryManager(TRoutineRegistry* RoutineRegistry)
+        : RoutineRegistry(RoutineRegistry)
     { }
 
     ~TCGMemoryManager()
@@ -60,21 +59,21 @@ public:
             return address;
         }
 
-        address = TRoutineRegistry::Get()->GetAddress(name.c_str());
-        if (address) {
-            return address;
-        }
-
-        return 0;
+        return RoutineRegistry->GetAddress(name.c_str());
     }
+
+    // RoutineRegistry is supposed to be a static object.
+    TRoutineRegistry* RoutineRegistry;
 };
 
-class TCGFragment::TImpl
+class TCGModule::TImpl
 {
 public:
-    TImpl()
-        : CompiledBody_(nullptr)
+    TImpl(TRoutineRegistry* routineRegistry, const Stroka& moduleName)
+        : RoutineRegistry_(routineRegistry)
     {
+        InitializeCodegen();
+
         Context_.setDiagnosticHandler(&TImpl::DiagnosticHandler, nullptr);
 
         // Infer host parameters.
@@ -87,8 +86,9 @@ public:
         );
 
         // Create module.
-        auto module = std::make_unique<llvm::Module>("cgfragment", Context_);
+        auto module = std::make_unique<llvm::Module>(moduleName.c_str(), Context_);
         module->setTargetTriple(hostTriple);
+        Module_ = module.get();
 
         // Create engine.
         std::string what;
@@ -96,7 +96,7 @@ public:
             .setEngineKind(llvm::EngineKind::JIT)
             .setOptLevel(llvm::CodeGenOpt::Default)
             .setUseMCJIT(true)
-            .setMCJITMemoryManager(new TCGMemoryManager())
+            .setMCJITMemoryManager(new TCGMemoryManager(RoutineRegistry_))
             .setMCPU(hostCpu)
             .setErrorStr(&what)
             .create());
@@ -106,8 +106,15 @@ public:
                 << TError(Stroka(what));
         }
 
-        Module_ = module.release();
+        // Now engine holds the module.
+        module.release();
+
         Module_->setDataLayout(Engine_->getDataLayout()->getStringRepresentation());
+    }
+
+    llvm::LLVMContext& GetContext()
+    {
+        return Context_;
     }
 
     llvm::Module* GetModule() const
@@ -117,7 +124,7 @@ public:
 
     llvm::Function* GetRoutine(const Stroka& symbol) const
     {
-        auto type = TRoutineRegistry::Get()->GetTypeBuilder(symbol)(
+        auto type = RoutineRegistry_->GetTypeBuilder(symbol)(
             const_cast<llvm::LLVMContext&>(Context_));
 
         auto it = CachedRoutines_.find(symbol);
@@ -135,28 +142,23 @@ public:
         return it->second;
     }
 
-    void Embody(llvm::Function* body)
+    uint64_t GetFunctionAddress(const Stroka& name)
     {
-        YCHECK(!CompiledBody_);
-
-        auto parent = Module_;
-        auto type = llvm::TypeBuilder<TCGFunction, false>::get(Context_);
-
-        YCHECK(body->getParent() == parent);
-        YCHECK(body->getType() == type);
-
-        CompiledBody_ = reinterpret_cast<TCGFunction>(Compile(body));
-
-        // TODO(sandello): Clean module here.
-    }
-
-    TCGFunction GetCompiledBody()
-    {
-        return CompiledBody_;
+        if (!Compiled_) {
+            Finalize();
+        }
+        return Engine_->getFunctionAddress(name.c_str());
     }
 
 private:
-    void* Compile(llvm::Function* body)
+    void Finalize()
+    {
+        YCHECK(Compiled_ == false);
+        Compile();
+        Compiled_ = true;
+    }
+
+    void Compile()
     {
         if (DumpIR()) {
             llvm::errs() << "\n******** Before Optimization ***********************************\n";
@@ -200,7 +202,7 @@ private:
 
         Engine_->finalizeObject();
 
-        return Engine_->getPointerToFunction(body);
+        // TODO(sandello): Clean module here.
     }
 
     static void DiagnosticHandler(const llvm::DiagnosticInfo& info, void* /*opaque*/)
@@ -267,41 +269,52 @@ private:
 
     std::unique_ptr<llvm::ExecutionEngine> Engine_;
 
-    TCGFunction CompiledBody_;
-
     mutable yhash_map<Stroka, llvm::Function*> CachedRoutines_;
 
+    bool Compiled_ = false;
+
+    // RoutineRegistry is supposed to be a static object.
+    TRoutineRegistry* RoutineRegistry_;
 };
 
-TCGFragment::TCGFragment()
-    : Impl_(std::make_unique<TImpl>())
+////////////////////////////////////////////////////////////////////////////////
+
+TCGModulePtr TCGModule::Create(TRoutineRegistry* routineRegistry, const Stroka& moduleName)
+{
+    return New<TCGModule>(std::make_unique<TCGModule::TImpl>(routineRegistry, moduleName));
+}
+
+TCGModule::TCGModule(std::unique_ptr<TImpl>&& impl)
+    : Impl_(std::move(impl))
 { }
 
-TCGFragment::~TCGFragment()
+TCGModule::~TCGModule()
 { }
 
-llvm::Module* TCGFragment::GetModule() const
+llvm::Module* TCGModule::GetModule() const
 {
     return Impl_->GetModule();
 }
 
-llvm::Function* TCGFragment::GetRoutine(const Stroka& symbol) const
+llvm::Function* TCGModule::GetRoutine(const Stroka& symbol) const
 {
     return Impl_->GetRoutine(symbol);
 }
 
-void TCGFragment::Embody(llvm::Function* body)
+llvm::LLVMContext& TCGModule::GetContext()
 {
-    Impl_->Embody(body);
+    return Impl_->GetContext();
 }
 
-TCGFunction TCGFragment::GetCompiledBody()
+uint64_t TCGModule::GetFunctionAddress(const Stroka& name)
 {
-    return Impl_->GetCompiledBody();
+    return Impl_->GetFunctionAddress(name);
 }
+
+DEFINE_REFCOUNTED_TYPE(TCGModule)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
+} // namespace NCodegen
 } // namespace NYT
 

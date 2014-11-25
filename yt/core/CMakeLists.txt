@@ -12,6 +12,7 @@ set( DIRS
   ypath
   profiling
   tracing
+  codegen
 )
 
 foreach( _d_ ${DIRS} )
@@ -48,6 +49,11 @@ target_link_libraries ( ytcore
   ytext-yajl
   protobuf
 )
+
+if (YT_BUILD_ENABLE_LLVM)
+  llvm_map_components_to_libraries(REQUIRED_LLVM_LIBRARIES mcjit ipo x86)
+  target_link_libraries( ytcore ${REQUIRED_LLVM_LIBRARIES} )
+endif()
 
 include_directories(
   ${CMAKE_SOURCE_DIR}

@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "cg_routines.h"
-#include "cg_routine_registry.h"
+#include "cg_types.h"
 
 #include "helpers.h"
 #include "callbacks.h"
@@ -269,10 +269,12 @@ char IsRowInArray(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterCGRoutinesImpl()
+using NCodegen::TRoutineRegistry;
+
+void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
 {
 #define REGISTER_ROUTINE(routine) \
-    TRoutineRegistry::RegisterRoutine(#routine, NRoutines::routine)
+    registry->RegisterRoutine(#routine, NRoutines::routine)
     REGISTER_ROUTINE(WriteRow);
     REGISTER_ROUTINE(ScanOpHelper);
     REGISTER_ROUTINE(GroupOpHelper);
@@ -290,10 +292,12 @@ void RegisterCGRoutinesImpl()
 #undef REGISTER_ROUTINE
 }
 
-void RegisterCGRoutines()
+TRoutineRegistry* GetQueryRoutineRegistry()
 {
+    static TRoutineRegistry registry;
     static std::once_flag onceFlag;
-    std::call_once(onceFlag, &RegisterCGRoutinesImpl);
+    std::call_once(onceFlag, &RegisterQueryRoutinesImpl, &registry);
+    return &registry;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,8 +13,6 @@ namespace NQueryClient {
 
 using NVersionedTableClient::TRowBuffer;
 
-class TCGFragment;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 extern NLog::TLogger QueryClientLogger;

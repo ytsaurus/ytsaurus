@@ -6,9 +6,11 @@
 
 #include "plan_fragment.h"
 
-#include "cg_fragment.h"
 #include "cg_routines.h"
 #include "cg_ir_builder.h"
+
+#include <core/codegen/public.h>
+#include <core/codegen/module.h>
 
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/name_table.h>
@@ -49,6 +51,9 @@ using llvm::Twine;
 using llvm::Type;
 using llvm::TypeBuilder;
 using llvm::Value;
+
+using NCodegen::TCGModule;
+using NCodegen::TCGModulePtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -355,23 +360,22 @@ typedef std::function<void(TCGIRBuilder& builder)> TCodegenVoidBlock;
 class TCGContext
 {
 public:
-    static Function* CodegenEvaluate(
+    static TCGQueryCallback CodegenEvaluate(
         const TConstQueryPtr& query,
-        const TCGFragment& cgFragment,
         const TCGBinding& binding);
 
 private:
-    const TCGFragment& Fragment_;
+    const TCGModulePtr Module_;
     const TCGBinding& Binding_;
     Value* ConstantsRow_;
     Value* ExecutionContextPtr_;
 
     TCGContext(
-        const TCGFragment& cgFragment,
+        const TCGModulePtr module,
         const TCGBinding& binding,
         Value* constantsRow,
         Value* executionContextPtr)
-        : Fragment_(cgFragment)
+        : Module_(std::move(module))
         , Binding_(binding)
         , ConstantsRow_(constantsRow)
         , ExecutionContextPtr_(executionContextPtr)
@@ -435,7 +439,6 @@ private:
         const TTableSchema& sourceTableSchema,
         const TCodegenSource& codegenSource,
         const TCodegenConsumer& codegenConsumer);
-
 };
 
 void CodegenIf(
@@ -759,7 +762,7 @@ TCGValue TCGContext::CodegenFunctionExpr(
                 Value* rhsLength = rhsValue.GetLength();
 
                 Value* result = builder.CreateCall4(
-                    Fragment_.GetRoutine("IsPrefix"),
+                    Module_->GetRoutine("IsPrefix"),
                     lhsData, lhsLength, rhsData, rhsLength);
 
                 return TCGValue::CreateFromValue(builder, builder.getInt16(type), nullptr, result);
@@ -780,7 +783,7 @@ TCGValue TCGContext::CodegenFunctionExpr(
             Value* argLength = argValue.GetLength();
 
             Value* result = builder.CreateCall3(
-                Fragment_.GetRoutine("ToLower"),
+                Module_->GetRoutine("ToLower"),
                 GetExecutionContextPtr(builder),
                 argData,
                 argLength);
@@ -919,22 +922,22 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
                         switch (expr->Opcode) {
                             case EBinaryOp::Equal:
                                 evalData = builder.CreateCall4(
-                                    Fragment_.GetRoutine("Equal"),
+                                    Module_->GetRoutine("Equal"),
                                     lhsData, lhsLength, rhsData, rhsLength);
                                 break;
                             case EBinaryOp::NotEqual:
                                 evalData = builder.CreateCall4(
-                                    Fragment_.GetRoutine("NotEqual"),
+                                    Module_->GetRoutine("NotEqual"),
                                     lhsData, lhsLength, rhsData, rhsLength);
                                 break;
                             case EBinaryOp::Less:
                                 evalData = builder.CreateCall4(
-                                    Fragment_.GetRoutine("LexicographicalCompare"),
+                                    Module_->GetRoutine("LexicographicalCompare"),
                                     lhsData, lhsLength, rhsData, rhsLength);
                                 break;
                             case EBinaryOp::Greater:
                                 evalData = builder.CreateCall4(
-                                    Fragment_.GetRoutine("LexicographicalCompare"),
+                                    Module_->GetRoutine("LexicographicalCompare"),
                                     rhsData, rhsLength, lhsData, lhsLength);
                                 break;
                             default:
@@ -968,7 +971,7 @@ TCGValue TCGContext::CodegenInOpExpr(
     Value* executionContextPtrRef = GetExecutionContextPtr(builder);
 
     builder.CreateCall3(
-        Fragment_.GetRoutine("AllocateRow"),
+        Module_->GetRoutine("AllocateRow"),
         executionContextPtrRef,
         builder.getInt32(keySize),
         newRowPtr);
@@ -990,7 +993,7 @@ TCGValue TCGContext::CodegenInOpExpr(
     auto index = it->second;
 
     Value* result = builder.CreateCall3(
-        Fragment_.GetRoutine("IsRowInArray"),
+        Module_->GetRoutine("IsRowInArray"),
         executionContextPtrRef,
         newRowRef,
         builder.getInt32(index));
@@ -1083,7 +1086,7 @@ void TCGContext::CodegenScanOp(
     int dataSplitsIndex = 0;
 
     builder.CreateCall4(
-        Fragment_.GetRoutine("ScanOpHelper"),
+        Module_->GetRoutine("ScanOpHelper"),
         executionContextPtr,
         builder.getInt32(dataSplitsIndex),
         innerBuilder.GetClosure(),
@@ -1137,7 +1140,7 @@ void TCGContext::CodegenProjectOp(
             Value* newRowPtr = innerBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
             innerBuilder.CreateCall3(
-                Fragment_.GetRoutine("AllocateRow"),
+                Module_->GetRoutine("AllocateRow"),
                 GetExecutionContextPtr(innerBuilder),
                 builder.getInt32(projectionCount),
                 newRowPtr);
@@ -1197,7 +1200,7 @@ void TCGContext::CodegenGroupOp(
         Value* newRowPtrRef = innerBuilder.ViaClosure(newRowPtr);
 
         innerBuilder.CreateCall3(
-            Fragment_.GetRoutine("AllocateRow"),
+            Module_->GetRoutine("AllocateRow"),
             executionContextPtrRef,
             builder.getInt32(keySize + aggregateItemCount),
             newRowPtrRef);
@@ -1227,7 +1230,7 @@ void TCGContext::CodegenGroupOp(
         }
 
         Value* foundRowPtr = innerBuilder.CreateCall3(
-            Fragment_.GetRoutine("FindRow"),
+            Module_->GetRoutine("FindRow"),
             executionContextPtrRef,
             rowsRef,
             newRowRef);
@@ -1251,7 +1254,7 @@ void TCGContext::CodegenGroupOp(
             }
         }, [&] (TCGIRBuilder& innerBuilder) {
             innerBuilder.CreateCall5(
-                Fragment_.GetRoutine("AddRow"),
+                Module_->GetRoutine("AddRow"),
                 executionContextPtrRef,
                 rowsRef,
                 groupedRowsRef,
@@ -1262,34 +1265,34 @@ void TCGContext::CodegenGroupOp(
 
     CodegenForEachRow(
         innerBuilder,
-        innerBuilder.CreateCall(Fragment_.GetRoutine("GetRowsData"), groupedRows),
-        innerBuilder.CreateCall(Fragment_.GetRoutine("GetRowsSize"), groupedRows),
+        innerBuilder.CreateCall(Module_->GetRoutine("GetRowsData"), groupedRows),
+        innerBuilder.CreateCall(Module_->GetRoutine("GetRowsSize"), groupedRows),
         codegenConsumer);
 
     innerBuilder.CreateRetVoid();
 
     builder.CreateCall4(
-        Fragment_.GetRoutine("GroupOpHelper"),
+        Module_->GetRoutine("GroupOpHelper"),
         builder.getInt32(keySize),
         builder.getInt32(aggregateItemCount),
         innerBuilder.GetClosure(),
         function);
 }
 
-Function* TCGContext::CodegenEvaluate(
+TCGQueryCallback TCGContext::CodegenEvaluate(
     const TConstQueryPtr& query,
-    const TCGFragment& cgFragment,
     const TCGBinding& binding)
 {
-    auto* module = cgFragment.GetModule();
-    auto& context = module->getContext();
+    auto module = TCGModule::Create(GetQueryRoutineRegistry());
+    auto& context = module->GetContext();
 
-    // See TCGFunction.
+    auto entryFunctionName = Stroka("Evaluate");
+
     Function* function = Function::Create(
-        TypeBuilder<TCgFunctionSignature, false>::get(context),
+        TypeBuilder<TCGQuerySignature, false>::get(context),
         Function::ExternalLinkage,
-        "Evaluate",
-        module);
+        entryFunctionName.c_str(),
+        module->GetModule());
 
     auto args = function->arg_begin();
     Value* constants = args; constants->setName("constants");
@@ -1298,7 +1301,7 @@ Function* TCGContext::CodegenEvaluate(
 
     TCGIRBuilder builder(BasicBlock::Create(context, "entry", function));
 
-    TCGContext ctx(cgFragment, binding, constants, executionContextPtr);
+    TCGContext ctx(module, binding, constants, executionContextPtr);
 
     TCodegenSource codegenSource = [&] (TCGIRBuilder& builder, const TCodegenConsumer& codegenConsumer) {
         ctx.CodegenScanOp(builder, codegenConsumer);
@@ -1324,21 +1327,21 @@ Function* TCGContext::CodegenEvaluate(
         };
         sourceSchema = query->ProjectClause->GetTableSchema();
     }
-    
+
     codegenSource(builder, [&] (TCGIRBuilder& innerBuilder, Value* row) {
         Value* executionContextPtrRef = innerBuilder.ViaClosure(executionContextPtr);
-        innerBuilder.CreateCall2(cgFragment.GetRoutine("WriteRow"), row, executionContextPtrRef);
+        innerBuilder.CreateCall2(module->GetRoutine("WriteRow"), row, executionContextPtrRef);
     });
 
     builder.CreateRetVoid();
 
-    return function;
+    return module->GetCompiledFunction<TCGQuerySignature>(entryFunctionName);
 }
 
 TCGFragmentCompiler CreateFragmentCompiler()
 {
     using namespace std::placeholders;
-    return std::bind(&TCGContext::CodegenEvaluate, _1, _2, _3);
+    return std::bind(&TCGContext::CodegenEvaluate, _1, _2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

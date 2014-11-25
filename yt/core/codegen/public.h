@@ -1,16 +1,19 @@
 #pragma once
 
-#include <core/codegen/routine_registry.h>
+#include <core/misc/intrusive_ptr.h>
 
 namespace NYT {
-namespace NQueryClient {
+namespace NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCodegen::TRoutineRegistry* GetQueryRoutineRegistry();
+template <class TSignature>
+class TCGFunction;
+
+DECLARE_REFCOUNTED_CLASS(TCGModule)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
+} // namespace NCodegen
 } // namespace NYT
 

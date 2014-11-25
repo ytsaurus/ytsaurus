@@ -1,16 +1,15 @@
-#pragma once
-
-#include <core/codegen/routine_registry.h>
+#include "stdafx.h"
+#include "private.h"
 
 namespace NYT {
-namespace NQueryClient {
+namespace NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCodegen::TRoutineRegistry* GetQueryRoutineRegistry();
+NLog::TLogger CodegenLogger("Codegen");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
+} // namespace NCodegen
 } // namespace NYT
 

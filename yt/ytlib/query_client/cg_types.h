@@ -6,6 +6,8 @@
 
 #include <core/misc/chunked_memory_pool.h>
 
+#include <core/actions/callback.h>
+
 #include <llvm/IR/TypeBuilder.h>
 
 #include <unordered_map>
@@ -76,13 +78,8 @@ struct TCGVariables
     std::vector<std::vector<TOwningRow>> LiteralRows;
 };
 
-typedef void (*TCGFunction)(
-    TRow constants,
-    TExecutionContext* executionContext);
-
-typedef
-    std::remove_pointer<TCGFunction>::type
-    TCgFunctionSignature;
+using TCGQuerySignature = void(TRow, TExecutionContext*);
+using TCGQueryCallback = TCallback<TCGQuerySignature>;
 
 const int MaxRowsPerRead = 1024;
 const int MaxRowsPerWrite = 1024;

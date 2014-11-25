@@ -9,7 +9,6 @@
 
 #ifdef YT_USE_LLVM
 
-#include "cg_fragment.h"
 #include "cg_fragment_compiler.h"
 #include "cg_routines.h"
 
@@ -50,21 +49,6 @@ using namespace NConcurrency;
 
 #ifdef YT_USE_LLVM
 
-void InitializeLlvmImpl()
-{
-    YCHECK(llvm::llvm_is_multithreaded());
-    llvm::InitializeNativeTarget();
-    llvm::InitializeNativeTargetAsmParser();
-    llvm::InitializeNativeTargetAsmPrinter();
-}
-
-void InitializeLlvm()
-{
-    static std::once_flag onceFlag;
-    std::call_once(onceFlag, &InitializeLlvmImpl);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // Folding profiler computes a strong structural hash used to cache query fragments.
 
 DECLARE_ENUM(EFoldingObjectType,
@@ -216,36 +200,39 @@ struct TFoldingHasher
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachedCGFragment
+class TCachedCGQuery
     : public TSyncCacheValueBase<
         llvm::FoldingSetNodeID,
-        TCachedCGFragment,
+        TCachedCGQuery,
         TFoldingHasher>
-    , public TCGFragment
 {
 public:
-    explicit TCachedCGFragment(const llvm::FoldingSetNodeID& id)
+    TCachedCGQuery(const llvm::FoldingSetNodeID& id, TCGQueryCallback&& function)
         : TSyncCacheValueBase(id)
-        , TCGFragment()
+        , Function_(std::move(function))
     { }
 
+    TCGQueryCallback GetQueryCallback()
+    {
+        return Function_;
+    }
+
+private:
+    TCGQueryCallback Function_;
 };
 
-typedef TIntrusivePtr<TCachedCGFragment> TCachedCGFragmentPtr;
+typedef TIntrusivePtr<TCachedCGQuery> TCachedCGQueryPtr;
 
 class TEvaluator::TImpl
-    : public TSyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGFragment, TFoldingHasher>
+    : public TSyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGQuery, TFoldingHasher>
 {
 public:
     explicit TImpl(TExecutorConfigPtr config)
         : TSyncSlruCacheBase(config->CGCache)
     {
-        InitializeLlvm();
-        RegisterCGRoutines();
-
         Compiler_ = CreateFragmentCompiler();
 
-        CallCGFunctionPtr_ = &CallCGFunction;
+        CallCGQueryPtr_ = &CallCGQuery;
     }
 
     TQueryStatistics Run(
@@ -264,12 +251,8 @@ public:
             try {
                 NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
 
-                TCachedCGFragmentPtr cgFragment;
                 TCGVariables fragmentParams;
-
-                std::tie(cgFragment, fragmentParams) = Codegen(query);
-
-                auto cgFunction = cgFragment->GetCompiledBody();
+                auto cgQuery = Codegen(query, fragmentParams);
 
                 LOG_DEBUG("Evaluating plan fragment");
 
@@ -306,7 +289,7 @@ public:
                 executionContext.InputRowLimit = query->GetInputRowLimit();
                 executionContext.OutputRowLimit = query->GetOutputRowLimit();
 
-                CallCGFunctionPtr_(cgFunction, fragmentParams.ConstantsRowBuilder.GetRow(), &executionContext);
+                CallCGQueryPtr_(cgQuery, fragmentParams.ConstantsRowBuilder.GetRow(), &executionContext);
 
                 LOG_DEBUG("Flushing writer");
                 if (!batch.empty()) {
@@ -346,25 +329,23 @@ public:
     }
 
 private:
-    std::pair<TCachedCGFragmentPtr, TCGVariables> Codegen(const TConstQueryPtr& query)
+    TCGQueryCallback Codegen(const TConstQueryPtr& query, TCGVariables& variables)
     {
         llvm::FoldingSetNodeID id;
         TCGBinding binding;
-        TCGVariables variables;
 
         TFoldingProfiler(id, binding, variables).Profile(query);
         auto Logger = BuildLogger(query);
 
-        auto cgFragment = Find(id);
-        if (!cgFragment) {
+        auto cgQuery = Find(id);
+        if (!cgQuery) {
             LOG_DEBUG("Codegen cache miss");
             try {
                 TRACE_CHILD("QueryClient", "Compile") {
                     LOG_DEBUG("Started compiling fragment");
-                    cgFragment = New<TCachedCGFragment>(id);
-                    cgFragment->Embody(Compiler_(query, *cgFragment, binding));
+                    cgQuery = New<TCachedCGQuery>(id, Compiler_(query, binding));
                     LOG_DEBUG("Finished compiling fragment");
-                    TryInsert(cgFragment);
+                    TryInsert(cgQuery, &cgQuery);
                 }
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to compile a fragment")
@@ -374,11 +355,11 @@ private:
             LOG_DEBUG("Codegen cache hit");
         }
 
-        return std::make_pair(cgFragment, std::move(variables));
+        return cgQuery->GetQueryCallback();
     }
 
-    static void CallCGFunction(
-        TCGFunction cgFunction,
+    static void CallCGQuery(
+        const TCGQueryCallback& cgQuery,
         TRow constants,
         TExecutionContext* executionContext)
     {
@@ -386,17 +367,16 @@ private:
         int dummy;
         executionContext->StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
-        cgFunction(constants, executionContext);
+        cgQuery.Run(constants, executionContext);
     }
 
-    void(* volatile CallCGFunctionPtr_)(
-        TCGFunction cgFunction,
+    void(* volatile CallCGQueryPtr_)(
+        const TCGQueryCallback& cgQuery,
         TRow constants,
         TExecutionContext* executionContext);
 
 private:
     TCGFragmentCompiler Compiler_;
-
 };
 
 #endif

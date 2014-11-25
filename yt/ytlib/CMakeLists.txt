@@ -60,11 +60,6 @@ target_link_libraries ( ytlib
   ytcore
 )
 
-if (YT_BUILD_ENABLE_LLVM)
-  llvm_map_components_to_libraries(REQUIRED_LLVM_LIBRARIES mcjit ipo x86)
-  target_link_libraries( ytlib ${REQUIRED_LLVM_LIBRARIES} )
-endif()
-
 include_directories(
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/yt

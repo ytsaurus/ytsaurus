@@ -1,21 +1,22 @@
 #include "stdafx.h"
-#include "cg_routine_registry.h"
+#include "private.h"
+#include "routine_registry.h"
 
 namespace NYT {
-namespace NQueryClient {
+namespace NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRoutineRegistry::TRoutineRegistry()
-{ }
-
-TRoutineRegistry::~TRoutineRegistry()
-{ }
-
-TRoutineRegistry* TRoutineRegistry::Get()
+static Stroka MangleSymbol(const Stroka& name)
 {
-    return Singleton<TRoutineRegistry>();
+#ifdef _darwin_
+    return "_" + name;
+#else
+    return name;
+#endif
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 uint64_t TRoutineRegistry::GetAddress(const Stroka& symbol) const
 {
@@ -32,7 +33,7 @@ TRoutineRegistry::TTypeBuilder TRoutineRegistry::GetTypeBuilder(const Stroka& sy
     return it->second;
 }
 
-bool TRoutineRegistry::RegisterRoutineImpl(
+void TRoutineRegistry::RegisterRoutineImpl(
     const char* symbol,
     uint64_t address,
     TTypeBuilder typeBuilder)
@@ -40,20 +41,10 @@ bool TRoutineRegistry::RegisterRoutineImpl(
     auto mangledSymbol = MangleSymbol(symbol);
     YCHECK(SymbolToAddress_.insert(std::make_pair(mangledSymbol, std::move(address))).second);
     YCHECK(SymbolToTypeBuilder_.insert(std::make_pair(mangledSymbol, std::move(typeBuilder))).second);
-    return true;
-}
-
-Stroka TRoutineRegistry::MangleSymbol(const Stroka& name)
-{
-#ifdef _darwin_
-    return "_" + name;
-#else
-    return name;
-#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
+} // namespace NCodegen
 } // namespace NYT
 
