@@ -6,6 +6,7 @@ set( SRCS
   ${BASE}/descriptor.cpp
   ${BASE}/response.cpp
   ${BASE}/serialize.cpp
+  ${BASE}/shutdown.cpp
   ${BASE}/stream.cpp
 )
 
@@ -15,6 +16,7 @@ set( HDRS
   ${BASE}/descriptor.h
   ${BASE}/response.h
   ${BASE}/serialize.h
+  ${BASE}/shutdown.h
   ${BASE}/stream.h
 )
 
