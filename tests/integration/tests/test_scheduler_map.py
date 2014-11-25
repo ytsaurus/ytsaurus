@@ -136,10 +136,9 @@ class TestEventLog(YTEnvSetup):
             event_types.add(item['event_type'])
             if item['event_type'] == 'job_completed':
                 stats = item['statistics']
-                for key in ['cpu', 'block_io']:
-                    assert key in stats
+                user_time = stats['user_job']['system']['cpu']['user']['max']
                 # our job should burn enough cpu
-                assert int(stats['cpu']['user_time']) > 0
+                assert user_time > 0
         assert "operation_started" in event_types
 
     @block_io_mark
@@ -159,11 +158,9 @@ class TestEventLog(YTEnvSetup):
             if item['event_type'] == 'job_completed' and item['operation_id'] == op_id:
                 job_completed_line_exist = True
                 stats = item['statistics']
-                for key in ['cpu', 'block_io']:
-                    assert key in stats
-                total_sectors = int(stats['block_io']['total_sectors'])
+                bytes_read = stats['user_job']['system']['block_io']['bytes_read']['max']
         assert job_completed_line_exist
-        assert total_sectors == 8000
+        assert bytes_read == 4*1024*1000
 
 
 class TestUserStatistics(YTEnvSetup):

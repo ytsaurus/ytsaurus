@@ -3696,7 +3696,11 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
         .Item("start_time").Value(job->GetStartTime())
         .Item("finish_time").Value(job->GetFinishTime())
         .Item("resource_limits").Value(job->ResourceLimits())
-        .Item("statistics").Value(statistics)
+        .DoIf(statistics.has_statistics(), [&] (TFluentLogEvent fluent) {
+            auto jobStatistics = ConvertTo<NJobProxy::TStatistics>(TYsonString(statistics.statistics()));
+            fluent
+                .Item("statistics").Value(jobStatistics);
+        })
         .Item("node_address").Value(job->GetNode()->GetAddress());
 }
 
