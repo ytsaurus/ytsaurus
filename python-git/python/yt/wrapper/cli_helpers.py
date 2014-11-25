@@ -42,6 +42,7 @@ def run_main(main_func):
             print >>sys.stderr
             print >>sys.stderr, "Stderrs of failed jobs:"
             print >>sys.stderr, error.attributes["stderrs"]
+        die()
     except YtError as error:
         die(str(error), error.code)
     except Exception:
