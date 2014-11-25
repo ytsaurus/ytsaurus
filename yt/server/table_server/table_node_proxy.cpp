@@ -88,7 +88,7 @@ private:
         attributes->push_back("sorted");
         attributes->push_back("key_columns");
         attributes->push_back(TAttributeInfo("sorted_by", table->GetSorted()));
-        attributes->push_back(TAttributeInfo("tablets", true, true));
+        attributes->push_back(TAttributeInfo("tablets", hasTablets, true));
         attributes->push_back(TAttributeInfo("channels", true, false, true));
         attributes->push_back(TAttributeInfo("schema", true, false, true));
         TBase::ListSystemAttributes(attributes);
@@ -135,7 +135,7 @@ private:
             }
         }
 
-        if (key == "tablets") {
+        if (key == "tablets" && hasTablets) {
             BuildYsonFluently(consumer)
                 .DoListFor(table->Tablets(), [&] (TFluentList fluent, TTablet* tablet) {
                     auto* cell = tablet->GetCell();
