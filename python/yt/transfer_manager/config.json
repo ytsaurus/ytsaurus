@@ -107,7 +107,7 @@
     "running_tasks_limit_per_direction": 10,
 
     "path": "//home/ignat/transfer_manager",
-    "proxy": "plato.yt.yandex.net",
+    "proxy": "kant.yt.yandex.net",
     "token": "93b4cacc08aa4538a79a76c21e99c0fb",
     "port": 6000,
 

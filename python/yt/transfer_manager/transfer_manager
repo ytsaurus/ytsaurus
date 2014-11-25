@@ -21,7 +21,6 @@ import yt.wrapper as yt
 from flask import Flask, request, jsonify, Response, make_response
 
 import os
-import sys
 import json
 import time
 import prctl
@@ -61,7 +60,6 @@ class SafeThread(Thread):
             try:
                 target(*args, **kwargs)
             except KeyboardInterrupt:
-                print >>sys.stderr, "INTERRUPT"
                 thread.interrupt_main()
                 time.sleep(0.5)
                 os.kill(self._parent_pid, signal.SIGTERM)
@@ -492,11 +490,9 @@ class Application(object):
         source_client = task.get_source_client(self._clusters)
         destination_client = task.get_destination_client(self._clusters)
 
-        logger.info("AAAA %s", task.id)
         if task.copy_method not in ["pull", "push"]:
             raise yt.YtError("Incorrect copy method: " + str(task.copy_method))
 
-        logger.info("BBBB %s", task.id)
         if task.source_cluster not in self._availability_graph or \
            task.destination_cluster not in self._availability_graph[task.source_cluster]:
             raise yt.YtError("Cluster {} not available from {}".format(task.destination_cluster, task.source_cluster))
@@ -514,14 +510,12 @@ class Application(object):
                     source_client.get_attribute(task.source_table, "row_count") == 0):
                 raise yt.YtError("Source table {} is empty".format(task.source_table))
 
-            logger.info("CCCC %s", task.id)
             if source_client._type == "yt" and destination_client._type == "yamr":
                 path = yt.TablePath(task.source_table, end_index=1, simplify=False)
                 keys = list(source_client.read_table(path, format=yt.JsonFormat(), raw=False).next())
                 if set(keys + ["subkey"]) != set(["key", "subkey", "value"]):
                     raise yt.YtError("Keys in the source table must be a subset of ('key', 'subkey', 'value')")
 
-            logger.info("DDDD %s", task.id)
             if destination_client._type == "yt":
                 destination_dir = os.path.dirname(task.destination_table)
                 if not destination_client.exists(destination_dir):
@@ -530,7 +524,6 @@ class Application(object):
                 if destination_user is None or destination_client.check_permission(destination_user, "write", destination_dir)["action"] != "allow":
                     raise yt.YtError("There is no permission to write to {}. Please log in.".format(task.destination_table))
 
-            logger.info("EEEE %s", task.id)
             if destination_client._type == "kiwi" and self.kiwi_transmitter is None:
                 raise yt.YtError("Transimission cluster for transfer to kiwi is not configured")
         except TimeoutExpired:
@@ -661,11 +654,9 @@ class Application(object):
             time.sleep(self._sleep_step)
 
     def _execute_task(self, task, message_queue):
-        print >>sys.stderr, "AAA", task.id
         prctl.set_pdeathsig(signal.SIGINT)
 
         logger.info("Start executing task %s", task.id)
-        print >>sys.stderr, "BBB", task.id
         try:
             self._precheck(task)
 
