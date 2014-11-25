@@ -2,7 +2,7 @@
 
 from yt.tools.atomic import process_tasks_from_list, CANCEL, REPEAT
 from yt.tools.common import update_args
-from yt.wrapper.common import die
+from yt.wrapper.cli_helpers import die
 
 from yt.wrapper.table_commands import get_sorted_by
 

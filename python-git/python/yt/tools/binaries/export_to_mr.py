@@ -5,7 +5,7 @@ from yt.tools.atomic import process_tasks_from_list, CANCEL
 from yt.tools.common import update_args
 from yt.tools.yamr import Yamr
 from yt.tools.remote_copy_tools import copy_yt_to_yamr_pull, copy_yt_to_yamr_push
-from yt.wrapper.common import die
+from yt.wrapper.cli_helpers import die
 
 import yt.logger as logger
 import yt.wrapper as yt
