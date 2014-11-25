@@ -326,13 +326,20 @@ if (config.ssl_port && config.ssl_address) {
         port: config.ssl_port
     });
 
+    var ssl_key = fs.readFileSync(config.ssl_key);
+    var ssl_certificate = fs.readFileSync(config.ssl_certificate);
+    var ssl_ca = null;
+    if (config.ssl_ca) {
+        ssl_ca = fs.readFileSync(config.ssl_ca);
+    }
+
     secure_server = https.createServer({
-        key: fs.readFileSync(config.ssl_key),
-        cert: fs.readFileSync(config.ssl_cert),
-        ca: [ fs.readFileSync(config.ssl_ca) ],
+        key: ssl_key,
+        passphrase: config.ssl_passphrase,
+        cert: ssl_certificate,
+        ca: ssl_ca,
         ciphers: config.ssl_ciphers,
-        requestCert: true,
-        rejectUnauthorized: true,
+        rejectUnauthorized: config.ssl_reject_unauthorized,
     }, application);
     secure_server.listen(config.ssl_port, config.ssl_address);
 

@@ -26,6 +26,7 @@ function YtCoordinatedHost(config, host)
     var role = "data";
     var dead = true;
     var banned = false;
+    var ban_message = "";
     var liveness = { updated_at: new Date(0), load_average: 0.0, failing: false };
     var randomness = Math.random();
     var dampening = 0.0;
@@ -85,6 +86,20 @@ function YtCoordinatedHost(config, host)
             } else if (banned_before && !banned) {
                 self.emit("unbanned");
             }
+        },
+        enumerable: true
+    });
+
+    Object.defineProperty(this, "ban_message", {
+        get: function() {
+            if (ban_message.length == 0) {
+                return undefined;
+            } else {
+                return ban_message;
+            }
+        },
+        set: function(value) {
+            ban_message = value + "";
         },
         enumerable: true
     });
@@ -292,7 +307,7 @@ YtCoordinator.prototype._refresh = function()
 
         return self.driver.executeSimple("list", {
             path: "//sys/proxies",
-            attributes: [ "role", "banned", "liveness" ]
+            attributes: [ "role", "banned", "ban_message", "liveness" ]
         });
     })
     .then(function(entries) {
@@ -323,6 +338,7 @@ YtCoordinator.prototype._refresh = function()
 
             ref.role = utils.getYsonAttribute(entry, "role");
             ref.banned = utils.getYsonAttribute(entry, "banned");
+            ref.ban_message = utils.getYsonAttribute(entry, "ban_message");
             ref.liveness = utils.getYsonAttribute(entry, "liveness");
         });
     })
