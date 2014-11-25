@@ -156,9 +156,13 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             spec["data_size_per_job"] = 1
 
             destination_client.create("table", dst, ignore_existing=True)
-            destination_client.run_map("bash read_from_yt.sh", temp_table, dst, files=files, spec=spec,
-                                       input_format=yt.SchemafulDsvFormat(columns=["start", "end"]),
-                                       output_format=yt.JsonFormat())
+            run_operation_and_notify(
+                message_queue,
+                destination_client,
+                lambda client, strategy:
+                    client.run_map("bash read_from_yt.sh", temp_table, dst, files=files, spec=spec,
+                                   input_format=yt.SchemafulDsvFormat(columns=["start", "end"]),
+                                   output_format=yt.JsonFormat(), strategy=strategy))
 
             result_row_count = destination_client.records_count(dst)
             if row_count != result_row_count:
