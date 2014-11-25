@@ -757,7 +757,7 @@ class Application(object):
             pass
         except yt.YtError as error:
             if isinstance(error, yt.YtOperationFailedError):
-                error.attributes["details"] = error.attributes["stderrs"]
+                error.attributes["details"] = error.attributes["stderrs"][:self._config["error_details_length_limit"]]
                 del error.attributes["stderrs"]
             logger.exception("Task {} failed with error {}".format(task.id, yt.errors.format_error(error)))
             message_queue.put({
@@ -1029,6 +1029,7 @@ DEFAULT_CONFIG = {
     },
     "default_mr_user": "userdata",
     "scheduling_backoff": 5,
+    "error_details_length_limit": 50000,
     "pending_tasks_limit": 5000,
     "pending_tasks_limit_per_user": 500,
     "running_tasks_limit_per_direction": 10,
