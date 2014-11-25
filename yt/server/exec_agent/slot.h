@@ -47,13 +47,13 @@ public:
     void MakeLink(
         const Stroka& targetPath,
         const Stroka& linkName,
-        bool executable);
+        bool isExecutable) noexcept;
 
     //! Writes to a file #fileName in the sandbox; #dataProducer provides the data.
     void MakeFile(
         const Stroka& fileName, 
         std::function<void (TOutputStream*)> dataProducer, 
-        bool executable = false);
+        bool isExecutable = false);
 
     const Stroka& GetWorkingDirectory() const;
 
@@ -62,7 +62,7 @@ private:
     bool IsClean_;
 
     Stroka Path_;
-    int SlotIndex;
+    int SlotIndex_;
     TNullable<int> UserId_;
 
     Stroka SandboxPath_;
@@ -78,6 +78,8 @@ private:
 
     void DoCleanSandbox();
     void DoCleanProcessGroups();
+
+    void LogErrorAndExit(const TError& error);
 
 };
 

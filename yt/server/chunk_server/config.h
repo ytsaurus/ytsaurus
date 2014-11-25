@@ -81,6 +81,9 @@ public:
     //! Maximum number of chunks to report per single fetch request.
     int MaxChunksPerFetch;
 
+    //! Maximum number of cached replicas to be returned on fetch request.
+    int MaxCachedReplicasPerFetch;
+
     TChunkManagerConfig()
     {
         RegisterParameter("disable_chunk_replicator", DisableChunkReplicator)
@@ -139,6 +142,10 @@ public:
         RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
             .GreaterThan(0)
             .Default(1000000);
+
+        RegisterParameter("max_cached_replicas_per_fetch", MaxCachedReplicasPerFetch)
+            .GreaterThanOrEqual(0)
+            .Default(20);
     }
 };
 

@@ -569,7 +569,6 @@ private:
             LOG_DEBUG("Transaction tablet participant added (TransactionId: %v, CellId: %v)",
                 Id_,
                 cellId);
-
         } else {
             LOG_DEBUG(*rsp, "Error adding transaction tablet participant (TransactionId: %v, CellId: %v)",
                 Id_,

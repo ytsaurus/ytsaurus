@@ -336,7 +336,7 @@ public:
 
         // Spawn a new fiber where all startup logic will work asynchronously.
         BIND(&TImpl::DoStartOperation, MakeStrong(this), operation)
-            .AsyncVia(Bootstrap_->GetControlInvoker())
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
 
         return operation->GetStarted();
@@ -557,9 +557,13 @@ public:
         return TotalResourceLimits_;
     }
 
-    virtual TNodeResources GetResourceLimits(const TNullable<Stroka>& /*schedulingTag*/) override
+    virtual TNodeResources GetResourceLimits(const TNullable<Stroka>& schedulingTag) override
     {
-        return TotalResourceLimits_;
+        if (!schedulingTag || SchedulingTagResources_.find(*schedulingTag) == SchedulingTagResources_.end()) {
+            return TotalResourceLimits_;
+        } else {
+            return SchedulingTagResources_[*schedulingTag];
+        }
     }
 
 
@@ -854,9 +858,15 @@ private:
                     }
                 }
 
-                for (const auto& oldTag : AddressToNode_[address]->SchedulingTags()) {
+                auto oldTags = AddressToNode_[address]->SchedulingTags();
+                for (const auto& oldTag : oldTags) {
                     if (tags.find(oldTag) == tags.end()) {
                         SchedulingTagResources_[oldTag] -= AddressToNode_[address]->ResourceLimits();
+                    }
+                }
+                for (const auto& tag : tags) {
+                    if (oldTags.find(tag) == oldTags.end()) {
+                        SchedulingTagResources_[tag] += AddressToNode_[address]->ResourceLimits();
                     }
                 }
                 AddressToNode_[address]->SchedulingTags() = tags;
@@ -943,8 +953,6 @@ private:
 
             RegisterOperation(operation);
             registered = true;
-
-            SwitchTo(controller->GetCancelableControlInvoker());
 
             controller->Initialize();
             controller->Essentiate();
@@ -1640,6 +1648,7 @@ private:
             .Item("operation_id").Value(operation->GetId())
             .Item("operation_type").Value(operation->GetType())
             .Item("spec").Value(operation->GetSpec())
+            .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
             .Item("start_time").Value(operation->GetStartTime())
             .Item("finish_time").Value(operation->GetFinishTime());
 
@@ -1697,6 +1706,7 @@ private:
             .Item("operation_id").Value(operation->GetId())
             .Item("operation_type").Value(operation->GetType())
             .Item("spec").Value(operation->GetSpec())
+            .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
             .Item("start_time").Value(operation->GetStartTime())
             .Item("finish_time").Value(operation->GetFinishTime())
             .Item("error").Value(error);

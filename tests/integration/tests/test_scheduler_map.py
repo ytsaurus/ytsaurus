@@ -839,3 +839,23 @@ print row + table_index
         op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command,
                 spec={ 'mapper': { 'input_format' : 'dsv', 'check_input_fully_consumed': 'true'}})
         self.assertEqual([], read("//tmp/t2"))
+
+    def test_live_preview(self):
+        create_user('u')
+
+        create('table', '//tmp/t1')
+        write('//tmp/t1', {"foo": "bar"})
+
+        create('table', '//tmp/t2')
+        set('//tmp/t2/@acl', [{"action": "allow", "subjects": ["u"], "permissions": ["write"]}])
+        effective_acl = get('//tmp/t2/@effective_acl')
+
+        op_id = map(dont_track=True, command="cat; sleep 1", in_='//tmp/t1', out='//tmp/t2')
+
+        time.sleep(0.5)
+        assert exists('//sys/operations/{0}/output_0'.format(op_id))
+        assert effective_acl == get('//sys/operations/{0}/output_0/@acl'.format(op_id))
+
+        track_op(op_id)
+        assert read('//tmp/t2') == [{"foo": "bar"}]
+

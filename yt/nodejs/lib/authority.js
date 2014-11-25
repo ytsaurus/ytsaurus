@@ -67,6 +67,12 @@ function YtAuthority$authenticate(logger, party, token)
         enumerable: true
     });
 
+    // Reject empty tokens.
+    if (token === "") {
+        result.realm = "empty";
+        return result;
+    }
+
     // Fast-path.
     if (this._syncCheckCache(context, result)) {
         return result;

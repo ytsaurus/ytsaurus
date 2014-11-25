@@ -44,6 +44,7 @@ set( SRCS
   src/output_stream.cpp
   src/output_stub.cpp
   src/driver.cpp
+  src/stream_stack.cpp
 )
 
 NODE( ytnode SHARED ${SRCS} src/ytnode.cpp )

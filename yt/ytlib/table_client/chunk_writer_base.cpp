@@ -10,6 +10,8 @@
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
 
+#include <core/concurrency/fiber.h>
+
 #include <core/misc/protobuf_helpers.h>
 
 #include <server/chunk_server/public.h>
@@ -18,7 +20,7 @@ namespace NYT {
 namespace NTableClient {
 
 using namespace NChunkClient;
-using namespace NChunkClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,6 +184,27 @@ NChunkClient::NProto::TDataStatistics TChunkWriterBase::GetDataStatistics() cons
     }
 
     return result;
+}
+
+TError TChunkWriterBase::FlushBlocks()
+{
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
+    try {
+        while (BuffersHeap.front()->GetDataSize() > 0) {
+            PrepareBlock();
+            if (EncodingWriter->IsReady()) {
+                continue;
+            }
+
+            auto error = WaitFor(EncodingWriter->GetReadyEvent());
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        }
+
+        return WaitFor(EncodingWriter->Flush());
+    } catch (const std::exception& ex) {
+        return ex;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

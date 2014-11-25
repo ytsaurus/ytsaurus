@@ -258,13 +258,12 @@ TAsyncError TPartitionChunkWriter::Close()
 
     State.StartOperation();
 
-    while (BuffersHeap.front()->GetCurrentRowCount() > 0) {
-        PrepareBlock();
-    }
-
-    EncodingWriter->Flush().Subscribe(
-        BIND(&TPartitionChunkWriter::OnFinalBlocksWritten, MakeWeak(this))
-        .Via(TDispatcher::Get()->GetWriterInvoker()));
+    BIND(&TPartitionChunkWriter::FlushBlocks, MakeStrong(this))
+        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+        .Run()
+        .Subscribe(
+            BIND(&TPartitionChunkWriter::OnFinalBlocksWritten, MakeWeak(this))
+            .Via(TDispatcher::Get()->GetWriterInvoker()));
 
     return State.GetOperationError();
 }

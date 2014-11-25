@@ -5,7 +5,10 @@
 
 #include <ytlib/cgroup/cgroup.h>
 
+#include <core/logging/log_manager.h>
+
 #include <core/misc/proc.h>
+#include <core/misc/string.h>
 
 #include <core/ytree/yson_producer.h>
 
@@ -31,7 +34,7 @@ TSlot::TSlot(
     : IsFree_(true)
     , IsClean_(true)
     , Path_(path)
-    , SlotIndex(slotIndex)
+    , SlotIndex_(slotIndex)
     , UserId_(userId)
     , SlotThread_(New<TActionQueue>(Format("ExecSlot:%v", slotIndex)))
     , ProcessGroup_("freezer", GetSlotProcessGroup(slotIndex))
@@ -39,7 +42,7 @@ TSlot::TSlot(
     , Logger(ExecAgentLogger)
     , Config_(config)
 {
-    Logger.AddTag("Slot: %v", SlotIndex);
+    Logger.AddTag("Slot: %v", SlotIndex_);
 }
 
 void TSlot::Initialize()
@@ -104,9 +107,14 @@ std::vector<Stroka> TSlot::GetCGroupPaths() const
 {
     std::vector<Stroka> result;
     if (Config_->EnableCGroups) {
+        auto subgroupName = GetSlotProcessGroup(SlotIndex_);
+
+        for (const auto& type : NCGroup::GetSupportedCGroups()) {
+            NCGroup::TNonOwningCGroup group(type, subgroupName);
+            result.push_back(group.GetFullPath());
+        }
         result.push_back(ProcessGroup_.GetFullPath());
     }
-
     return result;
 }
 
@@ -138,7 +146,7 @@ void TSlot::DoCleanProcessGroups()
         }
     } catch (const std::exception& ex) {
         auto wrappedError = TError("Failed to clean slot subcgroups for slot %v",
-            SlotIndex) << ex;
+            SlotIndex_) << ex;
         LOG_ERROR(wrappedError);
         THROW_ERROR wrappedError;
     }
@@ -167,7 +175,7 @@ void TSlot::InitSandbox()
     try {
         NFS::ForcePath(SandboxPath_, 0777);
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Failed to create sandbox directory %Qv", SandboxPath_);
+        LogErrorAndExit(TError("Failed to create sandbox directory %Qv", SandboxPath_) << ex);
     }
 
     LOG_INFO("Created slot sandbox directory %Qv", SandboxPath_);
@@ -178,42 +186,73 @@ void TSlot::InitSandbox()
 void TSlot::MakeLink(
     const Stroka& targetPath,
     const Stroka& linkName,
-    bool executable)
+    bool isExecutable) noexcept
 {
-    {
-        // Take exclusive lock in blocking fashion to ensure that no 
-        // forked process is holding an open descriptor to the target file.
-        TFile file(targetPath, RdOnly | CloseOnExec);
-        file.Flock(LOCK_EX);
-    }
-
     auto linkPath = NFS::CombinePaths(SandboxPath_, linkName);
-    NFS::MakeSymbolicLink(targetPath, linkPath);
-    NFS::SetExecutableMode(linkPath, executable);
+    try {
+        {
+            // Take exclusive lock in blocking fashion to ensure that no
+            // forked process is holding an open descriptor to the target file.
+            TFile file(targetPath, RdOnly | CloseOnExec);
+            file.Flock(LOCK_EX);
+        }
+
+        NFS::MakeSymbolicLink(targetPath, linkPath);
+        NFS::SetExecutableMode(linkPath, isExecutable);
+    } catch (const std::exception& ex) {
+        // Occured IO error in the slot, restart node immediately.
+        LogErrorAndExit(TError(
+            "Failed to create a symlink in the slot %Qv (LinkPath: %Qv, TargetPath: %Qv, IsExecutable: %lv)",
+            SandboxPath_,
+            linkPath,
+            targetPath,
+            isExecutable)
+            << ex);
+    }
+}
+
+void TSlot::LogErrorAndExit(const TError& error)
+{
+    LOG_ERROR(error);
+    NLog::TLogManager::Get()->Shutdown();
+    _exit(1);
 }
 
 void TSlot::MakeFile(
     const Stroka& fileName,
     std::function<void (TOutputStream*)> dataProducer,
-    bool executable)
+    bool isExecutable)
 {
     auto path = NFS::CombinePaths(SandboxPath_, fileName);
-    {
+
+    auto error = TError("Failed to create a file in the slot %Qv (FileName: %Qv, IsExecutable: %lv)",
+        path,
+        fileName,
+        isExecutable);
+
+    try {
         // NB! Races are possible between file creation and call to flock.
         // Unfortunately in Linux we cannot make it atomically.
         TFile file(path, CreateAlways | CloseOnExec);
         file.Flock(LOCK_EX | LOCK_NB);
         TFileOutput fileOutput(file);
+
+        // Producer may throw non IO-related exceptions, that we do not handle.
         dataProducer(&fileOutput);
-        NFS::SetExecutableMode(path, executable);
+        NFS::SetExecutableMode(path, isExecutable);
+    } catch (const TFileError& ex) {
+        LogErrorAndExit(error << TError(ex.what()));
     }
 
-    {
-        // Take exclusive lock in blocking fashion to ensure that no 
+    try {
+        // Take exclusive lock in blocking fashion to ensure that no
         // forked process is holding an open descriptor.
         TFile file(path, RdOnly | CloseOnExec);
         file.Flock(LOCK_EX);
+    } catch (const std::exception& ex) {
+        LogErrorAndExit(error << ex);
     }
+
 }
 
 const Stroka& TSlot::GetWorkingDirectory() const

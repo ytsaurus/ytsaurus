@@ -48,6 +48,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<Stroka> GetSupportedCGroups();
+
 void RemoveAllSubcgroups(const Stroka& path);
 
 void RunKiller(const Stroka& processGroupPath);

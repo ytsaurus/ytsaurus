@@ -152,6 +152,16 @@ void TEvent::Swap(TEvent& other)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<Stroka> GetSupportedCGroups()
+{
+    std::vector<Stroka> result;
+    result.push_back("cpuacct");
+    result.push_back("blkio");
+    result.push_back("memory");
+    result.push_back("freezer");
+    return result;
+}
+
 void ApplyActionToAllChlidren(const TFsPath& path, const TCallback<void(const TFsPath&)> action)
 {
     if (path.Exists()) {

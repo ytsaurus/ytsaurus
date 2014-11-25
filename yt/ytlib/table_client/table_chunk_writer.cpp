@@ -375,13 +375,12 @@ TAsyncError TTableChunkWriter::Close()
 
     State.StartOperation();
 
-    while (BuffersHeap.front()->GetDataSize() > 0) {
-        PrepareBlock();
-    }
-
-    EncodingWriter->Flush().Subscribe(
-        BIND(&TTableChunkWriter::OnFinalBlocksWritten, MakeWeak(this))
-            .Via(TDispatcher::Get()->GetWriterInvoker()));
+    BIND(&TTableChunkWriter::FlushBlocks, MakeStrong(this))
+        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+        .Run()
+        .Subscribe(
+            BIND(&TTableChunkWriter::OnFinalBlocksWritten, MakeWeak(this))
+                .Via(TDispatcher::Get()->GetWriterInvoker()));
 
     return State.GetOperationError();
 }

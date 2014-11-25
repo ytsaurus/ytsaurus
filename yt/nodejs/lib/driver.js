@@ -15,7 +15,7 @@ var utils = require("./utils");
 var __DBG = require("./debug").that("B", "Driver");
 
 var _SIMPLE_EXECUTE_USER = "root";
-var _SIMPLE_EXECUTE_FORMAT = new binding.TNodeWrap({ $value : "json" });
+var _SIMPLE_EXECUTE_FORMAT = binding.CreateV8Node("json");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -203,8 +203,7 @@ YtDriver.prototype.executeSimple = function(name, parameters, data)
     return this.execute(name, _SIMPLE_EXECUTE_USER,
         input_stream, binding.ECompression_None,
         output_stream, binding.ECompression_None,
-        new binding.TNodeWrap(parameters), null,
-        pause, function(){})
+        binding.CreateV8Node(parameters), null, pause, function(){})
     .then(function(result) {
         var body = buffertools.concat.apply(undefined, output_stream.chunks);
         if (body.length) {

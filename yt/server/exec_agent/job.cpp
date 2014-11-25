@@ -16,6 +16,7 @@
 #include <core/ytree/serialize.h>
 
 #include <core/logging/log.h>
+#include <core/logging/log_manager.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
@@ -66,6 +67,7 @@ using namespace NJobProxy;
 using namespace NYTree;
 using namespace NYson;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NFileClient;
@@ -300,7 +302,6 @@ private:
 
     std::vector<NDataNode::IChunkPtr> CachedChunks;
 
-    // Special node directory used to read cached chunks.
     TNodeDirectoryPtr NodeDirectory;
 
     IProxyControllerPtr ProxyController;
@@ -380,9 +381,9 @@ private:
             TYsonWriter writer(&output, EYsonFormat::Pretty);
             proxyConfig->Save(&writer);
         } catch (const std::exception& ex) {
-            auto error = TError(NExecAgent::EErrorCode::ConfigCreationFailed, "Error saving job proxy config")
-                << ex;
-            THROW_ERROR error;
+            LOG_ERROR(ex, "Error saving job proxy config (Path: %Qv)", proxyConfigPath);
+            NLog::TLogManager::Get()->Shutdown();
+            _exit(1);
         }
     }
 
@@ -425,6 +426,8 @@ private:
 
         if (!userJobSpec)
             return;
+
+        NodeDirectory->MergeFrom(userJobSpec->node_directory());
 
         for (const auto& descriptor : userJobSpec->regular_files()) {
             PrepareRegularFile(descriptor);
@@ -521,23 +524,29 @@ private:
         return JobResult.HasValue();
     }
 
-
-    TFuture<void> DownloadChunks(const NChunkClient::NProto::TRspFetch& fetchRsp)
+    TFuture<void> DownloadChunks(
+        const google::protobuf::RepeatedPtrField<NYT::NChunkClient::NProto::TChunkSpec>& chunks)
     {
         auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
         auto chunkCache = Bootstrap->GetChunkCache();
         auto this_ = MakeStrong(this);
 
-        for (const auto chunk : fetchRsp.chunks()) {
+        for (const auto chunk : chunks) {
             auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
+            auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunk.replicas());
 
             if (IsErasureChunkId(chunkId)) {
                 DoAbort(TError("Cannot download erasure chunk %v", chunkId));
                 break;
             }
 
+            auto asyncChunkOrError = chunkCache->DownloadChunk(
+                chunkId,
+                NodeDirectory,
+                seedReplicas);
+
             awaiter->Await(
-                chunkCache->DownloadChunk(chunkId),
+                std::move(asyncChunkOrError),
                 BIND([=] (NDataNode::TChunkCache::TDownloadResult result) {
                     if (!result.IsOK()) {
                         auto wrappedError = TError(
@@ -554,16 +563,16 @@ private:
         return awaiter->Complete();
     }
 
-    std::vector<NChunkClient::NProto::TChunkSpec>
-    PatchCachedChunkReplicas(const NChunkClient::NProto::TRspFetch& fetchRsp)
+    std::vector<TChunkSpec> PatchCachedChunkReplicas(
+        const google::protobuf::RepeatedPtrField<NYT::NChunkClient::NProto::TChunkSpec>& chunks)
     {
-        std::vector<NChunkClient::NProto::TChunkSpec> chunks;
-        chunks.insert(chunks.end(), fetchRsp.chunks().begin(), fetchRsp.chunks().end());
-        for (auto& chunk : chunks) {
+        std::vector<NChunkClient::NProto::TChunkSpec> result;
+        result.insert(result.end(), chunks.begin(), chunks.end());
+        for (auto& chunk : result) {
             chunk.clear_replicas();
             chunk.add_replicas(ToProto<ui32>(TChunkReplica(InvalidNodeId, 0)));
         }
-        return chunks;
+        return result;
     }
 
     void PrepareRegularFile(const TRegularFileDescriptor& descriptor)
@@ -577,11 +586,11 @@ private:
 
     bool CanPrepareRegularFileViaSymlink(const TRegularFileDescriptor& descriptor)
     {
-        if (descriptor.file().chunks_size() != 1) {
+        if (descriptor.chunks_size() != 1) {
             return false;
         }
 
-        const auto& chunk = descriptor.file().chunks(0);
+        const auto& chunk = descriptor.chunks(0);
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk.chunk_meta().extensions());
         auto compressionCodecId = NCompression::ECodec(miscExt.compression_codec());
         auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
@@ -590,8 +599,9 @@ private:
 
     void PrepareRegularFileViaSymlink(const TRegularFileDescriptor& descriptor)
     {
-        const auto& chunkSpec = descriptor.file().chunks(0);
-        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+        const auto& chunk = descriptor.chunks(0);
+        auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
+        auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunk.replicas());
         const auto& fileName = descriptor.file_name();
 
         LOG_INFO("Preparing regular user file via symlink (FileName: %v, ChunkId: %v)",
@@ -599,17 +609,20 @@ private:
             chunkId);
 
         auto chunkCache = Bootstrap->GetChunkCache();
-        auto chunkOrError = CheckedWaitFor(chunkCache->DownloadChunk(chunkId));
+        auto chunkOrError = CheckedWaitFor(chunkCache->DownloadChunk(
+            chunkId,
+            NodeDirectory,
+            seedReplicas));
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
         THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError, "Failed to download user file %Qv",
             fileName);
 
-        auto chunk = chunkOrError.Value();
-        CachedChunks.push_back(chunk);
+        auto result = chunkOrError.Value();
+        CachedChunks.push_back(result);
 
         try {
             Slot->MakeLink(
-                chunk->GetFileName(),
+                result->GetFileName(),
                 fileName,
                 descriptor.executable());
         } catch (const std::exception& ex) {
@@ -629,12 +642,12 @@ private:
 
         LOG_INFO("Preparing regular user file via download (FileName: %v, ChunkCount: %v)",
             fileName,
-            descriptor.file().chunks_size());
+            descriptor.chunks_size());
 
-        CheckedWaitFor(DownloadChunks(descriptor.file()));
+        CheckedWaitFor(DownloadChunks(descriptor.chunks()));
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
 
-        auto chunks = PatchCachedChunkReplicas(descriptor.file());
+        auto chunks = PatchCachedChunkReplicas(descriptor.chunks());
         auto config = New<TFileReaderConfig>();
 
         auto provider = New<TFileChunkReaderProvider>(
@@ -686,15 +699,17 @@ private:
 
     void PrepareTableFile(const TTableFileDescriptor& descriptor)
     {
+        const auto& fileName = descriptor.file_name();
+
         LOG_INFO("Preparing user table file (FileName: %v, ChunkCount: %v)",
             descriptor.file_name(),
-            descriptor.table().chunks_size());
+            descriptor.chunks_size());
 
-        CheckedWaitFor(DownloadChunks(descriptor.table()));
+        CheckedWaitFor(DownloadChunks(descriptor.chunks()));
 
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
 
-        auto chunks = PatchCachedChunkReplicas(descriptor.table());
+        auto chunks = PatchCachedChunkReplicas(descriptor.chunks());
 
         auto config = New<TTableReaderConfig>();
 
@@ -713,7 +728,7 @@ private:
 
         auto syncReader = CreateSyncReader(asyncReader);
         auto format = ConvertTo<NFormats::TFormat>(TYsonString(descriptor.format()));
-        auto fileName = descriptor.file_name();
+
         try {
             syncReader->Open();
 
@@ -743,7 +758,8 @@ private:
 
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) || 
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
-            resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed))
+            resultError.FindMatching(EErrorCode::ConfigCreationFailed) || 
+            resultError.FindMatching(EExitStatus::ExitCodeBase + EJobProxyExitCode::HeartbeatFailed))
         {
             return MakeNullable(EAbortReason::Other);
         } else if (resultError.FindMatching(NExecAgent::EErrorCode::ResourceOverdraft)) {

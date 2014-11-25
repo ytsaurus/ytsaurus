@@ -239,8 +239,9 @@ protected:
 
         std::vector<TEndpoint> Endpoints;
 
-        void Persist(TPersistenceContext& context);
+        NYTree::TYsonString EffectiveAcl;
 
+        void Persist(TPersistenceContext& context);
     };
 
     std::vector<TOutputTable> OutputTables;
@@ -440,6 +441,8 @@ protected:
 
         bool IsPending() const;
         bool IsCompleted() const;
+
+        virtual bool IsActive() const;
 
         i64 GetTotalDataSize() const;
         i64 GetCompletedDataSize() const;

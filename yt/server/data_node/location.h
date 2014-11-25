@@ -60,6 +60,10 @@ public:
     //! Never throws.
     i64 GetTotalSpace() const;
 
+    //! Returns the space reserved for low watermark.
+    //! Never throws.
+    i64 GetLowWatermarkSpace() const;
+
     //! Returns the number of bytes used at the location.
     /*!
      *  \note

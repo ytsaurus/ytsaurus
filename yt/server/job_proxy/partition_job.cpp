@@ -7,7 +7,7 @@
 #include <core/misc/sync.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
@@ -42,7 +42,8 @@ static auto& Profiler = JobProxyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TOldMultiChunkParallelReader<TTableChunkReader> TReader;
+// Use sequential reader here to make partition job output deterministic.
+typedef TOldMultiChunkSequentialReader<TTableChunkReader> TReader;
 typedef TOldMultiChunkSequentialWriter<TPartitionChunkWriterProvider> TWriter;
 
 class TPartitionJob

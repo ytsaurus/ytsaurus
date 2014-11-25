@@ -138,6 +138,7 @@ void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& contex
         >
     >(context, OutputChunkTreeIds);
     Persist(context, Endpoints);
+    Persist(context, EffectiveAcl);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -583,7 +584,12 @@ bool TOperationControllerBase::TTask::IsPending() const
 
 bool TOperationControllerBase::TTask::IsCompleted() const
 {
-    return GetChunkPoolOutput()->IsCompleted();
+    return IsActive() && GetChunkPoolOutput()->IsCompleted();
+}
+
+bool TOperationControllerBase::TTask::IsActive() const
+{
+    return true;
 }
 
 i64 TOperationControllerBase::TTask::GetTotalDataSize() const
@@ -2318,18 +2324,36 @@ void TOperationControllerBase::CreateLivePreviewTables()
     auto addRequest = [&] (
             const Stroka& path,
             int replicationFactor,
-            const Stroka& key) {
-        auto req = TCypressYPathProxy::Create(path);
+            const Stroka& key,
+            const TYsonString& acl)
+    {
+        {
+            auto req = TCypressYPathProxy::Create(path);
 
-        req->set_type(EObjectType::Table);
-        req->set_ignore_existing(true);
+            req->set_type(EObjectType::Table);
+            req->set_ignore_existing(true);
 
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("replication_factor", replicationFactor);
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("replication_factor", replicationFactor);
 
-        ToProto(req->mutable_node_attributes(), *attributes);
+            ToProto(req->mutable_node_attributes(), *attributes);
 
-        batchReq->AddRequest(req, key);
+            batchReq->AddRequest(req, key);
+        }
+
+        {
+            auto req = TYPathProxy::Set(path + "/@acl");
+            req->set_value(acl.Data());
+
+            batchReq->AddRequest(req, key);
+        }
+
+        {
+            auto req = TYPathProxy::Set(path + "/@inherit_acl");
+            req->set_value(ConvertToYsonString(false).Data());
+
+            batchReq->AddRequest(req, key);
+        }
     };
 
     if (IsOutputLivePreviewSupported()) {
@@ -2338,7 +2362,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             const auto& table = OutputTables[index];
             auto path = GetLivePreviewOutputPath(Operation->GetId(), index);
-            addRequest(path, table.Options->ReplicationFactor, "create_output");
+            addRequest(path, table.Options->ReplicationFactor, "create_output", OutputTables[index].EffectiveAcl);
         }
     }
 
@@ -2346,7 +2370,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         LOG_INFO("Creating intermediate table for live preview");
 
         auto path = GetLivePreviewIntermediatePath(Operation->GetId());
-        addRequest(path, 1, "create_intermediate");
+        addRequest(path, 1, "create_intermediate", ConvertToYsonString(Spec->IntermediateDataAcl));
     }
 
     auto batchRsp = WaitFor(batchReq->Invoke());
@@ -2358,17 +2382,17 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
     if (IsOutputLivePreviewSupported()) {
         auto rsps = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_output");
-        YCHECK(rsps.size() == OutputTables.size());
+        YCHECK(rsps.size() == 3 * OutputTables.size());
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
-            handleResponse(OutputTables[index], rsps[index]);
+            handleResponse(OutputTables[index], rsps[3 * index]);
         }
 
         LOG_INFO("Output live preview tables created");
     }
 
     if (IsIntermediateLivePreviewSupported()) {
-        auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>("create_intermediate");
-        handleResponse(IntermediateTable, rsp);
+        auto rsp = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_intermediate");
+        handleResponse(IntermediateTable, rsp[0]);
 
         LOG_INFO("Intermediate live preview table created");
     }
@@ -2715,6 +2739,7 @@ void TOperationControllerBase::RequestOutputObjects()
             attributeFilter.Keys.push_back("replication_factor");
             attributeFilter.Keys.push_back("account");
             attributeFilter.Keys.push_back("vital");
+            attributeFilter.Keys.push_back("effective_acl");
             ToProto(req->mutable_attribute_filter(), attributeFilter);
             SetTransactionId(req, Operation->GetOutputTransaction());
             batchReq->AddRequest(req, "get_out_attributes");
@@ -2768,6 +2793,7 @@ void TOperationControllerBase::RequestOutputObjects()
                 table.Options->ReplicationFactor = attributes.Get<int>("replication_factor");
                 table.Options->Account = attributes.Get<Stroka>("account");
                 table.Options->ChunksVital = attributes.Get<bool>("vital");
+                table.EffectiveAcl = attributes.GetYson("effective_acl");
 
                 LOG_INFO("Output table attributes received (Path: %v, Options: %v)",
                     path,
@@ -3548,19 +3574,30 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->add_environment(Format("YT_OPERATION_ID=%v", Operation->GetId()));
 
+    auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+    auto registerChunks = [&] (
+        const NChunkClient::NProto::TRspFetch& response,
+        google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs)
+    {
+        nodeDirectory->MergeFrom(response.node_directory());
+        chunkSpecs->MergeFrom(response.chunks());
+    };
+
     for (const auto& file : regularFiles) {
         auto *descriptor = jobSpec->add_regular_files();
-        *descriptor->mutable_file() = file.FetchResponse;
         descriptor->set_executable(file.Executable);
         descriptor->set_file_name(file.FileName);
+        registerChunks(file.FetchResponse, descriptor->mutable_chunks());
     }
 
     for (const auto& file : tableFiles) {
         auto* descriptor = jobSpec->add_table_files();
-        *descriptor->mutable_table() = file.FetchResponse;
         descriptor->set_file_name(file.FileName);
         descriptor->set_format(file.Format.Data());
+        registerChunks(file.FetchResponse, descriptor->mutable_chunks());
     }
+
+    nodeDirectory->DumpTo(jobSpec->mutable_node_directory());
 }
 
 void TOperationControllerBase::InitUserJobSpec(

@@ -132,6 +132,11 @@ i64 TLocation::GetTotalSpace() const
     }
 }
 
+i64 TLocation::GetLowWatermarkSpace() const
+{
+    return Config_->LowWatermark;
+}
+
 i64 TLocation::GetUsedSpace() const
 {
     return UsedSpace_;
