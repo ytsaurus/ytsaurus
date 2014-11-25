@@ -728,11 +728,6 @@ private:
         if (!host)
             return result;
 
-        if (UserJobSpec.enable_accounting() || host->GetConfig()->ForceEnableAccounting) {
-            ToProto(result.mutable_cpu(), CpuAccountingStats);
-            ToProto(result.mutable_block_io(), BlockIOStats);
-        }
-
         {
             TGuard<TSpinLock> guard(SpinLock);
             ToProto(result.mutable_statistics(), ConvertToYsonString(Statistics).Data());

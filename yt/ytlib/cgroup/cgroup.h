@@ -125,7 +125,6 @@ public:
     TStatistics GetStatistics();
 };
 
-void ToProto(NProto::TCpuAccountingStatistics* protoStats, const TCpuAccounting::TStatistics& stats);
 void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -163,7 +162,6 @@ private:
     std::vector<TBlockIO::TStatisticsItem> GetDetailedStatistics(const char* filename);
 };
 
-void ToProto(NProto::TBlockIOStatistics* protoStats, const TBlockIO::TStatistics& stats);
 void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////

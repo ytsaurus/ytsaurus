@@ -3,7 +3,6 @@
 
 #include <core/ytree/fluent.h>
 #include <ytlib/chunk_client/data_statistics.h>
-#include <ytlib/cgroup/statistics.h>
 
 namespace NYT {
 namespace NJobTrackerClient {
@@ -21,13 +20,6 @@ TJobStatistics& operator+= (TJobStatistics& lhs, const TJobStatistics& rhs)
     *lhs.mutable_output() += rhs.output();
     lhs.set_time(lhs.time() + rhs.time());
 
-    if (lhs.has_cpu() && rhs.has_cpu()) {
-        *lhs.mutable_cpu() += rhs.cpu();
-    }
-    if (lhs.has_block_io() && rhs.has_block_io()) {
-        *lhs.mutable_block_io() += rhs.block_io();
-    }
-
     return lhs;
 }
 
@@ -43,13 +35,6 @@ TJobStatistics& operator-= (TJobStatistics& lhs, const TJobStatistics& rhs)
     *lhs.mutable_input() -= rhs.input();
     *lhs.mutable_output() -= rhs.output();
     lhs.set_time(lhs.time() - rhs.time());
-
-    if (lhs.has_cpu() && rhs.has_cpu()) {
-        *lhs.mutable_cpu() -= rhs.cpu();
-    }
-    if (lhs.has_block_io() && rhs.has_block_io()) {
-        *lhs.mutable_block_io() -= rhs.block_io();
-    }
 
     return lhs;
 }
@@ -83,12 +68,6 @@ void Serialize(const TJobStatistics& statistics, IYsonConsumer* consumer)
             .Item("input").Value(statistics.input())
             .Item("output").Value(statistics.output())
             .Item("time").Value(statistics.time())
-            .DoIf(statistics.has_cpu(), [&] (TFluentMap fluent) {
-                fluent.Item("cpu").Value(statistics.cpu());
-            })
-            .DoIf(statistics.has_block_io(), [&] (TFluentMap fluent) {
-                fluent.Item("block_io").Value(statistics.block_io());
-            })
         .EndMap();
 }
 

@@ -465,12 +465,6 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics()
     return result;
 }
 
-void ToProto(NProto::TCpuAccountingStatistics* protoStats, const TCpuAccounting::TStatistics& stats)
-{
-    protoStats->set_user_time(stats.UserTime.MilliSeconds());
-    protoStats->set_system_time(stats.SystemTime.MilliSeconds());
-}
-
 void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     NYTree::BuildYsonFluently(consumer)
@@ -590,13 +584,6 @@ void TBlockIO::ThrottleOperations(const Stroka& deviceId, i64 operations)
     auto value = Format("%v %v", deviceId, operations);
     Append("blkio.throttle.read_iops_device", value);
     Append("blkio.throttle.write_iops_device", value);
-}
-
-void ToProto(NProto::TBlockIOStatistics* protoStats, const TBlockIO::TStatistics& stats)
-{
-    protoStats->set_total_sectors(stats.TotalSectors);
-    protoStats->set_bytes_read(stats.BytesRead);
-    protoStats->set_bytes_written(stats.BytesWritten);
 }
 
 void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* consumer)

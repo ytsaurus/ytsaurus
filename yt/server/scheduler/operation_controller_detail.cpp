@@ -33,8 +33,6 @@
 #include <ytlib/scheduler/config.h>
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/cgroup/statistics.h>
-
 #include <ytlib/api/connection.h>
 
 #include <core/concurrency/scheduler.h>
