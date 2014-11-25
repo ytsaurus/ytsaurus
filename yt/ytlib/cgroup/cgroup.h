@@ -137,7 +137,6 @@ public:
     {
         TStatistics();
 
-        i64 TotalSectors;
         i64 BytesRead;
         i64 BytesWritten;
     };

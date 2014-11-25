@@ -472,8 +472,7 @@ void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsum
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlockIO::TStatistics::TStatistics()
-    : TotalSectors(0)
-    , BytesRead(0)
+    : BytesRead(0)
     , BytesWritten(0)
 { }
 
