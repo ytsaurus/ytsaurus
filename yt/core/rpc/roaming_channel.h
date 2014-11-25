@@ -26,7 +26,9 @@ DEFINE_REFCOUNTED_TYPE(IRoamingChannelProvider)
  *  This endpoint is cached and reused until some request fails with RPC error code.
  *  In the latter case the endpoint is rediscovered.
  */
-IChannelPtr CreateRoamingChannel(IRoamingChannelProviderPtr provider);
+IChannelPtr CreateRoamingChannel(
+    IRoamingChannelProviderPtr provider,
+    TCallback<bool(const TError&)> isChannelFailureError = BIND(&IsChannelFailureError));
 
 ////////////////////////////////////////////////////////////////////////////////
 

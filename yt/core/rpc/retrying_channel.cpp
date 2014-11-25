@@ -26,9 +26,13 @@ class TRetryingChannel
     : public TChannelWrapper
 {
 public:
-    TRetryingChannel(TRetryingChannelConfigPtr config, IChannelPtr underlyingChannel)
+    TRetryingChannel(
+        TRetryingChannelConfigPtr config,
+        IChannelPtr underlyingChannel,
+        TCallback<bool(const TError&)> isRetriableError)
         : TChannelWrapper(std::move(underlyingChannel))
         , Config_(std::move(config))
+        , IsRetriableError_(isRetriableError)
     {
         YCHECK(Config_);
     }
@@ -48,7 +52,8 @@ public:
             request,
             responseHandler,
             timeout,
-            requestAck)
+            requestAck,
+            IsRetriableError_)
         ->Send();
     }
 
@@ -64,7 +69,8 @@ private:
             IClientRequestPtr request,
             IClientResponseHandlerPtr originalHandler,
             TNullable<TDuration> timeout,
-            bool requestAck)
+            bool requestAck,
+            TCallback<bool(const TError&)> isRetriableError)
             : Config_(std::move(config))
             , UnderlyingChannel_(std::move(underlyingChannel))
             , CurrentAttempt_(1)
@@ -72,6 +78,7 @@ private:
             , OriginalHandler_(std::move(originalHandler))
             , Timeout_(timeout)
             , RequestAck_(requestAck)
+            , IsRetriableError_(isRetriableError)
         {
             YASSERT(Config_);
             YASSERT(UnderlyingChannel_);
@@ -139,7 +146,7 @@ private:
                 CurrentAttempt_,
                 Config_->RetryAttempts);
 
-            if (!IsRetriableError(error)) {
+            if (!IsRetriableError_.Run(error)) {
                 OriginalHandler_->OnError(error);
                 return;
             }
@@ -186,17 +193,21 @@ private:
                 BIND(&TRetryingRequest::Send, MakeStrong(this)),
                 Config_->RetryBackoffTime);
         }
+
+        TCallback<bool(const TError&)> IsRetriableError_;
     };
 
     TRetryingChannelConfigPtr Config_;
 
+    TCallback<bool(const TError&)> IsRetriableError_;
 };
 
 IChannelPtr CreateRetryingChannel(
     TRetryingChannelConfigPtr config,
-    IChannelPtr underlyingChannel)
+    IChannelPtr underlyingChannel,
+    TCallback<bool(const TError&)> isRetriableError)
 {
-    return New<TRetryingChannel>(config, underlyingChannel);
+    return New<TRetryingChannel>(config, underlyingChannel, isRetriableError);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

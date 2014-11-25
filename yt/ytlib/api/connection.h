@@ -61,7 +61,9 @@ struct IConnection
 
 DEFINE_REFCOUNTED_TYPE(IConnection)
 
-IConnectionPtr CreateConnection(TConnectionConfigPtr config);
+IConnectionPtr CreateConnection(
+    TConnectionConfigPtr config,
+    TCallback<bool(const TError&)> isRetriableError = BIND(&NRpc::IsRetriableError));
 
 ////////////////////////////////////////////////////////////////////////////////
 

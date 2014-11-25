@@ -16,8 +16,11 @@ class TRoamingChannel
     : public IChannel
 {
 public:
-    explicit TRoamingChannel(IRoamingChannelProviderPtr provider)
+    explicit TRoamingChannel(
+        IRoamingChannelProviderPtr provider,
+        TCallback<bool(const TError&)> isChannelFailureError)
         : Provider_(std::move(provider))
+        , IsChannelFailureError_(isChannelFailureError)
     { }
 
     virtual TNullable<TDuration> GetDefaultTimeout() const override
@@ -113,9 +116,11 @@ private:
     public:
         TResponseHandler(
             IClientResponseHandlerPtr underlyingHandler,
-            TClosure onFailed)
+            TClosure onFailed,
+            TCallback<bool(const TError&)> isChannelFailureError)
             : UnderlyingHandler_(underlyingHandler)
             , OnFailed_(onFailed)
+            , IsChannelFailureError_(isChannelFailureError)
         { }
 
         virtual void OnAcknowledgement() override
@@ -131,7 +136,7 @@ private:
         virtual void OnError(const TError& error) override
         {
             UnderlyingHandler_->OnError(error);
-            if (IsRetriableError(error)) {
+            if (IsChannelFailureError_.Run(error)) {
                 OnFailed_.Run();
             }
         }
@@ -139,7 +144,7 @@ private:
     private:
         IClientResponseHandlerPtr UnderlyingHandler_;
         TClosure OnFailed_;
-
+        TCallback<bool(const TError&)> IsChannelFailureError_;
     };
 
 
@@ -179,7 +184,8 @@ private:
             auto channel = result.Value();
             auto responseHandlerWrapper = New<TResponseHandler>(
                 responseHandler,
-                BIND(&TRoamingChannel::OnChannelFailed, MakeStrong(this), channel));
+                BIND(&TRoamingChannel::OnChannelFailed, MakeStrong(this), channel),
+                IsChannelFailureError_);
             channel->Send(
                 request,
                 responseHandlerWrapper,
@@ -209,11 +215,14 @@ private:
     TError TerminationError_;
     TPromise<TErrorOr<IChannelPtr>> ChannelPromise_;
 
+    TCallback<bool(const TError&)> IsChannelFailureError_;
 };
 
-IChannelPtr CreateRoamingChannel(IRoamingChannelProviderPtr producer)
+IChannelPtr CreateRoamingChannel(
+    IRoamingChannelProviderPtr producer,
+    TCallback<bool(const TError&)> isChannelFailureError)
 {
-    return New<TRoamingChannel>(producer);
+    return New<TRoamingChannel>(producer, isChannelFailureError);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

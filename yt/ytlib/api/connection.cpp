@@ -164,11 +164,13 @@ class TConnection
     , public IPrepareCallbacks
 {
 public:
-    explicit TConnection(TConnectionConfigPtr config)
+    explicit TConnection(
+        TConnectionConfigPtr config,
+        TCallback<bool(const TError&)> isRetriableError)
         : Config_(config)
         , Evaluator_(New<TEvaluator>(Config_->QueryExecutor))
     {
-        MasterChannel_ = CreateMasterChannel(Config_->Master);
+        MasterChannel_ = CreateMasterChannel(Config_->Master, isRetriableError);
 
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
@@ -186,7 +188,7 @@ public:
             // Disable cache.
             masterCacheConfig = Config_->Master;
         }
-        MasterCacheChannel_ = CreateMasterChannel(masterCacheConfig);
+        MasterCacheChannel_ = CreateMasterChannel(masterCacheConfig, isRetriableError);
 
         SchedulerChannel_ = CreateSchedulerChannel(
             Config_->Scheduler,
@@ -525,14 +527,17 @@ private:
     TEvaluatorPtr Evaluator_;
 
 
-    static IChannelPtr CreateMasterChannel(TMasterConnectionConfigPtr config)
+    static IChannelPtr CreateMasterChannel(
+        TMasterConnectionConfigPtr config,
+        TCallback<bool(const TError&)> isRetriableError)
     {
         auto leaderChannel = CreateLeaderChannel(
             config,
             GetBusChannelFactory());
         auto masterChannel = CreateRetryingChannel(
             config,
-            leaderChannel);
+            leaderChannel,
+            isRetriableError);
         masterChannel->SetDefaultTimeout(config->RpcTimeout);
         return masterChannel;
     }
@@ -700,9 +705,11 @@ private:
 
 };
 
-IConnectionPtr CreateConnection(TConnectionConfigPtr config)
+IConnectionPtr CreateConnection(
+    TConnectionConfigPtr config,
+    TCallback<bool(const TError&)> isRetriableError)
 {
-    return New<TConnection>(config);
+    return New<TConnection>(config, isRetriableError);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
