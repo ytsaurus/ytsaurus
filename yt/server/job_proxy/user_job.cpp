@@ -292,8 +292,8 @@ public:
                 DestroyCGroup(Memory);
             }
 
-            AddStatistic("/system/user_job/cpu", CpuAccountingStats);
-            AddStatistic("/system/user_job/block_io", BlockIOStats);
+            AddStatistic("/user_job/system/cpu", CpuAccountingStats);
+            AddStatistic("/user_job/system/block_io", BlockIOStats);
         }
 
         if (ErrorOutput) {
@@ -305,9 +305,9 @@ public:
             }
         }
 
-        AddStatistic("/system/job_proxy/input", JobIO->GetInputDataStatistics());
-        AddStatistic("/system/job_proxy/output", JobIO->GetOutputDataStatistics());
-        Statistics.Add("/system/user_job/time", TSummary(static_cast<i64>(GetElapsedTime().MilliSeconds())));
+        AddStatistic("/job_proxy/input", JobIO->GetInputDataStatistics());
+        AddStatistic("/job_proxy/output", JobIO->GetOutputDataStatistics());
+        Statistics.Add("/user_job/system/time", TSummary(static_cast<i64>(GetElapsedTime().MilliSeconds())));
 
         if (JobExitError.IsOK()) {
             JobIO->PopulateResult(&result);
@@ -444,7 +444,7 @@ private:
 
         {
             if (!UserJobSpec.use_yamr_descriptors()) {
-                auto consumer = std::make_unique<TStatisticsConverter>(BIND(&TUserJob::ConsumeStatistics, Unretained(this)), "/user");
+                auto consumer = std::make_unique<TStatisticsConverter>(BIND(&TUserJob::ConsumeStatistics, Unretained(this)), "/user_job/user");
                 auto parser = CreateParserForFormat(TFormat(EFormatType::Yson), EDataType::Tabular, consumer.get());
                 StatisticsOutput.reset(new TTableOutput(std::move(parser), std::move(consumer)));
 

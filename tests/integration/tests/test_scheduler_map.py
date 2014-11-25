@@ -125,8 +125,8 @@ class TestEventLog(YTEnvSetup):
         op_id = map(in_='//tmp/t1', out='//tmp/t2', command="cat; bash -c 'for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done' >/dev/null")
 
         statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
-        assert statistics['system']['user_job']['cpu']['user']['sum'] > 0
-        assert statistics['system']['user_job']['block_io']['bytes_read']['sum'] is not None
+        assert statistics['user_job']['system']['cpu']['user']['sum'] > 0
+        assert statistics['user_job']['system']['block_io']['bytes_read']['sum'] is not None
 
         # wait for scheduler to dump the event log
         time.sleep(6)
@@ -191,8 +191,8 @@ class TestUserStatistics(YTEnvSetup):
                 r'os.close(5);"'))
 
         statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
-        assert statistics['user']['cpu']['k1']['max'] == 4
-        assert statistics['user']['k2']['count'] == 2
+        assert statistics['user_job']['user']['cpu']['k1']['max'] == 4
+        assert statistics['user_job']['user']['k2']['count'] == 2
 
     def test_multiple_job_statistics(self):
         create('table', '//tmp/t1')
@@ -201,7 +201,7 @@ class TestUserStatistics(YTEnvSetup):
 
         op_id = map(in_="//tmp/t1", out="//tmp/t2", command="cat", opt=["/spec/job_count=2"])
         statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
-        assert statistics['system']['user_job']['cpu']['user']['count'] == 2
+        assert statistics['user_job']['system']['cpu']['user']['count'] == 2
 
     def test_job_statistics_progress(self):
         create('table', '//tmp/t1')
@@ -245,13 +245,13 @@ class TestUserStatistics(YTEnvSetup):
                 if tries > 10:
                     break
 
-            assert statistics['system']['user_job']['cpu']['user']['count'] == 1
+            assert statistics['user_job']['system']['cpu']['user']['count'] == 1
 
             os.unlink(keeper_filename)
             track_op(op_id)
 
             statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
-            assert statistics['system']['user_job']['cpu']['user']['count'] == 2
+            assert statistics['user_job']['system']['cpu']['user']['count'] == 2
         finally:
             to_delete.reverse()
             for filename in to_delete:
