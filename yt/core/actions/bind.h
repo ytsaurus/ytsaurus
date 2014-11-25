@@ -79,8 +79,11 @@ Bind(
         > TTypedBindState;
 
     NYT::NDetail::TCheckFirstArgument<TRunnable, TAs...> checkFirstArgument;
+    UNUSED(checkFirstArgument);
     NYT::NDetail::TCheckReferencesInBoundArgs<typename TTypedBindState::TBoundArgsPack> checkReferencesInBoundArgs;
+    UNUSED(checkReferencesInBoundArgs);
     NYT::NDetail::TCheckParamsIsRawPtrToRefCountedType<TAs...> checkParamsIsRawPtrToRefCountedType;
+    UNUSED(checkParamsIsRawPtrToRefCountedType);
 
     UNUSED(checkFirstArgument);
     UNUSED(checkReferencesInBoundArgs);
