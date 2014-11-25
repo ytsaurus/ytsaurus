@@ -202,6 +202,7 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_templa
 
     spec = deepcopy(spec_template)
     spec["data_size_per_job"] = 1
+    spec["job_io"] = {"table_writer": {"max_row_weight": 128 * 1024 * 1024}}
 
     command = """\
 set -ux
@@ -244,7 +245,7 @@ done"""
                 run_operation_and_notify(
                     message_queue,
                     yt_client,
-                    lambda client, strategy: client.run_sort(dst, sort_by=["key", "subkey"], strategy=strategy))
+                    lambda client, strategy: client.run_sort(dst, sort_by=["key", "subkey"], strategy=strategy, spec=deepcopy(spec_template)))
 
     finally:
         yamr_client.drop(temp_yamr_table)
