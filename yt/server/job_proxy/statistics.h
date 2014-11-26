@@ -92,5 +92,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
+template <typename T>
+void AddStatistic(TStatistics& customStatistics, const NYPath::TYPath& path, const T& statistics)
+{
+    auto consume = [&customStatistics] (const TStatistics& other) {
+        customStatistics.Merge(other);
+    };
+
+    TStatisticsConverter consumer(BIND(consume), path);
+    Serialize(statistics, &consumer);
+}
+
 } // namespace NJobProxy
 } // namespace NYT

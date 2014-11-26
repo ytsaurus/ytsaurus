@@ -139,17 +139,6 @@ void TJobProxy::RetrieveJobSpec()
     JobProxyMemoryLimit = rsp->resource_usage().memory();
 }
 
-template <typename T>
-void AddStatistic(TStatistics& customJobStatistics, const NYPath::TYPath& path, const T& statistics)
-{
-    auto consume = [&customJobStatistics] (const TStatistics& other) {
-        customJobStatistics.Merge(other);
-    };
-
-    TStatisticsConverter consumer(BIND(consume), path);
-    Serialize(statistics, &consumer);
-}
-
 void TJobProxy::Run()
 {
     auto result = BIND(&TJobProxy::DoRun, Unretained(this))

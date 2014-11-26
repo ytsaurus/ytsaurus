@@ -293,8 +293,8 @@ public:
                 DestroyCGroup(Memory);
             }
 
-            AddStatistic("/user_job/system/cpu", CpuAccountingStats);
-            AddStatistic("/user_job/system/block_io", BlockIOStats);
+            AddStatistic(Statistics, "/user_job/system/cpu", CpuAccountingStats);
+            AddStatistic(Statistics, "/user_job/system/block_io", BlockIOStats);
         }
 
         if (ErrorOutput) {
@@ -306,8 +306,8 @@ public:
             }
         }
 
-        AddStatistic("/job_proxy/input", JobIO->GetInputDataStatistics());
-        AddStatistic("/job_proxy/output", JobIO->GetOutputDataStatistics());
+        AddStatistic(Statistics, "/job_proxy/input", JobIO->GetInputDataStatistics());
+        AddStatistic(Statistics, "/job_proxy/output", JobIO->GetOutputDataStatistics());
         Statistics.Add("/user_job/system/time", TSummary(static_cast<i64>(GetElapsedTime().MilliSeconds())));
 
         if (JobExitError.IsOK()) {
@@ -751,12 +751,6 @@ private:
         return result;
     }
 
-    template <typename T>
-    void AddStatistic(const NYPath::TYPath& path, const T& statistics)
-    {
-        TStatisticsConverter consumer(BIND(&TUserJob::ConsumeStatistics, MakeWeak(this)), path);
-        Serialize(statistics, &consumer);
-    }
 
     void CreateCGroup(TCGroup& cgroup)
     {
