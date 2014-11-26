@@ -43,6 +43,8 @@ TUnversionedRowMerger::TUnversionedRowMerger(
         }
     }
 
+    MergedTimestamps_.resize(SchemaColumnCount_);
+
     Cleanup();
 }
 
