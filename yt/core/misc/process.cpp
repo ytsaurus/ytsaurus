@@ -182,8 +182,8 @@ void TProcess::Spawn()
     }
 
     YCHECK(res == sizeof(data));
-
-    ::waitpid(pid, nullptr, 0);
+    YCHECK(::waitpid(pid, nullptr, 0) == pid);
+    
     Finished_ = true;
 
     int actionIndex = data[0];
