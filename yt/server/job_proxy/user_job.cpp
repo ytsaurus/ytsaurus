@@ -606,10 +606,20 @@ private:
             }
 
             {
-                TGuard<TSpinLock> guard(MemoryLock);
+                bool isMemoryCreated = false;
+                NCGroup::TMemory::TStatistics statistics;
 
-                if (Memory.IsCreated()) {
-                    auto statistics = Memory.GetStatistics();
+                {
+                    TGuard<TSpinLock> guard(MemoryLock);
+
+                    if (Memory.IsCreated()) {
+                        isMemoryCreated = true;
+                        statistics = Memory.GetStatistics();
+                    }
+                }
+
+                if (isMemoryCreated)
+                {
                     int oldRss = rss;
                     rss = statistics.Rss + statistics.MappedFile;
 
@@ -619,6 +629,8 @@ private:
                             rss,
                             JobId);
                     }
+
+                    AddStatistic("/user_job/system/memory", statistics);
                 }
             }
 

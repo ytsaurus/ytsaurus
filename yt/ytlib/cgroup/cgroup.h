@@ -169,10 +169,8 @@ class TMemory
 public:
     struct TStatistics
     {
-        TStatistics();
-
-        i64 Rss;
-        i64 MappedFile;
+        i64 Rss = 0;
+        i64 MappedFile = 0;
     };
 
     explicit TMemory(const Stroka& name);
@@ -195,6 +193,8 @@ public:
 
     int GetFailCount() const;
 };
+
+void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

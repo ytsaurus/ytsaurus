@@ -114,7 +114,11 @@ class TestEventLog(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         'exec_agent' : {
-            'force_enable_accounting' : 'true'
+            'force_enable_accounting' : 'true',
+            'enable_cgroup_memory_hierarchy' : 'true',
+            'slot_manager' : {
+                'enforce_job_control' : 'true'
+            }
         }
     }
 
@@ -122,11 +126,12 @@ class TestEventLog(YTEnvSetup):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write('//tmp/t1', [{"a": "b"}])
-        op_id = map(in_='//tmp/t1', out='//tmp/t2', command="cat; bash -c 'for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done' >/dev/null")
+        op_id = map(in_='//tmp/t1', out='//tmp/t2', command="cat; bash -c 'for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2' >/dev/null")
 
         statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
         assert statistics['user_job']['system']['cpu']['user']['sum'] > 0
         assert statistics['user_job']['system']['block_io']['bytes_read']['sum'] is not None
+        assert statistics['user_job']['system']['memory']['rss']['count'] > 0
 
         # wait for scheduler to dump the event log
         time.sleep(6)

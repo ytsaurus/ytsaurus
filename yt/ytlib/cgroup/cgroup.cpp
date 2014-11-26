@@ -680,10 +680,14 @@ int TMemory::GetFailCount() const
     return FromString<int>(Get("memory.failcnt"));
 }
 
-TMemory::TStatistics::TStatistics()
-    : Rss(0)
-    , MappedFile(0)
-{ }
+void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("rss").Value(statistics.Rss)
+            .Item("mapped_file").Value(statistics.MappedFile)
+        .EndMap();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
