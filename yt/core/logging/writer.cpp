@@ -108,10 +108,10 @@ void TFileLogWriter::CheckSpace(i64 minSpace)
         }
     } catch (const std::exception& ex) {
         AtomicSet(NotEnoughSpace_, true);
-            LOG_ERROR(
-                ex,
-                "Disable log writer: space check failed (FileName: %s)",
-                ~FileName_);
+        LOG_ERROR(
+            ex,
+            "Disable log writer: space check failed (FileName: %s)",
+            ~FileName_);
     }
 }
 
