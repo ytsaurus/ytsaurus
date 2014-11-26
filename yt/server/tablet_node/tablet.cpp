@@ -312,7 +312,7 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
     }
 
     std::vector<std::unique_ptr<TPartition>> splitPartitions;
-    auto& sampleKeys = Partitions_[index]->SampleKeys();
+    auto& sampleKeys = existingPartition->SampleKeys();
     int sampleKeyIndex = 0;
     for (int pivotKeyIndex = 0; pivotKeyIndex < pivotKeys.size(); ++pivotKeyIndex) {
         auto partition = std::make_unique<TPartition>(
