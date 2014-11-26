@@ -1,12 +1,5 @@
 {
     "clusters": {
-        "kant": {
-            "type": "yt",
-            "options": {
-                "proxy": "kant.yt.yandex.net"
-            },
-            "fastbone": true
-        },
         "smith": {
             "type": "yt",
             "options": {
@@ -92,14 +85,13 @@
     },
     "kiwi_transmitter": "flux",
     "availability_graph": {
-        "kant": ["cedar", "betula", "smith", "plato", "bsmr"],
-        "smith": ["cedar", "betula", "kant", "plato"],
-        "plato": ["cedar", "betula", "kant", "smith", "apterix"],
+        "smith": ["cedar", "betula", "plato"],
+        "plato": ["cedar", "betula", "smith", "apterix"],
         "marx": ["plato"],
-        "cedar": ["kant", "smith", "plato", "redwood", "betula"],
-        "betula": ["kant", "smith", "plato", "cedar", "redwood"],
-        "redwood": ["plato", "kant", "smith", "cedar", "betula"],
-        "bsmr": ["kant"]
+        "cedar": ["smith", "plato", "redwood", "betula"],
+        "betula": ["smith", "plato", "cedar", "redwood"],
+        "redwood": ["plato", "smith", "cedar", "betula"],
+        "bsmr": ["plato"]
     },
     "scheduling_backoff": 5,
     "pending_tasks_limit": 5000,
@@ -107,7 +99,7 @@
     "running_tasks_limit_per_direction": 10,
 
     "path": "//home/ignat/transfer_manager",
-    "proxy": "kant.yt.yandex.net",
+    "proxy": "plato.yt.yandex.net",
     "token": "93b4cacc08aa4538a79a76c21e99c0fb",
     "port": 6000,
 

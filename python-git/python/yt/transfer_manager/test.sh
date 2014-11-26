@@ -1,9 +1,12 @@
-#!/bin/bash -eu
+#!/bin/bash -eux
 
 PORT=5010
+
+set +u
 if [ -z "$YT_TOKEN" ]; then
     export YT_TOKEN=$(cat ~/.yt/token)
 fi
+set -u
 
 die() {
     echo $@
@@ -70,10 +73,10 @@ wait_task() {
 }
 
 # Different transfers
-echo -e "a\tb" | yt2 write //tmp/test_table --format yamr --proxy kant.yt.yandex.net
+echo -e "a\tb" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
 
-echo "Importing from Kant to Cedar"
-id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "kant", "destination_table": "tmp/yt/test_table", "destination_cluster": "cedar"}')
+echo "Importing from Smith to Cedar"
+id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test_table", "destination_cluster": "cedar"}')
 wait_task $id
 
 echo "Importing from Cedar to Redwood"
@@ -84,31 +87,31 @@ echo "Importing from Redwood to Plato"
 id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "redwood", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "mr_user": "userdata"}')
 wait_task $id
 
-echo "Importing from Plato to Kant"
-id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "kant"}')
-wait_task $id
-
-check \
-    "$(yt2 read //tmp/test_table --proxy kant.yt.yandex.net --format yamr)" \
-    "$(yt2 read //tmp/test_table_from_plato --proxy kant.yt.yandex.net --format yamr)"
-
 echo "Importing from Plato to Smith"
 id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "smith"}')
 wait_task $id
 
 check \
-    "$(yt2 read //tmp/test_table --proxy kant.yt.yandex.net --format yamr)" \
+    "$(yt2 read //tmp/test_table --proxy smith.yt.yandex.net --format yamr)" \
+    "$(yt2 read //tmp/test_table_from_plato --proxy smith.yt.yandex.net --format yamr)"
+
+echo "Importing from Plato to Quine"
+id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "quine"}')
+wait_task $id
+
+check \
+    "$(yt2 read //tmp/test_table --proxy smith.yt.yandex.net --format yamr)" \
     "$(yt2 read //tmp/test_table_from_plato --proxy smith.yt.yandex.net --format yamr)"
 
 # Abort, restart
-yt2 remove //tmp/test_table_from_plato --proxy kant.yt.yandex.net --force
-echo "Importing from Plato to Kant"
-id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "kant"}')
+yt2 remove //tmp/test_table_from_plato --proxy smith.yt.yandex.net --force
+echo "Importing from Plato to Smith"
+id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "smith"}')
 echo "Aborting, than restarting task"
 abort_task $id
 restart_task $id
 wait_task $id
 
 check \
-    "$(yt2 read //tmp/test_table --proxy kant.yt.yandex.net --format yamr)" \
-    "$(yt2 read //tmp/test_table_from_plato --proxy kant.yt.yandex.net --format yamr)"
+    "$(yt2 read //tmp/test_table --proxy smith.yt.yandex.net --format yamr)" \
+    "$(yt2 read //tmp/test_table_from_plato --proxy smith.yt.yandex.net --format yamr)"
