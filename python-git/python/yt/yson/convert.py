@@ -12,6 +12,8 @@ def to_yson_type(value, attributes = None):
         return YsonBoolean(value)
     elif isinstance(value, int):
         result = YsonInt64(value)
+    elif isinstance(value, long):
+        result = YsonUint64(value)
     elif isinstance(value, float):
         result = YsonDouble(value)
     elif isinstance(value, list):

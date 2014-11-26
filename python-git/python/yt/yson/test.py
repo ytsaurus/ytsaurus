@@ -155,5 +155,9 @@ class TestWriter(unittest.TestCase):
         self.assertEqual(writer.dumps(False), "%false")
         self.assertEqual(writer.dumps(True), "%true")
 
+class TestTypes(unittest.TestCase):
+    def test_entity(self):
+        self.assertEqual(yt.yson.yson_types.YsonEntity(), yt.yson.yson_types.YsonEntity())
+
 if __name__ == "__main__":
     unittest.main()

@@ -172,7 +172,7 @@ class YsonParserBase(object):
         result = ""
         while True:
             ch = self._peek_char()
-            if not ch or not ch.isdigit() and ch not in "+-.eEu":
+            if not ch or not (ch.isdigit() or ch in "+-.eEu"):
                 break
             self._read_char()
             result += ch
