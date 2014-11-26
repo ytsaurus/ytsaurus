@@ -103,4 +103,6 @@ class YsonEntity(YsonType):
             return "YsonEntity"
 
     def __eq__(self, other):
+        if other is None and not self.attributes:
+            return True
         return isinstance(other, YsonEntity) and YsonType.__eq__(self, other)
