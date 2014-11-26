@@ -119,6 +119,13 @@ TEST_F(TYsonParserTest, BinaryDouble)
         std::vector<Stroka> parts = {Stroka("\x03", 1), Stroka((char*) &x, sizeof(double))};
         Run(parts); // DoubleMarker
     }
+
+    {
+        EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(x)));
+
+        std::vector<Stroka> parts = {Stroka("\x03", 1), Stroka((char*) &x, 4), Stroka(((char*) &x) + 4, 4)};
+        Run(parts); // DoubleMarker
+    }
 }
 
 
