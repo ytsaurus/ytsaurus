@@ -457,7 +457,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_job_progress(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        write('//tmp/t1', [{"foo": "bar"} for i in xrange(10**6)])
+        write('//tmp/t1', [{"foo": "bar"} for i in xrange(10)])
 
         tmpdir = tempfile.mkdtemp(prefix="job_progress")
         keeper_filename = os.path.join(tmpdir, "keep")
@@ -466,11 +466,11 @@ class TestSchedulerMapCommands(YTEnvSetup):
             with open(keeper_filename, "w") as f:
                 f.close()
 
-                op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command="""
-                    DIR={0}
-                    until rmdir $DIR 2>/dev/null; do sleep 1; done;
-                    cat
-                    """.format(tmpdir))
+            op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command="""
+                DIR={0}
+                until rmdir $DIR 2>/dev/null; do sleep 1; done;
+                cat
+                """.format(tmpdir))
 
             while True:
                 try:
