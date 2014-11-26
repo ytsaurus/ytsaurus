@@ -515,7 +515,7 @@ void TTablet::Initialize()
         ColumnIndexToLockIndex_[index] = lockIndex;
     }
 
-    ColumnLockCount_ = static_cast<int>(1 + groupToIndex.size());
+    ColumnLockCount_ = groupToIndex.size() + 1;
 }
 
 TPartition* TTablet::GetContainingPartition(IStorePtr store)
