@@ -101,3 +101,6 @@ class YsonEntity(YsonType):
             return repr({"value": "YsonEntity", "attributes": self.attributes})
         else:
             return "YsonEntity"
+
+    def __eq__(self, other):
+        return isinstance(other, YsonEntity) and YsonType.__eq__(self, other)
