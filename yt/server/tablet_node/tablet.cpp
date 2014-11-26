@@ -449,7 +449,9 @@ void TTablet::StartEpoch(TTabletSlotPtr slot)
     EpochAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
     for (auto queue : EAutomatonThreadQueue::GetDomainValues()) {
         EpochAutomatonInvokers_[queue] = CancelableContext_->CreateInvoker(
-            slot->GetEpochAutomatonInvoker(queue));
+            slot
+            ? slot->GetEpochAutomatonInvoker(queue)
+            : GetSyncInvoker());
     }
 }
 
