@@ -21,10 +21,6 @@ message TJobStatistics
     required NChunkClient.NProto.TDataStatistics output = 2;
     required int64 time = 3;
 
-//    deprecated
-//    optional NCGroup.NProto.TCpuAccountingStatistics cpu = 4;
-//    optional NCGroup.NProto.TBlockIOStatistics block_io = 5;
-
     optional bytes statistics = 6;
 }
 
