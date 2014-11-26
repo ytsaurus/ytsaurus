@@ -271,7 +271,15 @@ TFuture<TSnapshotBuilder::TResultOrError> TSnapshotBuilder::BuildSnapshotLocal(c
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    if (DecoratedState->GetVersion() != version) {
+        return MakeFuture(TResultOrError(TError(
+            "Invalid version, snapshot creation canceled: expected %s, received %s",
+            ~version.ToString(),
+            ~DecoratedState->GetVersion().ToString())));
+    }
+
     if (IsInProgress()) {
+        DecoratedState->RotateChangeLog(EpochId);
         return MakeFuture(TResultOrError(TError(
             "Unable to create local snapshot at version %s: another snapshot is already in progress",
             ~version.ToString())));
@@ -280,13 +288,6 @@ TFuture<TSnapshotBuilder::TResultOrError> TSnapshotBuilder::BuildSnapshotLocal(c
     LocalPromise = NewPromise< TErrorOr<TResult> >();
 
     LOG_INFO("Creating local snapshot at version %s", ~version.ToString());
-
-    if (DecoratedState->GetVersion() != version) {
-        return MakeFuture(TResultOrError(TError(
-            "Invalid version, snapshot creation canceled: expected %s, received %s",
-            ~version.ToString(),
-            ~DecoratedState->GetVersion().ToString())));
-    }
 
     i32 snapshotId = version.SegmentId + 1;
 

@@ -577,7 +577,9 @@ public:
         auto& response = context->Response();
         response.set_committed(error.IsOK());
 
-        if (error.GetCode() == NMetaState::EErrorCode::OutOfOrderMutations) {
+        if (error.GetCode() == NMetaState::EErrorCode::OutOfOrderMutations ||
+            error.GetCode() == NMetaState::EErrorCode::LateMutations)
+        {
             Restart();
         }
 
@@ -686,7 +688,7 @@ public:
                             MakeStrong(this),
                             context));
                 } else {
-                    LOG_DEBUG("AdvanceSegment: advancing segment");
+                    LOG_INFO("AdvanceSegment: advancing segment");
 
                     EpochContext->EpochUserStateInvoker->Invoke(BIND(
                         &TThis::DoStateAdvanceSegment,
@@ -699,7 +701,7 @@ public:
 
             case EPeerStatus::FollowerRecovery: {
                 if (EpochContext->FollowerRecovery) {
-                    LOG_DEBUG("AdvanceSegment: postponing snapshot creation");
+                    LOG_INFO("AdvanceSegment: postponing snapshot creation");
 
                     auto error = EpochContext->FollowerRecovery->PostponeSegmentAdvance(version);
                     if (!error.IsOK()) {
