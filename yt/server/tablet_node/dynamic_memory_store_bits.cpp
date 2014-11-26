@@ -217,15 +217,18 @@ int TDynamicRowKeyComparer::Compare(TDynamicRow lhs, TUnversionedValue* rhsBegin
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey RowToKey(TTablet* tablet, TDynamicRow row)
+TOwningKey RowToKey(
+    TDynamicRow row,
+    const TTableSchema& schema,
+    const TKeyColumns& keyColumns)
 {
     TUnversionedOwningRowBuilder builder;
     ui32 nullKeyBit = 1;
     ui32 nullKeyMask = row.GetNullKeyMask();
     const auto* srcKey = row.BeginKeys();
-    auto columnIt = tablet->Schema().Columns().begin();
+    auto columnIt = schema.Columns().begin();
     for (int index = 0;
-         index < tablet->GetKeyColumnCount();
+         index < keyColumns.size();
          ++index, nullKeyBit <<= 1, ++srcKey, ++columnIt)
     {
         TUnversionedValue dstKey;

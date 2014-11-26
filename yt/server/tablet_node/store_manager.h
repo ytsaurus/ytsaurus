@@ -80,10 +80,12 @@ private:
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
 
+    IInvokerPtr EpochInvoker_;
+
     int KeyColumnCount_;
 
-    bool RotationScheduled_;
-    TInstant LastRotated_;
+    bool RotationScheduled_ = false;
+    TInstant LastRotated_ = TInstant::Now();
 
     yhash_set<TDynamicMemoryStorePtr> LockedStores_;
     std::multimap<TTimestamp, IStorePtr> MaxTimestampToStore_;
@@ -104,7 +106,6 @@ private:
 
     void OnRowBlocked(
         IStore* store,
-        TTabletSlotPtr slot,
         TDynamicRow row,
         int lockIndex);
     void WaitOnBlockedRow(

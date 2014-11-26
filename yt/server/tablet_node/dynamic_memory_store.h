@@ -150,10 +150,6 @@ private:
 
     TTabletManagerConfigPtr Config_;
 
-    int KeyColumnCount_;
-    int SchemaColumnCount_;
-    int ColumnLockCount_;
-
     int StoreLockCount_ = 0;
     int StoreValueCount_ = 0;
 
@@ -200,6 +196,8 @@ private:
     TDynamicValueData CaptureStringValue(const TUnversionedValue& src);
 
     void OnMemoryUsageUpdated();
+
+    TOwningKey RowToKey(TDynamicRow row);
 
 };
 

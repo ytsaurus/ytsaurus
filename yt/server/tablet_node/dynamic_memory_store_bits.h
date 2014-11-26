@@ -520,7 +520,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey RowToKey(TTablet* tablet, TDynamicRow row);
+TOwningKey RowToKey(
+    TDynamicRow row,
+    const NVersionedTableClient::TTableSchema& schema,
+    const NVersionedTableClient::TKeyColumns& keyColumns);
 
 void SaveRowKeys(
     TSaveContext& context,

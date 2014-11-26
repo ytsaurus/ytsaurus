@@ -28,11 +28,20 @@ public:
     virtual void SetPartition(TPartition* partition) override;
 
 protected:
-    TStoreId Id_;
+    TStoreId StoreId_;
     TTablet* Tablet_;
 
+    TTabletId TabletId_;
+    NVersionedTableClient::TTableSchema Schema_;
+    NVersionedTableClient::TKeyColumns KeyColumns_;
+    int KeyColumnCount_;
+    int SchemaColumnCount_;
+    int ColumnLockCount_;
+    std::vector<Stroka> LockIndexToName_;
+    std::vector<int> ColumnIndexToLockIndex_;
+
     EStoreState State_;
-    TPartition* Partition_;
+    TPartition* Partition_ = nullptr;
 
 };
 

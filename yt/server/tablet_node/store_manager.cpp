@@ -53,8 +53,6 @@ TStoreManager::TStoreManager(
     TTablet* Tablet_)
     : Config_(config)
     , Tablet_(Tablet_)
-    , RotationScheduled_(false)
-    , LastRotated_(TInstant::Now())
     , Logger(TabletNodeLogger)
 {
     YCHECK(Config_);
@@ -67,6 +65,8 @@ void TStoreManager::Initialize()
     if (Tablet_->GetSlot()) {
         Logger.AddTag("CellId: %v", Tablet_->GetSlot()->GetCellId());
     }
+
+    EpochInvoker_ = Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read);
 
     KeyColumnCount_ = Tablet_->GetKeyColumnCount();
 
@@ -417,8 +417,7 @@ TDynamicMemoryStorePtr TStoreManager::CreateDynamicMemoryStore(const TStoreId& s
     store->SubscribeRowBlocked(BIND(
         &TStoreManager::OnRowBlocked,
         MakeWeak(this),
-        Unretained(store.Get()),
-        MakeStrong(Tablet_->GetSlot())));
+        Unretained(store.Get())));
 
     return store;
 }
@@ -454,22 +453,17 @@ bool TStoreManager::IsRecovery() const
 
 void TStoreManager::OnRowBlocked(
     IStore* store,
-    TTabletSlotPtr slot,
     TDynamicRow row,
     int lockIndex)
 {
-    // NB: slot can be null in tests.
-    auto invoker = slot
-        ? slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read)
-        : GetCurrentInvoker();
     WaitFor(
-    BIND(
-        &TStoreManager::WaitOnBlockedRow,
-        MakeStrong(this),
-        MakeStrong(store),
-        row,
-        lockIndex)
-        .AsyncVia(invoker)
+        BIND(
+            &TStoreManager::WaitOnBlockedRow,
+            MakeStrong(this),
+            MakeStrong(store),
+            row,
+            lockIndex)
+        .AsyncVia(EpochInvoker_)
         .Run());
 }
 
@@ -484,7 +478,7 @@ void TStoreManager::WaitOnBlockedRow(
         return;
 
     LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v)",
-        RowToKey(Tablet_, row),
+        RowToKey(row, Tablet_->Schema(), Tablet_->KeyColumns()),
         lockIndex,
         transaction->GetId());
     WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum));

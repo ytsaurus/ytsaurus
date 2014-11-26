@@ -148,8 +148,8 @@ TChunkStore::TChunkStore(
     }
 
     YCHECK(
-        TypeFromId(Id_) == EObjectType::Chunk ||
-        TypeFromId(Id_) == EObjectType::ErasureChunk);
+        TypeFromId(StoreId_) == EObjectType::Chunk ||
+        TypeFromId(StoreId_) == EObjectType::ErasureChunk);
 }
 
 TChunkStore::~TChunkStore()
@@ -287,8 +287,8 @@ void TChunkStore::CheckRowLocks(
         "Checking for transaction conflicts against chunk stores is not supported; "
         "consider reducing transaction duration or increasing store retention time")
         << TErrorAttribute("transaction_id", transaction->GetId())
-        << TErrorAttribute("tablet_id", Tablet_->GetId())
-        << TErrorAttribute("store_id", Id_)
+        << TErrorAttribute("tablet_id", TabletId_)
+        << TErrorAttribute("store_id", StoreId_)
         << TErrorAttribute("key", key);
 }
 
@@ -365,7 +365,7 @@ IChunkPtr TChunkStore::PrepareChunk()
 IChunkPtr TChunkStore::DoFindChunk()
 {
     auto chunkRegistry = Bootstrap_->GetChunkRegistry();
-    auto chunk = chunkRegistry->FindChunk(Id_);
+    auto chunk = chunkRegistry->FindChunk(StoreId_);
     if (!chunk) {
         return nullptr;
     }
@@ -403,7 +403,7 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
             Bootstrap_->GetMasterClient()->GetMasterChannel(),
             New<TNodeDirectory>(),
             Bootstrap_->GetLocalDescriptor(),
-            Id_);
+            StoreId_);
     }
 
     {
@@ -435,8 +435,8 @@ TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IChunk
 
     auto cachedMetaOrError = WaitFor(TCachedVersionedChunkMeta::Load(
         chunkReader,
-        Tablet_->Schema(),
-        Tablet_->KeyColumns()));
+        Schema_,
+        KeyColumns_));
     THROW_ERROR_EXCEPTION_IF_FAILED(cachedMetaOrError);
     auto cachedMeta = cachedMetaOrError.Value();
 

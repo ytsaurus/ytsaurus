@@ -66,6 +66,7 @@ protected:
             keyColumns,
             MinKey(),
             MaxKey()));
+        Tablet_->StartEpoch(nullptr);
     }
 
     virtual TKeyColumns GetKeyColumns() const
