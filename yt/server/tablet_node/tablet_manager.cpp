@@ -388,6 +388,7 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
+            StartTabletEpoch(tablet);
             tablet->GetStoreManager()->Initialize();
             if (tablet->GetState() >= ETabletState::WaitingForLocks) {
                 YCHECK(UnmountingTablets_.insert(tablet).second);
@@ -408,6 +409,7 @@ private:
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
             StopTabletEpoch(tablet);
+            UnregisterTabletSnapshot(tablet);
         }
 
         TabletMap_.Clear();
@@ -422,7 +424,7 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
-            StartTabletEpoch(tablet);
+            RegisterTabletSnapshot(tablet);
             CheckIfFullyUnlocked(tablet);
             CheckIfAllStoresFlushed(tablet);
         }
@@ -452,6 +454,7 @@ private:
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
             StopTabletEpoch(tablet);
+            UnregisterTabletSnapshot(tablet);
         }
 
         OrphanedStores_.clear();
@@ -490,6 +493,8 @@ private:
             nextPivotKey);
         tablet->CreateInitialPartition();
         tablet->SetState(ETabletState::Mounted);
+
+        StartTabletEpoch(tablet);
 
         auto storeManager = CreateStoreManager(tablet);
         tablet->SetStoreManager(storeManager);
@@ -538,11 +543,11 @@ private:
             ToProto(response.mutable_tablet_id(), tabletId);
             PostMasterMutation(response);
         }
-    
-        if (!IsRecovery()) {
-            StartTabletEpoch(tablet);
-        }
 
+        if (!IsRecovery()) {
+            RegisterTabletSnapshot(tablet);
+        }
+    
         LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, Keys: %v .. %v, StoreCount: %v, PartitionCount: %v)",
             tabletId,
             pivotKey,
@@ -565,10 +570,9 @@ private:
             // Just a formality.
             tablet->SetState(ETabletState::Unmounted);
 
-            if (!IsRecovery()) {
-                StopTabletEpoch(tablet);
-            }
-
+            StopTabletEpoch(tablet);
+            UnregisterTabletSnapshot(tablet);
+            
             for (const auto& pair : tablet->Stores()) {
                 SetStoreOrphaned(pair.second);
             }
@@ -659,10 +663,9 @@ private:
                 LOG_INFO_UNLESS(IsRecovery(), "Tablet unmounted (TabletId: %v)",
                     tabletId);
 
-                if (!IsRecovery()) {
-                    StopTabletEpoch(tablet);
-                }
-
+                StopTabletEpoch(tablet);
+                UnregisterTabletSnapshot(tablet);
+                
                 TabletMap_.Remove(tabletId);
                 YCHECK(UnmountingTablets_.erase(tablet) == 1);
 
@@ -1180,9 +1183,6 @@ private:
     void StartTabletEpoch(TTablet* tablet)
     {
         tablet->StartEpoch(Slot_);
-
-        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->RegisterTabletSnapshot(tablet);
     }
 
     void StopTabletEpoch(TTablet* tablet)
@@ -1202,9 +1202,19 @@ private:
         tablet->StopEpoch();
         
         tablet->GetStoreManager()->ResetRotationScheduled();
+    }
 
+
+    void RegisterTabletSnapshot(TTablet* tablet)
+    {
         auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->UnregisterTabletSnapshot(tablet);
+        tabletSlotManager->RegisterTabletSnapshot(tablet);
+    }
+
+    void UnregisterTabletSnapshot(TTablet* tablet)
+    {
+        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+        tabletSlotManager->UnregisterTabletSnapshot(tablet);        
     }
 
 
