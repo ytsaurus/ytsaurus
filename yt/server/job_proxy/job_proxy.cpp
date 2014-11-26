@@ -13,6 +13,7 @@
 #include "sorted_reduce_job_io.h"
 #include "partition_reduce_job_io.h"
 #include "user_job_io.h"
+#include "statistics.h"
 
 #include <core/actions/invoker_util.h>
 
@@ -23,6 +24,8 @@
 #include <core/misc/proc.h>
 #include <core/misc/ref_counted_tracker.h>
 #include <core/misc/lfalloc_helpers.h>
+
+#include <core/ytree/convert.h>
 
 #include <core/logging/log_manager.h>
 
@@ -61,6 +64,7 @@ using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
+using namespace NCGroup;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,6 +80,8 @@ TJobProxy::TJobProxy(
     , Logger(JobProxyLogger)
     , JobThread(New<TActionQueue>("JobMain"))
     , JobProxyMemoryLimit(InitialJobProxyMemoryLimit)
+    , CpuAccounting(ToString(jobId))
+    , BlockIO(ToString(jobId))
 {
     Logger.AddTag("JobId: %v", JobId);
 }
@@ -133,6 +139,17 @@ void TJobProxy::RetrieveJobSpec()
     JobProxyMemoryLimit = rsp->resource_usage().memory();
 }
 
+template <typename T>
+void AddStatistic(TStatistics& customJobStatistics, const NYPath::TYPath& path, const T& statistics)
+{
+    auto consume = [&customJobStatistics] (const TStatistics& other) {
+        customJobStatistics.Merge(other);
+    };
+
+    TStatisticsConverter consumer(BIND(consume), path);
+    Serialize(statistics, &consumer);
+}
+
 void TJobProxy::Run()
 {
     auto result = BIND(&TJobProxy::DoRun, Unretained(this))
@@ -160,7 +177,21 @@ void TJobProxy::Run()
             ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
         }
 
-        ToProto(result.mutable_statistics(), Job->GetStatistics());
+        auto jobStatistics = Job->GetStatistics();
+        auto customUserStatistics = NYTree::ConvertTo<TStatistics>(NYTree::TYsonString(jobStatistics.statistics()));
+        if (CpuAccounting.IsCreated()) {
+            auto cpuStatistics = CpuAccounting.GetStatistics();
+            AddStatistic(customUserStatistics, "/job_proxy/cpu", cpuStatistics);
+        }
+
+        if (BlockIO.IsCreated()) {
+            auto blockIOStatistics = BlockIO.GetStatistics();
+            AddStatistic(customUserStatistics, "/job_proxy/block_io", blockIOStatistics);
+        }
+
+        ToProto(jobStatistics.mutable_statistics(), NYTree::ConvertToYsonString(customUserStatistics).Data());
+
+        ToProto(result.mutable_statistics(), jobStatistics);
     } else {
         ToProto(result.mutable_statistics(), ZeroJobStatistics());
     }
@@ -182,6 +213,17 @@ TJobResult TJobProxy::DoRun()
 
     const auto& jobSpec = GetJobSpec();
     auto jobType = NScheduler::EJobType(jobSpec.type());
+
+    if (Config->ForceEnableAccounting) {
+        CpuAccounting.Create();
+        BlockIO.Create();
+
+        CpuAccounting.Release();
+        BlockIO.Release();
+
+        CpuAccounting.AddCurrentTask();
+        BlockIO.AddCurrentTask();
+    }
 
     const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());

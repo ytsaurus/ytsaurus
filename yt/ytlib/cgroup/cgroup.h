@@ -62,11 +62,13 @@ public:
 
     void Create();
     void Destroy();
+    void Release();
 
     bool IsCreated() const;
 
 private:
     bool Created_;
+    bool Released_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

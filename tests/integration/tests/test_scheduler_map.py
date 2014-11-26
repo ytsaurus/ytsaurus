@@ -162,6 +162,7 @@ class TestEventLog(YTEnvSetup):
         assert statistics['user_job']['system']['cpu']['user']['sum'] > 0
         assert statistics['user_job']['system']['block_io']['bytes_read']['sum'] is not None
         assert statistics['user_job']['system']['memory']['rss']['count'] > 0
+        assert statistics['job_proxy']['cpu']['user']['count'] == 1
 
         # wait for scheduler to dump the event log
         time.sleep(6)

@@ -298,18 +298,21 @@ void TNonOwningCGroup::EnsureExistance() const
 TCGroup::TCGroup(const Stroka& type, const Stroka& name)
     : TNonOwningCGroup(type, name)
     , Created_(false)
+    , Released_(false)
 { }
 
 TCGroup::TCGroup(TCGroup&& other)
     : TNonOwningCGroup(std::move(other))
     , Created_(other.Created_)
+    , Released_(other.Released_)
 {
     other.Created_ = false;
+    other.Released_ = false;
 }
 
 TCGroup::~TCGroup()
 {
-    if (Created_) {
+    if (!Released_ && Created_) {
         try {
             Destroy();
         } catch (const std::exception& ex) {
@@ -334,6 +337,12 @@ void TCGroup::Destroy()
     NFS::Remove(FullPath_);
     Created_ = false;
 #endif
+}
+
+void TCGroup::Release()
+{
+    YCHECK(Created_);
+    Released_ = false;
 }
 
 bool TCGroup::IsCreated() const
