@@ -577,7 +577,9 @@ public:
         auto& response = context->Response();
         response.set_committed(error.IsOK());
 
-        if (error.GetCode() == NMetaState::EErrorCode::OutOfOrderMutations) {
+        if (error.GetCode() == NMetaState::EErrorCode::OutOfOrderMutations ||
+            error.GetCode() == NMetaState::EErrorCode::LateMutations)
+        {
             Restart();
         }
 
