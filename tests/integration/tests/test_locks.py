@@ -11,7 +11,6 @@ class TestLocks(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
 
-    #TODO(panin): check error messages
     def test_invalid_cases(self):
         # outside of transaction
         with pytest.raises(YtError): lock('/')
@@ -23,7 +22,7 @@ class TestLocks(YTEnvSetup):
         # error while parsing mode
         with pytest.raises(YtError): lock('/', mode='invalid', tx=tx)
 
-        #taking None lock is forbidden
+        # taking None lock is forbidden
         with pytest.raises(YtError): lock('/', mode='None', tx=tx)
 
         # attributes do not have @lock_mode
@@ -32,7 +31,7 @@ class TestLocks(YTEnvSetup):
        
         abort_transaction(tx)
 
-    def test_display_locks(self):
+    def test_lock_mode(self):
         tx = start_transaction()
         
         set('//tmp/map', "{list=<attr=some>[1;2;3]}", is_raw=True, tx=tx)
@@ -107,6 +106,60 @@ class TestLocks(YTEnvSetup):
         abort_transaction(tx)
         assert get('//tmp/a/@locks') == []
 
+    def test_lock_propagation1(self):
+        set('//tmp/a', 1)
+
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx = tx1)
+        lock_id = lock('//tmp/a', tx = tx2)
+        
+        locks = get('//tmp/a/@locks')
+        assert len(locks) == 1
+        assert locks[0]["state"] == 'acquired'
+        assert locks[0]["transaction_id"] == tx2
+        assert locks[0]["mode"] == 'exclusive'
+        assert get('#' + lock_id +'/@state') == 'acquired'
+
+        commit_transaction(tx2)
+
+        locks = get('//tmp/a/@locks')
+        assert len(locks) == 1
+        assert locks[0]["state"] == 'acquired'
+        assert locks[0]["transaction_id"] == tx1
+        assert locks[0]["mode"] == 'exclusive'
+        assert get('#' + lock_id +'/@state') == 'acquired'
+
+        commit_transaction(tx1)
+
+        assert get('//tmp/a/@locks') == []
+        
+    def test_lock_propagation2(self):
+        set('//tmp/a', 1)
+
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx = tx1)
+        lock_id = lock('//tmp/a', tx = tx2)
+        
+        locks = get('//tmp/a/@locks')
+        assert len(locks) == 1
+        assert locks[0]["state"] == 'acquired'
+        assert locks[0]["transaction_id"] == tx2
+        assert locks[0]["mode"] == 'exclusive'
+        assert get('#' + lock_id +'/@state') == 'acquired'
+
+        abort_transaction(tx2)
+
+        locks = get('//tmp/a/@locks')
+        assert len(locks) == 1
+        assert locks[0]["state"] == 'acquired'
+        assert locks[0]["transaction_id"] == tx1
+        assert locks[0]["mode"] == 'exclusive'
+        assert get('#' + lock_id +'/@state') == 'acquired'
+
+        commit_transaction(tx1)
+
+        assert get('//tmp/a/@locks') == []
+        
     def test_redundant_lock1(self):
         set('//tmp/a', 1)
         tx = start_transaction()
@@ -504,8 +557,9 @@ class TestLocks(YTEnvSetup):
         lock_id = lock('//tmp', tx = tx2)
         assert len(get('//tmp/@locks')) == 1
         abort_transaction(tx2)
-        assert not exists('//sys/locks/' + lock_id)
-
+        assert len(get('//tmp/@locks')) == 1
+        assert get('//sys/locks/' + lock_id + '/@transaction_id') == tx1
+        
     def test_nested_tx2(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx = tx1)

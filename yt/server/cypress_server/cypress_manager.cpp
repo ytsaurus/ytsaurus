@@ -1427,7 +1427,7 @@ void TCypressManager::OnTransactionCommitted(TTransaction* transaction)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     MergeNodes(transaction);
-    ReleaseLocks(transaction, true);
+    ReleaseLocks(transaction);
 }
 
 void TCypressManager::OnTransactionAborted(TTransaction* transaction)
@@ -1435,10 +1435,10 @@ void TCypressManager::OnTransactionAborted(TTransaction* transaction)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     RemoveBranchedNodes(transaction);
-    ReleaseLocks(transaction, false);
+    ReleaseLocks(transaction);
 }
 
-void TCypressManager::ReleaseLocks(TTransaction* transaction, bool promote)
+void TCypressManager::ReleaseLocks(TTransaction* transaction)
 {
     auto* parentTransaction = transaction->GetParent();
     auto objectManager = Bootstrap_->GetObjectManager();
@@ -1452,7 +1452,7 @@ void TCypressManager::ReleaseLocks(TTransaction* transaction, bool promote)
     for (auto* lock : locks) {
         auto* trunkNode = lock->GetTrunkNode();
         // Decide if the lock must be promoted.
-        if (promote && parentTransaction && lock->Request().Mode != ELockMode::Snapshot) {
+        if (parentTransaction && lock->Request().Mode != ELockMode::Snapshot) {
             lock->SetTransaction(parentTransaction);
             YCHECK(parentTransaction->Locks().insert(lock).second);
             LOG_DEBUG_UNLESS(IsRecovery(), "Lock promoted (LockId: %v, NewTransactionId: %v)",

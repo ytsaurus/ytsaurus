@@ -411,12 +411,22 @@ YtCommand.prototype._redirectHeavyRequests = function() {
     this.__DBG("_redirectHeavyRequests");
 
     if (this.descriptor.is_heavy && this.coordinator.getSelf().role !== "data") {
-        var target =
-            "http://" +
-            this.coordinator.allocateDataProxy().host +
-            this.req.originalUrl;
-        utils.redirectTo(this.rsp, target, 307);
-        throw new YtError();
+        var target = this.coordinator.allocateDataProxy();
+        if (typeof(target) !== "undefined") {
+            var isSsl;
+            isSsl = this.req.connection.getCipher && this.req.connection.getCipher();
+            isSsl = !!isSsl;
+            var url =
+                (isSsl ? "https://" : "http://") +
+                target.host +
+                this.req.originalUrl;
+            utils.redirectTo(this.rsp, url, 307);
+            throw new YtError();
+        } else {
+            this.rsp.statusCode = 503;
+            this.rsp.setHeader("Retry-After", "60");
+            throw new YtError("There are no data proxies available.");
+        }
     }
 };
 
