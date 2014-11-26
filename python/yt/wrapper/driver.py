@@ -169,10 +169,19 @@ def make_request(command_name, params,
     else:
         client_provider = client
 
+    # TODO(sandello): <<< Remove me when migrating to api/v3.
+    version = "v2"
+    if command_name == "mount_table" or command_name == "unmount_table" or \
+            command_name == "remount_table" or command_name == "reshard_table" or \
+            command_name == "delete" or command_name == "insert" or \
+            command_name == "lookup" or command_name == "select":
+                version = "v3"
+    # TODO(sandello): >>>
+
     if not hasattr(client_provider, "COMMANDS"):
-        require("v2" in get_api(proxy), "Old versions of API are not supported")
-        client_provider.COMMANDS = parse_commands(get_api(proxy, version="v2"))
-        client_provider.API_PATH = "api/v2"
+        require(version in get_api(proxy), "Old versions of API are not supported")
+        client_provider.COMMANDS = parse_commands(get_api(proxy, version=version))
+        client_provider.API_PATH = "api/" + version
     commands = client_provider.COMMANDS
     api_path = client_provider.API_PATH
 
