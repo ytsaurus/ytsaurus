@@ -527,7 +527,7 @@ protected:
                 THROW_ERROR_EXCEPTION("Error while parsing binary double (%s)", 
                     ~TBaseStream::GetPositionInfo());
             }
-            std::copy(TBaseStream::Begin(), TBaseStream::Begin() + chunkSize, reinterpret_cast<char*>(value) + (sizeof(double) - chunkSize));
+            std::copy(TBaseStream::Begin(), TBaseStream::Begin() + chunkSize, reinterpret_cast<char*>(value) + (sizeof(double) - needToRead));
             needToRead -= chunkSize;
             TBaseStream::Advance(chunkSize);
         }
