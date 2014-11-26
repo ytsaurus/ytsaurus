@@ -104,7 +104,7 @@ Handle<Value> TOutputStreamStub::New(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     auto* host = new TOutputStreamStub();
     host->Wrap(args.This());
@@ -148,7 +148,7 @@ Handle<Value> TOutputStreamStub::AddCompression(const Arguments& args)
     auto* host = ObjectWrap::Unwrap<TOutputStreamStub>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 1);
+    YCHECK(args.Length() == 1);
     EXPECT_THAT_IS(args[0], Uint32);
 
     // Do the work.
@@ -169,7 +169,7 @@ Handle<Value> TOutputStreamStub::WriteSynchronously(const Arguments& args)
     auto* host = ObjectWrap::Unwrap<TOutputStreamStub>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 1);
+    YCHECK(args.Length() == 1);
     EXPECT_THAT_IS(args[0], String);
 
     // Do the work.
@@ -185,7 +185,7 @@ Handle<Value> TOutputStreamStub::Write(const Arguments& args)
     HandleScope scope;
 
     // Validate arguments.
-    YASSERT(args.Length() == 2);
+    YCHECK(args.Length() == 2);
     EXPECT_THAT_IS(args[0], String);
     EXPECT_THAT_IS(args[1], Function);
 
@@ -242,7 +242,7 @@ Handle<Value> TOutputStreamStub::Flush(const Arguments& args)
     auto* host = ObjectWrap::Unwrap<TOutputStreamStub>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     // Do the work.
     host->Stack->Flush();
@@ -261,7 +261,7 @@ Handle<Value> TOutputStreamStub::Finish(const Arguments& args)
     auto* host = ObjectWrap::Unwrap<TOutputStreamStub>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     // Do the work.
     host->Stack->Finish();

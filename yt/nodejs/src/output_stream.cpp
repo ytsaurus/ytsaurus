@@ -99,7 +99,7 @@ Handle<Value> TOutputStreamWrap::New(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 2);
+    YCHECK(args.Length() == 2);
 
     EXPECT_THAT_IS(args[0], Uint32);
     EXPECT_THAT_IS(args[1], Uint32);
@@ -143,7 +143,7 @@ Handle<Value> TOutputStreamWrap::Pull(const Arguments& args)
         ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     // Do the work.
     return scope.Close(stream->DoPull());
@@ -196,7 +196,7 @@ Handle<Value> TOutputStreamWrap::Drain(const Arguments& args)
         ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     // Do the work.
     stream->DoDrain();
@@ -225,7 +225,7 @@ Handle<Value> TOutputStreamWrap::Destroy(const Arguments& args)
         ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     // Do the work.
     stream->DoDestroy();
@@ -257,7 +257,7 @@ Handle<Value> TOutputStreamWrap::IsEmpty(const Arguments& args)
         ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     // Do the work.
     return scope.Close(Boolean::New(stream->Queue.IsEmpty()));
@@ -273,7 +273,7 @@ Handle<Value> TOutputStreamWrap::IsDestroyed(const Arguments& args)
         ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     // Do the work.
     return scope.Close(Boolean::New(AtomicGet(stream->IsDestroyed_)));
@@ -289,7 +289,7 @@ Handle<Value> TOutputStreamWrap::IsPaused(const Arguments& args)
         ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     // Do the work.
     return scope.Close(Boolean::New(AtomicGet(stream->IsPaused_)));
@@ -305,7 +305,7 @@ Handle<Value> TOutputStreamWrap::IsCompleted(const Arguments& args)
         ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     // Do the work.
     return scope.Close(Boolean::New(AtomicGet(stream->IsCompleted_)));

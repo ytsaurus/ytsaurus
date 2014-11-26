@@ -425,7 +425,7 @@ Handle<Value> TNodeWrap::CreateV8(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 1);
+    YCHECK(args.Length() == 1);
 
     INodePtr node;
 
@@ -448,7 +448,7 @@ Handle<Value> TNodeWrap::Print(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 0 || args.Length() == 2);
+    YCHECK(args.Length() == 0 || args.Length() == 2);
 
     INodePtr node = TNodeWrap::UnwrapNode(args.This());
     Handle<Value> handle = Undefined();
@@ -480,7 +480,7 @@ Handle<Value> TNodeWrap::Get(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     INodePtr node = TNodeWrap::UnwrapNode(args.This());
     return scope.Close(ProduceV8(node));
@@ -493,7 +493,7 @@ Handle<Value> TNodeWrap::GetByYPath(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 1);
+    YCHECK(args.Length() == 1);
 
     EXPECT_THAT_IS(args[0], String);
 
@@ -518,7 +518,7 @@ Handle<Value> TNodeWrap::SetByYPath(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 2);
+    YCHECK(args.Length() == 2);
 
     EXPECT_THAT_IS(args[0], String);
     EXPECT_THAT_HAS_INSTANCE(args[1], TNodeWrap);
@@ -544,7 +544,7 @@ Handle<Value> TNodeWrap::GetAttribute(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 1);
+    YCHECK(args.Length() == 1);
 
     EXPECT_THAT_IS(args[0], String);
 
@@ -569,7 +569,7 @@ Handle<Value> TNodeWrap::SetAttribute(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 2);
+    YCHECK(args.Length() == 2);
 
     EXPECT_THAT_IS(args[0], String);
     EXPECT_THAT_HAS_INSTANCE(args[1], TNodeWrap);

@@ -35,7 +35,7 @@ Handle<Value> IsBasicYtError(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 1);
+    YCHECK(args.Length() == 1);
 
     bool result =
         args[0]->IsObject() &&
@@ -48,7 +48,7 @@ Handle<Value> SpawnBasicYtError(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 3);
+    YCHECK(args.Length() == 3);
 
     EXPECT_THAT_IS(args[0], Uint32);
     EXPECT_THAT_IS(args[1], String);

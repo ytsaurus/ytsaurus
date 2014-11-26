@@ -152,7 +152,7 @@ Handle<Value> TInputStreamStub::New(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     auto* host = new TInputStreamStub();
     host->Wrap(args.This());
@@ -196,7 +196,7 @@ Handle<Value> TInputStreamStub::AddCompression(const Arguments& args)
     auto* host = ObjectWrap::Unwrap<TInputStreamStub>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 1);
+    YCHECK(args.Length() == 1);
     EXPECT_THAT_IS(args[0], Uint32);
 
     // Do the work.
@@ -217,7 +217,7 @@ Handle<Value> TInputStreamStub::ReadSynchronously(const Arguments& args)
     auto* host = ObjectWrap::Unwrap<TInputStreamStub>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 1);
+    YCHECK(args.Length() == 1);
     EXPECT_THAT_IS(args[0], Uint32);
 
     // Do the work.
@@ -238,7 +238,7 @@ Handle<Value> TInputStreamStub::Read(const Arguments& args)
     HandleScope scope;
 
     // Validate arguments.
-    YASSERT(args.Length() == 2);
+    YCHECK(args.Length() == 2);
     EXPECT_THAT_IS(args[0], Uint32);
     EXPECT_THAT_IS(args[1], Function);
 
