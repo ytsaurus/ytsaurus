@@ -957,11 +957,12 @@ class Application(object):
 
 DEFAULT_CONFIG = {
     "clusters": {
-        "kant": {
+        "quine": {
             "type": "yt",
             "options": {
-                "proxy": "kant.yt.yandex.net",
+                "proxy": "quine.yt.yandex.net",
             },
+            "version": 2,
             "fastbone": True
         },
         "smith": {
@@ -977,6 +978,7 @@ DEFAULT_CONFIG = {
             "options": {
                 "proxy": "plato.yt.yandex.net",
             },
+            "version": 1,
             "fastbone": True
         },
         "cedar": {
@@ -1021,11 +1023,11 @@ DEFAULT_CONFIG = {
     },
     "kiwi_transmitter": "flux",
     "availability_graph": {
-        "kant": ["cedar", "redwood", "smith", "plato"],
-        "smith": ["cedar", "redwood", "kant", "plato"],
-        "plato": ["cedar", "redwood", "kant", "smith", "apterix"],
-        "cedar": ["redwood", "kant", "smith", "plato"],
-        "redwood": ["cedar", "kant", "smith", "plato"]
+        "quine": ["cedar", "redwood", "plato", "smith"],
+        "smith": ["cedar", "redwood", "quine", "plato"],
+        "plato": ["cedar", "redwood", "quine", "smith", "apterix"],
+        "cedar": ["redwood", "smith", "plato"],
+        "redwood": ["cedar", "smith", "plato"]
     },
     "default_mr_user": "userdata",
     "scheduling_backoff": 5,
@@ -1035,7 +1037,7 @@ DEFAULT_CONFIG = {
     "running_tasks_limit_per_direction": 10,
 
     "path": "//home/ignat/transfer_manager_test",
-    "proxy": "kant.yt.yandex.net",
+    "proxy": "plato.yt.yandex.net",
     "token": "93b4cacc08aa4538a79a76c21e99c0fb",
     "port": 5010
 }
