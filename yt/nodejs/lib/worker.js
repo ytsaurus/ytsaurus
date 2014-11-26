@@ -229,6 +229,8 @@ application = connect()
     .use("/ping", function(req, rsp, next) {
         "use strict";
         if (req.url === "/") {
+            var isSelfAlive = yt.YtRegistry.get("coordinator").isSelfAlive();
+            rsp.statusCode = isSelfAlive ? 200 : 503;
             return void yt.utils.dispatchAs(rsp, "");
         }
         next();

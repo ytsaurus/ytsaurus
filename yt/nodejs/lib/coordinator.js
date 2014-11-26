@@ -205,6 +205,8 @@ function YtCoordinator(config, logger, driver, fqdn)
         this.failure_count = 0;
         this.failure_at = new Date(0);
 
+        this.sync_at = new Date(0);
+
         this.initialized = false;
 
         this.timer = setInterval(this._refresh.bind(this), this.config.heartbeat_interval);
@@ -304,6 +306,9 @@ YtCoordinator.prototype._refresh = function()
         // We are dropping failure count as soon as we pushed it to Cypress.
         self.failure_count = 0;
 
+        // We are resetting timed as we have successfully reported to masters.
+        self.sync_at = new Date();
+
         return self.driver.executeSimple("list", {
             path: "//sys/proxies",
             attributes: [ "role", "banned", "ban_message", "liveness" ]
@@ -374,6 +379,11 @@ YtCoordinator.prototype.getProxies = function(role, dead, banned)
         }
     }
     return result;
+};
+
+YtCoordinator.prototype.isSelfAlive = function()
+{
+    return (new Date() - this.sync_at) < this.config.death_age;
 };
 
 YtCoordinator.prototype.getSelf = function()
