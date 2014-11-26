@@ -680,7 +680,7 @@ void TNontemplateCypressNodeProxyBase::SetChild(
 
 TClusterResources TNontemplateCypressNodeProxyBase::GetResourceUsage() const
 {
-    return TClusterResources(0, 1);
+    return TClusterResources(0, 1, 0);
 }
 
 NLog::TLogger TNontemplateCypressNodeProxyBase::CreateLogger() const

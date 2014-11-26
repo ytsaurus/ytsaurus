@@ -482,9 +482,12 @@ NSecurityServer::TClusterResources TChunkOwnerNodeProxy::GetResourceUsage() cons
 {
     const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     const auto* chunkList = node->GetChunkList();
-    i64 diskSpace = chunkList->Statistics().RegularDiskSpace * node->GetReplicationFactor() +
-        chunkList->Statistics().ErasureDiskSpace;
-    return NSecurityServer::TClusterResources(diskSpace, 1);
+    const auto& statistics = chunkList->Statistics();
+    i64 diskSpace =
+        statistics.RegularDiskSpace * node->GetReplicationFactor() +
+        statistics.ErasureDiskSpace;
+    int chunkCount = statistics.ChunkCount;
+    return NSecurityServer::TClusterResources(diskSpace, 1, chunkCount);
 }
 
 void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)

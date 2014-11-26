@@ -1418,7 +1418,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     YCHECK(transaction);
     YCHECK(account);
 
-    account->ValidateDiskSpaceLimit();
+    account->ValidateResourceUsageIncrease(TClusterResources(1, 0, 1));
 
     auto chunkType = GetType();
     bool isErasure = (chunkType == EObjectType::ErasureChunk);

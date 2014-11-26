@@ -17,25 +17,35 @@ using namespace NYson;
 TClusterResources::TClusterResources()
     : DiskSpace(0)
     , NodeCount(0)
+    , ChunkCount(0)
 { }
 
-TClusterResources::TClusterResources(i64 diskSpace, int nodeCount)
+TClusterResources::TClusterResources(
+    i64 diskSpace,
+    int nodeCount,
+    int chunkCount)
     : DiskSpace(diskSpace)
     , NodeCount(nodeCount)
+    , ChunkCount(chunkCount)
 { }
 
-void TClusterResources::Save(TStreamSaveContext& context) const
+void TClusterResources::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
     Save(context, DiskSpace);
     Save(context, NodeCount);
+    Save(context, ChunkCount);
 }
 
-void TClusterResources::Load(TStreamLoadContext& context)
+void TClusterResources::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
     Load(context, DiskSpace);
     Load(context, NodeCount);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 104) {
+        Load(context, ChunkCount);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,6 +61,8 @@ struct TSerializableClusterAttributes
         RegisterParameter("disk_space", DiskSpace)
             .GreaterThanOrEqual(0);
         RegisterParameter("node_count", NodeCount)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("chunk_count", ChunkCount)
             .GreaterThanOrEqual(0);
     }
 };
@@ -82,6 +94,7 @@ TClusterResources& operator += (TClusterResources& lhs, const TClusterResources&
 {
     lhs.DiskSpace += rhs.DiskSpace;
     lhs.NodeCount += rhs.NodeCount;
+    lhs.ChunkCount += rhs.ChunkCount;
     return lhs;
 }
 
@@ -96,6 +109,7 @@ TClusterResources& operator -= (TClusterResources& lhs, const TClusterResources&
 {
     lhs.DiskSpace -= rhs.DiskSpace;
     lhs.NodeCount -= rhs.NodeCount;
+    lhs.ChunkCount -= rhs.ChunkCount;
     return lhs;
 }
 
@@ -110,6 +124,7 @@ TClusterResources& operator *= (TClusterResources& lhs, i64 rhs)
 {
     lhs.DiskSpace *= rhs;
     lhs.NodeCount *= rhs;
+    lhs.ChunkCount *= rhs;
     return lhs;
 }
 
@@ -125,6 +140,7 @@ TClusterResources operator -  (const TClusterResources& resources)
     TClusterResources result;
     result.DiskSpace = -resources.DiskSpace;
     result.NodeCount = -resources.NodeCount;
+    result.ChunkCount = -resources.ChunkCount;
     return result;
 }
 

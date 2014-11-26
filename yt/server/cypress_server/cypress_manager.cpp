@@ -144,7 +144,7 @@ public:
     {
         ValidateCreatedNodeType(type);
 
-        GetNewNodeAccount()->ValidateNodeCountLimit();
+        GetNewNodeAccount()->ValidateResourceUsageIncrease(TClusterResources(0, 1, 0));
 
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto handler = cypressManager->FindHandler(type);

@@ -80,7 +80,7 @@ TChunkTreeStatistics TChunk::GetStatistics() const
 TClusterResources TChunk::GetResourceUsage() const
 {
     i64 diskSpace = IsConfirmed() ? ChunkInfo_.disk_space() * GetReplicationFactor() : 0;
-    return TClusterResources(diskSpace, 0);
+    return TClusterResources(diskSpace, 0, 1);
 }
 
 void TChunk::Save(NCellMaster::TSaveContext& context) const

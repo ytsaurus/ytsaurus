@@ -132,7 +132,7 @@ void TCypressNodeBase::Load(TLoadContext& context)
 
 TClusterResources TCypressNodeBase::GetResourceUsage() const
 {
-    return TClusterResources(0, 1);
+    return TClusterResources(0, 1, 0);
 }
 
 TVersionedObjectId GetObjectId(const TCypressNodeBase* object)

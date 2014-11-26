@@ -993,6 +993,7 @@ private:
         // Give some reasonable initial resource limits.
         account->ResourceLimits().DiskSpace = (i64) 1024 * 1024 * 1024; // 1 GB
         account->ResourceLimits().NodeCount = 1000;
+        account->ResourceLimits().ChunkCount = 100000;
 
         AccountMap_.Insert(id, account);
         YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
@@ -1302,9 +1303,9 @@ private:
 
         SysAccount_ = FindAccount(SysAccountId_);
         if (!SysAccount_) {
-            // sys, 1 TB disk space, 100000 nodes, usage allowed for: root
+            // sys, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: root
             SysAccount_ = DoCreateAccount(SysAccountId_, SysAccountName);
-            SysAccount_->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000);
+            SysAccount_->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
             SysAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 RootUser_,
@@ -1313,9 +1314,9 @@ private:
 
         TmpAccount_ = FindAccount(TmpAccountId_);
         if (!TmpAccount_) {
-            // tmp, 1 TB disk space, 100000 nodes, usage allowed for: users
+            // tmp, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
             TmpAccount_ = DoCreateAccount(TmpAccountId_, TmpAccountName);
-            TmpAccount_->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000);
+            TmpAccount_->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
             TmpAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
@@ -1324,9 +1325,9 @@ private:
 
         IntermediateAccount_ = FindAccount(IntermediateAccountId_);
         if (!IntermediateAccount_) {
-            // tmp, 1 TB disk space, 100000 nodes, usage allowed for: users
+            // tmp, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
             IntermediateAccount_ = DoCreateAccount(IntermediateAccountId_, IntermediateAccountName);
-            IntermediateAccount_->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000);
+            IntermediateAccount_->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
             IntermediateAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,

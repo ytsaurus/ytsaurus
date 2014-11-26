@@ -33,17 +33,15 @@ public:
 
     //! Returns |true| if disk space limit is exceeded,
     //! i.e. no more disk space could be allocated.
-    bool IsOverDiskSpaceLimit() const;
-
-    //! Throws if disk space limit is exceeded.
-    void ValidateDiskSpaceLimit() const;
+    bool IsDiskSpaceLimitViolated() const;
 
     //! Returns |true| is node count limit is exceeded,
     //! i.e. no more Cypress node could be created.
-    bool IsOverNodeCountLimit() const;
+    bool IsNodeCountLimitViolated() const;
 
-    //! Throws if node count limit is exceeded.
-    void ValidateNodeCountLimit();
+    //! Returns |true| is chunk count limit is exceeded,
+    //! i.e. no more chunks could be created.
+    bool IsChunkCountLimitViolated() const;
 
     //! Throws if account limit is exceeded for some resource type with positive delta.
     void ValidateResourceUsageIncrease(const TClusterResources& delta);

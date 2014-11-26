@@ -51,23 +51,23 @@ NSecurityServer::TClusterResources TChunkOwnerBase::GetResourceUsage() const
     const auto* chunkList = GetUsageChunkList();
 
     i64 diskSpace = 0;
+    int chunkCount = 0;
     if (chunkList) {
+        const auto& statistics = chunkList->Statistics();
         diskSpace =
-            chunkList->Statistics().RegularDiskSpace * GetReplicationFactor() +
-            chunkList->Statistics().ErasureDiskSpace;
+            statistics.RegularDiskSpace * GetReplicationFactor() +
+            statistics.ErasureDiskSpace;
+        chunkCount = statistics.ChunkCount;
     }
 
-    return NSecurityServer::TClusterResources(diskSpace, 1);
+    return NSecurityServer::TClusterResources(diskSpace, 1, chunkCount);
 }
 
 const TChunkList* TChunkOwnerBase::GetUsageChunkList() const
 {
     switch (UpdateMode_) {
         case EUpdateMode::None:
-            if (Transaction_) {
-                return nullptr;;
-            }
-            return ChunkList_;
+            return Transaction_ ? nullptr : ChunkList_;
 
         case EUpdateMode::Append: {
             const auto& children = ChunkList_->Children();

@@ -54,8 +54,7 @@ private:
         attributes->push_back("resource_usage");
         attributes->push_back("committed_resource_usage");
         attributes->push_back("resource_limits");
-        attributes->push_back("over_disk_space_limit");
-        attributes->push_back("over_node_count_limit");
+        attributes->push_back("violated_resource_limits");
         TBase::ListSystemAttributes(attributes);
     }
 
@@ -87,15 +86,13 @@ private:
             return true;
         }
 
-        if (key == "over_disk_space_limit") {
+        if (key == "violated_resource_limits") {
             BuildYsonFluently(consumer)
-                .Value(account->IsOverDiskSpaceLimit());
-            return true;
-        }
-
-        if (key == "over_node_count_limit") {
-            BuildYsonFluently(consumer)
-                .Value(account->IsOverNodeCountLimit());
+                .BeginMap()
+                    .Item("disk_space").Value(account->IsDiskSpaceLimitViolated())
+                    .Item("node_count").Value(account->IsNodeCountLimitViolated())
+                    .Item("chunk_count").Value(account->IsChunkCountLimitViolated())
+                .EndMap();
             return true;
         }
 

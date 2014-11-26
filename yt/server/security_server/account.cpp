@@ -42,14 +42,24 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     Load(context, Acd_);
 }
 
-bool TAccount::IsOverDiskSpaceLimit() const
+bool TAccount::IsDiskSpaceLimitViolated() const
 {
     return ResourceUsage_.DiskSpace > ResourceLimits_.DiskSpace;
 }
 
-void TAccount::ValidateDiskSpaceLimit() const
+bool TAccount::IsNodeCountLimitViolated() const
 {
-    if (IsOverDiskSpaceLimit()) {
+    return ResourceUsage_.NodeCount > ResourceLimits_.NodeCount;
+}
+
+bool TAccount::IsChunkCountLimitViolated() const
+{
+    return ResourceUsage_.ChunkCount > ResourceLimits_.ChunkCount;
+}
+
+void TAccount::ValidateResourceUsageIncrease(const TClusterResources& delta)
+{
+    if (delta.DiskSpace > 0 && ResourceUsage_.DiskSpace + delta.DiskSpace > ResourceLimits_.DiskSpace) {
         THROW_ERROR_EXCEPTION(
             NSecurityClient::EErrorCode::AccountLimitExceeded,
             "Account %Qv is over disk space limit",
@@ -57,16 +67,7 @@ void TAccount::ValidateDiskSpaceLimit() const
             << TErrorAttribute("usage", ResourceUsage_.DiskSpace)
             << TErrorAttribute("limit", ResourceLimits_.DiskSpace);
     }
-}
-
-bool TAccount::IsOverNodeCountLimit() const
-{
-    return ResourceUsage_.NodeCount >= ResourceLimits_.NodeCount;
-}
-
-void TAccount::ValidateNodeCountLimit()
-{
-    if (IsOverNodeCountLimit()) {
+    if (delta.NodeCount > 0 && ResourceUsage_.NodeCount + delta.NodeCount > ResourceLimits_.NodeCount) {
         THROW_ERROR_EXCEPTION(
             NSecurityClient::EErrorCode::AccountLimitExceeded,
             "Account %Qv is over node count limit",
@@ -74,15 +75,13 @@ void TAccount::ValidateNodeCountLimit()
             << TErrorAttribute("usage", ResourceUsage_.NodeCount)
             << TErrorAttribute("limit", ResourceLimits_.NodeCount);
     }
-}
-
-void TAccount::ValidateResourceUsageIncrease(const TClusterResources& delta)
-{
-    if (delta.NodeCount > 0) {
-        ValidateNodeCountLimit();
-    }
-    if (delta.DiskSpace > 0) {
-        ValidateDiskSpaceLimit();
+    if (delta.ChunkCount > 0 && ResourceUsage_.ChunkCount + delta.ChunkCount > ResourceLimits_.ChunkCount) {
+        THROW_ERROR_EXCEPTION(
+            NSecurityClient::EErrorCode::AccountLimitExceeded,
+            "Account %Qv is over chunk count limit",
+            Name_)
+            << TErrorAttribute("usage", ResourceUsage_.ChunkCount)
+            << TErrorAttribute("limit", ResourceLimits_.ChunkCount);
     }
 }
 

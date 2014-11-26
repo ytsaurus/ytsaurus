@@ -17,7 +17,10 @@ namespace NSecurityServer {
 struct TClusterResources
 {
     TClusterResources();
-    TClusterResources(i64 diskSpace, int nodeCount);
+    TClusterResources(
+        i64 diskSpace,
+        int nodeCount,
+        int chunkCount);
 
     //! Space occupied on data nodes in bytes.
     /*!
@@ -32,8 +35,11 @@ struct TClusterResources
      */
     int NodeCount;
 
-    void Save(TStreamSaveContext& context) const;
-    void Load(TStreamLoadContext& context);
+    //! Number of chunks created at master.
+    int ChunkCount;
+
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
 
 };
 
