@@ -334,6 +334,7 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
             partition->SampleKeys().push_back(sampleKeys[sampleKeyIndex]);
             ++sampleKeyIndex;
         }
+
         splitPartitions.push_back(std::move(partition));
     }
 
