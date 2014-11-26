@@ -115,10 +115,8 @@ class TCpuAccounting
 public:
     struct TStatistics
     {
-        TStatistics();
-
-        TDuration UserTime;
-        TDuration SystemTime;
+        TDuration UserTime = TDuration(0);
+        TDuration SystemTime = TDuration(0);
     };
 
     explicit TCpuAccounting(const Stroka& name);
@@ -135,12 +133,10 @@ class TBlockIO
 public:
     struct TStatistics
     {
-        TStatistics();
-
-        i64 BytesRead;
-        i64 BytesWritten;
-        i64 IORead;
-        i64 IOWrite;
+        i64 BytesRead = 0;
+        i64 BytesWritten = 0;
+        i64 IORead = 0;
+        i64 IOWrite = 0;
     };
 
     struct TStatisticsItem

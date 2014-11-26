@@ -420,11 +420,6 @@ bool TCGroup::IsCreated() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCpuAccounting::TStatistics::TStatistics()
-    : UserTime(0)
-    , SystemTime(0)
-{ }
-
 TCpuAccounting::TCpuAccounting(const Stroka& name)
     : TCGroup("cpuacct", name)
 { }
@@ -470,11 +465,6 @@ void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsum
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TBlockIO::TStatistics::TStatistics()
-    : BytesRead(0)
-    , BytesWritten(0)
-{ }
 
 TBlockIO::TBlockIO(const Stroka& name)
     : TCGroup("blkio", name)
