@@ -639,7 +639,8 @@ private:
                             JobId);
                     }
 
-                    AddStatistic("/user_job/system/memory", statistics);
+                    TGuard<TSpinLock> guard(SpinLock);
+                    AddStatistic(Statistics, "/user_job/system/cpu", CpuAccountingStats);
                 }
             }
 
