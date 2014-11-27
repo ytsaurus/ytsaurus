@@ -4,10 +4,6 @@
 
 #include <core/yson/public.h>
 
-#include <ytlib/cgroup/statistics.pb.h>
-
-#include <util/generic/stroka.h>
-
 #include <vector>
 #include <chrono>
 
