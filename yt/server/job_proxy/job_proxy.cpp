@@ -37,6 +37,8 @@
 
 #include <server/scheduler/job_resources.h>
 
+#include <ytlib/cgroup/cgroup.h>
+
 #include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/client_block_cache.h>
@@ -80,8 +82,6 @@ TJobProxy::TJobProxy(
     , Logger(JobProxyLogger)
     , JobThread(New<TActionQueue>("JobMain"))
     , JobProxyMemoryLimit(InitialJobProxyMemoryLimit)
-    , CpuAccounting(ToString(jobId))
-    , BlockIO(ToString(jobId))
 {
     Logger.AddTag("JobId: %v", JobId);
 }
@@ -167,18 +167,19 @@ void TJobProxy::Run()
         }
 
         auto jobStatistics = Job->GetStatistics();
-        auto customUserStatistics = NYTree::ConvertTo<TStatistics>(NYTree::TYsonString(jobStatistics.statistics()));
-        if (CpuAccounting.IsCreated()) {
-            auto cpuStatistics = CpuAccounting.GetStatistics();
+        if (Config->ForceEnableAccounting) {
+            auto customUserStatistics = NYTree::ConvertTo<TStatistics>(NYTree::TYsonString(jobStatistics.statistics()));
+
+            TCpuAccounting cpuAccounting("");
+            auto cpuStatistics = cpuAccounting.GetStatistics();
             AddStatistic(customUserStatistics, "/job_proxy/cpu", cpuStatistics);
-        }
 
-        if (BlockIO.IsCreated()) {
-            auto blockIOStatistics = BlockIO.GetStatistics();
+            TBlockIO blockIO("");
+            auto blockIOStatistics = blockIO.GetStatistics();
             AddStatistic(customUserStatistics, "/job_proxy/block_io", blockIOStatistics);
-        }
 
-        ToProto(jobStatistics.mutable_statistics(), NYTree::ConvertToYsonString(customUserStatistics).Data());
+            ToProto(jobStatistics.mutable_statistics(), NYTree::ConvertToYsonString(customUserStatistics).Data());
+        }
 
         ToProto(result.mutable_statistics(), jobStatistics);
     } else {
@@ -202,17 +203,6 @@ TJobResult TJobProxy::DoRun()
 
     const auto& jobSpec = GetJobSpec();
     auto jobType = NScheduler::EJobType(jobSpec.type());
-
-    if (Config->ForceEnableAccounting) {
-        CpuAccounting.Create();
-        BlockIO.Create();
-
-        CpuAccounting.Release();
-        BlockIO.Release();
-
-        CpuAccounting.AddCurrentTask();
-        BlockIO.AddCurrentTask();
-    }
 
     const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());

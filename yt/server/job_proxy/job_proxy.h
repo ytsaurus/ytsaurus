@@ -6,11 +6,11 @@
 #include "job.h"
 
 #include <core/concurrency/public.h>
+
 #include <core/logging/log.h>
 
-#include <ytlib/cgroup/cgroup.h>
-
 #include <server/job_agent/public.h>
+
 #include <server/exec_agent/supervisor_service_proxy.h>
 
 namespace NYT {
@@ -58,9 +58,6 @@ private:
 
     NJobTrackerClient::NProto::TJobSpec JobSpec;
     NNodeTrackerClient::NProto::TNodeResources ResourceUsage;
-
-    NCGroup::TCpuAccounting CpuAccounting;
-    NCGroup::TBlockIO BlockIO;
 
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() override;
