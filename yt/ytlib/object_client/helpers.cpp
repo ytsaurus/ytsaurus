@@ -125,11 +125,17 @@ TObjectId MakeId(
         counter >> 32);
 }
 
+bool IsWellKnownId(const TObjectId& id)
+{
+    return CounterFromId(id) & WellKnownCounterMask;
+}
+
 TObjectId MakeWellKnownId(
     EObjectType type,
     TCellTag cellTag,
     ui64 counter /*= 0xffffffffffffffff*/)
 {
+    YCHECK(counter & WellKnownCounterMask);
     return MakeId(
         type,
         cellTag,

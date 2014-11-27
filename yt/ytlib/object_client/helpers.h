@@ -48,7 +48,16 @@ TObjectId MakeId(
     ui64 counter,
     ui32 hash);
 
+//! Returns |true| if a given #id is well-known.
+/*
+ *  This method checks the highest bit of counter part.
+ */
+bool IsWellKnownId(const TObjectId& id);
+
 //! Constructs a id corresponding to well-known (usually singleton) entities.
+/*
+ *  The highest bit of #counter must be set.
+ */
 TObjectId MakeWellKnownId(
     EObjectType type,
     TCellTag cellTag,

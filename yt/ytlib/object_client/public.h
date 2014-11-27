@@ -24,12 +24,14 @@ DECLARE_ENUM(EErrorCode,
  *          bits 16..31: cell id
  *  Part 2: the lower  part of 64-bit sequential counter
  *  Part 3: the higher part of 64-bit sequential counter
- *
  */
 typedef TGuid TObjectId;
 
 //! The all-zero id used to denote a non-existing object.
 extern TObjectId NullObjectId;
+
+//! Used to mark counters for well-known ids.
+const ui64 WellKnownCounterMask = 0x1000000000000000;
 
 //! Identifies a particular installation of YT.
 //! Must be unique to prevent object ids from colliding.
