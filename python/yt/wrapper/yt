@@ -448,7 +448,7 @@ def add_remote_copy_parser(add_parser):
     parser = add_parser("remote-copy", yt.run_remote_copy)
     parser.add_argument("--src", action="append", required=True, dest="source_table", help="path to source Cypress node in remote cluster")
     parser.add_argument("--dst", required=True, dest="destination_table", help="path to destination node in current cluster")
-    parser.add_argument("--cluster", required=True, dest="cluster_name", help="remote cluster proxy, like kant.yt.yandex.net")
+    parser.add_argument("--cluster", required=True, dest="cluster_name", help="remote cluster proxy, like smith")
     parser.add_argument("--network", dest="network_name")
     parser.add_argument("--copy-attributes", action="store_true", help="specify this flag to coping node attributes too")
     add_spec_help(parser)
