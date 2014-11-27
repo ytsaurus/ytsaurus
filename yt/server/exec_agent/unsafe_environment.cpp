@@ -181,11 +181,13 @@ private:
         LOG_INFO("Waiting for job proxy to finish");
 
         auto error = Process.Wait();
-        
-        SetError(error);
         LOG_INFO(error, "Job proxy finished");
-
         Waited = true;
+
+        if (!error.IsOK()) { 
+            auto wrappedError = TError("Job proxy failed") << error;
+            SetError(wrappedError);
+        } 
 
         OnExit.Set(GetError());
     }
