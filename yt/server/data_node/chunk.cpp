@@ -100,7 +100,7 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(
     auto this_ = MakeStrong(this);
     auto invoker = Location_->GetBootstrap()->GetControlInvoker();
     return ReadMeta(priority).Apply(
-        BIND([=] (TError error) -> TGetMetaResult {
+        BIND([this_, this, tags_] (TError error) -> TGetMetaResult {
             if (!error.IsOK()) {
                 return error;
             }
