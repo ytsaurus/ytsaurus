@@ -12,7 +12,6 @@ namespace NYT {
 static const char Dollar = '$';
 static const char LeftParen = '(';
 static const char RightParen = ')';
-static const char Question = '?';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,54 +25,28 @@ Stroka TPatternFormatter::Format(const Stroka& pattern)
     Stroka result;
 
     for (size_t pos = 0; pos < pattern.size(); ++pos) {
-        if (pattern[pos] != Dollar) {
-            result.append(pattern[pos]);
-            continue;
-        }
-        ++pos;
+        if (pattern[pos] == Dollar && (pos + 1 < pattern.size() && pattern[pos + 1] == LeftParen)) {
+            auto left = pos + 2;
+            auto right = left;
+            while (right < pattern.size() && pattern[right] != RightParen) {
+                right += 1;
+            }
 
-        if (pos >= pattern.size() || pattern[pos] != LeftParen) {
-            THROW_ERROR_EXCEPTION("Expected \"%c\" at position %d",
-                LeftParen,
-                static_cast<int>(pos));
-        }
-        ++pos;
+            if (right < pattern.size()) {
+                auto property = pattern.substr(left, right - left);
 
-        bool foundRightParen = false;
-        size_t startProperty = pos;
-        size_t endProperty = 0;
-
-        for (; pos < pattern.size(); ++pos) {
-            if (pattern[pos] == RightParen) {
-                foundRightParen = true;
-                endProperty = pos;
-                break;
+                auto it = PropertyMap.find(property);
+                if (it != PropertyMap.end()) {
+                    result.append(it->second);
+                    pos = right;
+                    continue;
+                }
             }
         }
 
-        if (!foundRightParen) {
-            THROW_ERROR_EXCEPTION("Cannot find a matching \"%c\" for \"%c\" at position %d",
-                RightParen,
-                LeftParen,
-                static_cast<int>(startProperty) - 1);
-        }
-
-        bool isOptional = false;
-        if (pattern[endProperty - 1] == Question) {
-            --endProperty;
-            isOptional = true;
-        }
-
-        Stroka property = pattern.substr(startProperty, endProperty - startProperty);
-        auto it = PropertyMap.find(property);
-        if (it == PropertyMap.end()) {
-            if (!isOptional) {
-                THROW_ERROR_EXCEPTION("Property %s is not defined", ~property);
-            }
-        } else {
-            result.append(it->second);
-        }
+        result.append(pattern[pos]);
     }
+
     return result;
 }
 
