@@ -304,10 +304,18 @@ public:
             LoggingProfiler.Increment(EnqueueCounter);
             LogEventQueue.Enqueue(event);
 
-            // Waiting for release log queue
-            while (!LogEventQueue.IsEmpty() && EventQueue->IsRunning()) {
-                EventCount.Notify();
-                SchedYield();
+            if (LoggingThread->GetId() != GetCurrentThreadId()) {
+                // Waiting for release of log queue.
+                // Waiting no more than 1 second to prevent hanging.
+                auto now = TInstant::Now();
+                while (
+                    !LogEventQueue.IsEmpty() &&
+                    EventQueue->IsRunning() &&
+                    TInstant::Now() - now < TDuration::Seconds(1))
+                {
+                    EventCount.Notify();
+                    SchedYield();
+                }
             }
 
             // Flush everything and die.
