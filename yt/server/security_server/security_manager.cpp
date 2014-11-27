@@ -900,6 +900,8 @@ private:
     TSecurityManagerConfigPtr Config_;
 
     bool RecomputeResources_ = false;
+    bool SetInitialChunkCountLimits_ = false;
+    bool SetInitialNodeCountLimits_ = false;
 
     NHydra::TEntityMap<TAccountId, TAccount> AccountMap_;
     yhash_map<Stroka, TAccount*> AccountNameMap_;
@@ -1141,6 +1143,8 @@ private:
         DoClear();
 
         RecomputeResources_ = false;
+        SetInitialChunkCountLimits_ = false;
+        SetInitialNodeCountLimits_ = false;
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -1155,6 +1159,11 @@ private:
         // COMPAT(babenko)
         if (context.GetVersion() < 101) {
             RecomputeResources_ = true;
+        }
+        // COMPAT(babenko)
+        if (context.GetVersion() < 104) {
+            SetInitialChunkCountLimits_ = true;
+            SetInitialNodeCountLimits_ = true;
         }
         AccountMap_.LoadValues(context);
         UserMap_.LoadValues(context);
@@ -1215,6 +1224,22 @@ private:
                 } else {
                     node->CachedResourceUsage() = ZeroClusterResources();
                 }
+            }
+        }
+
+        // COMPAT(babenko)
+        if (SetInitialChunkCountLimits_) {
+            for (const auto& pair : AccountMap_) {
+                auto* account = pair.second;
+                account->ResourceLimits().ChunkCount = 1000000000;
+            }
+        }
+
+        // COMPAT(babenko)
+        if (SetInitialNodeCountLimits_) {
+            for (const auto& pair : AccountMap_) {
+                auto* account = pair.second;
+                account->ResourceLimits().NodeCount = 1000000;
             }
         }
     }
