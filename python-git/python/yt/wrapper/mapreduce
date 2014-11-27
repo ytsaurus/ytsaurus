@@ -5,7 +5,7 @@
 # -lock
 # -unlock
 
-from yt.wrapper.cli_helpers import writelines_silently, run_main
+from yt.wrapper.cli_helpers import writelines_silently, run_main, die
 from yt.wrapper.table_commands import copy_table, _remove_locks, _get_format_from_tables
 from yt.wrapper.tree_commands import remove_with_empty_dirs
 from yt.wrapper.table import check_prefix
@@ -17,7 +17,6 @@ import yt.wrapper as yt
 
 import os
 import sys
-import traceback
 import simplejson as json
 from argparse import ArgumentParser, RawTextHelpFormatter, REMAINDER, Action
 from operator import attrgetter
