@@ -163,7 +163,6 @@ std::vector<Stroka> GetSupportedCGroups()
     result.push_back("cpuacct");
     result.push_back("blkio");
     result.push_back("memory");
-    result.push_back("freezer");
     return result;
 }
 
