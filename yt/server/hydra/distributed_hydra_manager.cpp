@@ -848,14 +848,6 @@ private:
     }
 
 
-    TFuture<TErrorOr<TRemoteSnapshotParams>> DoBuildSnapshotDistributed(TEpochContextPtr epochContext) 
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        return epochContext->Checkpointer->BuildSnapshot();
-    }
-
-
     void OnElectionStartLeading()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
