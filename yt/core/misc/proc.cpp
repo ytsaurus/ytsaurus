@@ -103,12 +103,6 @@ void RunCleaner(const Stroka& path)
     process.AddArgument(AsStringBuf("--dir-to-remove"));
     process.AddArgument(path);
 
-    auto throwError = [=] (const TError& error) {
-        THROW_ERROR_EXCEPTION(
-            "Failed to remove directory %Qv",
-            path) << error;
-    };
-
     process.Spawn();
     auto error = process.Wait();
     THROW_ERROR_EXCEPTION_IF_FAILED(error);
