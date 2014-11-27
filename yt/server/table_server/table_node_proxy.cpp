@@ -190,11 +190,15 @@ private:
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override
     {
+        const auto* table = GetThisTypedImpl();
+
         if (key == "channels") {
             if (!newValue) {
                 ThrowCannotRemoveAttribute(key);
             }
-            ConvertTo<TChannels>(newValue.Get());
+
+            ConvertTo<TChannels>(*newValue);
+
             return;
         }
 
@@ -202,7 +206,12 @@ private:
             if (!newValue) {
                 ThrowCannotRemoveAttribute(key);
             }
-            ConvertTo<TTableSchema>(newValue.Get());
+
+            ConvertTo<TTableSchema>(*newValue);
+
+            if (table->HasMountedTablets()) {
+                THROW_ERROR_EXCEPTION("Table has mounted tablets");
+            }
             return;
         }
 

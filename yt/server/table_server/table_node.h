@@ -46,6 +46,8 @@ public:
         const NVersionedTableClient::TOwningKey& minKey,
         const NVersionedTableClient::TOwningKey& maxKey);
 
+    bool HasMountedTablets() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

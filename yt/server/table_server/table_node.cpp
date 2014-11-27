@@ -94,6 +94,17 @@ std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTab
     return std::make_pair(beginIt, endIt);
 }
 
+bool TTableNode::HasMountedTablets() const
+{
+    for (const auto* tablet : Tablets_) {
+        if (tablet->GetState() == ETabletState::Mounting ||
+            tablet->GetState() == ETabletState::Mounted)
+        {
+            return true;
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNodeTypeHandler
