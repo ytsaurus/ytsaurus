@@ -103,6 +103,7 @@ bool TTableNode::HasMountedTablets() const
             return true;
         }
     }
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
