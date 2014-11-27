@@ -184,33 +184,41 @@ class TDecoratedAutomaton::TSnapshotBuilder
 public:
     TSnapshotBuilder(
         TDecoratedAutomatonPtr owner,
-        TPromise<TErrorOr<TRemoteSnapshotParams>> promise)
+        TVersion snapshotVersion)
         : Owner_(owner)
-        , Promise_(promise)
+        , SnapshotVersion_(snapshotVersion)
+        , SnapshotId_(SnapshotVersion_.SegmentId + 1)
     {
         Logger = HydraLogger;
+        Logger.AddTag("SnapshotId: %v", SnapshotId_);
+        Logger.AddTag("SnapshotVersion: %v", SnapshotVersion_);
     }
 
-    void Run()
+    TFuture<TErrorOr<TRemoteSnapshotParams>> Run()
     {
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 
-        SnapshotId_ = Owner_->AutomatonVersion_.SegmentId + 1;
-        
         TSnapshotMeta meta;
-        meta.set_prev_record_count(Owner_->AutomatonVersion_.RecordId);
+        meta.set_prev_record_count(SnapshotVersion_.RecordId);
         YCHECK(SerializeToProto(meta, &Meta_));
 
-        TSnapshotBuilderBase::Run().Subscribe(
+        if (Owner_->BuildingSnapshot_.test_and_set()) {
+            return MakeFuture<TErrorOr<TRemoteSnapshotParams>>(TError(
+                "Cannot start building snapshot %v since another snapshot is still being constructed",
+                SnapshotId_));
+        }
+
+        return TSnapshotBuilderBase::Run().Apply(
             BIND(&TSnapshotBuilder::OnFinished, MakeStrong(this))
-                .Via(Owner_->ControlInvoker_));
+                .Guarded()
+                .AsyncVia(Owner_->ControlInvoker_));
     }
 
 private:
     TDecoratedAutomatonPtr Owner_;
-    TPromise<TErrorOr<TRemoteSnapshotParams>> Promise_;
-
+    TVersion SnapshotVersion_;
     int SnapshotId_;
+
     TSharedRef Meta_;
 
 
@@ -226,25 +234,24 @@ private:
         writer->Close();
     }
 
-    void OnFinished(TError error)
+    TRemoteSnapshotParams OnFinished(TError error)
     {
-        if (!error.IsOK()) {
-            Promise_.Set(error);
-            return;
-        }
+        Owner_->BuildingSnapshot_.clear();
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
 
         auto paramsOrError = WaitFor(Owner_->SnapshotStore_->ConfirmSnapshot(SnapshotId_));
         if (!paramsOrError.IsOK()) {
-            Promise_.Set(TError("Error confirming snapshot")
-                << paramsOrError);
-            return;
+            THROW_ERROR_EXCEPTION("Error confirming snapshot %v",
+                SnapshotId_)
+                << paramsOrError;
         }
         
         TRemoteSnapshotParams remoteParams;
         remoteParams.PeerId = Owner_->CellManager_->GetSelfPeerId();
         remoteParams.SnapshotId = SnapshotId_;
         static_cast<TSnapshotParams&>(remoteParams) = paramsOrError.Value();
-        Promise_.Set(remoteParams);
+        return remoteParams;
     }
 
 };
@@ -271,7 +278,6 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(snapshotStore)
     , ChangelogStore_(changelogStore)
-    , MutationContext_(nullptr)
     , BatchCommitTimeCounter_("/batch_commit_time")
     , Logger(HydraLogger)
     , Profiler(profiler)
@@ -288,6 +294,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
 
     Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 
+    BuildingSnapshot_.clear();
     Reset();
 }
 
@@ -752,9 +759,8 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
     if (AutomatonVersion_ != SnapshotVersion_)
         return;
 
-    auto builder = New<TSnapshotBuilder>(this, SnapshotParamsPromise_);
-    builder->Run();
-
+    auto builder = New<TSnapshotBuilder>(this, SnapshotVersion_);
+    SnapshotParamsPromise_.SetFrom(builder->Run());
     SnapshotParamsPromise_.Reset();
 }
 

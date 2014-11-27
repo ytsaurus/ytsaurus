@@ -138,7 +138,7 @@ private:
     IChangelogStorePtr ChangelogStore_;
 
     TEpochId Epoch_;
-    TMutationContext* MutationContext_;
+    TMutationContext* MutationContext_ = nullptr;
     IChangelogPtr Changelog_;
 
     TSpinLock VersionSpinLock_;
@@ -147,6 +147,8 @@ private:
 
     TVersion SnapshotVersion_;
     TPromise<TErrorOr<TRemoteSnapshotParams>> SnapshotParamsPromise_;
+    std::atomic_flag BuildingSnapshot_;
+    TInstant LastSnapshotTime_;
 
     struct TPendingMutation
     {
@@ -161,8 +163,6 @@ private:
     TRingQueue<TPendingMutation> PendingMutations_;
 
     NProfiling::TAggregateCounter BatchCommitTimeCounter_;
-
-    TInstant LastSnapshotTime_;
 
     NLog::TLogger Logger;
     NProfiling::TProfiler Profiler;
