@@ -475,51 +475,6 @@ struct TDynamicRowRef
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*
- * Row comparer can work with data rows and data keys.
- * Both of the latter are internally represented by TUnversionedRow.
- * However, the comparison semantics is different: data rows must contain
- * |keyColumnCount| key components at the very beginning (and the rest
- * is value components, which must be ignored) while data keys may be
- * of arbitrary size.
- *
- * To discriminate between data rows and data keys, we provide a pair of
- * wrappers on top of TUnversionedRow.
- */
-
-struct TRowWrapper
-{
-    TUnversionedRow Row;
-};
-
-struct TKeyWrapper
-{
-    TUnversionedRow Row;
-};
-
-//! Provides a comparer functor for dynamic row keys.
-class TDynamicRowKeyComparer
-{
-public:
-    TDynamicRowKeyComparer(int keyColumnCount, const TTableSchema& schema);
-
-    int operator()(TDynamicRow lhs, TDynamicRow rhs) const;
-    int operator()(TDynamicRow lhs, TRowWrapper rhs) const;
-    int operator()(TDynamicRow lhs, TKeyWrapper rhs) const;
-
-private:
-    int KeyColumnCount_;
-    const TTableSchema& Schema_;
-
-    int Compare(
-        TDynamicRow lhs,
-        TUnversionedValue* rhsBegin,
-        int rhsLength) const;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TOwningKey RowToKey(
     const NVersionedTableClient::TTableSchema& schema,
     const NVersionedTableClient::TKeyColumns& keyColumns,

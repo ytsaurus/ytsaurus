@@ -469,7 +469,7 @@ public:
         rows->clear();
         Pool_.Clear();
 
-        TDynamicRowKeyComparer keyComparer(KeyColumnCount_, Store_->Schema_);
+        auto keyComparer = Store_->GetTablet()->GetDynamicRowKeyComparer();
 
         while (Iterator_.IsValid() && rows->size() < rows->capacity()) {
             if (keyComparer(Iterator_.GetCurrent(), TKeyWrapper{UpperKey_.Get()}) >= 0)
@@ -563,7 +563,7 @@ TDynamicMemoryStore::TDynamicMemoryStore(
         Config_->MaxPoolSmallBlockRatio)
     , Rows_(new TSkipList<TDynamicRow, TDynamicRowKeyComparer>(
         RowBuffer_.GetAlignedPool(),
-        TDynamicRowKeyComparer(KeyColumnCount_, Schema_)))
+        tablet->GetDynamicRowKeyComparer()))
 {
     State_ = EStoreState::ActiveDynamic;
 
