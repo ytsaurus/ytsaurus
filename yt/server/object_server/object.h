@@ -22,6 +22,9 @@ public:
     //! Returns the object type.
     EObjectType GetType() const;
 
+    //! Returns |true| if this is a well-known subject (e.g. "root", "users" etc).
+    bool IsBuiltin() const;
+
     //! Increments the object's reference counter.
     /*!
      *  \returns the incremented counter.
@@ -73,8 +76,8 @@ protected:
     void Load(NCellMaster::TLoadContext& context);
 
     TObjectId Id;
-    int RefCounter;
-    int WeakRefCounter;
+    int RefCounter = 0;
+    int WeakRefCounter = 0;
 
 };
 

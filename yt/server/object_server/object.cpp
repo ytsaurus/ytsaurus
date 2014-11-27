@@ -17,8 +17,6 @@ using namespace NCypressServer;
 
 TObjectBase::TObjectBase(const TObjectId& id)
     : Id(id)
-    , RefCounter(0)
-    , WeakRefCounter(0)
 { }
 
 const TObjectId& TObjectBase::GetId() const
@@ -29,6 +27,11 @@ const TObjectId& TObjectBase::GetId() const
 EObjectType TObjectBase::GetType() const
 {
     return TypeFromId(Id);
+}
+
+bool TObjectBase::IsBuiltin() const
+{
+    return IsWellKnownId(Id);
 }
 
 int TObjectBase::RefObject()
