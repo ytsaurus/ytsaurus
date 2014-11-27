@@ -40,10 +40,12 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
     std::vector<TConstQueryPtr> subqueries;
 
+    auto subqueryInputRowLimit = query->GetInputRowLimit() / ranges.size();
+
     for (const auto& keyRange : ranges) {
         // Set initial schema and key columns
         auto subquery = New<TQuery>(
-            query->GetInputRowLimit(),
+            subqueryInputRowLimit,
             query->GetOutputRowLimit());
 
         subquery->TableSchema = query->TableSchema;
