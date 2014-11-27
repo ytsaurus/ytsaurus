@@ -959,20 +959,24 @@ class TYPathServiceContext
 public:
     TYPathServiceContext(
         TSharedRefArray requestMessage,
-        NLog::TLogger logger)
+        const NLog::TLogger& logger,
+        NLog::ELogLevel logLevel)
         : TServiceContextBase(
             std::move(requestMessage),
-            std::move(logger))
+            logger,
+            logLevel)
     { }
 
     TYPathServiceContext(
         std::unique_ptr<TRequestHeader> requestHeader,
         TSharedRefArray requestMessage,
-        NLog::TLogger logger)
+        const NLog::TLogger& logger,
+        NLog::ELogLevel logLevel)
         : TServiceContextBase(
             std::move(requestHeader),
             std::move(requestMessage),
-            std::move(logger))
+            logger,
+            logLevel)
     { }
 
 protected:
@@ -1020,26 +1024,30 @@ protected:
 
 IServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
-    NLog::TLogger logger)
+    const NLog::TLogger& logger,
+    NLog::ELogLevel logLevel)
 {
     YASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
         std::move(requestMessage),
-        std::move(logger));
+        logger,
+        logLevel);
 }
 
 IServiceContextPtr CreateYPathContext(
     std::unique_ptr<TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
-    NLog::TLogger logger)
+    const NLog::TLogger& logger,
+    NLog::ELogLevel logLevel)
 {
     YASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
         std::move(requestHeader),
         std::move(requestMessage),
-        std::move(logger));
+        logger,
+        logLevel);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -396,6 +396,9 @@ protected:
         //! in particular, |BeforeInvoke| is not called.
         bool System = false;
 
+        //! Log level for events emitted via |Set(Request|Response)Info|-like functions.
+        NLog::ELogLevel LogLevel = NLog::ELogLevel::Debug;
+
 
         TMethodDescriptor& SetInvoker(IPrioritizedInvokerPtr value)
         {
@@ -454,6 +457,12 @@ protected:
         TMethodDescriptor& SetSystem(bool value)
         {
             System = value;
+            return *this;
+        }
+
+        TMethodDescriptor& SetLogLevel(NLog::ELogLevel value)
+        {
+            LogLevel = value;
             return *this;
         }
     };

@@ -72,11 +72,13 @@ public:
         const NTracing::TTraceContext& traceContext,
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray requestMessage,
-        const NLog::TLogger& logger)
+        const NLog::TLogger& logger,
+        NLog::ELogLevel logLevel)
         : TServiceContextBase(
             std::move(header),
             std::move(requestMessage),
-            logger)
+            logger,
+            logLevel)
         , Service_(std::move(service))
         , RequestId_(requestId)
         , MutationId_(mutationId)
@@ -267,7 +269,7 @@ private:
 
         AppendInfo(&builder, "%v", RequestInfo_);
 
-        LOG_DEBUG("%v <- %v",
+        LOG_EVENT(Logger, LogLevel_, "%v <- %v",
             GetMethod(),
             builder.Flush());
     }
@@ -286,7 +288,7 @@ private:
             AppendInfo(&builder, "%v", ResponseInfo_);
         }
 
-        LOG_DEBUG("%v -> %v",
+        LOG_EVENT(Logger, LogLevel_, "%v -> %v",
             GetMethod(),
             builder.Flush());
     }
@@ -472,7 +474,8 @@ void TServiceBase::OnRequest(
         traceContext,
         std::move(header),
         std::move(message),
-        Logger);
+        Logger,
+        runtimeInfo->Descriptor.LogLevel);
 
     if (oneWay) {
         RunRequest(std::move(context));

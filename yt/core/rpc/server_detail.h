@@ -81,16 +81,19 @@ protected:
     Stroka ResponseInfo_;
 
     NLog::TLogger Logger;
+    NLog::ELogLevel LogLevel_;
 
 
     TServiceContextBase(
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray requestMessage,
-        NLog::TLogger logger);
+        const NLog::TLogger& logger,
+        NLog::ELogLevel logLevel);
 
     TServiceContextBase(
         TSharedRefArray requestMessage,
-        NLog::TLogger logger);
+        const NLog::TLogger& logger,
+        NLog::ELogLevel logLevel);
 
     virtual void DoReply() = 0;
 

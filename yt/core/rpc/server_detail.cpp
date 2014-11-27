@@ -21,20 +21,24 @@ static const auto& Logger = RpcServerLogger;
 TServiceContextBase::TServiceContextBase(
     std::unique_ptr<TRequestHeader> header,
     TSharedRefArray requestMessage,
-    NLog::TLogger logger)
+    const NLog::TLogger& logger,
+    NLog::ELogLevel logLevel)
     : RequestHeader_(std::move(header))
     , RequestMessage_(std::move(requestMessage))
-    , Logger(std::move(logger))
+    , Logger(logger)
+    , LogLevel_(logLevel)
 {
     Initialize();
 }
 
 TServiceContextBase::TServiceContextBase(
     TSharedRefArray requestMessage,
-    NLog::TLogger logger)
+    const NLog::TLogger& logger,
+    NLog::ELogLevel logLevel)
     : RequestHeader_(new TRequestHeader())
     , RequestMessage_(std::move(requestMessage))
-    , Logger(std::move(logger))
+    , Logger(logger)
+    , LogLevel_(logLevel)
 {
     YCHECK(ParseRequestHeader(RequestMessage_, RequestHeader_.get()));
     Initialize();
@@ -77,7 +81,7 @@ void TServiceContextBase::Reply(const TError& error)
         AsyncResponseMessage_.Set(GetResponseMessage());
     }
 
-    if (Logger.IsEnabled(NLog::ELogLevel::Debug)) {
+    if (Logger.IsEnabled(LogLevel_)) {
         LogResponse(error);
     }
 }
@@ -256,7 +260,7 @@ TRequestHeader& TServiceContextBase::RequestHeader()
 void TServiceContextBase::SetRawRequestInfo(const Stroka& info)
 {
     RequestInfo_ = info;
-    if (Logger.IsEnabled(NLog::ELogLevel::Debug)) {
+    if (Logger.IsEnabled(LogLevel_)) {
         LogRequest();
     }
 }
