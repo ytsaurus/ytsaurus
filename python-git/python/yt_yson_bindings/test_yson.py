@@ -84,5 +84,18 @@ class TestYsonStream(YsonParserTestBase, unittest.TestCase):
         self.assertEqual('{"value"=<"attr"=10>#}', dumps(map))
         self.assertEqual('{"value"=#}', dumps(map, ignore_inner_attributes=True))
 
+    def test_long_integers(self):
+        long = 2 ** 63
+        self.assertEqual('%su' % str(long), dumps(long))
+
+        long = 2 ** 63 - 1
+        self.assertEqual('%s' % str(long), dumps(long))
+
+        long = -2 ** 63
+        self.assertEqual('%s' % str(long), dumps(long))
+
+        self.assertRaises(Exception, lambda: dumps(2 ** 64))
+        self.assertRaises(Exception, lambda: dumps(-2 ** 63 - 1))
+
 if __name__ == "__main__":
     unittest.main()

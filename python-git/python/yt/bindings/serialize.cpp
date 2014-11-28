@@ -1,6 +1,8 @@
 #include "common.h"
 #include "serialize.h"
 
+#include <numeric>
+
 #include <core/ytree/node.h>
 
 namespace NYT {
@@ -87,8 +89,22 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
         consumer->OnEndList();
     } else if (obj.isBoolean()) {
         consumer->OnBooleanScalar(Py::Boolean(obj));
-    } else if (obj.isInteger()) {
-        consumer->OnInt64Scalar(Py::Int(obj).asLongLong());
+    } else if (obj.isInteger() or PyLong_Check(obj.ptr())) {
+        if (PyObject_Compare(Py::Long(std::numeric_limits<ui64>::max()).ptr(), obj.ptr()) < 0 ||
+            PyObject_Compare(obj.ptr(), Py::Long(std::numeric_limits<i64>::min()).ptr()) < 0)
+        {
+            throw Py::RuntimeError(
+                "Cannot represent in yson " +
+                std::string(obj.repr()) +
+                " (it if out of range [-2^63, 2^64 - 1])");
+        }
+
+        auto longObj = Py::Long(obj);
+        if (PyObject_Compare(Py::Int(std::numeric_limits<i64>::max()).ptr(), obj.ptr()) < 0) {
+            consumer->OnUint64Scalar(PyLong_AsUnsignedLongLong(longObj.ptr()));
+        } else {
+            consumer->OnInt64Scalar(PyLong_AsLongLong(longObj.ptr()));
+        }
     } else if (obj.isFloat()) {
         consumer->OnDoubleScalar(Py::Float(obj));
     } else if (obj.isNone() || IsInstance(obj, GetYsonType("YsonEntity"))) {
