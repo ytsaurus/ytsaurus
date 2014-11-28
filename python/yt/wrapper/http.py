@@ -122,7 +122,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
             # So we should retry such requests.
             if response_should_be_json:
                 try:
-                    json.loads(response.content())
+                    response.json()
                 except json.JSONDecodeError:
                     raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)")
             if response.raw_response.status_code == 503:
