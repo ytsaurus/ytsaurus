@@ -78,6 +78,7 @@ private:
 
     void DoCleanSandbox();
     void DoCleanProcessGroups();
+    void DoResetProcessGroup();
 
     void LogErrorAndExit(const TError& error);
 
