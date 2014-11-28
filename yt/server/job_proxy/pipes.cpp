@@ -97,27 +97,12 @@ int SafeDup(int oldFd)
     YUNIMPLEMENTED();
 }
 
-void SafeDup2(int oldFd, int newFd)
-{
-    YUNIMPLEMENTED();
-}
-
 int SafePipe(int fd[2])
 {
     YUNIMPLEMENTED();
 }
 
 void SafeMakeNonblocking(int fd)
-{
-    YUNIMPLEMENTED();
-}
-
-void CheckJobDescriptor(int fd)
-{
-    YUNIMPLEMENTED();
-}
-
-void ChmodJobDescriptor(int fd)
 {
     YUNIMPLEMENTED();
 }
