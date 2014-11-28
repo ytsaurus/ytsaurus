@@ -34,11 +34,8 @@ private:
 
     virtual void ValidateRemoval() override
     {
-        auto securityManager = Bootstrap->GetSecurityManager();
         const auto* group = GetThisTypedImpl();
-        if (group == securityManager->GetEveryoneGroup() ||
-            group == securityManager->GetUsersGroup())
-        {
+        if (group->IsBuiltin()) {
             THROW_ERROR_EXCEPTION("Cannot remove a built-in group");
         }
     }

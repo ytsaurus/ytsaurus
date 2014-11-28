@@ -250,6 +250,7 @@ public:
 
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
+        SuperusersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffd);
 
         RegisterMethod(BIND(&TImpl::UpdateRequestStatistics, Unretained(this)));
     }
@@ -577,6 +578,12 @@ public:
         return UsersGroup_;
     }
 
+    TGroup* GetSuperusersGroup()
+    {
+        YCHECK(SuperusersGroup_);
+        return SuperusersGroup_;
+    }
+
 
     TSubject* FindSubjectByName(const Stroka& name)
     {
@@ -734,8 +741,8 @@ public:
     {
         TPermissionCheckResult result;
 
-        // Fast lane: "root" needs to authorization.
-        if (user == RootUser_) {
+        // Fast lane: "superusers" need to authorization.
+        if (user->RecursiveMemberOf().find(SuperusersGroup_) != user->RecursiveMemberOf().end()) {
             result.Action = ESecurityAction::Allow;
             return result;
         }
@@ -933,6 +940,9 @@ private:
     TGroupId UsersGroupId_;
     TGroup* UsersGroup_ = nullptr;
 
+    TGroupId SuperusersGroupId_;
+    TGroup* SuperusersGroup_ = nullptr;
+
     std::vector<TUser*> AuthenticatedUserStack_;
 
     TRequestTrackerPtr RequestTracker_;
@@ -1006,6 +1016,21 @@ private:
         return account;
     }
 
+    TGroup* GetBuiltinGroupForUser(TUser* user)
+    {
+        // "guest" is a member of "everyone" group
+        // "root" is a member of "superusers" group
+        // others are members of "users" group
+        const auto& id = user->GetId();
+        if (id == GuestUserId_) {
+            return EveryoneGroup_;
+        } else if (id == RootUserId_) {
+            return SuperusersGroup_;
+        } else {
+            return UsersGroup_;
+        }
+    }
+
     TUser* DoCreateUser(const TUserId& id, const Stroka& name)
     {
         auto* user = new TUser(id);
@@ -1014,16 +1039,8 @@ private:
         UserMap_.Insert(id, user);
         YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
 
-        // Make the fake reference.
         YCHECK(user->RefObject() == 1);
-
-        // Every user except for "guest" is a member of "users" group.
-        // "guest is a member of "everyone" group.
-        if (id == GuestUserId_) {
-            DoAddMember(EveryoneGroup_, user);
-        } else {
-            DoAddMember(UsersGroup_, user);
-        }
+        DoAddMember(GetBuiltinGroupForUser(user), user);
 
         return user;
     }
@@ -1093,7 +1110,7 @@ private:
     void ValidateMembershipUpdate(TGroup* group, TSubject* member)
     {
         if (group == EveryoneGroup_ || group == UsersGroup_) {
-            THROW_ERROR_EXCEPTION("Cannot modify a built-in group");
+            THROW_ERROR_EXCEPTION("Cannot modify group");
         }
 
         ValidatePermission(group, EPermission::Write);
@@ -1311,6 +1328,13 @@ private:
             // everyone
             EveryoneGroup_ = DoCreateGroup(EveryoneGroupId_, EveryoneGroupName);
             DoAddMember(EveryoneGroup_, UsersGroup_);
+        }
+
+        SuperusersGroup_ = FindGroup(SuperusersGroupId_);
+        if (!SuperusersGroup_) {
+            // superusers
+            SuperusersGroup_ = DoCreateGroup(SuperusersGroupId_, SuperusersGroupName);
+            DoAddMember(UsersGroup_, SuperusersGroup_);
         }
 
         RootUser_ = FindUser(RootUserId_);
@@ -1631,6 +1655,11 @@ TGroup* TSecurityManager::GetEveryoneGroup()
 TGroup* TSecurityManager::GetUsersGroup()
 {
     return Impl_->GetUsersGroup();
+}
+
+TGroup* TSecurityManager::GetSuperusersGroup()
+{
+    return Impl_->GetSuperusersGroup();
 }
 
 TSubject* TSecurityManager::FindSubjectByName(const Stroka& name)

@@ -15,6 +15,7 @@ const Stroka GuestUserName("guest");
 
 const Stroka EveryoneGroupName("everyone");
 const Stroka UsersGroupName("users");
+const Stroka SuperusersGroupName("superusers");
 
 ////////////////////////////////////////////////////////////////////////////////
 

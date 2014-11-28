@@ -98,7 +98,7 @@ class YTEnvSetup(YTEnv):
 
     def _remove_groups(self, groups):
         for group in groups:
-            if group != 'everyone' and group != 'users':
+            if group != 'everyone' and group != 'users' and group != 'superusers':
                 yt_commands.remove_group(group)
     
     def _remove_tablet_cells(self, cells):

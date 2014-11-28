@@ -138,6 +138,9 @@ public:
     //! Returns "users" built-in group.
     TGroup* GetUsersGroup();
 
+    //! Returns "superusers" built-in group.
+    TGroup* GetSuperusersGroup();
+
 
     //! Returns subject (a user or a group) with a given name (|nullptr| if none).
     TSubject* FindSubjectByName(const Stroka& name);

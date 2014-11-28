@@ -38,12 +38,8 @@ private:
 
     virtual void ValidateRemoval() override
     {
-        auto securityManager = Bootstrap->GetSecurityManager();
         const auto* account = GetThisTypedImpl();
-        if (account == securityManager->GetSysAccount() ||
-            account == securityManager->GetTmpAccount() ||
-            account == securityManager->GetIntermediateAccount())
-        {
+        if (account->IsBuiltin()) {
             THROW_ERROR_EXCEPTION("Cannot remove a built-in account");
         }
     }

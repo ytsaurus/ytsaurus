@@ -353,3 +353,11 @@ class TestAcls(YTEnvSetup):
         set('//tmp/x/u/@account', 'a')
 
         with pytest.raises(YtError): copy('//tmp/x', '//tmp/y', user='u', opt=['/preserve_account=true'])
+
+    def test_superusers(self):
+        create('table', '//sys/protected')
+        create_user('u')
+        with pytest.raises(YtError): remove('//sys/protected', user='u')
+        add_member('u', 'superusers')
+        remove('//sys/protected', user='u')
+

@@ -23,6 +23,7 @@ extern const Stroka GuestUserName;
 
 extern const Stroka EveryoneGroupName;
 extern const Stroka UsersGroupName;
+extern const Stroka SuperusersGroupName;
 
 DECLARE_ENUM(ESecurityAction,
     ((Undefined)(0))  // Intermediate state, used internally.

@@ -17,6 +17,7 @@ namespace NSecurityServer {
 class TSubject
     : public NObjectServer::TNonversionedObjectBase
 {
+public:
     DEFINE_BYVAL_RW_PROPERTY(Stroka, Name);
 
     typedef yhash_set<TGroup*> TGroupSet;
