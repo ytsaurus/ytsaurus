@@ -31,6 +31,11 @@ LOCK_PATH="//sys/cron/redwood_lock"
     --user-sessions-frauds-period $USER_SESSIONS_FRAUDS_PERIOD \
     --user-sessions-spy-log-period $USER_SESSIONS_SPY_LOG_PERIOD
 
+/opt/cron/redwood_clicks_shows.py \
+    --path $IMPORT_PATH \
+    --import-queue $IMPORT_QUEUE \
+    --remove-queue $REMOVE_QUEUE
+
 if [ "$FAST" != 0 ]; then
     /opt/cron/redwood_fast.py \
         --path $IMPORT_PATH \
