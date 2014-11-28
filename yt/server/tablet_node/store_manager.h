@@ -24,7 +24,8 @@ class TStoreManager
 public:
     TStoreManager(
         TTabletManagerConfigPtr config,
-        TTablet* tablet);
+        TTablet* tablet,
+        TCallback<TDynamicMemoryStorePtr()> dynamicMemoryStoreFactory);
 
     void Initialize();
 
@@ -59,19 +60,11 @@ public:
     bool IsForcedRotationPossible() const;
     bool IsRotationScheduled() const;
     void SetRotationScheduled();
-    void ResetRotationScheduled();
     void RotateStores(bool createNew);
 
     void AddStore(IStorePtr store);
     void RemoveStore(IStorePtr store);
-
     void CreateActiveStore();
-
-    TDynamicMemoryStorePtr CreateDynamicMemoryStore(const TStoreId& storeId);
-    TChunkStorePtr CreateChunkStore(
-        NCellNode::TBootstrap* bootstrap,
-        const NChunkClient::TChunkId& chunkId,
-        const NChunkClient::NProto::TChunkMeta* chunkMeta);
 
     bool IsStoreLocked(TDynamicMemoryStorePtr store) const;
     const yhash_set<TDynamicMemoryStorePtr>& GetLockedStores() const;
@@ -79,8 +72,7 @@ public:
 private:
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
-
-    IInvokerPtr EpochInvoker_;
+    TCallback<TDynamicMemoryStorePtr()> DynamicMemoryStoreFactory_;
 
     int KeyColumnCount_;
 
@@ -103,15 +95,6 @@ private:
     void CheckForUnlockedStore(TDynamicMemoryStore* store);
 
     bool IsRecovery() const;
-
-    void OnRowBlocked(
-        IStore* store,
-        TDynamicRow row,
-        int lockIndex);
-    void WaitOnBlockedRow(
-        IStorePtr store,
-        TDynamicRow row,
-        int lockIndex);
 
 };
 

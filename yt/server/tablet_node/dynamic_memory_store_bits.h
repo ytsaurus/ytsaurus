@@ -521,26 +521,29 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TOwningKey RowToKey(
-    TDynamicRow row,
     const NVersionedTableClient::TTableSchema& schema,
-    const NVersionedTableClient::TKeyColumns& keyColumns);
+    const NVersionedTableClient::TKeyColumns& keyColumns,
+    TDynamicRow row);
 
 void SaveRowKeys(
     TSaveContext& context,
-    TDynamicRow row,
-    TTablet* tablet);
+    const NVersionedTableClient::TTableSchema& schema,
+    const NVersionedTableClient::TKeyColumns& keyColumns,
+    TDynamicRow row);
 
 void LoadRowKeys(
     TLoadContext& context,
-    TDynamicRow row,
-    TTablet* tablet,
-    TChunkedMemoryPool* alignedPool);
+    const NVersionedTableClient::TTableSchema& schema,
+    const NVersionedTableClient::TKeyColumns& keyColumns,
+    TChunkedMemoryPool* alignedPool,
+    TDynamicRow row);
 
 void LoadRowKeys(
     TLoadContext& context,
-    NVersionedTableClient::TUnversionedRowBuilder* builder,
-    TTablet* tablet,
-    TChunkedMemoryPool* unalignedPool);
+    const NVersionedTableClient::TTableSchema& schema,
+    const NVersionedTableClient::TKeyColumns& keyColumns,
+    TChunkedMemoryPool* unalignedPool,
+    NVersionedTableClient::TUnversionedRowBuilder* builder);
 
 ////////////////////////////////////////////////////////////////////////////////
 

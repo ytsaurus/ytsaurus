@@ -60,6 +60,8 @@ public:
     int Lock();
     int Unlock();
 
+    //! Checks if a given #row has any locks from #lockMask with prepared timestamp
+    //! less that #timestamp. If so, raises |RowBlocked| signal and loops.
     void WaitOnBlockedRow(
         TDynamicRow row,
         ui32 lockMask,

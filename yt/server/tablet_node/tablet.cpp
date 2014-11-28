@@ -138,9 +138,9 @@ const TStoreManagerPtr& TTablet::GetStoreManager() const
     return StoreManager_;
 }
 
-void TTablet::SetStoreManager(TStoreManagerPtr manager)
+void TTablet::SetStoreManager(TStoreManagerPtr storeManager)
 {
-    StoreManager_ = manager;
+    StoreManager_ = storeManager;
 }
 
 void TTablet::Save(TSaveContext& context) const
@@ -451,6 +451,7 @@ void TTablet::StartEpoch(TTabletSlotPtr slot)
     EpochAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
     for (auto queue : EAutomatonThreadQueue::GetDomainValues()) {
         EpochAutomatonInvokers_[queue] = CancelableContext_->CreateInvoker(
+            // NB: Slot can be null in tests.
             slot
             ? slot->GetEpochAutomatonInvoker(queue)
             : GetSyncInvoker());

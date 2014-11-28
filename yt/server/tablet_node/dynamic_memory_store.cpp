@@ -1239,7 +1239,7 @@ void TDynamicMemoryStore::Save(TSaveContext& context) const
         auto row = rowIt.GetCurrent();
 
         // Keys.
-        SaveRowKeys(context, row, Tablet_);
+        SaveRowKeys(context, Schema_, KeyColumns_, row);
 
         // Values.
         auto saveFixedValues = [&] (int index) {
@@ -1299,7 +1299,7 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
         auto row = AllocateRow();
 
         // Keys.
-        LoadRowKeys(context, row, Tablet_, RowBuffer_.GetAlignedPool());
+        LoadRowKeys(context, Schema_, KeyColumns_, RowBuffer_.GetAlignedPool(), row);
 
         // Values.
         for (int columnIndex = KeyColumnCount_; columnIndex < SchemaColumnCount_; ++columnIndex) {
@@ -1360,7 +1360,7 @@ void TDynamicMemoryStore::OnMemoryUsageUpdated()
 
 TOwningKey TDynamicMemoryStore::RowToKey(TDynamicRow row)
 {
-    return NTabletNode::RowToKey(row, Schema_, KeyColumns_);
+    return NTabletNode::RowToKey(Schema_, KeyColumns_, row);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -44,31 +44,24 @@ using NVersionedTableClient::TKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto BlockedRowWaitQuantum = TDuration::MilliSeconds(100);
-
-////////////////////////////////////////////////////////////////////////////////
-
 TStoreManager::TStoreManager(
     TTabletManagerConfigPtr config,
-    TTablet* Tablet_)
+    TTablet* tablet,
+    TCallback<TDynamicMemoryStorePtr()> dynamicMemoryStoreFactory)
     : Config_(config)
-    , Tablet_(Tablet_)
+    , Tablet_(tablet)
+    , DynamicMemoryStoreFactory_(dynamicMemoryStoreFactory)
+    , KeyColumnCount_(Tablet_->GetKeyColumnCount())
     , Logger(TabletNodeLogger)
 {
     YCHECK(Config_);
     YCHECK(Tablet_);
-}
+    YCHECK(DynamicMemoryStoreFactory_);
 
-void TStoreManager::Initialize()
-{
     Logger.AddTag("TabletId: %v", Tablet_->GetId());
     if (Tablet_->GetSlot()) {
         Logger.AddTag("CellId: %v", Tablet_->GetSlot()->GetCellId());
     }
-
-    EpochInvoker_ = Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read);
-
-    KeyColumnCount_ = Tablet_->GetKeyColumnCount();
 
     for (const auto& pair : Tablet_->Stores()) {
         const auto& store = pair.second;
@@ -327,16 +320,6 @@ void TStoreManager::SetRotationScheduled()
     LOG_INFO("Tablet store rotation scheduled");
 }
 
-void TStoreManager::ResetRotationScheduled()
-{
-    if (!RotationScheduled_)
-        return;
-
-    RotationScheduled_ = false;
-
-    LOG_INFO_UNLESS(IsRecovery(), "Tablet store rotation canceled");
-}
-
 void TStoreManager::RotateStores(bool createNew)
 {
     RotationScheduled_ = false;
@@ -396,42 +379,12 @@ void TStoreManager::RemoveStore(IStorePtr store)
 
 void TStoreManager::CreateActiveStore()
 {
-    auto* slot = Tablet_->GetSlot();
-    // NB: For tests mostly.
-    auto storeId = slot ? slot->GenerateId(EObjectType::DynamicMemoryTabletStore) : TStoreId::Create();
-    auto store = CreateDynamicMemoryStore(storeId);
+    auto store = DynamicMemoryStoreFactory_.Run();
     Tablet_->AddStore(store);
     Tablet_->SetActiveStore(store);
 
     LOG_INFO_UNLESS(IsRecovery(), "Active store created (StoreId: %v)",
-        storeId);
-}
-
-TDynamicMemoryStorePtr TStoreManager::CreateDynamicMemoryStore(const TStoreId& storeId)
-{
-    auto store = New<TDynamicMemoryStore>(
-        Config_,
-        storeId,
-        Tablet_);
-    
-    store->SubscribeRowBlocked(BIND(
-        &TStoreManager::OnRowBlocked,
-        MakeWeak(this),
-        Unretained(store.Get())));
-
-    return store;
-}
-
-TChunkStorePtr TStoreManager::CreateChunkStore(
-    NCellNode::TBootstrap* bootstrap,
-    const TChunkId& chunkId,
-    const TChunkMeta* chunkMeta)
-{
-    return New<TChunkStore>(
-        chunkId,
-        Tablet_,
-        chunkMeta,
-        bootstrap);
+        store->GetId());
 }
 
 bool TStoreManager::IsStoreLocked(TDynamicMemoryStorePtr store) const
@@ -449,39 +402,6 @@ bool TStoreManager::IsRecovery() const
     auto slot = Tablet_->GetSlot();
     // NB: Slot can be null in tests.
     return slot ? slot->GetHydraManager()->IsRecovery() : false;
-}
-
-void TStoreManager::OnRowBlocked(
-    IStore* store,
-    TDynamicRow row,
-    int lockIndex)
-{
-    WaitFor(
-        BIND(
-            &TStoreManager::WaitOnBlockedRow,
-            MakeStrong(this),
-            MakeStrong(store),
-            row,
-            lockIndex)
-        .AsyncVia(EpochInvoker_)
-        .Run());
-}
-
-void TStoreManager::WaitOnBlockedRow(
-    IStorePtr /*store*/,
-    TDynamicRow row,
-    int lockIndex)
-{
-    const auto& lock = row.BeginLocks(KeyColumnCount_)[lockIndex];
-    const auto* transaction = lock.Transaction;
-    if (!transaction)
-        return;
-
-    LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v)",
-        RowToKey(row, Tablet_->Schema(), Tablet_->KeyColumns()),
-        lockIndex,
-        transaction->GetId());
-    WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

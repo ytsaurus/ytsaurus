@@ -218,9 +218,9 @@ int TDynamicRowKeyComparer::Compare(TDynamicRow lhs, TUnversionedValue* rhsBegin
 ////////////////////////////////////////////////////////////////////////////////
 
 TOwningKey RowToKey(
-    TDynamicRow row,
     const TTableSchema& schema,
-    const TKeyColumns& keyColumns)
+    const TKeyColumns& keyColumns,
+    TDynamicRow row)
 {
     TUnversionedOwningRowBuilder builder;
     ui32 nullKeyBit = 1;
@@ -251,16 +251,17 @@ TOwningKey RowToKey(
 
 void SaveRowKeys(
     TSaveContext& context,
-    TDynamicRow row,
-    TTablet* tablet)
+    const TTableSchema& schema,
+    const TKeyColumns& keyColumns,
+    TDynamicRow row)
 {
     ui32 nullKeyMask = row.GetNullKeyMask();
     ui32 nullKeyBit = 1;
     const auto* key = row.BeginKeys();
-    auto columnIt = tablet->Schema().Columns().begin();
+    auto columnIt = schema.Columns().begin();
     Save(context, nullKeyMask);
     for (int index = 0;
-         index < tablet->GetKeyColumnCount();
+         index < keyColumns.size();
          ++index, nullKeyBit <<= 1, ++key, ++columnIt)
     {
         if (!(nullKeyMask & nullKeyBit)) {
@@ -296,17 +297,18 @@ void SaveRowKeys(
 
 void LoadRowKeys(
     TLoadContext& context,
-    TDynamicRow row,
-    TTablet* tablet,
-    TChunkedMemoryPool* alignedPool)
+    const TTableSchema& schema,
+    const TKeyColumns& keyColumns,
+    TChunkedMemoryPool* alignedPool,
+    TDynamicRow row)
 {
     ui32 nullKeyMask = Load<ui32>(context);
     row.SetNullKeyMask(nullKeyMask);
     ui32 nullKeyBit = 1;
     auto* key = row.BeginKeys();
-    auto columnIt = tablet->Schema().Columns().begin();
+    auto columnIt = schema.Columns().begin();
     for (int index = 0;
-         index < tablet->GetKeyColumnCount();
+         index < keyColumns.size();
          ++index, nullKeyBit <<= 1, ++key, ++columnIt)
     {
         if (!(nullKeyMask & nullKeyBit)) {
@@ -347,15 +349,16 @@ void LoadRowKeys(
 
 void LoadRowKeys(
     TLoadContext& context,
-    TUnversionedRowBuilder* builder,
-    TTablet* tablet,
-    TChunkedMemoryPool* unalignedPool)
+    const TTableSchema& schema,
+    const TKeyColumns& keyColumns,
+    TChunkedMemoryPool* unalignedPool,
+    TUnversionedRowBuilder* builder)
 {
     ui32 nullKeyMask = Load<ui32>(context);
     ui32 nullKeyBit = 1;
-    auto columnIt = tablet->Schema().Columns().begin();
+    auto columnIt = schema.Columns().begin();
     for (int index = 0;
-         index < tablet->GetKeyColumnCount();
+         index < keyColumns.size();
          ++index, nullKeyBit <<= 1, ++columnIt)
     {
         TUnversionedValue value;

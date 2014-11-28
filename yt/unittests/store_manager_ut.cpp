@@ -24,11 +24,15 @@ protected:
     {
         TMemoryStoreTestBase::SetUp();
 
+        auto config = New<TTabletManagerConfig>();
         StoreManager_ = New<TStoreManager>(
-            New<TTabletManagerConfig>(),
-            Tablet_.get());
-        StoreManager_->Initialize();
+            config,
+            Tablet_.get(),
+            BIND([=] () {
+                return New<TDynamicMemoryStore>(config, TStoreId::Create(), Tablet_.get());
+            }));
         Tablet_->SetStoreManager(StoreManager_);
+        Tablet_->StartEpoch(nullptr);
 
         StoreManager_->CreateActiveStore();
     }

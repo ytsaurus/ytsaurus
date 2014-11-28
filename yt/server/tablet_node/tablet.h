@@ -95,7 +95,7 @@ public:
     void SetWriterOptions(TTabletWriterOptionsPtr options);
 
     const TStoreManagerPtr& GetStoreManager() const;
-    void SetStoreManager(TStoreManagerPtr manager);
+    void SetStoreManager(TStoreManagerPtr storeManager);
 
     typedef std::vector<std::unique_ptr<TPartition>> TPartitionList;
     const TPartitionList& Partitions() const;

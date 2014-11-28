@@ -12,13 +12,10 @@ class TStoreBase
     : public IStore
 {
 public:
-    TStoreBase(
-        const TStoreId& id,
-        TTablet* tablet);
+    TStoreBase(const TStoreId& id, TTablet* tablet);
 
     // IStore implementation.
     virtual TStoreId GetId() const override;
-
     virtual TTablet* GetTablet() const override;
 
     virtual EStoreState GetState() const override;

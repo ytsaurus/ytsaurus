@@ -62,7 +62,7 @@ void TTransaction::Save(TSaveContext& context) const
         Save(context, tablet->GetId());
 
         // Keys
-        SaveRowKeys(context, row, tablet);
+        SaveRowKeys(context, tablet->Schema(), tablet->KeyColumns(), row);
 
         // Fixed values
         ui32 lockMask = 0;
@@ -118,7 +118,7 @@ void TTransaction::Load(TLoadContext& context)
         rowBuilder->Reset();
 
         // Keys
-        LoadRowKeys(context, rowBuilder, tablet, tempPool);
+        LoadRowKeys(context, tablet->Schema(), tablet->KeyColumns(), tempPool, rowBuilder);
 
         // Values
         while (true) {
