@@ -32,7 +32,7 @@ TConstExpressionPtr MakeOrExpression(const TConstExpressionPtr& lhs, const TCons
 
 TConstExpressionPtr RefinePredicate(
     const TKeyRange& keyRange,
-    size_t commonPrefixSize,
+    int commonPrefixSize,
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns);
 

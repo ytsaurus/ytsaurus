@@ -5,11 +5,11 @@
 #include "private.h"
 #include "helpers.h"
 
+#include "plan_fragment.h"
+
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/unversioned_row.h>
-
-#include "plan_fragment.h"
 
 namespace NYT {
 namespace NQueryClient {
@@ -20,18 +20,18 @@ using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Computes key index for a given column name.
+//! Computes key index for a given column name.
 int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& columnName)
 {
-    for (size_t index = 0; index < keyColumns.size(); ++index) {
+    for (int index = 0; index < keyColumns.size(); ++index) {
         if (keyColumns[index] == columnName) {
             return index;
         }
     }
     return -1;
-};
+}
 
-// Descend down to conjuncts and disjuncts and extract all constraints.
+//! Descends down to conjuncts and disjuncts and extract all constraints.
 TKeyTrieNode ExtractMultipleConstraints(
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns,
@@ -114,9 +114,7 @@ TKeyTrieNode ExtractMultipleConstraints(
             return result;
         }
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        Stroka functionName(functionExpr->FunctionName);
-        functionName.to_lower();
-
+        auto functionName = to_lower(functionExpr->FunctionName);
         auto result = TKeyTrieNode::Universal();
 
         if (functionName == "is_prefix") {
@@ -158,8 +156,8 @@ TKeyTrieNode ExtractMultipleConstraints(
 
         return result;
     } else if (auto inExpr = expr->As<TInOpExpression>()) {
-        size_t keySize = inExpr->Arguments.size();
-        auto emitConstraint = [&] (size_t index, const TRow& literalTuple) {
+        int keySize = inExpr->Arguments.size();
+        auto emitConstraint = [&] (int index, const TRow& literalTuple) {
             auto referenceExpr = inExpr->Arguments[index]->As<TReferenceExpression>();
 
             auto result = TKeyTrieNode::Universal();
@@ -177,13 +175,11 @@ TKeyTrieNode ExtractMultipleConstraints(
 
         auto result = TKeyTrieNode::Empty();
 
-        for (size_t rowIndex = 0; rowIndex < inExpr->Values.size(); ++rowIndex) {
-
+        for (int rowIndex = 0; rowIndex < inExpr->Values.size(); ++rowIndex) {
             auto rowConstraint = TKeyTrieNode::Universal();
-            for (size_t keyIndex = 0; keyIndex < keySize; ++keyIndex) {
+            for (int keyIndex = 0; keyIndex < keySize; ++keyIndex) {
                 rowConstraint = IntersectKeyTrie(rowConstraint, emitConstraint(keyIndex, inExpr->Values[rowIndex].Get()));
             }
-
             result.Unite(rowConstraint);
         }
 
@@ -191,7 +187,7 @@ TKeyTrieNode ExtractMultipleConstraints(
     }
 
     return TKeyTrieNode::Universal();
-};
+}
 
 TConstExpressionPtr MakeAndExpression(const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs)
 {
@@ -251,7 +247,7 @@ TConstExpressionPtr MakeOrExpression(const TConstExpressionPtr& lhs, const TCons
 
 TConstExpressionPtr RefinePredicate(
     const TKeyRange& keyRange,
-    size_t commonPrefixSize,
+    int commonPrefixSize,
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns)
 {
@@ -353,11 +349,11 @@ TConstExpressionPtr RefinePredicate(
             }
         }
     } else if (auto inExpr = expr->As<TInOpExpression>()) {
-        size_t keySize = inExpr->Arguments.size();
+        int keySize = inExpr->Arguments.size();
 
         std::vector<TOwningRow> filteredValues;
 
-        auto emitConstraint = [&] (size_t index, const TRow& literalTuple) {
+        auto emitConstraint = [&] (int index, const TRow& literalTuple) {
             auto referenceExpr = inExpr->Arguments[index]->As<TReferenceExpression>();
 
             auto result = TKeyTrieNode::Universal();
@@ -373,10 +369,9 @@ TConstExpressionPtr RefinePredicate(
             return result;
         };
 
-        for (size_t rowIndex = 0; rowIndex < inExpr->Values.size(); ++rowIndex) {
-
+        for (int rowIndex = 0; rowIndex < inExpr->Values.size(); ++rowIndex) {
             auto rowConstraint = TKeyTrieNode::Universal();
-            for (size_t keyIndex = 0; keyIndex < keySize; ++keyIndex) {
+            for (int keyIndex = 0; keyIndex < keySize; ++keyIndex) {
                 rowConstraint = IntersectKeyTrie(rowConstraint, emitConstraint(keyIndex, inExpr->Values[rowIndex].Get()));
             }
 
@@ -385,7 +380,6 @@ TConstExpressionPtr RefinePredicate(
             if (!ranges.empty()) {
                 filteredValues.push_back(inExpr->Values[rowIndex]);
             }
-
         }
 
         return New<TInOpExpression>(NullSourceLocation, inExpr->Arguments, filteredValues);
@@ -396,15 +390,15 @@ TConstExpressionPtr RefinePredicate(
 
 TKeyRange Unite(const TKeyRange& first, const TKeyRange& second)
 {
-    const TKey& lower = ChooseMinKey(first.first, second.first);
-    const TKey& upper = ChooseMaxKey(first.second, second.second);
+    const auto& lower = ChooseMinKey(first.first, second.first);
+    const auto& upper = ChooseMaxKey(first.second, second.second);
     return std::make_pair(lower, upper);
 }
 
 TKeyRange Intersect(const TKeyRange& first, const TKeyRange& second)
 {
-    const TKeyRange* leftmost = &first;
-    const TKeyRange* rightmost = &second;
+    const auto* leftmost = &first;
+    const auto* rightmost = &second;
 
     if (leftmost->first > rightmost->first) {
         std::swap(leftmost, rightmost);
