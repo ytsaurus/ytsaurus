@@ -123,7 +123,7 @@ def main():
     yt.run_map("./upload.sh " + args.output, temp, yt.create_temp_table(),
                spec={"data_size_per_job": 16 * 1024 * 1024,
                      "mapper": {"enable_input_table_index": "false"}},
-               local_files="upload.sh")
+               local_files="upload.sh", format=yt.YsonFormat(format="text"))
     #yt.remove(temp)
 
 if __name__ == "__main__":
