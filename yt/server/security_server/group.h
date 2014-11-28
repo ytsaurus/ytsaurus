@@ -17,8 +17,8 @@ namespace NSecurityServer {
 class TGroup
     : public TSubject
 {
-    typedef yhash_set<TSubject*> TSubjectSet;
-    DEFINE_BYREF_RW_PROPERTY(TSubjectSet, Members);
+public:
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TSubject*>, Members);
 
 public:
     explicit TGroup(const TGroupId& id);

@@ -9,8 +9,6 @@
 
 #include <server/cell_master/public.h>
 
-#include <server/security_server/security_manager.pb.h>
-
 namespace NYT {
 namespace NSecurityServer {
 
@@ -19,6 +17,7 @@ namespace NSecurityServer {
 class TUser
     : public TSubject
 {
+public:
     // Limits and bans.
     DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
     DEFINE_BYVAL_RW_PROPERTY(double, RequestRateLimit);
