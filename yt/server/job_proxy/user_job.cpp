@@ -306,8 +306,6 @@ public:
             }
         }
 
-        AddStatistic(Statistics, "/job_proxy/input", JobIO->GetInputDataStatistics());
-        AddStatistic(Statistics, "/job_proxy/output", JobIO->GetOutputDataStatistics());
         Statistics.Add("/user_job/system/time", TSummary(static_cast<i64>(GetElapsedTime().MilliSeconds())));
 
         if (JobExitError.IsOK()) {
