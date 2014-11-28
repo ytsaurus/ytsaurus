@@ -74,7 +74,7 @@ class Response(object):
                 url_base = "/".join(self.raw_response.url.split("/")[:3])
                 raise YtTokenError(
                     "Your authentication token was rejected by the server (X-YT-Request-ID: {0}).\n"
-                    "Please refer to {1}/auth/ for obtaining a valid token or contact us at yt@yandex-team.ru."\
+                    "Please refer to {1}/auth/ for obtaining a valid token or contact us at yt-admin@yandex-team.ru."\
                         .format(
                             self.raw_response.headers.get("X-YT-Request-ID", "absent"),
                             url_base))
