@@ -91,6 +91,14 @@ class Yamr(object):
         records_line = records_line.replace("</b>", "").replace("<br>", "").replace("<b>", "").replace(",", "")
         return records_line.split(field + ":")[1].split()[0]
 
+    def list(self, prefix):
+        output = _check_output(
+            "{0} -server {1} -list -prefix {2} -jsonoutput"\
+                .format(self.binary, self.server, prefix),
+            timeout=self._light_command_timeout,
+            shell=True)
+        return json.loads(output)
+
     def get_field_from_server(self, table, field, allow_cache):
         if not allow_cache or table not in self.cache:
             output = _check_output(
