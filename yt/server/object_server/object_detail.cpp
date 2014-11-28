@@ -601,6 +601,7 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attribu
 
     attributes->push_back("id");
     attributes->push_back("type");
+    attributes->push_back("builtin");
     attributes->push_back("ref_counter");
     attributes->push_back("weak_ref_counter");
     attributes->push_back(TAttributeInfo("supported_permissions", true, true));
@@ -624,6 +625,12 @@ bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* con
     if (key == "type") {
         BuildYsonFluently(consumer)
             .Value(TypeFromId(GetId()));
+        return true;
+    }
+
+    if (key == "builtin") {
+        BuildYsonFluently(consumer)
+            .Value(Object->IsBuiltin());
         return true;
     }
 
