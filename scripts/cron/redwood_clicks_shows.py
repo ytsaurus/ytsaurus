@@ -70,7 +70,7 @@ def main():
     yamr = Yamr("/Berkanavt/bin/mapreduce", server="redwood00.search.yandex.net", server_port=8013, http_port=13013)
 
     for prefix in ["", "com.tr."]:
-        process_logs(tables_to_import, tables_to_remove, os.path.join(args.path, "clicks_shows/{}/filtered/web"),
+        process_logs(tables_to_import, tables_to_remove, os.path.join(args.path, "clicks_shows/" + prefix + "{}/filtered/web"),
                      yamr, "clicks_shows/" + prefix, "/filtered/web", args.table_count)
 
     yt.set(args.import_queue, list(tables_to_import))
