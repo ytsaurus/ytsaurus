@@ -347,7 +347,7 @@ public:
         if (!storeManager->IsRotationPossible())
             return;
 
-        storeManager->SetRotationScheduled();
+        storeManager->ScheduleRotation();
 
         TReqRotateStore request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
@@ -440,6 +440,7 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
+            CreateStoreManager(tablet);
             if (tablet->GetState() >= ETabletState::WaitingForLocks) {
                 YCHECK(UnmountingTablets_.insert(tablet).second);
             }
@@ -468,7 +469,6 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
-            InitializeStoreManager(tablet);
             StartTabletEpoch(tablet);
             CheckIfFullyUnlocked(tablet);
             CheckIfAllStoresFlushed(tablet);
@@ -538,7 +538,7 @@ private:
         tablet->CreateInitialPartition();
         tablet->SetState(ETabletState::Mounted);
 
-        auto storeManager = InitializeStoreManager(tablet);
+        auto storeManager = CreateStoreManager(tablet);
         storeManager->CreateActiveStore();
 
         StartMemoryUsageTracking(tablet);
@@ -1211,7 +1211,7 @@ private:
 
     void RotateStores(TTablet* tablet, bool createNew)
     {
-        tablet->GetStoreManager()->RotateStores(createNew);
+        tablet->GetStoreManager()->Rotate(createNew);
     }
 
 
@@ -1230,7 +1230,7 @@ private:
     }
 
 
-    TStoreManagerPtr InitializeStoreManager(TTablet* tablet)
+    TStoreManagerPtr CreateStoreManager(TTablet* tablet)
     {
         auto storeManager = New<TStoreManager>(
             Config_,
@@ -1246,7 +1246,8 @@ private:
 
     void StartTabletEpoch(TTablet* tablet)
     {
-        tablet->StartEpoch(Slot_);
+        const auto& storeManager = tablet->GetStoreManager();
+        storeManager->StartEpoch(Slot_);
 
         auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
         tabletSlotManager->RegisterTabletSnapshot(tablet);
@@ -1266,8 +1267,8 @@ private:
             store->SetState(store->GetPersistentState());
         }
 
-        tablet->StopEpoch();
-        tablet->SetStoreManager(nullptr);
+        const auto& storeManager = tablet->GetStoreManager();
+        storeManager->StopEpoch();
 
         auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
         tabletSlotManager->UnregisterTabletSnapshot(tablet);

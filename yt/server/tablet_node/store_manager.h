@@ -9,8 +9,6 @@
 
 #include <ytlib/new_table_client/public.h>
 
-#include <ytlib/chunk_client/chunk_meta.pb.h>
-
 #include <server/cell_node/public.h>
 
 namespace NYT {
@@ -18,6 +16,15 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Manages a set of stores comprising a tablet.
+/*!
+ *  This class provides a facade for modifying data within a given tablet.
+ *
+ *  Each tablet has an instance of TStoreManager, which is attached to the tablet
+ *  upon its construction.
+ *
+ *  TStoreManager instances are not bound to any specific epoch and are reused.
+ */
 class TStoreManager
     : public TRefCounted
 {
@@ -27,16 +34,18 @@ public:
         TTablet* tablet,
         TCallback<TDynamicMemoryStorePtr()> dynamicMemoryStoreFactory);
 
-    void Initialize();
-
+    //! Returns the tablet this instance is bound to.
     TTablet* GetTablet() const;
 
-    //! Returns |true| is there are outstanding locks to any of in-memory stores.
+    //! Returns |true| if there are outstanding locks to any of dynamic memory stores.
     //! Used to determine when it is safe to unmount the tablet.
     bool HasActiveLocks() const;
 
-    //! Returns |true| is there are some in-memory stores that are not flushed yet.
+    //! Returns |true| if there are some dynamic memory stores that are not flushed yet.
     bool HasUnflushedStores() const;
+
+    void StartEpoch(TTabletSlotPtr slot);
+    void StopEpoch();
 
     TDynamicRowRef WriteRow(
         TTransaction* transaction,
@@ -59,8 +68,8 @@ public:
     bool IsRotationPossible() const;
     bool IsForcedRotationPossible() const;
     bool IsRotationScheduled() const;
-    void SetRotationScheduled();
-    void RotateStores(bool createNew);
+    void ScheduleRotation();
+    void Rotate(bool createNewStore);
 
     void AddStore(IStorePtr store);
     void RemoveStore(IStorePtr store);
@@ -76,8 +85,8 @@ private:
 
     int KeyColumnCount_;
 
-    bool RotationScheduled_ = false;
-    TInstant LastRotated_ = TInstant::Now();
+    bool RotationScheduled_;
+    TInstant LastRotated_;
 
     yhash_set<TDynamicMemoryStorePtr> LockedStores_;
     std::multimap<TTimestamp, IStorePtr> MaxTimestampToStore_;

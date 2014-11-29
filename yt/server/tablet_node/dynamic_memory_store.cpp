@@ -410,7 +410,7 @@ protected:
         ui32 nullKeyMask = dynamicRow.GetNullKeyMask();
         ui32 nullKeyBit = 1;
         const auto* srcKey = dynamicRow.BeginKeys();
-        auto columnIt = Store_->GetTablet()->Schema().Columns().begin();
+        auto columnIt = Store_->Schema_.Columns().begin();
         for (int index = 0;
              index < KeyColumnCount_;
              ++index, nullKeyBit <<= 1, ++srcKey, ++dstKey, ++columnIt)
@@ -469,7 +469,7 @@ public:
         rows->clear();
         Pool_.Clear();
 
-        TDynamicRowKeyComparer keyComparer(KeyColumnCount_, Store_->GetTablet()->Schema());
+        TDynamicRowKeyComparer keyComparer(KeyColumnCount_, Store_->Schema_);
 
         while (Iterator_.IsValid() && rows->size() < rows->capacity()) {
             if (keyComparer(Iterator_.GetCurrent(), TKeyWrapper{UpperKey_.Get()}) >= 0)

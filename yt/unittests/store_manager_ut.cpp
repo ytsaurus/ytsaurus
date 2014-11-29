@@ -32,15 +32,15 @@ protected:
                 return New<TDynamicMemoryStore>(config, TStoreId::Create(), Tablet_.get());
             }));
         Tablet_->SetStoreManager(StoreManager_);
-        Tablet_->StartEpoch(nullptr);
 
+        StoreManager_->StartEpoch(nullptr);
         StoreManager_->CreateActiveStore();
     }
 
     void Rotate()
     {
-        StoreManager_->SetRotationScheduled();
-        StoreManager_->RotateStores(true);
+        StoreManager_->ScheduleRotation();
+        StoreManager_->Rotate(true);
     }
 
     TDynamicRowRef WriteRow(

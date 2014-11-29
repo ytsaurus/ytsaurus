@@ -140,6 +140,8 @@ const TStoreManagerPtr& TTablet::GetStoreManager() const
 
 void TTablet::SetStoreManager(TStoreManagerPtr storeManager)
 {
+    YCHECK(storeManager);
+    YCHECK(!StoreManager_);
     StoreManager_ = storeManager;
 }
 

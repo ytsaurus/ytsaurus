@@ -101,6 +101,18 @@ bool TStoreManager::HasUnflushedStores() const
     return false;
 }
 
+void TStoreManager::StartEpoch(TTabletSlotPtr slot)
+{
+    Tablet_->StartEpoch(slot);
+    LastRotated_ = TInstant::Now();
+    RotationScheduled_ = false;
+}
+
+void TStoreManager::StopEpoch()
+{
+    Tablet_->StopEpoch();
+}
+
 TDynamicRowRef TStoreManager::WriteRow(
     TTransaction* transaction,
     TUnversionedRow row,
@@ -237,7 +249,7 @@ void TStoreManager::CheckInactiveStoresLocks(
     }
 }
 
-void TStoreManager::CheckForUnlockedStore(TDynamicMemoryStore * store)
+void TStoreManager::CheckForUnlockedStore(TDynamicMemoryStore* store)
 {
     if (store == Tablet_->GetActiveStore() || store->GetLockCount() > 0)
         return;
@@ -310,9 +322,9 @@ bool TStoreManager::IsRotationScheduled() const
     return RotationScheduled_;
 }
 
-void TStoreManager::SetRotationScheduled()
+void TStoreManager::ScheduleRotation()
 {
-    if (RotationScheduled_) 
+    if (RotationScheduled_)
         return;
     
     RotationScheduled_ = true;
@@ -320,7 +332,7 @@ void TStoreManager::SetRotationScheduled()
     LOG_INFO("Tablet store rotation scheduled");
 }
 
-void TStoreManager::RotateStores(bool createNew)
+void TStoreManager::Rotate(bool createNewStore)
 {
     RotationScheduled_ = false;
     LastRotated_ = TInstant::Now();
@@ -343,7 +355,7 @@ void TStoreManager::RotateStores(bool createNew)
 
     MaxTimestampToStore_.insert(std::make_pair(store->GetMaxTimestamp(), store));
 
-    if (createNew) {
+    if (createNewStore) {
         CreateActiveStore();
     } else {
         Tablet_->SetActiveStore(nullptr);
