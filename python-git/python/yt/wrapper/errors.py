@@ -47,7 +47,17 @@ class YtResponseError(YtError):
 
     def is_request_rate_limit_exceeded(self):
         """Request rate limit exceeded."""
-        return int(self.error["code"]) == 904
+        return YtResponseError._contains_code(self.error, 904)
+
+    @staticmethod
+    def _contains_code(error, code):
+        if error["code"] == code:
+            return True
+        for inner_error in error["inner_errors"]:
+            if YtResponseError._contains_code(inner_error, code):
+                return True
+        return False
+
 
 class YtRequestRateLimitExceeded(YtResponseError):
     pass
