@@ -62,6 +62,12 @@ class YtResponseError(YtError):
 class YtRequestRateLimitExceeded(YtResponseError):
     pass
 
+def build_response_error(url, headers, error):
+    error = YtResponseError(url, headers, error)
+    if error.is_request_rate_limit_exceeded():
+        return YtRequestRateLimitExceeded(error)
+    return error
+
 class YtProxyUnavailable(YtError):
     """Proxy is under heavy load."""
     pass
