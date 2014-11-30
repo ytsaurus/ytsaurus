@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "async_writer.h"
-#include "non_block_writer.h"
+#include "nonblocking_writer.h"
 
 #include "async_io.h"
 #include "io_dispatcher.h"

@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "non_block_reader.h"
+#include "nonblocking_reader.h"
 
 #include "private.h"
 
