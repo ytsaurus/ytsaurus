@@ -37,7 +37,6 @@
 
 #include <server/job_proxy/config.h>
 #include <server/job_proxy/job_proxy.h>
-#include <server/job_proxy/pipes.h>
 
 #include <tclap/CmdLine.h>
 
@@ -342,8 +341,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isExecutor) {
+        const int permissions = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
         for (auto fd : parser.PreparePipes.getValue()) {
-            PrepareUserJobPipe(fd);
+            SetPermissions(fd, permissions);
         }
 
         auto uid = parser.Uid.getValue();

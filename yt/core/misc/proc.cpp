@@ -92,6 +92,21 @@ i64 GetProcessRss(int pid)
 #endif
 }
 
+void PrepareUserJobPipe(int fd, int permissions)
+{
+#ifdef _unix_
+    auto procPath = Format("/proc/self/fd/%v", fd);
+    auto res = chmod(~procPath, permissions);
+
+    if (res == -1) {
+        THROW_ERROR_EXCEPTION("Failed to chmod job descriptor")
+            << TErrorAttribute("fd", fd)
+            << TErrorAttribute("permissions", permissions)
+            << TError::FromSystem();
+    }
+#endif
+}
+
 #ifdef _unix_
 
 void RunCleaner(const Stroka& path)

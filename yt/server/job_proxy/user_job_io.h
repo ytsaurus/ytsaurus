@@ -45,10 +45,6 @@ public:
     virtual NTableClient::ISyncWriterPtr CreateTableOutput(
         int index);
 
-    virtual std::unique_ptr<TErrorOutput> CreateErrorOutput(
-        const NTransactionClient::TTransactionId& transactionId,
-        i64 maxSize) const;
-
     virtual std::unique_ptr<TErrorOutput> CreateFailContextOutput(
         const NTransactionClient::TTransactionId& transactionId) const;
 

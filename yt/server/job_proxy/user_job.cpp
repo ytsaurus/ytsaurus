@@ -73,6 +73,7 @@ using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NTransactionClient;
 using namespace NConcurrency;
+using namespace NCGroup;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,6 +86,8 @@ static const auto& Logger = JobProxyLogger;
 static const int JobStatisticsFD = 5;
 static const i64 MemoryLimitBoost = (i64) 2 * 1024 * 1024 * 1024;
 static const char* CGroupPrefix = "user_jobs/yt-job-";
+
+static TNullOutput NullOutput;
 
 class TUserJob
     : public TJob
@@ -264,7 +267,7 @@ public:
         }
 
         if (UserJobSpec.enable_accounting() || config->ForceEnableAccounting) {
-            RetrieveStatistics(CpuAccounting, [&] (NCGroup::TCpuAccounting& cgroup) {
+            RetrieveStatistics(CpuAccounting, [&] (TCpuAccounting& cgroup) {
                     CpuAccountingStats = cgroup.GetStatistics();
                 });
             DestroyCGroup(CpuAccounting);
@@ -272,7 +275,7 @@ public:
 
             {
                 TGuard<TSpinLock> guard(BlockIOLock);
-                RetrieveStatistics(BlockIO, [&] (NCGroup::TBlockIO& cgroup) {
+                RetrieveStatistics(BlockIO, [&] (TBlockIO& cgroup) {
                         BlockIOStats = cgroup.GetStatistics();
                     });
                 DestroyCGroup(BlockIO);
@@ -281,7 +284,7 @@ public:
             if (config->EnableCGroupMemoryHierarchy)
             {
                 TGuard<TSpinLock> guard(MemoryLock);
-                RetrieveStatistics(Memory, [&] (NCGroup::TMemory& cgroup) { });
+                RetrieveStatistics(Memory, [&] (TMemory& cgroup) { });
 
                 try {
                     Memory.ForceEmpty();
@@ -327,6 +330,21 @@ public:
     }
 
 private:
+    TOutputStream* CreateErrorOutput()
+    {
+        if (!UserJobSpec.has_stderr_transaction_id()) {
+            return &NullOutput;
+        }
+        
+        ErrorOutput.assign(new TErrorOutput(
+            Host->GetConfig()->JobIO->ErrorFileWriter,
+            Host->GetMasterChannel(),
+            FromProto<TTransactionId>(UserJobSpec.stderr_transaction_id()),
+            UserJobSpec.max_stderr_size());
+
+        return ErrorOutput.get();
+    }
+
     void InitPipes()
     {
         LOG_DEBUG("Initializing pipes");
@@ -377,19 +395,10 @@ private:
             }
         };
 
+        // Configure stderr pipe.
         int pipe[2];
         createPipe(pipe);
-
-        // Configure stderr pipe.
-        TOutputStream* stderrOutput = &NullErrorOutput;
-        if (UserJobSpec.has_stderr_transaction_id()) {
-            auto stderrTransactionId = FromProto<TTransactionId>(UserJobSpec.stderr_transaction_id());
-            ErrorOutput = JobIO->CreateErrorOutput(
-                stderrTransactionId,
-                UserJobSpec.max_stderr_size());
-            stderrOutput = ErrorOutput.get();
-        }
-        
+        TOutputStream* stderrOutput = CreateErrorOutput();
         OutputPipes.push_back(New<TOutputPipe>(pipe, stderrOutput, STDERR_FILENO));
 
         // Make pipe for each input and each output table.
@@ -607,7 +616,7 @@ private:
 
             {
                 bool isMemoryCreated = false;
-                NCGroup::TMemory::TStatistics statistics;
+                TMemory::TStatistics statistics;
 
                 {
                     TGuard<TSpinLock> guard(MemoryLock);
@@ -749,7 +758,7 @@ private:
         Serialize(statistics, &consumer);
     }
 
-    void CreateCGroup(NCGroup::TCGroup& cgroup)
+    void CreateCGroup(TCGroup& cgroup)
     {
         try {
             cgroup.Create();
@@ -770,17 +779,17 @@ private:
         }
     }
 
-    void DestroyCGroup(NCGroup::TCGroup& cgroup)
+    void DestroyCGroup(TCGroup& cgroup)
     {
         if (cgroup.IsCreated()) {
             try {
-                NCGroup::RunKiller(cgroup.GetFullPath());
+                RunKiller(cgroup.GetFullPath());
                 cgroup.Destroy();
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Unable to destroy cgroup %Qv", cgroup.GetFullPath());
             }
         } else {
-            LOG_WARNING("CGroup %Qv is not created. Unable to destroy", cgroup.GetFullPath());
+            LOG_WARNING("CGroup %Qv was not created. Unable to destroy", cgroup.GetFullPath());
         }
     }
 
@@ -793,7 +802,7 @@ private:
             return;
         }
 
-        NCGroup::RunKiller(Freezer.GetFullPath());
+        RunKiller(Freezer.GetFullPath());
     }
 
     std::unique_ptr<TUserJobIO> JobIO;
@@ -818,25 +827,24 @@ private:
 
     std::unique_ptr<TTableOutput> StatisticsOutput;
     std::unique_ptr<TErrorOutput> ErrorOutput;
-    TNullOutput NullErrorOutput;
     std::vector< std::unique_ptr<TOutputStream> > TableOutput;
 
     TInstant ProcessStartTime;
 
     TProcess Process;
 
-    NCGroup::TCpuAccounting CpuAccounting;
-    NCGroup::TCpuAccounting::TStatistics CpuAccountingStats;
+    TCpuAccounting CpuAccounting;
+    TCpuAccounting::TStatistics CpuAccountingStats;
 
-    NCGroup::TBlockIO BlockIO;
-    NCGroup::TBlockIO::TStatistics BlockIOStats;
-    std::vector<NCGroup::TBlockIO::TStatisticsItem> CurrentServicedIOs;
+    TBlockIO BlockIO;
+    TBlockIO::TStatistics BlockIOStats;
+    std::vector<TBlockIO::TStatisticsItem> CurrentServicedIOs;
     TSpinLock BlockIOLock;
 
-    NCGroup::TMemory Memory;
+    TMemory Memory;
     TSpinLock MemoryLock;
 
-    NCGroup::TFreezer Freezer;
+    TFreezer Freezer;
     TSpinLock FreezerLock;
 
     TStatistics Statistics;

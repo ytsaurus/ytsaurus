@@ -111,24 +111,6 @@ void SafeMakeNonblocking(int fd)
 
 ////////////////////////////////////////////////////////////////////
 
-void PrepareUserJobPipe(int fd)
-{
-#ifdef _unix_
-    const int permissions = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
-    auto procPath = Format("/proc/self/fd/%v", fd);
-    auto res = chmod(~procPath, permissions);
-
-    if (res == -1) {
-        THROW_ERROR_EXCEPTION("Failed to chmod job descriptor")
-            << TErrorAttribute("fd", fd)
-            << TErrorAttribute("permissions", permissions)
-            << TError::FromSystem();
-    }
-#endif
-}
-
-////////////////////////////////////////////////////////////////////
-
 struct TOutputPipeTag { };
 
 TOutputPipe::TOutputPipe(

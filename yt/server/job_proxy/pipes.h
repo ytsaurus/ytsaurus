@@ -28,8 +28,6 @@ struct TJobPipe
     int WriteFd;
 };
 
-void PrepareUserJobPipe(int fd);
-
 ////////////////////////////////////////////////////////////////////
 
 struct IDataPipe

@@ -134,17 +134,6 @@ TDataStatistics TUserJobIO::GetOutputDataStatistics() const
     return statistics;
 }
 
-std::unique_ptr<TErrorOutput> TUserJobIO::CreateErrorOutput(
-    const TTransactionId& transactionId,
-    i64 maxSize) const
-{
-    return std::unique_ptr<TErrorOutput>(new TErrorOutput(
-        IOConfig->ErrorFileWriter,
-        Host->GetMasterChannel(),
-        transactionId,
-        maxSize));
-}
-
 std::unique_ptr<TErrorOutput> TUserJobIO::CreateFailContextOutput(
     const TTransactionId& transactionId) const
 {

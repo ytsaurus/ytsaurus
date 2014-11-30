@@ -30,6 +30,8 @@ void SafeDup2(int oldFd, int newFd);
 
 bool TryExecve(const char* path, char* const argv[], char* const env[]);
 
+void SetPermissions(int fd, int permissions);
+
 void CloseAllDescriptors();
 
 DECLARE_ENUM(EExitStatus,
