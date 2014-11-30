@@ -68,7 +68,7 @@ using NHive::ETransactionState;
 static const int TypicalStoreCount = 64;
 
 DECLARE_ENUM(EPartitionState,
-    (None)               // nothing special is happening
+    (Normal)             // nothing special is happening
     (Splitting)          // split mutation is submitted
     (Merging)            // merge mutation is submitted
     (Compacting)         // compaction (or partitioning) is in progress 

@@ -107,7 +107,7 @@ private:
 
     void ScanEden(TTabletSlotPtr slot, TPartition* eden)
     {
-        if (eden->GetState() != EPartitionState::None)
+        if (eden->GetState() != EPartitionState::Normal)
             return;
 
         auto stores = PickStoresForPartitioning(eden);
@@ -159,7 +159,7 @@ private:
 
     void ScanPartition(TTabletSlotPtr slot, TPartition* partition)
     {
-        if (partition->GetState() != EPartitionState::None)
+        if (partition->GetState() != EPartitionState::Normal)
             return;
 
         // Don't compact partitions whose data size exceeds the limit.
@@ -524,7 +524,7 @@ private:
         }
 
         YCHECK(eden->GetState() == EPartitionState::Compacting);
-        eden->SetState(EPartitionState::None);
+        eden->SetState(EPartitionState::Normal);
     }
 
     void CompactPartition(
@@ -687,7 +687,7 @@ private:
         }
 
         YCHECK(partition->GetState() == EPartitionState::Compacting);
-        partition->SetState(EPartitionState::None);
+        partition->SetState(EPartitionState::Normal);
     }
 
 };

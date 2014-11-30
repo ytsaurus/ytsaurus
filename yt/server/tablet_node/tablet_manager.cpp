@@ -1258,7 +1258,7 @@ private:
         tablet->SetState(tablet->GetPersistentState());
         
         for (const auto& partition : tablet->Partitions()) {
-            partition->SetState(EPartitionState::None);
+            partition->SetState(EPartitionState::Normal);
             partition->SetSamplingNeeded(false);
         }
 

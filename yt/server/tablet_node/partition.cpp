@@ -20,7 +20,7 @@ TPartition::TPartition(TTablet* tablet, int index)
     , Index_(index)
     , PivotKey_(MinKey())
     , NextPivotKey_(MaxKey())
-    , State_(EPartitionState::None)
+    , State_(EPartitionState::Normal)
     , SamplingNeeded_(false)
     , LastSamplingTime_(TInstant::Zero())
 { }

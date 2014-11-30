@@ -124,7 +124,7 @@ private:
 
     void RunSplit(TPartition* partition, int splitFactor)
     {
-        if (partition->GetState() != EPartitionState::None)
+        if (partition->GetState() != EPartitionState::Normal)
             return;
 
         for (auto store : partition->Stores()) {
@@ -181,7 +181,7 @@ private:
                 ->Commit();
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Partitioning aborted");
-            partition->SetState(EPartitionState::None);
+            partition->SetState(EPartitionState::Normal);
         }
     }
 
@@ -194,7 +194,7 @@ private:
         auto* tablet = partition->GetTablet();
 
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
-            if (tablet->Partitions()[index]->GetState() != EPartitionState::None)
+            if (tablet->Partitions()[index]->GetState() != EPartitionState::Normal)
                 return;
         }
 
@@ -221,7 +221,7 @@ private:
 
     void RunSample(TPartition* partition)
     {
-        if (partition->GetState() != EPartitionState::None)
+        if (partition->GetState() != EPartitionState::Normal)
             return;
         if (partition->GetLastSamplingTime() > TInstant::Now() - Config_->ResamplingPeriod)
             return;
@@ -262,7 +262,7 @@ private:
             LOG_ERROR(ex, "Partition sampling aborted");
         }
 
-        partition->SetState(EPartitionState::None);
+        partition->SetState(EPartitionState::Normal);
         // NB: Update the timestamp even in case of failure to prevent
         // repeating unsuccessful samplings too rapidly.
         partition->SetLastSamplingTime(TInstant::Now());
