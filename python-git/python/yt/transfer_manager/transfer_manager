@@ -504,6 +504,7 @@ class Application(object):
                 if destination_client._type == "yamr":
                     destination_client._light_command_timeout = yamr_timeout
 
+
             if source_client._type == "yamr" and source_client.is_empty(task.source_table) or \
                source_client._type == "yt" and (
                     not source_client.exists(task.source_table) or
@@ -645,6 +646,7 @@ class Application(object):
                     queue = Queue()
                     task_process = Process(target=lambda: self._execute_task(self._tasks[id], queue))
                     task_process.aborted = False
+                    task_process.daemon = True
                     task_process.start()
                     self._task_processes[id] = (task_process, queue)
 
