@@ -2,7 +2,7 @@ import http_config
 import config
 import yt.logger as logger
 from common import require, get_backoff, get_value
-from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtResponseError, YtRequestRateLimitExceeded
+from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, build_response_error, YtRequestRateLimitExceeded
 
 import os
 import string
@@ -110,13 +110,9 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                 response = Response(get_session().request(method, url, timeout=timeout, **kwargs), headers)
             except ConnectionError as error:
                 if hasattr(error, "response"):
-                    raise YtResponseError(url, headers, Response(error.response, headers).error())
+                    raise build_response_error(url, headers, Response(error.response, headers).error())
                 else:
                     raise
-            except YtResponseError as error:
-                if error.is_request_rate_limit_exceeded():
-                    raise YtRequestRateLimitExceeded(error)
-                raise
 
             # Sometimes (quite often) we obtain incomplete response with body expected to be JSON.
             # So we should retry such requests.
@@ -128,12 +124,11 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
             if response.raw_response.status_code == 503:
                 raise YtProxyUnavailable("Retrying response with code 503 and body %s" % response.content())
             if not response.is_ok():
-                raise YtResponseError(url, kwargs.get("headers", {}), response.error())
+                raise build_response_error(url, headers, response.error())
 
             return response
-
         except tuple(retriable_errors) as error:
-            message =  "HTTP %s request %s has failed with error %s, message: '%s', headers: %s" % (method, url, type(error), str(error), kwargs.get("headers", {}))
+            message =  "HTTP %s request %s has failed with error %s, message: '%s', headers: %s" % (method, url, type(error), str(error), headers)
             if make_retries and attempt + 1 < http_config.REQUEST_RETRY_COUNT:
                 backoff = get_backoff(http_config.REQUEST_RETRY_TIMEOUT, current_time)
                 if backoff:
