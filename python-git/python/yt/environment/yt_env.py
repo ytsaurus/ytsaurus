@@ -547,7 +547,7 @@ class YTEnv(object):
 
         config_path = os.path.join(self.path_to_run, 'proxy_config.json')
         with open(config_path, "w") as f:
-            f.write(json.dumps(proxy_config))
+            f.write(json.dumps(proxy_config, indent=4))
 
         self.configs[proxy_name] = proxy_config
         self.config_paths[proxy_name] = config_path
