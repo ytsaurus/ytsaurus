@@ -51,7 +51,7 @@ class YtResponseError(YtError):
 
     @staticmethod
     def _contains_code(error, code):
-        if error["code"] == code:
+        if int(error["code"]) == code:
             return True
         for inner_error in error["inner_errors"]:
             if YtResponseError._contains_code(inner_error, code):
