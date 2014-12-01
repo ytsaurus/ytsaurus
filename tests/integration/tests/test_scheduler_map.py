@@ -99,6 +99,36 @@ sudo -n dd if=/dev/sda of=/dev/null bs=1600K count=1 iflag=direct 1>/dev/null
                 print self._get_stderr(op_id)
 
 
+class TestCGroups(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        'exec_agent' : {
+            'force_enable_accounting' : 'true',
+            'enable_cgroup_memory_hierarchy' : 'true',
+            'slot_manager' : {
+                'enforce_job_control' : 'true',
+                'enable_cgroups' : 'true'
+            }
+        }
+    }
+
+    def test_failed_jobs_twice(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write('//tmp/t1', [{"foo": "bar"} for i in xrange(200)])
+        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command='trap "" HUP; bash -c "sleep 60" &; sleep $[( $RANDOM % 5 )]s; exit 42;', opt=['/spec/max_failed_job_count=1', '/spec/job_count=200'])
+        with pytest.raises(YtError):
+            track_op(op_id)
+
+        for job_desc in ls("//sys/operations/{0}/jobs".format(op_id), attr=["error"]):
+            print job_desc.attributes
+            print job_desc.attributes['error']['inner_errors'][0]['message']
+            assert "Process exited with code " in job_desc.attributes['error']['inner_errors'][0]['message']
+
+
 class TestEventLog(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -426,7 +456,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write('//tmp/t1', [{"foo": "bar"} for i in xrange(110)])
-
 
         tmpdir = tempfile.mkdtemp(prefix="stderr_of_failed_jobs_semaphore")
         try:
