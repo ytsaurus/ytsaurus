@@ -102,7 +102,7 @@ class EventLog(object):
 
             result = []
             if begin < 0:
-                self.log.warning("%d < 0", begin)
+                self.log.error("Table index is less then 0: %d. Use archive table", begin)
                 archive_row_count = self.yt.get(self._archive_row_count_attr)
                 archive_begin = archive_row_count + begin
                 result.extend(self.yt.read_table(table.TablePath(
@@ -126,14 +126,14 @@ class EventLog(object):
     def archive(self, count=None):
         try:
             self.log.debug("Archive table has %d rows", self.yt.get(self._archive_row_count_attr))
-        except:
+        except Exception:
             pass
 
         self.log.info("%d rows has been requested to archive", count)
 
         desired_chunk_size = 2 * 1024 ** 3
-        ratio = 0.137
-        data_size_per_job = max(1, int(desired_chunk_size / ratio))
+        approximate_gzip_compression_ratio = 0.137
+        data_size_per_job = max(1, int(desired_chunk_size / approximate_gzip_compression_ratio))
 
         count = count or self.yt.get(self._row_count_attr)
         self.log.info("Archive %s rows from event log", count)
@@ -175,12 +175,17 @@ class EventLog(object):
                         }
                     )
                     finished = True
-            except errors.YtError as e:
+            except errors.YtError:
                 self.log.error("Unhandled exception", exc_info=True)
+
+                if tries > 20:
+                    self.log.error("Too many retries. Reraise")
+                    raise
+
                 self.log.info("Retry again in %d seconds...", backoff_time)
                 time.sleep(backoff_time)
                 tries += 1
-                backoff_time = min(backoff_time * 2, 180)
+                backoff_time = min(backoff_time * 2, 600)
 
         self.log.info("Truncate event log...")
 
@@ -195,7 +200,7 @@ class EventLog(object):
                     self.yt.run_erase(partition)
                     self.yt.set(self._number_of_first_row_attr, first_row)
                 finished = True
-            except errors.YtError as e:
+            except errors.YtError:
                 self.log.error("Unhandled exception", exc_info=True)
 
                 if tries > 20:
@@ -209,7 +214,7 @@ class EventLog(object):
 
         try:
             self.log.debug("Archive table has %d rows", self.yt.get(self._archive_row_count_attr))
-        except:
+        except Exception:
             pass
 
     def initialize(self):
@@ -217,6 +222,8 @@ class EventLog(object):
             if not self.yt.exists(self._number_of_first_row_attr):
                 self.yt.set(self._number_of_first_row_attr, 0)
 
+
+#==========================================
 
 def gzip_compress(text):
     out = StringIO.StringIO()
@@ -234,16 +241,19 @@ def gzip_decompress(text):
 
 #==========================================
 
+EVENT_LOG_TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+LOGBROKER_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
+
 def normalize_timestamp(ts):
-    dt = datetime.datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S.%fZ")
+    dt = datetime.datetime.strptime(ts, EVENT_LOG_TIMESTAMP_FORMAT)
     microseconds = dt.microsecond
     dt -= datetime.timedelta(microseconds=microseconds)
     return dt.isoformat(' '), microseconds
 
 def revert_timestamp(normalized_ts, microseconds):
-    dt = datetime.datetime.strptime(normalized_ts, "%Y-%m-%d %H:%M:%S")
+    dt = datetime.datetime.strptime(normalized_ts, LOGBROKER_TIMESTAMP_FORMAT)
     dt += datetime.timedelta(microseconds=microseconds)
-    return dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    return dt.strftime(EVENT_LOG_TIMESTAMP_FORMAT)
 
 #==========================================
 
@@ -272,23 +282,25 @@ def convert_from_tskved_json(converted_row):
 
 #==========================================
 
-def convert_to(row):
+LOGBROKER_TSKV_PREFIX = "tskv\t"
+
+def convert_to_logbroker_format(row):
     stream = StringIO.StringIO()
-    stream.write("tskv\t")
+    stream.write(LOGBROKER_TSKV_PREFIX)
     row = convert_to_tskved_json(row)
     format.DsvFormat(enable_escaping=True).dump_row(row, stream)
     return stream.getvalue()
 
-def convert_from(converted_row):
+def convert_from_logbroker_format(converted_row):
     stream = StringIO.StringIO(converted_row)
-    stream.seek(len("tskv\t"))
+    stream.seek(len(LOGBROKER_TSKV_PREFIX))
     return convert_from_tskved_json(format.DsvFormat(enable_escaping=True).load_row(stream))
 
 #==========================================
 
 def serialize_chunk(chunk_id, seqno, lines, data):
     serialized_data = struct.pack(CHUNK_HEADER_FORMAT, chunk_id, seqno, lines)
-    serialized_data += gzip_compress("".join([convert_to(row) for row in data]))
+    serialized_data += gzip_compress("".join([convert_to_logbroker_format(row) for row in data]))
     return serialized_data
 
 
@@ -306,7 +318,7 @@ def parse_chunk(serialized_data):
 
     data = []
     for line in decompressed_data.split("\n"):
-        data.append(convert_from(line))
+        data.append(convert_from_logbroker_format(line))
 
     return data
 
@@ -316,11 +328,13 @@ def _preprocess(data, **args):
 def _transform_record(record, cluster_name, log_name):
     try:
         normalized_ts, microseconds = normalize_timestamp(record["timestamp"])
-        record["timestamp"] = normalized_ts
-        record["microseconds"] = microseconds
-        record["cluster_name"] = cluster_name
-        record["tskv_format"] = log_name
-        record["timezone"] = "+0000"
+        record.update({
+            "timestamp": normalized_ts,
+            "microseconds": microseconds,
+            "cluster_name": cluster_name,
+            "tskv_format": log_name,
+            "timezone": "+0000"
+        })
     except:
         log.error("Unable to transform record: %r", record)
         raise
@@ -381,20 +395,20 @@ class LogBroker(object):
     def save_chunk(self, seqno, data, timeout=None):
         assert not seqno in self._save_chunk_futures
 
-        f = gen.Future()
+        result = gen.Future()
 
         ts = self._get_timestamp_for(data)
 
         serialized_data = serialize_chunk(self._chunk_id, seqno, 0, data)
         self._chunk_id += 1
         if len(serialized_data) > self.MAX_CHUNK_SIZE:
-            f.set_exception(ChunkTooBigError())
-            return f
+            result.set_exception(ChunkTooBigError())
+            return result
 
         self.log.debug("Save chunk %d with seqno %d. Timestamp: %s. Its size equals to %d", self._chunk_id - 1, seqno, ts, len(serialized_data))
         self._push.write_chunk(serialized_data)
-        self._save_chunk_futures[seqno] = f
-        return f
+        self._save_chunk_futures[seqno] = result
+        return result
 
     @gen.coroutine
     def read_session(self):
@@ -424,8 +438,8 @@ class LogBroker(object):
                         self._set_futures(self._last_acked_seqno)
 
     def _get_timestamp_for(self, data):
-        if len(data) > 0 and "timestamp" in data[0]:
-            return data[0]["timestamp"]
+        if data:
+            return data[0].get("timestamp")
         else:
             return None
 
@@ -550,7 +564,7 @@ class SessionStream(object):
                 self._id = self._attributes["session"]
 
                 raise gen.Return(self._id)
-            except (IOError, BadProtocolError, gen.TimeoutError) as e:
+            except (IOError, BadProtocolError, gen.TimeoutError):
                 self.log.error("Error occured. Try reconnect...", exc_info=True)
                 yield sleep_future(1.0, self._io_loop)
             except gen.Return:
@@ -607,7 +621,7 @@ class SessionStream(object):
                     self._iostream.read_bytes(body_size + 2),
                     self._io_loop
                     )
-                self.log.debug("[%s] Process status: '%s'", self._id, data.strip().encode("string_encode"))
+                self.log.debug("[%s] Process status: '%s'", self._id, data.strip().encode("string_escape"))
                 raise gen.Return(self._parse(data.strip()))
         except gen.Return:
             raise
@@ -799,7 +813,7 @@ class LastSeqnoGetter(object):
                 hostname = _get_logbroker_hostname(self._logbroker_url)
                 session = SessionStream(service_id=self._service_id, source_id=self._source_id, io_loop=self._io_loop, connection_factory=self._connection_factory)
                 self.log.info("Connect session stream")
-                session_id = yield session.connect((hostname, 80))
+                yield session.connect((hostname, 80))
                 self._last_seqno = int(session.get_attribute("seqno"))
         except Exception as e:
             self._last_seqno_ex = e
@@ -852,7 +866,7 @@ def monitor(proxy_path, table_name, threshold, logbroker_url, service_id, source
     else:
         lag = row_count - last_seqno
         if lag > threshold:
-            sys.stdout.write("2;  Lag equals to: %d\n" % (lag,))
+            sys.stdout.write("2; Lag equals to: %d\n" % (lag,))
         else:
             sys.stdout.write("0; Lag equals to: %d\n" % (lag,))
 

@@ -77,7 +77,7 @@ def test_convert_to_from():
 #        dict(key="{}")
     ]
     for data in dataset:
-        data_after = fennel.convert_from(fennel.convert_to(data))
+        data_after = fennel.convert_from_logbroker_format(fennel.convert_to_logbroker_format(data))
         compare(data, data_after)
 
 
