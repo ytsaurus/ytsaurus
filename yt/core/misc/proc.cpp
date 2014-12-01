@@ -243,6 +243,19 @@ void SafeDup2(int oldFd, int newFd)
     }
 }
 
+void SetPermissions(int fd, int permissions)
+{
+    auto procPath = Format("/proc/self/fd/%v", fd);
+    auto res = chmod(~procPath, permissions);
+
+    if (res == -1) {
+        THROW_ERROR_EXCEPTION("Failed to set permissions for descriptor")
+            << TErrorAttribute("fd", fd)
+            << TErrorAttribute("permissions", permissions)
+            << TError::FromSystem();
+    }
+}
+
 #else
 
 bool TryClose(int fd)
@@ -304,6 +317,13 @@ void CloseAllDescriptors()
 
 void SafeClose(int fd, bool ignoreInvalidFd)
 {
+    YUNIMPLEMENTED();
+}
+
+void SetPermissions(int fd, int permissions)
+{
+    UNUSED(fd);
+    UNUSED(permissions);
     YUNIMPLEMENTED();
 }
 
