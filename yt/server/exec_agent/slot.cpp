@@ -70,6 +70,8 @@ void TSlot::Initialize()
 #endif
     }
 
+    DoResetProcessGroup();
+
     try {
         NFS::ForcePath(Path_, 0755);
         SandboxPath_ = NFS::CombinePaths(Path_, "sandbox");

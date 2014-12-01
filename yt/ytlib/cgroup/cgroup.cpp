@@ -198,6 +198,14 @@ void RunKiller(const Stroka& processGroupPath)
     LOG_INFO("Kill %Qv processes", processGroupPath);
 
     TNonOwningCGroup group(processGroupPath);
+
+    LOG_INFO("Lock %Qv group", processGroupPath);
+
+    int code = chmod(~NFS::CombinePaths(group.GetFullPath(), "tasks"), S_IRUSR);
+    if (code != 0) {
+        LOG_FATAL("Unable to lock %Qv cgroup. Error: %v", processGroupPath, TError::FromSystem());
+    }
+
     auto pids = group.GetTasks();
     if (pids.empty())
         return;
@@ -226,12 +234,6 @@ void KillProcessGroupImpl(const TFsPath& processGroupPath)
 {
 #ifdef _linux_
     TNonOwningCGroup group(processGroupPath);
-
-    int code = chmod(~NFS::CombinePaths(group.GetFullPath(), "tasks"), S_IRUSR);
-    if (code != 0) {
-        LOG_FATAL("Unable to lock %Qv cgroup. Error: %v", processGroupPath, TError::FromSystem());
-    }
-
     auto pids = group.GetTasks();
 
     while (!pids.empty()) {
