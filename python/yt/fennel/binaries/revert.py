@@ -27,9 +27,10 @@ class ConvertFrom(object):
 if __name__ == "__main__":
     if len(sys.argv) < 4:
         sys.stderr.write("Usage: {0} table_input table_output cluster_name\n".format(sys.argv[0]));
-    else:
-        table_input, table_output, cluster_name = sys.argv[1:4]
-        yt.config.format.TABULAR_DATA_FORMAT = yt.JsonFormat(process_table_index=True)
-        yt.run_map(ConvertFrom(cluster_name),
-                   table_input,
-                   table_output)
+        sys.exit(1)
+
+    table_input, table_output, cluster_name = sys.argv[1:4]
+    yt.config.format.TABULAR_DATA_FORMAT = yt.JsonFormat(process_table_index=True)
+    yt.run_map(ConvertFrom(cluster_name),
+               table_input,
+               table_output)
