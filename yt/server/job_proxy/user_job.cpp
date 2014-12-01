@@ -332,15 +332,17 @@ public:
 private:
     TOutputStream* CreateErrorOutput()
     {
-        if (!UserJobSpec.has_stderr_transaction_id()) {
+        auto host = Host.Lock();
+
+        if (!host || !UserJobSpec.has_stderr_transaction_id()) {
             return &NullOutput;
         }
         
-        ErrorOutput.assign(new TErrorOutput(
-            Host->GetConfig()->JobIO->ErrorFileWriter,
-            Host->GetMasterChannel(),
+        ErrorOutput.reset(new TErrorOutput(
+            host->GetConfig()->JobIO->ErrorFileWriter,
+            host->GetMasterChannel(),
             FromProto<TTransactionId>(UserJobSpec.stderr_transaction_id()),
-            UserJobSpec.max_stderr_size());
+            UserJobSpec.max_stderr_size()));
 
         return ErrorOutput.get();
     }
