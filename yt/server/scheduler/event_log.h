@@ -21,6 +21,7 @@ DECLARE_ENUM(ELogEventType,
     (JobCompleted)
     (JobFailed)
     (JobAborted)
+    (OperationStarted)
     (OperationCompleted)
     (OperationFailed)
     (OperationAborted)

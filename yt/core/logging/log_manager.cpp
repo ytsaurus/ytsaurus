@@ -311,7 +311,7 @@ public:
                 while (
                     !LogEventQueue.IsEmpty() &&
                     EventQueue->IsRunning() &&
-                    TInstant::Now() - now < TDuration::Seconds(1))
+                    TInstant::Now() - now < Config->ShutdownGraceTimeout)
                 {
                     EventCount.Notify();
                     SchedYield();
