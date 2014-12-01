@@ -181,6 +181,9 @@ void TSlot::Clean()
 void TSlot::Release()
 {
     YCHECK(IsClean_);
+
+    DoResetProcessGroup();
+
     IsFree_ = true;
 }
 
