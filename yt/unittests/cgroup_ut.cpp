@@ -3,6 +3,7 @@
 #include "framework.h"
 
 #include <ytlib/cgroup/cgroup.h>
+#include <ytlib/cgroup/event.h>
 
 #include <core/misc/proc.h>
 #include <core/misc/fs.h>

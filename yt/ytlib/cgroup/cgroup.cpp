@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "private.h"
 #include "cgroup.h"
+#include "event.h"
 
 #include <core/ytree/fluent.h>
 #include <core/ytree/serialize.h>
@@ -32,7 +33,6 @@ namespace NCGroup {
 
 static const auto& Logger = CGroupLogger;
 static const char* CGroupRootPath = "/sys/fs/cgroup";
-static const int InvalidFd = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,91 +70,6 @@ TDuration FromJiffies(i64 jiffies)
 #endif
 
 } // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEvent::TEvent(int eventFd, int fd)
-    : EventFd_(eventFd)
-    , Fd_(fd)
-    , Fired_(false)
-{ }
-
-TEvent::TEvent()
-    : TEvent(InvalidFd, InvalidFd)
-{ }
-
-TEvent::TEvent(TEvent&& other)
-    : TEvent()
-{
-    Swap(other);
-}
-
-TEvent::~TEvent()
-{
-    Destroy();
-}
-
-TEvent& TEvent::operator=(TEvent&& other)
-{
-    if (this == &other) {
-        return *this;
-    }
-    Destroy();
-    Swap(other);
-    return *this;
-}
-
-bool TEvent::Fired()
-{
-    YCHECK(EventFd_ != InvalidFd);
-
-    if (Fired_) {
-        return true;
-    }
-
-    auto bytesRead = ::read(EventFd_, &LastValue_, sizeof(LastValue_));
-
-    if (bytesRead < 0) {
-        if (errno == EWOULDBLOCK || errno == EAGAIN) {
-            return false;
-        }
-        THROW_ERROR_EXCEPTION() << TError::FromSystem();
-    }
-    YCHECK(bytesRead == sizeof(LastValue_));
-    Fired_ = true;
-    return true;
-}
-
-void TEvent::Clear()
-{
-    Fired_ = false;
-}
-
-void TEvent::Destroy()
-{
-    Clear();
-    if (EventFd_ != InvalidFd) {
-        ::close(EventFd_);
-    }
-    EventFd_ = InvalidFd;
-
-    if (Fd_ != InvalidFd) {
-        ::close(Fd_);
-    }
-    Fd_ = InvalidFd;
-}
-
-i64 TEvent::GetLastValue() const
-{
-    return LastValue_;
-}
-
-void TEvent::Swap(TEvent& other)
-{
-    std::swap(EventFd_, other.EventFd_);
-    std::swap(Fd_, other.Fd_);
-    std::swap(Fired_, other.Fired_);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
