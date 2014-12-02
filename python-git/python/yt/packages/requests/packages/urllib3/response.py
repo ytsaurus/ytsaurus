@@ -6,7 +6,11 @@
 
 
 import logging
-import zlib
+try:
+    import zlib_fork_safe as zlib
+except ImportError:
+    import zlib
+
 
 from .exceptions import DecodeError
 from .packages.six import string_types as basestring, binary_type
