@@ -1,4 +1,7 @@
-import zlib
+try:
+    import zlib_fork_safe as zlib
+except ImportError:
+    import zlib
 
 def create_zlib_generator(obj):
     zlib_obj = zlib.compressobj()
