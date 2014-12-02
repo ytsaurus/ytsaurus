@@ -11,22 +11,26 @@ namespace NPipes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+    class TAsyncReaderImpl;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAsyncReader
     : public NConcurrency::IAsyncInputStream
 {
 public:
     // Owns this fd
     explicit TAsyncReader(int fd);
-    TAsyncReader(const TAsyncReader& other);
-    ~TAsyncReader();
 
-    virtual TFuture<TErrorOr<size_t>> Read(void* buf, size_t len) override;
+    virtual TFuture<TErrorOr<size_t>> Read(void* buffer, size_t length) override;
 
-    TError Abort();
+    //! Thread-safe, can be called multiple times.
+    TFuture<void> Abort();
 
 private:
-    class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    TIntrusivePtr<NDetail::TAsyncReaderImpl> Impl_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TAsyncReader);

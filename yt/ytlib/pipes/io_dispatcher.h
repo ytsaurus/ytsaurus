@@ -7,21 +7,24 @@ namespace NPipes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+    class TAsyncReaderImpl;
+    class TAsyncWriterImpl;
+}
+
 class TIODispatcher
 {
 public:
-    TIODispatcher();
-    ~TIODispatcher();
-
     static TIODispatcher* Get();
 
     void Shutdown();
 
 private:
-    friend class TAsyncIOBase;
-
-    TAsyncError AsyncRegister(IFDWatcherPtr watcher);
-    TAsyncError AsyncUnregister(IFDWatcherPtr watcher);
+    TIODispatcher();
+    
+    DECLARE_SINGLETON_FRIEND(TIODispatcher);
+    friend class NDetail::TAsyncReaderImpl;
+    friend class NDetail::TAsyncWriterImpl;
 
     class TImpl;
     TIntrusivePtr<TImpl> Impl_;

@@ -1,272 +1,225 @@
 #include "stdafx.h"
 #include "async_writer.h"
-#include "nonblocking_writer.h"
 
-#include "async_io.h"
 #include "io_dispatcher.h"
+#include "io_dispatcher_impl.h"
 #include "private.h"
-
-#include <core/misc/blob.h>
 
 #include <core/concurrency/thread_affinity.h>
 
-#include <core/logging/log.h>
-
-#include <util/system/spinlock.h>
+#include <core/misc/proc.h>
 
 #include <contrib/libev/ev++.h>
 
 namespace NYT {
 namespace NPipes {
+namespace NDetail {
+
+static const auto& Logger = PipesLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAsyncWriter::TImpl
-    : public TAsyncIOBase
+class TAsyncWriterImpl
+    : public TRefCounted
 {
 public:
-    explicit TImpl(int fd);
-    ~TImpl() override;
+    explicit TAsyncWriterImpl(int fd);
+    ~TAsyncWriterImpl();
 
-    TAsyncError Write(const void* data, size_t size);
+    TAsyncError Write(const void* buffer, int length);
     TAsyncError Close();
 
+    TFuture<void> Abort();
+
 private:
-    virtual void DoStart(ev::dynamic_loop& eventLoop) override;
-    virtual void DoStop() override;
+    DECLARE_ENUM(EWriterState,
+        (Active)
+        (Closed)
+        (Failed)
+        (Aborted)
+    );
 
-    virtual void OnRegistered(TError status) override;
-    virtual void OnUnregister(TError status) override;
+    int FD_;
 
-    void OnWrite(ev::io&, int);
-    void OnStart(ev::async&, int);
-
-    std::unique_ptr<NDetail::TNonblockingWriter> Writer_;
+    //! \note Thread-unsafe. Must be accessed from ev-thread only.
     ev::io FDWatcher_;
-    ev::async StartWatcher_;
 
-    TAsyncErrorPromise WritePromise_;
-    TAsyncErrorPromise ClosePromise_;
+    TAsyncErrorPromise WriteResultPromise_;
 
-    TError RegistrationError_;
+    EWriterState State_;
 
     const void* Buffer_;
-    size_t Length_;
-    size_t Position_;
-
-    TSpinLock Lock_;
-
-    NLog::TLogger Logger;
+    int Length_;
+    int Position_;
 
 
-    void SetPromises(TError error);
+    void OnWrite(ev::io&, int eventType);
+
+    void DoWrite();
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAsyncWriter::TImpl::TImpl(int fd)
-    : Writer_(new NDetail::TNonblockingWriter(fd))
+TAsyncWriterImpl::TAsyncWriterImpl(int fd)
+    : FD_(fd)
+    , WriteResultPromise_(MakePromise(TError()))
+    , State_(EWriterState::Active)
     , Buffer_(nullptr)
     , Length_(0)
     , Position_(0)
-    , Logger(PipesLogger)
 {
-    Logger.AddTag("FD: %v", fd);
-
-    FDWatcher_.set(fd, ev::WRITE);
+    auto this_ = MakeStrong(this);
+    BIND([this, this_] () {
+        FDWatcher_.set(FD_, ev::WRITE);
+        FDWatcher_.set(TIODispatcher::Get()->Impl_->GetEventLoop());
+        FDWatcher_.set<TAsyncWriterImpl, &TAsyncWriterImpl::OnWrite>(this);
+        FDWatcher_.start();
+    })
+    .Via(TIODispatcher::Get()->Impl_->GetInvoker())
+    .Run();
 }
 
-TAsyncWriter::TImpl::~TImpl()
-{ }
+TAsyncWriterImpl::~TAsyncWriterImpl()
+{ 
+    YCHECK(State_ != EWriterState::Active);
+}
 
-void TAsyncWriter::TImpl::OnRegistered(TError status)
+TAsyncError TAsyncWriterImpl::Write(const void* buffer, int length)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    YCHECK(WriteResultPromise_.IsSet());
+    YCHECK(length > 0);
+
+    auto promise = NewPromise<TError>();
+    auto this_ = MakeStrong(this);
+
+    BIND([=] () {
+        // Explicitly use this_ to capture strong reference in callback.
+        this_->WriteResultPromise_ = promise;
+
+        switch (State_) {
+        case EWriterState::Aborted:
+            WriteResultPromise_.Set(TError("Writer aborted (FD: %v)", FD_));
+            return;
+
+        case EWriterState::Failed:
+            WriteResultPromise_.Set(TError("Writer failed (FD: %v)", FD_));
+            return;
+
+        case EWriterState::Closed:
+            WriteResultPromise_.Set(TError("Writer closed (FD: %v)", FD_));
+            return;
+
+        case EWriterState::Active:
+            Buffer_ = buffer;
+            Length_ = length;
+            Position_ = 0;
+            DoWrite();
+            break;
+
+        default:
+            YUNREACHABLE();
+        };
+    })
+    .Via(TIODispatcher::Get()->Impl_->GetInvoker())
+    .Run();
+
+    return promise.ToFuture();
+}
+
+TAsyncError TAsyncWriterImpl::Close()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    YCHECK(WriteResultPromise_.IsSet());
+
+    auto this_ = MakeStrong(this);
+    return BIND([this, this_] () {
+        if (State_ != EWriterState::Active) {
+            return;
+        }
+
+        State_ = EWriterState::Closed;
+        FDWatcher_.stop();
+        SafeClose(FD_);
+    })
+    .Guarded()
+    .AsyncVia(TIODispatcher::Get()->Impl_->GetInvoker())
+    .Run();
+}
+
+TFuture<void> TAsyncWriterImpl::Abort()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(Lock_);
+    auto this_ = MakeStrong(this);
+    return BIND([this, this_] () {
+        if (State_ != EWriterState::Active) {
+            return;
+        }
 
-    if (!status.IsOK()) {
-        RegistrationError_ = status;
-        SetPromises(status);
+        State_ = EWriterState::Aborted;
+        FDWatcher_.stop();
+        WriteResultPromise_.TrySet(TError("Writer aborted (FD: %v)", FD_));
+
+        YCHECK(TryClose(FD_));
+    })
+    .AsyncVia(TIODispatcher::Get()->Impl_->GetInvoker())
+    .Run();
+}
+
+void TAsyncWriterImpl::DoWrite()
+{
+    YCHECK(Position_ < Length_);
+
+    int size;
+    do {
+        size = ::write(FD_, static_cast<const char *>(Buffer_) + Position_, Length_ - Position_);
+    } while (size == -1 && errno == EINTR);
+
+    if (size == -1) {
+        if (errno == EAGAIN) {
+            return;
+        }
+
+        auto error = TError("Writer failed (FD: %v)", FD_) << TError::FromSystem();
+        LOG_ERROR(error);
+
+        State_ = EWriterState::Failed;
+        FDWatcher_.stop();
+        WriteResultPromise_.Set(error);
+        return;
+    }
+
+    YCHECK(size > 0);
+    Position_ += size;
+
+    if (Position_ == Length_) {
+        WriteResultPromise_.Set(TError());
     }
 }
 
-void TAsyncWriter::TImpl::OnUnregister(TError status)
-{
-    if (!status.IsOK()) {
-        LOG_ERROR(status, "Failed to unregister the pipe writer");
-    }
-}
-
-void TAsyncWriter::TImpl::DoStart(ev::dynamic_loop& eventLoop)
-{
-    VERIFY_THREAD_AFFINITY(EventLoop);
-
-    TGuard<TSpinLock> guard(Lock_);
-
-    StartWatcher_.set(eventLoop);
-    StartWatcher_.set<TAsyncWriter::TImpl, &TAsyncWriter::TImpl::OnStart>(this);
-    StartWatcher_.start();
-
-    FDWatcher_.set(eventLoop);
-    FDWatcher_.set<TAsyncWriter::TImpl, &TAsyncWriter::TImpl::OnWrite>(this);
-    FDWatcher_.start();
-}
-
-void TAsyncWriter::TImpl::DoStop()
-{
-    FDWatcher_.stop();
-    StartWatcher_.stop();
-
-    auto error = Writer_->Close();
-    if (!error.IsOK()) {
-        SetPromises(error);
-    }
-}
-
-void TAsyncWriter::TImpl::OnStart(ev::async&, int eventType)
-{
-    VERIFY_THREAD_AFFINITY(EventLoop);
-    YCHECK((eventType & ev::ASYNC) == ev::ASYNC);
-
-    // One can probably remove this guard
-    // But this call should be rare
-    TGuard<TSpinLock> guard(Lock_);
-
-    YCHECK(State_ == EAsyncIOState::Started);
-
-    YCHECK(!Writer_->IsClosed());
-    FDWatcher_.start();
-}
-
-void TAsyncWriter::TImpl::OnWrite(ev::io&, int eventType)
+void TAsyncWriterImpl::OnWrite(ev::io&, int eventType)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
     YCHECK((eventType & ev::WRITE) == ev::WRITE);
 
-    TGuard<TSpinLock> guard(Lock_);
-
-    YCHECK(State_ == EAsyncIOState::Started);
-
-    if (ClosePromise_) {
-        YCHECK(!WritePromise_ || WritePromise_.IsSet());
-
-        Stop();
-        if (!ClosePromise_.IsSet()) {
-            ClosePromise_.Set(TError());
-        }
-
-        return;
-    }
+    YCHECK(State_ == EWriterState::Active);
 
     if (Position_ < Length_) {
-        auto result = Writer_->Write(
-            static_cast<const char*>(Buffer_) + Position_,
-            Length_ - Position_);
-
-        if (!result.IsOK()) {
-            Stop();
-            SetPromises(TError(result));
-            return;
-        }
-
-        auto writeLength = result.Value();
-        Position_ += writeLength;
-
-        if (Position_ == Length_) {
-            WritePromise_.Set(TError());
-        }
-    } else {
-        FDWatcher_.stop();
-    }
-}
-
-TAsyncError TAsyncWriter::TImpl::Write(const void* buf, size_t len)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TGuard<TSpinLock> guard(Lock_);
-
-    YCHECK(!ClosePromise_ && !Writer_->IsClosed());
-
-    YCHECK(!WritePromise_ || WritePromise_.IsSet());
-
-    YCHECK(State_ == EAsyncIOState::Started || State_ == EAsyncIOState::Created);
-
-    YCHECK(len > 0);
-
-    if (!RegistrationError_.IsOK()) {
-        return MakeFuture(RegistrationError_);
-    }
-
-    if (WritePromise_ && !WritePromise_.Get().IsOK()) {
-        return WritePromise_;
-    }
-
-    Buffer_ = buf;
-    Length_ = len;
-    Position_ = 0;
-
-    WritePromise_ = NewPromise<TError>();
-    if (State_ == EAsyncIOState::Started && !FDWatcher_.is_active()) {
-        StartWatcher_.send();
-    }
-    return WritePromise_.ToFuture();
-}
-
-TAsyncError TAsyncWriter::TImpl::Close()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TGuard<TSpinLock> guard(Lock_);
-
-    YCHECK(!ClosePromise_);
-    YCHECK(!WritePromise_ || WritePromise_.IsSet());
-
-    if (!RegistrationError_.IsOK()) {
-        return MakeFuture(RegistrationError_);
-    }
-
-    if (WritePromise_ && !WritePromise_.Get().IsOK()) {
-        return MakeFuture(TError(WritePromise_.Get()));
-    }
-
-    ClosePromise_ = NewPromise<TError>();
-    if (State_ == EAsyncIOState::Started && !FDWatcher_.is_active()) {
-        StartWatcher_.send();
-    }
-    return ClosePromise_.ToFuture();
-}
-
-void TAsyncWriter::TImpl::SetPromises(TError error)
-{
-    if (WritePromise_) {
-        WritePromise_.Set(error);
-    }
-    if (ClosePromise_) {
-        ClosePromise_.Set(error);
+        DoWrite();
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 TAsyncWriter::TAsyncWriter(int fd)
-    : Impl_(New<TImpl>(fd))
-{
-    Impl_->Register();
-}
-
-TAsyncWriter::~TAsyncWriter()
-{
-    if (Impl_) {
-        Impl_->Unregister();
-    }
-}
-
-TAsyncWriter::TAsyncWriter(const TAsyncWriter& other)
-    : Impl_(other.Impl_)
+    : Impl_(New<NDetail::TAsyncWriterImpl>(fd))
 { }
 
 TAsyncError TAsyncWriter::Write(const void* data, size_t size)
@@ -277,6 +230,11 @@ TAsyncError TAsyncWriter::Write(const void* data, size_t size)
 TAsyncError TAsyncWriter::Close()
 {
     return Impl_->Close();
+}
+
+TFuture<void> TAsyncWriter::Abort()
+{
+    return Impl_->Abort();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

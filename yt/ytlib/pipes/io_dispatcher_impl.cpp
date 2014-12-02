@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "io_dispatcher_impl.h"
-#include "async_io.h"
 
 namespace NYT {
 namespace NPipes {
@@ -11,34 +10,13 @@ using namespace NConcurrency;
 
 TIODispatcher::TImpl::TImpl()
     : TEVSchedulerThread("Pipes", false)
-{ }
-
-TAsyncError TIODispatcher::TImpl::AsyncRegister(IFDWatcherPtr watcher)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return BIND(&TImpl::DoRegister, MakeStrong(this), watcher)
-        .Guarded()
-        .AsyncVia(GetInvoker())
-        .Run();
+    Start();
 }
 
-TAsyncError TIODispatcher::TImpl::AsyncUnregister(IFDWatcherPtr watcher)
+const ev::loop_ref& TIODispatcher::TImpl::GetEventLoop() const
 {
-    return BIND(&TImpl::DoUnregister, MakeStrong(this), watcher)
-        .Guarded()
-        .AsyncVia(GetInvoker())
-        .Run();
-}
-
-void TIODispatcher::TImpl::DoRegister(IFDWatcherPtr watcher)
-{
-    watcher->Start(EventLoop);
-}
-
-void TIODispatcher::TImpl::DoUnregister(IFDWatcherPtr watcher)
-{
-    watcher->Stop();
+    return EventLoop;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

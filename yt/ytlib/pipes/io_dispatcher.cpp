@@ -8,29 +8,12 @@ namespace NPipes {
 ////////////////////////////////////////////////////////////////////////////////
 
 TIODispatcher::TIODispatcher()
-    : Impl_(New<TImpl>())
-{
-    Impl_->Start();
-}
-
-TIODispatcher::~TIODispatcher()
-{
-    Shutdown();
-}
+    : Impl_(New<TIODispatcher::TImpl>())
+{ }
 
 TIODispatcher* TIODispatcher::Get()
 {
     return Singleton<TIODispatcher>();
-}
-
-TAsyncError TIODispatcher::AsyncRegister(IFDWatcherPtr watcher)
-{
-    return Impl_->AsyncRegister(watcher);
-}
-
-TAsyncError TIODispatcher::AsyncUnregister(IFDWatcherPtr watcher)
-{
-    return Impl_->AsyncUnregister(watcher);
 }
 
 void TIODispatcher::Shutdown()

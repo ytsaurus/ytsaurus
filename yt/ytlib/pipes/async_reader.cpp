@@ -1,246 +1,205 @@
 #include "stdafx.h"
 #include "async_reader.h"
-#include "nonblocking_reader.h"
 
-#include "async_io.h"
 #include "io_dispatcher.h"
+#include "io_dispatcher_impl.h"
 #include "private.h"
 
 #include <core/concurrency/thread_affinity.h>
 
-#include <core/logging/log.h>
-
-#include <util/system/spinlock.h>
+#include <core/misc/proc.h>
 
 #include <contrib/libev/ev++.h>
 
 namespace NYT {
 namespace NPipes {
+namespace NDetail {
+
+static const auto& Logger = PipesLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAsyncReader::TImpl
-    : public TAsyncIOBase
+class TAsyncReaderImpl
+    : public TRefCounted
 {
 public:
-    explicit TImpl(int fd);
-    virtual ~TImpl() override;
+    explicit TAsyncReaderImpl(int fd);
+    ~TAsyncReaderImpl();
 
-    TFuture<TErrorOr<size_t>> Read(void* buf, size_t len);
+    TFuture<TErrorOr<size_t>> Read(void* buffer, int length);
 
-    TError Abort();
+    TFuture<void> Abort();
 
 private:
-    virtual void DoStart(ev::dynamic_loop& eventLoop) override;
-    virtual void DoStop() override;
+    DECLARE_ENUM(EReaderState,
+        (Active)
+        (EndOfStream)
+        (Failed)
+        (Aborted)
+    );
 
-    virtual void OnRegistered(TError status) override;
-    virtual void OnUnregister(TError status) override;
+    int FD_;
 
-    void OnRead(ev::io&, int);
-    void OnStart(ev::async&, int);
-
-    bool CanReadSomeMore() const;
-    TError GetState() const;
-
-    std::unique_ptr<NDetail::TNonblockingReader> Reader_;
+    //! \note Thread-unsafe. Must be accessed from ev-thread only.
     ev::io FDWatcher_;
-    ev::async StartWatcher_;
 
-    TError RegistrationError_;
-    TPromise<TErrorOr<size_t>> ReadPromise_;
+    TPromise<TErrorOr<size_t>> ReadResultPromise_;
 
-    TSpinLock Lock_;
-
-    NLog::TLogger Logger;
-
-    bool ReachedEOF_;
+    EReaderState State_;
 
     void* Buffer_;
-    size_t Length_;
-    size_t Position_;
+    int Length_;
+    int Position_;
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
+
+
+    void OnRead(ev::io&, int);
+    void DoRead();
 };
 
-TAsyncReader::TImpl::TImpl(int fd)
-    : Reader_(new NDetail::TNonblockingReader(fd))
-    , Logger(PipesLogger)
-    , ReachedEOF_(false)
+TAsyncReaderImpl::TAsyncReaderImpl(int fd)
+    : FD_(fd)
+    , ReadResultPromise_(MakePromise<TErrorOr<size_t>>(0))
+    , State_(EReaderState::Active)
     , Buffer_(nullptr)
     , Length_(0)
     , Position_(0)
 {
-    Logger.AddTag("FD: %v", fd);
-
-    FDWatcher_.set(fd, ev::READ);
+    auto this_ = MakeStrong(this);
+    BIND([this, this_] () {
+        FDWatcher_.set(FD_, ev::READ);
+        FDWatcher_.set(TIODispatcher::Get()->Impl_->GetEventLoop());
+        FDWatcher_.set<TAsyncReaderImpl, &TAsyncReaderImpl::OnRead>(this);
+        FDWatcher_.start();
+    })
+    .Via(TIODispatcher::Get()->Impl_->GetInvoker())
+    .Run();
 }
 
-TAsyncReader::TImpl::~TImpl()
-{ }
+TAsyncReaderImpl::~TAsyncReaderImpl()
+{
+    YCHECK(State_ != EReaderState::Active);
+}
 
-void TAsyncReader::TImpl::OnRegistered(TError status)
+TFuture<TErrorOr<size_t>> TAsyncReaderImpl::Read(void* buffer, int length)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(Lock_);
+    YCHECK(ReadResultPromise_.IsSet());
+    YCHECK(length > 0);
 
-    if (!status.IsOK()) {
-        RegistrationError_ = status;
-        if (ReadPromise_) {
-            ReadPromise_.Set(status);
+    auto promise = NewPromise<TErrorOr<size_t>>();
+
+    auto this_ = MakeStrong(this);
+    BIND([=] () {
+        // Explicitly use this_ to capture strong reference in callback.
+        this_->ReadResultPromise_ = promise;
+
+        switch (State_) {
+        case EReaderState::Aborted:
+            ReadResultPromise_.Set(TError("Reader aborted (FD: %v)", FD_));
+            return;
+
+        case EReaderState::EndOfStream:
+            ReadResultPromise_.Set(0);
+            return;
+
+        case EReaderState::Failed:
+            ReadResultPromise_.Set(TError("Reader failed (FD: %v)", FD_));
+            return;
+
+        case EReaderState::Active:
+            Buffer_ = buffer;
+            Length_ = length;
+            Position_ = 0;
+            DoRead();
+            break;
+
+        default:
+            YUNREACHABLE();
+        };
+    })
+    .Via(TIODispatcher::Get()->Impl_->GetInvoker())
+    .Run();
+
+    return promise.ToFuture();
+}
+
+TFuture<void> TAsyncReaderImpl::Abort()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto this_ = MakeStrong(this);
+    return BIND([this, this_] () {
+        if (State_ != EReaderState::Active) {
+            return;
         }
+
+        State_ = EReaderState::Aborted;
+        FDWatcher_.stop();
+        ReadResultPromise_.TrySet(TError("Reader aborted (FD: %v)", FD_));
+
+        YCHECK(TryClose(FD_));
+    })
+    .AsyncVia(TIODispatcher::Get()->Impl_->GetInvoker())
+    .Run();
+}
+
+void TAsyncReaderImpl::DoRead()
+{
+    YCHECK(Position_ < Length_);
+
+    int size;
+    do {
+        size = ::read(FD_, static_cast<char *>(Buffer_) + Position_, Length_ - Position_);
+    } while (size == -1 && errno == EINTR);
+
+    if (size == -1) {
+        if (errno == EAGAIN) {
+            return;
+        }
+
+        auto error = TError("Reader failed (FD: %v)", FD_) << TError::FromSystem();
+        LOG_ERROR(error);
+
+        State_ = EReaderState::Failed;
+        FDWatcher_.stop();
+        ReadResultPromise_.Set(error);
+        return;
+    }
+
+    Position_ += size;
+
+    if (size == 0) {
+        State_ = EReaderState::EndOfStream;
+        FDWatcher_.stop();
+        ReadResultPromise_.Set(Position_);
+    } else if (Position_ == Length_) {
+        ReadResultPromise_.Set(Length_);
     }
 }
 
-void TAsyncReader::TImpl::OnUnregister(TError status)
-{
-    if (!status.IsOK()) {
-        LOG_ERROR(status, "Failed to unregister the pipe reader");
-    }
-}
-
-void TAsyncReader::TImpl::DoStart(ev::dynamic_loop& eventLoop)
-{
-    VERIFY_THREAD_AFFINITY(EventLoop);
-
-    TGuard<TSpinLock> guard(Lock_);
-
-    StartWatcher_.set(eventLoop);
-    StartWatcher_.set<TAsyncReader::TImpl, &TAsyncReader::TImpl::OnStart>(this);
-    StartWatcher_.start();
-
-    FDWatcher_.set(eventLoop);
-    FDWatcher_.set<TAsyncReader::TImpl, &TAsyncReader::TImpl::OnRead>(this);
-    FDWatcher_.start();
-}
-
-void TAsyncReader::TImpl::DoStop()
-{
-    VERIFY_THREAD_AFFINITY(EventLoop);
-
-    FDWatcher_.stop();
-    StartWatcher_.stop();
-
-    Reader_->Close();
-}
-
-void TAsyncReader::TImpl::OnStart(ev::async&, int eventType)
-{
-    VERIFY_THREAD_AFFINITY(EventLoop);
-    YCHECK((eventType & ev::ASYNC) == ev::ASYNC);
-
-    TGuard<TSpinLock> guard(Lock_);
-
-    YCHECK(State_ == EAsyncIOState::Started);
-
-    YCHECK(!Reader_->IsClosed());
-    FDWatcher_.start();
-}
-
-void TAsyncReader::TImpl::OnRead(ev::io&, int eventType)
+void TAsyncReaderImpl::OnRead(ev::io&, int eventType)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
     YCHECK((eventType & ev::READ) == ev::READ);
 
-    TGuard<TSpinLock> guard(Lock_);
-
-    YCHECK(State_ == EAsyncIOState::Started);
-
-    YCHECK(!ReachedEOF_);
+    YCHECK(State_ == EReaderState::Active);
 
     if (Position_ < Length_) {
-        auto result = Reader_->Read(static_cast<char*>(Buffer_) + Position_, Length_ - Position_);
-
-        if (!result.IsOK()) {
-            Stop();
-            if (!ReadPromise_) {
-                ReadPromise_.Set(result);
-            }
-            return;
-        }
-
-        auto readLength = result.Value();
-        Position_ += readLength;
-
-        if (readLength == 0) {
-            Stop();
-            ReachedEOF_ = true;
-        }
-        if (readLength == 0 || Position_ == Length_) {
-            ReadPromise_.Set(Position_);
-        }
-    } else {
-        FDWatcher_.stop();
+        DoRead();
     }
-}
-
-TFuture<TErrorOr<size_t>> TAsyncReader::TImpl::Read(void* buf, size_t len)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TGuard<TSpinLock> guard(Lock_);
-
-    if (!RegistrationError_.IsOK()) {
-        return MakeFuture<TErrorOr<size_t>>(RegistrationError_);
-    }
-
-    if (ReachedEOF_) {
-        return MakeFuture(TErrorOr<size_t>(0));
-    }
-
-    YCHECK(!Reader_->IsClosed());
-
-    Buffer_ = buf;
-    Length_ = len;
-    Position_ = 0;
-
-    ReadPromise_ = NewPromise<TErrorOr<size_t>>();
-
-    if (State_ == EAsyncIOState::Started && !FDWatcher_.is_active()) {
-        StartWatcher_.send();
-    }
-
-    return ReadPromise_.ToFuture();
-}
-
-TError TAsyncReader::TImpl::Abort()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TGuard<TSpinLock> guard(Lock_);
-
-    Unregister();
-
-    if (!RegistrationError_.IsOK()) {
-        return RegistrationError_;
-    }
-
-    if (State_ == EAsyncIOState::StartAborted) {
-        // Close the reader if TAsyncReader was aborted before registering.
-        return Reader_->Close();
-    }
-
-    return TError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 TAsyncReader::TAsyncReader(int fd)
-    : Impl_(New<TImpl>(fd))
-{
-    Impl_->Register();
-}
-
-TAsyncReader::~TAsyncReader()
-{
-    if (Impl_) {
-        Impl_->Unregister();
-    }
-}
-
-TAsyncReader::TAsyncReader(const TAsyncReader& other)
-    : Impl_(other.Impl_)
+    : Impl_(New<NDetail::TAsyncReaderImpl>(fd))
 { }
 
 TFuture<TErrorOr<size_t>> TAsyncReader::Read(void* buf, size_t len)
@@ -248,7 +207,7 @@ TFuture<TErrorOr<size_t>> TAsyncReader::Read(void* buf, size_t len)
     return Impl_->Read(buf, len);
 }
 
-TError TAsyncReader::Abort()
+TFuture<void> TAsyncReader::Abort()
 {
     return Impl_->Abort();
 }

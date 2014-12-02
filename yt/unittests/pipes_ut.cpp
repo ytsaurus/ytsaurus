@@ -5,7 +5,6 @@
 #include <core/concurrency/scheduler.h>
 
 #include <ytlib/pipes/io_dispatcher.h>
-#include <ytlib/pipes/nonblocking_reader.h>
 #include <ytlib/pipes/async_reader.h>
 #include <ytlib/pipes/async_writer.h>
 #include <server/job_proxy/pipes.h>
@@ -21,39 +20,11 @@ using namespace NConcurrency;
 
 #ifndef _win_
 
-TEST(TIODispatcher, StartStop)
-{
-    TIODispatcher dispatcher;
-    dispatcher.Shutdown();
-}
-
 void SafeMakeNonblockingPipes(int fds[2])
 {
     NJobProxy::SafePipe(fds);
     NJobProxy::SafeMakeNonblocking(fds[0]);
     NJobProxy::SafeMakeNonblocking(fds[1]);
-}
-
-TEST(TPipeNonblockingReader, BrandNew)
-{
-    int pipefds[2];
-    SafeMakeNonblockingPipes(pipefds);
-
-    NDetail::TNonblockingReader reader(pipefds[0]);
-    EXPECT_FALSE(reader.IsClosed());
-}
-
-TEST(TPipeNonblockingReader, Failed)
-{
-    int pipefds[2];
-    SafeMakeNonblockingPipes(pipefds);
-
-    NDetail::TNonblockingReader reader(pipefds[0]);
-
-    ASSERT_TRUE(close(pipefds[0]) == 0);
-
-    char buffer[10];
-    EXPECT_FALSE(reader.Read(buffer, 10).IsOK());
 }
 
 TEST(TPipeIOHolder, CanInstantiate)
@@ -63,6 +34,9 @@ TEST(TPipeIOHolder, CanInstantiate)
 
     auto readerHolder = New<TAsyncReader>(pipefds[0]);
     auto writerHolder = New<TAsyncWriter>(pipefds[1]);
+
+    readerHolder->Abort().Get();
+    writerHolder->Abort().Get();
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -139,7 +113,7 @@ protected:
 
 TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
 {
-    std::string message("Hello pipe!\n");
+    Stroka message("Hello pipe!\n");
     Writer->Write(message.c_str(), message.size()).Get();
     Writer->Close();
 
@@ -155,23 +129,23 @@ TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
         whole.Append(data.Begin(), result.Value());
     }
 
-    EXPECT_EQ(message, std::string(whole.Begin(), whole.End()));
+    EXPECT_EQ(message, Stroka(whole.Begin(), whole.End()));
 }
 
 TEST_F(TPipeReadWriteTest, ReadSomethingWait)
 {
-    std::string message("Hello pipe!\n");
+    Stroka message("Hello pipe!\n");
     Writer->Write(message.c_str(), message.size()).Get();
     Writer->Close();
 
     auto whole = ReadAll(Reader, false);
 
-    EXPECT_EQ(message, std::string(whole.Begin(), whole.End()));
+    EXPECT_EQ(message, Stroka(whole.Begin(), whole.End()));
 }
 
 TEST_F(TPipeReadWriteTest, ReadWrite)
 {
-    const std::string text("Hello cruel world!\n");
+    Stroka text("Hello cruel world!\n");
     Writer->Write(text.c_str(), text.size()).Get();
     auto errorsOnClose = Writer->Close();
 
@@ -179,7 +153,7 @@ TEST_F(TPipeReadWriteTest, ReadWrite)
 
     auto error = errorsOnClose.Get();
     EXPECT_TRUE(error.IsOK()) << error.GetMessage();
-    EXPECT_EQ(text, std::string(textFromPipe.Begin(), textFromPipe.End()));
+    EXPECT_EQ(text, Stroka(textFromPipe.Begin(), textFromPipe.End()));
 }
 
 void WriteAll(TAsyncWriterPtr writer, const char* data, size_t size, size_t blockSize)
@@ -222,7 +196,7 @@ TEST_P(TPipeBigReadWriteTest, RealReadWrite)
             data[i] = dice();
         }
     })
-        .AsyncVia(queue->GetInvoker()).Run();
+    .AsyncVia(queue->GetInvoker()).Run();
 
     auto writeError =  BIND(&WriteAll, Writer, data.data(), data.size(), blockSize)
         .Guarded()
