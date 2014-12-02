@@ -3,6 +3,12 @@ from cStringIO import StringIO as IO
 import gzip
 import functools 
 
+try:
+    import zlib_fork_safe as zlib
+except ImportError:
+    import zlib
+gzip.zlib = zlib
+
 def process_gzip(f):
     @functools.wraps(f)
     def view_func(*args, **kwargs):
