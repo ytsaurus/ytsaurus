@@ -294,12 +294,7 @@ TNonOwningCGroup::TNonOwningCGroup(TNonOwningCGroup&& other)
 // So we cannot use out logging|profiling framework
 void TNonOwningCGroup::AddTask(int pid)
 {
-    YCHECK(!IsNull());
-#ifdef _linux_
-    auto path = NFS::CombinePaths(FullPath_, "tasks");
-    TFileOutput output(TFile(path, OpenMode::ForAppend));
-    output << pid;
-#endif
+    Append("tasks", ToString(pid));
 }
 
 
