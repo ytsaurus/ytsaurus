@@ -218,8 +218,12 @@ bool TryClose(int fd)
         }
          
         switch (errno) {
+            // Please read
+            // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
+            // http://rb.yandex-team.ru/arc/r/44030/
+            // before editing.
             case EINTR:
-                continue;
+            // If the descriptor is no longer valid, just ignore it.
             case EBADF:
                 return true;
             default: 
