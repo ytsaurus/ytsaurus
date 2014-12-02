@@ -290,6 +290,8 @@ void TNodeWrap::Initialize(Handle<Object> target)
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Get", TNodeWrap::Get);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "GetByYPath", TNodeWrap::GetByYPath);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "SetByYPath", TNodeWrap::SetByYPath);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "GetAttribute", TNodeWrap::GetAttribute);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "SetAttribute", TNodeWrap::SetAttribute);
 
     target->Set(
         String::NewSymbol("TNodeWrap"),
@@ -423,7 +425,7 @@ Handle<Value> TNodeWrap::CreateV8(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 1);
+    YCHECK(args.Length() == 1);
 
     INodePtr node;
 
@@ -446,7 +448,7 @@ Handle<Value> TNodeWrap::Print(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 0 || args.Length() == 2);
+    YCHECK(args.Length() == 0 || args.Length() == 2);
 
     INodePtr node = TNodeWrap::UnwrapNode(args.This());
     Handle<Value> handle = Undefined();
@@ -478,7 +480,7 @@ Handle<Value> TNodeWrap::Get(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     INodePtr node = TNodeWrap::UnwrapNode(args.This());
     return scope.Close(ProduceV8(node));
@@ -491,7 +493,7 @@ Handle<Value> TNodeWrap::GetByYPath(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 1);
+    YCHECK(args.Length() == 1);
 
     EXPECT_THAT_IS(args[0], String);
 
@@ -511,14 +513,12 @@ Handle<Value> TNodeWrap::GetByYPath(const Arguments& args)
     return scope.Close(std::move(handle));
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 Handle<Value> TNodeWrap::SetByYPath(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 2);
+    YCHECK(args.Length() == 2);
 
     EXPECT_THAT_IS(args[0], String);
     EXPECT_THAT_HAS_INSTANCE(args[1], TNodeWrap);
@@ -536,6 +536,58 @@ Handle<Value> TNodeWrap::SetByYPath(const Arguments& args)
 
     return args.This();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TNodeWrap::GetAttribute(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YCHECK(args.Length() == 1);
+
+    EXPECT_THAT_IS(args[0], String);
+
+    INodePtr node = TNodeWrap::UnwrapNode(args.This());
+    String::AsciiValue keyValue(args[0]->ToString());
+    TStringBuf key(*keyValue, keyValue.length());
+
+    try {
+        node = node->Attributes().Get<INodePtr>(Stroka(key));
+    } catch (const std::exception& ex) {
+        return ThrowException(ConvertErrorToV8(ex));
+    }
+
+    Local<Object> handle = ConstructorTemplate->GetFunction()->NewInstance();
+    ObjectWrap::Unwrap<TNodeWrap>(handle)->SetNode(std::move(node));
+
+    return scope.Close(std::move(handle));
+}
+
+Handle<Value> TNodeWrap::SetAttribute(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YCHECK(args.Length() == 2);
+
+    EXPECT_THAT_IS(args[0], String);
+    EXPECT_THAT_HAS_INSTANCE(args[1], TNodeWrap);
+
+    INodePtr node = TNodeWrap::UnwrapNode(args.This());
+    String::AsciiValue keyValue(args[0]->ToString());
+    TStringBuf key(*keyValue, keyValue.length());
+    INodePtr value = TNodeWrap::UnwrapNode(args[1]);
+
+    try {
+        node->MutableAttributes()->Set(Stroka(key), value);
+    } catch (const std::exception& ex) {
+        return ThrowException(ConvertErrorToV8(ex));
+    }
+
+    return args.This();
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

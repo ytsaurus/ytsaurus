@@ -96,7 +96,7 @@ Handle<Value> TInputStreamWrap::New(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 2);
+    YCHECK(args.Length() == 2);
 
     EXPECT_THAT_IS(args[0], Uint32);
     EXPECT_THAT_IS(args[1], Uint32);
@@ -140,7 +140,7 @@ Handle<Value> TInputStreamWrap::Push(const Arguments& args)
         ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 3);
+    YCHECK(args.Length() == 3);
 
     EXPECT_THAT_HAS_INSTANCE(args[0], node::Buffer);
     EXPECT_THAT_IS(args[1], Uint32);
@@ -198,7 +198,7 @@ Handle<Value> TInputStreamWrap::End(const Arguments& args)
         ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     // Do the work.
     stream->DoEnd();
@@ -232,7 +232,7 @@ Handle<Value> TInputStreamWrap::Destroy(const Arguments& args)
         ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     // Do the work.
     stream->DoDestroy();
@@ -270,7 +270,7 @@ Handle<Value> TInputStreamWrap::Sweep(const Arguments& args)
         ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     // Do the work.
     stream->EnqueueSweep(true);
@@ -332,7 +332,7 @@ Handle<Value> TInputStreamWrap::Drain(const Arguments& args)
         ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     // Do the work.
     stream->EnqueueDrain(true);

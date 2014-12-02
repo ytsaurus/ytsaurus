@@ -48,7 +48,7 @@ Handle<Value> GetEioInformation(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     Local<Object> result = Object::New();
     result->Set(String::NewSymbol("nreqs"),    Integer::NewFromUnsigned(eio_nreqs()));
@@ -63,7 +63,7 @@ Handle<Value> SetEioConcurrency(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 1);
+    YCHECK(args.Length() == 1);
     EXPECT_THAT_IS(args[0], Uint32);
 
     unsigned int numberOfThreads = args[0]->Uint32Value();
@@ -81,7 +81,7 @@ Handle<Value> ConfigureSingletons(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 1);
+    YCHECK(args.Length() == 1);
 
     EXPECT_THAT_IS(args[0], Object);
 
@@ -124,7 +124,7 @@ Handle<Value> ShutdownSingletons(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length());
+    YCHECK(args.Length());
 
     Shutdown();
 

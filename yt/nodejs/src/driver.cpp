@@ -502,7 +502,7 @@ Handle<Value> TDriverWrap::New(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YASSERT(args.Length() == 2);
+    YCHECK(args.Length() == 2);
 
     EXPECT_THAT_IS(args[0], Boolean);
     EXPECT_THAT_IS(args[1], Object);
@@ -539,7 +539,7 @@ Handle<Value> TDriverWrap::FindCommandDescriptor(const Arguments& args)
     TDriverWrap* driver = ObjectWrap::Unwrap<TDriverWrap>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 1);
+    YCHECK(args.Length() == 1);
 
     EXPECT_THAT_IS(args[0], String);
 
@@ -572,7 +572,7 @@ Handle<Value> TDriverWrap::GetCommandDescriptors(const Arguments& args)
     TDriverWrap* driver = ObjectWrap::Unwrap<TDriverWrap>(args.This());
 
     // Validate arguments.
-    YASSERT(args.Length() == 0);
+    YCHECK(args.Length() == 0);
 
     // Do the work.
     return scope.Close(driver->DoGetCommandDescriptors());
@@ -599,7 +599,7 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
     HandleScope scope;
 
     // Validate arguments.
-    YASSERT(args.Length() == 10);
+    YCHECK(args.Length() == 10);
 
     EXPECT_THAT_IS(args[0], String); // CommandName
     EXPECT_THAT_IS(args[1], String); // AuthenticatedUser
