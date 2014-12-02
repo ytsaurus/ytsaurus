@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "partition.h"
+#include "dynamic_memory_store_comparer.h"
 
 #include <core/misc/property.h>
 #include <core/misc/ref_tracked.h>
@@ -134,6 +135,8 @@ public:
 
     TTabletSnapshotPtr BuildSnapshot() const;
 
+    TDynamicRowKeyComparer GetDynamicRowKeyComparer() const;
+
 private:
     TTableMountConfigPtr Config_;
     TTabletWriterOptionsPtr WriterOptions_;
@@ -148,6 +151,8 @@ private:
 
     yhash_map<TStoreId, IStorePtr> Stores_;
     TDynamicMemoryStorePtr ActiveStore_;
+
+    TDynamicRowKeyComparer Comparer_;
 
     int ColumnLockCount_ = -1;
 

@@ -16,6 +16,7 @@ set( SRCS
   ${BASE}/store_detail.cpp
   ${BASE}/dynamic_memory_store.cpp
   ${BASE}/dynamic_memory_store_bits.cpp
+  ${BASE}/dynamic_memory_store_comparer.cpp
   ${BASE}/chunk_store.cpp
   ${BASE}/store_manager.cpp
   ${BASE}/store_flusher.cpp
@@ -43,6 +44,7 @@ set( HDRS
   ${BASE}/store_detail.h
   ${BASE}/dynamic_memory_store.h
   ${BASE}/dynamic_memory_store_bits.h
+  ${BASE}/dynamic_memory_store_comparer.h
   ${BASE}/chunk_store.h
   ${BASE}/store_manager.h
   ${BASE}/store_flusher.h

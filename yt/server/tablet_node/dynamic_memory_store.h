@@ -3,6 +3,7 @@
 #include "public.h"
 #include "store_detail.h"
 #include "dynamic_memory_store_bits.h"
+#include "dynamic_memory_store_comparer.h"
 #include "transaction.h"
 
 #include <core/misc/public.h>

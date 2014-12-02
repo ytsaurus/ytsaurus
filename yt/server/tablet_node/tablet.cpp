@@ -494,6 +494,8 @@ TTabletSnapshotPtr TTablet::BuildSnapshot() const
 
 void TTablet::Initialize()
 {
+    Comparer_ = TDynamicRowKeyComparer(GetKeyColumnCount(), Schema_);
+
     ColumnIndexToLockIndex_.resize(Schema_.Columns().size());
     LockIndexToName_.push_back(PrimaryLockName);
 
@@ -535,6 +537,11 @@ TPartition* TTablet::GetContainingPartition(IStorePtr store)
     }
 
     return GetContainingPartition(store->GetMinKey(), store->GetMaxKey());
+}
+
+TDynamicRowKeyComparer TTablet::GetDynamicRowKeyComparer() const
+{
+    return Comparer_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
