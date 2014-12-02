@@ -207,7 +207,7 @@ TNonOwningCGroup::TNonOwningCGroup(TNonOwningCGroup&& other)
 
 // This method SHOULD work fine in forked process
 // So we cannot use out logging|profiling framework
-void TNonOwningCGroup::AddTask(int pid)
+void TNonOwningCGroup::AddTask(int pid) const
 {
     Append("tasks", ToString(pid));
 }
@@ -215,7 +215,7 @@ void TNonOwningCGroup::AddTask(int pid)
 
 // This method SHOULD work fine in forked process
 // So we cannot use out logging|profiling framework
-void TNonOwningCGroup::AddCurrentTask()
+void TNonOwningCGroup::AddCurrentTask() const
 {
     YCHECK(!IsNull());
 #ifdef _linux_
@@ -280,7 +280,7 @@ const Stroka& TNonOwningCGroup::GetFullPath() const
     return FullPath_;
 }
 
-void TNonOwningCGroup::EnsureExistance()
+void TNonOwningCGroup::EnsureExistance() const
 {
     LOG_INFO("Creating cgroup %Qv", FullPath_);
 
@@ -345,7 +345,7 @@ TCpuAccounting::TCpuAccounting(const Stroka& name)
     : TCGroup("cpuacct", name)
 { }
 
-TCpuAccounting::TStatistics TCpuAccounting::GetStatistics()
+TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
 {
     TCpuAccounting::TStatistics result;
 #ifdef _linux_
@@ -394,7 +394,7 @@ TBlockIO::TBlockIO(const Stroka& name)
 // For more information about format of data
 // read https://www.kernel.org/doc/Documentation/cgroups/blkio-controller.txt
 
-TBlockIO::TStatistics TBlockIO::GetStatistics()
+TBlockIO::TStatistics TBlockIO::GetStatistics() const
 {
     TBlockIO::TStatistics result;
 #ifdef _linux_
@@ -419,17 +419,17 @@ TBlockIO::TStatistics TBlockIO::GetStatistics()
     return result;
 }
 
-std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetIOServiceBytes()
+std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetIOServiceBytes() const
 {
     return GetDetailedStatistics("blkio.io_service_bytes");
 }
 
-std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetIOServiced()
+std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetIOServiced() const
 {
     return GetDetailedStatistics("blkio.io_serviced");
 }
 
-std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const char* filename)
+std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const char* filename) const
 {
     std::vector<TBlockIO::TStatisticsItem> result;
 #ifdef _linux_
@@ -456,7 +456,7 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
     return result;
 }
 
-void TBlockIO::ThrottleOperations(const Stroka& deviceId, i64 operations)
+void TBlockIO::ThrottleOperations(const Stroka& deviceId, i64 operations) const
 {
     auto value = Format("%v %v", deviceId, operations);
     Append("blkio.throttle.read_iops_device", value);
@@ -485,7 +485,7 @@ TMemory::TMemory(TMemory&& other)
 { }
 
 
-TMemory::TStatistics TMemory::GetStatistics()
+TMemory::TStatistics TMemory::GetStatistics() const
 {
     TMemory::TStatistics result;
 #ifdef _linux_

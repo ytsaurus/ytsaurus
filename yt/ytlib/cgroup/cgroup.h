@@ -31,8 +31,8 @@ public:
     TNonOwningCGroup(const Stroka& type, const Stroka& name);
     TNonOwningCGroup(TNonOwningCGroup&& other);
 
-    void AddTask(int pid);
-    void AddCurrentTask();
+    void AddTask(int pid) const;
+    void AddCurrentTask() const;
 
     Stroka Get(const Stroka& name) const;
     void Set(const Stroka& name, const Stroka& value) const;
@@ -42,7 +42,7 @@ public:
     std::vector<int> GetTasks() const;
     const Stroka& GetFullPath() const;
 
-    void EnsureExistance();
+    void EnsureExistance() const;
 
 protected:
     Stroka FullPath_;
@@ -82,7 +82,7 @@ public:
     };
 
     explicit TCpuAccounting(const Stroka& name);
-    TStatistics GetStatistics();
+    TStatistics GetStatistics() const;
 };
 
 void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsumer* consumer);
@@ -110,15 +110,15 @@ public:
 
     explicit TBlockIO(const Stroka& name);
 
-    TStatistics GetStatistics();
+    TStatistics GetStatistics() const;
 
-    std::vector<TStatisticsItem> GetIOServiceBytes();
-    std::vector<TStatisticsItem> GetIOServiced();
+    std::vector<TStatisticsItem> GetIOServiceBytes() const;
+    std::vector<TStatisticsItem> GetIOServiced() const;
 
-    void ThrottleOperations(const Stroka& deviceId, i64 operations);
+    void ThrottleOperations(const Stroka& deviceId, i64 operations) const;
 
 private:
-    std::vector<TBlockIO::TStatisticsItem> GetDetailedStatistics(const char* filename);
+    std::vector<TBlockIO::TStatisticsItem> GetDetailedStatistics(const char* filename) const;
 };
 
 void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* consumer);
@@ -137,7 +137,7 @@ public:
 
     explicit TMemory(const Stroka& name);
     TMemory(TMemory&& other);
-    TStatistics GetStatistics();
+    TStatistics GetStatistics() const;
 
     i64 GetUsageInBytes() const;
     i64 GetMaxUsageInBytes() const;
