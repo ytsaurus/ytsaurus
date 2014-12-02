@@ -186,8 +186,6 @@ public:
     TEvent GetOomEvent() const;
 
     void ForceEmpty() const;
-
-    int GetFailCount() const;
 };
 
 void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* consumer);

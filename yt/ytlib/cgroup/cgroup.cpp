@@ -681,11 +681,6 @@ void TMemory::ForceEmpty() const
     Set("memory.force_empty", "0");
 }
 
-int TMemory::GetFailCount() const
-{
-    return FromString<int>(Get("memory.failcnt"));
-}
-
 void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     NYTree::BuildYsonFluently(consumer)

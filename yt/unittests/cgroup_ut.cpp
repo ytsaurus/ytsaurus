@@ -301,7 +301,6 @@ TEST(CGroup, OomEventFiredIfOomIsEnabled)
 
     EXPECT_TRUE(event.Fired());
     EXPECT_EQ(1, event.GetLastValue());
-    EXPECT_GE(group.GetFailCount(), 1);
 
     group.Destroy();
 
