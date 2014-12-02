@@ -87,17 +87,22 @@ public:
         LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %v)",
             WorkingDirectory);
 
-        Process.AddArgument("--job-proxy");
-        Process.AddArgument("--config");
-        Process.AddArgument(ProxyConfigFileName);
-        Process.AddArgument("--job-id");
-        Process.AddArgument(ToString(JobId));
-        Process.AddArgument("--working-dir");
-        Process.AddArgument(WorkingDirectory);
-        Process.AddArgument("--close-all-fds");
+        Process.AddArguments({
+            "--job-proxy"
+            "--config",
+            ProxyConfigFileName,
+            "--job-id",
+            ToString(JobId),
+            "--working-dir",
+            WorkingDirectory,
+            "--close-all-fds"
+        });
+
         for (const auto& path : Slot.GetCGroupPaths()) {
-            Process.AddArgument("--cgroup");
-            Process.AddArgument(path);
+            Process.AddArguments({
+                "--cgroup",
+                path
+            });
         }
 
         LOG_INFO("Spawning a job proxy (Path: %v)", ProxyPath);

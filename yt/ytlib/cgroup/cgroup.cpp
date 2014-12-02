@@ -135,9 +135,11 @@ void RunKiller(const Stroka& processGroupPath)
     };
 
     TProcess process(GetExecPath());
-    process.AddArgument("--killer");
-    process.AddArgument("--process-group-path");
-    process.AddArgument(processGroupPath);
+    process.AddArguments({
+        "--killer",
+        "--process-group-path",
+        processGroupPath
+    });
 
     // We are forking here in order not to give the root privileges to the parent process ever,
     // because we cannot know what the other threads are doing.

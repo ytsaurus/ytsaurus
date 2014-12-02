@@ -25,6 +25,8 @@ public:
     void AddArgument(TStringBuf arg);
     void AddEnvVar(TStringBuf var);
 
+    void AddArguments(std::initializer_list<TStringBuf> args);
+
     void AddCloseFileAction(int fd);
     void AddDup2FileAction(int oldFd, int newFd);
 

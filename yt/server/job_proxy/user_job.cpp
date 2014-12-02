@@ -154,8 +154,10 @@ public:
             Process.AddDup2FileAction(jobPipe.ReadFd, jobPipe.PipeIndex);
             Process.AddCloseFileAction(jobPipe.ReadFd);
 
-            Process.AddArgument("--prepare-pipe");
-            Process.AddArgument(::ToString(jobPipe.PipeIndex));
+            Process.AddArguments({
+                "--prepare-pipe",
+                ::ToString(jobPipe.PipeIndex)
+            });
         }
 
         for (auto& pipe : OutputPipes) {
@@ -165,23 +167,27 @@ public:
             Process.AddDup2FileAction(jobPipe.WriteFd, jobPipe.PipeIndex);
             Process.AddCloseFileAction(jobPipe.WriteFd);
 
-            Process.AddArgument("--prepare-pipe");
-            Process.AddArgument(::ToString(jobPipe.PipeIndex));
+            Process.AddArguments({
+                    "--prepare-pipe",
+                    ::ToString(jobPipe.PipeIndex)
+            });
         }
 
         if (UserJobSpec.enable_accounting() || config->ForceEnableAccounting) {
-            Process.AddArgument("--cgroup");
-            Process.AddArgument(CpuAccounting.GetFullPath());
-
-            Process.AddArgument("--cgroup");
-            Process.AddArgument(BlockIO.GetFullPath());
-
-            Process.AddArgument("--cgroup");
-            Process.AddArgument(Freezer.GetFullPath());
+            Process.AddArguments({
+                    "--cgroup",
+                    CpuAccounting.GetFullPath(),
+                    "--cgroup",
+                    BlockIO.GetFullPath(),
+                    "--cgroup",
+                    Freezer.GetFullPath()
+            });
 
             if (config->EnableCGroupMemoryHierarchy) {
-                Process.AddArgument("--cgroup");
-                Process.AddArgument(Memory.GetFullPath());
+                Process.AddArguments({
+                    "--cgroup",
+                    Memory.GetFullPath()
+                });
             }
         }
 
@@ -191,16 +197,20 @@ public:
             Process.AddDup2FileAction(3, 1);
         }
 
-        Process.AddArgument("--config");
-        Process.AddArgument(NFS::CombinePaths(GetCwd(), NExecAgent::ProxyConfigFileName));
-        Process.AddArgument("--working-dir");
-        Process.AddArgument(config->SandboxName);
+        Process.AddArguments({
+            "--config",
+            NFS::CombinePaths(GetCwd(), NExecAgent::ProxyConfigFileName),
+            "--working-dir",
+            config->SandboxName
+        });
 
         if (UserJobSpec.enable_vm_limit()) {
             auto memoryLimit = static_cast<rlim_t>(UserJobSpec.memory_limit() * config->MemoryLimitMultiplier);
             memoryLimit += MemoryLimitBoost;
-            Process.AddArgument("--vm-limit");
-            Process.AddArgument(::ToString(memoryLimit));
+            Process.AddArguments({
+                "--vm-limit",
+                ::ToString(memoryLimit)
+            });
         }
 
         if (!UserJobSpec.enable_core_dump()) {
@@ -208,16 +218,20 @@ public:
         }
 
         if (config->UserId.HasValue()) {
-            Process.AddArgument("--uid");
-            Process.AddArgument(::ToString(config->UserId.Get()));
+            Process.AddArguments({
+                "--uid",
+                ::ToString(config->UserId.Get())
+            });
 
             if (UserJobSpec.enable_io_prio()) {
                 Process.AddArgument("--enable-io-prio");
             }
         }
 
-        Process.AddArgument("--command");
-        Process.AddArgument(UserJobSpec.shell_command());
+        Process.AddArguments({
+            "--command",
+            UserJobSpec.shell_command()
+        });
 
         TPatternFormatter formatter;
         formatter.AddProperty("SandboxPath", GetCwd());

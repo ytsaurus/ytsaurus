@@ -114,9 +114,11 @@ void RunCleaner(const Stroka& path)
     LOG_INFO("Clean %Qs", path);
 
     TProcess process(GetExecPath());
-    process.AddArgument(AsStringBuf("--cleaner"));
-    process.AddArgument(AsStringBuf("--dir-to-remove"));
-    process.AddArgument(path);
+    process.AddArguments({
+        "--cleaner",
+        "--dir-to-remove",
+        path
+    });
 
     process.Spawn();
     auto error = process.Wait();

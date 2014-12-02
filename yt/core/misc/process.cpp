@@ -108,6 +108,13 @@ void TProcess::AddEnvVar(TStringBuf var)
     Env_.push_back(Capture(var));
 }
 
+void TProcess::AddArguments(std::initializer_list<TStringBuf> args)
+{
+    for (auto arg : args) {
+        AddArgument(arg);
+    }
+}
+
 void TProcess::AddCloseFileAction(int fd)
 {
     TSpawnAction action = {
