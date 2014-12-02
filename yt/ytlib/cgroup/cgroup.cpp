@@ -197,8 +197,11 @@ void RunKiller(const Stroka& processGroupPath)
 #ifdef _linux_
     LOG_INFO("Kill %Qv processes", processGroupPath);
 
-    TNonOwningCGroup group(processGroupPath);
+    if (processGroupPath.Empty()) {
+        return;
+    }
 
+    TNonOwningCGroup group(processGroupPath);
     LOG_INFO("Lock %Qv group", processGroupPath);
 
     int code = chmod(~NFS::CombinePaths(group.GetFullPath(), "tasks"), S_IRUSR);
