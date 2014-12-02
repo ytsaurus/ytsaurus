@@ -44,23 +44,7 @@
 
 #include <util/stream/null.h>
 
-#include <errno.h>
-
-#include <util/folder/dirut.h>
 #include <util/system/execpath.h>
-
-#ifdef _linux_
-    #include <unistd.h>
-    #include <signal.h>
-    #include <fcntl.h>
-
-    #include <sys/types.h>
-    #include <sys/time.h>
-    #include <sys/wait.h>
-    #include <sys/resource.h>
-    #include <sys/stat.h>
-    #include <sys/epoll.h>
-#endif
 
 namespace NYT {
 namespace NJobProxy {
@@ -205,7 +189,7 @@ public:
         });
 
         if (UserJobSpec.enable_vm_limit()) {
-            auto memoryLimit = static_cast<rlim_t>(UserJobSpec.memory_limit() * config->MemoryLimitMultiplier);
+            auto memoryLimit = UserJobSpec.memory_limit() * config->MemoryLimitMultiplier;
             memoryLimit += MemoryLimitBoost;
             Process.AddArguments({
                 "--vm-limit",
