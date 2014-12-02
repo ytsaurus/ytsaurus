@@ -17,7 +17,8 @@ namespace NConcurrency {
 //! Provides an asynchronous interface for reading from a stream.
 /*!
  *  Call #Read and provide a buffer to start reading.
- *  Buffer passed to #Read must remain valid until the returned future is set. 
+ *  Buffer passed to #Read must remain valid until the returned future is set.
+ *  One must not call #Read again, until previous call was completed. 
  *  Returns number of bytes read or error.
  *
  */
@@ -38,6 +39,7 @@ IAsyncInputStreamPtr CreateAsyncInputStream(TInputStream* syncStream);
 /*!
  *  Call #Write to issue a write request.
  *  Buffer passed to #Write must remain valid until the retured future is set.
+ *  One must not call #Write again, until previous call was completed. 
  *
  */
 struct IAsyncOutputStream
