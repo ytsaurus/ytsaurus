@@ -512,23 +512,24 @@ class TestNativeMode(YtTestBase, YTEnv):
         yt.run_map(foo, table, table, format=yt.SchemedDsvFormat(columns=["x"]))
         self.check(["x=1\n", "x=\\n\n"], sorted(list(yt.read_table(table))))
 
-    def test_mount_unmount(self):
-        table = TEST_DIR + "/table"
-        yt.create_table(table)
-        yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
-        yt.set(table + "/@key_columns", ["x"])
+    # TODO(sandello): Enable this test once we migrate to API/v3.
+    #def test_mount_unmount(self):
+    #    table = TEST_DIR + "/table"
+    #    yt.create_table(table)
+    #    yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
+    #    yt.set(table + "/@key_columns", ["x"])
 
-        tablet_id = yt.create("tablet_cell", attributes={"size": 1})
-        while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
-            time.sleep(0.1)
+    #    tablet_id = yt.create("tablet_cell", attributes={"size": 1})
+    #    while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
+    #        time.sleep(0.1)
 
-        yt.mount_table(table)
-        while yt.get("{0}/@tablets/0/state".format(table)) != 'mounted':
-            time.sleep(0.1)
+    #    yt.mount_table(table)
+    #    while yt.get("{0}/@tablets/0/state".format(table)) != 'mounted':
+    #        time.sleep(0.1)
 
-        yt.unmount_table(table)
-        while yt.get("{0}/@tablets/0/state".format(table)) != 'unmounted':
-            time.sleep(0.1)
+    #    yt.unmount_table(table)
+    #    while yt.get("{0}/@tablets/0/state".format(table)) != 'unmounted':
+    #        time.sleep(0.1)
 
     #def test_select(self):
     #    table = TEST_DIR + "/table"
