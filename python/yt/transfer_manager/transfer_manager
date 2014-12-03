@@ -388,14 +388,15 @@ class Application(object):
 
         for id, options in self._yt.get(tasks_path).iteritems():
             task = Task(**options)
+            if task.pool is None:
+                logger.warning("Cannot load task %s: task has no pool")
+                del self._tasks[id]
+
             self._tasks[id] = task
             if task.state == "running":
                 self._change_task_state(id, "pending")
             if task.state == "pending":
                 self._append_pending_task(task)
-            if task.pool is None:
-                logger.warning("Cannot load task %s: task has no pool")
-                del self._tasks[id]
 
         self._pending_tasks.sort(key=lambda id: self._tasks[id].creation_time)
 
