@@ -152,19 +152,19 @@ public:
             Process.AddCloseFileAction(jobPipe.WriteFd);
 
             Process.AddArguments({
-                    "--prepare-pipe",
-                    ::ToString(jobPipe.PipeIndex)
+                "--prepare-pipe",
+                ::ToString(jobPipe.PipeIndex)
             });
         }
 
         if (UserJobSpec.enable_accounting() || config->ForceEnableAccounting) {
             Process.AddArguments({
-                    "--cgroup",
-                    CpuAccounting.GetFullPath(),
-                    "--cgroup",
-                    BlockIO.GetFullPath(),
-                    "--cgroup",
-                    Freezer.GetFullPath()
+                "--cgroup",
+                CpuAccounting.GetFullPath(),
+                "--cgroup",
+                BlockIO.GetFullPath(),
+                "--cgroup",
+                Freezer.GetFullPath()
             });
 
             if (config->EnableCGroupMemoryHierarchy) {
@@ -201,10 +201,10 @@ public:
             Process.AddArgument("--enable-core-dumps");
         }
 
-        if (config->UserId.HasValue()) {
+        if (config->UserId) {
             Process.AddArguments({
                 "--uid",
-                ::ToString(config->UserId.Get())
+                ::ToString(*config->UserId)
             });
 
             if (UserJobSpec.enable_io_prio()) {

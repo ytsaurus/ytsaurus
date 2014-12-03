@@ -117,11 +117,11 @@ void RunKiller(const Stroka& processGroupPath)
     }
 
     TNonOwningCGroup group(processGroupPath);
-    LOG_INFO("Lock %Qv group", processGroupPath);
+    LOG_INFO("Locking group %Qv", processGroupPath);
 
     int code = chmod(~NFS::CombinePaths(group.GetFullPath(), "tasks"), S_IRUSR);
     if (code != 0) {
-        LOG_FATAL("Unable to lock %Qv cgroup. Error: %v", processGroupPath, TError::FromSystem());
+        LOG_FATAL(TError::FromSystem(), "Unable to lock group %Qv. Error: %v", processGroupPath);
     }
 
     auto pids = group.GetTasks();
