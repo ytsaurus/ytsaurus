@@ -131,6 +131,8 @@ struct ISchedulingContext
         TJobSpecBuilder specBuilder) = 0;
 
     virtual void PreemptJob(TJobPtr job) = 0;
+
+    virtual TInstant GetNow() const = 0;
 };
 
 /*!

@@ -1222,7 +1222,7 @@ public:
 
     virtual void ScheduleJobs(ISchedulingContext* schedulingContext) override
     {
-        auto now = TInstant::Now();
+        auto now = context->GetNow();
         auto node = schedulingContext->GetNode();
         TFairShareContext context(schedulingContext);
 

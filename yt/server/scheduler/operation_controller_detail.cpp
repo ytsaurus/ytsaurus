@@ -2068,7 +2068,7 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
     ISchedulingContext* context,
     const TNodeResources& jobLimits)
 {
-    auto now = TInstant::Now();
+    auto now = context->GetNow();
     const auto& nodeResourceLimits = context->ResourceLimits();
     const auto& address = context->GetAddress();
 
