@@ -159,9 +159,9 @@ class TestEventLog(YTEnvSetup):
         op_id = map(in_='//tmp/t1', out='//tmp/t2', command="cat; bash -c 'for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2' >/dev/null")
 
         statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
-        assert statistics['user_job']['system']['cpu']['user']['sum'] > 0
-        assert statistics['user_job']['system']['block_io']['bytes_read']['sum'] is not None
-        assert statistics['user_job']['system']['memory']['rss']['count'] > 0
+        assert statistics['user_job']['builtin']['cpu']['user']['sum'] > 0
+        assert statistics['user_job']['builtin']['block_io']['bytes_read']['sum'] is not None
+        assert statistics['user_job']['builtin']['memory']['rss']['count'] > 0
         assert statistics['job_proxy']['cpu']['user']['count'] == 1
 
         # wait for scheduler to dump the event log
@@ -172,7 +172,7 @@ class TestEventLog(YTEnvSetup):
             event_types.add(item['event_type'])
             if item['event_type'] == 'job_completed':
                 stats = item['statistics']
-                user_time = stats['user_job']['system']['cpu']['user']['max']
+                user_time = stats['user_job']['builtin']['cpu']['user']['max']
                 # our job should burn enough cpu
                 assert user_time > 0
         assert "operation_started" in event_types
@@ -194,8 +194,8 @@ class TestEventLog(YTEnvSetup):
             if item['event_type'] == 'job_completed' and item['operation_id'] == op_id:
                 job_completed_line_exist = True
                 stats = item['statistics']
-                bytes_read = stats['user_job']['system']['block_io']['bytes_read']['max']
-                io_read = stats['user_job']['system']['block_io']['io_read']['max']
+                bytes_read = stats['user_job']['builtin']['block_io']['bytes_read']['max']
+                io_read = stats['user_job']['builtin']['block_io']['io_read']['max']
         assert job_completed_line_exist
         assert bytes_read == 160*1024*50
         assert io_read == 50
@@ -236,7 +236,7 @@ class TestUserStatistics(YTEnvSetup):
 
         op_id = map(in_="//tmp/t1", out="//tmp/t2", command="cat", opt=["/spec/job_count=2"])
         statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
-        assert statistics['user_job']['system']['cpu']['user']['count'] == 2
+        assert statistics['user_job']['builtin']['cpu']['user']['count'] == 2
 
     def test_job_statistics_progress(self):
         create('table', '//tmp/t1')
@@ -280,13 +280,13 @@ class TestUserStatistics(YTEnvSetup):
                 if tries > 10:
                     break
 
-            assert statistics['user_job']['system']['cpu']['user']['count'] == 1
+            assert statistics['user_job']['builtin']['cpu']['user']['count'] == 1
 
             os.unlink(keeper_filename)
             track_op(op_id)
 
             statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
-            assert statistics['user_job']['system']['cpu']['user']['count'] == 2
+            assert statistics['user_job']['builtin']['cpu']['user']['count'] == 2
         finally:
             to_delete.reverse()
             for filename in to_delete:
