@@ -390,7 +390,7 @@ class Application(object):
             task = Task(**options)
             if task.pool is None:
                 logger.warning("Cannot load task %s: task has no pool")
-                del self._tasks[id]
+                continue
 
             self._tasks[id] = task
             if task.state == "running":
