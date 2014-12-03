@@ -389,7 +389,7 @@ class Application(object):
         for id, options in self._yt.get(tasks_path).iteritems():
             task = Task(**options)
             if task.pool is None:
-                logger.warning("Cannot load task %s: task has no pool")
+                logger.warning("Cannot load task %s: task has no pool", id)
                 continue
 
             self._tasks[id] = task
