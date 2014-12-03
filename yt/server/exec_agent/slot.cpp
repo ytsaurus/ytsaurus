@@ -55,8 +55,8 @@ void TSlot::Initialize()
         try {
             ProcessGroup_.EnsureExistance();
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to create process group %v",
-                ProcessGroup_.GetFullPath()) << ex;
+            LOG_FATAL(ex, "Failed to create process group %v",
+                ProcessGroup_.GetFullPath());
         }
 
 #ifdef _linux_
