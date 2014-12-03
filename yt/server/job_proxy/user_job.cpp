@@ -285,8 +285,8 @@ public:
             }
 
             TGuard<TSpinLock> guard(SpinLock);
-            AddStatistic(Statistics, "/user_job/buitin/cpu", CpuAccountingStats);
-            AddStatistic(Statistics, "/user_job/buitin/block_io", BlockIOStats);
+            AddStatistic(Statistics, "/user_job/builtin/cpu", CpuAccountingStats);
+            AddStatistic(Statistics, "/user_job/builtin/block_io", BlockIOStats);
         }
 
         if (ErrorOutput) {
@@ -300,7 +300,7 @@ public:
 
         {
             TGuard<TSpinLock> guard(SpinLock);
-            Statistics.Add("/user_job/buitin/time", TSummary(static_cast<i64>(GetElapsedTime().MilliSeconds())));
+            Statistics.Add("/user_job/builtin/time", TSummary(static_cast<i64>(GetElapsedTime().MilliSeconds())));
         }
 
         if (JobExitError.IsOK()) {
@@ -633,7 +633,7 @@ private:
                     }
 
                     TGuard<TSpinLock> guard(SpinLock);
-                    AddStatistic(Statistics, "/user_job/buitin/cpu", CpuAccountingStats);
+                    AddStatistic(Statistics, "/user_job/builtin/cpu", CpuAccountingStats);
                 }
             }
 

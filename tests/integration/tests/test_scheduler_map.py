@@ -226,8 +226,8 @@ class TestUserStatistics(YTEnvSetup):
                 r'os.close(5);"'))
 
         statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
-        assert statistics['user_job']['user']['cpu']['k1']['max'] == 4
-        assert statistics['user_job']['user']['k2']['count'] == 2
+        assert statistics['user_job']['custom']['cpu']['k1']['max'] == 4
+        assert statistics['user_job']['custom']['k2']['count'] == 2
 
     def test_multiple_job_statistics(self):
         create('table', '//tmp/t1')
