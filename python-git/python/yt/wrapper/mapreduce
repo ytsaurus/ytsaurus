@@ -458,12 +458,10 @@ Examples:
                        replication_factor=replication_factor,
                        compression_codec=args.codec)
     if args.writesorted is not None:
-        args.writesorted = yt.TablePath(args.writesorted, append=args.append)#, sorted_by=["key", "subkey"])
-        yt.write_table(args.writesorted, sys.stdin, format=outputformat,
+        table = yt.TablePath(args.writesorted, append=args.append, sorted_by=["key", "subkey"])
+        yt.write_table(table, sys.stdin, format=outputformat,
                        replication_factor=replication_factor,
                        compression_codec=args.codec)
-        # TODO: sorted_by has no proper support now. Delete it with remaking in system.
-        yt.run_sort(args.writesorted)
     if mapreduce_case:
         map_input_format = inputformat
         map_output_format = reduce_input_format = reduce_output_format = outputformat
