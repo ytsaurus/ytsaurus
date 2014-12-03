@@ -294,8 +294,8 @@ public:
             }
 
             TGuard<TSpinLock> guard(SpinLock);
-            AddStatistic(Statistics, "/user_job/system/cpu", CpuAccountingStats);
-            AddStatistic(Statistics, "/user_job/system/block_io", BlockIOStats);
+            AddStatistic(Statistics, "/user_job/buitin/cpu", CpuAccountingStats);
+            AddStatistic(Statistics, "/user_job/buitin/block_io", BlockIOStats);
         }
 
         if (ErrorOutput) {
@@ -309,7 +309,7 @@ public:
 
         {
             TGuard<TSpinLock> guard(SpinLock);
-            Statistics.Add("/user_job/system/time", TSummary(static_cast<i64>(GetElapsedTime().MilliSeconds())));
+            Statistics.Add("/user_job/buitin/time", TSummary(static_cast<i64>(GetElapsedTime().MilliSeconds())));
         }
 
         if (JobExitError.IsOK()) {
@@ -455,7 +455,7 @@ private:
 
         {
             if (!UserJobSpec.use_yamr_descriptors()) {
-                auto consumer = std::make_unique<TStatisticsConverter>(BIND(&TUserJob::ConsumeStatistics, Unretained(this)), "/user_job/user");
+                auto consumer = std::make_unique<TStatisticsConverter>(BIND(&TUserJob::ConsumeStatistics, Unretained(this)), "/user_job/custom");
                 auto parser = CreateParserForFormat(TFormat(EFormatType::Yson), EDataType::Tabular, consumer.get());
                 StatisticsOutput.reset(new TTableOutput(std::move(parser), std::move(consumer)));
 
@@ -642,7 +642,7 @@ private:
                     }
 
                     TGuard<TSpinLock> guard(SpinLock);
-                    AddStatistic(Statistics, "/user_job/system/cpu", CpuAccountingStats);
+                    AddStatistic(Statistics, "/user_job/buitin/cpu", CpuAccountingStats);
                 }
             }
 
