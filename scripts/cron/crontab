@@ -1,9 +1,9 @@
 # Clear operations
-0,10,20,30,40,50 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=kant.yt.yandex.net yt_lock.py //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --log /opt/cron/operations_spec_kant --count 100 --robot crawler --robot odin --robot cron --robot statbox_push_daemon --failed-timeout 7"' >>/opt/cron/clear_operations_log 2>&1
-0,10,20,30,40,50 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=smith.yt.yandex.net yt_lock.py //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --log /opt/cron/operations_spec_smith --robot crawler --robot odin --robot cron --robot statbox_push_daemon --failed-timeout 7"' >>/opt/cron/clear_operations_log 2>&1
-0,10,20,30,40,50 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=marx.yt.yandex.net yt_lock.py //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --robot cron --failed-timeout 7"' >>/opt/cron/clear_operations_log 2>&1
-0,10,20,30,40,50 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=quine.yt.yandex.net yt_lock.py //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --robot cron --robot statbox_kafka_push --failed-timeout 7"' >>/opt/cron/clear_operations_log 2>&1
-0,10,20,30,40,50 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=plato.yt.yandex.net yt_lock.py //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --failed-timeout 7"' >>/opt/cron/clear_operations_log_plato 2>&1
+*/10 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=kant.yt.yandex.net yt_lock.py //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --log /opt/cron/operations_spec_kant --count 100 --robot crawler --robot odin --robot cron --robot statbox_push_daemon --failed-timeout 7"' >>/opt/cron/clear_operations_log 2>&1
+*/10 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=smith.yt.yandex.net yt_lock.py //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --log /opt/cron/operations_spec_smith --robot crawler --robot odin --robot cron --robot statbox_push_daemon --failed-timeout 7"' >>/opt/cron/clear_operations_log 2>&1
+*/10 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=marx.yt.yandex.net yt_lock.py //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --robot cron --failed-timeout 7"' >>/opt/cron/clear_operations_log 2>&1
+*/10 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=quine.yt.yandex.net yt_lock.py //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --robot cron --robot statbox_kafka_push --failed-timeout 7"' >>/opt/cron/clear_operations_log 2>&1
+*/10 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru 'YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=plato.yt.yandex.net yt_lock.py //sys/cron/clear_operations_lock "/opt/cron/clear_operations.py --failed-timeout 7"' >>/opt/cron/clear_operations_log_plato 2>&1
 
 # Merge tables
 0 3 * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=kant.yt.yandex.net  /opt/cron/run_merge.sh >>/opt/cron/run_merge_log 2>&1
@@ -26,23 +26,7 @@
 0 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=plato.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_log 2>&1
 
 # Import tables from redwood
-0 6 * * * YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=kant.yt.yandex.net yt_lock.py //sys/cron/redwood_lock "USER_SESSIONS_PERIOD=30 USER_SESSIONS_SPY_LOG_PERIOD=0 /opt/cron/redwood.sh" >>/opt/cron/redwood_log 2>&1
-0 * * * * YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=plato.yt.yandex.net yt_lock.py //sys/cron/redwood_lock "FAST=1 USER_SESSIONS_PERIOD=365 USER_SESSIONS_FRAUDS_PERIOD=270 USER_SESSIONS_SPY_LOG_PERIOD=180 /opt/cron/redwood.sh" >>/opt/cron/redwood_log 2>&1
-
-# Import tables
-0 * * * * YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=kant.yt.yandex.net yt_lock.py //sys/cron/import_lock /opt/cron/import.sh  >>/opt/cron/import_log  2>&1
-0 * * * * YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=smith.yt.yandex.net yt_lock.py //sys/cron/import_lock /opt/cron/import.sh  >>/opt/cron/import_log  2>&1
-0 * * * * YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=plato.yt.yandex.net yt_lock.py //sys/cron/import_lock /opt/cron/import.sh  >>/opt/cron/import_log  2>&1
-
-# Export tables to mr
-0 * * * * YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=kant.yt.yandex.net yt_lock.py //sys/cron/export_to_mr_lock /opt/cron/export_to_mr.sh >>/opt/cron/export_log 2>&1
-0 * * * * YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=smith.yt.yandex.net yt_lock.py //sys/cron/export_to_mr_lock /opt/cron/export_to_mr.sh >>/opt/cron/export_log 2>&1
-0 * * * * YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=plato.yt.yandex.net yt_lock.py //sys/cron/export_to_mr_lock /opt/cron/export_to_mr.sh >>/opt/cron/export_log 2>&1
-
-# Export tables from smith and kant
-0 * * * * YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=kant.yt.yandex.net yt_lock.py //sys/cron/export_to_yt_lock /opt/cron/export_to_yt.sh >>/opt/cron/export_log 2>&1
-0 * * * * YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=smith.yt.yandex.net yt_lock.py //sys/cron/export_to_yt_lock /opt/cron/export_to_yt.sh >>/opt/cron/export_log 2>&1
-0 * * * * YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=plato.yt.yandex.net yt_lock.py //sys/cron/export_to_yt_lock /opt/cron/export_to_yt.sh >>/opt/cron/export_log 2>&1
+10/* * * * * YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=plato.yt.yandex.net yt_lock.py //sys/cron/redwood_lock "FAST=1 USER_SESSIONS_PERIOD=365 USER_SESSIONS_FRAUDS_PERIOD=270 USER_SESSIONS_SPY_LOG_PERIOD=180 /opt/cron/redwood.sh" >>/opt/cron/redwood_log 2>&1
 
 # Setting opaques
 0 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!INSERT_TOKEN_HERE!! YT_PROXY=kant.yt.yandex.net /opt/cron/set_opaque.py >>/opt/cron/set_opaque_log 2>&1
