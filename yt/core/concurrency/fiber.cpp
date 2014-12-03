@@ -389,8 +389,7 @@ public:
         return Canceled_;
     }
 
-
-    void Run()
+    EFiberState Run()
     {
         YCHECK(
             State_.load() == EFiberState::Initialized ||
@@ -422,12 +421,14 @@ public:
         TFuture<void> waitFor;
         WaitFor_.Swap(waitFor);
 
-        YCHECK(
-            State_.load() == EFiberState::Terminated ||
-            State_.load() == EFiberState::Exception ||
-            State_.load() == EFiberState::Suspended);
+        auto state = EFiberState(State_.load());
 
-        if (State_.load() == EFiberState::Exception) {
+        YCHECK(
+            state == EFiberState::Terminated ||
+            state == EFiberState::Exception ||
+            state == EFiberState::Suspended);
+
+        if (state == EFiberState::Exception) {
             // Rethrow the propagated exception.
 
             YCHECK(!Canceled_);
@@ -441,11 +442,13 @@ public:
             // Schedule wakeup when the given future is set.
             YCHECK(!Canceled_);
             waitFor.Subscribe(BIND(&TImpl::Wakeup, MakeStrong(Owner_)).Via(switchTo));
-        } else if (switchTo) {          
+        } else if (switchTo) {
             // Schedule switch to another thread.
             YCHECK(!Canceled_);
             switchTo->Invoke(BIND(&TImpl::Wakeup, MakeStrong(Owner_)));
         }
+
+        return state;
     }
 
     void Yield()
@@ -776,9 +779,9 @@ bool TFiber::IsCanceled() const
     return Impl_->IsCanceled();
 }
 
-void TFiber::Run()
+EFiberState TFiber::Run()
 {
-    Impl_->Run();
+    return Impl_->Run();
 }
 
 void TFiber::Yield()
