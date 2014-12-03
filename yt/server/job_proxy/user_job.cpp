@@ -189,7 +189,7 @@ public:
         });
 
         if (UserJobSpec.enable_vm_limit()) {
-            auto memoryLimit = UserJobSpec.memory_limit() * config->MemoryLimitMultiplier;
+            auto memoryLimit = static_cast<i64>(UserJobSpec.memory_limit() * config->MemoryLimitMultiplier);
             memoryLimit += MemoryLimitBoost;
             Process.AddArguments({
                 "--vm-limit",
