@@ -330,7 +330,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
     }
 
-    if (parser.EnableCoreDumps.getValue()) {
+    // core dumps are enabled by default
+    if (!parser.EnableCoreDumps.getValue()) {
         struct rlimit rlimit = {0, 0};
 
         auto res = setrlimit(RLIMIT_CORE, &rlimit);

@@ -197,7 +197,7 @@ public:
             });
         }
 
-        if (!UserJobSpec.enable_core_dump()) {
+        if (UserJobSpec.enable_core_dump()) {
             Process.AddArgument("--enable-core-dumps");
         }
 
