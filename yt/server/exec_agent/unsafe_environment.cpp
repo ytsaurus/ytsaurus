@@ -88,7 +88,7 @@ public:
             WorkingDirectory);
 
         Process.AddArguments({
-            "--job-proxy"
+            "--job-proxy",
             "--config",
             ProxyConfigFileName,
             "--job-id",
