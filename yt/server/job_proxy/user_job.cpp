@@ -633,7 +633,7 @@ private:
                     }
 
                     TGuard<TSpinLock> guard(SpinLock);
-                    AddStatistic(Statistics, "/user_job/builtin/cpu", CpuAccountingStats);
+                    AddStatistic(Statistics, "/user_job/builtin/memory", statistics);
                 }
             }
 
