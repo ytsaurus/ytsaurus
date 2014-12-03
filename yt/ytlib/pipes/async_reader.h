@@ -12,7 +12,7 @@ namespace NPipes {
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
-    class TAsyncReaderImpl;
+    DECLARE_REFCOUNTED_CLASS(TAsyncReaderImpl)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +30,7 @@ public:
     TFuture<void> Abort();
 
 private:
-    TIntrusivePtr<NDetail::TAsyncReaderImpl> Impl_;
+    NDetail::TAsyncReaderImplPtr Impl_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TAsyncReader);

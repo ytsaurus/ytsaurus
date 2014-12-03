@@ -15,6 +15,8 @@ namespace NYT {
 namespace NPipes {
 namespace NDetail {
 
+////////////////////////////////////////////////////////////////////////////////
+
 static const auto& Logger = PipesLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +58,12 @@ private:
 
     void OnRead(ev::io&, int);
     void DoRead();
+
 };
+
+DEFINE_REFCOUNTED_TYPE(TAsyncReaderImpl);
+
+////////////////////////////////////////////////////////////////////////////////
 
 TAsyncReaderImpl::TAsyncReaderImpl(int fd)
     : FD_(fd)
@@ -85,8 +92,6 @@ TAsyncReaderImpl::~TAsyncReaderImpl()
 TFuture<TErrorOr<size_t>> TAsyncReaderImpl::Read(void* buffer, int length)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-
-    YCHECK(ReadResultPromise_.IsSet());
     YCHECK(length > 0);
 
     auto promise = NewPromise<TErrorOr<size_t>>();
@@ -94,30 +99,37 @@ TFuture<TErrorOr<size_t>> TAsyncReaderImpl::Read(void* buffer, int length)
     auto this_ = MakeStrong(this);
     BIND([=] () {
         // Explicitly use this_ to capture strong reference in callback.
-        this_->ReadResultPromise_ = promise;
+        UNUSED(this_);
+
+        YCHECK(ReadResultPromise_.IsSet());
+        ReadResultPromise_ = promise;
 
         switch (State_) {
-        case EReaderState::Aborted:
-            ReadResultPromise_.Set(TError("Reader aborted (FD: %v)", FD_));
-            return;
+            case EReaderState::Aborted:
+                ReadResultPromise_.Set(TError("Reader aborted") << TErrorAttribute("FD", FD_));
+                return;
 
-        case EReaderState::EndOfStream:
-            ReadResultPromise_.Set(0);
-            return;
+            case EReaderState::EndOfStream:
+                ReadResultPromise_.Set(0);
+                return;
 
-        case EReaderState::Failed:
-            ReadResultPromise_.Set(TError("Reader failed (FD: %v)", FD_));
-            return;
+            case EReaderState::Failed:
+                ReadResultPromise_.Set(TError("Reader failed") << TErrorAttribute("FD", FD_));
+                return;
 
-        case EReaderState::Active:
-            Buffer_ = buffer;
-            Length_ = length;
-            Position_ = 0;
-            DoRead();
-            break;
+            case EReaderState::Active:
+                Buffer_ = buffer;
+                Length_ = length;
+                Position_ = 0;
 
-        default:
-            YUNREACHABLE();
+                if (!FDWatcher_.is_active()) {
+                    FDWatcher_.start();
+                }
+
+                break;
+
+            default:
+                YUNREACHABLE();
         };
     })
     .Via(TIODispatcher::Get()->Impl_->GetInvoker())
@@ -138,7 +150,7 @@ TFuture<void> TAsyncReaderImpl::Abort()
 
         State_ = EReaderState::Aborted;
         FDWatcher_.stop();
-        ReadResultPromise_.TrySet(TError("Reader aborted (FD: %v)", FD_));
+        ReadResultPromise_.TrySet(TError("Reader aborted") << TErrorAttribute("FD", FD_));
 
         YCHECK(TryClose(FD_));
     })
@@ -160,7 +172,9 @@ void TAsyncReaderImpl::DoRead()
             return;
         }
 
-        auto error = TError("Reader failed (FD: %v)", FD_) << TError::FromSystem();
+        auto error = TError("Reader failed") 
+            << TErrorAttribute("FD", FD_) 
+            << TError::FromSystem();
         LOG_ERROR(error);
 
         State_ = EReaderState::Failed;
@@ -189,6 +203,8 @@ void TAsyncReaderImpl::OnRead(ev::io&, int eventType)
 
     if (Position_ < Length_) {
         DoRead();
+    } else {
+        FDWatcher_.stop();
     }
 }
 

@@ -10,7 +10,7 @@ namespace NPipes {
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
-    class TAsyncWriterImpl;
+    DECLARE_REFCOUNTED_CLASS(TAsyncWriterImpl)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +30,8 @@ public:
     TFuture<void> Abort();
 
 private:
-    TIntrusivePtr<NDetail::TAsyncWriterImpl> Impl_;
+    NDetail::TAsyncWriterImplPtr Impl_;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TAsyncWriter);

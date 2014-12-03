@@ -15,6 +15,8 @@ namespace NYT {
 namespace NPipes {
 namespace NDetail {
 
+////////////////////////////////////////////////////////////////////////////////
+
 static const auto& Logger = PipesLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,13 +54,16 @@ private:
     int Length_;
     int Position_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
+
 
     void OnWrite(ev::io&, int eventType);
 
     void DoWrite();
 
-    DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 };
+
+DEFINE_REFCOUNTED_TYPE(TAsyncWriterImpl);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,38 +94,43 @@ TAsyncWriterImpl::~TAsyncWriterImpl()
 TAsyncError TAsyncWriterImpl::Write(const void* buffer, int length)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YCHECK(WriteResultPromise_.IsSet());
     YCHECK(length > 0);
 
     auto promise = NewPromise<TError>();
     auto this_ = MakeStrong(this);
-
     BIND([=] () {
         // Explicitly use this_ to capture strong reference in callback.
-        this_->WriteResultPromise_ = promise;
+        UNUSED(this_);
+
+        YCHECK(WriteResultPromise_.IsSet());
+        WriteResultPromise_ = promise;
 
         switch (State_) {
-        case EWriterState::Aborted:
-            WriteResultPromise_.Set(TError("Writer aborted (FD: %v)", FD_));
-            return;
+            case EWriterState::Aborted:
+                WriteResultPromise_.Set(TError("Writer aborted") << TErrorAttribute("FD", FD_));
+                return;
 
-        case EWriterState::Failed:
-            WriteResultPromise_.Set(TError("Writer failed (FD: %v)", FD_));
-            return;
+            case EWriterState::Failed:
+                WriteResultPromise_.Set(TError("Writer failed") << TErrorAttribute("FD", FD_));
+                return;
 
-        case EWriterState::Closed:
-            WriteResultPromise_.Set(TError("Writer closed (FD: %v)", FD_));
-            return;
+            case EWriterState::Closed:
+                WriteResultPromise_.Set(TError("Writer closed") << TErrorAttribute("FD", FD_));
+                return;
 
-        case EWriterState::Active:
-            Buffer_ = buffer;
-            Length_ = length;
-            Position_ = 0;
-            DoWrite();
-            break;
+            case EWriterState::Active:
+                Buffer_ = buffer;
+                Length_ = length;
+                Position_ = 0;
 
-        default:
-            YUNREACHABLE();
+                if (!FDWatcher_.is_active()) {
+                    FDWatcher_.start();
+                }
+
+                break;
+
+            default:
+                YUNREACHABLE();
         };
     })
     .Via(TIODispatcher::Get()->Impl_->GetInvoker())
@@ -161,7 +171,7 @@ TFuture<void> TAsyncWriterImpl::Abort()
 
         State_ = EWriterState::Aborted;
         FDWatcher_.stop();
-        WriteResultPromise_.TrySet(TError("Writer aborted (FD: %v)", FD_));
+        WriteResultPromise_.TrySet(TError("Writer aborted") << TErrorAttribute("FD", FD_));
 
         YCHECK(TryClose(FD_));
     })
@@ -183,7 +193,7 @@ void TAsyncWriterImpl::DoWrite()
             return;
         }
 
-        auto error = TError("Writer failed (FD: %v)", FD_) << TError::FromSystem();
+        auto error = TError("Writer failed") << TErrorAttribute("FD", FD_) << TError::FromSystem();
         LOG_ERROR(error);
 
         State_ = EWriterState::Failed;
@@ -209,6 +219,8 @@ void TAsyncWriterImpl::OnWrite(ev::io&, int eventType)
 
     if (Position_ < Length_) {
         DoWrite();
+    } else {
+        FDWatcher_.stop();
     }
 }
 
