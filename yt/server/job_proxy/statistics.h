@@ -56,12 +56,12 @@ void Deserialize(TStatistics& value, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////
 
-class TStatisticsConverter
+class TStatisticsConsumer
     : public NYson::TYsonConsumerBase
 {
 public:
-    typedef TCallback<void(const TStatistics&)> TStatisticsConsumer;
-    explicit TStatisticsConverter(TStatisticsConsumer consumer, const NYPath::TYPath& location);
+    typedef TCallback<void(const TStatistics&)> TParsedStatisticsConsumer;
+    explicit TStatisticsConsumer(TParsedStatisticsConsumer consumer, const NYPath::TYPath& location);
 
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnInt64Scalar(i64 value) override;
@@ -85,7 +85,7 @@ private:
     int Depth_;
     NYPath::TYPath Location_;
     std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;
-    TStatisticsConsumer Consumer_;
+    TParsedStatisticsConsumer Consumer_;
 
     void ConvertToStatistics(TStatistics& value, NYTree::INodePtr node);
 };
@@ -99,7 +99,7 @@ void AddStatistic(TStatistics& customStatistics, const NYPath::TYPath& path, con
         customStatistics.Merge(other);
     };
 
-    TStatisticsConverter consumer(BIND(consume), path);
+    TStatisticsConsumer consumer(BIND(consume), path);
     Serialize(statistics, &consumer);
 }
 

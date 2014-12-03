@@ -446,7 +446,7 @@ private:
 
         {
             if (!UserJobSpec.use_yamr_descriptors()) {
-                auto consumer = std::make_unique<TStatisticsConverter>(BIND(&TUserJob::ConsumeStatistics, Unretained(this)), "/user_job/custom");
+                auto consumer = std::make_unique<TStatisticsConsumer>(BIND(&TUserJob::ConsumeStatistics, Unretained(this)), "/user_job/custom");
                 auto parser = CreateParserForFormat(TFormat(EFormatType::Yson), EDataType::Tabular, consumer.get());
                 StatisticsOutput.reset(new TTableOutput(std::move(parser), std::move(consumer)));
 
