@@ -2186,7 +2186,7 @@ public:
         TJobSpecBuilder specBuilder) override
     {
         auto id = TJobId::Create();
-        auto startTime = TInstant::Now();
+        auto startTime = GetNow();
         auto job = New<TJob>(
             id,
             type,
@@ -2206,6 +2206,11 @@ public:
         YCHECK(job->GetNode() == Node_);
         PreemptedJobs_.push_back(job);
         Owner_->PreemptJob(job);
+    }
+
+    virtual TInstant GetNow() const override
+    {
+        return TInstant::Now();
     }
 
 private:
