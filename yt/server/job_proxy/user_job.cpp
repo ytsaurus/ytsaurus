@@ -293,6 +293,7 @@ public:
                 DestroyCGroup(Memory);
             }
 
+            TGuard<TSpinLock> guard(SpinLock);
             AddStatistic(Statistics, "/user_job/system/cpu", CpuAccountingStats);
             AddStatistic(Statistics, "/user_job/system/block_io", BlockIOStats);
         }
@@ -306,7 +307,10 @@ public:
             }
         }
 
-        Statistics.Add("/user_job/system/time", TSummary(static_cast<i64>(GetElapsedTime().MilliSeconds())));
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            Statistics.Add("/user_job/system/time", TSummary(static_cast<i64>(GetElapsedTime().MilliSeconds())));
+        }
 
         if (JobExitError.IsOK()) {
             JobIO->PopulateResult(&result);
