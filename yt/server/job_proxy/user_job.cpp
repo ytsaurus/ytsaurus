@@ -188,15 +188,6 @@ public:
             config->SandboxName
         });
 
-        if (UserJobSpec.enable_vm_limit()) {
-            auto memoryLimit = static_cast<i64>(UserJobSpec.memory_limit() * config->MemoryLimitMultiplier);
-            memoryLimit += MemoryLimitBoost;
-            Process.AddArguments({
-                "--vm-limit",
-                ::ToString(memoryLimit)
-            });
-        }
-
         if (UserJobSpec.enable_core_dump()) {
             Process.AddArgument("--enable-core-dumps");
         }

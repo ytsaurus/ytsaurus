@@ -100,7 +100,6 @@ public:
         , Executor("", "executor", "start a user job")
         , PreparePipes("", "prepare-pipe", "prepare pipe descriptor  (for executor mode)", false, "FD")
         , EnableCoreDumps("", "enable-core-dumps", "enable core dumps")
-        , VMLimit("", "vm-limit", "vm limit", false, -1, "NUM")
         , Uid("", "uid", "set uid  (for executor mode)", false, -1, "NUM")
         , EnableIOPrio("", "enable-io-prio", "set low io prio (for executor mode)")
         , Command("", "command", "command (for executor mode)", false, "", "COMMAND")
@@ -124,7 +123,6 @@ public:
         CmdLine.add(Executor);
         CmdLine.add(PreparePipes);
         CmdLine.add(EnableCoreDumps);
-        CmdLine.add(VMLimit);
         CmdLine.add(Uid);
         CmdLine.add(EnableIOPrio);
         CmdLine.add(Command);
@@ -152,7 +150,6 @@ public:
     TCLAP::SwitchArg Executor;
     TCLAP::MultiArg<int> PreparePipes;
     TCLAP::SwitchArg EnableCoreDumps;
-    TCLAP::ValueArg<rlim_t> VMLimit;
     TCLAP::ValueArg<int> Uid;
     TCLAP::SwitchArg EnableIOPrio;
     TCLAP::ValueArg<Stroka> Command;
@@ -314,19 +311,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
     } else {
         if (!cgroups.empty()) {
             LOG_WARNING("CGroups are explicitely disabled in config. Ignore --cgroup parameter");
-        }
-    }
-
-    auto vmLimit = parser.VMLimit.getValue();
-    if (vmLimit > 0) {
-        struct rlimit rlimit = {vmLimit, RLIM_INFINITY};
-
-        auto res = setrlimit(RLIMIT_AS, &rlimit);
-        if (res) {
-            fprintf(stderr, "Failed to set resource limits (MemoryLimit: %" PRId64 ")\n%s",
-                rlimit.rlim_max,
-                strerror(errno));
-            return EExitCode::ExecutorError;
         }
     }
 
