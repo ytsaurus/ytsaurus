@@ -1,138 +1,222 @@
 from __future__ import print_function
-import re
 import gdb
 
 
-def to_int(value):
-    try:
-        return int(value)
-    except (gdb.error, ValueError):
-        return int(str(value), 16)
+def from_vpp(v):
+    if isinstance(v, gdb.Value):
+        v = long(v.cast(gdb.lookup_type("uintptr_t")))
+    assert isinstance(v, long)
+    return v
 
 
-def to_ptr(value):
-    return "0x%x" % long(value.cast(gdb.lookup_type("uintptr_t")))
+def to_vpp(v):
+    if isinstance(v, int) or isinstance(v, long):
+        v = gdb.parse_and_eval(str(v))
+    assert isinstance(v, gdb.Value)
+    return v.cast(gdb.lookup_type("void").pointer().pointer())
+
+
+def get_name(pc):
+    s = gdb.execute("info symbol %s" % from_vpp(pc), to_string=True)
+    i = s.find(" in section ")
+    if s.startswith("No symbol matches"):
+        return None
+    else:
+        return s[:i]
 
 
 def get_pretty_name(pc):
-    # Here we rely on GDB address formatting. Please, check:
-    # (gdb) show print symbol
-    # (gdb) show print symbol-filename
-    s = str(pc.cast(gdb.lookup_type("void").pointer()))
-    m = re.match(r"^0x[0-9a-f]+ <(.+)\+\d+(?: at [^>]+)>$", s)
-
-    if m:
-        name = m.group(1)
-    else:
-        name = "???"
-
-    if name.startswith("NYT::NDetail::TInvoker<"):
+    name = get_name(pc)
+    if name is None:
+        return "???"
+    elif name.startswith("NYT::NDetail::TInvoker<"):
         return "(bound function invoker)"
     elif name.startswith("NYT::NDetail::TInvokerHelper<"):
         return "(bound function invoker helper)"
     elif name.startswith("NYT::NDetail::TRunnableAdapter<"):
         return "(bound function runnable adapter)"
-
-    return "`" + name + "`"
+    else:
+        return name
 
 
 def get_pretty_location(pc):
-    sal = gdb.find_pc_line(to_int(to_ptr(pc)))
+    sal = gdb.find_pc_line(from_vpp(pc))
     return sal.pc, "%s:%s" % (sal.symtab.filename, sal.line)
 
 
-def get_fiber_stack_pointer(expr):
-    voidty = gdb.lookup_type("void")
-    fiberty = gdb.lookup_type("NYT::NConcurrency::TFiber")
+class FiberExecutionContextBase(object):
+    """
+    Stack layout:
 
-    fiberptr = gdb.parse_and_eval(expr)
-    fiberptr = fiberptr.cast(fiberty.pointer())
+      >            <--  stack grows down |
+      >    0x0000  ..............********|  0xffff
+      >                          ^       ^
+      >                      SP -|       |- BP
 
-    if to_int(fiberptr) == 0:
-        raise RuntimeError("Null fiber pointer")
+    Suspended stack contains (top to bottom):
 
-    fiber = fiberptr.dereference()
-    state = fiber["State_"]["Value"]
+      > [0] %r15  <-- SP
+      > [1] %r14
+      > [2] %r13
+      > [3] %r12
+      > [4] %rbx
+      > [5] %rbp  <-- FP
+      > [6] frame return address
 
-    if str(state) == "NYT::NConcurrency::EFiberState::Running":
-        raise RuntimeError("Fiber is running")
+    """
 
-    return fiber["Context_"]["SP"].cast(voidty.pointer().pointer())
+    def __init__(self, sp, bp, sz):
+        uintptr_t = gdb.lookup_type("uintptr_t")
+        self.sp = long(sp.cast(uintptr_t))
+        self.bp = long(bp.cast(uintptr_t))
+        self.sz = long(sz.cast(uintptr_t))
+
+    @property
+    def is_corrupted(self):
+        return self.sp < self.bp or self.sp >= self.bp + self.sz
+
+    @property
+    def frame_pointer(self):
+        return to_vpp(self.sp) + 5
+
+    @property
+    def frame_fragments(self):
+        begin = to_vpp(self.bp if self.is_corrupted else self.sp)
+        end = to_vpp(self.bp + self.sz)
+
+        result = []
+        while begin < end:
+            ptr = to_vpp(begin.dereference())
+            name = get_name(ptr)
+            if name is not None:
+                result.append((ptr, get_pretty_name(ptr)))
+            begin += 1
+        return result
 
 
-def get_fiber_frame_pointer(expr):
-    # Suspended stack contains (top to bottom):
-    # 0: %r15, 1: %r14, 2: %r13, 3: %r12, 4: %rbx, 5: %rbp, 6: return address.
-    return get_fiber_stack_pointer(expr) + 5
+class FiberExecutionContext16(FiberExecutionContextBase):
+    def __init__(self, expr):
+        value = gdb.parse_and_eval(expr)
+        fiber = None
+        if str(value.type) == "NYT::TIntrusivePtr<NYT::NConcurrency::TFiber>":
+            fiber = value["T_"]
+        if str(value.type) == "NYT::NConcurrency::TFiber *":
+            fiber = value
+        if fiber is None:
+            raise gdb.GdbError("Passed value `%s` of type `%s` is not a fiber." %
+                               (str(value), str(value.type)))
+        impl = fiber["Impl_"]["_M_t"]["_M_head_impl"]
+        sp = impl["Context_"]["SP_"]
+        bp = impl["Stack_"]["_M_ptr"]["Stack"]
+        sz = impl["Stack_"]["_M_ptr"]["Size"]
+        super(FiberExecutionContext16, self).__init__(sp, bp, sz)
+        self.is_running = (str(impl["State_"]["_M_i"].cast(gdb.lookup_type("int"))) == "4")
+
+
+class FiberExecutionContext17(FiberExecutionContextBase):
+    def __init__(self, expr):
+        value = gdb.parse_and_eval(expr)
+        fiber = None
+        if str(value.type) == "NYT::TIntrusivePtr<NYT::NConcurrency::TFiber>":
+            fiber = value["T_"]
+        if str(value.type) == "NYT::NConcurrency::TFiber *":
+            fiber = value
+        if fiber is None:
+            raise gdb.GdbError("Passed value `%s` of type `%s` is not a fiber." %
+                               (str(value), str(value.type)))
+        sp = fiber["Context_"]["SP_"]
+        bp = fiber["Stack_"]["_M_ptr"]["Stack_"]
+        sz = fiber["Stack_"]["_M_ptr"]["Size_"]
+        super(FiberExecutionContext17, self).__init__(sp, bp, sz)
+        self.is_running = (str(fiber["State_"]["Value"]) == "NYT::NConcurrency::EFiberState::Running")
+
+
+def arg_to_fiber_context(arg):
+    argv = gdb.string_to_argv(arg)
+    if argv[0] not in ["16", "17"]:
+        raise gdb.GdbError("Please, specify either `16` or `17` as a first argument.")
+    if argv[0] == "16":
+        ctx = FiberExecutionContext16(argv[1])
+    if argv[0] == "17":
+        ctx = FiberExecutionContext17(argv[1])
+    if ctx.is_running:
+        print("WARNING: Fiber is currently running, results may be incorrect.")
+    if ctx.is_corrupted:
+        print("WARNING: Fiber is corrupted: SP %08x is out of range [%08x ; %08x)." %
+              (ctx.sp, ctx.bp, ctx.bp + ctx.sz))
+    return ctx
 
 
 class FiberBtCmd(gdb.Command):
-    """Print fiber backtrace by traversing frame pointers.
+    """
+    Print fiber backtrace by traversing frame pointers.
 
-    This function should work if frame pointers are present in the inferior.
+    This function should work if fiber is suspended and frame pointers are present on the stack.
 
-    Usage: (gdb) fbt <fiberptr>
+    Usage: (gdb) fbt <16|17> <fiber>
     """
 
     def __init__(self):
-        gdb.Command.__init__(self, "fbt", gdb.COMMAND_STACK, gdb.COMPLETE_NONE)
+        gdb.Command.__init__(self, "fbt", gdb.COMMAND_STACK, gdb.COMPLETE_SYMBOL)
 
     def invoke(self, arg, _from_tty):
-        vpp = gdb.lookup_type("void").pointer().pointer()
+        ctx = arg_to_fiber_context(arg)
 
-        fp = get_fiber_frame_pointer(arg)
+        fp = ctx.frame_pointer
         no = 1
 
-        while to_int(fp) != 0:
-            sp = (fp + 0).dereference().cast(vpp)
-            pc = (fp + 1).dereference()
+        print("Unwinding stack...")
+        try:
+            while from_vpp(fp) != 0L:
+                sp = to_vpp((fp + 0).dereference())
+                pc = to_vpp((fp + 1).dereference())
 
-            if to_int(sp) != 0:
-                name = get_pretty_name(pc)
-                addr, location = get_pretty_location(pc)
-                print("#%-3d sp=%-14s  at  pc=0x%x %s in %s" % (
-                    no, sp, addr, name, location
-                ))
-                fp = sp.dereference().cast(vpp)
-                no = no + 1
-            else:
-                fp = 0
-                no = 0
+                if from_vpp(sp) != 0L:
+                    name = get_pretty_name(pc)
+                    addr, location = get_pretty_location(pc)
+                    print("#%-3d sp=%-14s  at  pc=0x%x %s in %s" % (
+                        no, sp, addr, name
+                    ))
+                    fp = to_vpp(sp.dereference())
+                    no = no + 1
+                else:
+                    fp = to_vpp(0)
+                    no = 0
+        except gdb.MemoryError, e:
+            print("Unwinding failed: %s" % e)
 
 
-class FiberCmd(gdb.Command):
-    """Execute gdb command in the context of fiber <fiberptr>.
+class FiberScanCmd(gdb.Command):
+    """
+    Scan fiber stack and extract function-like pointers.
 
-    Switch PC and SP to the ones in the fiber's structure,
-    execute an arbitrary gdb command, and restore PC and SP.
-
-    Usage: (gdb) fib <fiberptr> <gdbcmd>
-
-    Note that it is ill-defined to modify state in the context of a fiber.
-    Restrict yourself to inspecting values.
+    Usage: (gdb) fscan <fiber>
     """
 
     def __init__(self):
-        gdb.Command.__init__(self, "fib", gdb.COMMAND_STACK, gdb.COMPLETE_NONE)
+        gdb.Command.__init__(self, "fscan", gdb.COMMAND_STACK, gdb.COMPLETE_SYMBOL)
 
     def invoke(self, arg, _from_tty):
-        arg, cmd = arg.split(None, 1)
+        ctx = arg_to_fiber_context(arg)
 
-        fp = get_fiber_frame_pointer(arg)
-        sp = (fp + 0).dereference()
-        pc = (fp + 1).dereference()
+        print("Searching for stack entries that look like return addresses...")
+        for pc, name in ctx.frame_fragments:
+            if len(name) > 80:
+                name = name[:80] + "..."
+            print("# %14s in %s" % ("0x%08x" % from_vpp(pc), name))
 
-        saved_frame = gdb.selected_frame()
-        gdb.parse_and_eval("$saved_pc = $pc")
-        gdb.parse_and_eval("$saved_sp = $sp")
-        try:
-            gdb.parse_and_eval("$sp = %s" % to_ptr(sp))
-            gdb.parse_and_eval("$pc = %s" % to_ptr(pc))
-            gdb.execute(cmd)
-        finally:
-            gdb.parse_and_eval("$pc = $saved_pc")
-            gdb.parse_and_eval("$sp = $saved_sp")
-            saved_frame.select()
+
+class YtFrameFilter():
+    def __init__(self):
+        self.name = "YT"
+        self.priority = 100
+        self.enabled = True
+
+        gdb.frame_filters[self.name] = self
+
+    def filter(self, frame_iter):
+        return frame_iter
+
 
 FiberBtCmd()
-FiberCmd()
+FiberScanCmd()
