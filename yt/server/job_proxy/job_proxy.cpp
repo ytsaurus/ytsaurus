@@ -167,22 +167,25 @@ void TJobProxy::Run()
         }
 
         auto jobStatistics = Job->GetStatistics();
-        auto customUserStatistics = NYTree::ConvertTo<TStatistics>(NYTree::TYsonString(jobStatistics.statistics()));
+        TStatistics customStatistics;
+        if (jobStatistics.has_statistics()) {
+            customStatistics = NYTree::ConvertTo<TStatistics>(NYTree::TYsonString(jobStatistics.statistics()));
+        }
 
         if (Config->ForceEnableAccounting) {
             TCpuAccounting cpuAccounting("");
             auto cpuStatistics = cpuAccounting.GetStatistics();
-            AddStatistic(customUserStatistics, "/job_proxy/cpu", cpuStatistics);
+            AddStatistic(customStatistics, "/job_proxy/cpu", cpuStatistics);
 
             TBlockIO blockIO("");
             auto blockIOStatistics = blockIO.GetStatistics();
-            AddStatistic(customUserStatistics, "/job_proxy/block_io", blockIOStatistics);
+            AddStatistic(customStatistics, "/job_proxy/block_io", blockIOStatistics);
         }
 
-        AddStatistic(customUserStatistics, "/job_proxy/input", jobStatistics.input());
-        AddStatistic(customUserStatistics, "/job_proxy/output", jobStatistics.output());
+        AddStatistic(customStatistics, "/job_proxy/input", jobStatistics.input());
+        AddStatistic(customStatistics, "/job_proxy/output", jobStatistics.output());
 
-        ToProto(jobStatistics.mutable_statistics(), NYTree::ConvertToYsonString(customUserStatistics).Data());
+        ToProto(jobStatistics.mutable_statistics(), NYTree::ConvertToYsonString(customStatistics).Data());
         ToProto(result.mutable_statistics(), jobStatistics);
     } else {
         ToProto(result.mutable_statistics(), ZeroJobStatistics());
