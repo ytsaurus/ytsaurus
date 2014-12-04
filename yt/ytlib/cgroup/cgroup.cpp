@@ -52,7 +52,7 @@ Stroka GetParentFor(const Stroka& type)
 yvector<Stroka> ReadAllValues(const Stroka& fileName)
 {
     auto raw = TFileInput(fileName).ReadAll();
-    LOG_DEBUG("File %Qv contains: %v", fileName, raw);
+    LOG_DEBUG("File %Qv contains: %Qv", fileName, raw);
 
     yvector<Stroka> values;
     Split(raw.data(), " \n", values);
@@ -110,7 +110,7 @@ void RemoveAllSubcgroups(const Stroka& path)
 void RunKiller(const Stroka& processGroupPath)
 {
 #ifdef _linux_
-    LOG_INFO("Kill %Qv processes", processGroupPath);
+    LOG_INFO("Kill processes from %Qv", processGroupPath);
 
     if (processGroupPath.Empty()) {
         return;
@@ -121,7 +121,7 @@ void RunKiller(const Stroka& processGroupPath)
 
     int code = chmod(~NFS::CombinePaths(group.GetFullPath(), "tasks"), S_IRUSR);
     if (code != 0) {
-        LOG_FATAL(TError::FromSystem(), "Unable to lock group %Qv. Error: %v", processGroupPath);
+        LOG_FATAL(TError::FromSystem(), "Unable to lock %Qv", processGroupPath);
     }
 
     auto pids = group.GetTasks();
@@ -176,7 +176,7 @@ void KillProcessGroupImpl(const TFsPath& processGroupPath)
 void KillProcessGroup(const Stroka& processGroupPath)
 {
 #ifdef _linux_
-    LOG_DEBUG("Killing processes from %Qv cgroup",
+    LOG_DEBUG("Killing processes from %Qv",
         processGroupPath);
 
     YCHECK(setuid(0) == 0);
@@ -317,7 +317,7 @@ TCGroup::~TCGroup()
         try {
             Destroy();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Unable to destroy cgroup %Qv", FullPath_);
+            LOG_ERROR(ex, "Unable to destroy %Qv", FullPath_);
         }
     }
 }
@@ -330,7 +330,7 @@ void TCGroup::Create()
 
 void TCGroup::Destroy()
 {
-    LOG_INFO("Destroying cgroup %Qv", FullPath_);
+    LOG_INFO("Destroying %Qv", FullPath_);
 
 #ifdef _linux_
     YCHECK(Created_);
