@@ -176,11 +176,12 @@ void KillProcessGroupImpl(const TFsPath& processGroupPath)
 void KillProcessGroup(const Stroka& processGroupPath)
 {
 #ifdef _linux_
-    LOG_DEBUG("Killing processes from %v cgroup",
+    LOG_DEBUG("Killing processes from %Qv cgroup",
         processGroupPath);
 
     YCHECK(setuid(0) == 0);
     ApplyActionToAllChlidren(TFsPath(processGroupPath), BIND(KillProcessGroupImpl));
+    KillProcessGroupImpl(TFsPath(processGroupPath));
 #endif
 }
 
