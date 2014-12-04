@@ -460,7 +460,6 @@ private:
                 AssumeControl();
                 UpdateCellDirectory();
                 ListOperations();
-                AbortAbortingOperations();
                 RequestOperationAttributes();
                 CheckOperationTransactions();
                 DownloadSnapshots();
@@ -612,29 +611,11 @@ private:
                 FOREACH (auto operationNode, operationsList->GetChildren()) {
                     auto id = TOperationId::FromString(operationNode->GetValue<Stroka>());
                     auto state = operationNode->Attributes().Get<EOperationState>("state");
-                    if (IsOperationInProgress(state)) {
+                    if (IsOperationInProgress(state) || state == EOperationState::Aborting) {
                         OperationIds.push_back(id);
-                    } else if (state == EOperationState::Aborting) {
-                        AbortingOperationIds.push_back(id);
                     }
                 }
             }
-        }
-
-        // - Set abort state for aborting operations.
-        void AbortAbortingOperations()
-        {
-            auto batchReq = Owner->StartBatchRequest();
-
-            for (const auto& id : AbortingOperationIds) {
-                auto req = TYPathProxy::Set(GetOperationPath(id) + "/@state");
-                req->set_value(ConvertToYsonString(EOperationState(EOperationState::Aborted)).Data());
-                GenerateMutationId(req);
-                batchReq->AddRequest(req, "abort_operation");
-            }
-
-            auto batchRsp = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
         }
 
         // - Request attributes for unfinished operations.
@@ -678,7 +659,13 @@ private:
                     auto rsp = rsps[index];
                     auto operationNode = ConvertToNode(TYsonString(rsp->value()));
                     auto operation = Owner->CreateOperationFromAttributes(operationId, operationNode->Attributes());
+
                     Result.Operations.push_back(operation);
+                    if (operation->GetState() == EOperationState::Aborting) {
+                        Result.AbortingOperations.push_back(operation);
+                    } else {
+                        Result.RevivingOperations.push_back(operation);
+                    }
                 }
             }
         }
@@ -709,15 +696,17 @@ private:
                     return false;
                 };
 
-                operation->SetState(EOperationState::Reviving);
+                if (operation->GetState() != EOperationState::Aborting) {
+                    operation->SetState(EOperationState::Reviving);
 
-                // NB: Async transaction is not checked.
-                schedulePing(operation->GetUserTransaction());
-                if (!schedulePing(operation->GetSyncSchedulerTransaction()) ||
-                    !schedulePing(operation->GetInputTransaction()) ||
-                    !schedulePing(operation->GetOutputTransaction()))
-                {
-                    setCleanStart(operation);
+                    // NB: Async transaction is not checked.
+                    schedulePing(operation->GetUserTransaction());
+                    if (!schedulePing(operation->GetSyncSchedulerTransaction()) ||
+                        !schedulePing(operation->GetInputTransaction()) ||
+                        !schedulePing(operation->GetOutputTransaction()))
+                    {
+                        setCleanStart(operation);
+                    }
                 }
             }
 
