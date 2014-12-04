@@ -1254,7 +1254,7 @@ public:
             // Update satisfaction attributes.
             RootElement->PrescheduleJob(context, false);
             // Log pools information.
-            Host->LogEventFluently(ELogEventType::FairShareInfo)
+            Host->LogEventFluently(ELogEventType::FairShareInfo, now)
                 .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, this))
                 .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
                     auto operation = pair.first;
