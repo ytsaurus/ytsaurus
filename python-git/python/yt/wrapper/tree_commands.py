@@ -187,6 +187,7 @@ def mkdir(path, recursive=None, client=None):
     :param path: (string or `TablePath`)
     :param recursive: (bool) `config.CREATE_RECURSIVE` by default
     """
+    recursive = get_value(recursive, config.CREATE_RECURSIVE)
     return create("map_node", path, recursive=recursive, ignore_existing=recursive, client=client)
 
 # TODO: maybe remove this methods
