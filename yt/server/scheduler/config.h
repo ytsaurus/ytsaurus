@@ -171,9 +171,6 @@ public:
     //! Maximum number of jobs to start within a single heartbeat.
     TNullable<int> MaxStartedJobsPerHeartbeat;
 
-    //! Whether to call a |setrlimit| to limit user job VM size.
-    bool EnableVMLimit;
-
     //! Whether to enable user job accounting.
     bool EnableAccounting;
 
@@ -317,9 +314,6 @@ public:
         RegisterParameter("max_started_jobs_per_heartbeat", MaxStartedJobsPerHeartbeat)
             .Default()
             .GreaterThan(0);
-
-        RegisterParameter("enable_vm_limit", EnableVMLimit)
-            .Default(true);
 
         RegisterParameter("enable_accounting", EnableAccounting)
             .Default(false);

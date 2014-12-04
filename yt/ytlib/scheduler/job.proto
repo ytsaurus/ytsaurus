@@ -145,7 +145,7 @@ message TUserJobSpec
 
     optional bool enable_core_dump = 12 [default = false];
 
-    optional bool enable_vm_limit = 13 [default = true];
+    // Deprecated = 13.
 
     optional bool enable_io_prio = 14 [default = true];
 
@@ -248,8 +248,7 @@ message TPartitionJobSpecExt
     // If empty then THashPartitioner is used.
     // Otherwise TOrderedPartitioner is used.
 
-    // Deprecated
-    //repeated NYT.NChunkClient.NProto.TKey partition_keys = 2;
+    // Deprecated = 2.
 
     repeated string key_columns = 3;
 
