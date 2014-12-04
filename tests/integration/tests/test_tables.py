@@ -38,13 +38,13 @@ class TestTables(YTEnvSetup):
 
         write('//tmp/table', [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}], sorted_by="key")
 
-        assert get('//tmp/table/@sorted') ==  'true'
+        assert get('//tmp/table/@sorted') ==  True
         assert get('//tmp/table/@sorted_by') ==  ['key']
         assert get('//tmp/table/@row_count') ==  4
 
         # sorted flag is discarded when writing to sorted table
         write('<append=true>//tmp/table', {"key": 4})
-        assert get('//tmp/table/@sorted') ==  'false'
+        assert not get('//tmp/table/@sorted')
         with pytest.raises(YtError): get('//tmp/table/@sorted_by')
 
     def test_append_overwrite_write(self):
@@ -346,21 +346,21 @@ class TestTables(YTEnvSetup):
 
     def test_copy_not_sorted(self):
         create('table', '//tmp/t1')
-        assert get('//tmp/t1/@sorted') == 'false'
+        assert not get('//tmp/t1/@sorted')
         assert get('//tmp/t1/@key_columns') == []
 
         copy('//tmp/t1', '//tmp/t2')
-        assert get('//tmp/t2/@sorted') == 'false'
+        assert not get('//tmp/t2/@sorted')
         assert get('//tmp/t2/@key_columns') == []
 
     def test_copy_sorted(self):
         create('table', '//tmp/t1')
         sort(in_='//tmp/t1', out='//tmp/t1', sort_by='key')
-        assert get('//tmp/t1/@sorted') == 'true'
+        assert get('//tmp/t1/@sorted')
         assert get('//tmp/t1/@key_columns') == ['key']
 
         copy('//tmp/t1', '//tmp/t2')
-        assert get('//tmp/t2/@sorted') == 'true'
+        assert get('//tmp/t2/@sorted')
         assert get('//tmp/t2/@key_columns') == ['key']
 
     def test_remove_create_under_transaction(self):
@@ -484,14 +484,14 @@ class TestTables(YTEnvSetup):
             for id in chunk_ids:
                 assert get('#' + id + '/@vital') == is_vital
 
-        assert get('//tmp/t/@vital') == 'true'
-        check_vital_chunks('true')
+        assert get('//tmp/t/@vital')
+        check_vital_chunks(True)
 
-        set('//tmp/t/@vital', 'false')
-        assert get('//tmp/t/@vital') == 'false'
+        set('//tmp/t/@vital', False)
+        assert not get('//tmp/t/@vital')
         sleep(2)
 
-        check_vital_chunks('false')
+        check_vital_chunks(False)
 
     def test_replication_factor_update1(self):
         create('table', '//tmp/t')
@@ -523,7 +523,7 @@ class TestTables(YTEnvSetup):
 
     def test_key_columns1(self):
         create('table', '//tmp/t', opt=['/attributes/key_columns=[a;b]'])
-        assert get('//tmp/t/@sorted') == 'true'
+        assert get('//tmp/t/@sorted')
         assert get('//tmp/t/@key_columns') == ['a', 'b']
 
     def test_key_columns2(self):

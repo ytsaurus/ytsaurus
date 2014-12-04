@@ -15,11 +15,11 @@ class TestNodeTracker(YTEnvSetup):
         test_node = nodes[0]
         assert get('//sys/nodes/%s/@state' % test_node) == 'online'
 
-        set('//sys/nodes/%s/@banned' % test_node, 'true')
+        set('//sys/nodes/%s/@banned' % test_node, True)
         sleep(1)
         assert get('//sys/nodes/%s/@state' % test_node) == 'offline'
 
-        set('//sys/nodes/%s/@banned' % test_node, 'false')
+        set('//sys/nodes/%s/@banned' % test_node, False)
         sleep(1)
         assert get('//sys/nodes/%s/@state' % test_node) == 'online'
 

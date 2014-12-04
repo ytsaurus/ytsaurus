@@ -146,7 +146,7 @@ def link(target_path, link_path, **kwargs):
 def exists(path, **kwargs):
     kwargs["path"] = path
     res = command('exists', kwargs)
-    return yson.loads(res) == 'true'
+    return yson.loads(res)
 
 def ls(path, **kwargs):
     kwargs["path"] = path

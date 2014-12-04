@@ -29,7 +29,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
              sort_by='key')
 
         assert read('//tmp/t_out') == [v1, v2, v3, v4, v5]
-        assert get('//tmp/t_out/@sorted') ==  'true'
+        assert get('//tmp/t_out/@sorted') ==  True
         assert get('//tmp/t_out/@sorted_by') ==  ['key']
 
     # the same as test_simple but within transaction
@@ -55,7 +55,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         commit_transaction(tx)
 
         assert read('//tmp/t_out') == [v1, v2, v3, v4, v5]
-        assert get('//tmp/t_out/@sorted') ==  'true'
+        assert get('//tmp/t_out/@sorted') ==  True
         assert get('//tmp/t_out/@sorted_by') ==  ['key']
 
     def test_empty_columns(self):
@@ -78,7 +78,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
              sort_by='key')
 
         assert read('//tmp/t_out') == []
-        assert get('//tmp/t_out/@sorted') == 'true'
+        assert get('//tmp/t_out/@sorted')
 
     def test_non_empty_out(self):
         create('table', '//tmp/t_in')
@@ -196,7 +196,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         args.update(kwargs)
 
         sort(**args)
-        assert get('//tmp/out/@sorted') == 'true'
+        assert get('//tmp/out/@sorted')
         assert read(output) == [{'key': i} for i in xrange(1, 21)]
 
     def test_one_partition_no_merge(self):

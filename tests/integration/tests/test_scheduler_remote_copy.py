@@ -121,10 +121,10 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
     def test_chunk_scratcher(self):
         def set_banned_flag(value):
             if value:
-                flag = 'true'
+                flag = True
                 state = 'offline'
             else:
-                flag = 'false'
+                flag = False
                 state = 'online'
 
             address = get("//sys/nodes", driver=self.remote_driver).keys()[0]

@@ -22,7 +22,7 @@ public:
         RegisterParameter("format", Format)
             .Default(NYson::EYsonFormat::Binary);
         RegisterParameter("boolean_as_string", BooleanAsString)
-            .Default(true);
+            .Default(false);
     }
 };
 
@@ -114,7 +114,7 @@ public:
         RegisterParameter("string_length_limit", StringLengthLimit)
             .Default(Null);
         RegisterParameter("boolean_as_string", BooleanAsString)
-            .Default(true);
+            .Default(false);
 
         MemoryLimit = NTableClient::MaxRowWeightLimit;
     }

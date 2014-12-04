@@ -180,7 +180,7 @@ class TestAcls(YTEnvSetup):
 
     def test_inherit1(self):
         set('//tmp/p', {})
-        set('//tmp/p/@inherit_acl', 'false')
+        set('//tmp/p/@inherit_acl', False)
         
         create_user('u')
         with pytest.raises(YtError): set('//tmp/p/a', 'b', user='u')
@@ -218,10 +218,10 @@ class TestAcls(YTEnvSetup):
     @pytest.mark.xfail(run = False, reason = 'In progress')
     def test_snapshot_no_inherit(self):
         set('//tmp/a', 'b')
-        assert get('//tmp/a/@inherit_acl') == 'true'
+        assert get('//tmp/a/@inherit_acl')
         tx = start_transaction()
         lock('//tmp/a', mode='snapshot', tx=tx)
-        assert get('//tmp/a/@inherit_acl', tx=tx) == 'false'
+        assert not get('//tmp/a/@inherit_acl', tx=tx)
 
     def test_administer_permission1(self):
         create_user('u')
@@ -261,7 +261,7 @@ class TestAcls(YTEnvSetup):
         create_user('u')
         create('document', '//tmp/d')
         set('//tmp/d', {"foo":{}})
-        set('//tmp/d/@inherit_acl', 'false')
+        set('//tmp/d/@inherit_acl', False)
 
         assert get('//tmp', user='u') == {"d": None}
         with pytest.raises(YtError): get('//tmp/d', user='u') == {'foo': {}}
@@ -283,7 +283,7 @@ class TestAcls(YTEnvSetup):
         create_user('u')
         create('document', '//tmp/d')
         set('//tmp/d', {"foo":{}})
-        set('//tmp/d/@inherit_acl', 'false')
+        set('//tmp/d/@inherit_acl', False)
         set('//tmp/d/@acl/end', self._make_ace('allow', 'u', 'read'))
 
         assert get('//tmp', user='u') == {"d": None}
@@ -306,7 +306,7 @@ class TestAcls(YTEnvSetup):
         create_user('u')
         create('document', '//tmp/d')
         set('//tmp/d', {"foo":{}})
-        set('//tmp/d/@inherit_acl', 'false')
+        set('//tmp/d/@inherit_acl', False)
         set('//tmp/d/@acl/end', self._make_ace('allow', 'u', ['read', 'write']))
 
         assert get('//tmp', user='u') == {"d": None}

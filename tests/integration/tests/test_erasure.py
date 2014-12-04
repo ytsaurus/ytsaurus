@@ -38,13 +38,13 @@ class TestErasure(YTEnvSetup):
         self._do_test_simple('lrc_12_2_2')
 
     def _is_chunk_ok(self, chunk_id):
-        if get("#%s/@lost" % chunk_id) != "false":
+        if get("#%s/@lost" % chunk_id):
             return False
-        if get("#%s/@available" % chunk_id) != "true":
+        if not get("#%s/@available" % chunk_id):
             return False
-        if get("#%s/@data_missing" % chunk_id) != "false":
+        if get("#%s/@data_missing" % chunk_id):
             return False
-        if get("#%s/@parity_missing" % chunk_id) != "false":
+        if get("#%s/@parity_missing" % chunk_id):
             return False
         return True
 
@@ -68,7 +68,7 @@ class TestErasure(YTEnvSetup):
             port = int(r.rsplit(":", 1)[1])
             node_index = filter(lambda x: x == port, self.Env._ports["node"])[0]
             print "Banning node %d containing replica %d" % (node_index, replica_index)
-            set("//sys/nodes/%s/@banned" % r, "true")
+            set("//sys/nodes/%s/@banned" % r, True)
 
             # Give it enough time to unregister the node
             time.sleep(1.0)
@@ -84,7 +84,7 @@ class TestErasure(YTEnvSetup):
             assert ok
             assert read('//tmp/table') == [{"b":"hello"}]
 
-            set("//sys/nodes/%s/@banned" % r, "false")
+            set("//sys/nodes/%s/@banned" % r, False)
 
     def test_reed_solomon_repair(self):
         self._test_repair("reed_solomon_6_3", 9, 6)
@@ -121,5 +121,5 @@ class TestErasure(YTEnvSetup):
              sort_by='key')
 
         assert read('//tmp/t_out') == [v1, v2, v3, v4, v5]
-        assert get('//tmp/t_out/@sorted') ==  'true'
+        assert get('//tmp/t_out/@sorted')
         assert get('//tmp/t_out/@sorted_by') ==  ['key']

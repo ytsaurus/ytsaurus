@@ -17,20 +17,20 @@ class TestUsers(YTEnvSetup):
     def test_user_ban1(self):
         create_user('u')
 
-        assert get('//sys/users/u/@banned') == 'false'
+        assert not get('//sys/users/u/@banned')
         get('//tmp', user='u')
 
-        set('//sys/users/u/@banned', 'true')
-        assert get('//sys/users/u/@banned') == 'true'
+        set('//sys/users/u/@banned', True)
+        assert get('//sys/users/u/@banned')
         with pytest.raises(YtError): get('//tmp', user='u')
 
-        set('//sys/users/u/@banned', 'false')
-        assert get('//sys/users/u/@banned') == 'false'
+        set('//sys/users/u/@banned', False)
+        assert not get('//sys/users/u/@banned')
  
         get('//tmp', user='u')
 
     def test_user_ban2(self):
-        with pytest.raises(YtError): set('//sys/users/root/@banned', 'true')
+        with pytest.raises(YtError): set('//sys/users/root/@banned', True)
 
     def test_request_rate1(self):
         create_user('u')

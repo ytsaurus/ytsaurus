@@ -310,11 +310,11 @@ class TestAccounts(YTEnvSetup):
 
     def test_node_count_limits1(self):
         create_account('max')
-        assert self._is_account_node_count_limit_violated('max') == 'false'
+        assert not self._is_account_node_count_limit_violated('max')
         self._set_account_node_count_limit('max', 1000)
         self._set_account_node_count_limit('max', 2000)
         self._set_account_node_count_limit('max', 0)
-        assert self._is_account_node_count_limit_violated('max') == 'false'
+        assert not self._is_account_node_count_limit_violated('max')
         with pytest.raises(YtError): self._set_account_node_count_limit('max', -1)
 
     def test_node_count_limits2(self):
@@ -332,11 +332,11 @@ class TestAccounts(YTEnvSetup):
 
     def test_chunk_count_limits1(self):
         create_account('max')
-        assert self._is_account_chunk_count_limit_violated('max') == 'false'
+        assert not self._is_account_chunk_count_limit_violated('max')
         self._set_account_chunk_count_limit('max', 1000)
         self._set_account_chunk_count_limit('max', 2000)
         self._set_account_chunk_count_limit('max', 0)
-        assert self._is_account_chunk_count_limit_violated('max') == 'false'
+        assert not self._is_account_chunk_count_limit_violated('max')
         with pytest.raises(YtError): self._set_account_chunk_count_limit('max', -1)
 
     def test_chunk_count_limits2(self):
@@ -356,11 +356,11 @@ class TestAccounts(YTEnvSetup):
 
     def test_disk_space_limits1(self):
         create_account('max')
-        assert self._is_account_disk_space_limit_violated('max') == 'false'
+        assert not self._is_account_disk_space_limit_violated('max')
         self._set_account_disk_space_limit('max', 1000)
         self._set_account_disk_space_limit('max', 2000)
         self._set_account_disk_space_limit('max', 0)
-        assert self._is_account_disk_space_limit_violated('max') == 'false'
+        assert not self._is_account_disk_space_limit_violated('max')
         with pytest.raises(YtError): self._set_account_disk_space_limit('max', -1)
 
     def test_disk_space_limits2(self):
@@ -371,16 +371,16 @@ class TestAccounts(YTEnvSetup):
         set('//tmp/t/@account', 'max')
 
         write('//tmp/t', {'a' : 'b'})
-        assert self._is_account_disk_space_limit_violated('max') == 'false'
+        assert not self._is_account_disk_space_limit_violated('max')
 
         self._set_account_disk_space_limit('max', 0)
-        assert self._is_account_disk_space_limit_violated('max') == 'true'
+        assert self._is_account_disk_space_limit_violated('max')
         with pytest.raises(YtError): write('//tmp/t', {'a' : 'b'})
 
         self._set_account_disk_space_limit('max', self._get_account_disk_space('max') + 1)
-        assert self._is_account_disk_space_limit_violated('max') == 'false'
+        assert not self._is_account_disk_space_limit_violated('max')
         write('<append=true>//tmp/t', {'a' : 'b'})
-        assert self._is_account_disk_space_limit_violated('max') == 'true'
+        assert self._is_account_disk_space_limit_violated('max')
 
     def test_disk_space_limits3(self):
         create_account('max')
@@ -390,20 +390,20 @@ class TestAccounts(YTEnvSetup):
 
         create('file', '//tmp/f1', attributes={"account": "max"})
         upload('//tmp/f1', content)
-        assert self._is_account_disk_space_limit_violated('max') == 'false'
+        assert not self._is_account_disk_space_limit_violated('max')
 
         self._set_account_disk_space_limit('max', 0)
-        assert self._is_account_disk_space_limit_violated('max') == 'true'
+        assert self._is_account_disk_space_limit_violated('max')
 
         create('file', '//tmp/f2', attributes={"account": "max"})
         with pytest.raises(YtError): upload('//tmp/f2', content)
 
         self._set_account_disk_space_limit('max', self._get_account_disk_space('max') + 1)
-        assert self._is_account_disk_space_limit_violated('max') == 'false'
+        assert not self._is_account_disk_space_limit_violated('max')
 
         create('file', '//tmp/f3', attributes={"account": "max"})
         upload('//tmp/f3', content)
-        assert self._is_account_disk_space_limit_violated('max') == 'true'
+        assert self._is_account_disk_space_limit_violated('max')
 
     def test_disk_space_limits4(self):
         content = "some_data"

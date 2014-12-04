@@ -61,7 +61,7 @@ class TestChunkServer(YTEnvSetup):
         node_to_decommission = nodes[0]
         assert get('//sys/nodes/%s/@stored_replica_count' % node_to_decommission) == 1
 
-        set('//sys/nodes/%s/@decommissioned' % node_to_decommission, 'true')
+        set('//sys/nodes/%s/@decommissioned' % node_to_decommission, True)
 
         sleep(2) # wait for background replication
 

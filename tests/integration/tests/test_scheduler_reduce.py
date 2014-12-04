@@ -49,7 +49,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 {'key': "5"}
             ]
 
-        assert get('//tmp/out/@sorted') == 'true'
+        assert get('//tmp/out/@sorted')
 
     @only_linux
     def test_cat(self):
@@ -95,7 +95,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 {'key': "7", 'value': "4"}
             ]
 
-        assert get('//tmp/out/@sorted') == 'true'
+        assert get('//tmp/out/@sorted')
 
 
     @only_linux
@@ -158,8 +158,8 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 {'key': "9",'value': "7"},
             ]
 
-        assert get('//tmp/out1/@sorted') == 'true'
-        assert get('//tmp/out2/@sorted') == 'true'
+        assert get('//tmp/out1/@sorted')
+        assert get('//tmp/out2/@sorted')
 
     @only_linux
     def test_maniac_chunk(self):
@@ -199,7 +199,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 {'key': "2", 'value': "8"}
             ]
 
-        assert get('//tmp/out/@sorted') == 'true'
+        assert get('//tmp/out/@sorted')
 
 
     def test_empty_in(self):

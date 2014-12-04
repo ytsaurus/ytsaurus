@@ -414,7 +414,7 @@ class TestCypress(YTEnvSetup):
         create_account('max')
         create('table', '//tmp/t1')
         set('//tmp/t1/@account', 'max')
-        move('//tmp/t1', '//tmp/t2', preserve_account="false") # preserve is OFF
+        move('//tmp/t1', '//tmp/t2', preserve_account=False) # preserve is OFF
         assert get('//tmp/t2/@account') == 'tmp'
 
     def test_move_preserve_account2(self):
@@ -507,7 +507,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@type") == "int64_node"
         assert get("//tmp/t1/@id") == get("//tmp/t2/@id")
         assert get("//tmp/t2&/@type") == "link"
-        assert get("//tmp/t2&/@broken") == "false"
+        assert not get("//tmp/t2&/@broken")
 
         set("//tmp/t1", 2)
         assert get("//tmp/t2") == 2
@@ -516,7 +516,7 @@ class TestCypress(YTEnvSetup):
         set("//tmp/t1", 1)
         link("//tmp/t1", "//tmp/t2")
         remove("//tmp/t1")
-        assert get("//tmp/t2&/@broken") == "true"
+        assert get("//tmp/t2&/@broken")
 
     def test_link4(self):
         set("//tmp/t1", 1)
@@ -529,7 +529,7 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/t1")
 
         assert get("#%s" % id, tx = tx) == 1
-        assert get("//tmp/t2&/@broken") == "true"
+        assert get("//tmp/t2&/@broken")
         with pytest.raises(YtError): read("//tmp/t2")
 
     def test_link5(self):
@@ -691,7 +691,7 @@ class TestCypress(YTEnvSetup):
         yson_format = yson.loads("<boolean_as_string=false>yson")
         set("//tmp/boolean", "%true", is_raw=True)
         assert get("//tmp/boolean/@type") == "boolean_node"
-        assert get("//tmp/boolean", output_format=yson_format) == True
+        assert get("//tmp/boolean", output_format=yson_format)
 
     def test_uint64(self):
         yson_format = yson.loads("yson")

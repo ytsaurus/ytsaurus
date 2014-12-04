@@ -22,10 +22,10 @@ class TestSchedulerOther(YTEnvSetup):
 
     def _set_banned_flag(self, value):
         if value:
-            flag = 'true'
+            flag = True
             state = 'offline'
         else:
-            flag = 'false'
+            flag = False
             state = 'online'
 
         nodes = get("//sys/nodes")
@@ -96,7 +96,7 @@ class TestSchedulingTags(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         'exec_agent' : {
             'slot_manager' : {
-                'enable_cgroups' : 'false'
+                'enable_cgroups' : False
             },
         }
     }

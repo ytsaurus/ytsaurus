@@ -40,7 +40,7 @@ class TestWoodpecker(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         'exec_agent' : {
-            'force_enable_accounting' : 'true',
+            'force_enable_accounting' : True,
             'iops_threshold' : 5,
             'block_io_watchdog_period' : 8000
         }
@@ -106,11 +106,11 @@ class TestCGroups(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         'exec_agent' : {
-            'force_enable_accounting' : 'true',
-            'enable_cgroup_memory_hierarchy' : 'true',
+            'force_enable_accounting' : True,
+            'enable_cgroup_memory_hierarchy' : True,
             'slot_manager' : {
-                'enforce_job_control' : 'true',
-                'enable_cgroups' : 'true'
+                'enforce_job_control' : True,
+                'enable_cgroups' : True
             }
         }
     }
@@ -144,10 +144,10 @@ class TestEventLog(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         'exec_agent' : {
-            'force_enable_accounting' : 'true',
-            'enable_cgroup_memory_hierarchy' : 'true',
+            'force_enable_accounting' : True,
+            'enable_cgroup_memory_hierarchy' : True,
             'slot_manager' : {
-                'enforce_job_control' : 'true'
+                'enforce_job_control' : True
             }
         }
     }
@@ -208,7 +208,7 @@ class TestUserStatistics(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         'exec_agent' : {
-            'force_enable_accounting' : 'true'
+            'force_enable_accounting' : True
         }
     }
 
@@ -554,7 +554,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         command = "python -c 'import os; os.read(0, 1);'"
 
         op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command,
-                spec={ 'mapper': { 'input_format' : 'dsv', 'check_input_fully_consumed': 'true'}})
+                spec={ 'mapper': { 'input_format' : 'dsv', 'check_input_fully_consumed': True}})
         # if all jobs failed then operation is also failed
         with pytest.raises(YtError): track_op(op_id)
 
@@ -576,7 +576,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             command=command,
             opt=['/spec/job_count=2'])
 
-        assert get('//tmp/t2/@sorted') == 'true'
+        assert get('//tmp/t2/@sorted')
         assert get('//tmp/t2/@sorted_by') == ['key']
         assert read('//tmp/t2') == [{'key':0 , 'value':'one'}, {'key':1, 'value':'two'}, {'key':10, 'value':'one'}, {'key':11, 'value':'two'}]
 
@@ -757,7 +757,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
             out=output_tables,
             command='bash mapper.sh',
             file='//tmp/mapper.sh',
-            opt='/spec/mapper/use_yamr_descriptors=%s' % ('true' if yamr_mode else 'false'))
+            spec={"mapper": {"use_yamr_descriptors" : yamr_mode}})
+            #opt='/spec/mapper/use_yamr_descriptors=%s' % ('%true' if yamr_mode else '%false'))
 
         assert read(output_tables[0]) == [{'v': 0}]
         assert read(output_tables[1]) == [{'v': 1}]
@@ -913,7 +914,7 @@ cat > /dev/null; echo {hello=world}
         create('file', '//tmp/mapper.sh')
         upload('//tmp/mapper.sh', mapper)
 
-        set('//tmp/mapper.sh/@executable', "true")
+        set('//tmp/mapper.sh/@executable', True)
 
         create('table', '//tmp/t_out')
         map(in_='//tmp/t_in',
@@ -990,12 +991,12 @@ print row + table_index
         command = "python -c 'import os; os.read(0, 5);'"
 
         op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command,
-                spec={ 'mapper': { 'input_format' : 'dsv', 'check_input_fully_consumed': 'true'}})
+                spec={ 'mapper': { 'input_format' : 'dsv', 'check_input_fully_consumed': True}})
         # if all jobs failed then operation is also failed
         with pytest.raises(YtError): track_op(op_id)
 
         op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command,
-                spec={ 'mapper': { 'input_format' : 'dsv', 'check_input_fully_consumed': 'true'}})
+                spec={ 'mapper': { 'input_format' : 'dsv', 'check_input_fully_consumed': True}})
         self.assertEqual([], read("//tmp/t2"))
 
     def test_live_preview(self):

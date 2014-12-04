@@ -24,11 +24,11 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         'exec_agent' : {
-            'force_enable_accounting' : 'true',
-            'enable_cgroup_memory_hierarchy' : 'true',
+            'force_enable_accounting' : True,
+            'enable_cgroup_memory_hierarchy' : True,
             'slot_manager' : {
-                'enforce_job_control'    : 'true',
-                'enable_cgroups'         : 'false',
+                'enforce_job_control'    : True,
+                'enable_cgroups'         : False,
                 'memory_watchdog_period' : 100
             }
         }

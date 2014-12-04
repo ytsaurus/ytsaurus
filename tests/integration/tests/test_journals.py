@@ -18,8 +18,8 @@ class TestJournals(YTEnvSetup):
         assert get('//tmp/j/@replication_factor') == 3
         assert get('//tmp/j/@read_quorum') == 2
         assert get('//tmp/j/@write_quorum') == 2
-        assert get('//tmp/j/@resource_usage/disk_space') == 0        
-        assert get('//tmp/j/@sealed') == 'true'
+        assert get('//tmp/j/@resource_usage/disk_space') == 0
+        assert get('//tmp/j/@sealed')
         assert get('//tmp/j/@row_count') == 0
         assert get('//tmp/j/@chunk_ids') == []
 
@@ -33,7 +33,7 @@ class TestJournals(YTEnvSetup):
         create('journal', '//tmp/j')
         write_journal('//tmp/j', self.DATA)
 
-        assert get('//tmp/j/@sealed') == 'true'
+        assert get('//tmp/j/@sealed')
         assert get('//tmp/j/@row_count') == 10
         assert get('//tmp/j/@chunk_count') == 1
 
@@ -44,8 +44,8 @@ class TestJournals(YTEnvSetup):
         create('journal', '//tmp/j')
         for i in xrange(0, 10):
             write_journal('//tmp/j', self.DATA)
-        
-        assert get('//tmp/j/@sealed') == 'true'
+
+        assert get('//tmp/j/@sealed')
         assert get('//tmp/j/@row_count') == 100
         assert get('//tmp/j/@chunk_count') == 10
 
@@ -60,7 +60,7 @@ class TestJournals(YTEnvSetup):
     def test_resource_usage(self):
         assert get('//sys/accounts/tmp/@committed_resource_usage/disk_space') == 0
         assert get('//sys/accounts/tmp/@committed_resource_usage/disk_space') == 0
-        
+
         create('journal', '//tmp/j')
         write_journal('//tmp/j', self.DATA)
 
@@ -70,10 +70,10 @@ class TestJournals(YTEnvSetup):
 
         # wait for chunk to become sealed
         while True:
-            if get('#' + chunk_id + '/@sealed') == 'true':
+            if get('#' + chunk_id + '/@sealed'):
                 break
-            sleep(1) 
-        
+            sleep(1)
+
         disk_space_delta = get('//tmp/j/@resource_usage/disk_space')
         assert disk_space_delta > 0
 
@@ -81,11 +81,11 @@ class TestJournals(YTEnvSetup):
 
         assert get('//sys/accounts/tmp/@committed_resource_usage/disk_space') == disk_space_delta
         assert get('//sys/accounts/tmp/@resource_usage/disk_space') == disk_space_delta
-        
+
         remove('//tmp/j')
 
         gc_collect() # wait for account stats to be updated
 
         assert get('//sys/accounts/tmp/@committed_resource_usage/disk_space') == 0
         assert get('//sys/accounts/tmp/@resource_usage/disk_space') == 0
-        
+

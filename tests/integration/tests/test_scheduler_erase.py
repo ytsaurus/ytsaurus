@@ -152,15 +152,15 @@ class TestSchedulerEraseCommands(YTEnvSetup):
 
         erase('//tmp/table[0:42]')
         assert read('//tmp/table') == v[0:2] + v[4:6]
-        assert get('//tmp/table/@sorted') == 'true' # check that table is still sorted
+        assert get('//tmp/table/@sorted') # check that table is still sorted
 
         erase('//tmp/table[1000:]')
         assert read('//tmp/table') == v[0:2] + v[4:5]
-        assert get('//tmp/table/@sorted') == 'true' # check that table is still sorted
+        assert get('//tmp/table/@sorted') # check that table is still sorted
 
         erase('//tmp/table[:0]')
         assert read('//tmp/table') == v[4:5]
-        assert get('//tmp/table/@sorted') == 'true' # check that table is still sorted
+        assert get('//tmp/table/@sorted') # check that table is still sorted
 
 
 
