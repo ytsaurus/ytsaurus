@@ -120,11 +120,15 @@ public:
         auto config = host->GetConfig();
 
         if (UserJobSpec.enable_accounting() || config->ForceEnableAccounting) {
-            CreateCGroup(CpuAccounting);
-            CreateCGroup(BlockIO);
-            CreateCGroup(Freezer);
-            if (config->EnableCGroupMemoryHierarchy) {
-                CreateCGroup(Memory);
+            try {
+                Freezer.Create();
+                CpuAccounting.Create();
+                BlockIO.Create();
+                if (config->EnableCGroupMemoryHierarchy) {
+                    Memory.Create();
+                }
+            } catch (const std::exception& ex) {
+                LOG_FATAL(ex, "Unable to create required cgroups");
             }
         }
 
@@ -256,32 +260,28 @@ public:
         }
 
         if (UserJobSpec.enable_accounting() || config->ForceEnableAccounting) {
-            RetrieveStatistics(CpuAccounting, [&] (TCpuAccounting& cgroup) {
-                    CpuAccountingStats = cgroup.GetStatistics();
-                });
-            DestroyCGroup(CpuAccounting);
-            DestroyCGroup(Freezer);
+            try {
+                RunKiller(Freezer.GetFullPath());
+                Freezer.Destroy();
 
-            {
-                TGuard<TSpinLock> guard(BlockIOLock);
-                RetrieveStatistics(BlockIO, [&] (TBlockIO& cgroup) {
-                        BlockIOStats = cgroup.GetStatistics();
-                    });
-                DestroyCGroup(BlockIO);
-            }
+                CpuAccountingStats = CpuAccounting.GetStatistics();
+                CpuAccounting.Destroy();
 
-            if (config->EnableCGroupMemoryHierarchy)
-            {
-                TGuard<TSpinLock> guard(MemoryLock);
-                RetrieveStatistics(Memory, [&] (TMemory& cgroup) { });
-
-                try {
-                    Memory.ForceEmpty();
-                } catch (const std::exception& ex) {
-                    LOG_ERROR("Unable to force empty cgroup %Qv", Memory.GetFullPath());
+                {
+                    TGuard<TSpinLock> guard(BlockIOLock);
+                    BlockIOStats = BlockIO.GetStatistics();
+                    BlockIO.Destroy();
                 }
 
-                DestroyCGroup(Memory);
+                if (config->EnableCGroupMemoryHierarchy)
+                {
+                    TGuard<TSpinLock> guard(MemoryLock);
+
+                    Memory.ForceEmpty();
+                    Memory.Destroy();
+                }
+            } catch (const std::exception& ex) {
+                LOG_FATAL(ex, "Unable to gather statistics and destroy cgroups");
             }
 
             TGuard<TSpinLock> guard(SpinLock);
@@ -743,42 +743,6 @@ private:
         }
 
         return result;
-    }
-
-
-    void CreateCGroup(TCGroup& cgroup)
-    {
-        try {
-            cgroup.Create();
-        } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Unable to create cgroup %Qv", cgroup.GetFullPath());
-        }
-    }
-
-    template <typename T, typename Func>
-    void RetrieveStatistics(T& cgroup, Func retriever)
-    {
-        if (cgroup.IsCreated()) {
-            try {
-                retriever(cgroup);
-            } catch (const std::exception& ex) {
-                LOG_FATAL(ex, "Unable to retrieve statistics from cgroup %Qv", cgroup.GetFullPath());
-            }
-        }
-    }
-
-    void DestroyCGroup(TCGroup& cgroup)
-    {
-        if (cgroup.IsCreated()) {
-            try {
-                RunKiller(cgroup.GetFullPath());
-                cgroup.Destroy();
-            } catch (const std::exception& ex) {
-                LOG_FATAL(ex, "Unable to destroy cgroup %Qv", cgroup.GetFullPath());
-            }
-        } else {
-            LOG_WARNING("CGroup %Qv was not created. Unable to destroy", cgroup.GetFullPath());
-        }
     }
 
     void KillUserJob()
