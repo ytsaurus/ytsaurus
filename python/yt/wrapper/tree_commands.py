@@ -167,9 +167,11 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
 
     :param type: (one of "table", "file", "map_node", "list_node"...) TODO(veronikaiv): list all types
     :param path: (string or `TablePath`)
+    :param recursive: (bool) `config.CREATE_RECURSIVE` by default
     :param attributes: (dict)
     .. seealso:: `create on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#create>`_
     """
+    recursive = get_value(recursive, config.CREATE_RECURSIVE)
     params = {
         "type": type,
         "recursive": bool_to_string(recursive),
@@ -182,11 +184,9 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
 
 def mkdir(path, recursive=None, client=None):
     """Make directory (Cypress node of map_node type).
-
     :param path: (string or `TablePath`)
     :param recursive: (bool) `config.CREATE_RECURSIVE` by default
     """
-    recursive = get_value(recursive, config.CREATE_RECURSIVE)
     return create("map_node", path, recursive=recursive, ignore_existing=recursive, client=client)
 
 # TODO: maybe remove this methods

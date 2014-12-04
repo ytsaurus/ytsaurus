@@ -369,7 +369,6 @@ def create_table(path, recursive=None, ignore_existing=False,
     :param attributes: (dict)
     """
     table = to_table(path, client=client)
-    recursive = get_value(recursive, config.CREATE_RECURSIVE)
     attributes = get_value(attributes, {})
     if replication_factor is not None:
         attributes["replication_factor"] = replication_factor
