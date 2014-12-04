@@ -741,6 +741,13 @@ public:
     {
         TPermissionCheckResult result;
 
+        // Fast lane: "root" needs to authorization.
+        // NB: This is also useful for migration when "superusers" is initially created.
+        if (user == RootUser_) {
+            result.Action = ESecurityAction::Allow;
+            return result;
+        }
+
         // Fast lane: "superusers" need to authorization.
         if (user->RecursiveMemberOf().find(SuperusersGroup_) != user->RecursiveMemberOf().end()) {
             result.Action = ESecurityAction::Allow;
