@@ -178,6 +178,29 @@ class TestEventLog(YTEnvSetup):
                 assert user_time > 0
         assert "operation_started" in event_types
 
+
+class TestBlockIO(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        'scheduler' : {
+            'event_log' : {
+                'flush_period' : 5000
+            }
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        'exec_agent' : {
+            'force_enable_accounting' : 'true',
+            'enable_cgroup_memory_hierarchy' : 'true',
+            'slot_manager' : {
+                'enable_cgroups' : 'true'
+            }
+        }
+    }
     @block_io_mark
     def test_block_io_accounting(self):
         create("table", "//tmp/t1")
