@@ -1,6 +1,7 @@
 from common import update_from_env
 
 PROXY = None
+PROXY_SUFFIX = ".yt.yandex.net"
 
 TOKEN = None
 TOKEN_PATH = None

@@ -150,6 +150,10 @@ def get_proxy_url(proxy=None, client=None):
         else:
             proxy = client.proxy
     require(proxy, YtError("You should specify proxy"))
+
+    if "." not in proxy and "localhost" not in proxy:
+        proxy = proxy + http_config.PROXY_SUFFIX
+
     return proxy
 
 def get_api(proxy, version=None, client=None):
