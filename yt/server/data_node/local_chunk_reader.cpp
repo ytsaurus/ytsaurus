@@ -46,7 +46,8 @@ public:
     virtual TAsyncReadBlocksResult ReadBlocks(const std::vector<int>& blockIndexes) override
     {
         NTracing::TTraceSpanGuard guard(
-            NTracing::GetCurrentTraceContext(),
+            // XXX(sandello): Disable tracing due to excessive output.
+            NTracing::NullTraceContext, /* NTracing::GetCurrentTraceContext(), */
             "LocalChunkReader",
             "ReadBlocks");
         return New<TReadSession>(this, std::move(guard))
@@ -64,7 +65,8 @@ public:
         const std::vector<int>* extensionTags) override
     {
         NTracing::TTraceSpanGuard guard(
-            NTracing::GetCurrentTraceContext(),
+            // XXX(sandello): Disable tracing due to excessive output.
+            NTracing::NullTraceContext, /* NTracing::GetCurrentTraceContext(), */
             "LocalChunkReader",
             "GetChunkMeta");
         return Chunk_

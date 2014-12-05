@@ -31,7 +31,8 @@ protected:
         bool compress,
         const TSharedRef& ref)
     {
-        auto guard = CreateTraceContextGuard(compress);
+        // XXX(sandello): Disable tracing to due excessive output.
+        // auto guard = CreateTraceContextGuard(compress);
 
         ByteArraySource input(ref.Begin(), ref.Size());
         TRACE_ANNOTATION("input_size", ref.Size());
@@ -50,7 +51,8 @@ protected:
         const std::vector<TSharedRef>& refs,
         std::function<int(const std::vector<int>&)> outputSizeEstimator = ZeroSizeEstimator)
     {
-        auto guard = CreateTraceContextGuard(compress);
+        // XXX(sandello): Disable tracing to due excessive output.
+        // auto guard = CreateTraceContextGuard(compress);
 
         if (refs.size() == 1) {
             return Run<TBlockTag>(
