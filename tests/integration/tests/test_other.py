@@ -24,7 +24,7 @@ class TestResourceLeak(YTEnvSetup):
                 time.sleep(1)
                 raise Exception("xxx")
 
-        tx = start_transaction(opt = '/timeout=2000')
+        tx = start_transaction(timeout=2000)
 
         # uploading from empty stream will fail
         create('file', '//tmp/file')

@@ -75,7 +75,7 @@ echo $CONTENT | grep ' 5' 1>/dev/null
 sudo -n dd if=/dev/sda of=/dev/null bs=16K count=100 iflag=direct 1>/dev/null
 """
         command += self.FAIL_IF_HIT_LIMIT
-        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=1'])
+        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, spec={"max_failed_job_count": 1})
 
         track_op(op_id)
         print self._get_stderr(op_id)
@@ -90,7 +90,7 @@ cat
 sudo -n dd if=/dev/sda of=/dev/null bs=1600K count=1 iflag=direct 1>/dev/null
 """
         command += self.FAIL_IF_HIT_LIMIT
-        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=1'])
+        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, spec={"max_failed_job_count": 1})
 
         with pytest.raises(YtError):
             try:
@@ -119,7 +119,8 @@ class TestCGroups(YTEnvSetup):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write('//tmp/t1', [{"foo": "bar"} for i in xrange(200)])
-        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command='trap "" HUP; bash -c "sleep 60" &; sleep $[( $RANDOM % 5 )]s; exit 42;', opt=['/spec/max_failed_job_count=1', '/spec/job_count=200'])
+        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command='trap "" HUP; bash -c "sleep 60" &; sleep $[( $RANDOM % 5 )]s; exit 42;',
+                    spec={"max_failed_job_count": 1, "job_count": 200})
         with pytest.raises(YtError):
             track_op(op_id)
 
@@ -234,7 +235,7 @@ class TestUserStatistics(YTEnvSetup):
         create('table', '//tmp/t2')
         write('//tmp/t1', [{"a": "b"} for i in range(2)])
 
-        op_id = map(in_="//tmp/t1", out="//tmp/t2", command="cat", opt=["/spec/job_count=2"])
+        op_id = map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"job_count": 2})
         statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
         assert statistics['user_job']['builtin']['cpu']['user']['count'] == 2
 
@@ -267,7 +268,8 @@ class TestUserStatistics(YTEnvSetup):
             '''.format(tmpdir)
 
         try:
-            op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command, opt=["/spec/max_failed_job_count=1", "/spec/job_count=2"])
+            op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command,
+                        spec={"max_failed_job_count": 1, "job_count": 2})
 
             tries = 0
             statistics = {}
@@ -315,8 +317,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
         write('//tmp/t1', {"a": "b"})
         op_id = map(dont_track=True,
             in_='//tmp/t1', out='//tmp/t2', command=r'cat; echo "{v1=\"$V1\"};{v2=\"$V2\"}"',
-            opt=['/spec/mapper/environment={V1="Some data";V2="$(SandboxPath)/mytmp"}',
-                 '/spec/title=MyTitle'])
+            spec={"mapper": {"environment": {"V1": "Some data", "V2": "$(SandboxPath)/mytmp"}},
+                  "title": "MyTitle"})
 
         get('//sys/operations/%s/@spec' % op_id)
         track_op(op_id)
@@ -445,7 +447,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         command = '''cat > /dev/null; echo stderr 1>&2; exit 125'''
 
-        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=5'])
+        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, spec={"max_failed_job_count": 5})
         # if all jobs failed then operation is also failed
         with pytest.raises(YtError):
             track_op(op_id)
@@ -476,7 +478,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
                     exit 0;
                 fi;'''.format(tmpdir)
 
-            op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=1', '/spec/job_count=110'])
+            op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command,
+                        spec={"max_failed_job_count": 1, "job_count": 110})
             with pytest.raises(YtError):
                 track_op(op_id)
 
@@ -539,11 +542,10 @@ class TestSchedulerMapCommands(YTEnvSetup):
         command = "awk '($1==\"foo\"){print \"bar\"}'"
 
         with pytest.raises(YtError):
-            map(
+            map(command=command,
                 in_='//tmp/t1',
                 out='//tmp/t2',
-                opt='/spec/mapper/format=yamr',
-                command=command)
+                spec={"mapper": {"format": "yamr"}})
 
     @only_linux
     def test_fail_context(self):
@@ -574,7 +576,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         map(in_='//tmp/t1',
             out='<sorted_by=[key];append=true>//tmp/t2',
             command=command,
-            opt=['/spec/job_count=2'])
+            spec={"job_count": 2})
 
         assert get('//tmp/t2/@sorted')
         assert get('//tmp/t2/@sorted_by') == ['key']
@@ -593,7 +595,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 in_='//tmp/t1',
                 out='<sorted_by=[key]>//tmp/t2',
                 command=command,
-                opt=['/spec/job_count=2'])
+                spec={"job_count": 2})
 
     def test_sorted_output_job_failure(self):
         create('table', '//tmp/t1')
@@ -608,7 +610,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 in_='//tmp/t1',
                 out='<sorted_by=[key]>//tmp/t2',
                 command=command,
-                opt=['/spec/job_count=2'])
+                spec={"job_count": 2})
 
     @only_linux
     def test_job_count(self):
@@ -623,7 +625,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             map(in_='//tmp/t1',
                 out=table_name,
                 command=command,
-                opt=['/spec/job_count=%d' % job_count])
+                spec={"job_count": job_count})
             assert read(table_name) == [{'hello': 'world'} for i in xrange(expected_num_records)]
 
         check('//tmp/t2', 3, 3)
@@ -758,7 +760,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
             command='bash mapper.sh',
             file='//tmp/mapper.sh',
             spec={"mapper": {"use_yamr_descriptors" : yamr_mode}})
-            #opt='/spec/mapper/use_yamr_descriptors=%s' % ('%true' if yamr_mode else '%false'))
 
         assert read(output_tables[0]) == [{'v': 0}]
         assert read(output_tables[1]) == [{'v': 1}]
@@ -816,7 +817,7 @@ print '{hello=world}'
             out='//tmp/t_out',
             command="python mapper.sh",
             file='//tmp/mapper.sh',
-            opt='/spec/mapper/input_format=<line_prefix=tskv>dsv')
+            spec={"mapper": {"input_format": "<line_prefix=tskv>dsv"}})
 
         assert read('//tmp/t_out') == [{'hello': 'world'}]
 
@@ -842,9 +843,11 @@ print "tskv" + "\\t" + "hello=world"
             out='//tmp/t_out',
             command="python mapper.sh",
             file='//tmp/mapper.sh',
-            opt=['/spec/mapper/enable_input_table_index=true',
-                 '/spec/mapper/input_format=<format=text>yson',
-                 '/spec/mapper/output_format=<line_prefix=tskv>dsv'])
+            spec={"mapper": {
+                    "enable_input_table_index": True,
+                    "input_format": "<format=text>yson",
+                    "output_format": "<line_prefix=tskv>dsv"
+                }})
 
         assert read('//tmp/t_out') == [{'hello': 'world'}]
 
@@ -869,9 +872,10 @@ print "key\\tsubkey\\tvalue"
             out='//tmp/t_out',
             command="python mapper.sh",
             file='//tmp/mapper.sh',
-            opt=[ \
-                '/spec/mapper/input_format=<format=text>yson',
-                '/spec/mapper/output_format=<has_subkey=true>yamr'])
+            spec={"mapper": {
+                    "input_format": "<format=text>yson",
+                    "output_format": "<has_subkey=true>yamr"
+                }})
 
         assert read('//tmp/t_out') == [{'key': 'key', 'subkey': 'subkey', 'value': 'value'}]
 
@@ -896,7 +900,7 @@ print '{hello=world}'
             out='//tmp/t_out',
             command="python mapper.sh",
             file='//tmp/mapper.sh',
-            opt='/spec/mapper/input_format=<has_subkey=true>yamr')
+            spec={"mapper": {"input_format": "<has_subkey=true>yamr"}})
 
         assert read('//tmp/t_out') == [{'hello': 'world'}]
 
@@ -967,7 +971,7 @@ print row + table_index
             out='//tmp/out',
             command="python mapper.py",
             file='//tmp/mapper.py',
-            opt=['/spec/mapper/format=<enable_table_index=true>yamr'])
+            spec={"mapper": {"format": "<enable_table_index=true>yamr"}})
 
         expected = [{'key': 'a', 'value': 'value0'},
                     {'key': 'b', 'value': 'value1'}]
@@ -981,7 +985,7 @@ print row + table_index
 
         with pytest.raises(YtError):
             map(in_='//tmp/t_in', out='//tmp/t_out', command='cat',
-                opt=['/spec/mapper/memory_limit=1000000000000'])
+                spec={"mapper": {"memory_limit": 1000000000000}})
 
     def test_check_input_fully_consumed(self):
         create('table', '//tmp/t1')

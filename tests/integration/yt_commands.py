@@ -54,12 +54,6 @@ def prepare_parameters(parameters):
     change(parameters, "tx", "transaction_id")
     change(parameters, "attr", "attributes")
     change(parameters, "ping_ancestor_txs", "ping_ancestor_transactions")
-    if "opt" in parameters:
-        for option in flatten(parameters["opt"]):
-            key, value = option.split("=", 1)
-            set_branch(parameters, key.strip("/").split("/"), yson.loads(value))
-        del parameters["opt"]
-
     return parameters
 
 def command(command_name, parameters, input_stream=None, output_stream=None, verbose=None):

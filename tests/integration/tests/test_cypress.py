@@ -345,7 +345,7 @@ class TestCypress(YTEnvSetup):
         set('//tmp/a2/@account', 'a2')
 
         set('//tmp/a1/x', {'y' : 'z'})
-        copy('//tmp/a1/x', '//tmp/a2/x', opt=['/preserve_account=true'])
+        copy('//tmp/a1/x', '//tmp/a2/x', preserve_account=True)
 
         assert get('//tmp/a2/@account') == 'a2'
         assert get('//tmp/a2/x/@account') == 'a1'
@@ -389,7 +389,7 @@ class TestCypress(YTEnvSetup):
         create_account('max')
         create('table', '//tmp/t1')
         set('//tmp/t1/@account', 'max')
-        copy('//tmp/t1', '//tmp/t2', opt=['/preserve_account=true']) # preserve is ON
+        copy('//tmp/t1', '//tmp/t2', preserve_account=True) # preserve is ON
         assert get('//tmp/t2/@account') == 'max'
 
     def test_move_simple1(self):
@@ -639,7 +639,7 @@ class TestCypress(YTEnvSetup):
     def test_access_stat_suppress1(self):
         time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
-        get('//tmp', opt=['/suppress_access_tracking=true'])
+        get('//tmp', suppress_access_tracking=True)
         time.sleep(1.0)
         c2 = get('//tmp/@access_counter')
         assert c1 == c2
@@ -647,7 +647,7 @@ class TestCypress(YTEnvSetup):
     def test_access_stat_suppress2(self):
         time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
-        ls('//tmp', opt=['/suppress_access_tracking=true'])
+        ls('//tmp', suppress_access_tracking=True)
         time.sleep(1.0)
         c2 = get('//tmp/@access_counter')
         assert c1 == c2
@@ -656,7 +656,7 @@ class TestCypress(YTEnvSetup):
         time.sleep(1.0)
         create('table', '//tmp/t')
         c1 = get('//tmp/t/@access_counter')
-        read('//tmp/t', opt=['/suppress_access_tracking=true'])
+        read('//tmp/t', suppress_access_tracking=True)
         time.sleep(1.0)
         c2 = get('//tmp/t/@access_counter')
         assert c1 == c2
@@ -665,7 +665,7 @@ class TestCypress(YTEnvSetup):
         time.sleep(1.0)
         create('file', '//tmp/f')
         c1 = get('//tmp/f/@access_counter')
-        download('//tmp/f', opt=['/suppress_access_tracking=true'])
+        download('//tmp/f', suppress_access_tracking=True)
         time.sleep(1.0)
         c2 = get('//tmp/f/@access_counter')
         assert c1 == c2

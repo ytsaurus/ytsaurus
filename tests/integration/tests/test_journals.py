@@ -24,10 +24,10 @@ class TestJournals(YTEnvSetup):
         assert get('//tmp/j/@chunk_ids') == []
 
     def test_create_failure(self):
-        with pytest.raises(YtError): create('journal', '//tmp/j', opt=['/attributes/replication_factor=1'])
-        with pytest.raises(YtError): create('journal', '//tmp/j', opt=['/attributes/read_quorum=4'])
-        with pytest.raises(YtError): create('journal', '//tmp/j', opt=['/attributes/write_quorum=4'])
-        with pytest.raises(YtError): create('journal', '//tmp/j', opt=['/attributes/replication_factor=4'])
+        with pytest.raises(YtError): create('journal', '//tmp/j', attributes={"replication_factor": 1})
+        with pytest.raises(YtError): create('journal', '//tmp/j', attributes={"read_quorum": 4})
+        with pytest.raises(YtError): create('journal', '//tmp/j', attributes={"write_quorum": 4})
+        with pytest.raises(YtError): create('journal', '//tmp/j', attributes={"replication_factor": 4})
 
     def test_readwrite1(self):
         create('journal', '//tmp/j')

@@ -522,7 +522,7 @@ class TestTables(YTEnvSetup):
         self._check_replication_factor('//tmp/t', 2)
 
     def test_key_columns1(self):
-        create('table', '//tmp/t', opt=['/attributes/key_columns=[a;b]'])
+        create('table', '//tmp/t', attributes={"key_columns": ["a", "b"]})
         assert get('//tmp/t/@sorted')
         assert get('//tmp/t/@key_columns') == ['a', 'b']
 

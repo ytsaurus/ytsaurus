@@ -105,7 +105,7 @@ class TestTransactions(YTEnvSetup):
         assert not exists('//sys/transactions/' + tx2)
 
     def test_timeout(self):
-        tx = start_transaction(opt = '/timeout=2000')
+        tx = start_transaction(timeout=2000)
 
         # check that transaction is still alive after 2 seconds
         sleep(1.0)
@@ -116,7 +116,7 @@ class TestTransactions(YTEnvSetup):
         assert not exists('//sys/transactions/' + tx)
 
     def test_ping(self):
-        tx = start_transaction(opt = '/timeout=2000')
+        tx = start_transaction(timeout=2000)
 
         sleep(1)
         assert exists('//sys/transactions/' + tx)
@@ -126,7 +126,7 @@ class TestTransactions(YTEnvSetup):
         assert exists('//sys/transactions/' + tx)
         
     def test_expire_outer(self):
-        tx_outer = start_transaction(opt = '/timeout=2000')
+        tx_outer = start_transaction(timeout=2000)
         tx_inner = start_transaction(tx = tx_outer)
 
         sleep(1)
@@ -140,7 +140,7 @@ class TestTransactions(YTEnvSetup):
         assert not exists('//sys/transactions/' + tx_outer)
 
     def test_ping_ancestors(self):
-        tx_outer = start_transaction(opt = '/timeout=2000')
+        tx_outer = start_transaction(timeout=2000)
         tx_inner = start_transaction(tx = tx_outer)
 
         sleep(1)

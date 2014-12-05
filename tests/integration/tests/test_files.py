@@ -45,13 +45,13 @@ class TestFiles(YTEnvSetup):
     def test_read_interval(self):
         content = ''.join(["data"] * 100)
         create('file', '//tmp/file')
-        upload('//tmp/file', content, config_opt='/file_writer/block_size=8')
+        upload('//tmp/file', content, file_writer={"block_size": 8})
 
         offset = 9
         length = 212
-        assert download('//tmp/file', opt=['/offset=%d' % offset]) == content[offset:]
-        assert download('//tmp/file', opt=['/length=%d' % length]) == content[:length]
-        assert download('//tmp/file', opt=['/offset=%d' % offset, '/length=%d' % length]) == content[offset:offset + length]
+        assert download('//tmp/file', offset=offset) == content[offset:]
+        assert download('//tmp/file', length=length) == content[:length]
+        assert download('//tmp/file', offset=offset, length=length) == content[offset:offset + length]
 
         chunk_ids = get('//tmp/file/@chunk_ids')
         assert get_chunks() == chunk_ids

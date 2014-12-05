@@ -35,12 +35,12 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         create('table', '//tmp/out')
 
         reduce(
-            in_ = ['//tmp/in1{key}', '//tmp/in2{key}'],
-            out = ['<sorted_by=[key]>//tmp/out'],
-            command = 'uniq',
-            reduce_by = 'key',
-            opt = ['/spec/reducer/format=<line_prefix=tskv>dsv',
-                   '/spec/data_size_per_job=1'])
+            in_=['//tmp/in1{key}', '//tmp/in2{key}'],
+            out=['<sorted_by=[key]>//tmp/out'],
+            command='uniq',
+            reduce_by='key',
+            spec={"reducer": {"format": "<line_prefix=tskv>dsv"},
+                  "data_size_per_job": 1})
 
         assert read('//tmp/out') == \
             [
@@ -78,10 +78,10 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         create('table', '//tmp/out')
 
         reduce(
-            in_ = ['//tmp/in1', '//tmp/in2'],
-            out = ['<sorted_by=[key]>//tmp/out'],
-            command = 'cat',
-            opt = ['/spec/reducer/format=dsv'])
+            in_=['//tmp/in1', '//tmp/in2'],
+            out='<sorted_by=[key]>//tmp/out',
+            command='cat',
+            spec={"reducer": {"format": "dsv"}})
 
         assert read('//tmp/out') == \
             [
@@ -140,7 +140,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             out = ['<sorted_by=[key]; teleport=true>//tmp/out1', '<sorted_by=[key]>//tmp/out2'],
             command = 'cat>/dev/fd/4',
             reduce_by = 'key',
-            opt = ['/spec/reducer/format=dsv'])
+            spec={"reducer": {"format": "dsv"}})
 
         assert read('//tmp/out1') == \
             [
@@ -188,7 +188,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             in_ = ['//tmp/in1', '//tmp/in2'],
             out = ['<sorted_by=[key]>//tmp/out'],
             command = 'cat',
-            opt = ['/spec/reducer/format=dsv'])
+            spec={"reducer": {"format": "dsv"}})
 
         assert read('//tmp/out') == \
             [
@@ -291,8 +291,8 @@ echo {v = 2} >&7
             out = '//tmp/out',
             command = 'cat; echo "key=10"',
             reduce_by=['key'],
-            opt = ['/spec/data_size_per_job=1',
-                   '/spec/reducer/format=dsv'])
+            spec={"reducer": {"format": "dsv"},
+                  "data_size_per_job": 1})
 
         # Check that operation has more than 1 job
         assert get("//tmp/out/@row_count") >= count + 2

@@ -57,7 +57,7 @@ while True:
              out='//tmp/t_out',
              command='python mapper.py',
              file='//tmp/mapper.py',
-             opt=['/spec/max_failed_job_count=5'])
+             spec={"max_failed_job_count": 5})
 
         # if all jobs failed then operation is also failed
         with pytest.raises(YtError): track_op(op_id)

@@ -207,7 +207,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               mode='sorted',
               in_=['//tmp/t1', '//tmp/t2', '//tmp/t3'],
               out='//tmp/t_out',
-              opt='/spec/data_size_per_job=1')
+              spec={"data_size_per_job": 1})
 
         assert read('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 3}, {'a': 3}, {'a': 3}, {'a': 3}, {'a': 15}]
         assert get('//tmp/t_out/@chunk_count') == 3

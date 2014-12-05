@@ -64,7 +64,7 @@ Wish you were here.
                 out='//tmp/t_map_out',
                 command='python mapper.py',
                 file=['//tmp/mapper.py', '//tmp/yt_streaming.py'],
-                opt='/spec/mapper/format=dsv',
+                spec={"mapper": {"format": "dsv"}},
                 tx=tx)
 
             sort(in_='//tmp/t_map_out',
@@ -76,7 +76,7 @@ Wish you were here.
                    out='//tmp/t_out',
                    command='python reducer.py',
                    file=['//tmp/reducer.py', '//tmp/yt_streaming.py'],
-                   opt='/spec/reducer/format=dsv',
+                   spec={"reducer": {"format": "dsv"}},
                    tx=tx)
         elif method == 'map_reduce':
             map_reduce(in_='//tmp/t_in',
@@ -88,12 +88,12 @@ Wish you were here.
                        reduce_combiner_file=['//tmp/reducer.py', '//tmp/yt_streaming.py'],
                        reducer_command='python reducer.py',
                        reducer_file=['//tmp/reducer.py', '//tmp/yt_streaming.py'],
-                       opt=['/spec/partition_count=2', 
-                            '/spec/map_job_count=2', 
-                            '/spec/mapper/format=dsv', 
-                            '/spec/reduce_combiner/format=dsv', 
-                            '/spec/reducer/format=dsv',
-                            '/spec/data_size_per_sort_job=10'],
+                       spec={"partition_count": 2, 
+                             "map_job_count": 2, 
+                             "mapper": {"format": "dsv"}, 
+                             "reduce_combiner": {"format": "dsv"}, 
+                             "reducer": {"format": "dsv"},
+                             "data_size_per_sort_job": 10},
                        tx=tx)
         elif method == 'map_reduce_1p':
             map_reduce(in_='//tmp/t_in',
@@ -103,7 +103,7 @@ Wish you were here.
                        mapper_file=['//tmp/mapper.py', '//tmp/yt_streaming.py'],
                        reducer_command='python reducer.py',
                        reducer_file=['//tmp/reducer.py', '//tmp/yt_streaming.py'],
-                       opt=['/spec/partition_count=1', '/spec/mapper/format=dsv', '/spec/reducer/format=dsv'],
+                       spec={"partition_count": 1, "mapper": {"format": "dsv"}, "reducer": {"format": "dsv"}},
                        tx=tx)
         elif method == 'reduce_combiner_dev_null':
             map_reduce(in_='//tmp/t_in',
@@ -114,12 +114,12 @@ Wish you were here.
                        reduce_combiner_command='cat >/dev/null',
                        reducer_command='python reducer.py',
                        reducer_file=['//tmp/reducer.py', '//tmp/yt_streaming.py'],
-                       opt=['/spec/partition_count=2', 
-                            '/spec/map_job_count=2', 
-                            '/spec/mapper/format=dsv', 
-                            '/spec/reduce_combiner/format=dsv', 
-                            '/spec/reducer/format=dsv',
-                            '/spec/data_size_per_sort_job=10'],
+                       spec={"partition_count": 2, 
+                             "map_job_count": 2, 
+                             "mapper": {"format": "dsv"}, 
+                             "reduce_combiner": {"format": "dsv"}, 
+                             "reducer": {"format": "dsv"},
+                             "data_size_per_sort_job": 10},
                        tx=tx)
 
         commit_transaction(tx)
@@ -163,7 +163,7 @@ Wish you were here.
                    out=['//tmp/t_out1', '//tmp/t_out2'],
                    sort_by='line',
                    reducer_command='cat',
-                   opt='/spec/reducer/format=dsv')
+                   spec={"reducer": {"format": "dsv"}})
 
     def test_intermediate_live_preview(self):
         create_user('u')

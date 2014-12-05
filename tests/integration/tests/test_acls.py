@@ -133,15 +133,19 @@ class TestAcls(YTEnvSetup):
         create_account('a')
         create_user('u')
 
-        with pytest.raises(YtError): create('table', '//tmp/t', user='u', opt=['/attributes/account=a'])
+        with pytest.raises(YtError):
+            create('table', '//tmp/t', user='u', attributes={"account": "a"})
 
         create('table', '//tmp/t', user='u')
         assert get('//tmp/t/@account') == 'tmp'
 
-        with pytest.raises(YtError): set('//tmp/t/@account', 'a', user='u')
+        with pytest.raises(YtError):
+            set('//tmp/t/@account', 'a', user='u')
 
         set('//sys/accounts/a/@acl/end', self._make_ace('allow', 'u', 'use'))
-        with pytest.raises(YtError): set('//tmp/t/@account', 'a', user='u')
+        with pytest.raises(YtError):
+            set('//tmp/t/@account', 'a', user='u')
+
         set('//tmp/@acl/end', self._make_ace('allow', 'u', 'administer'))
         set('//tmp/t/@account', 'a', user='u')
         assert get('//tmp/t/@account') == 'a'
@@ -242,20 +246,24 @@ class TestAcls(YTEnvSetup):
     def test_user_rename_fail(self):
         create_user('u1')
         create_user('u2')
-        with pytest.raises(YtError): set('//sys/users/u1/@name', 'u2')
+        with pytest.raises(YtError):
+            set('//sys/users/u1/@name', 'u2')
 
     def test_deny_create(self):
         create_user('u')
-        with pytest.raises(YtError): create('account_map', '//tmp/accounts', user='u')
+        with pytest.raises(YtError):
+            create('account_map', '//tmp/accounts', user='u')
 
     def test_deny_copy_src(self):
         create_user('u')
-        with pytest.raises(YtError): copy('//sys', '//tmp/sys', user='u')
+        with pytest.raises(YtError):
+            copy('//sys', '//tmp/sys', user='u')
 
     def test_deny_copy_dst(self):
         create_user('u')
         create('table', '//tmp/t')
-        with pytest.raises(YtError): copy('//tmp/t', '//sys/t', user='u', opt=['/preserve_account=true'])
+        with pytest.raises(YtError):
+            copy('//tmp/t', '//sys/t', user='u', preserve_account=True)
 
     def test_document1(self):
         create_user('u')
@@ -332,7 +340,8 @@ class TestAcls(YTEnvSetup):
         set('//tmp/x', {})
         set('//tmp/x/@account', 'a')
 
-        with pytest.raises(YtError): copy('//tmp/x', '//tmp/y', user='u', opt=['/preserve_account=true'])
+        with pytest.raises(YtError):
+            copy('//tmp/x', '//tmp/y', user='u', preserve_account=True)
 
     def test_copy_account2(self):
         create_account('a')
@@ -342,7 +351,7 @@ class TestAcls(YTEnvSetup):
         set('//tmp/x', {})
         set('//tmp/x/@account', 'a')
 
-        copy('//tmp/x', '//tmp/y', user='u', opt=['/preserve_account=true'])
+        copy('//tmp/x', '//tmp/y', user='u', preserve_account=True)
         assert get('//tmp/y/@account') == 'a'
 
     def test_copy_account3(self):
@@ -352,12 +361,14 @@ class TestAcls(YTEnvSetup):
         set('//tmp/x', {'u' : 'v'})
         set('//tmp/x/u/@account', 'a')
 
-        with pytest.raises(YtError): copy('//tmp/x', '//tmp/y', user='u', opt=['/preserve_account=true'])
+        with pytest.raises(YtError):
+            copy('//tmp/x', '//tmp/y', user='u', preserve_account=True)
 
     def test_superusers(self):
         create('table', '//sys/protected')
         create_user('u')
-        with pytest.raises(YtError): remove('//sys/protected', user='u')
+        with pytest.raises(YtError):
+            remove('//sys/protected', user='u')
         add_member('u', 'superusers')
         remove('//sys/protected', user='u')
 

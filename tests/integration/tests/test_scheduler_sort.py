@@ -108,9 +108,9 @@ class TestSchedulerSortCommands(YTEnvSetup):
         sort(in_='//tmp/t_in',
              out='//tmp/t_out',
              sort_by='missing_key',
-             opt=['/spec/partition_count=5',
-                  '/spec/partition_job_count=2',
-                  '/spec/data_size_per_sort_job=1'])
+             spec={"partition_count": 5,
+                   "partition_job_count": 2,
+                   "data_size_per_sort_job": 1})
 
         assert len(read('//tmp/t_out')) == 50
 
@@ -132,9 +132,9 @@ class TestSchedulerSortCommands(YTEnvSetup):
         sort(in_='//tmp/t_in',
              out='//tmp/t_out',
              sort_by='key',
-             opt=['/spec/partition_count=5',
-                  '/spec/partition_job_count=2',
-                  '/spec/data_size_per_sort_job=1'])
+             spec={"partition_count": 5,
+                   "partition_job_count": 2,
+                   "data_size_per_sort_job": 1})
 
         assert len(read('//tmp/t_out')) == 50
 
@@ -203,16 +203,16 @@ class TestSchedulerSortCommands(YTEnvSetup):
         self.sort_with_options()
 
     def test_one_partition_with_merge(self):
-        self.sort_with_options(opt=['/spec/data_size_per_sort_job=1'])
+        self.sort_with_options(spec={"data_size_per_sort_job": 1})
 
     def test_two_partitions_no_merge(self):
-        self.sort_with_options(opt=['/spec/partition_count=2'])
+        self.sort_with_options(spec={"partition_count": 2})
 
     def test_ten_partitions_no_merge(self):
-        self.sort_with_options(opt='/spec/partition_count=10')
+        self.sort_with_options(spec={"partition_count": 10})
 
     def test_two_partitions_with_merge(self):
-        self.sort_with_options(opt=['/spec/partition_count=2', '/spec/partition_data_size=1', '/spec/data_size_per_sort_job=1'])
+        self.sort_with_options(spec={"partition_count": 2, "partition_data_size": 1, "data_size_per_sort_job": 1})
 
     def test_inplace_sort(self):
         create('table', '//tmp/t')
