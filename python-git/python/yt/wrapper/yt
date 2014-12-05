@@ -313,7 +313,6 @@ def add_get_parser(add_parser):
     add_ypath_argument(parser)
     parser.add_argument("--ignore-opaque", action="store_true")
     add_structured_format_help(parser)
-    add_spec_help(parser)
     parser.add_argument("--attribute", action="append", dest="attributes", help="desired node attributes in the response")
     parser.set_defaults(func=get)
 
