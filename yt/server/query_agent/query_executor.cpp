@@ -357,23 +357,11 @@ public:
         const TDataSplits& splits,
         TNodeDirectoryPtr nodeDirectory)
     {
-        std::map<TGuid, TDataSplits> groups;
         TGroupedDataSplits result;
-
+        result.reserve(splits.size());
         for (const auto& split : splits) {
-            auto tabletId = GetObjectIdFromDataSplit(split);
-            if (TypeFromId(tabletId) == EObjectType::Tablet) {
-                groups[tabletId].push_back(split);
-            } else {
-                result.emplace_back(1, split);
-            }
+            result.emplace_back(1, split);
         }
-
-        result.reserve(result.size() + groups.size());
-        for (const auto& group : groups) {
-            result.emplace_back(std::move(group.second));
-        }
-
         return result;
     }
 
