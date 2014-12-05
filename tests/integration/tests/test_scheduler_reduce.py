@@ -3,7 +3,6 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
-import sys
 
 ##################################################################
 

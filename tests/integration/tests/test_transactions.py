@@ -5,6 +5,7 @@ from yt_commands import *
 
 from time import sleep
 
+
 ##################################################################
 
 class TestTransactions(YTEnvSetup):
@@ -66,6 +67,7 @@ class TestTransactions(YTEnvSetup):
         tx1 = start_transaction(tx = tx_outer)
         set("//tmp/t1", 1, tx=tx1)
 
+        # QUESTION(babenko): tx2 is unused. Is it correct?
         tx2 = start_transaction(tx = tx_outer)
 
         assert get("//tmp/t1", tx=tx_outer) == 0

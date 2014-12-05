@@ -281,4 +281,3 @@ class TestRacks(YTEnvSetup):
         
         assert self._get_max_replicas_per_rack(map, chunk_id) <= 1
 
-

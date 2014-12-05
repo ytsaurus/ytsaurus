@@ -188,8 +188,6 @@ class TestEventLog(YTEnvSetup):
         # wait for scheduler to dump the event log
         time.sleep(6)
         res = read("//sys/scheduler/event_log")
-        total_sectors = None
-        exist = False
         job_completed_line_exist = False
         for item in res:
             if item["event_type"] == "job_completed" and item["operation_id"] == op_id:

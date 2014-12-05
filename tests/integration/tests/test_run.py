@@ -1,7 +1,6 @@
 from yt_env_setup import YTEnvSetup
 
 
-
 ##################################################################
 
 class TestRunNothing(YTEnvSetup):

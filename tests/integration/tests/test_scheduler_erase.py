@@ -1,4 +1,3 @@
-
 import pytest
 
 from yt_env_setup import YTEnvSetup
@@ -23,14 +22,11 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         self.table = "//tmp/t_in"
         create("table", self.table)
 
-        self.v = \
-        [
-            {"key": 0, "value": 10},
-            {"key": -5, "value": 150},
-            {"key": -1, "value": 2},
-            {"key": 20, "value": 4},
-            {"key": 15, "value": -1}
-        ]
+        self.v = [{"key": 0, "value": 10},
+                  {"key": -5, "value": 150},
+                  {"key": -1, "value": 2},
+                  {"key": 20, "value": 4},
+                  {"key": 15, "value": -1}]
 
         for row in self.v:
             write("<append=true>" + self.table, row)
@@ -105,17 +101,15 @@ class TestSchedulerEraseCommands(YTEnvSetup):
     def _prepare_medium_chunks(self):
         self.table = "//tmp/table"
         create("table", self.table)
-        self.v = \
-        [
-            {"key" : 1},
-            {"key" : 0},
-            {"key" : 5},
-            {"key" : 8},
-            {"key" : 10},
-            {"key" : -3},
-            {"key" : -1},
-            {"key" : 7}
-        ]
+        self.v = [{"key" : 1},
+                  {"key" : 0},
+                  {"key" : 5},
+                  {"key" : 8},
+                  {"key" : 10},
+                  {"key" : -3},
+                  {"key" : -1},
+                  {"key" : 7}]
+
         write("<append=true>" + self.table, self.v[0:2]) 
         write("<append=true>" + self.table, self.v[2:4]) 
         write("<append=true>" + self.table, self.v[4:6]) 
@@ -138,15 +132,13 @@ class TestSchedulerEraseCommands(YTEnvSetup):
 ###############################################################
 
     def test_by_key(self):
-        v = \
-        [
-            {"key": -100, "value": 20},
-            {"key": -5, "value": 1},
-            {"key": 0, "value": 76},
-            {"key": 10, "value": 10},
-            {"key": 42, "value": 124},
-            {"key": 100500, "value": -20},
-        ]
+        v = [{"key": -100, "value": 20},
+             {"key": -5, "value": 1},
+             {"key": 0, "value": 76},
+             {"key": 10, "value": 10},
+             {"key": 42, "value": 124},
+             {"key": 100500, "value": -20}]
+
         create("table", "//tmp/table")
         write("//tmp/table", v, sorted_by="key")
 

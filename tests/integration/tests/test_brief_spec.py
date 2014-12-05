@@ -1,11 +1,5 @@
-import pytest
-import sys
-import time
-
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
-from yt.yson import to_yson_type
-
 
 ##################################################################
 
