@@ -5,11 +5,13 @@ from yt.common import YtError, flatten, update
 import pytest
 
 import sys
-
 import time
-from datetime import datetime
 
+from datetime import datetime
 from cStringIO import StringIO
+
+
+###########################################################################
 
 only_linux = pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
 
@@ -454,4 +456,3 @@ def get_racks():
 def get_nodes():
     return ls('//sys/nodes')
 
-#########################################
