@@ -15,8 +15,6 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     def do_run_test(self, method):
-        tx = start_transaction()
-
         text = \
 """
 So, so you think you can tell Heaven from Hell,
@@ -41,6 +39,34 @@ Wish you were here.
         for s in stop_symbols:
             text = text.replace(s, " ")
 
+        mapper = """
+import sys
+
+for line in sys.stdin:
+    for word in line.lstrip("line=").split():
+        print "word=%s\\tcount=1" % word
+"""
+        reducer = """
+import sys
+
+from itertools import groupby
+
+def read():
+    for line in sys.stdin:
+        row = {}
+        fields = line.strip().split("\t")
+        for field in fields:
+            key, value = field.split("=", 1)
+            row[key] = value
+        yield row
+
+for key, rows in groupby(read(), lambda row: row["word"]):
+    count = sum(int(row["count"]) for row in rows)
+    print "word=%s\\tcount=%s" % (key, count)
+"""
+
+        tx = start_transaction()
+
         create("table", "//tmp/t_in", tx=tx)
         create("table", "//tmp/t_map_out", tx=tx)
         create("table", "//tmp/t_reduce_in", tx=tx)
@@ -53,10 +79,8 @@ Wish you were here.
         create("file", "//tmp/mapper.py")
         create("file", "//tmp/reducer.py")
 
-        upload_file("//tmp/yt_streaming.py", os.path.join(TOOLS_ROOTDIR, "yt_streaming.py"), tx=tx)
-        upload_file("//tmp/mapper.py", os.path.join(TOOLS_ROOTDIR, "wc_mapper.py"), tx=tx)
-        upload_file("//tmp/reducer.py", os.path.join(TOOLS_ROOTDIR, "wc_reducer.py"), tx=tx)
-
+        upload("//tmp/mapper.py", mapper, tx=tx)
+        upload("//tmp/reducer.py", reducer, tx=tx)
 
         if method == "map_sort_reduce":
             map(in_="//tmp/t_in",
