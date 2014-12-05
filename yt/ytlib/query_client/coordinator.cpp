@@ -61,16 +61,16 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
             commonPrefixSize++;
             if (keyRange.first[commonPrefixSize - 1] != keyRange.second[commonPrefixSize - 1]) {
                 break;
-            }   
+            }
         }
 
         if (query->Predicate) {
             subquery->Predicate = RefinePredicate(keyRange, commonPrefixSize, query->Predicate, subquery->KeyColumns);
-        }        
+        }
 
         // Set group clause
         subquery->GroupClause = query->GroupClause;
-        
+
         // Set project clause
         if (!query->GroupClause) {
             subquery->ProjectClause = query->ProjectClause;
@@ -164,7 +164,7 @@ TKeyRange GetRange(const TDataSplits& splits)
     if (!splits.empty()) {
         TKeyRange keyRange = GetBothBoundsFromDataSplit(splits[0]);
         auto keyColumns = GetKeyColumnsFromDataSplit(splits[0]);
-                    
+
         for (size_t i = 1; i < splits.size(); ++i) {
             keyRange = Unite(keyRange, GetBothBoundsFromDataSplit(splits[i]));
         }

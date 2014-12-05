@@ -176,7 +176,7 @@ public:
                 auto mergingReader = CreateSchemafulMergingReader(bottomSplitReaders);
 
                 auto pipe = New<TSchemafulPipe>();
-                
+
                 auto result = BIND(&TEvaluator::Run, Evaluator_)
                     .Guarded()
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
@@ -190,7 +190,7 @@ public:
 
                 splitReaders.push_back(pipe->GetReader());
                 subqueriesStatistics.push_back(result);
-            }                    
+            }
         }
 
         auto mergingReader = CreateSchemafulMergingReader(splitReaders);
@@ -205,10 +205,10 @@ public:
         for (auto const& subqueryStatistics : subqueriesStatistics) {
             if (subqueryStatistics.IsSet()) {
                 queryStatistics += subqueryStatistics.Get().ValueOrThrow();
-            }            
+            }
         }
-        
-        return queryStatistics; 
+
+        return queryStatistics;
     }
 
     // IExecutor implementation.
@@ -353,7 +353,7 @@ public:
         return result;
     }
 
-    virtual TGroupedDataSplits Regroup(
+    TGroupedDataSplits Regroup(
         const TDataSplits& splits,
         TNodeDirectoryPtr nodeDirectory)
     {
@@ -424,7 +424,7 @@ public:
 private:
     TQueryAgentConfigPtr Config_;
     TBootstrap* Bootstrap_;
-    
+
     TEvaluatorPtr Evaluator_;
 
     ISchemafulReaderPtr DoGetChunkReader(
