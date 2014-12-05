@@ -39,7 +39,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             out=['<sorted_by=[key]>//tmp/out'],
             command='uniq',
             reduce_by='key',
-            spec={"reducer": {"format": "<line_prefix=tskv>dsv"},
+            spec={"reducer": {"format": yson.loads("<line_prefix=tskv>dsv")},
                   "data_size_per_job": 1})
 
         assert read('//tmp/out') == \

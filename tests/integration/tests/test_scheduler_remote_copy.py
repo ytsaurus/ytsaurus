@@ -46,40 +46,40 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         create("table", "//tmp/t1", driver=self.remote_driver)
         create("table", "//tmp/t2")
 
-        remote_copy(in_='//tmp/t1', out='//tmp/t2', spec={"cluster_name": "remote"})
+        remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
 
         assert read("//tmp/t2") == []
 
     def test_non_empty_table(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
-        write('//tmp/t1', {"a": "b"}, driver=self.remote_driver)
+        write("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
         create("table", "//tmp/t2")
 
-        remote_copy(in_='//tmp/t1', out='//tmp/t2', spec={"cluster_name": "remote"})
+        remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
 
         assert read("//tmp/t2") == [{"a": "b"}]
 
     def test_multi_chunk_table(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
-        write('<append=true>//tmp/t1', {"a": "b"}, driver=self.remote_driver)
-        write('<append=true>//tmp/t1', {"c": "d"}, driver=self.remote_driver)
+        write("<append=true>//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+        write("<append=true>//tmp/t1", {"c": "d"}, driver=self.remote_driver)
 
         create("table", "//tmp/t2")
 
-        remote_copy(in_='//tmp/t1', out='//tmp/t2', spec={"cluster_name": "remote"})
+        remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
 
         assert sorted(read("//tmp/t2")) == [{"a": "b"}, {"c": "d"}]
         assert get("//tmp/t2/@chunk_count") == 2
 
     def test_multiple_jobs(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
-        write('<append=true>//tmp/t1', {"a": "b"}, driver=self.remote_driver)
-        write('<append=true>//tmp/t1', {"c": "d"}, driver=self.remote_driver)
+        write("<append=true>//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+        write("<append=true>//tmp/t1", {"c": "d"}, driver=self.remote_driver)
 
         create("table", "//tmp/t2")
 
-        remote_copy(in_='//tmp/t1', out='//tmp/t2', spec={"cluster_name": "remote", "job_count": 2})
+        remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote", "job_count": 2})
 
         assert sorted(read("//tmp/t2")) == [{"a": "b"}, {"c": "d"}]
         assert get("//tmp/t2/@chunk_count") == 2
@@ -92,17 +92,17 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         create("table", "//tmp/t2")
 
-        remote_copy(in_='//tmp/t1', out='//tmp/t2', spec={"cluster_name": "remote"})
+        remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
 
         assert read("//tmp/t2") == [{"a": "b"}, {"c": "d"}]
 
     def test_sorted_table(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
-        write('//tmp/t1', [{"a": "b"}, {"a": "c"}], sorted_by="a", driver=self.remote_driver)
+        write("//tmp/t1", [{"a": "b"}, {"a": "c"}], sorted_by="a", driver=self.remote_driver)
 
         create("table", "//tmp/t2")
 
-        remote_copy(in_='//tmp/t1', out='//tmp/t2', spec={"cluster_name": "remote"})
+        remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
 
         assert read("//tmp/t2") == [{"a": "b"}, {"a": "c"}]
         assert get("//tmp/t2/@sorted_by") == ["a"]
@@ -114,7 +114,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         create("table", "//tmp/t2")
 
-        remote_copy(in_='//tmp/t1', out='//tmp/t2', spec={"cluster_name": "remote"})
+        remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
 
         assert read("//tmp/t2") == [{"a": "b"}]
 
@@ -122,10 +122,10 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         def set_banned_flag(value):
             if value:
                 flag = True
-                state = 'offline'
+                state = "offline"
             else:
                 flag = False
-                state = 'online'
+                state = "online"
 
             address = get("//sys/nodes", driver=self.remote_driver).keys()[0]
             set("//sys/nodes/%s/@banned" % address, flag, driver=self.remote_driver)
@@ -136,14 +136,14 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         create("table", "//tmp/t1", driver=self.remote_driver)
         set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)
-        write('//tmp/t1', {"a": "b"}, driver=self.remote_driver)
+        write("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
         set_banned_flag(True)
 
         time.sleep(1)
 
         create("table", "//tmp/t2")
-        op_id = remote_copy(dont_track=True, in_='//tmp/t1', out='//tmp/t2',
+        op_id = remote_copy(dont_track=True, in_="//tmp/t1", out="//tmp/t2",
                             spec={"cluster_name": "remote",
                                   "unavailable_chunk_strategy": "wait",
                                   "network_name": "default"})
@@ -161,7 +161,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         create("table", "//tmp/t2")
 
-        op_id = remote_copy(dont_track=True, in_='//tmp/t1', out='//tmp/t2',
+        op_id = remote_copy(dont_track=True, in_="//tmp/t1", out="//tmp/t2",
                             spec={"cluster_name": "remote"})
 
         self.Env._kill_service("scheduler")
@@ -170,7 +170,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         track_op(op_id)
 
-        assert read('//tmp/t2') == [{"a" : "b"}]
+        assert read("//tmp/t2") == [{"a" : "b"}]
 
     def test_failed_cases(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
@@ -179,32 +179,32 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         create("table", "//tmp/t2")
 
         with pytest.raises(YtError):
-            remote_copy(in_='//tmp/t1', out='//tmp/t2', spec={"cluster_name": "unexisting"})
+            remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "unexisting"})
 
         with pytest.raises(YtError):
-            remote_copy(in_='//tmp/t1', out='//tmp/t2', spec={"cluster_name": "remote", "network_name": "unexisting"})
+            remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote", "network_name": "unexisting"})
 
         with pytest.raises(YtError):
-            remote_copy(in_='//tmp/t1', out='//tmp/unexisting', spec={"cluster_name": "remote"})
+            remote_copy(in_="//tmp/t1", out="//tmp/unexisting", spec={"cluster_name": "remote"})
 
-        write('//tmp/t1', [{"a": "b"}, {"c": "d"}], driver=self.remote_driver)
+        write("//tmp/t1", [{"a": "b"}, {"c": "d"}], driver=self.remote_driver)
         with pytest.raises(YtError):
-            remote_copy(in_='//tmp/t1[:#1]', out='//tmp/unexisting', spec={"cluster_name": "remote"})
+            remote_copy(in_="//tmp/t1[:#1]", out="//tmp/unexisting", spec={"cluster_name": "remote"})
 
     def test_acl(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
         create("table", "//tmp/t2")
 
-        create_user('u')
-        create_user('u', driver=self.remote_driver)
+        create_user("u")
+        create_user("u", driver=self.remote_driver)
 
-        remote_copy(in_='//tmp/t1', out='//tmp/t2', spec={"cluster_name": "remote"}, user="u")
+        remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"}, user="u")
 
         set("//tmp/t1/@acl/end", {"action": "deny", "subjects": ["u"], "permissions": ["read"]}, driver=self.remote_driver)
         with pytest.raises(YtError):
-            remote_copy(in_='//tmp/t1', out='//tmp/t2', spec={"cluster_name": "remote"}, user="u")
+            remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"}, user="u")
         set("//tmp/t1/@acl", [], driver=self.remote_driver)
 
         set("//sys/schemas/transaction/@acl/end", {"action": "deny", "subjects": ["u"], "permissions": ["create"]}, driver=self.remote_driver)
         with pytest.raises(YtError):
-            remote_copy(in_='//tmp/t1', out='//tmp/t2', spec={"cluster_name": "remote"}, user="u")
+            remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"}, user="u")
