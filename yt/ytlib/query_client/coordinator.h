@@ -15,7 +15,8 @@ namespace NQueryClient {
 
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     const TConstQueryPtr& query,
-    const std::vector<TKeyRange>& ranges);
+    const std::vector<TKeyRange>& ranges,
+    bool pushdownGroupClause = true);
 
 TDataSplits GetPrunedSplits(
     const TConstQueryPtr& query,

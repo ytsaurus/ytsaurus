@@ -34,7 +34,8 @@ using namespace NVersionedTableClient;
 
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     const TConstQueryPtr& query,
-    const std::vector<TKeyRange>& ranges)
+    const std::vector<TKeyRange>& ranges,
+    bool pushdownGroupClause)
 {
     auto Logger = BuildLogger(query);
 
@@ -68,12 +69,11 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
             subquery->Predicate = RefinePredicate(keyRange, commonPrefixSize, query->Predicate, subquery->KeyColumns);
         }
 
-        // Set group clause
-        subquery->GroupClause = query->GroupClause;
-
-        // Set project clause
-        if (!query->GroupClause) {
-            subquery->ProjectClause = query->ProjectClause;
+        if (pushdownGroupClause) {
+            subquery->GroupClause = query->GroupClause;
+            if (!query->GroupClause) {
+                subquery->ProjectClause = query->ProjectClause;
+            }
         }
 
         subqueries.push_back(subquery);
@@ -86,27 +86,31 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     if (query->GroupClause) {
         topQuery->TableSchema = query->GroupClause->GetTableSchema();
 
-        topQuery->GroupClause.Emplace();
+        if (pushdownGroupClause) {
+            topQuery->GroupClause.Emplace();
 
-        auto& finalGroupItems = topQuery->GroupClause->GroupItems;
-        for (const auto& groupItem : query->GroupClause->GroupItems) {
-            auto referenceExpr = New<TReferenceExpression>(
-                NullSourceLocation,
-                groupItem.Expression->Type,
-                groupItem.Name);
-            finalGroupItems.emplace_back(std::move(referenceExpr), groupItem.Name);
-        }
+            auto& finalGroupItems = topQuery->GroupClause->GroupItems;
+            for (const auto& groupItem : query->GroupClause->GroupItems) {
+                auto referenceExpr = New<TReferenceExpression>(
+                    NullSourceLocation,
+                    groupItem.Expression->Type,
+                    groupItem.Name);
+                finalGroupItems.emplace_back(std::move(referenceExpr), groupItem.Name);
+            }
 
-        auto& finalAggregateItems = topQuery->GroupClause->AggregateItems;
-        for (const auto& aggregateItem : query->GroupClause->AggregateItems) {
-            auto referenceExpr = New<TReferenceExpression>(
-                NullSourceLocation,
-                aggregateItem.Expression->Type,
-                aggregateItem.Name);
-            finalAggregateItems.emplace_back(
-                std::move(referenceExpr),
-                aggregateItem.AggregateFunction,
-                aggregateItem.Name);
+            auto& finalAggregateItems = topQuery->GroupClause->AggregateItems;
+            for (const auto& aggregateItem : query->GroupClause->AggregateItems) {
+                auto referenceExpr = New<TReferenceExpression>(
+                    NullSourceLocation,
+                    aggregateItem.Expression->Type,
+                    aggregateItem.Name);
+                finalAggregateItems.emplace_back(
+                    std::move(referenceExpr),
+                    aggregateItem.AggregateFunction,
+                    aggregateItem.Name);
+            }
+        } else {
+            topQuery->GroupClause = query->GroupClause;
         }
 
         topQuery->ProjectClause = query->ProjectClause;

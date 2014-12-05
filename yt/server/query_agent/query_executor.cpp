@@ -156,7 +156,7 @@ public:
         TConstQueryPtr topQuery;
         std::vector<TConstQueryPtr> subqueries;
 
-        std::tie(topQuery, subqueries) = CoordinateQuery(query, ranges);
+        std::tie(topQuery, subqueries) = CoordinateQuery(query, ranges, false);
 
         std::vector<ISchemafulReaderPtr> splitReaders;
         std::vector<TFuture<TErrorOr<TQueryStatistics>>> subqueriesStatistics;
