@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/intrusive_ptr.h>
+#include <core/misc/common.h>
 
 namespace NYT {
 namespace NCodegen {
