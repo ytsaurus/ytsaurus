@@ -42,17 +42,17 @@ Simple examples:
 
 from collections import Iterable, Mapping
 
-from yson_types import YsonEntity
+from yson_types import YsonEntity, YsonBoolean
 
 __all__ = ["dump", "dumps"]
 
-def dump(object, stream, yson_format=None, indent=None, check_circular=True, encoding='utf-8', yson_type=None):
+def dump(object, stream, yson_format=None, indent=None, check_circular=True, encoding='utf-8', yson_type=None, boolean_as_string=True):
     '''Serialize ``object`` as a Yson formatted stream to ``fp`` (a
     ``.write()``-supporting file-like object).'''
-    stream.write(dumps(object, yson_format=yson_format, check_circular=check_circular, encoding=encoding, indent=indent, yson_type=yson_type))
+    stream.write(dumps(object, yson_format=yson_format, check_circular=check_circular, encoding=encoding, indent=indent, yson_type=yson_type, boolean_as_string=boolean_as_string))
 
 
-def dumps(object, yson_format=None, indent=None, check_circular=True, encoding='utf-8', yson_type=None):
+def dumps(object, yson_format=None, indent=None, check_circular=True, encoding='utf-8', yson_type=None, boolean_as_string=True):
     '''Serialize ``object`` as a Yson formatted string'''
     if indent is None:
         indent = 4
@@ -65,13 +65,14 @@ def dumps(object, yson_format=None, indent=None, check_circular=True, encoding='
     if yson_format == "text":
         indent = None
 
-    d = Dumper(check_circular, encoding, indent, yson_type)
+    d = Dumper(check_circular, encoding, indent, yson_type, boolean_as_string)
     return d.dumps(object)
 
 
 class Dumper(object):
-    def __init__(self, check_circular, encoding, indent, yson_type):
+    def __init__(self, check_circular, encoding, indent, yson_type, boolean_as_string):
         self.yson_type = yson_type
+        self.boolean_as_string = boolean_as_string
 
         self._seen_objects = None
         if check_circular:
@@ -89,10 +90,16 @@ class Dumper(object):
             attributes = self._dump_attributes(obj.attributes)
 
         result = None
-        if obj is False:
-            result = "%false"
-        elif obj is True:
-            result = "%true"
+        if obj is False or (isinstance(obj, YsonBoolean) and not obj):
+            if self.boolean_as_string:
+                result = '"false"'
+            else:
+                result = "%false"
+        elif obj is True or (isinstance(obj, YsonBoolean) and obj):
+            if self.boolean_as_string:
+                result = '"true"'
+            else:
+                result = "%true"
         elif isinstance(obj, (int, long, float)):
             result = str(obj)
         elif isinstance(obj, basestring):
