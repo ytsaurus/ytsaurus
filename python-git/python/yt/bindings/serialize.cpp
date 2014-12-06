@@ -87,7 +87,7 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
             Serialize(*it, consumer, ignoreInnerAttributes, depth + 1);
         }
         consumer->OnEndList();
-    } else if (obj.isBoolean()) {
+    } else if (obj.isBoolean() || IsInstance(obj, GetYsonType("YsonBoolean"))) {
         consumer->OnBooleanScalar(Py::Boolean(obj));
     } else if (obj.isInteger() or PyLong_Check(obj.ptr())) {
         if (PyObject_Compare(Py::Long(std::numeric_limits<ui64>::max()).ptr(), obj.ptr()) < 0 ||
