@@ -3,7 +3,6 @@
 from yt.common import require, flatten, update, which, YtError, update_from_env
 import yt.yson as yson
 
-import sys
 import random
 from datetime import datetime
 from itertools import ifilter, chain
@@ -28,6 +27,11 @@ def parse_bool(word):
     """convert 'true' and 'false' and something like this to Python bool
 
     Raise `YtError` if input word is incorrect."""
+
+    # Compatibility with api/v3
+    if word is False or word is True or isinstance(word, yson.YsonBoolean):
+        return word
+
     word = word.lower()
     if word == "true":
         return True
@@ -41,6 +45,8 @@ def bool_to_string(bool_value):
 
     Raise `YtError` if value is incorrect.
     """
+    if bool_value in ["false", "true"]:
+        return bool_value
     if bool_value not in [False, True]:
         raise YtError("Incorrect bool value '{0}'".format(bool_value))
     if bool_value:

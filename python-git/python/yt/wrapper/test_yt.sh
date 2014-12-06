@@ -181,7 +181,7 @@ test_sorted_by()
 {
     echo "x=y" | ./yt write "<sorted-by=[x]>//home/wrapper_test/table" --format dsv
     echo "x=z" | ./yt write "<sorted_by=[x]>//home/wrapper_test/table" --format dsv
-    check "$(./yt get //home/wrapper_test/table/@sorted)" '"true"'
+    check "$(./yt get //home/wrapper_test/table/@sorted)" "$TRUE"
 }
 
 test_transactions()

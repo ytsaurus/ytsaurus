@@ -3,6 +3,7 @@ import config
 import yt.logger as logger
 from common import require, get_backoff, get_value
 from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, build_response_error, YtRequestRateLimitExceeded
+from command import parse_commands
 
 import os
 import string
@@ -156,10 +157,32 @@ def get_proxy_url(proxy=None, client=None):
 
     return proxy
 
-def get_api(proxy, version=None, client=None):
-    proxy = get_proxy_url(proxy)
-    location = "api" if version is None else "api/" + version
-    return make_get_request_with_retries("http://{0}/{1}".format(proxy, location))
+def get_api(client=None):
+    def _request_api(proxy, version=None, client=None):
+        proxy = get_proxy_url(proxy)
+        location = "api" if version is None else "api/" + version
+        return make_get_request_with_retries("http://{0}/{1}".format(proxy, location))
+
+    proxy = get_proxy_url(client=client)
+    if client is None:
+        client_provider = config
+    else:
+        client_provider = client
+
+    if not hasattr(client_provider, "COMMANDS") or not client_provider.COMMANDS:
+        versions = _request_api(proxy)
+        if hasattr(client_provider, "VERSION"):
+            version = client_provider.VERSION
+        elif "v3" in versions:
+            version = "v3"
+        else:
+            version = "v2"
+        require(version in versions, YtError("Old versions of API are not supported"))
+
+        client_provider.VERSION = version
+        client_provider.COMMANDS = parse_commands(_request_api(proxy, version=version))
+
+    return client_provider.VERSION, client_provider.COMMANDS
 
 def get_token(client=None):
     token = None

@@ -524,7 +524,7 @@ Examples:
         yt.mkdir(os.path.dirname(args.upload))
         yt.upload_file(sys.stdin, args.upload)
         if args.executable:
-            yt.set_attribute(args.upload, "executable", "true")
+            yt.set_attribute(args.upload, "executable", bool_to_string(True))
     if args.download is not None:
         if yt.exists(args.download):
             writelines_silently(yt.download_file(args.download, response_type="iter_content"))

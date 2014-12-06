@@ -55,7 +55,7 @@ def test_reliable_remove_tempfiles():
         shutil.rmtree(yt.config.LOCAL_TMP_DIR)
         yt.config.LOCAL_TMP_DIR = old_tmp_dir
 
-class TestNativeMode(YtTestBase, YTEnv):
+class NativeModeTester(YtTestBase, YTEnv):
     @classmethod
     def setup_class(cls):
         YtTestBase._setup_class(YTEnv)
@@ -324,10 +324,19 @@ class TestNativeMode(YtTestBase, YTEnv):
         self.assertItemsEqual([record], map(yt.loads_row, yt.read_table(table)))
 
     def test_yt_binary(self):
+        env = self.get_environment()
+        if yt.config.VERSION == "v2":
+            env["FALSE"] = '"false"'
+            env["TRUE"] = '"true"'
+        else:
+            env["FALSE"] = '"false"'
+            env["TRUE"] = '"true"'
+
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        bash_cmd = "YT_USE_TOKEN=0 YT_PROXY=%s %s" % (yt.config.http.PROXY,
-                                                      os.path.join(current_dir, "../test_yt.sh"))
-        proc = subprocess.Popen(bash_cmd, shell=True)
+        proc = subprocess.Popen(
+            os.path.join(current_dir, "../test_yt.sh"),
+            shell=True,
+            env=env)
         proc.communicate()
         self.assertEqual(proc.returncode, 0)
 
@@ -512,40 +521,48 @@ class TestNativeMode(YtTestBase, YTEnv):
         yt.run_map(foo, table, table, format=yt.SchemedDsvFormat(columns=["x"]))
         self.check(["x=1\n", "x=\\n\n"], sorted(list(yt.read_table(table))))
 
-    # TODO(sandello): Enable this test once we migrate to API/v3.
-    #def test_mount_unmount(self):
-    #    table = TEST_DIR + "/table"
-    #    yt.create_table(table)
-    #    yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
-    #    yt.set(table + "/@key_columns", ["x"])
+    def test_mount_unmount(self):
+        if yt.config.VERSION == "v2":
+            return
 
-    #    tablet_id = yt.create("tablet_cell", attributes={"size": 1})
-    #    while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
-    #        time.sleep(0.1)
+        table = TEST_DIR + "/table"
+        yt.create_table(table)
+        yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
+        yt.set(table + "/@key_columns", ["x"])
 
-    #    yt.mount_table(table)
-    #    while yt.get("{0}/@tablets/0/state".format(table)) != 'mounted':
-    #        time.sleep(0.1)
+        tablet_id = yt.create("tablet_cell", attributes={"size": 1})
+        while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
+            time.sleep(0.1)
 
-    #    yt.unmount_table(table)
-    #    while yt.get("{0}/@tablets/0/state".format(table)) != 'unmounted':
-    #        time.sleep(0.1)
+        yt.mount_table(table)
+        while yt.get("{0}/@tablets/0/state".format(table)) != 'mounted':
+            time.sleep(0.1)
 
-    #def test_select(self):
-    #    table = TEST_DIR + "/table"
+        yt.unmount_table(table)
+        while yt.get("{0}/@tablets/0/state".format(table)) != 'unmounted':
+            time.sleep(0.1)
 
-    #    yt.create_table(table)
-    #    yt.run_sort(table, sort_by=["x"])
+    def test_select(self):
+        if yt.config.VERSION == "v2":
+            return
 
-    #    yt.set(table + "/@schema", [{"name": name, "type": "integer"} for name in ["x", "y", "z"]])
-    #    yt.set(table + "/@key_columns", ["x"])
+        table = TEST_DIR + "/table"
 
-    #    self.check([], yt.select("x from [{}]".format(table)))
+        def select():
+            return list(yt.select("* from [{}]".format(table), format=yt.YsonFormat(format="text", process_table_index=False), raw=False))
 
-    #    yt.write_table(yt.TablePath(table, append=True, sorted_by=True),
-    #                   ["{x=1;y=2;z=3}"], format=yt.YsonFormat())
+        yt.create_table(table)
+        yt.run_sort(table, sort_by=["x"])
 
-    #    self.check(["{x=1;y=2;z=3}"], list(yt.select("x from {}".format(table))))
+        yt.set(table + "/@schema", [{"name": name, "type": "int64"} for name in ["x", "y", "z"]])
+        yt.set(table + "/@key_columns", ["x"])
+
+        assert [] == select()
+
+        yt.write_table(yt.TablePath(table, append=True, sorted_by=["x"]),
+                       ["{x=1;y=2;z=3}"], format=yt.YsonFormat())
+
+        assert [{"x": 1, "y": 2, "z": 3}] == select()
 
     def test_lenval_python_operations(self):
         def foo(rec):
@@ -651,3 +668,26 @@ class ChangeX__(object):
         if "x" in rec:
             rec["x"] = int(rec["x"]) + 1
         yield rec
+
+class TestNativeModeV2(NativeModeTester):
+    @classmethod
+    def setup_class(cls):
+        NativeModeTester.setup_class()
+        yt.config.VERSION = "v2"
+        yt.config.COMMANDS = None
+
+    @classmethod
+    def teardown_class(cls):
+        NativeModeTester.teardown_class()
+
+class TestNativeModeV3(NativeModeTester):
+    @classmethod
+    def setup_class(cls):
+        NativeModeTester.setup_class()
+        yt.config.VERSION = "v3"
+        yt.config.COMMANDS = None
+
+    @classmethod
+    def teardown_class(cls):
+        NativeModeTester.teardown_class()
+
