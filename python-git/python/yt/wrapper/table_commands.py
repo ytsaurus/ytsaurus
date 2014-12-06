@@ -716,8 +716,11 @@ def is_sorted(table, client=None):
     if config.USE_YAMR_SORT_REDUCE_COLUMNS:
         return get_sorted_by(table, [], client=client) == ["key", "subkey"]
     else:
-        return parse_bool(get_attribute(to_name(table, client=client),
-                          "sorted", default="false", client=client))
+        return parse_bool(
+            get_attribute(to_name(table, client=client),
+                          "sorted",
+                          default="false",
+                          client=client))
 
 def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=None, client=None):
     """Mount table (or a part of it).  NB! This command is not currently supported! The feature is coming with 0.17+ version!
@@ -954,7 +957,7 @@ class Finalizer(object):
 
         if config.MERGE_INSTEAD_WARNING:
             run_merge(source_table=table, destination_table=table, mode=mode,
-                      spec={"combine_chunks": "true", "data_size_per_job": data_size_per_job},
+                      spec={"combine_chunks": bool_to_string(True), "data_size_per_job": data_size_per_job},
                       client=self.client)
         else:
             logger.info("Chunks of output table {0} are too small. "

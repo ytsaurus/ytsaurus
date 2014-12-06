@@ -2,6 +2,7 @@
 
 from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
 
+from yt.wrapper.common import parse_bool, bool_to_string
 from yt.wrapper.cli_helpers import writelines_silently, run_main
 import yt.wrapper as yt
 import yt.yson as yson
@@ -198,7 +199,7 @@ def list(**args):
     list_args.pop("long_format")
     list = yt.list(**list_args)
     if args["format"] is None:
-        if list.attributes.get("incomplete", "false") == "true":
+        if parse_bool(list.attributes.get("incomplete", "false")):
             print >> sys.stderr, "List is incomplete!"
         if args["attributes"] is not None:
             print >> sys.stderr, "Attributes are ignored if format is not specified!"
@@ -274,7 +275,7 @@ def upload(**args):
     func_args.pop("executable")
     yt.upload_file(sys.stdin, **func_args)
     if args["executable"]:
-        yt.set(args["destination"] + "/@executable", "true")
+        yt.set(args["destination"] + "/@executable", bool_to_string(True))
 
 def add_upload_parser(add_parser):
     parser = add_parser("upload", yt.upload_file)

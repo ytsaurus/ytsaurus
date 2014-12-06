@@ -384,14 +384,14 @@ test_slow_write()
 test_dstsorted()
 {
     echo -e "x\t10\ny\t15" | ./mapreduce -writesorted ignat/some_table
-    check '"true"' "`./mapreduce -get ignat/some_table/@sorted`"
+    check "$TRUE" "`./mapreduce -get ignat/some_table/@sorted`"
 
     ./mapreduce -reduce "grep x" -src ignat/some_table -dstsorted ignat/some_table
-    check '"true"' "`./mapreduce -get ignat/some_table/@sorted`"
+    check "$TRUE" "`./mapreduce -get ignat/some_table/@sorted`"
 
     echo -e "x\t10\ny\t15" | ./mapreduce -write ignat/some_table
     ./mapreduce -reduce "grep x" -src ignat/some_table -dstsorted ignat/some_table
-    check '"true"' "`./mapreduce -get ignat/some_table/@sorted`"
+    check "$TRUE" "`./mapreduce -get ignat/some_table/@sorted`"
 
     check_failed "./mapreduce -map cat -src ignat/some_table -dstsorted ignat/some_table -format dsv"
 }

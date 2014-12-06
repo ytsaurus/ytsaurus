@@ -67,6 +67,8 @@ PYTHON_CREATE_MODULES_ARCHIVE = None
 MUTATION_ID = None
 TRACE = None
 
+VERSION = "v2"
+
 common.update_from_env(globals())
 
 from format import YamrFormat
