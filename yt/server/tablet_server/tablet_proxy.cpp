@@ -12,6 +12,8 @@
 
 #include <server/table_server/table_node.h>
 
+#include <server/chunk_server/chunk_list.h>
+
 #include <server/cell_master/bootstrap.h>
 
 namespace NYT {
@@ -46,6 +48,7 @@ private:
         attributes->push_back("index");
         attributes->push_back("table_id");
         attributes->push_back("pivot_key");
+        attributes->push_back("chunk_list_id");
         attributes->push_back(TAttributeInfo("cell_id", tablet->GetCell()));
         TBase::ListSystemAttributes(attributes);
     }
@@ -53,6 +56,7 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* tablet = GetThisTypedImpl();
+        const auto* table = tablet->GetTable();
 
         if (key == "state") {
             BuildYsonFluently(consumer)
@@ -68,13 +72,19 @@ private:
 
         if (key == "table_id") {
             BuildYsonFluently(consumer)
-                .Value(tablet->GetTable()->GetId());
+                .Value(table->GetId());
             return true;
         }
 
         if (key == "pivot_key") {
             BuildYsonFluently(consumer)
                 .Value(tablet->GetPivotKey());
+            return true;
+        }
+
+        if (key == "chunk_list_id") {
+            BuildYsonFluently(consumer)
+                .Value(table->GetChunkList()->Children()[tablet->GetIndex()]->GetId());
             return true;
         }
 
