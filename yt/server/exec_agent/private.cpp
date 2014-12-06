@@ -6,7 +6,7 @@ namespace NExecAgent {
 
 ////////////////////////////////////////////////////////////////////
 
-NLog::TLogger ExecAgentLogger("ExecAgent");
+const NLog::TLogger ExecAgentLogger("ExecAgent");
 NProfiling::TProfiler ExecAgentProfiler("/exec_agent");
 
 const Stroka SandboxDirectoryName("sandbox");

@@ -99,7 +99,7 @@ struct THandlerInvocationOptions
 ////////////////////////////////////////////////////////////////////////////////
 
 // We need this logger here but including the whole private.h looks weird.
-extern NLog::TLogger RpcServerLogger;
+extern const NLog::TLogger RpcServerLogger;
 
 //! Provides a common base for both one-way and two-way contexts.
 template <class TRequestMessage>
@@ -143,7 +143,7 @@ public:
     }
 
 protected:
-    NLog::TLogger& Logger;
+    NLog::TLogger Logger;
     THandlerInvocationOptions Options_;
 
     typename TObjectPool<TTypedRequest>::TValuePtr Request_;
@@ -153,7 +153,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 // We need this logger here but including the whole private.h looks weird.
-extern NLog::TLogger RpcServerLogger;
+extern const NLog::TLogger RpcServerLogger;
 
 //! Describes a two-way context.
 template <class TRequestMessage, class TResponseMessage>

@@ -40,8 +40,8 @@ class TOperationControllerBase;
 
 extern const double ApproximateSizesBoostFactor;
 
-extern NLog::TLogger SchedulerLogger;
-extern NLog::TLogger OperationLogger;
+extern const NLog::TLogger SchedulerLogger;
+extern const NLog::TLogger OperationLogger;
 extern NProfiling::TProfiler SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////

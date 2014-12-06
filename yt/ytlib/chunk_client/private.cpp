@@ -10,7 +10,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger ChunkClientLogger("ChunkClient");
+const NLog::TLogger ChunkClientLogger("ChunkClient");
 
 NRpc::IChannelFactoryPtr LightNodeChannelFactory(
     NRpc::CreateCachingChannelFactory(NRpc::GetBusChannelFactory()));
@@ -18,7 +18,7 @@ NRpc::IChannelFactoryPtr LightNodeChannelFactory(
 NRpc::IChannelFactoryPtr HeavyNodeChannelFactory(
     NRpc::CreateCachingChannelFactory(NRpc::GetBusChannelFactory()));
 
-const char* const ChunkMetaSuffix = ".meta";
+const Stroka ChunkMetaSuffix(".meta");
 
 ////////////////////////////////////////////////////////////////////////////////
 

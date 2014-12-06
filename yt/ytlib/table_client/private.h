@@ -12,7 +12,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger TableClientLogger;
+extern const NLog::TLogger TableClientLogger;
 
 NVersionedTableClient::TUnversionedValue MakeKeyPart(const TStringBuf& yson, NYson::TStatelessLexer& lexer);
 

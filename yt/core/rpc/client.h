@@ -126,7 +126,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 // We need this logger here but including the whole private.h looks weird.
-extern NLog::TLogger RpcClientLogger;
+extern const NLog::TLogger RpcClientLogger;
 
 template <class TRequestMessage, class TResponse>
 class TTypedClientRequest

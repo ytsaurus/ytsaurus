@@ -9,7 +9,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger ChunkClientLogger;
+extern const NLog::TLogger ChunkClientLogger;
 
 //! For heavy requests (e.g. PutBlocks).
 extern NRpc::IChannelFactoryPtr HeavyNodeChannelFactory;
@@ -26,7 +26,7 @@ const i64 ChunkReaderMemorySize = (i64) 16 * 1024;
 typedef i64 TChunkOffset;
 
 //! A suffix to distinguish chunk meta files.
-extern const char* const ChunkMetaSuffix;
+extern const Stroka ChunkMetaSuffix;
 
 ////////////////////////////////////////////////////////////////////////////////
 

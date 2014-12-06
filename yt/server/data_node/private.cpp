@@ -10,7 +10,7 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger DataNodeLogger("DataNode");
+const NLog::TLogger DataNodeLogger("DataNode");
 NProfiling::TProfiler DataNodeProfiler("/data_node");
 
 NRpc::IChannelFactoryPtr ChannelFactory(NRpc::CreateCachingChannelFactory(NRpc::GetBusChannelFactory()));

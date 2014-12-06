@@ -67,7 +67,7 @@ protected:
     std::vector<NTableClient::ISyncReaderPtr> Inputs;
     std::vector<NTableClient::TTableChunkSequenceWriterPtr> Outputs;
 
-    NLog::TLogger& Logger;
+    NLog::TLogger Logger;
 
     template <template <typename> class TMultiChunkReader>
     std::unique_ptr<NTableClient::TTableProducer> DoCreateTableInput(

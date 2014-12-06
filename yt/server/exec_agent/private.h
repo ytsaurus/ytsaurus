@@ -8,7 +8,7 @@ namespace NExecAgent {
 
 ////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger ExecAgentLogger;
+extern const NLog::TLogger ExecAgentLogger;
 extern NProfiling::TProfiler ExecAgentProfiler;
 
 extern const Stroka ProxyConfigFileName;

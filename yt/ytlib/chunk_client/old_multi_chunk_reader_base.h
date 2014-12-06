@@ -94,7 +94,8 @@ protected:
     TSpinLock FailedChunksLock;
     std::vector<NChunkClient::TChunkId> FailedChunks;
 
-    NLog::TLogger& Logger;
+    NLog::TLogger Logger;
+
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
 
     virtual void OnReaderOpened(const TSession& session, TError error) = 0;

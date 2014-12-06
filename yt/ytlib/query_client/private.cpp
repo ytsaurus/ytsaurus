@@ -6,7 +6,7 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger QueryClientLogger("QueryClient");
+const NLog::TLogger QueryClientLogger("QueryClient");
 
 NLog::TLogger BuildLogger(const TConstQueryPtr& query)
 {

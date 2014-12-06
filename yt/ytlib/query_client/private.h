@@ -15,7 +15,7 @@ using NVersionedTableClient::TRowBuffer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger QueryClientLogger;
+extern const NLog::TLogger QueryClientLogger;
 
 NLog::TLogger BuildLogger(const TConstQueryPtr& query);
 

@@ -9,8 +9,8 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger RpcServerLogger;
-extern NLog::TLogger RpcClientLogger;
+extern const NLog::TLogger RpcServerLogger;
+extern const NLog::TLogger RpcClientLogger;
 
 extern NProfiling::TProfiler RpcServerProfiler;
 extern NProfiling::TProfiler RpcClientProfiler;

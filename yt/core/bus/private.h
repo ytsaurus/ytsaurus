@@ -13,7 +13,7 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger BusLogger;
+extern const NLog::TLogger BusLogger;
 extern NProfiling::TProfiler BusProfiler;
 
 typedef TGuid TConnectionId;
