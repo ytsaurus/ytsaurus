@@ -47,15 +47,15 @@ run_test() {
 # Directory creation, list, get and set commands
 test_tree_commands()
 {
-    check "" "`yt list //home/wrapper_test`"
-    check "" "`yt find //home/wrapper_test --name "xxx"`"
+    check "" "`./yt list //home/wrapper_test`"
+    check "" "`./yt find //home/wrapper_test --name "xxx"`"
 
     ./yt set //home/wrapper_test/folder {}
-    check "" "`yt list //home/wrapper_test/folder`"
-    check "folder" "`yt list //home/wrapper_test`"
-    check "{\"folder\"={}}" "`yt get //home/wrapper_test --format "<format=text>yson"`"
-    check "" "`yt find //home/wrapper_test --name "xxx"`"
-    check "//home/wrapper_test/folder" "`yt find //home/wrapper_test --name "folder"`"
+    check "" "`./yt list //home/wrapper_test/folder`"
+    check "folder" "`./yt list //home/wrapper_test`"
+    check "{\"folder\"={}}" "`./yt get //home/wrapper_test --format "<format=text>yson"`"
+    check "" "`./yt find //home/wrapper_test --name "xxx"`"
+    check "//home/wrapper_test/folder" "`./yt find //home/wrapper_test --name "folder"`"
 
     ./yt set //home/wrapper_test/folder/@attr '<a=b>c'
     check '<"a"="b">"c"' `./yt get //home/wrapper_test/folder/@attr --format '<format=text>yson'`
@@ -87,22 +87,22 @@ test_file_commands()
 test_copy_move_link()
 {
     ./yt create table //home/wrapper_test/table
-    check "table" "`yt list //home/wrapper_test`"
+    check "table" "`./yt list //home/wrapper_test`"
 
     ./yt copy //home/wrapper_test/table //home/wrapper_test/other_table
-    check $'other_table\ntable' "`yt list //home/wrapper_test | sort`"
+    check $'other_table\ntable' "`./yt list //home/wrapper_test | sort`"
 
     ./yt remove //home/wrapper_test/table
-    check "other_table" "`yt list //home/wrapper_test`"
+    check "other_table" "`./yt list //home/wrapper_test`"
 
     ./yt move //home/wrapper_test/other_table //home/wrapper_test/table
-    check "table" "`yt list //home/wrapper_test`"
+    check "table" "`./yt list //home/wrapper_test`"
 
     ./yt link //home/wrapper_test/table //home/wrapper_test/other_table
-    check $'other_table\ntable' "`yt list //home/wrapper_test | sort`"
+    check $'other_table\ntable' "`./yt list //home/wrapper_test | sort`"
 
     ./yt remove //home/wrapper_test/table
-    check_failed "yt read //home/wrapper_test/other_table --format dsv"
+    check_failed "./yt read //home/wrapper_test/other_table --format dsv"
 }
 
 test_merge_erase()
