@@ -33,7 +33,7 @@ private:
 
     int EventFd_;
     int Fd_;
-    bool Fired_;
+    bool Fired_ = false;
     i64 LastValue_;
 
     friend TMemory;

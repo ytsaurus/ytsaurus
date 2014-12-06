@@ -7,7 +7,6 @@ namespace NCGroup {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CGroupLogger;
 static const int InvalidFd = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,7 +14,6 @@ static const int InvalidFd = -1;
 TEvent::TEvent(int eventFd, int fd)
     : EventFd_(eventFd)
     , Fd_(fd)
-    , Fired_(false)
 { }
 
 TEvent::TEvent()
