@@ -137,6 +137,23 @@ public:
         , Evaluator_(New<TEvaluator>(Config_))
     { }
 
+    // IExecutor implementation.
+    virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
+        const TPlanFragmentPtr& fragment,
+        ISchemafulWriterPtr writer) override
+    {
+        return BIND(&TQueryExecutor::DoExecute, MakeStrong(this))
+            .Guarded()
+            .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
+            .Run(fragment, std::move(writer));
+    }
+
+private:
+    TQueryAgentConfigPtr Config_;
+    TBootstrap* Bootstrap_;
+
+    TEvaluatorPtr Evaluator_;
+
     TQueryStatistics DoExecute(
         const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer)
@@ -145,7 +162,7 @@ public:
         auto query = fragment->Query;
         auto Logger = BuildLogger(fragment->Query);
 
-        auto splits = DoSplit(GetPrunedSplits(query, fragment->DataSplits), nodeDirectory, Logger);
+        auto splits = Split(GetPrunedSplits(query, fragment->DataSplits), nodeDirectory, Logger);
 
         LOG_DEBUG("Regrouping %v splits", splits.size());
 
@@ -155,13 +172,12 @@ public:
 
         TConstQueryPtr topQuery;
         std::vector<TConstQueryPtr> subqueries;
-
         std::tie(topQuery, subqueries) = CoordinateQuery(query, ranges, false);
 
         std::vector<ISchemafulReaderPtr> splitReaders;
         std::vector<TFuture<TErrorOr<TQueryStatistics>>> subqueriesStatistics;
 
-        for (size_t subqueryIndex = 0; subqueryIndex < subqueries.size(); ++subqueryIndex) {
+        for (int subqueryIndex = 0; subqueryIndex < subqueries.size(); ++subqueryIndex) {
             if (!groupedSplits[subqueryIndex].empty()) {
                 LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
                     subqueries[subqueryIndex]->GetId());
@@ -196,9 +212,9 @@ public:
         auto mergingReader = CreateSchemafulMergingReader(splitReaders);
 
         auto asyncResultOrError = BIND(&TEvaluator::Run, Evaluator_)
-            .Guarded()
-            .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
-            .Run(topQuery, std::move(mergingReader), std::move(writer));
+                .Guarded()
+                .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
+                .Run(topQuery, std::move(mergingReader), std::move(writer));
 
         auto queryStatistics = WaitFor(asyncResultOrError).ValueOrThrow();
 
@@ -211,18 +227,7 @@ public:
         return queryStatistics;
     }
 
-    // IExecutor implementation.
-    virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
-        const TPlanFragmentPtr& fragment,
-        ISchemafulWriterPtr writer) override
-    {
-        return BIND(&TQueryExecutor::DoExecute, MakeStrong(this))
-            .Guarded()
-            .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
-            .Run(fragment, std::move(writer));
-    }
-
-    TDataSplits DoSplitFurther(
+    TDataSplits SplitFurther(
         const TDataSplit& split,
         TNodeDirectoryPtr nodeDirectory)
     {
@@ -258,6 +263,31 @@ public:
         }
 
         return subsplits;
+    }
+
+    TDataSplits Split(
+        const TDataSplits& splits,
+        TNodeDirectoryPtr nodeDirectory,
+        const NLog::TLogger& Logger)
+    {
+        TDataSplits allSplits;
+        for (const auto& split : splits) {
+            auto objectId = GetObjectIdFromDataSplit(split);
+            auto type = TypeFromId(objectId);
+
+            if (type != EObjectType::Tablet) {
+                allSplits.push_back(split);
+                continue;
+            }
+
+            auto newSplits = SplitFurther(split, nodeDirectory);
+
+            LOG_DEBUG("Got %v splits for input %v", newSplits.size(), objectId);
+
+            allSplits.insert(allSplits.end(), newSplits.begin(), newSplits.end());
+        }
+
+        return allSplits;
     }
 
     std::vector<TOwningKey> BuildSplitKeys(
@@ -365,30 +395,6 @@ public:
         return result;
     }
 
-    TDataSplits DoSplit(
-        const TDataSplits& splits,
-        TNodeDirectoryPtr nodeDirectory,
-        const NLog::TLogger& Logger)
-    {
-        TDataSplits allSplits;
-        for (const auto& split : splits) {
-            auto objectId = GetObjectIdFromDataSplit(split);
-            auto type = TypeFromId(objectId);
-
-            if (type != EObjectType::Tablet) {
-                allSplits.push_back(split);
-                continue;
-            }
-
-            auto newSplits = DoSplitFurther(split, nodeDirectory);
-
-            LOG_DEBUG("Got %v splits for input %v", newSplits.size(), objectId);
-
-            allSplits.insert(allSplits.end(), newSplits.begin(), newSplits.end());
-        }
-
-        return allSplits;
-    }
 
     ISchemafulReaderPtr GetReader(
         const TDataSplit& split,
@@ -398,10 +404,10 @@ public:
         switch (TypeFromId(objectId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return DoGetChunkReader(split, std::move(nodeDirectory));
+                return GetChunkReader(split, std::move(nodeDirectory));
 
             case EObjectType::Tablet:
-                return DoGetTabletReader(split, std::move(nodeDirectory));
+                return GetTabletReader(split, std::move(nodeDirectory));
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
@@ -409,24 +415,18 @@ public:
         }
     }
 
-private:
-    TQueryAgentConfigPtr Config_;
-    TBootstrap* Bootstrap_;
-
-    TEvaluatorPtr Evaluator_;
-
-    ISchemafulReaderPtr DoGetChunkReader(
+    ISchemafulReaderPtr GetChunkReader(
         const TDataSplit& split,
         TNodeDirectoryPtr nodeDirectory)
     {
-        auto futureReader = BIND(&TQueryExecutor::DoControlGetChunkReader, MakeStrong(this))
+        auto futureReader = BIND(&TQueryExecutor::GetChunkReaderControl, MakeStrong(this))
             .Guarded()
             .AsyncVia(Bootstrap_->GetControlInvoker())
             .Run(split, std::move(nodeDirectory));
         return New<TLazySchemafulReader>(std::move(futureReader));
     }
 
-    ISchemafulReaderPtr DoControlGetChunkReader(
+    ISchemafulReaderPtr GetChunkReaderControl(
         const TDataSplit& split,
         TNodeDirectoryPtr nodeDirectory)
     {
@@ -479,7 +479,7 @@ private:
     }
 
 
-    ISchemafulReaderPtr DoGetTabletReader(
+    ISchemafulReaderPtr GetTabletReader(
         const TDataSplit& split,
         TNodeDirectoryPtr nodeDirectory)
     {
