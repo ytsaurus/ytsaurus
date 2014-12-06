@@ -7,10 +7,10 @@ class YsonType(object):
             return self.attributes == other.attributes
         return not self.attributes
 
-    def repr(self, type):
+    def repr(self, base_type):
         if self.attributes:
-            return repr({"value": type(self), "attributes": type(self.attributes)})
-        return repr(type(self))
+            return repr({"value": base_type(self), "attributes": self.attributes})
+        return repr(base_type(self))
 
     def base_hash(self, type):
         if self.attributes:
@@ -37,6 +37,9 @@ class YsonInt64(int, YsonType):
     def __repr__(self):
         return self.repr(int)
 
+    def __str__(self):
+        return self.__repr__()
+
 class YsonUint64(long, YsonType):
     def __eq__(self, other):
         return long(self) == long(other) and YsonType.__eq__(self, other)
@@ -46,6 +49,9 @@ class YsonUint64(long, YsonType):
 
     def __repr__(self):
         return self.repr(long)
+
+    def __str__(self):
+        return self.__repr__()
 
 class YsonDouble(float, YsonType):
     def __eq__(self, other):
@@ -57,6 +63,9 @@ class YsonDouble(float, YsonType):
     def __repr__(self):
         return self.repr(float)
 
+    def __str__(self):
+        return self.__repr__()
+
 class YsonBoolean(int, YsonType):
     def __eq__(self, other):
         return (int(self) == 0) == (int(other) == 0) and YsonType.__eq__(self, other)
@@ -65,7 +74,10 @@ class YsonBoolean(int, YsonType):
         return self.base_hash(bool)
 
     def __repr__(self):
-        return self.repr(bool)
+        return "true" if self else "false"
+
+    def __str__(self):
+        return self.__repr__()
 
 class YsonList(list, YsonType):
     def __init__(self, *kargs, **kwargs):
@@ -81,6 +93,9 @@ class YsonList(list, YsonType):
     def __repr__(self):
         return self.repr(list)
 
+    def __str__(self):
+        return self.__repr__()
+
 class YsonMap(dict, YsonType):
     def __init__(self, *kargs, **kwargs):
         YsonType.__init__(self, *kargs, **kwargs)
@@ -95,14 +110,20 @@ class YsonMap(dict, YsonType):
     def __repr__(self):
         return self.repr(dict)
 
+    def __str__(self):
+        return self.__repr__()
+
 class YsonEntity(YsonType):
+    def __eq__(self, other):
+        if other is None and not self.attributes:
+            return True
+        return isinstance(other, YsonEntity) and YsonType.__eq__(self, other)
+
     def __repr__(self):
         if self.attributes:
             return repr({"value": "YsonEntity", "attributes": self.attributes})
         else:
             return "YsonEntity"
 
-    def __eq__(self, other):
-        if other is None and not self.attributes:
-            return True
-        return isinstance(other, YsonEntity) and YsonType.__eq__(self, other)
+    def __str__(self):
+        return self.__repr__()
