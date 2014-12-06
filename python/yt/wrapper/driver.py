@@ -5,7 +5,6 @@ from compression_wrapper import create_zlib_generator
 from common import require, generate_uuid, bool_to_string, get_value, get_version
 from errors import YtError, YtResponseError
 from http import make_get_request_with_retries, make_request_with_retries, get_token, get_api, get_proxy_url, parse_error_from_headers
-from command import parse_commands
 
 from yt.yson.convert import json_to_yson
 
@@ -164,17 +163,8 @@ def make_request(command_name, params,
     # Prepare request url.
     proxy = get_proxy_url(proxy, client)
 
-    if client is None:
-        client_provider = config
-    else:
-        client_provider = client
-
-    if not hasattr(client_provider, "COMMANDS"):
-        require("v2" in get_api(proxy), "Old versions of API are not supported")
-        client_provider.COMMANDS = parse_commands(get_api(proxy, version="v2"))
-        client_provider.API_PATH = "api/v2"
-    commands = client_provider.COMMANDS
-    api_path = client_provider.API_PATH
+    version, commands = get_api(client)
+    api_path = "api/" + version
 
     # Get command description
     require(command_name in commands,

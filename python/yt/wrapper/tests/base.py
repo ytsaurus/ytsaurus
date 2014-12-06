@@ -58,3 +58,8 @@ class YtTestBase(object):
         self.env.check_liveness()
         yt.remove(TEST_DIR, recursive=True, force=True)
 
+    def get_environment(self):
+        return {"PYTHONPATH": os.environ["PYTHONPATH"],
+                "YT_USE_TOKEN": "0",
+                "YT_PROXY": yt.config.http.PROXY,
+                "YT_VERSION": yt.config.VERSION}

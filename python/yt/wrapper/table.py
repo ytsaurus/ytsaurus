@@ -1,4 +1,4 @@
-from common import flatten, require, bool_to_string
+from common import flatten, require, bool_to_string, parse_bool
 from errors import YtError
 from etc_commands import parse_ypath
 import config
@@ -78,9 +78,9 @@ class TablePath(object):
 
         attributes = self.name.attributes
         if append is not None:
-            attributes["append"] = bool_to_string(append)
+            self.append = append
         else:
-            attributes["append"] = attributes.get("append", "false")
+            self.append = attributes.get("append", False)
         if sorted_by is not None:
             attributes["sorted_by"] = sorted_by
         if columns is not None:
@@ -107,7 +107,7 @@ class TablePath(object):
 
     @property
     def append(self):
-        return self._append
+        return parse_bool(self._append)
 
     @append.setter
     def append(self, value):

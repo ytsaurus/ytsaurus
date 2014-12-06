@@ -25,7 +25,8 @@ def _test_file_path(path):
 def _module_file_path(path):
     return os.path.join(LOCATION, "..", path)
 
-class TestYamrMode(YtTestBase, YTEnv):
+class YamrModeTester(YtTestBase, YTEnv):
+    @classmethod
     def setup_class(cls):
         YtTestBase._setup_class(YTEnv)
         config.set_yamr_mode()
@@ -413,11 +414,17 @@ class TestYamrMode(YtTestBase, YTEnv):
         self.assertTrue(len(yt.get_attribute(table, "channels")) == 0)
 
     def test_mapreduce_binary(self):
+        env = self.get_environment()
+        if yt.config.VERSION == "v2":
+            env["FALSE"] = '"false"'
+            env["TRUE"] = '"true"'
+        else:
+            env["FALSE"] = "false"
+            env["TRUE"] = "true"
         proc = subprocess.Popen(
-            "YT_USE_TOKEN=0 YT_PROXY=%s %s" %
-                (config.http.PROXY,
-                 os.path.join(LOCATION, "../test_mapreduce.sh")),
-            shell=True)
+            os.path.join(LOCATION, "../test_mapreduce.sh"),
+            shell=True,
+            env=env)
         proc.communicate()
         self.assertEqual(proc.returncode, 0)
 
@@ -532,3 +539,23 @@ class TestYamrMode(YtTestBase, YTEnv):
 
         with pytest.raises(YtError):
             get_format([dsv_table, yson_table], ignore_unexisting_tables=False)
+
+class TestYamrModeV2(YamrModeTester):
+    @classmethod
+    def setup_class(cls):
+        YamrModeTester.setup_class()
+        yt.config.VERSION = "v2"
+
+    @classmethod
+    def teardown_class(cls):
+        YamrModeTester.teardown_class()
+
+class TestYamrModeV3(YamrModeTester):
+    @classmethod
+    def setup_class(cls):
+        YamrModeTester.setup_class()
+        yt.config.VERSION = "v3"
+
+    @classmethod
+    def teardown_class(cls):
+        YamrModeTester.teardown_class()
