@@ -329,8 +329,8 @@ class NativeModeTester(YtTestBase, YTEnv):
             env["FALSE"] = '"false"'
             env["TRUE"] = '"true"'
         else:
-            env["FALSE"] = '"false"'
-            env["TRUE"] = '"true"'
+            env["FALSE"] = '%false'
+            env["TRUE"] = '%true'
 
         current_dir = os.path.dirname(os.path.abspath(__file__))
         proc = subprocess.Popen(
