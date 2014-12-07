@@ -161,6 +161,7 @@ class Application(object):
 
         # Run logging process. It inherits current logging configuration.
         self._logging_process = Process(target=self._run_logging_server, name="LoggingThread")
+        self._logging_process.daemon = True
         self._logging_process.start()
         # Replace current logger with socket logger.
         logger.LOGGER.handlers = [logging.handlers.SocketHandler('localhost', self._logging_port)]
@@ -364,13 +365,12 @@ class Application(object):
                                                   port=self._logging_port)
         socket_reciever.serve_until_stopped()
 
-    def _load_tasks(self, tasks_path): #, archived_tasks_path):
+    def _load_tasks(self, tasks_path):
         logger.info("Loading tasks from cypress")
 
         self._tasks_path = tasks_path
         if not self._yt.exists(self._tasks_path):
             self._yt.create("map_node", self._tasks_path)
-        #self._archived_tasks_path = archived_tasks_path
 
         # From id to task description
         self._tasks = {}
