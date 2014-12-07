@@ -17,7 +17,6 @@
 
 #include <util/stream/lz.h>
 #include <util/stream/file.h>
-#include <util/stream/buffered.h>
 
 namespace NYT {
 namespace NHydra {
@@ -39,7 +38,6 @@ public:
         : FileName_(fileName)
         , SnapshotId_(snapshotId)
         , IsRaw_(isRaw)
-        , Logger(HydraLogger)
     {
         Logger.AddTag("FileName: %v", FileName_);
     }
@@ -80,7 +78,7 @@ public:
                     File_->Seek(offset, sSet);
                 }
 
-                FileInput_.reset(new TBufferedFileInput(*File_));
+                FileInput_.reset(new TFileInput(*File_));
 
                 auto codec = ECodec(Header_.Codec);
                 if (IsRaw_) {
@@ -135,7 +133,7 @@ public:
                     File_->Seek(offset, sSet);
                 }
 
-                FileInput_.reset(new TBufferedFileInput(*File_));
+                FileInput_.reset(new TFileInput(*File_));
 
                 if (IsRaw_) {
                     FacadeInput_ = FileInput_.get();
@@ -175,13 +173,13 @@ private:
     int SnapshotId_;
     bool IsRaw_;
 
-    NLog::TLogger Logger;
+    NLog::TLogger Logger = HydraLogger;
 
     std::unique_ptr<TFile> File_;
-    std::unique_ptr<TBufferedFileInput> FileInput_;
+    std::unique_ptr<TFileInput> FileInput_;
     std::unique_ptr<TInputStream> CodecInput_;
     std::unique_ptr<TInputStream> FakeCheckpointableInput_;
-    TInputStream* FacadeInput_;
+    TInputStream* FacadeInput_ = nullptr;
 
     TSnapshotHeader Header_;
     TSharedRef Meta_;
@@ -219,7 +217,6 @@ public:
         , SnapshotId_(snapshotId)
         , Meta_(meta)
         , IsRaw_(isRaw)
-        , CheckpointableOutput_(nullptr)
     { }
 
     void Open()
@@ -228,12 +225,10 @@ public:
 
         try {
             File_.reset(new TFile(FileName_, CreateAlways | CloseOnExec));
-
             FileOutput_.reset(new TFileOutput(*File_));
 
             if (IsRaw_) {
-                BufferedOutput_.reset(new TBufferedOutput(FileOutput_.get()));
-                FacadeOutput_ = BufferedOutput_.get();
+                FacadeOutput_ = FileOutput_.get();
             } else {
                 TSnapshotHeader header;
                 WritePod(*File_, header);
@@ -256,8 +251,7 @@ public:
                 LengthMeasureOutput_.reset(new TLengthMeasureOutputStream(CodecOutput_
                     ? CodecOutput_.get()
                     : ChecksumOutput_.get()));
-                BufferedOutput_.reset(new TBufferedOutput(LengthMeasureOutput_.get()));
-                FacadeOutput_ = BufferedOutput_.get();
+                FacadeOutput_ = LengthMeasureOutput_.get();
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening snapshot %v for writing",
@@ -277,7 +271,6 @@ public:
 
         // NB: Some calls might be redundant.
         FacadeOutput_->Finish();
-        BufferedOutput_->Finish();
         if (LengthMeasureOutput_) {
             LengthMeasureOutput_->Finish();
         }
@@ -318,8 +311,7 @@ private:
     std::unique_ptr<TChecksumOutput> ChecksumOutput_;
     std::unique_ptr<TLengthMeasureOutputStream> LengthMeasureOutput_;
     std::unique_ptr<TOutputStream> CheckpointableOutput_;
-    std::unique_ptr<TOutputStream> BufferedOutput_;
-    TOutputStream* FacadeOutput_;
+    TOutputStream* FacadeOutput_ = nullptr;
 
 };
 

@@ -7,10 +7,18 @@
 #include <core/misc/serialize.h>
 #include <core/misc/checkpointable_stream.h>
 
+#include <util/stream/buffered.h>
+#include <contrib/libs/protobuf/wire_format_lite.h>
+
 namespace NYT {
 namespace NHydra {
 
 using namespace NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const size_t LoadBufferSize = 16384;
+static const size_t SaveBufferSize = 16384;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -198,21 +206,24 @@ void TCompositeAutomaton::SaveSnapshot(TOutputStream* output)
         infos.end(),
         [] (const TSaverInfo& lhs, const TSaverInfo& rhs) {
             return
-                (lhs.Priority < rhs.Priority) ||
-                (lhs.Priority == rhs.Priority && lhs.Name < rhs.Name);
+                lhs.Priority < rhs.Priority ||
+                lhs.Priority == rhs.Priority && lhs.Name < rhs.Name;
         });
 
     auto checkpointableOutput = CreateCheckpointableOutputStream(output);
+    auto bufferedCheckpointableOutput = CreateBufferedCheckpointableOutputStream(
+        checkpointableOutput.get(),
+        SaveBufferSize);
 
     auto& context = SaveContext();
-    context.SetOutput(checkpointableOutput.get());
+    context.SetOutput(bufferedCheckpointableOutput.get());
 
-    Save(context, static_cast<i32>(infos.size()));
+    Save<i32>(context, infos.size());
 
     for (const auto& info : infos) {
         checkpointableOutput->MakeCheckpoint();
         Save(context, info.Name);
-        Save(context, static_cast<i32>(info.Part->GetCurrentSnapshotVersion()));
+        Save<i32>(context, info.Part->GetCurrentSnapshotVersion());
         info.Saver.Run();
     }
 }
@@ -221,24 +232,22 @@ void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
 {
     using NYT::Load;
 
-    auto checkpointableInput = CreateCheckpointableInputStream(input);
+    TBufferedInput bufferedInput(input, LoadBufferSize);
+    auto checkpointableInput = CreateCheckpointableInputStream(&bufferedInput);
 
     auto& context = LoadContext();
     context.SetInput(checkpointableInput.get());
 
-    int partCount = Load<i32>(context);
-
-    LOG_INFO("Started loading composite automaton with %v parts",
-        partCount);
+    LOG_INFO("Started loading composite automaton");
 
     for (auto part : Parts) {
         part->OnBeforeSnapshotLoaded();
     }
 
+    int partCount = Load<i32>(context);
     for (int partIndex = 0; partIndex < partCount; ++partIndex) {
         auto name = Load<Stroka>(context);
         int version = Load<i32>(context);
-        
         auto it = Loaders.find(name);
         if (it == Loaders.end()) {
             LOG_INFO("Skipping unknown automaton part (Name: %v, Version: %v)",
@@ -248,7 +257,6 @@ void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
             LOG_INFO("Loading automaton part (Name: %v, Version: %v)",
                 name,
                 version);
-
             context.SetVersion(version);
             const auto& info = it->second;
             info.Loader.Run();
@@ -261,7 +269,7 @@ void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
         part->OnAfterSnapshotLoaded();
     }
 
-    LOG_INFO("Completed loading composite automaton");
+    LOG_INFO("Finished loading composite automaton");
 }
 
 void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
