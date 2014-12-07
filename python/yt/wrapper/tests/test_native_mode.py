@@ -542,6 +542,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         while yt.get("{0}/@tablets/0/state".format(table)) != 'unmounted':
             time.sleep(0.1)
 
+    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
     def test_select(self):
         if yt.config.VERSION == "v2":
             return
