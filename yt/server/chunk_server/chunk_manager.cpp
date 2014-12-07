@@ -1071,6 +1071,7 @@ private:
                 switch (child->GetType()) {
                     case EObjectType::Chunk:
                     case EObjectType::ErasureChunk:
+                    case EObjectType::JournalChunk:
                         childStatistics.Accumulate(child->AsChunk()->GetStatistics());
                         break;
 
