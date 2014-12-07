@@ -21,6 +21,8 @@ namespace NScheduler {
 struct TMasterHandshakeResult
 {
     std::vector<TOperationPtr> Operations;
+    std::vector<TOperationPtr> RevivingOperations;
+    std::vector<TOperationPtr> AbortingOperations;
     NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr WatcherResponses;
 };
 

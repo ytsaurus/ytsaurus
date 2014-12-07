@@ -756,7 +756,8 @@ private:
         LogEventFluently(ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
 
-        ReviveOperations(result.Operations);
+        AbortAbortingOperations(result.AbortingOperations);
+        ReviveOperations(result.RevivingOperations);
     }
 
     void OnMasterDisconnected()
@@ -797,6 +798,17 @@ private:
             "Master is not connected");
     }
 
+    void LogOperationFinished(TOperationPtr operation, ELogEventType logEventType, TError error)
+    {
+        LogEventFluently(logEventType)
+            .Item("operation_id").Value(operation->GetId())
+            .Item("operation_type").Value(operation->GetType())
+            .Item("spec").Value(operation->GetSpec())
+            .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
+            .Item("start_time").Value(operation->GetStartTime())
+            .Item("finish_time").Value(operation->GetFinishTime())
+            .Item("error").Value(error);
+    }
 
     void OnUserTransactionAborted(TOperationPtr operation)
     {
@@ -1061,6 +1073,13 @@ private:
         // From this moment on the controller is fully responsible for the
         // operation's fate. It will eventually call #OnOperationCompleted or
         // #OnOperationFailed to inform the scheduler about the outcome.
+    }
+
+    void AbortAbortingOperations(const std::vector<TOperationPtr>& operations)
+    {
+        FOREACH (auto operation, operations) {
+            AbortAbortingOperation(operation);
+        }
     }
 
     void ReviveOperations(const std::vector<TOperationPtr>& operations)
@@ -1681,14 +1700,7 @@ private:
             return;
         }
 
-        LogEventFluently(ELogEventType::OperationCompleted)
-            .Item("operation_id").Value(operation->GetId())
-            .Item("operation_type").Value(operation->GetType())
-            .Item("spec").Value(operation->GetSpec())
-            .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
-            .Item("start_time").Value(operation->GetStartTime())
-            .Item("finish_time").Value(operation->GetFinishTime());
-
+        LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
     }
 
     void TerminateOperation(
@@ -1739,18 +1751,26 @@ private:
             controller->Abort();
         }
 
-        LogEventFluently(logEventType)
-            .Item("operation_id").Value(operation->GetId())
-            .Item("operation_type").Value(operation->GetType())
-            .Item("spec").Value(operation->GetSpec())
-            .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
-            .Item("start_time").Value(operation->GetStartTime())
-            .Item("finish_time").Value(operation->GetFinishTime())
-            .Item("error").Value(error);
+        LogOperationFinished(operation, logEventType, error);
 
         FinishOperation(operation);
     }
 
+    void AbortAbortingOperation(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Aborting operation (OperationId: %s)", ~ToString(operation->GetId()));
+
+        YCHECK(operation->GetState() == EOperationState::Aborting);
+
+        AbortSchedulerTransactions(operation);
+        SetOperationFinalState(operation, EOperationState::Aborted, TError());
+
+        WaitFor(MasterConnector_->FlushOperationNode(operation));
+
+        LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
+    }
 
     void BuildOrchid(IYsonConsumer* consumer)
     {
