@@ -549,7 +549,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         table = TEST_DIR + "/table"
 
         def select():
-            return list(yt.select("* from [{}]".format(table), format=yt.YsonFormat(format="text", process_table_index=False), raw=False))
+            return list(yt.select("* from [{0}]".format(table), format=yt.YsonFormat(format="text", process_table_index=False), raw=False))
 
         yt.create_table(table)
         yt.run_sort(table, sort_by=["x"])
