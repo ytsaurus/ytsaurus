@@ -84,9 +84,10 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         query->GetOutputRowLimit());
 
     if (query->GroupClause) {
-        topQuery->TableSchema = query->GroupClause->GetTableSchema();
+        
 
         if (pushdownGroupClause) {
+            topQuery->TableSchema = query->GroupClause->GetTableSchema();
             topQuery->GroupClause.Emplace();
 
             auto& finalGroupItems = topQuery->GroupClause->GroupItems;
@@ -110,6 +111,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
                     aggregateItem.Name);
             }
         } else {
+            topQuery->TableSchema = query->TableSchema;
             topQuery->GroupClause = query->GroupClause;
         }
 
