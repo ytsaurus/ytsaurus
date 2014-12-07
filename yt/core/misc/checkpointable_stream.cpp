@@ -50,7 +50,7 @@ public:
         }
     }
 
-    ~TCheckpointableInputStream() throw()
+    virtual ~TCheckpointableInputStream() throw()
     { }
 
 private:
@@ -125,7 +125,7 @@ public:
         , FakeHeader_({TBlockHeader::CheckpointsDisabled})
     { }
 
-    ~TEnscapsulatedCheckpointableInputStream() throw()
+    virtual ~TEnscapsulatedCheckpointableInputStream() throw()
     { }
 
 private:
@@ -171,7 +171,7 @@ public:
         WritePod(*UnderlyingStream_, TBlockHeader{TBlockHeader::CheckpointSentinel});
     }
 
-    ~TCheckpointableOutputStream() throw()
+    virtual ~TCheckpointableOutputStream() throw()
     { }
 
 private:
@@ -195,6 +195,93 @@ std::unique_ptr<ICheckpointableOutputStream> CreateCheckpointableOutputStream(
 {
     return std::unique_ptr<ICheckpointableOutputStream>(new TCheckpointableOutputStream(
         underlyingStream));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBufferedCheckpointableOutputStream
+    : public ICheckpointableOutputStream
+{
+public:
+    TBufferedCheckpointableOutputStream(
+        ICheckpointableOutputStream* underlyingStream,
+        size_t bufferSize)
+        : UnderlyingStream_(underlyingStream)
+        , BufferSize_(bufferSize)
+        , WriteThroughSize_(bufferSize / 2)
+        , Buffer_(BufferSize_)
+        , BufferBegin_(Buffer_.data())
+        , BufferCurrent_(Buffer_.data())
+        , BufferRemaining_(BufferSize_)
+    {
+        YCHECK(BufferSize_ > 0);
+    }
+
+    virtual void MakeCheckpoint() override
+    {
+        Flush();
+        UnderlyingStream_->MakeCheckpoint();
+    }
+
+    virtual ~TBufferedCheckpointableOutputStream() throw()
+    {
+        try {
+            Finish();
+        } catch (...) {
+        }
+    }
+
+private:
+    ICheckpointableOutputStream* UnderlyingStream_;
+    size_t BufferSize_;
+    size_t WriteThroughSize_;
+
+    std::vector<char> Buffer_;
+    char* BufferBegin_;
+    char* BufferCurrent_;
+    size_t BufferRemaining_;
+
+
+    virtual void DoWrite(const void* buf, size_t len) override
+    {
+        const char* begin = reinterpret_cast<const char*>(buf);
+        const char* current = begin;
+        const char* end = begin + len;
+        while (current < end) {
+            if (BufferRemaining_ == 0) {
+                // Flush buffer.
+                Flush();
+            }
+            size_t bytes = std::min(BufferRemaining_, len);
+            if (BufferRemaining_ == BufferSize_ && bytes >= WriteThroughSize_) {
+                // Write-through.
+                UnderlyingStream_->Write(current, bytes);
+            } else {
+                // Copy into buffer.
+                ::memcpy(BufferCurrent_, current, bytes);
+                BufferCurrent_ += bytes;
+                BufferRemaining_ -= bytes;
+            }
+            current += bytes;
+        }
+    }
+
+    virtual void DoFlush() override
+    {
+        UnderlyingStream_->Write(BufferBegin_, BufferCurrent_ - BufferBegin_);
+        BufferCurrent_ = BufferBegin_;
+        BufferRemaining_ = BufferSize_;
+    }
+
+};
+
+std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableOutputStream(
+    ICheckpointableOutputStream* underlyingStream,
+    size_t bufferSize)
+{
+    return std::unique_ptr<ICheckpointableOutputStream>(new TBufferedCheckpointableOutputStream(
+        underlyingStream,
+        bufferSize));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

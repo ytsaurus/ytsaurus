@@ -86,6 +86,47 @@ TEST(TCheckpointableStreamTest, Encapsulated)
     EXPECT_EQ(data, checkpointableInput->ReadAll());
 }
 
+TEST(TCheckpointableStreamTest, Buffered)
+{
+    TStringStream stringOutput;
+    auto output = CreateCheckpointableOutputStream(&stringOutput);
+
+    std::vector<char> blob;
+    for (int i = 0; i < 1000; ++i) {
+        blob.push_back(random() % 128);
+    }
+
+    {
+        auto bufferedOutput = CreateBufferedCheckpointableOutputStream(output.get(), 256);
+        for (int i = 1; i <= 100; ++i) {
+            for (int j = 0; j < i * 17; ++j) {
+                bufferedOutput->Write((i + j) % 128);
+            }
+            bufferedOutput->Write(blob.data(), blob.size());
+            bufferedOutput->MakeCheckpoint();
+        }
+    }
+
+    TStringInput stringInput(stringOutput.Str());
+    auto input = CreateCheckpointableInputStream(&stringInput);
+
+    std::vector<char> buffer;
+    for (int i = 1; i <= 100; ++i) {
+        if (i % 2 == 0) {
+            buffer.resize(i * 17);
+            input->Load(buffer.data(), buffer.size());
+            for (int j = 0; j < i * 17; ++j) {
+                EXPECT_EQ((i + j) % 128, buffer[j]);
+            }
+
+            std::vector<char> blobCopy(blob.size());
+            input->Load(blobCopy.data(), blobCopy.size());
+            EXPECT_EQ(blob, blobCopy);
+        }
+        input->SkipToCheckpoint();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
