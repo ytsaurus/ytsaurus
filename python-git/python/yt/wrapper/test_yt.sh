@@ -69,17 +69,17 @@ test_file_commands()
 
     cat script | ./yt upload //home/wrapper_test/script --executable
 
-    check "grep x" "`yt download //home/wrapper_test/script`"
+    check "grep x" "`./yt download //home/wrapper_test/script`"
 
     echo -e "value=y\nvalue=x\n" | ./yt write //home/wrapper_test/input_table --format dsv
 
     ./yt map "./script" --src //home/wrapper_test/input_table --dst //home/wrapper_test/output_table \
         --file //home/wrapper_test/script --format dsv
-    check "value=x\n" "`yt read //home/wrapper_test/output_table --format dsv`"
+    check "value=x\n" "`./yt read //home/wrapper_test/output_table --format dsv`"
 
     ./yt map "./script" --src //home/wrapper_test/input_table --dst //home/wrapper_test/output_table \
         --local-file ./script --format dsv
-    check "value=x\n" "`yt read //home/wrapper_test/output_table --format dsv`"
+    check "value=x\n" "`./yt read //home/wrapper_test/output_table --format dsv`"
 
     rm -f script
 }
