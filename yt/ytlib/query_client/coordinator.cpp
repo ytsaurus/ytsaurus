@@ -69,11 +69,12 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
             subquery->Predicate = RefinePredicate(keyRange, commonPrefixSize, query->Predicate, subquery->KeyColumns);
         }
 
-        if (pushdownGroupClause) {
-            subquery->GroupClause = query->GroupClause;
-            if (!query->GroupClause) {
-                subquery->ProjectClause = query->ProjectClause;
+        if (query->GroupClause) {
+            if (pushdownGroupClause) {
+                subquery->GroupClause = query->GroupClause; 
             }
+        } else {
+            subquery->ProjectClause = query->ProjectClause;
         }
 
         subqueries.push_back(subquery);
@@ -84,8 +85,6 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         query->GetOutputRowLimit());
 
     if (query->GroupClause) {
-        
-
         if (pushdownGroupClause) {
             topQuery->TableSchema = query->GroupClause->GetTableSchema();
             topQuery->GroupClause.Emplace();
