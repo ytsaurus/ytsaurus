@@ -244,15 +244,14 @@ private:
 
     virtual void DoWrite(const void* buf, size_t len) override
     {
-        const char* begin = reinterpret_cast<const char*>(buf);
-        const char* current = begin;
-        const char* end = begin + len;
-        while (current < end) {
+        const char* current = static_cast<const char*>(buf);
+        size_t remaining = len;
+        while (remaining > 0) {
             if (BufferRemaining_ == 0) {
                 // Flush buffer.
                 Flush();
             }
-            size_t bytes = std::min(BufferRemaining_, len);
+            size_t bytes = std::min(BufferRemaining_, remaining);
             if (BufferRemaining_ == BufferSize_ && bytes >= WriteThroughSize_) {
                 // Write-through.
                 UnderlyingStream_->Write(current, bytes);
@@ -263,6 +262,7 @@ private:
                 BufferRemaining_ -= bytes;
             }
             current += bytes;
+            remaining -= bytes;
         }
     }
 
@@ -271,6 +271,7 @@ private:
         UnderlyingStream_->Write(BufferBegin_, BufferCurrent_ - BufferBegin_);
         BufferCurrent_ = BufferBegin_;
         BufferRemaining_ = BufferSize_;
+        UnderlyingStream_->Flush();
     }
 
 };

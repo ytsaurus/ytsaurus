@@ -221,7 +221,7 @@ void TCompositeAutomaton::SaveSnapshot(TOutputStream* output)
     Save<i32>(context, infos.size());
 
     for (const auto& info : infos) {
-        checkpointableOutput->MakeCheckpoint();
+        bufferedCheckpointableOutput->MakeCheckpoint();
         Save(context, info.Name);
         Save<i32>(context, info.Part->GetCurrentSnapshotVersion());
         info.Saver.Run();
