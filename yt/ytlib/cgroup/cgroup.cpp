@@ -278,6 +278,23 @@ const Stroka& TNonOwningCGroup::GetFullPath() const
     return FullPath_;
 }
 
+std::vector<TNonOwningCGroup> TNonOwningCGroup::GetChildren() const
+{
+    std::vector<TNonOwningCGroup> result;
+
+    TFsPath path(FullPath_);
+    if (path.Exists()) {
+        yvector<TFsPath> children;
+        path.List(children);
+        for (const auto& child : children) {
+            if (child.IsDirectory()) {
+                result.emplace_back(child.GetPath());
+            }
+        }
+    }
+    return result;
+}
+
 void TNonOwningCGroup::EnsureExistance() const
 {
     LOG_INFO("Creating cgroup %Qv", FullPath_);
@@ -291,30 +308,51 @@ void TNonOwningCGroup::EnsureExistance() const
 
 void TNonOwningCGroup::Lock() const
 {
+    ForAll(BIND([] (const TNonOwningCGroup& group) { group.Lock(); }));
+}
+
+void TNonOwningCGroup::Unlock() const
+{
+    ForAll(BIND([] (const TNonOwningCGroup& group) { group.Unlock(); }));
+}
+
+void TNonOwningCGroup::DoLock() const
+{
     LOG_INFO("Locking group %Qv", FullPath_);
 
 #ifdef _linux
     if (!IsNull()) {
-        int code = chmod(~NFS::CombinePaths(FullPath_, "tasks"), S_IRUSR);
-        if (code != 0) {
-            LOG_FATAL(TError::FromSystem(), "Unable to lock %Qv", FullPath_);
-        }
+        int code = chmod(~FullPath_, S_IRUSR | S_IXUSR);
+        YCHECK(code == 0);
+
+        code = chmod(~NFS::CombinePaths(FullPath_, "tasks"), S_IRUSR);
+        YCHECK(code == 0);
     }
 #endif
 }
 
-void TNonOwningCGroup::Unlock() const
+void TNonOwningCGroup::DoUnlock() const
 {
     LOG_INFO("Unlocking group %Qv", FullPath_);
 
 #ifdef _linux_
     if (!IsNull()) {
         int code = chmod(~NFS::CombinePaths(FullPath_, "tasks"), S_IRUSR | S_IWUSR);
-        if (code != 0) {
-            LOG_FATAL(TError::FromSystem(), "Unable to lock %Qv", FullPath_);
-        }
+        YCHECK(code == 0);
+
+        code = chmod(~FullPath_, S_IRUSR | S_IXUSR | S_IWUSR);
+        YCHECK(code == 0);
     }
 #endif
+}
+
+void TNonOwningCGroup::ForAll(const TCallback<void(const TNonOwningCGroup&)> action) const
+{
+    action.Run(*this);
+
+    for (const auto& child : GetChildren()) {
+        child.ForAll(action);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

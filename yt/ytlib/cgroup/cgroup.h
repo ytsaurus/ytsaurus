@@ -42,11 +42,18 @@ public:
     std::vector<int> GetTasks() const;
     const Stroka& GetFullPath() const;
 
+    std::vector<TNonOwningCGroup> GetChildren() const;
+
     void EnsureExistance() const;
     void Lock() const;
     void Unlock() const;
 
 protected:
+    void DoLock() const;
+    void DoUnlock() const;
+
+    void ForAll(const TCallback<void(const TNonOwningCGroup&)> action) const;
+
     Stroka FullPath_;
 };
 
