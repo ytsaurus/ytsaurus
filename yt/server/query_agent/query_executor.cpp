@@ -351,6 +351,7 @@ private:
 
         // Fill results with pivotKeys and up to cappedSampleCount sampleKeys.
         std::vector<TOwningKey> result;
+        result.reserve(partitionCount + cappedSampleCount);
         for (auto partitionIt = startPartitionIt; partitionIt != endPartitionIt; ++partitionIt) {
             const auto& partition = *partitionIt;
             const auto& sampleKeys = partition->SampleKeys;
