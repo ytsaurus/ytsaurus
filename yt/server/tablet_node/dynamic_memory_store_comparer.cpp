@@ -1,9 +1,14 @@
+#include "dynamic_memory_store_bits.h"
 #include "dynamic_memory_store_comparer.h"
+#include "row_comparer_generator.h"
+#include "private.h"
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
 namespace NTabletNode {
 
-using namespace NVersionedTableClient;
+using namespace NCodegen;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,12 +16,85 @@ class TDynamicRowKeyComparer::TImpl
     : public TRefCounted
 {
 public:
+    TImpl(
+        int keyColumnCount,
+        const TTableSchema& schema,
+        TCGFunction<TDDComparerSignature>&& ddComparer,
+        TCGFunction<TDUComparerSignature>&& duComparer)
+        : KeyColumnCount_(keyColumnCount)
+        , Schema_(schema)
+        , DDComparer_(std::move(ddComparer))
+        , DUComparer_(std::move(duComparer))
+    { }
+
     TImpl(int keyColumnCount, const TTableSchema& schema)
         : KeyColumnCount_(keyColumnCount)
         , Schema_(schema)
     { }
 
+    static TIntrusivePtr<TImpl> CreateWithoutLlvm(int keyColumnCount, const TTableSchema& schema)
+    {
+        return New<TImpl>(keyColumnCount, schema);
+    }
+
+    static TIntrusivePtr<TImpl> CreateWithLlvm(int keyColumnCount, const TTableSchema& schema)
+    {
+#ifdef YT_USE_LLVM
+        TCGFunction<TDDComparerSignature> ddComparer;
+        TCGFunction<TDUComparerSignature> duComparer;
+        std::tie(ddComparer, duComparer) = GenerateComparers(keyColumnCount, schema);
+        return New<TImpl>(
+            keyColumnCount,
+            schema,
+            std::move(ddComparer),
+            std::move(duComparer));
+#else
+        return CreateWithoutLlvm(keyColumnCount, schema);
+#endif
+    }
+
     int operator()(TDynamicRow lhs, TDynamicRow rhs) const
+    {
+        if (DDComparer_) {
+            return DDComparer_(
+                lhs.GetNullKeyMask(),
+                lhs.BeginKeys(),
+                rhs.GetNullKeyMask(),
+                rhs.BeginKeys());
+        } else {
+            return Compare(lhs, rhs);
+        }
+    }
+
+    int operator()(TDynamicRow lhs, TRowWrapper rhs) const
+    {
+        YASSERT(rhs.Row.GetCount() >= KeyColumnCount_);
+        if (DUComparer_) {
+            return DUComparer_(
+                lhs.GetNullKeyMask(),
+                lhs.BeginKeys(),
+                rhs.Row.Begin(),
+                KeyColumnCount_);
+        } else {
+            return Compare(lhs, rhs.Row.Begin(), KeyColumnCount_);
+        }
+    }
+
+    int operator()(TDynamicRow lhs, TKeyWrapper rhs) const
+    {
+        if (DUComparer_) {
+            return DUComparer_(
+                lhs.GetNullKeyMask(),
+                lhs.BeginKeys(),
+                rhs.Row.Begin(),
+                rhs.Row.GetCount());
+        } else {
+            return Compare(lhs, rhs.Row.Begin(), rhs.Row.GetCount());
+        }
+    }
+
+private:
+    int Compare(TDynamicRow lhs, TDynamicRow rhs) const
     {
         ui32 nullKeyBit = 1;
         ui32 lhsNullKeyMask = lhs.GetNullKeyMask();
@@ -105,18 +183,6 @@ public:
         return 0;
     }
 
-    int operator()(TDynamicRow lhs, TRowWrapper rhs) const
-    {
-        YASSERT(rhs.Row.GetCount() >= KeyColumnCount_);
-        return Compare(lhs,rhs.Row.Begin(), KeyColumnCount_);
-    }
-
-    int operator()(TDynamicRow lhs, TKeyWrapper rhs) const
-    {
-        return Compare(lhs, rhs.Row.Begin(), rhs.Row.GetCount());
-    }
-
-private:
     int Compare(TDynamicRow lhs, TUnversionedValue* rhsBegin, int rhsLength) const
     {
         ui32 nullKeyBit = 1;
@@ -208,14 +274,25 @@ private:
         return lhsLength - rhsLength;
     }
 
-    int KeyColumnCount_;
-    const TTableSchema& Schema_;
+    const int KeyColumnCount_;
+    const TTableSchema Schema_;
+    TCGFunction<TDDComparerSignature> DDComparer_;
+    TCGFunction<TDUComparerSignature> DUComparer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicRowKeyComparer::TDynamicRowKeyComparer(int keyColumnCount, const TTableSchema& schema)
-    : Impl_(New<TImpl>(keyColumnCount, schema))
+TDynamicRowKeyComparer::TDynamicRowKeyComparer(
+    int keyColumnCount,
+    const TTableSchema& schema)
+    : Impl_(TImpl::CreateWithLlvm(keyColumnCount, schema))
+{ }
+
+TDynamicRowKeyComparer::TDynamicRowKeyComparer(
+    int keyColumnCount,
+    const TTableSchema& schema,
+    TNoCodegenDynamicRowKeyCompare)
+    : Impl_(TImpl::CreateWithoutLlvm(keyColumnCount, schema))
 { }
 
 TDynamicRowKeyComparer::TDynamicRowKeyComparer(const TDynamicRowKeyComparer& other) = default;

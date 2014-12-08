@@ -11,11 +11,11 @@ namespace NCodegen {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TSignature>
-TCallback<TSignature> TCGModule::GetCompiledFunction(const Stroka& name)
+TCGFunction<TSignature> TCGModule::GetCompiledFunction(const Stroka& name)
 {
     auto type = llvm::TypeBuilder<TSignature, false>::get(GetContext());
     YCHECK(type == GetModule()->getFunction(name.c_str())->getFunctionType());
-    return BIND(TCGFunction<TSignature>(GetFunctionAddress(name), MakeStrong(this)));
+    return TCGFunction<TSignature>(GetFunctionAddress(name), MakeStrong(this));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

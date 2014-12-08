@@ -71,6 +71,16 @@ set( HDRS
   ${BASE}/versioned_chunk_lookuper.h
 )
 
+if (YT_BUILD_ENABLE_LLVM)
+  set( SRCS
+    ${SRCS}
+  )
+  set( HDRS
+    ${SRCS}
+    ${BASE}/llvm_types.h
+  )
+endif()
+
 list(APPEND YT_SOURCE_FILES
   ${SRCS}
   ${HDRS}

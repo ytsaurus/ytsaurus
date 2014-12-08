@@ -18,6 +18,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${HDRS}
     ${BASE}/private.h
     ${BASE}/init.h
+    ${BASE}/function.h
     ${BASE}/module.h
     ${BASE}/module-inl.h
     ${BASE}/routine_registry.h

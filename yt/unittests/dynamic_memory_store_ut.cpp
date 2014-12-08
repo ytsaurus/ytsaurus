@@ -3,6 +3,8 @@
 
 #include <yt/core/actions/invoker_util.h>
 
+#include <tuple>
+
 namespace NYT {
 namespace NTabletNode {
 namespace {
@@ -99,8 +101,114 @@ protected:
 
 
     TDynamicMemoryStorePtr Store_;
-
 };
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TDynamicRowKeyComparerTest
+    : public TSingleLockDynamicMemoryStoreTest
+    , public ::testing::WithParamInterface<std::tuple<const char*, const char*>>
+{
+public:
+    virtual void SetUp() override
+    {
+        TSingleLockDynamicMemoryStoreTest::SetUp();
+
+        Transaction_ = StartTransaction();
+
+        int keyColumnCount = GetKeyColumns().size();
+        auto schema = GetSchema();
+
+        StaticComparer_ = TDynamicRowKeyComparer(
+            keyColumnCount,
+            schema,
+            TNoCodegenDynamicRowKeyCompare());
+        LLVMComparer_ = TDynamicRowKeyComparer(keyColumnCount, schema);
+    }
+
+    TDynamicRow BuildDynamicRow(
+        const TUnversionedOwningRow& row,
+        ui32 lockMask = TDynamicRow::PrimaryLockMask)
+    {
+        auto transaction = StartTransaction();
+        auto dynamicRow = WriteRow(transaction.get(), row, false, lockMask);
+        PrepareTransaction(transaction.get());
+        PrepareRow(transaction.get(), dynamicRow);
+        CommitTransaction(transaction.get());
+        CommitRow(transaction.get(), dynamicRow);
+        return dynamicRow;
+    }
+
+protected:
+    virtual TTableSchema GetSchema() const override
+    {
+        TTableSchema schema;
+        schema.Columns().push_back(TColumnSchema("a", EValueType::Int64));
+        schema.Columns().push_back(TColumnSchema("b", EValueType::Uint64));
+        schema.Columns().push_back(TColumnSchema("c", EValueType::Boolean));
+        schema.Columns().push_back(TColumnSchema("d", EValueType::Double));
+        schema.Columns().push_back(TColumnSchema("e", EValueType::String));
+        return schema;
+    }
+    virtual TKeyColumns GetKeyColumns() const override
+    {
+        TKeyColumns keyColumns;
+        keyColumns.push_back("a");
+        keyColumns.push_back("b");
+        keyColumns.push_back("c");
+        keyColumns.push_back("d");
+        keyColumns.push_back("e");
+        return keyColumns;
+    }
+
+    std::unique_ptr<TTransaction> Transaction_;
+    TDynamicRowKeyComparer StaticComparer_;
+    TDynamicRowKeyComparer LLVMComparer_;
+    TDynamicRow DynamicRow_;
+    TUnversionedOwningRow UnversionedOwningRow_;
+};
+
+TEST_P(TDynamicRowKeyComparerTest, Test)
+{
+    auto str1 = Stroka(std::get<0>(GetParam()));
+    auto str2 = Stroka(std::get<1>(GetParam()));
+
+    auto urow1 = BuildRow(str1, false);
+    auto urow2 = BuildRow(str2, false);
+
+    int keyColumnCount = GetKeyColumns().size();
+
+    if (urow1.GetCount() == keyColumnCount) {
+        auto drow1 = BuildDynamicRow(urow1);
+        EXPECT_EQ(
+            StaticComparer_(drow1, TKeyWrapper{urow2.Get()}),
+            LLVMComparer_(drow1, TKeyWrapper{urow2.Get()}));
+
+        if (urow2.GetCount() == keyColumnCount) {
+            auto drow2 = BuildDynamicRow(urow2);
+            EXPECT_EQ(StaticComparer_(drow1, drow2), LLVMComparer_(drow1, drow2));
+        }
+    }
+}
+
+auto comparerTestParams = ::testing::Values(
+    "a=10;b=18446744073709551615u;c=%false;d=3.14;e=\"str1\"",
+    "a=10;b=18446744073709551615u;c=%false;d=3.14;e=\"str2\"",
+    "a=10;b=18446744073709551615u;c=%false;d=2.71;e=\"str2\"",
+    "a=10;b=18446744073709551615u;c=%true;d=3.14;e=\"str2\"",
+    "a=10;b=18446744073709551614u;c=%false;d=3.14;e=\"str2\"",
+    "a=11;b=18446744073709551615u;c=%false;d=3.14;e=\"str2\"",
+    "a=10;b=18446744073709551615u;c=%false;d=3.14",
+    "a=10;b=18446744073709551615u;c=%false;d=3.15",
+    "a=10;b=18446744073709551615u;c=%true",
+    "a=10;b=18446744073709551614u",
+    "a=12",
+    "a=10");
+
+INSTANTIATE_TEST_CASE_P(
+    CodeGenerationTest,
+    TDynamicRowKeyComparerTest,
+    ::testing::Combine(comparerTestParams, comparerTestParams));
 
 ///////////////////////////////////////////////////////////////////////////////
 

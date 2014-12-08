@@ -426,7 +426,6 @@ private:
     {
         return reinterpret_cast<TEditListHeader**>(const_cast<TLockDescriptor*>(BeginLocks(keyColumnCount)) + columnLockCount);
     }
-
 };
 
 static_assert(

@@ -53,7 +53,19 @@ set( HDRS
   ${BASE}/tablet_reader.h
   ${BASE}/row_merger.h
   ${BASE}/lookup.h
+  ${BASE}/row_comparer_generator.h
 )
+
+if (YT_BUILD_ENABLE_LLVM)
+  set( SRCS
+    ${SRCS}
+    ${BASE}/row_comparer_generator.cpp
+  )
+  set( HDRS
+    ${SRCS}
+    ${BASE}/llvm_types.h
+  )
+endif()
 
 list(APPEND YT_SOURCE_FILES
   ${SRCS}

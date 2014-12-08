@@ -24,8 +24,8 @@
 #include "mpl.h"
 #include "align_of.h"
 
-#define LLVM_ATTRIBUTE_UNUSED_RESULT
-#define LLVM_HAS_RVALUE_REFERENCES 1
+#define YT_LLVM_ATTRIBUTE_UNUSED_RESULT
+#define YT_LLVM_HAS_RVALUE_REFERENCES 1
 
 namespace NYT {
 
@@ -54,7 +54,7 @@ public:
     return size_t((char*)CapacityX - (char*)BeginX);
   }
 
-  bool LLVM_ATTRIBUTE_UNUSED_RESULT empty() const { return BeginX == EndX; }
+  bool YT_LLVM_ATTRIBUTE_UNUSED_RESULT empty() const { return BeginX == EndX; }
 };
 
 template <typename T, unsigned N> struct SmallVectorStorage;
@@ -184,7 +184,7 @@ protected:
   /// std::move, but not all stdlibs actually provide that.
   template <typename It1, typename It2>
   static It2 move(It1 I, It1 E, It2 Dest) {
-#if LLVM_HAS_RVALUE_REFERENCES
+#if YT_LLVM_HAS_RVALUE_REFERENCES
     for (; I != E; ++I, ++Dest)
       *Dest = ::std::move(*I);
     return Dest;
@@ -199,7 +199,7 @@ protected:
   /// std::move_backward, but not all stdlibs actually provide that.
   template <typename It1, typename It2>
   static It2 move_backward(It1 I, It1 E, It2 Dest) {
-#if LLVM_HAS_RVALUE_REFERENCES
+#if YT_LLVM_HAS_RVALUE_REFERENCES
     while (I != E)
       *--Dest = ::std::move(*--E);
     return Dest;
@@ -212,7 +212,7 @@ protected:
   /// memory starting with "Dest", constructing elements as needed.
   template <typename It1, typename It2>
   static void uninitialized_move(It1 I, It1 E, It2 Dest) {
-#if LLVM_HAS_RVALUE_REFERENCES
+#if YT_LLVM_HAS_RVALUE_REFERENCES
     for (; I != E; ++I, ++Dest)
       ::new ((void*) &*Dest) T(::std::move(*I));
 #else
@@ -245,7 +245,7 @@ public:
     goto Retry;
   }
 
-#if LLVM_HAS_RVALUE_REFERENCES
+#if YT_LLVM_HAS_RVALUE_REFERENCES
   void push_back(T &&Elt) {
     if (this->EndX < this->CapacityX) {
     Retry:
@@ -440,8 +440,8 @@ public:
       this->grow(N);
   }
 
-  T LLVM_ATTRIBUTE_UNUSED_RESULT pop_back_val() {
-#if LLVM_HAS_RVALUE_REFERENCES
+  T YT_LLVM_ATTRIBUTE_UNUSED_RESULT pop_back_val() {
+#if YT_LLVM_HAS_RVALUE_REFERENCES
     T Result = ::std::move(this->back());
 #else
     T Result = this->back();
@@ -524,7 +524,7 @@ public:
     return(N);
   }
 
-#if LLVM_HAS_RVALUE_REFERENCES
+#if YT_LLVM_HAS_RVALUE_REFERENCES
   iterator insert(iterator I, T &&Elt) {
     if (I == this->end()) {  // Important special case for empty vector.
       this->push_back(::std::move(Elt));
@@ -696,7 +696,7 @@ public:
 
   SmallVectorImpl &operator=(const SmallVectorImpl &RHS);
 
-#if LLVM_HAS_RVALUE_REFERENCES
+#if YT_LLVM_HAS_RVALUE_REFERENCES
   SmallVectorImpl &operator=(SmallVectorImpl &&RHS);
 #endif
 
@@ -816,7 +816,7 @@ SmallVectorImpl<T> &SmallVectorImpl<T>::
   return *this;
 }
 
-#if LLVM_HAS_RVALUE_REFERENCES
+#if YT_LLVM_HAS_RVALUE_REFERENCES
 template <typename T>
 SmallVectorImpl<T> &SmallVectorImpl<T>::operator=(SmallVectorImpl<T> &&RHS) {
   // Avoid self-assignment.
@@ -927,7 +927,7 @@ public:
     return *this;
   }
 
-#if LLVM_HAS_RVALUE_REFERENCES
+#if YT_LLVM_HAS_RVALUE_REFERENCES
   SmallVector(SmallVector &&RHS) : SmallVectorImpl<T>(N) {
     if (!RHS.empty())
       SmallVectorImpl<T>::operator=(::std::move(RHS));
@@ -964,5 +964,5 @@ inline void swap(NYT::SmallVector<T, N> &LHS, NYT::SmallVector<T, N> &RHS) {
 
 } // namespace std
 
-#undef LLVM_HAS_RVALUE_REFERENCES
-#undef LLVM_ATTRIBUTE_UNUSED_RESULT
+#undef YT_LLVM_HAS_RVALUE_REFERENCES
+#undef YT_LLVM_ATTRIBUTE_UNUSED_RESULT

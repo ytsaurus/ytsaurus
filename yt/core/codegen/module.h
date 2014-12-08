@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "function.h"
 #include "routine_registry.h"
 
 #include <core/misc/intrusive_ptr.h>
@@ -36,35 +37,12 @@ public:
     llvm::Function* GetRoutine(const Stroka& symbol) const;
 
     template <class TSignature>
-    TCallback<TSignature> GetCompiledFunction(const Stroka& name);
+    TCGFunction<TSignature> GetCompiledFunction(const Stroka& name);
 
 private:
     std::unique_ptr<TImpl> Impl_;
 
     uint64_t GetFunctionAddress(const Stroka& name);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class R, class... TArgs>
-class TCGFunction<R(TArgs...)> {
-private:
-    typedef R (TType)(TArgs...);
-
-public:
-    TCGFunction(uint64_t functionAddress, TCGModulePtr&& module)
-        : FunctionPtr_(reinterpret_cast<TType*>(functionAddress))
-        , Module_(std::move(module))
-    { }
-
-    R operator() (TArgs&&... args) const
-    {
-        return FunctionPtr_(std::forward<TArgs>(args)...);
-    }
-
-private:
-    TType* FunctionPtr_;
-    TCGModulePtr Module_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

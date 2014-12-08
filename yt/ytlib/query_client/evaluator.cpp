@@ -367,7 +367,7 @@ private:
         int dummy;
         executionContext->StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
-        cgQuery.Run(constants, executionContext);
+        cgQuery(constants, executionContext);
     }
 
     void(* volatile CallCGQueryPtr_)(
