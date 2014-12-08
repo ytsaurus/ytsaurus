@@ -185,6 +185,13 @@ void TNonOwningCGroup::Append(const Stroka& name, const Stroka& value) const
 #endif
 }
 
+bool TNonOwningCGroup::IsRoot() const
+{
+    TFsPath path(FullPath_);
+    path.Fix();
+    return path.GetPath() == CGroupRootPath;
+}
+
 bool TNonOwningCGroup::IsNull() const
 {
     return FullPath_.Empty();
@@ -256,6 +263,8 @@ void TNonOwningCGroup::Unlock() const
 
 void TNonOwningCGroup::Kill() const
 {
+    YCHECK(!IsRoot());
+
     Traverse(
         BIND([] (const TNonOwningCGroup& group) { group.DoKill(); } ),
         BIND([] (const TNonOwningCGroup& group) {} )

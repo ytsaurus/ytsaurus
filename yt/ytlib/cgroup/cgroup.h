@@ -38,6 +38,7 @@ public:
     void Set(const Stroka& name, const Stroka& value) const;
     void Append(const Stroka& name, const Stroka& value) const;
 
+    bool IsRoot() const;
     bool IsNull() const;
     std::vector<int> GetTasks() const;
     const Stroka& GetFullPath() const;
