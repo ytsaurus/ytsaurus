@@ -93,7 +93,7 @@ TEST(TCheckpointableStreamTest, Buffered)
 
     std::vector<char> blob;
     for (int i = 0; i < 1000; ++i) {
-        blob.push_back(random() % 128);
+        blob.push_back(std::rand() % 128);
     }
 
     {

@@ -49,7 +49,7 @@ private:
 template <class R, class... TArgs>
 class TCGFunction<R(TArgs...)> {
 private:
-    using TType = R(TArgs...);
+    typedef R (TType)(TArgs...);
 
 public:
     TCGFunction(uint64_t functionAddress, TCGModulePtr&& module)
