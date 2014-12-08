@@ -179,7 +179,6 @@ void TCompositeNodeMixin::RemoveRecursive(
     context->SetRequestInfo("");
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-    ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Write);
 
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
@@ -187,6 +186,7 @@ void TCompositeNodeMixin::RemoveRecursive(
         tokenizer.Advance();
         tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
+        ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Write);
         Clear();
 
         context->Reply();
