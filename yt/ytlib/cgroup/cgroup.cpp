@@ -89,6 +89,10 @@ void RunKiller(const Stroka& processGroupPath)
     LOG_INFO("Kill processes from %Qv", processGroupPath);
 
     TNonOwningCGroup group(processGroupPath);
+    if (group.IsNull()) {
+        return;
+    }
+
     group.Lock();
 
     auto children = group.GetChildren();
@@ -220,6 +224,10 @@ const Stroka& TNonOwningCGroup::GetFullPath() const
 std::vector<TNonOwningCGroup> TNonOwningCGroup::GetChildren() const
 {
     std::vector<TNonOwningCGroup> result;
+
+    if (IsNull()) {
+        return result;
+    }
 
     TFsPath path(FullPath_);
     if (path.Exists()) {
