@@ -50,13 +50,19 @@ public:
 
     void Kill() const;
 
+    void RemoveAllSubcgroups() const;
+
 protected:
     void DoLock() const;
     void DoUnlock() const;
 
     void DoKill() const;
 
-    void ForAll(const TCallback<void(const TNonOwningCGroup&)> action) const;
+    void DoRemove() const;
+
+    void Traverse(
+        const TCallback<void(const TNonOwningCGroup&)> preorderAction,
+        const TCallback<void(const TNonOwningCGroup&)> postorderAction) const;
 
     Stroka GetPath(const Stroka& filename) const;
 

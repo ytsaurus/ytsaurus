@@ -144,7 +144,8 @@ void TSlot::DoCleanProcessGroups()
 {
     try {
         for (const auto& path : GetCGroupPaths()) {
-            NCGroup::RemoveAllSubcgroups(path);
+            NCGroup::TNonOwningCGroup group(path);
+            group.RemoveAllSubcgroups();
         }
     } catch (const std::exception& ex) {
         auto wrappedError = TError("Failed to clean slot subcgroups for slot %v",

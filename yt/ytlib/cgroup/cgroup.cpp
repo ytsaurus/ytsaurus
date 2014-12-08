@@ -82,30 +82,6 @@ std::vector<Stroka> GetSupportedCGroups()
     return result;
 }
 
-void ApplyActionToAllChlidren(const TFsPath& path, const TCallback<void(const TFsPath&)> action)
-{
-    if (path.Exists()) {
-        yvector<TFsPath> children;
-        path.List(children);
-        for (const auto& child : children) {
-            if (child.IsDirectory()) {
-                ApplyActionToAllChlidren(child, action);
-                action.Run(child);
-            }
-        }
-    }
-}
-
-void RemoveDir(const TFsPath& path)
-{
-    path.DeleteIfExists();
-}
-
-void RemoveAllSubcgroups(const Stroka& path)
-{
-    ApplyActionToAllChlidren(TFsPath(path), BIND(RemoveDir));
-}
-
 // The caller must be sure that it has root privileges.
 void RunKiller(const Stroka& processGroupPath)
 {
@@ -264,17 +240,39 @@ void TNonOwningCGroup::EnsureExistance() const
 
 void TNonOwningCGroup::Lock() const
 {
-    ForAll(BIND([] (const TNonOwningCGroup& group) { group.Lock(); }));
+    Traverse(
+        BIND([] (const TNonOwningCGroup& group) { group.DoLock(); }),
+        BIND([] (const TNonOwningCGroup& group) {} )
+    );
 }
 
 void TNonOwningCGroup::Unlock() const
 {
-    ForAll(BIND([] (const TNonOwningCGroup& group) { group.Unlock(); }));
+    Traverse(
+        BIND([] (const TNonOwningCGroup& group) {} ),
+        BIND([] (const TNonOwningCGroup& group) { group.DoUnlock(); } )
+    );
 }
 
 void TNonOwningCGroup::Kill() const
 {
-    ForAll(BIND([] (const TNonOwningCGroup& group) { group.DoKill(); }));
+    Traverse(
+        BIND([] (const TNonOwningCGroup& group) { group.DoKill(); } ),
+        BIND([] (const TNonOwningCGroup& group) {} )
+    );
+}
+
+void TNonOwningCGroup::RemoveAllSubcgroups() const
+{
+    auto this_ = this;
+    Traverse(
+        BIND([] (const TNonOwningCGroup& group) {} ),
+        BIND([this_] (const TNonOwningCGroup& group) {
+            if (this_ != &group) {
+                group.DoRemove();
+            }
+        })
+    );
 }
 
 void TNonOwningCGroup::DoLock() const
@@ -332,13 +330,22 @@ void TNonOwningCGroup::DoKill() const
 #endif
 }
 
-void TNonOwningCGroup::ForAll(const TCallback<void(const TNonOwningCGroup&)> action) const
+void TNonOwningCGroup::DoRemove() const
 {
-    action.Run(*this);
+    TFsPath(FullPath_).DeleteIfExists();
+}
+
+void TNonOwningCGroup::Traverse(
+        const TCallback<void(const TNonOwningCGroup&)> preorderAction,
+        const TCallback<void(const TNonOwningCGroup&)> postorderAction) const
+{
+    preorderAction.Run(*this);
 
     for (const auto& child : GetChildren()) {
-        child.ForAll(action);
+        child.Traverse(preorderAction, postorderAction);
     }
+
+    postorderAction.Run(*this);
 }
 
 Stroka TNonOwningCGroup::GetPath(const Stroka& filename) const
