@@ -64,7 +64,6 @@ public:
 
     void Create();
     void Destroy();
-    void Release();
 
     bool IsCreated() const;
 
