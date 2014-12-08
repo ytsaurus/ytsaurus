@@ -129,19 +129,19 @@ void ScanOpHelper(
 }
 
 void GroupOpHelper(
-    int keySize,
-    int aggregateItemCount,
     void** consumeRowsClosure,
     void (*consumeRows)(
         void** closure,
         std::vector<TRow>* groupedRows,
-        TLookupRows* rows))
+        TLookupRows* rows),
+    ui64 (*groupHasher)(TRow),
+    char (*groupComparer)(TRow, TRow))
 {
     std::vector<TRow> groupedRows;
     TLookupRows lookupRows(
         InitialGroupOpHashtableCapacity,
-        NDetail::TGroupHasher(keySize),
-        NDetail::TGroupComparer(keySize));
+        groupHasher,
+        groupComparer);
 
     consumeRows(consumeRowsClosure, &groupedRows, &lookupRows);
 }
@@ -263,6 +263,13 @@ char IsRowInArray(
     return std::binary_search(rows.begin(), rows.end(), row, TRowCompare());
 }
 
+size_t StringHash(
+    const char* data,
+    ui32 length)
+{
+    return TStringBuf(data, length).hash();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoutines
@@ -278,6 +285,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(WriteRow);
     REGISTER_ROUTINE(ScanOpHelper);
     REGISTER_ROUTINE(GroupOpHelper);
+    REGISTER_ROUTINE(StringHash);
     REGISTER_ROUTINE(FindRow);
     REGISTER_ROUTINE(AddRow);
     REGISTER_ROUTINE(AllocateRow);

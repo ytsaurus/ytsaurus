@@ -55,8 +55,8 @@ struct TExecutionContext
 
 namespace NDetail {
 
-class TGroupHasher;
-class TGroupComparer;
+typedef ui64 (*TGroupHasher)(TRow);
+typedef char (*TGroupComparer)(TRow, TRow);
 
 } // namespace NDetail
 
@@ -78,58 +78,11 @@ struct TCGVariables
     std::vector<std::vector<TOwningRow>> LiteralRows;
 };
 
-using TCGQuerySignature = void(TRow, TExecutionContext*);
+typedef void (TCGQuerySignature)(TRow, TExecutionContext*);
 using TCGQueryCallback = TCallback<TCGQuerySignature>;
 
 const int MaxRowsPerRead = 1024;
 const int MaxRowsPerWrite = 1024;
-
-namespace NDetail {
-
-class TGroupHasher
-{
-public:
-    explicit TGroupHasher(int keySize)
-        : KeySize_(keySize)
-    { }
-
-    size_t operator() (TRow key) const
-    {
-        size_t result = 0;
-        for (int i = 0; i < KeySize_; ++i) {
-            result = HashCombine(result, key[i]);
-        }
-        return result;
-    }
-
-private:
-    int KeySize_;
-
-};
-
-class TGroupComparer
-{
-public:
-    explicit TGroupComparer(int keySize)
-        : KeySize_(keySize)
-    { }
-
-    bool operator() (TRow lhs, TRow rhs) const
-    {
-        for (int i = 0; i < KeySize_; ++i) {
-            if (CompareRowValues(lhs[i], rhs[i]) != 0) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-private:
-    int KeySize_;
-
-};
-
-} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 

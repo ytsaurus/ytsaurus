@@ -414,6 +414,13 @@ private:
         TCGIRBuilder& builder,
         const std::vector<TCodegenValueBlock>& codegenArgs,
         int arrayIndex);
+
+    Function* CodegenGroupComparerFunction(
+        const std::vector<EValueType>& types);
+
+    Function* CodegenGroupHasherFunction(
+        const std::vector<EValueType>& types);
+
     TCGValue CodegenExpr(
         TCGIRBuilder& builder,
         const TConstExpressionPtr& expr,
@@ -1001,6 +1008,212 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
         name);
 }
 
+Function* TCGContext::CodegenGroupComparerFunction(
+    const std::vector<EValueType>& types)
+{
+    auto module = Module_->GetModule();
+
+    Function* function = Function::Create(
+        TypeBuilder<char(TRow, TRow), false>::get(module->getContext()),
+        Function::ExternalLinkage,
+        "GroupComparer",
+        module);
+
+    auto args = function->arg_begin();
+    Value* lhsRow = args; lhsRow->setName("lhsRow");
+    Value* rhsRow = ++args; rhsRow->setName("rhsRow");
+    YCHECK(++args == function->arg_end());
+
+    TCGIRBuilder builder(BasicBlock::Create(module->getContext(), "entry", function));
+
+    auto codegenEqualOp = [&] (size_t index) -> Value* {
+        auto lhsValue = TCGValue::CreateFromRow(
+            builder,
+            lhsRow,
+            index,
+            types[index]);
+
+        auto rhsValue = TCGValue::CreateFromRow(
+            builder,
+            rhsRow,
+            index,
+            types[index]);
+
+        auto* conditionBB = builder.CreateBBHere("condition");
+        auto* thenBB = builder.CreateBBHere("then");
+        auto* elseBB = builder.CreateBBHere("else");
+        auto* endBB = builder.CreateBBHere("end");
+        builder.CreateBr(conditionBB);
+
+        builder.SetInsertPoint(conditionBB);
+        builder.CreateCondBr(builder.CreateOr(lhsValue.IsNull(), rhsValue.IsNull()), elseBB, thenBB);
+        conditionBB = builder.GetInsertBlock();
+
+        builder.SetInsertPoint(thenBB);
+
+        Value* thenResult;
+
+        auto* lhsData = lhsValue.GetData();
+        auto* rhsData = rhsValue.GetData();
+
+        switch (types[index]) {
+            case EValueType::Boolean:
+            case EValueType::Int64:
+            case EValueType::Uint64:
+                thenResult = builder.CreateZExtOrBitCast( 
+                    builder.CreateICmpEQ(lhsData, rhsData), 
+                    TDataTypeBuilder::TBoolean::get(builder.getContext()));
+                break;
+
+            case EValueType::Double:
+                thenResult = builder.CreateZExtOrBitCast( 
+                    builder.CreateFCmpUEQ(lhsData, rhsData), 
+                    TDataTypeBuilder::TBoolean::get(builder.getContext()));
+                break;
+
+            case EValueType::String: {
+                Value* lhsLength = lhsValue.GetLength();
+                Value* rhsLength = rhsValue.GetLength();
+
+                thenResult = builder.CreateCall4(
+                            Module_->GetRoutine("Equal"),
+                            lhsData, lhsLength, rhsData, rhsLength);
+                break;
+            }
+
+            default:
+                YUNREACHABLE();
+        }
+
+        builder.CreateBr(endBB);
+        thenBB = builder.GetInsertBlock();
+
+        builder.SetInsertPoint(elseBB);
+        auto* elseResult = builder.CreateZExtOrBitCast(
+            builder.CreateICmpEQ(lhsValue.IsNull(), rhsValue.IsNull()),
+            TDataTypeBuilder::TBoolean::get(builder.getContext()));
+
+        builder.CreateBr(endBB);
+        elseBB = builder.GetInsertBlock();
+
+        builder.SetInsertPoint(endBB);
+
+        PHINode* result = builder.CreatePHI(thenResult->getType(), 2);
+        result->addIncoming(thenResult, thenBB);
+        result->addIncoming(elseResult, elseBB);
+
+        return result;
+    };
+
+    YCHECK(types.size() >= 1);
+    auto result = codegenEqualOp(0);
+
+    for (size_t index = 1; index < types.size(); ++index) {
+        result = builder.CreateAnd(result, codegenEqualOp(index));
+    }
+
+    builder.CreateRet(result);
+
+    return function;
+}
+
+Function* TCGContext::CodegenGroupHasherFunction(
+    const std::vector<EValueType>& types)
+{
+    auto module = Module_->GetModule();
+
+    Function* function = Function::Create(
+        TypeBuilder<ui64(TRow), false>::get(module->getContext()),
+        Function::ExternalLinkage,
+        "GroupHasher",
+        module);
+
+    auto args = function->arg_begin();
+    Value* row = args; row->setName("row");
+    YCHECK(++args == function->arg_end());
+
+    TCGIRBuilder builder(BasicBlock::Create(module->getContext(), "entry", function));
+
+    auto codegenHashOp = [&] (size_t index, TCGIRBuilder& builder) -> Value* {
+        auto value = TCGValue::CreateFromRow(
+            builder,
+            row,
+            index,
+            types[index]);
+
+        auto* conditionBB = builder.CreateBBHere("condition");
+        auto* thenBB = builder.CreateBBHere("then");
+        auto* elseBB = builder.CreateBBHere("else");
+        auto* endBB = builder.CreateBBHere("end");
+
+        builder.CreateBr(conditionBB);
+
+        builder.SetInsertPoint(conditionBB);
+        builder.CreateCondBr(value.IsNull(), elseBB, thenBB);
+        conditionBB = builder.GetInsertBlock();
+
+        builder.SetInsertPoint(thenBB);
+
+        Value* thenResult;
+
+        switch (value.GetStaticType()) {
+            case EValueType::Int64:
+            case EValueType::Uint64:
+            case EValueType::Double:
+                thenResult = value.Cast(EValueType::Uint64, true).GetData();
+                break;
+
+            case EValueType::String:
+                thenResult = builder.CreateCall2(
+                    Module_->GetRoutine("StringHash"),
+                    value.GetData(),
+                    value.GetLength());
+                break;
+
+            default:
+                YUNIMPLEMENTED();
+        }
+
+        builder.CreateBr(endBB);
+        thenBB = builder.GetInsertBlock();
+
+        builder.SetInsertPoint(elseBB);
+        auto* elseResult = builder.getInt64(0);
+        builder.CreateBr(endBB);
+        elseBB = builder.GetInsertBlock();
+
+        builder.SetInsertPoint(endBB);
+
+        PHINode* result = builder.CreatePHI(thenResult->getType(), 2);
+        result->addIncoming(thenResult, thenBB);
+        result->addIncoming(elseResult, elseBB);
+
+        return result;
+    };
+
+    auto codegenHashCombine = [&] (TCGIRBuilder& builder, Value* first, Value* second) -> Value* {
+        //first ^ (second + 0x9e3779b9 + (second << 6) + (second >> 2));
+        return builder.CreateXor(
+            first,
+            builder.CreateAdd(
+                builder.CreateAdd(
+                    builder.CreateAdd(second, builder.getInt64(0x9e3779b9)),
+                    builder.CreateLShr(second, builder.getInt64(2))),
+                builder.CreateShl(second, builder.getInt64(6))));
+    };
+
+    YCHECK(types.size() >= 1);
+    auto result = codegenHashOp(0, builder);
+
+    for (size_t index = 1; index < types.size(); ++index) {
+        result = codegenHashCombine(builder, result, codegenHashOp(index, builder));
+    }
+
+    builder.CreateRet(result);
+
+    return function;
+}
+
 TCGValue TCGContext::DoCodegenInOpExpr(
     TCGIRBuilder& builder,
     const std::vector<TCodegenValueBlock>& codegenArgs,
@@ -1325,12 +1538,17 @@ void TCGContext::CodegenGroupOp(
 
     innerBuilder.CreateRetVoid();
 
+    std::vector<EValueType> keyTypes;
+    for (int index = 0; index < keySize; ++index) {
+        keyTypes.push_back(clause.GroupItems[index].Expression->Type);
+    }
+
     builder.CreateCall4(
         Module_->GetRoutine("GroupOpHelper"),
-        builder.getInt32(keySize),
-        builder.getInt32(aggregateItemCount),
         innerBuilder.GetClosure(),
-        function);
+        function,
+        CodegenGroupHasherFunction(keyTypes),
+        CodegenGroupComparerFunction(keyTypes));
 }
 
 TCGQueryCallback TCGContext::CodegenEvaluate(
