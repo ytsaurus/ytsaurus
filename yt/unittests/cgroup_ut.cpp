@@ -127,36 +127,6 @@ TEST(CGroup, UnableToDestoryNotEmptyCGroup)
     ASSERT_EQ(0, close(triedRemoveEvent));
 }
 
-TEST(CGroup, DestroyAndGrandChildren)
-{
-    auto group = CreateCGroup<TBlockIO>("grandchildren");
-
-    auto pid = fork();
-    ASSERT_TRUE(pid >= 0);
-
-    if (pid == 0) {
-        group.AddCurrentTask();
-
-        ASSERT_EQ(0, daemon(0, 0));
-
-        exit(0);
-    }
-
-    ASSERT_EQ(pid , waitpid(pid, nullptr, 0));
-
-    while (true) {
-        auto pids = group.GetTasks();
-        if (pids.empty()) {
-            break;
-        }
-        for (auto pid: pids) {
-            ASSERT_EQ(0, kill(pid, SIGTERM));
-        }
-    }
-
-    group.Destroy();
-}
-
 TEST(CGroup, GetCpuAccStat)
 {
     auto group = CreateCGroup<TCpuAccounting>("some");
