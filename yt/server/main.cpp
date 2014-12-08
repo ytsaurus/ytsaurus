@@ -252,8 +252,10 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isKiller) {
+        YCHECK(setuid(0) == 0);
         auto path = parser.ProcessGroupPath.getValue();
-        NCGroup::KillProcessGroup(path);
+        NCGroup::TNonOwningCGroup group(path);
+        group.Kill();
 
         return EExitCode::OK;
     }

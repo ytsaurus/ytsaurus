@@ -48,9 +48,13 @@ public:
     void Lock() const;
     void Unlock() const;
 
+    void Kill() const;
+
 protected:
     void DoLock() const;
     void DoUnlock() const;
+
+    void DoKill() const;
 
     void ForAll(const TCallback<void(const TNonOwningCGroup&)> action) const;
 

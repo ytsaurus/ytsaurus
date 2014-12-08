@@ -112,22 +112,13 @@ void RunKiller(const Stroka& processGroupPath)
 #ifdef _linux_
     LOG_INFO("Kill processes from %Qv", processGroupPath);
 
-    if (processGroupPath.Empty()) {
-        return;
-    }
-
     TNonOwningCGroup group(processGroupPath);
     group.Lock();
 
+    auto children = group.GetChildren();
     auto pids = group.GetTasks();
-    if (pids.empty())
+    if (children.empty() && pids.empty())
         return;
-
-    auto throwError = [=] (const TError& error) {
-        THROW_ERROR_EXCEPTION(
-            "Failed to kill processes from %Qv",
-            processGroupPath) << error;
-    };
 
     TProcess process(GetExecPath());
     process.AddArguments({
@@ -142,41 +133,6 @@ void RunKiller(const Stroka& processGroupPath)
 
     auto error = process.Wait();
     THROW_ERROR_EXCEPTION_IF_FAILED(error);
-#endif
-}
-
-void KillProcessGroupImpl(const TFsPath& processGroupPath)
-{
-#ifdef _linux_
-    TNonOwningCGroup group(processGroupPath);
-    auto pids = group.GetTasks();
-
-    while (!pids.empty()) {
-        LOG_DEBUG("Killing processes (PIDs: [%v])",
-            JoinToString(pids));
-
-        for (int pid : pids) {
-            auto result = kill(pid, 9);
-            if (result == -1) {
-                YCHECK(errno == ESRCH);
-            }
-        }
-
-        ThreadYield();
-        pids = group.GetTasks();
-    }
-#endif
-}
-
-void KillProcessGroup(const Stroka& processGroupPath)
-{
-#ifdef _linux_
-    LOG_DEBUG("Killing processes from %Qv",
-        processGroupPath);
-
-    YCHECK(setuid(0) == 0);
-    ApplyActionToAllChlidren(TFsPath(processGroupPath), BIND(KillProcessGroupImpl));
-    KillProcessGroupImpl(TFsPath(processGroupPath));
 #endif
 }
 
@@ -316,6 +272,11 @@ void TNonOwningCGroup::Unlock() const
     ForAll(BIND([] (const TNonOwningCGroup& group) { group.Unlock(); }));
 }
 
+void TNonOwningCGroup::Kill() const
+{
+    ForAll(BIND([] (const TNonOwningCGroup& group) { group.DoKill(); }));
+}
+
 void TNonOwningCGroup::DoLock() const
 {
     LOG_INFO("Locking group %Qv", FullPath_);
@@ -342,6 +303,31 @@ void TNonOwningCGroup::DoUnlock() const
 
         code = chmod(~FullPath_, S_IRUSR | S_IXUSR | S_IWUSR);
         YCHECK(code == 0);
+    }
+#endif
+}
+
+void TNonOwningCGroup::DoKill() const
+{
+#ifdef _linux_
+    LOG_DEBUG("Killing processes from %Qv",
+        FullPath_);
+
+    auto pids = GetTasks();
+
+    while (!pids.empty()) {
+        LOG_DEBUG("Killing processes (PIDs: [%v])",
+            JoinToString(pids));
+
+        for (int pid : pids) {
+            auto result = kill(pid, 9);
+            if (result == -1) {
+                YCHECK(errno == ESRCH);
+            }
+        }
+
+        ThreadYield();
+        pids = GetTasks();
     }
 #endif
 }
