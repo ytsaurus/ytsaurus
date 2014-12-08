@@ -12,10 +12,6 @@
 
 #include <core/ytree/yson_producer.h>
 
-#ifdef _linux_
-    #include <sys/stat.h>
-#endif
-
 namespace NYT {
 namespace NExecAgent {
 
@@ -161,12 +157,7 @@ void TSlot::DoCleanProcessGroups()
 void TSlot::DoResetProcessGroup()
 {
     if (Config_->EnableCGroups) {
-#ifdef _linux_
-        int code = chmod(~NFS::CombinePaths(ProcessGroup_.GetFullPath(), "tasks"), S_IRUSR | S_IWUSR);
-        if (code != 0) {
-            LogErrorAndExit(TError("Unable to reset cgroup permissions") << TError::FromSystem());
-        }
-#endif
+        ProcessGroup_.Unlock();
     }
 }
 

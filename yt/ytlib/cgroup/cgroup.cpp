@@ -117,12 +117,7 @@ void RunKiller(const Stroka& processGroupPath)
     }
 
     TNonOwningCGroup group(processGroupPath);
-    LOG_INFO("Locking group %Qv", processGroupPath);
-
-    int code = chmod(~NFS::CombinePaths(group.GetFullPath(), "tasks"), S_IRUSR);
-    if (code != 0) {
-        LOG_FATAL(TError::FromSystem(), "Unable to lock %Qv", processGroupPath);
-    }
+    group.Lock();
 
     auto pids = group.GetTasks();
     if (pids.empty())
@@ -291,6 +286,34 @@ void TNonOwningCGroup::EnsureExistance() const
 
 #ifdef _linux_
     NFS::ForcePath(FullPath_, 0755);
+#endif
+}
+
+void TNonOwningCGroup::Lock() const
+{
+    LOG_INFO("Locking group %Qv", FullPath_);
+
+#ifdef _linux
+    if (!IsNull()) {
+        int code = chmod(~NFS::CombinePaths(FullPath_, "tasks"), S_IRUSR);
+        if (code != 0) {
+            LOG_FATAL(TError::FromSystem(), "Unable to lock %Qv", FullPath_);
+        }
+    }
+#endif
+}
+
+void TNonOwningCGroup::Unlock() const
+{
+    LOG_INFO("Unlocking group %Qv", FullPath_);
+
+#ifdef _linux_
+    if (!IsNull()) {
+        int code = chmod(~NFS::CombinePaths(FullPath_, "tasks"), S_IRUSR | S_IWUSR);
+        if (code != 0) {
+            LOG_FATAL(TError::FromSystem(), "Unable to lock %Qv", FullPath_);
+        }
+    }
 #endif
 }
 

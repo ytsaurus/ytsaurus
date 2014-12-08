@@ -43,6 +43,8 @@ public:
     const Stroka& GetFullPath() const;
 
     void EnsureExistance() const;
+    void Lock() const;
+    void Unlock() const;
 
 protected:
     Stroka FullPath_;
