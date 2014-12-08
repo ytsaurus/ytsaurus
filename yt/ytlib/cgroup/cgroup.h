@@ -58,6 +58,8 @@ protected:
 
     void ForAll(const TCallback<void(const TNonOwningCGroup&)> action) const;
 
+    Stroka GetPath(const Stroka& filename) const;
+
     Stroka FullPath_;
 };
 

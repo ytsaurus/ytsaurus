@@ -183,7 +183,7 @@ Stroka TNonOwningCGroup::Get(const Stroka& name) const
     YCHECK(!IsNull());
     Stroka result;
 #ifdef _linux_
-    const auto path = NFS::CombinePaths(FullPath_, name);
+    const auto path = GetPath(name);
     result = TBufferedFileInput(path).ReadLine();
 #endif
     return result;
@@ -193,7 +193,7 @@ void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const
 {
     YCHECK(!IsNull());
 #ifdef _linux_
-    auto path = NFS::CombinePaths(FullPath_, name);
+    auto path = GetPath(name);
     TFileOutput output(TFile(path, OpenMode::WrOnly));
     output << value;
 #endif
@@ -203,7 +203,7 @@ void TNonOwningCGroup::Append(const Stroka& name, const Stroka& value) const
 {
     YCHECK(!IsNull());
 #ifdef _linux_
-    auto path = NFS::CombinePaths(FullPath_, name);
+    auto path = GetPath(name);
     TFileOutput output(TFile(path, OpenMode::ForAppend));
     output << value;
 #endif
@@ -219,7 +219,7 @@ std::vector<int> TNonOwningCGroup::GetTasks() const
     std::vector<int> results;
     if (!IsNull()) {
 #ifdef _linux_
-        auto values = ReadAllValues(NFS::CombinePaths(FullPath_, "tasks"));
+        auto values = ReadAllValues(GetPath("tasks"));
         for (const auto& value : values) {
             int pid = FromString<int>(value);
             results.push_back(pid);
@@ -286,7 +286,7 @@ void TNonOwningCGroup::DoLock() const
         int code = chmod(~FullPath_, S_IRUSR | S_IXUSR);
         YCHECK(code == 0);
 
-        code = chmod(~NFS::CombinePaths(FullPath_, "tasks"), S_IRUSR);
+        code = chmod(~GetPath("tasks"), S_IRUSR);
         YCHECK(code == 0);
     }
 #endif
@@ -298,7 +298,7 @@ void TNonOwningCGroup::DoUnlock() const
 
 #ifdef _linux_
     if (!IsNull()) {
-        int code = chmod(~NFS::CombinePaths(FullPath_, "tasks"), S_IRUSR | S_IWUSR);
+        int code = chmod(~GetPath("tasks"), S_IRUSR | S_IWUSR);
         YCHECK(code == 0);
 
         code = chmod(~FullPath_, S_IRUSR | S_IXUSR | S_IWUSR);
@@ -339,6 +339,11 @@ void TNonOwningCGroup::ForAll(const TCallback<void(const TNonOwningCGroup&)> act
     for (const auto& child : GetChildren()) {
         child.ForAll(action);
     }
+}
+
+Stroka TNonOwningCGroup::GetPath(const Stroka& filename) const
+{
+    return NFS::CombinePaths(FullPath_, filename);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -540,7 +545,7 @@ TMemory::TStatistics TMemory::GetStatistics() const
     TMemory::TStatistics result;
 #ifdef _linux_
     {
-        auto values = ReadAllValues(NFS::CombinePaths(FullPath_, "memory.stat"));
+        auto values = ReadAllValues(GetPath("memory.stat"));
         int lineNumber = 0;
         while (2 * lineNumber + 1 < values.size()) {
             const auto& type = values[2 * lineNumber];
