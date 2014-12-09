@@ -86,12 +86,7 @@ TUnversionedRow TRowBuffer::Capture(TUnversionedRow row)
     memcpy(capturedValues, values, count * sizeof (TUnversionedValue));
 
     for (int index = 0; index < count; ++index) {
-        const auto& value = values[index];
-        if (IsStringLikeType(EValueType(value.Type))) {
-            auto& capturedValue = capturedValues[index];
-            capturedValue.Data.String = UnalignedPool_.AllocateUnaligned(value.Length);
-            memcpy(const_cast<char*>(capturedValue.Data.String), value.Data.String, value.Length);
-        }
+        CaptureValue(&capturedValues[index], &UnalignedPool_);
     }
 
     return capturedRow;
