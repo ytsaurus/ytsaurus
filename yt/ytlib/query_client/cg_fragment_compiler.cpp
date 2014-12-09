@@ -1420,7 +1420,6 @@ void TCGContext::CodegenProjectOp(
             for (int index = 0; index < projectionCount; ++index) {
                 const auto& expr = clause.Projections[index].Expression;
                 auto id = index;
-                auto type = expr->Type;
 
                 CodegenExpr(innerBuilder, expr, sourceTableSchema, row)
                     .StoreToRow(newRow, index, id);
@@ -1479,7 +1478,6 @@ void TCGContext::CodegenGroupOp(
         for (int index = 0; index < keySize; ++index) {
             const auto& expr = clause.GroupItems[index].Expression;
             auto id = index;
-            auto type = expr->Type;
 
             CodegenExpr(innerBuilder, expr, sourceTableSchema, row)
                 .StoreToRow(newRowRef, index, id);
@@ -1490,7 +1488,6 @@ void TCGContext::CodegenGroupOp(
             const auto& expr = item.Expression;
 
             auto id = keySize + index;
-            auto type = expr->Type;
 
             CodegenExpr(innerBuilder, expr, sourceTableSchema, row)
                 .StoreToRow(newRowRef, keySize + index, id);
