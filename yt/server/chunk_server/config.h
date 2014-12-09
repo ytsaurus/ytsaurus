@@ -27,6 +27,10 @@ public:
     //! replicator gets disabled.
     TNullable<double> SafeLostChunkFraction;
 
+    //! When the number of lost chunks grows above this margin,
+    //! replicator gets disabled.
+    TNullable<int> SafeLostChunkCount;
+
     //! Minimum difference in fill coefficient (between the most and the least loaded nodes) to start balancing.
     double MinBalancingFillFactorDiff;
 
@@ -82,6 +86,9 @@ public:
         RegisterParameter("safe_lost_chunk_fraction", SafeLostChunkFraction)
             .InRange(0.0, 1.0)
             .Default(0.5);
+        RegisterParameter("safe_lost_chunk_count", SafeLostChunkCount)
+            .GreaterThan(0)
+            .Default(1000);
 
         RegisterParameter("min_chunk_balancing_fill_factor_diff", MinBalancingFillFactorDiff)
             .InRange(0.0, 1.0)

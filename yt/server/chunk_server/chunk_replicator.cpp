@@ -1018,7 +1018,7 @@ bool TChunkReplicator::IsEnabled()
         double gotFraction = (double) lostChunkCount / chunkCount;
         if (gotFraction > needFraction) {
             if (!LastEnabled || LastEnabled.Get()) {
-                LOG_INFO("Chunk replicator disabled: too many lost chunks, needed <= %lf but got %lf",
+                LOG_INFO("Chunk replicator disabled: too many lost chunks, fraction needed <= %lf but got %lf",
                     needFraction,
                     gotFraction);
                 LastEnabled = false;
@@ -1026,8 +1026,17 @@ bool TChunkReplicator::IsEnabled()
             return false;
         }
     }
+    else if (Config->SafeLostChunkCount && *Config->SafeLostChunkCount < lostChunkCount) {
+        if (!LastEnabled || LastEnabled.Get()) {
+            LOG_INFO("Chunk replicator disabled: too many lost chunks, needed <= %d but got %d",
+                *Config->SafeLostChunkCount,
+                lostChunkCount);
+            LastEnabled = false;
+        }
+        return false;
+    }
 
-    if (!LastEnabled || !*LastEnabled) {
+    if (!LastEnabled || !LastEnabled.Get()) {
         LOG_INFO("Chunk replicator enabled");
         LastEnabled = true;
     }
