@@ -238,6 +238,7 @@ YtCommand.prototype._epilogue = function(result) {
         if (result.isUserBanned() || result.isRequestRateLimitExceeded()) {
             this.logger.debug("User '" + this.user + "' was banned or has hit rate limit");
             this.rate_check_cache.set(this.user, result.toJson());
+            this.rsp.statusCode = 429;
         }
 
         if (!sent_headers) {
