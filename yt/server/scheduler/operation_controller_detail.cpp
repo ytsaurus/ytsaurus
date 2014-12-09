@@ -3626,7 +3626,8 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
         .Item("finish_time").Value(job->GetFinishTime())
         .Item("resource_limits").Value(job->ResourceLimits())
         .Item("statistics").Value(statistics)
-        .Item("node_address").Value(job->GetNode()->GetAddress());
+        .Item("node_address").Value(job->GetNode()->GetAddress())
+        .Item("job_type").Value(job->GetType());
 }
 
 const NProto::TUserJobResult* TOperationControllerBase::FindUserJobResult(TJobletPtr joblet)
