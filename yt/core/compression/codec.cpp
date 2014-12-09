@@ -35,11 +35,11 @@ protected:
         // auto guard = CreateTraceContextGuard(compress);
 
         ByteArraySource input(ref.Begin(), ref.Size());
-        TRACE_ANNOTATION("input_size", ref.Size());
+        // TRACE_ANNOTATION("input_size", ref.Size());
 
         auto output = TBlob(TBlockTag());
         converter(&input, &output);
-        TRACE_ANNOTATION("output_size", output.Size());
+        // TRACE_ANNOTATION("output_size", output.Size());
 
         return TSharedRef::FromBlob(std::move(output));
     }
@@ -67,14 +67,14 @@ protected:
             inputSizes.push_back(ref.Size());
             totalInputSize += ref.Size();
         }
-        TRACE_ANNOTATION("input_size", totalInputSize);
+        // TRACE_ANNOTATION("input_size", totalInputSize);
 
         auto output = TBlob(TBlockTag());
         output.Reserve(outputSizeEstimator(inputSizes));
 
         TVectorRefsSource input(refs);
         converter(&input, &output);
-        TRACE_ANNOTATION("output_size", output.Size());
+        // TRACE_ANNOTATION("output_size", output.Size());
 
         return TSharedRef::FromBlob(std::move(output));
     }
