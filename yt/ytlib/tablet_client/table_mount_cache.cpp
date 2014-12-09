@@ -244,9 +244,12 @@ private:
 
         setResult(tableInfo);
 
-        entry.ProbationCookie = TDelayedExecutor::Submit(
-            BIND(&TImpl::RequestTableMountInfo, MakeWeak(this), path),
-            Config_->SuccessProbationTime);
+        {
+            NTracing::TNullTraceContextGuard guard;
+            entry.ProbationCookie = TDelayedExecutor::Submit(
+                BIND(&TImpl::RequestTableMountInfo, MakeWeak(this), path),
+                Config_->SuccessProbationTime);
+        }
 
         LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Sorted: %v)",
             path,
