@@ -27,6 +27,7 @@ TPeriodicExecutor::TPeriodicExecutor(
     , Started(false)
     , Busy(false)
     , OutOfBandRequested(false)
+    , IdlePromise(MakePromise())
 { }
 
 void TPeriodicExecutor::Start()
@@ -38,13 +39,14 @@ void TPeriodicExecutor::Start()
     PostDelayedCallback(RandomDuration(Splay));
 }
 
-void TPeriodicExecutor::Stop()
+TFuture<void> TPeriodicExecutor::Stop()
 {
     TGuard<TSpinLock> guard(SpinLock);
-    if (!Started)
-        return;
-    Started = false;
-    TDelayedExecutor::CancelAndClear(Cookie);
+    if (Started) {
+        Started = false;
+        TDelayedExecutor::CancelAndClear(Cookie);
+    }
+    return IdlePromise;
 }
 
 void TPeriodicExecutor::ScheduleOutOfBand()
@@ -62,7 +64,7 @@ void TPeriodicExecutor::ScheduleOutOfBand()
 
 void TPeriodicExecutor::ScheduleNext()
 {
-    TGuard<TSpinLock> guard(SpinLock);    
+    TGuard<TSpinLock> guard(SpinLock);
     if (!Started)
         return;
 
@@ -107,10 +109,12 @@ void TPeriodicExecutor::OnCallbackSuccess()
         if (!Started || Busy)
             return;
         Busy = true;
-        TDelayedExecutor::CancelAndClear(Cookie);                
+        TDelayedExecutor::CancelAndClear(Cookie);
+        IdlePromise = NewPromise();
     }
 
     Callback.Run();
+    IdlePromise.Set();
     
     if (Mode == EPeriodicExecutorMode::Automatic) {
         ScheduleNext();

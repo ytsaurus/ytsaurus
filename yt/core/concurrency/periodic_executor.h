@@ -5,6 +5,7 @@
 
 #include <core/actions/invoker.h>
 #include <core/actions/callback.h>
+#include <core/actions/future.h>
 
 namespace NYT {
 namespace NConcurrency {
@@ -44,7 +45,9 @@ public:
     void Start();
 
     //! Stops the instance, cancels all subsequent invocations.
-    void Stop();
+    //! Returns a future that becomes set when all outstanding callback 
+    //! invocations are finished and no more invocations are expected to happen.
+    TFuture<void> Stop();
 
     //! Requests an immediate invocation.
     void ScheduleOutOfBand();
@@ -64,6 +67,7 @@ private:
     bool Busy;
     bool OutOfBandRequested;
     TDelayedExecutorCookie Cookie;
+    TPromise<void> IdlePromise;
 
     void PostDelayedCallback(TDuration delay);
     void PostCallback();
