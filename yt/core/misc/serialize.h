@@ -587,6 +587,7 @@ struct TListSerializer
     static void Load(C& context, TList& objects)
     {
         using NYT::Load;
+        objects.clear();
         size_t size = TSizeSerializer::Load(context);
         for (size_t index = 0; index != size; ++index) {
             typename TList::value_type obj;
@@ -1088,6 +1089,12 @@ struct TSerializerTraits<SmallVector<T, size>, C, void>
 
 template <class T, class C>
 struct TSerializerTraits<std::list<T>, C, void>
+{
+    typedef TListSerializer<> TSerializer;
+};
+
+template <class T, class C>
+struct TSerializerTraits<std::deque<T>, C, void>
 {
     typedef TListSerializer<> TSerializer;
 };
