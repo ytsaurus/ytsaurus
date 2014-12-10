@@ -6,6 +6,8 @@
 
 #include <ytlib/scheduler/helpers.h>
 
+#include <core/ytree/fluent.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -74,6 +76,21 @@ bool TOperation::IsFinishedState() const
 bool TOperation::IsFinishingState() const
 {
     return IsOperationFinishing(State_);
+}
+
+void TOperation::UpdateStatistics(const NJobProxy::TStatistics& statistics, EJobFinalState state)
+{
+    Statistics[static_cast<int>(state)].Merge(statistics);
+}
+
+void TOperation::BuildStatistics(NYson::IYsonConsumer* consumer) const
+{
+    NYTree::BuildYsonFluently(consumer)
+        .DoMapFor(EJobFinalState::GetDomainValues(), [&] (NYTree::TFluentMap fluent, const EJobFinalState& state) {
+            fluent
+                .Item(Format("%lv_jobs", state))
+                .Value(Statistics[static_cast<int>(state)]);
+        });
 }
 
 ////////////////////////////////////////////////////////////////////

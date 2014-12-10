@@ -1612,7 +1612,7 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     if (jobStatistics.has_statistics()) {
         auto statistics = ConvertTo<NJobProxy::TStatistics>(TYsonString(jobStatistics.statistics()));
-        Statistics.Merge(statistics);
+        Operation->UpdateStatistics(statistics, EJobFinalState::Completed);
     }
 
     const auto& schedulerResultEx = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
@@ -3438,7 +3438,7 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
     BuildYsonMapFluently(consumer)
         .Item("jobs").Value(JobCounter)
         .Item("ready_job_count").Value(GetPendingJobCount())
-        .Item("statistics").Value(Statistics)
+        .Item("statistics").Do(BIND(&TOperation::BuildStatistics, Operation))
         .Item("job_statistics").BeginMap()
             .Item("completed").Value(CompletedJobStatistics)
             .Item("failed").Value(FailedJobStatistics)

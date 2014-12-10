@@ -160,7 +160,6 @@ protected:
     TProgressCounter JobCounter;
 
     // Job statistics.
-    NJobProxy::TStatistics Statistics;
     NJobTrackerClient::NProto::TJobStatistics CompletedJobStatistics;
     NJobTrackerClient::NProto::TJobStatistics FailedJobStatistics;
     NJobTrackerClient::NProto::TJobStatistics AbortedJobStatistics;

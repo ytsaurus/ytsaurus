@@ -160,10 +160,13 @@ class TestEventLog(YTEnvSetup):
         op_id = map(in_="//tmp/t1", out="//tmp/t2", command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null')
 
         statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-        assert statistics["user_job"]["builtin"]["cpu"]["user"]["sum"] > 0
-        assert statistics["user_job"]["builtin"]["block_io"]["bytes_read"]["sum"] is not None
-        assert statistics["user_job"]["builtin"]["memory"]["rss"]["count"] > 0
-        assert statistics["job_proxy"]["cpu"]["user"]["count"] == 1
+        assert statistics["completed_jobs"]["user_job"]["builtin"]["cpu"]["user"]["sum"] > 0
+        assert statistics["completed_jobs"]["user_job"]["builtin"]["block_io"]["bytes_read"]["sum"] is not None
+        assert statistics["completed_jobs"]["user_job"]["builtin"]["memory"]["rss"]["count"] > 0
+        assert statistics["completed_jobs"]["job_proxy"]["cpu"]["user"]["count"] == 1
+        assert statistics["completed_jobs"]["job_proxy"]["cpu"]["user"]["count"] == 1
+        assert statistics["failed_jobs"]
+        assert statistics["aborted_jobs"]
 
         # wait for scheduler to dump the event log
         time.sleep(6)

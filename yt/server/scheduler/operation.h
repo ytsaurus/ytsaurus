@@ -16,6 +16,8 @@
 
 #include <ytlib/hydra/public.h>
 
+#include <server/job_proxy/statistics.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -112,6 +114,10 @@ class TOperation
     //! Delegates to #NYT::NScheduler::IsOperationFinishing.
     bool IsFinishingState() const;
 
+    void UpdateStatistics(const NJobProxy::TStatistics& statistics, EJobFinalState state);
+
+    void BuildStatistics(NYson::IYsonConsumer* consumer) const;
+
     TOperation(
         const TOperationId& operationId,
         EOperationType type,
@@ -124,6 +130,7 @@ class TOperation
         bool suspended = false);
 
 private:
+    std::array<NJobProxy::TStatistics, 3> Statistics;
     TPromise<TError> StartedPromise;
     TPromise<void> FinishedPromise;
 };
