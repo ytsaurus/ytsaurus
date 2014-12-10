@@ -75,7 +75,7 @@ class TOperation
 
     //! Maximum number of stderrs to capture.
     DEFINE_BYVAL_RW_PROPERTY(int, MaxStderrCount);
-    
+
     //! Scheduling tag.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<Stroka>, SchedulingTag);
 
@@ -130,11 +130,11 @@ class TOperation
         bool suspended = false);
 
 private:
-    std::array<NJobProxy::TStatistics, 3> Statistics;
+    std::array<NJobProxy::TStatistics, EJobFinalState::GetDomainSize()> Statistics;
     TPromise<TError> StartedPromise;
     TPromise<void> FinishedPromise;
 };
-    
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

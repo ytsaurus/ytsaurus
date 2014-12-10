@@ -117,7 +117,7 @@ class TEnumBase
             return false; \
         } \
         \
-        static int GetDomainSize() \
+        static constexpr int GetDomainSize() \
         { \
             return PP_COUNT(seq); \
         } \
