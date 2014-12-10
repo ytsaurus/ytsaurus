@@ -330,7 +330,7 @@ private:
         int totalSampleCount = 0;
         for (auto partitionIt = startPartitionIt; partitionIt != endPartitionIt; ++partitionIt) {
             const auto& partition = *partitionIt;
-            const auto& sampleKeys = partition->SampleKeys;
+            const auto& sampleKeys = partition->SampleKeys->Keys;
             auto startSampleIt = partitionIt == startPartitionIt && !sampleKeys.empty()
                 ? findStartSample(sampleKeys)
                 : sampleKeys.begin();
@@ -354,7 +354,7 @@ private:
         result.reserve(partitionCount + cappedSampleCount);
         for (auto partitionIt = startPartitionIt; partitionIt != endPartitionIt; ++partitionIt) {
             const auto& partition = *partitionIt;
-            const auto& sampleKeys = partition->SampleKeys;
+            const auto& sampleKeys = partition->SampleKeys->Keys;
             auto startSampleIt = partitionIt == startPartitionIt && !sampleKeys.empty()
                 ? findStartSample(sampleKeys)
                 : sampleKeys.begin();

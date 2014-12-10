@@ -294,6 +294,8 @@ void TChunkStore::CheckRowLocks(
 
 void TChunkStore::Save(TSaveContext& context) const
 {
+    TStoreBase::Save(context);
+
     using NYT::Save;
 
     Save(context, GetPersistentState());
@@ -302,6 +304,8 @@ void TChunkStore::Save(TSaveContext& context) const
 
 void TChunkStore::Load(TLoadContext& context)
 {
+    TStoreBase::Load(context);
+
     using NYT::Load;
 
     Load(context, State_);
@@ -312,6 +316,8 @@ void TChunkStore::Load(TLoadContext& context)
 
 void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
 {
+    TStoreBase::BuildOrchidYson(consumer);
+
     auto backingStore = GetBackingStore();
     auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
     BuildYsonMapFluently(consumer)

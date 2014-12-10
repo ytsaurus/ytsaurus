@@ -282,16 +282,18 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
     mergedPartition->SetPivotKey(Partitions_[firstIndex]->GetPivotKey());
     mergedPartition->SetNextPivotKey(Partitions_[lastIndex]->GetNextPivotKey());
     mergedPartition->SetSamplingNeeded(true);
+    auto& mergedSampleKeys = mergedPartition->GetSampleKeys()->Keys;
 
-    for (int i = firstIndex; i <= lastIndex; ++i) {
-        const auto& existingPartition = Partitions_[i];
-        if (i > firstIndex) {
-            mergedPartition->SampleKeys().push_back(existingPartition->GetPivotKey());
+    for (int index = firstIndex; index <= lastIndex; ++index) {
+        const auto& existingPartition = Partitions_[index];
+        const auto& existingSampleKeys = existingPartition->GetSampleKeys()->Keys;
+        if (index > firstIndex) {
+            mergedSampleKeys.push_back(existingPartition->GetPivotKey());
         }
-        mergedPartition->SampleKeys().insert(
-            mergedPartition->SampleKeys().end(),
-            existingPartition->SampleKeys().begin(),
-            existingPartition->SampleKeys().end());
+        mergedSampleKeys.insert(
+            mergedSampleKeys.end(),
+            existingSampleKeys.begin(),
+            existingSampleKeys.end());
 
         for (auto store : existingPartition->Stores()) {
             YCHECK(store->GetPartition() == existingPartition.get());
@@ -314,7 +316,7 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
     }
 
     std::vector<std::unique_ptr<TPartition>> splitPartitions;
-    const auto& sampleKeys = existingPartition->SampleKeys();
+    const auto& existingSampleKeys = existingPartition->GetSampleKeys()->Keys;
     int sampleKeyIndex = 0;
     for (int pivotKeyIndex = 0; pivotKeyIndex < pivotKeys.size(); ++pivotKeyIndex) {
         auto partition = std::make_unique<TPartition>(
@@ -327,13 +329,14 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
         partition->SetPivotKey(thisPivotKey);
         partition->SetNextPivotKey(nextPivotKey);
 
-        if (sampleKeyIndex < sampleKeys.size() && sampleKeys[sampleKeyIndex] == thisPivotKey) {
+        if (sampleKeyIndex < existingSampleKeys.size() && existingSampleKeys[sampleKeyIndex] == thisPivotKey) {
             ++sampleKeyIndex;
         }
 
-        YCHECK(sampleKeyIndex >= sampleKeys.size() || sampleKeys[sampleKeyIndex] > thisPivotKey);
-        while (sampleKeyIndex < sampleKeys.size() && sampleKeys[sampleKeyIndex] < nextPivotKey) {
-            partition->SampleKeys().push_back(sampleKeys[sampleKeyIndex]);
+        YCHECK(sampleKeyIndex >= existingSampleKeys.size() || existingSampleKeys[sampleKeyIndex] > thisPivotKey);
+        auto& sampleKeys = partition->GetSampleKeys()->Keys;
+        while (sampleKeyIndex < existingSampleKeys.size() && existingSampleKeys[sampleKeyIndex] < nextPivotKey) {
+            sampleKeys.push_back(existingSampleKeys[sampleKeyIndex]);
             ++sampleKeyIndex;
         }
 

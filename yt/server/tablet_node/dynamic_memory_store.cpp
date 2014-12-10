@@ -1223,6 +1223,8 @@ void TDynamicMemoryStore::CheckRowLocks(
 
 void TDynamicMemoryStore::Save(TSaveContext& context) const
 {
+    TStoreBase::Save(context);
+
     using NYT::Save;
 
     Save(context, GetPersistentState());
@@ -1286,6 +1288,8 @@ void TDynamicMemoryStore::Save(TSaveContext& context) const
 
 void TDynamicMemoryStore::Load(TLoadContext& context)
 {
+    TStoreBase::Load(context);
+
     using NYT::Load;
 
     Load(context, State_);
@@ -1332,6 +1336,8 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
 
 void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
 {
+    TStoreBase::BuildOrchidYson(consumer);
+
     BuildYsonMapFluently(consumer)
         .Item("key_count").Value(GetKeyCount())
         .Item("lock_count").Value(GetLockCount())

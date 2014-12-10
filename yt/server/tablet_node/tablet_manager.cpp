@@ -964,15 +964,17 @@ private:
         if (!partition)
             return;
 
-        LOG_INFO_UNLESS(IsRecovery(), "Updating partition sample keys (TabletId: %v, PartitionIndex: %v, SampleKeyCount: %v)",
-            tablet->GetId(),
-            partition->GetIndex(),
-            request.sample_keys_size());
-
-        partition->SampleKeys() = FromProto<TOwningKey>(request.sample_keys());
-        YCHECK(partition->SampleKeys().empty() || partition->SampleKeys()[0] > partition->GetPivotKey());
+        auto sampleKeys = New<TKeyList>();
+        sampleKeys->Keys = FromProto<TOwningKey>(request.sample_keys());
+        partition->SetSampleKeys(sampleKeys);
+        YCHECK(sampleKeys->Keys.empty() || sampleKeys->Keys[0] > partition->GetPivotKey());
         partition->SetSamplingNeeded(false);
         UpdateTabletSnapshot(tablet);
+
+        LOG_INFO_UNLESS(IsRecovery(), "Partition sample keys updated (TabletId: %v, PartitionIndex: %v, SampleKeyCount: %v)",
+            tabletId,
+            partition->GetIndex(),
+            sampleKeys->Keys.size());
     }
 
 
@@ -1322,7 +1324,7 @@ private:
                 .Item("state").Value(partition->GetState())
                 .Item("pivot_key").Value(partition->GetPivotKey())
                 .Item("next_pivot_key").Value(partition->GetNextPivotKey())
-                .Item("sample_key_count").Value(partition->SampleKeys().size())
+                .Item("sample_key_count").Value(partition->GetSampleKeys()->Keys.size())
                 .Item("sampling_needed").Value(partition->GetSamplingNeeded())
                 .Item("uncompressed_data_size").Value(partition->GetUncompressedDataSize())
                 .Item("unmerged_row_count").Value(partition->GetUnmergedRowCount())

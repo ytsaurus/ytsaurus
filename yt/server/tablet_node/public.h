@@ -143,6 +143,7 @@ DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 class TPartition;
 class TTablet;
 
+DECLARE_REFCOUNTED_STRUCT(TKeyList)
 DECLARE_REFCOUNTED_STRUCT(TPartitionSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TTabletSnapshot)
 

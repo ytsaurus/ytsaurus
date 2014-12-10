@@ -24,6 +24,11 @@ public:
     virtual TPartition* GetPartition() const override;
     virtual void SetPartition(TPartition* partition) override;
 
+    virtual void Save(TSaveContext& context) const override;
+    virtual void Load(TLoadContext& context) override;
+
+    virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
+
 protected:
     TStoreId StoreId_;
     TTablet* Tablet_;

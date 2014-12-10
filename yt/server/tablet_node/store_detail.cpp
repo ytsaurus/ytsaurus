@@ -5,6 +5,8 @@
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoreBase::TStoreBase(
@@ -51,6 +53,15 @@ void TStoreBase::SetPartition(TPartition* partition)
 {
     Partition_ = partition;
 }
+
+void TStoreBase::Save(TSaveContext& /*context*/) const
+{ }
+
+void TStoreBase::Load(TLoadContext& /*context*/)
+{ }
+
+void TStoreBase::BuildOrchidYson(IYsonConsumer* /*consumer*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

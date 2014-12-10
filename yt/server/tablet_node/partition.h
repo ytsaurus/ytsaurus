@@ -11,11 +11,25 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TKeyList
+    : public TIntrinsicRefCounted
+{
+    std::vector<TOwningKey> Keys;
+
+    void Save(TSaveContext& context) const;
+    void Load(TLoadContext& context);
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TKeyList)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TPartitionSnapshot
     : public TIntrinsicRefCounted
 {
     TOwningKey PivotKey;
-    std::vector<TOwningKey> SampleKeys;
+    TKeyListPtr SampleKeys;
     std::vector<IStorePtr> Stores;
 };
 
@@ -27,7 +41,7 @@ class TPartition
     : private TNonCopyable
 {
 public:
-    static const int EdenIndex;
+    static const int EdenIndex = -1;
 
     DEFINE_BYVAL_RO_PROPERTY(TTablet*, Tablet);
     DEFINE_BYVAL_RW_PROPERTY(int, Index);
@@ -41,7 +55,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(bool, SamplingNeeded);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSamplingTime);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TOwningKey>, SampleKeys);
+    DEFINE_BYVAL_RW_PROPERTY(TKeyListPtr, SampleKeys);
 
 public:
     TPartition(TTablet* tablet, int index);

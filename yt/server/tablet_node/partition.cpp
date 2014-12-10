@@ -13,7 +13,21 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int TPartition::EdenIndex = -1;
+void TKeyList::Save(TSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, Keys);
+}
+
+void TKeyList::Load(TLoadContext& context)
+{
+    using NYT::Load;
+    Load(context, Keys);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const int TPartition::EdenIndex;
 
 TPartition::TPartition(TTablet* tablet, int index)
     : Tablet_(tablet)
@@ -23,6 +37,7 @@ TPartition::TPartition(TTablet* tablet, int index)
     , State_(EPartitionState::Normal)
     , SamplingNeeded_(false)
     , LastSamplingTime_(TInstant::Zero())
+    , SampleKeys_(New<TKeyList>())
 { }
 
 TPartition::~TPartition()
@@ -35,7 +50,7 @@ void TPartition::Save(TSaveContext& context) const
     Save(context, PivotKey_);
     Save(context, NextPivotKey_);
     Save(context, SamplingNeeded_);
-    Save(context, SampleKeys_);
+    Save(context, *SampleKeys_);
 
     Save(context, Stores_.size());
     for (auto store : Stores_) {
@@ -50,7 +65,7 @@ void TPartition::Load(TLoadContext& context)
     Load(context, PivotKey_);
     Load(context, NextPivotKey_);
     Load(context, SamplingNeeded_);
-    Load(context, SampleKeys_);
+    Load(context, *SampleKeys_);
 
     size_t storeCount = Load<size_t>(context);
     for (size_t index = 0; index < storeCount; ++index) {

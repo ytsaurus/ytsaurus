@@ -273,6 +273,8 @@ private:
         TPartition* partition,
         int maxSampleCount)
     {
+        YCHECK(partition->GetIndex() != TPartition::EdenIndex);
+
         if (maxSampleCount == 0) {
             return std::vector<TOwningKey>();
         }
@@ -292,18 +294,35 @@ private:
             Logger);
 
         {
-            LOG_INFO("Locating partition chunks");
-
             TChunkServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
             auto req = proxy.LocateChunks();
 
             yhash_map<TChunkId, TChunkStorePtr> storeMap;
-            for (auto store : partition->Stores()) {
-                YCHECK(store->GetType() == EStoreType::Chunk);
-                auto chunkId = store->GetId();
+
+            auto addStore = [&] (IStorePtr store) {
+                if (store->GetType() != EStoreType::Chunk)
+                    return;
+
+                if (store->GetMaxKey() <= partition->GetPivotKey() ||
+                    store->GetMinKey() >= partition->GetNextPivotKey())
+                    return;
+
+                const auto& chunkId = store->GetId();
                 YCHECK(storeMap.insert(std::make_pair(chunkId, store->AsChunk())).second);
                 ToProto(req->add_chunk_ids(), chunkId);
-            }
+            };
+
+            auto addStores = [&] (const yhash_set<IStorePtr>& stores) {
+                for (auto store : stores) {
+                    addStore(store);
+                }
+            };
+
+            addStores(partition->Stores());
+            addStores(tablet->GetEden()->Stores());
+
+            LOG_INFO("Locating partition chunks (ChunkCount: %v)",
+                storeMap.size());
 
             auto rsp = WaitFor(req->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
@@ -317,7 +336,6 @@ private:
                 auto storeIt = storeMap.find(chunkId);
                 YCHECK(storeIt != storeMap.end());
                 auto store = storeIt->second;
-
                 auto chunkSpec = New<TRefCountedChunkSpec>();
                 chunkSpec->mutable_chunk_id()->CopyFrom(chunkInfo.chunk_id());
                 chunkSpec->mutable_replicas()->MergeFrom(chunkInfo.replicas());
