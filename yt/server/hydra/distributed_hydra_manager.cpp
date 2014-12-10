@@ -497,7 +497,7 @@ private:
                         request->Attachments()));
                     THROW_ERROR_EXCEPTION_IF_FAILED(error);
                 } catch (const std::exception& ex) {
-                    LOG_WARNING(ex, "Error logging mutations");
+                    LOG_ERROR(ex, "Error logging mutations");
                     Restart();
                     throw;
                 }
@@ -514,7 +514,7 @@ private:
                         startVersion,
                         request->Attachments());
                 } catch (const std::exception& ex) {
-                    LOG_WARNING(ex, "Error postponing mutations during recovery");
+                    LOG_ERROR(ex, "Error postponing mutations during recovery");
                     Restart();
                     throw;
                 }
@@ -671,7 +671,7 @@ private:
 
                     followerCommitter->ResumeLogging();
                 } catch (const std::exception& ex) {
-                    LOG_WARNING(ex, "Error rotating changelog");
+                    LOG_ERROR(ex, "Error rotating changelog");
                     Restart();
                     throw;
                 }
@@ -691,7 +691,7 @@ private:
                 try {
                     followerRecovery->PostponeChangelogRotation(version);
                 } catch (const std::exception& ex) {
-                    LOG_WARNING(ex, "Error postponing changelog rotation during recovery");
+                    LOG_ERROR(ex, "Error postponing changelog rotation during recovery");
                     Restart();
                     throw;
                 }
@@ -793,7 +793,7 @@ private:
                 }
                 break;
             } catch (const std::exception& ex) {
-                LOG_WARNING(ex, "Error computing reachable version, backing off and retrying");
+                LOG_ERROR(ex, "Error computing reachable version, backing off and retrying");
                 WaitFor(MakeDelayed(Config_->RestartBackoffTime));
             }
         }
@@ -968,7 +968,7 @@ private:
 
             LeaderActive_.Fire();
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Leader recovery failed, backing off and restarting");
+            LOG_ERROR(ex, "Leader recovery failed, backing off and restarting");
             WaitFor(MakeDelayed(Config_->RestartBackoffTime));
             Restart();
         }
@@ -1057,7 +1057,7 @@ private:
             DecoratedAutomaton_->OnFollowerRecoveryComplete();
             FollowerRecoveryComplete_.Fire();
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Follower recovery failed, backing off and restarting");
+            LOG_ERROR(ex, "Follower recovery failed, backing off and restarting");
             WaitFor(MakeDelayed(Config_->RestartBackoffTime));
             Restart();
         }

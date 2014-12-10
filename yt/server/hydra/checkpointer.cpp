@@ -316,6 +316,7 @@ private:
 
     void SetFailed(const TError& error)
     {
+        LOG_ERROR(error, "Distributed changelog rotation failed");
         ChangelogAwaiter_->Cancel();
         ChangelogPromise_.Set(error);
         Owner_->LeaderFailed_.Fire();
