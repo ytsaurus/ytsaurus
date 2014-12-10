@@ -89,7 +89,7 @@ public:
 
 private:
     bool Created_;
-    bool Released_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,8 +100,8 @@ class TCpuAccounting
 public:
     struct TStatistics
     {
-        TDuration UserTime = TDuration(0);
-        TDuration SystemTime = TDuration(0);
+        TDuration UserTime;
+        TDuration SystemTime;
     };
 
     explicit TCpuAccounting(const Stroka& name);
@@ -128,7 +128,7 @@ public:
     {
         Stroka DeviceId;
         Stroka Type;
-        i64 Value;
+        i64 Value = 0;
     };
 
     explicit TBlockIO(const Stroka& name);
@@ -189,7 +189,7 @@ public:
 
     Stroka GetState() const;
     void Freeze() const;
-    void UnFreeze() const;
+    void Unfreeze() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

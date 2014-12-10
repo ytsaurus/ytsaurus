@@ -32,7 +32,7 @@ namespace NCGroup {
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CGroupLogger;
-static const char* CGroupRootPath = "/sys/fs/cgroup";
+static const Stroka CGroupRootPath("/sys/fs/cgroup");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,7 +52,7 @@ Stroka GetParentFor(const Stroka& type)
 yvector<Stroka> ReadAllValues(const Stroka& fileName)
 {
     auto raw = TFileInput(fileName).ReadAll();
-    LOG_DEBUG("File %Qv contains: %Qv", fileName, raw);
+    LOG_DEBUG("File %v contains %Qv", fileName, raw);
 
     yvector<Stroka> values;
     Split(raw.data(), " \n", values);
@@ -85,9 +85,9 @@ std::vector<Stroka> GetSupportedCGroups()
 // The caller must be sure that it has root privileges.
 void RunKiller(const Stroka& processGroupPath)
 {
-#ifdef _linux_
-    LOG_INFO("Kill processes from %Qv", processGroupPath);
+    LOG_INFO("Killing processes in cgroup %v", processGroupPath);
 
+#ifdef _linux_
     TNonOwningCGroup group(processGroupPath);
     if (group.IsNull()) {
         return;
@@ -244,7 +244,7 @@ std::vector<TNonOwningCGroup> TNonOwningCGroup::GetChildren() const
 
 void TNonOwningCGroup::EnsureExistance() const
 {
-    LOG_INFO("Creating cgroup %Qv", FullPath_);
+    LOG_INFO("Creating cgroup %v", FullPath_);
 
     YCHECK(!IsNull());
 
@@ -294,7 +294,7 @@ void TNonOwningCGroup::RemoveAllSubcgroups() const
 
 void TNonOwningCGroup::DoLock() const
 {
-    LOG_INFO("Locking group %Qv", FullPath_);
+    LOG_INFO("Locking cgroup %v", FullPath_);
 
 #ifdef _linux
     if (!IsNull()) {
@@ -309,7 +309,7 @@ void TNonOwningCGroup::DoLock() const
 
 void TNonOwningCGroup::DoUnlock() const
 {
-    LOG_INFO("Unlocking group %Qv", FullPath_);
+    LOG_INFO("Unlocking cgroup %v", FullPath_);
 
 #ifdef _linux_
     if (!IsNull()) {
@@ -324,13 +324,14 @@ void TNonOwningCGroup::DoUnlock() const
 
 void TNonOwningCGroup::DoKill() const
 {
+    LOG_DEBUG("Started killing processes in cgroup %v", FullPath_);
+
 #ifdef _linux_
-    LOG_DEBUG("Killing processes from %Qv",
-        FullPath_);
+    while (true) {
+        auto pids = GetTasks();
+        if (pids.empty())
+            break;
 
-    auto pids = GetTasks();
-
-    while (!pids.empty()) {
         LOG_DEBUG("Killing processes (PIDs: [%v])",
             JoinToString(pids));
 
@@ -342,9 +343,10 @@ void TNonOwningCGroup::DoKill() const
         }
 
         ThreadYield();
-        pids = GetTasks();
     }
 #endif
+
+    LOG_DEBUG("Finished killing processes in cgroup %v", FullPath_);
 }
 
 void TNonOwningCGroup::DoRemove() const
@@ -390,7 +392,7 @@ TCGroup::~TCGroup()
         try {
             Destroy();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Unable to destroy %Qv", FullPath_);
+            LOG_ERROR(ex, "Error destroying cgroup %v", FullPath_);
         }
     }
 }
@@ -403,14 +405,15 @@ void TCGroup::Create()
 
 void TCGroup::Destroy()
 {
-    LOG_INFO("Destroying %Qv", FullPath_);
-
-#ifdef _linux_
     YCHECK(Created_);
 
+    LOG_INFO("Destroying cgroup %v", FullPath_);
+
+#ifdef _linux_
     NFS::Remove(FullPath_);
-    Created_ = false;
 #endif
+
+    Created_ = false;
 }
 
 bool TCGroup::IsCreated() const
@@ -431,7 +434,7 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
     auto path = NFS::CombinePaths(GetFullPath(), "cpuacct.stat");
     auto values = ReadAllValues(path);
     if (values.size() != 4) {
-        THROW_ERROR_EXCEPTION("Unable to parse %Qv: expected 4 values, got %v",
+        THROW_ERROR_EXCEPTION("Unable to parse %v: expected 4 values, got %v",
             path,
             values.size());
     }
@@ -523,7 +526,9 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
         item.Value = FromString<i64>(values[3 * lineNumber + 2]);
 
         if (!item.DeviceId.has_prefix("8:")) {
-            THROW_ERROR_EXCEPTION("Unable to parse %Qv: %v should start with \"8:\"", path, item.DeviceId);
+            THROW_ERROR_EXCEPTION("Unable to parse %v: %v should start with \"8:\"",
+                path,
+                item.DeviceId);
         }
 
         if (item.Type == "Read" || item.Type == "Write") {
@@ -625,7 +630,9 @@ bool TMemory::IsOomEnabled() const
     const auto path = NFS::CombinePaths(GetFullPath(), "memory.oom_control");
     auto values = ReadAllValues(path);
     if (values.size() != 4) {
-        THROW_ERROR_EXCEPTION("Unable to parse %Qv: expected 4 values, got %v", path, values.size());
+        THROW_ERROR_EXCEPTION("Unable to parse %v: expected 4 values, got %v",
+            path,
+            values.size());
     }
     for (int i = 0; i < 2; ++i) {
         if (values[2 * i] == "oom_kill_disable") {
@@ -635,12 +642,13 @@ bool TMemory::IsOomEnabled() const
             } else if (isDisabled == "1") {
                 return false;
             } else {
-                THROW_ERROR_EXCEPTION("Unexpected value for oom_kill_disable. Expected '0' or '1'. Got: %Qv",
+                THROW_ERROR_EXCEPTION("Unexpected value for oom_kill_disable: expected \"0\" or \"1\", got %Qv",
                     isDisabled);
             }
         }
     }
-    THROW_ERROR_EXCEPTION("Unable to find 'oom_kill_disable' in %Qv", path);
+    THROW_ERROR_EXCEPTION("Unable to find \"oom_kill_disable'\" in %v",
+        path);
 #else
     return false;
 #endif
@@ -700,7 +708,7 @@ void TFreezer::Freeze() const
     Set("freezer.state", "FROZEN");
 }
 
-void TFreezer::UnFreeze() const
+void TFreezer::Unfreeze() const
 {
     Set("freezer.state", "THAWED");
 }

@@ -513,7 +513,7 @@ TEST(CGroup, FreezerFreeze)
     value = 1;
     ASSERT_EQ(sizeof(value), ::write(exitEvent, &value, sizeof(value)));
 
-    group.UnFreeze();
+    group.Unfreeze();
 
     auto waitedpid = waitpid(pid, nullptr, 0);
 
