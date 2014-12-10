@@ -1502,7 +1502,7 @@ void TOperationControllerBase::CommitResults()
                 }
             };
 
-            auto addChunkTree = [&] (const TChunkTreeId chunkTreeId) {
+            auto addChunkTree = [&] (const TChunkTreeId& chunkTreeId) {
                 if (!req) {
                     req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
                     GenerateMutationId(req);
