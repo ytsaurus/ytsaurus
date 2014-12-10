@@ -65,6 +65,9 @@ template <>
 NNodeTrackerServer::TNode* TLoadContext::Get(NNodeTrackerServer::TNodeId id) const;
 
 template <>
+NNodeTrackerServer::TRack* TLoadContext::Get(const NNodeTrackerServer::TRackId& id) const;
+
+template <>
 NSecurityServer::TSubject* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
 
 template <>

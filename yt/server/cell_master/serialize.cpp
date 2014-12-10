@@ -44,7 +44,7 @@ using namespace NTableServer;
 
 int GetCurrentSnapshotVersion()
 {
-    return 105;
+    return 106;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -56,7 +56,8 @@ bool ValidateSnapshotVersion(int version)
         version == 102 ||
         version == 103 ||
         version == 104 ||
-        version == 105;
+        version == 105 ||
+        version == 106;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,6 +130,12 @@ template <>
 TNode* TLoadContext::Get(NNodeTrackerServer::TNodeId id) const
 {
     return Bootstrap_->GetNodeTracker()->GetNode(id);
+}
+
+template <>
+TRack* TLoadContext::Get(const NNodeTrackerServer::TRackId& id) const
+{
+    return Bootstrap_->GetNodeTracker()->GetRack(id);
 }
 
 template <>

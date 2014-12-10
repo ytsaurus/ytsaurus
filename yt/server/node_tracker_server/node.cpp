@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "node.h"
+#include "rack.h"
 
 #include <ytlib/object_client/helpers.h>
 
@@ -90,6 +91,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, RegisterTime_);
     Save(context, Statistics_);
     Save(context, Alerts_);
+    Save(context, Rack_);
     Save(context, Transaction_);
     Save(context, StoredReplicas_);
     Save(context, CachedReplicas_);
@@ -108,6 +110,10 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     }
     Load(context, Statistics_);
     Load(context, Alerts_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 106) {
+        Load(context, Rack_);
+    }
     Load(context, Transaction_);
     Load(context, StoredReplicas_);
     Load(context, CachedReplicas_);
