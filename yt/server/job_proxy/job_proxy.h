@@ -18,6 +18,10 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUserJobIO;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobProxy
     : public IJobHost
 {
@@ -36,6 +40,9 @@ private:
 
     void RetrieveJobSpec();
     void ReportResult(const NJobTrackerClient::NProto::TJobResult& result);
+
+    std::unique_ptr<TUserJobIO> CreateUserJobIO();
+    TJobPtr CreateBuiltinJob();
 
     TJobProxyConfigPtr Config;
     NJobAgent::TJobId JobId;

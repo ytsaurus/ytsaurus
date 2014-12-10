@@ -1685,19 +1685,19 @@ private:
     {
         JobSpecTemplate.set_type(EJobType::SortedReduce);
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
-        ToProto(reduceJobSpecExt->mutable_key_columns(), KeyColumns);
-
         InitUserJobSpecTemplate(
-            reduceJobSpecExt->mutable_reducer_spec(),
+            schedulerJobSpecExt->mutable_user_job_spec(),
             Spec->Reducer,
             RegularFiles,
             TableFiles);
+
+        auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+        ToProto(reduceJobSpecExt->mutable_key_columns(), KeyColumns);
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
     }
@@ -1710,9 +1710,9 @@ private:
 
     virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
     {
-        auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+        auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpec(
-            jobSpecExt->mutable_reducer_spec(),
+            schedulerJobSpecExt->mutable_user_job_spec(),
             joblet,
             GetAdditionalMemorySize(joblet->MemoryReserveEnabled));
     }

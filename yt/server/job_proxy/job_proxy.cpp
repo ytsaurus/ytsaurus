@@ -194,6 +194,60 @@ void TJobProxy::Run()
     ReportResult(result);
 }
 
+std::unique_ptr<TUserJobIO> TJobProxy::CreateUserJobIO()
+{
+    auto jobType = NScheduler::EJobType(JobSpec.type());
+
+    switch (jobType) {
+        case NScheduler::EJobType::Map:
+            return CreateMapJobIO(Config->JobIO, this);
+
+        case NScheduler::EJobType::SortedReduce: 
+            return CreateSortedReduceJobIO(Config->JobIO, this);
+
+        case NScheduler::EJobType::PartitionMap: 
+            return CreatePartitionMapJobIO(Config->JobIO, this);
+
+        case NScheduler::EJobType::ReduceCombiner: 
+        case NScheduler::EJobType::PartitionReduce: 
+            return CreatePartitionReduceJobIO(Config->JobIO, this);
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+TJobPtr TJobProxy::CreateBuiltinJob()
+{
+    auto jobType = NScheduler::EJobType(JobSpec.type());
+    switch (jobType) {
+        case NScheduler::EJobType::OrderedMerge:
+            return CreateOrderedMergeJob(this);
+
+        case NScheduler::EJobType::UnorderedMerge:
+            return CreateUnorderedMergeJob(this);
+
+        case NScheduler::EJobType::SortedMerge:
+            return CreateSortedMergeJob(this);
+
+        case NScheduler::EJobType::PartitionSort:
+            return CreatePartitionSortJob(this);
+
+        case NScheduler::EJobType::SimpleSort:
+            return CreateSimpleSortJob(this);
+
+        case NScheduler::EJobType::Partition:
+            return CreatePartitionJob(this);
+
+        case NScheduler::EJobType::RemoteCopy:
+            return CreateRemoteCopyJob(this);
+
+        default:
+            YUNREACHABLE();
+    }
+
+}
+
 TJobResult TJobProxy::DoRun()
 {
     auto supervisorClient = CreateTcpBusClient(Config->SupervisorConnection);
@@ -206,10 +260,7 @@ TJobResult TJobProxy::DoRun()
 
     RetrieveJobSpec();
 
-    const auto& jobSpec = GetJobSpec();
-    auto jobType = NScheduler::EJobType(jobSpec.type());
-
-    const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
 
     NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
@@ -228,75 +279,18 @@ TJobResult TJobProxy::DoRun()
     }
 
     try {
-        switch (jobType) {
-            case NScheduler::EJobType::Map: {
-                const auto& mapJobSpecExt = jobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
-                auto userJobIO = CreateMapJobIO(Config->JobIO, this);
-                Job = CreateUserJob(this, mapJobSpecExt.mapper_spec(), std::move(userJobIO), JobId);
-                JobProxyMemoryLimit -= mapJobSpecExt.mapper_spec().memory_reserve();
-                break;
-            }
-
-            case NScheduler::EJobType::SortedReduce: {
-                const auto& reduceJobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-                auto userJobIO = CreateSortedReduceJobIO(Config->JobIO, this);
-                Job = CreateUserJob(this, reduceJobSpecExt.reducer_spec(), std::move(userJobIO), JobId);
-                JobProxyMemoryLimit -= reduceJobSpecExt.reducer_spec().memory_reserve();
-                break;
-            }
-
-            case NScheduler::EJobType::PartitionMap: {
-                const auto& partitionJobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-                YCHECK(partitionJobSpecExt.has_mapper_spec());
-                auto userJobIO = CreatePartitionMapJobIO(Config->JobIO, this);
-                Job = CreateUserJob(this, partitionJobSpecExt.mapper_spec(), std::move(userJobIO), JobId);
-                JobProxyMemoryLimit -= partitionJobSpecExt.mapper_spec().memory_reserve();
-                break;
-            }
-
-            case NScheduler::EJobType::ReduceCombiner: 
-            case NScheduler::EJobType::PartitionReduce: {
-                const auto& reduceJobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-                auto userJobIO = CreatePartitionReduceJobIO(Config->JobIO, this);
-                Job = CreateUserJob(this, reduceJobSpecExt.reducer_spec(), std::move(userJobIO), JobId);
-                JobProxyMemoryLimit -= reduceJobSpecExt.reducer_spec().memory_reserve();
-                break;
-            }
-
-            case NScheduler::EJobType::OrderedMerge:
-                Job = CreateOrderedMergeJob(this);
-                break;
-
-            case NScheduler::EJobType::UnorderedMerge:
-                Job = CreateUnorderedMergeJob(this);
-                break;
-
-            case NScheduler::EJobType::SortedMerge:
-                Job = CreateSortedMergeJob(this);
-                break;
-
-            case NScheduler::EJobType::PartitionSort:
-                Job = CreatePartitionSortJob(this);
-                break;
-
-            case NScheduler::EJobType::SimpleSort:
-                Job = CreateSimpleSortJob(this);
-                break;
-
-            case NScheduler::EJobType::Partition:
-                Job = CreatePartitionJob(this);
-                break;
-            
-            case NScheduler::EJobType::RemoteCopy:
-                Job = CreateRemoteCopyJob(this);
-                break;
-
-            default:
-                YUNREACHABLE();
+        if (schedulerJobSpecExt.has_user_job_spec()) {
+            auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+            JobProxyMemoryLimit -= userJobSpec.memory_reserve();
+            auto jobIO = CreateUserJobIO();
+            Job = CreateUserJob(this, userJobSpec, std::move(jobIO), JobId);
+        } else {
+            Job = CreateBuiltinJob();
         }
 
+        
         if (MemoryWatchdogExecutor) {
-	        MemoryWatchdogExecutor->Start();
+            MemoryWatchdogExecutor->Start();
         }
         HeartbeatExecutor->Start();
 

@@ -2414,7 +2414,7 @@ private:
 
             if (Spec->Mapper) {
                 InitUserJobSpecTemplate(
-                    partitionJobSpecExt->mutable_mapper_spec(),
+                    schedulerJobSpecExt->mutable_user_job_spec(),
                     Spec->Mapper,
                     MapperFiles,
                     MapperTableFiles);
@@ -2433,7 +2433,7 @@ private:
                 ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
 
                 InitUserJobSpecTemplate(
-                    reduceJobSpecExt->mutable_reducer_spec(),
+                    schedulerJobSpecExt->mutable_user_job_spec(),
                     Spec->ReduceCombiner,
                     ReduceCombinerFiles,
                     ReduceCombinerTableFiles);
@@ -2456,7 +2456,7 @@ private:
             ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
 
             InitUserJobSpecTemplate(
-                reduceJobSpecExt->mutable_reducer_spec(),
+                schedulerJobSpecExt->mutable_user_job_spec(),
                 Spec->Reducer,
                 ReducerFiles,
                 ReducerTableFiles);
@@ -2474,7 +2474,7 @@ private:
             ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
 
             InitUserJobSpecTemplate(
-                reduceJobSpecExt->mutable_reducer_spec(),
+                schedulerJobSpecExt->mutable_user_job_spec(),
                 Spec->Reducer,
                 ReducerFiles,
                 ReducerTableFiles);
@@ -2502,38 +2502,33 @@ private:
 
     virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
     {
-        switch (jobSpec->type()) {
-            case EJobType::PartitionMap: {
-                auto* jobSpecExt = jobSpec->MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-                InitUserJobSpec(
-                    jobSpecExt->mutable_mapper_spec(),
-                    joblet,
-                    GetMemoryReserve(joblet->MemoryReserveEnabled, Spec->Mapper));
-                break;
-            }
+        auto getUserJobSpec = [=] () -> TUserJobSpecPtr {
+            switch (jobSpec->type()) {
+                case EJobType::PartitionMap:
+                    return Spec->Mapper;
 
-            case EJobType::SortedReduce:
-            case EJobType::PartitionReduce: {
-                auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-                InitUserJobSpec(
-                    jobSpecExt->mutable_reducer_spec(),
-                    joblet,
-                    GetMemoryReserve(joblet->MemoryReserveEnabled, Spec->Reducer));
-                break;
-            }
+                case EJobType::SortedReduce:
+                case EJobType::PartitionReduce:
+                    return Spec->Reducer;
 
-            case EJobType::ReduceCombiner: {
-                auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-                InitUserJobSpec(
-                    jobSpecExt->mutable_reducer_spec(),
-                    joblet,
-                    GetMemoryReserve(joblet->MemoryReserveEnabled, Spec->ReduceCombiner));
-                break;
-            }
+                case EJobType::ReduceCombiner:
+                    return Spec->ReduceCombiner;
 
-            default:
-                break;
+                default:
+                    return nullptr;
+            }
+        };
+
+        auto userJobSpec = getUserJobSpec();
+        if (!userJobSpec) {
+            return;
         }
+
+        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        InitUserJobSpec(
+            schedulerJobSpecExt->mutable_user_job_spec(),
+            joblet,
+            GetMemoryReserve(joblet->MemoryReserveEnabled, userJobSpec));
     }
 
     virtual bool IsOutputLivePreviewSupported() const override

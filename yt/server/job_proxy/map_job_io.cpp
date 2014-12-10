@@ -29,8 +29,8 @@ public:
 
     virtual void PopulateResult(TJobResult* result) override
     {
-        auto* resultExt = result->MutableExtension(TMapJobResultExt::map_job_result_ext);
-        PopulateUserJobResult(resultExt->mutable_mapper_result());
+        auto* resultExt = result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+        PopulateUserJobResult(resultExt->mutable_user_job_result());
     }
 
 };

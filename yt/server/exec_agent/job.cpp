@@ -410,30 +410,19 @@ private:
 
     void PrepareUserFiles()
     {
-        const TUserJobSpec* userJobSpec = nullptr;
-        if (JobSpec.HasExtension(TMapJobSpecExt::map_job_spec_ext)) {
-            const auto& jobSpecExt = JobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
-            userJobSpec = &jobSpecExt.mapper_spec();
-        } else if (JobSpec.HasExtension(TReduceJobSpecExt::reduce_job_spec_ext)) {
-            const auto& jobSpecExt = JobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-            userJobSpec = &jobSpecExt.reducer_spec();
-        } else if (JobSpec.HasExtension(TPartitionJobSpecExt::partition_job_spec_ext)) {
-            const auto& jobSpecExt = JobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-            if (jobSpecExt.has_mapper_spec()) {
-                userJobSpec = &jobSpecExt.mapper_spec();
-            }
-        }
-
-        if (!userJobSpec)
+        const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        if (!schedulerJobSpecExt.has_user_job_spec())
             return;
 
-        NodeDirectory->MergeFrom(userJobSpec->node_directory());
+        const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
 
-        for (const auto& descriptor : userJobSpec->regular_files()) {
+        NodeDirectory->MergeFrom(userJobSpec.node_directory());
+
+        for (const auto& descriptor : userJobSpec.regular_files()) {
             PrepareRegularFile(descriptor);
         }
 
-        for (const auto& descriptor : userJobSpec->table_files()) {
+        for (const auto& descriptor : userJobSpec.table_files()) {
             PrepareTableFile(descriptor);
         }
     }

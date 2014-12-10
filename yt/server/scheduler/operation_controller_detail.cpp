@@ -3716,20 +3716,13 @@ IClientPtr TOperationControllerBase::CreateClient()
 const NProto::TUserJobResult* TOperationControllerBase::FindUserJobResult(TJobletPtr joblet)
 {
     const auto& result = joblet->Job->Result();
+    const auto& schedulerJobResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
-    if (result.HasExtension(TReduceJobResultExt::reduce_job_result_ext)) {
-        return &result
-               .GetExtension(TReduceJobResultExt::reduce_job_result_ext)
-               .reducer_result();
+    if (schedulerJobResultExt.has_user_job_result()) {
+        return &schedulerJobResultExt.user_job_result();
+    } else {
+        return nullptr;
     }
-
-    if (result.HasExtension(TMapJobResultExt::map_job_result_ext)) {
-        return &result
-               .GetExtension(TMapJobResultExt::map_job_result_ext)
-               .mapper_result();
-    }
-
-    return nullptr;
 }
 
 void TOperationControllerBase::Persist(TPersistenceContext& context)

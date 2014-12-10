@@ -13,87 +13,6 @@ import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Describes a part of input table(s) to be processed by a job.
-message TTableInputSpec
-{
-    // Chunks comprising the input.
-    repeated NYT.NChunkClient.NProto.TChunkSpec chunks = 1;
-}
-
-// Defines how to store output from a job into a table.
-message TTableOutputSpec
-{
-    // The chunk list where output chunks must be placed.
-    required NYT.NProto.TGuid chunk_list_id = 2;
-
-    // YSON-serialized writer options obtained from table attributes.
-    required string table_writer_options = 6;
-}
-
-// Describes a job submitted by a scheduler.
-message TSchedulerJobSpecExt
-{
-    extend NJobTrackerClient.NProto.TJobSpec
-    {
-        optional TSchedulerJobSpecExt scheduler_job_spec_ext = 100;
-    }
-
-    // Configuration for IO during job execution.
-    required bytes io_config = 1;
-
-    // The transaction used for writing output chunks.
-    required NYT.NProto.TGuid output_transaction_id = 2;
-
-    // Job input.
-    repeated TTableInputSpec input_specs = 3;
-
-    // Job output.
-    repeated TTableOutputSpec output_specs = 4;
-
-    // Maps node ids to descriptors for input chunks.
-    required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 5;
-
-    // Total input uncompressed data size estimate.
-    optional int64 input_uncompressed_data_size = 6 [default = 0];
-
-    // Total input row count estimate.
-    optional int64 input_row_count = 7 [default = 0];
-
-    required int64 lfalloc_buffer_size = 8;
-
-    // True if data_size and row_count are approximate (e.g. restarted sort jobs).
-    optional bool is_approximate = 9 [default = false];
-
-    optional bool job_proxy_memory_control = 10 [default = true];
-
-    optional bool enable_sort_verification = 11 [default = true];
-
-}
-
-message TSchedulerJobResultExt
-{
-    extend NJobTrackerClient.NProto.TJobResult
-    {
-        optional TSchedulerJobResultExt scheduler_job_result_ext = 100;
-    }
-
-    // Provides node id to descriptor mapping for |chunks|.
-    optional NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
-
-    // List of output chunks produced by the job.
-    // NB: Only filled when neccessary.
-    repeated NYT.NChunkClient.NProto.TChunkSpec chunks = 3;
-
-    optional NYT.NProto.TGuid stderr_chunk_id = 4;
-
-    // List of input chunks the job was unable to read.
-    repeated NYT.NProto.TGuid failed_chunk_ids = 5;
-
-    repeated NYT.NProto.TGuid fail_context_chunk_ids = 6;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TRegularFileDescriptor
 {
     required bool executable = 2;
@@ -165,6 +84,90 @@ message TUserJobResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Describes a part of input table(s) to be processed by a job.
+message TTableInputSpec
+{
+    // Chunks comprising the input.
+    repeated NYT.NChunkClient.NProto.TChunkSpec chunks = 1;
+}
+
+// Defines how to store output from a job into a table.
+message TTableOutputSpec
+{
+    // The chunk list where output chunks must be placed.
+    required NYT.NProto.TGuid chunk_list_id = 2;
+
+    // YSON-serialized writer options obtained from table attributes.
+    required string table_writer_options = 6;
+}
+
+// Describes a job submitted by a scheduler.
+message TSchedulerJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TSchedulerJobSpecExt scheduler_job_spec_ext = 100;
+    }
+
+    // Configuration for IO during job execution.
+    required bytes io_config = 1;
+
+    // The transaction used for writing output chunks.
+    required NYT.NProto.TGuid output_transaction_id = 2;
+
+    // Job input.
+    repeated TTableInputSpec input_specs = 3;
+
+    // Job output.
+    repeated TTableOutputSpec output_specs = 4;
+
+    // Maps node ids to descriptors for input chunks.
+    required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 5;
+
+    // Total input uncompressed data size estimate.
+    optional int64 input_uncompressed_data_size = 6 [default = 0];
+
+    // Total input row count estimate.
+    optional int64 input_row_count = 7 [default = 0];
+
+    required int64 lfalloc_buffer_size = 8;
+
+    // True if data_size and row_count are approximate (e.g. restarted sort jobs).
+    optional bool is_approximate = 9 [default = false];
+
+    optional bool job_proxy_memory_control = 10 [default = true];
+
+    optional bool enable_sort_verification = 11 [default = true];
+
+    optional TUserJobSpec user_job_spec = 12;
+}
+
+message TSchedulerJobResultExt
+{
+    extend NJobTrackerClient.NProto.TJobResult
+    {
+        optional TSchedulerJobResultExt scheduler_job_result_ext = 100;
+    }
+
+    // Provides node id to descriptor mapping for |chunks|.
+    optional NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
+
+    // List of output chunks produced by the job.
+    // NB: Only filled when neccessary.
+    repeated NYT.NChunkClient.NProto.TChunkSpec chunks = 3;
+
+    optional NYT.NProto.TGuid stderr_chunk_id = 4;
+
+    // List of input chunks the job was unable to read.
+    repeated NYT.NProto.TGuid failed_chunk_ids = 5;
+
+    repeated NYT.NProto.TGuid fail_context_chunk_ids = 6;
+
+    optional TUserJobResult user_job_result = 7;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Map jobs.
 /*
  * Conceptually map is the simplest operation.
@@ -175,29 +178,9 @@ message TUserJobResult
  * The outputs of jobs are collected thus forming a number
  * of output tables.
  *
- * The input spec should contain TMapJobSpecExt.
- * The result must contain TMapJobResultExt.
+ * The input spec must contain TUserJobSpec.
+ * The result must contain TUserJobResult.
  */
-
-message TMapJobSpecExt
-{
-    extend NJobTrackerClient.NProto.TJobSpec
-    {
-        optional TMapJobSpecExt map_job_spec_ext = 101;
-    }
-
-    required TUserJobSpec mapper_spec = 1;
-}
-
-message TMapJobResultExt
-{
-    extend NJobTrackerClient.NProto.TJobResult
-    {
-        optional TMapJobResultExt map_job_result_ext = 101;
-    }
-
-    required TUserJobResult mapper_result = 1;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -252,7 +235,7 @@ message TPartitionJobSpecExt
 
     repeated string key_columns = 3;
 
-    optional TUserJobSpec mapper_spec = 4;
+    // Deprecated = 4;
 
     repeated string partition_keys = 5;
 }
@@ -284,7 +267,6 @@ message TSortJobSpecExt
  * "Everthing is either a sort or a merge. Reduce is the latter." (c) Pavel Sushin
  *
  * The input spec should contain TReduceJobSpecExt.
- * The result must contain TReduceJobResultExt.
  *
  */
 
@@ -296,17 +278,6 @@ message TReduceJobSpecExt
     }
 
     repeated string key_columns = 1;
-    required TUserJobSpec reducer_spec = 2;
-}
-
-message TReduceJobResultExt
-{
-    extend NJobTrackerClient.NProto.TJobResult
-    {
-        optional TReduceJobResultExt reduce_job_result_ext = 104;
-    }
-
-    required TUserJobResult reducer_result = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

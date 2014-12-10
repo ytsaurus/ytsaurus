@@ -54,8 +54,8 @@ public:
             inputSpec.chunks().begin(),
             inputSpec.chunks().end());
 
-        auto jobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        auto keyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
+        auto reduceJobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+        auto keyColumns = FromProto<Stroka>(reduceJobSpecExt.key_columns());
 
         auto reader = CreateSortingReader(
             IOConfig->TableReader,
@@ -87,15 +87,14 @@ public:
 
     virtual void PopulateResult(TJobResult* result) override
     {
-        auto* resultExt = result->MutableExtension(TReduceJobResultExt::reduce_job_result_ext);
-        PopulateUserJobResult(resultExt->mutable_reducer_result());
+        auto* schedulerResultExt = result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+        PopulateUserJobResult(schedulerResultExt->mutable_user_job_result());
 
         if (!Outputs.empty()) {
             // This code is required for proper handling of intermediate chunks, when
             // PartitionReduce job is run as ReduceCombiner in MapReduce operation.
-            auto* schedulerResultExt = result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             Outputs[0]->GetNodeDirectory()->DumpTo(schedulerResultExt->mutable_node_directory());
-            ToProto(schedulerResultExt->mutable_chunks(), Outputs[0]->GetWrittenChunks());            
+            ToProto(schedulerResultExt->mutable_chunks(), Outputs[0]->GetWrittenChunks());
         }
     }
 

@@ -195,9 +195,10 @@ private:
             AddSequentialInputSpec(jobSpec, joblet);
             AddFinalOutputSpecs(jobSpec, joblet);
 
-            auto* jobSpecExt = jobSpec->MutableExtension(TMapJobSpecExt::map_job_spec_ext);
+            auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
             Controller->InitUserJobSpec(
-                jobSpecExt->mutable_mapper_spec(),
+                schedulerJobSpecExt->mutable_user_job_spec(),
                 joblet,
                 Controller->GetMemoryReserve(joblet->MemoryReserveEnabled, Controller->Spec->Mapper));
         }
@@ -341,12 +342,10 @@ private:
     {
         JobSpecTemplate.set_type(EJobType::Map);
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        auto* mapJobSpecExt = JobSpecTemplate.MutableExtension(TMapJobSpecExt::map_job_spec_ext);
-
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         InitUserJobSpecTemplate(
-            mapJobSpecExt->mutable_mapper_spec(),
+            schedulerJobSpecExt->mutable_user_job_spec(),
             Spec->Mapper,
             RegularFiles,
             TableFiles);
