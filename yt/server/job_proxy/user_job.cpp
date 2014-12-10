@@ -234,6 +234,8 @@ public:
         LOG_INFO(JobExitError, "Job process completed");
         ToProto(result.mutable_error(), JobExitError);
 
+        auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+
         if (!JobExitError.IsOK()) {
             if (UserJobSpec.has_stderr_transaction_id()) {
                 // Save fail contexts for all inputs.
@@ -246,7 +248,6 @@ public:
                     contextOutput->Write(input->GetFailContext().ToStringBuf());
                     contextOutput->Finish();
                     auto contextChunkId = contextOutput->GetChunkId();
-                    auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
                     ToProto(schedulerResultExt->add_fail_context_chunk_ids(), contextChunkId);
 
                     if (contextChunkId != NChunkServer::NullChunkId) {
@@ -292,7 +293,6 @@ public:
         if (ErrorOutput) {
             auto stderrChunkId = ErrorOutput->GetChunkId();
             if (stderrChunkId != NChunkServer::NullChunkId) {
-                auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
                 ToProto(schedulerResultExt->mutable_stderr_chunk_id(), stderrChunkId);
                 LOG_INFO("Stderr chunk generated (ChunkId: %v)", stderrChunkId);
             }
@@ -304,7 +304,7 @@ public:
         }
 
         if (JobExitError.IsOK()) {
-            JobIO->PopulateResult(&result);
+            JobIO->PopulateResult(schedulerResultExt);
         }
 
         return result;

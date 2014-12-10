@@ -82,11 +82,9 @@ public:
         return std::unique_ptr<TTableProducer>(new TTableProducer(reader, consumer, IOConfig->TableReader->EnableTableIndex));
     }
 
-    virtual void PopulateResult(TJobResult* result) override
+    virtual void PopulateResult(TSchedulerJobResultExt* resultExt) override
     {
-        auto* schedulerResultExt = result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-        PopulateUserJobResult(schedulerResultExt->mutable_user_job_result());
-
+        PopulateUserJobResult(resultExt->mutable_user_job_result());
     }
 };
 

@@ -50,7 +50,7 @@ public:
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const;
 
-    virtual void PopulateResult(NJobTrackerClient::NProto::TJobResult* result) = 0;
+    virtual void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* resultExt) = 0;
 
     virtual NChunkClient::NProto::TDataStatistics GetInputDataStatistics() const;
     virtual NChunkClient::NProto::TDataStatistics GetOutputDataStatistics() const;

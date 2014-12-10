@@ -85,16 +85,15 @@ public:
             IOConfig->TableReader->EnableTableIndex));
     }
 
-    virtual void PopulateResult(TJobResult* result) override
+    virtual void PopulateResult(TSchedulerJobResultExt* resultExt) override
     {
-        auto* schedulerResultExt = result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-        PopulateUserJobResult(schedulerResultExt->mutable_user_job_result());
+        PopulateUserJobResult(resultExt->mutable_user_job_result());
 
         if (!Outputs.empty()) {
             // This code is required for proper handling of intermediate chunks, when
             // PartitionReduce job is run as ReduceCombiner in MapReduce operation.
-            Outputs[0]->GetNodeDirectory()->DumpTo(schedulerResultExt->mutable_node_directory());
-            ToProto(schedulerResultExt->mutable_chunks(), Outputs[0]->GetWrittenChunks());
+            Outputs[0]->GetNodeDirectory()->DumpTo(resultExt->mutable_node_directory());
+            ToProto(resultExt->mutable_chunks(), Outputs[0]->GetWrittenChunks());
         }
     }
 

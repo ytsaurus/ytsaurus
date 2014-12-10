@@ -99,11 +99,10 @@ public:
         return Writer;
     }
 
-    virtual void PopulateResult(TJobResult* result) override
+    virtual void PopulateResult(TSchedulerJobResultExt* resultExt) override
     {
-        auto* schedulerResultExt = result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-        Writer->GetNodeDirectory()->DumpTo(schedulerResultExt->mutable_node_directory());
-        ToProto(schedulerResultExt->mutable_chunks(), Writer->GetWrittenChunks());
+        Writer->GetNodeDirectory()->DumpTo(resultExt->mutable_node_directory());
+        ToProto(resultExt->mutable_chunks(), Writer->GetWrittenChunks());
     }
 
     virtual TDataStatistics GetOutputDataStatistics() const override
