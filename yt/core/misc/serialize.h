@@ -996,7 +996,7 @@ T Load(C& context)
 }
 
 template <class S, class T, class C>
-void CustomPersist(C& context, T& value)
+void Persist(C& context, T& value)
 {
     switch (context.GetDirection()) {
         case  EPersistenceDirection::Save:
@@ -1013,7 +1013,7 @@ void CustomPersist(C& context, T& value)
 template <class T, class C>
 void Persist(C& context, T& value)
 {
-    CustomPersist<TDefaultSerializer, T, C>(context, value);
+    Persist<TDefaultSerializer, T, C>(context, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

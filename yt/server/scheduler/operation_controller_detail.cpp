@@ -128,7 +128,7 @@ void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& contex
     Persist(context, Options);
     Persist(context, OutputChunkListId);
     // NB: Scheduler snapshots need not be stable.
-    CustomPersist<
+    Persist<
         TMultiMapSerializer<
             TDefaultSerializer,
             TDefaultSerializer,
@@ -212,27 +212,27 @@ void TOperationControllerBase::TTaskGroup::Persist(TPersistenceContext& context)
     using NYT::Persist;
     Persist(context, MinNeededResources);
     // NB: Scheduler snapshots need not be stable.
-    CustomPersist<
+    Persist<
         TSetSerializer<
             TDefaultSerializer,
             TUnsortedTag
         >
     >(context, NonLocalTasks);
-    CustomPersist<
+    Persist<
         TMultiMapSerializer<
             TDefaultSerializer,
             TDefaultSerializer,
             TUnsortedTag
         >
     >(context, CandidateTasks);
-    CustomPersist<
+    Persist<
         TMultiMapSerializer<
             TDefaultSerializer,
             TDefaultSerializer,
             TUnsortedTag
         >
     >(context, DelayedTasks);
-    CustomPersist<
+    Persist<
         TMapSerializer<
             TDefaultSerializer,
             TSetSerializer<
@@ -3779,7 +3779,7 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, JobIndexGenerator);
 
     // NB: Scheduler snapshots need not be stable.
-    CustomPersist<
+    Persist<
         TSetSerializer<
             TDefaultSerializer,
             TUnsortedTag
