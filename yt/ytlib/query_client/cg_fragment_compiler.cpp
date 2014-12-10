@@ -1540,12 +1540,22 @@ void TCGContext::CodegenGroupOp(
         keyTypes.push_back(clause.GroupItems[index].Expression->Type);
     }
 
+#ifdef USE_CODEGENED_HASH
     builder.CreateCall4(
         Module_->GetRoutine("GroupOpHelper"),
         innerBuilder.GetClosure(),
         function,
         CodegenGroupHasherFunction(keyTypes),
         CodegenGroupComparerFunction(keyTypes));
+#else
+    builder.CreateCall4(
+        Module_->GetRoutine("GroupOpHelper"),
+        builder.getInt32(keySize),
+        builder.getInt32(aggregateItemCount),
+        innerBuilder.GetClosure(),
+        function);
+#endif
+
 }
 
 TCGQueryCallback TCGContext::CodegenEvaluate(

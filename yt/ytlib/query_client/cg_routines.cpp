@@ -128,6 +128,8 @@ void ScanOpHelper(
     }
 }
 
+#ifdef USE_CODEGENED_HASH
+    
 void GroupOpHelper(
     void** consumeRowsClosure,
     void (*consumeRows)(
@@ -143,8 +145,34 @@ void GroupOpHelper(
         groupHasher,
         groupComparer);
 
+#ifdef USE_GOOGLE_HASH
+    lookupRows.set_empty_key(TRow());
+#endif
+
     consumeRows(consumeRowsClosure, &groupedRows, &lookupRows);
 }
+
+#else
+
+void GroupOpHelper(
+    int keySize,
+    int aggregateItemCount,
+    void** consumeRowsClosure,
+    void (*consumeRows)(
+        void** closure,
+        std::vector<TRow>* groupedRows,
+        TLookupRows* rows))
+{
+    std::vector<TRow> groupedRows;
+    TLookupRows lookupRows(
+        InitialGroupOpHashtableCapacity,
+        NDetail::TGroupHasher(keySize),
+        NDetail::TGroupComparer(keySize));
+
+    consumeRows(consumeRowsClosure, &groupedRows, &lookupRows);
+}
+
+#endif
 
 const TRow* FindRow(TExecutionContext* executionContext, TLookupRows* rows, TRow row)
 {

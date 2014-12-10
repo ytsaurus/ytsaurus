@@ -1456,14 +1456,6 @@ TEST_F(TRefineKeyRangeTest, LookupIsPrefix)
 
 #ifdef YT_USE_LLVM
 
-class TEvaluateCallbacksMock
-    : public IEvaluateCallbacks
-{
-public:
-    MOCK_METHOD2(GetReader, ISchemafulReaderPtr(const TDataSplit&, TNodeDirectoryPtr));
-
-};
-
 class TReaderMock
     : public ISchemafulReader
 {
@@ -1598,7 +1590,6 @@ protected:
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
-    StrictMock<TEvaluateCallbacksMock> EvaluateMock_;
     TIntrusivePtr<StrictMock<TReaderMock>> ReaderMock_; 
     TIntrusivePtr<StrictMock<TWriterMock>> WriterMock_;
     TActionQueuePtr ActionQueue_;
