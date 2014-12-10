@@ -1250,7 +1250,7 @@ private:
     }
 
 
-    void OnLeaderActive() override
+    virtual void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1271,7 +1271,7 @@ private:
         CleanupExecutor_->Start();
     }
 
-    void OnStopLeading() override
+    virtual void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
