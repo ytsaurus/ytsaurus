@@ -217,9 +217,9 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         result.BalancingRemovalIndexes.push_back(GenericChunkReplicaIndex);
     }
 
-    if (usedRackCount == 1 && usedRacks != NullRackMask) {
+    if (replicationFactor > 1 && usedRackCount == 1 && usedRacks != NullRackMask) {
         // A regular chunk is considered placed unsafely if all of its replicas are placed in
-        // one non-null rack.
+        // one non-null rack. Also, for RF=1 rack awareness is effectively off.
         result.Status |= EChunkStatus::UnsafelyPlaced;
     }
 
