@@ -79,6 +79,9 @@ typedef NVersionedTableClient::TOwningKey TKey;
 
 typedef std::pair<TKey, TKey> TKeyRange;
 
+const int MaxRowsPerRead = 1024;
+const int MaxRowsPerWrite = 1024;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

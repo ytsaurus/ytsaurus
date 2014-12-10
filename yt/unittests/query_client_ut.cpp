@@ -14,9 +14,6 @@
 #include <ytlib/query_client/evaluator.h>
 #include <ytlib/query_client/plan_helpers.h>
 #include <ytlib/query_client/helpers.h>
-#ifdef YT_USE_LLVM
-#include <ytlib/query_client/cg_types.h>
-#endif
 #include <ytlib/query_client/plan_fragment.pb.h>
 
 #include <ytlib/new_table_client/schema.h>

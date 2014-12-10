@@ -13,10 +13,10 @@
 #include <unordered_set>
 #include <unordered_map>
 
-#define USE_CODEGENED_HASH
-#define USE_GOOGLE_HASH
+#define YT_USE_CODEGENED_HASH
+#define YT_USE_GOOGLE_HASH
 
-#ifdef USE_GOOGLE_HASH
+#ifdef YT_USE_GOOGLE_HASH
 #include <sparsehash/dense_hash_set>
 #endif
 
@@ -62,9 +62,9 @@ struct TExecutionContext
 
 namespace NDetail {
 
-#ifdef USE_CODEGENED_HASH
+#ifdef YT_USE_CODEGENED_HASH
 
-#ifdef USE_GOOGLE_HASH
+#ifdef YT_USE_GOOGLE_HASH
 
 typedef ui64 (*TGroupHasherFunc)(TRow);
 typedef char (*TGroupComparerFunc)(TRow, TRow);
@@ -151,7 +151,7 @@ private:
 } // namespace NDetail
 
 typedef
-#ifdef USE_GOOGLE_HASH
+#ifdef YT_USE_GOOGLE_HASH
     google::sparsehash::dense_hash_set
 #else
     std::unordered_set
@@ -175,9 +175,6 @@ struct TCGVariables
 
 typedef void (TCGQuerySignature)(TRow, TExecutionContext*);
 using TCGQueryCallback = TCallback<TCGQuerySignature>;
-
-const int MaxRowsPerRead = 1024;
-const int MaxRowsPerWrite = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 

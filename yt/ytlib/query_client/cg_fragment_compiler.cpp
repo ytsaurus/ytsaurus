@@ -1540,7 +1540,7 @@ void TCGContext::CodegenGroupOp(
         keyTypes.push_back(clause.GroupItems[index].Expression->Type);
     }
 
-#ifdef USE_CODEGENED_HASH
+#ifdef YT_USE_CODEGENED_HASH
     builder.CreateCall4(
         Module_->GetRoutine("GroupOpHelper"),
         innerBuilder.GetClosure(),

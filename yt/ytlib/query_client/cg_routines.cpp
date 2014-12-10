@@ -128,7 +128,7 @@ void ScanOpHelper(
     }
 }
 
-#ifdef USE_CODEGENED_HASH
+#ifdef YT_USE_CODEGENED_HASH
     
 void GroupOpHelper(
     void** consumeRowsClosure,
@@ -145,7 +145,7 @@ void GroupOpHelper(
         groupHasher,
         groupComparer);
 
-#ifdef USE_GOOGLE_HASH
+#ifdef YT_USE_GOOGLE_HASH
     lookupRows.set_empty_key(TRow());
 #endif
 
