@@ -21,6 +21,8 @@ TRackSet TRack::GetIndexMask() const
 
 void TRack::Save(NCellMaster::TSaveContext& context) const
 {
+    TObjectBase::Save(context);
+
     using NYT::Save;
     Save(context, Name_);
     Save(context, Index_);
@@ -28,6 +30,13 @@ void TRack::Save(NCellMaster::TSaveContext& context) const
 
 void TRack::Load(NCellMaster::TLoadContext& context)
 {
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 105) {
+        TObjectBase::Load(context);
+    } else {
+        RefCounter = 1;
+    }
+
     using NYT::Load;
     Load(context, Name_);
     Load(context, Index_);
