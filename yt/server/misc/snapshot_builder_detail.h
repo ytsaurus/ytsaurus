@@ -8,6 +8,8 @@
 
 #include <core/logging/log.h>
 
+#include <atomic>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,18 +35,22 @@ protected:
     virtual void Build() = 0;
 
 private:
-    pid_t ChildPid;
-    TPromise<TError> Result;
-    TInstant Deadline;
-    NConcurrency::TPeriodicExecutorPtr WatchdogExecutor;
+    std::atomic<pid_t> ChildPid_;
+    TPromise<TError> Result_ = NewPromise<TError>();
+    TInstant StartTime_;
+    NConcurrency::TPeriodicExecutorPtr WatchdogExecutor_;
+
 
     void RunParent();
     void RunChild();
 
     void OnWatchdogCheck();
+    void OnCanceled();
 
     void Cleanup();
-    void KillChild();
+
+    void MaybeKillChild();
+    static void DoKillChild(pid_t childPid);
 
 };
 
