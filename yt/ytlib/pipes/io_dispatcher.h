@@ -7,11 +7,6 @@ namespace NPipes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-    class TAsyncReaderImpl;
-    class TAsyncWriterImpl;
-}
-
 class TIODispatcher
 {
 public:

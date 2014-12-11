@@ -43,9 +43,11 @@ int SafeDup(int oldFd)
 {
     while (true) {
         auto fd = dup(oldFd);
+        if (fd != -1) {
+            return fd;
+        }
 
-        if (fd == -1) {
-            switch (errno) {
+        switch (errno) {
             case EINTR:
             case EBUSY:
                 break;
@@ -54,9 +56,6 @@ int SafeDup(int oldFd)
                 THROW_ERROR_EXCEPTION("dup failed")
                     << TErrorAttribute("old_fd", oldFd)
                     << TError::FromSystem();
-            }
-        } else {
-            return fd;
         }
     }
 }
@@ -74,16 +73,16 @@ int SafePipe(int fd[2])
 void SafeMakeNonblocking(int fd)
 {
     auto res = fcntl(fd, F_GETFL);
-
     if (res == -1) {
         THROW_ERROR_EXCEPTION("fcntl failed to get descriptor flags")
+            << TErrorAttribute("fd", fd)
             << TError::FromSystem();
     }
 
     res = fcntl(fd, F_SETFL, res | O_NONBLOCK);
-
     if (res == -1) {
         THROW_ERROR_EXCEPTION("fcntl failed to set descriptor flags")
+            << TErrorAttribute("fd", fd)
             << TError::FromSystem();
     }
 }

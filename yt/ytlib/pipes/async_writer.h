@@ -9,17 +9,12 @@ namespace NPipes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-    DECLARE_REFCOUNTED_CLASS(TAsyncWriterImpl)
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
+//! Implements IAsyncOutputStream interface on top of a file descriptor.
 class TAsyncWriter
     : public NConcurrency::IAsyncOutputStream
 {
 public:
-    // Owns this fd
+    //! Takes ownership of #fd.
     explicit TAsyncWriter(int fd);
 
     virtual TAsyncError Write(const void* data, size_t size) override;

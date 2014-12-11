@@ -1,7 +1,6 @@
 #pragma once
 
-#include <core/misc/error.h>
-#include <core/actions/future.h>
+#include <core/misc/common.h>
 
 namespace ev {
 
@@ -18,10 +17,15 @@ namespace NPipes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IFDWatcher);
-
 DECLARE_REFCOUNTED_CLASS(TAsyncReader);
 DECLARE_REFCOUNTED_CLASS(TAsyncWriter);
+
+namespace NDetail {
+
+DECLARE_REFCOUNTED_CLASS(TAsyncReaderImpl)
+DECLARE_REFCOUNTED_CLASS(TAsyncWriterImpl)
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
