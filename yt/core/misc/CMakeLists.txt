@@ -64,6 +64,7 @@ set( HDRS
   ${BASE}/crash_handler.h
   ${BASE}/demangle.h
   ${BASE}/enum.h
+  ${BASE}/enum-inl.h
   ${BASE}/error.h
   ${BASE}/error-inl.h
   ${BASE}/fs.h

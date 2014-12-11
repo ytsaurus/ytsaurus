@@ -58,9 +58,9 @@ DECLARE_ENUM(EAbortReason,
 );
 
 DECLARE_ENUM(EJobFinalState,
-    ((Failed) (0))
-    ((Aborted) (1))
-    ((Completed) (2))
+    (Failed)
+    (Aborted)
+    (Completed)
 );
 
 class TSchedulerServiceProxy;

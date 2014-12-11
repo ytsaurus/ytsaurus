@@ -130,7 +130,7 @@ class TOperation
         bool suspended = false);
 
 private:
-    static_assert(EJobFinalState::GetDomainSize() == EJobFinalState::GetMax() + 1, "EJobFinalState should not be sparse");
+    static_assert(EJobFinalState::GetDomainSize() == EJobFinalState::GetMaxValue() + 1, "EJobFinalState should not be sparse");
     std::array<NJobProxy::TStatistics, EJobFinalState::GetDomainSize()> Statistics;
     TPromise<TError> StartedPromise;
     TPromise<void> FinishedPromise;
