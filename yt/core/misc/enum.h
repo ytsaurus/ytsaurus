@@ -61,15 +61,15 @@ class TEnumBase
             PP_FOR_EACH(ENUM__DOMAIN_ITEM, seq) \
         }; \
         \
-        name() \
+        constexpr name() \
             : Value(static_cast<EDomain>(0)) \
         { } \
         \
-        name(EDomain e) \
+        constexpr name(EDomain e) \
             : Value(e) \
         { } \
         \
-        explicit name(int value) \
+        constexpr explicit name(int value) \
             : Value(static_cast<EDomain>(value)) \
         { } \
         \
@@ -79,7 +79,7 @@ class TEnumBase
             return *this; \
         } \
         \
-        operator EDomain() const \
+        constexpr operator EDomain() const \
         { \
             return Value; \
         } \
@@ -267,7 +267,7 @@ class TEnumBase
 
 //! Declaration of a single relational operator.
 #define ENUM__RELATIONAL_OPERATOR(name, op) \
-    bool operator op(EDomain other) const \
+    constexpr bool operator op(EDomain other) const \
     { \
         return static_cast<int>(Value) op static_cast<int>(other); \
     }
