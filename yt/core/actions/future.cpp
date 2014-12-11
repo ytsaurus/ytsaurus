@@ -243,9 +243,12 @@ void TPromise<void>::Set()
 
 void TPromise<void>::SetFrom(TFuture<void> another)
 {
-    auto impl = Impl_;
-    another.Subscribe(BIND([impl] () {
-        impl->Set();
+    auto this_ = *this;
+    another.Subscribe(BIND([this_] () mutable {
+        this_.Set();
+    }));
+    OnCanceled(BIND([another] () mutable {
+        another.Cancel();
     }));
 }
 
@@ -257,9 +260,12 @@ bool TPromise<void>::TrySet()
 
 void TPromise<void>::TrySetFrom(TFuture<void> another)
 {
-    auto impl = Impl_;
-    another.Subscribe(BIND([impl] () {
-        impl->TrySet();
+    auto this_ = *this;
+    another.Subscribe(BIND([this_] () mutable {
+        this_.TrySet();
+    }));
+    OnCanceled(BIND([another] () mutable {
+        another.Cancel();
     }));
 }
 

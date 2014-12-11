@@ -490,8 +490,9 @@ inline TFuture<void> TFuture<T>::Apply(TCallback<void(const T&)> mutator)
         mutated.Set();
     }));
 
-    OnCanceled(BIND([=] () mutable {
-        mutated.Cancel();
+    auto this_ = *this;
+    mutated.OnCanceled(BIND([this_] () mutable {
+        this_.Cancel();
     }));
 
     return mutated;
@@ -516,8 +517,9 @@ inline TFuture<void> TFuture<T>::Apply(TCallback<TFuture<void>(const T&)> mutato
     });
     Subscribe(outer);
 
-    OnCanceled(BIND([=] () mutable {
-        mutated.Cancel();
+    auto this_ = *this;
+    mutated.OnCanceled(BIND([this_] () mutable {
+        this_.Cancel();
     }));
 
     return mutated;
@@ -539,8 +541,9 @@ inline TFuture<R> TFuture<T>::Apply(TCallback<R(const T&)> mutator)
         mutated.Set(mutator.Run(value));
     }));
 
-    OnCanceled(BIND([=] () mutable {
-       mutated.Cancel();
+    auto this_ = *this;
+    mutated.OnCanceled(BIND([this_] () mutable {
+        this_.Cancel();
     }));
 
     return mutated;
@@ -567,8 +570,9 @@ inline TFuture<R> TFuture<T>::Apply(TCallback<TFuture<R>(const T&)> mutator)
     });
     Subscribe(outer);
 
-    OnCanceled(BIND([=] () mutable {
-        mutated.Cancel();
+    auto this_ = *this;
+    mutated.OnCanceled(BIND([this_] () mutable {
+        this_.Cancel();
     }));
 
     return mutated;
@@ -585,12 +589,16 @@ template <class T>
 TFuture<void> TFuture<T>::IgnoreResult()
 {
     auto promise = NewPromise<void>();
+
     Subscribe(BIND([=] (const T&) mutable {
         promise.Set();
     }));
-    OnCanceled(BIND([=] () mutable {
-        promise.Cancel();
+
+    auto this_ = *this;
+    promise.OnCanceled(BIND([this_] () mutable {
+        this_.Cancel();
     }));
+
     return promise;
 }
 
@@ -607,17 +615,22 @@ template <class T>
 TFuture<typename TErrorTraits<T>::TWrapped> TFuture<T>::WithTimeout(TDuration timeout)
 {
     auto promise = NewPromise<typename TErrorTraits<T>::TWrapped>();
+
     Subscribe(BIND([=] (const T& value) mutable {
         promise.TrySet(value);
     }));
-    OnCanceled(BIND([=] () mutable {
-        promise.Cancel();
-    }));
+
     NConcurrency::TDelayedExecutor::Submit(
         BIND([=] () mutable {
             promise.TrySet(TError(NYT::EErrorCode::Timeout, "Future has timed out"));
         }),
         timeout);
+
+    auto this_ = *this;
+    promise.OnCanceled(BIND([this_] () mutable {
+        this_.Cancel();
+    }));
+
     return promise;
 }
 
@@ -638,8 +651,9 @@ inline TFuture<R> TFuture<void>::Apply(TCallback<R()> mutator)
         mutated.Set(mutator.Run());
     }));
 
-    OnCanceled(BIND([=] () mutable {
-        mutated.Cancel();
+    auto this_ = *this;
+    mutated.OnCanceled(BIND([this_] () mutable {
+        this_.Cancel();
     }));
 
     return mutated;
@@ -658,8 +672,9 @@ inline TFuture<R> TFuture<void>::Apply(TCallback<TFuture<R>()> mutator)
     });
     Subscribe(outer);
 
-    OnCanceled(BIND([=] () mutable {
-        mutated.Cancel();
+    auto this_ = *this;
+    mutated.OnCanceled(BIND([this_] () mutable {
+        this_.Cancel();
     }));
 
     return mutated;
@@ -744,9 +759,12 @@ template <class T>
 template <class U>
 inline void TPromise<T>::SetFrom(TFuture<U> another)
 {
-    auto impl = Impl_;
-    another.Subscribe(BIND([impl] (const U& value) {
-        impl->Set(value);
+    auto this_ = *this;
+    another.Subscribe(BIND([this_] (const U& value) mutable {
+        this_.Set(value);
+    }));
+    OnCanceled(BIND([another] () mutable {
+        another.Cancel();
     }));
 }
 
@@ -768,9 +786,12 @@ template <class T>
 template <class U>
 inline void TPromise<T>::TrySetFrom(TFuture<U> another)
 {
-    auto impl = Impl_;
-    another.Subscribe(BIND([impl] (const U& value) {
-        impl->TrySet(value);
+    auto this_ = *this;
+    another.Subscribe(BIND([this_] (const U& value) mutable {
+        this_.TrySet(value);
+    }));
+    OnCanceled(BIND([another] () mutable {
+        another.Cancel();
     }));
 }
 
