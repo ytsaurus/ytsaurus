@@ -1202,7 +1202,7 @@ private:
         auto mark = TChunkList::GenerateVisitMark();
 
         // Force all statistics to be recalculated.
-        for (auto& pair : ChunkListMap_) {
+        for (const auto& pair : ChunkListMap_) {
             auto* chunkList = pair.second;
             ComputeStatisticsFor(chunkList, mark);
         }
