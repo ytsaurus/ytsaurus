@@ -99,7 +99,7 @@ public:
         , CGroups("", "cgroup", "run in cgroup", false, "")
         , Executor("", "executor", "start a user job")
         , PreparePipes("", "prepare-pipe", "prepare pipe descriptor  (for executor mode)", false, "FD")
-        , EnableCoreDumps("", "enable-core-dumps", "enable core dumps")
+        , EnableCoreDump("", "enable-core-dump", "enable core dump (for executor mode)")
         , Uid("", "uid", "set uid  (for executor mode)", false, -1, "NUM")
         , EnableIOPrio("", "enable-io-prio", "set low io prio (for executor mode)")
         , Command("", "command", "command (for executor mode)", false, "", "COMMAND")
@@ -122,7 +122,7 @@ public:
         CmdLine.add(CGroups);
         CmdLine.add(Executor);
         CmdLine.add(PreparePipes);
-        CmdLine.add(EnableCoreDumps);
+        CmdLine.add(EnableCoreDump);
         CmdLine.add(Uid);
         CmdLine.add(EnableIOPrio);
         CmdLine.add(Command);
@@ -149,7 +149,7 @@ public:
     TCLAP::MultiArg<Stroka> CGroups;
     TCLAP::SwitchArg Executor;
     TCLAP::MultiArg<int> PreparePipes;
-    TCLAP::SwitchArg EnableCoreDumps;
+    TCLAP::SwitchArg EnableCoreDump;
     TCLAP::ValueArg<int> Uid;
     TCLAP::SwitchArg EnableIOPrio;
     TCLAP::ValueArg<Stroka> Command;
@@ -316,21 +316,21 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
     }
 
-    // core dumps are enabled by default
-    if (!parser.EnableCoreDumps.getValue()) {
-        struct rlimit rlimit = {0, 0};
-
-        auto res = setrlimit(RLIMIT_CORE, &rlimit);
-        if (res) {
-            fprintf(stderr, "Failed to disable core dumps\n%s", strerror(errno));
-            return EExitCode::ExecutorError;
-        }
-    }
-
     if (isExecutor) {
         const int permissions = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
         for (auto fd : parser.PreparePipes.getValue()) {
             SetPermissions(fd, permissions);
+        }
+
+        if (!parser.EnableCoreDump.getValue()) {
+            // Disable core dump for user jobs when option is not present.
+            struct rlimit rlimit = {0, 0};
+
+            auto res = setrlimit(RLIMIT_CORE, &rlimit);
+            if (res) {
+                fprintf(stderr, "Failed to disable core dumps\n%s", strerror(errno));
+                return EExitCode::ExecutorError;
+            }
         }
 
         auto uid = parser.Uid.getValue();

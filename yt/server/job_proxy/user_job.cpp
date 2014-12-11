@@ -193,7 +193,7 @@ public:
         });
 
         if (UserJobSpec.enable_core_dump()) {
-            Process.AddArgument("--enable-core-dumps");
+            Process.AddArgument("--enable-core-dump");
         }
 
         if (config->UserId) {
