@@ -510,16 +510,20 @@ TFuture<TErrorOr<TRemoteSnapshotParams>> TDecoratedAutomaton::BuildSnapshot()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    LastSnapshotTime_ = TInstant::Now();
-    SnapshotVersion_ = LoggedVersion_;
-    auto promise = SnapshotParamsPromise_ = NewPromise<TErrorOr<TRemoteSnapshotParams>>();
-
     LOG_INFO("Scheduled snapshot at version %v",
         LoggedVersion_);
 
+    LastSnapshotTime_ = TInstant::Now();
+    SnapshotVersion_ = LoggedVersion_;
+
+    if (SnapshotParamsPromise_) {
+        SnapshotParamsPromise_.Cancel();
+    }
+    SnapshotParamsPromise_ = NewPromise<TErrorOr<TRemoteSnapshotParams>>();
+
     MaybeStartSnapshotBuilder();
 
-    return promise;
+    return SnapshotParamsPromise_;
 }
 
 TAsyncError TDecoratedAutomaton::RotateChangelog(TEpochContextPtr epochContext)
@@ -751,7 +755,10 @@ void TDecoratedAutomaton::Reset()
     PendingMutations_.clear();
     Changelog_.Reset();
     SnapshotVersion_ = TVersion();
-    SnapshotParamsPromise_.Reset();
+    if (SnapshotParamsPromise_) {
+        SnapshotParamsPromise_.Cancel();
+        SnapshotParamsPromise_.Reset();
+    }
 }
 
 void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
@@ -761,7 +768,6 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
 
     auto builder = New<TSnapshotBuilder>(this, SnapshotVersion_);
     SnapshotParamsPromise_.SetFrom(builder->Run());
-    SnapshotParamsPromise_.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
