@@ -345,9 +345,7 @@ public:
     explicit TSerializedInvoker(IInvokerPtr underlyingInvoker)
         : TInvokerWrapper(std::move(underlyingInvoker))
         , FinishedCallback_(BIND(&TSerializedInvoker::OnFinished, MakeWeak(this)))
-    {
-        Lock_.clear();
-    }
+    { }
 
     virtual void Invoke(const TClosure& callback) override
     {
@@ -357,7 +355,7 @@ public:
 
 private:
     TLockFreeQueue<TClosure> Queue_;
-    std::atomic_flag Lock_;
+    std::atomic_flag Lock_ = ATOMIC_FLAG_INIT;
     bool LockReleased_;
     TClosure FinishedCallback_;
 
