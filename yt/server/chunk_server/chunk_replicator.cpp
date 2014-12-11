@@ -1026,7 +1026,7 @@ bool TChunkReplicator::IsEnabled()
             return false;
         }
     }
-    else if (Config->SafeLostChunkCount && *Config->SafeLostChunkCount < lostChunkCount) {
+    if (Config->SafeLostChunkCount && *Config->SafeLostChunkCount < lostChunkCount) {
         if (!LastEnabled || LastEnabled.Get()) {
             LOG_INFO("Chunk replicator disabled: too many lost chunks, needed <= %d but got %d",
                 *Config->SafeLostChunkCount,
