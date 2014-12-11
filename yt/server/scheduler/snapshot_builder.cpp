@@ -9,6 +9,8 @@
 
 #include <core/concurrency/scheduler.h>
 
+#include <core/ytree/serialize.h>
+
 #include <core/logging/log.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
