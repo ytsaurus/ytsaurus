@@ -94,9 +94,8 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
             PyObject_Compare(obj.ptr(), Py::Long(std::numeric_limits<i64>::min()).ptr()) < 0)
         {
             throw Py::RuntimeError(
-                "Cannot represent in yson " +
-                std::string(obj.repr()) +
-                " (it if out of range [-2^63, 2^64 - 1])");
+                "Value " + std::string(obj.repr()) +
+                " cannot be represented in YSON since it is out of range [-2^63, 2^64 - 1])");
         }
 
         auto longObj = Py::Long(obj);
