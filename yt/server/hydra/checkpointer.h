@@ -13,6 +13,8 @@
 
 #include <ytlib/election/public.h>
 
+#include <tuple>
+
 namespace NYT {
 namespace NHydra {
 
@@ -30,17 +32,28 @@ public:
         ISnapshotStorePtr snapshotStore,
         TEpochContext* epochContext);
 
+    //! A changelog rotation result.
+    typedef TFuture<TError> TRotateChangelogResult;
+
+    //! A pair consisting of a changelog rotation result and a snapshot construction result.
+    typedef std::tuple<
+        TFuture<TError>,
+        TFuture<TErrorOr<TRemoteSnapshotParams>>
+    > TBuildSnapshotResult;
+
     //! Starts a distributed changelog rotation.
     /*!
+     *  \returns
      *  \note Thread affinity: AutomatonThread
      */
-    TFuture<TError> RotateChangelog();
+    TRotateChangelogResult RotateChangelog();
 
     //! Starts a distributed changelog rotation followed by snapshot construction.
     /*!
+     *  \returns
      *  \note Thread affinity: AutomatonThread
      */
-    TFuture<TErrorOr<TRemoteSnapshotParams>> BuildSnapshot();
+    TBuildSnapshotResult BuildSnapshot();
 
     //! Returns |true| iff a snapshot can be built.
     /*!
@@ -53,14 +66,6 @@ public:
      *  \note Thread affinity: any
      */
     bool CanRotateChangelogs() const;
-
-    //! This signal is set whenever the leader cannot proceed and a re-election must take place.
-    /*!
-     *  Such a catastrophe happens when the changelog rotation fails.
-     *
-     *  \note Thread affinity: raised in an unspecified thread
-     */
-    DEFINE_SIGNAL(void(), LeaderFailed);
 
 private:
     TDistributedHydraManagerConfigPtr Config_;

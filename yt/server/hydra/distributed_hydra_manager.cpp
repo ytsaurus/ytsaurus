@@ -298,10 +298,8 @@ public:
                 "No active quorum"));
         }
 
-        return epochContext
-            ->Checkpointer
-            ->BuildSnapshot()
-            .Apply(BIND([] (const TErrorOr<TRemoteSnapshotParams>& errorOrParams) -> TErrorOr<int> {
+        return BuildSnapshotAndWatch(epochContext).Apply(
+            BIND([] (const TErrorOr<TRemoteSnapshotParams>& errorOrParams) -> TErrorOr<int> {
                 if (!errorOrParams.IsOK()) {
                     return TError(errorOrParams);
                 }
@@ -822,10 +820,10 @@ private:
 
         auto checkpointer = epochContext->Checkpointer;
         if (checkpointer->CanBuildSnapshot()) {
-            checkpointer->BuildSnapshot();
+            BuildSnapshotAndWatch(epochContext);
         } else if (checkpointer->CanRotateChangelogs()) {
             LOG_WARNING("Snapshot is still being built, just rotating changlogs");
-            checkpointer->RotateChangelog();
+            RotateChangelogAndWatch(epochContext);
         } else {
             return;
         }
@@ -842,9 +840,33 @@ private:
         Restart();
     }
 
-    void OnCheckpointerFailed()
+
+    void RotateChangelogAndWatch(TEpochContextPtr epochContext)
     {
-        Restart();
+        WatchChangelogRotation(epochContext->Checkpointer->RotateChangelog());
+    }
+
+    TFuture<TErrorOr<TRemoteSnapshotParams>> BuildSnapshotAndWatch(TEpochContextPtr epochContext)
+    {
+        TFuture<TError> changelogResult;
+        TFuture<TErrorOr<TRemoteSnapshotParams>> snapshotResult;
+        std::tie(changelogResult, snapshotResult) = epochContext->Checkpointer->BuildSnapshot();
+        WatchChangelogRotation(changelogResult);
+        return snapshotResult;
+    }
+
+    void WatchChangelogRotation(TAsyncError result)
+    {
+        result.Subscribe(BIND(&TDistributedHydraManager::OnChangelogRotated, MakeWeak(this)));
+    }
+
+    void OnChangelogRotated(const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!error.IsOK()) {
+            Restart();
+        }
     }
 
 
@@ -888,9 +910,6 @@ private:
             epochContext->LeaderCommitter,
             SnapshotStore_,
             epochContext);
-        epochContext->Checkpointer->SubscribeLeaderFailed(BIND(
-            &TDistributedHydraManager::OnCheckpointerFailed,
-            MakeWeak(this)));
 
         epochContext->FollowerTracker->Start();
 

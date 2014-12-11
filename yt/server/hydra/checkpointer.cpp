@@ -67,7 +67,7 @@ private:
     TCheckpointerPtr Owner_;
     bool BuildSnapshot_;
     
-    bool LocalRotationSuccessFlag = false;
+    bool LocalRotationSuccessFlag_ = false;
     int RemoteRotationSuccessCount_ = 0;
 
     TVersion Version_;
@@ -266,8 +266,8 @@ private:
 
         LOG_INFO("Local changelog rotated");
 
-        YCHECK(!LocalRotationSuccessFlag);
-        LocalRotationSuccessFlag = true;
+        YCHECK(!LocalRotationSuccessFlag_);
+        LocalRotationSuccessFlag_ = true;
         CheckRotationQuorum();
     }
 
@@ -277,7 +277,7 @@ private:
 
         // NB: It is vital to wait for the local rotation to complete.
         // Otherwise we risk assigning out-of-order versions.
-        if (!LocalRotationSuccessFlag || RemoteRotationSuccessCount_ < Owner_->CellManager_->GetQuorumCount() - 1)
+        if (!LocalRotationSuccessFlag_ || RemoteRotationSuccessCount_ < Owner_->CellManager_->GetQuorumCount() - 1)
             return;
 
         Owner_->EpochContext_->EpochUserAutomatonInvoker->Invoke(
@@ -300,7 +300,7 @@ private:
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         // NB: Otherwise an error is already reported.
-        YCHECK(LocalRotationSuccessFlag);
+        YCHECK(LocalRotationSuccessFlag_);
         SetFailed(TError("Not enough successful changelog rotation replies: %v out of %v",
             RemoteRotationSuccessCount_ + 1,
             Owner_->CellManager_->GetPeerCount()));
@@ -319,7 +319,6 @@ private:
         LOG_ERROR(error, "Distributed changelog rotation failed");
         ChangelogAwaiter_->Cancel();
         ChangelogPromise_.Set(error);
-        Owner_->LeaderFailed_.Fire();
     }
 
 };
@@ -353,7 +352,7 @@ TCheckpointer::TCheckpointer(
     Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 }
 
-TFuture<TError> TCheckpointer::RotateChangelog()
+TCheckpointer::TRotateChangelogResult TCheckpointer::RotateChangelog()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(CanRotateChangelogs());
@@ -363,14 +362,14 @@ TFuture<TError> TCheckpointer::RotateChangelog()
     return session->GetChangelogResult();
 }
 
-TFuture<TErrorOr<TRemoteSnapshotParams>> TCheckpointer::BuildSnapshot()
+TCheckpointer::TBuildSnapshotResult TCheckpointer::BuildSnapshot()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(CanBuildSnapshot());
 
     auto session = New<TSession>(this, true);
     session->Run();
-    return session->GetSnapshotResult();
+    return std::make_tuple(session->GetChangelogResult(), session->GetSnapshotResult());
 }
 
 bool TCheckpointer::CanBuildSnapshot() const
