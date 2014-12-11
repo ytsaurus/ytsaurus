@@ -39,9 +39,9 @@
 
 #include <ytlib/job_tracker_client/statistics.h>
 
-#include <server/chunk_server/public.h>
+#include <ytlib/scheduler/statistics.h>
 
-#include <server/job_proxy/statistics.h>
+#include <server/chunk_server/public.h>
 
 namespace NYT {
 namespace NScheduler {

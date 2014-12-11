@@ -1611,7 +1611,7 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     CompletedJobStatistics += jobStatistics;
 
     if (jobStatistics.has_statistics()) {
-        auto statistics = ConvertTo<NJobProxy::TStatistics>(TYsonString(jobStatistics.statistics()));
+        auto statistics = ConvertTo<TStatistics>(TYsonString(jobStatistics.statistics()));
         Operation->UpdateStatistics(statistics, EJobFinalState::Completed);
     }
 
@@ -3696,7 +3696,7 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
         .Item("finish_time").Value(job->GetFinishTime())
         .Item("resource_limits").Value(job->ResourceLimits())
         .DoIf(statistics.has_statistics(), [&] (TFluentLogEvent fluent) {
-            auto jobStatistics = ConvertTo<NJobProxy::TStatistics>(TYsonString(statistics.statistics()));
+            auto jobStatistics = ConvertTo<TStatistics>(TYsonString(statistics.statistics()));
             fluent
                 .Item("statistics").Value(jobStatistics);
         })

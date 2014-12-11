@@ -78,7 +78,7 @@ bool TOperation::IsFinishingState() const
     return IsOperationFinishing(State_);
 }
 
-void TOperation::UpdateStatistics(const NJobProxy::TStatistics& statistics, EJobFinalState state)
+void TOperation::UpdateStatistics(const TStatistics& statistics, EJobFinalState state)
 {
     Statistics[static_cast<int>(state)].Merge(statistics);
 }

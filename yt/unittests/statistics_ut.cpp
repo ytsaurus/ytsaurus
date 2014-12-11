@@ -1,8 +1,9 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <server/job_proxy/statistics.h>
 #include <server/job_proxy/table_output.h>
+
+#include <ytlib/scheduler/statistics.h>
 
 #include <ytlib/formats/format.h>
 #include <ytlib/formats/parser.h>
@@ -10,7 +11,7 @@
 #include <core/ytree/convert.h>
 
 namespace NYT {
-namespace NJobProxy {
+namespace NScheduler {
 namespace {
 
 using namespace NFormats;
@@ -111,7 +112,7 @@ TEST(TStatisticsConsumer, Integration)
     TMergeStatisticsConsumer statisticsConsumer;
     auto consumer = std::make_unique<TStatisticsConsumer>(BIND(&TMergeStatisticsConsumer::Consume, &statisticsConsumer), "/something");
     auto parser = CreateParserForFormat(TFormat(EFormatType::Yson), EDataType::Tabular, consumer.get());
-    TTableOutput output(std::move(parser), std::move(consumer));
+    NJobProxy::TTableOutput output(std::move(parser), std::move(consumer));
     output.Write("{ k1=4}; {k2=-7}");
 
     const auto& stats = statisticsConsumer.GetStatistics();

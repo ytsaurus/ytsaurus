@@ -13,10 +13,9 @@
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/scheduler/scheduler_service.pb.h>
+#include <ytlib/scheduler/statistics.h>
 
 #include <ytlib/hydra/public.h>
-
-#include <server/job_proxy/statistics.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -114,7 +113,7 @@ class TOperation
     //! Delegates to #NYT::NScheduler::IsOperationFinishing.
     bool IsFinishingState() const;
 
-    void UpdateStatistics(const NJobProxy::TStatistics& statistics, EJobFinalState state);
+    void UpdateStatistics(const TStatistics& statistics, EJobFinalState state);
 
     void BuildStatistics(NYson::IYsonConsumer* consumer) const;
 
@@ -131,7 +130,7 @@ class TOperation
 
 private:
     static_assert(EJobFinalState::GetDomainSize() == EJobFinalState::GetMaxValue() + 1, "EJobFinalState should not be sparse");
-    std::array<NJobProxy::TStatistics, EJobFinalState::GetDomainSize()> Statistics;
+    std::array<TStatistics, EJobFinalState::GetDomainSize()> Statistics;
     TPromise<TError> StartedPromise;
     TPromise<void> FinishedPromise;
 };

@@ -9,7 +9,7 @@
 #include <array>
 
 namespace NYT {
-namespace NJobProxy {
+namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
@@ -239,5 +239,5 @@ void TStatisticsConsumer::ConvertToStatistics(TStatistics& value, NYTree::INodeP
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
+} // namespace NScheduler
 } // namespace NYT

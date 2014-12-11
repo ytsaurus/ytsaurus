@@ -8,7 +8,7 @@
 #include <core/ytree/tree_builder.h>
 
 namespace NYT {
-namespace NJobProxy {
+namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
@@ -103,5 +103,5 @@ void AddStatistic(TStatistics& customStatistics, const NYPath::TYPath& path, con
     Serialize(statistics, &consumer);
 }
 
-} // namespace NJobProxy
+} // namespace NScheduler
 } // namespace NYT
