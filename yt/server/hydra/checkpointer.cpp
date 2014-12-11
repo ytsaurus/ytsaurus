@@ -309,14 +309,12 @@ private:
 
     void SetSucceded()
     {
-        LOG_INFO("Distributed changelog rotation complete");
         ChangelogAwaiter_->Cancel();
         ChangelogPromise_.Set(TError());
     }
 
     void SetFailed(const TError& error)
     {
-        LOG_ERROR(error, "Distributed changelog rotation failed");
         ChangelogAwaiter_->Cancel();
         ChangelogPromise_.Set(error);
     }

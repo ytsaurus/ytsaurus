@@ -473,7 +473,7 @@ void TLeaderCommitter::OnAutoCheckpointCheck()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (EpochContext_->ActiveLeader &&
+    if (EpochContext_->LeaderActive &&
         TInstant::Now() > DecoratedAutomaton_->GetLastSnapshotTime() + Config_->SnapshotBuildPeriod)
     {
         CheckpointNeeded_.Fire();

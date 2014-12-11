@@ -31,6 +31,11 @@ namespace NHydra {
 struct TEpochContext
     : public NElection::TEpochContext
 {
+    TEpochContext()
+    {
+        Restarted.clear();
+    }
+
     IInvokerPtr EpochSystemAutomatonInvoker;
     IInvokerPtr EpochUserAutomatonInvoker;
     IInvokerPtr EpochControlInvoker;
@@ -40,7 +45,8 @@ struct TEpochContext
     TLeaderCommitterPtr LeaderCommitter;
     TFollowerCommitterPtr FollowerCommitter;
     TFollowerTrackerPtr FollowerTracker;
-    bool ActiveLeader = false;
+    bool LeaderActive = false;
+    std::atomic_flag Restarted;
 };
 
 DEFINE_REFCOUNTED_TYPE(TEpochContext)
