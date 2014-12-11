@@ -1013,8 +1013,8 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     :param reduce_file_paths: Deprecated!
     :param reduce_local_files: (string or list  of string) paths to reduce scripts on local machine.
     :param reduce_yt_files: (string or list of string) paths to reduce scripts in Cypress.
-    :param mapper_memory_limit: (integer) in Mb, map **job** memory limit.
-    :param reducer_memory_limit: (integer) in Mb, reduce **job** memory limit.
+    :param mapper_memory_limit: (integer) in bytes, map **job** memory limit.
+    :param reducer_memory_limit: (integer) in bytes, reduce **job** memory limit.
     :param sort_by: (list of strings, string) list of columns for sorting by, \
                     equals to `reduce_by` by default
     :param reduce_by: (list of strings, string) list of columns for grouping by
@@ -1028,7 +1028,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                                         paths to reduce combiner scripts on local machine.
     :param reduce_combiner_yt_files: (string or list  of string) \
                                      paths to reduce combiner scripts in Cypress.
-    :param reduce_combiner_memory_limit: (integer) in Mb
+    :param reduce_combiner_memory_limit: (integer) in bytes
 
 
     .. seealso::  :ref:`operation_parameters`.
