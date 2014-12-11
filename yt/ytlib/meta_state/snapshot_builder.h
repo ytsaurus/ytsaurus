@@ -85,6 +85,7 @@ private:
     IInvokerPtr StateInvoker;
 
     TPromise<TResultOrError> LocalPromise;
+    bool Canceled;
 
 #if defined(_unix_)
     static void WatchdogFork(
