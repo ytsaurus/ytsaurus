@@ -130,7 +130,7 @@ class TOperation
         bool suspended = false);
 
 private:
-    std::array<NJobProxy::TStatistics, EJobFinalState::GetDomainSize()> Statistics;
+    std::array<NJobProxy::TStatistics, EJobFinalState::GetMax()> Statistics;
     TPromise<TError> StartedPromise;
     TPromise<void> FinishedPromise;
 };

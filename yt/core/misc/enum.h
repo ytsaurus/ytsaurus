@@ -122,6 +122,11 @@ class TEnumBase
             return PP_COUNT(seq); \
         } \
         \
+        static constexpr int GetMax() \
+        { \
+            return ::NYT::NDetail::_max(PP_FOR_EACH(ENUM__GET_DOMAIN_VALUES_ITEM, seq) 0); \
+        } \
+        \
         static const std::vector<name>& GetDomainValues() \
         { \
             static name values[] = { \
@@ -310,6 +315,31 @@ class TEnumBase
     if (Value & itemName) { \
         result.push_back(itemName); \
     }
+//! \}
+
+//! #GetMaxValue() helper
+//! \{
+
+namespace NDetail {
+
+constexpr int max(int x, int y) {
+    return x > y ? x : y;
+}
+
+template <typename... Parameters>
+constexpr int _max(int x, Parameters... args)
+{
+    return max(x, _max(args...));
+}
+
+template<>
+constexpr int _max(int x)
+{
+    return x;
+}
+
+} // namespace NDetail
+
 //! \}
 
 #define BEGIN_DECLARE_ENUM(name, seq) \

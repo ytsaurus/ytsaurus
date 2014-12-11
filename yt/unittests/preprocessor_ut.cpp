@@ -94,6 +94,7 @@ TEST(TPreprocessorTest, IsSequence)
     EXPECT_STREQ("PP_FALSE", PP_STRINGIZE(PP_IS_SEQUENCE( 0    )));
     EXPECT_STREQ("PP_TRUE",  PP_STRINGIZE(PP_IS_SEQUENCE((0)   )));
     EXPECT_STREQ("PP_TRUE",  PP_STRINGIZE(PP_IS_SEQUENCE((0)(0))));
+    EXPECT_STREQ("PP_FALSE", PP_STRINGIZE(PP_IS_SEQUENCE(PP_NIL)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
