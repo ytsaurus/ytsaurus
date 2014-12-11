@@ -298,10 +298,9 @@ class TestUserStatistics(YTEnvSetup):
             tries = 0
             statistics = {}
 
-            while not statistics:
+            while not statistics.get("completed_jobs", {}):
                 time.sleep(1)
                 tries += 1
-                print get("//sys/operations/{0}/jobs/@count".format(op_id))
                 statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
                 if tries > 10:
                     break
