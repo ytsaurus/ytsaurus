@@ -7,6 +7,8 @@
 #include <core/misc/lazy_ptr.h>
 #include <core/misc/proc.h>
 
+#include <core/ytree/serialize.h>
+
 #include <core/actions/invoker_util.h>
 
 #if defined(_unix_)
