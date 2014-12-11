@@ -841,7 +841,7 @@ public:
         }
     }
 
-    void ValidateUserAccess(TUser* user, int requestCount)
+    void ValidateUserAccess(TUser* user, int requestCount, bool enforceRateLimit)
     {
         if (user->GetBanned()) {
             THROW_ERROR_EXCEPTION(
@@ -850,7 +850,7 @@ public:
                 ~user->GetName().Quote());
         }
 
-        if (user != RootUser && GetRequestRate(user) > user->GetRequestRateLimit()) {
+        if (user != RootUser && enforceRateLimit && GetRequestRate(user) > user->GetRequestRateLimit()) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::RequestRateLimitExceeded,
                 "User %s has exceeded its request rate limit",
@@ -1664,9 +1664,9 @@ void TSecurityManager::SetUserBanned(TUser* user, bool banned)
     Impl->SetUserBanned(user, banned);
 }
 
-void TSecurityManager::ValidateUserAccess(TUser* user, int requestCount)
+void TSecurityManager::ValidateUserAccess(TUser* user, int requestCount, bool enforceRateLimit)
 {
-    Impl->ValidateUserAccess(user, requestCount);
+    Impl->ValidateUserAccess(user, requestCount, enforceRateLimit);
 }
 
 double TSecurityManager::GetRequestRate(TUser* user)
