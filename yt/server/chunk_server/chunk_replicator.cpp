@@ -1012,7 +1012,7 @@ bool TChunkReplicator::IsEnabled()
     }
 
     int chunkCount = chunkManager->GetChunkCount();
-    int lostChunkCount = chunkManager->LostChunks().size();
+    int lostChunkCount = chunkManager->LostVitalChunks().size();
     if (Config->SafeLostChunkFraction && chunkCount > 0) {
         double needFraction = *Config->SafeLostChunkFraction;
         double gotFraction = (double) lostChunkCount / chunkCount;
