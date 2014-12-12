@@ -14,7 +14,7 @@ class YsonType(object):
 
     def base_hash(self, type):
         if self.attributes:
-            raise TypeError("unhashable type: yson hash non-tribial attributes")
+            raise TypeError("unhashable type: yson has non-trivial attributes")
         return hash(type(self))
 
 class YsonString(str, YsonType):
