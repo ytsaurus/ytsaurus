@@ -26,6 +26,9 @@ void TKeyList::Load(TLoadContext& context)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+#ifndef _win_
+const int TPartition::EdenIndex;
+#endif
 
 TPartition::TPartition(TTablet* tablet, int index)
     : Tablet_(tablet)
