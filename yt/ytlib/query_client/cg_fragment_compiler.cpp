@@ -1461,18 +1461,17 @@ void TCGContext::CodegenGroupOp(
 
     Value* newRowPtr = innerBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
+    innerBuilder.CreateCall3(
+            Module_->GetRoutine("AllocateRow"),
+            GetExecutionContextPtr(innerBuilder),
+            builder.getInt32(keySize + aggregateItemCount),
+            newRowPtr);
+
     codegenSource(innerBuilder, [&] (TCGIRBuilder& innerBuilder, Value* row) {
         Value* executionContextPtrRef = GetExecutionContextPtr(innerBuilder);
         Value* groupedRowsRef = innerBuilder.ViaClosure(groupedRows);
         Value* rowsRef = innerBuilder.ViaClosure(rows);
         Value* newRowPtrRef = innerBuilder.ViaClosure(newRowPtr);
-
-        innerBuilder.CreateCall3(
-            Module_->GetRoutine("AllocateRow"),
-            executionContextPtrRef,
-            builder.getInt32(keySize + aggregateItemCount),
-            newRowPtrRef);
-
         Value* newRowRef = innerBuilder.CreateLoad(newRowPtrRef);
 
         for (int index = 0; index < keySize; ++index) {
