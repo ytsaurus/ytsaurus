@@ -1026,7 +1026,25 @@ Function* TCGContext::CodegenGroupComparerFunction(
 
     TCGIRBuilder builder(BasicBlock::Create(module->getContext(), "entry", function));
 
-    auto codegenEqualOp = [&] (size_t index) -> Value* {
+    auto returnIfZero = [&] (Value* value) {
+        auto* thenBB = builder.CreateBBHere("then");
+        auto* elseBB = builder.CreateBBHere("else");
+        builder.CreateCondBr(builder.CreateICmpNE(value, builder.getInt8(0)), thenBB, elseBB);
+        builder.SetInsertPoint(elseBB);
+        builder.CreateRet(builder.getInt8(0));
+        builder.SetInsertPoint(thenBB);
+    };
+
+    auto returnIf = [&] (Value* condition) {
+        auto* thenBB = builder.CreateBBHere("then");
+        auto* elseBB = builder.CreateBBHere("else");
+        builder.CreateCondBr(condition, thenBB, elseBB);
+        builder.SetInsertPoint(thenBB);
+        builder.CreateRet(builder.getInt8(0));
+        builder.SetInsertPoint(elseBB);
+    };
+
+    auto codegenEqualOp = [&] (size_t index) {
         auto lhsValue = TCGValue::CreateFromRow(
             builder,
             lhsRow,
@@ -1060,15 +1078,11 @@ Function* TCGContext::CodegenGroupComparerFunction(
             case EValueType::Boolean:
             case EValueType::Int64:
             case EValueType::Uint64:
-                thenResult = builder.CreateZExtOrBitCast( 
-                    builder.CreateICmpEQ(lhsData, rhsData), 
-                    TDataTypeBuilder::TBoolean::get(builder.getContext()));
+                returnIf(builder.CreateICmpNE(lhsData, rhsData));
                 break;
 
             case EValueType::Double:
-                thenResult = builder.CreateZExtOrBitCast( 
-                    builder.CreateFCmpUEQ(lhsData, rhsData), 
-                    TDataTypeBuilder::TBoolean::get(builder.getContext()));
+                returnIf(builder.CreateFCmpUNE(lhsData, rhsData));
                 break;
 
             case EValueType::String: {
@@ -1078,6 +1092,7 @@ Function* TCGContext::CodegenGroupComparerFunction(
                 thenResult = builder.CreateCall4(
                             Module_->GetRoutine("Equal"),
                             lhsData, lhsLength, rhsData, rhsLength);
+                returnIfZero(thenResult);
                 break;
             }
 
@@ -1086,33 +1101,21 @@ Function* TCGContext::CodegenGroupComparerFunction(
         }
 
         builder.CreateBr(endBB);
-        thenBB = builder.GetInsertBlock();
 
         builder.SetInsertPoint(elseBB);
-        auto* elseResult = builder.CreateZExtOrBitCast(
-            builder.CreateICmpEQ(lhsValue.IsNull(), rhsValue.IsNull()),
-            TDataTypeBuilder::TBoolean::get(builder.getContext()));
-
+        returnIf(builder.CreateICmpNE(lhsValue.GetType(), rhsValue.GetType()));
         builder.CreateBr(endBB);
-        elseBB = builder.GetInsertBlock();
 
         builder.SetInsertPoint(endBB);
-
-        PHINode* result = builder.CreatePHI(thenResult->getType(), 2);
-        result->addIncoming(thenResult, thenBB);
-        result->addIncoming(elseResult, elseBB);
-
-        return result;
     };
 
     YCHECK(types.size() >= 1);
-    auto result = codegenEqualOp(0);
 
-    for (size_t index = 1; index < types.size(); ++index) {
-        result = builder.CreateAnd(result, codegenEqualOp(index));
+    for (size_t index = 0; index < types.size(); ++index) {
+        codegenEqualOp(index);
     }
 
-    builder.CreateRet(result);
+    builder.CreateRet(builder.getInt8(1));
 
     return function;
 }
