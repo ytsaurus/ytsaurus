@@ -34,7 +34,7 @@ public:
     {
         RegisterMethod(
             RPC_SERVICE_METHOD_DESC(LocateChunks)
-                .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EStateThreadQueue::ChunkMaintenance)));
+                .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EStateThreadQueue::ChunkLocator)));
     }
 
 private:
