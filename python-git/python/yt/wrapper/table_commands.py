@@ -574,7 +574,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 "read",
                 params,
                 return_content=False,
-                proxy=get_host_for_heavy_operation(),
+                proxy=get_host_for_heavy_operation(client=client),
                 client=client)
             if "X-YT-Response-Parameters" not in response.headers():
                 raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)")
