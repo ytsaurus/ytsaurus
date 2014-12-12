@@ -7,7 +7,6 @@
 #include "stderr_output.h"
 #include "table_output.h"
 #include "pipes.h"
-#include "statistics.h"
 
 #include <server/exec_agent/public.h>
 
@@ -39,6 +38,8 @@
 #include <ytlib/transaction_client/public.h>
 
 #include <ytlib/cgroup/cgroup.h>
+
+#include <ytlib/scheduler/statistics.h>
 
 #include <util/folder/dirut.h>
 
@@ -328,7 +329,7 @@ private:
         if (!host || !UserJobSpec.has_stderr_transaction_id()) {
             return &NullOutput;
         }
-        
+
         ErrorOutput.reset(new TErrorOutput(
             host->GetConfig()->JobIO->ErrorFileWriter,
             host->GetMasterChannel(),

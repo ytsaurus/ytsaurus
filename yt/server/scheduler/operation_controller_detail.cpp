@@ -1611,8 +1611,8 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     CompletedJobStatistics += jobStatistics;
 
     if (jobStatistics.has_statistics()) {
-        auto statistics = ConvertTo<NJobProxy::TStatistics>(TYsonString(jobStatistics.statistics()));
-        Statistics.Merge(statistics);
+        auto statistics = ConvertTo<TStatistics>(TYsonString(jobStatistics.statistics()));
+        Operation->UpdateStatistics(statistics, EJobFinalState::Completed);
     }
 
     const auto& schedulerResultEx = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
@@ -3438,7 +3438,7 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
     BuildYsonMapFluently(consumer)
         .Item("jobs").Value(JobCounter)
         .Item("ready_job_count").Value(GetPendingJobCount())
-        .Item("statistics").Value(Statistics)
+        .Item("statistics").Do(BIND(&TOperation::BuildStatistics, Operation))
         .Item("job_statistics").BeginMap()
             .Item("completed").Value(CompletedJobStatistics)
             .Item("failed").Value(FailedJobStatistics)
@@ -3696,7 +3696,7 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
         .Item("finish_time").Value(job->GetFinishTime())
         .Item("resource_limits").Value(job->ResourceLimits())
         .DoIf(statistics.has_statistics(), [&] (TFluentLogEvent fluent) {
-            auto jobStatistics = ConvertTo<NJobProxy::TStatistics>(TYsonString(statistics.statistics()));
+            auto jobStatistics = ConvertTo<TStatistics>(TYsonString(statistics.statistics()));
             fluent
                 .Item("statistics").Value(jobStatistics);
         })

@@ -61,15 +61,15 @@ class TEnumBase
             PP_FOR_EACH(ENUM__DOMAIN_ITEM, seq) \
         }; \
         \
-        name() \
+        constexpr name() \
             : Value(static_cast<EDomain>(0)) \
         { } \
         \
-        name(EDomain e) \
+        constexpr name(EDomain e) \
             : Value(e) \
         { } \
         \
-        explicit name(int value) \
+        constexpr explicit name(int value) \
             : Value(static_cast<EDomain>(value)) \
         { } \
         \
@@ -79,7 +79,7 @@ class TEnumBase
             return *this; \
         } \
         \
-        operator EDomain() const \
+        constexpr operator EDomain() const \
         { \
             return Value; \
         } \
@@ -117,9 +117,14 @@ class TEnumBase
             return false; \
         } \
         \
-        static int GetDomainSize() \
+        static constexpr int GetDomainSize() \
         { \
             return PP_COUNT(seq); \
+        } \
+        \
+        static constexpr int GetMaxValue() \
+        { \
+            return ::NYT::NDetail::GenericMax(PP_FOR_EACH(ENUM__GET_DOMAIN_VALUES_ITEM, seq) 0); \
         } \
         \
         static const std::vector<name>& GetDomainValues() \
@@ -267,7 +272,7 @@ class TEnumBase
 
 //! Declaration of a single relational operator.
 #define ENUM__RELATIONAL_OPERATOR(name, op) \
-    bool operator op(EDomain other) const \
+    constexpr bool operator op(EDomain other) const \
     { \
         return static_cast<int>(Value) op static_cast<int>(other); \
     }
@@ -352,3 +357,6 @@ class TEnumBase
 
 } // namespace NYT
 
+#define ENUM_INL_H_
+#include "enum-inl.h"
+#undef ENUM_INL_H_

@@ -13,7 +13,6 @@
 #include "sorted_reduce_job_io.h"
 #include "partition_reduce_job_io.h"
 #include "user_job_io.h"
-#include "statistics.h"
 
 #include <core/actions/invoker_util.h>
 
@@ -49,6 +48,8 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/helpers.h>
+
+#include <ytlib/scheduler/statistics.h>
 
 #include <ytlib/hydra/peer_channel.h>
 
@@ -202,14 +203,14 @@ std::unique_ptr<TUserJobIO> TJobProxy::CreateUserJobIO()
         case NScheduler::EJobType::Map:
             return CreateMapJobIO(Config->JobIO, this);
 
-        case NScheduler::EJobType::SortedReduce: 
+        case NScheduler::EJobType::SortedReduce:
             return CreateSortedReduceJobIO(Config->JobIO, this);
 
-        case NScheduler::EJobType::PartitionMap: 
+        case NScheduler::EJobType::PartitionMap:
             return CreatePartitionMapJobIO(Config->JobIO, this);
 
-        case NScheduler::EJobType::ReduceCombiner: 
-        case NScheduler::EJobType::PartitionReduce: 
+        case NScheduler::EJobType::ReduceCombiner:
+        case NScheduler::EJobType::PartitionReduce:
             return CreatePartitionReduceJobIO(Config->JobIO, this);
 
         default:
@@ -252,7 +253,7 @@ TJobResult TJobProxy::DoRun()
 {
     auto supervisorClient = CreateTcpBusClient(Config->SupervisorConnection);
     auto supervisorChannel = CreateBusChannel(supervisorClient);
-    
+
     SupervisorProxy.reset(new TSupervisorServiceProxy(supervisorChannel));
     SupervisorProxy->SetDefaultTimeout(Config->SupervisorRpcTimeout);
 
@@ -288,7 +289,7 @@ TJobResult TJobProxy::DoRun()
             Job = CreateBuiltinJob();
         }
 
-        
+
         if (MemoryWatchdogExecutor) {
             MemoryWatchdogExecutor->Start();
         }
@@ -386,7 +387,7 @@ TNodeDirectoryPtr TJobProxy::GetNodeDirectory() const
 void TJobProxy::CheckMemoryUsage()
 {
     auto memoryUsage = GetProcessRss();
-    
+
     LOG_DEBUG("Job proxy memory check (MemoryUsage: %v, MemoryLimit: %v)",
         memoryUsage,
         JobProxyMemoryLimit);

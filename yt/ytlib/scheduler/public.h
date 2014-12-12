@@ -57,6 +57,12 @@ DECLARE_ENUM(EAbortReason,
     (Other)
 );
 
+DECLARE_ENUM(EJobFinalState,
+    (Failed)
+    (Aborted)
+    (Completed)
+);
+
 class TSchedulerServiceProxy;
 
 class TJobIOConfig;

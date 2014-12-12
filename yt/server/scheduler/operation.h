@@ -13,6 +13,7 @@
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/scheduler/scheduler_service.pb.h>
+#include <ytlib/scheduler/statistics.h>
 
 #include <ytlib/hydra/public.h>
 
@@ -73,7 +74,7 @@ class TOperation
 
     //! Maximum number of stderrs to capture.
     DEFINE_BYVAL_RW_PROPERTY(int, MaxStderrCount);
-    
+
     //! Scheduling tag.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<Stroka>, SchedulingTag);
 
@@ -112,6 +113,10 @@ class TOperation
     //! Delegates to #NYT::NScheduler::IsOperationFinishing.
     bool IsFinishingState() const;
 
+    void UpdateStatistics(const TStatistics& statistics, EJobFinalState state);
+
+    void BuildStatistics(NYson::IYsonConsumer* consumer) const;
+
     TOperation(
         const TOperationId& operationId,
         EOperationType type,
@@ -124,10 +129,12 @@ class TOperation
         bool suspended = false);
 
 private:
+    static_assert(EJobFinalState::GetDomainSize() == EJobFinalState::GetMaxValue() + 1, "EJobFinalState should not be sparse");
+    std::array<TStatistics, EJobFinalState::GetDomainSize()> Statistics;
     TPromise<TError> StartedPromise;
     TPromise<void> FinishedPromise;
 };
-    
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

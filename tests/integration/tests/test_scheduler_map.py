@@ -160,10 +160,13 @@ class TestEventLog(YTEnvSetup):
         op_id = map(in_="//tmp/t1", out="//tmp/t2", command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null')
 
         statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-        assert statistics["user_job"]["builtin"]["cpu"]["user"]["sum"] > 0
-        assert statistics["user_job"]["builtin"]["block_io"]["bytes_read"]["sum"] is not None
-        assert statistics["user_job"]["builtin"]["memory"]["rss"]["count"] > 0
-        assert statistics["job_proxy"]["cpu"]["user"]["count"] == 1
+        assert statistics["completed_jobs"]["user_job"]["builtin"]["cpu"]["user"]["sum"] > 0
+        assert statistics["completed_jobs"]["user_job"]["builtin"]["block_io"]["bytes_read"]["sum"] is not None
+        assert statistics["completed_jobs"]["user_job"]["builtin"]["memory"]["rss"]["count"] > 0
+        assert statistics["completed_jobs"]["job_proxy"]["cpu"]["user"]["count"] == 1
+        assert statistics["completed_jobs"]["job_proxy"]["cpu"]["user"]["count"] == 1
+        assert "failed_jobs" in statistics
+        assert "aborted_jobs" in statistics
 
         # wait for scheduler to dump the event log
         time.sleep(6)
@@ -248,8 +251,8 @@ class TestUserStatistics(YTEnvSetup):
                 r'os.close(5);"'))
 
         statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-        assert statistics["user_job"]["custom"]["cpu"]["k1"]["max"] == 4
-        assert statistics["user_job"]["custom"]["k2"]["count"] == 2
+        assert statistics["completed_jobs"]["user_job"]["custom"]["cpu"]["k1"]["max"] == 4
+        assert statistics["completed_jobs"]["user_job"]["custom"]["k2"]["count"] == 2
 
     def test_multiple_job_statistics(self):
         create("table", "//tmp/t1")
@@ -258,7 +261,7 @@ class TestUserStatistics(YTEnvSetup):
 
         op_id = map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"job_count": 2})
         statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-        assert statistics["user_job"]["builtin"]["cpu"]["user"]["count"] == 2
+        assert statistics["completed_jobs"]["user_job"]["builtin"]["cpu"]["user"]["count"] == 2
 
     def test_job_statistics_progress(self):
         create("table", "//tmp/t1")
@@ -295,21 +298,20 @@ class TestUserStatistics(YTEnvSetup):
             tries = 0
             statistics = {}
 
-            while not statistics:
+            while not statistics.get("completed_jobs", {}):
                 time.sleep(1)
                 tries += 1
-                print get("//sys/operations/{0}/jobs/@count".format(op_id))
                 statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
                 if tries > 10:
                     break
 
-            assert statistics["user_job"]["builtin"]["cpu"]["user"]["count"] == 1
+            assert statistics["completed_jobs"]["user_job"]["builtin"]["cpu"]["user"]["count"] == 1
 
             os.unlink(keeper_filename)
             track_op(op_id)
 
             statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-            assert statistics["user_job"]["builtin"]["cpu"]["user"]["count"] == 2
+            assert statistics["completed_jobs"]["user_job"]["builtin"]["cpu"]["user"]["count"] == 2
         finally:
             to_delete.reverse()
             for filename in to_delete:
