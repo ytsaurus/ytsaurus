@@ -12,6 +12,14 @@
             "options": {
                 "proxy": "plato.yt.yandex.net"
             },
+            "fastbone": true,
+            "dc_name": "sas"
+        },
+        "aristotle": {
+            "type": "yt",
+            "options": {
+                "proxy": "aristotle.yt.yandex.net"
+            },
             "fastbone": true
         },
         "marx": {
@@ -63,10 +71,18 @@
                 "token": "93b4cacc08aa4538a79a76c21e99c0fb"
             }
         },
-        "apterix": {
+        "kiwi_apteryx": {
             "type": "kiwi",
             "options": {
                 "url": "fb-kiwi1500.search.yandex.net",
+                "kwworm": "/home/monster/kwworm"
+            },
+            "fastbone": true
+        },
+        "kiwi_main": {
+            "type": "kiwi",
+            "options": {
+                "url": "fb-kiwi000.search.yandex.net",
                 "kwworm": "/home/monster/kwworm"
             },
             "fastbone": true
@@ -86,14 +102,16 @@
     "kiwi_transmitter": "flux",
     "availability_graph": {
         "smith": ["cedar", "betula", "plato"],
-        "plato": ["cedar", "betula", "smith", "apterix"],
+        "plato": ["cedar", "betula", "smith", "kiwi_apteryx", "kiwi_main"],
         "marx": ["plato"],
         "cedar": ["smith", "plato", "redwood", "betula"],
         "betula": ["smith", "plato", "cedar", "redwood"],
         "redwood": ["plato", "smith", "cedar", "betula"],
-        "bsmr": ["plato"]
+        "bsmr": ["plato"],
+        "aristotle": ["plato", "kiwi_apteryx", "kiwi_main"]
     },
     "scheduling_backoff": 5,
+    "error_details_length_limit": 50000,
     "pending_tasks_limit": 5000,
     "pending_tasks_limit_per_user": 500,
     "running_tasks_limit_per_direction": 10,
