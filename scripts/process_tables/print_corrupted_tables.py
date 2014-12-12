@@ -8,7 +8,7 @@ if __name__ == "__main__":
     owning = set()
     for ch in a:
         for table in yt.get('//sys/chunks/%s/@owning_nodes' % ch):
-            owning.add(table)
+            owning.add(str(table))
 
     owning = list(owning)
     owning.sort()
