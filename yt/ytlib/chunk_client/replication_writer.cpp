@@ -50,14 +50,16 @@ struct TNode
     TDataNodeServiceProxy LightProxy;
     TDataNodeServiceProxy HeavyProxy;
     TPeriodicExecutorPtr PingExecutor;
-    std::atomic_flag Canceled = ATOMIC_FLAG_INIT;
+    std::atomic_flag Canceled;
 
     TNode(int index, const TNodeDescriptor& descriptor)
         : Index(index)
         , Descriptor(descriptor)
         , LightProxy(LightNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress()))
         , HeavyProxy(HeavyNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress()))
-    { }
+    {
+        Canceled.clear();
+    }
 
     bool IsAlive() const
     {

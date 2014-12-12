@@ -294,6 +294,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
 
     Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 
+    BuildingSnapshot_.clear();
     Reset();
 }
 

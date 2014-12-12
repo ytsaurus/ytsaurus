@@ -36,6 +36,7 @@ TDiskHealthChecker::TDiskHealthChecker(
     , Logger(DataNodeLogger)
 {
     Logger.AddTag("Path: %v", Path_);
+    FailedLock_.clear();
 }
 
 void TDiskHealthChecker::Start()

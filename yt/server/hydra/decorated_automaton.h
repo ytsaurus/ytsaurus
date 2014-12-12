@@ -31,6 +31,11 @@ namespace NHydra {
 struct TEpochContext
     : public NElection::TEpochContext
 {
+    TEpochContext()
+    {
+        Restarted.clear();
+    }
+
     IInvokerPtr EpochSystemAutomatonInvoker;
     IInvokerPtr EpochUserAutomatonInvoker;
     IInvokerPtr EpochControlInvoker;
@@ -41,7 +46,7 @@ struct TEpochContext
     TFollowerCommitterPtr FollowerCommitter;
     TFollowerTrackerPtr FollowerTracker;
     bool LeaderActive = false;
-    std::atomic_flag Restarted = ATOMIC_FLAG_INIT;
+    std::atomic_flag Restarted;
 };
 
 DEFINE_REFCOUNTED_TYPE(TEpochContext)
@@ -148,7 +153,7 @@ private:
 
     TVersion SnapshotVersion_;
     TPromise<TErrorOr<TRemoteSnapshotParams>> SnapshotParamsPromise_;
-    std::atomic_flag BuildingSnapshot_ = ATOMIC_FLAG_INIT;
+    std::atomic_flag BuildingSnapshot_;
     TInstant LastSnapshotTime_;
 
     struct TPendingMutation
