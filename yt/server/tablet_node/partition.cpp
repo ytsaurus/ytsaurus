@@ -27,8 +27,6 @@ void TKeyList::Load(TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int TPartition::EdenIndex;
-
 TPartition::TPartition(TTablet* tablet, int index)
     : Tablet_(tablet)
     , Index_(index)
