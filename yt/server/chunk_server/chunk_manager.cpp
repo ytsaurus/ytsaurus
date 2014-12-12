@@ -900,10 +900,10 @@ private:
                     node->GetAddress());
             }
             node->SetDecommissioned(config->Decommissioned);
+        }
     
-            if (ChunkReplicator_) {
-                ChunkReplicator_->ScheduleNodeRefresh(node);
-            }
+        if (ChunkReplicator_) {
+            ChunkReplicator_->ScheduleNodeRefresh(node);
         }
     }
 
