@@ -854,6 +854,7 @@ private:
                 mutationContext->GetTimestamp());
             node->SetState(ENodeState::Registered);
             node->Statistics() = statistics;
+            node->SetRack(config->Rack ? FindRackByName(*config->Rack) : nullptr);
 
             NodeMap_.Insert(nodeId, node);
             AddressToNodeMap_.insert(std::make_pair(address, node));

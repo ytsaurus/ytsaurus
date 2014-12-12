@@ -852,6 +852,9 @@ private:
 
     void OnNodeRegistered(TNode* node)
     {
+        const auto& config = node->GetConfig();
+        node->SetDecommissioned(config->Decommissioned);
+
         if (ChunkPlacement_) {
             ChunkPlacement_->OnNodeRegistered(node);
         }
@@ -897,10 +900,10 @@ private:
                     node->GetAddress());
             }
             node->SetDecommissioned(config->Decommissioned);
-        }
-
-        if (ChunkReplicator_) {
-            ChunkReplicator_->ScheduleNodeRefresh(node);
+    
+            if (ChunkReplicator_) {
+                ChunkReplicator_->ScheduleNodeRefresh(node);
+            }
         }
     }
 
