@@ -198,6 +198,49 @@ void AddRow(
     *newRow = TRow::Allocate(executionContext->ScratchSpace, valueCount);
 }
 
+void AllocatePersistentRow(TExecutionContext* executionContext, int valueCount, TRow* row)
+{
+    CHECK_STACK()
+
+    *row = TRow::Allocate(executionContext->RowBuffer->GetAlignedPool(), valueCount);
+}
+
+void CaptureValue(TValue* value, TChunkedMemoryPool* pool)
+{
+    if (IsStringLikeType(EValueType(value->Type))) {
+        char* dst = pool->AllocateUnaligned(value->Length);
+        memcpy(dst, value->Data.String, value->Length);
+        value->Data.String = dst;
+    }
+}
+
+const TRow* InsertGroupRow(
+    TExecutionContext* executionContext,
+    TLookupRows* lookupRows,
+    std::vector<TRow>* groupedRows,
+    TRow* rowPtr,
+    int valueCount)
+{
+    CHECK_STACK()
+
+    --executionContext->OutputRowLimit;
+
+    TRow row = *rowPtr;
+
+    auto inserted = lookupRows->insert(row);
+
+    if (inserted.second) {
+        groupedRows->push_back(row);
+        for (int index = 0; index < valueCount; ++index) {
+            CaptureValue(&row[index], executionContext->RowBuffer->GetUnalignedPool());
+        }
+        *rowPtr = TRow::Allocate(executionContext->ScratchSpace, valueCount);
+        return nullptr;
+    } else {
+        return &*inserted.first;
+    }
+}
+
 void AllocateRow(TExecutionContext* executionContext, int valueCount, TRow* row)
 {
     CHECK_STACK()
@@ -316,6 +359,8 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(StringHash);
     REGISTER_ROUTINE(FindRow);
     REGISTER_ROUTINE(AddRow);
+    REGISTER_ROUTINE(InsertGroupRow);
+    REGISTER_ROUTINE(AllocatePersistentRow);
     REGISTER_ROUTINE(AllocateRow);
     REGISTER_ROUTINE(GetRowsData);
     REGISTER_ROUTINE(GetRowsSize);

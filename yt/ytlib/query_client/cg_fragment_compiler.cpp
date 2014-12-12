@@ -1462,10 +1462,10 @@ void TCGContext::CodegenGroupOp(
     Value* newRowPtr = innerBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
     innerBuilder.CreateCall3(
-            Module_->GetRoutine("AllocateRow"),
-            GetExecutionContextPtr(innerBuilder),
-            builder.getInt32(keySize + aggregateItemCount),
-            newRowPtr);
+        Module_->GetRoutine("AllocatePersistentRow"),
+        GetExecutionContextPtr(innerBuilder),
+        builder.getInt32(keySize + aggregateItemCount),
+        newRowPtr);
 
     codegenSource(innerBuilder, [&] (TCGIRBuilder& innerBuilder, Value* row) {
         Value* executionContextPtrRef = GetExecutionContextPtr(innerBuilder);
@@ -1492,12 +1492,13 @@ void TCGContext::CodegenGroupOp(
                 .StoreToRow(newRowRef, keySize + index, id);
         }
 
-        Value* foundRowPtr = innerBuilder.CreateCall3(
-            Module_->GetRoutine("FindRow"),
+        Value* foundRowPtr = innerBuilder.CreateCall5(
+            Module_->GetRoutine("InsertGroupRow"),
             executionContextPtrRef,
             rowsRef,
-            newRowRef);
-
+            groupedRowsRef,
+            newRowPtrRef,
+            builder.getInt32(keySize + aggregateItemCount));
 
         CodegenIf(innerBuilder, [&] (TCGIRBuilder& innerBuilder) {
             return innerBuilder.CreateICmpNE(
@@ -1516,13 +1517,7 @@ void TCGContext::CodegenGroupOp(
                 CodegenAggregateFunction(innerBuilder, foundRow, newRowRef, fn, keySize + index, id, type, name.c_str());
             }
         }, [&] (TCGIRBuilder& innerBuilder) {
-            innerBuilder.CreateCall5(
-                Module_->GetRoutine("AddRow"),
-                executionContextPtrRef,
-                rowsRef,
-                groupedRowsRef,
-                newRowPtrRef,
-                builder.getInt32(keySize + aggregateItemCount));
+
         });
     });
 
