@@ -47,7 +47,8 @@ def download_file(path, response_type=None, file_reader=None, offset=None, lengt
         "download",
         params,
         return_content=False,
-        proxy=get_host_for_heavy_operation(client=client))
+        proxy=get_host_for_heavy_operation(client=client),
+        client=client)
     return read_content(response, raw=True, format=None, response_type=response_type)
 
 def upload_file(stream, destination, file_writer=None, client=None):
