@@ -85,7 +85,7 @@ class Task(object):
     # NB: destination table is missing if we copy to kiwi
     def __init__(self, source_cluster, source_table, destination_cluster, creation_time, id, state, user,
                  destination_table=None, source_cluster_token=None, token=None, destination_cluster_token=None, mr_user=None, error=None,
-                 start_time=None, finish_time=None, copy_method=None, progress=None, backend_tag=None, pool=None, meta=None):
+                 start_time=None, finish_time=None, copy_method=None, progress=None, backend_tag=None, kiwi_user=None, pool=None, meta=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.source_cluster_token = get_value(source_cluster_token, token)
@@ -107,6 +107,7 @@ class Task(object):
 
         self.backend_tag = backend_tag
         self.pool = pool
+        self.kiwi_user = kiwi_user
 
         # Special field to store meta-information for web-interface
         self.meta = meta
@@ -739,12 +740,17 @@ class Application(object):
                     task.destination_table,
                     fastbone=fastbone)
             elif source_client._type == "yt" and destination_client._type == "kiwi":
+                dc_name = source_client._parameters.get("dc_name")
+                if dc_name is not None:
+                    task_spec["scheduling_tag"] = dc_name
                 copy_yt_to_kiwi(
                     source_client,
                     destination_client,
                     self.kiwi_transmitter,
                     task.source_table,
                     fastbone=fastbone,
+                    kiwi_user=task.kiwi_user,
+                    spec_template=task_spec,
                     message_queue=message_queue)
             else:
                 raise Exception("Incorrect cluster types: {} source and {} destination".format(
@@ -979,7 +985,8 @@ DEFAULT_CONFIG = {
                 "proxy": "plato.yt.yandex.net",
             },
             "version": 1,
-            "fastbone": True
+            "fastbone": True,
+            "dc_name": "sas"
         },
         "cedar": {
             "type": "yamr",
