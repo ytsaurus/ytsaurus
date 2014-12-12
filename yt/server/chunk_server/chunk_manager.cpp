@@ -908,7 +908,7 @@ private:
             context.GetInput()->Skip(8);
         }
         // COMPAT(ignat)
-        if (context.GetVersion() < 42) {
+        if (context.GetVersion() < 44) {
             NeedToRecomputeStatistics = true;
         }
         ChunkMap.LoadValues(context);

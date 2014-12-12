@@ -20,6 +20,7 @@ TChunkList::TChunkList(const TChunkListId& id)
     , VisitMark_(0)
 {
     Statistics_.ChunkListCount = 1;
+    Statistics_.Rank = 1;
 }
 
 void TChunkList::IncrementVersion()
@@ -51,6 +52,12 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     LoadObjectRefs(context, Parents_);
     LoadObjectRefs(context, OwningNodes_);
     Load(context, Statistics_);
+
+    // COMPAT(ignat)
+    if (context.GetVersion() < 44) {
+        Statistics_.Rank = std::max(Statistics_.Rank, 1);
+    }
+
     Load(context, SortedBy_);
     Load(context, RowCountSums_);
     Load(context, ChunkCountSums_);

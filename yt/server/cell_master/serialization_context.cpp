@@ -55,7 +55,8 @@ NMetaState::TVersionValidator SnapshotVersionValidator()
                version == 40 ||
                version == 41 ||
                version == 42 ||
-               version == 43);
+               version == 43 ||
+               version == 44);
     });
     return result;
 }
