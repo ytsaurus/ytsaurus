@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from yt.transfer_manager.flask_helpers import process_gzip
+from yt.transfer_manager.logger import TaskIdLogger
 
 from yt.tools.logging_server import LogRecordSocketReceiver
 from yt.tools.yamr import Yamr
@@ -37,6 +38,8 @@ from collections import defaultdict
 from subprocess32 import TimeoutExpired
 from threading import RLock, Thread
 from multiprocessing import Process, Queue
+
+yt.config.RETRY_READ = True
 
 class RequestFailed(yt.YtError):
     pass
@@ -389,6 +392,11 @@ class Application(object):
 
         for id, options in self._yt.get(tasks_path).iteritems():
             task = Task(**options)
+
+            active_client, passive_client = self._get_active_and_passive_clients(task)
+            if active_client._type != "yt":
+                continue
+
             if task.pool is None:
                 logger.warning("Cannot load task %s: task has no pool", id)
                 continue
@@ -483,9 +491,12 @@ class Application(object):
            self._yt.check_permission(user, "administer", self._auth_path)["action"] != "allow":
             raise RequestFailed("{0} task is not permitted.".format(action_name))
 
-    def _precheck(self, task, ignore_timeout=False, yamr_timeout=None):
+    def _precheck(self, task, ignore_timeout=False, yamr_timeout=None, custom_logger=None):
+        if custom_logger is None:
+            custom_logger = logger
+
         # TODO(ignat): add timeout for yt
-        logger.info("Making precheck for task %s", task.id)
+        custom_logger.info("Starting precheck")
         source_client = task.get_source_client(self._clusters)
         destination_client = task.get_destination_client(self._clusters)
 
@@ -502,7 +513,6 @@ class Application(object):
                     source_client._light_command_timeout = yamr_timeout
                 if destination_client._type == "yamr":
                     destination_client._light_command_timeout = yamr_timeout
-
 
             if source_client._type == "yamr" and source_client.is_empty(task.source_table) or \
                source_client._type == "yt" and (
@@ -527,12 +537,12 @@ class Application(object):
             if destination_client._type == "kiwi" and self.kiwi_transmitter is None:
                 raise yt.YtError("Transimission cluster for transfer to kiwi is not configured")
         except TimeoutExpired:
-            logger.info("Precheck for task %s timed out", task.id)
+            custom_logger.info("Precheck timed out")
             if not ignore_timeout:
                 raise
             return
 
-        logger.info("Precheck for task %s completed", task.id)
+        custom_logger.info("Precheck completed")
 
     def _can_run(self, task):
         if task.get_queue_id() in self._runned_during_heartbeat:
@@ -656,8 +666,9 @@ class Application(object):
 
     def _execute_task(self, task, message_queue):
         prctl.set_pdeathsig(signal.SIGINT)
+        logger.LOGGER = TaskIdLogger(task.id)
 
-        logger.info("Start executing task %s", task.id)
+        logger.info("Start executing task")
         try:
             self._precheck(task)
 
@@ -756,7 +767,7 @@ class Application(object):
                 raise Exception("Incorrect cluster types: {} source and {} destination".format(
                                 source_client._type,
                                 destination_client._type))
-            logger.info("Task %s completed", task.id)
+            logger.info("Task completed")
 
             message_queue.put({"type": "completed"})
         except KeyboardInterrupt:
@@ -771,7 +782,7 @@ class Application(object):
                 "error": error.simplify()
             })
         except Exception as error:
-            logger.exception("Task {} failed with error:".format(task.id))
+            logger.exception("Task failed with error:")
             message_queue.put({
                 "type": "error",
                 "error": {
@@ -836,17 +847,16 @@ class Application(object):
             raise RequestFailed("Too many pending tasks per user (>{0})".format(self._pending_tasks_per_user[task.user]))
 
         try:
-            self._precheck(task, ignore_timeout=True, yamr_timeout=5.0)
+            self._precheck(task, ignore_timeout=True, yamr_timeout=5.0, custom_logger=TaskIdLogger(task.id))
         except yt.YtError as error:
-            raise RequestFailed("Precheck failed", inner_errors=[error])
+            raise RequestFailed("Precheck of task {} failed".format(task.id), inner_errors=[error])
 
         if not request.args.get("dry_run", False):
             self._initialize_pool(task)
             self._yt.set(os.path.join(self._tasks_path, task.id), task.dict())
             with self._mutex:
                 self._tasks[task.id] = task
-                self._pending_tasks.append(task.id)
-                self._pending_tasks_per_user[task.user] += 1
+                self._append_pending_task(task)
             logger.info("Task %s added", task.id)
 
         return task.id
@@ -868,6 +878,10 @@ class Application(object):
                 time.sleep(0.5)
                 if process.is_alive():
                     process.terminate()
+
+            if id in self._pending_tasks:
+                self._pending_tasks_per_user[self._tasks[id].user] -= 1
+                self._pending_tasks.remove(id)
 
             if self._tasks[id].state not in ["aborted", "completed", "failed"]:
                 self._change_task_state(id, "aborted")
