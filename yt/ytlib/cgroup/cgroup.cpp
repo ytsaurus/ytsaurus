@@ -42,7 +42,7 @@ Stroka GetParentFor(const Stroka& type)
 {
 #ifdef _linux_
     auto rawData = TFileInput("/proc/self/cgroup").ReadAll();
-    auto result = ParseCurrentProcessCGroups(TStringBuf(rawData.data(), rawData.size()));
+    auto result = ParseProcessCGroups(rawData);
     return result[type];
 #else
     return "_parent_";
@@ -715,7 +715,7 @@ void TFreezer::Unfreeze() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::map<Stroka, Stroka> ParseCurrentProcessCGroups(TStringBuf str)
+std::map<Stroka, Stroka> ParseProcessCGroups(const Stroka& str)
 {
     std::map<Stroka, Stroka> result;
 

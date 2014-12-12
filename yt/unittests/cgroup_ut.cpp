@@ -530,17 +530,17 @@ TEST(CGroup, FreezerFreeze)
     ASSERT_EQ(pid, waitedpid);
 }
 
-TEST(CurrentProcessCGroup, Empty)
+TEST(ProcessCGroup, Empty)
 {
-    std::vector<char> empty;
-    auto result = ParseCurrentProcessCGroups(TStringBuf(empty.data(), empty.size()));
+    Stroka empty;
+    auto result = ParseProcessCGroups(empty);
     EXPECT_TRUE(result.empty());
 }
 
-TEST(CurrentProcessCGroup, Basic)
+TEST(ProcessCGroup, Basic)
 {
-    auto basic = STRINGBUF("4:blkio:/\n3:cpuacct:/\n2:freezer:/some\n1:memory:/\n");
-    auto result = ParseCurrentProcessCGroups(TStringBuf(basic.data(), basic.length()));
+    Stroka basic("4:blkio:/\n3:cpuacct:/\n2:freezer:/some\n1:memory:/\n");
+    auto result = ParseProcessCGroups(basic);
     EXPECT_EQ("", result["blkio"]);
     EXPECT_EQ("", result["cpuacct"]);
     EXPECT_EQ("some", result["freezer"]);
@@ -548,20 +548,20 @@ TEST(CurrentProcessCGroup, Basic)
     EXPECT_EQ(4, result.size());
 }
 
-TEST(CurrentProcessCGroup, Multiple)
+TEST(ProcessCGroup, Multiple)
 {
-    auto basic = STRINGBUF("5:cpuacct,cpu,cpuset:/daemons\n");
-    auto result = ParseCurrentProcessCGroups(TStringBuf(basic.data(), basic.length()));
+    auto basic("5:cpuacct,cpu,cpuset:/daemons\n");
+    auto result = ParseProcessCGroups(basic);
     EXPECT_EQ("daemons", result["cpu"]);
     EXPECT_EQ("daemons", result["cpuset"]);
     EXPECT_EQ("daemons", result["cpuacct"]);
     EXPECT_EQ(3, result.size());
 }
 
-TEST(CurrentProcessCGroup, BadInput)
+TEST(ProcessCGroup, BadInput)
 {
-    auto basic = STRINGBUF("xxx:cpuacct,cpu,cpuset:/daemons\n");
-    EXPECT_THROW(ParseCurrentProcessCGroups(TStringBuf(basic.data(), basic.length())), std::exception);
+    Stroka basic("xxx:cpuacct,cpu,cpuset:/daemons\n");
+    EXPECT_THROW(ParseProcessCGroups(basic), std::exception);
 }
 
 class TTestableEvent
