@@ -30,13 +30,6 @@ struct TLogEvent
     static const int InvalidLine = -1;
 
     TLogEvent()
-        : DateTime(TInstant::Now())
-        , FileName(nullptr)
-        , Line(InvalidLine)
-        , ThreadId(NConcurrency::InvalidThreadId)
-        , FiberId(NConcurrency::InvalidFiberId)
-        , TraceId(NTracing::InvalidTraceId)
-        , Function(nullptr)
     { }
 
     TLogEvent(const Stroka& category, ELogLevel level, const Stroka& message)
@@ -44,24 +37,18 @@ struct TLogEvent
         , Level(level)
         , Message(message)
         , DateTime(TInstant::Now())
-        , FileName(nullptr)
-        , Line(InvalidLine)
-        , ThreadId(NConcurrency::InvalidThreadId)
-        , FiberId(NConcurrency::InvalidFiberId)
-        , TraceId(NTracing::InvalidTraceId)
-        , Function(nullptr)
     { }
 
     Stroka Category;
     ELogLevel Level;
     Stroka Message;
     TInstant DateTime;
-    const char* FileName;
-    i32 Line;
-    NConcurrency::TThreadId ThreadId;
-    NConcurrency::TFiberId FiberId;
-    NTracing::TTraceId TraceId;
-    const char* Function;
+    const char* FileName = nullptr;
+    int Line = InvalidLine;
+    NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
+    NConcurrency::TFiberId FiberId = NConcurrency::InvalidFiberId;
+    NTracing::TTraceId TraceId = NTracing::InvalidTraceId;
+    const char* Function = nullptr;
 
 };
 

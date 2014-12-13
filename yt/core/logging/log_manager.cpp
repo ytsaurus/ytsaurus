@@ -707,7 +707,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TLogManager::TLogManager()
-    : Impl(new TImpl())
+    : Impl_(new TImpl())
 { }
 
 TLogManager* TLogManager::Get()
@@ -717,37 +717,37 @@ TLogManager* TLogManager::Get()
 
 void TLogManager::Configure(INodePtr node)
 {
-    Impl->Configure(node);
+    Impl_->Configure(node);
 }
 
 void TLogManager::Configure(const Stroka& fileName, const TYPath& path)
 {
-    Impl->Configure(fileName, path);
+    Impl_->Configure(fileName, path);
 }
 
 void TLogManager::Shutdown()
 {
-    Impl->Shutdown();
+    Impl_->Shutdown();
 }
 
 int TLogManager::GetVersion() const
 {
-    return Impl->GetVersion();
+    return Impl_->GetVersion();
 }
 
 ELogLevel TLogManager::GetMinLevel(const Stroka& category) const
 {
-    return Impl->GetMinLevel(category);
+    return Impl_->GetMinLevel(category);
 }
 
 void TLogManager::Enqueue(TLogEvent&& event)
 {
-    Impl->Enqueue(std::move(event));
+    Impl_->Enqueue(std::move(event));
 }
 
 void TLogManager::Reopen()
 {
-    Impl->Reopen();
+    Impl_->Reopen();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
