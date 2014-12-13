@@ -261,7 +261,10 @@ test_smart_format()
     check "1 2\t\tz=10" "`./mapreduce -subkey -read "ignat/smart_x"`"
     # test columns
     ranged_table='ignat/smart_x{x,z}'
-    check "tskv\tz=10\tx=1" "`./mapreduce -read ${ranged_table}`"
+    # disable brace expansion
+    set +B
+    check_failed "./mapreduce -read ${ranged_table}"
+    set -B
     check "z=10\tx=1" "`./mapreduce -read ${ranged_table} -dsv`"
 
     unset YT_SMART_FORMAT
