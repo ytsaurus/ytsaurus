@@ -316,6 +316,14 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
 void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
 {
     ResetChunkStatus(chunk);
+    // NB: Keep existing removal requests to workaround the following scenario:
+    // 1) the last strong reference to a chunk is released while some weak references
+    //    remain; the chunk becomes a zombie;
+    // 2) a node sends a heartbeat reporting addition of the chunk;
+    // 3) master receives the heartbeat and puts the chunk into the removal queue
+    //    without (sic!) registering a replica;
+    // 4) the last weak reference is dropped, the chunk is being removed;
+    //    at this point we must preserve its the removal request.  
     RemoveChunkFromQueues(chunk, false);
     CancelChunkJobs(chunk);
 }
