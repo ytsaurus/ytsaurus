@@ -5,12 +5,16 @@
 
 #include <core/ytree/node.h>
 
+#include <core/yson/lexer_detail.h>
+
 namespace NYT {
 
 namespace {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+using NYson::TToken;
+using NYson::ETokenType;
 using NYson::IYsonConsumer;
 using NYTree::INodePtr;
 using NYTree::ENodeType;
@@ -95,7 +99,7 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
         {
             throw Py::RuntimeError(
                 "Value " + std::string(obj.repr()) +
-                " cannot be represented in YSON since it is out of range [-2^63, 2^64 - 1])");
+                " cannot be represented in yson since it is out of range [-2^63, 2^64 - 1])");
         }
 
         auto longObj = Py::Long(obj);
@@ -316,6 +320,204 @@ void Deserialize(Py::Object& obj, INodePtr node)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+
+struct TInputStreamBlobTag { };
+
+class TStreamReader
+{
+public:
+    explicit TStreamReader(TInputStream* stream)
+        : Stream_(stream)
+    { }
+
+    const char* Begin() const
+    {
+        return BeginPtr_;
+    }
+
+    const char* End() const
+    {
+        return EndPtr_;
+    }
+
+    void RefreshBlock()
+    {
+        YCHECK(BeginPtr_ == EndPtr_);
+        auto blob = TSharedRef::Allocate<TInputStreamBlobTag>(BlockSize_);
+        auto size = Stream_->Load(blob.Begin(), blob.Size());
+        if (size != BlockSize_) {
+            Finished_ = true;
+        }
+
+        Blobs_.push_back(blob);
+        BeginPtr_ = blob.Begin();
+        EndPtr_ = blob.Begin() + size;
+    }
+
+    void Advance(size_t bytes)
+    {
+        BeginPtr_ += bytes;
+        ReadByteCount_ += bytes;
+    }
+
+    bool IsFinished() const
+    {
+        return Finished_;
+    }
+
+    TSharedRef ExtractPrefix()
+    {
+        YCHECK(!Blobs_.empty());
+
+        if (!PrefixStart_) {
+            PrefixStart_ = Blobs_.front().Begin();
+        }
+
+        TSharedRef result;
+
+        if (Blobs_.size() == 1) {
+            result = Blobs_[0].Slice(TRef(PrefixStart_, BeginPtr_));
+        } else {
+            result = TSharedRef::Allocate<TInputStreamBlobTag>(ReadByteCount_);
+
+            size_t index = 0;
+            auto append = [&] (const char* begin, const char* end) {
+                std::copy(begin, end, result.Begin() + index);
+                index += end - begin;
+            };
+
+            append(PrefixStart_, Blobs_.front().End());
+            for (int i = 1; i + 1 < Blobs_.size(); ++i) {
+                append(Blobs_[i].Begin(), Blobs_[i].End());
+            }
+            append(Blobs_.back().Begin(), BeginPtr_);
+
+            while (Blobs_.size() > 1) {
+                Blobs_.pop_front();
+            }
+        }
+
+        PrefixStart_ = BeginPtr_;
+        ReadByteCount_ = 0;
+
+        return result;
+    }
+
+private:
+    TInputStream* Stream_;
+
+    std::deque<TSharedRef> Blobs_;
+
+    char* BeginPtr_ = nullptr;
+    char* EndPtr_ = nullptr;
+
+    char* PrefixStart_ = nullptr;
+    i64 ReadByteCount_ = 0;
+
+    bool Finished_ = false;
+    static const size_t BlockSize_ = 1024 * 1024;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TListFragmentLexer::TImpl
+{
+public:
+    explicit TImpl(TInputStream* stream)
+        : Lexer_(TStreamReader(stream), Null)
+    { }
+
+    TSharedRef NextItem()
+    {
+        int balance = 0;
+        bool finished = false;
+        TToken token;
+
+        bool hasRow = false;
+        while (!finished) {
+            Lexer_.GetToken(&token);
+            auto type = token.GetType();
+
+            switch (type) {
+                case ETokenType::EndOfStream:
+                    finished = true;
+                    break;
+                case ETokenType::LeftBracket:
+                case ETokenType::LeftBrace:
+                case ETokenType::LeftAngle:
+                    balance += 1;
+                    break;
+                case ETokenType::RightBracket:
+                case ETokenType::RightBrace:
+                case ETokenType::RightAngle:
+                    balance -= 1;
+                    if (balance == 0) {
+                        hasRow = true;
+                    }
+                    break;
+                case ETokenType::Semicolon:
+                    if (balance == 0) {
+                        return Lexer_.ExtractPrefix();
+                    }
+                    break;
+                case ETokenType::String:
+                case ETokenType::Int64:
+                case ETokenType::Uint64:
+                case ETokenType::Double:
+                case ETokenType::Boolean:
+                case ETokenType::Hash:
+                case ETokenType::Equals:
+                    if (balance == 0) {
+                        hasRow = true;
+                    }
+                    break;
+                default:
+                    THROW_ERROR_EXCEPTION("Unexpected token %Qv in yson list fragment", token);
+            }
+        }
+
+        if (balance != 0) {
+            THROW_ERROR_EXCEPTION("Yson list fragment is incomplete");
+        }
+        if (hasRow) {
+            return Lexer_.ExtractPrefix();
+        }
+
+        return TSharedRef();
+    }
+
+private:
+    NYson::NDetail::TLexer<TStreamReader, true> Lexer_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TListFragmentLexer::TListFragmentLexer()
+{ }
+
+TListFragmentLexer::~TListFragmentLexer()
+{ }
+
+TListFragmentLexer::TListFragmentLexer(TListFragmentLexer&& lexer)
+    : Impl_(std::move(lexer.Impl_))
+{ }
+
+TListFragmentLexer& TListFragmentLexer::operator=(TListFragmentLexer&& lexer)
+{
+    Impl_ = std::move(lexer.Impl_);
+    return *this;
+}
+
+TListFragmentLexer::TListFragmentLexer(TInputStream* stream)
+    : Impl_(new TImpl(stream))
+{ }
+
+TSharedRef TListFragmentLexer::NextItem()
+{
+    return Impl_->NextItem();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
 } // namespace NYT

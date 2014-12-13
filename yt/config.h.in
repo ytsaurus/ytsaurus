@@ -1,14 +1,44 @@
 #pragma once
 
-#cmakedefine HAVE_CXXABI_H
-#cmakedefine HAVE_DLFCN_H
-#cmakedefine HAVE_EXECINFO_H
-#cmakedefine HAVE_LIBUNWIND_H
-#cmakedefine HAVE_PTHREAD_H
-#cmakedefine HAVE_SYS_TYPES_H
-#cmakedefine HAVE_SYS_UCONTEXT_H
-#cmakedefine HAVE_UCONTEXT_H
-#cmakedefine HAVE_UNWIND_H
-#cmakedefine HAVE_UNISTD_H
+#ifndef HAVE_CXXABI_H
+    #cmakedefine HAVE_CXXABI_H
+#endif
+
+#ifndef HAVE_DLFCN_H
+    #cmakedefine HAVE_DLFCN_H
+#endif
+
+#ifndef HAVE_EXECINFO_H
+    #cmakedefine HAVE_EXECINFO_H
+#endif
+
+#ifndef HAVE_LIBUNWIND_H
+    #cmakedefine HAVE_LIBUNWIND_H
+#endif
+
+#ifndef HAVE_PTHREAD_H
+    #cmakedefine HAVE_PTHREAD_H
+#endif
+
+#ifndef HAVE_SYS_TYPES_H
+    #cmakedefine HAVE_SYS_TYPES_H
+#endif
+
+#ifndef HAVE_SYS_UCONTEXT_H
+    #cmakedefine HAVE_SYS_UCONTEXT_H
+#endif
+
+#ifndef HAVE_UCONTEXT_H
+    #cmakedefine HAVE_UCONTEXT_H
+#endif
+
+#ifndef HAVE_UNWIND_H
+    #cmakedefine HAVE_UNWIND_H
+#endif
+
+#ifndef HAVE_UNISTD_H
+    #cmakedefine HAVE_UNISTD_H
+#endif
+
 
 #cmakedefine PC_FROM_UCONTEXT @PC_FROM_UCONTEXT@

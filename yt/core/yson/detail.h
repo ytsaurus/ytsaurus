@@ -165,10 +165,10 @@ public:
         return GetChar<false>();
     }
 
-    void Advance(size_t amount)
+    void Advance(size_t bytes)
     {
-        TPositionBase::OnRangeConsumed(TBlockStream::Begin(), TBlockStream::Begin() + amount);
-        TBlockStream::Advance(amount);
+        TPositionBase::OnRangeConsumed(TBlockStream::Begin(), TBlockStream::Begin() + bytes);
+        TBlockStream::Advance(bytes);
     }
 
     size_t Length() const
@@ -722,9 +722,9 @@ public:
         YUNREACHABLE();
     }
 
-    void Advance(size_t amount)
+    void Advance(size_t bytes)
     {
-        BeginPtr += amount;
+        BeginPtr += bytes;
     }
 
     bool IsFinished() const
@@ -778,9 +778,9 @@ public:
         std::tie(BeginPtr, EndPtr, FinishFlag) = Coroutine.Yield(0);
     }
 
-    void Advance(size_t amount)
+    void Advance(size_t bytes)
     {
-        BeginPtr += amount;
+        BeginPtr += bytes;
     }
 
     bool IsFinished() const

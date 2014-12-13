@@ -2,8 +2,11 @@
 
 #include <contrib/libs/pycxx/Objects.hxx>
 
+#include <core/misc/ref.h>
 #include <core/misc/nullable.h>
+
 #include <core/yson/consumer.h>
+
 #include <core/ytree/public.h>
 
 #include <queue>
@@ -83,6 +86,24 @@ private:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+
+class TListFragmentLexer
+{
+public:
+    TListFragmentLexer();
+    explicit TListFragmentLexer(TInputStream* stream);
+    ~TListFragmentLexer();
+    TListFragmentLexer(TListFragmentLexer&&);
+    TListFragmentLexer& operator=(TListFragmentLexer&&);
+
+    TSharedRef NextItem();
+
+private:
+    class TImpl;
+    std::unique_ptr<TImpl> Impl_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
 } // namespace NYT

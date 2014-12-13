@@ -37,14 +37,13 @@ public:
         : Py::PythonClass<TYsonIterator>::PythonClass(self, args, kwargs)
     { }
 
-    void Init(NYson::EYsonType ysonType, TInputStream* inputStream, std::unique_ptr<TInputStream> inputStreamOwner, std::unique_ptr<Stroka> stringHolder, bool alwaysCreateAttributes)
+    void Init(TInputStream* inputStream, std::unique_ptr<TInputStream> inputStreamOwner, bool alwaysCreateAttributes)
     {
         YCHECK(!inputStreamOwner || inputStreamOwner.get() == inputStream);
         InputStream_ = inputStream;
         InputStreamOwner_ = std::move(inputStreamOwner);
-        StringHolder_ = std::move(stringHolder);
         Consumer_.reset(new NYTree::TPythonObjectBuilder(alwaysCreateAttributes));
-        Parser_.reset(new NYson::TYsonParser(Consumer_.get(), ysonType));
+        Parser_.reset(new NYson::TYsonParser(Consumer_.get(), NYson::EYsonType::ListFragment));
         IsStreamRead_ = false;
 
     }
@@ -79,8 +78,8 @@ public:
             // We should return pointer to alive object
             result.increment_reference_count();
             return result.ptr();
-        } catch (const std::exception& error) {
-            throw CreateYsonError(error.what());
+        } catch (const std::exception& ex) {
+            throw CreateYsonError(ex.what());
         }
     }
 
@@ -90,7 +89,7 @@ public:
     static void InitType()
     {
         behaviors().name("Yson iterator");
-        behaviors().doc("Iterates over stream with yson records");
+        behaviors().doc("Iterates over stream with yson rows");
         behaviors().supportGetattro();
         behaviors().supportSetattro();
         behaviors().supportIter();
@@ -101,7 +100,6 @@ public:
 private:
     TInputStream* InputStream_;
     std::unique_ptr<TInputStream> InputStreamOwner_;
-    std::unique_ptr<Stroka> StringHolder_;
 
     bool IsStreamRead_;
 
@@ -110,6 +108,62 @@ private:
 
     static const int BufferSize_ = 1024 * 1024;
     char Buffer_[BufferSize_];
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TRawYsonIterator
+    : public Py::PythonClass<TRawYsonIterator>
+{
+public:
+    TRawYsonIterator(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
+        : Py::PythonClass<TRawYsonIterator>::PythonClass(self, args, kwargs)
+    { }
+
+    void Init(TInputStream* inputStream, std::unique_ptr<TInputStream> inputStreamOwner)
+    {
+        InputStreamOwner_ = std::move(inputStreamOwner);
+        Lexer_ = std::move(TListFragmentLexer(inputStream));
+    }
+
+    Py::Object iter()
+    {
+        return self();
+    }
+
+    PyObject* iternext()
+    {
+        try {
+            auto item = Lexer_.NextItem();
+            if (!item) {
+                PyErr_SetNone(PyExc_StopIteration);
+                return 0;
+            }
+            auto result = Py::String(item.Begin(), item.Size());
+            result.increment_reference_count();
+            return result.ptr();
+        } catch (const std::exception& ex) {
+            throw CreateYsonError(ex.what());
+        }
+    }
+
+    virtual ~TRawYsonIterator()
+    { }
+
+    static void InitType()
+    {
+        behaviors().name("Yson iterator");
+        behaviors().doc("Iterates over stream with yson rows");
+        behaviors().supportGetattro();
+        behaviors().supportSetattro();
+        behaviors().supportIter();
+
+        behaviors().readyType();
+    }
+
+private:
+    std::unique_ptr<TInputStream> InputStreamOwner_;
+    TListFragmentLexer Lexer_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -127,6 +181,7 @@ public:
         RegisterShutdown();
 
         TYsonIterator::InitType();
+        TRawYsonIterator::InitType();
 
         add_keyword_method("load", &yson_module::Load, "load yson from stream");
         add_keyword_method("loads", &yson_module::Loads, "load yson from string");
@@ -147,13 +202,11 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
 
-        auto string = ConvertToString(ExtractArgument(args, kwargs, "string"));
+        auto pythonString = ConvertToString(ExtractArgument(args, kwargs, "string"));
+        auto string = Stroka(PyString_AsString(*pythonString), pythonString.size());
+        std::unique_ptr<TInputStream> stringStream(new TOwningStringInput(string));
 
-        int len = string.size();
-        std::unique_ptr<Stroka> stringHolder(new Stroka(PyString_AsString(*string), len));
-        std::unique_ptr<TInputStream> stringStream(new TStringInput(*stringHolder));
-
-        return LoadImpl(args, kwargs, std::move(stringStream), std::move(stringHolder));
+        return LoadImpl(args, kwargs, std::move(stringStream));
     }
 
     Py::Object Dump(const Py::Tuple& args_, const Py::Dict& kwargs_)
@@ -179,8 +232,7 @@ private:
     Py::Object LoadImpl(
         const Py::Tuple& args_,
         const Py::Dict& kwargs_,
-        std::unique_ptr<TInputStream> inputStream,
-        std::unique_ptr<Stroka> stringHolder = nullptr)
+        std::unique_ptr<TInputStream> inputStream)
     {
         auto args = args_;
         auto kwargs = kwargs_;
@@ -211,6 +263,11 @@ private:
             alwaysCreateAttributes = Py::Boolean(arg);
         }
 
+        bool raw = false;
+        if (HasArgument(args, kwargs, "raw")) {
+            auto arg = ExtractArgument(args, kwargs, "raw");
+            raw = Py::Boolean(arg);
+        }
 
         if (args.length() > 0 || kwargs.length() > 0) {
             throw CreateYsonError("Incorrect arguments");
@@ -221,13 +278,25 @@ private:
         }
 
         if (ysonType == NYson::EYsonType::ListFragment) {
-            Py::Callable class_type(TYsonIterator::type());
-            Py::PythonClassObject<TYsonIterator> pythonIter(class_type.apply(Py::Tuple(), Py::Dict()));
+            if (raw) {
+                Py::Callable class_type(TRawYsonIterator::type());
+                Py::PythonClassObject<TRawYsonIterator> pythonIter(class_type.apply(Py::Tuple(), Py::Dict()));
 
-            auto* iter = pythonIter.getCxxObject();
-            iter->Init(ysonType, inputStreamPtr, std::move(inputStream), std::move(stringHolder), alwaysCreateAttributes);
-            return pythonIter;
+                auto* iter = pythonIter.getCxxObject();
+                iter->Init(inputStreamPtr, std::move(inputStream));
+                return pythonIter;
+            } else {
+                Py::Callable class_type(TYsonIterator::type());
+                Py::PythonClassObject<TYsonIterator> pythonIter(class_type.apply(Py::Tuple(), Py::Dict()));
+
+                auto* iter = pythonIter.getCxxObject();
+                iter->Init(inputStreamPtr, std::move(inputStream), alwaysCreateAttributes);
+                return pythonIter;
+            }
         } else {
+            if (raw) {
+                THROW_ERROR_EXCEPTION("Raw mode is only supported for list fragments");
+            }
             NYTree::TPythonObjectBuilder consumer(alwaysCreateAttributes);
             NYson::TYsonParser parser(&consumer, ysonType);
 

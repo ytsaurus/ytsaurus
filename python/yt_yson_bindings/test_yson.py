@@ -97,5 +97,19 @@ class TestYsonStream(YsonParserTestBase, unittest.TestCase):
         self.assertRaises(Exception, lambda: dumps(2 ** 64))
         self.assertRaises(Exception, lambda: dumps(-2 ** 63 - 1))
 
+    def test_loading_raw_rows(self):
+        rows = list(loads("{a=b};{c=d};", raw=True, yson_type="list_fragment"))
+        assert ["{a=b};", "{c=d};"] == rows
+
+        rows = list(loads('123;#;{a={b=[";"]}};<attr=10>0.1;', raw=True, yson_type="list_fragment"))
+        assert ["123;", "#;", '{a={b=[";"]}};', "<attr=10>0.1;"] == rows
+
+        rows = list(loads("123;#", raw=True, yson_type="list_fragment"))
+        assert ["123;", "#"] == rows
+
+        self.assertRaises(Exception, lambda: loads("{a=b"))
+        self.assertRaises(Exception, lambda: loads("{a=b}{c=d}"))
+
+
 if __name__ == "__main__":
     unittest.main()
