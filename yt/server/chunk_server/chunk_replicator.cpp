@@ -323,7 +323,7 @@ void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
     // 3) master receives the heartbeat and puts the chunk into the removal queue
     //    without (sic!) registering a replica;
     // 4) the last weak reference is dropped, the chunk is being removed;
-    //    at this point we must preserve its the removal request.  
+    //    at this point we must preserve its removal request in the queue.  
     RemoveChunkFromQueues(chunk, false);
     CancelChunkJobs(chunk);
 }
