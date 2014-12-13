@@ -141,6 +141,9 @@ private:
 
         TObjectServiceProxy proxy(Client_->GetMasterChannel());
         auto batchReq = proxy.ExecuteBatch();
+        for (const auto& id : Options_.PrerequisiteTransactionIds) {
+            batchReq->PrerequisiteTransactions().push_back(TObjectServiceProxy::TPrerequisiteTransaction(id));
+        }
 
         {
             auto req = TCypressYPathProxy::Get(Path_);

@@ -57,6 +57,11 @@ struct TMutatingOptions
     NHydra::TMutationId MutationId;
 };
 
+struct TPrerequisiteOptions
+{
+    std::vector<NTransactionClient::TTransactionId> PrerequisiteTransactionIds;
+};
+
 struct TGetTableInfoOptions
 { };
 
@@ -140,11 +145,13 @@ struct TGetNodeOptions
 struct TSetNodeOptions
     : public TTransactionalOptions
     , public TMutatingOptions
+    , public TPrerequisiteOptions
 { };
 
 struct TRemoveNodeOptions
     : public TTransactionalOptions
     , public TMutatingOptions
+    , public TPrerequisiteOptions
 {
     bool Recursive = true;
     bool Force = false;
@@ -161,6 +168,7 @@ struct TListNodesOptions
 struct TCreateNodeOptions
     : public TTransactionalOptions
     , public TMutatingOptions
+    , public TPrerequisiteOptions
 {
     NYTree::IAttributeDictionary* Attributes = nullptr;
     bool Recursive = false;
@@ -170,6 +178,7 @@ struct TCreateNodeOptions
 struct TLockNodeOptions
     : public TTransactionalOptions
     , public TMutatingOptions
+    , public TPrerequisiteOptions
 {
     bool Waitable = false;
 };
@@ -177,6 +186,7 @@ struct TLockNodeOptions
 struct TCopyNodeOptions
     : public TTransactionalOptions
     , public TMutatingOptions
+    , public TPrerequisiteOptions
 {
     bool PreserveAccount = false;
 };
@@ -184,6 +194,7 @@ struct TCopyNodeOptions
 struct TMoveNodeOptions
     : public TTransactionalOptions
     , public TMutatingOptions
+    , public TPrerequisiteOptions
 {
     bool PreserveAccount = true;
 };
@@ -191,6 +202,7 @@ struct TMoveNodeOptions
 struct TLinkNodeOptions
     : public TTransactionalOptions
     , public TMutatingOptions
+    , public TPrerequisiteOptions
 {
     NYTree::IAttributeDictionary* Attributes = nullptr;
     bool Recursive = false;
@@ -204,6 +216,7 @@ struct TNodeExistsOptions
 struct TCreateObjectOptions
     : public TTransactionalOptions
     , public TMutatingOptions
+    , public TPrerequisiteOptions
 {
     NYTree::IAttributeDictionary* Attributes = nullptr;
 };
@@ -218,6 +231,7 @@ struct TFileReaderOptions
 
 struct TFileWriterOptions
     : public TTransactionalOptions
+    , public TPrerequisiteOptions
 {
     bool Append = true;
 };
@@ -232,9 +246,8 @@ struct TJournalReaderOptions
 
 struct TJournalWriterOptions
     : public TTransactionalOptions
-{
-    NTransactionClient::TTransactionId PrerequisiteTransactionId;
-};
+    , public TPrerequisiteOptions
+{ };
 
 ///////////////////////////////////////////////////////////////////////////////
 

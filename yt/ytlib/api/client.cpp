@@ -485,6 +485,15 @@ private:
         NCypressClient::SetTransactionId(request, GetTransactionId(commandOptions, allowNullTransaction));
     }
 
+    void SetPrerequisites(
+        TObjectServiceProxy::TReqExecuteBatchPtr batchReq,
+        const TPrerequisiteOptions& options)
+    {
+        for (const auto& id : options.PrerequisiteTransactionIds) {
+            batchReq->PrerequisiteTransactions().push_back(TObjectServiceProxy::TPrerequisiteTransaction(id));
+        }
+    }
+
 
     static void SetSuppressAccessTracking(
         IClientRequestPtr request,
@@ -825,27 +834,35 @@ private:
         const TYsonString& value,
         TSetNodeOptions options)
     {
+        auto batchReq = ObjectProxy_->ExecuteBatch();
+        SetPrerequisites(batchReq, options);
+
         auto req = TYPathProxy::Set(path);
         SetTransactionId(req, options, true);
         GenerateMutationId(req, options);
         req->set_value(value.Data());
+        batchReq->AddRequest(req);
 
-        auto rsp = WaitFor(ObjectProxy_->Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        auto batchRsp = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
     }
 
     void DoRemoveNode(
         const TYPath& path,
         TRemoveNodeOptions options)
     {
+        auto batchReq = ObjectProxy_->ExecuteBatch();
+        SetPrerequisites(batchReq, options);
+
         auto req = TYPathProxy::Remove(path);
         SetTransactionId(req, options, true);
         GenerateMutationId(req, options);
         req->set_recursive(options.Recursive);
         req->set_force(options.Force);
+        batchReq->AddRequest(req);
 
-        auto rsp = WaitFor(ObjectProxy_->Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        auto batchRsp = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
     }
 
     TYsonString DoListNodes(
@@ -872,19 +889,23 @@ private:
         EObjectType type,
         TCreateNodeOptions options)
     {
+        auto batchReq = ObjectProxy_->ExecuteBatch();
+        SetPrerequisites(batchReq, options);
+
         auto req = TCypressYPathProxy::Create(path);
         SetTransactionId(req, options, true);
         GenerateMutationId(req, options);
         req->set_type(type);
         req->set_recursive(options.Recursive);
         req->set_ignore_existing(options.IgnoreExisting);
-
         if (options.Attributes) {
             ToProto(req->mutable_node_attributes(), *options.Attributes);
         }
+        batchReq->AddRequest(req);
 
-        auto rsp = WaitFor(ObjectProxy_->Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        auto batchRsp = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+        auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>(0);
 
         return FromProto<TNodeId>(rsp->node_id());
     }
@@ -894,16 +915,21 @@ private:
         NCypressClient::ELockMode mode,
         TLockNodeOptions options)
     {
-        auto lockReq = TCypressYPathProxy::Lock(path);
-        SetTransactionId(lockReq, options, false);
-        GenerateMutationId(lockReq, options);
-        lockReq->set_mode(mode);
-        lockReq->set_waitable(options.Waitable);
+        auto batchReq = ObjectProxy_->ExecuteBatch();
+        SetPrerequisites(batchReq, options);
 
-        auto lockRsp = WaitFor(ObjectProxy_->Execute(lockReq));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*lockRsp);
+        auto req = TCypressYPathProxy::Lock(path);
+        SetTransactionId(req, options, false);
+        GenerateMutationId(req, options);
+        req->set_mode(mode);
+        req->set_waitable(options.Waitable);
+        batchReq->AddRequest(req);
 
-        return FromProto<TLockId>(lockRsp->lock_id());
+        auto batchRsp = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+        auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspLock>(0);
+
+        return FromProto<TLockId>(rsp->lock_id());
     }
 
     TNodeId DoCopyNode(
@@ -911,14 +937,19 @@ private:
         const TYPath& dstPath,
         TCopyNodeOptions options)
     {
+        auto batchReq = ObjectProxy_->ExecuteBatch();
+        SetPrerequisites(batchReq, options);
+
         auto req = TCypressYPathProxy::Copy(dstPath);
         SetTransactionId(req, options, true);
         GenerateMutationId(req, options);
         req->set_source_path(srcPath);
         req->set_preserve_account(options.PreserveAccount);
+        batchReq->AddRequest(req);
 
-        auto rsp = WaitFor(ObjectProxy_->Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        auto batchRsp = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+        auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCopy>(0);
 
         return FromProto<TNodeId>(rsp->object_id());
     }
@@ -928,15 +959,20 @@ private:
         const TYPath& dstPath,
         TMoveNodeOptions options)
     {
+        auto batchReq = ObjectProxy_->ExecuteBatch();
+        SetPrerequisites(batchReq, options);
+
         auto req = TCypressYPathProxy::Copy(dstPath);
         SetTransactionId(req, options, true);
         GenerateMutationId(req, options);
         req->set_source_path(srcPath);
         req->set_preserve_account(options.PreserveAccount);
         req->set_remove_source(true);
+        batchReq->AddRequest(req);
 
-        auto rsp = WaitFor(ObjectProxy_->Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        auto batchRsp = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+        auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCopy>(0);
 
         return FromProto<TNodeId>(rsp->object_id());
     }
@@ -946,19 +982,23 @@ private:
         const TYPath& dstPath,
         TLinkNodeOptions options)
     {
+        auto batchReq = ObjectProxy_->ExecuteBatch();
+        SetPrerequisites(batchReq, options);
+
         auto req = TCypressYPathProxy::Create(dstPath);
         req->set_type(EObjectType::Link);
         req->set_recursive(options.Recursive);
         req->set_ignore_existing(options.IgnoreExisting);
         SetTransactionId(req, options, true);
         GenerateMutationId(req, options);
-
         auto attributes = options.Attributes ? ConvertToAttributes(options.Attributes) : CreateEphemeralAttributes();
         attributes->Set("target_path", srcPath);
         ToProto(req->mutable_node_attributes(), *attributes);
+        batchReq->AddRequest(req);
 
-        auto rsp = WaitFor(ObjectProxy_->Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        auto batchRsp = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+        auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>(0);
 
         return FromProto<TNodeId>(rsp->node_id());
     }
@@ -981,6 +1021,9 @@ private:
         EObjectType type,
         TCreateObjectOptions options)
     {
+        auto batchReq = ObjectProxy_->ExecuteBatch();
+        SetPrerequisites(batchReq, options);
+
         auto req = TMasterYPathProxy::CreateObjects();
         GenerateMutationId(req, options);
         if (options.TransactionId != NullTransactionId) {
@@ -990,9 +1033,11 @@ private:
         if (options.Attributes) {
             ToProto(req->mutable_object_attributes(), *options.Attributes);
         }
+        batchReq->AddRequest(req);
 
-        auto rsp = WaitFor(ObjectProxy_->Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        auto batchRsp = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>(0);
 
         return FromProto<TObjectId>(rsp->object_ids(0));
     }

@@ -955,11 +955,11 @@ private:
         TObjectServiceProxy::TReqExecuteBatchPtr CreateMasterBatchRequest()
         {
             TObjectServiceProxy proxy(Client_->GetMasterChannel());
-            auto req = proxy.ExecuteBatch();
-            if (Options_.PrerequisiteTransactionId != NullTransactionId) {
-                req->PrerequisiteTransactions().push_back(Options_.PrerequisiteTransactionId);
+            auto batchReq = proxy.ExecuteBatch();
+            for (const auto& id : Options_.PrerequisiteTransactionIds) {
+                batchReq->PrerequisiteTransactions().push_back(TObjectServiceProxy::TPrerequisiteTransaction(id));
             }
-            return req;
+            return batchReq;
         }
 
     };
