@@ -63,18 +63,7 @@ TError::TErrorOr(int code, const Stroka& message)
     }
 }
 
-TError TError::FromSystem()
-{
-    return FromSystem(LastSystemError());
-}
-
-TError TError::FromSystem(int error)
-{
-    return TError("%v", LastSystemErrorText(error)) <<
-        TErrorAttribute("errno", error);
-}
-
-TError& TError::operator= (const TError& other)
+TError& TError::operator = (const TError& other)
 {
     if (this != &other) {
         Code_ = other.Code_;
@@ -85,15 +74,24 @@ TError& TError::operator= (const TError& other)
     return *this;
 }
 
-TError& TError::operator= (TError&& other) noexcept
+TError& TError::operator = (TError&& other) noexcept
 {
-    if (this != &other) {
-        Code_ = other.Code_;
-        Message_ = std::move(other.Message_);
-        Attributes_ = std::move(other.Attributes_);
-        InnerErrors_ = std::move(other.InnerErrors_);
-    }
+    Code_ = other.Code_;
+    Message_ = std::move(other.Message_);
+    Attributes_ = std::move(other.Attributes_);
+    InnerErrors_ = std::move(other.InnerErrors_);
     return *this;
+}
+
+TError TError::FromSystem()
+{
+    return FromSystem(LastSystemError());
+}
+
+TError TError::FromSystem(int error)
+{
+    return TError("%v", LastSystemErrorText(error)) <<
+        TErrorAttribute("errno", error);
 }
 
 int TError::GetCode() const

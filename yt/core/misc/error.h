@@ -2,10 +2,10 @@
 
 #include "public.h"
 #include "property.h"
+#include "nullable.h"
 
 #include <core/actions/callback.h>
 
-#include <core/ytree/public.h>
 #include <core/ytree/yson_string.h>
 #include <core/ytree/attributes.h>
 
@@ -18,6 +18,7 @@ class TErrorOr<void>
 {
 public:
     TErrorOr();
+
     TErrorOr(const TError& other);
     TErrorOr(TError&& other) noexcept;
 
@@ -31,11 +32,11 @@ public:
     template <class... TArgs>
     TErrorOr(int code, const char* format, const TArgs&... args);
 
-    static TError FromSystem();
-    static TError FromSystem(int error);
-
     TError& operator = (const TError& other);
     TError& operator = (TError&& other) noexcept;
+
+    static TError FromSystem();
+    static TError FromSystem(int error);
 
     int GetCode() const;
     TError& SetCode(int code);
@@ -202,13 +203,25 @@ class TErrorOr
 {
 public:
     TErrorOr();
+
     TErrorOr(const T& value);
     TErrorOr(T&& value) noexcept;
+
     TErrorOr(const TErrorOr<T>& other);
+    TErrorOr(TErrorOr<T>&& other) noexcept;
+
     TErrorOr(const TError& other);
+    TErrorOr(TError&& other) noexcept;
+
     TErrorOr(const std::exception& ex);
+
     template <class U>
     TErrorOr(const TErrorOr<U>& other);
+    template <class U>
+    TErrorOr(TErrorOr<U>&& other) noexcept;
+
+    TErrorOr<T>& operator = (const TErrorOr<T>& other);
+    TErrorOr<T>& operator = (TErrorOr<T>&& other) noexcept;
 
     const T& Value() const;
     T& Value();
@@ -220,7 +233,7 @@ public:
     TErrorOr<U> As() const;
 
 private:
-    T Value_;
+    TNullable<T> Value_;
 
 };
 
