@@ -316,18 +316,8 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
 void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
 {
     ResetChunkStatus(chunk);
-    ResetChunkJobs(chunk);
-
-    {
-        auto it = JobListMap.find(chunk);
-        if (it != JobListMap.end()) {
-            auto jobList = it->second;
-            FOREACH (auto job, jobList->Jobs()) {
-                UnregisterJob(job, EJobUnregisterFlags::UnregisterFromNode);
-            }
-            JobListMap.erase(it);
-        }
-    }
+    RemoveChunkFromQueues(chunk, false);
+    CancelChunkJobs(chunk);
 }
 
 void TChunkReplicator::ScheduleUnknownChunkRemoval(TNode* node, const TChunkIdWithIndex& chunkIdWithIndex)
@@ -805,7 +795,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
     }
 
     if (!HasRunningJobs(chunk)) {
-        ResetChunkJobs(chunk);
+        RemoveChunkFromQueues(chunk, true);
 
         if (statistics.Status & EChunkStatus::Overreplicated) {
             FOREACH (auto nodeWithIndex, statistics.DecommissionedRemovalRequests) {
@@ -867,7 +857,7 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
     }
 }
 
-void TChunkReplicator::ResetChunkJobs(TChunk* chunk)
+void TChunkReplicator::RemoveChunkFromQueues(TChunk* chunk, bool includingRemovals)
 {
     FOREACH (auto nodeWithIndex, chunk->StoredReplicas()) {
         auto* node = nodeWithIndex.GetPtr();
@@ -876,7 +866,9 @@ void TChunkReplicator::ResetChunkJobs(TChunk* chunk)
         FOREACH (auto& queue, node->ChunkReplicationQueues()) {
             queue.erase(chunkWithIndex);
         }
-        node->ChunkRemovalQueue().erase(chunkIdWithIndex);
+        if (includingRemovals) {
+            node->ChunkRemovalQueue().erase(chunkIdWithIndex);
+        }
     }
 
     if (chunk->IsErasure()) {
@@ -886,6 +878,19 @@ void TChunkReplicator::ResetChunkJobs(TChunk* chunk)
             chunk->SetRepairQueueIterator(TChunkRepairQueueIterator());
         }
     }
+}
+
+void TChunkReplicator::CancelChunkJobs(TChunk* chunk)
+{
+    auto it = JobListMap.find(chunk);
+    if (it == JobListMap.end())
+        return;
+
+    auto jobList = it->second;
+    FOREACH (auto job, jobList->Jobs()) {
+        UnregisterJob(job, EJobUnregisterFlags::UnregisterFromNode);
+    }
+    JobListMap.erase(it);
 }
 
 bool TChunkReplicator::IsReplicaDecommissioned(TNodePtrWithIndex replica)
