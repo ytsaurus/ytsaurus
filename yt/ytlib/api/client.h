@@ -232,7 +232,9 @@ struct TJournalReaderOptions
 
 struct TJournalWriterOptions
     : public TTransactionalOptions
-{ };
+{
+    NTransactionClient::TTransactionId PrerequisiteTransactionId;
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 

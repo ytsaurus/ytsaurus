@@ -350,8 +350,7 @@ private:
 
             LOG_INFO("Opening journal");
 
-            TObjectServiceProxy proxy(Client_->GetMasterChannel());
-            auto batchReq = proxy.ExecuteBatch();
+            auto batchReq = CreateMasterBatchRequest();
 
             {
                 auto req = TCypressYPathProxy::Get(Path_);
@@ -514,8 +513,7 @@ private:
 
             LOG_INFO("Attaching chunk");
             {
-                auto batchReq = ObjectProxy_.ExecuteBatch();
-                batchReq->PrerequisiteTransactions().push_back(UploadTransaction_->GetId());
+                auto batchReq = CreateMasterBatchRequest();
 
                 {
                     auto req = TChunkYPathProxy::Confirm(FromObjectId(CurrentSession_->ChunkId));
@@ -951,6 +949,17 @@ private:
             TSwitchChunkCommand command;
             command.Session = session;
             EnqueueCommand(command);
+        }
+
+
+        TObjectServiceProxy::TReqExecuteBatchPtr CreateMasterBatchRequest()
+        {
+            TObjectServiceProxy proxy(Client_->GetMasterChannel());
+            auto req = proxy.ExecuteBatch();
+            if (Options_.PrerequisiteTransactionId != NullTransactionId) {
+                req->PrerequisiteTransactions().push_back(Options_.PrerequisiteTransactionId);
+            }
+            return req;
         }
 
     };
