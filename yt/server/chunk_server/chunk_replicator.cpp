@@ -1148,7 +1148,8 @@ void TChunkReplicator::OnRefresh()
 
     auto objectManager = Bootstrap_->GetObjectManager();
 
-    int count = 0;
+    int totalCount = 0;
+    int aliveCount = 0;
     PROFILE_TIMING ("/incremental_refresh_time") {
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto now = GetCpuInstant();
@@ -1163,9 +1164,10 @@ void TChunkReplicator::OnRefresh()
             auto* chunk = entry.Chunk;
             RefreshList_.pop_front();
             chunk->SetRefreshScheduled(false);
-            ++count;
+            ++totalCount;
 
             if (IsObjectAlive(chunk)) {
+                ++aliveCount;
                 RefreshChunk(chunk);
             }
 
@@ -1173,8 +1175,9 @@ void TChunkReplicator::OnRefresh()
         }
     }
 
-    LOG_DEBUG("Incremental chunk refresh completed, %v chunks processed",
-        count);
+    LOG_DEBUG("Incremental chunk refresh completed (TotalCount: %v, AliveCount: %v)",
+        totalCount,
+        aliveCount);
 }
 
 bool TChunkReplicator::IsEnabled()
@@ -1372,7 +1375,8 @@ void TChunkReplicator::OnPropertiesUpdate()
         return;
     }
 
-    LOG_DEBUG("Starting properties update for %v chunks", request.updates_size());
+    LOG_DEBUG("Starting chunk properties update (Count: %v)",
+        request.updates_size());
 
     auto this_ = MakeStrong(this);
     auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
