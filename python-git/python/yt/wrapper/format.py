@@ -144,9 +144,9 @@ class Format(object):
         not_none_options = filter_dict(lambda key, value: value is not None, options)
         return merge_dicts(defaults, attributes, not_none_options)
 
-    def is_read_row_supported(self):
-        """.. note:: Deprecated."""
-        return self.name() in ("dsv", "yamr", "yamred_dsv")
+    def is_raw_load_supported(self):
+        """Returns true if format supports loading raw yson rows"""
+        return self.name() in ("dsv", "yamr", "yamred_dsv", "json", "yson")
 
     def read_row(self, stream):
         """.. note:: Deprecated. Use instead load_row method with parameter unparsed=True"""
@@ -317,15 +317,15 @@ class YsonFormat(Format):
             yield row
 
     def load_rows(self, stream, raw=None):
-        if self._is_raw(raw):
-            raise YtFormatError("Raw load_rows is not supported in Yson")
-
         self._check_bindings()
-        rows = yson.load(stream, yson_type="list_fragment", always_create_attributes=False)
-        if not self.process_table_index:
+        rows = yson.load(stream, yson_type="list_fragment", always_create_attributes=False, raw=raw)
+        if raw:
             return rows
-        return self._process_input_rows(rows)
-
+        else:
+            if self.process_table_index:
+                return self._process_input_rows(rows)
+            else:
+                return rows
 
     def _dump_row(self, row, stream):
         self._check_bindings()

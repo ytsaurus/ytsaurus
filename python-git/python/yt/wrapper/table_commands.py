@@ -435,12 +435,8 @@ def write_table(table, input_stream, format=None, table_writer=None,
         if hasattr(stream, "read"):
             if not raw:
                 raise YtError("Passing raw=False and stream as input forbidden")
-            while True:
-                row = format.load_row(stream, raw=True)
-                if row:
-                    yield row
-                else:
-                    return
+            for row in format.load_rows(stream, raw=True):
+                yield row
         else:
             for row in stream:
                 if raw:
@@ -464,7 +460,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
             create_table(path, ignore_existing=True, replication_factor=replication_factor,
                          compression_codec=compression_codec, client=client)
 
-    can_split_input = isinstance(input_stream, types.ListType) or format.is_read_row_supported()
+    can_split_input = isinstance(input_stream, types.ListType) or format.is_raw_load_supported()
     if config.USE_RETRIES_DURING_WRITE and can_split_input:
         input_stream = chunk_iter_lines(split_rows(input_stream), config.CHUNK_SIZE)
     elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
