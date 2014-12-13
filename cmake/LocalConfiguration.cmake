@@ -150,10 +150,9 @@ elseif (CMAKE_COMPILER_IS_GNUCXX)
   set( CMAKE_C_FLAGS_MINSIZEREL "-g -Os -flto ${ARCH_FLAGS}"
     CACHE STRING "" FORCE )
 
-  # TODO(sandello): Enable this when gcc will be stable.
-  # set( CMAKE_EXE_LINKER_FLAGS_RELEASE "-fwhole-program" )
-  # set( CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "-fwhole-program" )
-  # set( CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "" )
+  set( CMAKE_EXE_LINKER_FLAGS_RELEASE "-fwhole-program" )
+  set( CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "-fwhole-program" )
+  set( CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "-fwhole-program" )
 endif()
 
 # Now configure compiler options for msvc.
