@@ -395,10 +395,9 @@ public:
     {
         YCHECK(!chunk->IsConfirmed());
 
-        auto id = chunk->GetId();
+        const auto& id = chunk->GetId();
 
-        chunk->ChunkInfo().Swap(chunkInfo);
-        chunk->ChunkMeta().Swap(chunkMeta);
+        chunk->Confirm(chunkInfo, chunkMeta);
 
         auto nodeTracker = Bootstrap->GetNodeTracker();
 
