@@ -619,6 +619,11 @@ public:
         return BackgroundQueue_->GetInvoker();
     }
 
+    virtual IThroughputThrottlerPtr GetChunkLocationThrottler() override
+    {
+        return Bootstrap_->GetChunkLocationThrottler();
+    }
+
     virtual std::vector<TExecNodePtr> GetExecNodes() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);

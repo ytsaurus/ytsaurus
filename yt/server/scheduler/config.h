@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/concurrency/throughput_throttler.h>
+
 #include <core/ytree/yson_serializable.h>
 
 #include <core/rpc/config.h>
@@ -213,6 +215,9 @@ public:
 
     NRpc::TRetryingChannelConfigPtr NodeChannel;
 
+    // Controls outcoming requests issued by chunk scratchers.
+    NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;
+
     TSchedulerConfig()
     {
         RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
@@ -377,6 +382,13 @@ public:
 
         RegisterParameter("node_channel", NodeChannel)
             .DefaultNew();
+
+        RegisterParameter("chunk_location_throttler", ChunkLocationThrottler)
+            .DefaultNew();
+
+        RegisterInitializer([&] () {
+            ChunkLocationThrottler->Limit = 10000;
+        });
     }
 };
 

@@ -276,18 +276,11 @@ void TOperationControllerBase::TInputChunkScratcher::LocateChunks()
         }
     }
 
-    LOG_DEBUG("Locating input chunks (Count: %d)",
-        req->chunk_ids_size());
+    WaitFor(Controller->Host->GetChunkLocationThrottler()->Throttle(
+        req->chunk_ids_size()));
+    LOG_DEBUG("Locating input chunks (Count: %d)", req->chunk_ids_size());
 
-    req->Invoke().Subscribe(
-        BIND(&TInputChunkScratcher::OnLocateChunksResponse, MakeWeak(this))
-            .Via(Controller->GetCancelableControlInvoker()));
-}
-
-void TOperationControllerBase::TInputChunkScratcher::OnLocateChunksResponse(TChunkServiceProxy::TRspLocateChunksPtr rsp)
-{
-    VERIFY_THREAD_AFFINITY(Controller->ControlThread);
-
+    auto rsp = WaitFor(req->Invoke());
     if (!rsp->IsOK()) {
         LOG_WARNING(*rsp, "Failed to locate input chunks");
         return;
@@ -297,7 +290,7 @@ void TOperationControllerBase::TInputChunkScratcher::OnLocateChunksResponse(TChu
 
     int availableCount = 0;
     int unavailableCount = 0;
-    FOREACH(const auto& chunkInfo, rsp->chunks()) {
+    for(const auto& chunkInfo : rsp->chunks()) {
         auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
         auto it = Controller->InputChunkMap.find(chunkId);
         YCHECK(it != Controller->InputChunkMap.end());

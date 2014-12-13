@@ -6,6 +6,7 @@
 #include <core/misc/ref_counted_tracker.h>
 
 #include <core/concurrency/action_queue.h>
+#include <core/concurrency/throughput_throttler.h>
 
 #include <core/bus/server.h>
 #include <core/bus/tcp_server.h>
@@ -99,6 +100,8 @@ void TBootstrap::Run()
         Config->TransactionManager,
         MasterChannel);
 
+    ChunkLocationThrottler = CreateLimitedThrottler(Config->Scheduler->ChunkLocationThrottler);
+
     CellDirectory = New<NCellDirectory::TCellDirectory>(MasterChannel);
 
     Scheduler = New<TScheduler>(Config->Scheduler, this);
@@ -187,10 +190,14 @@ TSchedulerPtr TBootstrap::GetScheduler() const
     return Scheduler;
 }
 
-
 NCellDirectory::TCellDirectoryPtr TBootstrap::GetCellDirectory() const
 {
     return CellDirectory;
+}
+
+IThroughputThrottlerPtr TBootstrap::GetChunkLocationThrottler() const
+{
+    return ChunkLocationThrottler;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

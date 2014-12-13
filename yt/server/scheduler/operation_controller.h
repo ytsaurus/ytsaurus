@@ -9,6 +9,8 @@
 #include <core/actions/invoker.h>
 #include <core/actions/cancelable_context.h>
 
+#include <core/concurrency/public.h>
+
 #include <core/yson/public.h>
 
 #include <core/ytree/public.h>
@@ -79,6 +81,9 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual IInvokerPtr GetBackgroundInvoker() = 0;
+
+    //! Returns the throttler to limit #LocateChunk requests from chunk scratcher.
+    virtual NConcurrency::IThroughputThrottlerPtr GetChunkLocationThrottler() = 0;
 
     //! Returns the list of currently active exec nodes.
     /*!
