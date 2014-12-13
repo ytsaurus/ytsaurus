@@ -753,7 +753,6 @@ bool TChunkReplicator::CreateRepairJob(
     return true;
 }
 
-
 bool TChunkReplicator::CreateSealJob(
     TNode* node,
     TChunk* chunk,
