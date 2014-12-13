@@ -114,9 +114,8 @@ protected:
     NRpc::IChannelPtr AuthenticatedMasterChannel;
     NRpc::IChannelPtr AuthenticatedInputMasterChannel;
     NRpc::IChannelPtr AuthenticatedOutputMasterChannel;
-    
+
     mutable NLog::TTaggedLogger Logger;
-    mutable TFluentEventLogger EventLogger;
 
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableControlInvoker;

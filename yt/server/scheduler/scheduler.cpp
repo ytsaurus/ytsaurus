@@ -96,8 +96,11 @@ class TScheduler::TImpl
     : public TRefCounted
     , public IOperationHost
     , public ISchedulerStrategyHost
+    , public TEventLogHostBase
 {
 public:
+    using TEventLogHostBase::LogEventFluently;
+
     TImpl(
         TSchedulerConfigPtr config,
         TBootstrap* bootstrap)

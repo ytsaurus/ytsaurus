@@ -31,7 +31,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IOperationHost
-    : public virtual TEventLogHostBase
+    : public virtual IEventLogHost
 {
     virtual ~IOperationHost()
     { }
@@ -88,10 +88,6 @@ struct IOperationHost
 
     //! Returns the number of currently active exec nodes.
     virtual int GetExecNodeCount() const = 0;
-
-    //! Returns a consumer used for writing into the event log.
-    virtual NYson::IYsonConsumer* GetEventLogConsumer() = 0;
-
 
     //! Called by a controller to notify the host that the operation has
     //! finished successfully.

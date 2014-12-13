@@ -3608,9 +3608,7 @@ void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)
 
 TFluentLogEvent TOperationControllerBase::LogEventFluently(ELogEventType eventType)
 {
-    return EventLogger.LogEventFluently(Host->GetEventLogConsumer())
-        .Item("timestamp").Value(Now())
-        .Item("event_type").Value(eventType)
+    return Host->LogEventFluently(eventType)
         .Item("operation_id").Value(Operation->GetId());
 }
 
