@@ -278,9 +278,20 @@ void TOperationControllerBase::TInputChunkScratcher::LocateChunks()
 
     WaitFor(Controller->Host->GetChunkLocationThrottler()->Throttle(
         req->chunk_ids_size()));
+
     LOG_DEBUG("Locating input chunks (Count: %d)", req->chunk_ids_size());
 
-    auto rsp = WaitFor(req->Invoke());
+    // Consult YT-1375 before migrating to WaitFor.
+    req->Invoke().Subscribe(BIND(
+        &TInputChunkScratcher::OnLocateChunksResponse, 
+        MakeWeak(this))
+        .Via(Controller->GetCancelableControlInvoker()));
+}
+
+void TOperationControllerBase::TInputChunkScratcher::OnLocateChunksResponse(TChunkServiceProxy::TRspLocateChunksPtr rsp)
+{
+    VERIFY_THREAD_AFFINITY(Controller->ControlThread);
+
     if (!rsp->IsOK()) {
         LOG_WARNING(*rsp, "Failed to locate input chunks");
         return;
