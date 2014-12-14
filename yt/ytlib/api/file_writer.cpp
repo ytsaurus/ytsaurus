@@ -56,7 +56,6 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(config ? config : New<TFileWriterConfig>())
-        , Logger(ApiLogger)
     {
         if (Options_.TransactionId != NullTransactionId) {
             auto transactionManager = Client_->GetTransactionManager();
@@ -107,7 +106,7 @@ private:
     typedef TOldMultiChunkSequentialWriter<TFileChunkWriterProvider> TWriter;
     TIntrusivePtr<TWriter> Writer_;
     
-    NLog::TLogger Logger;
+    NLog::TLogger Logger = ApiLogger;
 
 
     void DoOpen()
@@ -123,6 +122,7 @@ private:
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Format("File upload to %v", Path_));
             options.Attributes = attributes.get();
+            options.PrerequisiteTransactionIds = Options_.PrerequisiteTransactionIds;
 
             auto transactionManager = Client_->GetTransactionManager();
             auto transactionOrError = WaitFor(transactionManager->Start(
@@ -244,7 +244,9 @@ private:
         }
 
         {
-            auto result = WaitFor(UploadTransaction_->Commit(NHydra::NullMutationId));
+            TTransactionCommitOptions options;
+            options.PrerequisiteTransactionIds = Options_.PrerequisiteTransactionIds;
+            auto result = WaitFor(UploadTransaction_->Commit(options));
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Failed to commit upload transaction");
         }
     }
