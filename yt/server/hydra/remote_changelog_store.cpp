@@ -119,7 +119,7 @@ private:
         {
             TJournalWriterOptions options;
             options.PrerequisiteTransactionIds = PrerequisiteTransactionIds_;
-            auto writer = MasterClient_->CreateJournalWriter(
+            writer = MasterClient_->CreateJournalWriter(
                 path,
                 options,
                 Config_->Writer);
