@@ -55,7 +55,9 @@ TError::TErrorOr(int code, const char* format, const TArgs&... args)
 
 template <class T>
 TErrorOr<T>::TErrorOr()
-{ }
+{
+    Value_.Emplace();
+}
 
 template <class T>
 TErrorOr<T>::TErrorOr(T&& value) noexcept
