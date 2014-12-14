@@ -45,14 +45,16 @@ struct TExecutionContext
 #ifdef DEBUG
     size_t StackSizeGuardHelper;
 #endif
-
     TTableSchema Schema;
     ISchemafulReader* Reader;
-    std::vector<TDataSplits>* DataSplitsArray;
-    std::vector<std::vector<TOwningRow>>* LiteralRows;
-    TRowBuffer* RowBuffer;
-    TChunkedMemoryPool* ScratchSpace;
     ISchemafulWriter* Writer;
+
+    std::vector<std::vector<TOwningRow>>* LiteralRows;
+    
+    TRowBuffer* PermanentBuffer;
+    TRowBuffer* OutputBuffer;
+    TRowBuffer* IntermediateBuffer;
+
     std::vector<TRow>* Batch;
 
     TQueryStatistics* Statistics;
@@ -169,7 +171,6 @@ struct TCGBinding
 struct TCGVariables
 {
     TRowBuilder ConstantsRowBuilder;
-    std::vector<TDataSplits> DataSplitsArray;
     std::vector<std::vector<TOwningRow>> LiteralRows;
 };
 

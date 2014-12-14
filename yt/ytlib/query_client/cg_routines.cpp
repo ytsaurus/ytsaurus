@@ -52,7 +52,7 @@ void WriteRow(TRow row, TExecutionContext* executionContext)
 
     auto* batch = executionContext->Batch;
     auto* writer = executionContext->Writer;
-    auto* rowBuffer = executionContext->RowBuffer;
+    auto* rowBuffer = executionContext->OutputBuffer;
 
     YASSERT(batch->size() < batch->capacity());
 
@@ -86,7 +86,7 @@ void ScanOpHelper(
     rows.reserve(MaxRowsPerRead);
 
     while (true) {
-        executionContext->ScratchSpace->Clear();
+        executionContext->IntermediateBuffer->Clear();
 
         bool hasMoreData = reader->Read(&rows);
         bool shouldWait = rows.empty();
@@ -193,16 +193,16 @@ void AddRow(
 
     --executionContext->OutputRowLimit;
 
-    groupedRows->push_back(executionContext->RowBuffer->Capture(*newRow));
+    groupedRows->push_back(executionContext->PermanentBuffer->Capture(*newRow));
     lookupRows->insert(groupedRows->back());
-    *newRow = TRow::Allocate(executionContext->ScratchSpace, valueCount);
+    *newRow = TRow::Allocate(executionContext->IntermediateBuffer->GetAlignedPool(), valueCount);
 }
 
 void AllocatePersistentRow(TExecutionContext* executionContext, int valueCount, TRow* row)
 {
     CHECK_STACK()
 
-    *row = TRow::Allocate(executionContext->RowBuffer->GetAlignedPool(), valueCount);
+    *row = TRow::Allocate(executionContext->PermanentBuffer->GetAlignedPool(), valueCount);
 }
 
 void CaptureValue(TValue* value, TChunkedMemoryPool* pool)
@@ -232,9 +232,9 @@ const TRow* InsertGroupRow(
     if (inserted.second) {
         groupedRows->push_back(row);
         for (int index = 0; index < valueCount; ++index) {
-            CaptureValue(&row[index], executionContext->RowBuffer->GetUnalignedPool());
+            CaptureValue(&row[index], executionContext->PermanentBuffer->GetUnalignedPool());
         }
-        *rowPtr = TRow::Allocate(executionContext->ScratchSpace, valueCount);
+        *rowPtr = TRow::Allocate(executionContext->PermanentBuffer->GetAlignedPool(), valueCount);
         return nullptr;
     } else {
         return &*inserted.first;
@@ -245,7 +245,7 @@ void AllocateRow(TExecutionContext* executionContext, int valueCount, TRow* row)
 {
     CHECK_STACK()
 
-    *row = TRow::Allocate(executionContext->ScratchSpace, valueCount);
+    *row = TRow::Allocate(executionContext->IntermediateBuffer->GetAlignedPool(), valueCount);
 }
 
 TRow* GetRowsData(std::vector<TRow>* groupedRows)
@@ -302,7 +302,7 @@ char* ToLower(
     const char* data,
     ui32 length)
 {
-    char* result = executionContext->RowBuffer->GetUnalignedPool()->AllocateUnaligned(length);
+    char* result = executionContext->IntermediateBuffer->GetUnalignedPool()->AllocateUnaligned(length);
 
     for (ui32 index = 0; index < length; ++index) {
         result[index] = tolower(data[index]);

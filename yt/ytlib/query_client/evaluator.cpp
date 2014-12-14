@@ -267,10 +267,9 @@ public:
 
                 LOG_DEBUG("Writer opened");
 
-                TRowBuffer rowBuffer;
-
-                struct TScratchMemoryPoolTag { };
-                TChunkedMemoryPool scratchSpace { TScratchMemoryPoolTag() };
+                TRowBuffer permanentBuffer;
+                TRowBuffer outputBuffer;
+                TRowBuffer intermediateBuffer;
 
                 std::vector<TRow> batch;
                 batch.reserve(MaxRowsPerWrite);
@@ -279,10 +278,10 @@ public:
                 executionContext.Reader = reader.Get();
                 executionContext.Schema = query->TableSchema;
 
-                executionContext.DataSplitsArray = &fragmentParams.DataSplitsArray;
                 executionContext.LiteralRows = &fragmentParams.LiteralRows;
-                executionContext.RowBuffer = &rowBuffer;
-                executionContext.ScratchSpace = &scratchSpace;
+                executionContext.PermanentBuffer = &permanentBuffer;
+                executionContext.OutputBuffer = &outputBuffer;
+                executionContext.IntermediateBuffer = &intermediateBuffer;
                 executionContext.Writer = writer.Get();
                 executionContext.Batch = &batch;
                 executionContext.Statistics = &statistics;
@@ -307,9 +306,10 @@ public:
                     THROW_ERROR_EXCEPTION_IF_FAILED(error);
                 }
 
-                LOG_DEBUG("Finished evaluating plan fragment (RowBufferCapacity: %v, ScratchSpaceCapacity: %v)",
-                    rowBuffer.GetCapacity(),
-                    scratchSpace.GetCapacity());
+                LOG_DEBUG("Finished evaluating plan fragment (PermanentBufferCapacity: %v, OutputBufferCapacity: %v, IntermediateBufferCapacity: %v)",
+                    permanentBuffer.GetCapacity(),
+                    outputBuffer.GetCapacity(),
+                    intermediateBuffer.GetCapacity());
 
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to evaluate plan fragment") << ex;
