@@ -41,7 +41,7 @@ public: \
 //! Declares a trivial public read-only property that is passed by reference.
 #define DECLARE_BYREF_RO_PROPERTY(type, name) \
 public: \
-    FORCED_INLINE const type& name() const;
+    const type& name() const;
 
 //! Defines a trivial public read-only property that is passed by reference.
 #define DEFINE_BYREF_RO_PROPERTY(type, name) \
