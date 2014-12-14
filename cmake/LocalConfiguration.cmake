@@ -134,26 +134,25 @@ elseif (CMAKE_COMPILER_IS_GNUCXX)
 
   set( CMAKE_CXX_FLAGS_DEBUG "-g -O0 ${ARCH_FLAGS}"
     CACHE STRING "" FORCE )
-  set( CMAKE_CXX_FLAGS_RELEASE "-O2 ${ARCH_FLAGS}"
+  set( CMAKE_CXX_FLAGS_RELEASE "-O2 -flto ${ARCH_FLAGS}"
     CACHE STRING "" FORCE )
-  set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O2 ${ARCH_FLAGS}"
+  set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O2 -flto ${ARCH_FLAGS}"
     CACHE STRING "" FORCE )
-  set( CMAKE_CXX_FLAGS_MINSIZEREL "-g -Os ${ARCH_FLAGS}"
+  set( CMAKE_CXX_FLAGS_MINSIZEREL "-g -Os -flto ${ARCH_FLAGS}"
     CACHE STRING "" FORCE )
 
   set( CMAKE_C_FLAGS_DEBUG "-g -O0 ${ARCH_FLAGS}"
     CACHE STRING "" FORCE )
-  set( CMAKE_C_FLAGS_RELEASE "-O2 ${ARCH_FLAGS}"
+  set( CMAKE_C_FLAGS_RELEASE "-O2 -flto ${ARCH_FLAGS}"
     CACHE STRING "" FORCE )
-  set( CMAKE_C_FLAGS_RELWITHDEBINFO "-g -O2 ${ARCH_FLAGS}"
+  set( CMAKE_C_FLAGS_RELWITHDEBINFO "-g -O2 -flto ${ARCH_FLAGS}"
     CACHE STRING "" FORCE )
-  set( CMAKE_C_FLAGS_MINSIZEREL "-g -Os ${ARCH_FLAGS}"
+  set( CMAKE_C_FLAGS_MINSIZEREL "-g -Os -flto ${ARCH_FLAGS}"
     CACHE STRING "" FORCE )
 
-  # TODO(sandello): Enable this when gcc will be stable.
-  # set( CMAKE_EXE_LINKER_FLAGS_RELEASE "-fwhole-program" )
-  # set( CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "-fwhole-program" )
-  # set( CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "" )
+  set( CMAKE_EXE_LINKER_FLAGS_RELEASE "-fwhole-program" )
+  set( CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "-fwhole-program" )
+  set( CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "-fwhole-program" )
 endif()
 
 # Now configure compiler options for msvc.

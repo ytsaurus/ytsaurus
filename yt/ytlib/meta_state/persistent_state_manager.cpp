@@ -304,7 +304,8 @@ public:
         }
 
         auto epochContext = EpochContext;
-        if (!epochContext || !HasActiveQuorum_) {
+        auto leaderCommitter = epochContext ? epochContext->LeaderCommitter : nullptr;
+        if (!leaderCommitter || !HasActiveQuorum_) {
             return MakeFuture(TErrorOr<TMutationResponse>(TError(
                 NMetaState::EErrorCode::NoQuorum,
                 "No active quorum")));
@@ -317,7 +318,7 @@ public:
             }
         }
 
-        return epochContext->LeaderCommitter->Commit(request)
+        return leaderCommitter->Commit(request)
             .Apply(BIND(&TThis::OnMutationCommitted, MakeStrong(this)));
     }
 

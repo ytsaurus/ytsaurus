@@ -9,6 +9,8 @@
 #include <core/actions/invoker.h>
 #include <core/actions/cancelable_context.h>
 
+#include <core/concurrency/public.h>
+
 #include <core/yson/public.h>
 
 #include <core/ytree/public.h>
@@ -31,7 +33,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IOperationHost
-    : public virtual TEventLogHostBase
+    : public virtual IEventLogHost
 {
     virtual ~IOperationHost()
     { }
@@ -80,6 +82,9 @@ struct IOperationHost
      */
     virtual IInvokerPtr GetBackgroundInvoker() = 0;
 
+    //! Returns the throttler to limit #LocateChunk requests from chunk scratcher.
+    virtual NConcurrency::IThroughputThrottlerPtr GetChunkLocationThrottler() = 0;
+
     //! Returns the list of currently active exec nodes.
     /*!
      *  \note Thread affinity: ControlThread
@@ -88,10 +93,6 @@ struct IOperationHost
 
     //! Returns the number of currently active exec nodes.
     virtual int GetExecNodeCount() const = 0;
-
-    //! Returns a consumer used for writing into the event log.
-    virtual NYson::IYsonConsumer* GetEventLogConsumer() = 0;
-
 
     //! Called by a controller to notify the host that the operation has
     //! finished successfully.

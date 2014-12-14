@@ -35,6 +35,7 @@ public:
     NTransactionClient::TTransactionManagerPtr GetTransactionManager() const;
     NScheduler::TSchedulerPtr GetScheduler() const;
     NCellDirectory::TCellDirectoryPtr GetCellDirectory() const;
+    NConcurrency::IThroughputThrottlerPtr GetChunkLocationThrottler() const;
 
     void Run();
 
@@ -49,6 +50,7 @@ private:
     NTransactionClient::TTransactionManagerPtr TransactionManager;
     NScheduler::TSchedulerPtr Scheduler;
     NCellDirectory::TCellDirectoryPtr CellDirectory;
+    NConcurrency::IThroughputThrottlerPtr ChunkLocationThrottler;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

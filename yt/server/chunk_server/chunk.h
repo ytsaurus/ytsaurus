@@ -45,6 +45,7 @@ class TChunk
 {
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkInfo, ChunkInfo);
+    DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TMiscExt, MiscExt);
 
     typedef TSmallVector<TChunkList*, TypicalChunkParentCount> TParents;
     DEFINE_BYREF_RW_PROPERTY(TParents, Parents);
@@ -80,6 +81,9 @@ public:
 
     bool ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo) const;
     
+    void Confirm(
+        NChunkClient::NProto::TChunkInfo* chunkInfo,
+        NChunkClient::NProto::TChunkMeta* chunkMeta);
     bool IsConfirmed() const;
     void ValidateConfirmed();
 

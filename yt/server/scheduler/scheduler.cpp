@@ -96,8 +96,11 @@ class TScheduler::TImpl
     : public TRefCounted
     , public IOperationHost
     , public ISchedulerStrategyHost
+    , public TEventLogHostBase
 {
 public:
+    using TEventLogHostBase::LogEventFluently;
+
     TImpl(
         TSchedulerConfigPtr config,
         TBootstrap* bootstrap)
@@ -614,6 +617,11 @@ public:
     virtual IInvokerPtr GetBackgroundInvoker() override
     {
         return BackgroundQueue_->GetInvoker();
+    }
+
+    virtual IThroughputThrottlerPtr GetChunkLocationThrottler() override
+    {
+        return Bootstrap_->GetChunkLocationThrottler();
     }
 
     virtual std::vector<TExecNodePtr> GetExecNodes() const override

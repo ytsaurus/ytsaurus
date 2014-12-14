@@ -157,9 +157,8 @@ std::unique_ptr<TChunk> CreateChunk(i64 rowCount, i64 compressedDataSize, i64 un
     chunkInfo.set_disk_space(0);
     chunkInfo.set_meta_checksum(0);
 
-    chunk->ChunkMeta() = chunkMeta;
-    chunk->ChunkInfo() = chunkInfo;
-
+    chunk->Confirm(&chunkInfo, &chunkMeta);
+    
     return chunk;
 }
 

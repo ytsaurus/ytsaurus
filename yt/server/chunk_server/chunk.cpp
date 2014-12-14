@@ -68,14 +68,13 @@ TChunk::~TChunk()
 
 TChunkTreeStatistics TChunk::GetStatistics() const
 {
-    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(ChunkMeta_.extensions());
-    YASSERT(ChunkInfo_.disk_space() != TChunk::UnknownDiskSpace);
+    YASSERT(IsConfirmed());
 
     TChunkTreeStatistics result;
-    result.RowCount = miscExt.row_count();
-    result.UncompressedDataSize = miscExt.uncompressed_data_size();
-    result.CompressedDataSize = miscExt.compressed_data_size();
-    result.DataWeight = miscExt.data_weight();
+    result.RowCount = MiscExt_.row_count();
+    result.UncompressedDataSize = MiscExt_.uncompressed_data_size();
+    result.CompressedDataSize = MiscExt_.compressed_data_size();
+    result.DataWeight = MiscExt_.data_weight();
 
     if (IsErasure()) {
         result.ErasureDiskSpace = ChunkInfo_.disk_space();
@@ -121,7 +120,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkInfo_);
 
     // XXX(babenko): fix snapshot bloat caused by remote copy
-    NChunkClient::NProto::TChunkMeta loadedChunkMeta;
+    TChunkMeta loadedChunkMeta;
     Load(context, loadedChunkMeta);
 
     static const yhash_set<int> correctMetaTags({
@@ -133,6 +132,8 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         ChunkMeta_.mutable_extensions(),
         loadedChunkMeta.extensions(),
         correctMetaTags);
+
+    MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
 
     SetReplicationFactor(Load<i16>(context));
     // COMPAT(psushin)
@@ -186,6 +187,15 @@ TSmallVector<TNodePtrWithIndex, TypicalReplicaCount> TChunk::GetReplicas() const
     return result;
 }
 
+void TChunk::Confirm(
+    TChunkInfo* chunkInfo,
+    TChunkMeta* chunkMeta)
+{
+    ChunkInfo_.Swap(chunkInfo);
+    ChunkMeta_.Swap(chunkMeta);
+    MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+}
+
 bool TChunk::IsConfirmed() const
 {
     return ChunkMeta_.type() != EChunkType::Unknown;
@@ -198,7 +208,7 @@ void TChunk::ValidateConfirmed()
     }
 }
 
-bool TChunk::ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo) const
+bool TChunk::ValidateChunkInfo(const TChunkInfo& chunkInfo) const
 {
     if (ChunkInfo_.disk_space() == UnknownDiskSpace)
         return true;

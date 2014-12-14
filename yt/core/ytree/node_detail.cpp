@@ -178,19 +178,19 @@ void TCompositeNodeMixin::RemoveRecursive(
 
     context->SetRequestInfo("");
 
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
     if (tokenizer.GetToken() == WildcardToken) {
         tokenizer.Advance();
         tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
         ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Write);
         Clear();
 
         context->Reply();
     } else if (request->force()) {
+        // There is no child node under the given path, so there is nothing to remove.
         context->Reply();
     } else {
         ThrowNoSuchChildKey(this, tokenizer.GetLiteralValue());

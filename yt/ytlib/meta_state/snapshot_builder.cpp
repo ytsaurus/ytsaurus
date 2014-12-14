@@ -238,6 +238,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     , EpochId(epochId)
     , ControlInvoker(controlInvoker)
     , StateInvoker(stateInvoker)
+    , Canceled(false)
 #if defined(_unix_)
     , WatchdogQueue(New<TActionQueue>("SnapshotWDog"))
 #endif
@@ -369,25 +370,31 @@ void TSnapshotBuilder::WatchdogFork(
     LOG_DEBUG("Waiting for child process %d", childPid);
     int status;
     while (waitpid(childPid, &status, WNOHANG) == 0) {
-        if (!weakSnapshotBuilder.IsExpired() && TInstant::Now() <= deadline) {
-            sleep(1);
-        } else {
-            if (!weakSnapshotBuilder.IsExpired()) {
-                LOG_INFO("Snapshot builder disposed, killing child process %d",
-                    childPid);
-            } else {
-                LOG_ERROR("Local snapshot creating timed out, killing child process %d",
-                    childPid);
-            }
-            auto killResult = kill(childPid, 9);
+        auto snapshotBuilder = weakSnapshotBuilder.Lock();
+        bool kill = false;
+        if (!snapshotBuilder || snapshotBuilder->Canceled) {
+            LOG_INFO("Snapshot canceled, killing child process %d",
+                childPid);
+            localPromise.Set(TError("Snapshot canceled"));
+            kill = true;
+        } else if (TInstant::Now() > deadline) {
+            LOG_ERROR("Local snapshot creating timed out, killing child process %d",
+                childPid);
+            localPromise.Set(TError("Snapshot timed out"));
+            kill = true;
+        }
+ 
+        if (kill) {
+            auto killResult = ::kill(childPid, 9);
             if (killResult != 0) {
                 LOG_ERROR(TError("Could not kill child process %d",
                     childPid)
                     << TError::FromSystem());
             }
-            localPromise.Set(TError("Snapshot timed out"));
             return;
         }
+ 
+        sleep(1);
     }
 
     if (!WIFEXITED(status)) {
@@ -403,10 +410,8 @@ void TSnapshotBuilder::WatchdogFork(
         snapshotId);
 
     auto snapshotBuilder = weakSnapshotBuilder.Lock();
-    if (!snapshotBuilder) {
-        LOG_INFO("Snapshot builder disposed, exiting watchdog");
+    if (!snapshotBuilder)
         return;
-    }
 
     auto readerResult = snapshotBuilder->SnapshotStore->GetReader(snapshotId);
     if (!readerResult.IsOK()) {
@@ -434,6 +439,7 @@ void TSnapshotBuilder::WaitUntilFinished()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    Canceled = true;
     if (LocalPromise) {
         LocalPromise.Get();
     }

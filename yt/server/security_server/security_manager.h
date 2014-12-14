@@ -196,7 +196,7 @@ public:
      *  If successful, charges the user for a given number of requests.
      *  Throws on failure.
      */
-    void ValidateUserAccess(TUser* user, int requestCount);
+    void ValidateUserAccess(TUser* user, int requestCount, bool enforceRateLimit);
 
     //! Returns the current request rate from the user.
     double GetRequestRate(TUser* user);
