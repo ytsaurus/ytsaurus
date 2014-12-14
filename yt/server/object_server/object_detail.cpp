@@ -61,32 +61,6 @@ using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStagedObject::TStagedObject()
-    : StagingTransaction_(nullptr)
-    , StagingAccount_(nullptr)
-{ }
-
-void TStagedObject::Save(NCellMaster::TSaveContext& context) const
-{
-    using NYT::Save;
-    Save(context, StagingTransaction_);
-    Save(context, StagingAccount_);
-}
-
-void TStagedObject::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, StagingTransaction_);
-    Load(context, StagingAccount_);
-}
-
-bool TStagedObject::IsStaged() const
-{
-    return StagingTransaction_ && StagingAccount_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TObjectProxyBase::TCustomAttributeDictionary
     : public IAttributeDictionary
 {

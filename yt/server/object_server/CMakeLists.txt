@@ -5,6 +5,7 @@ set( SRCS
   ${BASE}/gc.cpp
   ${BASE}/master.cpp
   ${BASE}/object.cpp
+  ${BASE}/staged_object.cpp
   ${BASE}/object_detail.cpp
   ${BASE}/object_manager.cpp
   ${BASE}/object_service.cpp
@@ -19,6 +20,7 @@ set( HDRS
   ${BASE}/gc.h
   ${BASE}/master.h
   ${BASE}/object.h
+  ${BASE}/staged_object.h
   ${BASE}/object_detail.h
   ${BASE}/object_manager.h
   ${BASE}/object_proxy.h
