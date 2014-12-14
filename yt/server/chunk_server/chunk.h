@@ -18,9 +18,6 @@
 
 #include <server/cell_master/public.h>
 
-#include <server/object_server/object_detail.h>
-#include <server/object_server/staged_object.h>
-
 #include <server/security_server/cluster_resources.h>
 
 namespace NYT {
@@ -41,7 +38,6 @@ bool operator!= (const TChunkProperties& lhs, const TChunkProperties& rhs);
 
 class TChunk
     : public TChunkTree
-    , public NObjectServer::TStagedObject
     , public TRefTracked<TChunk>
 {
 public:
@@ -57,7 +53,7 @@ public:
 
     // This list is usually empty.
     // Keeping a holder is very space efficient (takes just 8 bytes).
-    typedef std::unique_ptr< yhash_set<TNodePtrWithIndex> > TCachedReplicas;
+    typedef std::unique_ptr<yhash_set<TNodePtrWithIndex>> TCachedReplicas;
     DEFINE_BYREF_RO_PROPERTY(TCachedReplicas, CachedReplicas);
 
     //! Contains a valid iterator for those chunks belonging to the repair queue

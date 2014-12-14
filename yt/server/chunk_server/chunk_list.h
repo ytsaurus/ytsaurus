@@ -9,9 +9,6 @@
 
 #include <server/cell_master/public.h>
 
-#include <server/object_server/object_detail.h>
-#include <server/object_server/staged_object.h>
-
 namespace NYT {
 namespace NChunkServer {
 
@@ -19,7 +16,6 @@ namespace NChunkServer {
 
 class TChunkList
     : public TChunkTree
-    , public NObjectServer::TStagedObject
     , public TRefTracked<TChunkList>
 {
 public:

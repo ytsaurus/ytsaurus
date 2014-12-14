@@ -11,7 +11,7 @@ using namespace NObjectServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkTree::TChunkTree(const TChunkTreeId& id)
-    : TNonversionedObjectBase(id)
+    : TStagedObject(id)
 { }
 
 TChunk* TChunkTree::AsChunk()
@@ -42,6 +42,16 @@ const TChunkList* TChunkTree::AsChunkList() const
 {
     YASSERT(GetType() == EObjectType::ChunkList);
     return static_cast<const TChunkList*>(this);
+}
+
+void TChunkTree::Save(NCellMaster::TSaveContext& context) const
+{
+    TStagedObject::Save(context);
+}
+
+void TChunkTree::Load(NCellMaster::TLoadContext& context)
+{
+    TStagedObject::Load(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

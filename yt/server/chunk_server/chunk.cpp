@@ -86,7 +86,6 @@ TClusterResources TChunk::GetResourceUsage() const
 void TChunk::Save(NCellMaster::TSaveContext& context) const
 {
     TChunkTree::Save(context);
-    TStagedObject::Save(context);
 
     using NYT::Save;
     Save(context, ChunkInfo_);
@@ -105,7 +104,6 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
 void TChunk::Load(NCellMaster::TLoadContext& context)
 {
     TChunkTree::Load(context);
-    TStagedObject::Load(context);
 
     using NYT::Load;
     Load(context, ChunkInfo_);

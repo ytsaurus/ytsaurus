@@ -31,7 +31,6 @@ void TChunkList::IncrementVersion()
 void TChunkList::Save(NCellMaster::TSaveContext& context) const
 {
     TChunkTree::Save(context);
-    TStagedObject::Save(context);
 
     using NYT::Save;
     Save(context, Children_);
@@ -46,10 +45,6 @@ void TChunkList::Save(NCellMaster::TSaveContext& context) const
 void TChunkList::Load(NCellMaster::TLoadContext& context)
 {
     TChunkTree::Load(context);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 100) {
-        TStagedObject::Load(context);
-    }
 
     using NYT::Load;
     Load(context, Children_);

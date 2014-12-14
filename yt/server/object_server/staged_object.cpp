@@ -12,13 +12,16 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStagedObject::TStagedObject()
-    : StagingTransaction_(nullptr)
+TStagedObject::TStagedObject(const TObjectId& id)
+    : TNonversionedObjectBase(id)
+    , StagingTransaction_(nullptr)
     , StagingAccount_(nullptr)
 { }
 
 void TStagedObject::Save(NCellMaster::TSaveContext& context) const
 {
+    TNonversionedObjectBase::Save(context);
+
     using NYT::Save;
     Save(context, StagingTransaction_);
     Save(context, StagingAccount_);
@@ -26,9 +29,14 @@ void TStagedObject::Save(NCellMaster::TSaveContext& context) const
 
 void TStagedObject::Load(NCellMaster::TLoadContext& context)
 {
-    using NYT::Load;
-    Load(context, StagingTransaction_);
-    Load(context, StagingAccount_);
+    TNonversionedObjectBase::Load(context);
+
+    // COMPAT(babenko)
+    if (GetType() != EObjectType::ChunkList || context.GetVersion() >= 100) {
+        using NYT::Load;
+        Load(context, StagingTransaction_);
+        Load(context, StagingAccount_);
+    }
 }
 
 bool TStagedObject::IsStaged() const

@@ -2,7 +2,8 @@
 
 #include "public.h"
 
-#include <server/object_server/object_detail.h>
+#include <server/object_server/staged_object.h>
+
 
 namespace NYT {
 namespace NChunkServer {
@@ -11,7 +12,7 @@ namespace NChunkServer {
 
 //! Base class for both TChunkList and TChunk.
 class TChunkTree
-    : public NObjectServer::TNonversionedObjectBase
+    : public NObjectServer::TStagedObject
 {
 public:
     explicit TChunkTree(const TChunkTreeId& id);
@@ -21,6 +22,9 @@ public:
 
     TChunk* AsChunk();
     const TChunk* AsChunk() const;
+
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
 
 };
 
