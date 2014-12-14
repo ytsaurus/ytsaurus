@@ -34,6 +34,9 @@ public:
         const NHydra::TMutationId& mutationId = NHydra::NullMutationId);
 
     //! Aborts the transaction asynchronously.
+    /*!
+     *  \note Thread affinity: any
+     */
     TAsyncError Abort(
         bool force = false,
         const NHydra::TMutationId& mutationId = NHydra::NullMutationId);
@@ -55,6 +58,9 @@ public:
 
 
     //! Returns the transaction type.
+    /*!
+     *  \note Thread affinity: any
+     */
     ETransactionType GetType() const;
 
     //! Returns the transaction id.

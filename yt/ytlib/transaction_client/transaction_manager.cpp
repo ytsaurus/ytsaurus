@@ -240,6 +240,8 @@ public:
 
     TAsyncError Abort(bool force, const TMutationId& mutationId)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto this_ = MakeStrong(this);
         return SendAbort(force, mutationId).Apply(BIND([this, this_] (const TError& error) -> TError {
             if (error.IsOK()) {
@@ -251,6 +253,8 @@ public:
 
     TAsyncError Ping()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return SendPing();
     }
 
@@ -288,6 +292,8 @@ public:
 
     ETransactionType GetType() const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return Type_;
     }
 
