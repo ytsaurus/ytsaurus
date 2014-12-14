@@ -28,6 +28,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NObjectClient;
 using namespace NHydra::NProto;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,12 +43,13 @@ public:
         TRemoteChangelogStoreConfigPtr config,
         TRemoteChangelogStoreOptionsPtr options,
         const TYPath& remotePath,
-        IClientPtr masterClient)
+        IClientPtr masterClient,
+        const std::vector<TTransactionId>& prerequisiteTransactionIds)
         : Config_(config)
         , Options_(options)
         , RemotePath_(remotePath)
         , MasterClient_(masterClient)
-        , Logger(HydraLogger)
+        , PrerequisiteTransactionIds_(prerequisiteTransactionIds)
     {
         Logger.AddTag("Path: %v", RemotePath_);
     }
@@ -81,8 +83,9 @@ private:
     TRemoteChangelogStoreOptionsPtr Options_;
     TYPath RemotePath_;
     IClientPtr MasterClient_;
+    std::vector<TTransactionId> PrerequisiteTransactionIds_;
 
-    NLog::TLogger Logger;
+    NLog::TLogger Logger = HydraLogger;
 
 
     IChangelogPtr DoCreateChangelog(int id, const TSharedRef& metaBlob)
@@ -103,6 +106,7 @@ private:
             attributes->Set("write_quorum", Options_->ChangelogWriteQuorum);
             attributes->Set("prev_record_count", meta.prev_record_count());
             options.Attributes = attributes.get();
+            options.PrerequisiteTransactionIds = PrerequisiteTransactionIds_;
 
             auto result = WaitFor(MasterClient_->CreateNode(
                 path,
@@ -111,12 +115,17 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
 
-        auto writer = MasterClient_->CreateJournalWriter(
-            path,
-            TJournalWriterOptions(),
-            Config_->Writer);
-
-        THROW_ERROR_EXCEPTION_IF_FAILED(WaitFor(writer->Open()));
+        IJournalWriterPtr writer;
+        {
+            TJournalWriterOptions options;
+            options.PrerequisiteTransactionIds = PrerequisiteTransactionIds_;
+            auto writer = MasterClient_->CreateJournalWriter(
+                path,
+                options,
+                Config_->Writer);
+            auto result = WaitFor(writer->Open());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
 
         LOG_DEBUG("Changelog %v created",
             id);
@@ -368,13 +377,15 @@ IChangelogStorePtr CreateRemoteChangelogStore(
     TRemoteChangelogStoreConfigPtr config,
     TRemoteChangelogStoreOptionsPtr options,
     const TYPath& remotePath,
-    IClientPtr masterClient)
+    IClientPtr masterClient,
+    const std::vector<TTransactionId>& prerequisiteTransactionIds)
 {
     return New<TRemoteChangelogStore>(
         config,
         options,
         remotePath,
-        masterClient);
+        masterClient,
+        prerequisiteTransactionIds);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

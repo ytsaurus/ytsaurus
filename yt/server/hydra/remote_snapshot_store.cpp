@@ -37,6 +37,7 @@ using namespace NObjectClient;
 using namespace NYTree;
 using namespace NApi;
 using namespace NHydra::NProto;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,11 +52,13 @@ public:
         TRemoteSnapshotStoreConfigPtr config,
         TRemoteSnapshotStoreOptionsPtr options,
         const TYPath& remotePath,
-        IClientPtr masterClient)
+        IClientPtr masterClient,
+        const std::vector<TTransactionId>& prerequisiteTransactionIds)
         : Config_(config)
         , Options_(options)
         , RemotePath_(remotePath)
         , MasterClient_(masterClient)
+        , PrerequisiteTransactionIds_(prerequisiteTransactionIds)
         , Logger(HydraLogger)
     {
         Logger.AddTag("Path: %v", RemotePath_);
@@ -100,6 +103,7 @@ private:
     TRemoteSnapshotStoreOptionsPtr Options_;
     TYPath RemotePath_;
     IClientPtr MasterClient_;
+    std::vector<TTransactionId> PrerequisiteTransactionIds_;
 
     NLog::TLogger Logger;
 
@@ -284,6 +288,7 @@ private:
                 attributes->Set("replication_factor", Options_->SnapshotReplicationFactor);
                 attributes->Set("prev_record_count", meta.prev_record_count());
                 options.Attributes = attributes.get();
+                options.PrerequisiteTransactionIds = PrerequisiteTransactionIds_;
 
                 auto result = WaitFor(transaction->CreateNode(
                     remotePath,
@@ -294,12 +299,14 @@ private:
 
             LOG_DEBUG("Writing snapshot data");
 
-            auto writer = transaction->CreateFileWriter(
-                remotePath,
-                TFileWriterOptions(),
-                Config_->Writer);
-
+            IFileWriterPtr writer;
             {
+                TFileWriterOptions options;
+                options.PrerequisiteTransactionIds = PrerequisiteTransactionIds_;
+                writer = transaction->CreateFileWriter(
+                    remotePath,
+                    options,
+                    Config_->Writer);
                 auto result = WaitFor(writer->Open());
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
             }
@@ -364,13 +371,15 @@ ISnapshotStorePtr CreateRemoteSnapshotStore(
     TRemoteSnapshotStoreConfigPtr config,
     TRemoteSnapshotStoreOptionsPtr options,
     const TYPath& remotePath,
-    IClientPtr masterClient)
+    IClientPtr masterClient,
+    const std::vector<TTransactionId>& prerequisiteTransactionIds)
 {
     return New<TRemoteSnapshotStore>(
         config,
         options,
         remotePath,
-        masterClient);
+        masterClient,
+        prerequisiteTransactionIds);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
