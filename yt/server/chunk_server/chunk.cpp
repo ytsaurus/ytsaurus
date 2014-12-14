@@ -133,8 +133,6 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         loadedChunkMeta.extensions(),
         correctMetaTags);
 
-    MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
-
     SetReplicationFactor(Load<i16>(context));
     // COMPAT(psushin)
     if (context.GetVersion() >= 20) {
@@ -145,6 +143,10 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     LoadObjectRefs(context, Parents_);
     LoadObjectRefs(context, StoredReplicas_);
     LoadNullableObjectRefs(context, CachedReplicas_);
+
+    if (IsConfirmed()) {
+        MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    }
 }
 
 void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
