@@ -843,6 +843,7 @@ private:
 
     private:
         void LocateChunks();
+        void OnLocateChunksResponse(NChunkClient::TChunkServiceProxy::TRspLocateChunksPtr rsp);
 
         TOperationControllerBase* Controller;
         NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
