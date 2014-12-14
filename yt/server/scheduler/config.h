@@ -215,7 +215,7 @@ public:
 
     NRpc::TRetryingChannelConfigPtr NodeChannel;
 
-    // Controls outcoming requests issued by chunk scratchers.
+    //! Limits the rate (measured in chunks) of location requests issued by all active chunk scratchers
     NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;
 
     TSchedulerConfig()
@@ -245,7 +245,7 @@ public:
             .Default(TDuration::Seconds(10));
 
         RegisterParameter("max_chunks_per_scratch", MaxChunksPerScratch)
-            .Default(10000)
+            .Default(1000)
             .GreaterThan(0)
             .LessThan(100000);
 

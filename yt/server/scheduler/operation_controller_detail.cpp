@@ -290,7 +290,7 @@ void TOperationControllerBase::TInputChunkScratcher::LocateChunks()
 
     int availableCount = 0;
     int unavailableCount = 0;
-    for(const auto& chunkInfo : rsp->chunks()) {
+    for (const auto& chunkInfo : rsp->chunks()) {
         auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
         auto it = Controller->InputChunkMap.find(chunkId);
         YCHECK(it != Controller->InputChunkMap.end());
