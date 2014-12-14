@@ -132,8 +132,7 @@ public:
         bool suspended = false);
 
 private:
-    static_assert(EJobFinalState::GetDomainSize() == EJobFinalState::GetMaxValue() + 1, "EJobFinalState should not be sparse.");
-    std::array<TStatistics, EJobFinalState::GetDomainSize()> Statistics;
+    std::array<TStatistics, 3> Statistics;
     TPromise<TError> StartedPromise;
     TPromise<void> FinishedPromise;
 

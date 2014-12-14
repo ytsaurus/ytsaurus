@@ -39,7 +39,10 @@ TOperation::TOperation(
     , CleanStart_(false)
     , StartedPromise(NewPromise<TError>())
     , FinishedPromise(NewPromise())
-{ }
+{
+    YCHECK(EJobFinalState::GetDomainSize() == EJobFinalState::GetMaxValue() + 1);
+    YCHECK(Statistics.size() == EJobFinalState::GetDomainSize());
+}
 
 TFuture<TOperationStartResult> TOperation::GetStarted()
 {
