@@ -105,6 +105,8 @@ struct TCheckPermissionResult
 };
 
 struct TTransactionStartOptions
+    : public TMutatingOptions
+    , public TPrerequisiteOptions
 {
     TNullable<TDuration> Timeout;
     NTransactionClient::TTransactionId ParentId;
@@ -112,6 +114,18 @@ struct TTransactionStartOptions
     bool Ping = true;
     bool PingAncestors = true;
     NYTree::IAttributeDictionary* Attributes = nullptr;
+};
+
+struct TTransactionCommitOptions
+    : public TMutatingOptions
+    , public TPrerequisiteOptions
+{ };
+
+struct TTransactionAbortOptions
+    : public TMutatingOptions
+    , public TPrerequisiteOptions
+{
+    bool Force = false;
 };
 
 struct TLookupRowsOptions

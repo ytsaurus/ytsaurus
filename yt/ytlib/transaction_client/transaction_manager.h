@@ -17,6 +17,36 @@ namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTransactionStartOptions
+    : public NApi::TTransactionStartOptions
+{
+    TTransactionStartOptions() = default;
+    TTransactionStartOptions(const TTransactionStartOptions& other) = default;
+    TTransactionStartOptions(const NApi::TTransactionStartOptions& other)
+        : NApi::TTransactionStartOptions(other)
+    { }
+
+    bool EnableUncommittedAccounting = true;
+    bool EnableStagedAccounting = true;
+};
+
+struct TTransactionAttachOptions
+{
+    explicit TTransactionAttachOptions(const TTransactionId& id)
+        : Id(id)
+    { }
+
+    TTransactionId Id;
+    bool AutoAbort = true;
+    bool Ping = true;
+    bool PingAncestors = false;
+};
+
+using TTransactionCommitOptions = NApi::TTransactionCommitOptions;
+using TTransactionAbortOptions = NApi::TTransactionAbortOptions;
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Represents a transaction within a client.
 class TTransaction
     : public TRefCounted
@@ -30,16 +60,13 @@ public:
      *
      *  \note Thread affinity: ClientThread
      */
-    TAsyncError Commit(
-        const NHydra::TMutationId& mutationId = NHydra::NullMutationId);
+    TAsyncError Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions());
 
     //! Aborts the transaction asynchronously.
     /*!
      *  \note Thread affinity: any
      */
-    TAsyncError Abort(
-        bool force = false,
-        const NHydra::TMutationId& mutationId = NHydra::NullMutationId);
+    TAsyncError Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions());
 
     //! Detaches the transaction, i.e. stops pings.
     /*!
@@ -107,30 +134,6 @@ private:
 DEFINE_REFCOUNTED_TYPE(TTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-//! Describes settings for a newly created transaction.
-struct TTransactionStartOptions
-    : public NApi::TTransactionStartOptions
-{
-    TTransactionStartOptions();
-    TTransactionStartOptions(const TTransactionStartOptions& other) = default;
-    TTransactionStartOptions(const NApi::TTransactionStartOptions& other);
-
-    NHydra::TMutationId MutationId;
-    bool EnableUncommittedAccounting;
-    bool EnableStagedAccounting;
-};
-
-//! Describes settings used for attaching to existing transactions.
-struct TTransactionAttachOptions
-{
-    explicit TTransactionAttachOptions(const TTransactionId& id);
-
-    TTransactionId Id;
-    bool AutoAbort;
-    bool Ping;
-    bool PingAncestors;
-};
 
 //! Controls transactions at client-side.
 /*!

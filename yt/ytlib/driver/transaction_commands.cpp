@@ -68,7 +68,9 @@ void TPingTransactionCommand::DoExecute()
 void TCommitTransactionCommand::DoExecute()
 {
     auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
-    auto result = WaitFor(transaction->Commit(GenerateMutationId()));
+    TTransactionCommitOptions options;
+    options.MutationId = GenerateMutationId();
+    auto result = WaitFor(transaction->Commit(options));
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 
@@ -77,7 +79,10 @@ void TCommitTransactionCommand::DoExecute()
 void TAbortTransactionCommand::DoExecute()
 {
     auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
-    auto result = WaitFor(transaction->Abort(Request_->Force, GenerateMutationId()));
+    TTransactionAbortOptions options;
+    options.Force = Request_->Force;
+    options.MutationId = GenerateMutationId();
+    auto result = WaitFor(transaction->Abort(options));
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 

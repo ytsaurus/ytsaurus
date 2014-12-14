@@ -43,26 +43,6 @@ static std::atomic<ui32> TabletTransactionCounter; // used as a part of transact
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransactionStartOptions::TTransactionStartOptions()
-    : EnableUncommittedAccounting(true)
-    , EnableStagedAccounting(true)
-{ }
-
-TTransactionStartOptions::TTransactionStartOptions(const NApi::TTransactionStartOptions& other)
-    : TTransactionStartOptions()
-{
-    static_cast<NApi::TTransactionStartOptions&>(*this) = other;
-}
-
-TTransactionAttachOptions::TTransactionAttachOptions(const TTransactionId& id)
-    : Id(id)
-    , AutoAbort(true)
-    , Ping(true)
-    , PingAncestors(false)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTransactionManager::TImpl
     : public TRefCounted
 {
@@ -168,7 +148,7 @@ public:
         }
     }
 
-    TAsyncError Commit(const TMutationId& mutationId)
+    TAsyncError Commit(const TTransactionCommitOptions& options)
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -232,18 +212,18 @@ public:
                 ToProto(req->add_participant_cell_ids(), cellId);
             }
         }
-        SetOrGenerateMutationId(req, mutationId);
+        SetOrGenerateMutationId(req, options.MutationId);
 
         return req->Invoke().Apply(
             BIND(&TImpl::OnTransactionCommitted, MakeStrong(this), coordinatorCellId));
     }
 
-    TAsyncError Abort(bool force, const TMutationId& mutationId)
+    TAsyncError Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions())
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto this_ = MakeStrong(this);
-        return SendAbort(force, mutationId).Apply(BIND([this, this_] (const TError& error) -> TError {
+        return SendAbort(options).Apply(BIND([this, this_] (const TError& error) -> TError {
             if (error.IsOK()) {
                 DoAbort(TError("Transaction aborted by user request"));
             }
@@ -730,14 +710,10 @@ private:
         // NB: Avoid passing TIntrusivePtr here since destruction might be in progress.
         explicit TAbortSession(
             TTransaction::TImpl* transaction,
-            bool force,
-            const TMutationId& mutationId)
+            const TTransactionAbortOptions& options)
             : Transaction_(transaction)
             , TransactionId_(transaction->GetId())
-            , Force_(force)
-            , MutationId_(mutationId)
-            , Promise_(NewPromise<TError>())
-            , Awaiter_(New<TParallelAwaiter>(GetSyncInvoker()))
+            , Options_(options)
         { }
 
         TAsyncError Run()
@@ -755,10 +731,9 @@ private:
                 TTransactionSupervisorServiceProxy proxy(channel);
                 auto req = proxy.AbortTransaction();
                 ToProto(req->mutable_transaction_id(), TransactionId_);
-                req->set_force(Force_);
-
-                if (MutationId_ != NullMutationId) {
-                    SetMutationId(req, MutationId_);
+                req->set_force(Options_.Force);
+                if (Options_.MutationId != NullMutationId) {
+                    SetMutationId(req, Options_.MutationId);
                 }
 
                 Awaiter_->Await(
@@ -777,10 +752,10 @@ private:
     private:
         TTransaction::TImpl* Transaction_;
         TTransactionId TransactionId_;
-        bool Force_;
-        TMutationId MutationId_;
-        TAsyncErrorPromise Promise_;
-        TParallelAwaiterPtr Awaiter_;
+        TTransactionAbortOptions Options_;
+
+        TAsyncErrorPromise Promise_ = NewPromise<TError>();
+        TParallelAwaiterPtr Awaiter_ = New<TParallelAwaiter>(GetSyncInvoker());
 
 
         void OnResponse(const TCellId& cellId, TTransactionSupervisorServiceProxy::TRspAbortTransactionPtr rsp)
@@ -820,9 +795,9 @@ private:
         }
     };
 
-    TAsyncError SendAbort(bool force = false, const TMutationId& mutationId = NullMutationId)
+    TAsyncError SendAbort(const TTransactionAbortOptions& options = TTransactionAbortOptions())
     {
-        return New<TAbortSession>(this, force, mutationId)->Run();
+        return New<TAbortSession>(this, options)->Run();
     }
 
 
@@ -944,7 +919,7 @@ void TTransactionManager::TImpl::AbortAll()
     }
 
     for (const auto& transaction : transactions) {
-        transaction->Abort(false, NullMutationId);
+        transaction->Abort();
     }
 }
 
@@ -962,17 +937,14 @@ TTransactionPtr TTransaction::Create(TIntrusivePtr<TImpl> impl)
 TTransaction::~TTransaction()
 { }
 
-TAsyncError TTransaction::Commit(
-    const TMutationId& mutationId /*= NullMutationId*/)
+TAsyncError TTransaction::Commit(const TTransactionCommitOptions& options)
 {
-    return Impl_->Commit(mutationId);
+    return Impl_->Commit(options);
 }
 
-TAsyncError TTransaction::Abort(
-    bool force, /*= false */
-    const TMutationId& mutationId /*= NullMutationId*/)
+TAsyncError TTransaction::Abort(const TTransactionAbortOptions& options)
 {
-    return Impl_->Abort(force, mutationId);
+    return Impl_->Abort(options);
 }
 
 void TTransaction::Detach()

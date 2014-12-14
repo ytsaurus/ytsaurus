@@ -1148,17 +1148,17 @@ public:
     }
 
 
-    virtual TAsyncError Commit() override
+    virtual TAsyncError Commit(const TTransactionCommitOptions& options) override
     {
         return BIND(&TTransaction::DoCommit, MakeStrong(this))
             .Guarded()
             .AsyncVia(Client_->Invoker_)
-            .Run();
+            .Run(options);
     }
 
-    virtual TAsyncError Abort(bool force) override
+    virtual TAsyncError Abort(const TTransactionAbortOptions& options) override
     {
-        return Transaction_->Abort(force);
+        return Transaction_->Abort(options);
     }
 
 
@@ -1588,7 +1588,7 @@ private:
         return it->second->GetWriter();
     }
 
-    void DoCommit()
+    void DoCommit(const TTransactionCommitOptions& options)
     {
         try {
             for (const auto& request : Requests_) {
@@ -1620,7 +1620,7 @@ private:
         }
 
         {
-            auto result = WaitFor(Transaction_->Commit());
+            auto result = WaitFor(Transaction_->Commit(options));
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
     }
