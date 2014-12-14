@@ -114,7 +114,6 @@ private:
             , Options_(options)
             , Config_(config ? config : New<TJournalWriterConfig>())
             , ObjectProxy_(Client_->GetMasterChannel())
-            , Logger(ApiLogger)
         {
             if (Options_.TransactionId != NullTransactionId) {
                 auto transactionManager = Client_->GetTransactionManager();
@@ -185,7 +184,7 @@ private:
         IInvokerPtr Invoker_;
         TObjectServiceProxy ObjectProxy_;
 
-        NLog::TLogger Logger;
+        NLog::TLogger Logger = ApiLogger;
 
         struct TBatch
             : public TIntrinsicRefCounted
