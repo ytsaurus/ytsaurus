@@ -13,7 +13,7 @@ message TReqStartTransactionExt
     }
 
     // Transaction timeout (in ms).
-    optional int32 timeout = 1;
+    required int32 timeout = 1;
 
     // Enable including uncommitted resources into account resource usage.
     optional bool enable_uncommitted_accounting = 2 [default = true];

@@ -18,10 +18,16 @@ public:
     //! Internal between consecutive transaction pings.
     TDuration PingPeriod;
 
+    //! Default transaction timeout to be used if not given explicitly on
+    //! transaction start.
+    TDuration DefaultTransactionTimeout;
+
     TTransactionManagerConfig()
     {
         RegisterParameter("ping_period", PingPeriod)
             .Default(TDuration::Seconds(5));
+        RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)
+            .Default(TDuration::Seconds(15));
     }
 };
 

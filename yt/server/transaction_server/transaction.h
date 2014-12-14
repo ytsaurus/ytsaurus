@@ -4,6 +4,7 @@
 
 #include <core/misc/property.h>
 #include <core/misc/ref_tracked.h>
+#include <core/misc/nullable.h>
 
 #include <ytlib/cypress_client/public.h>
 
@@ -31,7 +32,7 @@ class TTransaction
 public:
     DEFINE_BYVAL_RW_PROPERTY(TLease, Lease);
     DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
-    DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, UncommittedAccountingEnabled);
     DEFINE_BYVAL_RW_PROPERTY(bool, StagedAccountingEnabled);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTransaction*>, NestedTransactions);

@@ -481,9 +481,7 @@ private:
         auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
         reqExt->set_enable_uncommitted_accounting(options.EnableUncommittedAccounting);
         reqExt->set_enable_staged_accounting(options.EnableStagedAccounting);
-        if (options.Timeout) {
-            reqExt->set_timeout(options.Timeout->MilliSeconds());
-        }
+        reqExt->set_timeout(options.Timeout.Get(Owner_->Config_->DefaultTransactionTimeout).MilliSeconds());
 
         if (options.ParentId != NullTransactionId) {
             SetOrGenerateMutationId(req, options.MutationId);

@@ -51,7 +51,12 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, State_);
-    Load(context, Timeout_);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 107) {
+        Timeout_ = Load<TDuration>(context);
+    } else {
+        Load(context, Timeout_);
+    }
     Load(context, UncommittedAccountingEnabled_);
     Load(context, StagedAccountingEnabled_);
     Load(context, NestedTransactions_);

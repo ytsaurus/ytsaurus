@@ -78,8 +78,10 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
+        const auto* transaction = GetThisTypedImpl();
+
         attributes->push_back("state");
-        attributes->push_back("timeout");
+        attributes->push_back(TAttributeInfo("timeout", transaction->GetTimeout().HasValue()));
         attributes->push_back("uncommitted_accounting_enabled");
         attributes->push_back("staged_accounting_enabled");
         attributes->push_back("parent_id");
@@ -104,9 +106,9 @@ private:
             return true;
         }
 
-        if (key == "timeout") {
+        if (key == "timeout" && transaction->GetTimeout()) {
             BuildYsonFluently(consumer)
-                .Value(transaction->GetTimeout());
+                .Value(*transaction->GetTimeout());
             return true;
         }
 
@@ -317,20 +319,22 @@ public:
             YCHECK(TopmostTransactions_.insert(transaction).second);
         }
 
-        auto actualTimeout = GetActualTimeout(timeout);
-        transaction->SetTimeout(actualTimeout);
-
-        if (IsLeader()) {
-            CreateLease(transaction, actualTimeout);
-        }
-
         transaction->SetState(ETransactionState::Active);
+
+        auto actualTimeout = timeout
+            ? MakeNullable(std::min(*timeout, Config_->MaxTransactionTimeout))
+            : Null;
+        transaction->SetTimeout(actualTimeout);
 
         auto* mutationContext = Bootstrap_
             ->GetHydraFacade()
             ->GetHydraManager()
             ->GetMutationContext();
         transaction->SetStartTime(mutationContext->GetTimestamp());
+
+        if (IsLeader()) {
+            CreateLease(transaction);
+        }
 
         TransactionStarted_.Fire(transaction);
 
@@ -624,6 +628,7 @@ private:
             timeout);
     }
 
+
     void SaveKeys(NCellMaster::TSaveContext& context)
     {
         TransactionMap_.SaveKeys(context);
@@ -632,13 +637,6 @@ private:
     void SaveValues(NCellMaster::TSaveContext& context)
     {
         TransactionMap_.SaveValues(context);
-    }
-
-    void OnBeforeSnapshotLoaded()
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        DoClear();
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -653,6 +651,14 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TransactionMap_.LoadValues(context);
+    }
+
+
+    virtual void OnBeforeSnapshotLoaded() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        DoClear();
     }
 
     void OnAfterSnapshotLoaded()
@@ -675,21 +681,14 @@ private:
         TopmostTransactions_.clear();
     }
 
-    void Clear()
+    virtual void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         DoClear();
     }
 
-    TDuration GetActualTimeout(TNullable<TDuration> timeout)
-    {
-        return std::min(
-            timeout.Get(Config_->DefaultTransactionTimeout),
-            Config_->MaxTransactionTimeout);
-    }
-
-    void OnLeaderActive()
+    virtual void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -698,13 +697,12 @@ private:
             if (transaction->GetState() == ETransactionState::Active ||
                 transaction->GetState() == ETransactionState::PersistentCommitPrepared)
             {
-                auto actualTimeout = GetActualTimeout(transaction->GetTimeout());
-                CreateLease(transaction, actualTimeout);
+                CreateLease(transaction);
             }
         }
     }
 
-    void OnStopLeading()
+    virtual void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -716,11 +714,15 @@ private:
         }
     }
 
-    void CreateLease(TTransaction* transaction, TDuration timeout)
+
+    void CreateLease(TTransaction* transaction)
     {
+        if (!transaction->GetTimeout())
+            return;
+
         auto hydraFacade = Bootstrap_->GetHydraFacade();
         auto lease = TLeaseManager::CreateLease(
-            timeout,
+            *transaction->GetTimeout(),
             BIND(&TImpl::OnTransactionExpired, MakeStrong(this), transaction->GetId())
                 .Via(hydraFacade->GetEpochAutomatonInvoker()));
         transaction->SetLease(lease);
@@ -775,6 +777,7 @@ TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::Create(
     auto timeout = requestExt->has_timeout()
         ? TNullable<TDuration>(TDuration::MilliSeconds(requestExt->timeout()))
         : Null;
+
     auto* transaction = Owner_->StartTransaction(parent, timeout);
     transaction->SetUncommittedAccountingEnabled(requestExt->enable_uncommitted_accounting());
     transaction->SetStagedAccountingEnabled(requestExt->enable_staged_accounting());
