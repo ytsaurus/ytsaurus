@@ -4,6 +4,8 @@
 #include "config.h"
 #include "object_manager.h"
 
+#include <core/misc/collection_helpers.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
 #include <server/cell_master/serialization_context.h>
@@ -170,15 +172,7 @@ void TGarbageCollector::OnSweep()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    // Shrink zombies hashtable, if needed.
-    if (Zombies.bucket_count() > 4 * Zombies.size() && Zombies.bucket_count() > 16) {
-        yhash_set<TObjectBase*> newZombies(Zombies.begin(), Zombies.end());
-        LOG_DEBUG("Shrinking zombie set (BucketCount: %" PRISZT "->%" PRISZT ", ZombieCount: %" PRISZT ")",
-            Zombies.bucket_count(),
-            newZombies.bucket_count(),
-            Zombies.size());
-        Zombies.swap(newZombies);
-    }
+    ShrinkHashTable(&Zombies);
 
     auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto metaStateManager = metaStateFacade->GetManager();
