@@ -4,6 +4,8 @@
 
 #include <ytlib/tablet_client/config.h>
 
+#include <server/transaction_server/transaction.h>
+
 #include <server/cell_master/serialize.h>
 
 namespace NYT {
@@ -32,6 +34,7 @@ TTabletCell::TTabletCell(const TTabletCellId& id)
     , ConfigVersion_(0)
     , Config_(New<TTabletCellConfig>())
     , Options_(New<TTabletCellOptions>())
+    , PrerequisiteTransaction_(nullptr)
 { }
 
 void TTabletCell::Save(TSaveContext& context) const
@@ -45,6 +48,7 @@ void TTabletCell::Save(TSaveContext& context) const
     Save(context, *Config_);
     Save(context, *Options_);
     Save(context, Tablets_);
+    Save(context, PrerequisiteTransaction_);
 }
 
 void TTabletCell::Load(TLoadContext& context)
@@ -58,6 +62,10 @@ void TTabletCell::Load(TLoadContext& context)
     Load(context, *Config_);
     Load(context, *Options_);
     Load(context, Tablets_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 108) {
+        Load(context, PrerequisiteTransaction_);
+    }
 }
 
 TPeerId TTabletCell::FindPeerId(const Stroka& address) const

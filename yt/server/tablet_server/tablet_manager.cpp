@@ -51,6 +51,8 @@
 
 #include <server/security_server/security_manager.h>
 
+#include <server/object_server/object_manager.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/serialize.h>
@@ -88,7 +90,6 @@ using NTabletNode::TTableMountConfigPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletServerLogger;
-
 static const auto CleanupPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -213,6 +214,10 @@ public:
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TTabletCellTypeHandler>(this));
         objectManager->RegisterHandler(New<TTabletTypeHandler>(this));
+
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
+        transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
     }
 
 
@@ -291,6 +296,8 @@ public:
 
         auto hiveManager = Bootstrap_->GetHiveManager();
         hiveManager->RemoveMailbox(cell->GetId());
+
+        AbortPrerequisiteTransaction(cell);
     }
 
 
@@ -707,6 +714,7 @@ private:
     TEntityMap<TTabletId, TTablet> TabletMap_;
 
     yhash_multimap<Stroka, TTabletCell*> AddressToCell_;
+    yhash_map<TTransaction*, TTabletCell*> TransactionToCellMap_;
 
     TPeriodicExecutorPtr CleanupExecutor_;
 
@@ -762,6 +770,10 @@ private:
                         AddressToCell_.insert(std::make_pair(*peer.Address, cell));
                     }
                 }
+                auto* transaction = cell->GetPrerequisiteTransaction();
+                if (transaction) {
+                    YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
+                }
             }
         }
     }
@@ -772,6 +784,7 @@ private:
         TabletCellMap_.Clear();
         TabletMap_.Clear();
         AddressToCell_.clear();
+        TransactionToCellMap_.clear();
     }
 
     virtual void Clear() override
@@ -836,6 +849,7 @@ private:
             protoInfo->set_config_version(cell->GetConfigVersion());
             protoInfo->set_config(ConvertToYsonString(cell->GetConfig()).Data());
             protoInfo->set_peer_id(cell->GetPeerId(node));
+            ToProto(protoInfo->mutable_prerequisite_transaction_id(), GetObjectId(cell->GetPrerequisiteTransaction()));
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet slot configuration update requested (Address: %v, CellId: %v, Version: %v)",
                 node->GetAddress(),
@@ -1064,9 +1078,10 @@ private:
                 cellId,
                 address,
                 peerId);
-
-            ReconfigureCell(cell);
         }
+
+        StartPrerequisiteTransaction(cell);
+        ReconfigureCell(cell);
     }
 
     void HydraRevokePeer(const TReqRevokePeer& request)
@@ -1092,6 +1107,7 @@ private:
 
         RemoveFromAddressToCellMap(address, cell);
         cell->RevokePeer(peerId);
+        AbortPrerequisiteTransaction(cell);
         ReconfigureCell(cell);
     }
 
@@ -1347,6 +1363,55 @@ private:
         auto* mutationContext = Bootstrap_->GetHydraFacade()->GetHydraManager()->GetMutationContext();
         int index = mutationContext->RandomGenerator().Generate<size_t>() % cells.size();
         return cells[index];
+    }
+
+
+    void StartPrerequisiteTransaction(TTabletCell* cell)
+    {
+        AbortPrerequisiteTransaction(cell);
+
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->StartTransaction(nullptr, Null);
+
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("title", Format("Prerequisite for cell %v", cell->GetId()));
+        auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->FillAttributes(transaction, *attributes);
+
+        cell->SetPrerequisiteTransaction(transaction);
+        YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
+
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction started (CellId: %v, TransactionId: %v)",
+            cell->GetId(),
+            transaction->GetId());
+    }
+
+    void AbortPrerequisiteTransaction(TTabletCell* cell)
+    {
+        auto* transaction = cell->GetPrerequisiteTransaction();
+        if (!transaction)
+            return;
+
+        YCHECK(TransactionToCellMap_.erase(transaction) == 1);
+
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        transactionManager->AbortTransaction(transaction, true);
+
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
+            cell->GetId(),
+            transaction->GetId());
+
+        // Cell-to-transaction link is broken in OnTransactionFinished.
+    }
+
+    void OnTransactionFinished(TTransaction* transaction)
+    {
+        auto it = TransactionToCellMap_.find(transaction);
+        if (it == TransactionToCellMap_.end())
+            return;
+
+        auto* cell = it->second;
+        cell->SetPrerequisiteTransaction(nullptr);
     }
 
 

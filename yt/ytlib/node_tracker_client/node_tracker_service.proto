@@ -99,6 +99,7 @@ message TConfigureTabletSlotInfo
     required int32 config_version = 2;
     required bytes config = 3; // NTabletClient::TTabletCellConfig
     required int32 peer_id = 4;
+    required NYT.NProto.TGuid prerequisite_transaction_id = 5;
 }
 
 message TRemoveTabletSlotInfo

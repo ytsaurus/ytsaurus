@@ -877,11 +877,11 @@ private:
             }
 
             try {
-                // Set "title" attribute.
+                // Set attributes.
                 {
-                    auto path = FromObjectId(transaction->GetId()) + "/@title";
-                    auto title = Format("Lease for node %v", node->GetAddress());
-                    SyncYPathSet(rootService, path, ConvertToYsonString(title));
+                    auto attributes = CreateEphemeralAttributes();
+                    attributes->Set("title", Format("Lease for node %v", node->GetAddress()));
+                    objectManager->FillAttributes(transaction, *attributes);
                 }
 
                 // Create Cypress node.

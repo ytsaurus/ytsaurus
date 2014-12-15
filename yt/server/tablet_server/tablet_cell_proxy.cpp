@@ -13,6 +13,8 @@
 
 #include <server/node_tracker_server/node.h>
 
+#include <server/transaction_server/transaction.h>
+
 #include <server/cell_master/bootstrap.h>
 
 namespace NYT {
@@ -65,17 +67,20 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
+        const auto* cell = GetThisTypedImpl();
+
         attributes->push_back("health");
         attributes->push_back("peers");
         attributes->push_back("tablet_ids");
         attributes->push_back("config_version");
+        attributes->push_back(TAttributeInfo("prerequisite_transaction_id", cell->GetPrerequisiteTransaction() != nullptr));
 
         TBase::ListSystemAttributes(attributes);
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
-        auto* cell = GetThisTypedImpl();
+        const auto* cell = GetThisTypedImpl();
 
         if (key == "health") {
             BuildYsonFluently(consumer)
@@ -121,6 +126,12 @@ private:
         if (key == "config_version") {
             BuildYsonFluently(consumer)
                 .Value(cell->GetConfigVersion());
+            return true;
+        }
+
+        if (key == "prerequisite_transaction_id" && cell->GetPrerequisiteTransaction()) {
+            BuildYsonFluently(consumer)
+                .Value(cell->GetPrerequisiteTransaction()->GetId());
             return true;
         }
 

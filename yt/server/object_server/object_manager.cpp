@@ -47,7 +47,6 @@
 #include <server/security_server/group.h>
 #include <server/security_server/acl.h>
 #include <server/security_server/security_manager.h>
-#include <Foundation/Foundation.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -70,7 +69,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ObjectServerLogger;
-static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
+static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -921,7 +920,6 @@ TObjectBase* TObjectManager::CreateObject(
         attributes,
         request,
         response);
-    const auto& objectId = object->GetId();
 
     FillAttributes(object, *attributes);
 

@@ -13,6 +13,8 @@
 
 #include <server/node_tracker_server/public.h>
 
+#include <server/transaction_server/public.h>
+
 #include <server/cell_master/public.h>
 
 namespace NYT {
@@ -29,15 +31,9 @@ public:
 
     struct TPeer
     {
-        TPeer()
-            : Node(nullptr)
-            , SlotIndex(-1)
-            , LastSeenTime(TInstant::Zero())
-        { }
-
         TNullable<Stroka> Address;
-        NNodeTrackerServer::TNode* Node;
-        int SlotIndex;
+        NNodeTrackerServer::TNode* Node = nullptr;
+        int SlotIndex = -1;
         TInstant LastSeenTime;
 
         void Persist(NCellMaster::TPersistenceContext& context);
@@ -53,6 +49,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellOptionsPtr, Options);
 
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTablet*>, Tablets);
+
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, PrerequisiteTransaction);
 
 public:
     explicit TTabletCell(const TTabletCellId& id);

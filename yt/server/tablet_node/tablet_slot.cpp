@@ -61,6 +61,7 @@ using namespace NHydra;
 using namespace NHive;
 using namespace NNodeTrackerClient::NProto;
 using namespace NObjectClient;
+using namespace NTransactionClient;
 
 using NHydra::EPeerState;
 
@@ -141,6 +142,13 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return CellConfig_;
+    }
+
+    const TTransactionId& GetPrerequisiteTransactionId() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return PrerequisiteTransactionId_;
     }
 
     IHydraManagerPtr GetHydraManager() const
@@ -250,10 +258,13 @@ public:
 
         CellConfigVersion_ = configureInfo.config_version();
         CellConfig_ = ConvertTo<TTabletCellConfigPtr>(TYsonString(configureInfo.config()));
+        auto prerequisiteTransactionId = FromProto<TTransactionId>(configureInfo.prerequisite_transaction_id());
 
         if (HydraManager_) {
+            YCHECK(PrerequisiteTransactionId_ == prerequisiteTransactionId);
             CellManager_->Reconfigure(CellConfig_->ToElection(CellId_));
         } else {
+            PrerequisiteTransactionId_ = prerequisiteTransactionId;
             PeerId_ = configureInfo.peer_id();
             State_ = EPeerState::Elections;
 
@@ -266,17 +277,22 @@ public:
 
             auto rpcServer = Bootstrap_->GetRpcServer();
 
+            std::vector<TTransactionId> prerequisiteTransactionIds;
+            prerequisiteTransactionIds.push_back(PrerequisiteTransactionId_);
+
             auto snapshotStore = CreateRemoteSnapshotStore(
                 Config_->Snapshots,
                 Options_,
                 Format("//sys/tablet_cells/%v/snapshots", CellId_),
-                Bootstrap_->GetMasterClient());
+                Bootstrap_->GetMasterClient(),
+                prerequisiteTransactionIds);
 
             auto changelogStore = CreateRemoteChangelogStore(
                 Config_->Changelogs,
                 Options_,
                 Format("//sys/tablet_cells/%v/changelogs", CellId_),
-                Bootstrap_->GetMasterClient());
+                Bootstrap_->GetMasterClient(),
+                prerequisiteTransactionIds);
 
             HydraManager_ = CreateDistributedHydraManager(
                 Config_->HydraManager,
@@ -352,7 +368,8 @@ public:
             rpcServer->RegisterService(TabletService_);
         }
 
-        LOG_INFO("Slot configured");
+        LOG_INFO("Slot configured (ConfigVersion: %v)",
+            CellConfigVersion_);
     }
 
     void Finalize()
@@ -416,6 +433,7 @@ private:
     int CellConfigVersion_ = 0;
     TTabletCellConfigPtr CellConfig_;
     TTabletCellOptionsPtr Options_;
+    TTransactionId PrerequisiteTransactionId_;
 
     TCellManagerPtr CellManager_;
 
@@ -595,6 +613,11 @@ int TTabletSlot::GetCellConfigVersion() const
 TTabletCellConfigPtr TTabletSlot::GetCellConfig() const
 {
     return Impl_->GetCellConfig();
+}
+
+const TTransactionId& TTabletSlot::GetPrerequisiteTransactionId() const
+{
+    return Impl_->GetPrerequisiteTransactionId();
 }
 
 IHydraManagerPtr TTabletSlot::GetHydraManager() const

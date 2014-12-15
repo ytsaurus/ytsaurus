@@ -12,6 +12,8 @@
 
 #include <ytlib/object_client/public.h>
 
+#include <ytlib/transaction_client/public.h>
+
 #include <server/hydra/public.h>
 
 #include <server/hive/public.h>
@@ -42,6 +44,7 @@ public:
     NHydra::TPeerId GetPeerId() const;
     int GetCellConfigVersion() const;
     TTabletCellConfigPtr GetCellConfig() const;
+    const NTransactionClient::TTransactionId& GetPrerequisiteTransactionId() const;
     
     NHydra::IHydraManagerPtr GetHydraManager() const;
     NRpc::IResponseKeeperPtr GetResponseKeeper() const;
