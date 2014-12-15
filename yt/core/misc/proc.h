@@ -30,6 +30,9 @@ void SafeDup2(int oldFd, int newFd);
 
 bool TryExecve(const char* path, char* const argv[], char* const env[]);
 
+void SafePipe(int fd[2]);
+void SafeMakeNonblocking(int fd);
+
 void SetPermissions(int fd, int permissions);
 
 void CloseAllDescriptors();

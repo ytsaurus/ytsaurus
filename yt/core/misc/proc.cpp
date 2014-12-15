@@ -262,6 +262,32 @@ void SetPermissions(int fd, int permissions)
     }
 }
 
+void SafePipe(int fd[2])
+{
+    auto res = pipe(fd);
+    if (res == -1) {
+        THROW_ERROR_EXCEPTION("pipe failed")
+            << TError::FromSystem();
+    }
+}
+
+void SafeMakeNonblocking(int fd)
+{
+    auto res = fcntl(fd, F_GETFL);
+
+    if (res == -1) {
+        THROW_ERROR_EXCEPTION("fcntl failed to get descriptor flags")
+            << TError::FromSystem();
+    }
+
+    res = fcntl(fd, F_SETFL, res | O_NONBLOCK);
+
+    if (res == -1) {
+        THROW_ERROR_EXCEPTION("fcntl failed to set descriptor flags")
+            << TError::FromSystem();
+    }
+}
+
 #else
 
 bool TryClose(int fd)
@@ -330,6 +356,18 @@ void SetPermissions(int fd, int permissions)
 {
     UNUSED(fd);
     UNUSED(permissions);
+    YUNIMPLEMENTED();
+}
+
+void  SafePipe(int fd[2])
+{
+    UNUSED(fd);
+    YUNIMPLEMENTED();
+}
+
+void SafeMakeNonblocking(int fd)
+{
+    UNUSED(fd);
     YUNIMPLEMENTED();
 }
 
