@@ -48,6 +48,7 @@ void Serialize(const TSummary& summary, NYson::IYsonConsumer* consumer)
 
 void Deserialize(TSummary& value, NYTree::INodePtr node)
 {
+    // TODO(babenko): const
     static std::array<Stroka, 4> possibleKeys = {
         "sum",
         "count",
@@ -99,6 +100,7 @@ TSummary TStatistics::GetStatistic(const NYPath::TYPath& name) const
     if (it != Statistics_.end()) {
         return it->second;
     }
+    // TODO(babenko): No such statistics %Qv
     THROW_ERROR_EXCEPTION("There is no %v statistic", name);
 }
 
@@ -119,6 +121,7 @@ void Deserialize(TStatistics& value, NYTree::INodePtr node)
         TSummary summary;
         Deserialize(summary, node);
         value.Statistics_.insert(std::make_pair(node->GetPath(), std::move(summary)));
+        // TODO(babenko): why would you need a catch here?
     } catch (const std::exception& ) {
         for (auto& pair : node->AsMap()->GetChildren()) {
             Deserialize(value, pair.second);
@@ -128,13 +131,20 @@ void Deserialize(TStatistics& value, NYTree::INodePtr node)
 
 ////////////////////////////////////////////////////////////////////
 
-TStatisticsConsumer::TStatisticsConsumer(TParsedStatisticsConsumer consumer, const NYPath::TYPath& location)
+TStatisticsConsumer::TStatisticsConsumer(
+    TParsedStatisticsConsumer consumer,
+    const NYPath::TYPath& location)
     : Depth_(0)
     , Location_(location)
     , TreeBuilder_(NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory()))
     , Consumer_(consumer)
 { }
 
+// TODO(babenko): the wording below is not good
+// 1) remove full stops
+// 2) use semicolons
+// 3) quote types, e.g.
+// Statistics cannot contain \"uint64\" values; use \"int64\" instead
 void TStatisticsConsumer::OnStringScalar(const TStringBuf& value)
 {
     THROW_ERROR_EXCEPTION("Statistics cannot contain string literals");
@@ -165,6 +175,8 @@ void TStatisticsConsumer::OnDoubleScalar(double value)
 
 void TStatisticsConsumer::OnEntity()
 {
+    // TODO(babenko): why singular here?
+    // cannot contain entities
     THROW_ERROR_EXCEPTION("Statistics cannot contain entity literal.");
 }
 
@@ -227,6 +239,7 @@ void TStatisticsConsumer::ConvertToStatistics(TStatistics& value, NYTree::INodeP
 {
     if (node->GetType() == NYTree::ENodeType::Int64) {
         TSummary summary(node->AsInt64()->GetValue());
+        // TODO(babenko): std::move makes no sense here
         value.Add(node->GetPath(), std::move(summary));
         return;
     }
@@ -235,7 +248,6 @@ void TStatisticsConsumer::ConvertToStatistics(TStatistics& value, NYTree::INodeP
         ConvertToStatistics(value, pair.second);
     }
 }
-
 
 ////////////////////////////////////////////////////////////////////
 
