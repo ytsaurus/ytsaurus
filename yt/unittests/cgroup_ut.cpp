@@ -4,6 +4,8 @@
 
 #include <ytlib/cgroup/cgroup.h>
 
+#include <core/misc/guid.h>
+
 #include <core/misc/proc.h>
 #include <core/misc/fs.h>
 
@@ -24,7 +26,7 @@ namespace {
 TEST(CGroup, CreateDestroy)
 {
     for (int i = 0; i < 2; ++i) {
-        TBlockIO group("some");
+        TBlockIO group("create_destory_" + ToString(TGuid::Create()));
         group.Create();
         group.Destroy();
     }
@@ -32,13 +34,13 @@ TEST(CGroup, CreateDestroy)
 
 TEST(CGroup, NotExistingGroupGetTasks)
 {
-    TBlockIO group("wierd_name");
+    TBlockIO group("not_existing_group_get_tasks" + ToString(TGuid::Create()));
     EXPECT_THROW(group.GetTasks(), std::exception);
 }
 
 TEST(CGroup, DoubleCreate)
 {
-    TBlockIO group("wierd_name");
+    TBlockIO group("double_create_" + ToString(TGuid::Create()));
     group.Create();
     group.Create();
     group.Destroy();
@@ -46,7 +48,7 @@ TEST(CGroup, DoubleCreate)
 
 TEST(CGroup, EmptyHasNoTasks)
 {
-    TBlockIO group("some2");
+    TBlockIO group("empty_has_no_tasks_" + ToString(TGuid::Create()));
     group.Create();
     auto tasks = group.GetTasks();
     EXPECT_EQ(0, tasks.size());
@@ -57,7 +59,7 @@ TEST(CGroup, EmptyHasNoTasks)
 
 TEST(CGroup, AddCurrentTask)
 {
-    TBlockIO group("some");
+    TBlockIO group("add_current_task_" + ToString(TGuid::Create()));
     group.Create();
 
     auto pid = fork();
@@ -80,7 +82,8 @@ TEST(CGroup, AddCurrentTask)
 
 TEST(CGroup, UnableToDestoryNotEmptyCGroup)
 {
-    TBlockIO group("some");
+    TBlockIO group("unable_to_destroy_not_empty_cgroup_"
+        + ToString(TGuid::Create()));
     group.Create();
 
     auto addedEvent = eventfd(0, 0);
@@ -148,7 +151,7 @@ TEST(CGroup, DestroyAndGrandChildren)
 
 TEST(CGroup, GetCpuAccStat)
 {
-    TCpuAccounting group("some");
+    TCpuAccounting group("get_cpu_acc_stat_" + ToString(TGuid::Create()));
     group.Create();
 
     auto stats = group.GetStatistics();
@@ -160,7 +163,7 @@ TEST(CGroup, GetCpuAccStat)
 
 TEST(CGroup, GetBlockIOStat)
 {
-    TBlockIO group("some");
+    TBlockIO group("get_block_io_stat_" + ToString(TGuid::Create()));
     group.Create();
 
     auto stats = group.GetStatistics();
@@ -173,7 +176,7 @@ TEST(CGroup, GetBlockIOStat)
 
 TEST(CGroup, GetMemoryStats)
 {
-    TMemory group("some");
+    TMemory group("get_memory_stat_" + ToString(TGuid::Create()));
     group.Create();
 
     auto stats = group.GetStatistics();
@@ -186,7 +189,7 @@ TEST(CGroup, GetMemoryStats)
 TEST(CGroup, UsageInBytesWithoutLimit)
 {
     const i64 memoryUsage = 8 * 1024 * 1024;
-    TMemory group("some");
+    TMemory group("usage_in_bytes_without_limit_" + ToString(TGuid::Create()));
     group.Create();
     auto event = group.GetOomEvent();
 
@@ -225,7 +228,7 @@ TEST(CGroup, UsageInBytesWithoutLimit)
 
 TEST(CGroup, OomEnabledByDefault)
 {
-    TMemory group("some");
+    TMemory group("oom_enabled_by_default_" + ToString(TGuid::Create()));
     group.Create();
 
     EXPECT_TRUE(group.IsOomEnabled());
@@ -235,7 +238,7 @@ TEST(CGroup, OomEnabledByDefault)
 
 TEST(CGroup, DisableOom)
 {
-    TMemory group("some");
+    TMemory group("disable_oom_" + ToString(TGuid::Create()));
     group.Create();
     group.DisableOom();
 
@@ -246,11 +249,12 @@ TEST(CGroup, DisableOom)
 
 TEST(CGroup, OomSettingsIsInherited)
 {
-    TMemory group("parent");
+    Stroka rootName("oom_setting_is_inherited_" + ToString(TGuid::Create()));
+    TMemory group(rootName);
     group.Create();
     group.DisableOom();
 
-    TMemory child("parent/child");
+    TMemory child(rootName + "/child");
     child.Create();
     EXPECT_FALSE(child.IsOomEnabled());
 
@@ -260,11 +264,12 @@ TEST(CGroup, OomSettingsIsInherited)
 
 TEST(CGroup, UnableToDisableOom)
 {
-    TMemory group("parent");
+    Stroka rootName("unable_to_disable_oom_" + ToString(TGuid::Create()));
+    TMemory group(rootName);
     group.Create();
     group.EnableHierarchy();
 
-    TMemory child("parent/child");
+    TMemory child(rootName + "/child");
     child.Create();
     EXPECT_THROW(group.DisableOom(), std::exception);
 
@@ -274,7 +279,8 @@ TEST(CGroup, UnableToDisableOom)
 
 TEST(CGroup, GetOomEventIfOomIsEnabled)
 {
-    TMemory group("some");
+    TMemory group("get_oom_event_if_oom_is_enabled_"
+        + ToString(TGuid::Create()));
     group.Create();
     auto event = group.GetOomEvent();
 }
@@ -282,7 +288,8 @@ TEST(CGroup, GetOomEventIfOomIsEnabled)
 TEST(CGroup, OomEventFiredIfOomIsEnabled)
 {
     const i64 limit = 8 * 1024 * 1024;
-    TMemory group("some");
+    TMemory group("get_event_fired_if_oom_is_enabled_"
+        + ToString(TGuid::Create()));
     group.Create();
     group.SetLimitInBytes(limit);
     auto event = group.GetOomEvent();
@@ -314,7 +321,7 @@ TEST(CGroup, OomEventFiredIfOomIsEnabled)
 TEST(CGroup, OomEventMissingEvent)
 {
     const i64 limit = 8 * 1024 * 1024;
-    TMemory group("some");
+    TMemory group("oom_event_missing_" + ToString(TGuid::Create()));
     group.Create();
     group.SetLimitInBytes(limit);
 
@@ -343,13 +350,14 @@ TEST(CGroup, OomEventMissingEvent)
 
 TEST(CGroup, ParentLimit)
 {
+    Stroka rootName("parent_limit_"  + ToString(TGuid::Create()));
     const i64 limit = 8 * 1024 * 1024;
-    TMemory parent("parent");
+    TMemory parent(rootName);
     parent.Create();
     parent.EnableHierarchy();
     parent.SetLimitInBytes(limit);
 
-    TMemory child("parent/child");
+    TMemory child(rootName + "/child");
     child.Create();
     auto childOom = child.GetOomEvent();
 
@@ -357,7 +365,7 @@ TEST(CGroup, ParentLimit)
     if (pid == 0) {
         child.AddCurrentTask();
         volatile char* data = new char[limit + 1];
-        for (int i = 0; i < limit; ++i) {
+        for (int i = 0; i < limit + 1; ++i) {
             data[i] = 0;
         }
         delete[] data;
@@ -373,8 +381,9 @@ TEST(CGroup, ParentLimit)
 
 TEST(CGroup, ParentLimitTwoChildren)
 {
+    Stroka rootName("parent_limit_two_children" + ToString(TGuid::Create()));
     const i64 limit = 8 * 1024 * 1024;
-    TMemory parent("parent");
+    TMemory parent(rootName);
     parent.Create();
     parent.EnableHierarchy();
     parent.SetLimitInBytes(limit);
@@ -387,8 +396,8 @@ TEST(CGroup, ParentLimitTwoChildren)
     EXPECT_TRUE(initBarier > 0);
 
     std::array<TMemory, 2> children = {
-        TMemory("parent/child"),
-        TMemory("parent/other_child")
+        TMemory(rootName + "/child"),
+        TMemory(rootName + "/other_child")
     };
 
     std::array<TEvent, 2> oomEvents;
@@ -454,7 +463,7 @@ TEST(CGroup, Bug)
 {
     char buffer[1024];
 
-    TMemory group("something_different");
+    TMemory group("bug_" + ToString(TGuid::Create()));
     group.Create();
 
     i64 num = 1;
