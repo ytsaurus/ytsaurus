@@ -6,9 +6,11 @@
 
 #include <ytlib/chunk_client/public.h>
 
-#include <core/rpc/public.h>
-
 #include <ytlib/scheduler/job.pb.h>
+
+#include <core/logging/log.h>
+
+#include <core/rpc/public.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -33,6 +35,8 @@ struct IJobHost
     virtual NChunkClient::IBlockCachePtr GetUncompressedBlockCache() const = 0;
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const = 0;
+
+    virtual NLog::TLogger GetLogger() const = 0;
 
 };
 

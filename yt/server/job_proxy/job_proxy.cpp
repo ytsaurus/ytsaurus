@@ -26,6 +26,7 @@
 
 #include <core/ytree/convert.h>
 
+#include <core/logging/log.h>
 #include <core/logging/log_manager.h>
 
 #include <core/bus/tcp_client.h>
@@ -411,6 +412,11 @@ void TJobProxy::CheckMemoryUsage()
             JobProxyMemoryLimit_,
             TRefCountedTracker::Get()->GetDebugInfo(2));
     }
+}
+
+NLog::TLogger TJobProxy::GetLogger() const
+{
+    return Logger;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

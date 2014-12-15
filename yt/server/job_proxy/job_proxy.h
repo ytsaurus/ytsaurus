@@ -84,6 +84,8 @@ private:
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const override;
 
+    virtual NLog::TLogger GetLogger() const override;
+
     void CheckMemoryUsage();
 
 };
