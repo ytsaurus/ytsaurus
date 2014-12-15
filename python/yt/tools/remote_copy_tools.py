@@ -381,7 +381,7 @@ while True:
 """
 
     if kiwi_user is None:
-        kiwi_user = "flux"
+        kiwi_user = "gemini"
 
     range_table = kiwi_transmittor.create_temp_table(prefix=os.path.basename(src))
     kiwi_transmittor.write_table(range_table,
