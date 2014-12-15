@@ -1025,7 +1025,7 @@ bool TChunkReplicator::IsEnabled()
     }
 
     int chunkCount = chunkManager->GetChunkCount();
-    int lostChunkCount = chunkManager->LostChunks().size();
+    int lostChunkCount = chunkManager->LostVitalChunks().size();
     if (Config->SafeLostChunkFraction && chunkCount > 0) {
         double needFraction = *Config->SafeLostChunkFraction;
         double gotFraction = (double) lostChunkCount / chunkCount;
@@ -1039,7 +1039,7 @@ bool TChunkReplicator::IsEnabled()
             return false;
         }
     }
-    else if (Config->SafeLostChunkCount && *Config->SafeLostChunkCount < lostChunkCount) {
+    if (Config->SafeLostChunkCount && *Config->SafeLostChunkCount < lostChunkCount) {
         if (!LastEnabled || LastEnabled.Get()) {
             LOG_INFO("Chunk replicator disabled: too many lost chunks, needed <= %d but got %d",
                 *Config->SafeLostChunkCount,
