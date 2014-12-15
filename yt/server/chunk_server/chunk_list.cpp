@@ -54,7 +54,7 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     Load(context, Statistics_);
 
     // COMPAT(ignat)
-    if (context.GetVersion() < 44) {
+    if (context.GetVersion() < 45) {
         Statistics_.Rank = std::max(Statistics_.Rank, 1);
     }
 
