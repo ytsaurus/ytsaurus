@@ -42,6 +42,7 @@
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/chunk_reader.h>
+#include <ytlib/chunk_client/data_statistics.h>
 
 #include <ytlib/job_tracker_client/statistics.h>
 
@@ -179,15 +180,15 @@ void TJobProxy::Run()
         if (Config_->ForceEnableAccounting) {
             TCpuAccounting cpuAccounting("");
             auto cpuStatistics = cpuAccounting.GetStatistics();
-            AddStatistic(customStatistics, "/job_proxy/cpu", cpuStatistics);
+            customStatistics.Add("/job_proxy/cpu", cpuStatistics);
 
             TBlockIO blockIO("");
             auto blockIOStatistics = blockIO.GetStatistics();
-            AddStatistic(customStatistics, "/job_proxy/block_io", blockIOStatistics);
+            customStatistics.Add("/job_proxy/block_io", blockIOStatistics);
         }
 
-        AddStatistic(customStatistics, "/job_proxy/input", jobStatistics.input());
-        AddStatistic(customStatistics, "/job_proxy/output", jobStatistics.output());
+        customStatistics.Add("/job_proxy/input", jobStatistics.input());
+        customStatistics.Add("/job_proxy/output", jobStatistics.output());
 
         ToProto(jobStatistics.mutable_statistics(), NYTree::ConvertToYsonString(customStatistics).Data());
         ToProto(result.mutable_statistics(), jobStatistics);

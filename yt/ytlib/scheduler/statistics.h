@@ -5,9 +5,9 @@
 #include <core/yson/consumer.h>
 
 // should be removed
-// TODO(babenko): so let's remove it
-#include <core/ytree/tree_builder.h>
+// TODO(babenko): so let's remove ITreeBuilder
 #include <core/ytree/public.h>
+#include <core/ytree/tree_builder.h>
 
 #include <core/actions/bind.h>
 
@@ -42,6 +42,10 @@ class TStatistics
 {
 public:
     void Add(const NYPath::TYPath& name, const TSummary& summary);
+
+    template <class T>
+    void Add(const NYPath::TYPath& path, const T& statistics);
+
     void Merge(const TStatistics& other);
     void Clear();
     bool IsEmpty() const;
@@ -98,19 +102,19 @@ private:
 ////////////////////////////////////////////////////////////////////
 
 // TODO(babenko): move to inl
-// why isn't it a member?
-template <typename T>
-void AddStatistic(TStatistics& customStatistics, const NYPath::TYPath& path, const T& statistics)
+template <class T>
+void TStatistics::Add(const NYPath::TYPath& path, const T& statistics)
 {
-    auto consume = [&customStatistics] (const TStatistics& other) {
-        customStatistics.Merge(other);
-    };
+    TStatisticsConsumer consumer(
+        BIND([=] (const TStatistics& other) {
+            Merge(other);
+        }),
+        path);
 
-    TStatisticsConsumer consumer(BIND(consume), path);
     Serialize(statistics, &consumer);
 }
 
-// TODO(babenko): need a separator here
+////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT
