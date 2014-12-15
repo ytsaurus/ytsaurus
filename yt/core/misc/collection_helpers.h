@@ -1,0 +1,19 @@
+#pragma once
+
+#include "common.h"
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+void ShrinkHashTable(T* collection);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
+
+#define COLLECTION_HELPERS_INL_H_
+#include "collection_helpers-inl.h"
+#undef COLLECTION_HELPERS_INL_H_
+

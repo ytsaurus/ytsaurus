@@ -15,6 +15,7 @@
 #include "helpers.h"
 
 #include <core/misc/string.h>
+#include <core/misc/collection_helpers.h>
 
 #include <core/compression/codec.h>
 
@@ -783,6 +784,18 @@ private:
 
     void OnIncrementalHeartbeat(TNode* node, const NNodeTrackerServer::NProto::TMetaReqIncrementalHeartbeat& request)
     {
+        // Shrink hashtables.
+        // NB: Skip StoredReplicas, these are typically huge.
+        ShrinkHashTable(&node->CachedReplicas());
+        ShrinkHashTable(&node->UnapprovedReplicas());
+        ShrinkHashTable(&node->Jobs());
+        for (auto& queue : node->ChunkReplicationQueues()) {
+            ShrinkHashTable(&queue);
+        }
+        ShrinkHashTable(&node->ChunkRemovalQueue());
+        // TODO(babenko): add after merge into master
+        // ShrinkHashTable(&node->ChunkSealQueue());
+
         FOREACH (const auto& chunkInfo, request.added_chunks()) {
             ProcessAddedChunk(node, chunkInfo, true);
         }
