@@ -115,6 +115,8 @@ public:
     i64 GetRowCount() const;
     NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
 
+    const NProto::TOldBoundaryKeysExt& GetOldBoundaryKeys() const;
+
 private:
     TChunkWriterConfigPtr Config;
     TChunkWriterOptionsPtr Options;

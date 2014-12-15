@@ -131,7 +131,7 @@ template <class TChunkWriter>
 class TOldMultiChunkSequentialWriter;
 
 template <class TChunkReader>
-class TOldMultiChunkSequentialReader;
+class TOldMultiChunkParallelReader;
 
 DECLARE_REFCOUNTED_CLASS(TRefCountedChunkSpec)
 DECLARE_REFCOUNTED_CLASS(TChunkSlice)

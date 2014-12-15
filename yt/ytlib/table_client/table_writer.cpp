@@ -68,9 +68,6 @@ public:
 private:
     typedef TAsyncTableWriter TThis;
 
-    TFuture<TErrorOr<TTransactionPtr>> CreateUploadTransaction();
-    void OnTransactionCreated(TTransactionPtr transactionOrError);
-
     TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> FetchTableInfo();
     TChunkListId OnInfoFetched(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 

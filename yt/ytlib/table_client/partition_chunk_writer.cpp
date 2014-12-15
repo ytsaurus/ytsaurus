@@ -351,6 +351,14 @@ NChunkClient::NProto::TDataStatistics TPartitionChunkWriterProvider::GetDataStat
     return result;
 }
 
+const NProto::TOldBoundaryKeysExt& TPartitionChunkWriterProvider::GetOldBoundaryKeys() const
+{
+    static NProto::TOldBoundaryKeysExt boundaryKeys;
+    boundaryKeys.mutable_start();
+    boundaryKeys.mutable_end();
+    return boundaryKeys;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
