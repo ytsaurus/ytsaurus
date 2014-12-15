@@ -64,10 +64,6 @@ void WaitFor(TFuture<void> future, IInvokerPtr invoker)
     YASSERT(future);
     YASSERT(invoker);
 
-    if (future.IsSet()) {
-        return;
-    }
-
     if (future.IsCanceled()) {
         throw TFiberCanceledException();
     }
