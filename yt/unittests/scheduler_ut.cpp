@@ -9,6 +9,7 @@
 #include <core/concurrency/fiber.h>
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/parallel_awaiter.h>
+#include <core/concurrency/delayed_executor.h>
 
 #include <core/actions/cancelable_context.h>
 #include <core/actions/invoker_util.h>
@@ -140,6 +141,40 @@ TEST_W(TSchedulerTest, SwitchToCancelableInvoker3)
     context->Cancel();
 
     EXPECT_THROW({ SwitchTo(invoker2); }, TFiberCanceledException);
+}
+
+TEST_W(TSchedulerTest, WaitForCancelableInvoker1)
+{
+    auto context = New<TCancelableContext>();
+    auto invoker = context->CreateInvoker(Queue1->GetInvoker());
+    auto promise = NewPromise();
+    auto future = promise.ToFuture();
+    TDelayedExecutor::Submit(
+        BIND([=] () mutable {
+            context->Cancel();
+            promise.Set();
+        }),
+        TDuration::MilliSeconds(100));
+    WaitFor(BIND([=] () {
+            EXPECT_THROW({ WaitFor(future); }, TFiberCanceledException);
+        })
+        .AsyncVia(invoker)
+        .Run());
+}
+
+TEST_W(TSchedulerTest, WaitForCancelableInvoker2)
+{
+    auto context = New<TCancelableContext>();
+    auto invoker = context->CreateInvoker(Queue1->GetInvoker());
+    auto promise = NewPromise();
+    auto future = promise.ToFuture();
+    WaitFor(BIND([=] () mutable {
+            context->Cancel();
+            promise.Set();
+            EXPECT_THROW({ WaitFor(future); }, TFiberCanceledException);
+        })
+        .AsyncVia(invoker)
+        .Run());
 }
 
 TEST_W(TSchedulerTest, TerminatedCaught)
