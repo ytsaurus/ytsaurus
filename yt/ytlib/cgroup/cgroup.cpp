@@ -49,14 +49,14 @@ Stroka GetParentFor(const Stroka& type)
 #endif
 }
 
-yvector<Stroka> ReadAllValues(const Stroka& fileName)
+std::vector<Stroka> ReadAllValues(const Stroka& fileName)
 {
     auto raw = TFileInput(fileName).ReadAll();
     LOG_DEBUG("File %v contains %Qv", fileName, raw);
 
     yvector<Stroka> values;
     Split(raw.data(), " \n", values);
-    return values;
+    return std::vector<Stroka>(values.begin(), values.end());
 }
 
 #ifdef _linux_
@@ -389,11 +389,7 @@ TCGroup::TCGroup(TCGroup&& other)
 TCGroup::~TCGroup()
 {
     if (Created_) {
-        try {
-            Destroy();
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error destroying cgroup %v", FullPath_);
-        }
+        Destroy();
     }
 }
 
@@ -405,14 +401,16 @@ void TCGroup::Create()
 
 void TCGroup::Destroy()
 {
+    LOG_INFO("Destroying cgroup %v", FullPath_);
     YCHECK(Created_);
 
-    LOG_INFO("Destroying cgroup %v", FullPath_);
-
 #ifdef _linux_
-    NFS::Remove(FullPath_);
+    try {
+        NFS::Remove(FullPath_);
+    } catch (const std::exception& ex) {
+        LOG_FATAL(ex, "Failed to destroy cgroup %Qv", FullPath_);
+    }
 #endif
-
     Created_ = false;
 }
 
@@ -431,28 +429,31 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
 {
     TCpuAccounting::TStatistics result;
 #ifdef _linux_
-    auto path = NFS::CombinePaths(GetFullPath(), "cpuacct.stat");
-    auto values = ReadAllValues(path);
-    if (values.size() != 4) {
-        THROW_ERROR_EXCEPTION("Unable to parse %v: expected 4 values, got %v",
-            path,
-            values.size());
-    }
+    try {
+        auto path = NFS::CombinePaths(GetFullPath(), "cpuacct.stat");
+        auto values = ReadAllValues(path);
+        YCHECK(values.size() == 4);
 
-    Stroka type[2];
-    i64 jiffies[2];
+        Stroka type[2];
+        i64 jiffies[2];
 
-    for (int i = 0; i < 2; ++i) {
-        type[i] = values[2 * i];
-        jiffies[i] = FromString<i64>(values[2 * i + 1]);
-    }
-
-    for (int i = 0; i < 2; ++i) {
-        if (type[i] == "user") {
-            result.UserTime = FromJiffies(jiffies[i]);
-        } else if (type[i] == "system") {
-            result.SystemTime = FromJiffies(jiffies[i]);
+        for (int i = 0; i < 2; ++i) {
+            type[i] = values[2 * i];
+            jiffies[i] = FromString<i64>(values[2 * i + 1]);
         }
+
+        for (int i = 0; i < 2; ++i) {
+            if (type[i] == "user") {
+                result.UserTime = FromJiffies(jiffies[i]);
+            } else if (type[i] == "system") {
+                result.SystemTime = FromJiffies(jiffies[i]);
+            }
+        }
+    } catch (const std::exception& ex) {
+        LOG_FATAL(
+            ex, 
+            "Failed to retreive cpu statistics from cgroup %Qv", 
+            GetFullPath());
     }
 #endif
     return result;
@@ -480,23 +481,23 @@ TBlockIO::TStatistics TBlockIO::GetStatistics() const
 {
     TBlockIO::TStatistics result;
 #ifdef _linux_
-    auto bytesStats = GetDetailedStatistics("blkio.io_service_bytes");
-    for (const auto& item : bytesStats) {
-        if (item.Type == "Read") {
-            result.BytesRead += item.Value;
-        } else if (item.Type == "Write") {
-            result.BytesWritten += item.Value;
+        auto bytesStats = GetDetailedStatistics("blkio.io_service_bytes");
+        for (const auto& item : bytesStats) {
+            if (item.Type == "Read") {
+                result.BytesRead += item.Value;
+            } else if (item.Type == "Write") {
+                result.BytesWritten += item.Value;
+            }
         }
-    }
 
-    auto IOsStats = GetDetailedStatistics("blkio.io_serviced");
-    for (const auto& item : IOsStats) {
-        if (item.Type == "Read") {
-            result.IORead += item.Value;
-        } else if (item.Type == "Write") {
-            result.IOWrite += item.Value;
+        auto IOsStats = GetDetailedStatistics("blkio.io_serviced");
+        for (const auto& item : IOsStats) {
+            if (item.Type == "Read") {
+                result.IORead += item.Value;
+            } else if (item.Type == "Write") {
+                result.IOWrite += item.Value;
+            }
         }
-    }
 #endif
     return result;
 }
@@ -515,26 +516,29 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
 {
     std::vector<TBlockIO::TStatisticsItem> result;
 #ifdef _linux_
-    auto path = NFS::CombinePaths(GetFullPath(), filename);
-    auto values = ReadAllValues(path);
+    try {
+        auto path = NFS::CombinePaths(GetFullPath(), filename);
+        auto values = ReadAllValues(path);
 
-    int lineNumber = 0;
-    while (3 * lineNumber + 2 < values.size()) {
-        TStatisticsItem item;
-        item.DeviceId = values[3 * lineNumber];
-        item.Type = values[3 * lineNumber + 1];
-        item.Value = FromString<i64>(values[3 * lineNumber + 2]);
+        int lineNumber = 0;
+        while (3 * lineNumber + 2 < values.size()) {
+            TStatisticsItem item;
+            item.DeviceId = values[3 * lineNumber];
+            item.Type = values[3 * lineNumber + 1];
+            item.Value = FromString<i64>(values[3 * lineNumber + 2]);
 
-        if (!item.DeviceId.has_prefix("8:")) {
-            THROW_ERROR_EXCEPTION("Unable to parse %v: %v should start with \"8:\"",
-                path,
-                item.DeviceId);
+            YCHECK(item.DeviceId.has_prefix("8:"));
+
+            if (item.Type == "Read" || item.Type == "Write") {
+                result.push_back(item);
+            }
+            ++lineNumber;
         }
-
-        if (item.Type == "Read" || item.Type == "Write") {
-            result.push_back(item);
-        }
-        ++lineNumber;
+    } catch (const std::exception& ex) {
+        LOG_FATAL(
+            ex, 
+            "Failed to retreive block io statistics from cgroup %Qv", 
+            GetFullPath());
     }
 #endif
     return result;
@@ -573,8 +577,8 @@ TMemory::TStatistics TMemory::GetStatistics() const
 {
     TMemory::TStatistics result;
 #ifdef _linux_
-    {
-        auto values = ReadAllValues(GetPath("memory.stat"));
+     try {
+        auto values = ReadAllValues(NFS::CombinePaths(FullPath_, "memory.stat"));
         int lineNumber = 0;
         while (2 * lineNumber + 1 < values.size()) {
             const auto& type = values[2 * lineNumber];
@@ -587,6 +591,11 @@ TMemory::TStatistics TMemory::GetStatistics() const
             }
             ++lineNumber;
         }
+    } catch (const std::exception& ex) {
+        LOG_FATAL(
+            ex, 
+            "Failed to retreive memory statistics from cgroup %Qv", 
+            GetFullPath());
     }
 #endif
     return result;

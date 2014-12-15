@@ -115,7 +115,7 @@ TEST(CGroup, UnableToDestoryNotEmptyCGroup)
 
     i64 value;
     ASSERT_EQ(sizeof(value), ::read(addedEvent, &value, sizeof(value)));
-    EXPECT_THROW(group.Destroy(), std::exception);
+    ASSERT_DEATH(group.Destroy());
 
     value = 1;
     ASSERT_EQ(sizeof(value), ::write(triedRemoveEvent, &value, sizeof(value)));
