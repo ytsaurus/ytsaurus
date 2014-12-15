@@ -135,6 +135,11 @@ public:
         const TVersionedObjectId& originatingId,
         const TVersionedObjectId& branchedId);
 
+    //! Fills the attributes of a given unversioned object.
+    void FillAttributes(
+        TObjectBase* object,
+        const NYTree::IAttributeDictionary& attributes);
+
     //! Returns a YPath service that routes all incoming requests.
     NYTree::IYPathServicePtr GetRootService();
 

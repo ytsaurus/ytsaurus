@@ -47,6 +47,7 @@
 #include <server/security_server/group.h>
 #include <server/security_server/acl.h>
 #include <server/security_server/security_manager.h>
+#include <Foundation/Foundation.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -796,6 +797,25 @@ void TObjectManager::MergeAttributes(
     }
 }
 
+void TObjectManager::FillAttributes(
+    TObjectBase* object,
+    const IAttributeDictionary& attributes)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YCHECK(!IsVersionedType(object->GetType()));
+
+    auto keys = attributes.List();
+    if (keys.empty())
+        return;
+
+    auto* attributeSet = GetOrCreateAttributes(TVersionedObjectId(object->GetId()));
+    for (const auto& key : keys) {
+        YCHECK(attributeSet->Attributes().insert(std::make_pair(
+            key,
+            attributes.GetYson(key))).second);
+    }
+}
+
 TMutationPtr TObjectManager::CreateExecuteMutation(const NProto::TReqExecute& request)
 {
     return CreateMutation(
@@ -903,17 +923,7 @@ TObjectBase* TObjectManager::CreateObject(
         response);
     const auto& objectId = object->GetId();
 
-    // Copy attributes. Quick and dirty.
-    auto attributeKeys = attributes->List();
-    if (!attributeKeys.empty()) {
-        auto* attributeSet = GetOrCreateAttributes(TVersionedObjectId(objectId));
-
-        for (const auto& key : attributeKeys) {
-            YCHECK(attributeSet->Attributes().insert(std::make_pair(
-                key,
-                attributes->GetYson(key))).second);
-        }
-    }
+    FillAttributes(object, *attributes);
 
     auto* stagingTransaction = handler->GetStagingTransaction(object);
     if (stagingTransaction) {
