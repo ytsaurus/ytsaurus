@@ -114,7 +114,15 @@ void TBootstrap::DoRun()
         LocalAddress_,
         JoinToString(Config_->ClusterConnection->Master->Addresses));
 
-    auto connection = CreateConnection(Config_->ClusterConnection);
+    auto isRetriableError = BIND([] (const TError& error) -> bool {
+        auto code = error.GetCode();
+        if (code == NSecurityClient::EErrorCode::RequestRateLimitExceeded) {
+            return true;
+        }
+        return IsRetriableError(error);
+    });
+
+    auto connection = CreateConnection(Config_->ClusterConnection, isRetriableError);
     MasterClient_ = connection->CreateClient(GetRootClientOptions());
 
     BusServer_ = CreateTcpBusServer(New<TTcpBusServerConfig>(Config_->RpcPort));

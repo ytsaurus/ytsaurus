@@ -169,14 +169,6 @@ void TBootstrap::DoRun()
         }
     }
 
-    auto isRetriableError = BIND([] (const TError& error) -> bool {
-        auto code = error.GetCode();
-        if (code == NSecurityClient::EErrorCode::RequestRateLimitExceeded) {
-            return true;
-        }
-        return IsRetriableError(error);
-    });
-
     auto clusterConnection = CreateConnection(Config->ClusterConnection);
     MasterClient = clusterConnection->CreateClient(GetRootClientOptions());
 
