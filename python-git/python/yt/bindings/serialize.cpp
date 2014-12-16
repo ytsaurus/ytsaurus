@@ -480,7 +480,12 @@ public:
             THROW_ERROR_EXCEPTION("Yson list fragment is incomplete");
         }
         if (hasRow) {
-            return Lexer_.ExtractPrefix();
+            auto prefix = Lexer_.ExtractPrefix();
+            YCHECK(*(prefix.End() - 1) != NYson::NDetail::ListItemSeparatorSymbol);
+            auto result = TSharedRef::Allocate(prefix.Size() + 1);
+            std::copy(prefix.Begin(), prefix.End(), result.Begin());
+            *(result.End() - 1) = ';';
+            return result;
         }
 
         return TSharedRef();

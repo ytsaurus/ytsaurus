@@ -105,7 +105,7 @@ class TestYsonStream(YsonParserTestBase, unittest.TestCase):
         assert ["123;", "#;", '{a={b=[";"]}};', "<attr=10>0.1;"] == rows
 
         rows = list(loads("123;#", raw=True, yson_type="list_fragment"))
-        assert ["123;", "#"] == rows
+        assert ["123;", "#;"] == rows
 
         self.assertRaises(Exception, lambda: loads("{a=b"))
         self.assertRaises(Exception, lambda: loads("{a=b}{c=d}"))
