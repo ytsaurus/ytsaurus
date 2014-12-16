@@ -908,6 +908,7 @@ def run():
     options.define("source_id", help="[logbroker] source id")
 
     options.define("threshold", default=10**6, help="threshold of lag size to generate error")
+    options.define("count", default=10**6, help="row count to archive")
 
     options.define("init", default=False, help="init and exit")
     options.define("monitor", default=False, help="output status and exit")
