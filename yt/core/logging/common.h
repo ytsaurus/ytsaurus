@@ -29,16 +29,6 @@ struct TLogEvent
 {
     static const int InvalidLine = -1;
 
-    TLogEvent()
-    { }
-
-    TLogEvent(const Stroka& category, ELogLevel level, const Stroka& message)
-        : Category(category)
-        , Level(level)
-        , Message(message)
-        , DateTime(TInstant::Now())
-    { }
-
     Stroka Category;
     ELogLevel Level;
     Stroka Message;

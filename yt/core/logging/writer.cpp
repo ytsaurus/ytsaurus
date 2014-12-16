@@ -6,6 +6,8 @@
 #include <core/misc/fs.h>
 
 #include <core/build.h>
+#include <contrib/libev/event.h>
+#include <AppKit/AppKit.h>
 
 namespace NYT {
 namespace NLog {
@@ -22,13 +24,15 @@ namespace {
 
 TLogEvent GetBannerEvent()
 {
-    return TLogEvent(
-        SystemLoggingCategory,
-        ELogLevel::Info,
-        Format("Logging started (Version: %v, BuildHost: %v, BuildTime: %v)",
-            GetVersion(),
-            GetBuildHost(),
-            GetBuildTime()));
+    TLogEvent event;
+    event.DateTime = TInstant::Now();
+    event.Category = SystemLoggingCategory;
+    event.Level = ELogLevel::Info;
+    event.Message = Format("Logging started (Version: %v, BuildHost: %v, BuildTime: %v)",
+        GetVersion(),
+        GetBuildHost(),
+        GetBuildTime());
+    return event;
 }
 
 } // namespace

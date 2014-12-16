@@ -129,6 +129,7 @@ void LogEventImpl(
     const Stroka& message)
 {
     TLogEvent event;
+    event.DateTime = TInstant::Now();
     event.Category = logger.GetCategory();
     event.Level = level;
     event.Message = message;
