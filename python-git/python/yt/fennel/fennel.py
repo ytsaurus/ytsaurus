@@ -129,7 +129,7 @@ class EventLog(object):
         except Exception:
             pass
 
-        self.log.info("%d rows has been requested to archive", count)
+        self.log.info("%s rows has been requested to archive", count)
 
         desired_chunk_size = 2 * 1024 ** 3
         approximate_gzip_compression_ratio = 0.137
