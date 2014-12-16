@@ -185,7 +185,7 @@ public:
         MaybeSyncClose();
     }
 
-    bool TrySweep()
+    TPromise<TError> TrySweep()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -194,23 +194,23 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
 
             if (!AppendQueue_.empty() || !FlushQueue_.empty()) {
-                return false;
+                return TPromise<TError>();
             }
 
             if (SealRequested_ && !SealPromise_.IsSet()) {
-                return false;
+                return TPromise<TError>();
             }
 
             if (UnsealRequested_ && !UnsealPromise_.IsSet()) {
-                return false;
+                return TPromise<TError>();
             }
 
             if (CloseRequested_ && !ClosePromise_.IsSet()) {
-                return false;
+                return TPromise<TError>();
             }
 
             if (UseCount_.load() > 0) {
-                return false;
+                return TPromise<TError>();
             }
 
             promise = FlushPromise_;
@@ -218,9 +218,7 @@ public:
             FlushForced_ = false;
         }
 
-        promise.Set(TError());
-
-        return true;
+        return promise;
     }
     
 
@@ -619,16 +617,26 @@ private:
 
     void SweepQueues()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
-        auto it = QueueMap_.begin();
-        while (it != QueueMap_.end()) {
-            auto jt = it++;
-            auto queue = jt->second;
-            if (queue->TrySweep()) {
-                QueueMap_.erase(jt);
-                LOG_DEBUG("Changelog queue removed (Path: %v)",
-                    queue->GetChangelog()->GetFileName());
+        std::vector<TPromise<TError>> promises;
+
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            auto it = QueueMap_.begin();
+            while (it != QueueMap_.end()) {
+                auto jt = it++;
+                auto queue = jt->second;
+                auto promise = queue->TrySweep();
+                if (promise) {
+                    promises.push_back(promise);
+                    QueueMap_.erase(jt);
+                    LOG_DEBUG("Changelog queue removed (Path: %v)",
+                        queue->GetChangelog()->GetFileName());
+                }
             }
+        }
+
+        for (auto promise : promises) {
+            promise.Set(TError());
         }
     }
 
