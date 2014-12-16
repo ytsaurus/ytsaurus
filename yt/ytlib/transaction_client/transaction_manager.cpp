@@ -329,10 +329,8 @@ public:
         ToProto(req->mutable_transaction_id(), Id_);
         req->set_start_timestamp(StartTimestamp_);
         req->set_start_timestamp(StartTimestamp_);
-        if (Timeout_) {
-            req->set_timeout(Timeout_->MilliSeconds());
-        }
-        
+        req->set_timeout(Timeout_.Get(Owner_->Config_->DefaultTransactionTimeout).MilliSeconds());
+
         req->Invoke().Subscribe(
             BIND(&TImpl::OnTabletParticipantAdded, MakeStrong(this), cellId, promise));
 

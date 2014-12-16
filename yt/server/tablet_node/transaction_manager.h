@@ -44,8 +44,6 @@ public:
 
     ~TTransactionManager();
 
-    TDuration GetActualTimeout(TNullable<TDuration> timeout);
-
     NHydra::TMutationPtr CreateStartTransactionMutation(
         const NTabletClient::NProto::TReqStartTransaction& request);
 

@@ -188,15 +188,11 @@ class TTransactionManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TDuration DefaultTransactionTimeout;
     TDuration MaxTransactionTimeout;
     TDuration MaxTransactionDuration;
 
     TTransactionManagerConfig()
     {
-        RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)
-            .GreaterThan(TDuration())
-            .Default(TDuration::Seconds(15));
         RegisterParameter("max_transaction_timeout", MaxTransactionTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::Seconds(60));

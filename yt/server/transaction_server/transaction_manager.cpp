@@ -775,10 +775,7 @@ TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::Create(
     TRspCreateObjects* /*response*/)
 {
     const auto* requestExt = &request->GetExtension(TReqStartTransactionExt::create_transaction_ext);
-    auto timeout = requestExt->has_timeout()
-        ? TNullable<TDuration>(TDuration::MilliSeconds(requestExt->timeout()))
-        : Null;
-
+    auto timeout = TDuration::MilliSeconds(requestExt->timeout());
     auto* transaction = Owner_->StartTransaction(parent, timeout);
     transaction->SetUncommittedAccountingEnabled(requestExt->enable_uncommitted_accounting());
     transaction->SetStagedAccountingEnabled(requestExt->enable_staged_accounting());

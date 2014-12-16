@@ -79,15 +79,6 @@ public:
     }
 
 
-    TDuration GetActualTimeout(TNullable<TDuration> timeout)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        return std::min(
-            timeout.Get(Config_->DefaultTransactionTimeout),
-            Config_->MaxTransactionTimeout);
-    }
-
     TMutationPtr CreateStartTransactionMutation(TReqStartTransaction request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -260,12 +251,12 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     
-    void CreateLeases(TTransaction* transaction, TDuration timeout)
+    void CreateLeases(TTransaction* transaction)
     {
         auto invoker = Slot_->GetEpochAutomatonInvoker();
 
         auto lease = TLeaseManager::CreateLease(
-            timeout,
+            transaction->GetTimeout(),
             BIND(&TImpl::OnTransactionExpired, MakeStrong(this), transaction->GetId())
                 .Via(invoker));
         transaction->SetLease(lease);
@@ -370,7 +361,7 @@ private:
             timeout);
 
         if (IsLeader()) {
-            CreateLeases(transaction, timeout);
+            CreateLeases(transaction);
         }
     }
 
@@ -383,8 +374,7 @@ private:
             if (transaction->GetState() == ETransactionState::Active ||
                 transaction->GetState() == ETransactionState::PersistentCommitPrepared)
             {
-                auto actualTimeout = GetActualTimeout(transaction->GetTimeout());
-                CreateLeases(transaction, actualTimeout);
+                CreateLeases(transaction);
             }
         }
     }
@@ -465,11 +455,6 @@ TTransactionManager::TTransactionManager(
 
 TTransactionManager::~TTransactionManager()
 { }
-
-TDuration TTransactionManager::GetActualTimeout(TNullable<TDuration> timeout)
-{
-    return Impl_->GetActualTimeout(timeout);
-}
 
 TMutationPtr TTransactionManager::CreateStartTransactionMutation(
     const TReqStartTransaction& request)

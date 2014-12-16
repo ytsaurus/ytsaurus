@@ -14,7 +14,7 @@ message TReqStartTransaction
     required int64 start_timestamp = 2;
 
     // Transaction timeout (in ms).
-    optional int32 timeout = 3;
+    required int32 timeout = 3;
 }
 
 message TRspStartTransaction

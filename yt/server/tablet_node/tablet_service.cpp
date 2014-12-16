@@ -76,11 +76,10 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto startTimestamp = TTimestamp(request->start_timestamp());
-        auto timeout = request->has_timeout() ? MakeNullable(TDuration::MilliSeconds(request->timeout())) : Null;
+        auto timeout = TDuration::MilliSeconds(request->timeout());
 
-        // Compute the actual timeout and update request.
-        auto transactionManager = Slot_->GetTransactionManager();
-        auto actualTimeout = transactionManager->GetActualTimeout(timeout);
+        auto config = Bootstrap_->GetConfig()->TabletNode->TransactionManager;
+        auto actualTimeout = std::min(timeout, config->MaxTransactionTimeout);
         request->set_timeout(actualTimeout.MilliSeconds());
 
         context->SetRequestInfo("TransactionId: %v, StartTimestamp: %v, Timeout: %v",
@@ -88,6 +87,7 @@ private:
             startTimestamp,
             actualTimeout);
 
+        auto transactionManager = Slot_->GetTransactionManager();
         transactionManager
             ->CreateStartTransactionMutation(*request)
             ->Commit()
