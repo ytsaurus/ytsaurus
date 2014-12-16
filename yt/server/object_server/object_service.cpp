@@ -331,8 +331,7 @@ private:
             const auto& path = prerequisite.path();
             i64 revision = prerequisite.revision();
 
-            auto* transaction =
-                transactionId == NullTransactionId
+            auto* transaction = transactionId == NullTransactionId
                 ? nullptr
                 : GetPrerequisiteTransaction(transactionId);
 
