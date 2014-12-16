@@ -620,8 +620,9 @@ private:
         YCHECK(transaction->GetState() == ETransactionState::Active);
 
         auto timeout = transaction->GetTimeout();
-
-        TLeaseManager::RenewLease(transaction->GetLease(), timeout);
+        if (timeout) {
+            TLeaseManager::RenewLease(transaction->GetLease(), *timeout);
+        }
 
         LOG_DEBUG("Transaction pinged (TransactionId: %v, Timeout: %v)",
             transaction->GetId(),
