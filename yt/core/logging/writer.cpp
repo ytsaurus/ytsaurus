@@ -6,16 +6,15 @@
 #include <core/misc/fs.h>
 
 #include <core/build.h>
+
 #include <contrib/libev/event.h>
-#include <AppKit/AppKit.h>
 
 namespace NYT {
 namespace NLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TLogger Logger(SystemLoggingCategory);
-
+static const TLogger Logger(SystemLoggingCategory);
 static const size_t BufferSize = 1 << 16;
 
 ////////////////////////////////////////////////////////////////////////////////
