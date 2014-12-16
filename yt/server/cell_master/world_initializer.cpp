@@ -23,6 +23,8 @@
 
 #include <ytlib/election/cell_manager.h>
 
+#include <ytlib/transaction_client/transaction_ypath_proxy.h>
+
 #include <server/hive/transaction_supervisor.h>
 
 #include <server/cell_master/bootstrap.h>
@@ -43,6 +45,7 @@ using namespace NYPath;
 using namespace NCypressServer;
 using namespace NCypressClient;
 using namespace NTransactionClient;
+using namespace NTransactionClient::NProto;
 using namespace NHive;
 using namespace NHive::NProto;
 using namespace NObjectClient;
@@ -53,6 +56,7 @@ using namespace NSecurityServer;
 
 static NLog::TLogger Logger("Bootstrap");
 static const TDuration InitRetryPeriod = TDuration::Seconds(3);
+static const TDuration InitTransactionTimeout = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -447,6 +451,9 @@ private:
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TMasterYPathProxy::CreateObjects();
         req->set_type(EObjectType::Transaction);
+
+        auto* requestExt = req->MutableExtension(TReqStartTransactionExt::create_transaction_ext);
+        requestExt->set_timeout(InitTransactionTimeout.MilliSeconds());
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", "World initialization");
