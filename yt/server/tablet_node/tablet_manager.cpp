@@ -912,11 +912,16 @@ private:
         if (!tablet)
             return;
 
+        auto pivotKeys = FromProto<TOwningKey>(request.pivot_keys());
+        auto* partition = tablet->GetPartitionByPivotKey(pivotKeys[0]);
+
+        // NB: Set the state back to normal; otherwise if some of the below checks fail, we might get
+        // a partition stuck in splitting state forever.
+        partition->SetState(EPartitionState::Normal);
+
         if (tablet->Partitions().size() >= tablet->GetConfig()->MaxPartitionCount)
             return;
 
-        auto pivotKeys = FromProto<TOwningKey>(request.pivot_keys());
-        auto* partition = tablet->GetPartitionByPivotKey(pivotKeys[0]);
         int partitionIndex = partition->GetIndex();
 
         LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, PartitionIndex: %v, DataSize: %v, Keys: %v)",
@@ -937,9 +942,16 @@ private:
             return;
 
         auto pivotKey = FromProto<TOwningKey>(request.pivot_key());
-        auto* partition = tablet->GetPartitionByPivotKey(pivotKey);
-        int firstPartitionIndex = partition->GetIndex();
+        auto* firstPartition = tablet->GetPartitionByPivotKey(pivotKey);
+        int firstPartitionIndex = firstPartition->GetIndex();
         int lastPartitionIndex = firstPartitionIndex + request.partition_count() - 1;
+
+        // See HydraSplitPartition.
+        // Currently this code is redundant since there's no escape path below,
+        // but we prefer to keep it to make things look symmetric.
+        for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
+            tablet->Partitions()[index]->SetState(EPartitionState::Normal);
+        }
 
         LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, PartitionIndexes: %v .. %v, Keys: %v .. %v)",
             tablet->GetId(),
