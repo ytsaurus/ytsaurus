@@ -56,7 +56,7 @@ using namespace NSecurityServer;
 
 static NLog::TLogger Logger("Bootstrap");
 static const TDuration InitRetryPeriod = TDuration::Seconds(3);
-static const TDuration InitTransactionTimeout = TDuration::Seconds(3);
+static const TDuration InitTransactionTimeout = TDuration::Seconds(60);
 
 ////////////////////////////////////////////////////////////////////////////////
 
