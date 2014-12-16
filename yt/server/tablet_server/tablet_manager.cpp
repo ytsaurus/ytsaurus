@@ -1412,6 +1412,13 @@ private:
 
         auto* cell = it->second;
         cell->SetPrerequisiteTransaction(nullptr);
+        TransactionToCellMap_.erase(it);
+
+        if (IsObjectAlive(cell)) {
+            LOG_WARNING_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted prematurely (CellId: %v, TransactionId: %v)",
+                cell->GetId(),
+                transaction->GetId());
+        }
     }
 
 
