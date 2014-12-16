@@ -1026,15 +1026,6 @@ Function* TCGContext::CodegenGroupComparerFunction(
 
     TCGIRBuilder builder(BasicBlock::Create(module->getContext(), "entry", function));
 
-    auto returnIfZero = [&] (Value* value) {
-        auto* thenBB = builder.CreateBBHere("then");
-        auto* elseBB = builder.CreateBBHere("else");
-        builder.CreateCondBr(builder.CreateICmpNE(value, builder.getInt8(0)), thenBB, elseBB);
-        builder.SetInsertPoint(elseBB);
-        builder.CreateRet(builder.getInt8(0));
-        builder.SetInsertPoint(thenBB);
-    };
-
     auto returnIf = [&] (Value* condition) {
         auto* thenBB = builder.CreateBBHere("then");
         auto* elseBB = builder.CreateBBHere("else");
@@ -1092,7 +1083,7 @@ Function* TCGContext::CodegenGroupComparerFunction(
                 thenResult = builder.CreateCall4(
                             Module_->GetRoutine("Equal"),
                             lhsData, lhsLength, rhsData, rhsLength);
-                returnIfZero(thenResult);
+                returnIf(builder.CreateICmpEQ(thenResult, builder.getInt8(0)));
                 break;
             }
 
