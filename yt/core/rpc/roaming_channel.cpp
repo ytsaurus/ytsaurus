@@ -115,7 +115,7 @@ private:
         virtual void OnError(const TError& error) override
         {
             UnderlyingHandler->OnError(error);
-            if (IsRetriableError(error)) {
+            if (IsChannelFailureError(error)) {
                 OnFailed.Run();
             }
         }

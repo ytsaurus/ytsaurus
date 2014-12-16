@@ -77,6 +77,7 @@ DECLARE_ENUM(EErrorCode,
 );
 
 bool IsRetriableError(const TError& error);
+bool IsChannelFailureError(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 

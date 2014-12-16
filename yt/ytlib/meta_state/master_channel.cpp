@@ -48,7 +48,9 @@ TErrorOr<IChannelPtr> OnPeerFound(
 
 } // namespace
 
-IChannelPtr CreateLeaderChannel(TMasterDiscoveryConfigPtr config)
+IChannelPtr CreateLeaderChannel(
+    TMasterDiscoveryConfigPtr config,
+    TCallback<bool(const TError&)> isRetriableError)
 {
     auto masterDiscovery = New<TMasterDiscovery>(config);
     auto roamingChannel = CreateRoamingChannel(
@@ -59,7 +61,7 @@ IChannelPtr CreateLeaderChannel(TMasterDiscoveryConfigPtr config)
                 "leader",
                 config));
         }));
-    return CreateRetryingChannel(config, roamingChannel);
+    return CreateRetryingChannel(config, roamingChannel, isRetriableError);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -23,7 +23,8 @@ namespace NRpc {
  */
 IChannelPtr CreateRetryingChannel(
     TRetryingChannelConfigPtr config,
-    IChannelPtr underlyingChannel);
+    IChannelPtr underlyingChannel,
+    TCallback<bool(const TError&)> isRetriableError = BIND(&IsRetriableError));
 
 ////////////////////////////////////////////////////////////////////////////////
 

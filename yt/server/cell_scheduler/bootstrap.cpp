@@ -88,7 +88,15 @@ void TBootstrap::Run()
         ~LocalAddress,
         ~JoinToString(Config->Masters->Addresses));
 
-    MasterChannel = CreateLeaderChannel(Config->Masters);
+    auto isRetriableError = BIND([] (const TError& error) -> bool {
+        auto code = error.GetCode();
+        if (code == NSecurityClient::EErrorCode::RequestRateLimitExceeded) {
+            return true;
+        }
+        return IsRetriableError(error);
+    });
+
+    MasterChannel = CreateLeaderChannel(Config->Masters, isRetriableError);
 
     ControlQueue = New<TFairShareActionQueue>("Control", EControlQueue::GetDomainNames());
 
