@@ -384,22 +384,23 @@ TEST(CGroup, ParentLimitTwoChildren)
             }
 
             i64 num = 1;
-            YCHECK(::write(initBarier, &num, sizeof(num)) == sizeof(num));
-
             YCHECK(::read(exitBarier, &num, sizeof(num)) == sizeof(num));
             delete[] data;
             _exit(1);
         }
 
-        if (i == 0) {
-            i64 num;
-            EXPECT_EQ(sizeof(num), ::read(initBarier, &num, sizeof(num)));
-        }
     }
 
+    // make sure that you actually wait for one of these two children
+    // not some lost child from other tests
     int status;
-    auto pid = wait(&status);
-    EXPECT_TRUE(WIFSIGNALED(status));
+    int pid = 0;
+    while (pid != pids[0] && pid != pids[1]) {
+        pid = wait(&status);
+        ASSERT_TRUE(pid > 0);
+    }
+
+    EXPECT_TRUE(WIFSIGNALED(status)) << WEXITSTATUS(status);
 
     i64 num;
     num = 2;
