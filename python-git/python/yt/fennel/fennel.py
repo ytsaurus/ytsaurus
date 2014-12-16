@@ -143,20 +143,21 @@ class EventLog(object):
             start_index=0,
             end_index=count)
 
+        self.log.info("Ensuring %s table exists", self._archive_table_name)
+        self.yt.create_table(
+            self._archive_table_name,
+            attributes={
+                "erasure_codec": "lrc_12_2_2",
+                "compression_codec": "gzip_best_compression"
+            },
+            ignore_existing=True)
+
         tries = 0
         finished = False
         backoff_time = 5
         while not finished:
             try:
                 with self.yt.Transaction():
-                    self.yt.create_table(
-                        self._archive_table_name,
-                        attributes={
-                            "erasure_codec": "lrc_12_2_2",
-                            "compression_codec": "gzip_best_compression"
-                        },
-                        ignore_existing=True)
-
                     self.log.info("Run merge...")
                     self.yt.run_merge(
                         source_table=partition,
