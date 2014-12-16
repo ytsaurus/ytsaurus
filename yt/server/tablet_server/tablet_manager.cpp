@@ -764,16 +764,14 @@ private:
 
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
-            if (IsObjectAlive(cell)) {
-                for (const auto& peer : cell->Peers()) {
-                    if (peer.Address) {
-                        AddressToCell_.insert(std::make_pair(*peer.Address, cell));
-                    }
+            for (const auto& peer : cell->Peers()) {
+                if (peer.Address) {
+                    AddToAddressToCellMap(*peer.Address, cell);
                 }
-                auto* transaction = cell->GetPrerequisiteTransaction();
-                if (transaction) {
-                    YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
-                }
+            }
+            auto* transaction = cell->GetPrerequisiteTransaction();
+            if (transaction) {
+                YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
             }
         }
     }
@@ -1392,16 +1390,17 @@ private:
         if (!transaction)
             return;
 
-        YCHECK(TransactionToCellMap_.erase(transaction) == 1);
-
+        // NB: Make a copy, transaction will die soon.
+        auto transactionId = transaction->GetId();
         auto transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->AbortTransaction(transaction, true);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
             cell->GetId(),
-            transaction->GetId());
+            transactionId);
 
-        // Cell-to-transaction link is broken in OnTransactionFinished.
+        // NB: Cell-to-transaction link is broken in OnTransactionFinished from AbortTransaction.
+        YCHECK(!cell->GetPrerequisiteTransaction());
     }
 
     void OnTransactionFinished(TTransaction* transaction)
