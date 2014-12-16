@@ -13,9 +13,6 @@
 #include <unordered_set>
 #include <unordered_map>
 
-#define YT_USE_CODEGENED_HASH
-#define YT_USE_GOOGLE_HASH
-
 #ifdef YT_USE_GOOGLE_HASH
 #include <sparsehash/dense_hash_set>
 #endif
