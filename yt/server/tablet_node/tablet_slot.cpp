@@ -263,6 +263,9 @@ public:
         if (HydraManager_) {
             YCHECK(PrerequisiteTransactionId_ == prerequisiteTransactionId);
             CellManager_->Reconfigure(CellConfig_->ToElection(CellId_));
+
+            LOG_INFO("Slot reconfigured (ConfigVersion: %v)",
+                CellConfigVersion_);
         } else {
             PrerequisiteTransactionId_ = prerequisiteTransactionId;
             PeerId_ = configureInfo.peer_id();
@@ -366,10 +369,11 @@ public:
             rpcServer->RegisterService(TransactionSupervisor_->GetRpcService());
             rpcServer->RegisterService(HiveManager_->GetRpcService());
             rpcServer->RegisterService(TabletService_);
-        }
 
-        LOG_INFO("Slot configured (ConfigVersion: %v)",
-            CellConfigVersion_);
+            LOG_INFO("Slot configured (ConfigVersion: %v, PrerequisiteTransactionId: %v)",
+                CellConfigVersion_,
+                prerequisiteTransactionId);
+        }
     }
 
     void Finalize()
