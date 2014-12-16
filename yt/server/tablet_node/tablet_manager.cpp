@@ -983,9 +983,11 @@ private:
         partition->SetSamplingNeeded(false);
         UpdateTabletSnapshot(tablet);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Partition sample keys updated (TabletId: %v, PartitionIndex: %v, SampleKeyCount: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Partition sample keys updated (TabletId: %v, PartitionIndex: %v, Keys: %v .. %v, SampleKeyCount: %v)",
             tabletId,
             partition->GetIndex(),
+            partition->GetPivotKey(),
+            partition->GetNextPivotKey(),
             sampleKeys->Keys.size());
     }
 
