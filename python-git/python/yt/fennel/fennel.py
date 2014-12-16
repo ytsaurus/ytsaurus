@@ -402,6 +402,8 @@ class LogBroker(object):
         serialized_data = serialize_chunk(self._chunk_id, seqno, 0, data)
         self._chunk_id += 1
         if len(serialized_data) > self.MAX_CHUNK_SIZE:
+            self.log.debug("Unable to save chunk %d with seqno %d. Its size equals to %d > %d",
+                self._chunk_id - 1, seqno, len(serialized_data), self.MAX_CHUNK_SIZE)
             result.set_exception(ChunkTooBigError())
             return result
 
@@ -416,6 +418,9 @@ class LogBroker(object):
             while not self._stopped:
                 try:
                     message = yield self._session.read_message()
+                except GeneratorExit as e:
+                    self.log.error("Got GeneratorExit")
+                    assert self._stopped
                 except (RuntimeError, IOError) as e:
                     self._abort(e)
                 else:
