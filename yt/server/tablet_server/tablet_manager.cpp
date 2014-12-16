@@ -1391,13 +1391,8 @@ private:
             return;
 
         // NB: Make a copy, transaction will die soon.
-        auto transactionId = transaction->GetId();
         auto transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->AbortTransaction(transaction, true);
-
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
-            cell->GetId(),
-            transactionId);
 
         // NB: Cell-to-transaction link is broken in OnTransactionFinished from AbortTransaction.
         YCHECK(!cell->GetPrerequisiteTransaction());
@@ -1413,11 +1408,9 @@ private:
         cell->SetPrerequisiteTransaction(nullptr);
         TransactionToCellMap_.erase(it);
 
-        if (IsObjectAlive(cell)) {
-            LOG_WARNING_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted prematurely (CellId: %v, TransactionId: %v)",
-                cell->GetId(),
-                transaction->GetId());
-        }
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
+            cell->GetId(),
+            transaction->GetId());
     }
 
 
