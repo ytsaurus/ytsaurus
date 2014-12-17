@@ -96,6 +96,11 @@ YtError.prototype.isAllTargetNodesFailed = function() {
     return checkForErrorCode(this, binding.AllTargetNodesFailedYtErrorCode);
 };
 
+YtError.prototype.checkFor = function(code) {
+    "use strict";
+    return checkForErrorCode(this, code);
+};
+
 // Setters.
 
 YtError.prototype.withCode = function(code) {

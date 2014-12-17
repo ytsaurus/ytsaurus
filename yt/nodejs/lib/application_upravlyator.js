@@ -29,7 +29,7 @@ YtApplicationUpravlyator.prototype._getFromYt = function(type, name)
         "get",
         { path: "//sys/" + type + "/" + utils.escapeYPath(name) + "/@" })
     .catch(function(error) {
-        if (checkForErrorCode(error, 500)) {
+        if (error.checkFor(500)) {
             return; // Resolve error, return 'undefined';
         } else {
             return Q.reject(error);

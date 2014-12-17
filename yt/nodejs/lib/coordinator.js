@@ -243,7 +243,7 @@ YtCoordinator.prototype._initialize = function()
         return Q.all([ req1, req2 ]);
     },
     function(error) {
-        if (checkForErrorCode(error, 501)) {
+        if (error.checkFor(501)) {
             self.logger.debug("Presence resumed from " + path);
             return;
         } else {

@@ -272,7 +272,7 @@ YtAuthority.prototype._asyncQueryCypress = function(context, result)
         result.realm = "cypress";
     },
     function(error) {
-        if (checkForErrorCode(error, 500)) {
+        if (error.checkFor(500)) {
             return; // Resolve error, return 'undefined';
         } else {
             return Q.reject(error);
@@ -302,7 +302,7 @@ YtAuthority.prototype._ensureUserExists = function(context, result)
         self.exist_cache.set(name, true);
     },
     function(error) {
-        if (checkForErrorCode(error, 501)) {
+        if (error.checkFor(501)) {
             context.logger.debug("User already exists", { name: name });
             self.exist_cache.set(name, true);
             return;
