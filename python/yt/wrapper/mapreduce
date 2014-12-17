@@ -1,9 +1,27 @@
 #!/usr/bin/env python
 
-# Options that not yet implemented:
-# -timelimit
+# Options that not supported:
 # -lock
 # -unlock
+#
+# -write -dst -dst
+#
+# -archive
+# -unarchive
+# -repair
+#
+# -profileformat
+#
+# -partialcommit
+# -timelimit
+# -spawnbackupjobs
+# -maxjobfails
+# -averagetimelimit
+#
+# -savestderrtail
+# -savestdouttail
+#
+# -srcserver
 
 from yt.wrapper.cli_helpers import writelines_silently, run_main, die
 from yt.wrapper.table_commands import copy_table, move_table, _remove_locks, _get_format_from_tables
@@ -162,7 +180,7 @@ Examples:
                                             "replicationfactor", "memlimit", "timeout", "title", "fs", "rs",
                                             "mode", "tablereader", "tablewriter"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "dstsorted", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
-    add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier", "detached", "waitfor", "stderrlevel"])
+    add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier", "detached", "waitfor", "stderrlevel", "maxjobfails"])
 
     add_help_messages(parser,
         [
@@ -234,6 +252,8 @@ Examples:
              "specifies map operation command"),
             ("mapfile",
              "NEW! file for the map stage of mapreduce operation"),
+            ("maxjobfails",
+             "OLD! Limit to the number of failed jobs of operation"),
             ("memlimit",
              "Memory limit for user job in Mb."),
             ("merge",
@@ -241,7 +261,7 @@ Examples:
             ("mode",
              "NEW! describes how to merge tables. Should be unordered, ordered or sorted (default)."),
             ("move",
-             "OLD! Move src table to dst table."),
+             "OLD! Move src table to dst table"),
             ("nocreatetmptable",
              "OLD! this option do nothing"),
             ("opt",
@@ -363,6 +383,9 @@ Examples:
 
     if args.title is not None:
         spec["title"] = args.title
+
+    if args.maxjobfails is not None:
+        spec["max_failed_job_count"] = args.maxjobfails
 
     dst = []
     if args.dst is not None:
