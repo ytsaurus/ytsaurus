@@ -61,6 +61,8 @@ set( HDRS
   ${BASE}/chunked_output_stream.h
   ${BASE}/common.h
   ${BASE}/config.h
+  ${BASE}/collection_helpers.h
+  ${BASE}/collection_helpers-inl.h
   ${BASE}/crash_handler.h
   ${BASE}/demangle.h
   ${BASE}/enum.h

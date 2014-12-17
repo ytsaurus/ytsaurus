@@ -128,8 +128,7 @@ void TFileLogWriter::CheckSpace(i64 minSpace)
         }
     } catch (const std::exception& ex) {
         Disabled_.store(true);
-        LOG_ERROR(ex, "Logging disabled: space check failed (FileName: %v)",
-            FileName_);
+        LOG_ERROR(ex, "Logging disabled: space check failed (FileName: %v)", FileName_);
     }
 }
 

@@ -166,7 +166,8 @@ private:
     void RefreshChunk(TChunk* chunk);
 
     void ResetChunkStatus(TChunk* chunk);
-    void ResetChunkJobs(TChunk* chunk);
+    void RemoveChunkFromQueues(TChunk* chunk, bool includingRemovals);
+    void CancelChunkJobs(TChunk* chunk);
 
     TChunkStatistics ComputeChunkStatistics(TChunk* chunk);
     TChunkStatistics ComputeRegularChunkStatistics(TChunk* chunk);

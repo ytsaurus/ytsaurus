@@ -46,6 +46,10 @@ class TestUsers(YTEnvSetup):
         sleep(1.0)
         assert get("//sys/users/u/@request_counter") == 1
 
+    def test_access_counter2(self):
+        create_user('u')
+        with pytest.raises(YtError): set('//sys/users/u/@request_counter', -1.0)
+
     def test_builtin_init(self):
         self.assertItemsEqual(get("//sys/groups/everyone/@members"), ["users", "guest"])
         self.assertItemsEqual(get("//sys/groups/users/@members"), ["superusers"])

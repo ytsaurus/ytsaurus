@@ -3,6 +3,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+
 import time
 import __builtin__
 
@@ -79,6 +80,32 @@ class TestSchedulerOther(YTEnvSetup):
         track_op(op_id)
 
         assert read("//tmp/t_out") == [ {"foo" : "bar"} ]
+
+    @pytest.mark.skipif("True")
+    def test_aborting(self):
+        # To run this test you must insert sleep into scheduler.cpp:TerminateOperation.
+        # And then you must manually kill scheduler while scheduler handling this sleep after abort command.
+
+        self._prepare_tables()
+
+        op_id = map(dont_track=True, in_='//tmp/t_in', out='//tmp/t_out', command='cat; sleep 3')
+
+        time.sleep(2)
+        assert "running" == get("//sys/operations/" + op_id + "/@state")
+
+        try:
+            abort_op(op_id)
+            # Here you must kill scheduler manually
+        except:
+            pass
+
+        assert "aborting" == get("//sys/operations/" + op_id + "/@state")
+
+        self.Env.start_schedulers("scheduler")
+
+        time.sleep(1)
+
+        assert "aborted" == get("//sys/operations/" + op_id + "/@state")
 
 class TestSchedulingTags(YTEnvSetup):
     NUM_MASTERS = 3

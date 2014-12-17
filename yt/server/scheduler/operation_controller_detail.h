@@ -119,7 +119,6 @@ protected:
     NApi::IClientPtr AuthenticatedOutputMasterClient;
 
     mutable NLog::TLogger Logger;
-    mutable TFluentEventLogger EventLogger;
 
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableControlInvoker;

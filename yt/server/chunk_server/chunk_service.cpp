@@ -37,7 +37,7 @@ public:
             ChunkServerLogger)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks)
-            .SetInvoker(bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance)));
+            .SetInvoker(bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator)));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AllocateWriteTargets));
     }
 

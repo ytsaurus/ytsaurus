@@ -65,7 +65,7 @@ bool operator < (const TChunkInfo& lhs, const TChunkInfo& rhs)
 
 bool operator == (const TChunkInfo& lhs, const TChunkInfo& rhs)
 {
-    return lhs.Chunk->GetId() == rhs.Chunk->GetId() 
+    return lhs.Chunk->GetId() == rhs.Chunk->GetId()
         && lhs.RowIndex == rhs.RowIndex
         && lhs.StartLimit == rhs.StartLimit
         && lhs.EndLimit == rhs.EndLimit;
@@ -74,13 +74,13 @@ bool operator == (const TChunkInfo& lhs, const TChunkInfo& rhs)
 std::ostream& operator << (std::ostream& os, const TChunkInfo& chunkInfo)
 {
     os << "ChunkInfo(Id=" << ToString(chunkInfo.Chunk->GetId())
-       << ", RowIndex=" << chunkInfo.RowIndex 
+       << ", RowIndex=" << chunkInfo.RowIndex
        << ", StartLimit=(" << chunkInfo.StartLimit.AsProto().DebugString() << ")"
        << ", EndLimit=(" << chunkInfo.EndLimit.AsProto().DebugString() << ")"
        << ")";
     return os;
 }
-    
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,7 +142,7 @@ std::unique_ptr<TChunk> CreateChunk(
     i64 dataWeight)
 {
     std::unique_ptr<TChunk> chunk(new TChunk(GenerateId(EObjectType::Chunk)));
-    
+
     TChunkMeta chunkMeta;
     chunkMeta.set_type(EChunkType::Table); // this makes chunk confirmed
 
@@ -152,8 +152,10 @@ std::unique_ptr<TChunk> CreateChunk(
     miscExt.set_compressed_data_size(compressedDataSize);
     miscExt.set_data_weight(dataWeight);
     SetProtoExtension<TMiscExt>(chunkMeta.mutable_extensions(), miscExt);
-    
-    chunk->ChunkMeta() = chunkMeta;
+
+    NChunkClient::NProto::TChunkInfo chunkInfo;
+
+    chunk->Confirm(&chunkInfo, &chunkMeta);
 
     return chunk;
 }
@@ -165,14 +167,14 @@ TEST(TraverseChunkTree, Simple)
     // chunk1   listB      //
     //         /     \     //
     //     chunk2   chunk3 //
-    
+
     auto chunk1 = CreateChunk(1, 1, 1, 1);
     auto chunk2 = CreateChunk(2, 2, 2, 2);
     auto chunk3 = CreateChunk(3, 3, 3, 3);
 
     TChunkList listA(GenerateId(EObjectType::ChunkList));
     TChunkList listB(GenerateId(EObjectType::ChunkList));
-    
+
     {
         std::vector<TChunkTree*> chunks;
         chunks.push_back(chunk2.get());
@@ -212,13 +214,13 @@ TEST(TraverseChunkTree, Simple)
 
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
     }
-    
+
     {
         auto visitor = New<TTestChunkVisitor>();
-        
+
         TReadLimit startLimit;
         startLimit.SetRowIndex(2);
-        
+
         TReadLimit endLimit;
         endLimit.SetRowIndex(5);
 
@@ -226,7 +228,7 @@ TEST(TraverseChunkTree, Simple)
 
         TReadLimit correctStartLimit;
         correctStartLimit.SetRowIndex(1);
-        
+
         TReadLimit correctEndLimit;
         correctEndLimit.SetRowIndex(2);
 

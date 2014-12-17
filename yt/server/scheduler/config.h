@@ -2,11 +2,13 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_client/config.h>
+#include <core/concurrency/throughput_throttler.h>
 
 #include <core/rpc/config.h>
 
 #include <ytlib/table_client/config.h>
+
+#include <ytlib/chunk_client/config.h>
 
 #include <ytlib/api/config.h>
 
@@ -211,6 +213,9 @@ public:
 
     TEventLogConfigPtr EventLog;
 
+    //! Limits the rate (measured in chunks) of location requests issued by all active chunk scratchers
+    NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;
+
     TSchedulerConfig()
     {
         RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
@@ -236,7 +241,7 @@ public:
             .Default(TDuration::Seconds(10));
 
         RegisterParameter("max_chunks_per_scratch", MaxChunksPerScratch)
-            .Default(10000)
+            .Default(1000)
             .GreaterThan(0)
             .LessThan(100000);
 
@@ -373,6 +378,13 @@ public:
             .DefaultNew();
         RegisterParameter("event_log", EventLog)
             .DefaultNew();
+
+        RegisterParameter("chunk_location_throttler", ChunkLocationThrottler)
+            .DefaultNew();
+
+        RegisterInitializer([&] () {
+            ChunkLocationThrottler->Limit = 10000;
+        });
     }
 };
 

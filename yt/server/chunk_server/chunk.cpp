@@ -56,13 +56,11 @@ TChunkTreeStatistics TChunk::GetStatistics() const
 {
     YASSERT(IsConfirmed());
 
-    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
-
     TChunkTreeStatistics result;
-    result.RowCount = miscExt.row_count();
-    result.UncompressedDataSize = miscExt.uncompressed_data_size();
-    result.CompressedDataSize = miscExt.compressed_data_size();
-    result.DataWeight = miscExt.data_weight();
+    result.RowCount = MiscExt_.row_count();
+    result.UncompressedDataSize = MiscExt_.uncompressed_data_size();
+    result.CompressedDataSize = MiscExt_.compressed_data_size();
+    result.DataWeight = MiscExt_.data_weight();
 
     if (IsErasure()) {
         result.ErasureDiskSpace = ChunkInfo_.disk_space();
@@ -120,9 +118,14 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 
     SetMovable(Load<bool>(context));
     SetVital(Load<bool>(context));
+
     Load(context, Parents_);
     Load(context, StoredReplicas_);
     Load(context, CachedReplicas_);
+    
+    if (IsConfirmed()) {
+        MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    }
 }
 
 void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
@@ -189,6 +192,15 @@ void TChunk::ApproveReplica(TNodePtrWithIndex replica)
         }
         YUNREACHABLE();
     }
+}
+
+void TChunk::Confirm(
+    TChunkInfo* chunkInfo,
+    TChunkMeta* chunkMeta)
+{
+    ChunkInfo_.Swap(chunkInfo);
+    ChunkMeta_.Swap(chunkMeta);
+    MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
 }
 
 bool TChunk::IsConfirmed() const

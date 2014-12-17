@@ -76,21 +76,14 @@ TEST_F(TPatternFormatterTest, UndefinedValue)
 {
     Formatter.AddProperty("a", "b");
     Formatter.AddProperty("key", "value");
-    EXPECT_THROW(Formatter.Format("$(a) $(kkeeyy)"), std::exception);
+    EXPECT_FORMAT("$(a) $(kkeeyy)", "b $(kkeeyy)");
+    EXPECT_FORMAT("$$(a)", "$b");
 }
 
-TEST_F(TPatternFormatterTest, OptionalValue)
-{
-    Formatter.AddProperty("abc", "1");
-    EXPECT_FORMAT("$(abc)-$(def?)-", "1--");
-}
-
-TEST_F(TPatternFormatterTest, BadSyntax)
+TEST_F(TPatternFormatterTest, NoRightParenthesis)
 {
     Formatter.AddProperty("a", "b");
-    EXPECT_THROW(Formatter.Format("$(a"), std::exception);
-    EXPECT_THROW(Formatter.Format("$a)"), std::exception);
-    EXPECT_THROW(Formatter.Format("$"),   std::exception);
+    EXPECT_FORMAT("$(a", "$(a");
 }
 
 #undef EXPECT_FORMAT

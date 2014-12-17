@@ -99,6 +99,7 @@ void ResetChunkListStatistics(TChunkList* chunkList)
     chunkList->DataSizeSums().clear();
     chunkList->Statistics() = TChunkTreeStatistics();
     chunkList->Statistics().ChunkListCount = 1;
+    chunkList->Statistics().Rank = 1;
 }
 
 void RecomputeChunkListStatistics(TChunkList* chunkList)
