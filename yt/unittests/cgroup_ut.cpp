@@ -395,10 +395,12 @@ TEST(CGroup, ParentLimitTwoChildren)
     auto initBarier = ::eventfd(0, EFD_SEMAPHORE);
     EXPECT_TRUE(initBarier > 0);
 
-    std::array<TMemory, 2> children = {
+    // curious about double braces?
+    // read this http://stackoverflow.com/questions/20404280/are-curly-braces-really-required-around-initialization
+    std::array<TMemory, 2> children = {{
         TMemory(rootName + "/child"),
         TMemory(rootName + "/other_child")
-    };
+    }};
 
     std::array<TEvent, 2> oomEvents;
 
@@ -557,7 +559,7 @@ TEST(TEvent, Fired)
     EXPECT_FALSE(event.Fired());
 
     i64 value = 1;
-    write(eventFd, &value, sizeof(value));
+    EXPECT_EQ(write(eventFd, &value, sizeof(value)), sizeof(value));
 
     EXPECT_TRUE(event.Fired());
 }
@@ -568,7 +570,7 @@ TEST(TEvent, Sticky)
     TTestableEvent event(eventFd, -1);
 
     i64 value = 1;
-    write(eventFd, &value, sizeof(value));
+    EXPECT_EQ(write(eventFd, &value, sizeof(value)), sizeof(value));
 
     EXPECT_TRUE(event.Fired());
     EXPECT_TRUE(event.Fired());
@@ -580,7 +582,7 @@ TEST(TEvent, Clear)
     TTestableEvent event(eventFd, -1);
 
     i64 value = 1;
-    write(eventFd, &value, sizeof(value));
+    EXPECT_EQ(write(eventFd, &value, sizeof(value)), sizeof(value));
 
     EXPECT_TRUE(event.Fired());
     event.Clear();
