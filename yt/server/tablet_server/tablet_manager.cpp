@@ -1212,7 +1212,7 @@ private:
                     TypeFromId(storeId) == EObjectType::ErasureChunk)
                 {
                     auto* chunk = chunkManager->GetChunkOrThrow(storeId);
-                    auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
+                    const auto& miscExt = chunk->MiscExt();
                     attachedRowCount += miscExt.row_count();
                     chunksToAttach.push_back(chunk);
                 }
@@ -1226,7 +1226,7 @@ private:
                     TypeFromId(storeId) == EObjectType::ErasureChunk)
                 {
                     auto* chunk = chunkManager->GetChunkOrThrow(storeId);
-                    auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
+                    const auto& miscExt = chunk->MiscExt();
                     detachedRowCount += miscExt.row_count();
                     chunksToDetach.push_back(chunk);
                 }

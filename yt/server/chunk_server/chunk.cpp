@@ -358,35 +358,31 @@ bool TChunk::IsSealed() const
         return true;
     }
 
-    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
-    return miscExt.sealed();
+    return MiscExt_.sealed();
 }
 
 i64 TChunk::GetSealedRowCount() const
 {
-    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
-    YCHECK(miscExt.sealed());
-    return miscExt.row_count();
+    YCHECK(MiscExt_.sealed());
+    return MiscExt_.row_count();
 }
 
 void TChunk::Seal(const TMiscExt& info)
 {
     YASSERT(IsConfirmed());
 
-    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
-
     // NB: Just a sanity check.
-    YCHECK(!miscExt.sealed());
-    YCHECK(miscExt.row_count() == 0);
-    YCHECK(miscExt.uncompressed_data_size() == 0);
-    YCHECK(miscExt.compressed_data_size() == 0);
+    YCHECK(!MiscExt_.sealed());
+    YCHECK(MiscExt_.row_count() == 0);
+    YCHECK(MiscExt_.uncompressed_data_size() == 0);
+    YCHECK(MiscExt_.compressed_data_size() == 0);
     YCHECK(ChunkInfo_.disk_space() == 0);
 
-    miscExt.set_sealed(true);
-    miscExt.set_row_count(info.row_count());
-    miscExt.set_uncompressed_data_size(info.uncompressed_data_size());
-    miscExt.set_compressed_data_size(info.compressed_data_size());
-    SetProtoExtension(ChunkMeta_.mutable_extensions(), miscExt);
+    MiscExt_.set_sealed(true);
+    MiscExt_.set_row_count(info.row_count());
+    MiscExt_.set_uncompressed_data_size(info.uncompressed_data_size());
+    MiscExt_.set_compressed_data_size(info.compressed_data_size());
+    SetProtoExtension(ChunkMeta_.mutable_extensions(), MiscExt_);
     ChunkInfo_.set_disk_space(info.uncompressed_data_size());  // an approximation
 }
 

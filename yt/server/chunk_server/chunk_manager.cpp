@@ -780,8 +780,7 @@ public:
     TFuture<TErrorOr<TMiscExt>> GetChunkQuorumInfo(TChunk* chunk)
     {
         if (chunk->IsSealed()) {
-            auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
-            return MakeFuture<TErrorOr<TMiscExt>>(miscExt);
+            return MakeFuture<TErrorOr<TMiscExt>>(chunk->MiscExt());
         }
 
         std::vector<NNodeTrackerClient::TNodeDescriptor> replicas;

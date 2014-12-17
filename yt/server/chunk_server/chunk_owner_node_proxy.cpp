@@ -352,14 +352,11 @@ public:
 private:
     virtual bool OnChunk(
         TChunk* chunk,
-        i64 rowIndex,
-        const TReadLimit& startLimit,
-        const TReadLimit& endLimit) override
+        i64 /*rowIndex*/,
+        const TReadLimit& /*startLimit*/,
+        const TReadLimit& /*endLimit*/) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        UNUSED(rowIndex);
-        UNUSED(startLimit);
-        UNUSED(endLimit);
 
         Consumer->OnListItem();
         Consumer->OnStringScalar(ToString(chunk->GetId()));
@@ -406,14 +403,11 @@ public:
 private:
     virtual bool OnChunk(
         TChunk* chunk,
-        i64 rowIndex,
-        const TReadLimit& startLimit,
-        const TReadLimit& endLimit) override
+        i64 /*rowIndex*/,
+        const TReadLimit& /*startLimit*/,
+        const TReadLimit& /*endLimit*/) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        UNUSED(rowIndex);
-        UNUSED(startLimit);
-        UNUSED(endLimit);
 
         CodecInfo_[CodecExtractor_(chunk)].Accumulate(chunk->GetStatistics());
         return true;
@@ -589,10 +583,9 @@ TAsyncError TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
         struct TExtractCompressionCodec
         {
             typedef NCompression::ECodec TValue;
-            TValue operator() (const TChunk* chunk) {
-                const auto& chunkMeta = chunk->ChunkMeta();
-                auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
-                return TValue(miscExt.compression_codec());
+            TValue operator() (const TChunk* chunk)
+            {
+                return TValue(chunk->MiscExt().compression_codec());
             }
         };
         typedef TCodecStatisticsVisitor<TExtractCompressionCodec> TCompressionStatisticsVisitor;
@@ -607,7 +600,8 @@ TAsyncError TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
         struct TExtractErasureCodec
         {
             typedef NErasure::ECodec TValue;
-            TValue operator() (const TChunk* chunk) {
+            TValue operator() (const TChunk* chunk)
+            {
                 return chunk->GetErasureCodec();
             }
         };
@@ -624,11 +618,9 @@ TAsyncError TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
 
 void TChunkOwnerNodeProxy::ValidateCustomAttributeUpdate(
     const Stroka& key,
-    const TNullable<TYsonString>& oldValue,
+    const TNullable<TYsonString>& /*oldValue*/,
     const TNullable<TYsonString>& newValue)
 {
-    UNUSED(oldValue);
-
     if (key == "compression_codec") {
         if (!newValue) {
             ThrowCannotRemoveAttribute(key);

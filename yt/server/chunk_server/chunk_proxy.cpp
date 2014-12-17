@@ -266,7 +266,7 @@ private:
         }
 
         if (chunk->IsConfirmed()) {
-            auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
+            const auto& miscExt = chunk->MiscExt();
 
             if (key == "disk_space") {
                 BuildYsonFluently(consumer)
