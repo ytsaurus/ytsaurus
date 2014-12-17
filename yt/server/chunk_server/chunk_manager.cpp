@@ -489,6 +489,7 @@ public:
         chunkList->DataSizeSums().clear();
         chunkList->Statistics() = TChunkTreeStatistics();
         chunkList->Statistics().ChunkListCount = 1;
+        chunkList->Statistics().Rank = 1;
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list cleared (ChunkListId: %s)", ~ToString(chunkList->GetId()));
     }
