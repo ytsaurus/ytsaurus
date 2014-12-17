@@ -14,12 +14,14 @@ private:
     typedef R (TType)(TArgs...);
 
 public:
+    TCGFunction() = default;
+
+#ifdef YT_USE_LLVM
     TCGFunction(uint64_t functionAddress, TCGModulePtr&& module)
         : FunctionPtr_(reinterpret_cast<TType*>(functionAddress))
         , Module_(std::move(module))
     { }
-
-    TCGFunction() = default;
+#endif
 
     R operator() (TArgs... args) const
     {
@@ -33,7 +35,9 @@ public:
 
 private:
     TType* FunctionPtr_ = nullptr;
+#ifdef YT_USE_LLVM
     TCGModulePtr Module_;
+#endif
 };
 
 ////////////////////////////////////////////////////////////////////////////////
