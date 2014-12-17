@@ -6,7 +6,7 @@
 # -unlock
 
 from yt.wrapper.cli_helpers import writelines_silently, run_main, die
-from yt.wrapper.table_commands import copy_table, _remove_locks, _get_format_from_tables
+from yt.wrapper.table_commands import copy_table, move_table, _remove_locks, _get_format_from_tables
 from yt.wrapper.tree_commands import remove_with_empty_dirs
 from yt.wrapper.table import check_prefix
 
@@ -149,20 +149,20 @@ Examples:
 """
     )
 
-    action_stores = ["read", "write", "writesorted", "map", "reduce", "reducews", "drop",
+    action_stores = ["read", "write", "writesorted", "map", "reduce", "reducews", "reducewsonly", "drop",
                      "erase", "aborttx", "committx", "renewtx", "set", "get", "upload", "download",
                      "createtable", "exists", "track", "ytlock"]
-    action_flags = ["version", "copy", "sort", "merge", "list", "listfiles", "starttx"]
+    action_flags = ["version", "copy", "move", "sort", "merge", "list", "listfiles", "starttx"]
 
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx",
-                                          "smartformat", "force", "executable", "waitable"])
+                                          "smartformat", "force", "executable", "waitable", "failonemptysrctable", "nocreatetmptable"])
 
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "format", "inputformat", "outputformat", "tx", "value",
                                             "replicationfactor", "memlimit", "timeout", "title", "fs", "rs",
                                             "mode", "tablereader", "tablewriter"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "dstsorted", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
-    add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier", "detached", "waitfor"])
+    add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier", "detached", "waitfor", "stderrlevel"])
 
     add_help_messages(parser,
         [
@@ -204,6 +204,8 @@ Examples:
              "NEW! delete the table, this option supports range specifications"),
             ("exists",
              "NEW! check table for existance"),
+            ("failonemptysrctable",
+             "OLD! Error if one of input table does not exist"),
             ("file",
              "file for both map and reduce operations"),
             ("force",
@@ -238,6 +240,10 @@ Examples:
              "merge given tables"),
             ("mode",
              "NEW! describes how to merge tables. Should be unordered, ordered or sorted (default)."),
+            ("move",
+             "OLD! Move src table to dst table."),
+            ("nocreatetmptable",
+             "OLD! this option do nothing"),
             ("opt",
              "OLD! this option do nothing"),
             ("outputformat",
@@ -321,7 +327,8 @@ Examples:
         ]
         +
         [(name, "this argument is inherited from Yandex Mapreduce and it is ignored")
-         for name in ["threadcount", "jcmultiplier", "dynallocmode", "opt"]
+         for name in ["threadcount", "jcmultiplier", "dynallocmode", "opt",
+                      "failonemptysrctable", "nocreatetmptable"]
         ]
     )
 
@@ -338,6 +345,8 @@ Examples:
     if args.version:
         die("Version: YT wrapper " + get_version(), 0)
 
+    if args.failonemptysrctable:
+        config.TREAT_UNEXISTING_AS_EMPTY = False
     if args.chunksize is not None:
         config.CHUNK_SIZE = args.chunksize
     if args.server is not None:
@@ -481,10 +490,10 @@ Examples:
                    compression_codec=args.codec,
                    job_count=args.jobcount,
                    spec=spec)
-    elif args.reduce is not None or args.reducews is not None:
+    elif args.reduce is not None or args.reducews is not None or args.reducewsonly is not None:
         if inputformat.name() == "yamred_dsv" and args.reduceby is None:
             args.reduceby = inputformat.attributes.get("key_column_names", [])
-        op = args.reduce if args.reduce is not None else args.reducews
+        op = first_not_none([args.reduce, args.reducews, args.reducewsonly])
         yt.run_reduce(op, args.src, dst, files=reduce_files, file_paths=args.ytfile,
                       input_format=inputformat, output_format=outputformat,
                       reduce_by=args.reduceby,
@@ -501,6 +510,8 @@ Examples:
             remove_with_empty_dirs(args.drop)
     if args.copy:
         copy_table(args.src, unlist_destination_tables(dst))
+    if args.move:
+        move_table(args.src, unlist_destination_tables(dst))
     if args.sort:
         if inputformat.name() == "yamred_dsv" and args.sortby is None:
             args.sortby = inputformat.attributes.get("key_column_names", []) + \
