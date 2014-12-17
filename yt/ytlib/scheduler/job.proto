@@ -153,7 +153,7 @@ message TSchedulerJobResultExt
     optional NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
 
     // List of output chunks produced by the job.
-    // NB: Only filled when neccessary.
+    // NB: Only filled when necessary.
     repeated NYT.NChunkClient.NProto.TChunkSpec chunks = 3;
 
     optional NYT.NProto.TGuid stderr_chunk_id = 4;
@@ -264,7 +264,7 @@ message TSortJobSpecExt
 
 // Reduce jobs.
 /*
- * "Everthing is either a sort or a merge. Reduce is the latter." (c) Pavel Sushin
+ * "Everything is either a sort or a merge. Reduce is the latter." (c) Pavel Sushin
  *
  * The input spec should contain TReduceJobSpecExt.
  *
