@@ -204,10 +204,15 @@ TEST_F(TElectionTest, BecomeLeaderOneHealthyFollower)
                 response->set_self_id(id);
                 context->Reply();
             }));
-        if (id < 2) {
+        if (id == 1) {
             EXPECT_RPC_CALL(*PeerMocks[id], PingFollower)
                 .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, PingFollower, [=], {
                     context->Reply();
+                }));
+        } else {
+            EXPECT_RPC_CALL(*PeerMocks[id], PingFollower)
+                .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, PingFollower, [=], {
+                    // Do not reply.
                 }));
         }
     }
