@@ -844,7 +844,10 @@ private:
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
+
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspSet>(0);
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
     }
 
     void DoRemoveNode(
@@ -862,7 +865,10 @@ private:
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
+
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspRemove>(0);
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
     }
 
     TYsonString DoListNodes(
@@ -904,8 +910,10 @@ private:
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
+
         auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>(0);
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
         return FromProto<TNodeId>(rsp->node_id());
     }
@@ -926,8 +934,10 @@ private:
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
+
         auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspLock>(0);
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
         return FromProto<TLockId>(rsp->lock_id());
     }
@@ -948,8 +958,10 @@ private:
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
+
         auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCopy>(0);
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
         return FromProto<TNodeId>(rsp->object_id());
     }
@@ -971,8 +983,10 @@ private:
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
+
         auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCopy>(0);
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
         return FromProto<TNodeId>(rsp->object_id());
     }
@@ -997,8 +1011,10 @@ private:
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
+
         auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>(0);
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
         return FromProto<TNodeId>(rsp->node_id());
     }
@@ -1036,8 +1052,10 @@ private:
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
+
         auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>(0);
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
         return FromProto<TObjectId>(rsp->object_ids(0));
     }
