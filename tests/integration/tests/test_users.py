@@ -24,7 +24,7 @@ class TestUsers(YTEnvSetup):
 
         set("//sys/users/u/@banned", False)
         assert not get("//sys/users/u/@banned")
- 
+
         get("//tmp", user="u")
 
     def test_user_ban2(self):
@@ -49,6 +49,17 @@ class TestUsers(YTEnvSetup):
     def test_access_counter2(self):
         create_user('u')
         with pytest.raises(YtError): set('//sys/users/u/@request_counter', -1.0)
+
+    def test_access_counter3(self):
+        create_user('u')
+
+        assert get("//sys/users/u/@request_counter") == 0
+
+        # Transaction ping is not accounted in request counter
+        tx = start_transaction()
+        ping_transaction(tx, user='u')
+
+        assert get("//sys/users/u/@request_counter") == 0
 
     def test_builtin_init(self):
         self.assertItemsEqual(get("//sys/groups/everyone/@members"), ["users", "guest"])
@@ -101,7 +112,7 @@ class TestUsers(YTEnvSetup):
         create_user("u2")
         create_group("g1")
         create_group("g2")
-        
+
         add_member("u1", "g1")
         add_member("g2", "g1")
         add_member("u2", "g2")
@@ -153,7 +164,7 @@ class TestUsers(YTEnvSetup):
     def test_membership6(self):
         create_user("u")
         create_group("g")
-        
+
         with pytest.raises(YtError): remove_member("u", "g")
 
         add_member("u", "g")
