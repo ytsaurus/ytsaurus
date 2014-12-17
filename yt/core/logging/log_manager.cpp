@@ -45,7 +45,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static TLogger Logger(SystemLoggingCategory);
-static NProfiling::TProfiler LoggingProfiler("/logging");
+static NProfiling::TProfiler LoggingProfiler("");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -302,10 +302,18 @@ public:
             LoggingProfiler.Increment(EnqueueCounter_);
             LogEventQueue_.Enqueue(event);
 
-            // Waiting for release log queue
-            while (!LogEventQueue_.IsEmpty() && EventQueue_->IsRunning()) {
-                EventCount_.Notify();
-                SchedYield();
+            if (LoggingThread_->GetId() != GetCurrentThreadId()) {
+                // Waiting for release of log queue.
+                // Waiting no more than 1 second to prevent hanging.
+                auto now = TInstant::Now();
+                while (
+                    !LogEventQueue_.IsEmpty() &&
+                    EventQueue_->IsRunning() &&
+                    TInstant::Now() - now < Config_->ShutdownGraceTimeout)
+                {
+                    EventCount_.Notify();
+                    SchedYield();
+                }
             }
 
             // Flush everything and die.

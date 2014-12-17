@@ -104,6 +104,15 @@ std::vector<typename T::mapped_type> GetValues(const T& collection, size_t sizeL
     return result;
 }
 
+template <class T>
+void ShrinkHashTable(T* collection)
+{
+    if (collection->bucket_count() > 4 * collection->size() && collection->bucket_count() > 16) {
+        typename std::remove_reference<decltype(*collection)>::type collectionCopy(collection->begin(), collection->end());
+        collectionCopy.swap(*collection);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

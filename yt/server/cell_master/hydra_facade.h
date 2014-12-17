@@ -16,6 +16,7 @@ namespace NCellMaster {
 DECLARE_ENUM(EAutomatonThreadQueue,
     (Default)
     (ChunkMaintenance)
+    (ChunkLocator)
     (Heartbeat)
 );
 

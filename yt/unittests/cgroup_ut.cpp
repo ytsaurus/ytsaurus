@@ -7,6 +7,8 @@
 
 #include <core/misc/guid.h>
 
+#include <core/misc/guid.h>
+
 #include <core/misc/proc.h>
 #include <core/misc/fs.h>
 

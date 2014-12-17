@@ -104,10 +104,22 @@ public:
 
         Context->SetRequestInfo("RequestCount: %v", requestCount);
 
+        // Disable rate limits for ping commands as they are vital.
+        bool enforceRateLimit = true;
+        if (requestCount == 1) {
+            TSharedRefArray requestMessage(Context->Request().Attachments());
+            NRpc::NProto::TRequestHeader requestHeader;
+            if (ParseRequestHeader(requestMessage, &requestHeader)) {
+                if (requestHeader.method() == "Ping") {
+                    enforceRateLimit = false;
+                }
+            }
+        }
+
         auto* user = GetAuthenticatedUser();
 
         auto securityManager = Bootstrap->GetSecurityManager();
-        securityManager->ValidateUserAccess(user, requestCount);
+        securityManager->ValidateUserAccess(user, requestCount, enforceRateLimit);
 
         ResponseMessages.resize(requestCount);
         RequestHeaders.resize(requestCount);

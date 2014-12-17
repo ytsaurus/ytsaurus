@@ -313,12 +313,16 @@ void TOperationControllerBase::TInputChunkScratcher::LocateChunks()
         }
     }
 
-    LOG_DEBUG("Locating input chunks (Count: %v)",
-        req->chunk_ids_size());
+    WaitFor(Controller->Host->GetChunkLocationThrottler()->Throttle(
+        req->chunk_ids_size()));
 
-    req->Invoke().Subscribe(
-        BIND(&TInputChunkScratcher::OnLocateChunksResponse, MakeWeak(this))
-            .Via(Controller->GetCancelableControlInvoker()));
+    LOG_DEBUG("Locating input chunks (Count: %v)", req->chunk_ids_size());
+
+    // Consult YT-1375 before migrating to WaitFor.
+    req->Invoke().Subscribe(BIND(
+        &TInputChunkScratcher::OnLocateChunksResponse, 
+        MakeWeak(this))
+        .Via(Controller->GetCancelableControlInvoker()));
 }
 
 void TOperationControllerBase::TInputChunkScratcher::OnLocateChunksResponse(TChunkServiceProxy::TRspLocateChunksPtr rsp)
@@ -3678,9 +3682,7 @@ void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)
 
 TFluentLogEvent TOperationControllerBase::LogEventFluently(ELogEventType eventType)
 {
-    return EventLogger.LogEventFluently(Host->GetEventLogConsumer())
-        .Item("timestamp").Value(Now())
-        .Item("event_type").Value(eventType)
+    return Host->LogEventFluently(eventType)
         .Item("operation_id").Value(Operation->GetId());
 }
 
@@ -3700,7 +3702,8 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
             fluent
                 .Item("statistics").Value(jobStatistics);
         })
-        .Item("node_address").Value(job->GetNode()->GetAddress());
+        .Item("node_address").Value(job->GetNode()->GetAddress())
+        .Item("job_type").Value(job->GetType());
 }
 
 IClientPtr TOperationControllerBase::CreateClient()

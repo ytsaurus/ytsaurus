@@ -4,6 +4,8 @@
 #include "config.h"
 #include "object_manager.h"
 
+#include <core/misc/collection_helpers.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/serialize.h>
@@ -167,15 +169,7 @@ void TGarbageCollector::OnSweep()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    // Shrink zombies hashtable, if needed.
-    if (Zombies.bucket_count() > 4 * Zombies.size() && Zombies.bucket_count() > 16) {
-        yhash_set<TObjectBase*> newZombies(Zombies.begin(), Zombies.end());
-        LOG_DEBUG("Shrinking zombie set (BucketCount: %v->%v, ZombieCount: %v)",
-            Zombies.bucket_count(),
-            newZombies.bucket_count(),
-            Zombies.size());
-        Zombies.swap(newZombies);
-    }
+    ShrinkHashTable(&Zombies);
 
     auto hydraFacade = Bootstrap->GetHydraFacade();
     auto hydraManager = hydraFacade->GetHydraManager();

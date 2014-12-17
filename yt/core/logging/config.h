@@ -87,6 +87,8 @@ public:
     int HighBacklogWatermark;
     int LowBacklogWatermark;
 
+    TDuration ShutdownGraceTimeout;
+
     std::vector<TRulePtr> Rules;
     yhash_map<Stroka, TWriterConfigPtr> WriterConfigs;
 
@@ -107,6 +109,8 @@ public:
         RegisterParameter("low_backlog_watermark", LowBacklogWatermark)
             .GreaterThan(0)
             .Default(100000);
+        RegisterParameter("shutdown_grace_timeout", ShutdownGraceTimeout)
+            .Default(TDuration::Seconds(1));
 
         RegisterParameter("writers", WriterConfigs);
         RegisterParameter("rules", Rules);

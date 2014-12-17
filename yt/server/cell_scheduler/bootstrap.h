@@ -44,6 +44,7 @@ public:
     NScheduler::TSchedulerPtr GetScheduler() const;
     NHive::TClusterDirectoryPtr GetClusterDirectory() const;
     NRpc::IResponseKeeperPtr GetResponseKeeper() const;
+    NConcurrency::IThroughputThrottlerPtr GetChunkLocationThrottler() const;
 
     void Run();
 
@@ -60,10 +61,9 @@ private:
     NScheduler::TSchedulerPtr Scheduler_;
     NHive::TClusterDirectoryPtr ClusterDirectory_;
     NRpc::IResponseKeeperPtr ResponseKeeper_;
-
+    NConcurrency::IThroughputThrottlerPtr ChunkLocationThrottler_;
 
     void DoRun();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

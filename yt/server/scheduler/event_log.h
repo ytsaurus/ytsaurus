@@ -136,16 +136,17 @@ public:
     virtual ~IEventLogHost()
     { }
 
-    virtual NYson::IYsonConsumer* GetEventLogConsumer() = 0;
-
     virtual TFluentLogEvent LogEventFluently(ELogEventType eventType) = 0;
 };
 
 class TEventLogHostBase
-    : public IEventLogHost
+    : public virtual IEventLogHost
 {
 public:
-    virtual TFluentLogEvent LogEventFluently(ELogEventType eventType);
+    virtual TFluentLogEvent LogEventFluently(ELogEventType eventType) override;
+
+protected:
+    virtual NYson::IYsonConsumer* GetEventLogConsumer() = 0;
 
 private:
     TFluentEventLogger EventLogger_;

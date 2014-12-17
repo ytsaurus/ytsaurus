@@ -15,6 +15,7 @@
 #include "helpers.h"
 
 #include <core/misc/string.h>
+#include <core/misc/collection_helpers.h>
 
 #include <core/compression/codec.h>
 
@@ -450,10 +451,9 @@ public:
     {
         YCHECK(!chunk->IsConfirmed());
 
-        auto id = chunk->GetId();
+        const auto& id = chunk->GetId();
 
-        chunk->ChunkInfo().Swap(chunkInfo);
-        chunk->ChunkMeta().Swap(chunkMeta);
+        chunk->Confirm(chunkInfo, chunkMeta);
 
         auto nodeTracker = Bootstrap_->GetNodeTracker();
 
@@ -926,6 +926,18 @@ private:
         const TReqIncrementalHeartbeat& request,
         TRspIncrementalHeartbeat* /*response*/)
     {
+        // Shrink hashtables.
+        // NB: Skip StoredReplicas, these are typically huge.
+        ShrinkHashTable(&node->CachedReplicas());
+        ShrinkHashTable(&node->UnapprovedReplicas());
+        ShrinkHashTable(&node->Jobs());
+        for (auto& queue : node->ChunkReplicationQueues()) {
+            ShrinkHashTable(&queue);
+        }
+        ShrinkHashTable(&node->ChunkRemovalQueue());
+        // TODO(babenko): add after merge into master
+        // ShrinkHashTable(&node->ChunkSealQueue());
+
         for (const auto& chunkInfo : request.added_chunks()) {
             ProcessAddedChunk(node, chunkInfo, true);
         }
@@ -1017,10 +1029,6 @@ private:
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
-        // COMPAT(ignat)
-        if (context.GetVersion() < 42) {
-            NeedToRecomputeStatistics_ = true;
-        }
         ChunkMap_.LoadValues(context);
         ChunkListMap_.LoadValues(context);
     }

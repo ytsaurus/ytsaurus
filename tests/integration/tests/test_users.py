@@ -46,6 +46,22 @@ class TestUsers(YTEnvSetup):
         sleep(1.0)
         assert get("//sys/users/u/@request_counter") == 1
 
+    def test_access_counter2(self):
+        create_user('u')
+        with pytest.raises(YtError): set('//sys/users/u/@request_counter', -1.0)
+
+    def test_no_limits_for_pings(self):
+        create_user('u')
+        set('//sys/users/u/@request_rate_limit', 1)
+
+        tx = start_transaction()
+        for step in range(3):
+            # nothrow
+            assert get('//sys/users/u/@request_counter') == 100 * step
+            for i in range(100):
+                ping_transaction(tx, user='u')
+            sleep(1.0)
+
     def test_builtin_init(self):
         self.assertItemsEqual(get("//sys/groups/everyone/@members"), ["users", "guest"])
         self.assertItemsEqual(get("//sys/groups/users/@members"), ["superusers"])

@@ -6,6 +6,7 @@
 #include <core/misc/ref_counted_tracker.h>
 
 #include <core/concurrency/action_queue.h>
+#include <core/concurrency/throughput_throttler.h>
 
 #include <core/bus/server.h>
 #include <core/bus/tcp_server.h>
@@ -134,6 +135,9 @@ void TBootstrap::DoRun()
     ClusterDirectory_ = New<TClusterDirectory>(MasterClient_->GetConnection());
 
     Scheduler_ = New<TScheduler>(Config_->Scheduler, this);
+    
+    ChunkLocationThrottler_ = CreateLimitedThrottler(Config_->Scheduler->ChunkLocationThrottler);
+
 
     ResponseKeeper_ = CreateTransientResponseKeeper(Config_->ResponseKeeper);
 
@@ -222,6 +226,11 @@ TClusterDirectoryPtr TBootstrap::GetClusterDirectory() const
 IResponseKeeperPtr TBootstrap::GetResponseKeeper() const
 {
     return ResponseKeeper_;
+}
+
+IThroughputThrottlerPtr TBootstrap::GetChunkLocationThrottler() const
+{
+    return ChunkLocationThrottler_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

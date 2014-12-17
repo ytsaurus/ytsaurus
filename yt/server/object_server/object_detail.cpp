@@ -72,12 +72,10 @@ public:
     // IAttributeDictionary members
     virtual std::vector<Stroka> List() const override
     {
-        const auto& id = Proxy->GetId();
-        auto objectManager = Proxy->Bootstrap->GetObjectManager();
-        const auto* attributeSet = objectManager->FindAttributes(TVersionedObjectId(id));
+        const auto* attributes = FindAttributes();
         std::vector<Stroka> keys;
-        if (attributeSet) {
-            for (const auto& pair : attributeSet->Attributes()) {
+        if (attributes) {
+            for (const auto& pair : attributes->Attributes()) {
                 // Attribute cannot be empty (i.e. deleted) in null transaction.
                 YASSERT(pair.second);
                 keys.push_back(pair.first);
@@ -88,14 +86,12 @@ public:
 
     virtual TNullable<TYsonString> FindYson(const Stroka& key) const override
     {
-        const auto& id = Proxy->GetId();
-        auto objectManager = Proxy->Bootstrap->GetObjectManager();
-        const auto* attributeSet = objectManager->FindAttributes(TVersionedObjectId(id));
-        if (!attributeSet) {
+        const auto* attributes = FindAttributes();
+        if (!attributes) {
             return Null;
         }
-        auto it = attributeSet->Attributes().find(key);
-        if (it == attributeSet->Attributes().end()) {
+        auto it = attributes->Attributes().find(key);
+        if (it == attributes->Attributes().end()) {
             return Null;
         }
         // Attribute cannot be empty (i.e. deleted) in null transaction.
@@ -108,10 +104,8 @@ public:
         auto oldValue = FindYson(key);
         Proxy->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
 
-        const auto& id = Proxy->GetId();
-        auto objectManager = Proxy->Bootstrap->GetObjectManager();
-        auto* attributeSet = objectManager->GetOrCreateAttributes(TVersionedObjectId(id));
-        attributeSet->Attributes()[key] = value;
+        auto* attributes = GetOrCreateAttributes();
+        attributes->Attributes()[key] = value;
     }
 
     virtual bool Remove(const Stroka& key) override
@@ -119,27 +113,57 @@ public:
         auto oldValue = FindYson(key);
         Proxy->GuardedValidateCustomAttributeUpdate(key, oldValue, Null);
 
-        const auto& id = Proxy->GetId();
-        auto objectManager = Proxy->Bootstrap->GetObjectManager();
-        auto* attributeSet = objectManager->FindAttributes(TVersionedObjectId(id));
-        if (!attributeSet) {
+        auto* attributes = FindAttributes();
+        if (!attributes) {
             return false;
         }
-        auto it = attributeSet->Attributes().find(key);
-        if (it == attributeSet->Attributes().end()) {
+        auto it = attributes->Attributes().find(key);
+        if (it == attributes->Attributes().end()) {
             return false;
         }
         // Attribute cannot be empty (i.e. deleted) in null transaction.
         YASSERT(it->second);
-        attributeSet->Attributes().erase(it);
-        if (attributeSet->Attributes().empty()) {
-            objectManager->RemoveAttributes(TVersionedObjectId(id));
+        attributes->Attributes().erase(it);
+        if (attributes->Attributes().empty()) {
+            RemoveAttributes();
         }
         return true;
     }
 
 private:
     TObjectProxyBase* Proxy;
+
+    mutable bool HasCachedAttributes = false;
+    mutable TAttributeSet* CachedAttributes = nullptr;
+
+
+    TAttributeSet* FindAttributes() const
+    {
+        if (!HasCachedAttributes) {
+            auto objectManager = Proxy->Bootstrap->GetObjectManager();
+            CachedAttributes = objectManager->FindAttributes(TVersionedObjectId(Proxy->GetId()));
+            HasCachedAttributes = true;
+        }
+        return CachedAttributes;
+    }
+
+    TAttributeSet* GetOrCreateAttributes()
+    {
+        if (!CachedAttributes) {
+            auto objectManager = Proxy->Bootstrap->GetObjectManager();
+            CachedAttributes = objectManager->GetOrCreateAttributes(TVersionedObjectId(Proxy->GetId()));
+            HasCachedAttributes = true;
+        }
+        return CachedAttributes;
+    }
+
+    void RemoveAttributes()
+    {
+        auto objectManager = Proxy->Bootstrap->GetObjectManager();
+        objectManager->RemoveAttributes(TVersionedObjectId(Proxy->GetId()));
+        HasCachedAttributes = false;
+        CachedAttributes = nullptr;
+    }
 
 };
 

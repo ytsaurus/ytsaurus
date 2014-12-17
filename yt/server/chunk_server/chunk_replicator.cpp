@@ -437,18 +437,16 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
 void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
 {
     ResetChunkStatus(chunk);
-    ResetChunkJobs(chunk);
-
-    {
-        auto it = JobListMap_.find(chunk);
-        if (it != JobListMap_.end()) {
-            auto jobList = it->second;
-            for (auto job : jobList->Jobs()) {
-                UnregisterJob(job, EJobUnregisterFlags::UnregisterFromNode);
-            }
-            JobListMap_.erase(it);
-        }
-    }
+    // NB: Keep existing removal requests to workaround the following scenario:
+    // 1) the last strong reference to a chunk is released while some weak references
+    //    remain; the chunk becomes a zombie;
+    // 2) a node sends a heartbeat reporting addition of the chunk;
+    // 3) master receives the heartbeat and puts the chunk into the removal queue
+    //    without (sic!) registering a replica;
+    // 4) the last weak reference is dropped, the chunk is being removed;
+    //    at this point we must preserve its removal request in the queue.  
+    RemoveChunkFromQueues(chunk, false);
+    CancelChunkJobs(chunk);
 }
 
 void TChunkReplicator::ScheduleUnknownChunkRemoval(TNode* node, const TChunkIdWithIndex& chunkIdWithIndex)
@@ -985,7 +983,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
     }
 
     if (!HasRunningJobs(chunk)) {
-        ResetChunkJobs(chunk);
+        RemoveChunkFromQueues(chunk, true);
 
         if (statistics.Status & EChunkStatus::Overreplicated) {
             for (auto nodeWithIndex : statistics.DecommissionedRemovalReplicas) {
@@ -1059,20 +1057,35 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
     }
 }
 
-void TChunkReplicator::ResetChunkJobs(TChunk* chunk)
+void TChunkReplicator::RemoveChunkFromQueues(TChunk* chunk, bool includingRemovals)
 {
     for (auto nodeWithIndex : chunk->StoredReplicas()) {
         auto* node = nodeWithIndex.GetPtr();
         TChunkPtrWithIndex chunkWithIndex(chunk, nodeWithIndex.GetIndex());
         TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), nodeWithIndex.GetIndex());
-        node->RemoveFromChunkRemovalQueue(chunkIdWithIndex);
         node->RemoveFromChunkReplicationQueues(chunkWithIndex);
         node->RemoveFromChunkSealQueue(chunk);
+        if (includingRemovals) {
+            node->RemoveFromChunkRemovalQueue(chunkIdWithIndex);
+        }
     }
 
     if (chunk->IsErasure()) {
         RemoveFromChunkRepairQueue(chunk);
     }
+}
+
+void TChunkReplicator::CancelChunkJobs(TChunk* chunk)
+{
+    auto it = JobListMap_.find(chunk);
+    if (it == JobListMap_.end())
+        return;
+
+    auto jobList = it->second;
+    for (auto job : jobList->Jobs()) {
+        UnregisterJob(job, EJobUnregisterFlags::UnregisterFromNode);
+    }
+    JobListMap_.erase(it);
 }
 
 bool TChunkReplicator::IsReplicaDecommissioned(TNodePtrWithIndex replica)
@@ -1216,7 +1229,7 @@ bool TChunkReplicator::IsEnabled()
         double gotFraction = (double) lostChunkCount / chunkCount;
         if (gotFraction > needFraction) {
             if (!LastEnabled_ || LastEnabled_.Get()) {
-                LOG_INFO("Chunk replicator disabled: too many lost chunks, needed <= %lf but got %lf",
+                LOG_INFO("Chunk replicator disabled: too many lost chunks, fraction needed <= %v but got %v",
                     needFraction,
                     gotFraction);
                 LastEnabled_ = false;
@@ -1224,8 +1237,17 @@ bool TChunkReplicator::IsEnabled()
             return false;
         }
     }
+    if (Config_->SafeLostChunkCount && *Config_->SafeLostChunkCount < lostChunkCount) {
+        if (!LastEnabled_ || LastEnabled_.Get()) {
+            LOG_INFO("Chunk replicator disabled: too many lost chunks, needed <= %v but got %v",
+                *Config_->SafeLostChunkCount,
+                lostChunkCount);
+            LastEnabled_ = false;
+        }
+        return false;
+    }
 
-    if (!LastEnabled_ || !*LastEnabled_) {
+    if (!LastEnabled_ || !LastEnabled_.Get()) {
         LOG_INFO("Chunk replicator enabled");
         LastEnabled_ = true;
     }
