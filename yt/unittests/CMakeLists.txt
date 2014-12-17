@@ -100,10 +100,6 @@ if (MSVC)
   add_definitions( -DGTEST_HAS_SEH=0 )
 endif()
 
-if (APPLE)
-  add_definitions( -DGTEST_HAS_TR1_TUPLE=1 -DGTEST_USE_OWN_TR1_TUPLE=1 )
-endif()
-
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
 )
