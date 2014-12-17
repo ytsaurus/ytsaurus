@@ -80,7 +80,7 @@ TEST_F(TPatternFormatterTest, UndefinedValue)
     EXPECT_FORMAT("$$(a)", "$b");
 }
 
-TEST_F(TPatternFormatterTest, NoRightParen)
+TEST_F(TPatternFormatterTest, NoRightParenthesis)
 {
     Formatter.AddProperty("a", "b");
     EXPECT_FORMAT("$(a", "$(a");

@@ -202,7 +202,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     if (replicaCount + decommissionedReplicaCount == 0) {
         result.Status |= EChunkStatus::Lost;
     }
-    
+
     if (replicaCount < replicationFactor && replicaCount + decommissionedReplicaCount > 0) {
         result.Status |= EChunkStatus::Underreplicated;
     }
@@ -271,7 +271,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     for (int index = 0; index < totalPartCount; ++index) {
         int replicaCount = result.ReplicaCount[index];
         int decommissionedReplicaCount = result.DecommissionedReplicaCount[index];
-        
+
         if (replicaCount >= 1 && decommissionedReplicaCount > 0) {
             result.Status |= EChunkStatus::Overreplicated;
             const auto& replicas = decommissionedReplicas[index];
@@ -287,7 +287,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
             result.Status |= EChunkStatus::Underreplicated;
             result.ReplicationIndexes.push_back(index);
         }
-        
+
         if (replicaCount == 0 && decommissionedReplicaCount == 0) {
             erasedIndexes.set(index);
             if (index < dataPartCount) {
@@ -377,7 +377,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
             result.BalancingRemovalIndexes.push_back(GenericChunkReplicaIndex);
         }
     }
-    
+
     if (replicaCount + decommissionedReplicaCount < readQuorum && sealedReplicaCount == 0) {
         result.Status |= EChunkStatus::QuorumMissing;
     }
@@ -444,7 +444,7 @@ void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
     // 3) master receives the heartbeat and puts the chunk into the removal queue
     //    without (sic!) registering a replica;
     // 4) the last weak reference is dropped, the chunk is being removed;
-    //    at this point we must preserve its removal request in the queue.  
+    //    at this point we must preserve its removal request in the queue.
     RemoveChunkFromQueues(chunk, false);
     CancelChunkJobs(chunk);
 }
@@ -1063,11 +1063,11 @@ void TChunkReplicator::RemoveChunkFromQueues(TChunk* chunk, bool includingRemova
         auto* node = nodeWithIndex.GetPtr();
         TChunkPtrWithIndex chunkWithIndex(chunk, nodeWithIndex.GetIndex());
         TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), nodeWithIndex.GetIndex());
-        node->RemoveFromChunkReplicationQueues(chunkWithIndex);
-        node->RemoveFromChunkSealQueue(chunk);
         if (includingRemovals) {
             node->RemoveFromChunkRemovalQueue(chunkIdWithIndex);
         }
+        node->RemoveFromChunkReplicationQueues(chunkWithIndex);
+        node->RemoveFromChunkSealQueue(chunk);
     }
 
     if (chunk->IsErasure()) {
@@ -1106,7 +1106,7 @@ bool TChunkReplicator::HasRunningJobs(TChunkPtrWithIndex replica)
     if (!jobList) {
         return false;
     }
-    
+
     auto* chunk = replica.GetPtr();
     if (chunk->IsJournal()) {
         if (!jobList->Jobs().empty()) {
@@ -1277,7 +1277,7 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkTree* chunkTree)
         case EObjectType::ChunkList:
             SchedulePropertiesUpdate(chunkTree->AsChunkList());
             break;
-            
+
         default:
             YUNREACHABLE();
     }

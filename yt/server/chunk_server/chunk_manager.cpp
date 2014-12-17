@@ -935,8 +935,7 @@ private:
             ShrinkHashTable(&queue);
         }
         ShrinkHashTable(&node->ChunkRemovalQueue());
-        // TODO(babenko): add after merge into master
-        // ShrinkHashTable(&node->ChunkSealQueue());
+        ShrinkHashTable(&node->ChunkSealQueue());
 
         for (const auto& chunkInfo : request.added_chunks()) {
             ProcessAddedChunk(node, chunkInfo, true);
