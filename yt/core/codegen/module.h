@@ -21,13 +21,9 @@ namespace NCodegen {
 class TCGModule
     : public TRefCounted
 {
-private:
-    class TImpl;
-
 public:
     static TCGModulePtr Create(TRoutineRegistry* routineRegistry, const Stroka& moduleName = "module");
 
-    explicit TCGModule(std::unique_ptr<TImpl>&& impl);
     ~TCGModule();
 
     llvm::LLVMContext& GetContext();
@@ -40,8 +36,13 @@ public:
     TCGFunction<TSignature> GetCompiledFunction(const Stroka& name);
 
 private:
+    class TImpl;
     std::unique_ptr<TImpl> Impl_;
 
+    template <class T, class... As>
+    friend TIntrusivePtr<T> NYT::New(As&&... args);
+
+    explicit TCGModule(std::unique_ptr<TImpl> impl);
     uint64_t GetFunctionAddress(const Stroka& name);
 };
 

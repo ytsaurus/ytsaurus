@@ -281,10 +281,10 @@ private:
 
 TCGModulePtr TCGModule::Create(TRoutineRegistry* routineRegistry, const Stroka& moduleName)
 {
-    return New<TCGModule>(std::make_unique<TCGModule::TImpl>(routineRegistry, moduleName));
+    return New<TCGModule>(std::make_unique<TImpl>(routineRegistry, moduleName));
 }
 
-TCGModule::TCGModule(std::unique_ptr<TImpl>&& impl)
+TCGModule::TCGModule(std::unique_ptr<TImpl> impl)
     : Impl_(std::move(impl))
 { }
 
