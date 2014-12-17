@@ -19,8 +19,8 @@ public:
     TImpl(
         int keyColumnCount,
         const TTableSchema& schema,
-        TCGFunction<TDDComparerSignature>&& ddComparer,
-        TCGFunction<TDUComparerSignature>&& duComparer)
+        TCGFunction<TDDComparerSignature> ddComparer,
+        TCGFunction<TDUComparerSignature> duComparer)
         : KeyColumnCount_(keyColumnCount)
         , Schema_(schema)
         , DDComparer_(std::move(ddComparer))
