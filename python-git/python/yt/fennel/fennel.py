@@ -372,6 +372,7 @@ class LogBroker(object):
         self._save_chunk_futures = dict()
         self._last_acked_seqno = None
         self._stopped = False
+        self._last_message_ts = None
 
         self._io_loop = io_loop or ioloop.IOLoop.instance()
         self._connection_factory = connection_factory or tcpclient.TCPClient(io_loop=self._io_loop)
@@ -417,6 +418,11 @@ class LogBroker(object):
     def read_session(self):
         with ExceptionLoggingContext(self.log):
             while not self._stopped:
+                if (self._save_chunk_futures and
+                   self._last_message_ts is not None and
+                   time.time() - self._last_message_ts > 30*60):
+                    self._abort(RuntimeError("There are no not ping messages for more than 30 minutes"))
+
                 try:
                     message = yield self._session.read_message()
                 except GeneratorExit as e:
@@ -429,6 +435,7 @@ class LogBroker(object):
                     if message.type == "ping":
                         pass
                     elif message.type == "skip":
+                        self._last_message_ts = time.time()
                         skip_seqno = message.attributes["seqno"]
                         f = self._save_chunk_futures.pop(skip_seqno, None)
                         if f:
@@ -438,6 +445,7 @@ class LogBroker(object):
                         else:
                             self.log.error("Get skip message for unknown seqno: %s", skip_seqno)
                     elif message.type == "ack":
+                        self._last_message_ts = time.time()
                         assert self._last_acked_seqno <= message.attributes["seqno"]
 
                         self._update_last_acked_seqno(message.attributes["seqno"])
