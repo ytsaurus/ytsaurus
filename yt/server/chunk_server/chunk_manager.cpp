@@ -909,7 +909,7 @@ private:
             context.GetInput()->Skip(8);
         }
         // COMPAT(ignat)
-        if (context.GetVersion() < 45) {
+        if (context.GetVersion() < 46) {
             NeedToRecomputeStatistics = true;
         }
         ChunkMap.LoadValues(context);
@@ -952,6 +952,7 @@ private:
             chunkList->SetVisitMark(visitMark);
 
             statistics = TChunkTreeStatistics();
+            statistics.Rank = 1;
             int childrenCount = chunkList->Children().size();
 
             auto& rowCountSums = chunkList->RowCountSums();
