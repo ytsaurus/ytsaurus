@@ -29,7 +29,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static Stroka SerializedNullRow("");
+static const Stroka SerializedNullRow("");
 struct TOwningRowTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -548,29 +548,40 @@ TUnversionedRow TUnversionedRow::Allocate(TChunkedMemoryPool* alignedPool, int v
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void ValidateValueLength(const TUnversionedValue& value)
+namespace {
+
+void ValidateValue(const TUnversionedValue& value)
 {
-    if (value.Type == EValueType::String ||
-        value.Type == EValueType::Any)
-    {
-        if (value.Length > MaxStringValueLength) {
-            THROW_ERROR_EXCEPTION("Value is too long: length %v, limit %v",
-                value.Length,
-                MaxStringValueLength);
-        }
+    switch (value.Type) {
+        case EValueType::String:
+        case EValueType::Any:
+            if (value.Length > MaxStringValueLength) {
+                THROW_ERROR_EXCEPTION("Value is too long: length %v, limit %v",
+                    value.Length,
+                    MaxStringValueLength);
+            }
+            break;
+
+        case EValueType::Double:
+            if (!std::isfinite(value.Data.Double)) {
+                THROW_ERROR_EXCEPTION("Value of type \"double\" is not finite");
+            }
+            break;
     }
 }
+
+} // namespace
 
 void ValidateDataValue(const TUnversionedValue& value)
 {
     ValidateDataValueType(EValueType(value.Type));
-    ValidateValueLength(value);
+    ValidateValue(value);
 }
 
 void ValidateKeyValue(const TUnversionedValue& value)
 {
     ValidateKeyValueType(EValueType(value.Type));
-    ValidateValueLength(value);
+    ValidateValue(value);
 }
 
 void ValidateRowValueCount(int count)
