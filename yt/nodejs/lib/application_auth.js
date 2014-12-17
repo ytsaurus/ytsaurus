@@ -74,7 +74,7 @@ YtApplicationAuth.prototype._dispatchError = function(req, rsp, err)
     }
 
     if (req.url.indexOf("/login") === 0) {
-        if (error.code !== 0) {
+        if (!error.isOK()) {
             rsp.statusCode = 400;
         }
         return utils.dispatchAs(rsp, error.toJson(), "application/json");
