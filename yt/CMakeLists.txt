@@ -41,3 +41,6 @@ else()
   message(STATUS "Omitting NodeJS extensions from build (YT_BUILD_ENABLE_NODEJS = OFF)")
 endif()
 
+if(YT_BUILD_ENABLE_PYTHON)
+  add_subdirectory(python)
+endif()

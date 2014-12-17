@@ -1,5 +1,5 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/python/yt/bindings )
+set( BASE ${CMAKE_SOURCE_DIR}/yt/python )
 set( SRCS
   ${BASE}/common.cpp
   ${BASE}/buffered_stream.cpp

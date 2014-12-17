@@ -83,8 +83,8 @@ configure_file(
 
 # Discover Python world.
 if(YT_BUILD_ENABLE_PYTHON)
-  find_package(PythonInterp 2.7)
-  find_package(PythonLibs 2.7)
+  find_package(PythonInterp)
+  find_package(PythonLibs)
   if(NOT PYTHONINTERP_FOUND)
     message(FATAL_ERROR "Could not find Python interpreter to build with YT_BUILD_ENABLE_PYTHON=TRUE")
   endif()
@@ -180,7 +180,6 @@ endif()
 
 if(YT_BUILD_ENABLE_PYTHON)
   add_subdirectory(cmake/deps-pycxx)
-  add_subdirectory(python/yt/bindings)
 endif()
 
 add_custom_target( package touch package-stamp
