@@ -8,16 +8,15 @@ from command import parse_commands
 import os
 import string
 import time
-import httplib
 import yt.packages.requests
 import simplejson as json
 from datetime import datetime
 from socket import error as SocketError
-from httplib import BadStatusLine
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from yt.packages.requests import HTTPError, ConnectionError, Timeout
-RETRIABLE_ERRORS = (HTTPError, ConnectionError, Timeout, httplib.IncompleteRead, SocketError, BadStatusLine, YtRequestRateLimitExceeded, YtIncorrectResponse)
+from yt.packages.requests.packages.urllib3.packages.httplib import BadStatusLine, IncompleteRead
+RETRIABLE_ERRORS = (HTTPError, ConnectionError, Timeout, IncompleteRead, SocketError, BadStatusLine, YtRequestRateLimitExceeded, YtIncorrectResponse)
 
 session_ = yt.packages.requests.Session()
 def get_session():
