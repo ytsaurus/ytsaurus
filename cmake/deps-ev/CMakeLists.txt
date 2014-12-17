@@ -16,6 +16,8 @@ elseif( STYPE STREQUAL "darwin" )
   add_definitions( -D_DARWIN_USE_64_BIT_INODE=1 )
 elseif( STYPE STREQUAL "linux" )
   add_definitions( -D_GNU_SOURCE )
+  set_target_properties( ytext-ev PROPERTIES
+    COMPILE_FLAGS "-Wno-unused-value -Wno-comment")
   target_link_libraries( ytext-ev -lm -lrt )
 elseif( STYPE STREQUAL "windows" )
   set_target_properties( ytext-ev PROPERTIES
