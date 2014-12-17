@@ -62,6 +62,8 @@
 #include <server/security_server/account.h>
 #include <server/security_server/group.h>
 
+#include <server/object_server/object_manager.h>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -508,14 +510,33 @@ public:
     }
 
 
+    void StageChunkTree(TChunkTree* chunkTree, TTransaction* transaction, TAccount* account)
+    {
+        YASSERT(transaction);
+        YASSERT(account);
+        YASSERT(!chunkTree->IsStaged());
+
+        chunkTree->SetStagingTransaction(transaction);
+        chunkTree->SetStagingAccount(account);
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RefObject(account);
+    }
+
     void UnstageChunk(TChunk* chunk)
     {
-        if (chunk->IsStaged() && chunk->IsConfirmed() && !chunk->IsJournal()) {
-            auto* stagingTransaction = chunk->GetStagingTransaction();
-            auto* stagingAccount = chunk->GetStagingAccount();
+        auto* transaction = chunk->GetStagingTransaction();
+        auto* account = chunk->GetStagingAccount();
+
+        if (account) {
+            auto objectManager = Bootstrap_->GetObjectManager();
+            objectManager->UnrefObject(account);
+        }
+
+        if (account && chunk->IsConfirmed() && !chunk->IsJournal()) {
             auto securityManager = Bootstrap_->GetSecurityManager();
             auto delta = -chunk->GetResourceUsage();
-            securityManager->UpdateAccountStagingUsage(stagingTransaction, stagingAccount, delta);
+            securityManager->UpdateAccountStagingUsage(transaction, account, delta);
         }
 
         chunk->SetStagingTransaction(nullptr);
@@ -524,6 +545,12 @@ public:
 
     void UnstageChunkList(TChunkList* chunkList, bool recursive)
     {
+        auto* account = chunkList->GetStagingAccount();
+        if (account) {
+            auto objectManager = Bootstrap_->GetObjectManager();
+            objectManager->UnrefObject(account);
+        }
+
         chunkList->SetStagingTransaction(nullptr);
         chunkList->SetStagingAccount(nullptr);
 
@@ -806,10 +833,8 @@ private:
 
     void DestroyChunk(TChunk* chunk)
     {
-        // Decrease staging resource usage.
-        if (chunk->IsStaged()) {
-            UnstageChunk(chunk);
-        }
+        // Decrease staging resource usage; release account.
+        UnstageChunk(chunk);
 
         // Cancel all jobs, reset status etc.
         if (ChunkReplicator_) {
@@ -841,8 +866,11 @@ private:
 
     void DestroyChunkList(TChunkList* chunkList)
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
+        // Release account.
+        UnstageChunkList(chunkList, false);
+
         // Drop references to children.
+        auto objectManager = Bootstrap_->GetObjectManager();
         for (auto* child : chunkList->Children()) {
             ResetChunkTreeParent(chunkList, child);
             objectManager->UnrefObject(child);
@@ -1448,8 +1476,8 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     chunk->SetErasureCodec(erasureCodecId);
     chunk->SetMovable(requestExt.movable());
     chunk->SetVital(requestExt.vital());
-    chunk->SetStagingTransaction(transaction);
-    chunk->SetStagingAccount(account);
+
+    Owner_->StageChunkTree(chunk, transaction, account);
 
     LOG_DEBUG_UNLESS(Owner_->IsRecovery(),
         "Chunk created "
