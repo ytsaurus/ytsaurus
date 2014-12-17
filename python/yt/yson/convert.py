@@ -3,7 +3,7 @@ from yt.yson.yson_types import *
 from common import YsonError
 
 def to_yson_type(value, attributes = None):
-    """ Wrap value with yson type """
+    """ Wrap value with YSON type """
     if isinstance(value, unicode):
         result = YsonString(str(bytearray(value, 'utf-8')))
     if isinstance(value, str):
@@ -27,7 +27,7 @@ def to_yson_type(value, attributes = None):
     return result
 
 def json_to_yson(json_tree):
-    """ Converts json representation to yson representation """
+    """ Converts json representation to YSON representation """
     has_attrs = isinstance(json_tree, dict) and "$value" in json_tree
     value = json_tree["$value"] if has_attrs else json_tree
     if isinstance(value, unicode):

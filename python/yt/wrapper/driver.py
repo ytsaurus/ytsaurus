@@ -244,8 +244,8 @@ def make_request(command_name, params,
         return response
 
 def make_formatted_request(command_name, params, format, **kwargs):
-    # None format means that we want parsed output (as yson structure) instead of string.
-    # Yson parser is too slow, so we request result in JsonFormat and then convert it to yson structure.
+    # None format means that we want parsed output (as YSON structure) instead of string.
+    # Yson parser is too slow, so we request result in JsonFormat and then convert it to YSON structure.
     if format is None:
         params["output_format"] = "json"
     else:

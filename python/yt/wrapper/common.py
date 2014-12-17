@@ -76,7 +76,7 @@ def dict_depth(obj):
     else:
         return 1 + max(map(dict_depth, obj.values()))
 
-# Remove attributes from json response
+# Remove attributes from JSON response
 def remove_attributes(tree):
     if isinstance(tree, dict):
         if "$attributes" in tree:

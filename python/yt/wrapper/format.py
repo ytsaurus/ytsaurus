@@ -145,7 +145,7 @@ class Format(object):
         return merge_dicts(defaults, attributes, not_none_options)
 
     def is_raw_load_supported(self):
-        """Returns true if format supports loading raw yson rows"""
+        """Returns true if format supports loading raw YSON rows"""
         return self.name() in ("dsv", "yamr", "yamred_dsv", "json", "yson")
 
     def read_row(self, stream):
@@ -531,7 +531,7 @@ class JsonFormat(Format):
         for row in rows:
             if "$value" in row:
                 require(row["$value"] == None,
-                        YtError("Incorrect $value of table switch in json format"))
+                        YtError("Incorrect $value of table switch in JSON format"))
                 table_index = row["$attributes"]["table_index"]
             else:
                 if table_index is not None:
@@ -710,7 +710,7 @@ class SchemedDsvFormat(SchemafulDsvFormat):
 Format._copy_docs()
 
 def create_format(yson_name, attributes=None, **kwargs):
-    """Create format by yson string.
+    """Create format by YSON string.
 
     :param yson_name: YSON string like ``'<lenval=false;has_subkey=false>yamr'``
     :param attributes: Deprecated! Don't use it! It will be removed!

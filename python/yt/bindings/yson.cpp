@@ -89,7 +89,7 @@ public:
     static void InitType()
     {
         behaviors().name("Yson iterator");
-        behaviors().doc("Iterates over stream with yson rows");
+        behaviors().doc("Iterates over stream with YSON rows");
         behaviors().supportGetattro();
         behaviors().supportSetattro();
         behaviors().supportIter();
@@ -153,7 +153,7 @@ public:
     static void InitType()
     {
         behaviors().name("Yson iterator");
-        behaviors().doc("Iterates over stream with yson rows");
+        behaviors().doc("Iterates over stream with YSON rows");
         behaviors().supportGetattro();
         behaviors().supportSetattro();
         behaviors().supportIter();
@@ -183,11 +183,11 @@ public:
         TYsonIterator::InitType();
         TRawYsonIterator::InitType();
 
-        add_keyword_method("load", &yson_module::Load, "load yson from stream");
-        add_keyword_method("loads", &yson_module::Loads, "load yson from string");
+        add_keyword_method("load", &yson_module::Load, "load YSON from stream");
+        add_keyword_method("loads", &yson_module::Loads, "load YSON from string");
 
-        add_keyword_method("dump", &yson_module::Dump, "dump yson to stream");
-        add_keyword_method("dumps", &yson_module::Dumps, "dump yson to string");
+        add_keyword_method("dump", &yson_module::Dump, "dump YSON to stream");
+        add_keyword_method("dumps", &yson_module::Dumps, "dump YSON to string");
 
         initialize("Yson python bindings");
     }
