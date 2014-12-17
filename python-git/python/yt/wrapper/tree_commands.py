@@ -24,7 +24,7 @@ def get(path, attributes=None, format=None, ignore_opaque=False, spec=None, clie
         (by default python dict automatically parsed from YSON).
     :param ignore_opaque: (bool)
     :param spec: (dict)
-    Be careful: attributes have specific representation in json format.
+    Be careful: attributes have specific representation in JSON format.
 
     :return: node tree content in `format`
     .. seealso:: `get on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#get>`_

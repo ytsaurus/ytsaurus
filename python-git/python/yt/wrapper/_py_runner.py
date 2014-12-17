@@ -49,7 +49,7 @@ def main():
     raw = __attributes.get("is_raw", False)
 
     if isinstance(__input_format, YsonFormat) and yt.yson.TYPE != "BINARY":
-        sys.stderr.write("Yson bindings not found. Using python version of yson is deprecated.")
+        sys.stderr.write("YSON bindings not found. Using python version of YSON is deprecated.")
         sys.exit(1)
 
     __rows = __input_format.load_rows(sys.stdin, raw=raw)

@@ -136,8 +136,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
         spec_template = {}
 
     tmp_dir = tempfile.mkdtemp()
-    # TODO(ignat): switch to yson after implementation of load_row
-    files = _prepare_read_from_yt_command(source_client, src, "json", tmp_dir, fastbone)
+    files = _prepare_read_from_yt_command(source_client, src, "yson", tmp_dir, fastbone)
 
     try:
         with source_client.PingableTransaction():

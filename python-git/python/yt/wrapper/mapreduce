@@ -231,11 +231,11 @@ Examples:
             ("fs",
              "field separator for yamr format"),
             ("get",
-             "NEW! returns subtree at given path in json format"),
+             "NEW! returns subtree at given path in JSON format"),
             ("inputformat",
              "NEW! specifies operation input format. "
              "This option has the following format: "
-             "'<format options as yson map fragment>format'"),
+             "'<format options as YSON map fragment>format'"),
             ("jcmultiplier",
              "OLD! this option do nothing"),
             ("jobcount",
@@ -269,7 +269,7 @@ Examples:
             ("outputformat",
              "NEW! specifies operation output format. "
              "This option has the following format: "
-             "'<format options as yson map fragment>format'"),
+             "'<format options as YSON map fragment>format'"),
             ("pingtx",
              "NEW! turn on pinging ancestor transactions"),
             ("prefix",
@@ -295,7 +295,7 @@ Examples:
              "address of the proxy "
              "(port usually equals to 80 and can be omitted)"),
             ("set",
-             "NEW! set value to given path, value should be in json format"),
+             "NEW! set value to given path, value should be in JSON format"),
             ("smartformat",
              "try to extract input and output formats from inputs and outputs (by '_format' attribute)"),
             ("sort",
@@ -341,7 +341,7 @@ Examples:
             ("ytfile",
              "NEW! specifies path to the file in YT tree for use it in current operation"),
             ("ytspec",
-             "NEW! spec for given operation in json format"),
+             "NEW! spec for given operation in JSON format"),
             ("ytlock",
              "NEW! get lock on the given path"),
         ]

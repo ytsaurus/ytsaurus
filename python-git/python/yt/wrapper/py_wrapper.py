@@ -110,7 +110,7 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
         dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
 
     if isinstance(input_format, format.YsonFormat) and yt.yson.TYPE == "PYTHON":
-        raise YtError("Using python implementation of yson parser in operations "
+        raise YtError("Using python implementation of YSON parser in operations "
                       "is forbidden because of memory limit issues. "
                       "Install yandex-yt-python-yson to fix this problem.")
 
