@@ -122,9 +122,7 @@ private:
     TIntrusivePtr<TImpl> Impl_;
 
     friend class TTransactionManager;
-
-    template <class T, class... As>
-    friend TIntrusivePtr<T> NYT::New(As&&... args);
+    DECLARE_NEW_FRIEND();
 
     static TTransactionPtr Create(TIntrusivePtr<TImpl> impl);
     explicit TTransaction(TIntrusivePtr<TImpl> impl);

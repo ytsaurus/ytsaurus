@@ -4,8 +4,6 @@
 #include "function.h"
 #include "routine_registry.h"
 
-#include <core/misc/intrusive_ptr.h>
-
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/TypeBuilder.h>
@@ -39,8 +37,7 @@ private:
     class TImpl;
     std::unique_ptr<TImpl> Impl_;
 
-    template <class T, class... As>
-    friend TIntrusivePtr<T> NYT::New(As&&... args);
+    DECLARE_NEW_FRIEND();
 
     explicit TCGModule(std::unique_ptr<TImpl> impl);
     uint64_t GetFunctionAddress(const Stroka& name);

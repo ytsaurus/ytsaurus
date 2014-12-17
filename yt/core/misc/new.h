@@ -149,6 +149,10 @@ inline TIntrusivePtr<T> NewWithLocation(
 
 #undef REF_COUNTED_NEW_EPILOGUE
 
+#define DECLARE_NEW_FRIEND() \
+    template <class T, class... As> \
+    friend TIntrusivePtr<T> NYT::New(As&&... args);
+
 /*! \} */
 
 ////////////////////////////////////////////////////////////////////////////////
