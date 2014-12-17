@@ -42,7 +42,7 @@ TEST(TStatistics, Add)
     TStatistics statistics;
     statistics.Add("key", TSummary(10));
 
-    EXPECT_EQ(10, statistics.GetStatistic("key").GetSum());
+    EXPECT_EQ(10, statistics.Get("key").GetSum());
 }
 
 TEST(TStatistics, Clear)
@@ -64,8 +64,8 @@ TEST(TStatistics, MergeDifferent)
 
     statistics.Merge(other);
 
-    EXPECT_EQ(10, statistics.GetStatistic("key").GetSum());
-    EXPECT_EQ(40, statistics.GetStatistic("other_key").GetSum());
+    EXPECT_EQ(10, statistics.Get("key").GetSum());
+    EXPECT_EQ(40, statistics.Get("other_key").GetSum());
 }
 
 TEST(TStatistics, MergeTheSameKey)
@@ -78,7 +78,7 @@ TEST(TStatistics, MergeTheSameKey)
 
     statistics.Merge(other);
 
-    EXPECT_EQ(2, statistics.GetStatistic("key").GetCount());
+    EXPECT_EQ(2, statistics.Get("key").GetCount());
 }
 
 TEST(TStatistics, Serialization)
@@ -116,8 +116,8 @@ TEST(TStatisticsConsumer, Integration)
     output.Write("{ k1=4}; {k2=-7}");
 
     const auto& stats = statisticsConsumer.GetStatistics();
-    EXPECT_EQ(4, stats.GetStatistic("/something/k1").GetSum());
-    EXPECT_EQ(-7, stats.GetStatistic("/something/k2").GetSum());
+    EXPECT_EQ(4, stats.Get("/something/k1").GetSum());
+    EXPECT_EQ(-7, stats.Get("/something/k2").GetSum());
 }
 
 ////////////////////////////////////////////////////////////////////

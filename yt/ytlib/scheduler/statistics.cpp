@@ -48,8 +48,7 @@ void Serialize(const TSummary& summary, NYson::IYsonConsumer* consumer)
 
 void Deserialize(TSummary& value, NYTree::INodePtr node)
 {
-    // TODO(babenko): const
-    static std::array<Stroka, 4> possibleKeys = {
+    static const std::array<Stroka, 4> possibleKeys = {
         "sum",
         "count",
         "min",
@@ -74,40 +73,39 @@ void Deserialize(TSummary& value, NYTree::INodePtr node)
 
 void TStatistics::Add(const NYPath::TYPath& name, const TSummary& summary)
 {
-    Statistics_[name] = summary;
+    PathToSummary_[name] = summary;
 }
 
 void TStatistics::Merge(const TStatistics& other)
 {
-    for (const auto& pair : other.Statistics_) {
-        Statistics_[pair.first].Merge(pair.second);
+    for (const auto& pair : other.PathToSummary_) {
+        PathToSummary_[pair.first].Merge(pair.second);
     }
 }
 
 void TStatistics::Clear()
 {
-    Statistics_.clear();
+    PathToSummary_.clear();
 }
 
 bool TStatistics::IsEmpty() const
 {
-    return Statistics_.empty();
+    return PathToSummary_.empty();
 }
 
-TSummary TStatistics::GetStatistic(const NYPath::TYPath& name) const
+TSummary TStatistics::Get(const NYPath::TYPath& name) const
 {
-    auto it = Statistics_.find(name);
-    if (it != Statistics_.end()) {
+    auto it = PathToSummary_.find(name);
+    if (it != PathToSummary_.end()) {
         return it->second;
     }
-    // TODO(babenko): No such statistics %Qv
-    THROW_ERROR_EXCEPTION("There is no %v statistic", name);
+    THROW_ERROR_EXCEPTION("There is no %Qv statistic", name);
 }
 
 void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     auto root = NYTree::GetEphemeralNodeFactory()->CreateMap();
-    for (const auto& pair : statistics.Statistics_) {
+    for (const auto& pair : statistics.PathToSummary_) {
         ForceYPath(root, pair.first);
         auto value = NYTree::ConvertToNode(pair.second);
         SetNodeByYPath(root, pair.first, value);
@@ -117,11 +115,11 @@ void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
 
 void Deserialize(TStatistics& value, NYTree::INodePtr node)
 {
+    // node represents a YSON encoded TStatistics or just a TSummary
     try {
         TSummary summary;
         Deserialize(summary, node);
-        value.Statistics_.insert(std::make_pair(node->GetPath(), std::move(summary)));
-        // TODO(babenko): why would you need a catch here?
+        value.PathToSummary_.insert(std::make_pair(node->GetPath(), std::move(summary)));
     } catch (const std::exception& ) {
         for (auto& pair : node->AsMap()->GetChildren()) {
             Deserialize(value, pair.second);
@@ -133,56 +131,49 @@ void Deserialize(TStatistics& value, NYTree::INodePtr node)
 
 TStatisticsConsumer::TStatisticsConsumer(
     TParsedStatisticsConsumer consumer,
-    const NYPath::TYPath& location)
+    const NYPath::TYPath& path)
     : Depth_(0)
-    , Location_(location)
+    , Path_(path)
     , TreeBuilder_(NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory()))
     , Consumer_(consumer)
 { }
 
-// TODO(babenko): the wording below is not good
-// 1) remove full stops
-// 2) use semicolons
-// 3) quote types, e.g.
-// Statistics cannot contain \"uint64\" values; use \"int64\" instead
 void TStatisticsConsumer::OnStringScalar(const TStringBuf& value)
 {
-    THROW_ERROR_EXCEPTION("Statistics cannot contain string literals");
+    THROW_ERROR_EXCEPTION("Statistics cannot contain \"string\" values");
 }
 
 void TStatisticsConsumer::OnInt64Scalar(i64 value)
 {
     if (Depth_ == 0) {
-        THROW_ERROR_EXCEPTION("Statistics should use map as a container.");
+        THROW_ERROR_EXCEPTION("Statistics should use map as a container");
     }
     TreeBuilder_->OnInt64Scalar(value);
 }
 
 void TStatisticsConsumer::OnUint64Scalar(ui64 value)
 {
-    THROW_ERROR_EXCEPTION("Statistics cannot contain Uint64. Use int64.");
+    THROW_ERROR_EXCEPTION("Statistics cannot contain \"uint64\"; use \"int64\" instead");
 }
 
 void TStatisticsConsumer::OnBooleanScalar(bool value)
 {
-    THROW_ERROR_EXCEPTION("Statistics cannot contain booleans. Use int64.");
+    THROW_ERROR_EXCEPTION("Statistics cannot contain \"boolean\" values; use \"int64\" instead");
 }
 
 void TStatisticsConsumer::OnDoubleScalar(double value)
 {
-    THROW_ERROR_EXCEPTION("Statistics cannot contain float numbers. Use int64.");
+    THROW_ERROR_EXCEPTION("Statistics cannot contain \"double\" values; use \"int64\" instead");
 }
 
 void TStatisticsConsumer::OnEntity()
 {
-    // TODO(babenko): why singular here?
-    // cannot contain entities
-    THROW_ERROR_EXCEPTION("Statistics cannot contain entity literal.");
+    THROW_ERROR_EXCEPTION("Statistics cannot contain entities");
 }
 
 void TStatisticsConsumer::OnBeginList()
 {
-    THROW_ERROR_EXCEPTION("Statistics cannot contain lists.");
+    THROW_ERROR_EXCEPTION("Statistics cannot contain lists");
 }
 
 void TStatisticsConsumer::OnListItem()
@@ -213,12 +204,12 @@ void TStatisticsConsumer::OnEndMap()
     if (Depth_ == 0) {
         TStatistics statistics;
         NYTree::INodePtr parsed;
-        if (Location_.empty()) {
+        if (Path_.empty()) {
             parsed = TreeBuilder_->EndTree();
         } else {
             parsed = NYTree::GetEphemeralNodeFactory()->CreateMap();
-            ForceYPath(parsed, Location_);
-            SetNodeByYPath(parsed, Location_, TreeBuilder_->EndTree());
+            ForceYPath(parsed, Path_);
+            SetNodeByYPath(parsed, Path_, TreeBuilder_->EndTree());
         }
         ConvertToStatistics(statistics, parsed);
         Consumer_.Run(statistics);
@@ -227,7 +218,7 @@ void TStatisticsConsumer::OnEndMap()
 
 void TStatisticsConsumer::OnBeginAttributes()
 {
-    THROW_ERROR_EXCEPTION("Statistics cannot contain attributes.");
+    THROW_ERROR_EXCEPTION("Statistics cannot contain attributes");
 }
 
 void TStatisticsConsumer::OnEndAttributes()
@@ -239,8 +230,7 @@ void TStatisticsConsumer::ConvertToStatistics(TStatistics& value, NYTree::INodeP
 {
     if (node->GetType() == NYTree::ENodeType::Int64) {
         TSummary summary(node->AsInt64()->GetValue());
-        // TODO(babenko): std::move makes no sense here
-        value.Add(node->GetPath(), std::move(summary));
+        value.Add(node->GetPath(), summary);
         return;
     }
 

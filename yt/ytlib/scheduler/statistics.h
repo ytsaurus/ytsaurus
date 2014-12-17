@@ -1,13 +1,15 @@
 #pragma once
 
-// TODO(babenko): please separate distinct folders with newlines
 #include <core/misc/property.h>
+
 #include <core/yson/consumer.h>
-#include <core/ytree/public.h>
-#include <core/actions/bind.h>
+
 // should be removed
 // TODO(babenko): so let's remove it
 #include <core/ytree/tree_builder.h>
+#include <core/ytree/public.h>
+
+#include <core/actions/bind.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -44,16 +46,11 @@ public:
     void Clear();
     bool IsEmpty() const;
 
-    // TODO(babenko): "statistic" is a bad word; please avoid using it
-    // it's returning TSummary, so why not GetSummary?
-    // also, why is it Add but GetSummary?
-    TSummary GetStatistic(const NYPath::TYPath& name) const;
+    TSummary Get(const NYPath::TYPath& name) const;
 
 private:
-    // TODO(babenko): used just once, inline
-    typedef yhash_map<NYPath::TYPath, TSummary> TSummaryDict;
     // TODO(babenko): PathToSummary_?
-    TSummaryDict Statistics_;
+    yhash_map<NYPath::TYPath, TSummary> PathToSummary_;
 
     friend void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer);
     friend void Deserialize(TStatistics& value, NYTree::INodePtr node);
@@ -69,8 +66,7 @@ class TStatisticsConsumer
 {
 public:
     typedef TCallback<void(const TStatistics&)> TParsedStatisticsConsumer;
-    // TODO(babenko): location -> path?
-    explicit TStatisticsConsumer(TParsedStatisticsConsumer consumer, const NYPath::TYPath& location);
+    explicit TStatisticsConsumer(TParsedStatisticsConsumer consumer, const NYPath::TYPath& path);
 
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnInt64Scalar(i64 value) override;
@@ -92,8 +88,7 @@ public:
 
 private:
     int Depth_;
-    // TODO(babenko): Location_ -> Path_?
-    NYPath::TYPath Location_;
+    NYPath::TYPath Path_;
     std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;
     TParsedStatisticsConsumer Consumer_;
 
