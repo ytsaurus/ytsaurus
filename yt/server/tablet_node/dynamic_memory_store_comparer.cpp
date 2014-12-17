@@ -3,8 +3,6 @@
 #include "row_comparer_generator.h"
 #include "private.h"
 
-////////////////////////////////////////////////////////////////////////////////
-
 namespace NYT {
 namespace NTabletNode {
 
@@ -16,16 +14,18 @@ class TDynamicRowKeyComparer::TImpl
     : public TRefCounted
 {
 public:
+#ifdef YT_USE_LLVM
     TImpl(
         int keyColumnCount,
         const TTableSchema& schema,
-        TCGFunction<TDDComparerSignature>&& ddComparer,
-        TCGFunction<TDUComparerSignature>&& duComparer)
+        TCGFunction<TDDComparerSignature> ddComparer,
+        TCGFunction<TDUComparerSignature> duComparer)
         : KeyColumnCount_(keyColumnCount)
         , Schema_(schema)
         , DDComparer_(std::move(ddComparer))
         , DUComparer_(std::move(duComparer))
     { }
+#endif
 
     TImpl(int keyColumnCount, const TTableSchema& schema)
         : KeyColumnCount_(keyColumnCount)
@@ -276,8 +276,11 @@ private:
 
     const int KeyColumnCount_;
     const TTableSchema Schema_;
+#ifdef YT_USE_LLVM
     TCGFunction<TDDComparerSignature> DDComparer_;
     TCGFunction<TDUComparerSignature> DUComparer_;
+#endif
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
