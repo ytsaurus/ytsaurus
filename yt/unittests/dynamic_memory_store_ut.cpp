@@ -123,7 +123,7 @@ public:
             keyColumnCount,
             schema,
             TNoCodegenDynamicRowKeyCompare());
-        LLVMComparer_ = TDynamicRowKeyComparer(keyColumnCount, schema);
+        LlvmComparer_ = TDynamicRowKeyComparer(keyColumnCount, schema);
     }
 
     TDynamicRow BuildDynamicRow(
@@ -163,7 +163,7 @@ protected:
 
     std::unique_ptr<TTransaction> Transaction_;
     TDynamicRowKeyComparer StaticComparer_;
-    TDynamicRowKeyComparer LLVMComparer_;
+    TDynamicRowKeyComparer LlvmComparer_;
     TDynamicRow DynamicRow_;
     TUnversionedOwningRow UnversionedOwningRow_;
 };
@@ -182,11 +182,11 @@ TEST_P(TDynamicRowKeyComparerTest, Test)
         auto drow1 = BuildDynamicRow(urow1);
         EXPECT_EQ(
             StaticComparer_(drow1, TKeyWrapper{urow2.Get()}),
-            LLVMComparer_(drow1, TKeyWrapper{urow2.Get()}));
+            LlvmComparer_(drow1, TKeyWrapper{urow2.Get()}));
 
         if (urow2.GetCount() == keyColumnCount) {
             auto drow2 = BuildDynamicRow(urow2);
-            EXPECT_EQ(StaticComparer_(drow1, drow2), LLVMComparer_(drow1, drow2));
+            EXPECT_EQ(StaticComparer_(drow1, drow2), LlvmComparer_(drow1, drow2));
         }
     }
 }
