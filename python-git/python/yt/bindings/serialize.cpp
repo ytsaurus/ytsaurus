@@ -99,7 +99,7 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
         {
             throw Py::RuntimeError(
                 "Value " + std::string(obj.repr()) +
-                " cannot be represented in yson since it is out of range [-2^63, 2^64 - 1])");
+                " cannot be represented in YSON since it is out of range [-2^63, 2^64 - 1])");
         }
 
         auto longObj = Py::Long(obj);
@@ -472,12 +472,12 @@ public:
                     }
                     break;
                 default:
-                    THROW_ERROR_EXCEPTION("Unexpected token %Qv in yson list fragment", token);
+                    THROW_ERROR_EXCEPTION("Unexpected token %Qv in YSON list fragment", token);
             }
         }
 
         if (balance != 0) {
-            THROW_ERROR_EXCEPTION("Yson list fragment is incomplete");
+            THROW_ERROR_EXCEPTION("YSON list fragment is incomplete");
         }
         if (hasRow) {
             auto prefix = Lexer_.ExtractPrefix();
