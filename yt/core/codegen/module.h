@@ -45,11 +45,12 @@ private:
     uint64_t GetFunctionAddress(const Stroka& name);
 };
 
+DEFINE_REFCOUNTED_TYPE(TCGModule)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCodegen
 } // namespace NYT
-
 
 #define CODEGEN_MODULE_INL_H_
 #include "module-inl.h"

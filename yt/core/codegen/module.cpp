@@ -311,8 +311,6 @@ uint64_t TCGModule::GetFunctionAddress(const Stroka& name)
     return Impl_->GetFunctionAddress(name);
 }
 
-DEFINE_REFCOUNTED_TYPE(TCGModule)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCodegen
