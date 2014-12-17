@@ -526,6 +526,8 @@ class SessionStream(object):
         self._service_id = service_id
         self._source_id = source_id
 
+        self._pending_messages = []
+
         self._io_loop = io_loop or ioloop.IOLoop.instance()
         self._connection_factory = connection_factory or tcpclient.TCPClient(io_loop=self._io_loop)
 
@@ -606,6 +608,10 @@ class SessionStream(object):
 
     @gen.coroutine
     def read_message(self, timeout=None):
+        if self._pending_messages:
+            current_message = self._pending_messages.pop()
+            raise gen.Return(self._parse(current_message))
+
         if timeout is None:
             timeout = self.SESSION_TIMEOUT
 
@@ -636,7 +642,12 @@ class SessionStream(object):
                     self._io_loop
                     )
                 self.log.debug("[%s] Process status: '%s'", self._id, data.strip().encode("string_escape"))
-                raise gen.Return(self._parse(data.strip()))
+                messages = data.strip().split("\n")
+                current_message = messages[0]
+                if len(messages) > 0:
+                    self._pending_messages.extend(messages[1:])
+
+                raise gen.Return(self._parse(current_message))
         except gen.Return:
             raise
         except:
