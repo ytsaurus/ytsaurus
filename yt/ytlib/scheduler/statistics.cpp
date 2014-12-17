@@ -99,7 +99,7 @@ TSummary TStatistics::Get(const NYPath::TYPath& name) const
     if (it != PathToSummary_.end()) {
         return it->second;
     }
-    THROW_ERROR_EXCEPTION("There is no %Qv statistic", name);
+    THROW_ERROR_EXCEPTION("No such statistics %Qv", name);
 }
 
 void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
