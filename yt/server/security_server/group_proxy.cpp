@@ -36,7 +36,8 @@ private:
     {
         const auto* group = GetThisTypedImpl();
         if (group->IsBuiltin()) {
-            THROW_ERROR_EXCEPTION("Cannot remove a built-in group");
+            THROW_ERROR_EXCEPTION("Cannot remove a built-in group %Qv",
+                group->GetName());
         }
     }
 

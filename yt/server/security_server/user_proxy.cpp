@@ -31,7 +31,8 @@ private:
     {
         const auto* user = GetThisTypedImpl();
         if (user->IsBuiltin())  {
-            THROW_ERROR_EXCEPTION("Cannot remove a built-in user");
+            THROW_ERROR_EXCEPTION("Cannot remove a built-in user %Qv",
+                user->GetName());
         }
     }
 

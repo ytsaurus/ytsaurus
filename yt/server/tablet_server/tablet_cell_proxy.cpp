@@ -47,7 +47,9 @@ private:
     {
         const auto* cell = GetThisTypedImpl();
         if (!cell->Tablets().empty()) {
-            THROW_ERROR_EXCEPTION("Cannot remove a cell with active tablets");
+            THROW_ERROR_EXCEPTION("Cannot remove tablet cell %v since it has %v active tablet(s)",
+                cell->GetId(),
+                cell->Tablets().size());
         }
     }
 

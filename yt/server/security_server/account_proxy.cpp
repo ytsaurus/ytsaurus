@@ -40,7 +40,8 @@ private:
     {
         const auto* account = GetThisTypedImpl();
         if (account->IsBuiltin()) {
-            THROW_ERROR_EXCEPTION("Cannot remove a built-in account");
+            THROW_ERROR_EXCEPTION("Cannot remove a built-in account %Qv",
+                account->GetName());
         }
     }
 
