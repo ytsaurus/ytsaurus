@@ -82,6 +82,8 @@ def prepare(options):
     if not options.cxx:
         raise RuntimeError("Failed to locate CXX compiler")
 
+    options.use_lto = (options.type != "Debug")
+
     if os.path.exists(options.working_directory) and options.clean_working_directory:
         teamcity_message("Cleaning working directory...", status="WARNING")
         shutil.rmtree(options.working_directory)
@@ -113,6 +115,7 @@ def configure(options):
         "-DYT_BUILD_ENABLE_PYTHON={0}".format(options.build_enable_python),
         "-DYT_BUILD_ENABLE_PERL={0}".format(options.build_enable_perl),
         "-DYT_BUILD_ENABLE_LLVM={0}".format(options.build_enable_llvm),
+        "-DYT_USE_LTO={0}".format(options.use_lto),
         "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
         "-DCMAKE_C_COMPILER={0}".format(options.cc),
         options.checkout_directory],
