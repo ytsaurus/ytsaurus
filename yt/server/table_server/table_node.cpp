@@ -196,6 +196,10 @@ protected:
         TTableNode* clonedNode,
         NCypressServer::ICypressNodeFactoryPtr factory) override
     {
+        if (!sourceNode->Tablets().empty()) {
+            THROW_ERROR_EXCEPTION("Dynamic tables cannot be cloned");
+        }
+
         TBase::DoClone(sourceNode, clonedNode, factory);
 
         clonedNode->SetSorted(sourceNode->GetSorted());

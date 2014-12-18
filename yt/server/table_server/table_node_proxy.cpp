@@ -273,7 +273,7 @@ private:
 
         const auto* node = GetThisTypedImpl();
         if (!node->Tablets().empty()) {
-            THROW_ERROR_EXCEPTION("Cannot fetch a table with tablets");
+            THROW_ERROR_EXCEPTION("Cannot fetch a dynamic table");
         }
     }
 
@@ -283,7 +283,7 @@ private:
 
         const auto* trunkNode = GetThisTypedImpl()->GetTrunkNode();
         if (!trunkNode->Tablets().empty()) {
-            THROW_ERROR_EXCEPTION("Cannot write into a table with tablets");
+            THROW_ERROR_EXCEPTION("Cannot write into a dynamic table");
         }
     }
 
