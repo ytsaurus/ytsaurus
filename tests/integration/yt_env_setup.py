@@ -63,21 +63,15 @@ class YTEnvSetup(YTEnv):
             self._abort_transactions(list(txs_to_abort))
 
             yt_commands.set('//tmp', {})
+            yt_commands.gc_collect()
 
-            accounts = yt_commands.get_accounts()
-            self._remove_accounts(accounts)
+            self._remove_accounts()
+            self._remove_users()
+            self._remove_groups()
+            self._remove_tablet_cells()
+            self._remove_racks()
 
-            users = yt_commands.get_users()
-            self._remove_users(users)
-
-            groups = yt_commands.get_groups()
-            self._remove_groups(groups)
-
-            tablet_cells = yt_commands.get_tablet_cells()
-            self._remove_tablet_cells(tablet_cells)
-
-            racks = yt_commands.get_racks()
-            self._remove_racks(racks)
+            yt_commands.gc_collect()
 
     def _abort_transactions(self, txs):
         for tx in txs:
@@ -86,26 +80,31 @@ class YTEnvSetup(YTEnv):
             except:
                 pass
 
-    def _remove_accounts(self, accounts):
+    def _remove_accounts(self):
+        accounts = yt_commands.ls('//sys/accounts', attr=['builtin'])
         for account in accounts:
-            if account != 'sys' and account != 'tmp' and account != 'intermediate':
-                yt_commands.remove_account(account)
+            if not account.attributes['builtin']:
+                yt_commands.remove_account(str(account))
 
-    def _remove_users(self, users):
+    def _remove_users(self):
+        users = yt_commands.ls('//sys/users', attr=['builtin'])
         for user in users:
-            if user != 'root' and user != 'guest':
-                yt_commands.remove_user(user)
+            if not user.attributes['builtin']:
+                yt_commands.remove_user(str(user))
 
-    def _remove_groups(self, groups):
+    def _remove_groups(self):
+        groups = yt_commands.ls('//sys/groups', attr=['builtin'])
         for group in groups:
-            if group != 'everyone' and group != 'users' and group != 'superusers':
-                yt_commands.remove_group(group)
+            if not group.attributes['builtin']:
+                yt_commands.remove_group(str(group))
     
-    def _remove_tablet_cells(self, cells):
+    def _remove_tablet_cells(self):
+        cells = yt_commands.get_tablet_cells()
         for id in cells:
             yt_commands.remove_tablet_cell(id)
 
-    def _remove_racks(self, racks):
+    def _remove_racks(self):
+        racks = yt_commands.get_racks()
         for rack in racks:
             yt_commands.remove_rack(rack)
 
