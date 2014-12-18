@@ -77,8 +77,10 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoDestroy(TChunkOwner* node)
     auto objectManager = TBase::Bootstrap->GetObjectManager();
 
     auto* chunkList = node->GetChunkList();
-    YCHECK(chunkList->OwningNodes().erase(node) == 1);
-    objectManager->UnrefObject(chunkList);
+    if (chunkList) {
+        YCHECK(chunkList->OwningNodes().erase(node) == 1);
+        objectManager->UnrefObject(chunkList);
+    }
 }
 
 template <class TChunkOwner>
