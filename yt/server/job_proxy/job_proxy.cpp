@@ -28,13 +28,12 @@
 
 #include <core/logging/log_manager.h>
 
-#include <ytlib/scheduler/public.h>
-
 #include <core/bus/tcp_client.h>
 
 #include <core/rpc/bus_channel.h>
+#include <core/rpc/helpers.h>
 
-#include <server/scheduler/job_resources.h>
+#include <ytlib/scheduler/public.h>
 
 #include <ytlib/cgroup/cgroup.h>
 
@@ -52,6 +51,10 @@
 #include <ytlib/scheduler/statistics.h>
 
 #include <ytlib/hydra/peer_channel.h>
+
+#include <ytlib/security_client/public.h>
+
+#include <server/scheduler/job_resources.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -257,7 +260,9 @@ TJobResult TJobProxy::DoRun()
     SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
     SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
-    MasterChannel_ = CreateRealmChannel(CreateBusChannel(supervisorClient), Config_->CellId);
+    MasterChannel_ = CreateAuthenticatedChannel(
+        CreateRealmChannel(CreateBusChannel(supervisorClient), Config_->CellId),
+        NSecurityClient::JobUserName);
 
     RetrieveJobSpec();
 
