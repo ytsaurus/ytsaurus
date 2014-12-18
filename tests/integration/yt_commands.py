@@ -13,7 +13,7 @@ from cStringIO import StringIO
 
 ###########################################################################
 
-only_linux = pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+only_linux = pytest.mark.skipif('not sys.platform.startswith("linux")')
 
 driver = None
 
@@ -122,31 +122,31 @@ def set(path, value, is_raw=False, **kwargs):
 def create(object_type, path, **kwargs):
     kwargs["type"] = object_type
     kwargs["path"] = path
-    return command('create', kwargs)
+    return command("create", kwargs)
 
 def copy(source_path, destination_path, **kwargs):
     kwargs["source_path"] = source_path
     kwargs["destination_path"] = destination_path
-    return command('copy', kwargs)
+    return command("copy", kwargs)
 
 def move(source_path, destination_path, **kwargs):
     kwargs["source_path"] = source_path
     kwargs["destination_path"] = destination_path
-    return command('move', kwargs)
+    return command("move", kwargs)
 
 def link(target_path, link_path, **kwargs):
     kwargs["target_path"] = target_path
     kwargs["link_path"] = link_path
-    return command('link', kwargs)
+    return command("link", kwargs)
 
 def exists(path, **kwargs):
     kwargs["path"] = path
-    res = command('exists', kwargs)
+    res = command("exists", kwargs)
     return yson.loads(res)
 
 def ls(path, **kwargs):
     kwargs["path"] = path
-    return yson.loads(command('list', kwargs))
+    return yson.loads(command("list", kwargs))
 
 def execute_command_with_output_format(command_name, kwargs):
     has_output_format = "output_format" in kwargs
@@ -193,50 +193,50 @@ def insert(path, value, is_raw=False, **kwargs):
     return command("insert", kwargs, input_stream=StringIO(value))
 
 def start_transaction(**kwargs):
-    out = command('start_tx', kwargs)
-    return out.replace('"', '').strip('\n')
+    out = command("start_tx", kwargs)
+    return out.replace('"', '').strip("\n")
 
 def commit_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
-    return command('commit_tx', kwargs)
+    return command("commit_tx", kwargs)
 
 def ping_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
-    return command('ping_tx', kwargs)
+    return command("ping_tx", kwargs)
 
 def abort_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
-    return command('abort_tx', kwargs)
+    return command("abort_tx", kwargs)
 
 def mount_table(path, **kwargs):
     kwargs["path"] = path
-    return command('mount_table', kwargs)
+    return command("mount_table", kwargs)
 
 def unmount_table(path, **kwargs):
     kwargs["path"] = path
-    return command('unmount_table', kwargs)
+    return command("unmount_table", kwargs)
 
 def remount_table(path, **kwargs):
     kwargs["path"] = path
-    return command('remount_table', kwargs)
+    return command("remount_table", kwargs)
 
 def reshard_table(path, pivot_keys, **kwargs):
     kwargs["path"] = path
     kwargs["pivot_keys"] = pivot_keys
-    return command('reshard_table', kwargs)
+    return command("reshard_table", kwargs)
 
 def upload(path, data, **kwargs):
     kwargs["path"] = path
-    return command('write_file', kwargs, input_stream=StringIO(data))
+    return command("write_file", kwargs, input_stream=StringIO(data))
 
 def upload_file(path, file_name, **kwargs):
-    with open(file_name, 'rt') as f:
+    with open(file_name, "rt") as f:
         return upload(path, f.read(), **kwargs)
 
 def download(path, **kwargs):
     kwargs["path"] = path
     output = StringIO()
-    command('read_file', kwargs, output_stream=output)
+    command("read_file", kwargs, output_stream=output)
     return output.getvalue();
 
 def read_journal(path, **kwargs):
@@ -253,7 +253,7 @@ def write_journal(path, value, is_raw=False, **kwargs):
     # remove surrounding [ ]
     value = value[1:-1]
     kwargs["path"] = path
-    return command('write_journal', kwargs, input_stream=StringIO(value))
+    return command("write_journal", kwargs, input_stream=StringIO(value))
 
 def track_op(op_id):
     counter = 0
@@ -330,34 +330,34 @@ def start_op(op_type, **kwargs):
     return op_id
 
 def map(**kwargs):
-    return start_op('map', **kwargs)
+    return start_op("map", **kwargs)
 
 def merge(**kwargs):
     flat(kwargs, "merge_by")
     for opt in ["combine_chunks", "merge_by", "mode"]:
         change(kwargs, opt, ["spec", opt])
-    return start_op('merge', **kwargs)
+    return start_op("merge", **kwargs)
 
 def reduce(**kwargs):
-    return start_op('reduce', **kwargs)
+    return start_op("reduce", **kwargs)
 
 def map_reduce(**kwargs):
-    return start_op('map_reduce', **kwargs)
+    return start_op("map_reduce", **kwargs)
 
 def erase(path, **kwargs):
     kwargs["table_path"] = path
     change(kwargs, "combine_chunks", ["spec", "combine_chunks"])
-    return start_op('erase', **kwargs)
+    return start_op("erase", **kwargs)
 
 def sort(**kwargs):
-    return start_op('sort', **kwargs)
+    return start_op("sort", **kwargs)
 
 def remote_copy(**kwargs):
-    return start_op('remote_copy', **kwargs)
+    return start_op("remote_copy", **kwargs)
 
 def abort_op(op, **kwargs):
     kwargs["operation_id"] = op
-    command('abort_op', kwargs)
+    command("abort_op", kwargs)
 
 def build_snapshot(*args, **kwargs):
     get_driver().build_snapshot(*args, **kwargs)
@@ -367,55 +367,55 @@ def gc_collect():
 
 def create_account(name, **kwargs):
     kwargs["type"] = "account"
-    kwargs["attributes"] = {'name': name}
-    command('create', kwargs)
+    kwargs["attributes"] = {"name": name}
+    command("create", kwargs)
 
 def remove_account(name, **kwargs):
-    remove('//sys/accounts/' + name, **kwargs)
+    remove("//sys/accounts/" + name, **kwargs)
     gc_collect()
 
 def create_user(name, **kwargs):
     kwargs["type"] = "user"
-    kwargs["attributes"] = {'name': name}
-    command('create', kwargs)
+    kwargs["attributes"] = {"name": name}
+    command("create", kwargs)
 
 def remove_user(name, **kwargs):
-    remove('//sys/users/' + name, **kwargs)
+    remove("//sys/users/" + name, **kwargs)
     gc_collect()
 
 def create_group(name, **kwargs):
     kwargs["type"] = "group"
-    kwargs["attributes"] = {'name': name}
-    command('create', kwargs)
+    kwargs["attributes"] = {"name": name}
+    command("create", kwargs)
 
 def remove_group(name, **kwargs):
-    remove('//sys/groups/' + name, **kwargs)
+    remove("//sys/groups/" + name, **kwargs)
     gc_collect()
 
 def add_member(member, group, **kwargs):
     kwargs["member"] = member
     kwargs["group"] = group
-    command('add_member', kwargs)
+    command("add_member", kwargs)
 
 def remove_member(member, group, **kwargs):
     kwargs["member"] = member
     kwargs["group"] = group
-    command('remove_member', kwargs)
+    command("remove_member", kwargs)
 
 def create_tablet_cell(size):
-    return yson.loads(command('create', {'type': 'tablet_cell', 'attributes': {'size': size}}))
+    return yson.loads(command("create", {"type": "tablet_cell", "attributes": {"size": size}}))
 
 def remove_tablet_cell(id):
-    remove('//sys/tablet_cells/' + id)
+    remove("//sys/tablet_cells/" + id)
     gc_collect()
 
 def create_rack(name, **kwargs):
     kwargs["type"] = "rack"
-    kwargs["attributes"] = {'name': name}
-    command('create', kwargs)
+    kwargs["attributes"] = {"name": name}
+    command("create", kwargs)
 
 def remove_rack(name, **kwargs):
-    remove('//sys/racks/' + name, **kwargs)
+    remove("//sys/racks/" + name, **kwargs)
     gc_collect()
     
 #########################################
@@ -423,36 +423,36 @@ def remove_rack(name, **kwargs):
 
 def get_transactions():
     gc_collect()
-    return ls('//sys/transactions')
+    return ls("//sys/transactions")
 
 def get_topmost_transactions():
     gc_collect()
-    return ls('//sys/topmost_transactions')
+    return ls("//sys/topmost_transactions")
 
 def get_chunks():
     gc_collect()
-    return ls('//sys/chunks')
+    return ls("//sys/chunks")
 
 def get_accounts():
     gc_collect()
-    return ls('//sys/accounts')
+    return ls("//sys/accounts")
 
 def get_users():
     gc_collect()
-    return ls('//sys/users')
+    return ls("//sys/users")
 
 def get_groups():
     gc_collect()
-    return ls('//sys/groups')
+    return ls("//sys/groups")
 
 def get_tablet_cells():
     gc_collect()
-    return ls('//sys/tablet_cells')
+    return ls("//sys/tablet_cells")
 
 def get_racks():
     gc_collect()
-    return ls('//sys/racks')
+    return ls("//sys/racks")
 
 def get_nodes():
-    return ls('//sys/nodes')
+    return ls("//sys/nodes")
 
