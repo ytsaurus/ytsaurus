@@ -345,7 +345,7 @@ private:
     }
 
 
-    IChannelPtr GetMailboxChannel(TMailbox* mailbox)
+    IChannelPtr FindMailboxChannel(TMailbox* mailbox)
     {
         return CellDirectory_->FindChannel(mailbox->GetCellId());
     }
@@ -399,7 +399,7 @@ private:
             return;
         }
 
-        auto channel = GetMailboxChannel(mailbox);
+        auto channel = FindMailboxChannel(mailbox);
         if (!channel) {
             SchedulePing(mailbox);
             return;
@@ -454,7 +454,7 @@ private:
         if (!mailbox->GetConnected())
             return;
 
-        auto channel = GetMailboxChannel(mailbox);
+        auto channel = FindMailboxChannel(mailbox);
         if (!channel)
             return;
 
