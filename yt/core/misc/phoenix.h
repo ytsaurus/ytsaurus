@@ -156,7 +156,7 @@ private:
     template <class T>
     static void* DoInstantiate();;
 
-    DECLARE_SINGLETON_FRIEND(TRegistry)
+    DECLARE_SINGLETON_FRIEND(TRegistry);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

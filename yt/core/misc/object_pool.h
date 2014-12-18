@@ -53,7 +53,7 @@ private:
     THeader* GetHeader(T* obj);
     bool IsExpired(const THeader* header);
 
-    DECLARE_SINGLETON_FRIEND(TObjectPool<T>)
+    DECLARE_SINGLETON_FRIEND(TObjectPool<T>);
 };
 
 template <class T>
