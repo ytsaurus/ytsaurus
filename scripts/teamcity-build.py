@@ -83,6 +83,7 @@ def prepare(options):
         raise RuntimeError("Failed to locate CXX compiler")
 
     # Temporaly turn off
+    options.use_lto = False
     #options.use_lto = (options.type != "Debug")
 
     if os.path.exists(options.working_directory) and options.clean_working_directory:
