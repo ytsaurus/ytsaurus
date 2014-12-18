@@ -18,6 +18,12 @@
 #include <core/rpc/bus_channel.h>
 #include <core/rpc/transient_response_keeper.h>
 
+#include <core/ytree/virtual.h>
+#include <core/ytree/ypath_client.h>
+#include <core/ytree/yson_file_service.h>
+
+#include <core/profiling/profile_manager.h>
+
 #include <ytlib/api/connection.h>
 #include <ytlib/api/client.h>
 
@@ -30,12 +36,6 @@
 #include <ytlib/monitoring/http_server.h>
 #include <ytlib/monitoring/http_integration.h>
 
-#include <core/ytree/virtual.h>
-#include <core/ytree/ypath_client.h>
-#include <core/ytree/yson_file_service.h>
-
-#include <core/profiling/profile_manager.h>
-
 #include <ytlib/scheduler/config.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
@@ -43,8 +43,9 @@
 #include <ytlib/transaction_client/remote_timestamp_provider.h>
 
 #include <ytlib/hive/cell_directory.h>
-
 #include <ytlib/hive/cluster_directory.h>
+
+#include <ytlib/security_client/public.h>
 
 #include <server/misc/build_attributes.h>
 
@@ -75,7 +76,7 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Bootstrap");
+static const NLog::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,7 +125,10 @@ void TBootstrap::DoRun()
     });
 
     auto connection = CreateConnection(Config_->ClusterConnection, isRetriableError);
-    MasterClient_ = connection->CreateClient(GetRootClientOptions());
+
+    TClientOptions clientOptions;
+    clientOptions.User = NSecurityClient::SchedulerUserName;
+    MasterClient_ = connection->CreateClient(clientOptions);
 
     BusServer_ = CreateTcpBusServer(New<TTcpBusServerConfig>(Config_->RpcPort));
 
