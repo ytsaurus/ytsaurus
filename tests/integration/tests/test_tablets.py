@@ -25,8 +25,8 @@ class TestTablets(YTEnvSetup):
         print "Waiting for tablet cells to become healthy..."
         self._wait(lambda: all(get("//sys/tablet_cells/" + id + "/@health") == "good" for id in ids))
 
-    def _create_table(self):
-        create("table", "//tmp/t",
+    def _create_table(self, path):
+        create("table", path,
             attributes = {
                 "schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "string"}],
                 "key_columns": ["key"]
@@ -60,7 +60,7 @@ class TestTablets(YTEnvSetup):
 
     def test_mount1(self):
         self._sync_create_cells(1, 1)
-        self._create_table()
+        self._create_table("//tmp/t")
 
         mount_table("//tmp/t")
         tablets = get("//tmp/t/@tablets")
@@ -74,7 +74,7 @@ class TestTablets(YTEnvSetup):
 
     def test_unmount1(self):
         self._sync_create_cells(1, 1)
-        self._create_table()
+        self._create_table("//tmp/t")
 
         mount_table("//tmp/t")
 
@@ -94,7 +94,7 @@ class TestTablets(YTEnvSetup):
 
     def test_reshard_unmounted(self):
         self._sync_create_cells(1, 1)
-        self._create_table()
+        self._create_table("//tmp/t")
 
         reshard_table("//tmp/t", [[]])
         assert self._get_pivot_keys("//tmp/t") == [[]]
@@ -125,7 +125,7 @@ class TestTablets(YTEnvSetup):
 
     def test_force_unmount_on_remove(self):
         self._sync_create_cells(1, 1)
-        self._create_table()
+        self._create_table("//tmp/t")
         self._sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -138,8 +138,16 @@ class TestTablets(YTEnvSetup):
          
     def test_read_write(self):
         self._sync_create_cells(1, 1)
-        self._create_table()
+        self._create_table("//tmp/t")
         self._sync_mount_table("//tmp/t")
 
         with pytest.raises(YtError): read("//tmp/t")
         with pytest.raises(YtError): write("//tmp/t", [{"key": 1, "value": 2}])
+
+    def test_no_copy(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t1")
+        self._sync_mount_table("//tmp/t1")
+
+        with pytest.raises(YtError): copy("//tmp/t1", "//tmp/t2")
+
