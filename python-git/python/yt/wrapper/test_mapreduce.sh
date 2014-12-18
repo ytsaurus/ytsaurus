@@ -522,6 +522,22 @@ test_parallel_dstappend()
     fi
 }
 
+test_many_to_many_copy_move()
+{
+    ./mapreduce -write "ignat/in1" <table_file
+    ./mapreduce -write "ignat/in2" <table_file
+    ./mapreduce -move -src "ignat/in1" -dst "ignat/out1" -src "ignat/in2" -dst "ignat/out2"
+
+    check "" "`./mapreduce -read "ignat/in1"`"
+    check "" "`./mapreduce -read "ignat/in2"`"
+    check "4\t5\t6\n1\t2\t3\n" "`./mapreduce -read "ignat/out1"`"
+    check "4\t5\t6\n1\t2\t3\n" "`./mapreduce -read "ignat/out2"`"
+
+    ./mapreduce -copy -src "ignat/out1" -dst "ignat/in1" -src "ignat/out2" -dst "ignat/in2"
+    check "4\t5\t6\n1\t2\t3\n" "`./mapreduce -read "ignat/in1"`"
+    check "4\t5\t6\n1\t2\t3\n" "`./mapreduce -read "ignat/in2"`"
+}
+
 prepare_table_files
 test_sortby_reduceby
 test_base_functionality
@@ -550,5 +566,6 @@ test_copy_files
 test_write_lenval
 test_force_drop
 test_parallel_dstappend
+test_many_to_many_copy_move
 
 cleanup
