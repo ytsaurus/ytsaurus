@@ -93,6 +93,62 @@ static TDuration UnapprovedReplicaGracePeriod = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkTreeBalancerCallbacks
+    : public IChunkTreeBalancerCallbacks
+{
+public:
+    TChunkTreeBalancerCallbacks(NCellMaster::TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+    { }
+
+    virtual void RefObject(NObjectServer::TObjectBase* object) override
+    {
+        Bootstrap_->GetObjectManager()->RefObject(object);
+    }
+
+    virtual void UnrefObject(NObjectServer::TObjectBase* object) override
+    {
+        Bootstrap_->GetObjectManager()->UnrefObject(object);
+    }
+
+    virtual TChunkList* CreateChunkList() override
+    {
+        return Bootstrap_->GetChunkManager()->CreateChunkList();
+    }
+
+    virtual void ClearChunkList(TChunkList* chunkList) override
+    {
+        Bootstrap_->GetChunkManager()->ClearChunkList(chunkList);
+    }
+
+    virtual void AttachToChunkList(
+        TChunkList* chunkList,
+        const std::vector<TChunkTree*>& children) override
+    {
+        Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, children);
+    }
+
+    virtual void AttachToChunkList(
+        TChunkList* chunkList,
+        TChunkTree* child) override
+    {
+        Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, child);
+    }
+
+    virtual void AttachToChunkList(
+        TChunkList* chunkList,
+        TChunkTree** childrenBegin,
+        TChunkTree** childrenEnd) override
+    {
+        Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, childrenBegin, childrenEnd);
+    }
+
+private:
+    NCellMaster::TBootstrap* Bootstrap_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkManager::TChunkTypeHandlerBase
     : public TObjectTypeHandlerWithMapBase<TChunk>
 {
@@ -257,7 +313,7 @@ public:
         TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap)
         , Config_(config)
-        , ChunkTreeBalancer_(Bootstrap_)
+        , ChunkTreeBalancer_(New<TChunkTreeBalancerCallbacks>(Bootstrap_))
         , Profiler(ChunkServerProfiler)
         , AddChunkCounter_("/add_chunk_rate")
         , RemoveChunkCounter_("/remove_chunk_rate")
@@ -745,7 +801,7 @@ public:
         // Go upwards and apply delta.
         YCHECK(chunk->Parents().size() == 1);
         auto* chunkList = chunk->Parents()[0];
-        
+
         TChunkTreeStatistics statisticsDelta;
         statisticsDelta.Sealed = true;
         statisticsDelta.RowCount = info.row_count();
@@ -928,7 +984,7 @@ private:
             }
             node->SetDecommissioned(config->Decommissioned);
         }
-    
+
         if (ChunkReplicator_) {
             ChunkReplicator_->ScheduleNodeRefresh(node);
         }

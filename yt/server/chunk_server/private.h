@@ -15,6 +15,7 @@ extern NProfiling::TProfiler ChunkServerProfiler;
 
 DECLARE_REFCOUNTED_STRUCT(IChunkVisitor)
 DECLARE_REFCOUNTED_STRUCT(IChunkTraverserCallbacks)
+DECLARE_REFCOUNTED_STRUCT(IChunkTreeBalancerCallbacks)
 
 ////////////////////////////////////////////////////////////////////////////////
 
