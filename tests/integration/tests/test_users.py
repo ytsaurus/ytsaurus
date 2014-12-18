@@ -62,7 +62,7 @@ class TestUsers(YTEnvSetup):
         assert get("//sys/users/u/@request_counter") == 0
 
     def test_builtin_init(self):
-        self.assertItemsEqual(get("//sys/groups/everyone/@members"), ["users", "guest", "job", "scheduler"])
+        self.assertItemsEqual(get("//sys/groups/everyone/@members"), ["users", "guest"])
         self.assertItemsEqual(get("//sys/groups/users/@members"), ["superusers"])
         self.assertItemsEqual(get("//sys/groups/superusers/@members"), ["root"])
 
