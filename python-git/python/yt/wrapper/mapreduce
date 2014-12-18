@@ -35,6 +35,7 @@ import yt.wrapper as yt
 
 import os
 import sys
+import types
 import simplejson as json
 from argparse import ArgumentParser, RawTextHelpFormatter, REMAINDER, Action
 from operator import attrgetter
@@ -531,10 +532,20 @@ Examples:
             if args.force:
                 _remove_locks(args.drop)
             remove_with_empty_dirs(args.drop)
-    if args.copy:
-        copy_table(args.src, unlist_destination_tables(dst))
-    if args.move:
-        move_table(args.src, unlist_destination_tables(dst))
+
+    if args.copy or args.move:
+        if args.copy:
+            method = copy_table
+        if args.move:
+            method = move_table
+        if isinstance(dst, types.ListType) and len(dst) > 1:
+            if len(args.src) != len(dst):
+                exit("Number of source and destination tables must be the same "
+                     "in case of multiple destination tables in copy or move")
+            with yt.PingableTransaction():
+                for source_table, destination_table in zip(args.src, dst):
+                    method(source_table, destination_table)
+
     if args.sort:
         if inputformat.name() == "yamred_dsv" and args.sortby is None:
             args.sortby = inputformat.attributes.get("key_column_names", []) + \
