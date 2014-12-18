@@ -78,7 +78,7 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
     class TSchedulingContext;
 

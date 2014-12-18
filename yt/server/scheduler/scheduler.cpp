@@ -88,7 +88,7 @@ using NNodeTrackerClient::TNodeDescriptor;
 
 static const auto& Logger = SchedulerLogger;
 static auto& Profiler = SchedulerProfiler;
-static TDuration ProfilingPeriod = TDuration::Seconds(1);
+static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -1985,6 +1985,7 @@ private:
 class TScheduler::TSchedulingContext
     : public ISchedulingContext
 {
+public:
     DEFINE_BYVAL_RO_PROPERTY(TExecNodePtr, Node);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, StartedJobs);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, PreemptedJobs);
@@ -1997,7 +1998,7 @@ public:
         const std::vector<TJobPtr>& runningJobs)
         : Node_(node)
         , RunningJobs_(runningJobs)
-        , Owner(owner)
+        , Owner_(owner)
     { }
 
 
@@ -2007,7 +2008,7 @@ public:
             return false;
         }
 
-        auto maxJobStarts = Owner->Config_->MaxStartedJobsPerHeartbeat;
+        auto maxJobStarts = Owner_->Config_->MaxStartedJobsPerHeartbeat;
         if (maxJobStarts && StartedJobs_.size() >= maxJobStarts.Get()) {
             return false;
         }
@@ -2032,7 +2033,7 @@ public:
             resourceLimits,
             specBuilder);
         StartedJobs_.push_back(job);
-        Owner->RegisterJob(job);
+        Owner_->RegisterJob(job);
         return job;
     }
 
@@ -2040,11 +2041,11 @@ public:
     {
         YCHECK(job->GetNode() == Node_);
         PreemptedJobs_.push_back(job);
-        Owner->PreemptJob(job);
+        Owner_->PreemptJob(job);
     }
 
 private:
-    TImpl* Owner;
+    TImpl* Owner_;
 
 };
 
@@ -2063,7 +2064,7 @@ std::unique_ptr<ISchedulingContext> TScheduler::TImpl::CreateSchedulingContext(
 TScheduler::TScheduler(
     TSchedulerConfigPtr config,
     TBootstrap* bootstrap)
-    : Impl(New<TImpl>(config, bootstrap))
+    : Impl_(New<TImpl>(config, bootstrap))
 { }
 
 TScheduler::~TScheduler()
@@ -2071,67 +2072,67 @@ TScheduler::~TScheduler()
 
 void TScheduler::Initialize()
 {
-    Impl->Initialize();
+    Impl_->Initialize();
 }
 
 ISchedulerStrategy* TScheduler::GetStrategy()
 {
-    return Impl->GetStrategy();
+    return Impl_->GetStrategy();
 }
 
 IYPathServicePtr TScheduler::GetOrchidService()
 {
-    return Impl->GetOrchidService();
+    return Impl_->GetOrchidService();
 }
 
 std::vector<TOperationPtr> TScheduler::GetOperations()
 {
-    return Impl->GetOperations();
+    return Impl_->GetOperations();
 }
 
 std::vector<TExecNodePtr> TScheduler::GetExecNodes()
 {
-    return Impl->GetExecNodes();
+    return Impl_->GetExecNodes();
 }
 
 IInvokerPtr TScheduler::GetSnapshotIOInvoker()
 {
-    return Impl->GetSnapshotIOInvoker();
+    return Impl_->GetSnapshotIOInvoker();
 }
 
 bool TScheduler::IsConnected()
 {
-    return Impl->IsConnected();
+    return Impl_->IsConnected();
 }
 
 void TScheduler::ValidateConnected()
 {
-    Impl->ValidateConnected();
+    Impl_->ValidateConnected();
 }
 
 TOperationPtr TScheduler::FindOperation(const TOperationId& id)
 {
-    return Impl->FindOperation(id);
+    return Impl_->FindOperation(id);
 }
 
 TOperationPtr TScheduler::GetOperationOrThrow(const TOperationId& id)
 {
-    return Impl->GetOperationOrThrow(id);
+    return Impl_->GetOperationOrThrow(id);
 }
 
 TExecNodePtr TScheduler::FindNode(const Stroka& address)
 {
-    return Impl->FindNode(address);
+    return Impl_->FindNode(address);
 }
 
 TExecNodePtr TScheduler::GetNode(const Stroka& address)
 {
-    return Impl->GetNode(address);
+    return Impl_->GetNode(address);
 }
 
 TExecNodePtr TScheduler::GetOrRegisterNode(const TNodeDescriptor& descriptor)
 {
-    return Impl->GetOrRegisterNode(descriptor);
+    return Impl_->GetOrRegisterNode(descriptor);
 }
 
 TFuture<TOperationStartResult> TScheduler::StartOperation(
@@ -2141,7 +2142,7 @@ TFuture<TOperationStartResult> TScheduler::StartOperation(
     IMapNodePtr spec,
     const Stroka& user)
 {
-    return Impl->StartOperation(
+    return Impl_->StartOperation(
         type,
         transactionId,
         mutationId,
@@ -2153,22 +2154,22 @@ TFuture<void> TScheduler::AbortOperation(
     TOperationPtr operation,
     const TError& error)
 {
-    return Impl->AbortOperation(operation, error);
+    return Impl_->AbortOperation(operation, error);
 }
 
 TAsyncError TScheduler::SuspendOperation(TOperationPtr operation)
 {
-    return Impl->SuspendOperation(operation);
+    return Impl_->SuspendOperation(operation);
 }
 
 TAsyncError TScheduler::ResumeOperation(TOperationPtr operation)
 {
-    return Impl->ResumeOperation(operation);
+    return Impl_->ResumeOperation(operation);
 }
 
 void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
 {
-    Impl->ProcessHeartbeat(node, context);
+    Impl_->ProcessHeartbeat(node, context);
 }
 
 ////////////////////////////////////////////////////////////////////
