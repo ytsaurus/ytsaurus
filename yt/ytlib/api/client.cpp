@@ -1475,6 +1475,12 @@ private:
         GenerateMutationId(req, options);
         req->set_mode(static_cast<int>(mode));
         req->set_waitable(options.Waitable);
+        if (options.ChildKey) {
+            req->set_child_key(*options.ChildKey);
+        }
+        if (options.AttributeKey) {
+            req->set_attribute_key(*options.AttributeKey);
+        }
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke())

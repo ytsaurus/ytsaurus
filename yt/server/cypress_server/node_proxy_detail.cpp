@@ -699,6 +699,14 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     auto mode = ELockMode(request->mode());
     bool waitable = request->waitable();
 
+    auto lockRequest = TLockRequest(mode);
+    if (request->has_child_key()) {
+        lockRequest.ChildKey = request->child_key();
+    }
+    if (request->has_attribute_key()) {
+        lockRequest.AttributeKey = request->attribute_key();
+    }
+
     if (mode != ELockMode::Snapshot &&
         mode != ELockMode::Shared &&
         mode != ELockMode::Exclusive)
@@ -720,7 +728,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     auto* lock = cypressManager->CreateLock(
         TrunkNode,
         Transaction,
-        mode,
+        lockRequest,
         waitable);
     auto lockId = GetObjectId(lock);
     ToProto(response->mutable_lock_id(), lockId);
