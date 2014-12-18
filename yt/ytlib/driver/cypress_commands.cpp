@@ -155,6 +155,12 @@ void TLockCommand::DoExecute()
     GenerateMutationId(lockReq);
     lockReq->set_mode(Request->Mode);
     lockReq->set_waitable(Request->Waitable);
+    if (Request->ChildKey) {
+        lockReq->set_child_key(*Request->ChildKey);
+    }
+    if (Request->AttributeKey) {
+        lockReq->set_attribute_key(*Request->AttributeKey);
+    }
 
     auto lockRsp = WaitFor(ObjectProxy->Execute(lockReq));
     THROW_ERROR_EXCEPTION_IF_FAILED(*lockRsp);

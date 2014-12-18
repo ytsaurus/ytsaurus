@@ -30,6 +30,8 @@ message TReqLock
 {
     required int32 mode = 1;
     optional bool waitable = 2 [default = false];
+    optional string child_key = 3;
+    optional string attribute_key = 4;
 }
 
 message TRspLock

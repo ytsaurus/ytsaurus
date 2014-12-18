@@ -171,6 +171,9 @@ struct TLockRequest
     NCypressClient::ELockMode Mode;
     bool Waitable;
 
+    TNullable<Stroka> ChildKey;
+    TNullable<Stroka> AttributeKey;
+
     TLockRequest()
     {
         RegisterParameter("path", Path);
@@ -178,6 +181,24 @@ struct TLockRequest
             .Default(NCypressClient::ELockMode::Exclusive);
         RegisterParameter("waitable", Waitable)
             .Default(false);
+        RegisterParameter("child_key", ChildKey)
+            .Default(Null);
+        RegisterParameter("attribute_key", AttributeKey)
+            .Default(Null);
+
+        RegisterValidator([&] () {
+            if (Mode != NCypressClient::ELockMode::Shared) {
+                if (ChildKey) {
+                    THROW_ERROR_EXCEPTION("\"child_key\" can only be specified for shared locks");
+                }
+                if (AttributeKey) {
+                    THROW_ERROR_EXCEPTION("\"attribute_key\" can only be specified for shared locks");
+                }
+            }
+            if (ChildKey && AttributeKey) {
+                THROW_ERROR_EXCEPTION("Cannot specify both \"child_key\" and \"attribute_key\"");
+            }
+        });
     }
 };
 
