@@ -82,7 +82,8 @@ def prepare(options):
     if not options.cxx:
         raise RuntimeError("Failed to locate CXX compiler")
 
-    options.use_lto = (options.type != "Debug")
+    # Temporaly turn off
+    #options.use_lto = (options.type != "Debug")
 
     if os.path.exists(options.working_directory) and options.clean_working_directory:
         teamcity_message("Cleaning working directory...", status="WARNING")
