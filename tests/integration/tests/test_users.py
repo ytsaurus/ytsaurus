@@ -64,7 +64,7 @@ class TestUsers(YTEnvSetup):
     def test_builtin_init(self):
         self.assertItemsEqual(get("//sys/groups/everyone/@members"), ["users", "guest"])
         self.assertItemsEqual(get("//sys/groups/users/@members"), ["superusers"])
-        self.assertItemsEqual(get("//sys/groups/superusers/@members"), ["root"])
+        self.assertItemsEqual(get("//sys/groups/superusers/@members"), ["root", "scheduler", "job"])
 
         self.assertItemsEqual(get("//sys/users/root/@member_of"), ["superusers"])
         self.assertItemsEqual(get("//sys/users/guest/@member_of"), ["everyone"])
