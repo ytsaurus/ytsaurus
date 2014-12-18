@@ -89,3 +89,7 @@ class TestJournals(YTEnvSetup):
         assert get("//sys/accounts/tmp/@committed_resource_usage/disk_space") == 0
         assert get("//sys/accounts/tmp/@resource_usage/disk_space") == 0
 
+    def test_no_copy(self):
+        create("journal", "//tmp/j1")
+        with pytest.raises(YtError): copy("//tmp/j1", "//tmp/j2")
+
