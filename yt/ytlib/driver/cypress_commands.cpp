@@ -153,6 +153,8 @@ void TLockCommand::DoExecute()
 {
     TLockNodeOptions options;
     options.Waitable = Request_->Waitable;
+    options.ChildKey = Request_->ChildKey;
+    options.AttributeKey = Request_->AttributeKey;
     SetTransactionalOptions(&options);
     SetMutatingOptions(&options);
 

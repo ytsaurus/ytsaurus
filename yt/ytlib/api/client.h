@@ -213,6 +213,8 @@ struct TLockNodeOptions
     , public TPrerequisiteOptions
 {
     bool Waitable = false;
+    TNullable<Stroka> ChildKey;
+    TNullable<Stroka> AttributeKey;
 };
 
 struct TCopyNodeOptions
