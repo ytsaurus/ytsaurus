@@ -20,6 +20,8 @@ extern const Stroka IntermediateAccountName;
 
 extern const Stroka RootUserName;
 extern const Stroka GuestUserName;
+extern const Stroka JobUserName;
+extern const Stroka SchedulerUserName;
 
 extern const Stroka EveryoneGroupName;
 extern const Stroka UsersGroupName;

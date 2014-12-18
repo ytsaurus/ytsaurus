@@ -62,16 +62,20 @@ class TestUsers(YTEnvSetup):
         assert get("//sys/users/u/@request_counter") == 0
 
     def test_builtin_init(self):
-        self.assertItemsEqual(get("//sys/groups/everyone/@members"), ["users", "guest"])
+        self.assertItemsEqual(get("//sys/groups/everyone/@members"), ["users", "guest", "job", "scheduler"])
         self.assertItemsEqual(get("//sys/groups/users/@members"), ["superusers"])
         self.assertItemsEqual(get("//sys/groups/superusers/@members"), ["root"])
 
         self.assertItemsEqual(get("//sys/users/root/@member_of"), ["superusers"])
         self.assertItemsEqual(get("//sys/users/guest/@member_of"), ["everyone"])
-
+        self.assertItemsEqual(get("//sys/users/scheduler/@member_of"), ["superusers"])
+        self.assertItemsEqual(get("//sys/users/job/@member_of"), ["superusers"])
+        
         self.assertItemsEqual(get("//sys/users/root/@member_of_closure"), ["superusers", "users", "everyone"])
         self.assertItemsEqual(get("//sys/users/guest/@member_of_closure"), ["everyone"])
-
+        self.assertItemsEqual(get("//sys/users/scheduler/@member_of_closure"), ["superusers", "users", "everyone"])
+        self.assertItemsEqual(get("//sys/users/job/@member_of_closure"), ["superusers", "users", "everyone"])
+        
     def test_create_user1(self):
         create_user("max")
         assert get("//sys/users/max/@name") == "max"

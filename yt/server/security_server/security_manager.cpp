@@ -247,6 +247,8 @@ public:
 
         RootUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffff);
         GuestUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffe);
+        JobUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffd);
+        SchedulerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffc);
 
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
@@ -938,6 +940,12 @@ private:
     TUserId GuestUserId_;
     TUser* GuestUser_ = nullptr;
 
+    TUserId JobUserId_;
+    TUser* JobUser_ = nullptr;
+
+    TUserId SchedulerUserId_;
+    TUser* SchedulerUser_ = nullptr;
+
     NHydra::TEntityMap<TGroupId, TGroup> GroupMap_;
     yhash_map<Stroka, TGroup*> GroupNameMap_;
 
@@ -1026,12 +1034,12 @@ private:
     TGroup* GetBuiltinGroupForUser(TUser* user)
     {
         // "guest" is a member of "everyone" group
-        // "root" is a member of "superusers" group
+        // "root", "job", and "scheduler" are members of "superusers" group
         // others are members of "users" group
         const auto& id = user->GetId();
         if (id == GuestUserId_) {
             return EveryoneGroup_;
-        } else if (id == RootUserId_) {
+        } else if (id == RootUserId_ || id == JobUserId_ || id == SchedulerUserId_) {
             return SuperusersGroup_;
         } else {
             return UsersGroup_;
@@ -1217,7 +1225,7 @@ private:
             YCHECK(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
         }
 
-        InitBuiltin();
+        InitBuiltins();
         InitAuthenticatedUser();
 
         // COMPAT(babenko)
@@ -1284,7 +1292,7 @@ private:
     virtual void Clear() override
     {
         DoClear();
-        InitBuiltin();
+        InitBuiltins();
         InitAuthenticatedUser();
         InitDefaultSchemaAcds();
     }
@@ -1322,8 +1330,10 @@ private:
         }
     }
 
-    void InitBuiltin()
+    void InitBuiltins()
     {
+        // Groups
+
         UsersGroup_ = FindGroup(UsersGroupId_);
         if (!UsersGroup_) {
             // users
@@ -1344,6 +1354,8 @@ private:
             DoAddMember(UsersGroup_, SuperusersGroup_);
         }
 
+        // Users
+
         RootUser_ = FindUser(RootUserId_);
         if (!RootUser_) {
             // root
@@ -1356,6 +1368,22 @@ private:
             // guest
             GuestUser_ = DoCreateUser(GuestUserId_, GuestUserName);
         }
+
+        JobUser_ = FindUser(JobUserId_);
+        if (!JobUser_) {
+            // job
+            JobUser_ = DoCreateUser(JobUserId_, JobUserName);
+            JobUser_->SetRequestRateLimit(1000000.0);
+        }
+
+        SchedulerUser_ = FindUser(SchedulerUserId_);
+        if (!SchedulerUser_) {
+            // scheduler
+            SchedulerUser_ = DoCreateUser(SchedulerUserId_, SchedulerUserName);
+            SchedulerUser_->SetRequestRateLimit(1000000.0);
+        }
+
+        // Accounts
 
         SysAccount_ = FindAccount(SysAccountId_);
         if (!SysAccount_) {
