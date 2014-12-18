@@ -92,7 +92,7 @@ TEST(CGroup, AddCurrentTask)
     ASSERT_EQ(pid, waitedpid);
 }
 
-TEST(CGroup, UnableToDestoryNotEmptyCGroup)
+TEST(CGroup, DISABLED_UnableToDestoryNotEmptyCGroup)
 {
     auto group = CreateCGroup<TBlockIO>("unable_to_destroy_not_empty_cgroup_"
         + ToString(TGuid::Create()));
