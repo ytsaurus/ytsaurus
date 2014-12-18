@@ -74,7 +74,7 @@ class YsonBoolean(int, YsonType):
         return self.base_hash(bool)
 
     def __repr__(self):
-        return "true" if self else "false"
+        return "True" if self else "False"
 
     def __str__(self):
         return self.__repr__()
