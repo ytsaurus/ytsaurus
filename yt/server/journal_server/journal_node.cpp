@@ -171,10 +171,11 @@ protected:
         TBase::DoDestroy(node);
 
         auto* chunkList = node->GetChunkList();
-        YCHECK(chunkList->OwningNodes().erase(node) == 1);
-
-        auto objectManager = Bootstrap->GetObjectManager();
-        objectManager->UnrefObject(chunkList);
+        if (chunkList) {
+            YCHECK(chunkList->OwningNodes().erase(node) == 1);
+            auto objectManager = Bootstrap->GetObjectManager();
+            objectManager->UnrefObject(chunkList);
+        }
 
         if (IsLeader() && !node->IsTrunk()) {
             ScheduleSeal(node);
