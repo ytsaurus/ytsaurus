@@ -545,6 +545,8 @@ Examples:
             with yt.PingableTransaction():
                 for source_table, destination_table in zip(args.src, dst):
                     method(source_table, destination_table)
+        else:
+            method(source_table, unlist_destination_tables(destination_table))
 
     if args.sort:
         if inputformat.name() == "yamred_dsv" and args.sortby is None:
