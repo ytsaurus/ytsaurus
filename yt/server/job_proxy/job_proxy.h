@@ -34,6 +34,29 @@ public:
     void Run();
 
 private:
+    TJobProxyConfigPtr Config_;
+    NJobAgent::TJobId JobId_;
+
+    NLog::TLogger Logger;
+
+    std::unique_ptr<NExecAgent::TSupervisorServiceProxy> SupervisorProxy_;
+
+    NRpc::IChannelPtr MasterChannel_;
+
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+
+    TJobPtr Job;
+    NConcurrency::TActionQueuePtr JobThread_;
+
+    i64 JobProxyMemoryLimit_;
+
+    NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
+    NConcurrency::TPeriodicExecutorPtr MemoryWatchdogExecutor_;
+
+    NJobTrackerClient::NProto::TJobSpec JobSpec_;
+    NNodeTrackerClient::NProto::TNodeResources ResourceUsage_;
+
+    
     NJobTrackerClient::NProto::TJobResult DoRun();
     void SendHeartbeat();
     void OnHeartbeatResponse(NExecAgent::TSupervisorServiceProxy::TRspOnJobProgressPtr rsp);
@@ -43,28 +66,6 @@ private:
 
     std::unique_ptr<TUserJobIO> CreateUserJobIO();
     TJobPtr CreateBuiltinJob();
-
-    TJobProxyConfigPtr Config;
-    NJobAgent::TJobId JobId;
-
-    NLog::TLogger Logger;
-
-    std::unique_ptr<NExecAgent::TSupervisorServiceProxy> SupervisorProxy;
-
-    NRpc::IChannelPtr MasterChannel;
-
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
-
-    TJobPtr Job;
-    NConcurrency::TActionQueuePtr JobThread;
-
-    volatile i64 JobProxyMemoryLimit;
-
-    NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor;
-    NConcurrency::TPeriodicExecutorPtr MemoryWatchdogExecutor;
-
-    NJobTrackerClient::NProto::TJobSpec JobSpec;
-    NNodeTrackerClient::NProto::TNodeResources ResourceUsage;
 
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() override;

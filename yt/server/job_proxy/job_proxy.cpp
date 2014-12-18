@@ -71,26 +71,26 @@ using namespace NCGroup;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static i64 InitialJobProxyMemoryLimit = (i64) 100 * 1024 * 1024;
+static const auto InitialJobProxyMemoryLimit = (i64) 100 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobProxy::TJobProxy(
     TJobProxyConfigPtr config,
     const TJobId& jobId)
-    : Config(config)
-    , JobId(jobId)
+    : Config_(config)
+    , JobId_(jobId)
     , Logger(JobProxyLogger)
-    , JobThread(New<TActionQueue>("JobMain"))
-    , JobProxyMemoryLimit(InitialJobProxyMemoryLimit)
+    , JobThread_(New<TActionQueue>("JobMain"))
+    , JobProxyMemoryLimit_(InitialJobProxyMemoryLimit)
 {
-    Logger.AddTag("JobId: %v", JobId);
+    Logger.AddTag("JobId: %v", JobId_);
 }
 
 void TJobProxy::SendHeartbeat()
 {
-    auto req = SupervisorProxy->OnJobProgress();
-    ToProto(req->mutable_job_id(), JobId);
+    auto req = SupervisorProxy_->OnJobProgress();
+    ToProto(req->mutable_job_id(), JobId_);
     req->set_progress(Job->GetProgress());
     ToProto(req->mutable_job_statistics(), Job->GetStatistics());
 
@@ -118,8 +118,8 @@ void TJobProxy::RetrieveJobSpec()
 {
     LOG_INFO("Requesting job spec");
 
-    auto req = SupervisorProxy->GetJobSpec();
-    ToProto(req->mutable_job_id(), JobId);
+    auto req = SupervisorProxy_->GetJobSpec();
+    ToProto(req->mutable_job_id(), JobId_);
 
     auto asyncRsp = req->Invoke();
     auto rsp = asyncRsp.Get();
@@ -129,29 +129,29 @@ void TJobProxy::RetrieveJobSpec()
         _exit(EJobProxyExitCode::HeartbeatFailed);
     }
 
-    JobSpec = rsp->job_spec();
-    ResourceUsage = rsp->resource_usage();
+    JobSpec_ = rsp->job_spec();
+    ResourceUsage_ = rsp->resource_usage();
 
     LOG_INFO("Job spec received (JobType: %v, ResourceLimits: {%v})\n%v",
         NScheduler::EJobType(rsp->job_spec().type()),
-        FormatResources(ResourceUsage),
+        FormatResources(ResourceUsage_),
         rsp->job_spec().DebugString());
 
-    JobProxyMemoryLimit = rsp->resource_usage().memory();
+    JobProxyMemoryLimit_ = rsp->resource_usage().memory();
 }
 
 void TJobProxy::Run()
 {
     auto result = BIND(&TJobProxy::DoRun, Unretained(this))
-        .AsyncVia(JobThread->GetInvoker())
+        .AsyncVia(JobThread_->GetInvoker())
         .Run().Get();
 
-    if (HeartbeatExecutor) {
-        HeartbeatExecutor->Stop();
+    if (HeartbeatExecutor_) {
+        HeartbeatExecutor_->Stop();
     }
 
-    if (MemoryWatchdogExecutor) {
-        MemoryWatchdogExecutor->Stop();
+    if (MemoryWatchdogExecutor_) {
+        MemoryWatchdogExecutor_->Stop();
     }
 
     if (Job) {
@@ -173,7 +173,7 @@ void TJobProxy::Run()
             customStatistics = NYTree::ConvertTo<TStatistics>(NYTree::TYsonString(jobStatistics.statistics()));
         }
 
-        if (Config->ForceEnableAccounting) {
+        if (Config_->ForceEnableAccounting) {
             TCpuAccounting cpuAccounting("");
             auto cpuStatistics = cpuAccounting.GetStatistics();
             AddStatistic(customStatistics, "/job_proxy/cpu", cpuStatistics);
@@ -197,21 +197,21 @@ void TJobProxy::Run()
 
 std::unique_ptr<TUserJobIO> TJobProxy::CreateUserJobIO()
 {
-    auto jobType = NScheduler::EJobType(JobSpec.type());
+    auto jobType = NScheduler::EJobType(JobSpec_.type());
 
     switch (jobType) {
         case NScheduler::EJobType::Map:
-            return CreateMapJobIO(Config->JobIO, this);
+            return CreateMapJobIO(Config_->JobIO, this);
 
         case NScheduler::EJobType::SortedReduce:
-            return CreateSortedReduceJobIO(Config->JobIO, this);
+            return CreateSortedReduceJobIO(Config_->JobIO, this);
 
         case NScheduler::EJobType::PartitionMap:
-            return CreatePartitionMapJobIO(Config->JobIO, this);
+            return CreatePartitionMapJobIO(Config_->JobIO, this);
 
         case NScheduler::EJobType::ReduceCombiner:
         case NScheduler::EJobType::PartitionReduce:
-            return CreatePartitionReduceJobIO(Config->JobIO, this);
+            return CreatePartitionReduceJobIO(Config_->JobIO, this);
 
         default:
             YUNREACHABLE();
@@ -220,7 +220,7 @@ std::unique_ptr<TUserJobIO> TJobProxy::CreateUserJobIO()
 
 TJobPtr TJobProxy::CreateBuiltinJob()
 {
-    auto jobType = NScheduler::EJobType(JobSpec.type());
+    auto jobType = NScheduler::EJobType(JobSpec_.type());
     switch (jobType) {
         case NScheduler::EJobType::OrderedMerge:
             return CreateOrderedMergeJob(this);
@@ -251,49 +251,49 @@ TJobPtr TJobProxy::CreateBuiltinJob()
 
 TJobResult TJobProxy::DoRun()
 {
-    auto supervisorClient = CreateTcpBusClient(Config->SupervisorConnection);
+    auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
     auto supervisorChannel = CreateBusChannel(supervisorClient);
 
-    SupervisorProxy.reset(new TSupervisorServiceProxy(supervisorChannel));
-    SupervisorProxy->SetDefaultTimeout(Config->SupervisorRpcTimeout);
+    SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
+    SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
-    MasterChannel = CreateRealmChannel(CreateBusChannel(supervisorClient), Config->CellId);
+    MasterChannel_ = CreateRealmChannel(CreateBusChannel(supervisorClient), Config_->CellId);
 
     RetrieveJobSpec();
 
-    const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
 
-    NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-    NodeDirectory->MergeFrom(schedulerJobSpecExt.node_directory());
+    NodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
+    NodeDirectory_->MergeFrom(schedulerJobSpecExt.node_directory());
 
-    HeartbeatExecutor = New<TPeriodicExecutor>(
+    HeartbeatExecutor_ = New<TPeriodicExecutor>(
         GetSyncInvoker(),
         BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
-        Config->HeartbeatPeriod);
+        Config_->HeartbeatPeriod);
 
     if (schedulerJobSpecExt.job_proxy_memory_control()) {
-        MemoryWatchdogExecutor = New<TPeriodicExecutor>(
+        MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
             GetSyncInvoker(),
             BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
-            Config->MemoryWatchdogPeriod);
+            Config_->MemoryWatchdogPeriod);
     }
 
     try {
         if (schedulerJobSpecExt.has_user_job_spec()) {
             auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-            JobProxyMemoryLimit -= userJobSpec.memory_reserve();
+            JobProxyMemoryLimit_ -= userJobSpec.memory_reserve();
             auto jobIO = CreateUserJobIO();
-            Job = CreateUserJob(this, userJobSpec, std::move(jobIO), JobId);
+            Job = CreateUserJob(this, userJobSpec, std::move(jobIO), JobId_);
         } else {
             Job = CreateBuiltinJob();
         }
 
 
-        if (MemoryWatchdogExecutor) {
-            MemoryWatchdogExecutor->Start();
+        if (MemoryWatchdogExecutor_) {
+            MemoryWatchdogExecutor_->Start();
         }
-        HeartbeatExecutor->Start();
+        HeartbeatExecutor_->Start();
 
         return Job->Run();
     } catch (const std::exception& ex) {
@@ -307,8 +307,8 @@ TJobResult TJobProxy::DoRun()
 
 void TJobProxy::ReportResult(const TJobResult& result)
 {
-    auto req = SupervisorProxy->OnJobFinished();
-    ToProto(req->mutable_job_id(), JobId);
+    auto req = SupervisorProxy_->OnJobFinished();
+    ToProto(req->mutable_job_id(), JobId_);
     *req->mutable_result() = result;
 
     auto asyncRsp = req->Invoke();
@@ -322,27 +322,27 @@ void TJobProxy::ReportResult(const TJobResult& result)
 
 TJobProxyConfigPtr TJobProxy::GetConfig()
 {
-    return Config;
+    return Config_;
 }
 
 const TJobSpec& TJobProxy::GetJobSpec() const
 {
-    return JobSpec;
+    return JobSpec_;
 }
 
 const TNodeResources& TJobProxy::GetResourceUsage() const
 {
-    return ResourceUsage;
+    return ResourceUsage_;
 }
 
 void TJobProxy::SetResourceUsage(const TNodeResources& usage)
 {
-    ResourceUsage = usage;
+    ResourceUsage_ = usage;
 
     // Fire-and-forget.
-    auto req = SupervisorProxy->UpdateResourceUsage();
-    ToProto(req->mutable_job_id(), JobId);
-    *req->mutable_resource_usage() = ResourceUsage;
+    auto req = SupervisorProxy_->UpdateResourceUsage();
+    ToProto(req->mutable_job_id(), JobId_);
+    *req->mutable_resource_usage() = ResourceUsage_;
     req->Invoke().Subscribe(BIND(&TJobProxy::OnResourcesUpdated, MakeWeak(this)));
 }
 
@@ -366,7 +366,7 @@ void TJobProxy::ReleaseNetwork()
 
 IChannelPtr TJobProxy::GetMasterChannel() const
 {
-    return MasterChannel;
+    return MasterChannel_;
 }
 
 IBlockCachePtr TJobProxy::GetCompressedBlockCache() const
@@ -381,7 +381,7 @@ IBlockCachePtr TJobProxy::GetUncompressedBlockCache() const
 
 TNodeDirectoryPtr TJobProxy::GetNodeDirectory() const
 {
-    return NodeDirectory;
+    return NodeDirectory_;
 }
 
 void TJobProxy::CheckMemoryUsage()
@@ -390,7 +390,7 @@ void TJobProxy::CheckMemoryUsage()
 
     LOG_DEBUG("Job proxy memory check (MemoryUsage: %v, MemoryLimit: %v)",
         memoryUsage,
-        JobProxyMemoryLimit);
+        JobProxyMemoryLimit_);
 
     LOG_DEBUG("LFAlloc counters (LargeBlocks: %v, SmallBlocks: %v, System: %v, Used: %v, Mmapped: %v)",
         NLFAlloc::GetCurrentLargeBlocks(),
@@ -399,10 +399,10 @@ void TJobProxy::CheckMemoryUsage()
         NLFAlloc::GetCurrentUsed(),
         NLFAlloc::GetCurrentMmapped());
 
-    if (memoryUsage > JobProxyMemoryLimit) {
+    if (memoryUsage > JobProxyMemoryLimit_) {
         LOG_FATAL("Job proxy memory limit exceeded (MemoryUsage: %v, MemoryLimit: %v, RefCountedTracker: %v)",
             memoryUsage,
-            JobProxyMemoryLimit,
+            JobProxyMemoryLimit_,
             TRefCountedTracker::Get()->GetDebugInfo(2));
     }
 }
