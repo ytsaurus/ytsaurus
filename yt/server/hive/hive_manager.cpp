@@ -595,6 +595,9 @@ private:
                 TMutationContext context(HydraManager->GetMutationContext(), request);
                 static_cast<IAutomaton*>(Automaton)->ApplyMutation(&context);
 
+                // XXX(babenko): this is a temporary workaround
+                HydraManager->GetMutationContext()->Response().Data.Reset();
+
                 TRACE_ANNOTATION(
                     traceContext,
                     HiveTracingService,
