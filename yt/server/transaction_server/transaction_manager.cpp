@@ -38,6 +38,7 @@
 #include <server/security_server/security_manager.h>
 
 #include <server/hive/transaction_supervisor.h>
+#include <StoreKit/StoreKit.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -331,6 +332,9 @@ public:
             ->GetHydraManager()
             ->GetMutationContext();
         transaction->SetStartTime(mutationContext->GetTimestamp());
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        transaction->Acd().SetOwner(securityManager->GetRootUser());
 
         if (IsLeader()) {
             CreateLease(transaction);
