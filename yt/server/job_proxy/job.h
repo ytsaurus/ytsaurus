@@ -40,6 +40,8 @@ struct IJobHost
 
 };
 
+DEFINE_REFCOUNTED_TYPE(IJobHost)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Represents a job running inside job proxy.
@@ -58,6 +60,8 @@ struct IJob
     virtual NJobTrackerClient::NProto::TJobStatistics GetStatistics() const = 0;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(IJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
