@@ -95,6 +95,9 @@ class EventLog(object):
             row_count = self.yt.get(self._row_count_attr)
             return row_count + first_row
 
+    def get_archive_row_count(self):
+        return self.yt.get(self._number_of_first_row_attr)
+
     def get_data(self, begin, count):
         with self.yt.Transaction():
             rows_removed = self.yt.get(self._number_of_first_row_attr)
@@ -123,20 +126,20 @@ class EventLog(object):
             raise EventLog.NotEnoughDataError("Not enough data. Got only {0} rows".format(len(result)))
         return result
 
-    def archive(self, count=None):
+    def archive(self, count):
         try:
             self.log.debug("Archive table has %d rows", self.yt.get(self._archive_row_count_attr))
         except Exception:
             pass
 
-        self.log.info("%s rows has been requested to archive", count)
-
         desired_chunk_size = 2 * 1024 ** 3
         approximate_gzip_compression_ratio = 0.137
         data_size_per_job = max(1, int(desired_chunk_size / approximate_gzip_compression_ratio))
 
-        count = count or self.yt.get(self._row_count_attr)
         self.log.info("Archive %s rows from event log", count)
+        if count == 0:
+            self.log.warning("Do not archive 0 rows. Exit")
+            return
 
         partition = table.TablePath(
             self._table_name,
@@ -902,12 +905,21 @@ def init(table_name, proxy_path, **kwargs):
     event_log.initialize()
 
 
-def archive(table_name, proxy_path, **kwargs):
+def archive(table_name, proxy_path, logbroker_url, service_id, source_id, **kwargs):
     set_proxy(proxy_path)
+    last_seqno = get_last_seqno(logbroker_url=logbroker_url, service_id=service_id, source_id=source_id)
     event_log = EventLog(client.Yt(proxy_path), table_name=table_name)
+    achive_row_count = event_log.get_row_count()
+
+    max_count = last_seqno - archive_row_count
+
     count = kwargs.get("count", None)
     if count is not None:
         count = int(count)
+
+    if count is None or count > max_count:
+        count = max_count
+
     event_log.archive(count)
 
 
