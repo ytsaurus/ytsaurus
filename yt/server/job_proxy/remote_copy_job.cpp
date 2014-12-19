@@ -386,7 +386,7 @@ private:
     }
 };
 
-TJobPtr CreateRemoteCopyJob(IJobHost* host)
+IJobPtr CreateRemoteCopyJob(IJobHost* host)
 {
     return New<TRemoteCopyJob>(host);
 }

@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "private.h"
-#include "pipes.h"
 #include "job.h"
 
 #include <core/concurrency/public.h>
@@ -15,10 +14,6 @@
 
 namespace NYT {
 namespace NJobProxy {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TUserJobIO;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,18 +40,18 @@ private:
 
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 
-    TJobPtr Job;
-    NConcurrency::TActionQueuePtr JobThread_;
-
     i64 JobProxyMemoryLimit_;
 
     NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
     NConcurrency::TPeriodicExecutorPtr MemoryWatchdogExecutor_;
 
+    IJobPtr Job_;
+    NConcurrency::TActionQueuePtr JobThread_;
+
     NJobTrackerClient::NProto::TJobSpec JobSpec_;
     NNodeTrackerClient::NProto::TNodeResources ResourceUsage_;
 
-    
+
     NJobTrackerClient::NProto::TJobResult DoRun();
     void SendHeartbeat();
     void OnHeartbeatResponse(NExecAgent::TSupervisorServiceProxy::TRspOnJobProgressPtr rsp);
@@ -64,8 +59,8 @@ private:
     void RetrieveJobSpec();
     void ReportResult(const NJobTrackerClient::NProto::TJobResult& result);
 
-    std::unique_ptr<TUserJobIO> CreateUserJobIO();
-    TJobPtr CreateBuiltinJob();
+    std::unique_ptr<IUserJobIO> CreateUserJobIO();
+    IJobPtr CreateBuiltinJob();
 
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() override;

@@ -86,8 +86,8 @@ TJobProxy::TJobProxy(
     : Config_(config)
     , JobId_(jobId)
     , Logger(JobProxyLogger)
-    , JobThread_(New<TActionQueue>("JobMain"))
     , JobProxyMemoryLimit_(InitialJobProxyMemoryLimit)
+    , JobThread_(New<TActionQueue>("JobMain"))
 {
     Logger.AddTag("JobId: %v", JobId_);
 }
@@ -96,8 +96,8 @@ void TJobProxy::SendHeartbeat()
 {
     auto req = SupervisorProxy_->OnJobProgress();
     ToProto(req->mutable_job_id(), JobId_);
-    req->set_progress(Job->GetProgress());
-    ToProto(req->mutable_job_statistics(), Job->GetStatistics());
+    req->set_progress(Job_->GetProgress());
+    ToProto(req->mutable_job_statistics(), Job_->GetStatistics());
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 
@@ -137,7 +137,7 @@ void TJobProxy::RetrieveJobSpec()
     JobSpec_ = rsp->job_spec();
     ResourceUsage_ = rsp->resource_usage();
 
-    LOG_INFO("Job spec received (JobType: %v, ResourceLimits: {%v})\n%v",
+    LOG_INFO("Job_ spec received (JobType: %v, ResourceLimits: {%v})\n%v",
         NScheduler::EJobType(rsp->job_spec().type()),
         FormatResources(ResourceUsage_),
         rsp->job_spec().DebugString());
@@ -159,8 +159,8 @@ void TJobProxy::Run()
         MemoryWatchdogExecutor_->Stop();
     }
 
-    if (Job) {
-        auto failedChunkIds = Job->GetFailedChunkIds();
+    if (Job_) {
+        auto failedChunkIds = Job_->GetFailedChunkIds();
         LOG_INFO("Found %v failed chunks", static_cast<int>(failedChunkIds.size()));
 
         // For erasure chunks, replace part id with whole chunk id.
@@ -172,7 +172,7 @@ void TJobProxy::Run()
             ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
         }
 
-        auto jobStatistics = Job->GetStatistics();
+        auto jobStatistics = Job_->GetStatistics();
         TStatistics customStatistics;
         if (jobStatistics.has_statistics()) {
             customStatistics = NYTree::ConvertTo<TStatistics>(NYTree::TYsonString(jobStatistics.statistics()));
@@ -200,30 +200,31 @@ void TJobProxy::Run()
     ReportResult(result);
 }
 
-std::unique_ptr<TUserJobIO> TJobProxy::CreateUserJobIO()
+std::unique_ptr<IUserJobIO> TJobProxy::CreateUserJobIO()
 {
     auto jobType = NScheduler::EJobType(JobSpec_.type());
 
     switch (jobType) {
         case NScheduler::EJobType::Map:
-            return CreateMapJobIO(Config_->JobIO, this);
+            return CreateMapJobIO(this);
 
-        case NScheduler::EJobType::SortedReduce:
-            return CreateSortedReduceJobIO(Config_->JobIO, this);
+        case NScheduler::EJobType::SortedReduce: 
+            return CreateSortedReduceJobIO(this);
 
-        case NScheduler::EJobType::PartitionMap:
-            return CreatePartitionMapJobIO(Config_->JobIO, this);
+        case NScheduler::EJobType::PartitionMap: 
+            return CreatePartitionMapJobIO(this);
 
-        case NScheduler::EJobType::ReduceCombiner:
-        case NScheduler::EJobType::PartitionReduce:
-            return CreatePartitionReduceJobIO(Config_->JobIO, this);
+        // ToDo(psushin): handle separately to form job result differently.
+        case NScheduler::EJobType::ReduceCombiner: 
+        case NScheduler::EJobType::PartitionReduce: 
+            return CreatePartitionReduceJobIO(this);
 
         default:
             YUNREACHABLE();
     }
 }
 
-TJobPtr TJobProxy::CreateBuiltinJob()
+IJobPtr TJobProxy::CreateBuiltinJob()
 {
     auto jobType = NScheduler::EJobType(JobSpec_.type());
     switch (jobType) {
@@ -291,9 +292,10 @@ TJobResult TJobProxy::DoRun()
             auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             JobProxyMemoryLimit_ -= userJobSpec.memory_reserve();
             auto jobIO = CreateUserJobIO();
-            Job = CreateUserJob(this, userJobSpec, std::move(jobIO), JobId_);
+            jobIO->Init();
+            Job_ = CreateUserJob(this, userJobSpec, std::move(jobIO), JobId_);
         } else {
-            Job = CreateBuiltinJob();
+            Job_ = CreateBuiltinJob();
         }
 
 
@@ -302,7 +304,7 @@ TJobResult TJobProxy::DoRun()
         }
         HeartbeatExecutor_->Start();
 
-        return Job->Run();
+        return Job_->Run();
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Job failed");
 

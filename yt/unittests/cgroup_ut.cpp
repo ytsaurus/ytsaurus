@@ -115,7 +115,7 @@ TEST(CGroup, DISABLED_UnableToDestoryNotEmptyCGroup)
 
     i64 value;
     ASSERT_EQ(sizeof(value), ::read(addedEvent, &value, sizeof(value)));
-    ASSERT_DEATH(group.Destroy());
+    ASSERT_DEATH(group.Destroy(), "Failed to destroy cgroup");
 
     value = 1;
     ASSERT_EQ(sizeof(value), ::write(triedRemoveEvent, &value, sizeof(value)));

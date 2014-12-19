@@ -359,7 +359,6 @@ const NProto::TOldBoundaryKeysExt& TPartitionChunkWriterProvider::GetOldBoundary
     return boundaryKeys;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

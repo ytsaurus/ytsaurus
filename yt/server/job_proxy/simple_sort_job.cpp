@@ -292,7 +292,7 @@ private:
 
 };
 
-TJobPtr CreateSimpleSortJob(IJobHost* host)
+IJobPtr CreateSimpleSortJob(IJobHost* host)
 {
     return New<TSimpleSortJob>(host);
 }

@@ -201,7 +201,7 @@ private:
 
 };
 
-TJobPtr CreatePartitionJob(IJobHost* host)
+IJobPtr CreatePartitionJob(IJobHost* host)
 {
     return New<TPartitionJob>(host);
 }
