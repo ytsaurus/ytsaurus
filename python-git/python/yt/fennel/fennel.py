@@ -141,6 +141,8 @@ class EventLog(object):
             self.log.warning("Do not archive 0 rows. Exit")
             return
 
+        assert count > 0
+
         partition = table.TablePath(
             self._table_name,
             start_index=0,
@@ -909,15 +911,12 @@ def archive(table_name, proxy_path, logbroker_url, service_id, source_id, **kwar
     set_proxy(proxy_path)
     last_seqno = get_last_seqno(logbroker_url=logbroker_url, service_id=service_id, source_id=source_id)
     event_log = EventLog(client.Yt(proxy_path), table_name=table_name)
-    achive_row_count = event_log.get_row_count()
+    archive_row_count = event_log.get_archive_row_count()
 
     max_count = last_seqno - archive_row_count
 
-    count = kwargs.get("count", None)
-    if count is not None:
-        count = int(count)
-
-    if count is None or count > max_count:
+    count = int(kwargs.get("count", max_count))
+    if count > max_count:
         count = max_count
 
     event_log.archive(count)
