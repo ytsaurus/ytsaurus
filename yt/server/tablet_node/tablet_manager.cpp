@@ -351,7 +351,7 @@ public:
 
         TReqRotateStore request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
-        PostTabletMutation(request);
+        CommitTabletMutation(request);
 
         LOG_DEBUG("Store rotation scheduled (TabletId: %v)",
             tablet->GetId());
@@ -470,8 +470,15 @@ private:
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
             StartTabletEpoch(tablet);
+        }
+    }
+
+    virtual void OnLeaderActive() override
+    {
+        for (const auto& pair : TabletMap_) {
+            auto* tablet = pair.second;
             CheckIfFullyUnlocked(tablet);
-            CheckIfAllStoresFlushed(tablet);
+            CheckIfFullyFlushed(tablet);
         }
     }
 
@@ -697,7 +704,7 @@ private:
                     tabletId);
 
                 if (IsLeader()) {
-                    CheckIfAllStoresFlushed(tablet);
+                    CheckIfFullyFlushed(tablet);
                 }
                 break;
             }
@@ -900,7 +907,7 @@ private:
 
             UpdateTabletSnapshot(tablet);
             if (IsLeader()) {
-                CheckIfAllStoresFlushed(tablet);
+                CheckIfFullyFlushed(tablet);
             }
         }
     }
@@ -1202,10 +1209,10 @@ private:
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_state(ETabletState::Flushing);
-        PostTabletMutation(request);
+        CommitTabletMutation(request);
     }
 
-    void CheckIfAllStoresFlushed(TTablet* tablet)
+    void CheckIfFullyFlushed(TTablet* tablet)
     {
         if (tablet->GetState() != ETabletState::Flushing)
             return;
@@ -1221,7 +1228,7 @@ private:
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_state(ETabletState::Unmounted);
-        PostTabletMutation(request);
+        CommitTabletMutation(request);
     }
 
 
@@ -1231,7 +1238,7 @@ private:
     }
 
 
-    void PostTabletMutation(const ::google::protobuf::MessageLite& message)
+    void CommitTabletMutation(const ::google::protobuf::MessageLite& message)
     {
         auto mutation = CreateMutation(Slot_->GetHydraManager(), message);
         Slot_->GetEpochAutomatonInvoker()->Invoke(BIND(
