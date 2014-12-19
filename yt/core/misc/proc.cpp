@@ -290,55 +290,43 @@ void SafeMakeNonblocking(int fd)
 
 #else
 
-bool TryClose(int fd)
+bool TryClose(int /* fd */)
 {
-    UNUSED(fd);
     YUNIMPLEMENTED();
 }
 
-void SafeClose(int fd)
+void SafeClose(int /* fd */)
 {
-    UNUSED(fd);
     YUNIMPLEMENTED();
 }
 
-bool TryDup2(int oldFd, int newFd)
+bool TryDup2(int /* oldFd */, int /* newFd */)
 {
-    UNUSED(oldFd);
-    UNUSED(newFd);
     YUNIMPLEMENTED();
 }
 
-void SafeDup2(int oldFd, int newFd)
+void SafeDup2(int /* oldFd */, int /* newFd */)
 {
-    UNUSED(oldFd);
-    UNUSED(newFd);
     YUNIMPLEMENTED();
 }
 
-bool TryExecve(const char *path, const char* argv[], const char* env[])
+bool TryExecve(const char /* *path */, const char* /* argv[] */, const char* /* env[] */)
 {
-    UNUSED(path);
-    UNUSED(argv);
-    UNUSED(env);
     YUNIMPLEMENTED();
 }
 
-TError StatusToError(int status)
+TError StatusToError(int /* status */)
 {
-    UNUSED(status);
     YUNIMPLEMENTED();
 }
 
-void RemoveDirAsRoot(const Stroka& path)
+void RemoveDirAsRoot(const Stroka& /* path */)
 {
-    UNUSED(path);
     YUNIMPLEMENTED();
 }
 
-void RunCleaner(const Stroka& path)
+void RunCleaner(const Stroka& /* path */)
 {
-    UNUSED(path);
     YUNIMPLEMENTED();
 }
 
@@ -347,27 +335,23 @@ void CloseAllDescriptors()
     YUNIMPLEMENTED();
 }
 
-void SafeClose(int fd, bool ignoreInvalidFd)
+void SafeClose(int /* fd */, bool /* ignoreInvalidFd */)
 {
     YUNIMPLEMENTED();
 }
 
-void SetPermissions(int fd, int permissions)
+void SetPermissions(int /* fd */, int /* permissions */)
 {
-    UNUSED(fd);
-    UNUSED(permissions);
     YUNIMPLEMENTED();
 }
 
-void  SafePipe(int fd[2])
+void SafePipe(int /* fd[2] */)
 {
-    UNUSED(fd);
     YUNIMPLEMENTED();
 }
 
-void SafeMakeNonblocking(int fd)
+void SafeMakeNonblocking(int /* fd */)
 {
-    UNUSED(fd);
     YUNIMPLEMENTED();
 }
 
