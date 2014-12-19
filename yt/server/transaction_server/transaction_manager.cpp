@@ -35,6 +35,7 @@
 #include <server/cell_master/hydra_facade.h>
 
 #include <server/security_server/account.h>
+#include <server/security_server/user.h>
 #include <server/security_server/security_manager.h>
 
 #include <server/hive/transaction_supervisor.h>
