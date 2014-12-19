@@ -452,7 +452,7 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
     } catch (const std::exception& ex) {
         LOG_FATAL(
             ex, 
-            "Failed to retreive cpu statistics from cgroup %Qv", 
+            "Failed to retreive CPU statistics from cgroup %Qv", 
             GetFullPath());
     }
 #endif
@@ -490,8 +490,8 @@ TBlockIO::TStatistics TBlockIO::GetStatistics() const
             }
         }
 
-        auto IOsStats = GetDetailedStatistics("blkio.io_serviced");
-        for (const auto& item : IOsStats) {
+        auto ioStats = GetDetailedStatistics("blkio.io_serviced");
+        for (const auto& item : ioStats) {
             if (item.Type == "Read") {
                 result.IORead += item.Value;
             } else if (item.Type == "Write") {
@@ -578,8 +578,8 @@ TMemory::TStatistics TMemory::GetStatistics() const
     TMemory::TStatistics result;
 #ifdef _linux_
      try {
-        auto values = ReadAllValues(NFS::CombinePaths(FullPath_, "memory.stat"));
-        int lineNumber = 0;
+        auto values = ReadAllValues(GetPath("memory.stat"));
+        int lineNumber = 0; 
         while (2 * lineNumber + 1 < values.size()) {
             const auto& type = values[2 * lineNumber];
             const auto value = FromString<i64>(values[2 * lineNumber + 1]);
