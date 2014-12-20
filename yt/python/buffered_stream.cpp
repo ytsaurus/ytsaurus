@@ -53,7 +53,6 @@ bool TBufferedStream::Empty() const
     return Size_ == 0;
 }
 
-
 void TBufferedStream::Finish(NDriver::TDriverResponse)
 {
     TGuard<TMutex> guard(Mutex_);
