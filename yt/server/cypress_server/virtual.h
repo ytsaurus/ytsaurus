@@ -43,7 +43,7 @@ template <
 >
 NYTree::IYPathServicePtr CreateVirtualObjectMap(
     NCellMaster::TBootstrap* bootstrap,
-    const NHydra::IReadOnlyEntityMap<TId, TValue>& map);
+    const NHydra::TReadOnlyEntityMap<TId, TValue>& map);
 
 ////////////////////////////////////////////////////////////////////////////////
 

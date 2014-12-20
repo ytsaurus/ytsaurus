@@ -38,6 +38,10 @@ public:
 
     template <class T>
     T* Get(NChunkServer::TNodeId id) const;
+
+    template <class T>
+    T* Get(NHydra::TEntitySerializationKey key) const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

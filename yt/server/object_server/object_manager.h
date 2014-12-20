@@ -80,8 +80,8 @@ public:
     //! Returns the handler for a given object.
     IObjectTypeHandlerPtr GetHandler(TObjectBase* object) const;
 
-    //! Returns the list of registered object types, excluding schemas.
-    const std::vector<EObjectType> GetRegisteredTypes() const;
+    //! Returns the set of registered object types, excluding schemas.
+    const std::set<EObjectType>& GetRegisteredTypes() const;
 
     //! Creates a new unique object id.
     TObjectId GenerateId(EObjectType type);
@@ -203,12 +203,12 @@ private:
     struct TTypeEntry
     {
         IObjectTypeHandlerPtr Handler;
-        std::unique_ptr<TSchemaObject> SchemaObject;
+        TSchemaObject* SchemaObject = nullptr;
         IObjectProxyPtr SchemaProxy;
         NProfiling::TTagId TagId;
     };
 
-    std::vector<EObjectType> RegisteredTypes_;
+    std::set<EObjectType> RegisteredTypes_;
     std::array<TTypeEntry, NObjectClient::MaxObjectType> TypeToEntry_;
 
     yhash_map<Stroka, NProfiling::TTagId> MethodToTag_;
@@ -230,18 +230,20 @@ private:
     i64 DestroyedObjectCount_ = 0;
     int LockedObjectCount_ = 0;
 
+    //! Stores schemas (for serialization mostly).
+    NHydra::TEntityMap<TObjectId, TSchemaObject> SchemaMap_;
+
     //! Stores deltas from parent transaction.
     NHydra::TEntityMap<TVersionedObjectId, TAttributeSet> AttributeMap_;
 
 
-
     void SaveKeys(NCellMaster::TSaveContext& context) const;
     void SaveValues(NCellMaster::TSaveContext& context) const;
-    void SaveSchemas(NCellMaster::TSaveContext& context) const;
 
     virtual void OnBeforeSnapshotLoaded() override;
     void LoadKeys(NCellMaster::TLoadContext& context);
     void LoadValues(NCellMaster::TLoadContext& context);
+    // COMPAT(babenko)
     void LoadSchemas(NCellMaster::TLoadContext& context);
 
     virtual void OnRecoveryStarted() override;

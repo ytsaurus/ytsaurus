@@ -13,13 +13,16 @@
 
 #include <ytlib/transaction_client/public.h>
 
+#include <server/hydra/entity_map.h>
+
 namespace NYT {
 namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction
-    : public TRefTracked<TTransaction>
+    : public NHydra::TEntityBase
+    , public TRefTracked<TTransaction>
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TTransactionId, Id);

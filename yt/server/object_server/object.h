@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <server/hydra/entity_map.h>
+
 #include <server/cell_master/public.h>
 
 namespace NYT {
@@ -9,9 +11,9 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Provides a base for all objects in YT server.
+//! Provides a base for all objects in YT master server.
 class TObjectBase
-    : private TNonCopyable
+    : public NHydra::TEntityBase
 {
 public:
     explicit TObjectBase(const TObjectId& id);

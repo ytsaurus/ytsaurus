@@ -68,6 +68,7 @@ TLoadContext::TLoadContext(TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
 { }
 
+// COMPAT(babenko)
 template <>
 TObjectBase* TLoadContext::Get(const TObjectId& id) const
 {

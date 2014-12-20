@@ -16,6 +16,8 @@
 
 #include <ytlib/chunk_client/public.h>
 
+#include <server/hydra/entity_map.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -52,7 +54,8 @@ DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTablet
-    : public TRefTracked<TTablet>
+    : public NHydra::TEntityBase
+    , public TRefTracked<TTablet>
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TTabletId, Id);

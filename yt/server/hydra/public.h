@@ -33,6 +33,7 @@ DECLARE_REFCOUNTED_CLASS(TCompositeAutomatonPart)
 
 DECLARE_REFCOUNTED_CLASS(TMutation)
 
+class TEntityBase;
 class TSaveContext;
 class TLoadContext;
 

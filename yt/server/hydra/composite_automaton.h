@@ -10,9 +10,48 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TEntitySerializationKey
+{
+    TEntitySerializationKey()
+        : Index(-1)
+    { }
+
+    explicit TEntitySerializationKey(int index)
+        : Index(index)
+    { }
+
+#define DEFINE_OPERATOR(op) \
+    bool operator op (TEntitySerializationKey other) const \
+    { \
+        return Index op other.Index; \
+    }
+
+    DEFINE_OPERATOR(==)
+    DEFINE_OPERATOR(!=)
+    DEFINE_OPERATOR(<)
+    DEFINE_OPERATOR(<=)
+    DEFINE_OPERATOR(>)
+    DEFINE_OPERATOR(>=)
+#undef DEFINE_OPERATOR
+
+    void Save(TSaveContext& context) const;
+    void Load(TLoadContext& context);
+
+    int Index;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSaveContext
     : public NYT::TStreamSaveContext
-{ };
+{
+public:
+    TEntitySerializationKey GenerateSerializationKey();
+
+private:
+    int SerializationKeyIndex_ = 0;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,6 +63,14 @@ public:
 
 public:
     TLoadContext();
+
+    void RegisterEntity(TEntityBase* entity);
+
+    template <class T>
+    T* GetEntity(TEntitySerializationKey key) const;
+
+private:
+    std::vector<TEntityBase*> Entities_;
 
 };
 

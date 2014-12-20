@@ -8,7 +8,7 @@
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
-#include <ytlib/hydra/public.h>
+#include <server/hydra/entity_map.h>
 
 #include <server/chunk_server/public.h>
 #include <server/chunk_server/chunk_replica.h>
@@ -36,6 +36,7 @@ DECLARE_ENUM(ENodeState,
 );
 
 class TNode
+    : public NHydra::TEntityBase
 {
 public:
     // Import third-party types into the scope.

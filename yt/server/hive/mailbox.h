@@ -11,7 +11,7 @@
 
 #include <ytlib/hydra/hydra_manager.pb.h>
 
-#include <server/hydra/public.h>
+#include <server/hydra/entity_map.h>
 
 #include <server/hive/hive_manager.pb.h>
 
@@ -21,7 +21,8 @@ namespace NHive {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMailbox
-    : public TRefTracked<TMailbox>
+    : public NHydra::TEntityBase
+    , public TRefTracked<TMailbox>
 {
 public:
     // Persistent state.

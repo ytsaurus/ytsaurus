@@ -31,6 +31,7 @@ bool ValidateSnapshotVersion(int version);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(babenko)
 template <>
 NObjectServer::TObjectBase* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
 
@@ -45,9 +46,6 @@ NChunkServer::TChunkList* TLoadContext::Get(const NObjectClient::TObjectId& id) 
 
 template <>
 NChunkServer::TChunk* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
-
-template <>
-NChunkServer::TJob* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
 
 template <>
 NChunkServer::TChunkOwnerBase* TLoadContext::Get(const NCypressClient::TVersionedNodeId& id) const;

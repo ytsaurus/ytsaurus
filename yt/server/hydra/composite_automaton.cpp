@@ -8,7 +8,6 @@
 #include <core/misc/checkpointable_stream.h>
 
 #include <util/stream/buffered.h>
-#include <contrib/libs/protobuf/wire_format_lite.h>
 
 namespace NYT {
 namespace NHydra {

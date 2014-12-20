@@ -318,6 +318,7 @@ TObjectManager::TObjectManager(
     RegisterLoader(
         "ObjectManager.Values",
         BIND(&TObjectManager::LoadValues, Unretained(this)));
+    // COMPAT(babenko)
     RegisterLoader(
         "ObjectManager.Schemas",
         BIND(&TObjectManager::LoadSchemas, Unretained(this)));
@@ -330,10 +331,6 @@ TObjectManager::TObjectManager(
         ESerializationPriority::Values,
         "ObjectManager.Values",
         BIND(&TObjectManager::SaveValues, Unretained(this)));
-    RegisterSaver(
-        ESerializationPriority::Values,
-        "ObjectManager.Schemas",
-        BIND(&TObjectManager::SaveSchemas, Unretained(this)));
 
     RegisterHandler(CreateMasterTypeHandler(Bootstrap_));
 
@@ -382,7 +379,7 @@ TObjectBase* TObjectManager::FindSchema(EObjectType type)
         return nullptr;
     }
 
-    return TypeToEntry_[typeValue].SchemaObject.get();
+    return TypeToEntry_[typeValue].SchemaObject;
 }
 
 TObjectBase* TObjectManager::GetSchema(EObjectType type)
@@ -416,8 +413,7 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     int typeValue = static_cast<int>(type);
     YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
     YCHECK(!TypeToEntry_[typeValue].Handler);
-
-    RegisteredTypes_.push_back(type);
+    YCHECK(RegisteredTypes_.insert(type).second);
     auto& entry = TypeToEntry_[typeValue];
     entry.Handler = handler;
     entry.TagId = NProfiling::TProfileManager::Get()->RegisterTag("type", type);
@@ -460,7 +456,7 @@ IObjectTypeHandlerPtr TObjectManager::GetHandler(TObjectBase* object) const
     return GetHandler(object->GetType());
 }
 
-const std::vector<EObjectType> TObjectManager::GetRegisteredTypes() const
+const std::set<EObjectType>& TObjectManager::GetRegisteredTypes() const
 {
     return RegisteredTypes_;
 }
@@ -549,31 +545,15 @@ void TObjectManager::WeakUnrefObject(TObjectBase* object)
 
 void TObjectManager::SaveKeys(NCellMaster::TSaveContext& context) const
 {
+    SchemaMap_.SaveKeys(context);
     AttributeMap_.SaveKeys(context);
 }
 
 void TObjectManager::SaveValues(NCellMaster::TSaveContext& context) const
 {
+    SchemaMap_.SaveValues(context);
     AttributeMap_.SaveValues(context);
     GarbageCollector_->Save(context);
-}
-
-void TObjectManager::SaveSchemas(NCellMaster::TSaveContext& context) const
-{
-    // Make sure the ordering of RegisteredTypes does not matter.
-    auto types = RegisteredTypes_;
-    std::sort(types.begin(), types.end());
-
-    for (auto type : types) {
-        if (HasSchema(type)) {
-            Save(context, type);
-            const auto& entry = TypeToEntry_[static_cast<int>(type)];
-            entry.SchemaObject->Save(context);
-        }
-    }
-
-    // Write a sentinel.
-    Save(context, EObjectType(EObjectType::Null));
 }
 
 void TObjectManager::OnBeforeSnapshotLoaded()
@@ -587,6 +567,11 @@ void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 108) {
+        SchemaMap_.LoadKeys(context);
+    }
+
     AttributeMap_.LoadKeys(context);
 }
 
@@ -594,10 +579,24 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 108) {
+        SchemaMap_.LoadValues(context);
+        for (const auto& pair : SchemaMap_) {
+            auto type = TypeFromSchemaType(TypeFromId(pair.first));
+            YCHECK(RegisteredTypes_.find(type) != RegisteredTypes_.end());
+            auto& entry = TypeToEntry_[static_cast<int>(type)];
+            entry.SchemaObject = pair.second;
+            entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
+        }
+    }
+
     AttributeMap_.LoadValues(context);
+
     GarbageCollector_->Load(context);
 }
 
+// COMPAT(babenko)
 void TObjectManager::LoadSchemas(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -620,15 +619,6 @@ void TObjectManager::DoClear()
 
     MasterProxy_ = CreateMasterProxy(Bootstrap_, MasterObject_.get());
 
-    for (auto type : RegisteredTypes_)  {
-        auto& entry = TypeToEntry_[static_cast<int>(type)];
-        if (HasSchema(type)) {
-            entry.SchemaObject.reset(new TSchemaObject(MakeSchemaObjectId(type, Bootstrap_->GetCellTag())));
-            entry.SchemaObject->RefObject();
-            entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject.get());
-        }
-    }
-
     AttributeMap_.Clear();
 
     GarbageCollector_->Clear();
@@ -636,6 +626,18 @@ void TObjectManager::DoClear()
     CreatedObjectCount_ = 0;
     DestroyedObjectCount_ = 0;
     LockedObjectCount_ = 0;
+
+    SchemaMap_.Clear();
+    for (auto type : RegisteredTypes_) {
+        auto& entry = TypeToEntry_[static_cast<int>(type)];
+        if (HasSchema(type)) {
+            auto id = MakeSchemaObjectId(type, Bootstrap_->GetCellTag());
+            entry.SchemaObject = new TSchemaObject(id);
+            SchemaMap_.Insert(id, entry.SchemaObject);
+            entry.SchemaObject->RefObject();
+            entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
+        }
+    }
 }
 
 void TObjectManager::Clear()
