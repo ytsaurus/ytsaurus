@@ -46,6 +46,11 @@ public:
         YCHECK(State_ != EReaderState::Active);
     }
 
+    int GetHandle() const
+    {
+        return FD_;
+    }
+
     TFuture<TErrorOr<size_t>> Read(void* buffer, int length)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -204,6 +209,11 @@ DEFINE_REFCOUNTED_TYPE(TAsyncReaderImpl);
 TAsyncReader::TAsyncReader(int fd)
     : Impl_(New<NDetail::TAsyncReaderImpl>(fd))
 { }
+
+int TAsyncReader::GetHandle() const
+{
+    return Impl_->GetHandle();
+}
 
 TFuture<TErrorOr<size_t>> TAsyncReader::Read(void* buf, size_t len)
 {

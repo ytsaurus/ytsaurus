@@ -46,6 +46,11 @@ public:
         YCHECK(State_ != EWriterState::Active);
     }
 
+    int GetHandle() const
+    {
+        return FD_;
+    }
+
     TAsyncError Write(const void* buffer, int length)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -225,6 +230,11 @@ DEFINE_REFCOUNTED_TYPE(TAsyncWriterImpl);
 TAsyncWriter::TAsyncWriter(int fd)
     : Impl_(New<NDetail::TAsyncWriterImpl>(fd))
 { }
+
+int TAsyncWriter::GetHandle() const
+{
+    return Impl_->GetHandle();
+}
 
 TAsyncError TAsyncWriter::Write(const void* data, size_t size)
 {

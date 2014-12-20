@@ -17,6 +17,8 @@ public:
     //! Takes ownership of #fd.
     explicit TAsyncWriter(int fd);
 
+    int GetHandle() const;
+
     virtual TAsyncError Write(const void* data, size_t size) override;
     
     TAsyncError Close();
