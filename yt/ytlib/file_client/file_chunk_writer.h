@@ -42,7 +42,7 @@ public:
 
     ~TFileChunkWriter();
 
-    // Is retuns nullptr, take GetReadyEvent and wait.
+    // If |nullptr| is returned, invoke #GetReadyEvent and wait.
     TFileChunkWriterFacade* GetFacade();
     TAsyncError GetReadyEvent();
 
