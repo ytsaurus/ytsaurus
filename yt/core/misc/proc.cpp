@@ -38,11 +38,11 @@ std::vector<int> GetPidsByUid(int uid)
 #ifdef _linux_
     std::vector<int> result;
 
-    DIR *dp = ::opendir("/proc");
-    YCHECK(dp != nullptr);
+    DIR *dirStream = ::opendir("/proc");
+    YCHECK(dirStream != nullptr);
 
     struct dirent *ep;
-    while ((ep = ::readdir(dp)) != nullptr) {
+    while ((ep = ::readdir(dirStream)) != nullptr) {
         const char* begin = ep->d_name;
         char* end = nullptr;
         int pid = static_cast<int>(strtol(begin, &end, 10));
@@ -68,7 +68,7 @@ std::vector<int> GetPidsByUid(int uid)
         }
     }
 
-    YCHECK(::closedir(dp) == 0);
+    YCHECK(::closedir(dirStream) == 0);
     return result;
 
 #else
@@ -162,26 +162,30 @@ TError StatusToError(int status)
     }
 }
 
-void CloseAllDescriptors()
+void CloseAllDescriptors(const std::vector<int>& exceptFor)
 {
 #ifdef _linux_
-    DIR* dp = ::opendir("/proc/self/fd");
-    YCHECK(dp != NULL);
+    auto* dirStream = ::opendir("/proc/self/fd");
+    YCHECK(dirStream != NULL);
 
-    int dirfd = ::dirfd(dp);
-    YCHECK(dirfd >= 0);
+    int dirFd = ::dirfd(dirStream);
+    YCHECK(dirFd >= 0);
 
-    struct dirent *ep;
-    while ((ep = ::readdir(dp)) != nullptr) {
+    dirent* ep;
+    while ((ep = ::readdir(dirStream)) != nullptr) {
         char* begin = ep->d_name;
         char* end = nullptr;
         int fd = static_cast<int>(strtol(begin, &end, 10));
-        if (fd != dirfd && begin != end) {
-            YCHECK(::close(fd) == 0);
-        }
+        if (begin == end)
+            continue;
+        if (fd == dirFd)
+            continue;
+        if (std::find(exceptFor.begin(), exceptFor.end(), fd) != exceptFor.end())
+            continue;
+        YCHECK(::close(fd) == 0);
     }
 
-    YCHECK(::closedir(dp) == 0);
+    YCHECK(::closedir(dirStream) == 0);
 #endif
 }
 
