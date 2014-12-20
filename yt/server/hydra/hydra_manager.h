@@ -79,15 +79,15 @@ struct IHydraManager
 
     //! Returns the current mutation context or |nullptr| if no mutation is currently being applied.
     /*!
-     *  Checking the return value for NULL can be useful to prevent recursive commits and only log "top-level"
-     *  mutations that trigger the whole transformation chain.
-     *
      *  \note Thread affinity: AutomatonThread
      */
     virtual TMutationContext* GetMutationContext() = 0;
 
     //! Returns |true| if a mutation is currently being applied.
     /*!
+     *  The method could be useful to prevent recursive commits and only log "top-level"
+     *  mutations that trigger the whole transformation chain.
+     *
      *  \note Thread affinity: AutomatonThread
      */
     virtual bool IsMutating() = 0;
