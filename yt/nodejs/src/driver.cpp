@@ -339,8 +339,8 @@ struct TExecuteRequest
     {
         Request.data = this;
 
-        DriverRequest.InputStream = CreateAsyncInputStream(&InputStack);
-        DriverRequest.OutputStream = CreateAsyncOutputStream(&OutputStack);
+        DriverRequest.InputStream = CreateAsyncAdapter(&InputStack);
+        DriverRequest.OutputStream = CreateAsyncAdapter(&OutputStack);
         DriverRequest.ResponseParametersConsumer = &ResponseParametersConsumer;
     }
 
@@ -696,8 +696,8 @@ void TDriverWrap::ExecuteWork(uv_work_t* workRequest)
         request->Await();
     } else {
         TTempBuf buffer;
-        auto inputStream = CreateSyncInputStream(request->DriverRequest.InputStream);
-        auto outputStream = CreateSyncOutputStream(request->DriverRequest.OutputStream);
+        auto inputStream = CreateSyncAdapter(request->DriverRequest.InputStream);
+        auto outputStream = CreateSyncAdapter(request->DriverRequest.OutputStream);
 
         while (size_t length = inputStream->Load(buffer.Data(), buffer.Size())) {
             outputStream->Write(buffer.Data(), length);

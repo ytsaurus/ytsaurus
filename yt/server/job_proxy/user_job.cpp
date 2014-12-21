@@ -453,7 +453,7 @@ private:
     void ReadFromOutputPipe(TPipe pipe, IAsyncInputStreamPtr asyncInput, TOutputStream* output)
     {
         SafeClose(pipe.WriteFD);
-        auto input = CreateSyncInputStream(asyncInput);
+        auto input = CreateSyncAdapter(asyncInput);
         PipeInputToOutput(input.get(), output);
     }
 
@@ -472,7 +472,7 @@ private:
 
         IOActions_.push_back(
             BIND([=] () {
-                auto output = CreateSyncOutputStream(asyncOutput);
+                auto output = CreateSyncAdapter(asyncOutput);
                 input->PipeReaderToOutput(output.get());
                 auto error = WaitFor(asyncOutput->Close());
                 if (!error.IsOK()) {

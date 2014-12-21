@@ -124,7 +124,7 @@ public:
         auto inputStreamObj = GetAttr(pyRequest, "input_stream");
         if (!inputStreamObj.isNone()) {
             std::unique_ptr<TInputStreamWrap> inputStream(new TInputStreamWrap(inputStreamObj));
-            request.InputStream = CreateAsyncInputStream(inputStream.get());
+            request.InputStream = CreateAsyncAdapter(inputStream.get());
             response->OwnInputStream(inputStream);
         }
 
@@ -136,7 +136,7 @@ public:
                 request.OutputStream = pythonStream->GetStream();
             } else {
                 std::unique_ptr<TOutputStreamWrap> outputStream(new TOutputStreamWrap(outputStreamObj));
-                request.OutputStream = CreateAsyncOutputStream(outputStream.get());
+                request.OutputStream = CreateAsyncAdapter(outputStream.get());
                 response->OwnOutputStream(outputStream);
             }
         }

@@ -40,7 +40,8 @@ void TStartOpExecutor::DoExecute(const TDriverRequest& request)
 
     TDriverRequest requestCopy = request;
 
-    TStringStream output;
+    Stroka str;
+    TStringOutput output(str);
     requestCopy.Parameters->AddChild(
         ConvertToNode(TFormat(EFormatType::Yson)),
         "input_format");
@@ -48,7 +49,7 @@ void TStartOpExecutor::DoExecute(const TDriverRequest& request)
         ConvertToNode(TFormat(EFormatType::Yson)),
         "output_format");
 
-    requestCopy.OutputStream = CreateAsyncOutputStream(&output);
+    requestCopy.OutputStream = CreateAsyncAdapter(&output);
 
     auto response = Driver->Execute(requestCopy).Get();
     if (!response.Error.IsOK()) {
@@ -56,7 +57,7 @@ void TStartOpExecutor::DoExecute(const TDriverRequest& request)
         THROW_ERROR response.Error;
     }
 
-    auto operationId = ConvertTo<TOperationId>(TYsonString(output.Str()));
+    auto operationId = ConvertTo<TOperationId>(TYsonString(str));
     printf("done, %s\n", ~ToString(operationId));
 
     TOperationTracker tracker(Config, Driver, operationId);

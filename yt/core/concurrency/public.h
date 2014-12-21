@@ -23,6 +23,9 @@ DECLARE_REFCOUNTED_STRUCT(IThroughputThrottler)
 DECLARE_REFCOUNTED_STRUCT(IAsyncInputStream)
 DECLARE_REFCOUNTED_STRUCT(IAsyncOutputStream)
 
+DECLARE_REFCOUNTED_STRUCT(IAsyncZeroCopyInputStream)
+DECLARE_REFCOUNTED_STRUCT(IAsyncZeroCopyOutputStream)
+
 class TAsyncSemaphore;
 
 template <class TSignature>

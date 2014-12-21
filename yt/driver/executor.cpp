@@ -198,7 +198,7 @@ void TRequestExecutor::DoExecute()
         request.AuthenticatedUser = AuthenticatedUserArg.getValue();
     }
 
-    request.InputStream = CreateAsyncInputStream(GetInputStream());
+    request.InputStream = CreateAsyncAdapter(GetInputStream());
     try {
         request.Parameters->AddChild(
             ConvertToNode(GetFormat(descriptor.InputType, inputFormat)),
@@ -207,7 +207,7 @@ void TRequestExecutor::DoExecute()
         THROW_ERROR_EXCEPTION("Error parsing input format") << ex;
     }
 
-    request.OutputStream = CreateAsyncOutputStream(OutputStream_.get());
+    request.OutputStream = CreateAsyncAdapter(OutputStream_.get());
     try {
         request.Parameters->AddChild(
             ConvertToNode(GetFormat(descriptor.OutputType, outputFormat)),
