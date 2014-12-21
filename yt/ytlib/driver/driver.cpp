@@ -274,8 +274,8 @@ private:
             : Driver_(driver)
             , Descriptor_(descriptor)
             , Request_(request)
-            , SyncInputStream_(CreateSyncAdapter(request.InputStream))
-            , SyncOutputStream_(CreateSyncAdapter(request.OutputStream))
+            , SyncInputStream_(request.InputStream ? CreateSyncAdapter(request.InputStream) : nullptr)
+            , SyncOutputStream_(request.OutputStream ? CreateSyncAdapter(request.OutputStream) : nullptr)
         {
             TClientOptions options;
             options.User = Request_.AuthenticatedUser;
