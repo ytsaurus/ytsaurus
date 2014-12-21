@@ -431,13 +431,15 @@ public:
         const auto& chunkLists = table->GetChunkList()->Children();
         YCHECK(tablets.size() == chunkLists.size());
 
+        auto cells = AllocateCells(hintedCell, lastTabletIndex - firstTabletIndex + 1);
+
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = tablets[index];
             auto* nextTablet = index + 1 == static_cast<int>(tablets.size()) ? nullptr : tablets[index + 1];
             if (tablet->GetCell())
                 continue;
 
-            auto* cell = hintedCell ? hintedCell : AllocateCell();
+            auto* cell = cells[index - firstTabletIndex];
             tablet->SetCell(cell);
             YCHECK(cell->Tablets().insert(tablet).second);
             objectManager->RefObject(cell);
@@ -1335,32 +1337,44 @@ private:
         THROW_ERROR_EXCEPTION("No healthy tablet cells");
     }
 
-    TTabletCell* AllocateCell()
+    std::vector<TTabletCell*> AllocateCells(TTabletCell* hintedCell, int count)
     {
         // TODO(babenko): do something smarter?
-        auto cells = GetValues(TabletCellMap_);
+        if (hintedCell) {
+            return std::vector<TTabletCell*>(count, hintedCell);
+        }
 
-        cells.erase(
+        auto allCells = GetValues(TabletCellMap_);
+
+        allCells.erase(
             std::remove_if(
-                cells.begin(),
-                cells.end(),
+                allCells.begin(),
+                allCells.end(),
                 [] (const TTabletCell* cell) {
                     return cell->IsAlive() && cell->GetHealth() != ETabletCellHealth::Good;
                 }),
-            cells.end());
+            allCells.end());
         
-        YCHECK(!cells.empty());
+        YCHECK(!allCells.empty());
 
         std::sort(
-            cells.begin(),
-            cells.end(),
+            allCells.begin(),
+            allCells.end(),
             [] (TTabletCell* lhs, TTabletCell* rhs) {
                 return lhs->GetId() < rhs->GetId();
             });
 
-        auto* mutationContext = Bootstrap_->GetHydraFacade()->GetHydraManager()->GetMutationContext();
-        int index = mutationContext->RandomGenerator().Generate<size_t>() % cells.size();
-        return cells[index];
+        auto* mutationContext = Bootstrap_
+            ->GetHydraFacade()
+            ->GetHydraManager()
+            ->GetMutationContext();
+
+        std::vector<TTabletCell*> cells;
+        for (int index = 0; index < count; ++index) {
+            cells.push_back(allCells[mutationContext->RandomGenerator().Generate<size_t>() % allCells.size()]);
+        }
+
+        return cells;
     }
 
 
