@@ -16,8 +16,8 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t LoadBufferSize = 16384;
-static const size_t SaveBufferSize = 16384;
+static const size_t LoadBufferSize = 64 * 1024;
+static const size_t SaveBufferSize = 64 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
