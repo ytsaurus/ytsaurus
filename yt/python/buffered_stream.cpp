@@ -128,7 +128,7 @@ TSharedRef TBufferedStream::ExtractChunk(size_t size)
 
     size = std::min(size, static_cast<size_t>(End_ - Begin_));
 
-    TSharedRef result = Data_.Slice(TRef(Begin_, size));
+    auto result = Data_.Slice(TRef(Begin_, size));
     Begin_ += size;
 
     Size_ -= size;
