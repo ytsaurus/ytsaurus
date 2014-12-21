@@ -19,6 +19,71 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLocalSnapshotReader
+    : public ISnapshotReader
+{
+public:
+    TLocalSnapshotReader(
+        TDistributedHydraManagerConfigPtr config,
+        TCellManagerPtr cellManager,
+        TFileSnapshotStorePtr fileStore,
+        int snapshotId)
+        : Config_(config)
+        , CellManager_(cellManager)
+        , FileStore_(fileStore)
+        , SnapshotId_(snapshotId)
+    { }
+
+    virtual TAsyncError Open() override
+    {
+        return BIND(&TLocalSnapshotReader::DoOpen, MakeStrong(this))
+            .Guarded()
+            .AsyncVia(GetHydraIOInvoker())
+            .Run();
+    }
+
+    virtual TFuture<TErrorOr<size_t>> Read(void* buf, size_t len) override
+    {
+        return UnderlyingReader_->Read(buf, len);
+    }
+
+    virtual TSnapshotParams GetParams() const override
+    {
+        return UnderlyingReader_->GetParams();
+    }
+
+private:
+    TDistributedHydraManagerConfigPtr Config_;
+    TCellManagerPtr CellManager_;
+    TFileSnapshotStorePtr FileStore_;
+    int SnapshotId_;
+
+    ISnapshotReaderPtr UnderlyingReader_;
+
+
+    void DoOpen()
+    {
+        if (!FileStore_->CheckSnapshotExists(SnapshotId_)) {
+            auto result = WaitFor(DownloadSnapshot(
+                Config_,
+                CellManager_,
+                FileStore_,
+                SnapshotId_));
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+
+        UnderlyingReader_ = FileStore_->CreateReader(SnapshotId_);
+
+        {
+            auto result = WaitFor(UnderlyingReader_->Open());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TLocalSnapshotStore
     : public ISnapshotStore
 {
@@ -32,12 +97,9 @@ public:
         , FileStore_(fileStore)
     { }
 
-    virtual TFuture<TErrorOr<ISnapshotReaderPtr>> CreateReader(int snapshotId) override
+    virtual ISnapshotReaderPtr CreateReader(int snapshotId) override
     {
-        return BIND(&TLocalSnapshotStore::DoCreateReader, MakeStrong(this))
-            .Guarded()
-            .AsyncVia(GetHydraIOInvoker())
-            .Run(snapshotId);
+        return FileStore_->CreateReader(snapshotId);
     }
 
     virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const TSharedRef& meta) override
@@ -53,46 +115,17 @@ public:
             .Run(maxSnapshotId);
     }
 
-    virtual TFuture<TErrorOr<TSnapshotParams>> ConfirmSnapshot(int snapshotId) override
-    {
-        return BIND(&TLocalSnapshotStore::DoConfirmSnapshot, MakeStrong(this))
-            .Guarded()
-            .AsyncVia(GetHydraIOInvoker())
-            .Run(snapshotId);
-    }
-
 private:
     TDistributedHydraManagerConfigPtr Config_;
     TCellManagerPtr CellManager_;
     TFileSnapshotStorePtr FileStore_;
 
 
-    ISnapshotReaderPtr DoCreateReader(int snapshotId)
-    {
-        if (!FileStore_->CheckSnapshotExists(snapshotId)) {
-            auto downloadResult = WaitFor(DownloadSnapshot(
-                Config_,
-                CellManager_,
-                FileStore_,
-                snapshotId));
-            THROW_ERROR_EXCEPTION_IF_FAILED(downloadResult);
-        }
-        return FileStore_->CreateReader(snapshotId);
-    }
-
     int DoGetLatestSnapshotId(int maxSnapshotId)
     {
         auto remoteSnapshotInfo = WaitFor(DiscoverLatestSnapshot(Config_, CellManager_, maxSnapshotId));
-        int localSnnapshotId = FileStore_->GetLatestSnapshotId(maxSnapshotId);
-        return std::max(localSnnapshotId, remoteSnapshotInfo.SnapshotId);
-    }
-
-    TSnapshotParams DoConfirmSnapshot(int snapshotId)
-    {
-        FileStore_->ConfirmSnapshot(snapshotId);
-        
-        auto reader = FileStore_->CreateReader(snapshotId);
-        return reader->GetParams();
+        int localSnapshotId = FileStore_->GetLatestSnapshotId(maxSnapshotId);
+        return std::max(localSnapshotId, remoteSnapshotInfo.SnapshotId);
     }
 
 };

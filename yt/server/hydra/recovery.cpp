@@ -7,6 +7,7 @@
 #include "changelog_download.h"
 
 #include <core/concurrency/scheduler.h>
+#include <core/concurrency/async_stream.h>
 
 #include <ytlib/election/cell_manager.h>
 
@@ -19,6 +20,38 @@ namespace NHydra {
 using namespace NElection;
 using namespace NConcurrency;
 using namespace NHydra::NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto SnapshotReadBlockSize = 16 * 1024 * 1024;
+static const auto SnapshotPrefetchWindowSize = 64 * 1024 * 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Identical to the one returned by CreateSyncAdapter but uses |Get| rather
+//! than |WaitFor|.
+class TSnapshotInputStream
+    : public TInputStream
+{
+public:
+    explicit TSnapshotInputStream(IAsyncInputStreamPtr underlyingStream)
+        : UnderlyingStream_(underlyingStream)
+    { }
+
+    virtual ~TSnapshotInputStream() throw()
+    { }
+
+private:
+    IAsyncInputStreamPtr UnderlyingStream_;
+
+    virtual size_t DoRead(void* buf, size_t len) override
+    {
+        auto result = UnderlyingStream_->Read(buf, len).Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        return result.Value();
+    }
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,16 +103,22 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         // Load the snapshot.
         LOG_DEBUG("Using snapshot %v for recovery", snapshotId);
 
-        auto readerOrError = WaitFor(SnapshotStore_->CreateReader(snapshotId));
-        THROW_ERROR_EXCEPTION_IF_FAILED(readerOrError, "Error creating snapshot reader");
-        auto reader = readerOrError.Value();
+        auto reader = SnapshotStore_->CreateReader(snapshotId);
+
+        {
+            auto result = WaitFor(reader->Open());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
 
         TSnapshotMeta meta;
         YCHECK(DeserializeFromProto(&meta, reader->GetParams().Meta));
 
         auto snapshotVersion = TVersion(snapshotId - 1, meta.prev_record_count());
-        auto* input = reader->GetStream();
-        DecoratedAutomaton_->LoadSnapshot(snapshotVersion, input);
+        auto zeroCopyReader = CreateZeroCopyAdapter(reader, SnapshotReadBlockSize);
+        auto zeroCopyPrefetchingReader = CreatePrefetchingAdapter(zeroCopyReader, SnapshotPrefetchWindowSize);
+        auto prefetchingReader = CreateCopyingAdapter(zeroCopyPrefetchingReader);
+        TSnapshotInputStream input(prefetchingReader);
+        DecoratedAutomaton_->LoadSnapshot(snapshotVersion, &input);
         initialChangelogId = snapshotId;
     } else {
         // Recover using changelogs only.

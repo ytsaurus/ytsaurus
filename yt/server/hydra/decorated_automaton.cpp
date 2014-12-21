@@ -8,6 +8,8 @@
 #include "mutation_context.h"
 #include "snapshot_discovery.h"
 
+#include <core/misc/proc.h>
+
 #include <core/actions/invoker_detail.h>
 
 #include <core/concurrency/scheduler.h>
@@ -19,9 +21,13 @@
 #include <ytlib/hydra/hydra_service.pb.h>
 #include <ytlib/hydra/hydra_manager.pb.h>
 
+#include <ytlib/pipes/async_reader.h>
+
 #include <server/misc/snapshot_builder_detail.h>
 
 #include <util/random/random.h>
+
+#include <util/system/file.h>
 
 namespace NYT {
 namespace NHydra {
@@ -30,6 +36,11 @@ using namespace NConcurrency;
 using namespace NElection;
 using namespace NRpc;
 using namespace NHydra::NProto;
+using namespace NPipes;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const i64 SnapshotTransferBlockSize = (i64) 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -191,27 +202,47 @@ public:
     {
         Logger = HydraLogger;
         Logger.AddTag("SnapshotId: %v", SnapshotId_);
-        Logger.AddTag("SnapshotVersion: %v", SnapshotVersion_);
     }
 
     TFuture<TErrorOr<TRemoteSnapshotParams>> Run()
     {
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 
-        TSnapshotMeta meta;
-        meta.set_prev_record_count(SnapshotVersion_.RecordId);
-        YCHECK(SerializeToProto(meta, &Meta_));
+        try {
+            TSnapshotMeta meta;
+            meta.set_prev_record_count(SnapshotVersion_.RecordId);
+            YCHECK(SerializeToProto(meta, &Meta_));
 
-        if (Owner_->BuildingSnapshot_.test_and_set()) {
-            return MakeFuture<TErrorOr<TRemoteSnapshotParams>>(TError(
-                "Cannot start building snapshot %v since another snapshot is still being constructed",
-                SnapshotId_));
-        }
+            if (Owner_->BuildingSnapshot_.test_and_set()) {
+                THROW_ERROR_EXCEPTION("Cannot start building snapshot %v since another snapshot is still being constructed",
+                    SnapshotId_);
+            }
 
-        return TSnapshotBuilderBase::Run().Apply(
-            BIND(&TSnapshotBuilder::OnFinished, MakeStrong(this))
+            int fds[2];
+            SafePipe(fds);
+            SafeMakeNonblocking(fds[0]);
+
+            LOG_INFO("Snapshot transfer pipe opened (ReadFd: %v, WriteFd: %v)",
+                fds[0],
+                fds[1]);
+
+            InputStream_ = New<TAsyncReader>(fds[0]);
+            OutputFile_ = std::make_unique<TFile>(fds[1]);
+
+            SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, Meta_);
+
+            AsyncTransferResult_ = BIND(&TSnapshotBuilder::TransferLoop, MakeStrong(this))
                 .Guarded()
-                .AsyncVia(Owner_->ControlInvoker_));
+                .AsyncVia(GetWatchdogInvoker())
+                .Run();
+
+            return TSnapshotBuilderBase::Run().Apply(
+                BIND(&TSnapshotBuilder::OnFinished, MakeStrong(this))
+                    .Guarded()
+                    .AsyncVia(GetHydraIOInvoker()));
+        } catch (const std::exception& ex) {
+            return MakeFuture<TErrorOr<TRemoteSnapshotParams>>(ex);
+        }
     }
 
 private:
@@ -221,36 +252,92 @@ private:
 
     TSharedRef Meta_;
 
+    TAsyncReaderPtr InputStream_;
+    std::unique_ptr<TFile> OutputFile_;
+
+    TAsyncError AsyncTransferResult_;
+    ISnapshotWriterPtr SnapshotWriter_;
+    
 
     virtual TDuration GetTimeout() const override
     {
         return Owner_->Config_->SnapshotBuildTimeout;
     }
 
-    virtual void Build() override
+    virtual void RunChild() override
     {
-        auto writer = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, Meta_);
-        Owner_->SaveSnapshot(writer->GetStream());
-        writer->Close();
+        CloseAllDescriptors({
+            2, // stderr
+            OutputFile_->GetHandle()
+        });
+        TFileOutput output(*OutputFile_);
+        Owner_->SaveSnapshot(&output);
+        OutputFile_->Close();
     }
 
-    TRemoteSnapshotParams OnFinished(TError error)
+    virtual void RunParent() override
+    {
+        OutputFile_->Close();
+    }
+
+    void TransferLoop()
+    {
+        LOG_INFO("Snapshot transfer loop started");
+
+        {
+            auto result = WaitFor(SnapshotWriter_->Open());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+
+        auto zeroCopyReader = CreateZeroCopyAdapter(InputStream_, SnapshotTransferBlockSize);
+        auto zeroCopyWriter = CreateZeroCopyAdapter(SnapshotWriter_);
+
+        TAsyncError lastWriteResult;
+        i64 bytesTotal = 0;
+
+        while (true) {
+            auto result = WaitFor(zeroCopyReader->Read());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+
+            const auto& block = result.Value();
+            if (!block)
+                break;
+
+            bytesTotal += block.Size();
+            lastWriteResult = zeroCopyWriter->Write(block);
+        }
+
+        if (lastWriteResult) {
+            auto error = WaitFor(lastWriteResult);
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        }
+
+        LOG_INFO("Snapshot transfer loop completed (BytesTotal: %v)",
+             bytesTotal);
+    }
+
+    TRemoteSnapshotParams OnFinished(const TError& error)
     {
         Owner_->BuildingSnapshot_.clear();
 
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
 
-        auto paramsOrError = WaitFor(Owner_->SnapshotStore_->ConfirmSnapshot(SnapshotId_));
-        if (!paramsOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Error confirming snapshot %v",
-                SnapshotId_)
-                << paramsOrError;
+        {
+            auto error = WaitFor(AsyncTransferResult_);
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
-        
+
+        {
+            auto error = WaitFor(SnapshotWriter_->Close());
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        }
+
+        const auto& params = SnapshotWriter_->GetParams();
+
         TRemoteSnapshotParams remoteParams;
         remoteParams.PeerId = Owner_->CellManager_->GetSelfPeerId();
         remoteParams.SnapshotId = SnapshotId_;
-        static_cast<TSnapshotParams&>(remoteParams) = paramsOrError.Value();
+        static_cast<TSnapshotParams&>(remoteParams) = params;
         return remoteParams;
     }
 

@@ -60,9 +60,6 @@ public:
     {
         LOG_INFO("Initializing tablet node");
 
-        ForcePath(Config_->Snapshots->TempPath);
-        CleanTempFiles(Config_->Snapshots->TempPath);
-
         Slots_.resize(Config_->Slots);
 
         SlotScanExecutor_->Start();

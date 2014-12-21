@@ -39,7 +39,7 @@ private:
     std::vector<TJob> Jobs;
 
     virtual TDuration GetTimeout() const override;
-    virtual void Build() override;
+    virtual void RunChild() override;
     
     void Build(const TJob& job);
 

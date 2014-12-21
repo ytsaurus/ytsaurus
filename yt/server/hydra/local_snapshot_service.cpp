@@ -9,11 +9,14 @@
 
 #include <core/rpc/service_detail.h>
 
+#include <core/concurrency/scheduler.h>
+
 namespace NYT {
 namespace NHydra {
 
 using namespace NRpc;
 using namespace NElection;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,6 +55,12 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, LookupSnapshot)
     }
 
     auto reader = FileStore_->CreateReader(snapshotId);
+
+    {
+        auto result = WaitFor(reader->Open());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
+
     auto params = reader->GetParams();
     response->set_snapshot_id(snapshotId);
     response->set_compressed_length(params.CompressedLength);
@@ -81,12 +90,17 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, ReadSnapshot)
 
     auto reader = FileStore_->CreateRawReader(snapshotId, offset);
 
+    {
+        auto result = WaitFor(reader->Open());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
+
     struct TSnapshotBlockTag { };
     auto buffer = TSharedRef::Allocate<TSnapshotBlockTag>(length, false);
-    size_t bytesRead = reader->GetStream()->Read(buffer.Begin(), length);
-    auto data = buffer.Slice(TRef(buffer.Begin(), bytesRead));
-    context->Response().Attachments().push_back(data);
-
+    auto result = WaitFor(reader->Read(buffer.Begin(), length));
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    auto bytesRead = result.Value();
+    context->Response().Attachments().push_back(buffer.Slice(TRef(buffer.Begin(), bytesRead)));
     context->SetResponseInfo("BytesRead: %v", bytesRead);
     context->Reply();
 }

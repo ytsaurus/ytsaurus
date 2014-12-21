@@ -23,9 +23,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto WatchdogCheckPeriod = TDuration::MilliSeconds(100);
-
-static TLazyIntrusivePtr<NConcurrency::TActionQueue> WatchdogQueue(
-    NConcurrency::TActionQueue::CreateFactory("SnapshotWD"));
+static TLazyIntrusivePtr<TActionQueue> WatchdogQueue(TActionQueue::CreateFactory("SnapshotWD"));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,14 +52,14 @@ TAsyncError TSnapshotBuilderBase::Run()
         }
 
         if (ChildPid_ == 0) {
-            RunChild();
-            _exit(0);
-        } else {
-            RunParent();
+            DoRunChild(); // never returns
+            YUNREACHABLE();
         }
 
+        DoRunParent();
         Result_.OnCanceled(BIND(&TSnapshotBuilderBase::OnCanceled, MakeWeak(this)));
 #else
+        RunParent();
         RunChild();
         Result_.Set(TError());
 #endif
@@ -73,16 +71,24 @@ TAsyncError TSnapshotBuilderBase::Run()
     return Result_;
 }
 
-void TSnapshotBuilderBase::RunChild()
+void TSnapshotBuilderBase::DoRunChild()
 {
-    CloseAllDescriptors();
-    Build();
+    try {
+        RunChild();
+        ::_exit(0);
+    } catch (const std::exception& ex) {
+        fprintf(stderr, "Snapshot builder child process failed:\n%s\n",
+            ex.what());
+        ::_exit(1);
+    }
 }
 
-void TSnapshotBuilderBase::RunParent()
+void TSnapshotBuilderBase::DoRunParent()
 {
     LOG_INFO("Fork succeded (ChildPid: %v)", ChildPid_.load());
 
+    RunParent();
+    
     StartTime_ = TInstant::Now();
 
     WatchdogExecutor_ = New<TPeriodicExecutor>(
@@ -90,6 +96,14 @@ void TSnapshotBuilderBase::RunParent()
         BIND(&TSnapshotBuilderBase::OnWatchdogCheck, MakeStrong(this)),
         WatchdogCheckPeriod);
     WatchdogExecutor_->Start();
+}
+
+void TSnapshotBuilderBase::RunParent()
+{ }
+
+IInvokerPtr TSnapshotBuilderBase::GetWatchdogInvoker()
+{
+    return WatchdogQueue->GetInvoker();
 }
 
 void TSnapshotBuilderBase::OnWatchdogCheck()

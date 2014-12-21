@@ -41,8 +41,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteSnapshotStore;
-typedef TIntrusivePtr<TRemoteSnapshotStore> TRemoteSnapshotStorePtr;
+DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStore)
 
 class TRemoteSnapshotStore
     : public ISnapshotStore
@@ -51,35 +50,26 @@ public:
     TRemoteSnapshotStore(
         TRemoteSnapshotStoreConfigPtr config,
         TRemoteSnapshotStoreOptionsPtr options,
-        const TYPath& remotePath,
+        const TYPath& path,
         IClientPtr masterClient,
         const std::vector<TTransactionId>& prerequisiteTransactionIds)
         : Config_(config)
         , Options_(options)
-        , RemotePath_(remotePath)
+        , Path_(path)
         , MasterClient_(masterClient)
         , PrerequisiteTransactionIds_(prerequisiteTransactionIds)
-        , Logger(HydraLogger)
     {
-        Logger.AddTag("Path: %v", RemotePath_);
+        Logger.AddTag("Path: %v", Path_);
     }
 
-    virtual TFuture<TErrorOr<ISnapshotReaderPtr>> CreateReader(int snapshotId) override
+    virtual ISnapshotReaderPtr CreateReader(int snapshotId) override
     {
-        return BIND(&TRemoteSnapshotStore::DoCreateReader, MakeStrong(this))
-            .Guarded()
-            .AsyncVia(GetHydraIOInvoker())
-            .Run(snapshotId);
+        return New<TReader>(this, snapshotId);
     }
 
     virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const TSharedRef& meta) override
     {
-        return CreateFileSnapshotWriter(
-            GetLocalPath(snapshotId),
-            NCompression::ECodec::None,
-            snapshotId,
-            meta,
-            false);
+        return New<TWriter>(this, snapshotId, meta);
     }
 
     virtual TFuture<TErrorOr<int>> GetLatestSnapshotId(int maxSnapshotId) override
@@ -90,47 +80,104 @@ public:
             .Run(maxSnapshotId);
     }
 
-    virtual TFuture<TErrorOr<TSnapshotParams>> ConfirmSnapshot(int snapshotId) override
-    {
-        return BIND(&TRemoteSnapshotStore::DoConfirmSnapshot, MakeStrong(this))
-            .Guarded()
-            .AsyncVia(GetHydraIOInvoker())
-            .Run(snapshotId);
-    }
-
 private:
     TRemoteSnapshotStoreConfigPtr Config_;
     TRemoteSnapshotStoreOptionsPtr Options_;
-    TYPath RemotePath_;
+    TYPath Path_;
     IClientPtr MasterClient_;
     std::vector<TTransactionId> PrerequisiteTransactionIds_;
 
-    NLog::TLogger Logger;
+    NLog::TLogger Logger = HydraLogger;
 
 
-    class TReaderStream
-        : public TInputStream
+    class TReader
+        : public ISnapshotReader
     {
     public:
-        TReaderStream(TRemoteSnapshotStorePtr store, int snapshotId)
+        TReader(TRemoteSnapshotStorePtr store, int snapshotId)
             : Store_(store)
-            , Reader_(Store_->MasterClient_->CreateFileReader(
-                Store_->GetRemotePath(snapshotId),
-                TFileReaderOptions(),
-                Store_->Config_->Reader))
-            , CurrentOffset_(-1)
-        { }
-
-        ~TReaderStream() throw()
-        { }
-
-        void Open()
+            , SnapshotId_(snapshotId)
+            , Path_(Store_->GetRemotePath(SnapshotId_))
         {
-            auto result = Reader_->Open().Get();
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            Logger.AddTag("Path: %v", Path_);
         }
 
-        virtual size_t DoRead(void* buf, size_t len) override
+        virtual TAsyncError Open() override
+        {
+            return BIND(&TReader::DoOpen, MakeStrong(this))
+                .Guarded()
+                .AsyncVia(GetHydraIOInvoker())
+                .Run();
+        }
+
+        virtual TFuture<TErrorOr<size_t>> Read(void* buf, size_t len) override
+        {
+            return BIND(&TReader::DoRead, MakeStrong(this))
+                .Guarded()
+                .AsyncVia(GetHydraIOInvoker())
+                .Run(buf, len);
+        }
+
+        virtual TSnapshotParams GetParams() const override
+        {
+            return Params_;
+        }
+
+    private:
+        TRemoteSnapshotStorePtr Store_;
+        int SnapshotId_;
+
+        TYPath Path_;
+
+        TSnapshotParams Params_;
+
+        IFileReaderPtr Reader_;
+
+        TSharedRef CurrentBlock_;
+        size_t CurrentOffset_ = -1;
+
+        NLog::TLogger Logger = HydraLogger;
+
+
+        void DoOpen()
+        {
+            LOG_DEBUG("Requesting remote snapshot parameters");
+            INodePtr node;
+            {
+                TGetNodeOptions options;
+                options.AttributeFilter.Mode = EAttributeFilterMode::MatchingOnly;
+                options.AttributeFilter.Keys.push_back("prev_record_count");
+                auto result = WaitFor(Store_->MasterClient_->GetNode(Path_, options));
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                auto node = ConvertToNode(result.Value());
+            }
+            LOG_DEBUG("Remote snapshot parameters received");
+
+            {
+                TSnapshotMeta meta;
+                const auto& attributes = node->Attributes();
+                meta.set_prev_record_count(attributes.Get<i64>("prev_record_count"));
+
+                Params_.Checksum = 0;
+                Params_.CompressedLength = Params_.UncompressedLength = -1;
+                YCHECK(SerializeToProto(meta, &Params_.Meta));
+            }
+
+            LOG_DEBUG("Opening remote snapshot reader");
+            {
+                TFileReaderOptions options;
+                Reader_ = Store_->MasterClient_->CreateFileReader(
+                    Store_->GetRemotePath(SnapshotId_),
+                    options,
+                    Store_->Config_->Reader);
+
+                auto result = Reader_->Open().Get();
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+            LOG_DEBUG("Remote snapshot reader opened");
+        }
+
+        size_t DoRead(void* buf, size_t len)
         {
             if (!CurrentBlock_ || CurrentOffset_ >= CurrentBlock_.Size()) {
                 auto result = Reader_->Read().Get();
@@ -152,81 +199,153 @@ private:
             return bytesToCopy;
         }
 
-    private:
-        TRemoteSnapshotStorePtr Store_;
-
-        IFileReaderPtr Reader_;
-
-        TSharedRef CurrentBlock_;
-        size_t CurrentOffset_;
-
     };
 
-    class TReader
-        : public ISnapshotReader
+    class TWriter
+        : public ISnapshotWriter
     {
     public:
-        TReader(TRemoteSnapshotStorePtr store, int snapshotId, const TSnapshotParams& params)
-            : UnderlyingInput_(store, snapshotId)
-            , Params_(params)
-        { }
-
-        void Open()
+        TWriter(TRemoteSnapshotStorePtr store, int snapshotId, const TSharedRef& meta)
+            : Store_(store)
+            , SnapshotId_(snapshotId)
+            , Meta_(meta)
+            , Path_(Store_->GetRemotePath(SnapshotId_))
         {
-            UnderlyingInput_.Open();
+            Logger.AddTag("Path: %v", Path_);
         }
 
-        virtual TInputStream* GetStream() override
+        virtual TAsyncError Open() override
         {
-            return &UnderlyingInput_;
+            return BIND(&TWriter::DoOpen, MakeStrong(this))
+                .Guarded()
+                .AsyncVia(GetHydraIOInvoker())
+                .Run();
+        }
+
+        virtual TAsyncError Write(const void* buf, size_t len) override
+        {
+            YCHECK(Opened_ && !Closed_);
+            Length_ += len;
+            return Writer_->Write(TRef(const_cast<void*>(buf), len));
+        }
+
+        virtual TAsyncError Close() override
+        {
+            return BIND(&TWriter::DoClose, MakeStrong(this))
+                .Guarded()
+                .AsyncVia(GetHydraIOInvoker())
+                .Run();
         }
 
         virtual TSnapshotParams GetParams() const override
         {
+            YCHECK(Closed_);
             return Params_;
         }
 
     private:
-        TReaderStream UnderlyingInput_;
+        TRemoteSnapshotStorePtr Store_;
+        int SnapshotId_;
+        TSharedRef Meta_;
+
+        TYPath Path_;
+
+        ITransactionPtr Transaction_;
+
+        IFileWriterPtr Writer_;
+        i64 Length_ = 0;
         TSnapshotParams Params_;
+        bool Opened_ = false;
+        bool Closed_ = false;
+
+        NLog::TLogger Logger = HydraLogger;
+
+
+        void DoOpen()
+        {
+            YCHECK(!Opened_);
+
+            LOG_DEBUG("Starting remote snapshot upload transaction");
+            {
+                TTransactionStartOptions options;
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("title", Format("Snapshot upload to %v",
+                    Path_));
+                options.Attributes = attributes.get();
+                auto transactionOrError = WaitFor(Store_->MasterClient_->StartTransaction(
+                    NTransactionClient::ETransactionType::Master,
+                    options));
+                Transaction_ = transactionOrError.ValueOrThrow();
+            }
+            LOG_DEBUG("Remote snapshot upload transaction started (TransactionId: %v)",
+                Transaction_->GetId());
+
+            LOG_DEBUG("Creating remote snapshot");
+            {
+                TSnapshotMeta meta;
+                YCHECK(DeserializeFromProto(&meta, Meta_));
+
+                TCreateNodeOptions options;
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("replication_factor", Store_->Options_->SnapshotReplicationFactor);
+                attributes->Set("prev_record_count", meta.prev_record_count());
+                options.Attributes = attributes.get();
+                options.PrerequisiteTransactionIds = Store_->PrerequisiteTransactionIds_;
+
+                auto result = WaitFor(Transaction_->CreateNode(
+                    Path_,
+                    EObjectType::File,
+                    options));
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+            LOG_DEBUG("Remote snapshot created");
+
+            LOG_DEBUG("Opening remote snapshot writer");
+            {
+                TFileWriterOptions options;
+                options.PrerequisiteTransactionIds = Store_->PrerequisiteTransactionIds_;
+                Writer_ = Store_->MasterClient_->CreateFileWriter(
+                    Store_->GetRemotePath(SnapshotId_),
+                    options,
+                    Store_->Config_->Writer);
+            }
+            LOG_DEBUG("Remote snapshot writer opened");
+
+            Opened_ = true;
+        }
+
+        void DoClose()
+        {
+            YCHECK(Opened_ && !Closed_);
+
+            LOG_DEBUG("Closing remote snapshot writer");
+            {
+                auto result = WaitFor(Writer_->Close());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+            LOG_DEBUG("Remote snapshot writer closed");
+
+            LOG_DEBUG("Committing snapshot upload transaction");
+            {
+                auto result = WaitFor(Transaction_->Commit());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+            LOG_DEBUG("Snapshot upload transaction committed");
+
+            Params_.Meta = Meta_;
+            Params_.CompressedLength = Length_;
+            Params_.UncompressedLength = Length_;
+
+            Closed_ = true;
+        }
 
     };
 
 
-    ISnapshotReaderPtr DoCreateReader(int snapshotId)
-    {
-        LOG_DEBUG("Requesting parameters for snapshot %v from remote store",
-            snapshotId);
-
-        auto remotePath = GetRemotePath(snapshotId);
-
-        TGetNodeOptions options;
-        options.AttributeFilter.Mode = EAttributeFilterMode::MatchingOnly;
-        options.AttributeFilter.Keys.push_back("prev_record_count");
-        auto resultOrError = WaitFor(MasterClient_->GetNode(remotePath, options));
-        THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
-        LOG_DEBUG("Snapshot parameters received");
-
-        auto node = ConvertToNode(resultOrError.Value());
-        const auto& attributes = node->Attributes();
-
-        TSnapshotMeta meta;
-        meta.set_prev_record_count(attributes.Get<i64>("prev_record_count"));
-
-        TSnapshotParams params;
-        params.Checksum = 0;
-        params.CompressedLength = params.UncompressedLength = -1;
-        YCHECK(SerializeToProto(meta, &params.Meta));
-
-        auto reader = New<TReader>(this, snapshotId, params);
-        reader->Open();
-        return reader;
-    }
-
     int DoGetLatestSnapshotId(int maxSnapshotId)
     {
         LOG_DEBUG("Requesting snapshot list from remote store");
-        auto result = WaitFor(MasterClient_->ListNodes(RemotePath_));
+        auto result = WaitFor(MasterClient_->ListNodes(Path_));
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
         LOG_DEBUG("Snapshot list received");
 
@@ -239,7 +358,7 @@ private:
             } catch (const std::exception& ex) {
                 LOG_WARNING("Unrecognized item %Qv in remote store %v",
                     key,
-                    RemotePath_);
+                    Path_);
                 continue;
             }
             if (id <= maxSnapshotId && id > lastestSnapshotId) {
@@ -250,134 +369,26 @@ private:
         return lastestSnapshotId;
     }
 
-    TSnapshotParams DoConfirmSnapshot(int snapshotId)
-    {
-        try {
-            LOG_DEBUG("Uploading snapshot %v to remote store", snapshotId);
-
-            auto localPath = GetLocalPath(snapshotId);
-            auto remotePath = GetRemotePath(snapshotId);
-
-            auto reader = CreateFileSnapshotReader(
-                localPath,
-                snapshotId,
-                false);
-            auto params = reader->GetParams();
-
-            LOG_DEBUG("Starting snapshot upload transaction");
-            ITransactionPtr transaction;
-            {
-                TTransactionStartOptions options;
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Format("Snapshot upload to %v",
-                    remotePath));
-                options.Attributes = attributes.get();
-                auto transactionOrError = WaitFor(MasterClient_->StartTransaction(
-                    NTransactionClient::ETransactionType::Master,
-                    options));
-                transaction = transactionOrError.ValueOrThrow();
-            }
-
-            LOG_DEBUG("Creating snapshot");
-            {
-                TSnapshotMeta meta;
-                YCHECK(DeserializeFromProto(&meta, params.Meta));
-
-                TCreateNodeOptions options;
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("replication_factor", Options_->SnapshotReplicationFactor);
-                attributes->Set("prev_record_count", meta.prev_record_count());
-                options.Attributes = attributes.get();
-                options.PrerequisiteTransactionIds = PrerequisiteTransactionIds_;
-
-                auto result = WaitFor(transaction->CreateNode(
-                    remotePath,
-                    EObjectType::File,
-                    options));
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
-
-            LOG_DEBUG("Writing snapshot data");
-
-            IFileWriterPtr writer;
-            {
-                TFileWriterOptions options;
-                options.PrerequisiteTransactionIds = PrerequisiteTransactionIds_;
-                writer = transaction->CreateFileWriter(
-                    remotePath,
-                    options,
-                    Config_->Writer);
-                auto result = WaitFor(writer->Open());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
-
-            struct TUploadBufferTag { };
-            auto buffer = TSharedRef::Allocate<TUploadBufferTag>(Config_->Writer->BlockSize);
-
-            while (true) {
-                size_t bytesRead = reader->GetStream()->Read(buffer.Begin(), buffer.Size());
-                if (bytesRead == 0)
-                    break;
-                auto result = WaitFor(writer->Write(TRef(buffer.Begin(), bytesRead)));
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
-
-            {
-                auto result = WaitFor(writer->Close());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
-
-            LOG_DEBUG("Committing snapshot upload transaction");
-            {
-                auto result = WaitFor(transaction->Commit());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
-
-            LOG_DEBUG("Snapshot uploaded successfully");
-    
-            DoCleanupSnapshot(snapshotId);
-
-            return params;
-        } catch (...) {
-            DoCleanupSnapshot(snapshotId);
-            throw;
-        }
-    }
-
-    void DoCleanupSnapshot(int snapshotId)
-    {
-        NFS::Remove(GetLocalPath(snapshotId));
-    }
-
-    Stroka GetLocalPath(int snapshotId)
-    {
-        Stroka mangledRemotePath;
-        auto remotePath = GetRemotePath(snapshotId);
-        for (int index = 0; index < remotePath.length(); ++index) {
-            char ch = remotePath[index];
-            mangledRemotePath.append(ch == '/' ? '-' : ch);
-        }
-        return CombinePaths(Config_->TempPath, mangledRemotePath);
-    }
-
     TYPath GetRemotePath(int snapshotId)
     {
-        return Format("%v/%09v", RemotePath_, snapshotId);
+        return Format("%v/%09v", Path_, snapshotId);
     }
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStore)
+
 ISnapshotStorePtr CreateRemoteSnapshotStore(
     TRemoteSnapshotStoreConfigPtr config,
     TRemoteSnapshotStoreOptionsPtr options,
-    const TYPath& remotePath,
+    const TYPath& path,
     IClientPtr masterClient,
     const std::vector<TTransactionId>& prerequisiteTransactionIds)
 {
     return New<TRemoteSnapshotStore>(
         config,
         options,
-        remotePath,
+        path,
         masterClient,
         prerequisiteTransactionIds);
 }

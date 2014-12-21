@@ -43,6 +43,11 @@ void DoDownloadSnapshot(
 
         auto writer = fileStore->CreateRawWriter(snapshotId);
 
+        {
+            auto result = WaitFor(writer->Open());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+
         LOG_INFO("Downloading %v bytes from peer %v",
             params.CompressedLength,
             params.PeerId);
@@ -55,10 +60,10 @@ void DoDownloadSnapshot(
             auto req = proxy.ReadSnapshot();
             req->set_snapshot_id(snapshotId);
             req->set_offset(downloadedLength);
-            i64 blockSize = std::min(
+            i64 desiredBlockSize = std::min(
                 config->SnapshotDownloadBlockSize,
                 params.CompressedLength - downloadedLength);
-            req->set_length(blockSize);
+            req->set_length(desiredBlockSize);
 
             auto rsp = WaitFor(req->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error downloading snapshot");
@@ -67,26 +72,20 @@ void DoDownloadSnapshot(
             YCHECK(attachments.size() == 1);
 
             const auto& block = attachments[0];
-            if (block.Size() != blockSize) {
-                LOG_WARNING("Snapshot block of wrong size received (Offset: %v, Size: %v, ExpectedSize: %v)",
-                    downloadedLength,
-                    block.Size(),
-                    blockSize);
-                // Continue anyway.
-            } else {
-                LOG_DEBUG("Snapshot block received (Offset: %v, Size: %v)",
-                    downloadedLength,
-                    blockSize);
-            }
+            LOG_DEBUG("Snapshot block received (Offset: %v, Size: %v)",
+                downloadedLength,
+                block.Size());
 
-            writer->GetStream()->Write(block.Begin(), block.Size());
+            auto result = WaitFor(writer->Write(block.Begin(), block.Size()));
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
 
-            downloadedLength += blockSize;
+            downloadedLength += block.Size();
         }
 
-        writer->Close();
-
-        fileStore->ConfirmSnapshot(snapshotId);
+        {
+            auto result = WaitFor(writer->Close());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
 
         LOG_INFO("Snapshot downloaded successfully");
     } catch (const std::exception& ex) {

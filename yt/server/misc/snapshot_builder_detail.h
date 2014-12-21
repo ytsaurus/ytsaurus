@@ -31,8 +31,14 @@ protected:
     //! Returns the timeout for building a snapshot.
     virtual TDuration GetTimeout() const = 0;
 
-    //! Called from the forked process to build the snapshot.
-    virtual void Build() = 0;
+    //! Called from the child process after fork.
+    virtual void RunChild() = 0;
+
+    //! Called from the parent process after fork.
+    virtual void RunParent();
+
+    //! Returns the invoker used for watching the child process.
+    IInvokerPtr GetWatchdogInvoker();
 
 private:
     std::atomic<pid_t> ChildPid_;
@@ -41,8 +47,8 @@ private:
     NConcurrency::TPeriodicExecutorPtr WatchdogExecutor_;
 
 
-    void RunParent();
-    void RunChild();
+    void DoRunParent();
+    void DoRunChild();
 
     void OnWatchdogCheck();
     void OnCanceled();

@@ -6,6 +6,7 @@
 #include "serialize.h"
 
 #include <core/misc/fs.h>
+#include <core/misc/proc.h>
 
 #include <core/concurrency/scheduler.h>
 
@@ -43,8 +44,6 @@ static const size_t LocalWriteBufferSize  = (size_t) 1024 * 1024;
 static const size_t RemoteWriteBufferSize = (size_t) 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TSnapshotBuilderTag { };
 
 TSnapshotBuilder::TSnapshotBuilder(
     TSchedulerConfigPtr config,
@@ -97,8 +96,11 @@ TDuration TSnapshotBuilder::GetTimeout() const
     return Config->SnapshotTimeout;
 }
 
-void TSnapshotBuilder::Build()
+void TSnapshotBuilder::RunChild()
 {
+    CloseAllDescriptors({
+        2 // stderr
+    });
     for (const auto& job : Jobs) {
         Build(job);
     }
@@ -211,7 +213,8 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
             }
 
-            auto buffer = TBlob(TSnapshotBuilderTag(), RemoteWriteBufferSize, false);
+            struct TSnapshotBuilderBufferTag { };
+            auto buffer = TBlob(TSnapshotBuilderBufferTag(), RemoteWriteBufferSize, false);
             TFileInput fileInput(job.FileName);
             TBufferedInput bufferedInput(&fileInput, RemoteWriteBufferSize);
 
