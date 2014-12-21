@@ -51,7 +51,7 @@ struct IHydraManager
 
     //! Returns |true| if the peer is a leader ready to carry out distributed commits.
     /*!
-     *  \note Thread affinity: any
+     *  \note Thread affinity: AutomatonThread
      */
     virtual bool IsActiveLeader() const = 0;
 

@@ -122,7 +122,7 @@ public:
         , ChangelogStore_(changelogStore)
         , SnapshotStore_(snapshotStore)
         , ReadOnly_(false)
-        , ActiveLeader_(false)
+        , AsyncActiveLeader_(false)
         , ControlState_(EPeerState::None)
         , Profiler(HydraProfiler)
     {
@@ -234,9 +234,9 @@ public:
 
     virtual bool IsActiveLeader() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return ActiveLeader_;
+        return AutomatonEpochContext_ ? AutomatonEpochContext_->ActiveLeader : false;
     }
 
     virtual NElection::TEpochContextPtr GetControlEpochContext() const override
@@ -292,7 +292,7 @@ public:
                 "Not an active leader"));
         }
 
-        if (!epochContext->LeaderActive) {
+        if (!epochContext->ActiveLeader) {
             return MakeFuture<TErrorOr<int>>(TError(
                 NHydra::EErrorCode::NoQuorum,
                 "No active quorum"));
@@ -321,7 +321,7 @@ public:
                     .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
                     .Item("elections").Do(ElectionManagerMonitoringProducer_)
-                    .Item("has_active_quorum").Value(ActiveLeader_)
+                    .Item("has_active_quorum").Value(AsyncActiveLeader_)
                 .EndMap();
         });
     }
@@ -344,7 +344,7 @@ public:
         }
 
         auto epochContext = AutomatonEpochContext_;
-        if (!epochContext || !epochContext->LeaderActive) {
+        if (!epochContext || !epochContext->ActiveLeader) {
             return MakeFuture<TErrorOr<TMutationResponse>>(TError(
                 NHydra::EErrorCode::NoQuorum,
                 "Not an active leader"));
@@ -379,7 +379,8 @@ private:
     IChangelogStorePtr ChangelogStore_;
     ISnapshotStorePtr SnapshotStore_;
     std::atomic<bool> ReadOnly_;
-    std::atomic<bool> ActiveLeader_;
+    // NB: Just for monitoring.
+    std::atomic<bool> AsyncActiveLeader_;
     EPeerState ControlState_;
 
     TVersion ReachableVersion_;
@@ -825,7 +826,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(GetAutomatonState() == EPeerState::Leading);
-        YCHECK(epochContext->LeaderActive);
+        YCHECK(epochContext->ActiveLeader);
 
         auto checkpointer = epochContext->Checkpointer;
         if (checkpointer->CanBuildSnapshot()) {
@@ -995,8 +996,8 @@ private:
             SwitchTo(epochContext->EpochControlInvoker);
             VERIFY_THREAD_AFFINITY(ControlThread);
 
-            epochContext->LeaderActive = true;
-            ActiveLeader_ = true;
+            epochContext->ActiveLeader = true;
+            AsyncActiveLeader_ = true;
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1174,10 +1175,10 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YCHECK(ControlEpochContext_);
-        ControlEpochContext_->LeaderActive = false;
+        ControlEpochContext_->ActiveLeader = false;
         ControlEpochContext_->CancelableContext->Cancel();
         ControlEpochContext_.Reset();
-        ActiveLeader_ = false;
+        AsyncActiveLeader_ = false;
     }
 
     TEpochContextPtr GetEpochContext(const TEpochId& epochId)
