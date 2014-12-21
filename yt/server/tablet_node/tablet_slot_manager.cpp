@@ -303,7 +303,9 @@ private:
 
                 auto invoker = slot->GetGuardedAutomatonInvoker();
                 awaiter->Await(BIND([this, this_, slot] () {
-                        Owner_->ScanSlot_.Fire(slot);
+                        if (slot->GetHydraManager()->IsActiveLeader()) {
+                            Owner_->ScanSlot_.Fire(slot);
+                        }
                     })
                     .AsyncVia(invoker)
                     .Run()
