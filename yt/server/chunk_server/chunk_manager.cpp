@@ -1010,7 +1010,7 @@ private:
         TRspIncrementalHeartbeat* /*response*/)
     {
         // Shrink hashtables.
-        // NB: Skip StoredReplicas, these are typically huge.
+        ShrinkHashTable(&node->StoredReplicas());
         ShrinkHashTable(&node->CachedReplicas());
         ShrinkHashTable(&node->UnapprovedReplicas());
         ShrinkHashTable(&node->Jobs());
