@@ -477,7 +477,7 @@ private:
                 auto error = WaitFor(asyncOutput->Close());
                 if (!error.IsOK()) {
                     THROW_ERROR TError("Table input pipe failed")
-                        << TErrorAttribute("FD", jobDescriptor)
+                        << TErrorAttribute("fd", jobDescriptor)
                         << error;
                 }
             })
@@ -493,7 +493,7 @@ private:
             ssize_t res = ::read(pipe.ReadFD, &buffer, 1);
             if (res > 0) {
                 THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process")
-                    << TErrorAttribute("FD", jobDescriptor);
+                    << TErrorAttribute("fd", jobDescriptor);
             }
         }));
     }
