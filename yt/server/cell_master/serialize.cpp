@@ -26,7 +26,6 @@
 
 #include <server/tablet_server/tablet_manager.h>
 #include <server/tablet_server/tablet_cell.h>
-#include <Foundation/Foundation.h>
 
 namespace NYT {
 namespace NCellMaster {
