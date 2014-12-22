@@ -819,7 +819,6 @@ private:
     void OnCheckpointNeeded(TEpochContextPtr epochContext)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(GetAutomatonState() == EPeerState::Leading);
 
         if (!ActiveLeader_)
             return;
