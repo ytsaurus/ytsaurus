@@ -204,6 +204,14 @@ public:
         Logger.AddTag("SnapshotId: %v", SnapshotId_);
     }
 
+    ~TSnapshotBuilder()
+    {
+        // TODO(babenko): remove this once YT-1422 is fixed
+        if (InputStream_) {
+            InputStream_->Abort();
+        }
+    }
+
     TFuture<TErrorOr<TRemoteSnapshotParams>> Run()
     {
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
