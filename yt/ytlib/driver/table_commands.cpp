@@ -348,11 +348,14 @@ void TSelectCommand::DoExecute()
     const auto& statistics = queryStatisticsOrError.Value();
     
     LOG_INFO(
-        "Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
+        "Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, ExecuteTime: %v, ReadTime: %v, WriteTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
         statistics.RowsRead,
         statistics.RowsWritten,
         statistics.AsyncTime.MilliSeconds(),
         statistics.SyncTime.MilliSeconds(),
+        statistics.ExecuteTime.MilliSeconds(),
+        statistics.ReadTime.MilliSeconds(),
+        statistics.WriteTime.MilliSeconds(),
         statistics.IncompleteInput,
         statistics.IncompleteOutput);
 
@@ -361,6 +364,9 @@ void TSelectCommand::DoExecute()
         .Item("rows_written").Value(statistics.RowsWritten)
         .Item("async_time").Value(statistics.AsyncTime)
         .Item("sync_time").Value(statistics.SyncTime)
+        .Item("execute_time").Value(statistics.ExecuteTime)
+        .Item("read_time").Value(statistics.ReadTime)
+        .Item("write_time").Value(statistics.WriteTime)
         .Item("incomplete_input").Value(statistics.IncompleteInput)
         .Item("incomplete_output").Value(statistics.IncompleteOutput);
 }

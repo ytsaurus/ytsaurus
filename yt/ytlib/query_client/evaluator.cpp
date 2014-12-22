@@ -292,7 +292,13 @@ public:
 
                 LOG_DEBUG("Flushing writer");
                 if (!batch.empty()) {
-                    if (!writer->Write(batch)) {
+                    bool shouldNotWait;
+                    {
+                        NProfiling::TAggregatingTimingGuard timingGuard(&statistics.WriteTime);
+                        shouldNotWait = writer->Write(batch);
+                    }
+
+                    if (!shouldNotWait) {
                         NProfiling::TAggregatingTimingGuard timingGuard(&statistics.AsyncTime);
                         auto error = WaitFor(writer->GetReadyEvent());
                         THROW_ERROR_EXCEPTION_IF_FAILED(error);
@@ -316,11 +322,15 @@ public:
             }
 
             statistics.SyncTime = wallTime - statistics.AsyncTime;
+            statistics.ExecuteTime = statistics.SyncTime - statistics.ReadTime - statistics.WriteTime;
 
             TRACE_ANNOTATION("rows_read", statistics.RowsRead);
             TRACE_ANNOTATION("rows_written", statistics.RowsWritten);
             TRACE_ANNOTATION("sync_time", statistics.SyncTime);
             TRACE_ANNOTATION("async_time", statistics.AsyncTime);
+            TRACE_ANNOTATION("execute_time", statistics.ExecuteTime);
+            TRACE_ANNOTATION("read_time", statistics.ReadTime);
+            TRACE_ANNOTATION("write_time", statistics.WriteTime);
             TRACE_ANNOTATION("incomplete_input", statistics.IncompleteInput);
             TRACE_ANNOTATION("incomplete_output", statistics.IncompleteOutput);
 

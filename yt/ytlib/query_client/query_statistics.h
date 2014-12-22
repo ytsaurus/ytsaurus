@@ -13,6 +13,9 @@ struct TQueryStatistics
     i64 RowsWritten = 0;
     TDuration SyncTime;
     TDuration AsyncTime;
+    TDuration ExecuteTime;
+    TDuration ReadTime;
+    TDuration WriteTime;
     bool IncompleteInput = false;
     bool IncompleteOutput = false;
 

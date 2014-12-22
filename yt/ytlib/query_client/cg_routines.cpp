@@ -59,7 +59,13 @@ void WriteRow(TRow row, TExecutionContext* executionContext)
     batch->push_back(rowBuffer->Capture(row));
 
     if (batch->size() == batch->capacity()) {
-        if (!writer->Write(*batch)) {
+        bool shouldNotWait;
+        {
+            NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->WriteTime);
+            shouldNotWait = writer->Write(*batch);
+        }
+
+        if (!shouldNotWait) {
             NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
             auto error = WaitFor(writer->GetReadyEvent());
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
@@ -88,7 +94,12 @@ void ScanOpHelper(
     while (true) {
         executionContext->IntermediateBuffer->Clear();
 
-        bool hasMoreData = reader->Read(&rows);
+        bool hasMoreData;
+        {
+            NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->ReadTime);
+            hasMoreData = reader->Read(&rows);
+        }
+
         bool shouldWait = rows.empty();
 
         if (executionContext->InputRowLimit < rows.size()) {
