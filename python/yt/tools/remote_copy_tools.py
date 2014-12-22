@@ -342,7 +342,7 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, spec_templa
         logger.error(error)
         raise yt.IncorrectRowCount(error)
 
-def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, kiwi_user=None, spec_template=None, write_to_table=False, protobin=True, message_queue=None):
+def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, files=None, kiwi_user=None, spec_template=None, write_to_table=False, protobin=True, message_queue=None):
     extract_value_script_to_table = """\
 import sys
 import struct
@@ -395,7 +395,8 @@ while True:
     spec = deepcopy(spec_template)
     spec["data_size_per_job"] = 1
     spec["locality_timeout"] = 0
-    spec["max_failed_job_count"] = 16384
+    if "max_failed_job_count" not in spec:
+        spec["max_failed_job_count"] = 1000
 
     if write_to_table:
         extract_value_script = extract_value_script_to_table
@@ -409,7 +410,8 @@ while True:
         output_format = yt.SchemafulDsvFormat(columns=["error"])
 
     tmp_dir = tempfile.mkdtemp()
-    files = []
+    if files is None:
+        files = []
     command_script = _get_read_ranges_command(
         "set -o pipefail", "{0} | python extract_value.py {1}".format(read_command, write_command))
     files.append(_pack_string("command.sh", command_script, tmp_dir))
@@ -438,8 +440,13 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
     fastbone = kwargs.get("fastbone", True)
     if "fastbone" in kwargs:
         del kwargs["fastbone"]
-    read_command = _get_read_from_yt_command(yt_client, src, "<lenval=true>yamr", fastbone)
-    _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command=read_command, ranges=ranges, **kwargs)
+
+    tmp_dir = tempfile.mkdtemp()
+    try:
+        files = _prepare_read_from_yt_command(yt_client, src, "<lenval=true>yamr", tmp_dir, fastbone, pack=True)
+        _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command="bash read_from_yt.sh", ranges=ranges, files=files, **kwargs)
+    finally:
+        shutil.rmtree(tmp_dir)
 
 def copy_yamr_to_kiwi():
     pass
