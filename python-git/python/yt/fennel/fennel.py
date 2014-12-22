@@ -596,6 +596,7 @@ class SessionStream(object):
                 raise gen.Return(self._id)
             except (RuntimeError, BadProtocolError, gen.TimeoutError):
                 self.log.error("Error occured. Try reconnect...", exc_info=True)
+                self.stop()
 
                 yield sleep_future(backoff_time + random.random() * 2, self._io_loop)
                 tries += 1
