@@ -834,6 +834,8 @@ class Application(object):
 
         if "mr_user" not in params:
             params["mr_user"] = self._config.get("default_mr_user")
+        if "backend_tag" not in params:
+            params["backend_tag"] = self._config.get("backend_tag")
 
         try:
             task = Task(id=id, creation_time=now(), user=user, token=token, state="pending", **params)
@@ -1050,6 +1052,7 @@ DEFAULT_CONFIG = {
         "cedar": ["redwood", "smith", "plato"],
         "redwood": ["cedar", "smith", "plato"]
     },
+    "backend_tag": "testing",
     "default_mr_user": "userdata",
     "scheduling_backoff": 5,
     "error_details_length_limit": 50000,
