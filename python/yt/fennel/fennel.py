@@ -19,6 +19,8 @@ from tornado import ioloop
 from tornado import gen
 from tornado import tcpclient
 from tornado import options
+from tornado import httputil
+
 
 try:
     from raven.handlers.logging import SentryHandler
@@ -526,6 +528,7 @@ class SessionStream(object):
     def __init__(self, service_id, source_id, logtype=None, io_loop=None, connection_factory=None):
         self._id = None
         self._attributes = None
+        self._session_response = None
         self._iostream = None
 
         self._logtype = logtype
@@ -576,7 +579,10 @@ class SessionStream(object):
                     )
 
                 self.log.debug("Parse response %s", metadata_raw)
-                self.parse_metadata(metadata_raw[:-4])
+                self._parse_response(metadata_raw[:-4])
+
+                if self._session_response.code != 200:
+                    raise RuntimeError("Bad response. Reponse: %r", self._session_response)
 
                 if not "seqno" in self._attributes:
                     self.log.error("There is no seqno header in session response")
@@ -588,7 +594,7 @@ class SessionStream(object):
                 self._id = self._attributes["session"]
 
                 raise gen.Return(self._id)
-            except (IOError, BadProtocolError, gen.TimeoutError):
+            except (RuntimeError, BadProtocolError, gen.TimeoutError):
                 self.log.error("Error occured. Try reconnect...", exc_info=True)
 
                 yield sleep_future(backoff_time + random.random() * 2, self._io_loop)
@@ -607,12 +613,16 @@ class SessionStream(object):
             self._iostream.close()
             self._iostream = None
 
-    def parse_metadata(self, data):
+    def _parse_response(self, data):
         attributes = {}
+        session_response = None
         for index, line in enumerate(data.split("\n")):
             if index > 0:
                 key, value = line.split(":", 1)
                 attributes[key.strip().lower()] = value.strip()
+            else:
+                session_response = httputil.parse_response_start_line(line)
+        self._session_response = session_response
         self._attributes = attributes
 
     def get_attribute(self, name):
