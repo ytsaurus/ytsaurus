@@ -38,6 +38,7 @@ import sys
 import gzip
 import StringIO
 import collections
+import random
 
 
 DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
@@ -541,7 +542,9 @@ class SessionStream(object):
         if timeout is None:
             timeout = self.SESSION_TIMEOUT
 
-        while True:
+        tries = 0
+        backoff_time = 1.0
+        while tries < 10:
             try:
                 self.log.info("Create a session. Endpoint: %s. Service id: %s. Source id: %s", endpoint, self._service_id, self._source_id)
 
@@ -587,13 +590,17 @@ class SessionStream(object):
                 raise gen.Return(self._id)
             except (IOError, BadProtocolError, gen.TimeoutError):
                 self.log.error("Error occured. Try reconnect...", exc_info=True)
-                yield sleep_future(1.0, self._io_loop)
+
+                yield sleep_future(backoff_time + random.random() * 2, self._io_loop)
+                tries += 1
+                backoff_time = max(backoff_time * 2, 300)
             except gen.Return:
                 raise
             except:
                 self.log.error("Unhandled exception", exc_info=True)
                 self.stop()
                 raise
+        raise RuntimeError("Unable to create session; %d tries", tries)
 
     def stop(self):
         if self._iostream is not None:
