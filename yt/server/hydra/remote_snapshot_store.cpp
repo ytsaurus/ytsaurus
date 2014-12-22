@@ -67,7 +67,7 @@ public:
         return New<TReader>(this, snapshotId);
     }
 
-    virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const TSharedRef& meta) override
+    virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotMeta& meta) override
     {
         return New<TWriter>(this, snapshotId, meta);
     }
@@ -154,13 +154,10 @@ private:
             LOG_DEBUG("Remote snapshot parameters received");
 
             {
-                TSnapshotMeta meta;
                 const auto& attributes = node->Attributes();
-                meta.set_prev_record_count(attributes.Get<i64>("prev_record_count"));
-
+                Params_.Meta.set_prev_record_count(attributes.Get<i64>("prev_record_count"));
                 Params_.Checksum = 0;
                 Params_.CompressedLength = Params_.UncompressedLength = -1;
-                YCHECK(SerializeToProto(meta, &Params_.Meta));
             }
 
             LOG_DEBUG("Opening remote snapshot reader");
@@ -205,7 +202,7 @@ private:
         : public ISnapshotWriter
     {
     public:
-        TWriter(TRemoteSnapshotStorePtr store, int snapshotId, const TSharedRef& meta)
+        TWriter(TRemoteSnapshotStorePtr store, int snapshotId, const TSnapshotMeta& meta)
             : Store_(store)
             , SnapshotId_(snapshotId)
             , Meta_(meta)
@@ -246,7 +243,7 @@ private:
     private:
         TRemoteSnapshotStorePtr Store_;
         int SnapshotId_;
-        TSharedRef Meta_;
+        TSnapshotMeta Meta_;
 
         TYPath Path_;
 
@@ -283,13 +280,10 @@ private:
 
             LOG_DEBUG("Creating remote snapshot");
             {
-                TSnapshotMeta meta;
-                YCHECK(DeserializeFromProto(&meta, Meta_));
-
                 TCreateNodeOptions options;
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("replication_factor", Store_->Options_->SnapshotReplicationFactor);
-                attributes->Set("prev_record_count", meta.prev_record_count());
+                attributes->Set("prev_record_count", Meta_.prev_record_count());
                 options.Attributes = attributes.get();
                 options.PrerequisiteTransactionIds = Store_->PrerequisiteTransactionIds_;
 

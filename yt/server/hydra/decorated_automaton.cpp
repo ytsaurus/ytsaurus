@@ -217,9 +217,7 @@ public:
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 
         try {
-            TSnapshotMeta meta;
-            meta.set_prev_record_count(SnapshotVersion_.RecordId);
-            YCHECK(SerializeToProto(meta, &Meta_));
+            Meta_.set_prev_record_count(SnapshotVersion_.RecordId);
 
             if (Owner_->BuildingSnapshot_.test_and_set()) {
                 THROW_ERROR_EXCEPTION("Cannot start building snapshot %v since another snapshot is still being constructed",
@@ -258,7 +256,7 @@ private:
     TVersion SnapshotVersion_;
     int SnapshotId_;
 
-    TSharedRef Meta_;
+    TSnapshotMeta Meta_;
 
     TAsyncReaderPtr InputStream_;
     std::unique_ptr<TFile> OutputFile_;

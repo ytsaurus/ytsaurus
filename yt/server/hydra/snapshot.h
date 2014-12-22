@@ -6,6 +6,8 @@
 
 #include <core/concurrency/async_stream.h>
 
+#include <ytlib/hydra/hydra_manager.pb.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -50,7 +52,7 @@ DEFINE_REFCOUNTED_TYPE(ISnapshotWriter)
 //! Parameters of an existing snapshot.
 struct TSnapshotParams
 {
-    TSharedRef Meta;
+    NProto::TSnapshotMeta Meta;
     TChecksum Checksum = 0;
     i64 CompressedLength = -1;
     i64 UncompressedLength = -1;
@@ -68,7 +70,7 @@ struct ISnapshotStore
      *  The writer must be opened before usage.
      *  Once the writer is closed the snapshot appears visible in the store.
      */
-    virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const TSharedRef& meta) = 0;
+    virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const NProto::TSnapshotMeta& meta) = 0;
 
     //! Returns the largest snapshot id not exceeding #maxSnapshotId that is known to exist
     //! in the store or #NonexistingSnapshotId if no such snapshot is present.

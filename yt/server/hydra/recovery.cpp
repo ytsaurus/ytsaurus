@@ -110,9 +110,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
 
-        TSnapshotMeta meta;
-        YCHECK(DeserializeFromProto(&meta, reader->GetParams().Meta));
-
+        auto meta = reader->GetParams().Meta;
         auto snapshotVersion = TVersion(snapshotId - 1, meta.prev_record_count());
         auto zeroCopyReader = CreateZeroCopyAdapter(reader, SnapshotReadBlockSize);
         auto zeroCopyPrefetchingReader = CreatePrefetchingAdapter(zeroCopyReader, SnapshotPrefetchWindowSize);

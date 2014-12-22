@@ -66,7 +66,7 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, LookupSnapshot)
     response->set_compressed_length(params.CompressedLength);
     response->set_uncompressed_length(params.UncompressedLength);
     response->set_checksum(params.Checksum);
-    response->set_meta(ToString(params.Meta));
+    *response->mutable_meta() = params.Meta;
     
     context->SetResponseInfo("SnapshotId: %v", snapshotId);
     context->Reply();

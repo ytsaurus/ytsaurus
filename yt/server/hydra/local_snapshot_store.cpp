@@ -16,6 +16,7 @@ namespace NHydra {
 
 using namespace NElection;
 using namespace NConcurrency;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,7 +103,7 @@ public:
         return FileStore_->CreateReader(snapshotId);
     }
 
-    virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const TSharedRef& meta) override
+    virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotMeta& meta) override
     {
         return FileStore_->CreateWriter(snapshotId, meta);
     }

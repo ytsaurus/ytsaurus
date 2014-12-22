@@ -118,7 +118,7 @@ private:
                 Params_.CompressedLength = rsp->compressed_length();
                 Params_.UncompressedLength = rsp->uncompressed_length();
                 Params_.Checksum = rsp->checksum();
-                Params_.Meta = TSharedRef::FromString(rsp->meta());
+                Params_.Meta = rsp->meta();
             }
         }
     }

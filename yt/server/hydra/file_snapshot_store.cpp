@@ -97,7 +97,7 @@ private:
     TInputStream* FacadeInput_;
 
     TSnapshotHeader Header_;
-    TSharedRef Meta_;
+    TSnapshotMeta Meta_;
 
 
     void DoOpen()
@@ -133,8 +133,9 @@ private:
                         Header_.CompressedLength);
                 }
 
-                Meta_ = TSharedRef::Allocate(Header_.MetaSize, false);
-                ReadPadded(input, Meta_);
+                auto serializedMeta = TSharedRef::Allocate(Header_.MetaSize, false);
+                ReadPadded(input, serializedMeta);
+                YCHECK(DeserializeFromProto(&Meta_, serializedMeta));
 
                 if (IsRaw_) {
                     File_->Seek(Offset_, sSet);
@@ -182,14 +183,11 @@ private:
                         Header_.CompressedLength);
                 }
 
-                TSnapshotMeta meta;
-                meta.set_prev_record_count(legacyHeader.PrevRecordCount);
-                YCHECK(SerializeToProto(meta, &Meta_));
+                Meta_.set_prev_record_count(legacyHeader.PrevRecordCount);
 
                 Header_.Checksum = legacyHeader.Checksum;
                 Header_.UncompressedLength = Header_.CompressedLength;
                 Header_.Codec = ECodec::Snappy;
-                Header_.MetaSize = Meta_.Size();
 
                 if (IsRaw_) {
                     File_->Seek(Offset_, sSet);
@@ -249,7 +247,7 @@ public:
         const Stroka& fileName,
         ECodec codec,
         int snapshotId,
-        const TSharedRef& meta,
+        const TSnapshotMeta& meta,
         bool raw)
         : FileName_(fileName)
         , Codec_(codec)
@@ -257,6 +255,7 @@ public:
         , Meta_(meta)
         , IsRaw_(raw)
     {
+        YCHECK(SerializeToProto(Meta_, &SerializedMeta_));
         Logger.AddTag("Path: %v", FileName_);
     }
 
@@ -310,8 +309,10 @@ private:
     Stroka FileName_;
     ECodec Codec_;
     int SnapshotId_;
-    TSharedRef Meta_;
+    TSnapshotMeta Meta_;
     bool IsRaw_;
+
+    TSharedRef SerializedMeta_;
 
     bool IsOpened_ = false;
     bool IsClosed_ = false;
@@ -351,7 +352,7 @@ private:
             } else {
                 TSnapshotHeader header;
                 WritePod(*File_, header);
-                WritePadded(*File_, Meta_);
+                WritePadded(*File_, SerializedMeta_);
                 File_->Flush();
 
                 ChecksumOutput_.reset(new TChecksumOutput(FileOutput_.get()));
@@ -414,7 +415,7 @@ private:
             header.UncompressedLength = Params_.UncompressedLength;
             header.Checksum = Params_.Checksum;
             header.Codec = Codec_;
-            header.MetaSize = Meta_.Size();
+            header.MetaSize = SerializedMeta_.Size();
             File_->Seek(0, sSet);
             WritePod(*File_, header);
         }
@@ -439,7 +440,7 @@ ISnapshotWriterPtr CreateFileSnapshotWriter(
     const Stroka& fileName,
     ECodec codec,
     int snapshotId,
-    const TSharedRef& meta,
+    const TSnapshotMeta& meta,
     bool raw)
 {
     return New<TFileSnapshotWriter>(
@@ -542,7 +543,7 @@ public:
             offset);
     }
 
-    ISnapshotWriterPtr CreateWriter(int snapshotId, const TSharedRef& meta)
+    ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotMeta& meta)
     {
         auto writer = New<TFileSnapshotWriter>(
             GetSnapshotPath(snapshotId),
@@ -560,7 +561,7 @@ public:
             GetSnapshotPath(snapshotId),
             Config_->Codec,
             snapshotId,
-            TSharedRef(),
+            TSnapshotMeta(),
             true);
         RegisterWriter(writer, snapshotId);
         return writer;
@@ -633,7 +634,7 @@ ISnapshotReaderPtr TFileSnapshotStore::CreateRawReader(int snapshotId, i64 offse
     return Impl_->CreateRawReader(snapshotId, offset);
 }
 
-ISnapshotWriterPtr TFileSnapshotStore::CreateWriter(int snapshotId, const TSharedRef& meta)
+ISnapshotWriterPtr TFileSnapshotStore::CreateWriter(int snapshotId, const TSnapshotMeta& meta)
 {
     return Impl_->CreateWriter(snapshotId, meta);
 }
