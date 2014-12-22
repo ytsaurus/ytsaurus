@@ -74,6 +74,8 @@ class TTableMountConfig
     : public TRetentionConfig
 {
 public:
+    bool EnableCodeGeneration;
+
     int MaxMemoryStoreKeyCount;
     int MaxMemoryStoreValueCount;
     i64 MaxMemoryStoreAlignedPoolSize;
@@ -103,6 +105,9 @@ public:
 
     TTableMountConfig()
     {
+        RegisterParameter("enable_code_generation", EnableCodeGeneration)
+            .Default(true);
+
         RegisterParameter("max_memory_store_key_count", MaxMemoryStoreKeyCount)
             .GreaterThan(0)
             .Default(1000000);
