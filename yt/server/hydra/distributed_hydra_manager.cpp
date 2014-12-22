@@ -273,7 +273,7 @@ public:
 
         if (GetAutomatonState() != EPeerState::Leading) {
             THROW_ERROR_EXCEPTION(
-                NHydra::EErrorCode::NoLeader,
+                NHydra::EErrorCode::InvalidState,
                 "Not a leader");
         }
 
@@ -325,12 +325,6 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(!DecoratedAutomaton_->GetMutationContext());
 
-        if (GetAutomatonState() != EPeerState::Leading) {
-            return MakeFuture<TErrorOr<TMutationResponse>>(TError(
-                NHydra::EErrorCode::NoLeader,
-                "Not a leader"));
-        }
-
         if (ReadOnly_) {
             return MakeFuture<TErrorOr<TMutationResponse>>(TError(
                 NHydra::EErrorCode::ReadOnly,
@@ -338,9 +332,9 @@ public:
         }
 
         auto epochContext = AutomatonEpochContext_;
-        if (!epochContext || !ActiveLeader_) {
+        if (!epochContext || !ActiveLeader_ || GetAutomatonState() != EPeerState::Leading) {
             return MakeFuture<TErrorOr<TMutationResponse>>(TError(
-                NHydra::EErrorCode::NoQuorum,
+                NHydra::EErrorCode::InvalidState,
                 "Not an active leader"));
         }
 

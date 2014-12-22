@@ -69,9 +69,8 @@ struct IHydraManager
 
     //! Commits a mutation.
     /*!
-     *  If the peer is not the leader then #EErrorCode::InvalidState is returned.
-     *  If the peer is the leader but has no active quorum, then #EErrorCode::NoQuorum is returned.
-     *  If the automaton is in read-only state, then #EErrorCode::ReadOnly is returned.
+     *  If the automaton is in read-only state then #EErrorCode::ReadOnly is returned.
+     *  If the peer is not an active leader then #EErrorCode::InvalidState is returned.
      *
      *  \note Thread affinity: AutomatonThread
      */

@@ -32,8 +32,6 @@ DECLARE_ENUM(EErrorCode,
     ((InvalidVersion)             (603))
     ((InvalidState)               (604))
     ((MaybeCommitted)             (605))
-    ((NoQuorum)                   (606))
-    ((NoLeader)                   (607))
     ((ReadOnly)                   (608))
     ((OutOfOrderMutations)        (609))
 );
