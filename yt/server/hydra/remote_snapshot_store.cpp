@@ -149,7 +149,7 @@ private:
                 options.AttributeFilter.Keys.push_back("prev_record_count");
                 auto result = WaitFor(Store_->MasterClient_->GetNode(Path_, options));
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                auto node = ConvertToNode(result.Value());
+                node = ConvertToNode(result.Value());
             }
             LOG_DEBUG("Remote snapshot parameters received");
 
