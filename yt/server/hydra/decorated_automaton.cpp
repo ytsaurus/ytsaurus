@@ -227,7 +227,7 @@ public:
                 fds[1]);
 
             InputStream_ = New<TAsyncReader>(fds[0]);
-            OutputFile_ = std::make_unique<TFile>(fds[1]);
+            OutputFile_ = std::make_unique<TFile>(FHANDLE(fds[1]));
 
             SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, Meta_);
 
@@ -268,7 +268,7 @@ private:
     {
         CloseAllDescriptors({
             2, // stderr
-            OutputFile_->GetHandle()
+            int(OutputFile_->GetHandle())
         });
         TFileOutput output(*OutputFile_);
         Owner_->SaveSnapshot(&output);

@@ -162,33 +162,6 @@ TError StatusToError(int status)
     }
 }
 
-void CloseAllDescriptors(const std::vector<int>& exceptFor)
-{
-#ifdef _linux_
-    auto* dirStream = ::opendir("/proc/self/fd");
-    YCHECK(dirStream != NULL);
-
-    int dirFd = ::dirfd(dirStream);
-    YCHECK(dirFd >= 0);
-
-    dirent* ep;
-    while ((ep = ::readdir(dirStream)) != nullptr) {
-        char* begin = ep->d_name;
-        char* end = nullptr;
-        int fd = static_cast<int>(strtol(begin, &end, 10));
-        if (begin == end)
-            continue;
-        if (fd == dirFd)
-            continue;
-        if (std::find(exceptFor.begin(), exceptFor.end(), fd) != exceptFor.end())
-            continue;
-        YCHECK(::close(fd) == 0);
-    }
-
-    YCHECK(::closedir(dirStream) == 0);
-#endif
-}
-
 bool TryExecve(const char *path, char* const argv[], char* const env[])
 {
     ::execve(path, argv, env);
@@ -349,7 +322,7 @@ void SetPermissions(int /* fd */, int /* permissions */)
     YUNIMPLEMENTED();
 }
 
-void SafePipe(int /* fd[2] */)
+void SafePipe(int /* fd */ [2])
 {
     YUNIMPLEMENTED();
 }
@@ -360,6 +333,33 @@ void SafeMakeNonblocking(int /* fd */)
 }
 
 #endif
+
+void CloseAllDescriptors(const std::vector<int>& exceptFor)
+{
+#ifdef _linux_
+    auto* dirStream = ::opendir("/proc/self/fd");
+    YCHECK(dirStream != NULL);
+
+    int dirFd = ::dirfd(dirStream);
+    YCHECK(dirFd >= 0);
+
+    dirent* ep;
+    while ((ep = ::readdir(dirStream)) != nullptr) {
+        char* begin = ep->d_name;
+        char* end = nullptr;
+        int fd = static_cast<int>(strtol(begin, &end, 10));
+        if (begin == end)
+            continue;
+        if (fd == dirFd)
+            continue;
+        if (std::find(exceptFor.begin(), exceptFor.end(), fd) != exceptFor.end())
+            continue;
+        YCHECK(::close(fd) == 0);
+    }
+
+    YCHECK(::closedir(dirStream) == 0);
+#endif
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
