@@ -1165,6 +1165,7 @@ private:
         YCHECK(ControlEpochContext_);
         ControlEpochContext_->CancelableContext->Cancel();
         ControlEpochContext_.Reset();
+        ActiveLeader_ = false;
     }
 
     TEpochContextPtr GetEpochContext(const TEpochId& epochId)
