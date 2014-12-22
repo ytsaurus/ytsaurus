@@ -25,6 +25,7 @@
 #include <ytlib/api/file_writer.h>
 
 #include <ytlib/hydra/hydra_manager.pb.h>
+#include <Foundation/Foundation.h>
 
 namespace NYT {
 namespace NHydra {
@@ -304,6 +305,7 @@ private:
             LOG_DEBUG("Opening remote snapshot writer");
             {
                 TFileWriterOptions options;
+                options.TransactionId = Transaction_->GetId();
                 options.PrerequisiteTransactionIds = Store_->PrerequisiteTransactionIds_;
                 Writer_ = Store_->MasterClient_->CreateFileWriter(
                     Store_->GetRemotePath(SnapshotId_),
