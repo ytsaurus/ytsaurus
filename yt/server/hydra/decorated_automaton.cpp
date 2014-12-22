@@ -208,7 +208,7 @@ public:
     {
         // TODO(babenko): remove this once YT-1422 is fixed
         if (InputStream_) {
-            InputStream_->Abort();
+            InputStream_->Abort().Get();
         }
     }
 
