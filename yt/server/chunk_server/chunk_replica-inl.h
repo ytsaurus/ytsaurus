@@ -105,7 +105,7 @@ void TPtrWithIndex<T>::Load(C& context)
     auto* ptr = Load<T*>(context);
     int index;
     // COMPAT(babenko)
-    if (context.GetVersion() < 108) {
+    if (context.GetVersion() < 109) {
         index = Load<int>(context);
     } else{
         index = Load<i8>(context);

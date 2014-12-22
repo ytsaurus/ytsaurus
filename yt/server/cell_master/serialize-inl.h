@@ -38,7 +38,7 @@ struct TNonversionedObjectRefSerializer
     {
         typedef typename std::remove_pointer<T>::type TObject;
         // COMPAT(babenko)
-        if (context.GetVersion() >= 108) {
+        if (context.GetVersion() >= 109) {
             auto key = NYT::Load<NHydra::TEntitySerializationKey>(context);
             object  = (key == NHydra::TEntitySerializationKey())
                 ? nullptr
@@ -78,7 +78,7 @@ struct TVersionedObjectRefSerializer
     {
         typedef typename std::remove_pointer<T>::type TObject;
         // COMPAT(babenko)
-        if (context.GetVersion() >= 108) {
+        if (context.GetVersion() >= 109) {
             auto key = NYT::Load<NHydra::TEntitySerializationKey>(context);
             object  = (key == NHydra::TEntitySerializationKey())
                 ? nullptr

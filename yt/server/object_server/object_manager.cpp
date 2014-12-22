@@ -568,7 +568,7 @@ void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     // COMPAT(babenko)
-    if (context.GetVersion() >= 108) {
+    if (context.GetVersion() >= 109) {
         SchemaMap_.LoadKeys(context);
     }
 
@@ -580,7 +580,7 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     // COMPAT(babenko)
-    if (context.GetVersion() >= 108) {
+    if (context.GetVersion() >= 109) {
         SchemaMap_.LoadValues(context);
         for (const auto& pair : SchemaMap_) {
             auto type = TypeFromSchemaType(TypeFromId(pair.first));

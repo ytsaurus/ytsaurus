@@ -26,6 +26,7 @@
 
 #include <server/tablet_server/tablet_manager.h>
 #include <server/tablet_server/tablet_cell.h>
+#include <Foundation/Foundation.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -44,7 +45,7 @@ using namespace NTableServer;
 
 int GetCurrentSnapshotVersion()
 {
-    return 108;
+    return 109;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -59,7 +60,8 @@ bool ValidateSnapshotVersion(int version)
         version == 105 ||
         version == 106 ||
         version == 107 ||
-        version == 108;
+        version == 108 ||
+        version == 109;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
