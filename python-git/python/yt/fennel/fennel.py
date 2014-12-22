@@ -130,10 +130,7 @@ class EventLog(object):
         return result
 
     def archive(self, count):
-        try:
-            self.log.debug("Archive table has %d rows", self.yt.get(self._archive_row_count_attr))
-        except Exception:
-            pass
+        self._check_invariant()
 
         desired_chunk_size = 2 * 1024 ** 3
         approximate_gzip_compression_ratio = 0.137
@@ -166,7 +163,7 @@ class EventLog(object):
         while not finished:
             try:
                 with self.yt.Transaction():
-                    self.log.info("Run merge...")
+                    self.log.info("Run merge; source table: %s", partition.get_json())
                     self.yt.run_merge(
                         source_table=partition,
                         destination_table=table.TablePath(self._archive_table_name, append=True),
@@ -196,14 +193,13 @@ class EventLog(object):
                 tries += 1
                 backoff_time = min(backoff_time * 2, 600)
 
-        self.log.info("Truncate event log...")
-
         tries = 0
         finished = False
         backoff_time = 5
         while not finished:
             try:
                 with self.yt.Transaction():
+                    self.log.info("Truncate %d rows from event log...", count)
                     first_row = self.yt.get(self._number_of_first_row_attr)
                     first_row += count
                     self.yt.run_erase(partition)
@@ -221,10 +217,22 @@ class EventLog(object):
                 tries += 1
                 backoff_time = min(backoff_time * 2, 600)
 
+        self._check_invariant()
+
+
+    def _check_invariant(self):
         try:
-            self.log.debug("Archive table has %d rows", self.yt.get(self._archive_row_count_attr))
+            archive_row_count = self.yt.get(self._archive_row_count_attr)
+            self.log.debug("Archive table has %d rows", archive_row_count)
+        except Exception:
+            archive_row_count = 0
+
+        try:
+            number_of_first_row = self.yt.get(self._number_of_first_row_attr)
+            self.log.debug("Number of first row: %d", number_of_first_row)
         except Exception:
             pass
+        assert number_of_first_row == archive_row_count
 
     def initialize(self):
         with self.yt.Transaction():
