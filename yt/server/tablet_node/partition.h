@@ -53,8 +53,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(EPartitionState, State);
 
-    DEFINE_BYVAL_RW_PROPERTY(bool, SamplingNeeded);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSamplingTime);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, SamplingRequestTime);
     DEFINE_BYVAL_RW_PROPERTY(TKeyListPtr, SampleKeys);
 
 public:

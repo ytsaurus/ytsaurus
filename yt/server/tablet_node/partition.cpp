@@ -26,6 +26,7 @@ void TKeyList::Load(TLoadContext& context)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
 #ifndef _win_
 const int TPartition::EdenIndex;
 #endif
@@ -36,8 +37,6 @@ TPartition::TPartition(TTablet* tablet, int index)
     , PivotKey_(MinKey())
     , NextPivotKey_(MaxKey())
     , State_(EPartitionState::Normal)
-    , SamplingNeeded_(false)
-    , LastSamplingTime_(TInstant::Zero())
     , SampleKeys_(New<TKeyList>())
 { }
 
@@ -50,7 +49,8 @@ void TPartition::Save(TSaveContext& context) const
 
     Save(context, PivotKey_);
     Save(context, NextPivotKey_);
-    Save(context, SamplingNeeded_);
+    Save(context, LastSamplingTime_);
+    Save(context, SamplingRequestTime_);
     Save(context, *SampleKeys_);
 
     Save(context, Stores_.size());
@@ -65,7 +65,8 @@ void TPartition::Load(TLoadContext& context)
 
     Load(context, PivotKey_);
     Load(context, NextPivotKey_);
-    Load(context, SamplingNeeded_);
+    Load(context, LastSamplingTime_);
+    Load(context, SamplingRequestTime_);
     Load(context, *SampleKeys_);
 
     size_t storeCount = Load<size_t>(context);

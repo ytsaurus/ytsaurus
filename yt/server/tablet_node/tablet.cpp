@@ -281,7 +281,6 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
     auto mergedPartition = std::make_unique<TPartition>(this, firstIndex);
     mergedPartition->SetPivotKey(Partitions_[firstIndex]->GetPivotKey());
     mergedPartition->SetNextPivotKey(Partitions_[lastIndex]->GetNextPivotKey());
-    mergedPartition->SetSamplingNeeded(true);
     auto& mergedSampleKeys = mergedPartition->GetSampleKeys()->Keys;
 
     for (int index = firstIndex; index <= lastIndex; ++index) {
@@ -396,9 +395,6 @@ void TTablet::AddStore(IStorePtr store)
     store->SetPartition(partition);
     YCHECK(Stores_.insert(std::make_pair(store->GetId(), store)).second);
     YCHECK(partition->Stores().insert(store).second);
-    if (partition != Eden_.get()) {
-        partition->SetSamplingNeeded(true);
-    }
 }
 
 void TTablet::RemoveStore(IStorePtr store)
@@ -406,9 +402,6 @@ void TTablet::RemoveStore(IStorePtr store)
     YCHECK(Stores_.erase(store->GetId()) == 1);
     auto* partition = store->GetPartition();
     YCHECK(partition->Stores().erase(store) == 1);
-    if (partition != Eden_.get()) {
-        partition->SetSamplingNeeded(true);
-    }
 }
 
 IStorePtr TTablet::FindStore(const TStoreId& id)
