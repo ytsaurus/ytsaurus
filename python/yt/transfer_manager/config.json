@@ -20,7 +20,8 @@
             "options": {
                 "proxy": "aristotle.yt.yandex.net"
             },
-            "fastbone": true
+            "fastbone": true,
+            "dc_name": "sas"
         },
         "marx": {
             "type": "yt",
