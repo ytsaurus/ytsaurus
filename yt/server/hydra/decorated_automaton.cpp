@@ -200,7 +200,7 @@ public:
         , SnapshotVersion_(snapshotVersion)
         , SnapshotId_(SnapshotVersion_.SegmentId + 1)
     {
-        Logger = HydraLogger;
+        Logger = Owner_->Logger;
         Logger.AddTag("SnapshotId: %v", SnapshotId_);
     }
 
