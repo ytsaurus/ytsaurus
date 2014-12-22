@@ -122,7 +122,7 @@ public:
         , ChangelogStore_(changelogStore)
         , SnapshotStore_(snapshotStore)
         , ReadOnly_(false)
-        , AsyncActiveLeader_(false)
+        , ActiveLeader_(false)
         , ControlState_(EPeerState::None)
         , Profiler(HydraProfiler)
     {
@@ -234,9 +234,9 @@ public:
 
     virtual bool IsActiveLeader() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        return AutomatonEpochContext_ ? AutomatonEpochContext_->ActiveLeader : false;
+        return ActiveLeader_;
     }
 
     virtual NElection::TEpochContextPtr GetControlEpochContext() const override
@@ -286,16 +286,10 @@ public:
 
         auto epochContext = AutomatonEpochContext_;
 
-        if (!epochContext || GetAutomatonState() != EPeerState::Leading) {
+        if (!epochContext || GetAutomatonState() != EPeerState::Leading || !ActiveLeader_) {
             return MakeFuture<TErrorOr<int>>(TError(
                 NHydra::EErrorCode::InvalidState,
                 "Not an active leader"));
-        }
-
-        if (!epochContext->ActiveLeader) {
-            return MakeFuture<TErrorOr<int>>(TError(
-                NHydra::EErrorCode::NoQuorum,
-                "No active quorum"));
         }
 
         return BuildSnapshotAndWatch(epochContext).Apply(
@@ -321,7 +315,7 @@ public:
                     .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
                     .Item("elections").Do(ElectionManagerMonitoringProducer_)
-                    .Item("has_active_quorum").Value(AsyncActiveLeader_)
+                    .Item("has_active_quorum").Value(ActiveLeader_)
                 .EndMap();
         });
     }
@@ -344,7 +338,7 @@ public:
         }
 
         auto epochContext = AutomatonEpochContext_;
-        if (!epochContext || !epochContext->ActiveLeader) {
+        if (!epochContext || !ActiveLeader_) {
             return MakeFuture<TErrorOr<TMutationResponse>>(TError(
                 NHydra::EErrorCode::NoQuorum,
                 "Not an active leader"));
@@ -379,8 +373,7 @@ private:
     IChangelogStorePtr ChangelogStore_;
     ISnapshotStorePtr SnapshotStore_;
     std::atomic<bool> ReadOnly_;
-    // NB: Just for monitoring.
-    std::atomic<bool> AsyncActiveLeader_;
+    std::atomic<bool> ActiveLeader_;
     EPeerState ControlState_;
 
     TVersion ReachableVersion_;
@@ -747,6 +740,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         AutomatonEpochContext_.Reset();
+        ActiveLeader_ = false;
     }
 
     void DoRestart(TEpochContextPtr epochContext)
@@ -826,8 +820,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(GetAutomatonState() == EPeerState::Leading);
-        YCHECK(epochContext->ActiveLeader);
 
+        if (!ActiveLeader_)
+            return;
+        
         auto checkpointer = epochContext->Checkpointer;
         if (checkpointer->CanBuildSnapshot()) {
             BuildSnapshotAndWatch(epochContext);
@@ -993,16 +989,9 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
             }
 
-            SwitchTo(epochContext->EpochControlInvoker);
-            VERIFY_THREAD_AFFINITY(ControlThread);
-
-            epochContext->ActiveLeader = true;
-            AsyncActiveLeader_ = true;
-
-            SwitchTo(epochContext->EpochSystemAutomatonInvoker);
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
-
             LOG_INFO("Leader active");
+
+            ActiveLeader_ = true;
 
             LeaderActive_.Fire();
         } catch (const std::exception& ex) {
@@ -1175,10 +1164,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YCHECK(ControlEpochContext_);
-        ControlEpochContext_->ActiveLeader = false;
         ControlEpochContext_->CancelableContext->Cancel();
         ControlEpochContext_.Reset();
-        AsyncActiveLeader_ = false;
     }
 
     TEpochContextPtr GetEpochContext(const TEpochId& epochId)

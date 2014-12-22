@@ -45,7 +45,6 @@ struct TEpochContext
     TLeaderCommitterPtr LeaderCommitter;
     TFollowerCommitterPtr FollowerCommitter;
     TFollowerTrackerPtr FollowerTracker;
-    bool ActiveLeader = false;
     std::atomic_flag Restarted;
 };
 
