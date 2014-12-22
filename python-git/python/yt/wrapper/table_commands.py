@@ -587,10 +587,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 return_content=False,
                 proxy=get_host_for_heavy_operation(client=client))
             response_stream = ResponseStream(response, None)
-            while True:
-                row = format.load_row(response_stream, raw=raw)
-                if row is None or row == "":
-                    break
+            for row in format.load_rows(response_stream, raw=raw):
                 yield row
                 index.increment()
 
