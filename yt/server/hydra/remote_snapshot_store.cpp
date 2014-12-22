@@ -272,6 +272,7 @@ private:
                 attributes->Set("title", Format("Snapshot upload to %v",
                     Path_));
                 options.Attributes = attributes.get();
+
                 auto transactionOrError = WaitFor(Store_->MasterClient_->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
                     options));
@@ -292,11 +293,11 @@ private:
                 options.Attributes = attributes.get();
                 options.PrerequisiteTransactionIds = Store_->PrerequisiteTransactionIds_;
 
-                auto result = WaitFor(Transaction_->CreateNode(
+                auto error = WaitFor(Transaction_->CreateNode(
                     Path_,
                     EObjectType::File,
                     options));
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
             LOG_DEBUG("Remote snapshot created");
 
@@ -308,6 +309,9 @@ private:
                     Store_->GetRemotePath(SnapshotId_),
                     options,
                     Store_->Config_->Writer);
+
+                auto error = WaitFor(Writer_->Open());
+                THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
             LOG_DEBUG("Remote snapshot writer opened");
 
