@@ -998,7 +998,7 @@ private:
 
         auto hydraManager = Slot_->GetHydraManager();
         const auto* mutationContext = hydraManager->GetMutationContext();
-        partition->SetLastSamplingTime(mutationContext->GetTimestamp());
+        partition->SetSamplingTime(mutationContext->GetTimestamp());
 
         LOG_INFO_UNLESS(IsRecovery(), "Partition sample keys updated (TabletId: %v, PartitionIndex: %v, Keys: %v .. %v, SampleKeyCount: %v)",
             tabletId,
@@ -1355,7 +1355,7 @@ private:
                 .Item("pivot_key").Value(partition->GetPivotKey())
                 .Item("next_pivot_key").Value(partition->GetNextPivotKey())
                 .Item("sample_key_count").Value(partition->GetSampleKeys()->Keys.size())
-                .Item("last_sampling_time").Value(partition->GetLastSamplingTime())
+                .Item("sampling_time").Value(partition->GetSamplingTime())
                 .Item("sampling_request_time").Value(partition->GetSamplingRequestTime())
                 .Item("uncompressed_data_size").Value(partition->GetUncompressedDataSize())
                 .Item("unmerged_row_count").Value(partition->GetUnmergedRowCount())

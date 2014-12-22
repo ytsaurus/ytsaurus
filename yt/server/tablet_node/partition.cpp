@@ -49,7 +49,7 @@ void TPartition::Save(TSaveContext& context) const
 
     Save(context, PivotKey_);
     Save(context, NextPivotKey_);
-    Save(context, LastSamplingTime_);
+    Save(context, SamplingTime_);
     Save(context, SamplingRequestTime_);
     Save(context, *SampleKeys_);
 
@@ -65,7 +65,7 @@ void TPartition::Load(TLoadContext& context)
 
     Load(context, PivotKey_);
     Load(context, NextPivotKey_);
-    Load(context, LastSamplingTime_);
+    Load(context, SamplingTime_);
     Load(context, SamplingRequestTime_);
     Load(context, *SampleKeys_);
 

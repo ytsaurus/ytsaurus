@@ -116,8 +116,8 @@ private:
             RunMerge(partition, firstPartitionIndex, lastPartitionIndex);
         }
 
-        if (partition->GetSamplingRequestTime() > partition->GetLastSamplingTime() &&
-            partition->GetLastSamplingTime() < TInstant::Now() - Config_->ResamplingPeriod)
+        if (partition->GetSamplingRequestTime() > partition->GetSamplingTime() &&
+            partition->GetSamplingTime() < TInstant::Now() - Config_->ResamplingPeriod)
         {
             RunSample(partition);
         }
@@ -265,7 +265,7 @@ private:
         partition->SetState(EPartitionState::Normal);
         // NB: Update the timestamp even in case of failure to prevent
         // repeating unsuccessful samplings too rapidly.
-        partition->SetLastSamplingTime(TInstant::Now());
+        partition->SetSamplingTime(TInstant::Now());
     }
 
 
