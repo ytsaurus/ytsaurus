@@ -363,6 +363,16 @@ TPlanFragmentPtr PreparePlanFragment(
     i64 outputRowLimit = std::numeric_limits<i64>::max(),
     TTimestamp timestamp = NullTimestamp);
 
+TPlanFragmentPtr PrepareJobPlanFragment(
+    const Stroka& source,
+    const TTableSchema& initialTableSchema);
+
+TConstExpressionPtr PrepareExpression(
+    const Stroka& source,
+    const TTableSchema& initialTableSchema);
+
+Stroka InferName(TConstExpressionPtr expr);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

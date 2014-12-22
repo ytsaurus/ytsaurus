@@ -9,9 +9,10 @@
 #include "callbacks.h"
 
 #include <ytlib/new_table_client/schema.h>
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
 
 #include <core/misc/protobuf_helpers.h>
 
@@ -19,6 +20,7 @@
 
 #include <ytlib/query_client/plan_fragment.pb.h>
 
+#include <limits>
 
 namespace NYT {
 namespace NQueryClient {
@@ -35,6 +37,107 @@ static const auto& Logger = QueryClientLogger;
 static const int PlanFragmentDepthLimit = 50;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TTableSchemaProxy
+{
+    TTableSchema TableSchema;
+    std::set<Stroka>* LiveColumns;
+
+    explicit TTableSchemaProxy(
+        const TTableSchema& tableSchema,
+        std::set<Stroka>* liveColumns = nullptr)
+        : TableSchema(tableSchema)
+        , LiveColumns(liveColumns)
+    { }
+
+    const TColumnSchema& operator [] (size_t index) const
+    {
+        return TableSchema.Columns()[index];
+    }
+
+    size_t GetColumnIndex(const TStringBuf& name) const
+    {
+        if (LiveColumns) {
+            LiveColumns->emplace(name);
+        }
+
+        auto* column = TableSchema.FindColumn(name);
+        if (!column) {
+            THROW_ERROR_EXCEPTION("Undefined reference %Qv", name);
+        }
+
+        return TableSchema.GetColumnIndex(*column);
+    }
+};
+
+struct TGroupClauseProxy
+{
+    TTableSchemaProxy SourceSchemaProxy;
+    TGroupClause& Op;
+    std::map<Stroka, size_t> SubexprNames;
+
+    TGroupClauseProxy(
+        const TTableSchemaProxy& sourceSchemaProxy,
+        TGroupClause& op)
+        : SourceSchemaProxy(sourceSchemaProxy)
+        , Op(op)
+    { }
+
+};
+
+Stroka InferName(TConstExpressionPtr expr)
+{
+    bool newTuple = true;
+    auto comma = [&] {
+        bool isNewTuple = newTuple;
+        newTuple = false;
+        return Stroka(isNewTuple ? "" : ", ");
+    };
+
+    if (auto literalExpr = expr->As<TLiteralExpression>()) {
+        return ToString(static_cast<TUnversionedValue>(literalExpr->Value));
+    } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
+        return referenceExpr->ColumnName;
+    } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
+        auto str = functionExpr->FunctionName + "(";
+        for (const auto& argument : functionExpr->Arguments) {
+            str += comma() + InferName(argument);
+        }
+        return str + ")";
+    } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
+        auto canOmitParenthesis = [] (TConstExpressionPtr expr) {
+            return
+                expr->As<TLiteralExpression>() ||
+                expr->As<TReferenceExpression>() ||
+                expr->As<TFunctionExpression>();
+        };
+        auto lhsName = InferName(binaryOp->Lhs);
+        if (!canOmitParenthesis(binaryOp->Lhs)) {
+            lhsName = "(" + lhsName + ")";
+        }
+        auto rhsName = InferName(binaryOp->Rhs);
+        if (!canOmitParenthesis(binaryOp->Rhs)) {
+            rhsName = "(" + rhsName + ")";
+        }
+        return
+            lhsName +
+            " " + GetBinaryOpcodeLexeme(binaryOp->Opcode) + " " +
+            rhsName;
+    } else if (auto inOp = expr->As<TInOpExpression>()) {
+        auto str = Stroka("(");
+        for (const auto& argument : inOp->Arguments) {
+            str += comma() + InferName(argument);
+        }
+        str += ") IN (";
+        newTuple = true;
+        for (const auto& row: inOp->Values) {
+            str += comma() + "(" + ToString(row) + ")";
+        }
+        return str + ")";
+    } else {
+        YUNREACHABLE();
+    }
+}
 
 Stroka TExpression::GetName() const
 {
@@ -221,25 +324,12 @@ void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)
     YUNREACHABLE();
 };
 
-TPlanFragmentPtr PreparePlanFragment(
-    IPrepareCallbacks* callbacks,
-    const Stroka& source,
-    i64 inputRowLimit,
-    i64 outputRowLimit,
-    TTimestamp timestamp)
+static std::vector<TConstExpressionPtr> BuildTypedExpression(
+    const TTableSchemaProxy& tableSchema,
+    const NAst::TExpression* expr,
+    TGroupClauseProxy* groupProxy,
+    const Stroka& querySourceString)
 {
-    NAst::TLexer lexer(source,  NAst::TParser::token::StrayWillParseQuery);
-
-    TRowBuffer rowBuffer;
-    NAst::TQuery ast;
-
-    NAst::TParser parser(lexer, &ast, &rowBuffer);
-
-    int result = parser.parse();
-    if (result != 0) {
-        THROW_ERROR_EXCEPTION("Failed to parse query");
-    }
-
     auto getAggregate = [] (TStringBuf functionName) {
         Stroka name(functionName);
         name.to_lower();
@@ -261,65 +351,7 @@ TPlanFragmentPtr PreparePlanFragment(
         return result;
     };
 
-    auto planFragment = New<TPlanFragment>(source);
-    planFragment->NodeDirectory = New<TNodeDirectory>();
-
-    if (ast.Limit) {
-        outputRowLimit = ast.Limit;
-        planFragment->Ordered = true;
-    }
-
-    auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
-
-    struct TTableSchemaProxy
-    {
-        TTableSchema TableSchema;
-        std::set<Stroka>* LiveColumns;
-        
-        explicit TTableSchemaProxy(
-            const TTableSchema& tableSchema,
-            std::set<Stroka>* liveColumns = nullptr)
-            : TableSchema(tableSchema)
-            , LiveColumns(liveColumns)
-        { }
-
-        const TColumnSchema& operator [] (size_t index) const
-        {
-            return TableSchema.Columns()[index];
-        }
-
-        size_t GetColumnIndex(const TStringBuf& name) const
-        {
-            if (LiveColumns) {
-                LiveColumns->emplace(name);
-            }
-
-            auto* column = TableSchema.FindColumn(name);
-            if (!column) {
-                THROW_ERROR_EXCEPTION("Undefined reference %Qv", name);
-            }
-            
-            return TableSchema.GetColumnIndex(*column);
-        }
-    };
-
-    auto tablePath = ast.FromPath;
-
-    LOG_DEBUG("Getting initial data split for %v", tablePath);
-    // XXX(sandello): We have just one table at the moment.
-    // Will put TParallelAwaiter here in case of multiple tables.
-
-    auto dataSplitOrError = WaitFor(callbacks->GetInitialSplit(
-        tablePath,
-        timestamp));
-    THROW_ERROR_EXCEPTION_IF_FAILED(
-        dataSplitOrError,
-        "Failed to get initial data split for table %v",
-        tablePath);
-
-    auto querySourceString = planFragment->GetSource();
-
-    auto captureRows = [&] (const NAst::TValueTupleList& literalTuples, size_t keySize) {
+    auto captureRows = [] (const NAst::TValueTupleList& literalTuples, size_t keySize) {
         TUnversionedOwningRowBuilder rowBuilder;
 
         std::vector<TOwningRow> result;
@@ -332,21 +364,6 @@ TPlanFragmentPtr PreparePlanFragment(
         std::sort(result.begin(), result.end());
 
         return result;
-    };
-
-    struct TGroupClauseProxy
-    {
-        TTableSchemaProxy SourceSchemaProxy;
-        TGroupClause& Op;
-        std::map<Stroka, size_t> SubexprNames;        
-
-        TGroupClauseProxy(
-            const TTableSchemaProxy& sourceSchemaProxy, 
-            TGroupClause& op)
-            : SourceSchemaProxy(sourceSchemaProxy)
-            , Op(op)
-        { }
-
     };
 
     std::function<std::vector<TConstExpressionPtr>(
@@ -513,16 +530,28 @@ TPlanFragmentPtr PreparePlanFragment(
 
         return result;
     };
-    
-    std::set<Stroka> liveColumns;
-    auto initialDataSplit = dataSplitOrError.Value();
-    auto initialTableSchema = GetTableSchemaFromDataSplit(initialDataSplit);
 
-    TTableSchemaProxy tableSchemaProxy(initialTableSchema, &liveColumns);
+    return buildTypedExpression(tableSchema, expr, groupProxy);
+};
+
+static TQueryPtr PrepareQuery(
+    NAst::TQuery& ast,
+    const Stroka& querySourceString,
+    i64 inputRowLimit,
+    i64 outputRowLimit,
+    TTableSchema& initialTableSchema)
+{
+    std::set<Stroka> liveColumns;
+    auto tableSchemaProxy = TTableSchemaProxy(initialTableSchema, &liveColumns);
+    auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
 
     if (ast.WherePredicate) {
 
-        auto typedPredicate = buildTypedExpression(tableSchemaProxy, ast.WherePredicate.Get(), nullptr);
+        auto typedPredicate = BuildTypedExpression(
+            tableSchemaProxy,
+            ast.WherePredicate.Get(),
+            nullptr,
+            querySourceString);
 
         if (typedPredicate.size() != 1) {
             THROW_ERROR_EXCEPTION("Expecting scalar expression")
@@ -544,8 +573,6 @@ TPlanFragmentPtr PreparePlanFragment(
         query->Predicate = predicate;
     }
 
-        
-
     TNullable<TGroupClauseProxy> groupClauseProxy;
 
     if (ast.GroupExprs) {
@@ -554,8 +581,12 @@ TPlanFragmentPtr PreparePlanFragment(
         TGroupClause groupClause;
 
         for (const auto& expr : ast.GroupExprs.Get()) {
-            auto typedExprs = buildTypedExpression(tableSchemaProxy, expr.first.Get(), nullptr);
-            
+            auto typedExprs = BuildTypedExpression(
+                tableSchemaProxy,
+                expr.first.Get(),
+                nullptr,
+                querySourceString);
+
             if (typedExprs.size() != 1) {
                 THROW_ERROR_EXCEPTION("Expecting scalar expression")
                     << TErrorAttribute("source", expr.first->GetSource(querySourceString));
@@ -580,8 +611,12 @@ TPlanFragmentPtr PreparePlanFragment(
         TProjectClause projectClause;
 
         for (const auto& expr : ast.SelectExprs.Get()) {
-            auto typedExprs = buildTypedExpression(tableSchemaProxy, expr.first.Get(), groupClauseProxy.GetPtr());
-            
+            auto typedExprs = BuildTypedExpression(
+                tableSchemaProxy,
+                expr.first.Get(),
+                groupClauseProxy.GetPtr(),
+                querySourceString);
+
             if (typedExprs.size() != 1) {
                 THROW_ERROR_EXCEPTION("Expecting scalar expression")
                     << TErrorAttribute("source", expr.first->GetSource(querySourceString));
@@ -602,7 +637,7 @@ TPlanFragmentPtr PreparePlanFragment(
     }
 
     // Now we have planOperator and tableSchemaProxy
-    
+
     // Prune references
 
     auto& columns = initialTableSchema.Columns();
@@ -618,15 +653,120 @@ TPlanFragmentPtr PreparePlanFragment(
             columns.end());
     }
 
-    SetTableSchema(&initialDataSplit, initialTableSchema);
+    return query;
+}
 
-    planFragment->DataSplits.push_back(initialDataSplit);
+static void ParseYqlString(
+    NAst::TOwningAst& ast,
+    const Stroka& source,
+    NAst::TParser::token::yytokentype strayToken)
+{
+    NAst::TLexer lexer(source, strayToken);
+    NAst::TParser parser(lexer, &ast.astHead, &ast.rowBuffer);
+
+    int result = parser.parse();
+
+    if (result != 0) {
+        THROW_ERROR_EXCEPTION("Parse failure")
+            << TErrorAttribute("source", source);
+    }
+}
+
+TPlanFragmentPtr PreparePlanFragment(
+    IPrepareCallbacks* callbacks,
+    const Stroka& source,
+    i64 inputRowLimit,
+    i64 outputRowLimit,
+    TTimestamp timestamp)
+{
+    NAst::TOwningAst owningAst{TVariantTypeTag<NAst::TQuery>()};
+    ParseYqlString(owningAst, source, NAst::TParser::token::StrayWillParseQuery);
+
+    auto& ast = owningAst.astHead.As<NAst::TQuery>();
+    auto tablePath = ast.FromPath;
+
+    LOG_DEBUG("Getting initial data split for %v", tablePath);
+    // XXX(sandello): We have just one table at the moment.
+    // Will put TParallelAwaiter here in case of multiple tables.
+
+    auto dataSplitOrError = WaitFor(callbacks->GetInitialSplit(
+        tablePath,
+        timestamp));
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        dataSplitOrError,
+        "Failed to get initial data split for table %v",
+        tablePath);
+
+    auto initialDataSplit = dataSplitOrError.Value();
+    auto tableSchema = GetTableSchemaFromDataSplit(initialDataSplit);
+
+    auto planFragment = New<TPlanFragment>(source);
+    planFragment->NodeDirectory = New<TNodeDirectory>();
+
+    if (ast.Limit) {
+        outputRowLimit = ast.Limit;
+        planFragment->Ordered = true;
+    }
+
+    auto query = PrepareQuery(ast, source, inputRowLimit, outputRowLimit, tableSchema);
+
+    SetTableSchema(&initialDataSplit, tableSchema);
+
     query->TableSchema = GetTableSchemaFromDataSplit(initialDataSplit);
     query->KeyColumns = GetKeyColumnsFromDataSplit(initialDataSplit);
+    planFragment->Query = query;
+    planFragment->DataSplits.push_back(initialDataSplit);
 
+    return planFragment;
+}
+
+TPlanFragmentPtr PrepareJobPlanFragment(
+    const Stroka& source,
+    const TTableSchema& initialTableSchema)
+{
+    NAst::TOwningAst owningAst{TVariantTypeTag<NAst::TQuery>()};
+    ParseYqlString(owningAst, source, NAst::TParser::token::StrayWillParseJobQuery);
+
+    auto& ast = owningAst.astHead.As<NAst::TQuery>();
+
+    if (ast.Limit) {
+        THROW_ERROR_EXCEPTION("LIMIT is not supported in map-reduce queries");
+    }
+
+    if (ast.GroupExprs) {
+        THROW_ERROR_EXCEPTION("GROUP BY is not supported in map-reduce queries");
+    }
+
+    auto planFragment = New<TPlanFragment>(source);
+    auto tableSchema = initialTableSchema;
+    auto unlimited = std::numeric_limits<i64>::max();
+    auto query = PrepareQuery(ast, source, unlimited, unlimited, tableSchema);
+
+    query->TableSchema = std::move(tableSchema);
     planFragment->Query = query;
 
     return planFragment;
+}
+
+TConstExpressionPtr PrepareExpression(
+    const Stroka& source,
+    const TTableSchema& initialTableSchema)
+{
+    NAst::TOwningAst owningAst{TVariantTypeTag<NAst::TNamedExpression>()};
+    ParseYqlString(owningAst, source, NAst::TParser::token::StrayWillParseExpression);
+
+    auto& expr = owningAst.astHead.As<NAst::TNamedExpression>();
+
+    std::set<Stroka> liveColumns;
+    auto tableSchemaProxy = TTableSchemaProxy(initialTableSchema, &liveColumns);
+    auto typedExprs = BuildTypedExpression(tableSchemaProxy, expr.first.Get(), nullptr, source);
+
+    if (typedExprs.size() != 1) {
+        THROW_ERROR_EXCEPTION("Expecting scalar expression")
+            << TErrorAttribute("source", expr.first->GetSource(source));
+    }
+
+    return typedExprs.front();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

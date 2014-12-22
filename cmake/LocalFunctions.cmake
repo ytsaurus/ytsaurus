@@ -72,6 +72,7 @@ function(RAGEL source result_variable)
   set(_output ${_dirname}/${_basename}.cpp)
 
   if(YT_BUILD_HAVE_RAGEL)
+    INCLUDE(FindPerl)
     # Specify custom command how to generate .cpp.
     add_custom_command(
       OUTPUT
@@ -98,6 +99,7 @@ function(BISON source result_variable)
   get_filename_component(_basename ${_realpath} NAME_WE)
 
   if (YT_BUILD_HAVE_BISON)
+    INCLUDE(FindPerl)
     # Specify custom command how to generate .cpp.
     add_custom_command(
       OUTPUT

@@ -28,7 +28,7 @@ static const int Lexer_en_quoted_identifier = 43;
 static const int Lexer_en_main = 8;
 
 
-} // namespace
+} // namespace anonymous
 
 TLexer::TLexer(
     const Stroka& source,
@@ -1096,9 +1096,7 @@ case 43:
 
     location->second = p - s;
 
-    if (cs == 
-0
-) {
+    if (cs == 0) {
         // TODO(sandello): Handle lexer failures.
         return TToken::Failure;
     } else {

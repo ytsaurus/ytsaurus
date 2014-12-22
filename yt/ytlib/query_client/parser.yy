@@ -13,7 +13,7 @@
 %locations
 
 %parse-param {TLexer& lexer}
-%parse-param {TQuery* head}
+%parse-param {TAstHead* head}
 %parse-param {TRowBuffer* rowBuffer}
 
 %code requires {
@@ -57,6 +57,8 @@
 %token Failure 256 "lexer failure"
 
 %token StrayWillParseQuery 999
+%token StrayWillParseJobQuery 998
+%token StrayWillParseExpression 997
 
 // Language tokens.
 
@@ -128,18 +130,34 @@
 
 head
     : StrayWillParseQuery head-clause
+    | StrayWillParseJobQuery head-job-clause
+    | StrayWillParseExpression named-expression[expression]
+        {
+            head->As<TNamedExpression>() = $expression;
+        }
 ;
 
 head-clause
     : select-clause[select] from-clause[from]
         {
-            head->SelectExprs = $select;
-            head->FromPath = $from;
+            head->As<TQuery>().SelectExprs = $select;
+            head->As<TQuery>().FromPath = $from;
         }
     | select-clause[select] from-clause[from] head-clause-tail
         {
-            head->SelectExprs = $select;
-            head->FromPath = $from;
+            head->As<TQuery>().SelectExprs = $select;
+            head->As<TQuery>().FromPath = $from;
+        }
+;
+
+head-job-clause
+    : select-clause[select]
+        {
+            head->As<TQuery>().SelectExprs = $select;
+        }
+    | select-clause[select] head-clause-tail
+        {
+            head->As<TQuery>().SelectExprs = $select;
         }
 ;
 
@@ -147,25 +165,25 @@ head-clause
 head-clause-tail
     : where-clause[where]
         {
-            head->WherePredicate = $where;
+            head->As<TQuery>().WherePredicate = $where;
         }
     | group-by-clause[group]
         {
-            head->GroupExprs = $group;
+            head->As<TQuery>().GroupExprs = $group;
         }
     | limit-clause[limit]
         {
-            head->Limit = $limit;
+            head->As<TQuery>().Limit = $limit;
         }
     | where-clause[where] group-by-clause[group]
         {
-            head->WherePredicate = $where;
-            head->GroupExprs = $group;
+            head->As<TQuery>().WherePredicate = $where;
+            head->As<TQuery>().GroupExprs = $group;
         }
     | where-clause[where] limit-clause[limit]
         {
-            head->WherePredicate = $where;
-            head->Limit = $limit;
+            head->As<TQuery>().WherePredicate = $where;
+            head->As<TQuery>().Limit = $limit;
         }
 ;
 

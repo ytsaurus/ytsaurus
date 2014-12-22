@@ -125,13 +125,6 @@ if(YT_BUILD_HAVE_RAGEL)
   if(NOT RAGEL_EXECUTABLE)
     message(FATAL_ERROR "Could not find Ragel")
   endif()
-  execute_process(
-    COMMAND ${RAGEL_EXECUTABLE} --version
-    OUTPUT_VARIABLE RAGEL_VERSION
-  )
-  if(NOT RAGEL_VERSION MATCHES "6.8")
-    message(FATAL_ERROR "Ragel 6.8 is required")
-  endif()
   message(STATUS "Found Ragel: ${RAGEL_EXECUTABLE}")
 endif()
 
@@ -141,13 +134,6 @@ if(YT_BUILD_HAVE_BISON)
   mark_as_advanced(BISON_EXECUTABLE)
   if(NOT BISON_EXECUTABLE)
     message(FATAL_ERROR "Could not find Bison")
-  endif()
-  execute_process(
-    COMMAND ${BISON_EXECUTABLE} --version
-    OUTPUT_VARIABLE BISON_VERSION
-  )
-  if(NOT BISON_VERSION MATCHES "3.0")
-    message(FATAL_ERROR "Bison 3.0 is required")
   endif()
   message(STATUS "Found Bison: ${BISON_EXECUTABLE}")
 endif()
