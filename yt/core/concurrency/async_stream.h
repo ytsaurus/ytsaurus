@@ -94,7 +94,7 @@ IAsyncInputStreamPtr CreateCopyingAdapter(IAsyncZeroCopyInputStreamPtr underlyin
 struct IAsyncZeroCopyOutputStream
     : public virtual TRefCounted
 {
-    //! Requests another block of data.
+    //! Enqueues another block of data.
     /*!
      *  Returns an error, if any.
      *  In contrast to IAsyncOutputStream, one may call #Write again before
