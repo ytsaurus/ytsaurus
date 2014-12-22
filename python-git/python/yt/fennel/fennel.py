@@ -775,9 +775,10 @@ class Application(object):
 
     def __init__(self, proxy_path, logbroker_url, table_name,
                  service_id, source_id,
-                 cluster_name, log_name):
+                 cluster_name, log_name,
+                 chunk_size):
         self._last_acked_seqno = None
-        self._chunk_size = 4000
+        self._chunk_size = chunk_size
         self._logbroker_url = logbroker_url
 
         self._service_id = service_id
@@ -886,10 +887,12 @@ def get_last_seqno(**kwargs):
 
 def main(proxy_path, table_name, logbroker_url,
          service_id, source_id,
-         cluster_name, log_name, **kwargs):
+         cluster_name, log_name,
+         chunk_size, **kwargs):
     app = Application(proxy_path, logbroker_url, table_name,
                       service_id, source_id,
-                      cluster_name, log_name)
+                      cluster_name, log_name,
+                      chunk_size)
     app.start()
 
 
