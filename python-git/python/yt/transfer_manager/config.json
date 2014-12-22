@@ -111,6 +111,7 @@
         "bsmr": ["plato"],
         "aristotle": ["plato", "kiwi_apteryx", "kiwi_main"]
     },
+    "backend_tag": "testing",
     "scheduling_backoff": 5,
     "error_details_length_limit": 50000,
     "pending_tasks_limit": 5000,
