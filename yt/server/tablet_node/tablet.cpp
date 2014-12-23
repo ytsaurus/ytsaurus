@@ -490,16 +490,10 @@ TTabletSnapshotPtr TTablet::BuildSnapshot() const
 
 void TTablet::Initialize()
 {
-    if (Config_->EnableCodeGeneration) {
-        Comparer_ = TDynamicRowKeyComparer(
-            GetKeyColumnCount(),
-            Schema_);
-    } else {
-        Comparer_ = TDynamicRowKeyComparer(
-            GetKeyColumnCount(),
-            Schema_,
-            TNoCodegenDynamicRowKeyCompare());
-    }
+    Comparer_ = TDynamicRowKeyComparer(
+        GetKeyColumnCount(),
+        Schema_,
+        Config_->EnableCodegen);
 
     ColumnIndexToLockIndex_.resize(Schema_.Columns().size());
     LockIndexToName_.push_back(PrimaryLockName);

@@ -74,7 +74,7 @@ class TTableMountConfig
     : public TRetentionConfig
 {
 public:
-    bool EnableCodeGeneration;
+    bool EnableCodegen;
 
     int MaxMemoryStoreKeyCount;
     int MaxMemoryStoreValueCount;
@@ -105,7 +105,7 @@ public:
 
     TTableMountConfig()
     {
-        RegisterParameter("enable_code_generation", EnableCodeGeneration)
+        RegisterParameter("enable_codegen", EnableCodegen)
             .Default(true);
 
         RegisterParameter("max_memory_store_key_count", MaxMemoryStoreKeyCount)

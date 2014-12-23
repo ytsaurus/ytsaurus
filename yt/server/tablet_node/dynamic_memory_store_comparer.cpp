@@ -32,25 +32,26 @@ public:
         , Schema_(schema)
     { }
 
-    static TIntrusivePtr<TImpl> CreateWithoutLlvm(int keyColumnCount, const TTableSchema& schema)
-    {
-        return New<TImpl>(keyColumnCount, schema);
-    }
-
-    static TIntrusivePtr<TImpl> CreateWithLlvm(int keyColumnCount, const TTableSchema& schema)
+    static TIntrusivePtr<TImpl> Create(
+        int keyColumnCount,
+        const TTableSchema& schema,
+        bool enableCodegen)
     {
 #ifdef YT_USE_LLVM
-        TCGFunction<TDDComparerSignature> ddComparer;
-        TCGFunction<TDUComparerSignature> duComparer;
-        std::tie(ddComparer, duComparer) = GenerateComparers(keyColumnCount, schema);
-        return New<TImpl>(
-            keyColumnCount,
-            schema,
-            std::move(ddComparer),
-            std::move(duComparer));
-#else
-        return CreateWithoutLlvm(keyColumnCount, schema);
+        if (enableCodegen) {
+            TCGFunction<TDDComparerSignature> ddComparer;
+            TCGFunction<TDUComparerSignature> duComparer;
+            std::tie(ddComparer, duComparer) = GenerateComparers(keyColumnCount, schema);
+            return New<TImpl>(
+                keyColumnCount,
+                schema,
+                std::move(ddComparer),
+                std::move(duComparer));
+        } else
 #endif
+        {
+            return New<TImpl>(keyColumnCount, schema);
+        }
     }
 
     int operator()(TDynamicRow lhs, TDynamicRow rhs) const
@@ -284,15 +285,9 @@ private:
 
 TDynamicRowKeyComparer::TDynamicRowKeyComparer(
     int keyColumnCount,
-    const TTableSchema& schema)
-    : Impl_(TImpl::CreateWithLlvm(keyColumnCount, schema))
-{ }
-
-TDynamicRowKeyComparer::TDynamicRowKeyComparer(
-    int keyColumnCount,
     const TTableSchema& schema,
-    TNoCodegenDynamicRowKeyCompare)
-    : Impl_(TImpl::CreateWithoutLlvm(keyColumnCount, schema))
+    bool enableCodegen)
+    : Impl_(TImpl::Create(keyColumnCount, schema, enableCodegen))
 { }
 
 TDynamicRowKeyComparer::TDynamicRowKeyComparer(const TDynamicRowKeyComparer& other) = default;
