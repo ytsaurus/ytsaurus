@@ -46,7 +46,8 @@ public:
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetPoolInvoker(),
             TServiceId(TObjectServiceProxy::GetServiceName(), masterCellId),
-            ObjectServerLogger)
+            ObjectServerLogger,
+            TObjectServiceProxy::GetProtocolVersion())
         , Config_(config)
         , MasterChannel_(CreateThrottlingChannel(
             config,
