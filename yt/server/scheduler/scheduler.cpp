@@ -1437,7 +1437,9 @@ private:
         JobUpdated_.Fire(job, -job->ResourceUsage());
         job->ResourceUsage() = ZeroNodeResources();
 
-        AbortJob(job, TError("Job preempted"));
+        TError error("Job preempted");
+        error.Attributes().Set("abort_reason", EAbortReason::Preemption);
+        AbortJob(job, error);
     }
 
 

@@ -55,6 +55,7 @@ DECLARE_ENUM(EAbortReason,
     (FailedChunks)
     (ResourceOverdraft)
     (Other)
+    (Preemption)
 );
 
 class TSchedulerServiceProxy;
