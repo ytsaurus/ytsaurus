@@ -17,6 +17,8 @@ public:
     // Takes ownership of #fd.
     explicit TAsyncReader(int fd);
 
+    virtual ~TAsyncReader();
+
     int GetHandle() const;
 
     virtual TFuture<TErrorOr<size_t>> Read(void* buffer, size_t length) override;

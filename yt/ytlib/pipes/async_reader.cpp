@@ -210,6 +210,12 @@ TAsyncReader::TAsyncReader(int fd)
     : Impl_(New<NDetail::TAsyncReaderImpl>(fd))
 { }
 
+TAsyncReader::~TAsyncReader()
+{
+    // abort does not fail
+    Impl_->Abort();
+}
+
 int TAsyncReader::GetHandle() const
 {
     return Impl_->GetHandle();

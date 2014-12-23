@@ -231,6 +231,12 @@ TAsyncWriter::TAsyncWriter(int fd)
     : Impl_(New<NDetail::TAsyncWriterImpl>(fd))
 { }
 
+TAsyncWriter::~TAsyncWriter()
+{
+    // abort does not fail
+    Impl_->Abort();
+}
+
 int TAsyncWriter::GetHandle() const
 {
     return Impl_->GetHandle();

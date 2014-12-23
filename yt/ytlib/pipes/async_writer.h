@@ -17,10 +17,12 @@ public:
     //! Takes ownership of #fd.
     explicit TAsyncWriter(int fd);
 
+    virtual ~TAsyncWriter();
+
     int GetHandle() const;
 
     virtual TAsyncError Write(const void* data, size_t size) override;
-    
+
     TAsyncError Close();
 
     //! Thread-safe, can be called multiple times.
