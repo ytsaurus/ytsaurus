@@ -851,7 +851,7 @@ private:
         TInputChunkMap::iterator NextChunkIterator;
         bool Started;
 
-        NLog::TTaggedLogger& Logger;
+        NLog::TTaggedLogger Logger;
 
     };
 
