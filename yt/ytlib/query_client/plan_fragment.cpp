@@ -450,7 +450,7 @@ TPlanFragmentPtr PreparePlanFragment(
             };
 
             std::function<TConstExpressionPtr(size_t, size_t, EBinaryOp)> gen = [&] (size_t offset, size_t keySize, EBinaryOp op) -> TConstExpressionPtr {
-                if (offset < keySize) {
+                if (offset + 1 < keySize) {
                     auto next = gen(offset + 1, keySize, op);
                     auto eq = MakeAndExpression(
                             makeBinaryExpr(EBinaryOp::Equal, typedLhsExpr[offset], typedRhsExpr[offset]),
@@ -467,14 +467,7 @@ TPlanFragmentPtr PreparePlanFragment(
                         return eq;
                     }                  
                 } else {
-                    bool canBeEqual = op == EBinaryOp::GreaterOrEqual
-                        || op == EBinaryOp::LessOrEqual
-                        || op == EBinaryOp::Equal;
-
-                    return New<TLiteralExpression>(
-                        NullSourceLocation,
-                        EValueType::Boolean,
-                        MakeUnversionedBooleanValue(canBeEqual));
+                    return makeBinaryExpr(op, typedLhsExpr[offset], typedRhsExpr[offset]);
                 }
             };
 

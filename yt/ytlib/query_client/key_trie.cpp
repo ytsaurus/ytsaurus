@@ -396,6 +396,23 @@ std::vector<TKeyRange> GetRangesFromTrieWithinRange(
     std::vector<TKeyRange> result;
 
     GetRangesFromTrieWithinRangeImpl(keyRange, &result, trie);
+
+    if (!result.empty()) {
+        std::vector<TKeyRange> mergedResult;
+    
+        mergedResult.push_back(result.front());
+
+        for (size_t i = 1; i < result.size(); ++i) {
+            if (mergedResult.back().second == result[i].first) {
+                mergedResult.back().second = result[i].second;
+            } else {
+                mergedResult.push_back(result[i]);
+            }
+        }
+
+        result = mergedResult;
+    }
+
     return result;
 }
 ////////////////////////////////////////////////////////////////////////////////
