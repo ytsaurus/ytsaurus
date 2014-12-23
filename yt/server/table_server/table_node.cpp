@@ -106,6 +106,11 @@ bool TTableNode::HasMountedTablets() const
     return false;
 }
 
+bool TTableNode::IsDynamic() const
+{
+    return !GetTrunkNode()->Tablets().empty();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNodeTypeHandler
@@ -196,7 +201,7 @@ protected:
         TTableNode* clonedNode,
         NCypressServer::ICypressNodeFactoryPtr factory) override
     {
-        if (!sourceNode->Tablets().empty()) {
+        if (sourceNode->IsDynamic()) {
             THROW_ERROR_EXCEPTION("Dynamic tables cannot be cloned");
         }
 
