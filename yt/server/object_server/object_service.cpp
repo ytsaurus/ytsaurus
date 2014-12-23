@@ -57,7 +57,8 @@ public:
         : TMasterHydraServiceBase(
             bootstrap,
             NObjectClient::TObjectServiceProxy::GetServiceName(),
-            ObjectServerLogger)
+            ObjectServerLogger,
+            NObjectClient::TObjectServiceProxy::GetProtocolVersion())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
