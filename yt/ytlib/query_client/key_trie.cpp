@@ -398,6 +398,7 @@ std::vector<TKeyRange> GetRangesFromTrieWithinRange(
     GetRangesFromTrieWithinRangeImpl(keyRange, &result, trie);
 
     if (!result.empty()) {
+        std::sort(result.begin(), result.end());
         std::vector<TKeyRange> mergedResult;
     
         mergedResult.push_back(result.front());
