@@ -8,6 +8,7 @@ namespace NYT {
 namespace NHydra {
 
 using namespace NConcurrency;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,7 +24,7 @@ public:
             BIND(&TLazyChangelog::OnUnderlyingChangelogReady, MakeWeak(this)));
     }
 
-    virtual TSharedRef GetMeta() const override
+    virtual const TChangelogMeta& GetMeta() const override
     {
         return GetUnderlyingChangelog()->GetMeta();
     }

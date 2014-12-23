@@ -12,10 +12,14 @@
 
 #include <core/concurrency/thread_affinity.h>
 
+#include <ytlib/hydra/hydra_manager.pb.h>
+
 #include <mutex>
 
 namespace NYT {
 namespace NHydra {
+
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,6 +78,7 @@ TNullable<TRecordInfo> ReadRecord(TInput& input)
     TChangelogRecordHeader header;
     readSize += ReadPodPadded(input, header);
     if (!input.Success() || header.DataSize <= 0) {
+        return Null;
     }
 
     struct TSyncChangelogRecordTag { };
@@ -243,8 +248,9 @@ public:
         ValidateSignature(header);
 
         // Read meta.
-        Meta_ = TSharedRef::Allocate(header.MetaSize);
-        ReadPadded(*DataFile_, Meta_);
+        SerializedMeta_ = TSharedRef::Allocate(header.MetaSize);
+        ReadPadded(*DataFile_, SerializedMeta_);
+        YCHECK(DeserializeFromProto(&Meta_, SerializedMeta_));
 
         Open_ = true;
         SealedRecordCount_ = header.SealedRecordCount;
@@ -285,7 +291,7 @@ public:
         Open_ = false;
     }
 
-    void Create(const TSharedRef& meta)
+    void Create(const TChangelogMeta& meta)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -296,6 +302,7 @@ public:
         YCHECK(!Open_);
 
         Meta_ = meta;
+        YCHECK(SerializeToProto(Meta_, &SerializedMeta_));
         RecordCount_ = 0;
         Open_ = true;
 
@@ -306,11 +313,11 @@ public:
             TFileWrapper tempFile(tempFileName, WrOnly|CreateAlways);
 
             TChangelogHeader header(
-                Meta_.Size(),
+                SerializedMeta_.Size(),
                 TChangelogHeader::UnsealedRecordCount);
             WritePod(tempFile, header);
 
-            WritePadded(tempFile, Meta_);
+            WritePadded(tempFile, SerializedMeta_);
 
             currentFilePosition = tempFile.GetPosition();
             YCHECK(currentFilePosition == header.HeaderSize);
@@ -335,7 +342,7 @@ public:
     }
 
 
-    TSharedRef GetMeta() const
+    const TChangelogMeta& GetMeta() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -648,7 +655,7 @@ private:
         DataFile_->Flush();
         i64 oldPosition = DataFile_->GetPosition();
         DataFile_->Seek(0, sSet);
-        TChangelogHeader header(Meta_.Size(), SealedRecordCount_);
+        TChangelogHeader header(SerializedMeta_.Size(), SealedRecordCount_);
         WritePod(*DataFile_, header);
         DataFile_->Seek(oldPosition, sSet);
     }
@@ -804,7 +811,8 @@ private:
     i64 CurrentFilePosition_ = -1;
     TInstant LastFlushed_;
 
-    TSharedRef Meta_;
+    TChangelogMeta Meta_;
+    TSharedRef SerializedMeta_;
 
     std::vector<TChangelogIndexRecord> Index_;
 
@@ -851,7 +859,7 @@ void TSyncFileChangelog::Close()
     Impl_->Close();
 }
 
-void TSyncFileChangelog::Create(const TSharedRef& meta)
+void TSyncFileChangelog::Create(const TChangelogMeta& meta)
 {
     Impl_->Create(meta);
 }
@@ -866,7 +874,7 @@ i64 TSyncFileChangelog::GetDataSize() const
     return Impl_->GetDataSize();
 }
 
-TSharedRef TSyncFileChangelog::GetMeta() const
+const TChangelogMeta& TSyncFileChangelog::GetMeta() const
 {
     return Impl_->GetMeta();
 }

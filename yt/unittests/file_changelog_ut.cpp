@@ -5,11 +5,14 @@
 #include <server/hydra/changelog.h>
 #include <server/hydra/local_changelog_store.h>
 
+#include <ytlib/hydra/hydra_manager.pb.h>
+
 #include <core/concurrency/action_queue.h>
 
 #include <core/misc/fs.h>
 
 #include <util/random/random.h>
+
 #include <util/system/tempfile.h>
 
 namespace NYT {
@@ -17,6 +20,7 @@ namespace NHydra {
 namespace {
 
 using namespace NConcurrency;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,8 +42,7 @@ protected:
 
         ChangelogStore = CreateLocalChangelogStore("ChangelogFlush", ChangelogStoreConfig);
 
-        TSharedRef ref;
-        auto changelogOrError = ChangelogStore->CreateChangelog(0, ref).Get();
+        auto changelogOrError = ChangelogStore->CreateChangelog(0, TChangelogMeta()).Get();
 
         ASSERT_TRUE(changelogOrError.IsOK());
 

@@ -6,6 +6,8 @@
 #include <server/hydra/sync_file_changelog.h>
 #include <server/hydra/format.h>
 
+#include <ytlib/hydra/hydra_manager.pb.h>
+
 #include <core/profiling/scoped_timer.h>
 
 #include <core/misc/fs.h>
@@ -15,10 +17,13 @@
 #include <util/system/tempfile.h>
 
 #include <array>
+#include <curses.h>
 
 namespace NYT {
 namespace NHydra {
 namespace {
+
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,7 +60,7 @@ protected:
 
         auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), fileChangelogConfig);
 
-        changelog->Create(TSharedRef());
+        changelog->Create(TChangelogMeta());
         auto records = MakeRecords<TRecordType>(0, recordCount);
         changelog->Append(0, records);
         changelog->Flush();
@@ -113,7 +118,7 @@ protected:
         i32 recordCount,
         i32 logRecordCount)
     {
-        std::vector<TSharedRef> records = changelog->Read(firstRecordId, recordCount, std::numeric_limits<i64>::max());
+        auto records = changelog->Read(firstRecordId, recordCount, std::numeric_limits<i64>::max());
 
         i32 expectedRecordCount =
             firstRecordId >= logRecordCount ?
@@ -137,8 +142,7 @@ protected:
 
     void TestCorrupted(i64 newFileSize, i32 initialRecordCount, i32 correctRecordCount) const
     {
-        if (newFileSize > GetFileSize())
-        {
+        if (newFileSize > GetFileSize()) {
             // Add trash to file
             TFile file(TemporaryFile->Name(), RdWr);
             file.Seek(0, sEnd);
@@ -194,7 +198,7 @@ TEST_F(TSyncFileChangelogTest, EmptyChangelog)
 {
     {
         auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), New<TFileChangelogConfig>());
-        changelog->Create(TSharedRef());
+        changelog->Create(TChangelogMeta());
     }
     {
         auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), New<TFileChangelogConfig>());
@@ -213,7 +217,8 @@ TSharedRef GenerateBlob(size_t size)
 
 TEST_F(TSyncFileChangelogTest, Meta)
 {
-    auto meta = GenerateBlob(1000);
+    TChangelogMeta meta;
+    meta.set_prev_record_count(123);
     auto record = GenerateBlob(2000);
 
     {
@@ -225,7 +230,7 @@ TEST_F(TSyncFileChangelogTest, Meta)
     {
         auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), New<TFileChangelogConfig>());
         changelog->Open();
-        EXPECT_TRUE(TRef::AreBitwiseEqual(meta, changelog->GetMeta()));
+        EXPECT_EQ(meta.prev_record_count(), changelog->GetMeta().prev_record_count());
         EXPECT_EQ(1, changelog->GetRecordCount());
         EXPECT_TRUE(TRef::AreBitwiseEqual(record, changelog->Read(0, 1, std::numeric_limits<i64>::max())[0]));
     }

@@ -25,7 +25,7 @@ public:
     //! Synchronously creates a new changelog.
     IChangelogPtr CreateChangelog(
         const Stroka& path,
-        const TSharedRef& meta,
+        const NProto::TChangelogMeta& meta,
         TFileChangelogConfigPtr config);
 
     //! Synchronously opens an existing changelog.

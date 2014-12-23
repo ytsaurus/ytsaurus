@@ -17,6 +17,7 @@ namespace NYT {
 namespace NHydra {
 
 using namespace NConcurrency;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -692,7 +693,7 @@ public:
         return DataSize_;
     }
 
-    virtual TSharedRef GetMeta() const override
+    virtual const TChangelogMeta& GetMeta() const override
     {
         return SyncChangelog_->GetMeta();
     }
@@ -777,7 +778,7 @@ IInvokerPtr TFileChangelogDispatcher::GetInvoker()
 
 IChangelogPtr TFileChangelogDispatcher::CreateChangelog(
     const Stroka& path,
-    const TSharedRef& meta,
+    const TChangelogMeta& meta,
     TFileChangelogConfigPtr config)
 {
     auto syncChangelog = New<TSyncFileChangelog>(path, config);

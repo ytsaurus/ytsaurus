@@ -28,6 +28,7 @@ namespace NDataNode {
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NHydra;
+using namespace NHydra::NProto;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,7 +211,7 @@ private:
                 auto fileName = location->GetChunkFileName(chunkId);
                 changelog = ChangelogDispatcher_->CreateChangelog(
                     fileName,
-                    TSharedRef(),
+                    TChangelogMeta(),
                     Config_->SplitChangelog);
             } catch (const std::exception& ex) {
                 auto error = TError(
@@ -373,7 +374,7 @@ private:
 
         auto changelog = ChangelogDispatcher_->CreateChangelog(
             GetMultiplexedChangelogPath(id),
-            TSharedRef(),
+            TChangelogMeta(),
             Config_->MultiplexedChangelog);
 
         LOG_INFO("Finished creating new multiplexed changelog %v",
@@ -451,7 +452,7 @@ public:
             GetKey());
     }
 
-    virtual TSharedRef GetMeta() const override
+    virtual const TChangelogMeta& GetMeta() const override
     {
         return UnderlyingChangelog_->GetMeta();
     }

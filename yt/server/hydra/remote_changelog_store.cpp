@@ -32,8 +32,9 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteChangelogStore;
-typedef TIntrusivePtr<TRemoteChangelogStore> TRemoteChangelogStorePtr;
+DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStore)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteChangelogStore
     : public IChangelogStore
@@ -54,7 +55,7 @@ public:
         Logger.AddTag("Path: %v", RemotePath_);
     }
 
-    virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(int id, const TSharedRef& meta) override
+    virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(int id, const TChangelogMeta& meta) override
     {
         return BIND(&TRemoteChangelogStore::DoCreateChangelog, MakeStrong(this))
             .Guarded()
@@ -88,12 +89,9 @@ private:
     NLog::TLogger Logger = HydraLogger;
 
 
-    IChangelogPtr DoCreateChangelog(int id, const TSharedRef& metaBlob)
+    IChangelogPtr DoCreateChangelog(int id, const TChangelogMeta& meta)
     {
         auto path = GetRemotePath(id);
-
-        TChangelogMeta meta;
-        YCHECK(DeserializeFromProto(&meta, metaBlob));
 
         LOG_DEBUG("Creating changelog %v",
             id);
@@ -133,7 +131,7 @@ private:
         return CreateRemoteChangelog(
             id,
             path,
-            metaBlob,
+            meta,
             writer,
             0,
             0);
@@ -143,7 +141,7 @@ private:
     {
         auto path = GetRemotePath(id);
 
-        TSharedRef metaBlob;
+        TChangelogMeta meta;
         int recordCount;
         i64 dataSize;
 
@@ -174,10 +172,7 @@ private:
                     RemotePath_);
             }
 
-            TChangelogMeta meta;
             meta.set_prev_record_count(attributes.Get<int>("prev_record_count"));
-            YCHECK(SerializeToProto(meta, &metaBlob));
-
             dataSize = attributes.Get<i64>("uncompressed_data_size");
         }
         LOG_DEBUG("Changelog %v attributes received",
@@ -197,7 +192,7 @@ private:
         return CreateRemoteChangelog(
             id,
             path,
-            metaBlob,
+            meta,
             nullptr,
             recordCount,
             dataSize);
@@ -246,7 +241,7 @@ private:
     IChangelogPtr CreateRemoteChangelog(
         int id,
         const TYPath& path,
-        const TSharedRef& meta,
+        const TChangelogMeta& meta,
         IJournalWriterPtr writer,
         int recordCount,
         i64 dataSize)
@@ -272,7 +267,7 @@ private:
     public:
         TRemoteChangelog(
             const TYPath& path,
-            const TSharedRef& meta,
+            const TChangelogMeta& meta,
             int recordCount,
             i64 dataSize,
             IJournalWriterPtr writer,
@@ -285,7 +280,7 @@ private:
             , Owner_(owner)
         { }
 
-        virtual TSharedRef GetMeta() const override
+        virtual const TChangelogMeta& GetMeta() const override
         {
             return Meta_;
         }
@@ -361,7 +356,7 @@ private:
 
     private:
         TYPath Path_;
-        TSharedRef Meta_;
+        TChangelogMeta Meta_;
         IJournalWriterPtr Writer_;
         int RecordCount_;
         i64 DataSize_;
@@ -372,6 +367,8 @@ private:
     };
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStore)
 
 IChangelogStorePtr CreateRemoteChangelogStore(
     TRemoteChangelogStoreConfigPtr config,

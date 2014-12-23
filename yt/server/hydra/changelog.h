@@ -15,8 +15,8 @@ namespace NHydra {
 struct IChangelog
     : public virtual TRefCounted
 {
-    //! Returns the meta blob.
-    virtual TSharedRef GetMeta() const = 0;
+    //! Returns the meta.
+    virtual const NProto::TChangelogMeta& GetMeta() const = 0;
 
     //! Returns the number of records in the changelog.
     virtual int GetRecordCount() const = 0;
@@ -89,9 +89,7 @@ struct IChangelogStore
     : public virtual TRefCounted
 {
     //! Creates a new changelog.
-    virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(
-        int id,
-        const TSharedRef& meta) = 0;
+    virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(int id, const NProto::TChangelogMeta& meta) = 0;
 
     //! Opens an existing changelog.
     virtual TFuture<TErrorOr<IChangelogPtr>> OpenChangelog(int id) = 0;

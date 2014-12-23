@@ -501,7 +501,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    NProto::TMutationHeader header;
+    TMutationHeader header;
     TSharedRef requestData;
     DeserializeMutationRecord(recordData, &header, &requestData);
 
@@ -649,15 +649,12 @@ void TDecoratedAutomaton::DoRotateChangelog()
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 
-    NProto::TChangelogMeta meta;
+    TChangelogMeta meta;
     meta.set_prev_record_count(Changelog_->GetRecordCount());
-
-    TSharedRef metaBlob;
-    YCHECK(SerializeToProto(meta, &metaBlob));
 
     auto newChangelogOrError = WaitFor(ChangelogStore_->CreateChangelog(
         LoggedVersion_.SegmentId + 1,
-        metaBlob));
+        meta));
     THROW_ERROR_EXCEPTION_IF_FAILED(newChangelogOrError);
 
     Changelog_ = newChangelogOrError.Value();

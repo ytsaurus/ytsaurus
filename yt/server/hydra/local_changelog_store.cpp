@@ -10,10 +10,13 @@
 
 #include <core/logging/log.h>
 
+#include <ytlib/hydra/hydra_manager.pb.h>
+
 namespace NYT {
 namespace NHydra {
 
 using namespace NConcurrency;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +32,7 @@ public:
         , UnderlyingChangelog_(underlyingChangelog)
     { }
 
-    virtual TSharedRef GetMeta() const override
+    virtual const TChangelogMeta& GetMeta() const override
     {
         return UnderlyingChangelog_->GetMeta();
     }
@@ -111,7 +114,7 @@ public:
         NFS::CleanTempFiles(Config_->Path);
     }
 
-    virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(int id, const TSharedRef& meta) override
+    virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(int id, const TChangelogMeta& meta) override
     {
         return BIND(&TLocalChangelogStore::DoCreateChangelog, MakeStrong(this))
             .Guarded()
@@ -150,7 +153,7 @@ private:
     }
 
 
-    IChangelogPtr DoCreateChangelog(int id, const TSharedRef& meta)
+    IChangelogPtr DoCreateChangelog(int id, const TChangelogMeta& meta)
     {
         TInsertCookie cookie(id);
         if (!BeginInsert(&cookie)) {

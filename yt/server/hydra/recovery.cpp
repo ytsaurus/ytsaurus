@@ -144,10 +144,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             NProto::TChangelogMeta meta;
             meta.set_prev_record_count(currentVersion.RecordId);
             
-            TSharedRef metaBlob;
-            YCHECK(SerializeToProto(meta, &metaBlob));
-
-            auto changelogOrError = WaitFor(ChangelogStore_->CreateChangelog(changelogId, metaBlob));
+            auto changelogOrError = WaitFor(ChangelogStore_->CreateChangelog(changelogId, meta));
             THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
             changelog = changelogOrError.Value();
 
@@ -248,9 +245,7 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
     if (currentVersion.SegmentId != changelogId) {
         YCHECK(currentVersion.SegmentId == changelogId - 1);
 
-        NProto::TChangelogMeta meta;
-        YCHECK(DeserializeFromProto(&meta, changelog->GetMeta()));
-
+        const auto& meta = changelog->GetMeta();
         YCHECK(meta.prev_record_count() == currentVersion.RecordId);
 
         // Prepare to apply mutations at the rotated version.
