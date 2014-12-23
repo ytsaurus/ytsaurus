@@ -2,42 +2,84 @@
 
 #include "helpers.h"
 
-#include <ytlib/table_client/sync_reader.h>
-#include <ytlib/table_client/table_producer.h>
+#include <ytlib/new_table_client/schemaless_chunk_reader.h>
+#include <ytlib/new_table_client/schemaless_writer.h>
+#include <ytlib/new_table_client/name_table.h>
 
 #include <core/yson/consumer.h>
+
+#include <core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NJobProxy {
 
 using namespace NFormats;
-using namespace NTableClient;
+using namespace NVersionedTableClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const int BufferSize = 1024 * 1024;
+static const int BufferRowCount = 1024;
 
 TContextPreservingInput::TContextPreservingInput(
-    ISyncReaderPtr reader, 
+    ISchemalessMultiChunkReaderPtr reader,
     const TFormat& format, 
     bool enableTableSwitch)
     : Reader_(reader)
-    , Format_(format)
     , EnableTableSwitch_(enableTableSwitch) 
+    , TableIndex_(-1)
 {
     CurrentBuffer_.Reserve(BufferSize);
     PreviousBuffer_.Reserve(BufferSize);
+
+    auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &CurrentBuffer_);
+
+    Consumer_ = consumer.get();
+    Writer_ = CreateSchemalessWriterAdaptor(
+        std::move(consumer), 
+        Reader_->GetNameTable());
 }
 
 void TContextPreservingInput::PipeReaderToOutput(TOutputStream* outputStream)
 {
-    auto consumer = CreateConsumerForFormat(
-        Format_,
-        EDataType::Tabular,
-        &CurrentBuffer_);
 
-    TTableProducer producer(Reader_, consumer.get(), EnableTableSwitch_);
-    while (producer.ProduceRow()) {
+    std::vector<TUnversionedRow> rows;
+    rows.reserve(BufferRowCount);
+    while (Reader_->Read(&rows)) {
+        if (rows.empty()) {
+            WaitFor(Reader_->GetReadyEvent());
+            continue;
+        }
+
+        if (EnableTableSwitch_ && TableIndex_ != Reader_->GetTableIndex()) {
+            TableIndex_ = Reader_->GetTableIndex();
+
+            Consumer_->OnListItem();
+            Consumer_->OnBeginAttributes();
+            Consumer_->OnKeyedItem("table_index");
+            Consumer_->OnInt64Scalar(TableIndex_);
+            Consumer_->OnEndAttributes();
+            Consumer_->OnEntity();
+        }
+
+        WriteRows(rows, outputStream);
+    }
+
+    outputStream->Write(CurrentBuffer_.Begin(), CurrentBuffer_.Size());
+    outputStream->Finish();
+
+    auto asyncError = Writer_->Close();
+    YCHECK(asyncError.IsSet());
+
+    THROW_ERROR_EXCEPTION_IF_FAILED(asyncError.Get());
+}
+
+void TContextPreservingInput::WriteRows(const std::vector<TUnversionedRow>& rows, TOutputStream* outputStream)
+{
+    for (auto row : rows) {
+        YCHECK(Writer_->Write(std::vector<TUnversionedRow>(1, row)));
+        
         if (CurrentBuffer_.Size() < BufferSize) {
             continue;
         }
@@ -47,9 +89,6 @@ void TContextPreservingInput::PipeReaderToOutput(TOutputStream* outputStream)
         swap(CurrentBuffer_, PreviousBuffer_);
         CurrentBuffer_.Clear();
     }
-
-    outputStream->Write(CurrentBuffer_.Begin(), CurrentBuffer_.Size());
-    outputStream->Finish();
 }
 
 TBlob TContextPreservingInput::GetContext() const
@@ -58,25 +97,6 @@ TBlob TContextPreservingInput::GetContext() const
     result.Append(TRef::FromBlob(PreviousBuffer_.Blob()));
     result.Append(TRef::FromBlob(CurrentBuffer_.Blob()));
     return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void PipeInputToOutput(TInputStream* input, TOutputStream* output)
-{
-    struct TInputToOutputBufferTag {};
-    TBlob buffer(TInputToOutputBufferTag(), BufferSize, false);
-
-    while (true) {
-        auto len = input->Read(buffer.Begin(), BufferSize);
-        if (len == 0) {
-            break;
-        }
-
-        output->Write(buffer.Begin(), len);
-    }
-
-    output->Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

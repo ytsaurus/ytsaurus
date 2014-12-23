@@ -18,9 +18,6 @@
 #include <ytlib/chunk_client/memory_reader.h>
 #include <ytlib/chunk_client/memory_writer.h>
 
-//#include <ytlib/table_client/table_writer.h>
-//#include <ytlib/table_client/table_consumer.h>
-
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/helpers.h>
 #include <ytlib/new_table_client/name_table.h>
@@ -92,7 +89,7 @@ void TReadTableCommand::DoExecute()
         .Item("start_row_index").Value(reader->GetTableRowIndex());
 
     // ToDo(psushin): implement and use buffered output stream.
-    auto output = CreateSyncOutputStream(Context_->Request().OutputStream);
+    auto output = CreateSyncAdapter(Context_->Request().OutputStream);
     auto format = Context_->GetOutputFormat();
 
     auto writer = CreateSchemalessWriterForFormat(format, nameTable, output.get());
@@ -129,11 +126,11 @@ void TWriteTableCommand::DoExecute()
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
-    auto writingConsumer = New<TWritingValueConsumer>(writer, nameTable);
+    auto writingConsumer = New<TWritingValueConsumer>(writer);
     TTableConsumer consumer(writingConsumer);
 
     TTableOutput output(Context_->GetInputFormat(), &consumer);
-    auto input = CreateSyncInputStream(Context_->Request().InputStream);
+    auto input = CreateSyncAdapter(Context_->Request().InputStream);
 
     PipeInputToOutput(input.get(), &output, config->BlockSize);
 
@@ -248,7 +245,7 @@ void TInsertCommand::DoExecute()
 
     TTableConsumer consumer(valueConsumer);
     TTableOutput output(Context_->GetInputFormat(), &consumer);
-    auto input = CreateSyncInputStream(Context_->Request().InputStream);
+    auto input = CreateSyncAdapter(Context_->Request().InputStream);
 
     PipeInputToOutput(input.get(), &output, config->BlockSize);
 

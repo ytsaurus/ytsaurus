@@ -50,6 +50,12 @@ public:
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override;
 
+    virtual TNameTablePtr GetNameTable() const override;
+
+    virtual i64 GetSessionRowCount() const override;
+
+    virtual i64 GetSessionRowIndex() const override;
+
 private:
     struct TSession
     {
@@ -64,6 +70,9 @@ private:
 
     std::vector<TSession> SessionHolder_;
     std::vector<TSession*> SessionHeap_;
+
+    i64 RowCount_ = 0;
+    i64 RowIndex_ = 0;
 
     TAsyncError ReadyEvent_;
     int TableIndex_;
@@ -110,6 +119,8 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
         session.Reader = reader;
         session.Rows.reserve(rowsPerSession);
         session.CurrentRowIndex = 0;
+
+        RowCount_ += reader->GetSessionRowCount();
     }
 }
 
@@ -182,6 +193,7 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow> *rows)
     while (rows->size() < rows->capacity()) {
         rows->push_back(session->Rows[session->CurrentRowIndex]);
         ++session->CurrentRowIndex;
+        ++RowIndex_;
 
         if (session->CurrentRowIndex == session->Rows.size()) {
             // Out of prefetched rows in this session.
@@ -239,6 +251,21 @@ std::vector<TChunkId> TSchemalessSortedMergingReader::GetFailedChunkIds() const
         result.insert(result.end(), failedChunks.begin(), failedChunks.end());
     }
     return result;
+}
+
+TNameTablePtr TSchemalessSortedMergingReader::GetNameTable() const
+{
+    return SessionHolder_.front().Reader->GetNameTable();
+}
+
+i64 TSchemalessSortedMergingReader::GetSessionRowCount() const
+{
+    return RowCount_;
+}
+
+i64 TSchemalessSortedMergingReader::GetSessionRowIndex() const
+{
+    return RowIndex_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

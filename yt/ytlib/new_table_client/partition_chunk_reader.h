@@ -134,6 +134,9 @@ public:
         TValueInsertIterator& valueInserter,
         TRowPointerInsertIterator& rowPointerInserter,
         i64* rowCount);
+
+    TNameTablePtr GetNameTable() const;
+
 private:
     NChunkClient::IBlockCachePtr UncompressedBlockCache_;
 
