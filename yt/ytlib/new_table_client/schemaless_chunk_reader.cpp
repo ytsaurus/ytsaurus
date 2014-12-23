@@ -81,6 +81,9 @@ public:
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
     virtual TDataStatistics GetDataStatistics() const override;
+
+    virtual TNameTablePtr GetNameTable() const override;
+
     i64 GetTableRowIndex() const;
 
 private:
@@ -361,6 +364,11 @@ bool TSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
     return true;
 }
 
+TNameTablePtr TSchemalessChunkReader::GetNameTable() const
+{
+    return NameTable_;
+}
+
 i64 TSchemalessChunkReader::GetTableRowIndex() const
 {
     return TableRowIndex_ + CurrentRowIndex_;
@@ -418,6 +426,12 @@ public:
 
     virtual int GetTableIndex() const override;
 
+    virtual i64 GetSessionRowIndex() const override;
+
+    virtual i64 GetSessionRowCount() const override;
+
+    virtual TNameTablePtr GetNameTable() const override;
+
     i64 GetTableRowIndex() const;
 
 private:
@@ -427,7 +441,9 @@ private:
 
     IBlockCachePtr UncompressedBlockCache_;
 
-    TSchemalessChunkReaderPtr CurrentReader_;
+    TSchemalessChunkReaderPtr CurrentReader_ = nullptr;
+    std::atomic<i64> RowIndex_;
+    std::atomic<i64> RowCount_;
 
     using TBase::ReadyEvent_;
     using TBase::CurrentSession_;
@@ -456,6 +472,8 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , UncompressedBlockCache_(uncompressedBlockCache)
+    , RowIndex_(0)
+    , RowCount_(GetCumulativeRowCount(chunkSpecs))
 { }
 
 template <class TBase>
@@ -469,10 +487,16 @@ bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows
         return false;
 
     bool readerFinished = !CurrentReader_->Read(rows);
-    if (rows->empty()) {
-        return TBase::OnEmptyRead(readerFinished);
-    } else {
+    if (!rows->empty()) {
+        RowIndex_ += rows->size();
         return true;
+    }
+    
+    if (TBase::OnEmptyRead(readerFinished)) {
+        return true;
+    } else {
+        RowCount_ = RowIndex_.load();
+        return false;
     }
 }
 
@@ -509,9 +533,27 @@ void TSchemalessMultiChunkReader<TBase>::OnReaderSwitched()
 }
 
 template <class TBase>
+i64 TSchemalessMultiChunkReader<TBase>::GetSessionRowCount() const
+{
+    return RowCount_;
+}
+
+template <class TBase>
+i64 TSchemalessMultiChunkReader<TBase>::GetSessionRowIndex() const
+{
+    return RowIndex_;
+}
+
+template <class TBase>
 i64 TSchemalessMultiChunkReader<TBase>::GetTableRowIndex() const
 {
     return CurrentReader_ ? CurrentReader_->GetTableRowIndex() : 0;
+}
+
+template <class TBase>
+TNameTablePtr TSchemalessMultiChunkReader<TBase>::GetNameTable() const
+{
+    return NameTable_;
 }
 
 template <class TBase>
@@ -591,7 +633,7 @@ public:
     virtual TAsyncError GetReadyEvent() override;
 
     virtual i64 GetTableRowIndex() const override;
-
+    virtual TNameTablePtr GetNameTable() const override;
 
 private:
     typedef TSchemalessMultiChunkReader<TSequentialMultiChunkReaderBase> TUnderlyingReader;
@@ -762,6 +804,11 @@ i64 TSchemalessTableReader::GetTableRowIndex() const
 {
     YCHECK(UnderlyingReader_);
     return UnderlyingReader_->GetTableRowIndex();
+}
+
+TNameTablePtr TSchemalessTableReader::GetNameTable() const
+{
+    return NameTable_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

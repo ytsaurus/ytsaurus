@@ -76,6 +76,8 @@ public:
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
 
+    virtual TNameTablePtr GetNameTable() const override;
+
 private:
     TNameTablePtr NameTable_;
 
@@ -139,6 +141,12 @@ IBlockWriter* TSchemalessChunkWriter<TBase>::CreateBlockWriter()
     return CurrentBlockWriter_;
 }
 
+template <class TBase>
+TNameTablePtr TSchemalessChunkWriter<TBase>::GetNameTable() const
+{
+    return NameTable_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
@@ -171,6 +179,8 @@ public:
         IPartitioner* partitioner);
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
+
+    virtual TNameTablePtr GetNameTable() const override;
 
     virtual i64 GetDataSize() const override;
 
@@ -317,6 +327,11 @@ i64 TPartitionChunkWriter::GetMetaSize() const
     return TChunkWriterBase::GetMetaSize() + 2 * sizeof(i64) * BlockWriters_.size();
 }
 
+TNameTablePtr TPartitionChunkWriter::GetNameTable() const
+{
+    return NameTable_;
+}
+
 TError TPartitionChunkWriter::DoClose()
 {
     for (int partitionIndex = 0; partitionIndex < BlockWriters_.size(); ++partitionIndex) {
@@ -385,6 +400,8 @@ public:
         ISchemalessMultiChunkWriterPtr underlyingWriter);
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
+
+    virtual TNameTablePtr GetNameTable() const override;
 
 private:
     TChunkedMemoryPool MemoryPool_;
@@ -464,6 +481,35 @@ TDataStatistics TReorderingSchemalessMultiChunkWriter::GetDataStatistics() const
     return UnderlyingWriter_->GetDataStatistics();
 }
 
+TNameTablePtr TReorderingSchemalessMultiChunkWriter::GetNameTable() const
+{
+    return UnderlyingWriter_->GetNameTable();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TBase>
+class TSchemalessMultiChunkWriter
+    : public TBase
+{
+public:
+    using TBase::TBase;
+
+    virtual TNameTablePtr GetNameTable() const override
+    {
+        return NameTable_;
+    }
+
+    //! This method is written to avoid ctor boilerplate.
+    void SetNameTable(TNameTablePtr nameTable)
+    {
+        NameTable_ = nameTable;
+    }
+
+private:
+    TNameTablePtr NameTable_;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
@@ -479,7 +525,8 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     typedef TMultiChunkWriterBase<
         ISchemalessMultiChunkWriter,
         ISchemalessChunkWriter,
-        const std::vector<TUnversionedRow>&> TSchemalessMultiChunkWriter;
+        const std::vector<TUnversionedRow>&> TSchemalessMultiChunkWriterBase;
+    typedef TSchemalessMultiChunkWriter<TSchemalessMultiChunkWriterBase> TWriter;
 
     auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
         return CreateSchemalessChunkWriter(
@@ -490,13 +537,14 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
             underlyingWriter);
     };
 
-    auto writer = New<TSchemalessMultiChunkWriter>(
+    auto writer = New<TWriter>(
         config,
         options,
         masterChannel,
         transactionId,
         parentChunkListId,
         createChunkWriter);
+    writer->SetNameTable(nameTable);
 
     if (reorderValues && !keyColumns.empty())
         return New<TReorderingSchemalessMultiChunkWriter>(keyColumns, nameTable, writer);
@@ -521,7 +569,9 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     typedef TMultiChunkWriterBase<
         ISchemalessMultiChunkWriter,
         ISchemalessChunkWriter,
-        const std::vector<TUnversionedRow>&> TPartitionMultiChunkWriter;
+        const std::vector<TUnversionedRow>&> TPartitionMultiChunkWriterBase;
+
+    typedef TSchemalessMultiChunkWriter<TPartitionMultiChunkWriterBase> TWriter;
 
     // Convert to shared_ptr to capture partitioner in lambda.
     std::shared_ptr<IPartitioner> sharedPartitioner(std::move(partitioner));
@@ -535,7 +585,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
             sharedPartitioner.get());
     };
 
-    auto writer = New<TPartitionMultiChunkWriter>(
+    auto writer = New<TWriter>(
         config,
         options,
         masterChannel,
@@ -566,6 +616,7 @@ public:
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
     virtual TAsyncError GetReadyEvent() override;
     virtual TAsyncError Close() override;
+    virtual TNameTablePtr GetNameTable() const override;
 
 private:
     NLog::TLogger Logger;
@@ -863,6 +914,11 @@ TError TSchemalessTableWriter::DoClose()
     }
 
     return TError();
+}
+
+TNameTablePtr TSchemalessTableWriter::GetNameTable() const
+{
+    return NameTable_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

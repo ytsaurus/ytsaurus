@@ -454,9 +454,8 @@ void TTableConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TWritingValueConsumer::TWritingValueConsumer(ISchemalessWriterPtr writer, TNameTablePtr nameTable)
+TWritingValueConsumer::TWritingValueConsumer(ISchemalessWriterPtr writer)
     : Writer_(writer)
-    , NameTable_(nameTable)
     , CurrentBufferSize_(0)
 {
     YCHECK(Writer_);
@@ -474,7 +473,7 @@ void TWritingValueConsumer::Flush() {
 }
 
 TNameTablePtr TWritingValueConsumer::GetNameTable() const {
-    return NameTable_;
+    return Writer_->GetNameTable();
 }
 
 bool TWritingValueConsumer::GetAllowUnknownColumns() const {

@@ -72,6 +72,10 @@ NVersionedTableClient::ISchemafulWriterPtr CreateSchemafulWriterForFormat(
     const TFormat& format,
     NConcurrency::IAsyncOutputStreamPtr output);
 
+NVersionedTableClient::ISchemalessWriterPtr CreateSchemalessWriterAdaptor(
+    std::unique_ptr<NYson::IYsonConsumer> consumer,
+    NVersionedTableClient::TNameTablePtr nameTable);
+
 NVersionedTableClient::ISchemalessWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     NVersionedTableClient::TNameTablePtr nameTable,

@@ -152,6 +152,21 @@ public:
         return 0;
     }
 
+    virtual i64 GetSessionRowIndex() const override
+    {
+        return ReadRowCount_;
+    }
+
+    virtual i64 GetSessionRowCount() const override
+    {
+        return TotalRowCount_;
+    }
+
+    virtual TNameTablePtr GetNameTable() const override
+    {
+        return UnderlyingReader_->GetNameTable();
+    }
+
     virtual bool IsFetchingCompleted() const override
     {
         YCHECK(UnderlyingReader_);

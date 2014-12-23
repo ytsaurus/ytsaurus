@@ -18,6 +18,7 @@ struct IMultiChunkReader
     virtual NProto::TDataStatistics GetDataStatistics() const = 0;
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IMultiChunkReader)

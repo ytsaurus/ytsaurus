@@ -113,6 +113,21 @@ public:
         return UnderlyingReader_->GetFailedChunkIds();
     }
 
+    virtual TNameTablePtr GetNameTable() const override
+    {
+        return UnderlyingReader_->GetNameTable();
+    }
+
+    virtual i64 GetSessionRowCount() const override
+    {
+        return Rows_.size();
+    }
+
+    virtual i64 GetSessionRowIndex() const override
+    {
+        return ReadRowCount_;
+    }
+
 private:
     TSchemalessRowReorderer RowReorderer_;
 

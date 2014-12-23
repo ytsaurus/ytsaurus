@@ -4,7 +4,7 @@
 
 #include "user_job_io.h"
 
-#include <ytlib/table_client/public.h>
+#include <ytlib/new_table_client/public.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -23,8 +23,8 @@ public:
 
     virtual void Init() override;
 
-    virtual const std::vector<NTableClient::ISyncWriterUnsafePtr>& GetWriters() const override;
-    virtual const std::vector<NTableClient::ISyncReaderPtr>& GetReaders() const override;
+    virtual const std::vector<NVersionedTableClient::ISchemalessMultiChunkWriterPtr>& GetWriters() const override;
+    virtual const std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr>& GetReaders() const override;
 
     virtual void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) override;
 
@@ -34,11 +34,12 @@ protected:
     const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpec_;
     NScheduler::TJobIOConfigPtr JobIOConfig_;
 
-    std::vector<NTableClient::ISyncReaderPtr> Readers_;
-    std::vector<NTableClient::ISyncWriterUnsafePtr> Writers_;
+    std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr> Readers_;
+    std::vector<NVersionedTableClient::ISchemalessMultiChunkWriterPtr> Writers_;
 
     NLog::TLogger Logger;
 
+/*
 
     virtual NTableClient::ISyncWriterUnsafePtr DoCreateWriter(
         NTableClient::TTableWriterOptionsPtr options,
@@ -58,6 +59,7 @@ protected:
         NTableClient::TTableWriterOptionsPtr options,
         const NChunkClient::TChunkListId& chunkListId,
         const NTransactionClient::TTransactionId& transactionId);
+    */
 
 };
 

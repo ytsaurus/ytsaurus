@@ -45,10 +45,18 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
 
 struct ISchemalessMultiChunkReader
     : public virtual NChunkClient::IMultiChunkReader
-    , ISchemalessReader
+    , public ISchemalessReader
 {
     //! Table index of the last read row group.
     virtual int GetTableIndex() const = 0;
+
+    //! Index of the next, unread row.
+    virtual i64 GetSessionRowIndex() const = 0;
+
+    //! Approximate row count readable with this reader.
+    //! May change over time and finally converges to actually read row count.
+    virtual i64 GetSessionRowCount() const = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkReader)
@@ -82,7 +90,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISchemalessTableReader
-    : ISchemalessReader
+    : public ISchemalessReader
 {
     virtual i64 GetTableRowIndex() const = 0;
 };

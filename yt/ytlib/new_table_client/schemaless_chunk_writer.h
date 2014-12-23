@@ -52,7 +52,7 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkWriter)
 ////////////////////////////////////////////////////////////////////////////////
 
 /*!
- *  /param reorderValues - set to true if key columns may not come in order, or be absent.
+ *  \param reorderValues - set to true if key columns may come out of order, or be absent.
  */
 ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTableWriterConfigPtr config,

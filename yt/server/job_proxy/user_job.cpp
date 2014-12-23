@@ -14,10 +14,10 @@
 
 #include <ytlib/chunk_client/public.h>
 
-#include <ytlib/table_client/table_producer.h>
-#include <ytlib/table_client/table_consumer.h>
-#include <ytlib/table_client/sync_reader.h>
-#include <ytlib/table_client/sync_writer.h>
+#include <ytlib/new_table_client/helpers.h>
+#include <ytlib/new_table_client/table_consumer.h>
+#include <ytlib/new_table_client/schemaless_chunk_reader.h>
+#include <ytlib/new_table_client/schemaless_chunk_writer.h>
 
 #include <ytlib/scheduler/statistics.h>
 
@@ -41,6 +41,7 @@
 
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/action_queue.h>
+#include <core/concurrency/parallel_awaiter.h>
 
 #include <util/folder/dirut.h>
 
@@ -53,7 +54,7 @@ namespace NJobProxy {
 
 using namespace NYTree;
 using namespace NYson;
-using namespace NTableClient;
+using namespace NVersionedTableClient;
 using namespace NFormats;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
@@ -79,6 +80,8 @@ using NPipes::TAsyncWriterPtr;
 
 static const int JobStatisticsFD = 5;
 static const char* CGroupPrefix = "user_jobs/yt-job-";
+
+static const int BufferSize = 1024 * 1024;
 
 static TNullOutput NullOutput;
 
@@ -157,11 +160,10 @@ public:
             FinalizeJobIO();
         }
 
-        JobErrorPromise_.TrySet(jobExitError);
-
-        const auto& jobResultError = JobErrorPromise_.Get();
-
         CleanupCGroups();
+
+        JobErrorPromise_.TrySet(jobExitError);
+        const auto& jobResultError = JobErrorPromise_.Get();
 
         TJobResult result;
         ToProto(result.mutable_error(), jobResultError.IsOK()
@@ -224,6 +226,8 @@ private:
     TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
 
     std::vector<std::unique_ptr<TOutputStream>> TableOutputs_;
+    std::vector<TWritingValueConsumerPtr> WritingValueConsumers_;
+
     std::unique_ptr<TErrorOutput> ErrorOutput_;
     std::unique_ptr<TTableOutput> StatisticsOutput_;
 
@@ -291,7 +295,7 @@ private:
 
         try {
             // Kill everything for sanity reasons: main user process completed,
-            // but its children may be still alive.
+            // but its children may still be alive.
             RunKiller(Freezer_.GetFullPath());
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Failed to clean up user processes");
@@ -397,14 +401,26 @@ private:
         return std::max(result, JobStatisticsFD + 1);
     }
 
+    std::vector<IValueConsumerPtr> CreateValueConsumers()
+    {
+        std::vector<IValueConsumerPtr> valueConsumers;
+        for (const auto& writer : JobIO_->GetWriters()) {
+            WritingValueConsumers_.push_back(New<TWritingValueConsumer>(writer));
+            valueConsumers.push_back(WritingValueConsumers_.back());
+        }
+        return valueConsumers;
+    }
+
     void PrepareOutputTablePipes(std::function<TPipe()> createPipe)
     {
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.output_format()));
+        
+        const auto& writers = JobIO_->GetWriters();
 
-        auto& writers = JobIO_->GetWriters();
         TableOutputs_.resize(writers.size());
         for (int i = 0; i < writers.size(); ++i) {
-            std::unique_ptr<IYsonConsumer> consumer(new TLegacyTableConsumer(writers, i));
+            auto valueConsumers = CreateValueConsumers();
+            std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(valueConsumers));
             auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.get());
             TableOutputs_[i].reset(new TTableOutput(
                 std::move(parser),
@@ -419,6 +435,10 @@ private:
         }
 
         FinalizeActions_.push_back(BIND([=] () {
+            for (auto valueConsumers : WritingValueConsumers_) {
+                valueConsumers->Flush();
+            }
+
             for (auto& writer : JobIO_->GetWriters()) {
                 writer->Close();
             }
@@ -452,7 +472,7 @@ private:
     {
         SafeClose(pipe.WriteFD);
         auto input = CreateSyncAdapter(asyncInput);
-        PipeInputToOutput(input.get(), output);
+        PipeInputToOutput(input.get(), output, BufferSize);
     }
 
     void PrepareInputTablePipe(TPipe pipe, int jobDescriptor, TContextPreservingInputPtr input)

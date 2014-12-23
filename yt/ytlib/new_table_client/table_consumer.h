@@ -71,14 +71,12 @@ class TWritingValueConsumer
     : public IValueConsumer
 {
 public:
-    TWritingValueConsumer(ISchemalessWriterPtr writer, TNameTablePtr nameTable);
+    TWritingValueConsumer(ISchemalessWriterPtr writer);
 
     void Flush();
 
 private:
     ISchemalessWriterPtr Writer_;
-
-    TNameTablePtr NameTable_;
 
     TUnversionedOwningRowBuilder Builder_;
     std::vector<TUnversionedOwningRow> OwningRows_;
@@ -95,6 +93,8 @@ private:
     virtual void OnEndRow() override;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TWritingValueConsumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -151,8 +151,8 @@ TPartitionMultiChunkReader::TPartitionMultiChunkReader(
           compressedBlockCache,
           nodeDirectory,
           chunkSpecs)
-    , NameTable_(nameTable)
     , UncompressedBlockCache_(uncompressedBlockCache)
+    , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
 { }
 
@@ -181,6 +181,11 @@ void TPartitionMultiChunkReader::OnReaderSwitched()
 {
     CurrentReader_ = dynamic_cast<TPartitionChunkReader*>(CurrentSession_.ChunkReader.Get());
     YCHECK(CurrentReader_);
+}
+
+TNameTablePtr TPartitionMultiChunkReader::GetNameTable() const
+{
+    return NameTable_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

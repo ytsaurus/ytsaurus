@@ -4,23 +4,23 @@ set( SRCS
   ${BASE}/job_detail.cpp
   ${BASE}/job_proxy.cpp
   ${BASE}/helpers.cpp
-  ${BASE}/map_job_io.cpp
+  #${BASE}/map_job_io.cpp
   ${BASE}/merge_job.cpp
   ${BASE}/partition_job.cpp
-  ${BASE}/partition_map_job_io.cpp
-  ${BASE}/partition_reduce_job_io.cpp
+  #${BASE}/partition_map_job_io.cpp
+  #${BASE}/partition_reduce_job_io.cpp
   ${BASE}/partition_sort_job.cpp
   ${BASE}/private.cpp
   ${BASE}/remote_copy_job.cpp
   ${BASE}/simple_sort_job.cpp
   ${BASE}/small_key.cpp
   ${BASE}/sorted_merge_job.cpp
-  ${BASE}/sorted_reduce_job_io.cpp
+  #${BASE}/sorted_reduce_job_io.cpp
   ${BASE}/sorting_reader.cpp
   ${BASE}/stderr_output.cpp
   ${BASE}/table_output.cpp
   ${BASE}/user_job.cpp
-  ${BASE}/user_job_io_detail.cpp
+  #${BASE}/user_job_io_detail.cpp
 )
 set( HDRS
   ${BASE}/config.h
