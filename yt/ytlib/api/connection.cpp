@@ -171,7 +171,7 @@ public:
         NCompression::ECodec responseCodec,
         TTableMountCachePtr tableMountCache,
         IChannelPtr masterChannel,
-        IChannelFactoryPtr NodeChannelFactory_)
+        IChannelFactoryPtr nodeChannelFactory)
         : Evaluator_(New<TEvaluator>(std::move(executorConfig)))
         , QueryTimeout_(queryTimeout)
         , ResponseCodec_(responseCodec)
