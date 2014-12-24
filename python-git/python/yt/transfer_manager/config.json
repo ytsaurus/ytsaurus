@@ -37,9 +37,9 @@
                 "opts": "MR_NET_TABLE=ipv6",
                 "binary": "/Berkanavt/bin/mapreduce-dev",
                 "server_port": 8013,
-                "http_port": 13013,
-                "viewer": "https://specto.yandex.ru/cedar-viewer/"
+                "http_port": 13013
             },
+            "table_url_pattern": "https://specto.yandex.ru/cedar-viewer/table/?table=%table%",
             "fastbone": true
         },
         "redwood": {
@@ -49,9 +49,9 @@
                 "binary": "/Berkanavt/bin/mapreduce",
                 "server_port": 8013,
                 "http_port": 13013,
-                "viewer": "https://specto.yandex.ru/redwood-viewer/",
                 "timeout": 300
             },
+            "table_url_pattern": "https://specto.yandex.ru/redwood-viewer/table/?table=%table%",
             "fastbone": true
         },
         "betula": {
@@ -60,9 +60,9 @@
                 "server": "betula00.yandex.ru",
                 "binary": "/Berkanavt/bin/mapreduce-dev",
                 "server_port": 8013,
-                "http_port": 13013,
-                "viewer": "https://specto.yandex.ru/betula-viewer/"
+                "http_port": 13013
             },
+            "table_url_pattern": "https://betula.viewer.yandex-team.ru/mrec/#/dir/%table%",
             "fastbone": true
         },
         "flux": {
@@ -97,6 +97,7 @@
                 "server_port": 8013,
                 "http_port": 13013
             },
+            "table_url_pattern": "http://bsmr-server.yandex.ru:13013/debug?info=table&table=%table%",
             "fastbone": false
         }
     },
