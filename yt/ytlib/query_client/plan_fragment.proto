@@ -100,7 +100,7 @@ message TQuery
     required int64 limit = 9;
 
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt table_schema = 4;
-    required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 5;
+    required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 5;
 
     optional TExpression predicate = 6;
     optional TGroupClause group_clause = 7;

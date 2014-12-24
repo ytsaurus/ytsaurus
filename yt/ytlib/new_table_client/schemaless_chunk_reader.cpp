@@ -19,8 +19,6 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
-// TKeyColumnsExt
-#include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/table_ypath_proxy.h>
 
 #include <ytlib/transaction_client/helpers.h>
@@ -56,7 +54,6 @@ using NChunkClient::TChannel;
 using NRpc::IChannelPtr;
 
 using NTableClient::TTableYPathProxy;
-using NTableClient::NProto::TKeyColumnsExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 

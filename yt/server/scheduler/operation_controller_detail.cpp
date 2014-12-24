@@ -17,9 +17,6 @@
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/data_statistics.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/table_client/private.h>
-
 #include <ytlib/object_client/helpers.h>
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/object_ypath_proxy.h>
@@ -27,6 +24,10 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
+
+#include <ytlib/table_client/table_ypath_proxy.h>
+
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 #include <ytlib/transaction_client/transaction_manager.h>
@@ -57,7 +58,6 @@ using namespace NNodeTrackerClient;
 using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NFileClient;
-using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NYTree;
@@ -74,6 +74,10 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NRpc;
+using namespace NVersionedTableClient;
+
+using NTableClient::TTableYPathProxy;
+using NVersionedTableClient::NProto::TBoundaryKeysExt;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -853,8 +857,11 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     options->ChunksVital = false;
     options->ReplicationFactor = 1;
     options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
-    options->KeyColumns = keyColumns;
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
+
+    if (keyColumns) {
+        ToProto(outputSpec->mutable_key_columns(), *keyColumns);
+    }
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[0]);
 }
 
@@ -3326,21 +3333,20 @@ void TOperationControllerBase::RegisterOutput(
 }
 
 void TOperationControllerBase::RegisterEndpoints(
-    const TOldBoundaryKeysExt& boundaryKeys,
+    const TBoundaryKeysExt& boundaryKeys,
     int key,
     TOutputTable* outputTable)
 {
-    YCHECK(CompareKeys(boundaryKeys.start(), boundaryKeys.end()) <= 0);
     {
         TEndpoint endpoint;
-        FromProto(&endpoint.Key, boundaryKeys.start());
+        FromProto(&endpoint.Key, boundaryKeys.min());
         endpoint.Left = true;
         endpoint.ChunkTreeKey = key;
         outputTable->Endpoints.push_back(endpoint);
     }
     {
         TEndpoint endpoint;
-        FromProto(&endpoint.Key, boundaryKeys.end());
+        FromProto(&endpoint.Key, boundaryKeys.max());
         endpoint.Left = false;
         endpoint.ChunkTreeKey = key;
         outputTable->Endpoints.push_back(endpoint);
@@ -3362,7 +3368,7 @@ void TOperationControllerBase::RegisterOutput(
     auto& table = OutputTables[tableIndex];
 
     if (table.Options->KeyColumns && IsSortedOutputSupported()) {
-        auto boundaryKeys = GetProtoExtension<TOldBoundaryKeysExt>(chunkSpec->chunk_meta().extensions());
+        auto boundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunkSpec->chunk_meta().extensions());
         RegisterEndpoints(boundaryKeys, key, &table);
     }
 
@@ -3390,7 +3396,7 @@ void TOperationControllerBase::RegisterOutput(
 
         if (table.Options->KeyColumns && IsSortedOutputSupported()) {
             YCHECK(userJobResult);
-            auto& boundaryKeys = userJobResult->output_boundary_keys(tableIndex);
+            const auto& boundaryKeys = userJobResult->output_boundary_keys(tableIndex);
             RegisterEndpoints(boundaryKeys, key, &table);
         }
     }

@@ -290,13 +290,9 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NVersionedTableClient
-} // namespace NYT
-
-
-namespace NYT {
-namespace NTableClient {
 namespace NProto {
+
+////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(TKeyColumnsExt* protoKeyColumns, const TKeyColumns& keyColumns)
 {
@@ -308,8 +304,12 @@ void FromProto(TKeyColumns* keyColumns, const TKeyColumnsExt& protoKeyColumns)
     *keyColumns = NYT::FromProto<Stroka>(protoKeyColumns.names());
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NProto
-} // namespace NTableClient
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NVersionedTableClient
 } // namespace NYT
-
-

@@ -85,14 +85,7 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NVersionedTableClient
-} // namespace NYT
-
-
-// TODO(babenko): move to NVersionedTableClient after migration
 // NB: Need to place this into NProto for ADL to work properly since TKeyColumns is std::vector.
-namespace NYT {
-namespace NTableClient {
 namespace NProto {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,5 +96,8 @@ void FromProto(TKeyColumns* keyColumns, const NProto::TKeyColumnsExt& protoKeyCo
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProto
-} // namespace NTableClient
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NVersionedTableClient
 } // namespace NYT

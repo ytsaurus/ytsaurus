@@ -5,6 +5,7 @@
 #include "config.h"
 #include "job.h"
 
+/*
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 #include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
 #include <ytlib/chunk_client/schema.h>
@@ -13,6 +14,7 @@
 #include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/sync_writer.h>
+*/
 
 #include <core/ytree/convert.h>
 
@@ -25,7 +27,7 @@ using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NTableClient;
+using namespace NVersionedTableClient;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,7 +79,7 @@ void TUserJobIOBase::PopulateResult(TSchedulerJobResultExt* schedulerJobResultEx
     }
 }
 
-ISyncWriterUnsafePtr TUserJobIOBase::CreateTableWriter(
+ISchemalessChunkWriterPtr TUserJobIOBase::CreateTableWriter(
     NTableClient::TTableWriterOptionsPtr options,
     const NChunkClient::TChunkListId& chunkListId,
     const NTransactionClient::TTransactionId& transactionId)

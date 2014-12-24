@@ -141,7 +141,7 @@ void TTableConsumer::OnStringScalar(const TStringBuf& value)
     if (Depth_ == 0) {
         ThrowMapExpected();
     } else if (Depth_ == 1) {
-        WriteValue(MakeUnversionedStringValue(value, ColumnIndex_));
+        CurrentValueConsumer_->OnValue(MakeUnversionedStringValue(value, ColumnIndex_));
     } else {
         ValueWriter_.OnStringScalar(value);
     }

@@ -10,9 +10,6 @@
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/unversioned_row.h>
-
-#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <core/misc/protobuf_helpers.h>
 

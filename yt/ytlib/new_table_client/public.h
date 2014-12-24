@@ -12,11 +12,6 @@
 
 #include <initializer_list>
 
-// TODO(babenko): remove after migration
-namespace NYT { namespace NTableClient { namespace NProto {
-    class TKeyColumnsExt;
-} } }
-
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -27,7 +22,7 @@ namespace NProto {
 class TNameTableExt;
 class TColumnSchema;
 class TTableSchemaExt;
-using NTableClient::NProto::TKeyColumnsExt; // TODO(babenko): remove after migration
+class TKeyColumnsExt;
 class TBoundaryKeysExt;
 class TBlockIndexesExt;
 class TBlockMetaExt;
@@ -58,6 +53,8 @@ extern const Stroka PrimaryLockName;
 const int MaxValuesPerRow = 1024;
 const int MaxRowsPerRowset = 1024 * 1024;
 const i64 MaxStringValueLength = (i64) 1024 * 1024; // 1 MB
+
+const int DefaultPartitionTag = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 

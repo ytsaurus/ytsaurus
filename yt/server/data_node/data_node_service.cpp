@@ -29,9 +29,9 @@
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/action_queue.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/public.h>
 #include <ytlib/table_client/private.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/private.h>
@@ -61,11 +61,17 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
-using namespace NTableClient::NProto;
 using namespace NCellNode;
 using namespace NConcurrency;
 using namespace NVersionedTableClient;
 using namespace NVersionedTableClient::NProto;
+
+using NTableClient::NProto::TSamplePart;
+using NTableClient::NProto::TIndexExt;
+using NTableClient::NProto::TIndexRow;
+using NTableClient::NProto::TOldBoundaryKeysExt;
+using NTableClient::NProto::TOldSamplesExt;
+using NTableClient::NProto::TSample;
 
 ////////////////////////////////////////////////////////////////////////////////
 

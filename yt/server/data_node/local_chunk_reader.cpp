@@ -7,7 +7,7 @@
 #include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
 
 #include <server/data_node/chunk.h>
 #include <server/data_node/block_store.h>
@@ -18,8 +18,7 @@ namespace NYT {
 namespace NDataNode {
 
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
-using namespace NTableClient;
+using namespace NVersionedTableClient;
 using namespace NDataNode;
 using namespace NCellNode;
 

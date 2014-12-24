@@ -17,14 +17,6 @@ DECLARE_PROTO_EXTENSION(NTableClient::NProto::TOldBoundaryKeysExt, 13)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TKeyColumnsExt, 14)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TPartitionsExt, 15)
 
-namespace NTableClient {
-
-NChunkClient::NProto::TChunkMeta FilterChunkMetaByPartitionTag(
-    const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    int partitionTag);
-
-} // namespace NTableClient
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

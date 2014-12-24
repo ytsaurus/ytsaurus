@@ -86,4 +86,9 @@ message TPartitionsExt
     repeated NChunkClient.NProto.TSizeOverrideExt partitions = 1;
 }
 
+message TKeyColumnsExt
+{
+    repeated string names = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

@@ -749,7 +749,7 @@ protected:
 
 
     void RegisterEndpoints(
-        const NTableClient::NProto::TOldBoundaryKeysExt& boundaryKeys,
+        const NVersionedTableClient::NProto::TBoundaryKeysExt& boundaryKeys,
         int key,
         TOutputTable* outputTable);
 

@@ -6,6 +6,8 @@
 
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 
+#include <ytlib/table_client/table_chunk_meta.pb.h>
+
 #include <core/misc/protobuf_helpers.h>
 
 namespace NYT {
@@ -20,6 +22,7 @@ DECLARE_PROTO_EXTENSION(NVersionedTableClient::NProto::TBoundaryKeysExt, 55)
 DECLARE_PROTO_EXTENSION(NVersionedTableClient::NProto::TSamplesExt, 56)
 
 // Moved from old table client
+DECLARE_PROTO_EXTENSION(NVersionedTableClient::NProto::TKeyColumnsExt, 14)
 DECLARE_PROTO_EXTENSION(NVersionedTableClient::NProto::TPartitionsExt, 15)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,6 +33,10 @@ void GetBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta, 
     TOwningKey* minKey, 
     TOwningKey* maxKey);
+
+NChunkClient::NProto::TChunkMeta FilterChunkMetaByPartitionTag(
+    const NChunkClient::NProto::TChunkMeta& chunkMeta,
+    int partitionTag);
 
 } // namespace NVersionedTableClient
 

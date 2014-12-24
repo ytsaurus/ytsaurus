@@ -3,7 +3,6 @@ package NYT.NTableClient.NProto;
 import "yt/core/misc/guid.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/new_table_client/chunk_meta.proto";
-import "yt/ytlib/table_client/table_chunk_meta.proto";
 import "yt/ytlib/hydra/hydra_manager.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,7 +89,7 @@ message TRspGetMountInfo
 {
     required NYT.NProto.TGuid table_id = 1;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt schema = 2;
-    required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 3;
+    required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 3;
     repeated TTabletInfo tablets = 4;
     required bool sorted = 5;
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 6;

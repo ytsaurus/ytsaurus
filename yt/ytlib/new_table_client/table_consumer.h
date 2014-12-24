@@ -31,6 +31,8 @@ struct IValueConsumer
 
 };
 
+DEFINE_REFCOUNTED_TYPE(IValueConsumer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBuildingValueConsumer
@@ -131,8 +133,6 @@ protected:
     virtual void OnEndList() override;
     virtual void OnEndAttributes() override;
     virtual void OnRaw(const TStringBuf& yson, NYson::EYsonType type) override;
-
-    void WriteValue(const NVersionedTableClient::TUnversionedValue& value);
 
     void OnControlInt64Scalar(i64 value);
     void OnControlStringScalar(const TStringBuf& value);
