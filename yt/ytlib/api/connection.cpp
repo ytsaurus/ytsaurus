@@ -170,13 +170,16 @@ public:
         TDuration queryTimeout,
         NCompression::ECodec responseCodec,
         TTableMountCachePtr tableMountCache,
-        IChannelPtr masterChannel)
+        IChannelPtr masterChannel,
+        IChannelFactoryPtr NodeChannelFactory_)
         : Evaluator_(New<TEvaluator>(std::move(executorConfig)))
         , QueryTimeout_(queryTimeout)
         , ResponseCodec_(responseCodec)
         , TableMountCache_(std::move(tableMountCache))
-        , MasterChannel_(masterChannel) 
+        , MasterChannel_(std::move(masterChannel))
+        , NodeChannelFactory_(std::move(nodeChannelFactory))
     { }
+
     // IPrepareCallbacks implementation.
 
     virtual TFuture<TErrorOr<TDataSplit>> GetInitialSplit(
@@ -402,12 +405,12 @@ public:
     }
 
 private:
-    IChannelFactoryPtr NodeChannelFactory_;
     TEvaluatorPtr Evaluator_;
     TDuration QueryTimeout_;
     NCompression::ECodec ResponseCodec_;
     TTableMountCachePtr TableMountCache_;
     IChannelPtr MasterChannel_;
+    IChannelFactoryPtr NodeChannelFactory_;
 
     TDataSplit DoGetInitialSplit(
         const TYPath& path,
@@ -630,7 +633,8 @@ public:
             Config_->QueryTimeout,
             Config_->SelectResponseCodec,
             TableMountCache_,
-            MasterChannel_);
+            MasterChannel_,
+            NodeChannelFactory_);
     }
 
     // IConnection implementation.
