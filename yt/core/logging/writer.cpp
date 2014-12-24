@@ -97,12 +97,12 @@ TFileLogWriter::TFileLogWriter(const Stroka& fileName)
 void TFileLogWriter::CheckSpace(i64 minSpace)
 {
     try {
-        auto statistics = NFS::GetDiskSpaceStatistics(FileName_);
+        auto directoryName = NFS::GetDirectoryName(FileName_);
+        auto statistics = NFS::GetDiskSpaceStatistics(directoryName);
         if (statistics.AvailableSpace < minSpace) {
             AtomicSet(NotEnoughSpace_, true);
-            LOG_ERROR(
-                "Disable log writer: not enough space (FileName: %s, AvailableSpace: %" PRId64 ", MinSpace: %" PRId64 ")",
-                ~FileName_,
+            LOG_ERROR("Logging disabled: not enough space (FileName: %s, AvailableSpace: %" PRId64 ", MinSpace: %" PRId64 ")",
+                ~directoryName,
                 statistics.AvailableSpace,
                 minSpace);
         }
