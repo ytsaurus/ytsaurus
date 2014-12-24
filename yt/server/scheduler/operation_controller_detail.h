@@ -102,7 +102,7 @@ public:
 
     virtual int GetPendingJobCount() const override;
     virtual int GetTotalJobCount() const override;
-    virtual const NNodeTrackerClient::NProto::TNodeResources& GetNeededResources() const override;
+    virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources() const override;
 
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
