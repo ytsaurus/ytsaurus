@@ -2,7 +2,6 @@ package NYT.NTabletNode.NProto;
 
 import "yt/core/misc/guid.proto";
 import "yt/core/misc/error.proto";
-import "yt/ytlib/table_client/table_chunk_meta.proto";
 import "yt/ytlib/new_table_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/server/tablet_server/tablet_manager.proto";
@@ -19,7 +18,7 @@ message TReqMountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt schema = 2;
-    required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 3;
+    required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 3;
     repeated TChunkStoreDescriptor chunk_stores = 4;
     required bytes pivot_key = 5;
     required bytes next_pivot_key = 6;

@@ -9,9 +9,6 @@
 
 #include <ytlib/chunk_client/config.h>
 
-// TKeyColumnsExt
-#include <ytlib/table_client/chunk_meta_extensions.h>
-
 #include <core/concurrency/scheduler.h>
 
 namespace NYT {
@@ -25,7 +22,6 @@ using namespace NProto;
 using NChunkClient::TReadLimit;
 using NNodeTrackerClient::TNodeDirectoryPtr;
 using NRpc::IChannelPtr;
-using NTableClient::NProto::TKeyColumnsExt;
 using NVersionedTableClient::TChunkReaderConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////

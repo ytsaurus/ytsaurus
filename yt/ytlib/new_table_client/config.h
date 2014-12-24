@@ -49,7 +49,6 @@ public:
 
     TChunkWriterOptions()
     {
-        // Block less than 1M is nonsense.
         RegisterParameter("verify_sorted", VerifySorted)
             .Default(true);
     }
