@@ -39,7 +39,6 @@ import types
 import simplejson as json
 from argparse import ArgumentParser, RawTextHelpFormatter, REMAINDER, Action
 from operator import attrgetter
-from functools import partial
 from itertools import imap
 
 def unlist_destination_tables(tables):
@@ -78,6 +77,17 @@ class ForbidRepeatedArgumentsAction(Action):
             parser.error("Repeated argument -" + self.dest)
         setattr(namespace, self.dest, values)
 
+class AppendAction(Action):
+    def __init__(self, option_strings, **kwargs):
+        super(AppendAction, self).__init__(option_strings, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        value = getattr(namespace, self.dest)
+        if value is None:
+            value = []
+        value.append((option_string, values))
+        setattr(namespace, self.dest, value)
+
 def add_store_args(parser, args):
     for arg in flatten(args):
         parser.add_argument("-" + arg, action=ForbidRepeatedArgumentsAction)
@@ -87,6 +97,10 @@ def add_bool_args(parser, args):
 def add_multiple_args(parser, args):
     for arg in flatten(args):
         parser.add_argument("-" + arg, action="append")
+
+def add_multiple_args_to_one_dest(parser, args, dest=None):
+    for arg in flatten(args):
+        parser.add_argument("-" + arg, action=AppendAction, dest=dest)
 
 def add_integer_args(parser, args):
     for arg in flatten(args):
@@ -180,7 +194,8 @@ Examples:
                                             "format", "inputformat", "outputformat", "tx", "value",
                                             "replicationfactor", "memlimit", "timeout", "title", "fs", "rs",
                                             "mode", "tablereader", "tablewriter"])
-    add_multiple_args(parser, ["src", "dst", "dstappend", "dstsorted", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
+    add_multiple_args(parser, ["src", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
+    add_multiple_args_to_one_dest(parser, ["dst", "dstappend", "dstsorted"], "dst")
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier", "detached", "waitfor", "stderrlevel", "maxjobfails"])
 
     add_help_messages(parser,
@@ -378,7 +393,7 @@ Examples:
         config.TRANSACTION_TIMEOUT = int(args.timeout)
 
     spec = {}
-    if vars(args)["ytspec"] is not None:
+    if args.ytspec is not None:
         for spec_arg in args.ytspec:
             spec.update(json.loads(spec_arg))
 
@@ -388,13 +403,18 @@ Examples:
     if args.maxjobfails is not None:
         spec["max_failed_job_count"] = args.maxjobfails
 
+    has_dstsorted = False
     dst = []
-    if args.dst is not None:
-        dst += map(partial(yt.TablePath, append=args.append), args.dst)
-    if args.dstappend is not None:
-        dst += map(partial(yt.TablePath, append=True), args.dstappend)
-    if args.dstsorted is not None:
-        dst += map(partial(yt.TablePath, sorted_by=["key", "subkey"]), args.dstsorted)
+    for option_name, value in get_value(args.dst, []):
+        assert option_name in ["-dst", "-dstappend", "-dstsorted"]
+        if option_name == "-dst":
+            dst.append(yt.TablePath(value, append=args.append))
+        elif option_name == "-dstappend":
+            dst.append(yt.TablePath(value, append=True))
+        elif option_name == "-dstsorted":
+            has_dstsorted = True
+            dst.append(yt.TablePath(value, sorted_by=["key", "subkey"]))
+
     if not dst:
         dst = None
 
@@ -443,7 +463,7 @@ Examples:
 
     if isinstance(outputformat, str):
         outputformat = yt.create_format(outputformat)
-    if not (isinstance(outputformat, yt.YamrFormat) or isinstance(outputformat, yt.YamredDsvFormat)) and args.dstsorted is not None:
+    if not (isinstance(outputformat, yt.YamrFormat) or isinstance(outputformat, yt.YamredDsvFormat)) and has_dstsorted:
         die("Output format must be yamr or yamred_dsv if dstsorted is non-trivial")
 
     if args.tx is not None:
