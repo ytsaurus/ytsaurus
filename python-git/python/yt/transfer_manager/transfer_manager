@@ -305,8 +305,6 @@ class Application(object):
                 self._clusters[name]._pools = cluster_description.get("pools", {})
                 self._clusters[name]._version = cluster_description.get("version", 0)
             elif type == "yamr":
-                if "viewer" in options:
-                    del options["viewer"]
                 self._clusters[name] = Yamr(**options)
             elif type == "kiwi":
                 self._clusters[name] = Kiwi(**options)
@@ -1011,9 +1009,9 @@ DEFAULT_CONFIG = {
                 "opts": "MR_NET_TABLE=ipv6",
                 "binary": "/Berkanavt/bin/mapreduce-dev",
                 "server_port": 8013,
-                "http_port": 13013,
-                "viewer": "https://specto.yandex.ru/cedar-viewer/"
+                "http_port": 13013
             },
+            "table_url_pattern": "https://specto.yandex.ru/cedar-viewer/table/?table=%table%",
             "fastbone": True
         },
         "redwood": {
@@ -1023,9 +1021,9 @@ DEFAULT_CONFIG = {
                 "binary": "/Berkanavt/bin/mapreduce-dev",
                 "server_port": 8013,
                 "http_port": 13013,
-                "viewer": "https://specto.yandex.ru/redwood-viewer/",
                 "timeout": 300
             },
+            "table_url_pattern": "https://specto.yandex.ru/redwood-viewer/table/?table=%table%",
             "fastbone": True
         },
         "flux": {
