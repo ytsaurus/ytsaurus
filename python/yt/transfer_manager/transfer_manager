@@ -951,7 +951,7 @@ class Application(object):
             pending_tasks = deepcopy(self._pending_tasks)
 
         user = request.args.get("user")
-        fields = request.args.get("fields")
+        fields = request.args.getlist("field")
         if user is not None:
             tasks = [task.user == user for task in tasks]
 
