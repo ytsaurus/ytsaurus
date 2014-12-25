@@ -86,6 +86,11 @@ TNameTablePtr TSchemalessWriterAdapter::GetNameTable() const
     return NameTable_;
 }
 
+bool TSchemalessWriterAdapter::IsSorted() const
+{
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats

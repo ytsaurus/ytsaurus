@@ -5,14 +5,11 @@
 #include "user_job_io_detail.h"
 #include "job.h"
 
-#include <core/misc/protobuf_helpers.h>
+//#include <core/misc/protobuf_helpers.h>
 
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
-
-#include <ytlib/table_client/sync_reader.h>
-#include <ytlib/table_client/sync_writer.h>
+#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/schemaless_partition_sort_reader.h>
+#include <ytlib/new_table_client/schemaless_chunk_writer.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -22,7 +19,7 @@ namespace NJobProxy {
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NChunkClient::NProto;
-using namespace NTableClient;
+using namespace NVersionedTableClient;
 using namespace NChunkClient;
 using namespace NTransactionClient;
 
@@ -36,7 +33,7 @@ public:
         : TUserJobIOBase(host)
     { }
 
-    virtual std::vector<ISyncReaderPtr> DoCreateReaders() override
+    virtual std::vector<ISchemalessMultiChunkReaderPtr> DoCreateReaders() override
     {
         YCHECK(SchedulerJobSpec_.input_specs_size() == 1);
 
@@ -47,28 +44,31 @@ public:
 
         const auto& reduceJobSpecExt = Host_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         auto keyColumns = FromProto<Stroka>(reduceJobSpecExt.key_columns());
+        auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
-        auto reader = CreateSortingReader(
-            JobIOConfig_->TableReader,
+        auto reader = CreateSchemalessPartitionSortReader(
+            JobIOConfig_->NewTableReader,
             Host_->GetMasterChannel(),
             Host_->GetCompressedBlockCache(),
             Host_->GetUncompressedBlockCache(),
             Host_->GetNodeDirectory(),
             keyColumns,
+            nameTable,
             BIND(&IJobHost::ReleaseNetwork, Host_),
-            std::move(chunks),
+            chunks,
             SchedulerJobSpec_.input_row_count(),
             SchedulerJobSpec_.is_approximate());
 
-        return std::vector<ISyncReaderPtr>(1, reader);
+        return std::vector<ISchemalessMultiChunkReaderPtr>(1, reader);
     }
 
-    virtual ISyncWriterUnsafePtr DoCreateWriter(
+    virtual ISchemalessMultiChunkWriterPtr DoCreateWriter(
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
-        const TTransactionId& transactionId) override
+        const TTransactionId& transactionId,
+        const TKeyColumns& keyColumns) override
     {
-        return CreateTableWriter(options, chunkListId, transactionId);
+        return CreateTableWriter(options, chunkListId, transactionId, keyColumns);
     }
 
     virtual void PopulateResult(TSchedulerJobResultExt* schedulerJobResult) override

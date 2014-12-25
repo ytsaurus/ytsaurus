@@ -5,6 +5,11 @@
 #include "config.h"
 #include "job.h"
 
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/schemaless_chunk_reader.h>
+#include <ytlib/new_table_client/schemaless_chunk_writer.h>
+
 /*
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 #include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
@@ -28,6 +33,7 @@ using namespace NScheduler::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NVersionedTableClient;
+using namespace NVersionedTableClient::NProto;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,8 +54,13 @@ void TUserJobIOBase::Init()
     for (const auto& outputSpec : SchedulerJobSpec_.output_specs()) {
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
+        TKeyColumns keyColumns;
+
+        if (outputSpec.has_key_columns()) {
+            keyColumns = FromProto<TKeyColumns>(outputSpec.key_columns());
+        }
         
-        auto writer = DoCreateWriter(options, chunkListId, transactionId);
+        auto writer = DoCreateWriter(options, chunkListId, transactionId, keyColumns);
         Writers_.push_back(writer);
     }
 
@@ -61,45 +72,62 @@ void TUserJobIOBase::Init()
     }
 }
 
-const std::vector<ISyncWriterUnsafePtr>& TUserJobIOBase::GetWriters() const
+const std::vector<ISchemalessMultiChunkWriterPtr>& TUserJobIOBase::GetWriters() const
 {
     return Writers_;
 }
 
-const std::vector<ISyncReaderPtr>& TUserJobIOBase::GetReaders() const
+const std::vector<ISchemalessMultiChunkReaderPtr>& TUserJobIOBase::GetReaders() const
 {
     return Readers_;
+}
+
+TBoundaryKeysExt TUserJobIOBase::GetBoundaryKeys(ISchemalessMultiChunkWriterPtr writer) const
+{
+    static TBoundaryKeysExt emptyBoundaryKeys = EmptyBoundaryKeys();
+
+    const auto& chunks = writer->GetWrittenChunks();
+    if (!writer->IsSorted() || chunks.empty()) {
+        return emptyBoundaryKeys;
+    }
+
+    TBoundaryKeysExt boundaryKeys;
+    auto frontBoundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunks.front().chunk_meta().extensions());
+    boundaryKeys.set_min(frontBoundaryKeys.min());
+    auto backBoundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunks.back().chunk_meta().extensions());
+    boundaryKeys.set_max(frontBoundaryKeys.max());
+
+    return boundaryKeys;
 }
 
 void TUserJobIOBase::PopulateResult(TSchedulerJobResultExt* schedulerJobResultExt)
 {
     auto* result = schedulerJobResultExt->mutable_user_job_result();
     for (const auto& writer : Writers_) {
-        *result->add_output_boundary_keys() = writer->GetOldBoundaryKeys();
+        *result->add_output_boundary_keys() = GetBoundaryKeys(writer);
     }
 }
 
-ISchemalessChunkWriterPtr TUserJobIOBase::CreateTableWriter(
-    NTableClient::TTableWriterOptionsPtr options,
-    const NChunkClient::TChunkListId& chunkListId,
-    const NTransactionClient::TTransactionId& transactionId)
+ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
+    TTableWriterOptionsPtr options,
+    const TChunkListId& chunkListId,
+    const TTransactionId& transactionId,
+    const TKeyColumns& keyColumns)
 {
-    auto writerProvider = New<TTableChunkWriterProvider>(
-        JobIOConfig_->TableWriter,
-        options);
 
-    auto asyncWriter = New<TTableChunkSequenceWriter>(
-        JobIOConfig_->TableWriter,
+    auto nameTable = New<TNameTable>();
+    return CreateSchemalessMultiChunkWriter(
+        JobIOConfig_->NewTableWriter,
         options,
-        writerProvider,
+        nameTable,
+        keyColumns,
         Host_->GetMasterChannel(),
         transactionId,
-        chunkListId);
-
-    return CreateSyncWriter<TTableChunkWriterProvider>(asyncWriter);
+        chunkListId,
+        true);
 }
 
-std::vector<ISyncReaderPtr> TUserJobIOBase::CreateRegularReaders(bool isParallel)
+std::vector<ISchemalessMultiChunkReaderPtr> TUserJobIOBase::CreateRegularReaders(bool isParallel)
 {
     std::vector<TChunkSpec> chunkSpecs;
     for (const auto& inputSpec : SchedulerJobSpec_.input_specs()) {
@@ -109,42 +137,39 @@ std::vector<ISyncReaderPtr> TUserJobIOBase::CreateRegularReaders(bool isParallel
             inputSpec.chunks().end());
     }
 
-    auto options = New<TChunkReaderOptions>();
+    auto options = New<TMultiChunkReaderOptions>();
+    auto nameTable = New<TNameTable>();
 
-    auto reader = CreateTableReader(options, chunkSpecs, isParallel);
-    return std::vector<ISyncReaderPtr>(1, reader);
+    auto reader = CreateTableReader(options, chunkSpecs, nameTable, isParallel);
+    return std::vector<ISchemalessMultiChunkReaderPtr>(1, reader);
 }
 
-ISyncReaderPtr TUserJobIOBase::CreateTableReader(
-    TChunkReaderOptionsPtr options,
-    std::vector<TChunkSpec>& chunkSpecs, 
+ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
+    TMultiChunkReaderOptionsPtr options,
+    const std::vector<TChunkSpec>& chunkSpecs, 
+    TNameTablePtr nameTable,
     bool isParallel)
 {
-    auto provider = New<TTableChunkReaderProvider>(
-        chunkSpecs,
-        JobIOConfig_->TableReader,
-        Host_->GetUncompressedBlockCache());
-
     if (isParallel) {
-        auto reader = New<TTableChunkParallelReader>(
-            JobIOConfig_->TableReader,
+        return CreateSchemalessParallelMultiChunkReader(
+            JobIOConfig_->NewTableReader,
+            options,
             Host_->GetMasterChannel(),
             Host_->GetCompressedBlockCache(),
+            Host_->GetUncompressedBlockCache(),
             Host_->GetNodeDirectory(),
-            std::move(chunkSpecs),
-            provider);
-
-        return CreateSyncReader(reader);
+            chunkSpecs,
+            nameTable);
     } else {
-        auto reader = New<TTableChunkParallelReader>(
-            JobIOConfig_->TableReader,
+        return CreateSchemalessSequentialMultiChunkReader(
+            JobIOConfig_->NewTableReader,
+            options,
             Host_->GetMasterChannel(),
             Host_->GetCompressedBlockCache(),
+            Host_->GetUncompressedBlockCache(),
             Host_->GetNodeDirectory(),
-            std::move(chunkSpecs),
-            provider);
-
-        return CreateSyncReader(reader);
+            chunkSpecs,
+            nameTable);
     }
 }
 

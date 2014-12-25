@@ -238,6 +238,11 @@ i64 TSequentialChunkWriterBase::GetUncompressedSize() const
     return size;
 }
 
+bool TSequentialChunkWriterBase::IsSorted() const
+{
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSortedChunkWriterBase::TSortedChunkWriterBase(
@@ -304,6 +309,11 @@ void TSortedChunkWriterBase::PrepareChunkMeta()
     SetProtoExtension(meta.mutable_extensions(), keyColumnsExt);
 
     SetProtoExtension(meta.mutable_extensions(), BoundaryKeysExt_);
+}
+
+bool TSortedChunkWriterBase::IsSorted() const
+{
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

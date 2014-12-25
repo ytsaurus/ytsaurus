@@ -45,9 +45,7 @@ ISchemalessChunkWriterPtr CreatePartitionChunkWriter(
 struct ISchemalessMultiChunkWriter
     : public ISchemalessWriter
     , public virtual NChunkClient::IMultiChunkWriter
-{
-    //NProto::TBoundaryKeysExt GetBoundaryKeys() const;
-};
+{ };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkWriter)
 
