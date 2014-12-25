@@ -2,6 +2,7 @@
 
 from yt.transfer_manager.flask_helpers import process_gzip
 from yt.transfer_manager.logger import TaskIdLogger
+from yt.transfer_manager.pattern_matching import match_copy_pattern
 
 from yt.tools.logging_server import LogRecordSocketReceiver
 from yt.tools.yamr import Yamr
@@ -202,6 +203,7 @@ class Application(object):
         self._add_rule("/tasks/<id>/restart/", 'restart', methods=["POST"])
         self._add_rule("/config/", 'config', methods=["GET"])
         self._add_rule("/ping/", 'ping', methods=["GET"])
+        self._add_rule("/match/", 'match', methods=["GET"])
 
     def terminate(self):
         self._terminating = True
@@ -974,6 +976,20 @@ class Application(object):
 
     def ping(self):
         return "OK", 200
+
+    def match(self):
+        params = json.loads(request.data)
+        source_pattern = params["source_pattern"]
+        destination_pattern = params["destination_pattern"]
+        source_cluster = params["source_cluster"]
+
+        if source_cluster not in self._clusters:
+            raise yt.YtError("Unknown cluster " + source_cluster)
+        client = deepcopy(self._clusters[source_cluster])
+
+        matchings = match_copy_pattern(client, source_pattern, destination_pattern)
+        return Response(json.dumps(matchings), mimetype='application/json')
+
 
 DEFAULT_CONFIG = {
     "clusters": {
