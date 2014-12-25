@@ -1,1 +1,6 @@
-from yt.packages.dill import *
+import config
+
+if config.PYTHON_USE_DILL:
+    from yt.packages.dill import *
+else:
+    from cPickle import *
