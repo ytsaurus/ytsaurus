@@ -59,16 +59,17 @@ def _split_rows_yt(yt_client, table, split_size):
 
 def _get_read_ranges_command(prepare_command, read_command):
     return """\
-set -ux
+set -uxe
 
 {0}
 
 while true; do
-    read -r start end;
-    if [ "$?" != "0" ]; then break; fi;
-    set -e
-    {1}
     set +e
+    read -r start end;
+    result="$?"
+    set -e
+    if [ "$result" != "0" ]; then break; fi;
+    {1}
 done;""".format(prepare_command, read_command)
 
 def _get_read_from_yt_command(yt_client, src, format, fastbone):
@@ -93,8 +94,10 @@ def _get_read_from_yt_command(yt_client, src, format, fastbone):
 def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pack=False):
     files = []
     prepare_command = "export YT_TOKEN=$(cat yt_token)\n"
+    if hasattr(yt_client, "token"):
+        files.append(_pack_string("yt_token", yt_client.token, tmp_dir))
     if pack:
-        files = [_pack_module("simplejson", tmp_dir), _pack_module("dateutil", tmp_dir), _pack_module("yt", tmp_dir), _which("yt2")]
+        files += [_pack_module("simplejson", tmp_dir), _pack_module("dateutil", tmp_dir), _pack_module("yt", tmp_dir), _which("yt2")]
         prepare_command += """
 set -e
 tar xvf yt.tar >/dev/null
@@ -412,8 +415,7 @@ while True:
     tmp_dir = tempfile.mkdtemp()
     if files is None:
         files = []
-    command_script = _get_read_ranges_command(
-        "set -o pipefail", "{0} | python extract_value.py {1}".format(read_command, write_command))
+    command_script = "set -o pipefail; {0} | python extract_value.py {1}".format(read_command, write_command)
     files.append(_pack_string("command.sh", command_script, tmp_dir))
     files.append(_pack_string("extract_value.py", extract_value_script, tmp_dir))
 
