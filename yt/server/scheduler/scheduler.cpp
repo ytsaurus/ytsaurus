@@ -449,6 +449,11 @@ public:
         TotalResourceLimits_ -= oldResourceLimits;
         TotalResourceLimits_ += node->ResourceLimits();
 
+        auto updateResourceUsage = [&] () {
+            TotalResourceUsage_ -= oldResourceUsage;
+            TotalResourceUsage_ += node->ResourceUsage();
+        };
+
         for (const auto& tag : node->SchedulingTags()) {
             auto& resources = SchedulingTagResources_[tag];
             resources -= oldResourceLimits;
@@ -456,92 +461,98 @@ public:
         }
 
         if (MasterConnector_->IsConnected()) {
-            std::vector<TJobPtr> runningJobs;
-            bool hasWaitingJobs = false;
-            yhash_set<TOperationPtr> operationsToLog;
-            PROFILE_TIMING ("/analysis_time") {
-                auto missingJobs = node->Jobs();
+            try {
+                std::vector<TJobPtr> runningJobs;
+                bool hasWaitingJobs = false;
+                yhash_set<TOperationPtr> operationsToLog;
+                PROFILE_TIMING ("/analysis_time") {
+                    auto missingJobs = node->Jobs();
 
-                FOREACH (auto& jobStatus, *request->mutable_jobs()) {
-                    auto jobType = EJobType(jobStatus.job_type());
-                    // Skip jobs that are not issued by the scheduler.
-                    if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)
-                        continue;
+                    FOREACH (auto& jobStatus, *request->mutable_jobs()) {
+                        auto jobType = EJobType(jobStatus.job_type());
+                        // Skip jobs that are not issued by the scheduler.
+                        if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)
+                            continue;
 
-                    auto job = ProcessJobHeartbeat(
-                        node,
-                        request,
-                        response,
-                        &jobStatus);
-                    if (job) {
-                        YCHECK(missingJobs.erase(job) == 1);
-                        switch (job->GetState()) {
-                        case EJobState::Completed:
-                        case EJobState::Failed:
-                        case EJobState::Aborted:
-                            operationsToLog.insert(job->GetOperation());
-                            break;
-                        case EJobState::Running:
-                            runningJobs.push_back(job);
-                            break;
-                        case EJobState::Waiting:
-                            hasWaitingJobs = true;
-                            break;
-                        default:
-                            break;
+                        auto job = ProcessJobHeartbeat(
+                            node,
+                            request,
+                            response,
+                            &jobStatus);
+                        if (job) {
+                            YCHECK(missingJobs.erase(job) == 1);
+                            switch (job->GetState()) {
+                            case EJobState::Completed:
+                            case EJobState::Failed:
+                            case EJobState::Aborted:
+                                operationsToLog.insert(job->GetOperation());
+                                break;
+                            case EJobState::Running:
+                                runningJobs.push_back(job);
+                                break;
+                            case EJobState::Waiting:
+                                hasWaitingJobs = true;
+                                break;
+                            default:
+                                break;
+                            }
                         }
+                    }
+
+                    // Check for missing jobs.
+                    FOREACH (auto job, missingJobs) {
+                        LOG_ERROR("Job is missing (Address: %s, JobId: %s, OperationId: %s)",
+                            ~node->GetAddress(),
+                            ~ToString(job->GetId()),
+                            ~ToString(job->GetOperation()->GetId()));
+                        AbortJob(job, TError("Job vanished"));
+                        UnregisterJob(job);
                     }
                 }
 
-                // Check for missing jobs.
-                FOREACH (auto job, missingJobs) {
-                    LOG_ERROR("Job is missing (Address: %s, JobId: %s, OperationId: %s)",
-                        ~node->GetAddress(),
-                        ~ToString(job->GetId()),
-                        ~ToString(job->GetOperation()->GetId()));
-                    AbortJob(job, TError("Job vanished"));
-                    UnregisterJob(job);
+                auto schedulingContext = CreateSchedulingContext(node, runningJobs);
+
+                if (hasWaitingJobs) {
+                    LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
+                } else {
+                    PROFILE_TIMING ("/schedule_time") {
+                        Strategy_->ScheduleJobs(~schedulingContext);
+                    }
                 }
-            }
 
-            auto schedulingContext = CreateSchedulingContext(node, runningJobs);
-
-            if (hasWaitingJobs) {
-                LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
-            } else {
-                PROFILE_TIMING ("/schedule_time") {
-                    Strategy_->ScheduleJobs(~schedulingContext);
+                FOREACH (auto job, schedulingContext->PreemptedJobs()) {
+                    ToProto(response->add_jobs_to_abort(), job->GetId());
                 }
-            }
 
-            FOREACH (auto job, schedulingContext->PreemptedJobs()) {
-                ToProto(response->add_jobs_to_abort(), job->GetId());
-            }
+                auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
+                auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetPoolInvoker();
+                FOREACH (auto job, schedulingContext->StartedJobs()) {
+                    auto* startInfo = response->add_jobs_to_start();
+                    ToProto(startInfo->mutable_job_id(), job->GetId());
+                    *startInfo->mutable_resource_limits() = job->ResourceUsage();
 
-            auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
-            auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetPoolInvoker();
-            FOREACH (auto job, schedulingContext->StartedJobs()) {
-                auto* startInfo = response->add_jobs_to_start();
-                ToProto(startInfo->mutable_job_id(), job->GetId());
-                *startInfo->mutable_resource_limits() = job->ResourceUsage();
+                    // Build spec asynchronously.
+                    awaiter->Await(
+                        BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
+                        .AsyncVia(specBuilderInvoker)
+                        .Run());
 
-                // Build spec asynchronously.
-                awaiter->Await(
-                    BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
-                    .AsyncVia(specBuilderInvoker)
-                    .Run());
+                    // Release to avoid circular references.
+                    job->SetSpecBuilder(TJobSpecBuilder());
+                    operationsToLog.insert(job->GetOperation());
+                }
 
-                // Release to avoid circular references.
-                job->SetSpecBuilder(TJobSpecBuilder());
-                operationsToLog.insert(job->GetOperation());
-            }
+                awaiter->Complete(BIND([=] () {
+                    context->Reply();
+                }));
 
-            awaiter->Complete(BIND([=] () {
-                context->Reply();
-            }));
-
-            FOREACH (auto operation, operationsToLog) {
-                LogOperationProgress(operation);
+                FOREACH (auto operation, operationsToLog) {
+                    LogOperationProgress(operation);
+                }
+            } catch (const std::exception& error) {
+                // Do not forget to update resource usage if heartbeat failed
+                updateResourceUsage();
+                throw;
             }
         } else {
             context->Reply(GetMasterDisconnectedError());
@@ -549,8 +560,7 @@ public:
 
         // Update total resource usage _after_ processing the heartbeat to avoid
         // "unsaturated CPU" phenomenon.
-        TotalResourceUsage_ -= oldResourceUsage;
-        TotalResourceUsage_ += node->ResourceUsage();
+        updateResourceUsage();
     }
 
 
