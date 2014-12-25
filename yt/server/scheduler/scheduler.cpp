@@ -549,8 +549,8 @@ public:
                 FOREACH (auto operation, operationsToLog) {
                     LogOperationProgress(operation);
                 }
-            } catch (const std::exception& error) {
-                // Do not forget to update resource usage if heartbeat failed
+            } catch (const std::exception&) {
+                // Do not forget to update resource usage if heartbeat failed.
                 updateResourceUsage();
                 throw;
             }
