@@ -3,15 +3,15 @@
 #include "map_job_io.h"
 #include "user_job_io_detail.h"
 
-#include <ytlib/table_client/sync_writer.h>
-#include <ytlib/table_client/sync_reader.h>
+#include <ytlib/new_table_client/schemaless_chunk_writer.h>
+#include <ytlib/new_table_client/schemaless_chunk_reader.h>
 
 #include <ytlib/scheduler/config.h>
 
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NTableClient;
+using namespace NVersionedTableClient;
 using namespace NChunkClient;
 using namespace NTransactionClient;
 
@@ -27,15 +27,16 @@ public:
 
 
 private:
-    virtual ISyncWriterUnsafePtr DoCreateWriter(
+    virtual ISchemalessMultiChunkWriterPtr DoCreateWriter(
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
-        const TTransactionId& transactionId) override
+        const TTransactionId& transactionId,
+        const TKeyColumns& keyColumns) override
     {
-        return CreateTableWriter(options, chunkListId, transactionId);
+        return CreateTableWriter(options, chunkListId, transactionId, keyColumns);
     }
 
-    virtual std::vector<ISyncReaderPtr> DoCreateReaders() override
+    virtual std::vector<ISchemalessMultiChunkReaderPtr> DoCreateReaders() override
     {
         return CreateRegularReaders(true);
     }

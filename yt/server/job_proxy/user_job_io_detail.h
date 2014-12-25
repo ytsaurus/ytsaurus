@@ -39,27 +39,32 @@ protected:
 
     NLog::TLogger Logger;
 
-/*
 
-    virtual NTableClient::ISyncWriterUnsafePtr DoCreateWriter(
-        NTableClient::TTableWriterOptionsPtr options,
+    virtual NVersionedTableClient::ISchemalessMultiChunkWriterPtr DoCreateWriter(
+        NVersionedTableClient::TTableWriterOptionsPtr options,
         const NChunkClient::TChunkListId& chunkListId,
-        const NTransactionClient::TTransactionId& transactionId) = 0;
+        const NTransactionClient::TTransactionId& transactionId,
+        const NVersionedTableClient::TKeyColumns& keyColumns) = 0;
 
-    virtual std::vector<NTableClient::ISyncReaderPtr> DoCreateReaders() = 0;
+    virtual std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr> DoCreateReaders() = 0;
 
-    std::vector<NTableClient::ISyncReaderPtr> CreateRegularReaders(bool isParallel);
 
-    NTableClient::ISyncReaderPtr CreateTableReader(
-        NTableClient::TChunkReaderOptionsPtr options,
-        std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs, 
+    std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr> CreateRegularReaders(bool isParallel);
+
+    NVersionedTableClient::ISchemalessMultiChunkReaderPtr CreateTableReader(
+        NChunkClient::TMultiChunkReaderOptionsPtr options,
+        const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs, 
+        NVersionedTableClient::TNameTablePtr nameTable,
         bool isParallel);
 
-    NTableClient::ISyncWriterUnsafePtr CreateTableWriter(
-        NTableClient::TTableWriterOptionsPtr options,
+    NVersionedTableClient::ISchemalessMultiChunkWriterPtr CreateTableWriter(
+        NVersionedTableClient::TTableWriterOptionsPtr options,
         const NChunkClient::TChunkListId& chunkListId,
-        const NTransactionClient::TTransactionId& transactionId);
-    */
+        const NTransactionClient::TTransactionId& transactionId,
+        const NVersionedTableClient::TKeyColumns& keyColumns); 
+    
+    NVersionedTableClient::NProto::TBoundaryKeysExt GetBoundaryKeys(
+        NVersionedTableClient::ISchemalessMultiChunkWriterPtr writer) const;
 
 };
 

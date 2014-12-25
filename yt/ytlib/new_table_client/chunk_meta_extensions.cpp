@@ -70,6 +70,14 @@ TChunkMeta FilterChunkMetaByPartitionTag(const TChunkMeta& chunkMeta, int partit
     return filteredChunkMeta;
 }
 
+TBoundaryKeysExt EmptyBoundaryKeys()
+{
+    TBoundaryKeysExt boundaryKeys;
+    boundaryKeys.mutable_min();
+    boundaryKeys.mutable_max();
+    return boundaryKeys;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient

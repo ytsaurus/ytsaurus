@@ -4,13 +4,12 @@
 #include "job.h"
 #include "user_job_io_detail.h"
 
-#include <ytlib/table_client/partitioner.h>
-#include <ytlib/table_client/partition_chunk_writer.h>
-#include <ytlib/table_client/sync_writer.h>
-#include <ytlib/table_client/sync_reader.h>
+#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/partitioner.h>
+#include <ytlib/new_table_client/schemaless_chunk_writer.h>
+#include <ytlib/new_table_client/schemaless_chunk_reader.h>
 
-#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
-#include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <core/ytree/yson_string.h>
 
@@ -20,15 +19,11 @@
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NTableClient;
+using namespace NVersionedTableClient;
 using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
-
-////////////////////////////////////////////////////////////////////
-
-typedef TOldMultiChunkSequentialWriter<TPartitionChunkWriterProvider> TWriter;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -38,36 +33,33 @@ class TPartitionMapJobIO
 public:
     TPartitionMapJobIO(IJobHost* host)
         : TUserJobIOBase(host)
-    { 
-        const auto& jobSpec = Host_->GetJobSpec();
-        const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-        Partitioner_ = CreateHashPartitioner(jobSpecExt.partition_count());
-        KeyColumns_ = FromProto<Stroka>(jobSpecExt.key_columns());
-    }
+    { }
 
-    virtual ISyncWriterUnsafePtr DoCreateWriter(
+    virtual ISchemalessMultiChunkWriterPtr DoCreateWriter(
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
-        const TTransactionId& transactionId) override
+        const TTransactionId& transactionId,
+        // Key columns for partitioner come from job spec extension.
+        const TKeyColumns& /* keyColumns */) override
     {
-        
-        options->KeyColumns = KeyColumns_;
+        const auto& jobSpec = Host_->GetJobSpec();
+        const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+        auto partitioner = CreateHashPartitioner(jobSpecExt.partition_count());
+        auto keyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
 
-        auto provider = New<TPartitionChunkWriterProvider>(
-            JobIOConfig_->TableWriter,
+        auto nameTable = TNameTable::FromKeyColumns(keyColumns);
+        return CreatePartitionMultiChunkWriter(
+            JobIOConfig_->NewTableWriter,
             options,
-            Partitioner_.get());
-
-        return CreateSyncWriter<TPartitionChunkWriterProvider>(New<TWriter>(
-            JobIOConfig_->TableWriter,
-            options,
-            provider,
+            nameTable,
+            keyColumns,
             Host_->GetMasterChannel(),
             transactionId,
-            chunkListId));
+            chunkListId,
+            std::move(partitioner));
     }
 
-    virtual std::vector<ISyncReaderPtr> DoCreateReaders() override
+    virtual std::vector<ISchemalessMultiChunkReaderPtr> DoCreateReaders() override
     {
         // ToDo(psushin): don't use parallel readers here to minimize nondetermenistics
         // behaviour in mapper, that may lead to huge problems in presence of lost jobs.
@@ -83,10 +75,6 @@ public:
         writer->GetNodeDirectory()->DumpTo(schedulerJobResult->mutable_node_directory());
         ToProto(schedulerJobResult->mutable_chunks(), writer->GetWrittenChunks());
     }
-
-private:
-    std::unique_ptr<IPartitioner> Partitioner_;
-    TKeyColumns KeyColumns_;
 
 };
 

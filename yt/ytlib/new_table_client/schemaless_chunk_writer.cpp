@@ -78,6 +78,8 @@ public:
 
     virtual TNameTablePtr GetNameTable() const override;
 
+    virtual bool IsSorted() const override;
+
 private:
     TNameTablePtr NameTable_;
 
@@ -147,6 +149,12 @@ TNameTablePtr TSchemalessChunkWriter<TBase>::GetNameTable() const
     return NameTable_;
 }
 
+template <class TBase>
+bool TSchemalessChunkWriter<TBase>::IsSorted() const
+{
+    return TBase::IsSorted();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
@@ -187,6 +195,8 @@ public:
     virtual TChunkMeta GetSchedulerMeta() const override;
 
     virtual i64 GetMetaSize() const override;
+
+    virtual bool IsSorted() const override;
 
 private:
     TNameTablePtr NameTable_;
@@ -367,6 +377,11 @@ ETableChunkFormat TPartitionChunkWriter::GetFormatVersion() const
     return ETableChunkFormat::SchemalessHorizontal;
 }
 
+bool TPartitionChunkWriter::IsSorted() const
+{
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkWriterPtr CreatePartitionChunkWriter(
@@ -402,6 +417,8 @@ public:
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
 
     virtual TNameTablePtr GetNameTable() const override;
+
+    virtual bool IsSorted() const override;
 
 private:
     TChunkedMemoryPool MemoryPool_;
@@ -486,6 +503,11 @@ TNameTablePtr TReorderingSchemalessMultiChunkWriter::GetNameTable() const
     return UnderlyingWriter_->GetNameTable();
 }
 
+bool TReorderingSchemalessMultiChunkWriter::IsSorted() const
+{
+    return UnderlyingWriter_->IsSorted();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TBase>
@@ -493,21 +515,34 @@ class TSchemalessMultiChunkWriter
     : public TBase
 {
 public:
-    using TBase::TBase;
+    TSchemalessMultiChunkWriter(
+        TMultiChunkWriterConfigPtr config,
+        TMultiChunkWriterOptionsPtr options,
+        IChannelPtr masterChannel,
+        const TTransactionId& transactionId,
+        const TChunkListId& parentChunkListId,
+        std::function<ISchemalessChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
+        TNameTablePtr nameTable,
+        bool isSorted)
+        : TBase(config, options, masterChannel, transactionId, parentChunkListId, createChunkWriter)
+        , NameTable_(nameTable)
+        , IsSorted_(isSorted)
+    { }
 
     virtual TNameTablePtr GetNameTable() const override
     {
         return NameTable_;
     }
 
-    //! This method is written to avoid ctor boilerplate.
-    void SetNameTable(TNameTablePtr nameTable)
+    virtual bool IsSorted() const override
     {
-        NameTable_ = nameTable;
+        return IsSorted_;
     }
 
 private:
     TNameTablePtr NameTable_;
+    bool IsSorted_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -537,16 +572,18 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
             underlyingWriter);
     };
 
+    bool isSorted = !keyColumns.empty();
     auto writer = New<TWriter>(
         config,
         options,
         masterChannel,
         transactionId,
         parentChunkListId,
-        createChunkWriter);
-    writer->SetNameTable(nameTable);
+        createChunkWriter,
+        nameTable,
+        isSorted);
 
-    if (reorderValues && !keyColumns.empty())
+    if (reorderValues && isSorted)
         return New<TReorderingSchemalessMultiChunkWriter>(keyColumns, nameTable, writer);
     else
         return writer;
@@ -591,7 +628,9 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
         masterChannel,
         transactionId,
         parentChunkListId,
-        createChunkWriter);
+        createChunkWriter,
+        nameTable,
+        false);
 
     return New<TReorderingSchemalessMultiChunkWriter>(keyColumns, nameTable, writer);
 }
@@ -617,6 +656,7 @@ public:
     virtual TAsyncError GetReadyEvent() override;
     virtual TAsyncError Close() override;
     virtual TNameTablePtr GetNameTable() const override;
+    virtual bool IsSorted() const override;
 
 private:
     NLog::TLogger Logger;
@@ -919,6 +959,11 @@ TError TSchemalessTableWriter::DoClose()
 TNameTablePtr TSchemalessTableWriter::GetNameTable() const
 {
     return NameTable_;
+}
+
+bool TSchemalessTableWriter::IsSorted() const
+{
+    return UnderlyingWriter_->IsSorted();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

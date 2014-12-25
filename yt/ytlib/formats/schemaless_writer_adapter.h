@@ -29,6 +29,8 @@ public:
 
     virtual NVersionedTableClient::TNameTablePtr GetNameTable() const override;
 
+    virtual bool IsSorted() const override;
+
 private:
     std::unique_ptr<NYson::IYsonConsumer> Consumer_;
     NVersionedTableClient::TNameTablePtr NameTable_;
