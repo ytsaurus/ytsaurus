@@ -38,12 +38,6 @@ typedef TIntrusivePtr<IWriterBase> IWriterBasePtr;
 struct IAsyncWriter;
 typedef TIntrusivePtr<IAsyncWriter> IAsyncWriterPtr;
 
-struct ISyncWriter;
-typedef TIntrusivePtr<ISyncWriter> ISyncWriterPtr;
-
-struct ISyncWriterUnsafe;
-typedef TIntrusivePtr<ISyncWriterUnsafe> ISyncWriterUnsafePtr;
-
 struct ISyncReader;
 typedef TIntrusivePtr<ISyncReader> ISyncReaderPtr;
 

@@ -12,9 +12,12 @@
 
 #include <core/ytree/convert.h>
 
+#include <core/concurrency/scheduler.h>
+
 namespace NYT {
 namespace NJobProxy {
 
+using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
 using namespace NScheduler;
@@ -50,6 +53,8 @@ void TUserJobIOBase::Init()
         }
         
         auto writer = DoCreateWriter(options, chunkListId, transactionId, keyColumns);
+        auto error = WaitFor(writer->Open());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
         Writers_.push_back(writer);
     }
 
@@ -57,7 +62,8 @@ void TUserJobIOBase::Init()
 
     Readers_ = DoCreateReaders();
     for (const auto& reader : Readers_) {
-        reader->Open();
+        auto error = WaitFor(reader->Open());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 }
 

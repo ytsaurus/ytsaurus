@@ -21,6 +21,7 @@
 
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/chunk_spec.h>
+#include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 
 #include <ytlib/cypress_client/rpc_helpers.h>
 

@@ -1,7 +1,6 @@
 ﻿#pragma once
 
 #include "public.h"
-#include "sync_writer.h"
 #include "async_writer.h"
 #include "table_ypath_proxy.h"
 

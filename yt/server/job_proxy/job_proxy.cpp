@@ -298,7 +298,6 @@ TJobResult TJobProxy::DoRun()
             Job_ = CreateBuiltinJob();
         }
 
-
         if (MemoryWatchdogExecutor_) {
             MemoryWatchdogExecutor_->Start();
         }

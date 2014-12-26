@@ -35,7 +35,6 @@ set( HDRS
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/sync_reader.h
-  ${BASE}/sync_writer.h
   ${BASE}/table_chunk_reader.h
   ${BASE}/table_chunk_writer.h
   ${BASE}/table_consumer.h
