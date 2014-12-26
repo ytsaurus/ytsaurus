@@ -180,7 +180,6 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
         LOG_DEBUG("Chunk created (ChunkId: %v)", NextSession_.ChunkId);
 
         if (Options_->ErasureCodec == ECodec::None) {
-            auto targets = NodeDirectory_->GetDescriptors(NextSession_.Replicas);
             NextSession_.UnderlyingWriter = CreateReplicationWriter(
                 Config_, 
                 NextSession_.ChunkId, 
@@ -189,10 +188,6 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
                 MasterChannel_);
         } else {
             auto* erasureCodec = GetCodec(Options_->ErasureCodec);
-            int totalPartCount = erasureCodec->GetTotalPartCount();
-
-            YCHECK(NextSession_.Replicas.size() == totalPartCount);
-
             auto writers = CreateErasurePartWriters(
                 Config_, 
                 NextSession_.ChunkId, 

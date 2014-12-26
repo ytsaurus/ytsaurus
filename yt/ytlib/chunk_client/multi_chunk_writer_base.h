@@ -63,7 +63,6 @@ private:
     {
         IChunkWriterBasePtr TemplateWriter;
         IChunkWriterPtr UnderlyingWriter;
-        std::vector<TChunkReplica> Replicas;
         TChunkId ChunkId;
 
         TSession()
@@ -81,7 +80,6 @@ private:
             TemplateWriter = nullptr;
             UnderlyingWriter = nullptr;
             ChunkId = TChunkId();
-            Replicas.clear();
         }
     };
 
