@@ -539,11 +539,13 @@ static TQueryPtr PrepareQuery(
     const Stroka& querySourceString,
     i64 inputRowLimit,
     i64 outputRowLimit,
-    TTableSchema& initialTableSchema)
+    const TTableSchema& tableSchema)
 {
-    std::set<Stroka> liveColumns;
-    auto tableSchemaProxy = TTableSchemaProxy(initialTableSchema, &liveColumns);
     auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
+    query->TableSchema = tableSchema;
+
+    std::set<Stroka> liveColumns;
+    auto tableSchemaProxy = TTableSchemaProxy(query->TableSchema, &liveColumns);
 
     if (ast.WherePredicate) {
 
@@ -640,7 +642,7 @@ static TQueryPtr PrepareQuery(
 
     // Prune references
 
-    auto& columns = initialTableSchema.Columns();
+    auto& columns = query->TableSchema.Columns();
 
     if (!tableSchemaProxy.LiveColumns) {
         columns.erase(
@@ -712,10 +714,9 @@ TPlanFragmentPtr PreparePlanFragment(
 
     auto query = PrepareQuery(ast, source, inputRowLimit, outputRowLimit, tableSchema);
 
-    SetTableSchema(&initialDataSplit, tableSchema);
-
-    query->TableSchema = GetTableSchemaFromDataSplit(initialDataSplit);
+    SetTableSchema(&initialDataSplit, query->TableSchema);
     query->KeyColumns = GetKeyColumnsFromDataSplit(initialDataSplit);
+
     planFragment->Query = query;
     planFragment->DataSplits.push_back(initialDataSplit);
 
@@ -724,7 +725,7 @@ TPlanFragmentPtr PreparePlanFragment(
 
 TPlanFragmentPtr PrepareJobPlanFragment(
     const Stroka& source,
-    const TTableSchema& initialTableSchema)
+    const TTableSchema& tableSchema)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>()};
     NAst::TRowBuffer rowBuffer;
@@ -741,11 +742,9 @@ TPlanFragmentPtr PrepareJobPlanFragment(
     }
 
     auto planFragment = New<TPlanFragment>(source);
-    auto tableSchema = initialTableSchema;
     auto unlimited = std::numeric_limits<i64>::max();
     auto query = PrepareQuery(ast, source, unlimited, unlimited, tableSchema);
 
-    query->TableSchema = std::move(tableSchema);
     planFragment->Query = query;
 
     return planFragment;
@@ -753,7 +752,7 @@ TPlanFragmentPtr PrepareJobPlanFragment(
 
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
-    const TTableSchema& initialTableSchema)
+    const TTableSchema& tableSchema)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TNamedExpression>()};
     NAst::TRowBuffer rowBuffer;
@@ -762,7 +761,7 @@ TConstExpressionPtr PrepareExpression(
     auto& expr = astHead.As<NAst::TNamedExpression>();
 
     std::set<Stroka> liveColumns;
-    auto tableSchemaProxy = TTableSchemaProxy(initialTableSchema, &liveColumns);
+    auto tableSchemaProxy = TTableSchemaProxy(tableSchema, &liveColumns);
     auto typedExprs = BuildTypedExpression(tableSchemaProxy, expr.first.Get(), nullptr, source);
 
     if (typedExprs.size() != 1) {
