@@ -260,8 +260,7 @@ public:
                 {
                     NProfiling::TAggregatingTimingGuard timingGuard(&statistics.AsyncTime);
                     auto error = WaitFor(writer->Open(
-                        query->GetTableSchema(),
-                        query->GetKeyColumns()));
+                        query->GetTableSchema()));
                     THROW_ERROR_EXCEPTION_IF_FAILED(error);
                 }
 

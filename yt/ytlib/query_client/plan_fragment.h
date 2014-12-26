@@ -321,14 +321,6 @@ public:
         return TableSchema;
     }
 
-    TKeyColumns GetKeyColumns() const
-    {
-        if (!GroupClause && !ProjectClause) {
-            return KeyColumns;
-        } else {
-            return TKeyColumns();
-        }        
-    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
