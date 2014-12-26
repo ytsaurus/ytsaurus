@@ -17,7 +17,6 @@
 #include <util/system/tempfile.h>
 
 #include <array>
-#include <curses.h>
 
 namespace NYT {
 namespace NHydra {
