@@ -259,8 +259,7 @@ public:
                 LOG_DEBUG("Opening writer");
                 {
                     NProfiling::TAggregatingTimingGuard timingGuard(&statistics.AsyncTime);
-                    auto error = WaitFor(writer->Open(
-                        query->GetTableSchema()));
+                    auto error = WaitFor(writer->Open(query->GetTableSchema()));
                     THROW_ERROR_EXCEPTION_IF_FAILED(error);
                 }
 
