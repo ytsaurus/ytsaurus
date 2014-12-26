@@ -1,5 +1,5 @@
 ﻿#include "stdafx.h"
-#include "sync_writer.h"
+#include "async_writer.h"
 #include "table_consumer.h"
 #include "config.h"
 
