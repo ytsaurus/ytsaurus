@@ -166,12 +166,6 @@ struct TQuery
 
 typedef TVariant<TQuery, TNamedExpression> TAstHead;
 
-struct TOwningAst
-{
-    TAstHead astHead;
-    TRowBuffer rowBuffer;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NAst

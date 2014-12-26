@@ -657,12 +657,13 @@ static TQueryPtr PrepareQuery(
 }
 
 static void ParseYqlString(
-    NAst::TOwningAst& ast,
+    NAst::TAstHead* astHead,
+    TRowBuffer* rowBuffer,
     const Stroka& source,
     NAst::TParser::token::yytokentype strayToken)
 {
     NAst::TLexer lexer(source, strayToken);
-    NAst::TParser parser(lexer, &ast.astHead, &ast.rowBuffer);
+    NAst::TParser parser(lexer, astHead, rowBuffer);
 
     int result = parser.parse();
 
@@ -679,10 +680,11 @@ TPlanFragmentPtr PreparePlanFragment(
     i64 outputRowLimit,
     TTimestamp timestamp)
 {
-    NAst::TOwningAst owningAst{TVariantTypeTag<NAst::TQuery>()};
-    ParseYqlString(owningAst, source, NAst::TParser::token::StrayWillParseQuery);
+    NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>()};
+    NAst::TRowBuffer rowBuffer;
+    ParseYqlString(&astHead, &rowBuffer, source, NAst::TParser::token::StrayWillParseQuery);
 
-    auto& ast = owningAst.astHead.As<NAst::TQuery>();
+    auto& ast = astHead.As<NAst::TQuery>();
     auto tablePath = ast.FromPath;
 
     LOG_DEBUG("Getting initial data split for %v", tablePath);
@@ -724,10 +726,11 @@ TPlanFragmentPtr PrepareJobPlanFragment(
     const Stroka& source,
     const TTableSchema& initialTableSchema)
 {
-    NAst::TOwningAst owningAst{TVariantTypeTag<NAst::TQuery>()};
-    ParseYqlString(owningAst, source, NAst::TParser::token::StrayWillParseJobQuery);
+    NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>()};
+    NAst::TRowBuffer rowBuffer;
+    ParseYqlString(&astHead, &rowBuffer, source, NAst::TParser::token::StrayWillParseJobQuery);
 
-    auto& ast = owningAst.astHead.As<NAst::TQuery>();
+    auto& ast = astHead.As<NAst::TQuery>();
 
     if (ast.Limit) {
         THROW_ERROR_EXCEPTION("LIMIT is not supported in map-reduce queries");
@@ -752,10 +755,11 @@ TConstExpressionPtr PrepareExpression(
     const Stroka& source,
     const TTableSchema& initialTableSchema)
 {
-    NAst::TOwningAst owningAst{TVariantTypeTag<NAst::TNamedExpression>()};
-    ParseYqlString(owningAst, source, NAst::TParser::token::StrayWillParseExpression);
+    NAst::TAstHead astHead{TVariantTypeTag<NAst::TNamedExpression>()};
+    NAst::TRowBuffer rowBuffer;
+    ParseYqlString(&astHead, &rowBuffer, source, NAst::TParser::token::StrayWillParseExpression);
 
-    auto& expr = owningAst.astHead.As<NAst::TNamedExpression>();
+    auto& expr = astHead.As<NAst::TNamedExpression>();
 
     std::set<Stroka> liveColumns;
     auto tableSchemaProxy = TTableSchemaProxy(initialTableSchema, &liveColumns);
