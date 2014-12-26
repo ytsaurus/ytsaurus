@@ -10,17 +10,6 @@
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
 
-/*
-#include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
-#include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
-#include <ytlib/chunk_client/schema.h>
-
-#include <ytlib/table_client/table_chunk_reader.h>
-#include <ytlib/table_client/table_chunk_writer.h>
-#include <ytlib/table_client/sync_reader.h>
-#include <ytlib/table_client/sync_writer.h>
-*/
-
 #include <core/ytree/convert.h>
 
 namespace NYT {
