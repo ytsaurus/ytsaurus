@@ -126,6 +126,7 @@ DECLARE_ENUM(EObjectType,
     ((Tablet)                     (702))
     ((TabletMap)                  (703))
     ((DynamicMemoryTabletStore)   (704))
+    ((TabletPartition)            (705))
     
     // Node Tracker stuff
     ((CellNodeMap)                (408))

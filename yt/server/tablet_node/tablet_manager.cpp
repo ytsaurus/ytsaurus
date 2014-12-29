@@ -921,8 +921,9 @@ private:
         if (!tablet)
             return;
 
+        auto partitionId = FromProto<TPartitionId>(request.partition_id());
+        auto* partition = tablet->GetPartitionById(partitionId);
         auto pivotKeys = FromProto<TOwningKey>(request.pivot_keys());
-        auto* partition = tablet->GetPartitionByPivotKey(pivotKeys[0]);
 
         // NB: Set the state back to normal; otherwise if some of the below checks fail, we might get
         // a partition stuck in splitting state forever.
@@ -933,9 +934,9 @@ private:
 
         int partitionIndex = partition->GetIndex();
 
-        LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, PartitionIndex: %v, DataSize: %v, Keys: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, PartitionId: %v, DataSize: %v, Keys: %v)",
             tablet->GetId(),
-            partitionIndex,
+            partitionId,
             partition->GetUncompressedDataSize(),
             JoinToString(pivotKeys, Stroka(" .. ")));
 
@@ -952,8 +953,9 @@ private:
         if (!tablet)
             return;
 
-        auto pivotKey = FromProto<TOwningKey>(request.pivot_key());
-        auto* firstPartition = tablet->GetPartitionByPivotKey(pivotKey);
+        auto firstPartitionId = FromProto<TPartitionId>(request.partition_id());
+        auto* firstPartition = tablet->GetPartitionById(firstPartitionId);
+
         int firstPartitionIndex = firstPartition->GetIndex();
         int lastPartitionIndex = firstPartitionIndex + request.partition_count() - 1;
 
@@ -964,12 +966,14 @@ private:
             tablet->Partitions()[index]->SetState(EPartitionState::Normal);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, PartitionIndexes: %v .. %v, Keys: %v .. %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, PartitionIds: [%v])",
             tablet->GetId(),
-            firstPartitionIndex,
-            lastPartitionIndex,
-            tablet->Partitions()[firstPartitionIndex]->GetPivotKey(),
-            tablet->Partitions()[lastPartitionIndex]->GetNextPivotKey());
+            JoinToString(ConvertToStrings(
+                tablet->Partitions().begin() + firstPartitionIndex,
+                tablet->Partitions().begin() + lastPartitionIndex + 1,
+                [] (const std::unique_ptr<TPartition>& partition) {
+                     return ToString(partition->GetId());
+                })));
 
         tablet->MergePartitions(firstPartitionIndex, lastPartitionIndex);
         // NB: Initial partitions are merged into a single one with index |firstPartitionIndex|.
@@ -984,8 +988,8 @@ private:
         if (!tablet)
             return;
 
-        auto pivotKey = FromProto<TOwningKey>(request.pivot_key());
-        auto* partition = tablet->FindPartitionByPivotKey(pivotKey);
+        auto partitionId = FromProto<TPartitionId>(request.partition_id());
+        auto* partition = tablet->FindPartitionById(partitionId);
         if (!partition)
             return;
 
@@ -1000,11 +1004,9 @@ private:
         const auto* mutationContext = hydraManager->GetMutationContext();
         partition->SetSamplingTime(mutationContext->GetTimestamp());
 
-        LOG_INFO_UNLESS(IsRecovery(), "Partition sample keys updated (TabletId: %v, PartitionIndex: %v, Keys: %v .. %v, SampleKeyCount: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Partition sample keys updated (TabletId: %v, PartitionId: %v, SampleKeyCount: %v)",
             tabletId,
-            partition->GetIndex(),
-            partition->GetPivotKey(),
-            partition->GetNextPivotKey(),
+            partition->GetId(),
             sampleKeys->Keys.size());
     }
 

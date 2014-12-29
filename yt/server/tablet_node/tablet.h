@@ -107,6 +107,8 @@ public:
     void CreateInitialPartition();
     TPartition* FindPartitionByPivotKey(const TOwningKey& pivotKey);
     TPartition* GetPartitionByPivotKey(const TOwningKey& pivotKey);
+    TPartition* FindPartitionById(const TPartitionId& partitionId);
+    TPartition* GetPartitionById(const TPartitionId& partitionId);
     void MergePartitions(int firstIndex, int lastIndex);
     void SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys);
 
@@ -150,7 +152,8 @@ private:
 
     std::unique_ptr<TPartition> Eden_;
 
-    TPartitionList Partitions_;
+    TPartitionList PartitionList_;
+    yhash_map<TPartitionId, TPartition*> PartitionMap_;
 
     yhash_map<TStoreId, IStorePtr> Stores_;
     TDynamicMemoryStorePtr ActiveStore_;
@@ -163,7 +166,7 @@ private:
     void Initialize();
 
     TPartition* GetContainingPartition(IStorePtr store);
-
+    NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

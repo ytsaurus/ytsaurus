@@ -32,6 +32,8 @@ using NTabletClient::TTabletId;
 using NTabletClient::NullTabletId;
 using NTabletClient::TStoreId;
 using NTabletClient::NullStoreId;
+using NTabletClient::TPartitionId;
+using NTabletClient::NullPartitionId;
 
 using NTabletClient::ELockMode;
 using NTabletClient::TTabletCellConfig;

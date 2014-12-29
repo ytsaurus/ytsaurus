@@ -25,6 +25,7 @@ using namespace NHydra;
 using namespace NVersionedTableClient;
 using namespace NTabletClient;
 using namespace NChunkClient;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,7 +94,10 @@ TTablet::TTablet(
     , State_(ETabletState::Mounted)
     , Config_(config)
     , WriterOptions_(writerOptions)
-    , Eden_(std::make_unique<TPartition>(this, TPartition::EdenIndex))
+    , Eden_(std::make_unique<TPartition>(
+        this,
+        GenerateId(EObjectType::TabletPartition),
+        TPartition::EdenIndex))
 {
     Initialize();
 }
@@ -169,11 +173,16 @@ void TTablet::Save(TSaveContext& context) const
 
     Save(context, ActiveStore_ ? ActiveStore_->GetId() : NullStoreId);
 
-    Save(context, *Eden_);
+    auto savePartition = [&] (const TPartition& partition) {
+        Save(context, partition.GetId());
+        partition.Save(context);
+    };
 
-    Save(context, Partitions_.size());
-    for (const auto& partition : Partitions_) {
-        Save(context, *partition);
+    savePartition(*Eden_);
+
+    Save(context, PartitionList_.size());
+    for (const auto& partition : PartitionList_) {
+        savePartition(*partition);
     }
 }
 
@@ -215,7 +224,8 @@ void TTablet::Load(TLoadContext& context)
     }
 
     auto loadPartition = [&] (int index) -> std::unique_ptr<TPartition> {
-        auto partition = std::make_unique<TPartition>(this, index);
+        auto partitionId = Load<TPartitionId>(context);
+        auto partition = std::make_unique<TPartition>(this, partitionId, index);
         Load(context, *partition);
         for (auto store : partition->Stores()) {
             store->SetPartition(partition.get());
@@ -228,13 +238,14 @@ void TTablet::Load(TLoadContext& context)
     size_t partitionCount = Load<size_t>(context);
     for (int index = 0; index < static_cast<int>(partitionCount); ++index) {
         auto partition = loadPartition(index);
-        Partitions_.push_back(std::move(partition));
+        YCHECK(PartitionMap_.insert(std::make_pair(partition->GetId(), partition.get())).second);
+        PartitionList_.push_back(std::move(partition));
     }
 }
 
 const std::vector<std::unique_ptr<TPartition>>& TTablet::Partitions() const
 {
-    return Partitions_;
+    return PartitionList_;
 }
 
 TPartition* TTablet::GetEden() const
@@ -244,25 +255,27 @@ TPartition* TTablet::GetEden() const
 
 void TTablet::CreateInitialPartition()
 {
-    YCHECK(Partitions_.empty());
+    YCHECK(PartitionList_.empty());
     auto partition = std::make_unique<TPartition>(
         this,
-        static_cast<int>(Partitions_.size()));
+        GenerateId(EObjectType::TabletPartition),
+        static_cast<int>(PartitionList_.size()));
     partition->SetPivotKey(PivotKey_);
     partition->SetNextPivotKey(NextPivotKey_);
-    Partitions_.push_back(std::move(partition));
+    YCHECK(PartitionMap_.insert(std::make_pair(partition->GetId(), partition.get())).second);
+    PartitionList_.push_back(std::move(partition));
 }
 
 TPartition* TTablet::FindPartitionByPivotKey(const NVersionedTableClient::TOwningKey& pivotKey)
 {
     auto it = std::lower_bound(
-        Partitions_.begin(),
-        Partitions_.end(),
+        PartitionList_.begin(),
+        PartitionList_.end(),
         pivotKey,
         [] (const std::unique_ptr<TPartition>& partition, const TOwningKey& key) {
             return partition->GetPivotKey() < key;
         });
-    return it != Partitions_.end() && (*it)->GetPivotKey() == pivotKey ? it->get() : nullptr;
+    return it != PartitionList_.end() && (*it)->GetPivotKey() == pivotKey ? it->get() : nullptr;
 }
 
 TPartition* TTablet::GetPartitionByPivotKey(const NVersionedTableClient::TOwningKey& pivotKey)
@@ -272,19 +285,35 @@ TPartition* TTablet::GetPartitionByPivotKey(const NVersionedTableClient::TOwning
     return partition;
 }
 
+TPartition* TTablet::FindPartitionById(const TPartitionId& partitionId)
+{
+    const auto& it = PartitionMap_.find(partitionId);
+    return it == PartitionMap_.end() ? nullptr : it->second;
+}
+
+TPartition* TTablet::GetPartitionById(const TPartitionId& partitionId)
+{
+    auto* partition = FindPartitionById(partitionId);
+    YCHECK(partition);
+    return partition;
+}
+
 void TTablet::MergePartitions(int firstIndex, int lastIndex)
 {
-    for (int i = lastIndex + 1; i < static_cast<int>(Partitions_.size()); ++i) {
-        Partitions_[i]->SetIndex(i - (lastIndex - firstIndex));
+    for (int i = lastIndex + 1; i < static_cast<int>(PartitionList_.size()); ++i) {
+        PartitionList_[i]->SetIndex(i - (lastIndex - firstIndex));
     }
 
-    auto mergedPartition = std::make_unique<TPartition>(this, firstIndex);
-    mergedPartition->SetPivotKey(Partitions_[firstIndex]->GetPivotKey());
-    mergedPartition->SetNextPivotKey(Partitions_[lastIndex]->GetNextPivotKey());
+    auto mergedPartition = std::make_unique<TPartition>(
+        this,
+        GenerateId(EObjectType::TabletPartition),
+        firstIndex);
+    mergedPartition->SetPivotKey(PartitionList_[firstIndex]->GetPivotKey());
+    mergedPartition->SetNextPivotKey(PartitionList_[lastIndex]->GetNextPivotKey());
     auto& mergedSampleKeys = mergedPartition->GetSampleKeys()->Keys;
 
     for (int index = firstIndex; index <= lastIndex; ++index) {
-        const auto& existingPartition = Partitions_[index];
+        const auto& existingPartition = PartitionList_[index];
         const auto& existingSampleKeys = existingPartition->GetSampleKeys()->Keys;
         if (index > firstIndex) {
             mergedSampleKeys.push_back(existingPartition->GetPivotKey());
@@ -301,17 +330,23 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
         }
     }
 
-    Partitions_.erase(Partitions_.begin() + firstIndex, Partitions_.begin() + lastIndex + 1);
-    Partitions_.insert(Partitions_.begin() + firstIndex, std::move(mergedPartition));
+    auto firstPartitionIt = PartitionList_.begin() + firstIndex;
+    auto lastPartitionIt = PartitionList_.begin() + lastIndex;
+    for (auto it = firstPartitionIt; it !=  lastPartitionIt; ++it) {
+        PartitionMap_.erase((*it)->GetId());
+    }
+    YCHECK(PartitionMap_.insert(std::make_pair(mergedPartition->GetId(), mergedPartition.get())).second);
+    PartitionList_.erase(firstPartitionIt, lastPartitionIt + 1);
+    PartitionList_.insert(firstPartitionIt, std::move(mergedPartition));
 }
 
 void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys)
 {
-    auto existingPartition = std::move(Partitions_[index]);
+    auto existingPartition = std::move(PartitionList_[index]);
     YCHECK(existingPartition->GetPivotKey() == pivotKeys[0]);
 
-    for (int partitionIndex = index + 1; partitionIndex < Partitions_.size(); ++partitionIndex) {
-        Partitions_[partitionIndex]->SetIndex(partitionIndex + pivotKeys.size() - 1);
+    for (int partitionIndex = index + 1; partitionIndex < PartitionList_.size(); ++partitionIndex) {
+        PartitionList_[partitionIndex]->SetIndex(partitionIndex + pivotKeys.size() - 1);
     }
 
     std::vector<std::unique_ptr<TPartition>> splitPartitions;
@@ -320,6 +355,7 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
     for (int pivotKeyIndex = 0; pivotKeyIndex < pivotKeys.size(); ++pivotKeyIndex) {
         auto partition = std::make_unique<TPartition>(
             this,
+            GenerateId(EObjectType::TabletPartition),
             index + pivotKeyIndex);
         auto thisPivotKey = pivotKeys[pivotKeyIndex];
         auto nextPivotKey = (pivotKeyIndex == pivotKeys.size() - 1)
@@ -342,10 +378,13 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
         splitPartitions.push_back(std::move(partition));
     }
 
-    Partitions_.erase(Partitions_.begin() + index);
-
-    Partitions_.insert(
-        Partitions_.begin() + index,
+    PartitionMap_.erase(existingPartition->GetId());
+    for (const auto& partition : splitPartitions) {
+        YCHECK(PartitionMap_.insert(std::make_pair(partition->GetId(), partition.get())).second);
+    }
+    PartitionList_.erase(PartitionList_.begin() + index);
+    PartitionList_.insert(
+        PartitionList_.begin() + index,
         std::make_move_iterator(splitPartitions.begin()),
         std::make_move_iterator(splitPartitions.end()));
 
@@ -362,14 +401,14 @@ TPartition* TTablet::GetContainingPartition(
     const TOwningKey& maxKey)
 {
     auto it = std::upper_bound(
-        Partitions_.begin(),
-        Partitions_.end(),
+        PartitionList_.begin(),
+        PartitionList_.end(),
         minKey,
         [] (const TOwningKey& key, const std::unique_ptr<TPartition>& partition) {
             return key < partition->GetPivotKey();
         });
 
-    if (it != Partitions_.begin()) {
+    if (it != PartitionList_.begin()) {
         --it;
     }
 
@@ -481,8 +520,8 @@ TTabletSnapshotPtr TTablet::BuildSnapshot() const
     snapshot->Schema = Schema_;
     snapshot->KeyColumns = KeyColumns_;
     snapshot->Eden = Eden_->BuildSnapshot();
-    snapshot->Partitions.reserve(Partitions_.size());
-    for (const auto& partition : Partitions_) {
+    snapshot->Partitions.reserve(PartitionList_.size());
+    for (const auto& partition : PartitionList_) {
         snapshot->Partitions.push_back(partition->BuildSnapshot());
     }
     return snapshot;
@@ -541,6 +580,16 @@ TPartition* TTablet::GetContainingPartition(IStorePtr store)
 TDynamicRowKeyComparer TTablet::GetDynamicRowKeyComparer() const
 {
     return Comparer_;
+}
+
+TObjectId TTablet::GenerateId(EObjectType type)
+{
+    // NB: Slot can be null in tests.
+    if (Slot_) {
+        return Slot_->GenerateId(type);
+    } else {
+        return TObjectId::Create();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
