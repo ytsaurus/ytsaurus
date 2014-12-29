@@ -159,72 +159,49 @@ private:
         ISchemafulWriterPtr writer)
     {
         auto nodeDirectory = fragment->NodeDirectory;
-        auto query = fragment->Query;
         auto Logger = BuildLogger(fragment->Query);
 
-        auto splits = Split(GetPrunedSplits(query, fragment->DataSplits), nodeDirectory, Logger);
+        TGroupedDataSplits groupedSplits;
+        return CoordinateAndExecute(fragment, writer, false, [&] (const TDataSplits& prunedSplits) {
+                auto splits = Split(prunedSplits, nodeDirectory, Logger);
 
-        LOG_DEBUG("Regrouping %v splits", splits.size());
+                LOG_DEBUG("Regrouping %v splits", splits.size());
 
-        auto groupedSplits = Regroup(splits, nodeDirectory);
+                groupedSplits.reserve(splits.size());
+                for (const auto& split : splits) {
+                    groupedSplits.emplace_back(1, split);
+                }
 
-        auto ranges = GetRanges(groupedSplits);
-
-        TConstQueryPtr topQuery;
-        std::vector<TConstQueryPtr> subqueries;
-        std::tie(topQuery, subqueries) = CoordinateQuery(query, ranges, false);
-
-        std::vector<ISchemafulReaderPtr> splitReaders;
-        std::vector<TFuture<TErrorOr<TQueryStatistics>>> subqueriesStatistics;
-
-        for (int subqueryIndex = 0; subqueryIndex < subqueries.size(); ++subqueryIndex) {
-            if (!groupedSplits[subqueryIndex].empty()) {
-                LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
-                    subqueries[subqueryIndex]->GetId());
-
-                ISchemafulReaderPtr reader;
-                TFuture<TErrorOr<TQueryStatistics>> statistics;
-
+                return GetRanges(groupedSplits);
+            }, [&] (const TConstQueryPtr& subquery, size_t index) {
                 std::vector<ISchemafulReaderPtr> bottomSplitReaders;
-                for (const auto& dataSplit : groupedSplits[subqueryIndex]) {
+                for (const auto& dataSplit : groupedSplits[index]) {
                     bottomSplitReaders.push_back(GetReader(dataSplit, nodeDirectory));
                 }
                 auto mergingReader = CreateSchemafulMergingReader(bottomSplitReaders);
 
                 auto pipe = New<TSchemafulPipe>();
 
-                auto result = BIND(&TEvaluator::Run, Evaluator_)
+                auto statistics = BIND(&TEvaluator::Run, Evaluator_)
                     .Guarded()
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
-                    .Run(subqueries[subqueryIndex], mergingReader, pipe->GetWriter());
+                    .Run(subquery, mergingReader, pipe->GetWriter());
 
-                result.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& result) {
+                statistics.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& result) {
                     if (!result.IsOK()) {
                         pipe->Fail(result);
                     }
                 }));
 
-                splitReaders.push_back(pipe->GetReader());
-                subqueriesStatistics.push_back(result);
-            }
-        }
+                return std::make_pair(pipe->GetReader(), statistics);
+            }, [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+                auto asyncQueryStatisticsOrError = BIND(&TEvaluator::Run, Evaluator_)
+                        .Guarded()
+                        .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
+                        .Run(topQuery, std::move(reader), std::move(writer));
 
-        auto mergingReader = CreateSchemafulMergingReader(splitReaders);
-
-        auto asyncResultOrError = BIND(&TEvaluator::Run, Evaluator_)
-                .Guarded()
-                .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
-                .Run(topQuery, std::move(mergingReader), std::move(writer));
-
-        auto queryStatistics = WaitFor(asyncResultOrError).ValueOrThrow();
-
-        for (auto const& subqueryStatistics : subqueriesStatistics) {
-            if (subqueryStatistics.IsSet()) {
-                queryStatistics += subqueryStatistics.Get().ValueOrThrow();
-            }
-        }
-
-        return queryStatistics;
+                return WaitFor(asyncQueryStatisticsOrError).ValueOrThrow();
+            }, false);
     }
 
     TDataSplits SplitFurther(
@@ -383,19 +360,6 @@ private:
         }
         return result;
     }
-
-    TGroupedDataSplits Regroup(
-        const TDataSplits& splits,
-        TNodeDirectoryPtr nodeDirectory)
-    {
-        TGroupedDataSplits result;
-        result.reserve(splits.size());
-        for (const auto& split : splits) {
-            result.emplace_back(1, split);
-        }
-        return result;
-    }
-
 
     ISchemafulReaderPtr GetReader(
         const TDataSplit& split,

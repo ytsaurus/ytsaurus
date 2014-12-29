@@ -20,6 +20,8 @@
 #include <ytlib/new_table_client/writer.h>
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/new_table_client/schemaful_merging_reader.h>
+#include <ytlib/new_table_client/schemaful_ordered_reader.h>
 
 #include <ytlib/object_client/helpers.h>
 
@@ -189,6 +191,79 @@ std::vector<TKeyRange> GetRanges(const TGroupedDataSplits& groupedSplits)
         ranges[splitIndex] = GetRange(groupedSplits[splitIndex]);
     }
     return ranges;
+}
+
+TQueryStatistics CoordinateAndExecute(
+    const TPlanFragmentPtr& fragment,
+    ISchemafulWriterPtr writer,
+    bool isOrdered,
+    std::function<std::vector<TKeyRange>(const TDataSplits&)> splitAndRegroup,
+    std::function<TEvaluateResult(const TConstQueryPtr&, size_t)> evaluateSubquery,
+    std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
+    bool pushdownGroupOp)
+{
+    auto nodeDirectory = fragment->NodeDirectory;
+    auto query = fragment->Query;
+    auto Logger = BuildLogger(query);
+
+    auto ranges = splitAndRegroup(GetPrunedSplits(query, fragment->DataSplits));
+
+    TConstQueryPtr topQuery;
+    std::vector<TConstQueryPtr> subqueries;
+    std::tie(topQuery, subqueries) = CoordinateQuery(query, ranges, pushdownGroupOp);
+
+    std::vector<ISchemafulReaderPtr> splitReaders;
+
+    ISchemafulReaderPtr mergingReader;
+    std::vector<TFuture<TErrorOr<TQueryStatistics>>> subqueriesStatistics;
+
+    if (isOrdered) {
+        size_t index = 0;
+
+        mergingReader = CreateSchemafulOrderedReader([&] () -> ISchemafulReaderPtr {
+            if (index >= subqueries.size()) {
+                return nullptr;
+            }
+            auto subquery = subqueries[index];
+
+            ISchemafulReaderPtr reader;
+            TFuture<TErrorOr<TQueryStatistics>> statistics;
+
+            std::tie(reader, statistics) = evaluateSubquery(subquery, index);
+
+            subqueriesStatistics.push_back(statistics);
+
+            ++index;
+
+            return reader;
+        });
+    } else {
+        for (size_t index = 0; index < subqueries.size(); ++index) {
+            auto subquery = subqueries[index];
+            LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
+                subquery->GetId());
+
+            ISchemafulReaderPtr reader;
+            TFuture<TErrorOr<TQueryStatistics>> statistics;
+
+            std::tie(reader, statistics) = evaluateSubquery(subquery, index);
+
+            splitReaders.push_back(reader);
+            subqueriesStatistics.push_back(statistics);
+        }
+
+        mergingReader = CreateSchemafulMergingReader(splitReaders);
+    }
+
+    auto queryStatistics = evaluateTop(topQuery, std::move(mergingReader), std::move(writer));
+
+    for (auto const& subqueryStatistics : subqueriesStatistics) {
+        if (subqueryStatistics.IsSet()) {
+            queryStatistics += subqueryStatistics.Get().ValueOrThrow();
+        }
+    }
+
+    return queryStatistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
