@@ -35,7 +35,7 @@ class ResponseStream(object):
     def __init__(self, response, iter_type):
         self.request_headers = response.request_headers
         self.response = response.raw_response
-        self.iter_type = iter_type
+        self.iter_type = get_value(iter_type, "iter_lines")
         self._buffer = ""
         self._pos = 0
         self._iter_content = self.response.iter_content(config.READ_BUFFER_SIZE)
