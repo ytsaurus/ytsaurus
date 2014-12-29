@@ -585,7 +585,8 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 "read",
                 params,
                 return_content=False,
-                proxy=get_host_for_heavy_operation(client=client))
+                proxy=get_host_for_heavy_operation(client=client),
+                client=client)
             response_stream = ResponseStream(response, None)
             for row in format.load_rows(response_stream, raw=raw):
                 yield row
