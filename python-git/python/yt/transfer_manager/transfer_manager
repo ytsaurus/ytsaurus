@@ -23,6 +23,7 @@ import yt.wrapper as yt
 from flask import Flask, request, jsonify, Response, make_response
 
 import os
+import sys
 import json
 import time
 import prctl
@@ -851,7 +852,7 @@ class Application(object):
         try:
             self._precheck(task, ignore_timeout=True, yamr_timeout=5.0, custom_logger=TaskIdLogger(task.id))
         except yt.YtError as error:
-            raise RequestFailed("Precheck of task {} failed".format(task.id), inner_errors=[error])
+            raise RequestFailed("Precheck of task {} failed".format(task.id), inner_errors=[error]), None, sys.exc_info()[2]
 
         if not request.args.get("dry_run", False):
             self._initialize_pool(task)
@@ -951,7 +952,9 @@ class Application(object):
             pending_tasks = deepcopy(self._pending_tasks)
 
         user = request.args.get("user")
-        fields = request.args.getlist("field")
+        fields = request.args.getlist("fields[]")
+        if not fields:
+            fields = None
         if user is not None:
             tasks = [task.user == user for task in tasks]
 
