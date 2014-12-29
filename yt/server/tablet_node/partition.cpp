@@ -31,8 +31,9 @@ void TKeyList::Load(TLoadContext& context)
 const int TPartition::EdenIndex;
 #endif
 
-TPartition::TPartition(TTablet* tablet, int index)
+TPartition::TPartition(TTablet* tablet, const TPartitionId& id, int index)
     : Tablet_(tablet)
+    , Id_(id)
     , Index_(index)
     , PivotKey_(MinKey())
     , NextPivotKey_(MaxKey())
@@ -98,6 +99,7 @@ i64 TPartition::GetUnmergedRowCount() const
 TPartitionSnapshotPtr TPartition::BuildSnapshot() const
 {
     auto snapshot = New<TPartitionSnapshot>();
+    snapshot->Id = Id_;
     snapshot->PivotKey = PivotKey_;
     snapshot->SampleKeys = SampleKeys_;
     snapshot->Stores.insert(snapshot->Stores.end(), Stores_.begin(), Stores_.end());

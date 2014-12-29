@@ -47,6 +47,9 @@ extern const TTabletId NullTabletId;
 typedef NObjectClient::TObjectId TStoreId;
 extern const TStoreId NullStoreId;
 
+typedef NObjectClient::TObjectId TPartitionId;
+extern const TPartitionId NullPartitionId;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TTableMountInfo)

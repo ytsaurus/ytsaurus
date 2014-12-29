@@ -28,6 +28,7 @@ DEFINE_REFCOUNTED_TYPE(TKeyList)
 struct TPartitionSnapshot
     : public TIntrinsicRefCounted
 {
+    TPartitionId Id;
     TOwningKey PivotKey;
     TKeyListPtr SampleKeys;
     std::vector<IStorePtr> Stores;
@@ -44,6 +45,7 @@ public:
     static const int EdenIndex = -1;
 
     DEFINE_BYVAL_RO_PROPERTY(TTablet*, Tablet);
+    DEFINE_BYVAL_RO_PROPERTY(TPartitionId, Id);
     DEFINE_BYVAL_RW_PROPERTY(int, Index);
 
     DEFINE_BYVAL_RW_PROPERTY(TOwningKey, PivotKey);
@@ -58,7 +60,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TKeyListPtr, SampleKeys);
 
 public:
-    TPartition(TTablet* tablet, int index);
+    TPartition(TTablet* tablet, const TPartitionId& id, int index);
     ~TPartition();
 
     void Save(TSaveContext& context) const;

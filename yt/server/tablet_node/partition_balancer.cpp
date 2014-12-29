@@ -178,6 +178,7 @@ private:
 
             TReqSplitPartition request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
+            ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_pivot_keys(), pivotKeys);
             CreateMutation(hydraManager, request)
                 ->Commit();
@@ -204,7 +205,15 @@ private:
             tablet->Partitions()[index]->SetState(EPartitionState::Merging);
         }
 
-        auto Logger = BuildLogger(partition);
+        auto Logger = TabletNodeLogger;
+        Logger.AddTag("TabletId: %v, PartitionIds: [%v]",
+            partition->GetTablet()->GetId(),
+            JoinToString(ConvertToStrings(
+                tablet->Partitions().begin() + firstPartitionIndex,
+                tablet->Partitions().begin() + lastPartitionIndex,
+                [] (const std::unique_ptr<TPartition>& partition) {
+                     return ToString(partition->GetId());
+                })));
 
         LOG_INFO("Partition is eligible for merge");
 
@@ -213,7 +222,7 @@ private:
 
         TReqMergePartitions request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
-        ToProto(request.mutable_pivot_key(), tablet->Partitions()[firstPartitionIndex]->GetPivotKey());
+        ToProto(request.mutable_partition_id(), tablet->Partitions()[firstPartitionIndex]->GetId());
         request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
         CreateMutation(hydraManager, request)
             ->Commit();
@@ -254,7 +263,7 @@ private:
 
             TReqUpdatePartitionSampleKeys request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
-            ToProto(request.mutable_pivot_key(), partition->GetPivotKey());
+            ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_sample_keys(), samples);
             CreateMutation(hydraManager, request)
                 ->Commit();
@@ -366,14 +375,12 @@ private:
 
     static NLog::TLogger BuildLogger(TPartition* partition)
     {
-        NLog::TLogger logger(TabletNodeLogger);
-        logger.AddTag("TabletId: %v, PartitionKeys: %v .. %v",
+        auto logger = TabletNodeLogger;
+        logger.AddTag("TabletId: %v, PartitionId: %v",
             partition->GetTablet()->GetId(),
-            partition->GetPivotKey(),
-            partition->GetNextPivotKey());
+            partition->GetId());
         return logger;
     }
-
 };
 
 void StartPartitionBalancer(
