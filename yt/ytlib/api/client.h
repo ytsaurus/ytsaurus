@@ -406,8 +406,10 @@ DEFINE_REFCOUNTED_TYPE(IClientBase)
 struct IClient
     : public IClientBase
 {
+    // TODO(babenko): consider hiding these guys
     virtual NRpc::IChannelPtr GetMasterChannel() = 0;
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
+    virtual NRpc::IChannelFactoryPtr GetNodeChannelFactory() = 0;
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
 
     //! Terminates all channels.

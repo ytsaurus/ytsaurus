@@ -50,8 +50,7 @@ struct IConnection
     virtual NTabletClient::TTableMountCachePtr GetTableMountCache() = 0;
     virtual NTransactionClient::ITimestampProviderPtr GetTimestampProvider() = 0;
     virtual NHive::TCellDirectoryPtr GetCellDirectory() = 0;
-    virtual NQueryClient::IPrepareCallbacks* GetQueryPrepareCallbacks() = 0;
-    virtual NQueryClient::IExecutorPtr GetQueryExecutor() = 0;
+    virtual NQueryClient::TEvaluatorPtr GetQueryEvaluator() = 0;
 
     virtual IClientPtr CreateClient(const TClientOptions& options = TClientOptions()) = 0;
 
