@@ -1353,6 +1353,7 @@ private:
     {
         BuildYsonFluently(consumer)
             .BeginMap()
+                .Item("id").Value(partition->GetId())
                 .Item("state").Value(partition->GetState())
                 .Item("pivot_key").Value(partition->GetPivotKey())
                 .Item("next_pivot_key").Value(partition->GetNextPivotKey())
