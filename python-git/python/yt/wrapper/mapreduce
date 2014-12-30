@@ -594,7 +594,7 @@ Examples:
             yt.set_attribute(args.upload, "executable", bool_to_string(True))
     if args.download is not None:
         if yt.exists(args.download):
-            writelines_silently(yt.download_file(args.download, response_type="iter_content"))
+            writelines_silently(yt.download_file(args.download))
 
     if args.exists is not None:
         print bool_to_string(yt.exists(args.exists))

@@ -55,6 +55,9 @@ class Response(object):
         self._process_return_code()
         return not hasattr(self, "_error")
 
+    def url(self):
+        return self.raw_response.url
+
     def json(self):
         return self.raw_response.json()
 
@@ -63,6 +66,15 @@ class Response(object):
 
     def headers(self):
         return self.raw_response.headers
+
+    def trailers(self):
+        return self.raw_response.trailers()
+
+    def iter_content(self, buffer_size):
+        return self.raw_response.iter_content(buffer_size)
+
+    def close(self):
+        self.raw_response.close()
 
     def _process_return_code(self):
         if self._return_code_processed:
