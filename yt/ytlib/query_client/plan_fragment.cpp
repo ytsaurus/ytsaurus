@@ -139,6 +139,49 @@ Stroka InferName(TConstExpressionPtr expr)
     }
 }
 
+Stroka InferName(TConstQueryPtr query)
+{
+    bool newBlock = true;
+    auto block = [&] {
+        bool isNewBlock = newBlock;
+        newBlock = false;
+        return Stroka(isNewBlock ? "" : " ");
+    };
+
+    bool newTuple = true;
+    auto comma = [&] {
+        bool isNewTuple = newTuple;
+        newTuple = false;
+        return Stroka(isNewTuple ? "" : ", ");
+    };
+
+    Stroka str;
+
+    str += block() + "SELECT ";
+    if (query->ProjectClause) {
+        newTuple = true;
+        for (const auto& namedItem : query->ProjectClause.Get().Projections) {
+            str += comma() + InferName(namedItem.Expression) + " AS " + namedItem.Name;
+        }
+    } else {
+        str += "*";
+    }
+
+    if (query->GroupClause) {
+        str += block() + "GROUP BY ";
+        newTuple = true;
+        for (const auto& namedItem : query->GroupClause.Get().GroupItems) {
+            str += comma() + InferName(namedItem.Expression) + " AS " + namedItem.Name;
+        }
+    }
+
+    if (query->Predicate) {
+        str += block() + "WHERE " + InferName(query->Predicate);
+    }
+
+    return str;
+}
+
 Stroka TExpression::GetName() const
 {
     return Stroka();
@@ -665,7 +708,7 @@ static void ParseYqlString(
     NAst::TParser::token::yytokentype strayToken)
 {
     NAst::TLexer lexer(source, strayToken);
-    NAst::TParser parser(lexer, astHead, rowBuffer);
+    NAst::TParser parser(lexer, astHead, rowBuffer, source);
 
     int result = parser.parse();
 

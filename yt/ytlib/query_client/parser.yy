@@ -15,6 +15,7 @@
 %parse-param {TLexer& lexer}
 %parse-param {TAstHead* head}
 %parse-param {TRowBuffer* rowBuffer}
+%parse-param {const Stroka& source}
 
 %code requires {
     #include "ast.h"
@@ -427,8 +428,13 @@ namespace NAst {
 
 void TParser::error(const location_type& location, const std::string& message)
 {
+    Stroka mark;
+    for (int index = 0; index <= location.second; ++index) {
+        mark += index < location.first ? ' ' : '^';
+    }
     THROW_ERROR_EXCEPTION("Error while parsing query: %v", message)
-        << TErrorAttribute("query_range", Format("%v-%v", location.first, location.second));
+        << TErrorAttribute("position", Format("%v-%v", location.first, location.second))
+        << TErrorAttribute("query", Format("\n%v\n%v", source, mark));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
