@@ -45,7 +45,7 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("table_mount_cache", TableMountCache)
         .DefaultNew();
 
-    RegisterParameter("query_executor", QueryExecutor)
+    RegisterParameter("query_evaluator", QueryEvaluator)
         .DefaultNew();
     RegisterParameter("query_timeout", QueryTimeout)
         .Default(TDuration::Seconds(60));

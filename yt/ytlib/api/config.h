@@ -66,7 +66,7 @@ public:
     TSlruCacheConfigPtr UncompressedBlockCache;
     NTabletClient::TTableMountCacheConfigPtr TableMountCache;
 
-    NQueryClient::TExecutorConfigPtr QueryExecutor;
+    NQueryClient::TExecutorConfigPtr QueryEvaluator;
     TDuration QueryTimeout;
     
     NCompression::ECodec WriteRequestCodec;
