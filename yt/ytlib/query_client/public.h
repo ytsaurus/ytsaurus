@@ -47,6 +47,8 @@ struct TQueryStatistics;
 
 DECLARE_REFCOUNTED_STRUCT(IExecutor)
 
+DECLARE_REFCOUNTED_CLASS(TEvaluator)
+
 DECLARE_REFCOUNTED_CLASS(TExecutorConfig)
 
 // TODO(babenko): kill this when refactoring TDataSplit
