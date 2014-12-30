@@ -260,11 +260,6 @@ TChunkMeta TSortedChunkWriterBase::GetMasterMeta() const
     return meta;
 }
 
-TChunkMeta TSortedChunkWriterBase::GetSchedulerMeta() const
-{
-    return TSequentialChunkWriterBase::GetMasterMeta();
-}
-
 i64 TSortedChunkWriterBase::GetMetaSize() const
 {
     return TSequentialChunkWriterBase::GetMetaSize() + BlockIndexExtSize_;

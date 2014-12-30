@@ -435,12 +435,13 @@ private:
         }
 
         FinalizeActions_.push_back(BIND([=] () {
-            for (auto valueConsumers : WritingValueConsumers_) {
-                valueConsumers->Flush();
+            for (auto valueConsumer : WritingValueConsumers_) {
+                valueConsumer->Flush();
             }
 
-            for (auto& writer : JobIO_->GetWriters()) {
-                writer->Close();
+            for (auto writer : JobIO_->GetWriters()) {
+                auto error = WaitFor(writer->Close());
+                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing table output");
             }
         }));
     }

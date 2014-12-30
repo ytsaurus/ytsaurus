@@ -130,7 +130,7 @@ void TFileChunkOutput::DoFinish()
 
     LOG_INFO("Closing file writer");
 
-    auto error = WaitFor(Writer->GetReadyEvent());
+    auto error = WaitFor(Writer->Close());
     THROW_ERROR_EXCEPTION_IF_FAILED(error);
 
     LOG_INFO("Confirming chunk");

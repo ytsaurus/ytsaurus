@@ -236,13 +236,14 @@ protected:
             : Clear(false)
             , Overwrite(false)
             , LockMode(NCypressClient::ELockMode::Shared)
-            , Options(New<NTableClient::TTableWriterOptions>())
+            , Options(New<NVersionedTableClient::TTableWriterOptions>())
         { }
 
         bool Clear;
         bool Overwrite;
         NCypressClient::ELockMode LockMode;
-        NTableClient::TTableWriterOptionsPtr Options;
+        NVersionedTableClient::TTableWriterOptionsPtr Options;
+        TNullable<NVersionedTableClient::TKeyColumns> KeyColumns;
 
         // Chunk list for appending the output.
         NChunkClient::TChunkListId OutputChunkListId;

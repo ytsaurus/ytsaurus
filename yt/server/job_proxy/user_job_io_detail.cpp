@@ -53,6 +53,7 @@ void TUserJobIOBase::Init()
         }
         
         auto writer = DoCreateWriter(options, chunkListId, transactionId, keyColumns);
+        // ToDo(psushin): open writers in parallel.
         auto error = WaitFor(writer->Open());
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
         Writers_.push_back(writer);
@@ -90,7 +91,7 @@ TBoundaryKeysExt TUserJobIOBase::GetBoundaryKeys(ISchemalessMultiChunkWriterPtr 
     auto frontBoundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunks.front().chunk_meta().extensions());
     boundaryKeys.set_min(frontBoundaryKeys.min());
     auto backBoundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunks.back().chunk_meta().extensions());
-    boundaryKeys.set_max(frontBoundaryKeys.max());
+    boundaryKeys.set_max(backBoundaryKeys.max());
 
     return boundaryKeys;
 }
@@ -109,8 +110,7 @@ ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
     const TTransactionId& transactionId,
     const TKeyColumns& keyColumns)
 {
-
-    auto nameTable = New<TNameTable>();
+    auto nameTable = TNameTable::FromKeyColumns(keyColumns);
     return CreateSchemalessMultiChunkWriter(
         JobIOConfig_->NewTableWriter,
         options,
