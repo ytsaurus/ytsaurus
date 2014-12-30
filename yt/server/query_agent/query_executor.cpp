@@ -167,9 +167,20 @@ private:
 
                 LOG_DEBUG("Regrouping %v splits", splits.size());
 
-                groupedSplits.reserve(splits.size());
+                std::map<TGuid, TDataSplits> groups;
+
                 for (const auto& split : splits) {
-                    groupedSplits.emplace_back(1, split);
+                    auto tabletId = GetObjectIdFromDataSplit(split);
+                    if (TypeFromId(tabletId) == EObjectType::Tablet) {
+                        groups[tabletId].push_back(split);
+                    } else {
+                        groupedSplits.emplace_back(1, split);
+                    }
+                }
+
+                groupedSplits.reserve(groupedSplits.size() + groups.size());
+                for (const auto& group : groups) {
+                    groupedSplits.emplace_back(std::move(group.second));
                 }
 
                 return GetRanges(groupedSplits);
