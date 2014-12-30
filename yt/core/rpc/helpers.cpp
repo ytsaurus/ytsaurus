@@ -84,6 +84,40 @@ IChannelPtr CreateAuthenticatedChannel(IChannelPtr underlyingChannel, const Stro
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAuthenticatedChannelFactory
+    : public IChannelFactory
+{
+public:
+    TAuthenticatedChannelFactory(
+        IChannelFactoryPtr underlyingFactory,
+        const Stroka& user)
+        : UnderlyingFactory_(underlyingFactory)
+        , User_(user)
+    { }
+
+    virtual IChannelPtr CreateChannel(const Stroka& address) override
+    {
+        auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
+        return CreateAuthenticatedChannel(underlyingChannel, User_);
+    }
+
+private:
+    IChannelFactoryPtr UnderlyingFactory_;
+    Stroka User_;
+
+};
+
+IChannelFactoryPtr CreateAuthenticatedChannelFactory(
+    IChannelFactoryPtr underlyingFactory,
+    const Stroka& user)
+{
+    YCHECK(underlyingFactory);
+
+    return New<TAuthenticatedChannelFactory>(underlyingFactory, user);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TRealmChannel
     : public TChannelWrapper
 {
