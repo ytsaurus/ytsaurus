@@ -7,8 +7,6 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TEvaluator);
-
 class TEvaluator
     : public TIntrinsicRefCounted
 {
