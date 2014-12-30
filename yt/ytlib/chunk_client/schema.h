@@ -12,6 +12,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// ToDo(psushin): deprecate.
 //! Range of columns used as a part of channel description.
 class TRange
 {

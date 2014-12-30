@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/chunk_client/config.h>
+#include <ytlib/chunk_client/schema.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -47,10 +48,15 @@ class TChunkWriterOptions
 public:
     bool VerifySorted;
 
+    //ToDo(psushin): use it!
+    NChunkClient::TChannels Channels;
+
     TChunkWriterOptions()
     {
         RegisterParameter("verify_sorted", VerifySorted)
             .Default(true);
+        RegisterParameter("channels", Channels)
+            .Default(NChunkClient::TChannels());
     }
 };
 

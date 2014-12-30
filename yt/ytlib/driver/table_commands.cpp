@@ -40,6 +40,8 @@
 #include <ytlib/api/transaction.h>
 #include <ytlib/api/rowset.h>
 
+#include <util/stream/buffered.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -90,9 +92,10 @@ void TReadTableCommand::DoExecute()
 
     // ToDo(psushin): implement and use buffered output stream.
     auto output = CreateSyncAdapter(Context_->Request().OutputStream);
+    TBufferedOutput bufferedOutput(output.get());
     auto format = Context_->GetOutputFormat();
 
-    auto writer = CreateSchemalessWriterForFormat(format, nameTable, output.get());
+    auto writer = CreateSchemalessWriterForFormat(format, nameTable, &bufferedOutput);
 
     PipeReaderToWriter(reader, writer, Context_->GetConfig()->ReadBufferRowCount);
 }

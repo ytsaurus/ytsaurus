@@ -5,6 +5,8 @@
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/config.h>
+#include <ytlib/chunk_client/schema.h>
+
 #include <core/ytree/yson_serializable.h>
 
 namespace NYT {

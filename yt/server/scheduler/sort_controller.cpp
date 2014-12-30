@@ -1689,7 +1689,7 @@ private:
     {
         TSortControllerBase::CustomPrepare();
 
-        OutputTables[0].Options->KeyColumns = Spec->SortBy;
+        OutputTables[0].KeyColumns = Spec->SortBy;
 
         if (TotalEstimatedInputDataSize == 0)
             return;

@@ -25,7 +25,6 @@ public:
         : TUserJobIOBase(host)
     { }
 
-
 private:
     virtual ISchemalessMultiChunkWriterPtr DoCreateWriter(
         TTableWriterOptionsPtr options,

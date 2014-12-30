@@ -302,7 +302,7 @@ private:
         TOperationControllerBase::CustomPrepare();
 
         if (InputTables.size() == 1) {
-            OutputTables[0].Options->KeyColumns = InputTables[0].KeyColumns;
+            OutputTables[0].KeyColumns = InputTables[0].KeyColumns;
         }
 
         LOG_INFO("Processing inputs");

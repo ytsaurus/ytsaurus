@@ -134,7 +134,6 @@ public:
         TKeyColumns keyColumns);
 
     virtual NChunkClient::NProto::TChunkMeta GetMasterMeta() const override;
-    virtual NChunkClient::NProto::TChunkMeta GetSchedulerMeta() const override;
 
     virtual i64 GetMetaSize() const override;
     virtual bool IsSorted() const override;
