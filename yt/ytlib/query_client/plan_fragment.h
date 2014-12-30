@@ -364,6 +364,7 @@ TConstExpressionPtr PrepareExpression(
     const TTableSchema& initialTableSchema);
 
 Stroka InferName(TConstExpressionPtr expr);
+Stroka InferName(TConstQueryPtr query);
 
 ////////////////////////////////////////////////////////////////////////////////
 

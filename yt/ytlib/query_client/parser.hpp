@@ -31,14 +31,14 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/savrus/dev/yt/expression/yt/ytlib/query_client/parser.hpp
+ ** \file /home/savrus/dev/yt/group/yt/ytlib/query_client/parser.hpp
  ** Define the NYT::NQueryClient::NAst::parser class.
  */
 
 // C++ LALR(1) parser skeleton written by Akim Demaille.
 
-#ifndef YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_EXPRESSION_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
-# define YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_EXPRESSION_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_GROUP_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+# define YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_GROUP_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
 // //                    "%code requires" blocks.
 
     #include "ast.h"
@@ -637,7 +637,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
     /// Build a parser object.
-    TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, TRowBuffer* rowBuffer_yyarg);
+    TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, TRowBuffer* rowBuffer_yyarg, const Stroka& source_yyarg);
     virtual ~TParser ();
 
     /// Parse.
@@ -849,6 +849,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     TLexer& lexer;
     TAstHead* head;
     TRowBuffer* rowBuffer;
+    const Stroka& source;
   };
 
 
@@ -857,4 +858,4 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
 
-#endif // !YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_EXPRESSION_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_GROUP_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED

@@ -191,7 +191,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
   /// Build a parser object.
-  TParser::TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, TRowBuffer* rowBuffer_yyarg)
+  TParser::TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, TRowBuffer* rowBuffer_yyarg, const Stroka& source_yyarg)
     :
 #if YT_QL_YYDEBUG
       yydebug_ (false),
@@ -199,7 +199,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 #endif
       lexer (lexer_yyarg),
       head (head_yyarg),
-      rowBuffer (rowBuffer_yyarg)
+      rowBuffer (rowBuffer_yyarg),
+      source (source_yyarg)
   {}
 
   TParser::~TParser ()
@@ -2119,13 +2120,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   const unsigned short int
   TParser::yyrline_[] =
   {
-       0,   132,   132,   133,   134,   141,   146,   154,   158,   166,
-     170,   174,   178,   183,   191,   195,   202,   209,   216,   223,
-     230,   235,   242,   246,   253,   258,   262,   267,   271,   276,
-     280,   287,   291,   296,   298,   300,   302,   304,   306,   311,
-     315,   320,   322,   327,   331,   336,   338,   340,   345,   349,
-     354,   358,   362,   366,   373,   375,   377,   379,   384,   389,
-     396,   400,   407,   412
+       0,   133,   133,   134,   135,   142,   147,   155,   159,   167,
+     171,   175,   179,   184,   192,   196,   203,   210,   217,   224,
+     231,   236,   243,   247,   254,   259,   263,   268,   272,   277,
+     281,   288,   292,   297,   299,   301,   303,   305,   307,   312,
+     316,   321,   323,   328,   332,   337,   339,   341,   346,   350,
+     355,   359,   363,   367,   374,   376,   378,   380,   385,   390,
+     397,   401,   408,   413
   };
 
   // Print the state stack on the debug stream.
@@ -2293,8 +2294,13 @@ namespace NAst {
 
 void TParser::error(const location_type& location, const std::string& message)
 {
+    Stroka mark;
+    for (int index = 0; index <= location.second; ++index) {
+        mark += index < location.first ? ' ' : '^';
+    }
     THROW_ERROR_EXCEPTION("Error while parsing query: %v", message)
-        << TErrorAttribute("query_range", Format("%v-%v", location.first, location.second));
+        << TErrorAttribute("position", Format("%v-%v", location.first, location.second))
+        << TErrorAttribute("query", Format("\n%v\n%v", source, mark));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
