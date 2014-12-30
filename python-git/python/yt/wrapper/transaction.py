@@ -9,6 +9,9 @@ from time import sleep
 from threading import Thread
 from datetime import datetime, timedelta
 
+class Abort(Exception):
+    pass
+
 class Transaction(object):
     """
     It is designed to use by with_statement::
@@ -61,7 +64,7 @@ class Transaction(object):
             return
         try:
             if not self.null:
-                if type is not None:
+                if type is not None and type is not Abort:
                     logger.warning(
                         "Error: (type=%s, value=%s), aborting transaction %s ...",
                         type,
@@ -121,6 +124,8 @@ class PingTransaction(Thread):
         self.stop()
 
     def stop(self):
+        if not self.is_running:
+            return
         self.is_running = False
         timeout = config.http.get_timeout() / 1000.0
         # timeout should be enough to execute ping
@@ -161,4 +166,3 @@ class PingableTransaction(object):
     def __exit__(self, type, value, traceback):
         self.ping.stop()
         self.transaction.__exit__(type, value, traceback)
-

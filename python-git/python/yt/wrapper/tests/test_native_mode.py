@@ -482,8 +482,12 @@ class NativeModeTester(YtTestBase, YTEnv):
             yt.write_table(table, ["x=1\n", "y=2\n"])
             self.check(["x=1\n", "y=2\n"], list(yt.read_table(table)))
 
-            self.check("x=1\n", yt.read_table(table).next())
+            rsp = yt.read_table(table)
+            self.check("x=1\n", rsp.next())
             self.assertRaises(lambda: yt.write_table(table, ["x=1\n", "y=2\n"]))
+            rsp.close()
+
+            self.assertEqual([{"x": "1"}, {"y": "2"}], list(yt.read_table(table, raw=False)))
 
         finally:
             yt.config.RETRY_READ = old_value

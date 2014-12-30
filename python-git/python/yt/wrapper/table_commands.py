@@ -53,7 +53,7 @@ import py_wrapper
 from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, \
                    is_prefix, get_value, compose, bool_to_string, chunk_iter_lines, get_version, MB
 from errors import YtIncorrectResponse, YtError, format_error
-from driver import read_content, get_host_for_heavy_operation, make_request, ResponseStream
+from driver import get_host_for_heavy_operation, make_request, ResponseStream
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
@@ -61,7 +61,7 @@ from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute,
                           _make_formatted_transactional_request, has_attribute
 from file_commands import smart_upload_file
 from transaction_commands import _make_transactional_request, abort_transaction
-from transaction import PingableTransaction, Transaction
+from transaction import PingableTransaction, Transaction, Abort
 from format import create_format, YsonFormat
 from lock import lock
 from heavy_commands import make_heavy_request
@@ -495,6 +495,9 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
     If :py:data:`yt.wrapper.config.RETRY_READ` is specified,
     command is executed under self-pinged transaction with retries and snapshot lock on the table.
     """
+    if response_type is not None:
+        logger.info("Option response_type is deprecated and ignored")
+
     table = to_table(table, client=client)
     format = _prepare_format(format)
     if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name, client=client):
@@ -507,6 +510,13 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
     if table_reader is not None:
         params["table_reader"] = table_reader
 
+
+    def read_content(response_stream):
+        if raw:
+            return response_stream
+        else:
+            return format.load_rows(response_stream)
+
     if not config.RETRY_READ:
         response = _make_transactional_request(
             "read",
@@ -514,29 +524,15 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             return_content=False,
             proxy=get_host_for_heavy_operation(client=client),
             client=client)
-
-        return read_content(response, raw, format, get_value(response_type, "iter_lines"))
+        return read_content(ResponseStream.from_response(response))
     else:
-        if response_type is not None:
-            logger.info("read_table with retries ignore response_type option")
-
         title = "Python wrapper: read {0}".format(to_name(table, client=client))
         tx = PingableTransaction(timeout=config.http.get_timeout(),
                                  attributes={"title": title},
                                  client=client)
         tx.__enter__()
 
-        class Index(object):
-            def __init__(self, index):
-                self.index = index
-
-            def get(self):
-                return self.index
-
-            def increment(self):
-                self.index += 1
-
-        def run_with_retries(func):
+        def execute_with_retries(func):
             for attempt in xrange(config.http.REQUEST_RETRY_COUNT):
                 try:
                     return func()
@@ -577,28 +573,45 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             rsp_params = json.loads(response.headers()["X-YT-Response-Parameters"])
             return rsp_params.get("start_row_index", None)
 
+        class Iterator(object):
+            def __init__(self, index):
+                self.index = index
+                self.iterator = iter_with_retries(self.execute_read)
+                self.response = None
 
-        def read_iter(index):
-            table.name.attributes["lower_limit"] = {"row_index": index.get()}
-            params["path"] = table.get_json()
-            response = _make_transactional_request(
-                "read",
-                params,
-                return_content=False,
-                proxy=get_host_for_heavy_operation(client=client),
-                client=client)
-            response_stream = ResponseStream(response, None)
-            for row in format.load_rows(response_stream, raw=raw):
-                yield row
-                index.increment()
+            def execute_read(self):
+                table.name.attributes["lower_limit"] = {"row_index": self.index}
+                params["path"] = table.get_json()
+                self.response = _make_transactional_request(
+                    "read",
+                    params,
+                    return_content=False,
+                    proxy=get_host_for_heavy_operation(client=client),
+                    client=client)
+                response_stream = ResponseStream.from_response(self.response)
+                for row in format.load_rows(response_stream, raw=True):
+                    yield row
+                    self.index += 1
+
+            def next(self):
+                return self.iterator.next()
+
+            def __iter__(self):
+                return self
+
+            def finish(self):
+                if self.response is not None:
+                    self.response.close()
+                tx.__exit__(Abort, None, None)
 
         try:
             lock(table, mode="snapshot", client=client)
-            index = Index(run_with_retries(get_start_row_index))
-            if index.get() is None:
+            index = execute_with_retries(get_start_row_index)
+            if index is None:
                 tx.__exit__(None, None, None)
                 return (_ for _ in [])
-            return iter_with_retries(lambda: read_iter(index))
+            iterator = Iterator(index)
+            return read_content(ResponseStream(lambda: iterator.response, iterator, close=iterator.finish))
         except:
             tx.__exit__(*sys.exc_info())
             raise
@@ -805,7 +818,11 @@ def select(query, timestamp=None, format=None, response_type=None, raw=True, cli
         proxy=get_host_for_heavy_operation(),
         client=client)
 
-    return read_content(response, raw, format, get_value(response_type, "iter_lines"))
+    response_stream = ResponseStream.from_response(response)
+    if raw:
+        return response_stream
+    else:
+        return format.load_rows(response_stream)
 
 # Operations.
 
