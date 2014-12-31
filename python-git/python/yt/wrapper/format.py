@@ -148,10 +148,6 @@ class Format(object):
         """Returns true if format supports loading raw YSON rows"""
         return self.name() in ("dsv", "yamr", "yamred_dsv", "json", "yson")
 
-    def read_row(self, stream):
-        """.. note:: Deprecated. Use instead load_row method with parameter unparsed=True"""
-        return self.load_row(stream, unparsed=True)
-
     @staticmethod
     def _copy_docs():
         """Magic for coping docs in subclasses.
@@ -697,14 +693,6 @@ class SchemafulDsvFormat(Format):
 
         return dict(itertools.izip(self._columns,
                                    map(unescape_field, line.rstrip("\n").split("\t"))))
-
-class SchemedDsvFormat(SchemafulDsvFormat):
-    """.. note:: Deprecated."""
-
-    def __init__(self, columns, attributes=None, raw=None):
-        attributes = get_value(attributes, {})
-        super(SchemedDsvFormat, self).__init__(columns=columns, attributes=attributes, raw=raw)
-        self._name = yson.to_yson_type("schemed_dsv", self.attributes)
 
 # TODO(veronikaiv): do it beautiful way!
 Format._copy_docs()
