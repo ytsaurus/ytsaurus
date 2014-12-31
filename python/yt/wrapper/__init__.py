@@ -9,7 +9,7 @@ from errors import YtError, YtOperationFailedError, YtResponseError, \
                    YtProxyUnavailable, YtTokenError, YtFormatError, YtTimeoutError
 from yamr_record import Record
 from format import DsvFormat, YamrFormat, YsonFormat, JsonFormat, SchemafulDsvFormat,\
-                   SchemedDsvFormat, YamredDsvFormat, Format, create_format, dumps_row, loads_row
+                   YamredDsvFormat, Format, create_format, dumps_row, loads_row
 from table import TablePath, to_table, to_name
 from tree_commands import set, get, list, exists, remove, search, mkdir, copy, move, link,\
                           get_type, create, find_free_subpath,\
