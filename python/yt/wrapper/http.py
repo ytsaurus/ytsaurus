@@ -6,8 +6,10 @@ from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectRespons
 from command import parse_commands
 
 import os
+import copy
 import string
 import time
+import types
 import yt.packages.requests
 import simplejson as json
 from datetime import datetime
@@ -39,62 +41,34 @@ def parse_error_from_headers(headers):
         return json.loads(headers["x-yt-error"])
     return None
 
-class Response(object):
-    def __init__(self, raw_response, request_headers):
-        self.raw_response = raw_response
-        self.request_headers = request_headers
-        self._return_code_processed = False
-
-    def error(self):
-        self._process_return_code()
-        if hasattr(self, "_error"):
-            return self._error
-        return None
-
-    def is_ok(self):
-        self._process_return_code()
-        return not hasattr(self, "_error")
-
-    def url(self):
-        return self.raw_response.url
-
-    def json(self):
-        return self.raw_response.json()
-
-    def content(self):
-        return self.raw_response.content
-
-    def headers(self):
-        return self.raw_response.headers
-
-    def trailers(self):
-        return self.raw_response.trailers()
-
-    def iter_content(self, buffer_size):
-        return self.raw_response.iter_content(buffer_size)
-
-    def close(self):
-        self.raw_response.close()
-
-    def _process_return_code(self):
-        if self._return_code_processed:
-            return
-
-        if not str(self.raw_response.status_code).startswith("2"):
+def create_response(response, request_headers):
+    def get_error():
+        if not str(response.status_code).startswith("2"):
             # 401 is case of incorrect token
-            if self.raw_response.status_code == 401:
-                url_base = "/".join(self.raw_response.url.split("/")[:3])
+            if response.status_code == 401:
+                url_base = "/".join(response.url.split("/")[:3])
                 raise YtTokenError(
                     "Your authentication token was rejected by the server (X-YT-Request-ID: {0}).\n"
                     "Please refer to {1}/auth/ for obtaining a valid token or contact us at yt-admin@yandex-team.ru."\
                         .format(
-                            self.raw_response.headers.get("X-YT-Request-ID", "absent"),
+                            response.headers.get("X-YT-Request-ID", "absent"),
                             url_base))
-            self._error = self.raw_response.json()
-        error = parse_error_from_headers(self.raw_response.headers)
-        if error is not None:
-            self._error = error
-        self._return_code_processed = True
+            return response.json()
+        else:
+            error = parse_error_from_headers(response.headers)
+            return error
+
+    def error(self):
+        return self._error
+
+    def is_ok(self):
+        return self._error is None
+
+    response.request_headers = request_headers
+    response._error = get_error()
+    response.error = types.MethodType(error, response)
+    response.is_ok = types.MethodType(is_ok, response)
+    return response
 
 def _process_request_backoff(current_time):
     if http_config.REQUEST_BACKOFF is not None:
@@ -119,10 +93,10 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
         headers = kwargs.get("headers", {})
         try:
             try:
-                response = Response(get_session().request(method, url, timeout=timeout, **kwargs), headers)
+                response = create_response(get_session().request(method, url, timeout=timeout, **kwargs), headers)
             except ConnectionError as error:
                 if hasattr(error, "response"):
-                    raise build_response_error(url, headers, Response(error.response, headers).error())
+                    raise build_response_error(url, headers, create_response(error.response, headers).error())
                 else:
                     raise
 
@@ -133,7 +107,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                     response.json()
                 except json.JSONDecodeError:
                     raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)")
-            if response.raw_response.status_code == 503:
+            if response.status_code == 503:
                 raise YtProxyUnavailable("Retrying response with code 503 and body %s" % response.content())
             if not response.is_ok():
                 raise build_response_error(url, headers, response.error())

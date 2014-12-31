@@ -23,12 +23,12 @@
 #
 # -srcserver
 
-from yt.wrapper.cli_helpers import writelines_silently, run_main, die
+from yt.wrapper.cli_helpers import write_silently, run_main, die
 from yt.wrapper.table_commands import copy_table, move_table, _remove_locks, _get_format_from_tables
 from yt.wrapper.tree_commands import remove_with_empty_dirs
 from yt.wrapper.table import check_prefix
 
-from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB
+from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, chunk_iter_stream
 import yt.wrapper.config as config
 import yt.yson as yson
 import yt.wrapper as yt
@@ -492,16 +492,16 @@ Examples:
 
 
     if args.list:
-        writelines_silently(imap(add_eoln, list_all_entities("table")))
+        write_silently(imap(add_eoln, list_all_entities("table")))
     if args.listfiles:
-        writelines_silently(imap(add_eoln, list_all_entities("file")))
+        write_silently(imap(add_eoln, list_all_entities("file")))
     if args.read is not None:
-        response_type = None if yt.config.RETRY_READ else "iter_content"
-        writelines_silently(
-            yt.read_table(
-                yt.TablePath(args.read, lower_key=args.lowerkey, upper_key=args.upperkey),
-                format=inputformat,
-                response_type=response_type))
+        write_silently(
+            chunk_iter_stream(
+                yt.read_table(
+                    yt.TablePath(args.read, lower_key=args.lowerkey, upper_key=args.upperkey),
+                    format=inputformat),
+                16 * MB))
     if args.createtable is not None:
         yt.create_table(args.createtable, attributes=attributes)
     if args.write is not None:
@@ -594,7 +594,7 @@ Examples:
             yt.set_attribute(args.upload, "executable", bool_to_string(True))
     if args.download is not None:
         if yt.exists(args.download):
-            writelines_silently(yt.download_file(args.download))
+            write_silently(chunk_iter_stream(yt.download_file(args.download), 16 * MB))
 
     if args.exists is not None:
         print bool_to_string(yt.exists(args.exists))
