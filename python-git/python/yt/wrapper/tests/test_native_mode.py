@@ -141,7 +141,7 @@ class NativeModeTester(YtTestBase, YTEnv):
 
         file_path = TEST_DIR + "/file"
         yt.upload_file("", file_path)
-        self.assertEqual("", yt.download_file(file_path, "string"))
+        self.assertEqual("", yt.download_file(file_path).read())
 
         _, filename = tempfile.mkstemp()
         with open(filename, "w") as fout:
@@ -450,22 +450,22 @@ class NativeModeTester(YtTestBase, YTEnv):
 
         yt.write_table(yt.TablePath(table, sorted_by=["a"]), ["a=b\n", "a=c\n", "a=d\n"])
 
-        rsp = yt.read_table(table).response
+        rsp = yt.read_table(table)._get_response()
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
             {"start_row_index": 0})
 
-        rsp = yt.read_table(yt.TablePath(table, start_index=1)).response
+        rsp = yt.read_table(yt.TablePath(table, start_index=1))._get_response()
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
             {"start_row_index": 1})
 
-        rsp = yt.read_table(yt.TablePath(table, lower_key=["d"])).response
+        rsp = yt.read_table(yt.TablePath(table, lower_key=["d"]))._get_response()
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
             {"start_row_index": 2})
 
-        rsp = yt.read_table(yt.TablePath(table, lower_key=["x"])).response
+        rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]))._get_response()
         assert json.loads(rsp.headers["X-YT-Response-Parameters"]) == {}
 
     def test_read_with_retries(self):

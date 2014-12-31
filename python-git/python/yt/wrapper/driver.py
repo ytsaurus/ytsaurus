@@ -78,11 +78,11 @@ class ResponseStream(object):
 
     def _fetch(self):
         def process_trailers():
-            response = self._get_response();
+            response = self._get_response()
             trailers = response.trailers()
             error = parse_error_from_headers(trailers)
             if error is not None:
-                raise YtResponseError(response.url(), response.headers(), error)
+                raise YtResponseError(response.url, response.headers, error)
 
         try:
             self._buffer = self._iter_content.next()
@@ -227,11 +227,11 @@ def make_request(command_name, params,
         stream=stream,
         response_should_be_json=response_should_be_json)
 
-    print_info("Response headers %r", response.headers())
+    print_info("Response headers %r", response.headers)
 
     # Determine type of response data and return it
     if return_content:
-        return response.content()
+        return response.content
     else:
         return response
 
