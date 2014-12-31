@@ -125,6 +125,13 @@ def chunk_iter_lines(lines, chunk_size):
             chunk = []
     yield chunk
 
+def chunk_iter_stream(stream, chunk_size):
+    while True:
+        chunk = stream.read(chunk_size)
+        if not chunk:
+            break
+        yield chunk
+
 def get_backoff(timeout, start_time):
     def get_total_seconds(timedelta):
         return timedelta.microseconds * 1e-6 + timedelta.seconds + timedelta.days * (24 * 3600)
