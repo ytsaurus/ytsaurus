@@ -568,9 +568,9 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 return_content=False,
                 proxy=get_host_for_heavy_operation(client=client),
                 client=client)
-            if "X-YT-Response-Parameters" not in response.headers():
+            if "X-YT-Response-Parameters" not in response.headers:
                 raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)")
-            rsp_params = json.loads(response.headers()["X-YT-Response-Parameters"])
+            rsp_params = json.loads(response.headers["X-YT-Response-Parameters"])
             return rsp_params.get("start_row_index", None)
 
         class Iterator(object):
@@ -804,6 +804,9 @@ def select(query, timestamp=None, format=None, response_type=None, raw=True, cli
                           "raw", "string"]
     :param raw: (bool) don't parse response to rows
     """
+    if response_type is not None:
+        logger.info("Option response_type is deprecated and ignored")
+
     format = _prepare_format(format)
     params = {
         "query": query,
