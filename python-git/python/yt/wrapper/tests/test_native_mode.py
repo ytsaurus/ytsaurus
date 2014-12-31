@@ -296,7 +296,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         table = TEST_DIR + "/table"
 
         yt.write_table(table, ["x=1\n", "y=2\n"])
-        yt.run_map(change_x, table, table, format=yt.YsonFormat())
+        yt.run_map(change_x, table, table, format=None)
         self.assertItemsEqual(["x=2\n", "y=2\n"], yt.read_table(table))
 
         yt.write_table(table, ["x=1\n", "y=2\n"])

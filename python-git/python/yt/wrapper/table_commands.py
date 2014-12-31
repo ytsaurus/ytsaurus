@@ -134,9 +134,14 @@ def _reliably_upload_files(files, client=None):
             file_paths.append(smart_upload_file(file, client=client))
     return file_paths
 
-def _prepare_formats(format, input_format, output_format):
+def _is_python_function(binary):
+    return isinstance(binary, types.FunctionType) or hasattr(binary, "__call__")
+
+def _prepare_formats(format, input_format, output_format, binary):
     if format is None:
         format = config.format.TABULAR_DATA_FORMAT
+    if format is None and _is_python_function(binary):
+        format = YsonFormat()
     if isinstance(format, str):
         format = create_format(format)
     if isinstance(input_format, str):
@@ -187,7 +192,7 @@ class TempfilesManager(object):
 
 def _prepare_binary(binary, operation_type, input_format=None, output_format=None,
                     reduce_by=None, client=None):
-    if isinstance(binary, types.FunctionType) or hasattr(binary, "__call__"):
+    if _is_python_function(binary):
         with TempfilesManager() as tempfiles_manager:
             binary, binary_file, files = py_wrapper.wrap(binary, operation_type, tempfiles_manager,
                                                          input_format, output_format, reduce_by)
@@ -246,7 +251,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
         file_paths = yt_files
 
     files = _reliably_upload_files(files, client=client)
-    input_format, output_format = _prepare_formats(format, input_format, output_format)
+    input_format, output_format = _prepare_formats(format, input_format, output_format, binary=binary)
     binary, additional_files = _prepare_binary(binary, op_type, input_format, output_format,
                                                reduce_by, client=client)
     spec = update(
@@ -742,6 +747,7 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=N
     if last_tablet_index is not None:
         params["last_tablet_index"] = last_tablet_index
     if cell_id is not None:
+
         params["cell_id"] = cell_id
 
     make_request("mount_table", params, client=client)
