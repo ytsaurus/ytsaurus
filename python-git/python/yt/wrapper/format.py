@@ -7,7 +7,7 @@ parameters, and then by kwargs options.
 import format_config
 from common import get_value, require, filter_dict, merge_dicts
 from errors import YtError, YtFormatError
-from yamr_record import Record
+from yamr_record import Record, SimpleRecord, SubkeyedRecord
 import yt.yson as yson
 import yt.logger as logger
 
@@ -745,3 +745,9 @@ def dumps_row(row, format=None):
     """Convert parsed row to string"""
     format = get_value(format, format_config.TABULAR_DATA_FORMAT)
     return format.dumps_row(row)
+
+def extract_key(rec, fields):
+    if isinstance(rec, SimpleRecord) or isinstance(rec, SubkeyedRecord):
+        return rec.key
+    else:
+        return dict((key, rec[key]) for key in fields if key in rec)

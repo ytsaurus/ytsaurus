@@ -40,7 +40,7 @@ def main():
     for key, value in config_dict.iteritems():
         format_config.__dict__[key] = value
 
-    from yt.wrapper.record import extract_key
+    from yt.wrapper.format import extract_key
 
     if __attributes.get("is_raw_io", False):
         __operation()
