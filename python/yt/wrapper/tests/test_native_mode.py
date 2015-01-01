@@ -513,16 +513,16 @@ class NativeModeTester(YtTestBase, YTEnv):
                    output_format=yt.YamrFormat(has_subkey=False, lenval=False))
         self.check(["key=2\tvalue=x=1\n"], sorted(list(yt.read_table(table))))
 
-    def test_schemed_dsv(self):
+    def test_schememaful_dsv(self):
         def foo(rec):
             yield rec
 
         table = TEST_DIR + "/table"
         yt.write_table(table, ["x=1\ty=2\n", "x=\\n\tz=3\n"])
         self.check(["1\n", "\\n\n"],
-                   sorted(list(yt.read_table(table, format=yt.SchemedDsvFormat(columns=["x"])))))
+                   sorted(list(yt.read_table(table, format=yt.SchemafulDsvFormat(columns=["x"])))))
 
-        yt.run_map(foo, table, table, format=yt.SchemedDsvFormat(columns=["x"]))
+        yt.run_map(foo, table, table, format=yt.SchemafulDsvFormat(columns=["x"]))
         self.check(["x=1\n", "x=\\n\n"], sorted(list(yt.read_table(table))))
 
     def test_mount_unmount(self):
