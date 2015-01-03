@@ -19,6 +19,15 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ESchemafulDsvConsumerState,
+    (None)
+    (ExpectValue)
+    (ExpectAttributeName)
+    (ExpectAttributeValue)
+    (ExpectEndAttributes)
+    (ExpectEntity)
+);
+
 //! Note: only tabular format is supported.
 class TSchemafulDsvConsumer
     : public virtual TFormatsConsumerBase
@@ -45,6 +54,8 @@ public:
     virtual void OnEndAttributes() override;
 
 private:
+    using EState = ESchemafulDsvConsumerState;
+
     TOutputStream* Stream_;
     TSchemafulDsvFormatConfigPtr Config_;
 
@@ -59,15 +70,6 @@ private:
     TStringBuf CurrentKey_;
 
     int TableIndex_ = 0;
-
-    DECLARE_ENUM(EState,
-        (None)
-        (ExpectValue)
-        (ExpectAttributeName)
-        (ExpectAttributeValue)
-        (ExpectEndAttributes)
-        (ExpectEntity)
-    );
 
     EState State_ = EState::None;
 

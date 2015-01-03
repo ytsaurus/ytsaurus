@@ -154,7 +154,7 @@ private:
     i8 ReplicationFactor_;
     i8 ReadQuorum_;
     i8 WriteQuorum_;
-    i8 ErasureCodec_;
+    NErasure::ECodec ErasureCodec_;
 
 };
 

@@ -63,10 +63,11 @@ void TFileChunkReader::OnGotMeta(NChunkClient::IChunkReader::TGetMetaResult resu
 
     const auto& chunkMeta = result.Value();
 
-    if (chunkMeta.type() != EChunkType::File) {
+    auto type = EChunkType(chunkMeta.type());
+    if (type != EChunkType::File) {
         auto error = TError("Invalid chunk type: expected %Qlv, actual %Qlv",
-            EChunkType(EChunkType::File),
-            EChunkType(chunkMeta.type()));
+            EChunkType::File,
+            type);
         LOG_WARNING(error);
         State.Fail(error);
         return;

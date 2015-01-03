@@ -21,6 +21,13 @@ static const auto& Logger = PipesLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EWriterState,
+    (Active)
+    (Closed)
+    (Failed)
+    (Aborted)
+);
+
 class TAsyncWriterImpl
     : public TRefCounted
 {
@@ -147,13 +154,6 @@ public:
     }
 
 private:
-    DECLARE_ENUM(EWriterState,
-        (Active)
-        (Closed)
-        (Failed)
-        (Aborted)
-    );
-
     int FD_;
 
     //! \note Thread-unsafe. Must be accessed from ev-thread only.

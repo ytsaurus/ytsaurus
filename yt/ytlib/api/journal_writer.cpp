@@ -366,7 +366,7 @@ private:
 
             {
                 auto req = TJournalYPathProxy::PrepareForUpdate(Path_);
-                req->set_mode(EUpdateMode::Append);
+                req->set_mode(static_cast<int>(EUpdateMode::Append));
                 GenerateMutationId(req);
                 SetTransactionId(req, UploadTransaction_->GetId());
                 batchReq->AddRequest(req, "prepare_for_update");
@@ -386,7 +386,7 @@ private:
                 if (type != EObjectType::Journal) {
                     THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                         Path_,
-                        EObjectType(EObjectType::Journal),
+                        EObjectType::Journal,
                         type);
                 }
 
@@ -426,7 +426,7 @@ private:
 
             {
                 auto req = TMasterYPathProxy::CreateObjects();
-                req->set_type(EObjectType::JournalChunk);
+                req->set_type(static_cast<int>(EObjectType::JournalChunk));
                 req->set_account(Account_);
                 ToProto(req->mutable_transaction_id(), UploadTransaction_->GetId());
 
@@ -436,7 +436,7 @@ private:
                 reqExt->set_write_quorum(WriteQuorum_);
                 reqExt->set_movable(true);
                 reqExt->set_vital(true);
-                reqExt->set_erasure_codec(NErasure::ECodec::None);
+                reqExt->set_erasure_codec(static_cast<int>(NErasure::ECodec::None));
 
                 auto rsp = WaitFor(ObjectProxy_.Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error creating chunk");
@@ -486,7 +486,7 @@ private:
                 for (auto node : CurrentSession_->Nodes) {
                     auto req = node->LightProxy.StartChunk();
                     ToProto(req->mutable_chunk_id(), CurrentSession_->ChunkId);
-                    req->set_session_type(EWriteSessionType::User);
+                    req->set_session_type(static_cast<int>(EWriteSessionType::User));
                     req->set_optimize_for_latency(true);
                     auto asyncRsp = req->Invoke().Apply(
                         BIND(&TImpl::OnChunkStarted, MakeStrong(this), node)
@@ -519,7 +519,7 @@ private:
                     req->mutable_chunk_info();
                     ToProto(req->mutable_replicas(), replicas);
                     auto* meta = req->mutable_chunk_meta();
-                    meta->set_type(EChunkType::Journal);
+                    meta->set_type(static_cast<int>(EChunkType::Journal));
                     meta->set_version(0);
                     TMiscExt miscExt;
                     SetProtoExtension(meta->mutable_extensions(), miscExt);

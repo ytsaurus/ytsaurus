@@ -22,7 +22,7 @@ TEncodingChunkWriter::TEncodingChunkWriter(
     : ChunkWriter_(asyncWriter)
     , EncodingWriter_(New<TEncodingWriter>(config, options, asyncWriter))
 {
-    MiscExt_.set_compression_codec(options->CompressionCodec);
+    MiscExt_.set_compression_codec(static_cast<int>(options->CompressionCodec));
     MiscExt_.set_eden(options->ChunksEden);
 }
 

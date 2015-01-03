@@ -45,7 +45,7 @@ bool SerializeToProtoWithEnvelope(
 {
     NProto::TSerializedMessageEnvelope envelope;
     if (codecId != NCompression::ECodec::None) {
-        envelope.set_codec(codecId);
+        envelope.set_codec(static_cast<int>(codecId));
     }
 
     size_t messageSize = message.ByteSize();

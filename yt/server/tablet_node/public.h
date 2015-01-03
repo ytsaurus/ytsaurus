@@ -69,7 +69,7 @@ using NHive::ETransactionState;
 
 static const int TypicalStoreCount = 64;
 
-DECLARE_ENUM(EPartitionState,
+DEFINE_ENUM(EPartitionState,
     (Normal)             // nothing special is happening
     (Splitting)          // split mutation is submitted
     (Merging)            // merge mutation is submitted
@@ -77,7 +77,7 @@ DECLARE_ENUM(EPartitionState,
     (Sampling)           // sampling is in progress
 );
 
-DECLARE_ENUM(ETabletState,
+DEFINE_ENUM(ETabletState,
     // The only good state admitting read and write requests.
     (Mounted)
 
@@ -89,12 +89,12 @@ DECLARE_ENUM(ETabletState,
     (Unmounted)
 );
 
-DECLARE_ENUM(EStoreType,
+DEFINE_ENUM(EStoreType,
     (DynamicMemory)
     (Chunk)
 );
 
-DECLARE_ENUM(EStoreState,
+DEFINE_ENUM(EStoreState,
     (ActiveDynamic)         // dynamic, can receive updates
     (PassiveDynamic)        // dynamic, rotated and cannot receive more updates
 
@@ -113,7 +113,7 @@ DECLARE_ENUM(EStoreState,
     (Removed)               // removed by rotation but still locked
 );
 
-DECLARE_ENUM(EAutomatonThreadQueue,
+DEFINE_ENUM(EAutomatonThreadQueue,
     (Default)
     (Read)
     (Write)

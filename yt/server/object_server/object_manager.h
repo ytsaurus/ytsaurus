@@ -21,8 +21,6 @@
 
 #include <server/cypress_server/public.h>
 
-#include <array>
-
 namespace NYT {
 namespace NObjectServer {
 
@@ -209,7 +207,7 @@ private:
     };
 
     std::set<EObjectType> RegisteredTypes_;
-    std::array<TTypeEntry, NObjectClient::MaxObjectType> TypeToEntry_;
+    TEnumIndexedVector<TTypeEntry, EObjectType, MinObjectType, MaxObjectType> TypeToEntry_;
 
     yhash_map<Stroka, NProfiling::TTagId> MethodToTag_;
 

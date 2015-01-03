@@ -201,7 +201,7 @@ public:
     {
         return TCGValue(
             builder,
-            builder.getInt16(EValueType::Null),
+            builder.getInt16(static_cast<ui16>(EValueType::Null)),
             llvm::UndefValue::get(TTypeBuilder::TLength::get(builder.getContext())),
             llvm::UndefValue::get(TTypeBuilder::TData::get(builder.getContext())),
             staticType,
@@ -247,13 +247,13 @@ public:
         // A little bit of manual constant folding.
         if (Type_ && llvm::isa<ConstantInt>(Type_)) {
             auto* constantType = llvm::cast<ConstantInt>(Type_);
-            if (constantType->getZExtValue() == EValueType::Null) {
+            if (constantType->getZExtValue() == static_cast<ui16>(EValueType::Null)) {
                 return Builder_.getFalse();
             }
         }
         return Builder_.CreateICmpEQ(
             Type_,
-            Builder_.getInt16(EValueType::Null),
+            Builder_.getInt16(static_cast<ui16>(EValueType::Null)),
             Twine(Name_) + ".isNull");
     }
 
@@ -684,7 +684,13 @@ void CodegenAggregateFunction(
                     YUNIMPLEMENTED();
             }
 
-            return TCGValue::CreateFromValue(builder, builder.getInt16(type), nullptr, resultData, type, name);
+            return TCGValue::CreateFromValue(
+                builder,
+                builder.getInt16(static_cast<ui16>(type)),
+                nullptr,
+                resultData,
+                type,
+                name);
         }).StoreToRow(aggregateRow, index, id);
     });
 }
@@ -786,7 +792,12 @@ TCGValue TCGContext::DoCodegenFunctionExpr(
                     Module_->GetRoutine("IsPrefix"),
                     lhsData, lhsLength, rhsData, rhsLength);
 
-                return TCGValue::CreateFromValue(builder, builder.getInt16(type), nullptr, result, type);
+                return TCGValue::CreateFromValue(
+                    builder,
+                    builder.getInt16(static_cast<ui16>(type)),
+                    nullptr,
+                    result,
+                    type);
             });
         }, nameTwine);
     } else if (functionName == "lower") {
@@ -808,7 +819,12 @@ TCGValue TCGContext::DoCodegenFunctionExpr(
                 argData,
                 argLength);
 
-            return TCGValue::CreateFromValue(builder, builder.getInt16(type), argLength, result, type);
+            return TCGValue::CreateFromValue(
+                builder,
+                builder.getInt16(static_cast<ui16>(type)),
+                argLength,
+                result,
+                type);
         }, nameTwine);
     } else if (functionName == "is_null") {
         YCHECK(codegenArgs.size() == 1);
@@ -816,7 +832,7 @@ TCGValue TCGContext::DoCodegenFunctionExpr(
 
         return TCGValue::CreateFromValue(
             builder,
-            builder.getInt16(type),
+            builder.getInt16(static_cast<ui16>(type)),
             nullptr,            
             builder.CreateZExtOrBitCast(
                 argValue.IsNull(),
@@ -984,7 +1000,12 @@ TCGValue TCGContext::DoCodegenBinaryOpExpr(
                 #undef OP
                 #undef CMP_OP
 
-                return TCGValue::CreateFromValue(builder, builder.getInt16(type), nullptr, evalData, type);
+                return TCGValue::CreateFromValue(
+                    builder,
+                    builder.getInt16(static_cast<ui16>(type)),
+                    nullptr,
+                    evalData,
+                    type);
             });
         }, nameTwine);
 }
@@ -1239,7 +1260,7 @@ TCGValue TCGContext::DoCodegenInOpExpr(
 
     return TCGValue::CreateFromValue(
         builder,
-        builder.getInt16(EValueType::Boolean),
+        builder.getInt16(static_cast<ui16>(EValueType::Boolean)),
         nullptr,
         result,
         EValueType::Boolean);

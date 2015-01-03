@@ -613,7 +613,7 @@ private:
 
     virtual void InitJobSpecTemplate() override
     {
-        JobSpecTemplate.set_type(EJobType::UnorderedMerge);
+        JobSpecTemplate.set_type(static_cast<int>(EJobType::UnorderedMerge));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -703,7 +703,7 @@ private:
 
     virtual void InitJobSpecTemplate() override
     {
-        JobSpecTemplate.set_type(EJobType::OrderedMerge);
+        JobSpecTemplate.set_type(static_cast<int>(EJobType::OrderedMerge));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -818,7 +818,7 @@ private:
 
     virtual void InitJobSpecTemplate() override
     {
-        JobSpecTemplate.set_type(EJobType::OrderedMerge);
+        JobSpecTemplate.set_type(static_cast<int>(EJobType::OrderedMerge));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -849,9 +849,10 @@ IOperationControllerPtr CreateEraseController(
 
 ////////////////////////////////////////////////////////////////////
 
-static const int DefaultPartitionTag = -1;
-
-////////////////////////////////////////////////////////////////////
+DEFINE_ENUM(EEndpointType,
+    (Left)
+    (Right)
+);
 
 //! Handles sorted merge and reduce operations.
 class TSortedMergeControllerBase
@@ -916,11 +917,6 @@ protected:
         }
 
     };
-
-    DECLARE_ENUM(EEndpointType,
-        (Left)
-        (Right)
-    );
 
     struct TKeyEndpoint
     {
@@ -1332,7 +1328,7 @@ private:
 
     virtual void InitJobSpecTemplate() override
     {
-        JobSpecTemplate.set_type(EJobType::SortedMerge);
+        JobSpecTemplate.set_type(static_cast<int>(EJobType::SortedMerge));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         auto* mergeJobSpecExt = JobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
@@ -1343,7 +1339,7 @@ private:
         ToProto(mergeJobSpecExt->mutable_key_columns(), KeyColumns);
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
-        ManiacJobSpecTemplate.set_type(EJobType::UnorderedMerge);
+        ManiacJobSpecTemplate.set_type(static_cast<int>(EJobType::UnorderedMerge));
     }
 
     virtual void CustomPrepare() override
@@ -1683,7 +1679,7 @@ private:
 
     virtual void InitJobSpecTemplate() override
     {
-        JobSpecTemplate.set_type(EJobType::SortedReduce);
+        JobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());

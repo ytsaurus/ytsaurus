@@ -88,8 +88,7 @@ void TChunkListPool::Release(const std::vector<TChunkListId>& ids)
 
 void TChunkListPool::AllocateMore()
 {
-    int count =
-        LastSuccessCount < 0
+    int count = LastSuccessCount < 0
         ? Config->ChunkListPreallocationCount
         : static_cast<int>(LastSuccessCount * Config->ChunkListAllocationMultiplier);
 
@@ -105,7 +104,7 @@ void TChunkListPool::AllocateMore()
     TObjectServiceProxy objectProxy(MasterChannel);
     auto req = TMasterYPathProxy::CreateObjects();
     ToProto(req->mutable_transaction_id(), TransactionId);
-    req->set_type(EObjectType::ChunkList);
+    req->set_type(static_cast<int>(EObjectType::ChunkList));
     req->set_object_count(count);
 
     objectProxy.Execute(req).Subscribe(

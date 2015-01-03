@@ -31,7 +31,7 @@ TTagIdList& operator += (TTagIdList& a, const TTagIdList& b);
  *  and also the total time (between start and stop).
  *  This timer creates a bucket per each checkpoint plus "total" bucket.
  */
-DECLARE_ENUM(ETimerMode,
+DEFINE_ENUM(ETimerMode,
     (Simple)
     (Sequential)
     (Parallel)
@@ -129,7 +129,7 @@ struct TRateCounter
  * - Min, Max, Avg: The counter creates a single bucket and enqueues the corresponding
  *   aggregate.
  */
-DECLARE_ENUM(EAggregateMode,
+DEFINE_ENUM(EAggregateMode,
     (All)
     (Min)
     (Max)

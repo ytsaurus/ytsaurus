@@ -537,7 +537,7 @@ private:
         auto req = proxy.Execute();
         fragment->NodeDirectory->DumpTo(req->mutable_node_directory());
         ToProto(req->mutable_plan_fragment(), fragment);
-        req->set_response_codec(config->SelectResponseCodec);
+        req->set_response_codec(static_cast<int>(config->SelectResponseCodec));
 
         auto resultReader = New<TQueryResponseReader>(req->Invoke());
         return std::make_pair(resultReader, resultReader->GetQueryResult());
@@ -1061,7 +1061,7 @@ private:
                 ->SetRequestAck(false);
             ToProto(req->mutable_tablet_id(), TabletId_);
             req->set_timestamp(Options_.Timestamp);
-            req->set_response_codec(Config_->LookupResponseCodec);
+            req->set_response_codec(static_cast<int>(Config_->LookupResponseCodec));
             req->Attachments() = std::move(batch->RequestData);
 
             req->Invoke().Subscribe(
@@ -1356,7 +1356,7 @@ private:
         auto req = TCypressYPathProxy::Create(path);
         SetTransactionId(req, options, true);
         GenerateMutationId(req, options);
-        req->set_type(type);
+        req->set_type(static_cast<int>(type));
         req->set_recursive(options.Recursive);
         req->set_ignore_existing(options.IgnoreExisting);
         if (options.Attributes) {
@@ -1384,7 +1384,7 @@ private:
         auto req = TCypressYPathProxy::Lock(path);
         SetTransactionId(req, options, false);
         GenerateMutationId(req, options);
-        req->set_mode(mode);
+        req->set_mode(static_cast<int>(mode));
         req->set_waitable(options.Waitable);
         batchReq->AddRequest(req);
 
@@ -1455,7 +1455,7 @@ private:
         SetPrerequisites(batchReq, options);
 
         auto req = TCypressYPathProxy::Create(dstPath);
-        req->set_type(EObjectType::Link);
+        req->set_type(static_cast<int>(EObjectType::Link));
         req->set_recursive(options.Recursive);
         req->set_ignore_existing(options.IgnoreExisting);
         SetTransactionId(req, options, true);
@@ -1500,7 +1500,7 @@ private:
         if (options.TransactionId != NullTransactionId) {
             ToProto(req->mutable_transaction_id(), options.TransactionId);
         }
-        req->set_type(type);
+        req->set_type(static_cast<int>(type));
         if (options.Attributes) {
             ToProto(req->mutable_object_attributes(), *options.Attributes);
         }
@@ -1555,7 +1555,7 @@ private:
     {
         auto req = TObjectYPathProxy::CheckPermission(path);
         req->set_user(user);
-        req->set_permission(permission);
+        req->set_permission(static_cast<int>(permission));
         SetTransactionId(req, options, true);
 
         auto rsp = WaitFor(ObjectProxy_->Execute(req));
@@ -1882,7 +1882,7 @@ private:
             int keyColumnCount = static_cast<int>(TableInfo_->KeyColumns.size());
 
             TReqWriteRow req;
-            req.set_lock_mode(Options_.LockMode);
+            req.set_lock_mode(static_cast<int>(Options_.LockMode));
 
             for (auto row : Rows_) {
                 ValidateClientDataRow(row, keyColumnCount, idMapping, TableInfo_->Schema);

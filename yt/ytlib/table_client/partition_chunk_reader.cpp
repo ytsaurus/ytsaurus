@@ -82,8 +82,9 @@ void TPartitionChunkReader::OnGotMeta(IChunkReader::TGetMetaResult result)
 
     const auto& chunkMeta = result.Value();
 
-    if (chunkMeta.type() != EChunkType::Table) {
-        LOG_FATAL("Invalid chunk type %v", chunkMeta.type());
+    auto type = EChunkType(chunkMeta.type());
+    if (type != EChunkType::Table) {
+        LOG_FATAL("Invalid chunk type %v", type);
     }
 
     if (chunkMeta.version() != FormatVersion) {

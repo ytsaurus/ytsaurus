@@ -396,13 +396,13 @@ void ExportEnumeration(
     const Handle<Object>& target,
     const char* name)
 {
-    auto values = E::GetDomainValues();
+    auto values = TEnumTraits<E>::GetDomainValues();
     Local<Array> mapping = Array::New();
 
     for (auto value : values) {
-        auto key = Stroka::Join(name, "_", E::GetLiteralByValue(value)->data());
+        auto key = Stroka::Join(name, "_", TEnumTraits<E>::FindLiteralByValue(value)->data());
         auto keyHandle = String::NewSymbol(key.c_str());
-        auto valueHandle = Integer::New(value);
+        auto valueHandle = Integer::New(static_cast<int>(value));
         target->Set(
             keyHandle,
             valueHandle,

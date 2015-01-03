@@ -63,30 +63,25 @@ struct ArgTraits< NYT::TNullable<T> >
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NYT {
+namespace std {
 
 Stroka ReadAll(std::istringstream& input);
 
-std::istringstream& operator >> (std::istringstream& input, TGuid& guid);
-
-template <class T>
-std::istringstream& operator >> (std::istringstream& input, TEnumBase<T>& mode);
-
-template <class T>
-std::istringstream& operator >> (std::istringstream& input, TNullable<T>& nullable);
+std::istringstream& operator >> (std::istringstream& input, NYT::TGuid& guid);
 
 // TODO(babenko): move to inl
 
-template <class T>
-inline std::istringstream& operator >> (std::istringstream& input, TEnumBase<T>& mode)
+template <class E>
+typename std::enable_if<NYT::TEnumTraits<E>::IsEnum, std::istringstream&>::type
+operator >> (std::istringstream& input, E& value)
 {
     auto str = ReadAll(input);
-    static_cast<T&>(mode) = NYT::ParseEnum<T>(str);
+    value = NYT::TEnumTraits<E>::FromString(str);
     return input;
 }
 
 template <class T>
-inline std::istringstream& operator >> (std::istringstream& input, TNullable<T>& nullable)
+std::istringstream& operator >> (std::istringstream& input, NYT::TNullable<T>& nullable)
 {
     auto str = ReadAll(input);
     if (str.empty()) {
@@ -102,6 +97,6 @@ inline std::istringstream& operator >> (std::istringstream& input, TNullable<T>&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace std
 
 

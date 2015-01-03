@@ -9,7 +9,7 @@ namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETokenType,
+DEFINE_ENUM(ETokenType,
     (EndOfStream) // Empty or uninitialized token
 
     (String)

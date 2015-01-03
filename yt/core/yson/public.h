@@ -8,7 +8,7 @@ namespace NYson {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! The data format.
-DECLARE_ENUM(EYsonFormat,
+DEFINE_ENUM(EYsonFormat,
     // Binary.
     // Most compact but not human-readable.
     (Binary)
@@ -25,13 +25,13 @@ DECLARE_ENUM(EYsonFormat,
     (Pretty)
 );
 
-DECLARE_ENUM(EYsonType,
+DEFINE_ENUM(EYsonType,
     (Node)
     (ListFragment)
     (MapFragment)
 );
 
-class ETokenType;
+enum class ETokenType;
 
 class TTokenizer;
 

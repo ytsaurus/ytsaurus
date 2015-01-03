@@ -107,7 +107,7 @@ public:
 #undef REGISTER
     }
 
-    int Main(int argc, const char* argv[])
+    EExitCode Main(int argc, const char* argv[])
     {
         NYT::InstallCrashSignalHandler();
         NYT::NConcurrency::SetCurrentThreadName("Driver");
@@ -116,37 +116,7 @@ public:
         SetupSignalHandler();
 
         try {
-            if (argc < 2) {
-                PrintAllExecutors();
-                THROW_ERROR_EXCEPTION("Not enough arguments");
-            }
-
-            Stroka commandName = Stroka(argv[1]);
-
-            if (commandName == "--help") {
-                PrintAllExecutors();
-                return 0;
-            }
-
-            if (commandName == "--version") {
-                PrintVersion();
-                return 0;
-            }
-
-            if (commandName == "--config-template") {
-                TYsonWriter writer(&Cout, EYsonFormat::Pretty);
-                New<TExecutorConfig>()->Save(&writer);
-                return 0;
-            }
-
-            auto executor = GetExecutor(commandName);
-
-            std::vector<std::string> args;
-            for (int i = 1; i < argc; ++i) {
-                args.push_back(std::string(argv[i]));
-            }
-
-            executor->Execute(args);
+            GuardedMain(argc, argv);
         } catch (const std::exception& ex) {
             Cerr << "ERROR: " << ex.what() << Endl;
             ExitCode = EExitCode::Error;
@@ -158,8 +128,44 @@ public:
     }
 
 private:
-    int ExitCode;
+    EExitCode ExitCode;
     yhash_map<Stroka, TExecutorPtr> Executors;
+
+
+    void GuardedMain(int argc, const char* argv[])
+    {
+        if (argc < 2) {
+            PrintAllExecutors();
+            THROW_ERROR_EXCEPTION("Not enough arguments");
+        }
+
+        Stroka commandName = Stroka(argv[1]);
+
+        if (commandName == "--help") {
+            PrintAllExecutors();
+            return;
+        }
+
+        if (commandName == "--version") {
+            PrintVersion();
+            return;
+        }
+
+        if (commandName == "--config-template") {
+            TYsonWriter writer(&Cout, EYsonFormat::Pretty);
+            New<TExecutorConfig>()->Save(&writer);
+            return;
+        }
+
+        auto executor = GetExecutor(commandName);
+
+        std::vector<std::string> args;
+        for (int i = 1; i < argc; ++i) {
+            args.push_back(std::string(argv[i]));
+        }
+
+        executor->Execute(args);
+    }
 
     void SetupSignalHandler()
     {
@@ -224,6 +230,6 @@ private:
 int main(int argc, const char* argv[])
 {
     NYT::TDriverProgram program;
-    return program.Main(argc, argv);
+    return static_cast<int>(program.Main(argc, argv));
 }
 

@@ -190,13 +190,11 @@ void TSchemafulDsvConsumer::OnEndMap()
 
 void TSchemafulDsvConsumer::WriteRow()
 {
-    typedef TSchemafulDsvFormatConfig::EMissingValueMode EMissingValueMode;
-
-    if (ValueCount_ != Keys_.size() && Config_->MissingValueMode == EMissingValueMode::Fail) {
+    if (ValueCount_ != Keys_.size() && Config_->MissingValueMode == EMissingSchemafulDsvValueMode::Fail) {
         THROW_ERROR_EXCEPTION("Some column is missing in row");
     }
 
-    if (ValueCount_ == Keys_.size() || Config_->MissingValueMode == EMissingValueMode::PrintSentinel) {
+    if (ValueCount_ == Keys_.size() || Config_->MissingValueMode == EMissingSchemafulDsvValueMode::PrintSentinel) {
         if (Config_->EnableTableIndex) {
             Stream_->Write(ToString(TableIndex_));
             Stream_->Write(Config_->FieldSeparator);
@@ -218,7 +216,7 @@ void TSchemafulDsvConsumer::WriteRow()
     // Clear row
     ValueCount_ = 0;
     ValueHolder_.clear();
-    if (Config_->MissingValueMode == EMissingValueMode::PrintSentinel) {
+    if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::PrintSentinel) {
         for (const auto& key: Keys_) {
             Values_[key] = TStringBuf();
         }
@@ -379,7 +377,7 @@ void TSchemafulDsvWriter::WriteValue(const TUnversionedValue& value)
         case EValueType::Uint64: {
             char buf[64];
             char* begin = buf;
-            char* end = EValueType::Int64
+            char* end = value.Type == EValueType::Int64
                 ? WriteInt64Reversed(begin, value.Data.Int64)
                 : WriteUint64Reversed(begin, value.Data.Uint64);
             size_t length = end - begin;

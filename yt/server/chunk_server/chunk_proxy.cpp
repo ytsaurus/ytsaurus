@@ -205,37 +205,37 @@ private:
 
         if (key == "underreplicated") {
             BuildYsonFluently(consumer)
-                .Value((status & EChunkStatus::Underreplicated) != 0);
+                .Value(Any(status & EChunkStatus::Underreplicated));
             return true;
         }
 
         if (key == "overreplicated") {
             BuildYsonFluently(consumer)
-                .Value((status & EChunkStatus::Overreplicated) != 0);
+                .Value(Any(status & EChunkStatus::Overreplicated));
             return true;
         }
 
         if (key == "lost") {
             BuildYsonFluently(consumer)
-                .Value((status & EChunkStatus::Lost) != 0);
+                .Value(Any(status & EChunkStatus::Lost));
             return true;
         }
 
         if (key == "data_missing") {
             BuildYsonFluently(consumer)
-                .Value((status & EChunkStatus::DataMissing) != 0);
+                .Value(Any(status & EChunkStatus::DataMissing));
             return true;
         }
 
         if (key == "parity_missing") {
             BuildYsonFluently(consumer)
-                .Value((status & EChunkStatus::ParityMissing) != 0);
+                .Value(Any(status & EChunkStatus::ParityMissing));
             return true;
         }
 
         if (key == "unsafely_placed") {
             BuildYsonFluently(consumer)
-                .Value((status & EChunkStatus::UnsafelyPlaced) != 0);
+                .Value(Any(status & EChunkStatus::UnsafelyPlaced));
             return true;
         }
 
@@ -442,7 +442,7 @@ private:
         auto* chunkSpec = response->add_chunks();
         ToProto(chunkSpec->mutable_replicas(), replicas);
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
-        chunkSpec->set_erasure_codec(chunk->GetErasureCodec());
+        chunkSpec->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
         chunkSpec->mutable_chunk_meta()->set_type(chunk->ChunkMeta().type());
         chunkSpec->mutable_chunk_meta()->set_version(chunk->ChunkMeta().version());
         chunkSpec->mutable_chunk_meta()->mutable_extensions()->CopyFrom(chunk->ChunkMeta().extensions());

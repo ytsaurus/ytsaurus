@@ -54,7 +54,7 @@ TError::TErrorOr(const Stroka& message)
     CaptureOriginAttributes();
 }
 
-TError::TErrorOr(int code, const Stroka& message)
+TError::TErrorOr(TErrorCode code, const Stroka& message)
     : Code_(code)
     , Message_(message)
 {
@@ -94,12 +94,12 @@ TError TError::FromSystem(int error)
         TErrorAttribute("errno", error);
 }
 
-int TError::GetCode() const
+TErrorCode TError::GetCode() const
 {
     return Code_;
 }
 
-TError& TError::SetCode(int code)
+TError& TError::SetCode(TErrorCode code)
 {
     Code_ = code;
     return *this;
@@ -153,7 +153,7 @@ void TError::CaptureOriginAttributes()
     Attributes().SetYson("tid", ConvertToYsonString(NConcurrency::GetCurrentThreadId()));
 }
 
-TNullable<TError> TError::FindMatching(int code) const
+TNullable<TError> TError::FindMatching(TErrorCode code) const
 {
     if (Code_ == code) {
         return *this;
@@ -197,7 +197,7 @@ void AppendError(TStringBuilder* builder, const TError& error, int indent)
     builder->AppendChar('\n');
 
     if (error.GetCode() != NYT::EErrorCode::Generic) {
-        AppendAttribute(builder, "code", ToString(error.GetCode()), indent);
+        AppendAttribute(builder, "code", ToString(static_cast<int>(error.GetCode())), indent);
     }
 
     // Pretty-print origin.

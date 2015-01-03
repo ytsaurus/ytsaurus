@@ -171,7 +171,7 @@ void TOperationTracker::DumpResult()
     {
         auto req = TYPathProxy::Get(jobsPath);
         auto* attributeFilter = req->mutable_attribute_filter();
-        attributeFilter->set_mode(EAttributeFilterMode::MatchingOnly);
+        attributeFilter->set_mode(static_cast<int>(EAttributeFilterMode::MatchingOnly));
         attributeFilter->add_keys("job_type");
         attributeFilter->add_keys("state");
         attributeFilter->add_keys("address");
@@ -209,11 +209,10 @@ void TOperationTracker::DumpResult()
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_jobs");
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation jobs info");
 
-        size_t jobTypeCount = EJobType::GetDomainSize();
-        std::vector<int> totalJobCount(jobTypeCount);
-        std::vector<int> completedJobCount(jobTypeCount);
-        std::vector<int> failedJobCount(jobTypeCount);
-        std::vector<int> abortedJobCount(jobTypeCount);
+        TEnumIndexedVector<int, EJobType> totalJobCount;
+        TEnumIndexedVector<int, EJobType> completedJobCount;
+        TEnumIndexedVector<int, EJobType> failedJobCount;
+        TEnumIndexedVector<int, EJobType> abortedJobCount;
 
         auto jobs = ConvertToNode(TYsonString(rsp->value()))->AsMap();
         if (jobs->GetChildCount() == 0) {
@@ -226,9 +225,7 @@ void TOperationTracker::DumpResult()
             auto jobId = TJobId::FromString(pair.first);
             auto job = pair.second->AsMap();
 
-            auto jobType = static_cast<int>(job->Attributes().Get<EJobType>("job_type"));
-            YCHECK(jobType >= 0 && jobType < jobTypeCount);
-
+            auto jobType = job->Attributes().Get<EJobType>("job_type");
             auto jobState = job->Attributes().Get<EJobState>("state");
             ++totalJobCount[jobType];
             switch (jobState) {
@@ -253,7 +250,7 @@ void TOperationTracker::DumpResult()
 
         printf("\n");
         printf("%-16s %10s %10s %10s %10s\n", "Job type", "Total", "Completed", "Failed", "Aborted");
-        for (int jobType = 0; jobType < jobTypeCount; ++jobType) {
+        for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
             if (totalJobCount[jobType] > 0) {
                 printf("%-16s %10d %10d %10d %10d\n",
                     ~ToString(EJobType(jobType)),

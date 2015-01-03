@@ -40,7 +40,7 @@ typedef TIntrusivePtr<TSingleQueueSchedulerThread> TSingleQueueSchedulerThreadPt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EBeginExecuteResult,
+DEFINE_ENUM(EBeginExecuteResult,
     (Success)
     (QueueEmpty)
     (Terminated)

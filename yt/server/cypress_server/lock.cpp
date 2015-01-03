@@ -21,10 +21,6 @@ TLockRequest::TLockRequest(ELockMode mode)
     : Mode(mode)
 { }
 
-TLockRequest::TLockRequest(ELockMode::EDomain mode)
-    : Mode(mode)
-{ }
-
 TLockRequest TLockRequest::SharedChild(const Stroka& key)
 {
     TLockRequest result(ELockMode::Shared);

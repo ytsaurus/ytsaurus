@@ -490,14 +490,14 @@ private:
             {
                 auto req = TCypressYPathProxy::Create(path);
                 req->set_ignore_existing(true);
-                req->set_type(EObjectType::MapNode);
+                req->set_type(static_cast<int>(EObjectType::MapNode));
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
             {
                 auto req = TCypressYPathProxy::Create(path + "/orchid");
                 req->set_ignore_existing(true);
-                req->set_type(EObjectType::Orchid);
+                req->set_type(static_cast<int>(EObjectType::Orchid));
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("remote_address", ServiceAddress);
                 ToProto(req->mutable_node_attributes(), *attributes);
@@ -515,7 +515,7 @@ private:
             auto batchReq = Owner->StartBatchRequest(false);
             {
                 auto req = TMasterYPathProxy::CreateObjects();
-                req->set_type(EObjectType::Transaction);
+                req->set_type(static_cast<int>(EObjectType::Transaction));
 
                 auto* reqExt = req->MutableExtension(TReqStartTransactionExt::create_transaction_ext);
                 reqExt->set_timeout(Owner->Config->LockTransactionTimeout.MilliSeconds());
@@ -552,7 +552,7 @@ private:
             {
                 auto req = TCypressYPathProxy::Lock("//sys/scheduler/lock");
                 SetTransactionId(req, Owner->LockTransaction);
-                req->set_mode(ELockMode::Exclusive);
+                req->set_mode(static_cast<int>(ELockMode::Exclusive));
                 GenerateMutationId(req);
                 batchReq->AddRequest(req, "take_lock");
             }
@@ -597,7 +597,7 @@ private:
             {
                 auto req = TYPathProxy::List("//sys/operations");
                 auto* attributeFilter = req->mutable_attribute_filter();
-                attributeFilter->set_mode(EAttributeFilterMode::MatchingOnly);
+                attributeFilter->set_mode(static_cast<int>(EAttributeFilterMode::MatchingOnly));
                 attributeFilter->add_keys("state");
                 batchReq->AddRequest(req, "list_operations");
             }
@@ -634,7 +634,7 @@ private:
                     auto req = TYPathProxy::Get(GetOperationPath(operationId));
                     // Keep in sync with CreateOperationFromAttributes.
                     auto* attributeFilter = req->mutable_attribute_filter();
-                    attributeFilter->set_mode(EAttributeFilterMode::MatchingOnly);
+                    attributeFilter->set_mode(static_cast<int>(EAttributeFilterMode::MatchingOnly));
                     attributeFilter->add_keys("operation_type");
                     attributeFilter->add_keys("mutation_id");
                     attributeFilter->add_keys("user_transaction_id");
@@ -1383,7 +1383,7 @@ private:
 
                     auto req = TCypressYPathProxy::Create(stderrPath);
                     GenerateMutationId(req);
-                    req->set_type(EObjectType::File);
+                    req->set_type(static_cast<int>(EObjectType::File));
 
                     auto attributes = CreateEphemeralAttributes();
                     attributes->Set("vital", false);
@@ -1425,7 +1425,7 @@ private:
 
                             auto req = TCypressYPathProxy::Create(failContextPath);
                             GenerateMutationId(req);
-                            req->set_type(EObjectType::File);
+                            req->set_type(static_cast<int>(EObjectType::File));
 
                             auto attributes = CreateEphemeralAttributes();
                             attributes->Set("vital", false);

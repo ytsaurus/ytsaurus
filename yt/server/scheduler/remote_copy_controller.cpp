@@ -393,7 +393,7 @@ private:
 
     void InitJobSpecTemplate()
     {
-        JobSpecTemplate_.set_type(EJobType::RemoteCopy);
+        JobSpecTemplate_.set_type(static_cast<int>(EJobType::RemoteCopy));
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(
             TSchedulerJobSpecExt::scheduler_job_spec_ext);
 

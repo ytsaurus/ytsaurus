@@ -76,7 +76,7 @@ private:
 TEST(TTableConsumerTest, Simple)
 {
     auto writer = New<TDummyTableWriter>();
-    TTableConsumer consumer(writer);
+    TLegacyTableConsumer consumer(writer);
 
     consumer.OnListItem();
     consumer.OnBeginMap();
@@ -99,7 +99,7 @@ TEST(TTableConsumerTest, Simple)
 TEST(TTableConsumerTest, TableIndex)
 {
     auto writer = New<TDummyTableWriter>();
-    TTableConsumer consumer(writer);
+    TLegacyTableConsumer consumer(writer);
 
     consumer.OnListItem();
     consumer.OnBeginAttributes();
@@ -123,7 +123,7 @@ TEST(TTableConsumerTest, TableIndex)
 TEST(TTableConsumerTest, InvalidControlAttribute)
 {
     auto writer = New<TDummyTableWriter>();
-    TTableConsumer consumer(writer);
+    TLegacyTableConsumer consumer(writer);
 
     consumer.OnListItem();
     consumer.OnBeginAttributes();
@@ -133,7 +133,7 @@ TEST(TTableConsumerTest, InvalidControlAttribute)
 TEST(TTableConsumerTest, InvalidControlAttributeValue)
 {
     auto writer = New<TDummyTableWriter>();
-    TTableConsumer consumer(writer);
+    TLegacyTableConsumer consumer(writer);
 
     consumer.OnListItem();
     consumer.OnBeginAttributes();
@@ -144,7 +144,7 @@ TEST(TTableConsumerTest, InvalidControlAttributeValue)
 TEST(TTableConsumerTest, EmptyAttribute)
 {
     auto writer = New<TDummyTableWriter>();
-    TTableConsumer consumer(writer);
+    TLegacyTableConsumer consumer(writer);
 
     consumer.OnListItem();
     consumer.OnBeginAttributes();
@@ -154,7 +154,7 @@ TEST(TTableConsumerTest, EmptyAttribute)
 TEST(TTableConsumerTest, RowWithAttributes)
 {
     auto writer = New<TDummyTableWriter>();
-    TTableConsumer consumer(writer);
+    TLegacyTableConsumer consumer(writer);
 
     consumer.OnListItem();
     consumer.OnBeginAttributes();
@@ -167,7 +167,7 @@ TEST(TTableConsumerTest, RowWithAttributes)
 TEST(TTableConsumerTest, IntegerRow)
 {
     auto writer = New<TDummyTableWriter>();
-    TTableConsumer consumer(writer);
+    TLegacyTableConsumer consumer(writer);
 
     consumer.OnListItem();
     EXPECT_THROW(consumer.OnInt64Scalar(10), std::exception);
@@ -176,7 +176,7 @@ TEST(TTableConsumerTest, IntegerRow)
 TEST(TTableConsumerTest, EntityRow)
 {
     auto writer = New<TDummyTableWriter>();
-    TTableConsumer consumer(writer);
+    TLegacyTableConsumer consumer(writer);
 
     consumer.OnListItem();
     EXPECT_THROW(consumer.OnEntity(), std::exception);

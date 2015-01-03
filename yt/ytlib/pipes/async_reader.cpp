@@ -21,6 +21,13 @@ static const auto& Logger = PipesLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EReaderState,
+    (Active)
+    (EndOfStream)
+    (Failed)
+    (Aborted)
+);
+
 class TAsyncReaderImpl
     : public TRefCounted
 {
@@ -123,13 +130,6 @@ public:
     }
 
 private:
-    DECLARE_ENUM(EReaderState,
-        (Active)
-        (EndOfStream)
-        (Failed)
-        (Aborted)
-    );
-
     int FD_;
 
     //! \note Thread-unsafe. Must be accessed from ev-thread only.

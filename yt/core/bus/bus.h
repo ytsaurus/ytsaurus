@@ -15,7 +15,7 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EDeliveryTrackingLevel,
+DEFINE_ENUM(EDeliveryTrackingLevel,
     (None)
     (ErrorOnly)
     (Full)

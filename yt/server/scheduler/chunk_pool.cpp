@@ -1108,6 +1108,13 @@ std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
 
 ////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EShuffleChunkPoolRunState,
+    (Initializing)
+    (Pending)
+    (Running)
+    (Completed)
+);
+
 class TShuffleChunkPool
     : public TChunkPoolInputBase
     , public IShuffleChunkPool
@@ -1266,6 +1273,8 @@ public:
     }
 
 private:
+    using ERunState = EShuffleChunkPoolRunState;
+
     DECLARE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool, 0xbacd518a);
 
     i64 DataSizeThreshold;
@@ -1509,32 +1518,15 @@ private:
         TShuffleChunkPool* Owner;
         int PartitionIndex;
 
-        DECLARE_ENUM(ERunState,
-            (Initializing)
-            (Pending)
-            (Running)
-            (Completed)
-        );
-
         struct TRun
         {
-            TRun()
-                : ElementaryIndexBegin(0)
-                , ElementaryIndexEnd(0)
-                , TotalDataSize(0)
-                , TotalRowCount(0)
-                , SuspendCount(0)
-                , State(ERunState::Initializing)
-                , IsApproximate(false)
-            { }
-
-            int ElementaryIndexBegin;
-            int ElementaryIndexEnd;
-            i64 TotalDataSize;
-            i64 TotalRowCount;
-            int SuspendCount;
-            ERunState State;
-            bool IsApproximate;
+            int ElementaryIndexBegin = 0;
+            int ElementaryIndexEnd = 0;
+            i64 TotalDataSize = 0;
+            i64 TotalRowCount = 0;
+            int SuspendCount = 0;
+            ERunState State = ERunState::Initializing;
+            bool IsApproximate = false;
 
             void Persist(TPersistenceContext& context)
             {

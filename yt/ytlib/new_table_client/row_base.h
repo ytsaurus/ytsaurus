@@ -7,7 +7,7 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EValueType,
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(EValueType, ui16,
     ((Min)         (0x00))
 
     ((TheBottom)   (0x01))

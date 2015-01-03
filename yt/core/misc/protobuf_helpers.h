@@ -46,49 +46,33 @@ DEFINE_TRIVIAL_PROTO_CONVERSIONS(bool)
 #undef DEFINE_TRIVIAL_PROTO_CONVERSIONS
 
 template <class T>
-inline void ToProto(
+typename std::enable_if<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>::Value, void>::type ToProto(
     T* serialized,
-    const T& original,
-    typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>,
-        int
-    >::TType = 0)
+    const T& original)
 {
     *serialized = original;
 }
 
 template <class T>
-inline void FromProto(
+typename std::enable_if<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>::Value, void>::type FromProto(
     T* original,
-    const T& serialized,
-    typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>,
-        int
-    >::TType = 0)
+    const T& serialized)
 {
     *original = serialized;
 }
 
 template <class T>
-inline void ToProto(
+typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type ToProto(
     int* serialized,
-    T original,
-    typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<T*, TEnumBase<T>*>,
-        int
-    >::TType = 0)
+    T original)
 {
     *serialized = static_cast<int>(original);
 }
 
 template <class T>
-inline void FromProto(
+typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type FromProto(
     T* original,
-    int serialized,
-    typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<T*, TEnumBase<T>*>,
-        int
-    >::TType = 0)
+    int serialized)
 {
     *original = T(serialized);
 }

@@ -40,7 +40,7 @@ static const auto CleanupPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EMultiplexedRecordType,
+DEFINE_ENUM(EMultiplexedRecordType,
     (Create) // create chunk
     (Append) // append record to chunk
     (Remove) // remove chunk

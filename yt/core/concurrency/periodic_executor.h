@@ -13,7 +13,7 @@ namespace NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Describes if manual calls to #TPeriodicExecutor::ScheduleNext are needed.
-DECLARE_ENUM(EPeriodicExecutorMode,
+DEFINE_ENUM(EPeriodicExecutorMode,
     (Automatic)
     (Manual)
 );

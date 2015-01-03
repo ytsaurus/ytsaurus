@@ -625,15 +625,15 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     EPermissionCheckScope scope,
     EPermission permission)
 {
-    if (scope & EPermissionCheckScope::This) {
+    if ((scope & EPermissionCheckScope::This) != EPermissionCheckScope::None) {
         ValidatePermission(node, permission);
     }
 
-    if (scope & EPermissionCheckScope::Parent) {
+    if ((scope & EPermissionCheckScope::Parent) != EPermissionCheckScope::None) {
         ValidatePermission(node->GetParent(), permission);
     }
 
-    if (scope & EPermissionCheckScope::Descendants) {
+    if ((scope & EPermissionCheckScope::Descendants) != EPermissionCheckScope::None) {
         auto cypressManager = Bootstrap->GetCypressManager();
         auto* trunkNode = node->GetTrunkNode();
         auto descendants = cypressManager->ListSubtreeNodes(trunkNode, Transaction, false);
@@ -818,8 +818,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 
     ValidatePermission(
         trunkSourceImpl,
-        EPermissionCheckScope(EPermissionCheckScope::This | EPermissionCheckScope::Descendants),
-        removeSource ? EPermission(EPermission::Read) : EPermission(EPermission::Read | EPermission::Write));
+        EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
+        removeSource ? EPermission::Read : EPermission::Read | EPermission::Write);
 
     auto sourceParent = sourceProxy->GetParent();
     if (removeSource) {

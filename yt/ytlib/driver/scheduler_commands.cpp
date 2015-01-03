@@ -25,7 +25,7 @@ using namespace NConcurrency;
 void TSchedulerCommandBase::StartOperation(EOperationType type)
 {
     auto req = SchedulerProxy->StartOperation();
-    req->set_type(type);
+    req->set_type(static_cast<int>(type));
     ToProto(req->mutable_transaction_id(), GetTransactionId(EAllowNullTransaction::Yes));
     GenerateMutationId(req);
     req->set_spec(ConvertToYsonString(Request_->Spec).Data());

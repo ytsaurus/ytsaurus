@@ -450,7 +450,7 @@ bool TChunkPlacement::IsFull(TNode* node)
 bool TChunkPlacement::IsAcceptedChunkType(TNode* node, EObjectType type)
 {
     for (auto acceptedType : node->Statistics().accepted_chunk_types()) {
-        if (acceptedType == type) {
+        if (EObjectType(acceptedType) == type) {
             return true;
         }
     }

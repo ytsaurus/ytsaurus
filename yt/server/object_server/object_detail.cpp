@@ -204,7 +204,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
     context->SetRequestInfo();
 
     ToProto(response->mutable_id(), GetId());
-    response->set_type(Object->GetType());
+    response->set_type(static_cast<int>(Object->GetType()));
 
     context->Reply();
 }
@@ -224,7 +224,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
 
     auto result = securityManager->CheckPermission(Object, user, permission);
 
-    response->set_action(result.Action);
+    response->set_action(static_cast<int>(result.Action));
     if (result.Object) {
         ToProto(response->mutable_object_id(), result.Object->GetId());
     }
@@ -648,7 +648,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* con
         auto handler = objectManager->GetHandler(Object);
         auto permissions = handler->GetSupportedPermissions();
         BuildYsonFluently(consumer)
-            .Value(permissions.Decompose());
+            .Value(TEnumTraits<EPermissionSet>::Decompose(permissions));
         return true;
     }
 

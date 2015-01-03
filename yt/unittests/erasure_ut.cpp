@@ -27,7 +27,7 @@ TEST(TErasureCodingTest, RandomText)
 {
     TRand rand;
 
-    std::map<ECodec::EDomain, int> guaranteedRecoveryCount;
+    std::map<ECodec, int> guaranteedRecoveryCount;
     guaranteedRecoveryCount[ECodec::ReedSolomon_6_3] = 3;
     guaranteedRecoveryCount[ECodec::Lrc_12_2_2] = 3;
 
@@ -36,7 +36,7 @@ TEST(TErasureCodingTest, RandomText)
         data.push_back(static_cast<char>('a' + (std::abs(rand.random()) % 26)));
     }
 
-    for (auto codecId : ECodec::GetDomainValues()) {
+    for (auto codecId : TEnumTraits<ECodec>::GetDomainValues()) {
         if (codecId == ECodec::None) {
             continue;
         }

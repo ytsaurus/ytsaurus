@@ -80,6 +80,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ETransactionState,
+    (Initializing)
+    (Active)
+    (Aborted)
+    (Committing)
+    (Committed)
+    (Detached)
+);
+
 class TTransaction::TImpl
     : public TRefCounted
 {
@@ -89,7 +98,7 @@ public:
         , AutoAbort_(false)
         , Ping_(false)
         , PingAncestors_(false)
-        , State_(EState::Initializing)
+        , State_(ETransactionState::Initializing)
         , Aborted_(NewPromise())
         , StartTimestamp_(NullTimestamp)
     { }
@@ -129,7 +138,7 @@ public:
         AutoAbort_ = options.AutoAbort;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
-        State_ = EState::Active;
+        State_ = ETransactionState::Active;
 
         YCHECK(CellIdToStartTransactionResult_.insert(std::make_pair(
             Owner_->CellId_,
@@ -158,20 +167,20 @@ public:
                 return MakeFuture(Error_);
             }
             switch (State_) {
-                case EState::Committing:
+                case ETransactionState::Committing:
                     return MakeFuture(TError("Transaction is already being committed"));
                     break;
 
-                case EState::Committed:
+                case ETransactionState::Committed:
                     return MakeFuture(TError("Transaction is already committed"));
                     break;
 
-                case EState::Aborted:
+                case ETransactionState::Aborted:
                     return MakeFuture(TError("Transaction is already aborted"));
                     break;
 
-                case EState::Active:
-                    State_ = EState::Committing;
+                case ETransactionState::Active:
+                    State_ = ETransactionState::Committing;
                     break;
 
                 default:
@@ -183,10 +192,10 @@ public:
         if (participantGuids.empty()) {
             {
                 TGuard<TSpinLock> guard(SpinLock_);
-                if (State_ != EState::Committing) {
+                if (State_ != ETransactionState::Committing) {
                     return MakeFuture(Error_);
                 }
-                State_ = EState::Committed;
+                State_ = ETransactionState::Committed;
             }
 
             LOG_INFO("Trivial transaction committed (TransactionId: %v)",
@@ -245,19 +254,19 @@ public:
         {
             TGuard<TSpinLock> guard(SpinLock_);
             switch (State_) {
-                case EState::Committed:
+                case ETransactionState::Committed:
                     THROW_ERROR_EXCEPTION("Transaction is already committed (TransactionId: %v)", Id_);
                     break;
 
-                case EState::Aborted:
+                case ETransactionState::Aborted:
                     THROW_ERROR_EXCEPTION("Transaction is already aborted (TransactionId: %v)", Id_);
                     break;
 
-                case EState::Active:
-                    State_ = EState::Detached;
+                case ETransactionState::Active:
+                    State_ = ETransactionState::Detached;
                     break;
 
-                case EState::Detached:
+                case ETransactionState::Detached:
                     return;
 
                 default:
@@ -301,7 +310,7 @@ public:
         {
             TGuard<TSpinLock> guard(SpinLock_);
             
-            if (State_ != EState::Active) {
+            if (State_ != ETransactionState::Active) {
                 return MakeFuture(TError("Transaction is not active"));
             }
             
@@ -355,15 +364,6 @@ public:
 private:
     friend class TTransactionManager::TImpl;
 
-    DECLARE_ENUM(EState,
-        (Initializing)
-        (Active)
-        (Aborted)
-        (Committing)
-        (Committed)
-        (Detached)
-   );
-
     TIntrusivePtr<TTransactionManager::TImpl> Owner_;
     ETransactionType Type_;
     bool AutoAbort_;
@@ -372,7 +372,7 @@ private:
     TNullable<TDuration> Timeout_;
 
     TSpinLock SpinLock_;
-    EState State_;
+    ETransactionState State_;
     TPromise<void> Aborted_;
     yhash_map<TCellId, TAsyncErrorPromise> CellIdToStartTransactionResult_;
     TError Error_;
@@ -434,7 +434,7 @@ private:
                 Owner_->AliveTransactions_.erase(this);
             }
 
-            if (State_ == EState::Active) {
+            if (State_ == ETransactionState::Active) {
                 SendAbort();
             }
         }
@@ -468,7 +468,7 @@ private:
     {
         TObjectServiceProxy proxy(Owner_->MasterChannel_);
         auto req = TMasterYPathProxy::CreateObjects();
-        req->set_type(EObjectType::Transaction);
+        req->set_type(static_cast<int>(EObjectType::Transaction));
         if (options.Attributes) {
             ToProto(req->mutable_object_attributes(), *options.Attributes);
         }
@@ -492,11 +492,11 @@ private:
     TError OnMasterTransactionStarted(TMasterYPathProxy::TRspCreateObjectsPtr rsp)
     {
         if (!rsp->IsOK()) {
-            State_ = EState::Aborted;
+            State_ = ETransactionState::Aborted;
             return rsp->GetError();
         }
 
-        State_ = EState::Active;
+        State_ = ETransactionState::Active;
         
         YCHECK(rsp->object_ids_size() == 1);
         Id_ = FromProto<TTransactionId>(rsp->object_ids(0));
@@ -527,7 +527,7 @@ private:
             static_cast<ui64>(StartTimestamp_),
             TabletTransactionCounter++);
 
-        State_ = EState::Active;
+        State_ = ETransactionState::Active;
 
         LOG_INFO("Tablet transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v)",
             Id_,
@@ -577,9 +577,9 @@ private:
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            if (State_ != EState::Committing)
+            if (State_ != ETransactionState::Committing)
                 return Error_;
-            State_ = EState::Committed;
+            State_ = ETransactionState::Committed;
         }
 
         LOG_INFO("Transaction committed (TransactionId: %v)",
@@ -684,7 +684,7 @@ private:
     {
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            if (State_ != EState::Active)
+            if (State_ != ETransactionState::Active)
                 return;           
         }
 
@@ -808,9 +808,9 @@ private:
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            if (State_ == EState::Aborted)
+            if (State_ == ETransactionState::Aborted)
                 return;
-            State_ = EState::Aborted;
+            State_ = ETransactionState::Aborted;
             Error_ = error;
         }
 

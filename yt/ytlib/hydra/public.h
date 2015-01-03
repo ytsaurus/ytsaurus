@@ -22,7 +22,7 @@ DECLARE_REFCOUNTED_CLASS(TPeerConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStoreOptions)
 DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreOptions)
 
-DECLARE_ENUM(EPeerState,
+DEFINE_ENUM(EPeerState,
     ((None)                       (0))
     ((Stopped)                    (1))
     ((Elections)                  (2))
@@ -32,7 +32,7 @@ DECLARE_ENUM(EPeerState,
     ((Leading)                    (6))
 );
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((NoSuchSnapshot)             (600))
     ((NoSuchChangelog)            (601))
     ((InvalidEpoch)               (602))

@@ -895,7 +895,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
         THROW_ERROR_EXCEPTION(
             NElection::EErrorCode::InvalidState,
             "Received ping in invalid state: expected %Qlv, actual %Qlv",
-            EPeerState(EPeerState::Following),
+            EPeerState::Following,
             State);
     }
 
@@ -933,7 +933,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, GetStatus)
 
     auto priority = ElectionCallbacks->GetPriority();
 
-    response->set_state(State);
+    response->set_state(static_cast<int>(State));
     response->set_vote_id(VoteId);
     response->set_priority(priority);
     ToProto(response->mutable_vote_epoch_id(), VoteEpochId);

@@ -887,7 +887,7 @@ private:
                 // Create Cypress node.
                 {
                     auto req = TCypressYPathProxy::Create(nodePath);
-                    req->set_type(EObjectType::CellNode);
+                    req->set_type(static_cast<int>(EObjectType::CellNode));
                     req->set_ignore_existing(true);
 
                     auto defaultAttributes = ConvertToAttributes(New<TNodeConfig>());
@@ -900,7 +900,7 @@ private:
                 // Create "orchid" child.
                 {
                     auto req = TCypressYPathProxy::Create(nodePath + "/orchid");
-                    req->set_type(EObjectType::Orchid);
+                    req->set_type(static_cast<int>(EObjectType::Orchid));
                     req->set_ignore_existing(true);
 
                     auto attributes = CreateEphemeralAttributes();
@@ -920,7 +920,7 @@ private:
             // Lock Cypress node.
             {
                 auto req = TCypressYPathProxy::Lock(nodePath);
-                req->set_mode(ELockMode::Shared);
+                req->set_mode(static_cast<int>(ELockMode::Shared));
                 SetTransactionId(req, transaction->GetId());
 
                 auto rsp = SyncExecuteVerb(rootService, req);

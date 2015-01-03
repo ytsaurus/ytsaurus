@@ -68,7 +68,7 @@ static NLog::TLogger Logger("Server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EExitCode,
+DEFINE_ENUM(EExitCode,
     ((OK)(0))
     ((OptionsError)(1))
     ((BootstrapError)(2))
@@ -462,7 +462,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     return EExitCode::OK;
 }
 
-int Main(int argc, const char* argv[])
+EExitCode Main(int argc, const char* argv[])
 {
     InstallCrashSignalHandler();
 
@@ -488,7 +488,7 @@ int Main(int argc, const char* argv[])
 #endif /* ! _darwin_ */
 #endif /* _unix_ */
 
-    int exitCode;
+    EExitCode exitCode;
     try {
         exitCode = GuardedMain(argc, argv);
     } catch (const std::exception& ex) {
@@ -507,5 +507,5 @@ int Main(int argc, const char* argv[])
 
 int main(int argc, const char* argv[])
 {
-    return NYT::Main(argc, argv);
+    return static_cast<int>(NYT::Main(argc, argv));
 }

@@ -9,7 +9,41 @@
 #include <core/ytree/yson_string.h>
 #include <core/ytree/attributes.h>
 
+#include <type_traits>
+
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! An opaque wrapper around |int| value capable of conversions from |int|s and
+//! arbitrary enum types.
+class TErrorCode
+{
+public:
+    TErrorCode();
+    TErrorCode(int value);
+    template <class E>
+    TErrorCode(E value, typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type* = nullptr);
+
+    operator int() const;
+
+private:
+    int Value_;
+
+};
+
+template <class E>
+typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator == (E lhs, TErrorCode rhs);
+template <class E>
+typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator != (E lhs, TErrorCode rhs);
+
+template <class E>
+typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator == (TErrorCode lhs, E rhs);
+template <class E>
+typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator != (TErrorCode lhs, E rhs);
+
+inline bool operator == (TErrorCode lhs, TErrorCode rhs);
+inline bool operator != (TErrorCode lhs, TErrorCode rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,9 +62,9 @@ public:
     template <class... TArgs>
     explicit TErrorOr(const char* format, const TArgs&... args);
 
-    TErrorOr(int code, const Stroka& message);
+    TErrorOr(TErrorCode code, const Stroka& message);
     template <class... TArgs>
-    TErrorOr(int code, const char* format, const TArgs&... args);
+    TErrorOr(TErrorCode code, const char* format, const TArgs&... args);
 
     TError& operator = (const TError& other);
     TError& operator = (TError&& other) noexcept;
@@ -38,8 +72,8 @@ public:
     static TError FromSystem();
     static TError FromSystem(int error);
 
-    int GetCode() const;
-    TError& SetCode(int code);
+    TErrorCode GetCode() const;
+    TError& SetCode(TErrorCode code);
 
     const Stroka& GetMessage() const;
     TError& SetMessage(const Stroka& message);
@@ -52,10 +86,10 @@ public:
 
     bool IsOK() const;
 
-    TNullable<TError> FindMatching(int code) const;
+    TNullable<TError> FindMatching(TErrorCode code) const;
 
 private:
-    int Code_;
+    TErrorCode Code_;
     Stroka Message_;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
     std::vector<TError> InnerErrors_;

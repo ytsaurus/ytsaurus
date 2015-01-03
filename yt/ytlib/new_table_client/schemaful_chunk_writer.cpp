@@ -400,8 +400,8 @@ void TChunkWriter::DoClose(TAsyncErrorPromise result)
         }
     }
 
-    Meta.set_type(EChunkType::Table);
-    Meta.set_version(ETableChunkFormat::Schemaful);
+    Meta.set_type(static_cast<int>(EChunkType::Table));
+    Meta.set_version(static_cast<int>(ETableChunkFormat::Schemaful));
 
     SetProtoExtension(Meta.mutable_extensions(), BlockMetaExt);
     SetProtoExtension(Meta.mutable_extensions(), NYT::ToProto<NProto::TTableSchemaExt>(Schema));
@@ -427,7 +427,7 @@ void TChunkWriter::DoClose(TAsyncErrorPromise result)
     miscExt.set_uncompressed_data_size(EncodingWriter->GetUncompressedSize());
     miscExt.set_compressed_data_size(EncodingWriter->GetCompressedSize());
     miscExt.set_meta_size(Meta.ByteSize());
-    miscExt.set_compression_codec(Options->CompressionCodec);
+    miscExt.set_compression_codec(static_cast<int>(Options->CompressionCodec));
     miscExt.set_row_count(RowIndex);
     miscExt.set_max_block_size(LargestBlockSize);
     SetProtoExtension(Meta.mutable_extensions(), miscExt);

@@ -13,7 +13,7 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EUpdateMode,
+DEFINE_ENUM(EUpdateMode,
     (None)
     (Append)
     (Overwrite)

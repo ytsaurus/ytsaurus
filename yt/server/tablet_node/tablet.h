@@ -148,7 +148,7 @@ private:
 
     TStoreManagerPtr StoreManager_;
 
-    std::vector<IInvokerPtr> EpochAutomatonInvokers_;
+    TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
 
     std::unique_ptr<TPartition> Eden_;
 

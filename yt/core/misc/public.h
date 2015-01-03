@@ -57,7 +57,7 @@ typedef ui64 TChecksum;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((OK)              (0))
     ((Generic)         (1))
     ((Timeout)         (104))

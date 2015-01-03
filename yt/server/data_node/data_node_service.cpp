@@ -686,18 +686,19 @@ private:
         }
 
         const auto& chunkMeta = *result.Value();
-
-        if (chunkMeta.type() != EChunkType::Table) {
+        auto type = EChunkType(chunkMeta.type());
+        if (type != EChunkType::Table) {
             auto error =  TError("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
                 chunkId,
-                EChunkType(EChunkType::Table),
-                EChunkType(chunkMeta.type()));
+                EChunkType::Table,
+                type);
             LOG_ERROR(error);
             ToProto(splittedChunk->mutable_error(), error);
             return;
         }
 
         // XXX(psushin): implement splitting for new chunks.
+        // TODO(babenko): replace "1" with some mnemonic name
         if (chunkMeta.version() != 1) {
             // Only old chunks support splitting now.
             auto error = TError("Invalid version of chunk %v: expected: 1, actual %v",
@@ -945,17 +946,19 @@ private:
         }
 
         const auto& chunkMeta = *result.Value();
-        if (chunkMeta.type() != EChunkType::Table) {
+        auto type = EChunkType(chunkMeta.type());
+        if (type != EChunkType::Table) {
             auto error = TError("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
                 chunkId,
-                EChunkType(EChunkType::Table),
-                EChunkType(chunkMeta.type()));
+                EChunkType::Table,
+                type);
             LOG_WARNING(error);
             ToProto(sampleResponse->mutable_error(), error);
             return;
         }
 
-        switch (chunkMeta.version()) {
+        auto formatVersion = ETableChunkFormat(chunkMeta.version());
+        switch (formatVersion) {
             case ETableChunkFormat::Old:
                 ProcessOldChunkSamples(sampleRequest, sampleResponse, keyColumns, chunkMeta);
                 break;
@@ -1004,10 +1007,10 @@ private:
                         return part.column() < column;
                     });
 
-                TUnversionedValue keyPart = MakeUnversionedSentinelValue(EValueType::Null);
+                auto keyPart = MakeUnversionedSentinelValue(EValueType::Null);
                 size += sizeof(keyPart); // part type
                 if (it != sample.parts().end() && it->column() == column) {
-                    switch (it->key_part().type()) {
+                    switch (EKeyPartType(it->key_part().type())) {
                         case EKeyPartType::Composite:
                             keyPart = MakeUnversionedAnyValue(TStringBuf());
                             break;
@@ -1192,7 +1195,7 @@ private:
         Profiler.Enqueue("/pending_in_size", GetPendingInSize());
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        for (auto type : EWriteSessionType::GetDomainValues()) {
+        for (auto type : TEnumTraits<EWriteSessionType>::GetDomainValues()) {
             Profiler.Enqueue("/session_count/" + FormatEnum(type), sessionManager->GetSessionCount(type));
         }
     }

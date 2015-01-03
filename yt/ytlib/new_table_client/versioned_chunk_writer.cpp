@@ -289,8 +289,8 @@ TError TVersionedChunkWriter::DoClose()
 
 void TVersionedChunkWriter::FillCommonMeta(TChunkMeta* meta) const
 {
-    meta->set_type(EChunkType::Table);
-    meta->set_version(TSimpleVersionedBlockWriter::FormatVersion);
+    meta->set_type(static_cast<int>(EChunkType::Table));
+    meta->set_version(static_cast<int>(TSimpleVersionedBlockWriter::FormatVersion));
 
     SetProtoExtension(meta->mutable_extensions(), BoundaryKeysExt_);
 }

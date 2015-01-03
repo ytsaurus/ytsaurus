@@ -13,7 +13,7 @@ namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EAutomatonThreadQueue,
+DEFINE_ENUM(EAutomatonThreadQueue,
     (Default)
     (ChunkMaintenance)
     (ChunkLocator)

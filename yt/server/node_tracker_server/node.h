@@ -24,7 +24,7 @@ namespace NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ENodeState,
+DEFINE_ENUM(ENodeState,
     // Not registered.
     (Offline)
     // Registered but did not report the first heartbeat yet.

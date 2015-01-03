@@ -65,7 +65,7 @@ DECLARE_REFCOUNTED_CLASS(TPeerBlockTableConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((LocalChunkReaderFailed)(1300))
 );
 

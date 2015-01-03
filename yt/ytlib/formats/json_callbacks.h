@@ -14,7 +14,13 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJsonCallbacks {
+DEFINE_ENUM(EJsonCallbacksNodeType,
+    (List)
+    (Map)
+);
+
+class TJsonCallbacks
+{
 public:
     TJsonCallbacks();
     TJsonCallbacks(const TUtf8Transcoder& utf8Transcoder, i64 memoryLimit);
@@ -34,11 +40,6 @@ public:
     NYTree::INodePtr ExtractFinishedNode();
 
 private:
-    DECLARE_ENUM(ENodeType,
-        (List)
-        (Map)
-    );
-
     // Memory accounted approximately
     void AccountMemory(i64 memory);
     void OnItemStarted();
@@ -48,6 +49,7 @@ private:
     i64 ConsumedMemory_;
     i64 MemoryLimit_;
 
+    using ENodeType = EJsonCallbacksNodeType;
     std::stack<ENodeType> Stack_;
 
     std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;

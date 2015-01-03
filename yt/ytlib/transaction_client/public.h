@@ -10,7 +10,7 @@ namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETransactionType,
+DEFINE_ENUM(ETransactionType,
     (Master) // accepted by both masters and tablets
     (Tablet) // accepted by tablets only
 );

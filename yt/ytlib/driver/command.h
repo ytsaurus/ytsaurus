@@ -202,12 +202,12 @@ template <class TRequest, class = void>
 class TTransactionalCommandBase
 { };
 
-DECLARE_ENUM(EAllowNullTransaction,
+DEFINE_ENUM(EAllowNullTransaction,
     (Yes)
     (No)
 );
 
-DECLARE_ENUM(EPingTransaction,
+DEFINE_ENUM(EPingTransaction,
     (Yes)
     (No)
 );

@@ -17,14 +17,14 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTableConsumer::OnStringScalar(const TStringBuf& value)
+void TLegacyTableConsumer::OnStringScalar(const TStringBuf& value)
 {
-    if (ControlState == EControlState::ExpectControlAttributeValue) {
+    if (ControlState == ELegacyTableConsumerControlState::ExpectControlAttributeValue) {
         YCHECK(Depth == 1);
         ThrowInvalidControlAttribute("be a string value");
     }
 
-    YCHECK(ControlState == EControlState::None);
+    YCHECK(ControlState == ELegacyTableConsumerControlState::None);
 
     if (Depth == 0) {
         ThrowMapExpected();
@@ -33,9 +33,9 @@ void TTableConsumer::OnStringScalar(const TStringBuf& value)
     }
 }
 
-void TTableConsumer::OnInt64Scalar(i64 value)
+void TLegacyTableConsumer::OnInt64Scalar(i64 value)
 {
-    if (ControlState == EControlState::ExpectControlAttributeValue) {
+    if (ControlState == ELegacyTableConsumerControlState::ExpectControlAttributeValue) {
         YCHECK(Depth == 1);
 
         switch (ControlAttribute) {
@@ -43,13 +43,13 @@ void TTableConsumer::OnInt64Scalar(i64 value)
                 if (value < 0 || value >= Writers.size()) {
                     THROW_ERROR_EXCEPTION(
                         "Invalid table index: expected in range [0, %v], actual %v",
-                        static_cast<int>(Writers.size()) - 1,
+                        Writers.size() - 1,
                         value)
                         << TErrorAttribute("row_index", Writer->GetRowCount());
                 }
                 CurrentTableIndex = value;
                 Writer = Writers[CurrentTableIndex];
-                ControlState = EControlState::ExpectEndControlAttributes;
+                ControlState = ELegacyTableConsumerControlState::ExpectEndControlAttributes;
                 break;
             }
 
@@ -60,7 +60,7 @@ void TTableConsumer::OnInt64Scalar(i64 value)
         return;
     }
 
-    YCHECK(ControlState == EControlState::None);
+    YCHECK(ControlState == ELegacyTableConsumerControlState::None);
 
     if (Depth == 0) {
         ThrowMapExpected();
@@ -69,14 +69,14 @@ void TTableConsumer::OnInt64Scalar(i64 value)
     }
 }
 
-void TTableConsumer::OnUint64Scalar(ui64 value)
+void TLegacyTableConsumer::OnUint64Scalar(ui64 value)
 {
-    if (ControlState == EControlState::ExpectControlAttributeValue) {
+    if (ControlState == ELegacyTableConsumerControlState::ExpectControlAttributeValue) {
         YCHECK(Depth == 1);
         ThrowInvalidControlAttribute("be a uint64 value");
     }
 
-    YCHECK(ControlState == EControlState::None);
+    YCHECK(ControlState == ELegacyTableConsumerControlState::None);
 
     if (Depth == 0) {
         ThrowMapExpected();
@@ -85,14 +85,14 @@ void TTableConsumer::OnUint64Scalar(ui64 value)
     }
 }
 
-void TTableConsumer::OnDoubleScalar(double value)
+void TLegacyTableConsumer::OnDoubleScalar(double value)
 {
-    if (ControlState == EControlState::ExpectControlAttributeValue) {
+    if (ControlState == ELegacyTableConsumerControlState::ExpectControlAttributeValue) {
         YCHECK(Depth == 1);
         ThrowInvalidControlAttribute("be a double value");
     }
 
-    YCHECK(ControlState == EControlState::None);
+    YCHECK(ControlState == ELegacyTableConsumerControlState::None);
 
     if (Depth == 0) {
         ThrowMapExpected();
@@ -101,9 +101,9 @@ void TTableConsumer::OnDoubleScalar(double value)
     }
 }
 
-void TTableConsumer::OnBooleanScalar(bool value)
+void TLegacyTableConsumer::OnBooleanScalar(bool value)
 {
-    YCHECK(ControlState == EControlState::None);
+    YCHECK(ControlState == ELegacyTableConsumerControlState::None);
 
     if (Depth == 0) {
         ThrowMapExpected();
@@ -112,19 +112,19 @@ void TTableConsumer::OnBooleanScalar(bool value)
     }
 }
 
-void TTableConsumer::OnEntity()
+void TLegacyTableConsumer::OnEntity()
 {
     switch (ControlState) {
-        case EControlState::None:
+        case ELegacyTableConsumerControlState::None:
             break;
 
-        case EControlState::ExpectEntity:
+        case ELegacyTableConsumerControlState::ExpectEntity:
 	        YCHECK(Depth == 0);
             // Successfully processed control statement.
-            ControlState = EControlState::None;
+            ControlState = ELegacyTableConsumerControlState::None;
             return;
 
-	    case EControlState::ExpectControlAttributeValue:
+	    case ELegacyTableConsumerControlState::ExpectControlAttributeValue:
             ThrowInvalidControlAttribute("be an entity");
             break;
 
@@ -140,14 +140,14 @@ void TTableConsumer::OnEntity()
     }
 }
 
-void TTableConsumer::OnBeginList()
+void TLegacyTableConsumer::OnBeginList()
 {
-    if (ControlState == EControlState::ExpectControlAttributeValue) {
+    if (ControlState == ELegacyTableConsumerControlState::ExpectControlAttributeValue) {
         YCHECK(Depth == 1);
         ThrowInvalidControlAttribute("be a list");
     }
 
-    YCHECK(ControlState == EControlState::None);
+    YCHECK(ControlState == ELegacyTableConsumerControlState::None);
 
     if (Depth == 0) {
         ThrowMapExpected();
@@ -157,17 +157,17 @@ void TTableConsumer::OnBeginList()
     }
 }
 
-void TTableConsumer::OnBeginAttributes()
+void TLegacyTableConsumer::OnBeginAttributes()
 {
-    if (ControlState == EControlState::ExpectControlAttributeValue) {
+    if (ControlState == ELegacyTableConsumerControlState::ExpectControlAttributeValue) {
         YCHECK(Depth == 1);
         ThrowInvalidControlAttribute("have attributes");
     }
 
-    YCHECK(ControlState == EControlState::None);
+    YCHECK(ControlState == ELegacyTableConsumerControlState::None);
 
     if (Depth == 0) {
-        ControlState = EControlState::ExpectControlAttributeName;
+        ControlState = ELegacyTableConsumerControlState::ExpectControlAttributeName;
     } else {
         ValueWriter.OnBeginAttributes();
     }
@@ -175,9 +175,9 @@ void TTableConsumer::OnBeginAttributes()
     ++Depth;
 }
 
-void TTableConsumer::OnListItem()
+void TLegacyTableConsumer::OnListItem()
 {
-    YCHECK(ControlState == EControlState::None);
+    YCHECK(ControlState == ELegacyTableConsumerControlState::None);
 
     if (Depth == 0) {
         // Row separator, do nothing.
@@ -186,18 +186,18 @@ void TTableConsumer::OnListItem()
     }
 }
 
-void TTableConsumer::OnBeginMap()
+void TLegacyTableConsumer::OnBeginMap()
 {
-    if (ControlState == EControlState::ExpectControlAttributeValue) {
+    if (ControlState == ELegacyTableConsumerControlState::ExpectControlAttributeValue) {
         YCHECK(Depth == 1);
         ThrowInvalidControlAttribute("be a map");
     }
 
-    if (ControlState == EControlState::ExpectEntity) {
+    if (ControlState == ELegacyTableConsumerControlState::ExpectEntity) {
         ThrowEntityExpected();
     }
 
-    YCHECK(ControlState == EControlState::None);
+    YCHECK(ControlState == ELegacyTableConsumerControlState::None);
 
     if (Depth > 0) {
         ValueWriter.OnBeginMap();
@@ -206,13 +206,13 @@ void TTableConsumer::OnBeginMap()
     ++Depth;
 }
 
-void TTableConsumer::OnKeyedItem(const TStringBuf& name)
+void TLegacyTableConsumer::OnKeyedItem(const TStringBuf& name)
 {
     switch (ControlState) {
-   	    case EControlState::None:
+   	    case ELegacyTableConsumerControlState::None:
             break;
 
-        case EControlState::ExpectControlAttributeName:
+        case ELegacyTableConsumerControlState::ExpectControlAttributeName:
             YCHECK(Depth == 1);
             try {
                 ControlAttribute = ParseEnum<EControlAttribute>(ToString(name));
@@ -221,10 +221,10 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
                 THROW_ERROR_EXCEPTION("Failed to parse control attribute name %Qv",
                     name);
             }
-            ControlState = EControlState::ExpectControlAttributeValue;
+            ControlState = ELegacyTableConsumerControlState::ExpectControlAttributeValue;
             return;
 
-        case EControlState::ExpectEndControlAttributes:
+        case ELegacyTableConsumerControlState::ExpectEndControlAttributes:
             YCHECK(Depth == 1);
             THROW_ERROR_EXCEPTION("Too many control attributes per record: at most one attribute is allowed");
             break;
@@ -251,11 +251,11 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
     }
 }
 
-void TTableConsumer::OnEndMap()
+void TLegacyTableConsumer::OnEndMap()
 {
     YCHECK(Depth > 0);
     // No control attribute allows map or composite values.
-    YCHECK(ControlState == EControlState::None);
+    YCHECK(ControlState == ELegacyTableConsumerControlState::None);
 
     --Depth;
 
@@ -289,31 +289,31 @@ void TTableConsumer::OnEndMap()
     RowBuffer.Clear();
 }
 
-void TTableConsumer::OnEndList()
+void TLegacyTableConsumer::OnEndList()
 {
    // No control attribute allow list or composite values.
-    YCHECK(ControlState == EControlState::None);
+    YCHECK(ControlState == ELegacyTableConsumerControlState::None);
 
     --Depth;
     YCHECK(Depth > 0);
     ValueWriter.OnEndList();
 }
 
-void TTableConsumer::OnEndAttributes()
+void TLegacyTableConsumer::OnEndAttributes()
 {
     --Depth;
 
     switch (ControlState) {
-        case EControlState::ExpectControlAttributeName:
+        case ELegacyTableConsumerControlState::ExpectControlAttributeName:
             THROW_ERROR_EXCEPTION("Too few control attributes per record: at least one attribute is required");
             break;
 
-        case EControlState::ExpectEndControlAttributes:
+        case ELegacyTableConsumerControlState::ExpectEndControlAttributes:
             YCHECK(Depth == 0);
-            ControlState = EControlState::ExpectEntity;
+            ControlState = ELegacyTableConsumerControlState::ExpectEntity;
             break;
 
-        case EControlState::None:
+        case ELegacyTableConsumerControlState::None:
             YCHECK(Depth > 0);
             ValueWriter.OnEndAttributes();
             break;
@@ -323,33 +323,33 @@ void TTableConsumer::OnEndAttributes()
     };
 }
 
-void TTableConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
+void TLegacyTableConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
 {
-    YCHECK(ControlState == EControlState::None);
+    YCHECK(ControlState == ELegacyTableConsumerControlState::None);
     YCHECK(Depth > 0);
     YCHECK(type == EYsonType::Node);
 
     ValueWriter.OnRaw(yson, type);
 }
 
-void TTableConsumer::ThrowMapExpected() const
+void TLegacyTableConsumer::ThrowMapExpected() const
 {
     ThrowError("Invalid row format, map expected");
 }
 
-void TTableConsumer::ThrowEntityExpected() const
+void TLegacyTableConsumer::ThrowEntityExpected() const
 {
     ThrowError("Invalid row format, there are control attributes, entity expected");
 }
 
-void TTableConsumer::ThrowInvalidControlAttribute(const Stroka& whatsWrong) const
+void TLegacyTableConsumer::ThrowInvalidControlAttribute(const Stroka& whatsWrong) const
 {
     ThrowError(Format("Control attribute %Qlv cannot %v",
         ControlAttribute,
         whatsWrong));
 }
 
-void TTableConsumer::ThrowError(const Stroka& message) const
+void TLegacyTableConsumer::ThrowError(const Stroka& message) const
 {
     THROW_ERROR_EXCEPTION(message)
         << TErrorAttribute("table_index", CurrentTableIndex)
@@ -365,7 +365,7 @@ TTableConsumerBase::TTableConsumerBase(
     , AllowNonSchemaColumns_(true)
     , KeyColumnCount_(static_cast<int>(keyColumns.size()))
     , NameTable_(TNameTable::FromSchema(schema))
-    , ControlState_(EControlState::None)
+    , ControlState_(ETableConsumerControlState::None)
     , Depth_(0)
     , ColumnIndex_(0)
 {
@@ -408,13 +408,13 @@ void TTableConsumerBase::OnControlStringScalar(const TStringBuf& /*value*/)
 
 void TTableConsumerBase::OnStringScalar(const TStringBuf& value)
 {
-    if (ControlState_ == EControlState::ExpectValue) {
+    if (ControlState_ == ETableConsumerControlState::ExpectValue) {
         YASSERT(Depth_ == 1);
         OnControlStringScalar(value);
         return;
     }
 
-    YASSERT(ControlState_ == EControlState::None);
+    YASSERT(ControlState_ == ETableConsumerControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -425,13 +425,13 @@ void TTableConsumerBase::OnStringScalar(const TStringBuf& value)
 
 void TTableConsumerBase::OnInt64Scalar(i64 value)
 {
-    if (ControlState_ == EControlState::ExpectValue) {
+    if (ControlState_ == ETableConsumerControlState::ExpectValue) {
         YASSERT(Depth_ == 1);
         OnControlInt64Scalar(value);
         return;
     }
 
-    YASSERT(ControlState_ == EControlState::None);
+    YASSERT(ControlState_ == ETableConsumerControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -442,13 +442,13 @@ void TTableConsumerBase::OnInt64Scalar(i64 value)
 
 void TTableConsumerBase::OnUint64Scalar(ui64 value)
 {
-    if (ControlState_ == EControlState::ExpectValue) {
+    if (ControlState_ == ETableConsumerControlState::ExpectValue) {
         YASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a uint64 value");
         return;
     }
 
-    YASSERT(ControlState_ == EControlState::None);
+    YASSERT(ControlState_ == ETableConsumerControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -459,13 +459,13 @@ void TTableConsumerBase::OnUint64Scalar(ui64 value)
 
 void TTableConsumerBase::OnDoubleScalar(double value)
 {
-    if (ControlState_ == EControlState::ExpectValue) {
+    if (ControlState_ == ETableConsumerControlState::ExpectValue) {
         YASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a double value");
         return;
     }
 
-    YASSERT(ControlState_ == EControlState::None);
+    YASSERT(ControlState_ == ETableConsumerControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -476,7 +476,7 @@ void TTableConsumerBase::OnDoubleScalar(double value)
 
 void TTableConsumerBase::OnBooleanScalar(bool value)
 {
-    YASSERT(ControlState_ == EControlState::None);
+    YASSERT(ControlState_ == ETableConsumerControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -488,16 +488,16 @@ void TTableConsumerBase::OnBooleanScalar(bool value)
 void TTableConsumerBase::OnEntity()
 {
     switch (ControlState_) {
-        case EControlState::None:
+        case ETableConsumerControlState::None:
             break;
 
-        case EControlState::ExpectEntity:
+        case ETableConsumerControlState::ExpectEntity:
             YASSERT(Depth_ == 0);
             // Successfully processed control statement.
-            ControlState_ = EControlState::None;
+            ControlState_ = ETableConsumerControlState::None;
             return;
 
-        case EControlState::ExpectValue:
+        case ETableConsumerControlState::ExpectValue:
             ThrowInvalidControlAttribute("be an entity");
             break;
 
@@ -515,13 +515,13 @@ void TTableConsumerBase::OnEntity()
 
 void TTableConsumerBase::OnBeginList()
 {
-    if (ControlState_ == EControlState::ExpectValue) {
+    if (ControlState_ == ETableConsumerControlState::ExpectValue) {
         YASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a list");
         return;
     }
 
-    YASSERT(ControlState_ == EControlState::None);
+    YASSERT(ControlState_ == ETableConsumerControlState::None);
 
     if (Depth_ == 0) {
         ThrowMapExpected();
@@ -533,15 +533,15 @@ void TTableConsumerBase::OnBeginList()
 
 void TTableConsumerBase::OnBeginAttributes()
 {
-    if (ControlState_ == EControlState::ExpectValue) {
+    if (ControlState_ == ETableConsumerControlState::ExpectValue) {
         YASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("have attributes");
     }
 
-    YASSERT(ControlState_ == EControlState::None);
+    YASSERT(ControlState_ == ETableConsumerControlState::None);
 
     if (Depth_ == 0) {
-        ControlState_ = EControlState::ExpectName;
+        ControlState_ = ETableConsumerControlState::ExpectName;
     } else {
         ThrowCompositesNotSupported();
     }
@@ -581,7 +581,7 @@ void TTableConsumerBase::ThrowInvalidControlAttribute(const Stroka& whatsWrong)
 
 void TTableConsumerBase::OnListItem()
 {
-    YASSERT(ControlState_ == EControlState::None);
+    YASSERT(ControlState_ == ETableConsumerControlState::None);
 
     if (Depth_ == 0) {
         // Row separator, do nothing.
@@ -592,12 +592,12 @@ void TTableConsumerBase::OnListItem()
 
 void TTableConsumerBase::OnBeginMap()
 {
-    if (ControlState_ == EControlState::ExpectValue) {
+    if (ControlState_ == ETableConsumerControlState::ExpectValue) {
         YASSERT(Depth_ == 1);
         ThrowInvalidControlAttribute("be a map");
     }
 
-    YASSERT(ControlState_ == EControlState::None);
+    YASSERT(ControlState_ == ETableConsumerControlState::None);
 
     ++Depth_;
     if (Depth_ == 1) {
@@ -610,10 +610,10 @@ void TTableConsumerBase::OnBeginMap()
 void TTableConsumerBase::OnKeyedItem(const TStringBuf& name)
 {
     switch (ControlState_) {
-        case EControlState::None:
+        case ETableConsumerControlState::None:
             break;
 
-        case EControlState::ExpectName:
+        case ETableConsumerControlState::ExpectName:
             YASSERT(Depth_ == 1);
             try {
                 ControlAttribute_ = ParseEnum<EControlAttribute>(ToString(name));
@@ -622,10 +622,10 @@ void TTableConsumerBase::OnKeyedItem(const TStringBuf& name)
                 THROW_ERROR AttachLocationAttributes(TError("Failed to parse control attribute name %Qv",
                     name));
             }
-            ControlState_ = EControlState::ExpectValue;
+            ControlState_ = ETableConsumerControlState::ExpectValue;
             return;
 
-        case EControlState::ExpectEndAttributes:
+        case ETableConsumerControlState::ExpectEndAttributes:
             YASSERT(Depth_ == 1);
             THROW_ERROR AttachLocationAttributes(TError("Too many control attributes per record: at most one attribute is allowed"));
             break;
@@ -655,7 +655,7 @@ void TTableConsumerBase::OnEndMap()
 {
     YASSERT(Depth_ > 0);
     // No control attribute allows map or composite values.
-    YASSERT(ControlState_ == EControlState::None);
+    YASSERT(ControlState_ == ETableConsumerControlState::None);
 
     --Depth_;
     if (Depth_ > 0) {
@@ -677,7 +677,7 @@ void TTableConsumerBase::OnEndMap()
 void TTableConsumerBase::OnEndList()
 {
     // No control attribute allow list or composite values.
-    YASSERT(ControlState_ == EControlState::None);
+    YASSERT(ControlState_ == ETableConsumerControlState::None);
 
     --Depth_;
     YASSERT(Depth_ > 0);
@@ -689,16 +689,16 @@ void TTableConsumerBase::OnEndAttributes()
     --Depth_;
 
     switch (ControlState_) {
-        case EControlState::ExpectName:
+        case ETableConsumerControlState::ExpectName:
             THROW_ERROR AttachLocationAttributes(TError("Too few control attributes per record: at least one attribute is required"));
             break;
 
-        case EControlState::ExpectEndAttributes:
+        case ETableConsumerControlState::ExpectEndAttributes:
             YASSERT(Depth_ == 0);
-            ControlState_ = EControlState::ExpectEntity;
+            ControlState_ = ETableConsumerControlState::ExpectEntity;
             break;
 
-        case EControlState::None:
+        case ETableConsumerControlState::None:
             YASSERT(Depth_ > 0);
             ThrowCompositesNotSupported();
             break;

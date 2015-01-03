@@ -37,6 +37,12 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EYamrDelimitedBaseParserState,
+    (InsideKey)
+    (InsideSubkey)
+    (InsideValue)
+);
+
 class TYamrDelimitedBaseParser
     : public IParser
 {
@@ -54,6 +60,8 @@ public:
     virtual void Finish() override;
 
 private:
+    using EState = EYamrDelimitedBaseParserState;
+
     const char* Consume(const char* begin, const char* end);
 
     void ProcessKey(const TStringBuf& key);
@@ -81,11 +89,6 @@ private:
 
     IYamrConsumerPtr Consumer;
 
-    DECLARE_ENUM(EState,
-        (InsideKey)
-        (InsideSubkey)
-        (InsideValue)
-    );
     EState State;
 
     char FieldSeparator;
@@ -109,6 +112,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EYamrLenvalBaseParserState,
+    (InsideTableSwitch)
+    (InsideKey)
+    (InsideSubkey)
+    (InsideValue)
+);
+
 class TYamrLenvalBaseParser
     : public IParser
 {
@@ -121,6 +131,8 @@ public:
     virtual void Finish() override;
 
 private:
+    using EState = EYamrLenvalBaseParserState;
+
     const char* Consume(const char* begin, const char* end);
     const char* ConsumeInt(const char* begin, const char* end);
     const char* ConsumeLength(const char* begin, const char* end);
@@ -139,13 +151,6 @@ private:
 
     bool ReadingLength;
     ui32 BytesToRead;
-
-    DECLARE_ENUM(EState,
-        (InsideTableSwitch)
-        (InsideKey)
-        (InsideSubkey)
-        (InsideValue)
-    );
 
     EState State;
 

@@ -19,6 +19,12 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EBlobSessionSlotState,
+    (Empty)
+    (Received)
+    (Written)
+);
+
 class TBlobSession
     : public TSessionBase
 {
@@ -34,11 +40,7 @@ public:
     NChunkClient::NProto::TChunkInfo GetChunkInfo() const override;
 
 private:
-    DECLARE_ENUM(ESlotState,
-        (Empty)
-        (Received)
-        (Written)
-    );
+    using ESlotState = EBlobSessionSlotState;
 
     struct TSlot
     {

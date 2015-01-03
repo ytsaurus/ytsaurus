@@ -154,7 +154,7 @@ private:
             if (type != EObjectType::File) {
                 THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                     Path_,
-                    EObjectType(EObjectType::File),
+                    EObjectType::File,
                     type);
             }
         }

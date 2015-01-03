@@ -537,7 +537,7 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
 
     auto req = proxy.StartChunk();
     ToProto(req->mutable_chunk_id(), ChunkId_);
-    req->set_session_type(SessionType_);
+    req->set_session_type(static_cast<int>(SessionType_));
     req->set_sync_on_close(Config_->SyncOnClose);
 
     auto rsp = WaitFor(req->Invoke());

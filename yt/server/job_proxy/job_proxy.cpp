@@ -112,8 +112,7 @@ void TJobProxy::OnHeartbeatResponse(TSupervisorServiceProxy::TRspOnJobProgressPt
         // when io pipes are closed.
         // Bad processes will die at container shutdown.
         LOG_ERROR(*rsp, "Error sending heartbeat to supervisor");
-        NLog::TLogManager::Get()->Shutdown();
-        _exit(EJobProxyExitCode::HeartbeatFailed);
+        Exit(EJobProxyExitCode::HeartbeatFailed);
     }
 
     LOG_DEBUG("Successfully reported heartbeat to supervisor");
@@ -130,8 +129,7 @@ void TJobProxy::RetrieveJobSpec()
     auto rsp = asyncRsp.Get();
     if (!rsp->IsOK()) {
         LOG_ERROR(*rsp, "Failed to get job spec");
-        NLog::TLogManager::Get()->Shutdown();
-        _exit(EJobProxyExitCode::HeartbeatFailed);
+        Exit(EJobProxyExitCode::HeartbeatFailed);
     }
 
     JobSpec_ = rsp->job_spec();
@@ -324,8 +322,7 @@ void TJobProxy::ReportResult(const TJobResult& result)
     auto rsp = asyncRsp.Get();
     if (!rsp->IsOK()) {
         LOG_ERROR(*rsp, "Failed to report job result");
-        NLog::TLogManager::Get()->Shutdown();
-        _exit(EJobProxyExitCode::ResultReportFailed);
+        Exit(EJobProxyExitCode::ResultReportFailed);
     }
 }
 
@@ -359,8 +356,7 @@ void TJobProxy::OnResourcesUpdated(TSupervisorServiceProxy::TRspUpdateResourceUs
 {
     if (!rsp->IsOK()) {
         LOG_ERROR(*rsp, "Failed to update resource usage");
-        NLog::TLogManager::Get()->Shutdown();
-        _exit(EJobProxyExitCode::ResourcesUpdateFailed);
+        Exit(EJobProxyExitCode::ResourcesUpdateFailed);
     }
 
     LOG_DEBUG("Successfully updated resource usage");
@@ -414,6 +410,12 @@ void TJobProxy::CheckMemoryUsage()
             JobProxyMemoryLimit_,
             TRefCountedTracker::Get()->GetDebugInfo(2));
     }
+}
+
+void TJobProxy::Exit(EJobProxyExitCode exitCode)
+{
+    NLog::TLogManager::Get()->Shutdown();
+    _exit(static_cast<int>(exitCode));
 }
 
 NLog::TLogger TJobProxy::GetLogger() const

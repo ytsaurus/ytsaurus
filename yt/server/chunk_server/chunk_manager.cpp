@@ -87,9 +87,9 @@ using namespace NJournalClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ChunkServerLogger;
-static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
+static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
 // NB: Changing this value will invalidate all changelogs!
-static TDuration UnapprovedReplicaGracePeriod = TDuration::Seconds(15);
+static const auto UnapprovedReplicaGracePeriod = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -303,6 +303,20 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EAddReplicaReason,
+    (IncrementalHeartbeat)
+    (FullHeartbeat)
+    (Confirmation)
+);
+
+DEFINE_ENUM(ERemoveReplicaReason,
+    (None)
+    (IncrementalHeartbeat)
+    (FailedToApprove)
+    (ChunkIsDead)
+    (NodeRemoved)
+);
 
 class TChunkManager::TImpl
     : public TMasterAutomatonPart
@@ -528,7 +542,7 @@ public:
             }
 
             auto chunkWithIndex = chunk->IsJournal()
-                ? TChunkPtrWithIndex(chunk, EJournalReplicaType::Active)
+                ? TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex)
                 : TChunkPtrWithIndex(chunk, replica.GetIndex());
 
             if (node->GetState() != ENodeState::Online) {
@@ -1272,12 +1286,6 @@ private:
     }
 
 
-    DECLARE_ENUM(EAddReplicaReason,
-        (IncrementalHeartbeat)
-        (FullHeartbeat)
-        (Confirmation)
-    );
-
     void AddChunkReplica(TNode* node, TChunkPtrWithIndex chunkWithIndex, bool cached, EAddReplicaReason reason)
     {
         auto* chunk = chunkWithIndex.GetPtr();
@@ -1312,15 +1320,6 @@ private:
             Profiler.Increment(AddChunkReplicaCounter_);
         }
     }
-
-
-    DECLARE_ENUM(ERemoveReplicaReason,
-        (None)
-        (IncrementalHeartbeat)
-        (FailedToApprove)
-        (ChunkIsDead)
-        (NodeRemoved)
-    );
 
     void RemoveChunkReplica(TNode* node, TChunkPtrWithIndex chunkWithIndex, bool cached, ERemoveReplicaReason reason)
     {
@@ -1408,11 +1407,11 @@ private:
         int replicaIndex;
         if (chunk->IsJournal()) {
             if (chunkAddInfo.active()) {
-                replicaIndex = EJournalReplicaType::Active;
+                replicaIndex = ActiveChunkReplicaIndex;
             } else if (chunkAddInfo.chunk_info().sealed()) {
-                replicaIndex = EJournalReplicaType::Sealed;
+                replicaIndex = SealedChunkReplicaIndex;
             } else {
-                replicaIndex = EJournalReplicaType::Unsealed;
+                replicaIndex = UnsealedChunkReplicaIndex;
             }
         } else {
             replicaIndex = chunkIdWithIndex.Index;
@@ -1519,7 +1518,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     bool isJournal = (chunkType == EObjectType::JournalChunk);
 
     const auto& requestExt = request->GetExtension(TReqCreateChunkExt::create_chunk_ext);
-    auto erasureCodecId = isErasure ? NErasure::ECodec(requestExt.erasure_codec()) : NErasure::ECodec(NErasure::ECodec::None);
+    auto erasureCodecId = isErasure ? NErasure::ECodec(requestExt.erasure_codec()) : NErasure::ECodec::None;
     int replicationFactor = isErasure ? 1 : requestExt.replication_factor();
     int readQuorum = isJournal ? requestExt.read_quorum() : 0;
     int writeQuorum = isJournal ? requestExt.write_quorum() : 0;

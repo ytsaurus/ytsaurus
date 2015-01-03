@@ -310,8 +310,8 @@ struct TCallTraits
         typedef char ArrayOfOne[1];                                                      \
         typedef char ArrayOfTwo[2];                                                      \
                                                                                          \
-        template <typename U> static ArrayOfOne & func(Check<int Fallback::*, &U::X> *);  \
-        template <typename U> static ArrayOfTwo & func(...);                              \
+        template <typename U> static ArrayOfOne & func(Check<int Fallback::*, &U::X> *); \
+        template <typename U> static ArrayOfTwo & func(...);                             \
                                                                                          \
     public:                                                                              \
         enum                                                                             \
@@ -360,6 +360,46 @@ struct TGenerateSequence<0, Indexes...>
 {
     typedef TSequence<Indexes...> TType;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+constexpr T Max(T x)
+{
+    return x;
+}
+
+template <class T>
+constexpr T Max(T x, T y)
+{
+    return x < y ? y : x;
+}
+
+template <class T, class... Ts>
+constexpr T Max(T x, Ts... args)
+{
+    return Max(x, Max(args...));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+constexpr T Min(T x)
+{
+    return x;
+}
+
+template <class T>
+constexpr T Min(T x, T y)
+{
+    return x < y ? x : y;
+}
+
+template <class T, class... Ts>
+constexpr T Min(T x, Ts... args)
+{
+    return Min(x, Min(args...));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

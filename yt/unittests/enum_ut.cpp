@@ -10,9 +10,9 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ESimple, (X)(Y)(Z));
+DEFINE_ENUM(ESimple, (X)(Y)(Z));
 
-DECLARE_ENUM(EColor,
+DEFINE_ENUM(EColor,
     ((Red)  (10))
     ((Green)(20))
     ((Blue) (30))
@@ -20,7 +20,7 @@ DECLARE_ENUM(EColor,
      (White)
 );
 
-DECLARE_FLAGGED_ENUM(EFlag,
+DEFINE_BIT_ENUM(EFlag,
     ((_1)(0x0001))
     ((_2)(0x0002))
     ((_3)(0x0004))
@@ -29,20 +29,33 @@ DECLARE_FLAGGED_ENUM(EFlag,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TEnumTest, Domain)
+{
+    EXPECT_EQ(3, TEnumTraits<ESimple>::GetDomainSize());
+    std::vector<ESimple> v {
+        ESimple::X,
+        ESimple::Y,
+        ESimple::Z
+    };
+    EXPECT_EQ(v, TEnumTraits<ESimple>::GetDomainValues());
+    EXPECT_EQ(ESimple::X, TEnumTraits<ESimple>::GetMinValue());
+    EXPECT_EQ(ESimple::Z, TEnumTraits<ESimple>::GetMaxValue());
+}
+
 TEST(TEnumTest, Basic)
 {
-    EXPECT_EQ(0, static_cast<int>(ESimple(ESimple::X)));
-    EXPECT_EQ(1, static_cast<int>(ESimple(ESimple::Y)));
-    EXPECT_EQ(2, static_cast<int>(ESimple(ESimple::Z)));
+    EXPECT_EQ(0, static_cast<int>(ESimple::X));
+    EXPECT_EQ(1, static_cast<int>(ESimple::Y));
+    EXPECT_EQ(2, static_cast<int>(ESimple::Z));
 
     EXPECT_EQ(0, static_cast<int>(EColor( )));
     EXPECT_EQ(5, static_cast<int>(EColor(5)));
 
-    EXPECT_EQ(10, static_cast<int>(EColor(EColor::Red  )));
-    EXPECT_EQ(20, static_cast<int>(EColor(EColor::Green)));
-    EXPECT_EQ(30, static_cast<int>(EColor(EColor::Blue )));
-    EXPECT_EQ(31, static_cast<int>(EColor(EColor::Black)));
-    EXPECT_EQ(32, static_cast<int>(EColor(EColor::White)));
+    EXPECT_EQ(10, static_cast<int>(EColor::Red  ));
+    EXPECT_EQ(20, static_cast<int>(EColor::Green));
+    EXPECT_EQ(30, static_cast<int>(EColor::Blue ));
+    EXPECT_EQ(31, static_cast<int>(EColor::Black));
+    EXPECT_EQ(32, static_cast<int>(EColor::White));
 }
 
 TEST(TEnumTest, ToString)
@@ -51,30 +64,30 @@ TEST(TEnumTest, ToString)
     EXPECT_EQ("EColor(5)", ToString(EColor(5)));
 
     EXPECT_EQ("Red",   ToString(EColor(EColor::Red  )));
-    EXPECT_EQ("Green", ToString(EColor(EColor::Green)));
+    EXPECT_EQ("Green", ToString(EColor::Green));
     EXPECT_EQ("Blue",  ToString(EColor(EColor::Blue )));
-    EXPECT_EQ("Black", ToString(EColor(EColor::Black)));
-    EXPECT_EQ("White", ToString(EColor(EColor::White)));
+    EXPECT_EQ("Black", ToString(EColor::Black));
+    EXPECT_EQ("White", ToString(EColor::White));
 }
 
 TEST(TEnumTest, FromString)
 {
-    EXPECT_EQ(EColor::Red  , EColor::FromString("Red"  ));
-    EXPECT_EQ(EColor::Green, EColor::FromString("Green"));
-    EXPECT_EQ(EColor::Blue , EColor::FromString("Blue" ));
-    EXPECT_EQ(EColor::Black, EColor::FromString("Black"));
-    EXPECT_EQ(EColor::White, EColor::FromString("White"));
+    EXPECT_EQ(EColor::Red  , TEnumTraits<EColor>::FromString("Red"  ));
+    EXPECT_EQ(EColor::Green, TEnumTraits<EColor>::FromString("Green"));
+    EXPECT_EQ(EColor::Blue , TEnumTraits<EColor>::FromString("Blue" ));
+    EXPECT_EQ(EColor::Black, TEnumTraits<EColor>::FromString("Black"));
+    EXPECT_EQ(EColor::White, TEnumTraits<EColor>::FromString("White"));
 
-    EXPECT_THROW(EColor::FromString("Pink"), std::exception);
+    EXPECT_THROW(TEnumTraits<EColor>::FromString("Pink"), std::exception);
 
     EColor color;
     bool returnValue;
 
-    returnValue = EColor::FromString("Red", &color);
+    returnValue = TEnumTraits<EColor>::FindValueByLiteral("Red", &color);
     EXPECT_EQ(EColor::Red, color);
     EXPECT_TRUE(returnValue);
 
-    returnValue = EColor::FromString("Pink", &color);
+    returnValue = TEnumTraits<EColor>::FindValueByLiteral("Pink", &color);
     EXPECT_EQ(EColor::Red, color);
     EXPECT_FALSE(returnValue);
 }
@@ -156,10 +169,10 @@ TEST(TEnumTest, SaveAndLoad)
     TStreamLoadContext loadContext;
     loadContext.SetInput(&stream);
 
-    EColor first(EColor::Red);
-    EColor second(EColor::Black);
-    EColor third(0);
-    EColor fourth(0);
+    auto first = EColor::Red;
+    auto second = EColor::Black;
+    auto third = EColor(0);
+    auto fourth = EColor(0);
 
     Save(saveContext, first);
     Save(saveContext, second);
@@ -173,8 +186,8 @@ TEST(TEnumTest, SaveAndLoad)
 
 TEST(TEnumTest, DomainSize)
 {
-    EXPECT_EQ(3, ESimple::GetDomainSize());
-    EXPECT_EQ(5, EColor::GetDomainSize());
+    EXPECT_EQ(3, TEnumTraits<ESimple>::GetDomainSize());
+    EXPECT_EQ(5, TEnumTraits<EColor>::GetDomainSize());
 }
 
 TEST(TEnumTest, DomainValues)
@@ -183,7 +196,7 @@ TEST(TEnumTest, DomainValues)
     simpleValues.push_back(ESimple::X);
     simpleValues.push_back(ESimple::Y);
     simpleValues.push_back(ESimple::Z);
-    EXPECT_EQ(simpleValues, ESimple::GetDomainValues());
+    EXPECT_EQ(simpleValues, TEnumTraits<ESimple>::GetDomainValues());
 
     std::vector<EColor> colorValues;
     colorValues.push_back(EColor::Red);
@@ -191,40 +204,35 @@ TEST(TEnumTest, DomainValues)
     colorValues.push_back(EColor::Blue);
     colorValues.push_back(EColor::Black);
     colorValues.push_back(EColor::White);
-    EXPECT_EQ(colorValues, EColor::GetDomainValues());
+    EXPECT_EQ(colorValues, TEnumTraits<EColor>::GetDomainValues());
 }
 
 TEST(TEnumTest, Decompose1)
 {
     auto f = EFlag(0);
-    std::vector<EFlag> ff;
-    EXPECT_EQ(f.Decompose(), ff);
+    std::vector<EFlag> ff { };
+    EXPECT_EQ(TEnumTraits<EFlag>::Decompose(f), ff);
 }
 
 TEST(TEnumTest, Decompose2)
 {
-    auto f = EFlag(EFlag::_1);
-    std::vector<EFlag> ff;
-    ff.push_back(EFlag::_1);
-    EXPECT_EQ(f.Decompose(), ff);
+    auto f = EFlag::_1;
+    std::vector<EFlag> ff {EFlag::_1};
+    EXPECT_EQ(TEnumTraits<EFlag>::Decompose(f), ff);
 }
 
 TEST(TEnumTest, Decompose3)
 {
     auto f = EFlag(EFlag::_1|EFlag::_2);
-    std::vector<EFlag> ff;
-    ff.push_back(EFlag::_1);
-    ff.push_back(EFlag::_2);
-    EXPECT_EQ(f.Decompose(), ff);
+    std::vector<EFlag> ff{EFlag::_1, EFlag::_2};
+    EXPECT_EQ(TEnumTraits<EFlag>::Decompose(f), ff);
 }
 
 TEST(TEnumTest, Decompose4)
 {
     auto f = EFlag(EFlag::_2|EFlag::_4);
-    std::vector<EFlag> ff;
-    ff.push_back(EFlag::_2);
-    ff.push_back(EFlag::_4);
-    EXPECT_EQ(f.Decompose(), ff);
+    std::vector<EFlag> ff{EFlag::_2, EFlag::_4};
+    EXPECT_EQ(TEnumTraits<EFlag>::Decompose(f), ff);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

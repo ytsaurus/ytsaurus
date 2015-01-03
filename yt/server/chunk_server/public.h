@@ -82,7 +82,8 @@ const int TypicalChunkParentCount = 2;
  */
 const int ReplicationPriorityCount = 3;
 
-DECLARE_FLAGGED_ENUM(EChunkStatus,
+DEFINE_BIT_ENUM(EChunkStatus,
+    ((None)              (0x0000))
     ((Underreplicated)   (0x0001))
     ((Overreplicated)    (0x0002))
     ((Lost)              (0x0004))

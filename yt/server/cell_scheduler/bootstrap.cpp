@@ -94,7 +94,7 @@ void TBootstrap::Run()
 {
     srand(time(nullptr));
 
-    ControlQueue_ = New<TFairShareActionQueue>("Control", EControlQueue::GetDomainNames());
+    ControlQueue_ = New<TFairShareActionQueue>("Control", TEnumTraits<EControlQueue>::GetDomainNames());
 
     auto result = BIND(&TBootstrap::DoRun, this)
         .Guarded()
@@ -214,7 +214,7 @@ const Stroka& TBootstrap::GetLocalAddress() const
 
 IInvokerPtr TBootstrap::GetControlInvoker(EControlQueue queue) const
 {
-    return ControlQueue_->GetInvoker(queue);
+    return ControlQueue_->GetInvoker(static_cast<int>(queue));
 }
 
 TSchedulerPtr TBootstrap::GetScheduler() const

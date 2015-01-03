@@ -39,7 +39,7 @@ def parse(filename, first_line, last_line):
     for sym in [" ", "\t", "\n"]:
         text = text.replace(sym, "")
     
-    text = strip_begin(text, "DECLARE_ENUM(")
+    text = strip_begin(text, "DEFINE_ENUM(")
     text = strip_end(text, ");")
 
     # Instead of fair parsing we use some hacky way
@@ -141,14 +141,14 @@ def main():
                     line = line.split("//")[0]
                     if line.strip() and line.split()[0] == "namespace" and line.replace("{", "").strip() != "namespace":
                         namespace = line.split("namespace")[1].replace("{", " ").split()[0]
-                    if any(word.startswith("DECLARE_ENUM") for word in line.split()) and not line.startswith("#define") and line.find("Error") != -1:
-                        assert not inside, "found DECLARE_ENUM while reading previous"
+                    if any(word.startswith("DEFINE_ENUM") for word in line.split()) and not line.startswith("#define") and line.find("Error") != -1:
+                        assert not inside, "found DEFINE_ENUM while reading previous"
                         inside = True
                         start = index
                         
-                        tokens = line.split("DECLARE_ENUM")
-                        assert len(tokens) == 2, "more than one DECLARE_ENUM at one line"
-                        suffix = line.split("DECLARE_ENUM")[1]
+                        tokens = line.split("DEFINE_ENUM")
+                        assert len(tokens) == 2, "more than one DEFINE_ENUM at one line"
+                        suffix = line.split("DEFINE_ENUM")[1]
                         balance = calculate_balance(suffix)
                         has_number = has_number or find_number(suffix)
                     elif inside:

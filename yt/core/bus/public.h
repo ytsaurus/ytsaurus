@@ -41,7 +41,7 @@ typedef TIntrusivePtr<TTcpBusClientConfig> TTcpBusClientConfigPtr;
  *  \note
  *  Values must be contiguous.
  */
-DECLARE_ENUM(ETcpInterfaceType,
+DEFINE_ENUM(ETcpInterfaceType,
     (Local)
     (Remote)
 );

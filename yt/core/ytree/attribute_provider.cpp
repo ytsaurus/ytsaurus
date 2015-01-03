@@ -28,7 +28,7 @@ TAttributeFilter::TAttributeFilter(EAttributeFilterMode mode)
 
 void ToProto(NProto::TAttributeFilter* protoFilter, const TAttributeFilter& filter)
 {
-    protoFilter->set_mode(filter.Mode);
+    protoFilter->set_mode(static_cast<int>(filter.Mode));
     for (const auto& key : filter.Keys) {
         protoFilter->add_keys(key);
     }

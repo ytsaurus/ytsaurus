@@ -230,6 +230,12 @@ DEFINE_REFCOUNTED_TYPE(IClientResponseHandler)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EClientResponseState,
+    (Sent)
+    (Ack)
+    (Done)
+);
+
 //! Provides a common base for both one-way and two-way responses.
 class TClientResponseBase
     : public IClientResponseHandler
@@ -243,11 +249,7 @@ public:
     operator TError() const;
 
 protected:
-    DECLARE_ENUM(EState,
-        (Sent)
-        (Ack)
-        (Done)
-    );
+    using EState = EClientResponseState;
 
     TSpinLock SpinLock_; // Protects state.
     EState State_;

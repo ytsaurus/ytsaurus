@@ -39,10 +39,7 @@ TOperation::TOperation(
     , CleanStart_(false)
     , StartedPromise(NewPromise<TError>())
     , FinishedPromise(NewPromise())
-{
-    YCHECK(EJobFinalState::GetDomainSize() == EJobFinalState::GetMaxValue() + 1);
-    YCHECK(Statistics.size() == EJobFinalState::GetDomainSize());
-}
+{ }
 
 TFuture<TOperationStartResult> TOperation::GetStarted()
 {
@@ -83,16 +80,16 @@ bool TOperation::IsFinishingState() const
 
 void TOperation::UpdateStatistics(const TStatistics& statistics, EJobFinalState state)
 {
-    Statistics[static_cast<int>(state)].Merge(statistics);
+    Statistics[state].Merge(statistics);
 }
 
 void TOperation::BuildStatistics(NYson::IYsonConsumer* consumer) const
 {
     NYTree::BuildYsonFluently(consumer)
-        .DoMapFor(EJobFinalState::GetDomainValues(), [&] (NYTree::TFluentMap fluent, const EJobFinalState& state) {
+        .DoMapFor(TEnumTraits<EJobFinalState>::GetDomainValues(), [&] (NYTree::TFluentMap fluent, EJobFinalState state) {
             fluent
                 .Item(Format("%lv_jobs", state))
-                .Value(Statistics[static_cast<int>(state)]);
+                .Value(Statistics[state]);
         });
 }
 

@@ -88,13 +88,13 @@ public:
         YCHECK(Config_);
         YCHECK(Bootstrap_);
 
-        AutomatonQueue_ = New<TFairShareActionQueue>("Automaton", EAutomatonThreadQueue::GetDomainNames());
+        AutomatonQueue_ = New<TFairShareActionQueue>("Automaton", TEnumTraits<EAutomatonThreadQueue>::GetDomainNames());
         Automaton_ = New<TMasterAutomaton>(Bootstrap_);
 
         HydraManager_ = CreateDistributedHydraManager(
             Config_->HydraManager,
             Bootstrap_->GetControlInvoker(),
-            AutomatonQueue_->GetInvoker(EAutomatonThreadQueue::Default),
+            GetAutomatonInvoker(EAutomatonThreadQueue::Default),
             Automaton_,
             Bootstrap_->GetRpcServer(),
             Bootstrap_->GetCellManager(),
@@ -107,9 +107,9 @@ public:
         HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
         HydraManager_->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
-        for (int index = 0; index < EAutomatonThreadQueue::GetDomainSize(); ++index) {
-            auto unguardedInvoker = AutomatonQueue_->GetInvoker(index);
-            GuardedInvokers_.push_back(HydraManager_->CreateGuardedAutomatonInvoker(unguardedInvoker));
+        for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
+            auto unguardedInvoker = GetAutomatonInvoker(queue);
+            GuardedInvokers_[queue] = HydraManager_->CreateGuardedAutomatonInvoker(unguardedInvoker);
         }
 
         ResponseKeeper_ = CreateTransientResponseKeeper(
@@ -145,7 +145,7 @@ public:
 
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
     {
-        return AutomatonQueue_->GetInvoker(queue);
+        return AutomatonQueue_->GetInvoker(static_cast<int>(queue));
     }
 
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
@@ -177,27 +177,27 @@ private:
 
     IResponseKeeperPtr ResponseKeeper_;
 
-    std::vector<IInvokerPtr> GuardedInvokers_;
-    std::vector<IInvokerPtr> EpochInvokers_;
+    TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> GuardedInvokers_;
+    TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochInvokers_;
 
     TPeriodicExecutorPtr SnapshotCleanupExecutor_;
 
 
     void OnStartEpoch()
     {
-        YCHECK(EpochInvokers_.empty());
-
         auto cancelableContext = HydraManager_
             ->GetAutomatonEpochContext()
             ->CancelableContext;
-        for (int index = 0; index < EAutomatonThreadQueue::GetDomainSize(); ++index) {
-            EpochInvokers_.push_back(cancelableContext->CreateInvoker(AutomatonQueue_->GetInvoker(index)));
+
+        for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
+            auto unguardedInvoker = GetAutomatonInvoker(queue);
+            EpochInvokers_[queue] = cancelableContext->CreateInvoker(unguardedInvoker);
         }
     }
 
     void OnStopEpoch()
     {
-        EpochInvokers_.clear();
+        std::fill(EpochInvokers_.begin(), EpochInvokers_.end(), nullptr);
     }
 
 

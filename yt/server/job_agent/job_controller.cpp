@@ -293,9 +293,9 @@ void TJobController::PrepareHeartbeat(TReqHeartbeat* request)
         auto state = job->GetState();
         auto* jobStatus = request->add_jobs();
         ToProto(jobStatus->mutable_job_id(), job->GetId());
-        jobStatus->set_job_type(type);
-        jobStatus->set_state(state);
-        jobStatus->set_phase(job->GetPhase());
+        jobStatus->set_job_type(static_cast<int>(type));
+        jobStatus->set_state(static_cast<int>(state));
+        jobStatus->set_phase(static_cast<int>(job->GetPhase()));
         jobStatus->set_progress(job->GetProgress());
         switch (state) {
             case EJobState::Running:

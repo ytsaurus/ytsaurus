@@ -63,7 +63,6 @@ bool IsLocalServiceAddress(const Stroka& address)
 
 TTcpDispatcherThread::TTcpDispatcherThread(const Stroka& threadName)
     : TEVSchedulerThread(threadName, false)
-    , Statistics_(ETcpInterfaceType::GetDomainSize())
 { }
 
 const ev::loop_ref& TTcpDispatcherThread::GetEventLoop() const
@@ -93,7 +92,7 @@ TAsyncError TTcpDispatcherThread::AsyncUnregister(IEventLoopObjectPtr object)
 
 TTcpDispatcherStatistics& TTcpDispatcherThread::Statistics(ETcpInterfaceType interfaceType)
 {
-    return Statistics_[static_cast<int>(interfaceType)];
+    return Statistics_[interfaceType];
 }
 
 void TTcpDispatcherThread::DoRegister(IEventLoopObjectPtr object)

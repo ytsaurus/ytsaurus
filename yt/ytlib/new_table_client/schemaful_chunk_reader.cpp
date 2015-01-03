@@ -519,8 +519,11 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
     const TReadLimit& upperLimit,
     TTimestamp timestamp)
 {
-    YCHECK(chunkMeta.type() == EChunkType::Table);
-    switch (chunkMeta.version()) {
+    auto type = EChunkType(chunkMeta.type());
+    YCHECK(type == EChunkType::Table);
+
+    auto formatVersion = ETableChunkFormat(chunkMeta.version());
+    switch (formatVersion) {
         case ETableChunkFormat::Old: {
             auto tableChunkReader = New<TTableChunkReader>(
                 nullptr,

@@ -230,10 +230,11 @@ private:
 
         const auto& chunkMeta = result.Value();
 
-        if (chunkMeta.type() != EChunkType::Table) {
+        auto type = EChunkType(chunkMeta.type());
+        if (type != EChunkType::Table) {
             auto error = TError("Invalid chunk type: expected %Qlv, actual %Qlv",
-                EChunkType(EChunkType::Table),
-                EChunkType(chunkMeta.type()));
+                EChunkType::Table,
+                type);
             OnFail(error, chunkReader);
             return;
         }

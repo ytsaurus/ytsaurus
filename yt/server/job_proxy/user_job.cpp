@@ -404,7 +404,7 @@ private:
         auto& writers = JobIO_->GetWriters();
         TableOutputs_.resize(writers.size());
         for (int i = 0; i < writers.size(); ++i) {
-            std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(writers, i));
+            std::unique_ptr<IYsonConsumer> consumer(new TLegacyTableConsumer(writers, i));
             auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.get());
             TableOutputs_[i].reset(new TTableOutput(
                 std::move(parser),

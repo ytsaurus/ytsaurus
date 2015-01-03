@@ -8,27 +8,19 @@
 #include "schema.h"
 #include "master.h"
 
-#include <core/concurrency/delayed_executor.h>
-
 #include <core/ypath/tokenizer.h>
 
-#include <core/rpc/message.h>
-#include <core/rpc/server_detail.h>
-#include <core/rpc/helpers.h>
 #include <core/rpc/response_keeper.h>
 
 #include <core/erasure/public.h>
 
 #include <core/profiling/profile_manager.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/helpers.h>
 #include <ytlib/object_client/object_ypath_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
-
-#include <server/hydra/hydra_manager.h>
 
 #include <server/cell_master/serialize.h>
 
@@ -37,7 +29,6 @@
 
 #include <server/cypress_server/cypress_manager.h>
 
-#include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
 
 #include <server/cell_master/bootstrap.h>
@@ -45,7 +36,6 @@
 
 #include <server/security_server/user.h>
 #include <server/security_server/group.h>
-#include <server/security_server/acl.h>
 #include <server/security_server/security_manager.h>
 
 namespace NYT {
@@ -374,12 +364,7 @@ TObjectBase* TObjectManager::FindSchema(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int typeValue = static_cast<int>(type);
-    if (typeValue < 0 || typeValue > MaxObjectType) {
-        return nullptr;
-    }
-
-    return TypeToEntry_[typeValue].SchemaObject;
+    return TypeToEntry_[type].SchemaObject;
 }
 
 TObjectBase* TObjectManager::GetSchema(EObjectType type)
@@ -395,10 +380,7 @@ IObjectProxyPtr TObjectManager::GetSchemaProxy(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int typeValue = static_cast<int>(type);
-    YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
-
-    const auto& entry = TypeToEntry_[typeValue];
+    const auto& entry = TypeToEntry_[type];
     YCHECK(entry.SchemaProxy);
     return entry.SchemaProxy;
 }
@@ -410,16 +392,14 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     YCHECK(handler);
 
     auto type = handler->GetType();
-    int typeValue = static_cast<int>(type);
-    YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
-    YCHECK(!TypeToEntry_[typeValue].Handler);
+    YCHECK(!TypeToEntry_[type].Handler);
     YCHECK(RegisteredTypes_.insert(type).second);
-    auto& entry = TypeToEntry_[typeValue];
+    auto& entry = TypeToEntry_[type];
     entry.Handler = handler;
     entry.TagId = NProfiling::TProfileManager::Get()->RegisterTag("type", type);
     if (HasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
-        auto& schemaEntry = TypeToEntry_[static_cast<int>(schemaType)];
+        auto& schemaEntry = TypeToEntry_[schemaType];
         schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap_, type);
         LOG_INFO("Type registered (Type: %v, SchemaObjectId: %v)",
             type,
@@ -434,12 +414,7 @@ IObjectTypeHandlerPtr TObjectManager::FindHandler(EObjectType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int typeValue = static_cast<int>(type);
-    if (typeValue < 0 || typeValue > MaxObjectType) {
-        return nullptr;
-    }
-
-    return TypeToEntry_[typeValue].Handler;
+    return TypeToEntry_[type].Handler;
 }
 
 IObjectTypeHandlerPtr TObjectManager::GetHandler(EObjectType type) const
@@ -474,12 +449,9 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 
     auto random = mutationContext->RandomGenerator().Generate<ui64>();
 
-    int typeValue = static_cast<int>(type);
-    YASSERT(typeValue >= 0 && typeValue <= MaxObjectType);
-
     TObjectId id(
         random,
-        (Bootstrap_->GetCellTag() << 16) + typeValue,
+        (Bootstrap_->GetCellTag() << 16) + static_cast<int>(type),
         version.RecordId,
         version.SegmentId);
 
@@ -585,7 +557,7 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
         for (const auto& pair : SchemaMap_) {
             auto type = TypeFromSchemaType(TypeFromId(pair.first));
             YCHECK(RegisteredTypes_.find(type) != RegisteredTypes_.end());
-            auto& entry = TypeToEntry_[static_cast<int>(type)];
+            auto& entry = TypeToEntry_[type];
             entry.SchemaObject = pair.second;
             entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
         }
@@ -607,7 +579,7 @@ void TObjectManager::LoadSchemas(NCellMaster::TLoadContext& context)
         if (type == EObjectType::Null)
             break;
 
-        const auto& entry = TypeToEntry_[static_cast<int>(type)];
+        const auto& entry = TypeToEntry_[type];
         entry.SchemaObject->Load(context);
     }
 }
@@ -629,7 +601,7 @@ void TObjectManager::DoClear()
 
     SchemaMap_.Clear();
     for (auto type : RegisteredTypes_) {
-        auto& entry = TypeToEntry_[static_cast<int>(type)];
+        auto& entry = TypeToEntry_[type];
         if (HasSchema(type)) {
             auto id = MakeSchemaObjectId(type, Bootstrap_->GetCellTag());
             entry.SchemaObject = new TSchemaObject(id);

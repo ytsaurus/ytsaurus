@@ -129,8 +129,8 @@ void TChunkWriterBase::EmitSample(const TUnversionedValue* begin, const TUnversi
 
 void TChunkWriterBase::FillCommonMeta(TChunkMeta* meta) const
 {
-    meta->set_type(EChunkType::Table);
-    meta->set_version(GetFormatVersion());
+    meta->set_type(static_cast<int>(EChunkType::Table));
+    meta->set_version(static_cast<int>(GetFormatVersion()));
 }
 
 void TChunkWriterBase::OnBlockFinish()

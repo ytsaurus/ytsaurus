@@ -124,6 +124,13 @@ void TReadJournalCommand::DoExecute()
 
 //////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EJournalConsumerState,
+    (Root)
+    (AtItem)
+    (InsideMap)
+    (AtData)
+);
+
 class TJournalConsumer
     : public TYsonConsumerBase
 {
@@ -135,29 +142,22 @@ public:
 private:
     IJournalWriterPtr Writer_;
 
-    DECLARE_ENUM(EState,
-        (Root)
-        (AtItem)
-        (InsideMap)
-        (AtData)
-    );
-
-    EState State_ = EState::Root;
+    EJournalConsumerState State_ = EJournalConsumerState::Root;
 
 
     virtual void OnStringScalar(const TStringBuf& value) override
     {
-        if (State_ != EState::AtData) {
+        if (State_ != EJournalConsumerState::AtData) {
             ThrowMalformedData();
         }
 
         std::vector<TSharedRef> rows;
         rows.push_back(TSharedRef::FromString(Stroka(value)));
 
-        auto error = Writer_->Write(rows).Get(); //WaitFor(Writer_->Write(rows));
+        auto error = WaitFor(Writer_->Write(rows));
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
 
-        State_ = EState::InsideMap;
+        State_ = EJournalConsumerState::InsideMap;
     }
 
     virtual void OnInt64Scalar(i64 /*value*/) override
@@ -192,10 +192,10 @@ private:
 
     virtual void OnListItem() override
     {
-        if (State_ != EState::Root) {
+        if (State_ != EJournalConsumerState::Root) {
             ThrowMalformedData();
         }
-        State_ = EState::AtItem;
+        State_ = EJournalConsumerState::AtItem;
     }
 
     virtual void OnEndList() override
@@ -205,29 +205,29 @@ private:
 
     virtual void OnBeginMap() override
     {
-        if (State_ != EState::AtItem) {
+        if (State_ != EJournalConsumerState::AtItem) {
             ThrowMalformedData();
         }
-        State_ = EState::InsideMap;
+        State_ = EJournalConsumerState::InsideMap;
     }
 
     virtual void OnKeyedItem(const TStringBuf& key) override
     {
-        if (State_ != EState::InsideMap) {
+        if (State_ != EJournalConsumerState::InsideMap) {
             ThrowMalformedData();
         }
         if (key != STRINGBUF("data")) {
             ThrowMalformedData();
         }
-        State_ = EState::AtData;
+        State_ = EJournalConsumerState::AtData;
     }
 
     virtual void OnEndMap() override
     {
-        if (State_ != EState::InsideMap) {
+        if (State_ != EJournalConsumerState::InsideMap) {
             ThrowMalformedData();
         }
-        State_ = EState::Root;
+        State_ = EJournalConsumerState::Root;
     }
 
     virtual void OnBeginAttributes() override

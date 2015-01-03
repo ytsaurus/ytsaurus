@@ -109,8 +109,8 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     , MemoryPool_(TVersionedChunkReaderPoolTag())
 {
     YCHECK(CachedChunkMeta_->Misc().sorted());
-    YCHECK(CachedChunkMeta_->ChunkMeta().type() == EChunkType::Table);
-    YCHECK(CachedChunkMeta_->ChunkMeta().version() == TBlockReader::FormatVersion);
+    YCHECK(EChunkType(CachedChunkMeta_->ChunkMeta().type()) == EChunkType::Table);
+    YCHECK(ETableChunkFormat(CachedChunkMeta_->ChunkMeta().version()) == TBlockReader::FormatVersion);
     YCHECK(Timestamp_ != AsyncAllCommittedTimestamp || columnFilter.All);
 
     if (columnFilter.All) {
@@ -384,7 +384,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TColumnFilter& columnFilter,
     TTimestamp timestamp)
 {
-    switch (chunkMeta->ChunkMeta().version()) {
+    auto formatVersion = ETableChunkFormat(chunkMeta->ChunkMeta().version());
+    switch (formatVersion) {
         case ETableChunkFormat::VersionedSimple:
             return New<TVersionedChunkReader<TSimpleVersionedBlockReader>>(
                 std::move(config),

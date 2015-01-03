@@ -48,6 +48,24 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
+//! Describes which part of the operation needs a particular file.
+DEFINE_ENUM(EOperationStage,
+    (Map)
+    (ReduceCombiner)
+    (Reduce)
+);
+
+DEFINE_ENUM(EInputChunkState,
+    (Active)
+    (Skipped)
+    (Waiting)
+);
+
+DEFINE_ENUM(EJobReinstallReason,
+    (Failed)
+    (Aborted)
+);
+
 class TOperationControllerBase
     : public IOperationController
     , public NPhoenix::IPersistent
@@ -253,14 +271,6 @@ protected:
 
     TIntermediateTable IntermediateTable;
 
-
-    //! Describes which part of the operation needs a particular file.
-    //! Values must be contiguous.
-    DECLARE_ENUM(EOperationStage,
-        (Map)
-        (ReduceCombiner)
-        (Reduce)
-    );
 
     struct TUserFileBase
     {
@@ -484,11 +494,6 @@ protected:
         void AddPendingHint();
         void AddLocalityHint(const Stroka& address);
 
-        DECLARE_ENUM(EJobReinstallReason,
-            (Failed)
-            (Aborted)
-        );
-
         void ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason);
 
         void AddSequentialInputSpec(
@@ -662,12 +667,6 @@ protected:
      */
     void OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
 
-
-    DECLARE_ENUM(EInputChunkState,
-        (Active)
-        (Skipped)
-        (Waiting)
-    );
 
     struct TStripeDescriptor
     {

@@ -41,7 +41,7 @@ static const int ChunkFilesPermissions = 0751;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ELocationQueue,
+DEFINE_ENUM(ELocationQueue,
     (Data)
     (Meta)
 );
@@ -61,9 +61,9 @@ TLocation::TLocation(
     , UsedSpace_(0)
     , SessionCount_(0)
     , ChunkCount_(0)
-    , ReadQueue_(New<TFairShareActionQueue>(Format("Read:%v", Id_), ELocationQueue::GetDomainNames()))
-    , DataReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(ELocationQueue::Data)))
-    , MetaReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(ELocationQueue::Meta)))
+    , ReadQueue_(New<TFairShareActionQueue>(Format("Read:%v", Id_), TEnumTraits<ELocationQueue>::GetDomainNames()))
+    , DataReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(static_cast<int>(ELocationQueue::Data))))
+    , MetaReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(static_cast<int>(ELocationQueue::Meta))))
     , WriteThreadPool_(New<TThreadPool>(bootstrap->GetConfig()->DataNode->WriteThreadCount, Format("Write:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
     , Logger(DataNodeLogger)
