@@ -4,7 +4,6 @@
 
 #include <stdexcept>
 #include <vector>
-#include <array>
 #include <type_traits>
 
 namespace NYT {
@@ -144,7 +143,7 @@ public:
 private:
     using TUnderlying = typename TEnumTraits<E>::TUnderlying;
     static constexpr int N = static_cast<TUnderlying>(Max) - static_cast<TUnderlying>(Min) + 1;
-    std::array<T, N> Items_;
+    std::vector<T> Items_;
 
 };
 
