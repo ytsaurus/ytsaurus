@@ -371,7 +371,7 @@ None(E value)
 
 template <class T, class E, E Min, E Max>
 TEnumIndexedVector<T, E, Min, Max>::TEnumIndexedVector()
-    : Items_{}
+    : Items_(N)
 { }
 
 template <class T, class E, E Min, E Max>
@@ -390,7 +390,7 @@ const T& TEnumIndexedVector<T, E, Min, Max>::operator[] (E index) const
 template <class T, class E, E Min, E Max>
 T* TEnumIndexedVector<T, E, Min, Max>::begin()
 {
-    return Items_.begin();
+    return Items_.data();
 }
 
 template <class T, class E, E Min, E Max>
@@ -402,13 +402,13 @@ const T* TEnumIndexedVector<T, E, Min, Max>::begin() const
 template <class T, class E, E Min, E Max>
 T* TEnumIndexedVector<T, E, Min, Max>::end()
 {
-    return Items_.end();
+    return begin() + N;
 }
 
 template <class T, class E, E Min, E Max>
 const T* TEnumIndexedVector<T, E, Min, Max>::end() const
 {
-    return Items_.begin();
+    return begin() + N;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
