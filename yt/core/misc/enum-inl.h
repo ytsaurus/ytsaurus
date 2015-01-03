@@ -396,7 +396,7 @@ T* TEnumIndexedVector<T, E, Min, Max>::begin()
 template <class T, class E, E Min, E Max>
 const T* TEnumIndexedVector<T, E, Min, Max>::begin() const
 {
-    return Items_.begin();
+    return Items_.data();
 }
 
 template <class T, class E, E Min, E Max>
