@@ -296,7 +296,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EMergeMode,
+DEFINE_ENUM(EMergeMode,
     (Sorted)
     (Ordered)
     (Unordered)
@@ -696,7 +696,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ESchedulingMode,
+DEFINE_ENUM(ESchedulingMode,
     (Fifo)
     (FairShare)
 );

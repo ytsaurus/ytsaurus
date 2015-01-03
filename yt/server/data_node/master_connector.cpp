@@ -252,12 +252,12 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     result.set_available_tablet_slots(tabletSlotManager->GetAvailableTabletSlotCount());
     result.set_used_tablet_slots(tabletSlotManager->GetUsedTableSlotCount());
     
-    result.add_accepted_chunk_types(EObjectType::Chunk);
-    result.add_accepted_chunk_types(EObjectType::ErasureChunk);
+    result.add_accepted_chunk_types(static_cast<int>(EObjectType::Chunk));
+    result.add_accepted_chunk_types(static_cast<int>(EObjectType::ErasureChunk));
     
     auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
     if (journalDispatcher->AcceptsChunks()) {
-        result.add_accepted_chunk_types(EObjectType::JournalChunk);
+        result.add_accepted_chunk_types(static_cast<int>(EObjectType::JournalChunk));
     }
 
     return result;
@@ -347,11 +347,11 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         auto* info = request->add_tablet_slots();
         if (slot) {
             ToProto(info->mutable_cell_id(), slot->GetCellId());
-            info->set_peer_state(slot->GetControlState());
+            info->set_peer_state(static_cast<int>(slot->GetControlState()));
             info->set_peer_id(slot->GetPeerId());
             info->set_config_version(slot->GetCellConfigVersion());
         } else {
-            info->set_peer_state(NHydra::EPeerState::None);
+            info->set_peer_state(static_cast<int>(NHydra::EPeerState::None));
         }
     }
 

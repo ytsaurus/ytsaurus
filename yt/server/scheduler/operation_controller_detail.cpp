@@ -1180,7 +1180,7 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
 
     {
         auto req = TMasterYPathProxy::CreateObjects();
-        req->set_type(EObjectType::Transaction);
+        req->set_type(static_cast<int>(EObjectType::Transaction));
 
         auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
@@ -1235,7 +1235,7 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
         if (userTransaction) {
             ToProto(req->mutable_transaction_id(), userTransaction->GetId());
         }
-        req->set_type(EObjectType::Transaction);
+        req->set_type(static_cast<int>(EObjectType::Transaction));
 
         auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
@@ -1282,7 +1282,7 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
     {
         auto req = TMasterYPathProxy::CreateObjects();
         ToProto(req->mutable_transaction_id(), parentTransactionId);
-        req->set_type(EObjectType::Transaction);
+        req->set_type(static_cast<int>(EObjectType::Transaction));
 
         auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
@@ -1326,7 +1326,7 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
     {
         auto req = TMasterYPathProxy::CreateObjects();
         ToProto(req->mutable_transaction_id(), parentTransactionId);
-        req->set_type(EObjectType::Transaction);
+        req->set_type(static_cast<int>(EObjectType::Transaction));
 
         auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
         reqExt->set_enable_uncommitted_accounting(false);
@@ -2323,7 +2323,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         {
             auto req = TCypressYPathProxy::Create(path);
 
-            req->set_type(EObjectType::Table);
+            req->set_type(static_cast<int>(EObjectType::Table));
             req->set_ignore_existing(true);
 
             auto attributes = CreateEphemeralAttributes();
@@ -2399,7 +2399,7 @@ void TOperationControllerBase::PrepareLivePreviewTablesForUpdate()
 
     auto addRequest = [&] (const TLivePreviewTableBase& table, const Stroka& key) {
         auto req = TTableYPathProxy::PrepareForUpdate(FromObjectId(table.LivePreviewTableId));
-        req->set_mode(EUpdateMode::Overwrite);
+        req->set_mode(static_cast<int>(EUpdateMode::Overwrite));
         SetTransactionId(req, Operation->GetAsyncSchedulerTransaction());
         batchReq->AddRequest(req, key);
     };
@@ -2469,11 +2469,10 @@ void TOperationControllerBase::GetInputObjectIds()
                     table.Path.GetPath());
                 table.ObjectId = FromProto<TObjectId>(rsp->id());
                 auto type = EObjectType(rsp->type());
-
                 if (type != EObjectType::Table) {
                     THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
                         table.Path.GetPath(),
-                        EObjectType(EObjectType::Table),
+                        EObjectType::Table,
                         type);
                 }
             }
@@ -2509,11 +2508,10 @@ void TOperationControllerBase::GetOutputObjectIds()
                     table.Path.GetPath());
                 table.ObjectId = FromProto<TObjectId>(rsp->id());
                 auto type = EObjectType(rsp->type());
-
                 if (type != EObjectType::Table) {
                     THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
                         table.Path.GetPath(),
-                        EObjectType(EObjectType::Table),
+                        EObjectType::Table,
                         type);
                 }
             }
@@ -2564,8 +2562,8 @@ void TOperationControllerBase::ValidateFileTypes()
             default:
                 THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv or %Qlv, actual %Qlv",
                     path,
-                    EObjectType(EObjectType::File),
-                    EObjectType(EObjectType::Table),
+                    EObjectType::File,
+                    EObjectType::Table,
                     type);
         }
         file->Stage = stage;
@@ -2645,7 +2643,7 @@ void TOperationControllerBase::RequestInputObjects()
         auto path = FromObjectId(table.ObjectId);
         {
             auto req = TCypressYPathProxy::Lock(path);
-            req->set_mode(ELockMode::Snapshot);
+            req->set_mode(static_cast<int>(ELockMode::Snapshot));
             SetTransactionId(req, Operation->GetInputTransaction());
             GenerateMutationId(req);
             batchReq->AddRequest(req, "lock_in");
@@ -2717,7 +2715,7 @@ void TOperationControllerBase::RequestOutputObjects()
         auto path = FromObjectId(table.ObjectId);
         {
             auto req = TCypressYPathProxy::Lock(path);
-            req->set_mode(table.LockMode);
+            req->set_mode(static_cast<int>(table.LockMode));
             GenerateMutationId(req);
             SetTransactionId(req, Operation->GetOutputTransaction());
             batchReq->AddRequest(req, "lock_out");
@@ -2741,7 +2739,7 @@ void TOperationControllerBase::RequestOutputObjects()
             auto req = TTableYPathProxy::PrepareForUpdate(path);
             SetTransactionId(req, Operation->GetOutputTransaction());
             GenerateMutationId(req);
-            req->set_mode(table.Clear ? NChunkClient::EUpdateMode::Overwrite : NChunkClient::EUpdateMode::Append);
+            req->set_mode(static_cast<int>(table.Clear ? EUpdateMode::Overwrite : EUpdateMode::Append));
             batchReq->AddRequest(req, "prepare_for_update");
         }
     }
@@ -2870,7 +2868,7 @@ void TOperationControllerBase::RequestFileObjects()
         auto path = file.Path.GetPath();
         {
             auto req = TCypressYPathProxy::Lock(path);
-            req->set_mode(ELockMode::Snapshot);
+            req->set_mode(static_cast<int>(ELockMode::Snapshot));
             GenerateMutationId(req);
             SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "lock_regular_file");
@@ -2897,7 +2895,7 @@ void TOperationControllerBase::RequestFileObjects()
         auto path = file.Path.GetPath();
         {
             auto req = TCypressYPathProxy::Lock(path);
-            req->set_mode(ELockMode::Snapshot);
+            req->set_mode(static_cast<int>(ELockMode::Snapshot));
             GenerateMutationId(req);
             SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "lock_table_file");
@@ -2921,9 +2919,7 @@ void TOperationControllerBase::RequestFileObjects()
     auto batchRsp = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error requesting file objects");
 
-    std::vector<yhash_set<Stroka>> userFileNames;
-    userFileNames.resize(EOperationStage::GetDomainSize());
-
+    TEnumIndexedVector<yhash_set<Stroka>, EOperationStage> userFileNames;
     auto validateUserFileName = [&] (const TUserFileBase& userFile) {
         // TODO(babenko): more sanity checks?
         auto path = userFile.Path.GetPath();
@@ -2932,7 +2928,7 @@ void TOperationControllerBase::RequestFileObjects()
             THROW_ERROR_EXCEPTION("Empty user file name for %v",
                 path);
         }
-        if (!userFileNames[static_cast<int>(userFile.Stage)].insert(fileName).second) {
+        if (!userFileNames[userFile.Stage].insert(fileName).second) {
             THROW_ERROR_EXCEPTION("Duplicate user file name %Qv for %v",
                 fileName,
                 path);
@@ -3225,7 +3221,7 @@ EAbortReason TOperationControllerBase::GetAbortReason(TJobPtr job)
 
 EAbortReason TOperationControllerBase::GetAbortReason(TJobletPtr joblet)
 {
-    return joblet->Job ? GetAbortReason(joblet->Job) : EAbortReason(EAbortReason::Other);
+    return joblet->Job ? GetAbortReason(joblet->Job) : EAbortReason::Other;
 }
 
 bool TOperationControllerBase::IsSortedOutputSupported() const

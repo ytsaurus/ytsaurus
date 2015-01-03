@@ -9,7 +9,7 @@ namespace NCompression {
 
 struct ICodec;
 
-DECLARE_ENUM(ECodec,
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(ECodec, i8,
     ((None)                       (0))
     ((Snappy)                     (1))
     ((GzipNormal)                 (2))

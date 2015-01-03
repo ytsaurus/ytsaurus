@@ -23,7 +23,7 @@ DECLARE_REFCOUNTED_CLASS(TTransactionSupervisorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETransactionState,
+DEFINE_ENUM(ETransactionState,
     ((Active)                     (0))
     ((TransientCommitPrepared)    (1))
     ((PersistentCommitPrepared)   (2))

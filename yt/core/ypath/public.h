@@ -7,7 +7,7 @@ namespace NYPath {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class ETokenType;
+enum class ETokenType;
 class TTokenizer;
 class TRichYPath;
 

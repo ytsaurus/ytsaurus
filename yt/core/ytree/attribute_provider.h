@@ -12,7 +12,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Describes an attribute filtering mode.
-DECLARE_ENUM(EAttributeFilterMode,
+DEFINE_ENUM(EAttributeFilterMode,
     // Accept all attributes.
     (All)
     // Don't accept any attribute.

@@ -16,7 +16,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETestEnum,
+DEFINE_ENUM(ETestEnum,
     (Value0)
     (Value1)
     (Value2)

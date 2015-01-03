@@ -101,7 +101,7 @@ namespace NNodeJS {
 
 static const size_t DefaultStreamBufferSize = 1 << 15;
 
-DECLARE_ENUM(ECompression,
+DEFINE_ENUM(ECompression,
     (None)
     (Gzip)
     (Deflate)

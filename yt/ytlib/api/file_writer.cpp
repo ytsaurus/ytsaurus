@@ -160,7 +160,7 @@ private:
 
         {
             auto req = TFileYPathProxy::PrepareForUpdate(Path_);
-            req->set_mode(Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite);
+            req->set_mode(static_cast<int>(Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
             GenerateMutationId(req);
             SetTransactionId(req, UploadTransaction_);
             batchReq->AddRequest(req, "prepare_for_update");
@@ -180,8 +180,8 @@ private:
             auto type = attributes.Get<EObjectType>("type");
             if (type != EObjectType::File) {
                 THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                    ~Path_,
-                    EObjectType(EObjectType::File),
+                    Path_,
+                    EObjectType::File,
                     type);
             }
 

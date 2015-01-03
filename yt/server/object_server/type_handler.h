@@ -20,13 +20,13 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EObjectTransactionMode,
+DEFINE_ENUM(EObjectTransactionMode,
     (Required)
     (Forbidden)
     (Optional)
 );
 
-DECLARE_ENUM(EObjectAccountMode,
+DEFINE_ENUM(EObjectAccountMode,
     (Required)
     (Forbidden)
     (Optional)

@@ -21,7 +21,7 @@ DECLARE_REFCOUNTED_STRUCT(IJobHost)
 
 DECLARE_REFCOUNTED_CLASS(TContextPreservingInput);
 
-DECLARE_ENUM(EJobProxyExitCode,
+DEFINE_ENUM(EJobProxyExitCode,
     ((HeartbeatFailed)        (20))
     ((ResultReportFailed)     (21))
     ((ResourcesUpdateFailed)  (22))
@@ -31,7 +31,7 @@ DECLARE_ENUM(EJobProxyExitCode,
     ((RetreiveJobSpecFailed)  (26))
 );
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((MemoryLimitExceeded)  (1200))
 );
 

@@ -54,7 +54,7 @@ public:
 private:
     friend class TTcpDispatcherInvokerQueue;
 
-    std::vector<TTcpDispatcherStatistics> Statistics_;
+    TEnumIndexedVector<TTcpDispatcherStatistics, ETcpInterfaceType> Statistics_;
     yhash_set<IEventLoopObjectPtr> Objects_;
 
 

@@ -28,6 +28,13 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ETcpConnectionState,
+    (Resolving)
+    (Opening)
+    (Open)
+    (Closed)
+);
+
 class TTcpConnection
     : public IBus
     , public IEventLoopObject
@@ -115,13 +122,6 @@ private:
         TAsyncErrorPromise Promise;
     };
 
-    DECLARE_ENUM(EState,
-        (Resolving)
-        (Opening)
-        (Open)
-        (Closed)
-    );
-
     TTcpBusConfigPtr Config_;
     TTcpDispatcherThreadPtr DispatcherThread_;
     EConnectionType ConnectionType_;
@@ -141,7 +141,8 @@ private:
     // Only used by client sockets.
     int Port_ = 0;
 
-    std::atomic<int> State_; // EState actually
+    // ETcpConnectionState actually, managed by GetState and SetState.
+    std::atomic<int> State_;
 
     TClosure MessageEnqueuedCallback_;
     std::atomic<bool> MessageEnqueuedCallbackPending_;
@@ -176,6 +177,9 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 
     void Cleanup();
+
+    ETcpConnectionState GetState() const;
+    void SetState(ETcpConnectionState state);
 
     void SyncOpen();
     void SyncResolve();

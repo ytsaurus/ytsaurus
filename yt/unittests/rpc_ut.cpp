@@ -158,7 +158,7 @@ DEFINE_RPC_SERVICE_METHOD(TMyService, NoReply)
 
 DEFINE_RPC_SERVICE_METHOD(TMyService, CustomMessageError)
 {
-    context->Reply(TError(42, "Some Error"));
+    context->Reply(TError(NYT::EErrorCode(42), "Some Error"));
 }
 
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, OneWay)
@@ -331,7 +331,7 @@ TEST_F(TRpcTest, CustomErrorMessage)
     auto request = proxy.CustomMessageError();
     auto response = request->Invoke().Get();
 
-    EXPECT_EQ(42, response->GetError().GetCode());
+    EXPECT_EQ(NYT::EErrorCode(42), response->GetError().GetCode());
     EXPECT_EQ("Some Error", response->GetError().GetMessage());
 }
 

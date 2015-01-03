@@ -13,6 +13,13 @@ namespace NPython {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EBufferedStreamState,
+    (Normal)
+    (Full)
+    (WaitingData)
+    (Finished)
+);
+
 class TBufferedStream
     : public NConcurrency::IAsyncOutputStream
 {
@@ -28,19 +35,14 @@ public:
     virtual TAsyncError Write(const void* buf, size_t len) override;
 
 private:
+    using EState = EBufferedStreamState;
+    
     size_t Size_;
     size_t AllowedSize_;
 
     TSharedRef Data_;
     char* Begin_;
     char* End_;
-
-    DECLARE_ENUM(EState,
-        (Normal)
-        (Full)
-        (WaitingData)
-        (Finished)
-    );
 
     EState State_;
 

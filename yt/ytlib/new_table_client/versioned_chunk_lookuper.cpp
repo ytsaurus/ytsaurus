@@ -44,8 +44,8 @@ public:
         , MemoryPool_(TVersionedChunkLookuperPoolTag())
     {
         YCHECK(ChunkMeta_->Misc().sorted());
-        YCHECK(ChunkMeta_->ChunkMeta().type() == EChunkType::Table);
-        YCHECK(ChunkMeta_->ChunkMeta().version() == TBlockReader::FormatVersion);
+        YCHECK(EChunkType(ChunkMeta_->ChunkMeta().type()) == EChunkType::Table);
+        YCHECK(ETableChunkFormat(ChunkMeta_->ChunkMeta().version()) == TBlockReader::FormatVersion);
         YCHECK(Timestamp_ != AsyncAllCommittedTimestamp || columnFilter.All);
 
         if (columnFilter.All) {
@@ -193,7 +193,8 @@ IVersionedLookuperPtr CreateVersionedChunkLookuper(
     const TColumnFilter& columnFilter,
     TTimestamp timestamp)
 {
-    switch (chunkMeta->ChunkMeta().version()) {
+    auto formatVersion = ETableChunkFormat(chunkMeta->ChunkMeta().version());
+    switch (formatVersion) {
         case ETableChunkFormat::VersionedSimple:
             return New<TVersionedChunkLookuper<TSimpleVersionedBlockReader>>(
                 std::move(config),

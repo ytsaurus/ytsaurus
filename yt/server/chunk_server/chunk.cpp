@@ -47,7 +47,7 @@ TChunk::TChunk(const TChunkId& id)
 {
     Zero(Flags_);
 
-    ChunkMeta_.set_type(EChunkType::Unknown);
+    ChunkMeta_.set_type(static_cast<int>(EChunkType::Unknown));
     ChunkMeta_.set_version(-1);
     ChunkMeta_.mutable_extensions();
 }
@@ -205,7 +205,7 @@ void TChunk::Confirm(
 
 bool TChunk::IsConfirmed() const
 {
-    return ChunkMeta_.type() != EChunkType::Unknown;
+    return EChunkType(ChunkMeta_.type()) != EChunkType::Unknown;
 }
 
 void TChunk::ValidateConfirmed()
@@ -298,12 +298,12 @@ void TChunk::SetWriteQuorum(int value)
 
 NErasure::ECodec TChunk::GetErasureCodec() const
 {
-    return NErasure::ECodec(ErasureCodec_);
+    return ErasureCodec_;
 }
 
 void TChunk::SetErasureCodec(NErasure::ECodec value)
 {
-    ErasureCodec_ = static_cast<i16>(value);
+    ErasureCodec_ = value;
 }
 
 bool TChunk::IsErasure() const
@@ -338,7 +338,7 @@ bool TChunk::IsAvailable() const
             return true;
         }
         for (auto replica : StoredReplicas_) {
-            if (replica.GetIndex() == EJournalReplicaType::Sealed) {
+            if (replica.GetIndex() == SealedChunkReplicaIndex) {
                 return true;
             }
         }

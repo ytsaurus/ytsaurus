@@ -485,8 +485,7 @@ void TTablet::StartEpoch(TTabletSlotPtr slot)
 {
     CancelableContext_ = New<TCancelableContext>();
 
-    EpochAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
-    for (auto queue : EAutomatonThreadQueue::GetDomainValues()) {
+    for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
         EpochAutomatonInvokers_[queue] = CancelableContext_->CreateInvoker(
             // NB: Slot can be null in tests.
             slot
@@ -502,12 +501,11 @@ void TTablet::StopEpoch()
         CancelableContext_.Reset();
     }
 
-    EpochAutomatonInvokers_.clear();
+    std::fill(EpochAutomatonInvokers_.begin(), EpochAutomatonInvokers_.end(), GetNullInvoker());
 }
 
 IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
 {
-    YCHECK(!EpochAutomatonInvokers_.empty());
     return EpochAutomatonInvokers_[queue];
 }
 

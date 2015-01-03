@@ -113,7 +113,7 @@ bool IsErasureChunkPartId(const TChunkId& id)
 
 TChunkId ErasurePartIdFromChunkId(const TChunkId& id, int index)
 {
-    return ReplaceTypeInId(id, EObjectType(EObjectType::ErasureChunkPart_0 + index));
+    return ReplaceTypeInId(id, EObjectType(static_cast<int>(EObjectType::ErasureChunkPart_0) + index));
 }
 
 TChunkId ErasureChunkIdFromPartId(const TChunkId& id)

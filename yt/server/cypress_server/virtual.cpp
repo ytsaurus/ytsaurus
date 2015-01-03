@@ -158,7 +158,7 @@ private:
     virtual TResolveResult ResolveSelf(const TYPath& path, IServiceContextPtr context) override
     {
         const auto& method = context->GetMethod();
-        if (Options & EVirtualNodeOptions::RedirectSelf &&
+        if ((Options & EVirtualNodeOptions::RedirectSelf) != EVirtualNodeOptions::None &&
             method != "Remove")
         {
             return TResolveResult::There(Service, path);
@@ -216,7 +216,9 @@ private:
         auto hydraManager = hydraFacade->GetHydraManager();
 
         // NB: IsMutating() check is needed to prevent leader fallback for propagated mutations.
-        if ((Options & EVirtualNodeOptions::RequireLeader) && !hydraManager->IsMutating()) {
+        if ((Options & EVirtualNodeOptions::RequireLeader) != EVirtualNodeOptions::None &&
+            !hydraManager->IsMutating())
+        {
             hydraFacade->ValidateActiveLeader();
         }
 

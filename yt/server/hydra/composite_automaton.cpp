@@ -53,7 +53,7 @@ TCompositeAutomatonPart::TCompositeAutomatonPart(
 }
 
 void TCompositeAutomatonPart::RegisterSaver(
-    int priority,
+    ESerializationPriority priority,
     const Stroka& name,
     TClosure saver)
 {
@@ -70,7 +70,7 @@ void TCompositeAutomatonPart::RegisterLoader(
 }
 
 void TCompositeAutomatonPart::RegisterSaver(
-    int priority,
+    ESerializationPriority priority,
     const Stroka& name,
     TCallback<void(TSaveContext&)> saver)
 {
@@ -159,7 +159,7 @@ void TCompositeAutomatonPart::OnRecoveryComplete()
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompositeAutomaton::TSaverInfo::TSaverInfo(
-    int priority,
+    ESerializationPriority priority,
     const Stroka& name,
     TClosure saver,
     TCompositeAutomatonPart* part)

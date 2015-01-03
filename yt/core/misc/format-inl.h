@@ -114,19 +114,16 @@ struct TValueFormatter
 
 // Enums
 template <class TEnum>
-struct TValueFormatter<
-    TEnum,
-    typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<TEnum&, TEnumBase<TEnum>&>
-    >::TType>
+struct TValueFormatter<TEnum, typename std::enable_if<TEnumTraits<TEnum>::IsEnum>::type>
 {
     static void Do(TStringBuilder* builder, TEnum value, const TStringBuf& format)
     {
         // Obtain literal.
-        int rawValue = static_cast<int>(value);
-        auto* literal = TEnum::GetLiteralByValue(rawValue);
+        auto* literal = TEnumTraits<TEnum>::FindLiteralByValue(value);
         if (!literal) {
-            builder->AppendFormat("%v(%v)", TEnum::GetTypeName(), rawValue);
+            builder->AppendFormat("%v(%v)",
+                TEnumTraits<TEnum>::GetTypeName(),
+                static_cast<typename TEnumTraits<TEnum>::TUnderlying>(value));
             return;
         }
 

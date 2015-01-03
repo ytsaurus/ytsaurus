@@ -28,6 +28,12 @@ void Deserialize(Py::Object& obj, NYTree::INodePtr node);
 
 ///////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EPythonObjectType,
+    (Map)
+    (List)
+    (Attributes)
+);
+
 class TPythonObjectBuilder
     : public NYson::TYsonConsumerBase
 {
@@ -53,12 +59,6 @@ public:
     Py::Object ExtractObject();
 
 private:
-    DECLARE_ENUM(EObjectType,
-        (Map)
-        (List)
-        (Attributes)
-    );
-
     Py::Callable YsonMap;
     Py::Callable YsonList;
     Py::Callable YsonString;
@@ -72,7 +72,7 @@ private:
 
     std::queue<Py::Object> Objects_;
 
-    std::stack<std::pair<Py::Object, EObjectType>> ObjectStack_;
+    std::stack<std::pair<Py::Object, EPythonObjectType>> ObjectStack_;
     // NB(ignat): to avoid using Stroka we need to make tricky bufferring while reading from input stream.
     std::stack<Stroka> Keys_;
     TNullable<Py::Object> Attributes_;
@@ -81,7 +81,7 @@ private:
     PyObject* AddObject(const Py::Callable& type);
     PyObject* AddObject(PyObject* obj);
 
-    void Push(const Py::Object& obj, EObjectType objectType);
+    void Push(const Py::Object& obj, EPythonObjectType objectType);
     Py::Object Pop();
 };
 

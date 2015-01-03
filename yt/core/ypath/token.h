@@ -14,7 +14,7 @@ extern TStringBuf ListEndToken;
 extern TStringBuf ListBeforeToken;
 extern TStringBuf ListAfterToken;
 
-DECLARE_ENUM(ETokenType,
+DEFINE_ENUM(ETokenType,
     (Literal)
     (Slash)
     (Ampersand)

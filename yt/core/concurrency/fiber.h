@@ -17,7 +17,7 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EFiberState,
+DEFINE_ENUM(EFiberState,
     (Sleeping)    // Unscheduled and waiting for an external event to happen.
     (Suspended)   // Scheduled but not yet running.
     (Running)     // Currently executing.

@@ -692,7 +692,7 @@ private:
                 ToProto(req->mutable_chunk_id(), reader->ChunkId_);
                 ToProto(req->mutable_block_indexes(), unfetchedBlockIndexes);
                 req->set_enable_caching(reader->Config_->EnableCaching);
-                req->set_session_type(reader->SessionType_);
+                req->set_session_type(static_cast<int>(reader->SessionType_));
                 if (reader->LocalDescriptor_) {
                     auto expirationTime = TInstant::Now() + reader->Config_->PeerExpirationTimeout;
                     ToProto(req->mutable_peer_descriptor(), reader->LocalDescriptor_.Get());
@@ -946,7 +946,7 @@ private:
                 ToProto(req->mutable_chunk_id(), reader->ChunkId_);
                 req->set_first_block_index(FirstBlockIndex_);
                 req->set_block_count(BlockCount_);
-                req->set_session_type(reader->SessionType_);
+                req->set_session_type(static_cast<int>(reader->SessionType_));
 
                 req->Invoke().Subscribe(
                     BIND(

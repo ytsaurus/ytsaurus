@@ -77,7 +77,7 @@ TTableChunkWriter::TTableChunkWriter(
     YCHECK(config);
     YCHECK(chunkWriter);
 
-    MiscExt.set_compression_codec(options->CompressionCodec);
+    MiscExt.set_compression_codec(static_cast<int>(options->CompressionCodec));
 
     // Init trash channel.
     auto trashChannel = TChannel::Universal();
@@ -447,7 +447,7 @@ i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
         switch (token.GetType()) {
             case ETokenType::Int64: {
                 auto* keyPart = part->mutable_key_part();
-                keyPart->set_type(EKeyPartType::Int64);
+                keyPart->set_type(static_cast<int>(EKeyPartType::Int64));
                 keyPart->set_int64_value(token.GetInt64Value());
                 size += sizeof(i64);
                 break;
@@ -455,7 +455,7 @@ i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
 
             case ETokenType::Uint64: {
                 auto* keyPart = part->mutable_key_part();
-                keyPart->set_type(EKeyPartType::Uint64);
+                keyPart->set_type(static_cast<int>(EKeyPartType::Uint64));
                 keyPart->set_uint64_value(token.GetUint64Value());
                 size += sizeof(ui64);
                 break;
@@ -463,7 +463,7 @@ i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
 
             case ETokenType::String: {
                 auto* keyPart = part->mutable_key_part();
-                keyPart->set_type(EKeyPartType::String);
+                keyPart->set_type(static_cast<int>(EKeyPartType::String));
                 keyPart->set_str_value(token.GetStringValue().begin(), token.GetStringValue().size());
                 size += token.GetStringValue().size();
                 break;
@@ -471,7 +471,7 @@ i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
 
             case ETokenType::Double: {
                 auto* keyPart = part->mutable_key_part();
-                keyPart->set_type(EKeyPartType::Double);
+                keyPart->set_type(static_cast<int>(EKeyPartType::Double));
                 keyPart->set_double_value(token.GetDoubleValue());
                 size += sizeof(double);
                 break;
@@ -479,7 +479,7 @@ i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
 
             case ETokenType::Boolean: {
                 auto* keyPart = part->mutable_key_part();
-                keyPart->set_type(EKeyPartType::Boolean);
+                keyPart->set_type(static_cast<int>(EKeyPartType::Boolean));
                 keyPart->set_boolean_value(token.GetBooleanValue());
                 size += 1;
                 break;
@@ -487,7 +487,7 @@ i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
 
             default: {
                 auto* keyPart = part->mutable_key_part();
-                keyPart->set_type(EKeyPartType::Composite);
+                keyPart->set_type(static_cast<int>(EKeyPartType::Composite));
                 break;
             }
         }

@@ -23,7 +23,7 @@ namespace NDriver {
 
 /////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EExitCode,
+DEFINE_ENUM(EExitCode,
     ((OK)(0))
     ((Error)(1))
 );

@@ -79,12 +79,12 @@ DEFINE_REFCOUNTED_TYPE(TDsvFormatConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EJsonFormat,
+DEFINE_ENUM(EJsonFormat,
     (Text)
     (Pretty)
 );
 
-DECLARE_ENUM(EJsonAttributesMode,
+DEFINE_ENUM(EJsonAttributesMode,
     (Always)
     (Never)
     (OnDemand)
@@ -225,6 +225,12 @@ DEFINE_REFCOUNTED_TYPE(TYamredDsvFormatConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EMissingSchemafulDsvValueMode,
+    (SkipRow)
+    (Fail)
+    (PrintSentinel)
+);
+
 class TSchemafulDsvFormatConfig
     : public NYTree::TYsonSerializable
 {
@@ -239,13 +245,7 @@ public:
 
     TNullable<std::vector<Stroka>> Columns;
 
-    DECLARE_ENUM(EMissingValueMode,
-        (SkipRow)
-        (Fail)
-        (PrintSentinel)
-    );
-
-    EMissingValueMode MissingValueMode;
+    EMissingSchemafulDsvValueMode MissingValueMode;
     Stroka MissingValueSentinel;
 
 
@@ -276,7 +276,7 @@ public:
             .Default();
 
         RegisterParameter("missing_value_mode", MissingValueMode)
-            .Default(EMissingValueMode::SkipRow);
+            .Default(EMissingSchemafulDsvValueMode::SkipRow);
 
         RegisterParameter("missing_value_sentinel", MissingValueSentinel)
             .Default("");

@@ -222,7 +222,8 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TAsyncTableWriter::FetchTableI
         auto req = TTableYPathProxy::PrepareForUpdate(path);
         SetTransactionId(req, uploadTransactionId);
         GenerateMutationId(req);
-        req->set_mode(clear ? EUpdateMode::Overwrite : EUpdateMode::Append);
+        auto mode = clear ? EUpdateMode::Overwrite : EUpdateMode::Append;
+        req->set_mode(static_cast<int>(mode));
         batchReq->AddRequest(req, "prepare_for_update");
     }
 
@@ -244,7 +245,7 @@ TChunkListId TAsyncTableWriter::OnInfoFetched(TObjectServiceProxy::TRspExecuteBa
         if (type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                 RichPath.GetPath(),
-                EObjectType(EObjectType::Table),
+                EObjectType::Table,
                 type);
         }
 

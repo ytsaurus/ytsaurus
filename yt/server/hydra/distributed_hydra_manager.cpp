@@ -554,7 +554,7 @@ private:
                 YUNREACHABLE();
         }
 
-        response->set_state(ControlState_);
+        response->set_state(static_cast<int>(ControlState_));
 
         // Reply with OK in any case.
         context->Reply();
@@ -754,7 +754,7 @@ private:
             if (ControlState_ == EPeerState::Stopped) {
                 throw TFiberCanceledException();
             }
-            YCHECK(ControlState_ = EPeerState::Elections);
+            YCHECK(ControlState_ == EPeerState::Elections);
         };
 
         LOG_INFO("Computing reachable version");

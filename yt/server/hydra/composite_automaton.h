@@ -76,6 +76,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ESerializationPriority,
+    (Keys)
+    (Values)
+);
+
 class TCompositeAutomatonPart
     : public virtual TRefCounted
 {
@@ -89,7 +94,7 @@ protected:
     TCompositeAutomaton* Automaton;
 
     void RegisterSaver(
-        int priority,
+        ESerializationPriority priority,
         const Stroka& name,
         TClosure saver);
 
@@ -98,7 +103,7 @@ protected:
         TClosure loader);
 
     void RegisterSaver(
-        int priority,
+        ESerializationPriority priority,
         const Stroka& name,
         TCallback<void(TSaveContext&)> saver);
 
@@ -146,11 +151,6 @@ DEFINE_REFCOUNTED_TYPE(TCompositeAutomatonPart)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ESerializationPriority,
-    (Keys)
-    (Values)
-);
-
 class TCompositeAutomaton
     : public IAutomaton
 {
@@ -171,13 +171,13 @@ private:
 
     struct TSaverInfo
     {
-        int Priority;
+        ESerializationPriority Priority;
         Stroka Name;
         TClosure Saver;
         TCompositeAutomatonPart* Part;
 
         TSaverInfo(
-            int priority,
+            ESerializationPriority priority,
             const Stroka& name,
             TClosure saver,
             TCompositeAutomatonPart* part);

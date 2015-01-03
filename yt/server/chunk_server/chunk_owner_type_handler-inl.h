@@ -36,9 +36,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::SetDefaultAttributes(
     }
 
     if (!attributes->Contains("erasure_codec")) {
-        attributes->SetYson(
-            "erasure_codec",
-            NYTree::ConvertToYsonString(NErasure::ECodec(NErasure::ECodec::None)));
+        attributes->Set("erasure_codec", NErasure::ECodec::None);
     }
 }
 
@@ -220,7 +218,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::MergeChunkLists(
     } else {
         // Set proper originating mode.
         originatingNode->SetUpdateMode(
-            originatingMode == NChunkClient::EUpdateMode::Overwrite || branchedMode == NChunkClient::EUpdateMode::Overwrite
+            originatingMode == NChunkClient::EUpdateMode::Overwrite ||
+            branchedMode == NChunkClient::EUpdateMode::Overwrite
             ? NChunkClient::EUpdateMode::Overwrite
             : NChunkClient::EUpdateMode::Append);
     }

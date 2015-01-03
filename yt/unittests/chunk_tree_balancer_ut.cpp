@@ -57,7 +57,7 @@ std::unique_ptr<TChunk> CreateChunk()
     std::unique_ptr<TChunk> chunk(new TChunk(GenerateChunkId()));
 
     TChunkMeta chunkMeta;
-    chunkMeta.set_type(EChunkType::Table);
+    chunkMeta.set_type(static_cast<int>(EChunkType::Table));
 
     TMiscExt miscExt;
     SetProtoExtension<TMiscExt>(chunkMeta.mutable_extensions(), miscExt);

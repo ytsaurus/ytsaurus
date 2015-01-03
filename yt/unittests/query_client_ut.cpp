@@ -555,7 +555,7 @@ static TConstExpressionPtr Make(TArgs&&... args)
 {
     return New<TTypedExpression>(
         NullSourceLocation,
-        EValueType::EDomain::TheBottom,
+        EValueType::TheBottom,
         std::forward<TArgs>(args)...);
 }
 

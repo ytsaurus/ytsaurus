@@ -205,28 +205,31 @@ public:
             return;
         }
 
-        if (JobResult && JobResult->error().code() != NYT::EErrorCode::OK) {
-            return;
+        if (JobResult) {
+            auto error = FromProto<TError>(JobResult->error());
+            if (!error.IsOK()) {
+                return;
+            }
         }
 
         JobResult = jobResult;
-        auto resultError = FromProto<TError>(jobResult.error());
+        auto error = FromProto<TError>(jobResult.error());
 
-        if (resultError.IsOK()) {
+        if (error.IsOK()) {
             return;
         } 
 
-        if (IsFatalError(resultError)) {
-            resultError.Attributes().Set("fatal", IsFatalError(resultError));
-            ToProto(JobResult->mutable_error(), resultError);
+        if (IsFatalError(error)) {
+            error.Attributes().Set("fatal", IsFatalError(error));
+            ToProto(JobResult->mutable_error(), error);
             FinalJobState = EJobState::Failed;
             return;
         }
 
         auto abortReason = GetAbortReason(jobResult);
         if (abortReason) {
-            resultError.Attributes().Set("abort_reason", abortReason);
-            ToProto(JobResult->mutable_error(), resultError);
+            error.Attributes().Set("abort_reason", abortReason);
+            ToProto(JobResult->mutable_error(), error);
             FinalJobState = EJobState::Aborted;
             return;
         }
@@ -748,7 +751,7 @@ private:
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) || 
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
             resultError.FindMatching(EErrorCode::ConfigCreationFailed) || 
-            resultError.FindMatching(EExitStatus::ExitCodeBase + EJobProxyExitCode::HeartbeatFailed))
+            resultError.FindMatching(static_cast<int>(EExitStatus::ExitCodeBase) + static_cast<int>(EJobProxyExitCode::HeartbeatFailed)))
         {
             return MakeNullable(EAbortReason::Other);
         } else if (resultError.FindMatching(NExecAgent::EErrorCode::ResourceOverdraft)) {

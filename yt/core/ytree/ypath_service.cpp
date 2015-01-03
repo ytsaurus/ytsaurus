@@ -51,9 +51,9 @@ private:
 
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override
     {
-        if (!request->ignore_opaque() ||
-            request->attribute_filter().mode() != EAttributeFilterMode::All)
-        {
+        bool ignoreOpaque = request->ignore_opaque();
+        auto mode = EAttributeFilterMode(request->attribute_filter().mode());
+        if (!ignoreOpaque || mode != EAttributeFilterMode::All)  {
             // Execute fallback.
             auto node = BuildNodeFromProducer();
             ExecuteVerb(node, IServiceContextPtr(context));

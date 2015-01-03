@@ -24,13 +24,13 @@ extern const TCellId NullCellId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((InvalidState)  (800))
     ((InvalidLeader) (801))
     ((InvalidEpoch)  (802))
 );
 
-DECLARE_ENUM(EPeerState,
+DEFINE_ENUM(EPeerState,
     (Stopped)
     (Voting)
     (Leading)

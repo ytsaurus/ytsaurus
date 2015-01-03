@@ -60,12 +60,12 @@ extern const TMutationId NullMutationId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((TransportError)  (100))
     ((ProtocolError)   (101))
     ((NoSuchService)   (102))
     ((NoSuchMethod)    (103))
-    ((Timeout)         (NYT::EErrorCode::Timeout))
+    ((Timeout)         (static_cast<int>(NYT::EErrorCode::Timeout)))
     ((Unavailable)     (105))
     ((PoisonPill)      (106))
 );

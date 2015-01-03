@@ -8,7 +8,7 @@ namespace NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((PrerequisiteCheckFailed)     (1000))
 );
     
@@ -38,9 +38,9 @@ const ui64 WellKnownCounterMask = 0x1000000000000000;
 typedef ui16 TCellTag;
 
 //! Describes the runtime type of an object.
-DECLARE_ENUM(EObjectType,
+DEFINE_ENUM(EObjectType,
     // Does not represent any actual type.
-    ((Null)                       (  0))
+    ((Null)                         (0))
 
     // The following represent non-versioned objects.
     // These must be created by calling TMasterYPathProxy::CreateObjects.
@@ -133,11 +133,16 @@ DECLARE_ENUM(EObjectType,
     ((CellNode)                   (410))
     ((Rack)                       (800))
     ((RackMap)                    (801))
-
 );
 
-//! Types (both regular and schematic) are supposed to be in range [0, MaxObjectType].
-const int MaxObjectType = 65535;
+//! A bit mask marking schema types.
+const int SchemaObjectTypeMask = 0x8000;
+
+// The range of valid object types (including schemas).
+const EObjectType MinObjectType = TEnumTraits<EObjectType>::GetMinValue();
+const EObjectType MaxObjectType = EObjectType(
+    static_cast<int>(TEnumTraits<EObjectType>::GetMaxValue()) +
+    SchemaObjectTypeMask);
 
 ////////////////////////////////////////////////////////////////////////////////
 

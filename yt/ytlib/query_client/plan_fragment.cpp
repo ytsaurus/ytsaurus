@@ -819,12 +819,12 @@ TConstExpressionPtr PrepareExpression(
 
 void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& original)
 {
-    serialized->set_type(original->Type);
+    serialized->set_type(static_cast<int>(original->Type));
     serialized->set_location_begin(original->SourceLocation.first);
     serialized->set_location_end(original->SourceLocation.second);
 
     if (auto literalExpr = original->As<TLiteralExpression>()) {
-        serialized->set_kind(EExpressionKind::Literal);
+        serialized->set_kind(static_cast<int>(EExpressionKind::Literal));
         auto* proto = serialized->MutableExtension(NProto::TLiteralExpression::literal_expression);
         auto value = TValue(literalExpr->Value);
         auto data = value.Data;
@@ -860,22 +860,22 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         }
 
     } else if (auto referenceExpr = original->As<TReferenceExpression>()) {
-        serialized->set_kind(EExpressionKind::Reference);
+        serialized->set_kind(static_cast<int>(EExpressionKind::Reference));
         auto* proto = serialized->MutableExtension(NProto::TReferenceExpression::reference_expression);
         proto->set_column_name(referenceExpr->ColumnName);
     } else if (auto functionExpr = original->As<TFunctionExpression>()) {
-        serialized->set_kind(EExpressionKind::Function);
+        serialized->set_kind(static_cast<int>(EExpressionKind::Function));
         auto* proto = serialized->MutableExtension(NProto::TFunctionExpression::function_expression);
         proto->set_function_name(functionExpr->FunctionName);
         ToProto(proto->mutable_arguments(), functionExpr->Arguments);
     } else if (auto binaryOpExpr = original->As<TBinaryOpExpression>()) {
-        serialized->set_kind(EExpressionKind::BinaryOp);
+        serialized->set_kind(static_cast<int>(EExpressionKind::BinaryOp));
         auto* proto = serialized->MutableExtension(NProto::TBinaryOpExpression::binary_op_expression);
-        proto->set_opcode(binaryOpExpr->Opcode);
+        proto->set_opcode(static_cast<int>(binaryOpExpr->Opcode));
         ToProto(proto->mutable_lhs(), binaryOpExpr->Lhs);
         ToProto(proto->mutable_rhs(), binaryOpExpr->Rhs);
     } else if (auto inOpExpr = original->As<TInOpExpression>()) {
-        serialized->set_kind(EExpressionKind::InOp);
+        serialized->set_kind(static_cast<int>(EExpressionKind::InOp));
         auto* proto = serialized->MutableExtension(NProto::TInOpExpression::in_op_expression);
         ToProto(proto->mutable_arguments(), inOpExpr->Arguments);
         ToProto(proto->mutable_values(), inOpExpr->Values);
@@ -983,7 +983,7 @@ void ToProto(NProto::TNamedItem* serialized, const TNamedItem& original)
 void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
 {
     ToProto(serialized->mutable_expression(), original.Expression);
-    serialized->set_aggregate_function(original.AggregateFunction);
+    serialized->set_aggregate_function(static_cast<int>(original.AggregateFunction));
     ToProto(serialized->mutable_name(), original.Name);
 }
 

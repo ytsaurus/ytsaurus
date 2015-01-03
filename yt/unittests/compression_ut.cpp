@@ -18,7 +18,7 @@ class TCodecTest:
 
 TEST_F(TCodecTest, Compression)
 {
-    for (auto codecId : ECodec::GetDomainValues()) {
+    for (auto codecId : TEnumTraits<ECodec>::GetDomainValues()) {
         auto codec = GetCodec(codecId);
 
         Stroka data = "hello world";
@@ -34,7 +34,7 @@ TEST_F(TCodecTest, Compression)
 
 TEST_F(TCodecTest, VectorCompression)
 {
-    for (auto codecId : ECodec::GetDomainValues()) {
+    for (auto codecId : TEnumTraits<ECodec>::GetDomainValues()) {
         auto codec = GetCodec(codecId);
 
         {
@@ -65,7 +65,7 @@ TEST_F(TCodecTest, VectorCompression)
 
 
 TEST_F(TCodecTest, LargeTest) {
-    for (auto codecId : ECodec::GetDomainValues()) {
+    for (auto codecId : TEnumTraits<ECodec>::GetDomainValues()) {
         auto codec = GetCodec(codecId);
 
         Stroka data(static_cast<int>(1e7), 'a');

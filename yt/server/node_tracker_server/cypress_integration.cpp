@@ -105,7 +105,7 @@ private:
         const auto* node = FindNode();
 
         if (key == "state") {
-            auto state = node ? node->GetState() : ENodeState(ENodeState::Offline);
+            auto state = node ? node->GetState() : ENodeState::Offline;
             BuildYsonFluently(consumer)
                 .Value(FormatEnum(state));
             return true;

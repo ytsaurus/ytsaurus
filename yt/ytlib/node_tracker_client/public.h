@@ -40,7 +40,7 @@ DECLARE_REFCOUNTED_CLASS(TNodeDirectory)
 
 extern const Stroka DefaultNetworkName;
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((NoSuchNode)    (300))
     ((InvalidState)  (301))
     ((NoSuchNetwork) (302))

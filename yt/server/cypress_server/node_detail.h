@@ -227,35 +227,35 @@ template <>
 struct TCypressScalarTypeTraits<Stroka>
     : NYTree::NDetail::TScalarTypeTraits<Stroka>
 {
-    static const NObjectClient::EObjectType::EDomain ObjectType;
+    static const NObjectClient::EObjectType ObjectType;
 };
 
 template <>
 struct TCypressScalarTypeTraits<i64>
     : NYTree::NDetail::TScalarTypeTraits<i64>
 {
-    static const NObjectClient::EObjectType::EDomain ObjectType;
+    static const NObjectClient::EObjectType ObjectType;
 };
 
 template <>
 struct TCypressScalarTypeTraits<ui64>
     : NYTree::NDetail::TScalarTypeTraits<ui64>
 {
-    static const NObjectClient::EObjectType::EDomain ObjectType;
+    static const NObjectClient::EObjectType ObjectType;
 };
 
 template <>
 struct TCypressScalarTypeTraits<double>
     : NYTree::NDetail::TScalarTypeTraits<double>
 {
-    static const NObjectClient::EObjectType::EDomain ObjectType;
+    static const NObjectClient::EObjectType ObjectType;
 };
 
 template <>
 struct TCypressScalarTypeTraits<bool>
     : NYTree::NDetail::TScalarTypeTraits<bool>
 {
-    static const NObjectClient::EObjectType::EDomain ObjectType;
+    static const NObjectClient::EObjectType ObjectType;
 };
 
 } // namespace NDetail

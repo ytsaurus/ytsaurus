@@ -177,8 +177,8 @@ public:
         auto* nullKeyBit = Builder_.CreateAnd(
             Builder_.getInt32(1U << index),
             NullKeyMask_);
-        auto* nullType = Builder_.getInt16(EValueType::Null);
-        auto* schemaType = Builder_.getInt16(Builder_.Schema_.Columns()[index].Type);
+        auto* nullType = Builder_.getInt16(static_cast<ui16>(EValueType::Null));
+        auto* schemaType = Builder_.getInt16(static_cast<ui16>(Builder_.Schema_.Columns()[index].Type));
         return Builder_.CreateSelect(
             Builder_.CreateICmpNE(nullKeyBit, Builder_.getInt32(0)),
             nullType,
@@ -448,7 +448,7 @@ void TComparerBuilder::BuildNullTypeCheck(Value* type)
 {
     auto* falseBB = CreateBB("type.is.not.null");
     CreateCondBr(
-        CreateICmpEQ(type, ConstantInt::get(type->getType(), EValueType(EValueType::Null))),
+        CreateICmpEQ(type, ConstantInt::get(type->getType(), static_cast<int>(EValueType::Null))),
         NextBB_,
         falseBB);
     SetInsertPoint(falseBB);

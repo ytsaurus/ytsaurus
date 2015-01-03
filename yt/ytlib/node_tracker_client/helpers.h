@@ -14,7 +14,7 @@ namespace NNodeTrackerClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 // NB: Types must be numbered from 0 to N - 1.
-DECLARE_ENUM(EResourceType,
+DEFINE_ENUM(EResourceType,
     (UserSlots)
     (Cpu)
     (Memory)

@@ -33,7 +33,7 @@ public:
     TKey GetKey() const;
     TVersionedRow GetRow(TChunkedMemoryPool* memoryPool);
 
-    static int FormatVersion;
+    static const ETableChunkFormat FormatVersion = ETableChunkFormat::VersionedSimple;
 
 private:
     typedef TReadOnlyBitmap<ui64> TBitmap;

@@ -20,7 +20,7 @@ NVersionedTableClient::TUnversionedValue MakeKeyPart(const TStringBuf& yson, NYs
 
 // COMPAT(psushin): some legacy staff, compat with old-style keys.
 
-DECLARE_ENUM(EKeyPartType,
+DEFINE_ENUM(EKeyPartType,
     // A special sentinel used by #GetKeySuccessor.
     ((MinSentinel)(-1))
     // Denotes a missing (null) component in a composite key.

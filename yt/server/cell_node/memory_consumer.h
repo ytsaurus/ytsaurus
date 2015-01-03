@@ -8,7 +8,7 @@ namespace NCellNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EMemoryConsumer,
+DEFINE_ENUM(EMemoryConsumer,
     (Footprint)
     (BlockCache)
     (ChunkMeta)

@@ -83,6 +83,8 @@ private:
 
     void CheckMemoryUsage();
 
+    static void Exit(EJobProxyExitCode exitCode);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

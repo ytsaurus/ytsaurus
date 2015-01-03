@@ -47,7 +47,6 @@ TSessionManager::TSessionManager(
     TBootstrap* bootstrap)
     : Config_(config)
     , Bootstrap_(bootstrap)
-    , PerTypeSessionCount_(EWriteSessionType::GetDomainSize())
     , PendingWriteSize_(0)
 {
     YCHECK(config);
@@ -174,7 +173,7 @@ int TSessionManager::GetSessionCount(EWriteSessionType type)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    return PerTypeSessionCount_[static_cast<int>(type)];
+    return PerTypeSessionCount_[type];
 }
 
 i64 TSessionManager::GetPendingWriteSize() 

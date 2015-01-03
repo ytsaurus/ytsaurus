@@ -14,7 +14,7 @@ namespace NTabletClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EWireProtocolCommand,
+DEFINE_ENUM(EWireProtocolCommand,
     // Read commands:
     
     ((LookupRows)(1))

@@ -34,6 +34,16 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EDsvTabularConsumerState,
+    (None)
+    (ExpectAttributeName)
+    (ExpectAttributeValue)
+    (ExpectEntity)
+    (ExpectColumnName)
+    (ExpectFirstColumnName)
+    (ExpectColumnValue)
+);
+
 class TDsvTabularConsumer
     : public TDsvConsumerBase
 {
@@ -60,15 +70,7 @@ public:
     virtual void OnEndAttributes() override;
 
 private:
-    DECLARE_ENUM(EState,
-        (None)
-        (ExpectAttributeName)
-        (ExpectAttributeValue)
-        (ExpectEntity)
-        (ExpectColumnName)
-        (ExpectFirstColumnName)
-        (ExpectColumnValue)
-    );
+    using EState = EDsvTabularConsumerState;
 
     NTableClient::EControlAttribute ControlAttribute;
 

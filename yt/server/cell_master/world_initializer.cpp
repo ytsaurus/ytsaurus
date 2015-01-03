@@ -450,7 +450,7 @@ private:
     {
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TMasterYPathProxy::CreateObjects();
-        req->set_type(EObjectType::Transaction);
+        req->set_type(static_cast<int>(EObjectType::Transaction));
 
         auto* requestExt = req->MutableExtension(TReqStartTransactionExt::create_transaction_ext);
         requestExt->set_timeout(InitTransactionTimeout.MilliSeconds());
@@ -481,7 +481,7 @@ private:
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::Create(path);
         SetTransactionId(req, transactionId);
-        req->set_type(type);
+        req->set_type(static_cast<int>(type));
         ToProto(req->mutable_node_attributes(), *ConvertToAttributes(attributes));
         auto rsp = WaitFor(ExecuteVerb(service, req));
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);

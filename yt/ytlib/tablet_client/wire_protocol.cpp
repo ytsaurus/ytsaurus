@@ -90,7 +90,7 @@ public:
 
     void WriteCommand(EWireProtocolCommand command)
     {
-        WriteInt64(command);
+        WriteInt64(static_cast<int>(command));
     }
 
     void WriteTableSchema(const TTableSchema& schema)

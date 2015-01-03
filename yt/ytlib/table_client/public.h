@@ -12,12 +12,12 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)  (300))
     ((SortOrderViolation)         (301))
 );
 
-DECLARE_ENUM(EControlAttribute,
+DEFINE_ENUM(EControlAttribute,
     (TableIndex)
 );
 
@@ -115,7 +115,7 @@ class TAsyncWriter;
 typedef TIntrusivePtr<TAsyncWriter> TAsyncWriterPtr;
 
 class TTableProducer;
-class TTableConsumer;
+class TLegacyTableConsumer;
 
 class TTableConsumerConfig;
 typedef TIntrusivePtr<TTableConsumerConfig> TTableConsumerConfigPtr;

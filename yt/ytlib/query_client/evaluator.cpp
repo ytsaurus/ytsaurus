@@ -51,7 +51,7 @@ using namespace NConcurrency;
 
 // Folding profiler computes a strong structural hash used to cache query fragments.
 
-DECLARE_ENUM(EFoldingObjectType,
+DEFINE_ENUM(EFoldingObjectType,
     (ScanOp)
     (FilterOp)
     (GroupOp)
@@ -96,16 +96,16 @@ private:
 
 void TFoldingProfiler::Profile(const TConstQueryPtr& query)
 {
-    Id_.AddInteger(EFoldingObjectType::ScanOp);
+    Id_.AddInteger(static_cast<int>(EFoldingObjectType::ScanOp));
     Profile(query->TableSchema);
     
     if (query->Predicate) {
-        Id_.AddInteger(EFoldingObjectType::FilterOp);
+        Id_.AddInteger(static_cast<int>(EFoldingObjectType::FilterOp));
         Profile(query->Predicate);
     }
      
     if (query->GroupClause) {
-        Id_.AddInteger(EFoldingObjectType::GroupOp);
+        Id_.AddInteger(static_cast<int>(EFoldingObjectType::GroupOp));
 
         for (const auto& groupItem : query->GroupClause->GroupItems) {
             Profile(groupItem);
@@ -116,44 +116,42 @@ void TFoldingProfiler::Profile(const TConstQueryPtr& query)
         }
     }
 
-
     if (query->ProjectClause) {
-        Id_.AddInteger(EFoldingObjectType::ProjectOp);
+        Id_.AddInteger(static_cast<int>(EFoldingObjectType::ProjectOp));
 
         for (const auto& projection : query->ProjectClause->Projections) {
             Profile(projection);
         }
     }
-    
 }
 
 void TFoldingProfiler::Profile(const TConstExpressionPtr& expr)
 {
-    Id_.AddInteger(expr->Type);
+    Id_.AddInteger(static_cast<ui16>(expr->Type));
     if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        Id_.AddInteger(EFoldingObjectType::LiteralExpr);
-        Id_.AddInteger(TValue(literalExpr->Value).Type);
+        Id_.AddInteger(static_cast<int>(EFoldingObjectType::LiteralExpr));
+        Id_.AddInteger(static_cast<ui16>(TValue(literalExpr->Value).Type));
 
         int index = Variables_.ConstantsRowBuilder.AddValue(TValue(literalExpr->Value));
         Binding_.NodeToConstantIndex[literalExpr] = index;
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
-        Id_.AddInteger(EFoldingObjectType::ReferenceExpr);
+        Id_.AddInteger(static_cast<int>(EFoldingObjectType::ReferenceExpr));
         Id_.AddString(referenceExpr->ColumnName.c_str());
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        Id_.AddInteger(EFoldingObjectType::FunctionExpr);
+        Id_.AddInteger(static_cast<int>(EFoldingObjectType::FunctionExpr));
         Id_.AddString(functionExpr->FunctionName.c_str());
 
         for (const auto& argument : functionExpr->Arguments) {
             Profile(argument);
         }
     } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
-        Id_.AddInteger(EFoldingObjectType::BinaryOpExpr);
-        Id_.AddInteger(binaryOp->Opcode);
+        Id_.AddInteger(static_cast<int>(EFoldingObjectType::BinaryOpExpr));
+        Id_.AddInteger(static_cast<int>(binaryOp->Opcode));
 
         Profile(binaryOp->Lhs);
         Profile(binaryOp->Rhs);
     } else if (auto inOp = expr->As<TInOpExpression>()) {
-        Id_.AddInteger(EFoldingObjectType::InOpExpr);
+        Id_.AddInteger(static_cast<int>(EFoldingObjectType::InOpExpr));
 
         for (const auto& argument : inOp->Arguments) {
             Profile(argument);
@@ -170,12 +168,12 @@ void TFoldingProfiler::Profile(const TConstExpressionPtr& expr)
 
 void TFoldingProfiler::Profile(const TTableSchema& tableSchema)
 {
-    Id_.AddInteger(EFoldingObjectType::TableSchema);
+    Id_.AddInteger(static_cast<int>(EFoldingObjectType::TableSchema));
 }
 
 void TFoldingProfiler::Profile(const TNamedItem& namedExpression)
 {
-    Id_.AddInteger(EFoldingObjectType::NamedExpression);
+    Id_.AddInteger(static_cast<int>(EFoldingObjectType::NamedExpression));
     Id_.AddString(namedExpression.Name.c_str());
 
     Profile(namedExpression.Expression);
@@ -183,8 +181,8 @@ void TFoldingProfiler::Profile(const TNamedItem& namedExpression)
 
 void TFoldingProfiler::Profile(const TAggregateItem& aggregateItem)
 {
-    Id_.AddInteger(EFoldingObjectType::AggregateItem);
-    Id_.AddInteger(aggregateItem.AggregateFunction);
+    Id_.AddInteger(static_cast<int>(EFoldingObjectType::AggregateItem));
+    Id_.AddInteger(static_cast<int>(aggregateItem.AggregateFunction));
     Id_.AddString(aggregateItem.Name.c_str());
 
     Profile(aggregateItem.Expression);

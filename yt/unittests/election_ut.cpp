@@ -162,7 +162,7 @@ TEST_F(TElectionTest, JoinActiveQuorumNoResponseThenResponse)
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillOnce(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], { }))
             .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
-                response->set_state(id == 2 ? EPeerState::Leading : EPeerState::Following);
+                response->set_state(static_cast<int>(id == 2 ? EPeerState::Leading : EPeerState::Following));
                 response->set_vote_id(2);
                 ToProto(response->mutable_vote_epoch_id(), TEpochId());
                 response->set_priority(id);
@@ -197,7 +197,7 @@ TEST_F(TElectionTest, BecomeLeaderOneHealthyFollower)
                 auto possible_leader_response = WaitFor(proxy.GetStatus()->Invoke());
                 EXPECT_TRUE(possible_leader_response->IsOK()) << ToString(possible_leader_response->GetError());
 
-                response->set_state(EPeerState::Following);
+                response->set_state(static_cast<int>(EPeerState::Following));
                 response->set_vote_id(0);
                 ToProto(response->mutable_vote_epoch_id(), possible_leader_response->vote_epoch_id());
                 response->set_priority(id);
@@ -243,7 +243,7 @@ TEST_F(TElectionTest, BecomeLeaderTwoHealthyFollowers)
                 auto possible_leader_response = WaitFor(proxy.GetStatus()->Invoke());
                 EXPECT_TRUE(possible_leader_response->IsOK()) << ToString(possible_leader_response->GetError());
 
-                response->set_state(EPeerState::Following);
+                response->set_state(static_cast<int>(EPeerState::Following));
                 response->set_vote_id(0);
                 ToProto(response->mutable_vote_epoch_id(), possible_leader_response->vote_epoch_id());
                 response->set_priority(id);
@@ -283,7 +283,7 @@ TEST_F(TElectionTest, BecomeLeaderQuorumLostOnce)
                 auto possible_leader_response = WaitFor(proxy.GetStatus()->Invoke());
                 EXPECT_TRUE(possible_leader_response->IsOK()) << ToString(possible_leader_response->GetError());
 
-                response->set_state(EPeerState::Following);
+                response->set_state(static_cast<int>(EPeerState::Following));
                 response->set_vote_id(0);
                 ToProto(response->mutable_vote_epoch_id(), possible_leader_response->vote_epoch_id());
                 response->set_priority(id);
@@ -335,7 +335,7 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
                 auto possible_leader_response = WaitFor(proxy.GetStatus()->Invoke());
                 EXPECT_TRUE(possible_leader_response->IsOK()) << ToString(possible_leader_response->GetError());
 
-                response->set_state(EPeerState::Following);
+                response->set_state(static_cast<int>(EPeerState::Following));
                 response->set_vote_id(0);
                 ToProto(response->mutable_vote_epoch_id(), possible_leader_response->vote_epoch_id());
                 response->set_priority(id);
@@ -417,7 +417,7 @@ TEST_P(TElectionGenericTest, Basic)
             .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
                 const auto* status = data.Statuses[id - 1].GetPtr();
                 if (status) {
-                    response->set_state(status->State);
+                    response->set_state(static_cast<int>(status->State));
                     response->set_vote_id(status->VoteId);
                     ToProto(response->mutable_vote_epoch_id(), status->VoteEpochId);
                     response->set_priority(status->Priority);
@@ -504,7 +504,7 @@ TEST_P(TElectionDelayedTest, JoinActiveQuorum)
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
                 TDelayedExecutor::Submit(BIND([=] () {
-                    response->set_state(id == 2 ? EPeerState::Leading : EPeerState::Following);
+                    response->set_state(static_cast<int>(id == 2 ? EPeerState::Leading : EPeerState::Following));
                     response->set_vote_id(2);
                     ToProto(response->mutable_vote_epoch_id(), TEpochId());
                     response->set_priority(id);

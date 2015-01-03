@@ -82,7 +82,7 @@ private:
 
                 auto responseCodec = request->has_response_codec()
                     ? ECodec(request->response_codec())
-                    : ECodec(ECodec::None);
+                    : ECodec::None;
                 response->Attachments() = CompressWithEnvelope(protocolWriter.Flush(), responseCodec);
                 ToProto(response->mutable_query_statistics(), result.Value());
                 context->Reply();

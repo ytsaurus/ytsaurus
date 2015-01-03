@@ -92,7 +92,7 @@ void TFileChunkWriter::OnFinalBlocksWritten(TError error)
         return;
     }
 
-    Meta.set_type(EChunkType::File);
+    Meta.set_type(static_cast<int>(EChunkType::File));
     Meta.set_version(FormatVersion);
 
     SetProtoExtension(Meta.mutable_extensions(), BlocksExt);
@@ -100,7 +100,7 @@ void TFileChunkWriter::OnFinalBlocksWritten(TError error)
     MiscExt.set_uncompressed_data_size(EncodingWriter->GetUncompressedSize());
     MiscExt.set_compressed_data_size(EncodingWriter->GetCompressedSize());
     MiscExt.set_meta_size(Meta.ByteSize());
-    MiscExt.set_compression_codec(Options->CompressionCodec);
+    MiscExt.set_compression_codec(static_cast<int>(Options->CompressionCodec));
 
     SetProtoExtension(Meta.mutable_extensions(), MiscExt);
 

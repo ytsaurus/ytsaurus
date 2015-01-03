@@ -114,7 +114,6 @@ public:
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
         , TotalFailedJobTimeCounter_("/total_failed_job_time")
         , TotalAbortedJobTimeCounter_("/total_aborted_job_time")
-        , JobTypeCounters_(static_cast<int>(EJobType::SchedulerLast))
         , TotalResourceLimits_(ZeroNodeResources())
         , TotalResourceUsage_(ZeroNodeResources())
     {
@@ -182,7 +181,7 @@ public:
             Bootstrap_->GetMasterClient()->GetTransactionManager(),
             Config_->EventLog->Path);
         EventLogWriter_->Open();
-        EventLogConsumer_.reset(new TTableConsumer(EventLogWriter_));
+        EventLogConsumer_.reset(new TLegacyTableConsumer(EventLogWriter_));
 
         LogEventFluently(ELogEventType::SchedulerStarted)
             .Item("address").Value(ServiceAddress_);
@@ -687,7 +686,7 @@ private:
     NProfiling::TAggregateCounter TotalFailedJobTimeCounter_;
     NProfiling::TAggregateCounter TotalAbortedJobTimeCounter_;
 
-    std::vector<int> JobTypeCounters_;
+    TEnumIndexedVector<int, EJobType> JobTypeCounters_;
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TNodeResources TotalResourceLimits_;
@@ -709,7 +708,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        for (auto jobType : EJobType::GetDomainValues()) {
+        for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
             if (jobType > EJobType::SchedulerFirst && jobType < EJobType::SchedulerLast) {
                 Profiler.Enqueue("/job_count/" + FormatEnum(jobType), JobTypeCounters_[jobType]);
             }

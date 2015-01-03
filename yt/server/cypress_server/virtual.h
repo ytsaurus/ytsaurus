@@ -15,7 +15,7 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_FLAGGED_ENUM(EVirtualNodeOptions,
+DEFINE_BIT_ENUM(EVirtualNodeOptions,
     ((None)            (0x0000))
     ((RequireLeader)   (0x0001))
     ((RedirectSelf)    (0x0002))

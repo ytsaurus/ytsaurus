@@ -20,7 +20,7 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EExpressionKind,
+DEFINE_ENUM(EExpressionKind,
     (Literal)
     (Reference)
     (Function)
@@ -28,14 +28,14 @@ DECLARE_ENUM(EExpressionKind,
     (InOp)
 );
 
-DECLARE_ENUM(EOperatorKind,
+DEFINE_ENUM(EOperatorKind,
     (Scan)
     (Filter)
     (Group)
     (Project)
 );
 
-DECLARE_ENUM(EAggregateFunctions,
+DEFINE_ENUM(EAggregateFunctions,
     (Sum)
     (Min)
     (Max)

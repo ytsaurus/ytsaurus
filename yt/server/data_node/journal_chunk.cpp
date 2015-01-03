@@ -51,7 +51,7 @@ TJournalChunk::TJournalChunk(
     CachedDataSize_ = descriptor.DiskSpace;
 
     Meta_ = New<TRefCountedChunkMeta>();
-    Meta_->set_type(EChunkType::Journal);
+    Meta_->set_type(static_cast<int>(EChunkType::Journal));
     Meta_->set_version(0);
 }
 

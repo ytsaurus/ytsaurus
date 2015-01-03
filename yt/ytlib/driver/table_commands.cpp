@@ -152,7 +152,7 @@ void TWriteTableCommand::DoExecute()
 
     writer->Open();
 
-    TTableConsumer consumer(writer);
+    TLegacyTableConsumer consumer(writer);
 
     auto format = Context_->GetInputFormat();
     auto parser = CreateParserForFormat(format, EDataType::Tabular, &consumer);

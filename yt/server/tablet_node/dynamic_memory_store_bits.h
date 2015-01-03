@@ -259,7 +259,7 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETimestampListKind,
+DEFINE_ENUM(ETimestampListKind,
     (Write)
     (Delete)
 );
@@ -304,7 +304,7 @@ public:
         // plus delete timestamp.
         int listCount =
             (schemaColumnCount - keyColumnCount) +
-            ETimestampListKind::GetDomainSize();
+            TEnumTraits<ETimestampListKind>::GetDomainSize();
         size_t size =
             sizeof(TDynamicRowHeader) +
             keyColumnCount * sizeof(TDynamicValueData) +
@@ -387,13 +387,19 @@ public:
     TValueList GetFixedValueList(int columnIndex, int keyColumnCount, int columnLockCount) const
     {
         YASSERT(columnIndex >= keyColumnCount);
-        return TValueList(GetLists(keyColumnCount, columnLockCount)[columnIndex - keyColumnCount + ETimestampListKind::GetDomainSize()]);
+        return TValueList(GetLists(keyColumnCount, columnLockCount)[
+            columnIndex -
+            keyColumnCount +
+            TEnumTraits<ETimestampListKind>::GetDomainSize()]);
     }
 
     void SetFixedValueList(int columnIndex, TValueList list, int keyColumnCount, int columnLockCount)
     {
         YASSERT(columnIndex >= keyColumnCount);
-        GetLists(keyColumnCount, columnLockCount)[columnIndex  - keyColumnCount + ETimestampListKind::GetDomainSize()] = list.Header_;
+        GetLists(keyColumnCount, columnLockCount)[
+            columnIndex -
+            keyColumnCount +
+            TEnumTraits<ETimestampListKind>::GetDomainSize()] = list.Header_;
     }
 
 

@@ -440,7 +440,7 @@ private:
             auto* cell = tablet->GetCell();
             auto* protoTablet = response->add_tablets();
             ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());
-            protoTablet->set_state(tablet->GetState());
+            protoTablet->set_state(static_cast<int>(tablet->GetState()));
             ToProto(protoTablet->mutable_pivot_key(), tablet->GetPivotKey());
             if (cell) {
                 auto config = cell->GetConfig()->ToElection(cell->GetId());

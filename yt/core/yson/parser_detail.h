@@ -273,8 +273,6 @@ public:
         ParseListFragment<false>(endSymbol);
     }
     
-    typedef typename TBase::ENumericResult ENumericResult;
-
     template <bool AllowFinish>
     void ReadNumeric()
     {

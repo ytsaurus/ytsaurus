@@ -7,6 +7,7 @@
 #include "mpl.h"
 #include "property.h"
 #include "nullable.h"
+#include "enum.h"
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
@@ -221,7 +222,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EPersistenceDirection,
+DEFINE_ENUM(EPersistenceDirection,
     (Save)
     (Load)
 );
@@ -627,6 +628,39 @@ struct TNullableListSerializer
             typename TList::value_type obj;
             TItemSerializer::Load(context, obj);
             objects->push_back(obj);
+        }
+    }
+};
+
+template <class TItemSerializer = TDefaultSerializer>
+struct TEnumIndexedVectorSerializer
+{
+    template <class T, class E, class C>
+    static void Save(C& context, const TEnumIndexedVector<T, E>& vector)
+    {
+        using NYT::Save;
+        auto keys = TEnumTraits<E>::GetDomainValues();
+        TSizeSerializer::Save(context, keys.size());
+        for (auto key : keys) {
+            Save(context, key);
+            TItemSerializer::Save(context, vector[key]);
+        }
+    }
+
+    template <class T, class E, class C>
+    static void Load(C& context, TEnumIndexedVector<T, E>& vector)
+    {
+        using NYT::Load;
+        std::fill(vector.begin(), vector.end(), T());
+        size_t size = TSizeSerializer::Load(context);
+        for (size_t index = 0; index != size; ++index) {
+            auto key = Load<E>(context);
+            if (key < TEnumTraits<E>::GetMinValue() || key > TEnumTraits<E>::GetMaxValue()) {
+                T dummy;
+                TItemSerializer::Load(context, dummy);
+            } else {
+                TItemSerializer::Load(context, vector[key]);
+            }
         }
     }
 };
@@ -1050,9 +1084,7 @@ template <class T, class C>
 struct TSerializerTraits<
     T,
     C,
-    typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<T&, TEnumBase<T>&>
-    >::TType
+    typename TEnumTraits<T>::TType
 >
 {
     typedef TEnumSerializer TSerializer;
@@ -1145,6 +1177,12 @@ template <class K, class V, class C>
 struct TSerializerTraits<yhash_map<K, V>, C, void>
 {
     typedef TMapSerializer<> TSerializer;
+};
+
+template <class T, class E, class C>
+struct TSerializerTraits<TEnumIndexedVector<T, E>, C, void>
+{
+    typedef TEnumIndexedVectorSerializer<> TSerializer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -42,14 +42,14 @@ TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
     auto req = TMasterYPathProxy::CreateObjects();
     ToProto(req->mutable_transaction_id(), transactionId);
     GenerateMutationId(req);
-    req->set_type(chunkType);
+    req->set_type(static_cast<int>(chunkType));
     req->set_account(options->Account);
 
     auto* reqExt = req->MutableExtension(NChunkClient::NProto::TReqCreateChunkExt::create_chunk_ext);
     reqExt->set_replication_factor(options->ReplicationFactor);
     reqExt->set_movable(config->ChunksMovable);
     reqExt->set_vital(options->ChunksVital);
-    reqExt->set_erasure_codec(options->ErasureCodec);
+    reqExt->set_erasure_codec(static_cast<int>(options->ErasureCodec));
 
     return objectProxy.Execute(req);
 }

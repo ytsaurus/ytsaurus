@@ -233,7 +233,7 @@ private:
         }
 
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
-        chunkSpec->set_erasure_codec(erasureCodecId);
+        chunkSpec->set_erasure_codec(static_cast<int>(erasureCodecId));
 
         chunkSpec->mutable_chunk_meta()->set_type(chunk->ChunkMeta().type());
         chunkSpec->mutable_chunk_meta()->set_version(chunk->ChunkMeta().version());

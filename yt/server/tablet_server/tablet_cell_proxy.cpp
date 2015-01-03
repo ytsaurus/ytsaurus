@@ -95,7 +95,7 @@ private:
                 .DoListFor(cell->Peers(), [&] (TFluentList fluent, const TTabletCell::TPeer& peer) {
                     if (peer.Address) {
                         const auto* slot = peer.Node ? &peer.Node->TabletSlots()[peer.SlotIndex] : nullptr;
-                        auto state = slot ? slot->PeerState : EPeerState(EPeerState::None);
+                        auto state = slot ? slot->PeerState : EPeerState::None;
                         fluent
                             .Item().BeginMap()
                                 .Item("address").Value(*peer.Address)
@@ -109,7 +109,7 @@ private:
                     } else {
                         fluent
                             .Item().BeginMap()
-                                .Item("state").Value(EPeerState(EPeerState::None))
+                                .Item("state").Value(EPeerState::None)
                             .EndMap();
                     }
                 });

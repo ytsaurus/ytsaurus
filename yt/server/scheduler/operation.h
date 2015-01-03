@@ -132,7 +132,7 @@ public:
         bool suspended = false);
 
 private:
-    std::array<TStatistics, 3> Statistics;
+    TEnumIndexedVector<TStatistics, EJobFinalState> Statistics;
     TPromise<TError> StartedPromise;
     TPromise<void> FinishedPromise;
 

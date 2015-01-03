@@ -22,19 +22,19 @@ typedef TVersionedObjectId TVersionedNodeId;
 
 extern const TLockId NullLockId;
 
-DECLARE_ENUM(ELockMode,
+DEFINE_ENUM(ELockMode,
     ((None)      (0))
     ((Snapshot)  (1))
     ((Shared)    (2))
     ((Exclusive) (3))
 );
 
-DECLARE_ENUM(ELockState,
+DEFINE_ENUM(ELockState,
     ((Pending)   (0))
     ((Acquired)  (1))
 );
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((SameTransactionLockConflict)         (400))
     ((DescendantTransactionLockConflict)   (401))
     ((ConcurrentTransactionLockConflict)   (402))

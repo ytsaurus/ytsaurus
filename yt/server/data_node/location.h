@@ -21,7 +21,7 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ELocationType,
+DEFINE_ENUM(ELocationType,
     (Store)
     (Cache)
 );

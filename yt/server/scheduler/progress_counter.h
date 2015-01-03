@@ -49,8 +49,7 @@ private:
     i64 Pending_;
     i64 Failed_;
     i64 Lost_;
-
-    std::vector<i64> Aborted_;
+    TEnumIndexedVector<i64, EAbortReason> Aborted_;
 
 };
 

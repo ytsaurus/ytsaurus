@@ -438,7 +438,6 @@ TCypressManager::TCypressManager(
     : TMasterAutomatonPart(bootstrap)
     , Config(config)
     , NodeMap(TNodeMapTraits(this))
-    , TypeToHandler(MaxObjectType + 1)
     , RootNode(nullptr)
     , AccessTracker(New<TAccessTracker>(config, bootstrap))
     , RecomputeKeyColumns(false)
@@ -498,10 +497,8 @@ void TCypressManager::RegisterHandler(INodeTypeHandlerPtr handler)
     YCHECK(handler);
 
     auto type = handler->GetObjectType();
-    int typeValue = static_cast<int>(type);
-    YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
-    YCHECK(!TypeToHandler[typeValue]);
-    TypeToHandler[typeValue] = handler;
+    YCHECK(!TypeToHandler[type]);
+    TypeToHandler[type] = handler;
 
     auto objectManager = Bootstrap_->GetObjectManager();
     objectManager->RegisterHandler(New<TNodeTypeHandler>(Bootstrap_, type));
@@ -511,12 +508,11 @@ INodeTypeHandlerPtr TCypressManager::FindHandler(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int typeValue = static_cast<int>(type);
-    if (typeValue < 0 || typeValue > MaxObjectType) {
+    if (type < TEnumTraits<EObjectType>::GetMinValue() || type > TEnumTraits<EObjectType>::GetMaxValue()) {
         return nullptr;
     }
 
-    return TypeToHandler[typeValue];
+    return TypeToHandler[type];
 }
 
 INodeTypeHandlerPtr TCypressManager::GetHandler(EObjectType type)

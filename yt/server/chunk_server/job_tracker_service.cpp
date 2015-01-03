@@ -154,7 +154,7 @@ private:
             *jobInfo->mutable_resource_limits() = job->ResourceUsage();
 
             auto* jobSpec = jobInfo->mutable_spec();
-            jobSpec->set_type(job->GetType());
+            jobSpec->set_type(static_cast<int>(job->GetType()));
 
             auto* chunkjobSpecExt = jobSpec->MutableExtension(TChunkJobSpecExt::chunk_job_spec_ext);
             ToProto(chunkjobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkIdWithIndex));
@@ -178,7 +178,7 @@ private:
                     auto* chunk = chunkManager->GetChunk(chunkIdWithIndex.Id);
 
                     auto* repairChunkJobSpecExt = jobSpec->MutableExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext);
-                    repairChunkJobSpecExt->set_erasure_codec(chunk->GetErasureCodec());
+                    repairChunkJobSpecExt->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
                     ToProto(repairChunkJobSpecExt->mutable_erased_indexes(), job->ErasedIndexes());
 
                     NNodeTrackerServer::TNodeDirectoryBuilder builder(repairChunkJobSpecExt->mutable_node_directory());

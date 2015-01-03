@@ -95,6 +95,11 @@ DEFINE_REFCOUNTED_TYPE(TLeaderRecovery)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EPostponedMutationType,
+    (Mutation)
+    (ChangelogRotation)
+);
+
 //! Drives the follower recovery.
 /*!
  *  \note
@@ -127,10 +132,7 @@ public:
 private:
     struct TPostponedMutation
     {
-        DECLARE_ENUM(EType,
-            (Mutation)
-            (ChangelogRotation)
-        );
+        using EType = EPostponedMutationType;
 
         EType Type;
         TSharedRef RecordData;

@@ -12,8 +12,6 @@ using namespace NProto;
 
 struct THorizontalSchemalessBlockWriterTag { };
 
-int THorizontalSchemalessBlockWriter::FormatVersion = ETableChunkFormat::SchemalessHorizontal;
-
 THorizontalSchemalessBlockWriter::THorizontalSchemalessBlockWriter()
     : RowCount_(0)
     , Offsets_(THorizontalSchemalessBlockWriterTag())

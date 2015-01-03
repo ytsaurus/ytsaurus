@@ -73,12 +73,11 @@ void Serialize(const TIntrusivePtr<T>& value, NYson::IYsonConsumer* consumer)
     Serialize(value.Get(), consumer);
 }
 
-// TEnumBase
+// Enums
 template <class T>
-void Serialize(
+typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type Serialize(
     T value,
-    NYson::IYsonConsumer* consumer,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TEnumBase<T>&>, int>::TType)
+    NYson::IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(FormatEnum(value));
 }
@@ -185,12 +184,11 @@ T CheckedStaticCast(S value)
     return static_cast<T>(value);
 }
 
-// TEnumBase
+// Enums
 template <class T>
-void Deserialize(
+typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type Deserialize(
     T& value,
-    INodePtr node,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TEnumBase<T>&>, int>::TType)
+    INodePtr node)
 {
     auto stringValue = node->AsString()->GetValue();
     value = ParseEnum<T>(stringValue);

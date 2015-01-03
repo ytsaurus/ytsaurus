@@ -105,7 +105,7 @@ int WriteValue(char* output, const TUnversionedValue& value)
     char* current = output;
 
     current += WriteVarUint32(current, value.Id);
-    current += WriteVarUint32(current, value.Type);
+    current += WriteVarUint32(current, static_cast<ui16>(value.Type));
 
     switch (value.Type) {
         case EValueType::Null:
@@ -155,7 +155,7 @@ int ReadValue(const char* input, TUnversionedValue* value)
 
     ui32 type;
     current += ReadVarUint32(current, &type);
-    value->Type = static_cast<ui16>(type);
+    value->Type = static_cast<EValueType>(type);
 
     switch (value->Type) {
         case EValueType::Null:
@@ -264,7 +264,7 @@ Stroka ToString(const TUnversionedValue& value)
 int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
     if (UNLIKELY(lhs.Type != rhs.Type)) {
-        return lhs.Type - rhs.Type;
+        return static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
     }
 
     switch (lhs.Type) {
@@ -567,6 +567,9 @@ void ValidateValue(const TUnversionedValue& value)
                 THROW_ERROR_EXCEPTION("Value of type \"double\" is not finite");
             }
             break;
+
+        default:
+            break;
     }
 }
 
@@ -655,8 +658,8 @@ void ValidateClientDataRow(
             THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
                 schema.Columns()[schemaId].Name,
                 schema.Columns()[schemaId].Type,
-                EValueType(EValueType::Null),
-                EValueType(value.Type));
+                EValueType::Null,
+                value.Type);
         }
     }
 
@@ -706,8 +709,8 @@ void ValidateServerDataRow(
                 THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
                     schema.Columns()[id].Name,
                     schema.Columns()[id].Type,
-                    EValueType(EValueType::Null),
-                    EValueType(value.Type));
+                    EValueType::Null,
+                    value.Type);
             }
         }
     }
@@ -746,8 +749,8 @@ void ValidateClientKey(
             THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
                 schema.Columns()[id].Name,
                 schema.Columns()[id].Type,
-                EValueType(EValueType::Null),
-                EValueType(value.Type));
+                EValueType::Null,
+                value.Type);
         }
         keyColumnFlags[id] = true;
     }
@@ -781,8 +784,8 @@ void ValidateServerKey(
             THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
                 schema.Columns()[id].Name,
                 schema.Columns()[id].Type,
-                EValueType(EValueType::Null),
-                EValueType(value.Type));
+                EValueType::Null,
+                value.Type);
         }
     }
 }
@@ -965,7 +968,7 @@ void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& pro
     TUnversionedOwningRowBuilder rowBuilder(protoKey.parts_size());
     for (int id = 0; id < protoKey.parts_size(); ++id) {
         auto& keyPart = protoKey.parts(id);
-        switch (keyPart.type()) {
+        switch (EKeyPartType(keyPart.type())) {
             case EKeyPartType::Null:
                 rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
                 break;

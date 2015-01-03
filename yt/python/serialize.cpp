@@ -167,7 +167,7 @@ void TPythonObjectBuilder::OnEntity()
 void TPythonObjectBuilder::OnBeginList()
 {
     auto obj = AddObject(PyList_New(0), YsonList);
-    Push(Py::Object(obj, true), EObjectType::List);
+    Push(Py::Object(obj, true), EPythonObjectType::List);
 }
 
 void TPythonObjectBuilder::OnListItem()
@@ -182,7 +182,7 @@ void TPythonObjectBuilder::OnEndList()
 void TPythonObjectBuilder::OnBeginMap()
 {
     auto obj = AddObject(PyDict_New(), YsonMap);
-    Push(Py::Object(obj, true), EObjectType::Map);
+    Push(Py::Object(obj, true), EPythonObjectType::Map);
 }
 
 void TPythonObjectBuilder::OnKeyedItem(const TStringBuf& key)
@@ -198,7 +198,7 @@ void TPythonObjectBuilder::OnEndMap()
 void TPythonObjectBuilder::OnBeginAttributes()
 {
     auto obj = Py::Dict();
-    Push(obj, EObjectType::Attributes);
+    Push(obj, EPythonObjectType::Attributes);
 }
 
 void TPythonObjectBuilder::OnEndAttributes()
@@ -241,7 +241,7 @@ PyObject* TPythonObjectBuilder::AddObject(PyObject* obj)
 
     if (ObjectStack_.empty()) {
         Objects_.push(Py::Object(obj));
-    } else if (ObjectStack_.top().second == EObjectType::List) {
+    } else if (ObjectStack_.top().second == EPythonObjectType::List) {
         PyList_Append(ObjectStack_.top().first.ptr(), obj);
     } else {
         auto keyObj = PyString_FromStringAndSize(~Keys_.top(), Keys_.top().size());
@@ -253,7 +253,7 @@ PyObject* TPythonObjectBuilder::AddObject(PyObject* obj)
     return obj;
 }
 
-void TPythonObjectBuilder::Push(const Py::Object& obj, EObjectType objectType)
+void TPythonObjectBuilder::Push(const Py::Object& obj, EPythonObjectType objectType)
 {
     ObjectStack_.emplace(obj, objectType);
 }

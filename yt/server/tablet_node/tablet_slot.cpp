@@ -84,7 +84,7 @@ public:
         , PeerId_(InvalidPeerId)
         , AutomatonQueue_(New<TFairShareActionQueue>(
             Format("TabletSlot:%v", SlotIndex_),
-            EAutomatonThreadQueue::GetDomainNames()))
+            TEnumTraits<EAutomatonThreadQueue>::GetDomainNames()))
         , Logger(TabletNodeLogger)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
@@ -122,7 +122,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return HydraManager_ ? HydraManager_->GetAutomatonState() : EPeerState(EPeerState::None);
+        return HydraManager_ ? HydraManager_->GetAutomatonState() : EPeerState::None;
     }
 
     TPeerId GetPeerId() const
@@ -170,7 +170,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return AutomatonQueue_->GetInvoker(queue);
+        return AutomatonQueue_->GetInvoker(static_cast<int>(queue));
     }
 
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
@@ -178,7 +178,6 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(InvokersSpinLock_);
-        YCHECK(!EpochAutomatonInvokers_.empty());
         return EpochAutomatonInvokers_[queue];
     }
 
@@ -225,12 +224,9 @@ public:
 
         auto random = mutationContext->RandomGenerator().Generate<ui64>();
 
-        int typeValue = static_cast<int>(type);
-        YASSERT(typeValue >= 0 && typeValue <= MaxObjectType);
-
         return TObjectId(
             random ^ CellId_.Parts32[0],
-            (CellId_.Parts32[1] & 0xffff0000) + typeValue,
+            (CellId_.Parts32[1] & 0xffff0000) + static_cast<int>(type),
             version.RecordId,
             version.SegmentId);
     }
@@ -315,10 +311,9 @@ public:
 
             {
                 TGuard<TSpinLock> guard(InvokersSpinLock_);
-                GuardedAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
-                for (auto queue : EAutomatonThreadQueue::GetDomainValues()) {
-                    GuardedAutomatonInvokers_[queue] = HydraManager_->CreateGuardedAutomatonInvoker(
-                        GetAutomatonInvoker(queue));
+                for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
+                    auto unguardedInvoker = GetAutomatonInvoker(queue);
+                    GuardedAutomatonInvokers_[queue] = HydraManager_->CreateGuardedAutomatonInvoker(unguardedInvoker);
                 }
             }
 
@@ -458,8 +453,8 @@ private:
     TFairShareActionQueuePtr AutomatonQueue_;
 
     TSpinLock InvokersSpinLock_;
-    std::vector<IInvokerPtr> EpochAutomatonInvokers_;
-    std::vector<IInvokerPtr> GuardedAutomatonInvokers_;
+    TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
+    TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> GuardedAutomatonInvokers_;
 
     NLog::TLogger Logger;
 
@@ -483,27 +478,20 @@ private:
     void ResetEpochInvokers()
     {
         TGuard<TSpinLock> guard(InvokersSpinLock_);
-        EpochAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
-        for (auto& invoker : EpochAutomatonInvokers_) {
-            invoker = GetNullInvoker();
-        }
+        std::fill(EpochAutomatonInvokers_.begin(), EpochAutomatonInvokers_.end(), GetNullInvoker());
     }
 
     void ResetGuardedInvokers()
     {
         TGuard<TSpinLock> guard(InvokersSpinLock_);
-        GuardedAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
-        for (auto& invoker : GuardedAutomatonInvokers_) {
-            invoker = GetNullInvoker();
-        }
+        std::fill(GuardedAutomatonInvokers_.begin(), GuardedAutomatonInvokers_.end(), GetNullInvoker());
     }
 
 
     void OnStartEpoch()
     {
         TGuard<TSpinLock> guard(InvokersSpinLock_);
-        EpochAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
-        for (auto queue : EAutomatonThreadQueue::GetDomainValues()) {
+        for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
             EpochAutomatonInvokers_[queue] = HydraManager_
                 ->GetAutomatonEpochContext()
                 ->CancelableContext

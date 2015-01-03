@@ -12,7 +12,7 @@ namespace NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETabletCellHealth,
+DEFINE_ENUM(ETabletCellHealth,
     ((Initializing)(0))
     ((Good)        (1))
     ((Degraded)    (2))

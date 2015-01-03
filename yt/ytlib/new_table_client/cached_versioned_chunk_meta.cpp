@@ -76,16 +76,18 @@ TErrorOr<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::DoLoad(
 
 void TCachedVersionedChunkMeta::ValidateChunkMeta()
 {
-    if (ChunkMeta_.type() != EChunkType::Table) {
+    auto type = EChunkType(ChunkMeta_.type());
+    if (type != EChunkType::Table) {
         THROW_ERROR_EXCEPTION("Incorrect chunk type: actual %Qlv, expected %Qlv",
-            EChunkType(ChunkMeta_.type()),
-            EChunkType(EChunkType::Table));
+            type,
+            EChunkType::Table);
     }
 
-    if (ChunkMeta_.version() != ETableChunkFormat::VersionedSimple) {
+    auto formatVersion = ETableChunkFormat(ChunkMeta_.version());
+    if (formatVersion != ETableChunkFormat::VersionedSimple) {
         THROW_ERROR_EXCEPTION("Incorrect chunk format version: actual %Qlv, expected: %Qlv",
-            ETableChunkFormat(ChunkMeta_.version()),
-            ETableChunkFormat(ETableChunkFormat::VersionedSimple));
+            formatVersion,
+            ETableChunkFormat::VersionedSimple);
     }
 }
 

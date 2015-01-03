@@ -151,7 +151,7 @@ private:
     NHydra::TEntityMap<TVersionedNodeId, TCypressNodeBase, TNodeMapTraits> NodeMap;
     NHydra::TEntityMap<TLockId, TLock> LockMap;
 
-    std::vector<INodeTypeHandlerPtr> TypeToHandler;
+    TEnumIndexedVector<INodeTypeHandlerPtr, NObjectClient::EObjectType> TypeToHandler;
 
     TNodeId RootNodeId;
     TCypressNodeBase* RootNode;

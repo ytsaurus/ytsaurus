@@ -84,7 +84,7 @@ int TTabletAutomatonPart::GetCurrentSnapshotVersion()
 }
 
 void TTabletAutomatonPart::RegisterSaver(
-    int priority,
+    ESerializationPriority priority,
     const Stroka& name,
     TCallback<void(TSaveContext&)> saver)
 {

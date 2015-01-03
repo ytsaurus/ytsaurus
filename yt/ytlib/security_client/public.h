@@ -27,13 +27,13 @@ extern const Stroka EveryoneGroupName;
 extern const Stroka UsersGroupName;
 extern const Stroka SuperusersGroupName;
 
-DECLARE_ENUM(ESecurityAction,
+DEFINE_ENUM(ESecurityAction,
     ((Undefined)(0))  // Intermediate state, used internally.
     ((Allow)    (1))  // Let'em go!
     ((Deny)     (2))  // No way!
 );
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((AuthenticationError)     (900))
     ((AuthorizationError)      (901))
     ((AccountLimitExceeded)    (902))

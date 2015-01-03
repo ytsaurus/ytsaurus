@@ -152,9 +152,10 @@ void TMultiChunkSequentialWriterBase::CreateNextSession()
         auto req = TMasterYPathProxy::CreateObjects();
         ToProto(req->mutable_transaction_id(), TransactionId_);
 
-        req->set_type(Options_->ErasureCodec == ECodec::None
+        auto type = Options_->ErasureCodec == ECodec::None
             ? EObjectType::Chunk
-            : EObjectType::ErasureChunk);
+            : EObjectType::ErasureChunk;
+        req->set_type(static_cast<int>(type));
 
         req->set_account(Options_->Account);
         GenerateMutationId(req);
@@ -165,7 +166,7 @@ void TMultiChunkSequentialWriterBase::CreateNextSession()
         reqExt->set_movable(Config_->ChunksMovable);
         reqExt->set_replication_factor(Options_->ReplicationFactor);
         reqExt->set_vital(Options_->ChunksVital);
-        reqExt->set_erasure_codec(Options_->ErasureCodec);
+        reqExt->set_erasure_codec(static_cast<int>(Options_->ErasureCodec));
 
         auto rsp = WaitFor(objectProxy.Execute(req));
 

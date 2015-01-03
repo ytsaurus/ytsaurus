@@ -26,6 +26,14 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_BIT_ENUM(EJobUnregisterFlags,
+    ((None)                  (0x0000))
+    ((UnregisterFromChunk)   (0x0001))
+    ((UnregisterFromNode)    (0x0002))
+    ((ScheduleChunkRefresh)  (0x0004))
+    ((All)                   (0xffff))
+);
+
 class TChunkReplicator
     : public TRefCounted
 {
@@ -190,13 +198,6 @@ private:
 
     void RegisterJob(TJobPtr job);
 
-    DECLARE_FLAGGED_ENUM(EJobUnregisterFlags,
-        ((None)                  (0x0000))
-        ((UnregisterFromChunk)   (0x0001))
-        ((UnregisterFromNode)    (0x0002))
-        ((ScheduleChunkRefresh)  (0x0004))
-        ((All)                   (0xffff))
-    );
     void UnregisterJob(TJobPtr job, EJobUnregisterFlags flags = EJobUnregisterFlags::All);
 
     void AddToChunkRepairQueue(TChunk* chunk);

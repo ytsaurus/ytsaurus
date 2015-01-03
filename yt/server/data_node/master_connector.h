@@ -21,6 +21,17 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EMasterConnectorState,
+    // Not registered.
+    (Offline)
+    // Register request is in progress.
+    (Registering)
+    // Registered but did not report the full heartbeat yet.
+    (Registered)
+    // Registered and reported the full heartbeat.
+    (Online)
+);
+
 //! Mediates connection between a node and its master.
 /*!
  *  This class is responsible for registering the node and sending
@@ -58,22 +69,13 @@ public:
     void RegisterAlert(const Stroka& alert);
 
 private:
+    using EState = EMasterConnectorState;
+
     TDataNodeConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
 
     bool Started_;
     IInvokerPtr ControlInvoker_;
-
-    DECLARE_ENUM(EState,
-        // Not registered.
-        (Offline)
-        // Register request is in progress.
-        (Registering)
-        // Registered but did not report the full heartbeat yet.
-        (Registered)
-        // Registered and reported the full heartbeat.
-        (Online)
-    );
 
     //! Guards the current heartbeat session.
     TCancelableContextPtr HeartbeatContext_;

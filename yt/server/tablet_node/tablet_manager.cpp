@@ -244,7 +244,7 @@ public:
             TReqExecuteWrite hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
             ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
-            hydraRequest.set_codec(ChangelogCodec_->GetId());
+            hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
             hydraRequest.set_compressed_data(ToString(compressedRequestData));
             CreateMutation(Slot_->GetHydraManager(), hydraRequest)
                 ->SetAction(BIND(&TImpl::HydraLeaderExecuteWrite, MakeStrong(this), prelockedCountDelta))
@@ -1220,7 +1220,7 @@ private:
 
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
-        request.set_state(ETabletState::Flushing);
+        request.set_state(static_cast<int>(ETabletState::Flushing));
         CommitTabletMutation(request);
     }
 
@@ -1239,7 +1239,7 @@ private:
 
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
-        request.set_state(ETabletState::Unmounted);
+        request.set_state(static_cast<int>(ETabletState::Unmounted));
         CommitTabletMutation(request);
     }
 
