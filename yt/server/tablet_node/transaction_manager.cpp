@@ -47,7 +47,7 @@ public:
 public:
     TImpl(
         TTransactionManagerConfigPtr config,
-        TTabletSlot* slot,
+        TTabletSlotPtr slot,
         NCellNode::TBootstrap* bootstrap)
         : TTabletAutomatonPart(
             slot,
@@ -445,7 +445,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager::TImpl, Transaction, TTransactio
 
 TTransactionManager::TTransactionManager(
     TTransactionManagerConfigPtr config,
-    TTabletSlot* slot,
+    TTabletSlotPtr slot,
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         config,

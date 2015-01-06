@@ -80,7 +80,7 @@ TTablet::TTablet(
     TTableMountConfigPtr config,
     TTabletWriterOptionsPtr writerOptions,
     const TTabletId& id,
-    TTabletSlot* slot,
+    TTabletSlotPtr slot,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
     TOwningKey pivotKey,

@@ -59,7 +59,7 @@ class TTablet
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TTabletId, Id);
-    DEFINE_BYVAL_RO_PROPERTY(TTabletSlot*, Slot);
+    DEFINE_BYVAL_RO_PROPERTY(TTabletSlotPtr, Slot);
 
     DEFINE_BYVAL_RW_PROPERTY(TTabletSnapshotPtr, Snapshot);
 
@@ -82,7 +82,7 @@ public:
         TTableMountConfigPtr config,
         TTabletWriterOptionsPtr writerOptions,
         const TTabletId& id,
-        TTabletSlot* slot,
+        TTabletSlotPtr slot,
         const NVersionedTableClient::TTableSchema& schema,
         const NVersionedTableClient::TKeyColumns& keyColumns,
         TOwningKey pivotKey,

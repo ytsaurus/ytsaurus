@@ -39,7 +39,7 @@ public:
 public:
     TTransactionManager(
         TTransactionManagerConfigPtr config,
-        TTabletSlot* slot,
+        TTabletSlotPtr slot,
         NCellNode::TBootstrap* bootstrap);
 
     ~TTransactionManager();

@@ -41,11 +41,11 @@ TUnversionedRowBuilder* TLoadContext::GetRowBuilder() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletAutomaton::TTabletAutomaton(TTabletSlot* slot)
+TTabletAutomaton::TTabletAutomaton(TTabletSlotPtr slot)
 {
     Logger.AddTag("CellId: %v", slot->GetCellId());
 
-    LoadContext_.SetSlot(slot);
+    LoadContext_.SetSlot(slot.Get());
 }
 
 TSaveContext& TTabletAutomaton::SaveContext()
@@ -61,7 +61,7 @@ TLoadContext& TTabletAutomaton::LoadContext()
 ////////////////////////////////////////////////////////////////////////////////
 
 TTabletAutomatonPart::TTabletAutomatonPart(
-    TTabletSlot* slot,
+    TTabletSlotPtr slot,
     TBootstrap* bootstrap)
     : TCompositeAutomatonPart(
         slot->GetHydraManager(),

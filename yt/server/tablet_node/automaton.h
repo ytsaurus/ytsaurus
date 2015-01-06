@@ -46,7 +46,7 @@ class TTabletAutomaton
     : public NHydra::TCompositeAutomaton
 {
 public:
-    explicit TTabletAutomaton(TTabletSlot* slot);
+    explicit TTabletAutomaton(TTabletSlotPtr slot);
 
     virtual TSaveContext& SaveContext() override;
     virtual TLoadContext& LoadContext() override;
@@ -65,12 +65,12 @@ class TTabletAutomatonPart
     : public NHydra::TCompositeAutomatonPart
 {
 protected:
-    TTabletSlot* Slot_;
+    TTabletSlotPtr Slot_;
     NCellNode::TBootstrap* Bootstrap_;
 
 
     explicit TTabletAutomatonPart(
-        TTabletSlot* slot,
+        TTabletSlotPtr slot,
         NCellNode::TBootstrap* bootstrap);
 
     virtual bool ValidateSnapshotVersion(int version) override;

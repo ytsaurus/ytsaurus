@@ -23,13 +23,13 @@ struct IHydraManager
     /*!
      *  \note Thread affinity: ControlThread
      */
-    virtual void Start() = 0;
+    virtual void Initialize() = 0;
 
     //! Deactivates the instance.
     /*!
      *  \note Thread affinity: ControlThread
      */
-    virtual void Stop() = 0;
+    virtual void Finalize() = 0;
 
     //! Returns the state as seen in the control thread.
     /*!

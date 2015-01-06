@@ -44,7 +44,7 @@ class TTabletService
 {
 public:
     TTabletService(
-        TTabletSlot* slot,
+        TTabletSlotPtr slot,
         NCellNode::TBootstrap* bootstrap)
         : THydraServiceBase(
             slot->GetHydraManager(),
@@ -66,7 +66,7 @@ public:
     }
 
 private:
-    TTabletSlot* Slot_;
+    TTabletSlotPtr Slot_;
     NCellNode::TBootstrap* Bootstrap_;
 
 
@@ -162,7 +162,7 @@ private:
 
 };
 
-IServicePtr CreateTabletService(TTabletSlot* slot, NCellNode::TBootstrap* bootstrap)
+IServicePtr CreateTabletService(TTabletSlotPtr slot, NCellNode::TBootstrap* bootstrap)
 {
     return New<TTabletService>(slot, bootstrap);
 }
