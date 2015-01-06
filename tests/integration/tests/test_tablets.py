@@ -39,10 +39,10 @@ class TestTablets(YTEnvSetup):
         return leader_peer["address"]
  
     def _find_tablet_orchid(self, address, tablet_id):
-        slots = get("//sys/nodes/" + address + "/orchid/tablet_slots")
-        for slot in slots:
-            if slot["state"] == "leading":
-                tablets = slot["tablets"]
+        cells = get("//sys/nodes/" + address + "/orchid/tablet_cells", ignore_opaque=True)
+        for (cell_id, cell_data) in cells.iteritems():
+            if cell_data["state"] == "leading":
+                tablets = cell_data["tablets"]
                 if tablet_id in tablets:
                     return tablets[tablet_id]
         return None
