@@ -447,11 +447,12 @@ private:
                 protoTablet->set_cell_config_version(cell->GetConfigVersion());
                 protoTablet->set_cell_config(ConvertToYsonString(config).Data());
                 for (const auto& peer : cell->Peers()) {
-                    if (peer.Node) {
-                        const auto& slot = peer.Node->TabletSlots()[peer.SlotIndex];
-                        if (slot.PeerState == EPeerState::Leading) {
-                            builder.Add(peer.Node);
-                            protoTablet->add_replica_node_ids(peer.Node->GetId());
+                    auto* node = peer.Node;
+                    if (node) {
+                        const auto* slot = node->GetTabletSlot(cell);
+                        if (slot->PeerState == EPeerState::Leading) {
+                            builder.Add(node);
+                            protoTablet->add_replica_node_ids(node->GetId());
                         }
                     }
                 }

@@ -33,7 +33,6 @@ public:
     {
         TNullable<Stroka> Address;
         NNodeTrackerServer::TNode* Node = nullptr;
-        int SlotIndex = -1;
         TInstant LastSeenTime;
 
         void Persist(NCellMaster::TPersistenceContext& context);
