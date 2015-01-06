@@ -17,8 +17,14 @@ TFuture<void> MakeDelayed(TDuration delay)
 {
     auto promise = NewPromise<void>();
     NConcurrency::TDelayedExecutor::Submit(
-        BIND([=] () mutable { promise.Set(); }),
+        BIND([=] () mutable {
+            promise.Set();
+        }),
         delay);
+    promise.OnCanceled(
+        BIND([=] () mutable {
+            promise.TrySet(TError(NYT::EErrorCode::Canceled, "Delayed promise canceled"));
+        }));
     return promise;
 }
 
