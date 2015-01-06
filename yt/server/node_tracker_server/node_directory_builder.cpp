@@ -15,7 +15,7 @@ TNodeDirectoryBuilder::TNodeDirectoryBuilder(TNodeDirectory* protoDirectory)
     : ProtoDirectory(protoDirectory)
 { }
 
-void TNodeDirectoryBuilder::Add(TNode* node)
+void TNodeDirectoryBuilder::Add(const TNode* node)
 {
     if (!ListedNodeIds.insert(node->GetId()).second)
         return;
