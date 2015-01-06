@@ -14,6 +14,8 @@
 
 #include <util/random/random.h>
 
+#include <array>
+
 namespace NYT {
 namespace NChunkServer {
 
