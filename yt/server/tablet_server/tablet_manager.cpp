@@ -924,7 +924,7 @@ private:
             }
 
             auto prerequisiteTransactionId = FromProto<TTransactionId>(slotInfo.prerequisite_transaction_id());
-            if (prerequisiteTransactionId != cell->GetPrerequisiteTransaction()->GetId())  {
+            if (cell->GetPrerequisiteTransaction() && prerequisiteTransactionId != cell->GetPrerequisiteTransaction()->GetId())  {
                 LOG_INFO_UNLESS(IsRecovery(), "Invalid prerequisite transaction id for tablet cell: %v instead of %v (Address: %v, CellId: %v)",
                     prerequisiteTransactionId,
                     cell->GetPrerequisiteTransaction()->GetId(),
