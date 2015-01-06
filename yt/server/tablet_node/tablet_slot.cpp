@@ -421,6 +421,9 @@ public:
     void BuildOrchidYson(IYsonConsumer* consumer)
     {
         BuildYsonFluently(consumer)
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
             .BeginMap()
                 .Do(BIND(&TImpl::BuildOrchidYsonControl, Unretained(this)))
                 .Do(BIND(&TImpl::BuildOrchidYsonAutomaton, Unretained(this)))
