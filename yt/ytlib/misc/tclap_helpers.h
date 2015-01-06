@@ -76,7 +76,7 @@ typename std::enable_if<NYT::TEnumTraits<E>::IsEnum, std::istringstream&>::type
 operator >> (std::istringstream& input, E& value)
 {
     auto str = ReadAll(input);
-    value = NYT::TEnumTraits<E>::FromString(str);
+    value = NYT::ParseEnum<E>(str);
     return input;
 }
 
