@@ -85,7 +85,7 @@ namespace NYT {
             TType value; \
             if (!FindValueByLiteral(str, &value)) { \
                 throw std::runtime_error(Sprintf("Error parsing %s value %s", \
-                    PP_STRINGIZE(TType), \
+                    PP_STRINGIZE(name), \
                     ~Stroka(str).Quote())); \
             } \
             return value; \
