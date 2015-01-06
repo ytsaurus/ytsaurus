@@ -145,7 +145,6 @@ inline void TParallelAwaiter::Cancel()
         return;
 
     CancelableContext_->Cancel();
-    CompletedPromise_.Reset();
     Canceled_ = true;
     Terminated_ = true;
 }
