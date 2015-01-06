@@ -272,7 +272,7 @@ public:
                 Bootstrap_->GetTabletChannelFactory(),
                 configureInfo.peer_id());
 
-            Automaton_ = New<TTabletAutomaton>(Bootstrap_, Owner_);
+            Automaton_ = New<TTabletAutomaton>(Owner_);
 
             auto rpcServer = Bootstrap_->GetRpcServer();
 
