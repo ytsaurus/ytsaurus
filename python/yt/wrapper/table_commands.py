@@ -161,9 +161,11 @@ def _prepare_formats(format, input_format, output_format, binary):
 
     return input_format, output_format
 
-def _prepare_format(format):
+def _prepare_format(format, raw):
     if format is None:
         format = config.format.TABULAR_DATA_FORMAT
+    if not raw and format is None:
+        format = YsonFormat()
     if isinstance(format, str):
         format = create_format(format)
 
@@ -426,7 +428,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
     Writing is executed under self-pinged transaction.
     """
     table = to_table(table, client=client)
-    format = _prepare_format(format)
+    format = _prepare_format(format, raw)
 
     params = {}
     params["input_format"] = format.json()
@@ -504,7 +506,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
         logger.info("Option response_type is deprecated and ignored")
 
     table = to_table(table, client=client)
-    format = _prepare_format(format)
+    format = _prepare_format(format, raw)
     if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name, client=client):
         return EMPTY_GENERATOR
 
@@ -813,7 +815,7 @@ def select(query, timestamp=None, format=None, response_type=None, raw=True, cli
     if response_type is not None:
         logger.info("Option response_type is deprecated and ignored")
 
-    format = _prepare_format(format)
+    format = _prepare_format(format, raw)
     params = {
         "query": query,
         "output_format": format.json()}
