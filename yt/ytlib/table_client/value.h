@@ -2,7 +2,7 @@
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 #include <core/misc/ref.h>
 #include <core/misc/nullable.h>
 

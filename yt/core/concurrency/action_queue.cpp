@@ -51,14 +51,14 @@ public:
         bool enableProfiling)
         : Queue_(New<TInvokerQueue>(
             &EventCount_,
-            GetThreadTagIds(threadName),
+            enableProfiling ? GetThreadTagIds(threadName) : NProfiling::EmptyTagIds,
             enableLogging,
             enableProfiling))
         , Thread_(New<TSingleQueueSchedulerThread>(
             Queue_,
             &EventCount_,
             threadName,
-            GetThreadTagIds(threadName),
+            enableProfiling ? GetThreadTagIds(threadName) : NProfiling::EmptyTagIds,
             enableLogging,
             enableProfiling))
     {

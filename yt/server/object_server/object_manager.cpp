@@ -121,7 +121,7 @@ public:
             .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
                 if (!result.IsOK()) {
                     // Reply with commit error.
-                    context->Reply(TError(result));
+                    context->Reply(result);
                 }
             }));
     }
@@ -976,8 +976,10 @@ void TObjectManager::ExecuteMutatingRequest(
     if (mutationId != NullMutationId) {
         auto responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
         asyncResponseMessage
-            .Subscribe(BIND([=] (const TSharedRefArray& message) {
-                responseKeeper->EndRequest(mutationId, message);
+            .Subscribe(BIND([=] (const TErrorOr<TSharedRefArray>& messageOrError) {
+                if (messageOrError.IsOK()) {
+                    responseKeeper->EndRequest(mutationId, messageOrError.Value());
+                }
             }));
     }
 }

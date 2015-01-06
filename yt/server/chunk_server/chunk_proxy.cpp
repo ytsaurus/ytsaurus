@@ -398,18 +398,15 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TAsyncError GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer) override
+    virtual TFuture<void> GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer) override
     {
         auto* chunk = GetThisTypedImpl();
         if (chunk->IsJournal() && key == "quorum_row_count") {
             auto chunkManager = Bootstrap->GetChunkManager();
             auto rowCountResult = chunkManager->GetChunkQuorumInfo(chunk);
-            return rowCountResult.Apply(BIND([=] (const TErrorOr<TMiscExt>& result) -> TError {
-                if (result.IsOK()) {
-                    BuildYsonFluently(consumer)
-                        .Value(result.Value().row_count());
-                }
-                return TError(result);
+            return rowCountResult.Apply(BIND([=] (const TMiscExt& miscExt) {
+                BuildYsonFluently(consumer)
+                    .Value(miscExt.row_count());
             }));
         }
         return TBase::GetBuiltinAttributeAsync(key, consumer);

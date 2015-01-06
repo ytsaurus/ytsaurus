@@ -81,11 +81,11 @@ class TLazySchemafulReader
     : public ISchemafulReader
 {
 public:
-    explicit TLazySchemafulReader(TFuture<TErrorOr<ISchemafulReaderPtr>> futureUnderlyingReader)
+    explicit TLazySchemafulReader(TFuture<ISchemafulReaderPtr> futureUnderlyingReader)
         : FutureUnderlyingReader_(std::move(futureUnderlyingReader))
     { }
 
-    virtual TAsyncError Open(const TTableSchema& schema) override
+    virtual TFuture<void> Open(const TTableSchema& schema) override
     {
         return FutureUnderlyingReader_.Apply(
             BIND(&TLazySchemafulReader::DoOpen, MakeStrong(this), schema));
@@ -97,19 +97,19 @@ public:
         return UnderlyingReader_->Read(rows);
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
         YASSERT(UnderlyingReader_);
         return UnderlyingReader_->GetReadyEvent();
     }
 
 private:
-    TFuture<TErrorOr<ISchemafulReaderPtr>> FutureUnderlyingReader_;
+    TFuture<ISchemafulReaderPtr> FutureUnderlyingReader_;
 
     ISchemafulReaderPtr UnderlyingReader_;
 
 
-    TAsyncError DoOpen(const TTableSchema& schema, TErrorOr<ISchemafulReaderPtr> readerOrError)
+    TFuture<void> DoOpen(const TTableSchema& schema, const TErrorOr<ISchemafulReaderPtr>& readerOrError)
     {
         if (!readerOrError.IsOK()) {
             return MakeFuture(TError(readerOrError));
@@ -138,12 +138,11 @@ public:
     { }
 
     // IExecutor implementation.
-    virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
+    virtual TFuture<TQueryStatistics> Execute(
         const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer) override
     {
         return BIND(&TQueryExecutor::DoExecute, MakeStrong(this))
-            .Guarded()
             .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
             .Run(fragment, std::move(writer));
     }
@@ -194,7 +193,6 @@ private:
                 auto pipe = New<TSchemafulPipe>();
 
                 auto statistics = BIND(&TEvaluator::Run, Evaluator_)
-                    .Guarded()
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
                     .Run(subquery, mergingReader, pipe->GetWriter());
 
@@ -207,9 +205,8 @@ private:
                 return std::make_pair(pipe->GetReader(), statistics);
             }, [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 auto asyncQueryStatisticsOrError = BIND(&TEvaluator::Run, Evaluator_)
-                        .Guarded()
-                        .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
-                        .Run(topQuery, std::move(reader), std::move(writer));
+                    .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
+                    .Run(topQuery, std::move(reader), std::move(writer));
 
                 return WaitFor(asyncQueryStatisticsOrError).ValueOrThrow();
             }, false);
@@ -396,7 +393,6 @@ private:
         TNodeDirectoryPtr nodeDirectory)
     {
         auto futureReader = BIND(&TQueryExecutor::GetChunkReaderControl, MakeStrong(this))
-            .Guarded()
             .AsyncVia(Bootstrap_->GetControlInvoker())
             .Run(split, std::move(nodeDirectory));
         return New<TLazySchemafulReader>(std::move(futureReader));

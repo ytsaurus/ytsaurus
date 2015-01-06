@@ -3,7 +3,9 @@
 #include "public.h"
 
 #include <core/misc/property.h>
-#include <core/misc/error.h>
+#include <core/misc/nullable.h>
+
+#include <core/actions/callback.h>
 
 #include <ytlib/job_tracker_client/job.pb.h>
 
@@ -19,6 +21,7 @@ typedef TCallback<void(NJobTrackerClient::NProto::TJobSpec* jobSpec)> TJobSpecBu
 class TJob
     : public TRefCounted
 {
+public:
     DEFINE_BYVAL_RO_PROPERTY(TJobId, Id);
 
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);

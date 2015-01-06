@@ -60,7 +60,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     Logger = SchedulerLogger;
 }
 
-TAsyncError TSnapshotBuilder::Run()
+TFuture<void> TSnapshotBuilder::Run()
 {
     LOG_INFO("Snapshot builder started");
 
@@ -122,19 +122,13 @@ void TSnapshotBuilder::Build(const TJob& job)
     }
 }
 
-TError TSnapshotBuilder::OnBuilt(TError error)
+void TSnapshotBuilder::OnBuilt()
 {
-    if (!error.IsOK()) {
-        return error;
-    }
-
     for (const auto& job : Jobs) {
         UploadSnapshot(job);
     }
 
     LOG_INFO("Snapshot builder finished");
-
-    return TError();
 }
 
 void TSnapshotBuilder::UploadSnapshot(const TJob& job)

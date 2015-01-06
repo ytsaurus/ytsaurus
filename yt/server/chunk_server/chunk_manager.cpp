@@ -847,10 +847,10 @@ public:
             info.compressed_data_size());
     }
 
-    TFuture<TErrorOr<TMiscExt>> GetChunkQuorumInfo(TChunk* chunk)
+    TFuture<TMiscExt> GetChunkQuorumInfo(TChunk* chunk)
     {
         if (chunk->IsSealed()) {
-            return MakeFuture<TErrorOr<TMiscExt>>(chunk->MiscExt());
+            return MakeFuture(chunk->MiscExt());
         }
 
         std::vector<NNodeTrackerClient::TNodeDescriptor> replicas;
@@ -1813,7 +1813,7 @@ void TChunkManager::SealChunk(TChunk* chunk, const TMiscExt& info)
     Impl_->SealChunk(chunk, info);
 }
 
-TFuture<TErrorOr<TMiscExt>> TChunkManager::GetChunkQuorumInfo(TChunk* chunk)
+TFuture<TMiscExt> TChunkManager::GetChunkQuorumInfo(TChunk* chunk)
 {
     return Impl_->GetChunkQuorumInfo(chunk);
 }

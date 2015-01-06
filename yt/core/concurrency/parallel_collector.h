@@ -3,7 +3,7 @@
 #include "public.h"
 #include "parallel_awaiter.h"
 
-#include <core/misc/error.h>
+#include <core/actions/future.h>
 
 #include <atomic>
 
@@ -20,28 +20,25 @@ class TParallelCollector
     : public TRefCounted
 {
 public:
-    typedef typename TParallelCollectorStorage<T>::TResultOrError TResultOrError;
-    typedef typename TParallelCollectorStorage<T>::TResultsOrError TResultsOrError;
     typedef typename TParallelCollectorStorage<T>::TResults TResults;
 
     TParallelCollector();
 
-    void Collect(TFuture<TResultOrError> future);
+    void Collect(TFuture<T> future);
 
-    TFuture<TResultsOrError> Complete();
+    TFuture<TResults> Complete();
 
 private:
     typedef TParallelCollector<T> TThis;
 
     TParallelAwaiterPtr Awaiter_;
-    TPromise<TResultsOrError> Promise_;
+    TPromise<TResults> Promise_;
     std::atomic<bool> Completed_;
     std::atomic<int> CurrentIndex_;
-    TParallelCollectorStorage<T> Results_;
+    TParallelCollectorStorage<T> Storage_;
 
-    void OnResult(int index, TResultOrError result);
-    void OnCompleted();
-    void OnCanceled();
+    void OnResult(int index, const TErrorOr<T>& result);
+    void OnCompleted(const TError& error);
 
     bool TryLockCompleted();
 

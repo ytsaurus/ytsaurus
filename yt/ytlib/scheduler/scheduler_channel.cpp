@@ -33,23 +33,19 @@ public:
         , MasterChannel_(std::move(masterChannel))
     { }
 
-    virtual NYTree::TYsonString GetEndpointDescription() const override
+    virtual TYsonString GetEndpointDescription() const override
     {
         return ConvertToYsonString(Stroka("<scheduler>"));
     }
 
-    virtual TFuture<TErrorOr<IChannelPtr>> DiscoverChannel(IClientRequestPtr request) override
+    virtual TFuture<IChannelPtr> DiscoverChannel(IClientRequestPtr request) override
     {
         TObjectServiceProxy proxy(MasterChannel_);
         auto req = TYPathProxy::Get("//sys/scheduler/@address");
         auto this_ = MakeStrong(this);
         return proxy
             .Execute(req)
-            .Apply(BIND([this, this_] (TYPathProxy::TRspGetPtr rsp) -> TErrorOr<IChannelPtr> {
-                if (!rsp->IsOK()) {
-                    return rsp->GetError();
-                }
-
+            .Apply(BIND([this, this_] (TYPathProxy::TRspGetPtr rsp) -> IChannelPtr {
                 auto address = ConvertTo<Stroka>(TYsonString(rsp->value()));
                 return ChannelFactory_->CreateChannel(address);
             }));

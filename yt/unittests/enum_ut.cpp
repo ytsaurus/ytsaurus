@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 #include <core/misc/enum.h>
 #include <core/misc/serialize.h>
 

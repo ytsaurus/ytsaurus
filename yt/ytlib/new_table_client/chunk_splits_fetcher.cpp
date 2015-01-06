@@ -49,7 +49,7 @@ TChunkSplitsFetcher::TChunkSplitsFetcher(
     YCHECK(ChunkSliceSize_ > 0);
 }
 
-TAsyncError TChunkSplitsFetcher::Fetch()
+TFuture<void> TChunkSplitsFetcher::Fetch()
 {
     LOG_DEBUG("Started fetching chunk splits (ChunkCount: %v)",
         Chunks_.size());
@@ -107,9 +107,9 @@ void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
     if (req->chunk_specs_size() == 0)
         return;
 
-    auto rsp = WaitFor(req->Invoke());
+    auto rspOrError = WaitFor(req->Invoke());
 
-    if (!rsp->IsOK()) {
+    if (!rspOrError.IsOK()) {
         LOG_WARNING("Failed to get chunk splits from node (Address: %v, NodeId: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
             nodeId);
@@ -118,6 +118,7 @@ void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
         return;
     }
 
+    const auto& rsp = rspOrError.Value();
     for (int i = 0; i < requestedChunkIndexes.size(); ++i) {
         const auto& responseChunks = rsp->splitted_chunks(i);
         if (responseChunks.has_error()) {

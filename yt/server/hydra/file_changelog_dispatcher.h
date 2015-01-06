@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/actions/public.h>
+
 namespace NYT {
 namespace NHydra {
 

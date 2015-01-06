@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
+#include <core/actions/future.h>
 
 #include <ytlib/chunk_client/public.h>
 
@@ -13,13 +13,13 @@ namespace NJournalClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAsyncError AbortSessionsQuorum(
+TFuture<void> AbortSessionsQuorum(
     const NChunkClient::TChunkId& chunkId,
     const std::vector<NNodeTrackerClient::TNodeDescriptor>& replicas,
     TDuration timeout,
     int quorum);
 
-TFuture<TErrorOr<NChunkClient::NProto::TMiscExt>> ComputeQuorumInfo(
+TFuture<NChunkClient::NProto::TMiscExt> ComputeQuorumInfo(
     const NChunkClient::TChunkId& chunkId,
     const std::vector<NNodeTrackerClient::TNodeDescriptor>& replicas,
     TDuration timeout,

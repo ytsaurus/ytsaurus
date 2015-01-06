@@ -101,14 +101,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WaitFor(
-    TFuture<void> future,
-    IInvokerPtr invoker = GetCurrentInvoker());
+template <class T>
+TErrorOr<T> WaitFor(TFuture<T> future);
 
 template <class T>
-T WaitFor(
-    TFuture<T> future,
-    IInvokerPtr invoker = GetCurrentInvoker());
+TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

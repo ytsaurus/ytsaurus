@@ -556,17 +556,14 @@ private:
             auto onProgress = BIND(&TChunkRepairJob::SetProgress, MakeWeak(this))
                 .Via(GetCurrentInvoker());
 
-            auto asyncError = RepairErasedParts(
+            auto result = RepairErasedParts(
                 codec,
                 erasedIndexes,
                 readers,
                 writers,
                 onProgress);
 
-            // Make sure the repair is canceled when the current fiber terminates.
-            TFutureCancelationGuard<TError> repairErrorGuard(asyncError);
-
-            auto repairError = WaitFor(asyncError);
+            auto repairError = WaitFor(result);
             THROW_ERROR_EXCEPTION_IF_FAILED(repairError, "Error repairing chunk %v",
                 ChunkId_);
         }

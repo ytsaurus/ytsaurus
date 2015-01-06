@@ -20,12 +20,12 @@ TEST(TNonblockingQueueTest, DequeueFirst)
     queue.Enqueue(1);
 
     EXPECT_TRUE(result1.IsSet());
-    EXPECT_EQ(1, result1.Get());
+    EXPECT_EQ(1, result1.Get().Value());
 
     queue.Enqueue(2);
 
     EXPECT_TRUE(result2.IsSet());
-    EXPECT_EQ(2, result2.Get());
+    EXPECT_EQ(2, result2.Get().Value());
 }
 
 TEST(TNonblockingQueueTest, EnqueueFirst)
@@ -36,11 +36,11 @@ TEST(TNonblockingQueueTest, EnqueueFirst)
 
     auto result1 = queue.Dequeue();
     EXPECT_TRUE(result1.IsSet());
-    EXPECT_EQ(1, result1.Get());
+    EXPECT_EQ(1, result1.Get().Value());
 
     auto result2 = queue.Dequeue();
     EXPECT_TRUE(result2.IsSet());
-    EXPECT_EQ(2, result2.Get());
+    EXPECT_EQ(2, result2.Get().Value());
 }
 
 TEST(TNonblockingQueueTest, Mixed)
@@ -50,14 +50,14 @@ TEST(TNonblockingQueueTest, Mixed)
 
     auto result1 = queue.Dequeue();
     EXPECT_TRUE(result1.IsSet());
-    EXPECT_EQ(1, result1.Get());
+    EXPECT_EQ(1, result1.Get().Value());
 
     auto result2 = queue.Dequeue();
     EXPECT_FALSE(result2.IsSet());
 
     queue.Enqueue(2);
     EXPECT_TRUE(result2.IsSet());
-    EXPECT_EQ(2, result2.Get());
+    EXPECT_EQ(2, result2.Get().Value());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

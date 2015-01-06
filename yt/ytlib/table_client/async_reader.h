@@ -13,7 +13,7 @@ struct IAsyncReader
     virtual void Open() = 0;
 
     virtual bool FetchNextItem() = 0;
-    virtual TAsyncError GetReadyEvent() = 0;
+    virtual TFuture<void> GetReadyEvent() = 0;
 
     virtual bool IsValid() const = 0;
     virtual const TRow& GetRow() const = 0;

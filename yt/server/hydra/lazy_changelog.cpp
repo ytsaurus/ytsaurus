@@ -16,11 +16,11 @@ class TLazyChangelog
     : public IChangelog
 {
 public:
-    explicit TLazyChangelog(TFuture<TErrorOr<IChangelogPtr>> futureChangelogOrError)
-        : FutureChangelogOrError_(futureChangelogOrError)
-        , BacklogAppendPromise_(NewPromise<TError>())
+    explicit TLazyChangelog(TFuture<IChangelogPtr> futureChangelog)
+        : FutureChangelog_(futureChangelog)
+        , BacklogAppendPromise_(NewPromise<void>())
     {
-        FutureChangelogOrError_.Subscribe(
+        FutureChangelog_.Subscribe(
             BIND(&TLazyChangelog::OnUnderlyingChangelogReady, MakeWeak(this)));
     }
 
@@ -53,7 +53,7 @@ public:
             : false;
     }
 
-    virtual TAsyncError Append(const TSharedRef& data) override
+    virtual TFuture<void> Append(const TSharedRef& data) override
     {
         TGuard<TSpinLock> guard(SpinLock_);
         if (!UnderlyingError_.IsOK()) {
@@ -68,13 +68,10 @@ public:
         }
     }
 
-    virtual TAsyncError Flush() override
+    virtual TFuture<void> Flush() override
     {
-        return FutureChangelogOrError_.Apply(BIND([=] (const TErrorOr<IChangelogPtr>& changelogOrError ) -> TAsyncError {
-            if (!changelogOrError.IsOK()) {
-                return MakeFuture<TError>(TError(changelogOrError));
-            }
-            return changelogOrError.Value()->Flush();
+        return FutureChangelog_.Apply(BIND([=] (IChangelogPtr changelog) -> TFuture<void> {
+            return changelog->Flush();
         }));
     }
 
@@ -105,38 +102,32 @@ public:
         }
     }
 
-    virtual TAsyncError Seal(int recordCount) override
+    virtual TFuture<void> Seal(int recordCount) override
     {
-        return FutureChangelogOrError_.Apply(BIND([=] (const TErrorOr<IChangelogPtr>& changelogOrError) -> TAsyncError {
+        return FutureChangelog_.Apply(BIND([=] (const TErrorOr<IChangelogPtr>& changelogOrError) -> TFuture<void> {
             if (!changelogOrError.IsOK()) {
-                return MakeFuture<TError>(TError(changelogOrError));
+                return MakeFuture<void>(TError(changelogOrError));
             }
             return changelogOrError.Value()->Seal(recordCount);
         }));
     }
 
-    virtual TAsyncError Unseal() override
+    virtual TFuture<void> Unseal() override
     {
-        return FutureChangelogOrError_.Apply(BIND([=] (const TErrorOr<IChangelogPtr> changelogOrError) -> TAsyncError {
-            if (!changelogOrError.IsOK()) {
-                return MakeFuture<TError>(TError(changelogOrError));
-            }
-            return changelogOrError.Value()->Unseal();
+        return FutureChangelog_.Apply(BIND([=] (IChangelogPtr changelog) -> TFuture<void> {
+            return changelog->Unseal();
         }));
     }
 
-    virtual TAsyncError Close() override
+    virtual TFuture<void> Close() override
     {
-        return FutureChangelogOrError_.Apply(BIND([=] (const TErrorOr<IChangelogPtr> changelogOrError) -> TAsyncError {
-            if (!changelogOrError.IsOK()) {
-                return MakeFuture<TError>(TError(changelogOrError));
-            }
-            return changelogOrError.Value()->Close();
+        return FutureChangelog_.Apply(BIND([=] (IChangelogPtr changelog) -> TFuture<void> {
+            return changelog->Close();
         }));
     }
 
 private:
-    TFuture<TErrorOr<IChangelogPtr>> FutureChangelogOrError_;
+    TFuture<IChangelogPtr> FutureChangelog_;
 
     TSpinLock SpinLock_;
 
@@ -154,7 +145,7 @@ private:
 
     //! Fulfilled when the records collected while the underlying changelog
     //! was opening are flushed.
-    TAsyncErrorPromise BacklogAppendPromise_;
+    TPromise<void> BacklogAppendPromise_;
 
 
     void OnUnderlyingChangelogReady(TErrorOr<IChangelogPtr> changelogOrError)
@@ -172,7 +163,7 @@ private:
         YCHECK(!UnderlyingChangelog_);
         UnderlyingChangelog_ = changelogOrError.Value();
         
-        TAsyncError lastBacklogAppendResult;
+        TFuture<void> lastBacklogAppendResult;
         for (const auto& record : BacklogRecords_) {
             lastBacklogAppendResult = UnderlyingChangelog_->Append(record);
         }
@@ -191,16 +182,16 @@ private:
 
     IChangelogPtr GetUnderlyingChangelog() const
     {
-        auto changelogOrError = WaitFor(FutureChangelogOrError_);
+        auto changelogOrError = WaitFor(FutureChangelog_);
         THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
         return changelogOrError.Value();
     }
 
 };
 
-IChangelogPtr CreateLazyChangelog(TFuture<TErrorOr<IChangelogPtr>> futureChangelogOrError)
+IChangelogPtr CreateLazyChangelog(TFuture<IChangelogPtr> futureChangelog)
 {
-    return New<TLazyChangelog>(futureChangelogOrError);
+    return New<TLazyChangelog>(futureChangelog);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

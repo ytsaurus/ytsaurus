@@ -210,12 +210,11 @@ public:
             NObjectClient::TObjectServiceProxy proxy(DriverInstance_->GetConnection()->GetMasterChannel());
             proxy.SetDefaultTimeout(Null); // infinity
             auto req = proxy.GCCollect();
-            auto rsp = req->Invoke().Get();
-            if (!rsp->IsOK()) {
-                return ConvertTo<Py::Object>(TError(*rsp));
-            }
-        } catch (const std::exception& error) {
-            throw CreateYtError(error.what());
+            req->Invoke().Get().ValueOrThrow();
+        } catch (const TErrorException& ex) {
+            return ConvertTo<Py::Object>(ex.Error());
+        } catch (const std::exception& ex) {
+            throw CreateYtError(ex.what());
         }
         return Py::None();
     }
@@ -237,17 +236,14 @@ public:
             auto req = proxy.BuildSnapshot();
             req->set_set_read_only(setReadOnly);
 
-            auto rsp = req->Invoke().Get();
-            if (!rsp->IsOK()) {
-                return ConvertTo<Py::Object>(TError(*rsp));
-            }
-
+            auto rsp = req->Invoke().Get().ValueOrThrow();
             int snapshotId = rsp->snapshot_id();
             printf("Snapshot %d is built\n", snapshotId);
-        } catch (const std::exception& error) {
-            throw CreateYtError(error.what());
+        } catch (const TErrorException& ex) {
+            return ConvertTo<Py::Object>(ex.Error());
+        } catch (const std::exception& ex) {
+            throw CreateYtError(ex.what());
         }
-
         return Py::None();
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, BuildSnapshot)

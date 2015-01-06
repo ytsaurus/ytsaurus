@@ -114,18 +114,19 @@ void TChunkListPool::AllocateMore()
     RequestInProgress = true;
 }
 
-void TChunkListPool::OnChunkListsCreated(TMasterYPathProxy::TRspCreateObjectsPtr rsp)
+void TChunkListPool::OnChunkListsCreated(const TMasterYPathProxy::TErrorOrRspCreateObjectsPtr& rspOrError)
 {
     YCHECK(RequestInProgress);
     RequestInProgress = false;
 
-    if (!rsp->IsOK()) {
-        LOG_ERROR(*rsp, "Error allocating chunk lists");
+    if (!rspOrError.IsOK()) {
+        LOG_ERROR(rspOrError, "Error allocating chunk lists");
         return;
     }
 
     LOG_INFO("Chunk lists allocated");
 
+    const auto& rsp = rspOrError.Value();
     for (const auto& id : rsp->object_ids()) {
         Ids.push_back(FromProto<TChunkListId>(id));
     }
@@ -133,9 +134,9 @@ void TChunkListPool::OnChunkListsCreated(TMasterYPathProxy::TRspCreateObjectsPtr
     LastSuccessCount = rsp->object_ids_size();
 }
 
-void TChunkListPool::OnChunkListsReleased(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+void TChunkListPool::OnChunkListsReleased(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
 {
-    auto error = batchRsp->GetCumulativeError();
+    auto error = GetCumulativeError(batchRspOrError);
     if (!error.IsOK()) {
         LOG_WARNING(error, "Error releasing chunk lists");
     }

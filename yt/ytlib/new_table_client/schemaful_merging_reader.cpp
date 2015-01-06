@@ -22,12 +22,12 @@ public:
         }
     }
 
-    virtual TAsyncError Open(const TTableSchema& schema) override
+    virtual TFuture<void> Open(const TTableSchema& schema) override
     {
         for (auto& session : Sessions_) {
             session.ReadyEvent = session.Reader->Open(schema);
         }
-        return OKFuture;
+        return VoidFuture;
     }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
@@ -72,7 +72,7 @@ public:
             return false;
         }
 
-        auto readyEvent = NewPromise<TError>();
+        auto readyEvent = NewPromise<void>();
         for (auto& session : Sessions_) {
             if (session.ReadyEvent) {
                 readyEvent.TrySetFrom(session.ReadyEvent);
@@ -83,7 +83,7 @@ public:
         return true;
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
         return ReadyEvent_;
     }
@@ -92,12 +92,12 @@ private:
     struct TSession
     {
         ISchemafulReaderPtr Reader;
-        TAsyncError ReadyEvent;
+        TFuture<void> ReadyEvent;
         bool Exhausted = false;
     };
 
     std::vector<TSession> Sessions_;
-    TAsyncError ReadyEvent_;
+    TFuture<void> ReadyEvent_;
 
 };
 

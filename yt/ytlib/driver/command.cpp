@@ -26,7 +26,7 @@ void TCommandBase::Reply(const TError& error)
     YCHECK(!Replied_);
     YCHECK(!error.IsOK());
 
-    Context_->Response() = TDriverResponse(error);
+    Context_->Reply(error);
     Replied_ = true;
 }
 
@@ -34,7 +34,7 @@ void TCommandBase::Reply()
 {
     YCHECK(!Replied_);
 
-    Context_->Response() = TDriverResponse(TError());
+    Context_->Reply(TError());
     Replied_ = true;
 }
 
@@ -45,7 +45,7 @@ void TCommandBase::Reply(const TYsonString& yson)
     auto consumer = Context_->CreateOutputConsumer();
     Consume(yson, consumer.get());
 
-    Context_->Response() = TDriverResponse(TError());
+    Context_->Reply(TError());
     Replied_ = true;
 }
 

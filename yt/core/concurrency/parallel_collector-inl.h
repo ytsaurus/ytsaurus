@@ -15,19 +15,17 @@ class TParallelCollectorStorage
 {
 public:
     typedef std::vector<T> TResults;
-    typedef TErrorOr<T> TResultOrError;
-    typedef TErrorOr<TResults> TResultsOrError;
 
     void Store(int index, const TErrorOr<T>& valueOrError)
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        if (static_cast<int>(Values_.size()) <= index) {
+        if (Values_.size() <= index) {
             Values_.resize(index + 1);
         }
-        Values_[index] = std::move(valueOrError.Value());
+        Values_[index] = valueOrError.Value();
     }
 
-    void SetPromise(TPromise<TResultsOrError> promise)
+    void SetPromise(TPromise<TResults>& promise)
     {
         promise.Set(std::move(Values_));
     }
@@ -45,13 +43,11 @@ class TParallelCollectorStorage<void>
 {
 public:
     typedef void TResults;
-    typedef TError TResultOrError;
-    typedef TError TResultsOrError;
 
     void Store(int /*index*/, const TErrorOr<void>& /*valueOrError*/)
     { }
 
-    void SetPromise(TPromise<TResultsOrError> promise)
+    void SetPromise(TPromise<TResults>& promise)
     {
         promise.Set(TError());
     }
@@ -62,15 +58,13 @@ public:
 template <class T>
 TParallelCollector<T>::TParallelCollector()
     : Awaiter_(New<TParallelAwaiter>(GetSyncInvoker()))
-    , Promise_(NewPromise<TResultsOrError>())
+    , Promise_(NewPromise<TResults>())
+    , Completed_(false)
     , CurrentIndex_(0)
-{
-    // XXX(babenko): VS2013 compat
-    Completed_ = false;
-}
+{ }
 
 template <class T>
-void TParallelCollector<T>::Collect(TFuture<TResultOrError> future)
+void TParallelCollector<T>::Collect(TFuture<T> future)
 {
     int index = CurrentIndex_++;
     Awaiter_->Await(
@@ -79,19 +73,18 @@ void TParallelCollector<T>::Collect(TFuture<TResultOrError> future)
 }
 
 template <class T>
-TFuture<typename TParallelCollector<T>::TResultsOrError> TParallelCollector<T>::Complete()
+auto TParallelCollector<T>::Complete() -> TFuture<TResults>
 {
     auto awaiterFuture = Awaiter_->Complete();
     awaiterFuture.Subscribe(BIND(&TThis::OnCompleted, MakeStrong(this)));
-    awaiterFuture.OnCanceled(BIND(&TThis::OnCanceled, MakeStrong(this)));
     return Promise_;
 }
 
 template <class T>
-void TParallelCollector<T>::OnResult(int index, TResultOrError result)
+void TParallelCollector<T>::OnResult(int index, const TErrorOr<T>& result)
 {
     if (result.IsOK()) {
-        Results_.Store(index, result);
+        Storage_.Store(index, result);
     } else {
         if (TryLockCompleted()) {
             // NB: Do not replace TError(result) with result unless you understand
@@ -102,17 +95,15 @@ void TParallelCollector<T>::OnResult(int index, TResultOrError result)
 }
 
 template <class T>
-void TParallelCollector<T>::OnCompleted()
+void TParallelCollector<T>::OnCompleted(const TError& error)
 {
     if (TryLockCompleted()) {
-        Results_.SetPromise(Promise_);
+        if (error.IsOK()) {
+            Storage_.SetPromise(Promise_);
+        } else {
+            Promise_.Set(error);
+        }
     }
-}
-
-template <class T>
-void TParallelCollector<T>::OnCanceled()
-{
-    Promise_.Cancel();
 }
 
 template <class T>

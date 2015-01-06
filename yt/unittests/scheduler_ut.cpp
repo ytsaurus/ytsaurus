@@ -2,7 +2,7 @@
 #include "framework.h"
 #include "probe.h"
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 #include <core/misc/lazy_ptr.h>
 
 #include <core/concurrency/scheduler.h>
@@ -54,10 +54,10 @@ protected:
 TEST_W(TSchedulerTest, SimpleAsync)
 {
     auto asyncA = DelayedIdentity(3);
-    int a = WaitFor(asyncA);
+    int a = WaitFor(asyncA).ValueOrThrow();
 
     auto asyncB = DelayedIdentity(4);
-    int b = WaitFor(asyncB);
+    int b = WaitFor(asyncB).ValueOrThrow();
 
     EXPECT_EQ(7, a + b);
 }
@@ -147,7 +147,7 @@ TEST_W(TSchedulerTest, WaitForCancelableInvoker1)
 {
     auto context = New<TCancelableContext>();
     auto invoker = context->CreateInvoker(Queue1->GetInvoker());
-    auto promise = NewPromise();
+    auto promise = NewPromise<void>();
     auto future = promise.ToFuture();
     TDelayedExecutor::Submit(
         BIND([=] () mutable {
@@ -156,25 +156,25 @@ TEST_W(TSchedulerTest, WaitForCancelableInvoker1)
         }),
         TDuration::MilliSeconds(100));
     WaitFor(BIND([=] () {
-            EXPECT_THROW({ WaitFor(future); }, TFiberCanceledException);
+            EXPECT_THROW({ WaitFor(future).ThrowOnError(); }, TFiberCanceledException);
         })
         .AsyncVia(invoker)
-        .Run());
+        .Run()).ThrowOnError();
 }
 
 TEST_W(TSchedulerTest, WaitForCancelableInvoker2)
 {
     auto context = New<TCancelableContext>();
     auto invoker = context->CreateInvoker(Queue1->GetInvoker());
-    auto promise = NewPromise();
+    auto promise = NewPromise<void>();
     auto future = promise.ToFuture();
     WaitFor(BIND([=] () mutable {
             context->Cancel();
             promise.Set();
-            EXPECT_THROW({ WaitFor(future); }, TFiberCanceledException);
+            EXPECT_THROW({ WaitFor(future).ThrowOnError(); }, TFiberCanceledException);
         })
         .AsyncVia(invoker)
-        .Run());
+        .Run()).ThrowOnError();
 }
 
 TEST_W(TSchedulerTest, TerminatedCaught)
@@ -287,10 +287,9 @@ TEST_W(TSchedulerTest, WaitForAsyncVia)
 {
     auto invoker = Queue1->GetInvoker();
 
-    auto x = BIND([&] () {
-    }).AsyncVia(invoker).Run();
+    auto x = BIND([&] () { }).AsyncVia(invoker).Run();
 
-    WaitFor(x);
+    WaitFor(x).ThrowOnError();
 }
 
 // Various invokers.
@@ -300,9 +299,9 @@ TEST_F(TSchedulerTest, WaitForInSerializedInvoker)
     auto invoker = CreateSerializedInvoker(Queue1->GetInvoker());
     BIND([&] () {
         for (int i = 0; i < 10; ++i) {
-            WaitFor(MakeDelayed(TDuration::MilliSeconds(10)));
+            WaitFor(MakeDelayed(TDuration::MilliSeconds(10))).ThrowOnError();
         }
-    }).AsyncVia(invoker).Run().Get();
+    }).AsyncVia(invoker).Run().Get().ThrowOnError();
 }
 
 TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker1)
@@ -310,9 +309,9 @@ TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker1)
     auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 1);
     BIND([&] () {
         for (int i = 0; i < 10; ++i) {
-            WaitFor(MakeDelayed(TDuration::MilliSeconds(10)));
+            WaitFor(MakeDelayed(TDuration::MilliSeconds(10))).ThrowOnError();
         }
-    }).AsyncVia(invoker).Run().Get();
+    }).AsyncVia(invoker).Run().Get().ThrowOnError();
 }
 
 TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker2)
@@ -320,6 +319,7 @@ TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker2)
     auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 2);
 
     auto promise = NewPromise<void>();
+    auto future = promise.ToFuture();
 
     auto a1 = BIND([&] () {
         promise.Set();
@@ -327,10 +327,10 @@ TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker2)
 
     auto a2 = BIND([&] () {
         invoker->Invoke(a1);
-        WaitFor(promise);
+        WaitFor(future).ThrowOnError();
     });
 
-    a2.AsyncVia(invoker).Run().Get();
+    a2.AsyncVia(invoker).Run().Get().ThrowOnError();
 }
 
 TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker3)
@@ -338,12 +338,13 @@ TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker3)
     auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 1);
 
     auto promise = NewPromise<void>();
+    auto future = promise.ToFuture();
 
     bool a1called = false;
     bool a1finished = false;
     auto a1 = BIND([&] () {
         a1called = true;
-        WaitFor(promise);
+        WaitFor(future).ThrowOnError();
         a1finished = true;
     });
 
@@ -368,34 +369,24 @@ TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker3)
     EXPECT_TRUE(a2called);
 }
 
-TEST_F(TSchedulerTest, ShouldUnwindFiberOnFutureCancellation)
+TEST_F(TSchedulerTest, PropagateFiberCancelationToFuture)
 {
-    auto promise = NewPromise<void>();
-    auto future = promise.ToFuture();
+    auto p1 = NewPromise<void>();
+    auto f1 = p1.ToFuture();
 
-    TProbeState state;
-
-    auto a1 = BIND([=, &state] () {
-        TProbe probe(&state);
-        WaitFor(future);
-        probe.Tackle(); // Should not be called.
+    auto a = BIND([=] () mutable {
+        WaitFor(f1);
     });
 
-    Queue1->GetInvoker()->Invoke(std::move(a1));
+    auto f2 = a.AsyncVia(Queue1->GetInvoker()).Run();
 
     Sleep(TDuration::MilliSeconds(10));
 
-    EXPECT_EQ(1, state.Constructors);
-    EXPECT_EQ(0, state.Destructors);
-    EXPECT_EQ(0, state.Tackles);
-
-    future.Cancel();
+    f2.Cancel();
 
     Sleep(TDuration::MilliSeconds(10));
 
-    EXPECT_EQ(1, state.Constructors);
-    EXPECT_EQ(1, state.Destructors);
-    EXPECT_EQ(0, state.Tackles);
+    EXPECT_TRUE(f1.IsCanceled());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

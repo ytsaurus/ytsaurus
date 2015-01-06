@@ -21,6 +21,7 @@ namespace NDataNode {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NTableClient;
 using namespace NDataNode;
 using namespace NCellNode;
@@ -43,7 +44,7 @@ public:
         , Chunk_(chunk)
     { }
 
-    virtual TAsyncReadBlocksResult ReadBlocks(const std::vector<int>& blockIndexes) override
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
     {
         NTracing::TTraceSpanGuard guard(
             // XXX(sandello): Disable tracing due to excessive output.
@@ -54,13 +55,13 @@ public:
             ->Run(blockIndexes);
     }
 
-    virtual TAsyncReadBlocksResult ReadBlocks(int firstBlockIndex, int blockCount) override
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override
     {
         // TODO(babenko): implement when first needed
         YUNIMPLEMENTED();
     }
 
-    virtual TAsyncGetMetaResult GetMeta(
+    virtual TFuture<TChunkMeta> GetMeta(
         const TNullable<int>& partitionTag,
         const std::vector<int>* extensionTags) override
     {
@@ -94,11 +95,11 @@ private:
     public:
         TReadSession(TLocalChunkReaderPtr owner, NTracing::TTraceSpanGuard guard)
             : Owner_(owner)
-            , Promise_(NewPromise<TErrorOr<std::vector<TSharedRef>>>())
+            , Promise_(NewPromise<std::vector<TSharedRef>>())
             , TraceSpanGuard_(std::move(guard))
         { }
 
-        TAsyncReadBlocksResult Run(const std::vector<int>& blockIndexes)
+        TFuture<std::vector<TSharedRef>> Run(const std::vector<int>& blockIndexes)
         {
             Blocks_.resize(blockIndexes.size());
 
@@ -134,28 +135,29 @@ private:
 
     private:
         TLocalChunkReaderPtr Owner_;
-        TPromise<TErrorOr<std::vector<TSharedRef>>> Promise_;
+        TPromise<std::vector<TSharedRef>> Promise_;
 
         NTracing::TTraceSpanGuard TraceSpanGuard_;
 
         std::vector<TSharedRef> Blocks_;
 
 
-        void OnBlockFound(int index, int blockIndex, TBlockStore::TGetBlockResult result)
+        void OnBlockFound(int index, int blockIndex, const TErrorOr<TSharedRef>& blockOrError)
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            if (!result.IsOK()) {
+            if (!blockOrError.IsOK()) {
                 Promise_.TrySet(TError(
                     NDataNode::EErrorCode::LocalChunkReaderFailed,
                     "Error reading local chunk block %v:%v",
                     Owner_->Chunk_->GetId(),
                     blockIndex)
-                    << result);
+                    << blockOrError);
                 return;
             }
 
-            if (!result.Value()) {
+            const auto& block = blockOrError.Value();
+            if (!block) {
                 Promise_.TrySet(TError(
                     NDataNode::EErrorCode::LocalChunkReaderFailed,
                     "Local chunk block %v:%v is not available",
@@ -164,7 +166,7 @@ private:
                 return;
             }
 
-            Blocks_[index] = result.Value();
+            Blocks_[index] = block;
         }
 
         void OnCompleted()
@@ -177,19 +179,14 @@ private:
 
     };
 
-    static TGetMetaResult OnGotChunkMeta(
+    static TChunkMeta OnGotChunkMeta(
         const TNullable<int>& partitionTag,
         NTracing::TTraceSpanGuard /*guard*/,
-        IChunk::TGetMetaResult result)
+        TRefCountedChunkMetaPtr meta)
     {
-        if (!result.IsOK()) {
-            return TError(result);
-        }
-
-        const auto& chunkMeta = *result.Value();
         return partitionTag
-            ? TGetMetaResult(FilterChunkMetaByPartitionTag(chunkMeta, *partitionTag))
-            : TGetMetaResult(chunkMeta);
+            ? FilterChunkMetaByPartitionTag(*meta, *partitionTag)
+            : TChunkMeta(*meta);
     }
 
 };

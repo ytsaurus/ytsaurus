@@ -85,7 +85,7 @@ void TrackedVia(TClosure closure)
     .Via(invoker)
     .Run();
 
-    auto strongFiber = promise.Get();
+    auto strongFiber = promise.Get().ValueOrThrow();
     auto weakFiber = MakeWeak(strongFiber);
 
     promise.Reset();

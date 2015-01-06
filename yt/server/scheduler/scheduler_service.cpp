@@ -98,13 +98,9 @@ private:
         scheduler->ValidateConnected();
 
         auto operation = scheduler->GetOperationOrThrow(operationId);
-        scheduler
-            ->AbortOperation(
-                operation,
-                TError("Operation aborted by user request"))
-            .Subscribe(BIND([=] () {
-                context->Reply();
-            }));
+        context->ReplyFrom(scheduler->AbortOperation(
+            operation,
+            TError("Operation aborted by user request")));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, SuspendOperation)

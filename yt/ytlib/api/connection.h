@@ -4,6 +4,8 @@
 
 #include <core/rpc/public.h>
 
+#include <core/actions/callback.h>
+
 #include <ytlib/chunk_client/public.h>
 
 #include <ytlib/transaction_client/public.h>

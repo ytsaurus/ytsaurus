@@ -37,19 +37,15 @@ TOperation::TOperation(
     , StderrCount_(0)
     , MaxStderrCount_(0)
     , CleanStart_(false)
-    , StartedPromise(NewPromise<TError>())
-    , FinishedPromise(NewPromise())
+    , StartedPromise(NewPromise<void>())
+    , FinishedPromise(NewPromise<void>())
 { }
 
-TFuture<TOperationStartResult> TOperation::GetStarted()
+TFuture<TOperationPtr> TOperation::GetStarted()
 {
     auto this_ = MakeStrong(this);
-    return StartedPromise.ToFuture().Apply(BIND([this_] (const TError& error) -> TOperationStartResult {
-        if (error.IsOK()) {
-            return TOperationStartResult(this_);
-        } else {
-            return error;
-        }
+    return StartedPromise.ToFuture().Apply(BIND([this_] () -> TOperationPtr {
+        return this_;
     }));
 }
 

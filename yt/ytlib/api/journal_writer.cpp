@@ -83,17 +83,17 @@ public:
         Impl_->Cancel();
     }
 
-    virtual TAsyncError Open() override
+    virtual TFuture<void> Open() override
     {
         return Impl_->Open();
     }
 
-    virtual TAsyncError Write(const std::vector<TSharedRef>& rows) override
+    virtual TFuture<void> Write(const std::vector<TSharedRef>& rows) override
     {
         return Impl_->Write(rows);
     }
 
-    virtual TAsyncError Close() override
+    virtual TFuture<void> Close() override
     {
         return Impl_->Close();
     }
@@ -137,12 +137,12 @@ private:
             }
         }
 
-        TAsyncError Open()
+        TFuture<void> Open()
         {
             return OpenedPromise_;
         }
 
-        TAsyncError Write(const std::vector<TSharedRef>& rows)
+        TFuture<void> Write(const std::vector<TSharedRef>& rows)
         {
             TGuard<TSpinLock> guard(CurrentBatchSpinLock_);
 
@@ -164,7 +164,7 @@ private:
             return batch->FlushedPromise;
         }
 
-        TAsyncError Close()
+        TFuture<void> Close()
         {
             EnqueueCommand(TCloseCommand());
             return ClosedPromise_;
@@ -192,7 +192,7 @@ private:
             i64 FirstRowIndex = -1;
             i64 DataSize = 0;
             std::vector<TSharedRef> Rows;
-            TAsyncErrorPromise FlushedPromise = NewPromise<TError>();
+            TPromise<void> FlushedPromise = NewPromise<void>();
             int FlushedReplicas = 0;
         };
 
@@ -203,10 +203,10 @@ private:
         TBatchPtr CurrentBatch_;
         TDelayedExecutorCookie CurrentBatchFlushCookie_;
 
-        TAsyncErrorPromise OpenedPromise_ = NewPromise<TError>();
+        TPromise<void> OpenedPromise_ = NewPromise<void>();
 
         bool Closing_ = false;
-        TAsyncErrorPromise ClosedPromise_ = NewPromise<TError>();
+        TPromise<void> ClosedPromise_ = NewPromise<void>();
 
         TTransactionPtr Transaction_;
         TTransactionPtr UploadTransaction_;
@@ -293,7 +293,7 @@ private:
         
         TCommand DequeueCommand()
         {
-            return WaitFor(CommandQueue_.Dequeue());
+            return WaitFor(CommandQueue_.Dequeue()).ValueOrThrow();
         }
 
 
@@ -372,12 +372,14 @@ private:
                 batchReq->AddRequest(req, "prepare_for_update");
             }
 
-            auto batchRsp = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error opening journal");
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error opening journal");
+            const auto& batchRsp = batchRspOrError.Value();
 
             {
-                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting journal attributes");
+                auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting journal attributes");
+                const auto& rsp = rspOrError.Value();
 
                 auto node = ConvertToNode(TYsonString(rsp->value()));
                 const auto& attributes = node->Attributes();
@@ -397,8 +399,10 @@ private:
             }
 
             {
-                auto rsp = batchRsp->GetResponse<TJournalYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing journal for update");
+                auto rspOrError = batchRsp->GetResponse<TJournalYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error preparing journal for update");
+                const auto& rsp = rspOrError.Value();
+
                 ChunkListId_ = FromProto<TChunkListId>(rsp->chunk_list_id());
             }
 
@@ -438,8 +442,10 @@ private:
                 reqExt->set_vital(true);
                 reqExt->set_erasure_codec(static_cast<int>(NErasure::ECodec::None));
 
-                auto rsp = WaitFor(ObjectProxy_.Execute(req));
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error creating chunk");
+                auto rspOrError = WaitFor(ObjectProxy_.Execute(req));
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error creating chunk");
+                const auto& rsp = rspOrError.Value();
+
                 CurrentSession_->ChunkId = FromProto<TChunkId>(rsp->object_ids(0));
             }
 
@@ -458,8 +464,9 @@ private:
                 }
                 req->set_target_count(ReplicationFactor_);
 
-                auto rsp = WaitFor(req->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error allocating write targets");
+                auto rspOrError = WaitFor(req->Invoke());
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error allocating write targets");
+                const auto& rsp = rspOrError.Value();
 
                 NodeDirectory_->MergeFrom(rsp->node_directory());
 
@@ -533,8 +540,8 @@ private:
                     batchReq->AddRequest(req, "attach");
                 }
 
-                auto batchRsp = WaitFor(batchReq->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError(), "Error attaching chunk");
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error attaching chunk");
             }
             LOG_INFO("Chunk attached");
         
@@ -665,8 +672,9 @@ private:
                 info->set_row_count(session->FlushedRowCount);
                 info->set_uncompressed_data_size(session->FlushedDataSize);
                 info->set_compressed_data_size(session->FlushedDataSize);
-                auto rsp = WaitFor(ObjectProxy_.Execute(req));
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error sealing chunk %v",
+
+                auto rspOrError = WaitFor(ObjectProxy_.Execute(req));
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error sealing chunk %v",
                     session->ChunkId);
             }
             LOG_INFO("Chunk sealed");
@@ -678,7 +686,11 @@ private:
             try {
                 GuardedActorMain();
             } catch (const std::exception& ex) {
-                PumpFailed(ex);
+                try {
+                    PumpFailed(ex);
+                } catch (const std::exception& ex) {
+                    LOG_ERROR(ex, "Error pumping journal writer command queue");
+                }
             }
         }
 
@@ -801,13 +813,13 @@ private:
                     .Via(GetCurrentInvoker()));
         }
 
-        void OnPingSent(TChunkSessionPtr session, TNodePtr node, TDataNodeServiceProxy::TRspPingSessionPtr rsp)
+        void OnPingSent(TChunkSessionPtr session, TNodePtr node, const TDataNodeServiceProxy::TErrorOrRspPingSessionPtr& rspOrError)
         {
             if (session != CurrentSession_)
                 return;
 
-            if (!rsp->IsOK()) {
-                OnReplicaFailed(rsp->GetError(), node, session);
+            if (!rspOrError.IsOK()) {
+                OnReplicaFailed(rspOrError, node, session);
                 return;
             }
 
@@ -817,28 +829,27 @@ private:
         }
 
 
-        TError OnChunkStarted(TNodePtr node, TDataNodeServiceProxy::TRspStartChunkPtr rsp)
+        void OnChunkStarted(TNodePtr node, const TDataNodeServiceProxy::TErrorOrRspStartChunkPtr& rspOrError)
         {
-            if (rsp->IsOK()) {
+            if (rspOrError.IsOK()) {
                 LOG_DEBUG("Chunk session started (Address: %v)",
                     node->Descriptor.GetDefaultAddress());
-                return TError();
             } else {
                 BanNode(node->Descriptor.GetDefaultAddress());
-                return TError("Error starting session at %v",
+                THROW_ERROR_EXCEPTION("Error starting session at %v",
                     node->Descriptor.GetDefaultAddress())
-                    << *rsp;
+                    << rspOrError;
             }
         }
 
-        void OnChunkFinished(TNodePtr node, TDataNodeServiceProxy::TRspFinishChunkPtr rsp)
+        void OnChunkFinished(TNodePtr node, const TDataNodeServiceProxy::TErrorOrRspFinishChunkPtr& rspOrError)
         {
-            if (rsp->IsOK()) {
+            if (rspOrError.IsOK()) {
                 LOG_DEBUG("Chunk session finished (Address: %v)",
                     node->Descriptor.GetDefaultAddress());
             } else {
                 BanNode(node->Descriptor.GetDefaultAddress());
-                LOG_WARNING(*rsp, "Chunk session has failed to finish (Address: %v)",
+                LOG_WARNING(rspOrError, "Chunk session has failed to finish (Address: %v)",
                     node->Descriptor.GetDefaultAddress());
             }
         }
@@ -890,13 +901,13 @@ private:
             TChunkSessionPtr session,
             TNodePtr node,
             i64 flushRowCount,
-            TDataNodeServiceProxy::TRspPutBlocksPtr rsp)
+            const TDataNodeServiceProxy::TErrorOrRspPutBlocksPtr& rspOrError)
         {
             if (session != CurrentSession_)
                 return;
 
-            if (!rsp->IsOK()) {
-                OnReplicaFailed(rsp->GetError(), node, session);
+            if (!rspOrError.IsOK()) {
+                OnReplicaFailed(rspOrError, node, session);
                 return;
             }
 

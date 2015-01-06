@@ -44,7 +44,7 @@ void TDiskHealthChecker::Start()
     PeriodicExecutor_->Start();
 }
 
-TAsyncError TDiskHealthChecker::RunCheck()
+TFuture<void> TDiskHealthChecker::RunCheck()
 {
     return BIND(&TDiskHealthChecker::DoRunCheck, MakeStrong(this))
         .AsyncVia(CheckInvoker_)
@@ -57,7 +57,7 @@ void TDiskHealthChecker::OnCheck()
     RunCheck().Subscribe(BIND(&TDiskHealthChecker::OnCheckCompleted, MakeWeak(this)));;
 }
 
-void TDiskHealthChecker::OnCheckCompleted(TError error)
+void TDiskHealthChecker::OnCheckCompleted(const TError& error)
 {
     if (error.IsOK()) {
         PeriodicExecutor_->ScheduleNext();
@@ -74,14 +74,14 @@ void TDiskHealthChecker::OnCheckCompleted(TError error)
     Failed_.Fire(actualError);
 }
 
-TError TDiskHealthChecker::DoRunCheck()
+void TDiskHealthChecker::DoRunCheck()
 {
     LOG_DEBUG("Disk health check started");
 
     auto lockFileName = NFS::CombinePaths(Path_, DisabledLockFileName);
     if (NFS::Exists(lockFileName)) {
-        LOG_INFO("Lock file found");
-        return TError("Location is disabled by lock file");
+        LOG_INFO("Lock file found at %v", Path_);
+        THROW_ERROR_EXCEPTION("Location is disabled by lock file");
     }
 
     std::vector<ui8> writeData(Config_->TestSize);
@@ -118,12 +118,10 @@ TError TDiskHealthChecker::DoRunCheck()
         auto wrappedError = TError("Disk health check failed at %v", Path_)
             << ex;
         LOG_ERROR(wrappedError);
-        return wrappedError;
+        THROW_ERROR(wrappedError);
     }
 
     LOG_DEBUG("Disk health check finished");
-
-    return TError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

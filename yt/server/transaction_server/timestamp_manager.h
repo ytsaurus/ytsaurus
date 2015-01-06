@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/actions/invoker.h>
+#include <core/actions/public.h>
 
 #include <core/rpc/public.h>
 

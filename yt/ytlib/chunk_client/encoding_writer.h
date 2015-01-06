@@ -20,6 +20,7 @@ namespace NChunkClient {
 class TEncodingWriter
     : public TRefCounted
 {
+public:
     DECLARE_BYVAL_RO_PROPERTY(i64, UncompressedSize);
     DECLARE_BYVAL_RO_PROPERTY(i64, CompressedSize);
     DECLARE_BYVAL_RO_PROPERTY(double, CompressionRatio);
@@ -31,13 +32,13 @@ public:
         IChunkWriterPtr chunkWriter);
 
     bool IsReady() const;
-    TAsyncError GetReadyEvent();
+    TFuture<void> GetReadyEvent();
 
     void WriteBlock(const TSharedRef& block);
     void WriteBlock(std::vector<TSharedRef>&& vectorizedBlock);
 
     // Future is set when all block get written to underlying writer.
-    TAsyncError Flush();
+    TFuture<void> Flush();
 
     ~TEncodingWriter();
 
@@ -63,10 +64,10 @@ private:
     // True if OnReadyEventCallback is subscribed on AsyncWriter::ReadyEvent.
     bool IsWaiting;
     bool CloseRequested;
-    TCallback<void(TError)> OnReadyEventCallback;
+    TCallback<void(const TError&)> OnReadyEventCallback;
     TCallback<void()> TriggerWritingCallback;
 
-    void OnReadyEvent(TError error);
+    void OnReadyEvent(const TError& error);
     void TriggerWriting();
     void WritePendingBlocks();
 

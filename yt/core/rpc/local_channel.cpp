@@ -111,7 +111,7 @@ private:
             return ConvertToYsonString(Stroka("<local>"));
         }
 
-        virtual TAsyncError Send(TSharedRefArray message, EDeliveryTrackingLevel /*level*/) override
+        virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel /*level*/) override
         {
             NProto::TResponseHeader header;
             YCHECK(ParseResponseHeader(message, &header));
@@ -123,13 +123,13 @@ private:
                     Handler_->OnError(error);
                 }
             }
-            return OKFuture;
+            return VoidFuture;
         }
 
         virtual void Terminate(const TError& /*error*/) override
         { }
 
-        DEFINE_SIGNAL(void(TError), Terminated);
+        DEFINE_SIGNAL(void(const TError&), Terminated);
 
     private:
         IClientResponseHandlerPtr Handler_;
@@ -146,7 +146,7 @@ private:
         void OnTimeout()
         {
             if (AcquireLock()) {
-                ReportError(TError(NRpc::EErrorCode::Timeout, "Request timed out"));
+                ReportError(TError(NYT::EErrorCode::Timeout, "Request timed out"));
             }
         }
 

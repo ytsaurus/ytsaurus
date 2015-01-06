@@ -53,7 +53,7 @@ public:
         , UpperBound_(std::move(upperBound))
         , Timestamp_(timestamp)
         , Pool_(TTabletReaderPoolTag())
-        , ReadyEvent_(OKFuture)
+        , ReadyEvent_(VoidFuture)
         , Opened_(false)
         , Refilling_(false)
     { }
@@ -84,7 +84,7 @@ protected:
     SmallVector<TSession*, TypicalStoreCount> ExhaustedSessions_;
     SmallVector<TSession*, TypicalStoreCount> RefillingSessions_;
 
-    TAsyncError ReadyEvent_;
+    TFuture<void> ReadyEvent_;
 
     std::atomic<bool> Opened_;
     std::atomic<bool> Refilling_;
@@ -268,16 +268,17 @@ protected:
         ExhaustedSessions_.clear();
 
         if (!refillCollector) {
-            ReadyEvent_ = OKFuture;
+            ReadyEvent_ = VoidFuture;
             return;
         }
 
         auto this_ = MakeStrong(this);
         Refilling_ = true;
         ReadyEvent_ = refillCollector->Complete()
-            .Apply(BIND([this, this_] (const TError& error) -> TError {
+            .Apply(BIND([=] (const TError& error) {
+                UNUSED(this_);
                 Refilling_ = false;
-                return error;
+            error.ThrowOnError();
             }));
     }
 
@@ -304,12 +305,11 @@ public:
             timestamp)
     { }
 
-    virtual TAsyncError Open(const TTableSchema& schema) override
+    virtual TFuture<void> Open(const TTableSchema& schema) override
     {
         return BIND(&TSchemafulTabletReader::DoOpen, MakeStrong(this))
-                .Guarded()
-                .AsyncVia(PoolInvoker_)
-                .Run(schema);
+            .AsyncVia(PoolInvoker_)
+            .Run(schema);
     }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
@@ -317,7 +317,7 @@ public:
         return TTabletReaderBase::DoRead(rows, RowMerger_.get());
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
         return ReadyEvent_;
     }
@@ -433,10 +433,9 @@ public:
             MajorTimestamp_)
     { }
 
-    virtual TAsyncError Open() override
+    virtual TFuture<void> Open() override
     {
         return BIND(&TVersionedTabletReader::DoOpen, MakeStrong(this))
-            .Guarded()
             .AsyncVia(PoolInvoker_)
             .Run();
     }
@@ -456,7 +455,7 @@ public:
         return result;
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
         return ReadyEvent_;
     }

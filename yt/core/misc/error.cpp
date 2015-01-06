@@ -144,6 +144,18 @@ bool TError::IsOK() const
     return Code_ == NYT::EErrorCode::OK;
 }
 
+void TError::ThrowOnError() const
+{
+    if (!IsOK()) {
+        THROW_ERROR *this;
+    }
+}
+
+TError TError::Wrap() const
+{
+    return *this;
+}
+
 void TError::CaptureOriginAttributes()
 {
     // Use ad-hoc YSON conversions for performance reasons.
@@ -404,10 +416,6 @@ const char* TErrorException::what() const throw()
     }
     return ~CachedWhat_;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<TError> OKFuture = MakeFuture(TError());
 
 ////////////////////////////////////////////////////////////////////////////////
 

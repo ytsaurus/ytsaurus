@@ -11,24 +11,28 @@ namespace NObjectClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTypedResponse>
-TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const
+TErrorOr<TIntrusivePtr<TTypedResponse>> TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const
 {
     auto innerResponseMessage = GetResponseMessage(index);
     if (!innerResponseMessage) {
-        return nullptr;
+        return TIntrusivePtr<TTypedResponse>();
     }
     auto innerResponse = New<TTypedResponse>();
-    innerResponse->Deserialize(innerResponseMessage);
+    try {
+        innerResponse->Deserialize(innerResponseMessage);
+    } catch (const std::exception& ex) {
+        return ex;
+    }
     return innerResponse;
 }
 
 template <class TTypedResponse>
-TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const Stroka& key) const
+TNullable<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const Stroka& key) const
 {
     YCHECK(!key.empty());
     auto range = KeyToIndexes.equal_range(key);
     if (range.first == range.second) {
-        return nullptr;
+        return Null;
     }
     auto it = range.first;
     int index = it->second;
@@ -38,17 +42,17 @@ TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::FindRespons
 }
 
 template <class TTypedResponse>
-TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
+TErrorOr<TIntrusivePtr<TTypedResponse>> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
 {
     auto result = FindResponse<TTypedResponse>(key);
     YCHECK(result);
-    return result;
+    return *result;
 }
 
 template <class TTypedResponse>
-std::vector< TIntrusivePtr<TTypedResponse> > TObjectServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key) const
+std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key) const
 {
-    std::vector< TIntrusivePtr<TTypedResponse> > responses;
+    std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> responses;
     if (key.empty()) {
         responses.reserve(GetSize());
         for (int index = 0; index < GetSize(); ++index) {
@@ -66,21 +70,15 @@ std::vector< TIntrusivePtr<TTypedResponse> > TObjectServiceProxy::TRspExecuteBat
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTypedRequest>
-TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
+TFuture<TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
 TObjectServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
 {
     typedef typename TTypedRequest::TTypedResponse TTypedResponse;
 
     auto outerRequest = ExecuteBatch();
     outerRequest->AddRequest(innerRequest);
-    return outerRequest->Invoke().Apply(BIND([] (TRspExecuteBatchPtr outerResponse) -> TIntrusivePtr<TTypedResponse> {
-        if (outerResponse->IsOK()) {
-            return outerResponse->GetResponse<TTypedResponse>(0);
-        } else {
-            auto innerResponse = New<TTypedResponse>();
-            innerResponse->SetError(outerResponse->GetError());
-            return innerResponse;
-        }
+    return outerRequest->Invoke().Apply(BIND([] (TRspExecuteBatchPtr outerResponse) {
+        return outerResponse->GetResponse<TTypedResponse>(0).ValueOrThrow();
     }));
 }
 

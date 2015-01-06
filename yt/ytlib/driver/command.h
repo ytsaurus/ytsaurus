@@ -109,14 +109,13 @@ struct ICommandContext
 
     virtual const TDriverRequest& Request() const = 0;
 
-    virtual const TDriverResponse& Response() const = 0;
-    virtual TDriverResponse& Response() = 0;
-
     virtual const NFormats::TFormat& GetInputFormat() = 0;
     virtual const NFormats::TFormat& GetOutputFormat() = 0;
 
     virtual NYTree::TYsonProducer CreateInputProducer() = 0;
     virtual std::unique_ptr<NYson::IYsonConsumer> CreateOutputConsumer() = 0;
+
+    virtual void Reply(const TError& error) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICommandContext)

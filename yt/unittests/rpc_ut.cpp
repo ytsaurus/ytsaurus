@@ -204,12 +204,12 @@ protected:
 TEST_F(TRpcTest, Send)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.SomeCall();
-    request->set_a(42);
-    auto response = request->Invoke().Get();
-
-    EXPECT_TRUE(response->IsOK());
-    EXPECT_EQ(142, response->b());
+    auto req = proxy.SomeCall();
+    req->set_a(42);
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_TRUE(rspOrError.IsOK());
+    const auto& rsp = rspOrError.Value();
+    EXPECT_EQ(142, rsp->b());
 }
 
 TEST_F(TRpcTest, ManyAsyncRequests)
@@ -223,15 +223,13 @@ TEST_F(TRpcTest, ManyAsyncRequests)
     for (int i = 0; i < RequestCount; ++i) {
         auto request = proxy.SomeCall();
         request->set_a(i);
-        auto result = request->Invoke().Apply(BIND([=] (TMyProxy::TRspSomeCallPtr rsp) -> TError {
-            EXPECT_TRUE(rsp->IsOK());
+        auto result = request->Invoke().Apply(BIND([=] (TMyProxy::TRspSomeCallPtr rsp) {
             EXPECT_EQ(i + 100, rsp->b());
-            return TError();
         }));
         collector->Collect(result);
     }
 
-    collector->Complete().Get();
+    EXPECT_TRUE(collector->Complete().Get().IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -250,15 +248,17 @@ DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttachments)
 TEST_F(TRpcTest, Attachments)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.ModifyAttachments();
+    auto req = proxy.ModifyAttachments();
 
-    request->Attachments().push_back(SharedRefFromString("Hello"));
-    request->Attachments().push_back(SharedRefFromString("from"));
-    request->Attachments().push_back(SharedRefFromString("TMyProxy"));
+    req->Attachments().push_back(SharedRefFromString("Hello"));
+    req->Attachments().push_back(SharedRefFromString("from"));
+    req->Attachments().push_back(SharedRefFromString("TMyProxy"));
 
-    auto response = request->Invoke().Get();
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_TRUE(rspOrError.IsOK());
+    const auto& rsp = rspOrError.Value();
 
-    const auto& attachments = response->Attachments();
+    const auto& attachments = rsp->Attachments();
     EXPECT_EQ(3, attachments.size());
     EXPECT_EQ("Hello_",     StringFromSharedRef(attachments[0]));
     EXPECT_EQ("from_",      StringFromSharedRef(attachments[1]));
@@ -271,68 +271,77 @@ TEST_F(TRpcTest, Attachments)
 TEST_F(TRpcTest, OK)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.DoNothing();
-    auto response = request->Invoke().Get();
+    auto req = proxy.DoNothing();
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_TRUE(rspOrError.IsOK());
+}
 
-    EXPECT_TRUE(response->GetError().IsOK());
+TEST_F(TRpcTest, NoAck)
+{
+    TMyProxy proxy(CreateChannel("localhost:2000"));
+    auto req = proxy.DoNothing()->SetRequestAck(false);
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_TRUE(rspOrError.IsOK());
 }
 
 TEST_F(TRpcTest, TransportError)
 {
     TMyProxy proxy(CreateChannel("localhost:9999"));
-    auto request = proxy.DoNothing();
-    auto response = request->Invoke().Get();
-
-    EXPECT_EQ(NRpc::EErrorCode::TransportError, response->GetError().GetCode());
+    auto req = proxy.DoNothing();
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_EQ(NRpc::EErrorCode::TransportError, rspOrError.GetCode());
 }
 
 TEST_F(TRpcTest, NoService)
 {
     TNonExistingServiceProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.DoNothing();
-    auto response = request->Invoke().Get();
-
-    EXPECT_EQ(NRpc::EErrorCode::NoSuchService, response->GetError().GetCode());
+    auto req = proxy.DoNothing();
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_EQ(NRpc::EErrorCode::NoSuchService, rspOrError.GetCode());
 }
 
 TEST_F(TRpcTest, NoMethod)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.NotRegistered();
-    auto response = request->Invoke().Get();
-
-    EXPECT_EQ(NRpc::EErrorCode::NoSuchMethod, response->GetError().GetCode());
+    auto req = proxy.NotRegistered();
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_EQ(NRpc::EErrorCode::NoSuchMethod, rspOrError.GetCode());
 }
 
 TEST_F(TRpcTest, Timeout)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
     proxy.SetDefaultTimeout(TDuration::Seconds(0.5));
+    auto req = proxy.LongReply();
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_EQ(NYT::EErrorCode::Timeout, rspOrError.GetCode());
+}
 
-    auto request = proxy.LongReply();
-    auto response = request->Invoke().Get();
-
-    EXPECT_EQ(NRpc::EErrorCode::Timeout, response->GetError().GetCode());
+TEST_F(TRpcTest, LongReply)
+{
+    TMyProxy proxy(CreateChannel("localhost:2000"));
+    proxy.SetDefaultTimeout(TDuration::Seconds(2.0));
+    auto req = proxy.LongReply();
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_TRUE(rspOrError.IsOK());
 }
 
 TEST_F(TRpcTest, NoReply)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
 
-    auto request = proxy.NoReply();
-    auto response = request->Invoke().Get();
-
-    EXPECT_EQ(NRpc::EErrorCode::Unavailable, response->GetError().GetCode());
+    auto req = proxy.NoReply();
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_EQ(NRpc::EErrorCode::Unavailable, rspOrError.GetCode());
 }
 
 TEST_F(TRpcTest, CustomErrorMessage)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.CustomMessageError();
-    auto response = request->Invoke().Get();
-
-    EXPECT_EQ(NYT::EErrorCode(42), response->GetError().GetCode());
-    EXPECT_EQ("Some Error", response->GetError().GetMessage());
+    auto req = proxy.CustomMessageError();
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_EQ(NYT::EErrorCode(42), rspOrError.GetCode());
+    EXPECT_EQ("Some Error", rspOrError.GetMessage());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -353,41 +362,36 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, CheckAll)
 TEST_F(TRpcTest, OneWayOK)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.OneWay();
-    auto response = request->Invoke().Get();
-
-    EXPECT_TRUE(response->IsOK());
-
+    auto req = proxy.OneWay();
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_TRUE(rspOrError.IsOK());
     Service->GetOneWayCalled().Get();
 }
 
 TEST_F(TRpcTest, OneWayTransportError)
 {
     TMyProxy proxy(CreateChannel("localhost:9999"));
-    auto request = proxy.OneWay();
-    auto response = request->Invoke().Get();
-
-    EXPECT_FALSE(response->IsOK());
+    auto req = proxy.OneWay();
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_FALSE(rspOrError.IsOK());
 }
 
 TEST_F(TRpcTest, OneWayNoService)
 {
     TNonExistingServiceProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.OneWay();
-    auto response = request->Invoke().Get();
-
+    auto req = proxy.OneWay();
+    auto rspOrError = req->Invoke().Get();
     // In this case we receive OK instead of NoSuchService
-    EXPECT_TRUE(response->IsOK());
+    EXPECT_TRUE(rspOrError.IsOK());
 }
 
 TEST_F(TRpcTest, OneWayNoMethod)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.NotRegistredOneWay();
-    auto response = request->Invoke().Get();
-
+    auto req = proxy.NotRegistredOneWay();
+    auto rspOrError = req->Invoke().Get();
     // In this case we receive OK instead of NoSuchMethod
-    EXPECT_TRUE(response->IsOK());
+    EXPECT_TRUE(rspOrError.IsOK());
 }
 
 TEST_F(TRpcTest, LostConnection)
@@ -395,31 +399,31 @@ TEST_F(TRpcTest, LostConnection)
     TMyProxy proxy(CreateChannel("localhost:2000"));
     proxy.SetDefaultTimeout(TDuration::Seconds(10));
 
-    auto request = proxy.LongReply();
-    auto future = request->Invoke();
+    auto req = proxy.LongReply();
+    auto asyncRspOrError = req->Invoke();
 
     Sleep(TDuration::Seconds(0.2));
 
-    EXPECT_FALSE(future.IsSet());
+    EXPECT_FALSE(asyncRspOrError.IsSet());
     RpcServer->Stop();
 
     Sleep(TDuration::Seconds(0.2));
 
     // check that lost of connection is detected fast
-    EXPECT_TRUE(future.IsSet());
-    auto response = future.Get();
-    EXPECT_FALSE(response->IsOK());
-    EXPECT_EQ(NRpc::EErrorCode::TransportError, response->GetError().GetCode());
+    EXPECT_TRUE(asyncRspOrError.IsSet());
+    auto rspOrError = asyncRspOrError.Get();
+    EXPECT_FALSE(rspOrError.IsOK());
+    EXPECT_EQ(NRpc::EErrorCode::TransportError, rspOrError.GetCode());
 }
 
 TEST_F(TRpcTest, ProtocolVersionMismatch)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"), 1);
-    auto request = proxy.SomeCall();
-    request->set_a(42);
-    auto response = request->Invoke().Get();
-    EXPECT_FALSE(response->IsOK());
-    EXPECT_EQ(NRpc::EErrorCode::ProtocolError, response->GetError().GetCode());
+    auto req = proxy.SomeCall();
+    req->set_a(42);
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_FALSE(rspOrError.IsOK());
+    EXPECT_EQ(NRpc::EErrorCode::ProtocolError, rspOrError.GetCode());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

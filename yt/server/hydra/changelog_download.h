@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
+#include <core/actions/future.h>
 
 namespace NYT {
 namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAsyncError DownloadChangelog(
+TFuture<void> DownloadChangelog(
     TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
     IChangelogStorePtr changelogStore,

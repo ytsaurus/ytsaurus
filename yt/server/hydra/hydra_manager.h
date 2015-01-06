@@ -74,7 +74,7 @@ struct IHydraManager
      *
      *  \note Thread affinity: AutomatonThread
      */
-    virtual TFuture<TErrorOr<TMutationResponse>> CommitMutation(const TMutationRequest& request) = 0;
+    virtual TFuture<TMutationResponse> CommitMutation(const TMutationRequest& request) = 0;
 
     //! Returns the current mutation context or |nullptr| if no mutation is currently being applied.
     /*!
@@ -108,7 +108,7 @@ struct IHydraManager
     /*!
      *  \note Thread affinity: AutomatonThread
      */
-    virtual TFuture<TErrorOr<int>> BuildSnapshotDistributed() = 0;
+    virtual TFuture<int> BuildSnapshotDistributed() = 0;
 
     //! Produces monitoring info.
     /*!

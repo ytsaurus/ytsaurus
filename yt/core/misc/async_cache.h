@@ -46,9 +46,8 @@ class TAsyncSlruCacheBase
 {
 public:
     typedef TIntrusivePtr<TValue> TValuePtr;
-    typedef TErrorOr<TValuePtr> TValuePtrOrError;
-    typedef TFuture<TValuePtrOrError> TValuePtrOrErrorFuture;
-    typedef TPromise<TValuePtrOrError> TValuePtrOrErrorPromise;
+    typedef TFuture<TValuePtr> TValueFuture;
+    typedef TPromise<TValuePtr> TValuePromise;
 
     class TInsertCookie
     {
@@ -63,7 +62,7 @@ public:
         TInsertCookie& operator = (const TInsertCookie& other) = delete;
 
         const TKey& GetKey() const;
-        TValuePtrOrErrorFuture GetValue() const;
+        TValueFuture GetValue() const;
         bool IsActive() const;
 
         void Cancel(const TError& error);
@@ -74,7 +73,7 @@ public:
 
         TKey Key_;
         TIntrusivePtr<TAsyncSlruCacheBase> Cache_;
-        TValuePtrOrErrorFuture ValueOrErrorPromise_;
+        TValueFuture ValuePromise_;
         bool Active_;
 
         void Abort();
@@ -85,7 +84,7 @@ public:
     std::vector<TValuePtr> GetAll();
 
     TValuePtr Find(const TKey& key);
-    TValuePtrOrErrorFuture Lookup(const TKey& key);
+    TValueFuture Lookup(const TKey& key);
 
     bool BeginInsert(TInsertCookie* cookie);
     bool TryRemove(const TKey& key);
@@ -109,15 +108,15 @@ private:
         : public TIntrusiveListItem<TItem>
     {
         TItem()
-            : ValueOrErrorPromise(NewPromise<TValuePtrOrError>())
+            : ValuePromise(NewPromise<TValuePtr>())
         { }
 
         explicit TItem(TValuePtr value)
-            : ValueOrErrorPromise(MakePromise(TValuePtrOrError(value)))
+            : ValuePromise(MakePromise(TValuePtr(value)))
             , Value(std::move(value))
         { }
 
-        TValuePtrOrErrorPromise ValueOrErrorPromise;
+        TValuePromise ValuePromise;
         TValuePtr Value;
         bool Younger;
         NProfiling::TCpuInstant NextTouchInstant = 0;

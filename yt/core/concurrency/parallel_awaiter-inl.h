@@ -14,16 +14,6 @@ inline TParallelAwaiter::TParallelAwaiter(IInvokerPtr invoker)
 {
     YCHECK(invoker);
 
-    Canceled_ = false;
-
-    Completed_ = false;
-    CompletedPromise_ = NewPromise();
-
-    Terminated_ = false;
-
-    RequestCount_ = 0;
-    ResponseCount_ = 0;
-
     CancelableContext_ = New<TCancelableContext>();
     CancelableInvoker_ = CancelableContext_->CreateInvoker(invoker);
 }
@@ -33,88 +23,37 @@ inline bool TParallelAwaiter::TryAwait()
     TGuard<TSpinLock> guard(SpinLock_);
     YASSERT(!Completed_);
 
-    if (Canceled_ || Terminated_)
+    if (Canceled_ || Terminated_) {
         return false;
+    }
 
     ++RequestCount_;
     return true;
 }
 
 template <class T>
-void TParallelAwaiter::Await(TFuture<T> result, TCallback<void(const T&)> onResult)
+void TParallelAwaiter::Await(TFuture<T> future, TCallback<void(const TErrorOr<T>&)> onResult)
 {
-    DoAwait(
-        std::move(result),
-        BIND(&TParallelAwaiter::HandleResult<const T&>, MakeStrong(this), Passed(std::move(onResult))));
-}
-
-template <class T>
-void TParallelAwaiter::Await(TFuture<T> result, TCallback<void(T)> onResult)
-{
-    DoAwait(
-        std::move(result),
-        BIND(&TParallelAwaiter::HandleResult<T>, MakeStrong(this), Passed(std::move(onResult))));
-}
-
-inline void TParallelAwaiter::Await(TFuture<void> result, TClosure onResult)
-{
-    DoAwait(
-        std::move(result),
-        BIND(&TParallelAwaiter::HandleVoidResult, MakeStrong(this), Passed(std::move(onResult))));
-}
-
-template <class T>
-void TParallelAwaiter::Await(TFuture<T> result)
-{
-    DoAwait(
-        std::move(result),
-        BIND(&TParallelAwaiter::HandleResult<T>, MakeStrong(this), TCallback<void(T)>()));
-}
-
-inline void TParallelAwaiter::Await(TFuture<void> result)
-{
-    DoAwait(
-        std::move(result),
-        BIND(&TParallelAwaiter::HandleVoidResult, MakeStrong(this), TClosure()));
-}
-
-template <class TResult, class THandler>
-void TParallelAwaiter::DoAwait(TResult result, THandler onResultHandler)
-{
-    YASSERT(result);
+    YASSERT(future);
 
     if (TryAwait()) {
-        result.Subscribe(std::move(onResultHandler));
-        result.OnCanceled(BIND(&TParallelAwaiter::HandleCancel, MakeStrong(this)));
+        future.Subscribe(BIND(&TParallelAwaiter::HandleResult<T>, MakeStrong(this), Passed(std::move(onResult))));
     }
 }
 
 template <class T>
-void TParallelAwaiter::HandleResult(TCallback<void(T)> onResult, T result)
+void TParallelAwaiter::Await(TFuture<T> future)
+{
+    Await(future, TCallback<void(const TErrorOr<T>&)>());
+}
+
+template <class T>
+void TParallelAwaiter::HandleResult(TCallback<void(const TErrorOr<T>&)> onResult, const TErrorOr<T>& result)
 {
     if (onResult) {
         CancelableInvoker_->Invoke(BIND(onResult, result));
     }
 
-    HandleResponse();
-}
-
-inline void TParallelAwaiter::HandleVoidResult(TClosure onResult)
-{
-    if (onResult) {
-        CancelableInvoker_->Invoke(onResult);
-    }
-
-    HandleResponse();
-}
-
-inline void TParallelAwaiter::HandleCancel()
-{
-    Cancel();
-}
-
-inline void TParallelAwaiter::HandleResponse()
-{
     bool fireCompleted = false;
     TClosure onComplete;
     {
@@ -128,13 +67,13 @@ inline void TParallelAwaiter::HandleResponse()
         fireCompleted = (ResponseCount_ == RequestCount_) && Completed_;
 
         if (fireCompleted) {
-            onComplete = OnComplete_;
-            Terminate();
+            onComplete = std::move(OnComplete_);
+            Terminated_ = true;
         }
     }
 
     if (fireCompleted) {
-        DoFireCompleted(std::move(onComplete));
+        FireCompleted(std::move(onComplete));
     }
 }
 
@@ -149,44 +88,34 @@ inline TFuture<void> TParallelAwaiter::Complete(TClosure onComplete)
             return CompletedPromise_;
         }
 
-        OnComplete_ = onComplete;
         Completed_ = true;
 
         fireCompleted = (RequestCount_ == ResponseCount_);
 
         if (fireCompleted) {
-            Terminate();
+            Terminated_ = true;
+        } else {
+            OnComplete_ = std::move(onComplete);
         }
     }
 
     if (fireCompleted) {
-        DoFireCompleted(onComplete);
+        FireCompleted(std::move(onComplete));
     }
 
     return CompletedPromise_;
 }
 
-inline void TParallelAwaiter::DoFireCompleted(TClosure onComplete)
+inline void TParallelAwaiter::FireCompleted(TClosure onComplete)
 {
     auto this_ = MakeStrong(this);
-    CancelableInvoker_->Invoke(BIND([this, this_, onComplete] () {
+    CancelableInvoker_->Invoke(BIND([=] () {
+        UNUSED(this_);
         if (onComplete) {
             onComplete.Run();
         }
         CompletedPromise_.Set();
     }));
-}
-
-inline void TParallelAwaiter::Cancel()
-{
-    TGuard<TSpinLock> guard(SpinLock_);
-    if (Canceled_)
-        return;
-
-    CancelableContext_->Cancel();
-    CompletedPromise_.Cancel();
-    Canceled_ = true;
-    Terminate();
 }
 
 inline int TParallelAwaiter::GetRequestCount() const
@@ -209,17 +138,21 @@ inline TFuture<void> TParallelAwaiter::GetAsyncCompleted() const
     return CompletedPromise_;
 }
 
+inline void TParallelAwaiter::Cancel()
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+    if (Canceled_)
+        return;
+
+    CancelableContext_->Cancel();
+    CompletedPromise_.Reset();
+    Canceled_ = true;
+    Terminated_ = true;
+}
+
 inline bool TParallelAwaiter::IsCanceled() const
 {
     return Canceled_;
-}
-
-inline void TParallelAwaiter::Terminate()
-{
-    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-
-    OnComplete_.Reset();
-    Terminated_ = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

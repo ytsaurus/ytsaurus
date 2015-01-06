@@ -256,10 +256,7 @@ private:
         
         // Flush blocks if needed.
         if (flushBlocks) {
-            result = result.Apply(BIND([=] (const TError& error) -> TAsyncError {
-                if (!error.IsOK()) {
-                    return MakeFuture(error);
-                }
+            result = result.Apply(BIND([=] () {
                 return session->FlushBlocks(lastBlockIndex);
             }));
         }
@@ -424,16 +421,16 @@ private:
         std::atomic<i64> BlocksSize_;
 
 
-        void OnBlockFound(int index, TBlockStore::TGetBlockResult result)
+        void OnBlockFound(int index, const TErrorOr<TSharedRef>& blockOrError)
         {
-            if (!result.IsOK()) {
+            if (!blockOrError.IsOK()) {
                 // Something went wrong while fetching the blocks.
                 Awaiter_->Cancel();
-                Context_->Reply(result);
+                Context_->Reply(blockOrError);
                 return;
             }
 
-            const auto& block = result.Value();
+            const auto& block = blockOrError.Value();
             if (block) {
                 auto& response = Context_->Response();
                 response.Attachments()[index] = block;
@@ -469,9 +466,7 @@ private:
             // Throttle response.
             auto sessionType = EReadSessionType(request.session_type());
             auto throttler = Owner_->Bootstrap_->GetOutThrottler(sessionType);
-            throttler->Throttle(BlocksSize_).Subscribe(BIND([=] () {
-                Context_->Reply();
-            }));
+            Context_->ReplyFrom(throttler->Throttle(BlocksSize_));
         }
 
     };
@@ -541,16 +536,16 @@ private:
         i64 BlocksSize_;
 
 
-        void OnGotBlocks(TBlockStore::TGetBlocksResult result)
+        void OnGotBlocks(const TErrorOr<std::vector<TSharedRef>>& blocksOrError)
         {
-            if (!result.IsOK()) {
+            if (!blocksOrError.IsOK()) {
                 // Something went wrong while fetching the blocks.
-                Context_->Reply(result);
+                Context_->Reply(blocksOrError);
                 return;
             }
 
+            const auto& blocks = blocksOrError.Value();
             auto& response = Context_->Response();
-            const auto& blocks = result.Value();
             for (const auto& block : blocks) {
                 response.Attachments().push_back(block);
                 BlocksWithData_ += 1;
@@ -574,9 +569,7 @@ private:
             // Throttle response.
             auto sessionType = EReadSessionType(request.session_type());
             auto throttler = Owner_->Bootstrap_->GetOutThrottler(sessionType);
-            throttler->Throttle(BlocksSize_).Subscribe(BIND([=] () {
-                Context_->Reply();
-            }));
+            Context_->ReplyFrom(throttler->Throttle(BlocksSize_));
         }
 
     };
@@ -609,17 +602,16 @@ private:
             context->GetPriority(),
             request->all_extension_tags() ? nullptr : &extensionTags);
 
-        asyncChunkMeta.Subscribe(BIND([=] (IChunk::TGetMetaResult result) {
-            if (!result.IsOK()) {
-                context->Reply(result);
+        asyncChunkMeta.Subscribe(BIND([=] (const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError) {
+            if (!metaOrError.IsOK()) {
+                context->Reply(metaOrError);
                 return;
             }
 
-            const auto& chunkMeta = *result.Value();
-
+            const auto& meta = *metaOrError.Value();
             *context->Response().mutable_chunk_meta() = partitionTag
-                ? FilterChunkMetaByPartitionTag(chunkMeta, *partitionTag)
-                : TChunkMeta(chunkMeta);
+                ? FilterChunkMetaByPartitionTag(meta, *partitionTag)
+                : TChunkMeta(meta);
 
             context->Reply();
         }).Via(WorkerThread_->GetInvoker()));
@@ -672,21 +664,21 @@ private:
         NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splittedChunk,
         i64 minSplitSize,
         const NTableClient::TKeyColumns& keyColumns,
-        IChunk::TGetMetaResult result)
+        const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
 
-        if (!result.IsOK()) {
+        if (!metaOrError.IsOK()) {
             auto error = TError("Error getting meta of chunk %v",
                 chunkId)
-                << result;
+                << metaOrError;
             LOG_WARNING(error);
             ToProto(splittedChunk->mutable_error(), error);
             return;
         }
 
-        const auto& chunkMeta = *result.Value();
-        auto type = EChunkType(chunkMeta.type());
+        const auto& meta = *metaOrError.Value();
+        auto type = EChunkType(meta.type());
         if (type != EChunkType::Table) {
             auto error =  TError("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
                 chunkId,
@@ -699,17 +691,17 @@ private:
 
         // XXX(psushin): implement splitting for new chunks.
         // TODO(babenko): replace "1" with some mnemonic name
-        if (chunkMeta.version() != 1) {
+        if (meta.version() != 1) {
             // Only old chunks support splitting now.
             auto error = TError("Invalid version of chunk %v: expected: 1, actual %v",
                 chunkId,
-                chunkMeta.version());
+                meta.version());
             LOG_ERROR(error);
             ToProto(splittedChunk->mutable_error(), error);
             return;
         }
 
-        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
+        auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
         if (!miscExt.sorted()) {
             auto error =  TError("Chunk %v is not sorted",
                 chunkId);
@@ -718,7 +710,7 @@ private:
             return;
         }
 
-        auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
+        auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(meta.extensions());
         if (keyColumnsExt.names_size() < keyColumns.size()) {
             auto error = TError("Not enough key columns in chunk %v: expected %v, actual %v",
                 chunkId,
@@ -742,7 +734,7 @@ private:
             }
         }
 
-        auto indexExt = GetProtoExtension<TIndexExt>(chunkMeta.extensions());
+        auto indexExt = GetProtoExtension<TIndexExt>(meta.extensions());
         if (indexExt.items_size() == 1) {
             // Only one index entry available - no need to split.
             splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
@@ -932,21 +924,21 @@ private:
         const NChunkClient::NProto::TReqGetTableSamples::TSampleRequest* sampleRequest,
         NChunkClient::NProto::TRspGetTableSamples::TChunkSamples* sampleResponse,
         const NTableClient::TKeyColumns& keyColumns,
-        IChunk::TGetMetaResult result)
+        const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
 
-        if (!result.IsOK()) {
+        if (!metaOrError.IsOK()) {
             auto error = TError("Error getting meta of chunk %v",
                 chunkId)
-                << result;
+                << metaOrError;
             LOG_WARNING(error);
             ToProto(sampleResponse->mutable_error(), error);
             return;
         }
 
-        const auto& chunkMeta = *result.Value();
-        auto type = EChunkType(chunkMeta.type());
+        const auto& meta = *metaOrError.Value();
+        auto type = EChunkType(meta.type());
         if (type != EChunkType::Table) {
             auto error = TError("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
                 chunkId,
@@ -957,19 +949,19 @@ private:
             return;
         }
 
-        auto formatVersion = ETableChunkFormat(chunkMeta.version());
+        auto formatVersion = ETableChunkFormat(meta.version());
         switch (formatVersion) {
             case ETableChunkFormat::Old:
-                ProcessOldChunkSamples(sampleRequest, sampleResponse, keyColumns, chunkMeta);
+                ProcessOldChunkSamples(sampleRequest, sampleResponse, keyColumns, meta);
                 break;
 
             case ETableChunkFormat::VersionedSimple:
-                ProcessVersionedChunkSamples(sampleRequest, sampleResponse, keyColumns, chunkMeta);
+                ProcessVersionedChunkSamples(sampleRequest, sampleResponse, keyColumns, meta);
                 break;
 
             default:
                 auto error = TError("Invalid version %v of chunk %v",
-                    chunkMeta.version(),
+                    meta.version(),
                     chunkId);
                 LOG_WARNING(error);
                 ToProto(sampleResponse->mutable_error(), error);
@@ -1088,15 +1080,15 @@ private:
         Bootstrap_
             ->GetChunkCache()
             ->DownloadChunk(chunkId)
-            .Subscribe(BIND([=] (TChunkCache::TDownloadResult result) {
-                if (result.IsOK()) {
+            .Subscribe(BIND([=] (const TErrorOr<IChunkPtr>& chunkOrError) {
+                if (chunkOrError.IsOK()) {
                     context->Reply();
                 } else {
                     context->Reply(TError(
                         NChunkClient::EErrorCode::ChunkPrecachingFailed,
                         "Error precaching chunk %v",
                         chunkId)
-                        << result);
+                        << chunkOrError);
                 }
             }));
     }

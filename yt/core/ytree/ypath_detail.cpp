@@ -21,6 +21,7 @@ using namespace NBus;
 using namespace NRpc;
 using namespace NYPath;
 using namespace NRpc::NProto;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,7 +134,7 @@ NLog::TLogger TYPathServiceBase::GetLogger() const
 }
 
 void TYPathServiceBase::SerializeAttributes(
-    NYson::IYsonConsumer* /*consumer*/,
+    IYsonConsumer* /*consumer*/,
     const TAttributeFilter& /*filter*/,
     bool /*sortKeys*/)
 { }
@@ -277,7 +278,7 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
     return TResolveResult::Here("/@" + path);
 }
 
-TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoFindAttribute(const Stroka& key)
+TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const Stroka& key)
 {
     auto customAttributes = GetCustomAttributes();
     auto builtinAttributeProvider = GetBuiltinAttributeProvider();
@@ -285,33 +286,25 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoFindAttribute(const Stro
     if (customAttributes) {
         auto attribute = customAttributes->FindYson(key);
         if (attribute) {
-            return MakeFuture(TErrorOr<TYsonString>(attribute.Get()));
+            return MakeFuture(*attribute);
         }
     }
 
     if (builtinAttributeProvider) {
         TStringStream syncStream;
-        NYson::TYsonWriter syncWriter(&syncStream);
+        TYsonWriter syncWriter(&syncStream);
         if (builtinAttributeProvider->GetBuiltinAttribute(key, &syncWriter)) {
             TYsonString builtinYson(syncStream.Str());
-            return MakeFuture(TErrorOr<TYsonString>(builtinYson));
+            return MakeFuture(builtinYson);
         }
 
-        auto onAsyncAttribute = [] (
-            TStringStream* stream,
-            NYson::TYsonWriter* writer,
-            TError error) ->
-            TErrorOr<TYsonString>
-        {
-            if (error.IsOK()) {
-                return TYsonString(stream->Str());
-            } else {
-                return error;
-            }
+        auto onAsyncAttribute = [] (TStringStream* stream, TYsonWriter* /*writer*/, const TError& error) -> TYsonString {
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            return TYsonString(stream->Str());
         };
 
         std::unique_ptr<TStringStream> asyncStream(new TStringStream());
-        std::unique_ptr<NYson::TYsonWriter> asyncWriter(new NYson::TYsonWriter(asyncStream.get()));
+        std::unique_ptr<TYsonWriter> asyncWriter(new TYsonWriter(asyncStream.get()));
         auto asyncResult = builtinAttributeProvider->GetBuiltinAttributeAsync(key, asyncWriter.get());
         if (asyncResult) {
             return asyncResult.Apply(BIND(
@@ -324,22 +317,13 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoFindAttribute(const Stro
     return Null;
 }
 
-TErrorOr<TYsonString> TSupportsAttributes::DoGetAttributeFragment(
-    const TYPath& path,
-    TErrorOr<TYsonString> wholeYsonOrError)
+TYsonString TSupportsAttributes::DoGetAttributeFragment(const TYPath& path, const TYsonString& wholeYson)
 {
-    if (!wholeYsonOrError.IsOK()) {
-        return wholeYsonOrError;
-    }
-    auto node = ConvertToNode<TYsonString>(wholeYsonOrError.Value());
-    try {
-        return SyncYPathGet(node, path, TAttributeFilter::All);
-    } catch (const std::exception& ex) {
-        return ex;
-    }
+    auto node = ConvertToNode<TYsonString>(wholeYson);
+    return SyncYPathGet(node, path, TAttributeFilter::All);
 }
 
-TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoGetAttribute(const TYPath& path)
+TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(const TYPath& path)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
@@ -349,7 +333,7 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoGetAttribute(const TYPat
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         TStringStream stream;
-        NYson::TYsonWriter writer(&stream);
+        TYsonWriter writer(&stream);
 
         writer.OnBeginMap();
 
@@ -378,25 +362,25 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoGetAttribute(const TYPat
 
         writer.OnEndMap();
         TYsonString yson(stream.Str());
-        return MakeFuture(TErrorOr<TYsonString>(yson));
+        return MakeFuture(yson);
     } else {
         tokenizer.Expect(NYPath::ETokenType::Literal);
         auto key = tokenizer.GetLiteralValue();
 
-        auto ysonOrError = DoFindAttribute(key);
-        if (!ysonOrError) {
-            return MakeFuture(TErrorOr<TYsonString>(TError(
+        auto asyncYson = DoFindAttribute(key);
+        if (!asyncYson) {
+            return MakeFuture<TYsonString>(TError(
                 NYTree::EErrorCode::ResolveError,
                 "Attribute %Qv is not found",
-                ToYPathLiteral(key))));
+                ToYPathLiteral(key)));
         }
 
         if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-            return ysonOrError;
+            return asyncYson;
         }
 
         auto suffixPath = tokenizer.GetInput();
-        return ysonOrError.Apply(BIND(&TSupportsAttributes::DoGetAttributeFragment, suffixPath));
+        return asyncYson.Apply(BIND(&TSupportsAttributes::DoGetAttributeFragment, suffixPath));
    }
 }
 
@@ -407,34 +391,22 @@ void TSupportsAttributes::GetAttribute(
     TCtxGetPtr context)
 {
     DoGetAttribute(path).Subscribe(BIND([=] (const TErrorOr<TYsonString>& ysonOrError) {
-        if (ysonOrError.IsOK()) {
-            response->set_value(ysonOrError.Value().Data());
-            context->Reply();
-        } else {
+        if (!ysonOrError.IsOK()) {
             context->Reply(ysonOrError);
+            return;
         }
+        response->set_value(ysonOrError.Value().Data());
+        context->Reply();
     }));
 }
 
-TErrorOr<TYsonString> TSupportsAttributes::DoListAttributeFragment(
-    const TYPath& path,
-    TErrorOr<TYsonString> wholeYsonOrError)
+TYsonString TSupportsAttributes::DoListAttributeFragment(const TYPath& path, const TYsonString& wholeYson)
 {
-    if (!wholeYsonOrError.IsOK()) {
-        return wholeYsonOrError;
-    }
-
-    auto node = ConvertToNode(wholeYsonOrError.Value());
-
-    std::vector<Stroka> listedKeys;
-    try {
-        listedKeys = SyncYPathList(node, path);
-    } catch (const std::exception& ex) {
-        return ex;
-    }
+    auto node = ConvertToNode(wholeYson);
+    auto listedKeys = SyncYPathList(node, path);
 
     TStringStream stream;
-    NYson::TYsonWriter writer(&stream);
+    TYsonWriter writer(&stream);
     writer.OnBeginList();
     for (const auto& listedKey : listedKeys) {
         writer.OnListItem();
@@ -445,7 +417,7 @@ TErrorOr<TYsonString> TSupportsAttributes::DoListAttributeFragment(
     return TYsonString(stream.Str());
 }
 
-TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoListAttribute(const TYPath& path)
+TFuture<TYsonString> TSupportsAttributes::DoListAttribute(const TYPath& path)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
@@ -453,7 +425,7 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoListAttribute(const TYPa
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         TStringStream stream;
-        NYson::TYsonWriter writer(&stream);
+        TYsonWriter writer(&stream);
         writer.OnBeginList();
 
         auto customAttributes = GetCustomAttributes();
@@ -485,8 +457,8 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoListAttribute(const TYPa
         tokenizer.Expect(NYPath::ETokenType::Literal);
         auto key = tokenizer.GetLiteralValue();
 
-        auto ysonOrError = DoFindAttribute(key);
-        if (!ysonOrError) {
+        auto asyncYson = DoFindAttribute(key);
+        if (!asyncYson) {
             return MakeFuture(TErrorOr<TYsonString>(TError(
                 NYTree::EErrorCode::ResolveError,
                 "Attribute %Qv is not found",
@@ -494,7 +466,7 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoListAttribute(const TYPa
         }
 
         auto pathSuffix = tokenizer.GetSuffix();
-        return ysonOrError.Apply(BIND(&TSupportsAttributes::DoListAttributeFragment, pathSuffix));
+        return asyncYson.Apply(BIND(&TSupportsAttributes::DoListAttributeFragment, pathSuffix));
     }
 }
 
@@ -516,7 +488,7 @@ void TSupportsAttributes::ListAttribute(
 
 bool TSupportsAttributes::DoExistsAttributeFragment(
     const TYPath& path,
-    TErrorOr<TYsonString> wholeYsonOrError)
+    const TErrorOr<TYsonString>& wholeYsonOrError)
 {
     if (!wholeYsonOrError.IsOK()) {
         return false;
@@ -560,13 +532,13 @@ TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
 
         return FalseFuture;
     } else {
-        auto ysonOrError = DoFindAttribute(key);
-        if (!ysonOrError) {
+        auto asyncYson = DoFindAttribute(key);
+        if (!asyncYson) {
             return FalseFuture;
         }
 
         auto pathSuffix = tokenizer.GetInput();
-        return ysonOrError.Apply(BIND(&TSupportsAttributes::DoExistsAttributeFragment, pathSuffix));
+        return asyncYson.Apply(BIND(&TSupportsAttributes::DoExistsAttributeFragment, pathSuffix));
     }
 }
 
@@ -578,9 +550,14 @@ void TSupportsAttributes::ExistsAttribute(
 {
     context->SetRequestInfo();
 
-    DoExistsAttribute(path).Subscribe(BIND([=] (bool result) {
-        response->set_value(result);
-        context->SetResponseInfo("Result: %v", result);
+    DoExistsAttribute(path).Subscribe(BIND([=] (const TErrorOr<bool>& result) {
+        if (!result.IsOK()) {
+            context->Reply(result);
+            return;
+        }
+        bool exists = result.Value();
+        response->set_value(exists);
+        context->SetResponseInfo("Result: %v", exists);
         context->Reply();
     }));
 }
@@ -662,7 +639,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                 GuardedSetBuiltinAttribute(key, newYson);
             } else {
                 TStringStream stream;
-                NYson::TYsonWriter writer(&stream);
+                TYsonWriter writer(&stream);
                 if (!builtinAttributeProvider->GetBuiltinAttribute(key, &writer)) {
                     ThrowNoSuchBuiltinAttribute(key);
                 }
@@ -759,7 +736,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                 customAttributes->SetYson(key, updatedCustomYson);
             } else {
                 TStringStream stream;
-                NYson::TYsonWriter writer(&stream);
+                TYsonWriter writer(&stream);
                 if (!builtinAttributeProvider || !builtinAttributeProvider->GetBuiltinAttribute(key, &writer)) {
                     ThrowNoSuchBuiltinAttribute(key);
                 }
@@ -859,12 +836,12 @@ private:
     IAttributeDictionary* Attributes;
 
     TStringStream AttributeStream;
-    std::unique_ptr<NYson::TYsonWriter> AttributeWriter;
+    std::unique_ptr<TYsonWriter> AttributeWriter;
 
     virtual void OnMyKeyedItem(const TStringBuf& key) override
     {
         Stroka localKey(key);
-        AttributeWriter.reset(new NYson::TYsonWriter(&AttributeStream));
+        AttributeWriter.reset(new TYsonWriter(&AttributeStream));
         Forward(
             AttributeWriter.get(),
             BIND ([=] () {
@@ -938,7 +915,7 @@ void TNodeSetterBase::OnMyBeginMap()
 void TNodeSetterBase::OnMyBeginAttributes()
 {
     AttributesSetter.reset(new TAttributesSetter(Node->MutableAttributes()));
-    Forward(AttributesSetter.get(), TClosure(), NYson::EYsonType::MapFragment);
+    Forward(AttributesSetter.get(), TClosure(), EYsonType::MapFragment);
 }
 
 void TNodeSetterBase::OnMyEndAttributes()
@@ -1084,7 +1061,7 @@ public:
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void SerializeAttributes(
-        NYson::IYsonConsumer* consumer,
+        IYsonConsumer* consumer,
         const TAttributeFilter& filter,
         bool sortKeys) override
     {

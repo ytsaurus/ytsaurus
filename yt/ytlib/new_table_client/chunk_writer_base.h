@@ -22,11 +22,11 @@ public:
         NChunkClient::IChunkWriterPtr chunkWriter,
         const TKeyColumns& keyColumns = TKeyColumns());
 
-    virtual TAsyncError Open() override;
+    virtual TFuture<void> Open() override;
 
-    virtual TAsyncError Close() override;
+    virtual TFuture<void> Close() override;
 
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
     virtual i64 GetMetaSize() const override;
     virtual i64 GetDataSize() const override;
@@ -69,7 +69,7 @@ private:
     i64 DataWeight_ = 0;
 
 
-    TError DoClose();
+    void DoClose();
 
     void EmitSample(const TUnversionedValue* begin, const TUnversionedValue* end);
 

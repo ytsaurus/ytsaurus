@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 
 #include <ytlib/chunk_client/chunk_owner_ypath.pb.h>
 

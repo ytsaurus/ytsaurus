@@ -130,7 +130,7 @@ struct IServiceContext
     void ReplyFrom(TFuture<TSharedRefArray> message);
 
     //! Replies with a given error when the latter is set.
-    void ReplyFrom(TFuture<TError> error);
+    void ReplyFrom(TFuture<void> error);
 
 };
 

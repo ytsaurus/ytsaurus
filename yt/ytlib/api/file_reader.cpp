@@ -74,18 +74,16 @@ public:
             Options_.TransactionId);
     }
 
-    virtual TAsyncError Open() override
+    virtual TFuture<void> Open() override
     {
         return BIND(&TFileReader::DoOpen, MakeStrong(this))
-            .Guarded()
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
             .Run();
     }
 
-    virtual TFuture<TErrorOr<TSharedRef>> Read() override
+    virtual TFuture<TSharedRef> Read() override
     {
         return BIND(&TFileReader::DoRead, MakeStrong(this))
-            .Guarded()
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
             .Run();
     }
@@ -143,12 +141,14 @@ private:
             batchReq->AddRequest(req, "fetch");
         }
 
-        auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error fetching file info");
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error fetching file info");
+        const auto& batchRsp = batchRspOrError.Value();
 
         {
-            auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspGetBasicAttributes>("get_basic_attrs");
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting object attributes");
+            auto rspOrError = batchRsp->GetResponse<TFileYPathProxy::TRspGetBasicAttributes>("get_basic_attrs");
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting object attributes");
+            const auto& rsp = rspOrError.Value();
 
             auto type = EObjectType(rsp->type());
             if (type != EObjectType::File) {
@@ -161,8 +161,9 @@ private:
 
         auto nodeDirectory = New<TNodeDirectory>();
         {
-            auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>("fetch");
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching file chunks");
+            auto rspOrError = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>("fetch");
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching file chunks");
+            const auto& rsp = rspOrError.Value();
 
             nodeDirectory->MergeFrom(rsp->node_directory());
 

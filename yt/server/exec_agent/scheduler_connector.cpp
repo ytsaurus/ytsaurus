@@ -80,17 +80,18 @@ void TSchedulerConnector::SendHeartbeat()
         FormatResourceUsage(req->resource_usage(), req->resource_limits()));
 }
 
-void TSchedulerConnector::OnHeartbeatResponse(TJobTrackerServiceProxy::TRspHeartbeatPtr rsp)
+void TSchedulerConnector::OnHeartbeatResponse(const TJobTrackerServiceProxy::TErrorOrRspHeartbeatPtr& rspOrError)
 {
     HeartbeatExecutor->ScheduleNext();
 
-    if (!rsp->IsOK()) {
-        LOG_ERROR(*rsp, "Error reporting heartbeat to scheduler");
+    if (!rspOrError.IsOK()) {
+        LOG_ERROR(rspOrError, "Error reporting heartbeat to scheduler");
         return;
     }
 
     LOG_INFO("Successfully reported heartbeat to scheduler");
 
+    const auto& rsp = rspOrError.Value();
     auto jobController = Bootstrap->GetJobController();
     jobController->ProcessHeartbeat(rsp.Get());
 }

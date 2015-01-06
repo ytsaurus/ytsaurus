@@ -31,7 +31,7 @@ private:
     NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor;
 
     void SendHeartbeat();
-    void OnHeartbeatResponse(NJobTrackerClient::TJobTrackerServiceProxy::TRspHeartbeatPtr rsp);
+    void OnHeartbeatResponse(const NJobTrackerClient::TJobTrackerServiceProxy::TErrorOrRspHeartbeatPtr& rspOrError);
 
 };
 

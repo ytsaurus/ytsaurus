@@ -145,7 +145,7 @@ private:
         return TBase::SetBuiltinAttribute(key, value);
     }
 
-    virtual TAsyncError GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer) override
+    virtual TFuture<void> GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* node = GetThisTypedImpl();
         if (key == "quorum_row_count") {
@@ -153,7 +153,7 @@ private:
             if (chunkList->Children().empty()) {
                 BuildYsonFluently(consumer)
                     .Value(0);
-                return OKFuture;
+                return VoidFuture;
             }
 
             auto* chunk = chunkList->Children().back()->AsChunk();
@@ -162,12 +162,9 @@ private:
             auto chunkManager = Bootstrap->GetChunkManager();
             return chunkManager
                 ->GetChunkQuorumInfo(chunk)
-                .Apply(BIND([=] (const TErrorOr<TMiscExt>& result) -> TError {
-                    if (result.IsOK()) {
-                        BuildYsonFluently(consumer)
-                            .Value(penultimateRowCount + result.Value().row_count());
-                    }
-                    return TError(result);
+                .Apply(BIND([=] (const TMiscExt& miscExt) {
+                    BuildYsonFluently(consumer)
+                        .Value(penultimateRowCount + miscExt.row_count());
                 }));
         }
 

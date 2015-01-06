@@ -60,13 +60,13 @@ public:
      *
      *  \note Thread affinity: ClientThread
      */
-    TAsyncError Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions());
+    TFuture<void> Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions());
 
     //! Aborts the transaction asynchronously.
     /*!
      *  \note Thread affinity: any
      */
-    TAsyncError Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions());
+    TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions());
 
     //! Detaches the transaction, i.e. stops pings.
     /*!
@@ -81,7 +81,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    TAsyncError Ping();
+    TFuture<void> Ping();
 
 
     //! Returns the transaction type.
@@ -108,7 +108,7 @@ public:
     /*!
      *  \note Thread affinity: ClientThread
      */
-    TAsyncError AddTabletParticipant(const NElection::TCellId& cellId);
+    TFuture<void> AddTabletParticipant(const NElection::TCellId& cellId);
 
 
     //! Raised when the transaction is aborted.
@@ -166,7 +166,7 @@ public:
      *  If |options.PingAncestors| is |true| then the above renewal will also apply to all
      *  ancestor transactions.
      */
-    TFuture<TErrorOr<TTransactionPtr>> Start(
+    TFuture<TTransactionPtr> Start(
         ETransactionType type,
         const TTransactionStartOptions& options);
     

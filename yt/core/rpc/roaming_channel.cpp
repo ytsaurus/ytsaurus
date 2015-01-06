@@ -53,7 +53,7 @@ public:
         YASSERT(request);
         YASSERT(responseHandler);
 
-        TPromise< TErrorOr<IChannelPtr> > channelPromise;
+        TPromise<IChannelPtr> channelPromise;
         {
             TGuard<TSpinLock> guard(SpinLock);
 
@@ -65,7 +65,7 @@ public:
 
             channelPromise = ChannelPromise_;
             if (!channelPromise) {
-                channelPromise = ChannelPromise_ = NewPromise< TErrorOr<IChannelPtr> >();
+                channelPromise = ChannelPromise_ = NewPromise<IChannelPtr>();
                 guard.Release();
 
                 Provider_->DiscoverChannel(request).Subscribe(BIND(
@@ -75,7 +75,7 @@ public:
             }
         }
 
-        channelPromise.Subscribe(BIND(
+        channelPromise.ToFuture().Subscribe(BIND(
             &TRoamingChannel::OnGotChannel,
             MakeStrong(this),
             request,
@@ -88,7 +88,7 @@ public:
     {
         YCHECK(!error.IsOK());
 
-        TNullable< TErrorOr<IChannelPtr> > channel;
+        TNullable<TErrorOr<IChannelPtr>> channel;
         {
             TGuard<TSpinLock> guard(SpinLock);
 
@@ -149,8 +149,8 @@ private:
 
 
     void OnEndpointDiscovered(
-        TPromise< TErrorOr<IChannelPtr> > channelPromise,
-        TErrorOr<IChannelPtr> result)
+        TPromise<IChannelPtr> channelPromise,
+        const TErrorOr<IChannelPtr>& result)
     {
         TGuard<TSpinLock> guard(SpinLock);
 
@@ -176,7 +176,7 @@ private:
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
         bool requestAck,
-        TErrorOr<IChannelPtr> result)
+        const TErrorOr<IChannelPtr>& result)
     {
         if (!result.IsOK()) {
             responseHandler->OnError(result);
@@ -209,13 +209,13 @@ private:
 
     TNullable<TDuration> DefaultTimeout_;
     IRoamingChannelProviderPtr Provider_;
+    TCallback<bool(const TError&)> IsChannelFailureError_;
 
     TSpinLock SpinLock;
     volatile bool Terminated_ = false;
     TError TerminationError_;
-    TPromise<TErrorOr<IChannelPtr>> ChannelPromise_;
+    TPromise<IChannelPtr> ChannelPromise_;
 
-    TCallback<bool(const TError&)> IsChannelFailureError_;
 };
 
 IChannelPtr CreateRoamingChannel(

@@ -52,16 +52,16 @@ public:
         YCHECK(UnderlyingStream_);
     }
     
-    virtual TFuture<TErrorOr<size_t>> Read(void* buf, size_t len) override
+    virtual TFuture<size_t> Read(void* buf, size_t len) override
     {
         if (Failed_) {
             return Result_;
         }
 
         try {
-            return MakeFuture<TErrorOr<size_t>>(UnderlyingStream_->Read(buf, len));
+            return MakeFuture<size_t>(UnderlyingStream_->Read(buf, len));
         } catch (const std::exception& ex) {
-            Result_ = MakeFuture<TErrorOr<size_t>>(ex);
+            Result_ = MakeFuture<size_t>(TError(ex));
             Failed_ = true;
             return Result_;
         }
@@ -70,7 +70,7 @@ public:
 private:
     TInputStream* UnderlyingStream_;
 
-    TFuture<TErrorOr<size_t>> Result_;
+    TFuture<size_t> Result_;
     bool Failed_ = false;
 
 };
@@ -124,7 +124,7 @@ public:
         YCHECK(UnderlyingStream_);
     }
     
-    virtual TAsyncError Write(const void* buf, size_t len) override
+    virtual TFuture<void> Write(const void* buf, size_t len) override
     {
         if (Failed_) {
             return Result_;
@@ -133,17 +133,17 @@ public:
         try {
             UnderlyingStream_->Write(buf, len);
         } catch (const std::exception& ex) {
-            Result_ = MakeFuture<TError>(ex);
+            Result_ = MakeFuture<void>(TError(ex));
             Failed_ = true;
             return Result_;
         }
-        return OKFuture;
+        return VoidFuture;
     }
 
 private:
     TOutputStream* UnderlyingStream_;
 
-    TAsyncError Result_;
+    TFuture<void> Result_;
     bool Failed_ = false;
 
 };
@@ -169,11 +169,11 @@ public:
         YCHECK(BlockSize_ > 0);
     }
 
-    virtual TFuture<TErrorOr<TSharedRef>> Read() override
+    virtual TFuture<TSharedRef> Read() override
     {
         struct TZeroCopyInputStreamAdapterBlockTag { };
         auto block = TSharedRef::Allocate<TZeroCopyInputStreamAdapterBlockTag>(BlockSize_, false);
-        auto promise = NewPromise<TErrorOr<TSharedRef>>();
+        auto promise = NewPromise<TSharedRef>();
         DoRead(promise, block, 0);
         return promise;
     }
@@ -184,7 +184,7 @@ private:
 
 
     void DoRead(
-        TPromise<TErrorOr<TSharedRef>> promise,
+        TPromise<TSharedRef> promise,
         TSharedRef block,
         size_t offset)
     {
@@ -198,7 +198,7 @@ private:
     }
 
     void OnRead(
-        TPromise<TErrorOr<TSharedRef>> promise,
+        TPromise<TSharedRef> promise,
         TSharedRef block,
         size_t offset,
         const TErrorOr<size_t>& result)
@@ -238,10 +238,10 @@ public:
         YCHECK(UnderlyingStream_);
     }
 
-    virtual TFuture<TErrorOr<size_t>> Read(void* buf, size_t len) override
+    virtual TFuture<size_t> Read(void* buf, size_t len) override
     {
         if (CurrentBlock_) {
-            return MakeFuture<TErrorOr<size_t>>(DoCopy(buf, len));
+            return MakeFuture<size_t>(DoCopy(buf, len));
         } else {
             return UnderlyingStream_->Read().Apply(
                 BIND(&TCopyingInputStreamAdapter::OnRead, MakeStrong(this), buf, len));
@@ -268,13 +268,9 @@ private:
         return bytes;
     }
 
-    TErrorOr<size_t> OnRead(void* buf, size_t len, const TErrorOr<TSharedRef>& result)
+    size_t OnRead(void* buf, size_t len, TSharedRef block)
     {
-        if (!result.IsOK()) {
-            return TError(result);
-        }
-
-        CurrentBlock_ = result.Value();
+        CurrentBlock_ = block;
         return DoCopy(buf, len);
     }
 
@@ -297,17 +293,17 @@ public:
         YCHECK(UnderlyingStream_);
     }
 
-    virtual TAsyncError Write(const TSharedRef& data) override
+    virtual TFuture<void> Write(const TSharedRef& data) override
     {
         YASSERT(data);
-        TPromise<TError> promise;
+        TPromise<void> promise;
         bool invokeWrite;
         {
             TGuard<TSpinLock> guard(SpinLock_);
             if (!Error_.IsOK()) {
                 return MakeFuture(Error_);
             }
-            promise = NewPromise<TError>();
+            promise = NewPromise<void>();
             Queue_.push(TEntry{data, promise});
             invokeWrite = (Queue_.size() == 1);
         }
@@ -323,7 +319,7 @@ private:
     struct TEntry
     {
         TSharedRef Block;
-        TPromise<TError> Promise;
+        TPromise<void> Promise;
     };
 
     TSpinLock SpinLock_;
@@ -339,7 +335,7 @@ private:
 
     void OnWritten(const TError& error)
     {
-        TPromise<TError> promise;
+        TPromise<void> promise;
         TSharedRef pendingData;
         {
             TGuard<TSpinLock> guard(SpinLock_);
@@ -378,7 +374,7 @@ public:
         YCHECK(UnderlyingStream_);
     }
 
-    virtual TAsyncError Write(const void* buf, size_t len) override
+    virtual TFuture<void> Write(const void* buf, size_t len) override
     {
         struct TCopyingOutputStreamAdapterBlockTag { };
         auto block = TSharedRef::Allocate<TCopyingOutputStreamAdapterBlockTag>(len, false);
@@ -412,17 +408,17 @@ public:
         YCHECK(WindowSize_ > 0);
     }
 
-    virtual TFuture<TErrorOr<TSharedRef>> Read() override
+    virtual TFuture<TSharedRef> Read() override
     {
         TGuard<TSpinLock> guard(SpinLock_);
         if (!Error_.IsOK()) {
-            return MakeFuture<TErrorOr<TSharedRef>>(Error_);
+            return MakeFuture<TSharedRef>(Error_);
         }
         if (PrefetchedBlocks_.empty()) {
             return Prefetch(&guard).Apply(
                 BIND(&TPrefetchingInputStreamAdapter::OnPrefetched, MakeStrong(this)));
         }
-        return MakeFuture<TErrorOr<TSharedRef>>(PopBlock(&guard));
+        return MakeFuture<TSharedRef>(PopBlock(&guard));
     }
 
 private:
@@ -433,15 +429,15 @@ private:
     TError Error_;
     std::queue<TSharedRef> PrefetchedBlocks_;
     size_t PrefetchedSize_ = 0;
-    TAsyncError OutstandingResult_;
+    TFuture<void> OutstandingResult_;
 
 
-    TAsyncError Prefetch(TGuard<TSpinLock>* guard)
+    TFuture<void> Prefetch(TGuard<TSpinLock>* guard)
     {
         if (OutstandingResult_) {
             return OutstandingResult_;
         }
-        auto promise = NewPromise<TError>();
+        auto promise = NewPromise<void>();
         OutstandingResult_ = promise;
         guard->Release();
         UnderlyingStream_->Read().Subscribe(BIND(
@@ -451,7 +447,7 @@ private:
         return promise;
     }
 
-    void OnRead(TPromise<TError> promise, const TErrorOr<TSharedRef>& result)
+    void OnRead(TPromise<void> promise, const TErrorOr<TSharedRef>& result)
     {
         {
             TGuard<TSpinLock> guard(SpinLock_);
@@ -460,11 +456,8 @@ private:
         promise.Set(result);
     }
 
-    TErrorOr<TSharedRef> OnPrefetched(const TError& error)
+    TSharedRef OnPrefetched()
     {
-        if (!error.IsOK()) {
-            return error;
-        }
         TGuard<TSpinLock> guard(SpinLock_);
         return PopBlock(&guard);
     }
@@ -485,7 +478,7 @@ private:
         }
     }
 
-    TErrorOr<TSharedRef> PopBlock(TGuard<TSpinLock>* guard)
+    TSharedRef PopBlock(TGuard<TSpinLock>* guard)
     {
         YASSERT(!PrefetchedBlocks_.empty());
         auto block = PrefetchedBlocks_.front();

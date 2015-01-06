@@ -165,10 +165,10 @@ public:
     explicit TResourceUsageVisitor(NCellMaster::TBootstrap* bootstrap, IYsonConsumer* consumer)
         : Bootstrap(bootstrap)
         , Consumer(consumer)
-        , Result(NewPromise<TError>())
+        , Result(NewPromise<void>())
     { }
 
-    TAsyncError Run(ICypressNodeProxyPtr rootNode)
+    TFuture<void> Run(ICypressNodeProxyPtr rootNode)
     {
         TraverseCypress(Bootstrap, rootNode, this);
         return Result;
@@ -178,7 +178,7 @@ private:
     NCellMaster::TBootstrap* Bootstrap;
     IYsonConsumer* Consumer;
 
-    TPromise<TError> Result;
+    TPromise<void> Result;
     TClusterResources ResourceUsage;
 
     virtual void OnNode(ICypressNodeProxyPtr node) override
@@ -285,7 +285,7 @@ IAttributeDictionary* TNontemplateCypressNodeProxyBase::MutableAttributes()
     return TObjectProxyBase::MutableAttributes();
 }
 
-TAsyncError TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(
+TFuture<void> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(
     const Stroka& key,
     IYsonConsumer* consumer)
 {
@@ -1591,13 +1591,14 @@ void DelegateInvocation(
     auto clientRequest = New<TClientRequest>(context->RequestHeader());
     clientRequest->MergeFrom(*serverRequest);
 
-    auto clientResponse = ExecuteVerb(service, clientRequest).Get();
+    auto clientResponseOrError = ExecuteVerb(service, clientRequest).Get();
 
-    if (clientResponse->IsOK()) {
+    if (clientResponseOrError.IsOK()) {
+        const auto& clientResponse = clientResponseOrError.Value();
         serverResponse->MergeFrom(*clientResponse);
         context->Reply();
     } else {
-        context->Reply(clientResponse->GetError());
+        context->Reply(clientResponseOrError);
     }
 }
 

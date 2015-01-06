@@ -97,7 +97,6 @@ void TBootstrap::Run()
     ControlQueue_ = New<TFairShareActionQueue>("Control", TEnumTraits<EControlQueue>::GetDomainNames());
 
     auto result = BIND(&TBootstrap::DoRun, this)
-        .Guarded()
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get();

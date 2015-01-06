@@ -26,9 +26,9 @@ public:
         IChunkWriterPtr asyncWriter);
 
     void WriteBlock(std::vector<TSharedRef>&& data);
-    TError Close();
+    void Close();
 
-    TAsyncError GetReadyEvent() const;
+    TFuture<void> GetReadyEvent() const;
     bool IsReady() const;
 
     double GetCompressionRatio() const;

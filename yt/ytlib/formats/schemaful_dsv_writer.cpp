@@ -246,7 +246,7 @@ TSchemafulDsvWriter::TSchemafulDsvWriter(
     , Config_(config)
 { }
 
-TAsyncError TSchemafulDsvWriter::Open(
+TFuture<void> TSchemafulDsvWriter::Open(
     const TTableSchema& schema,
     const TNullable<TKeyColumns>& /*keyColumns*/)
 {
@@ -265,12 +265,12 @@ TAsyncError TSchemafulDsvWriter::Open(
             ColumnIdMapping_.push_back(id);
         }
     }
-    return OKFuture;
+    return VoidFuture;
 }
 
-TAsyncError TSchemafulDsvWriter::Close()
+TFuture<void> TSchemafulDsvWriter::Close()
 {
-    return OKFuture;
+    return VoidFuture;
 }
 
 bool TSchemafulDsvWriter::Write(const std::vector<TUnversionedRow>& rows)
@@ -295,7 +295,7 @@ bool TSchemafulDsvWriter::Write(const std::vector<TUnversionedRow>& rows)
     return Result_.IsSet() && Result_.Get().IsOK();
 }
 
-TAsyncError TSchemafulDsvWriter::GetReadyEvent()
+TFuture<void> TSchemafulDsvWriter::GetReadyEvent()
 {
     return Result_;
 }

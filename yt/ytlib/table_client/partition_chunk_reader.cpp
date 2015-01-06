@@ -15,6 +15,8 @@ namespace NYT {
 namespace NTableClient {
 
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
+using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,14 +56,14 @@ TPartitionChunkReader::TPartitionChunkReader(
     , Logger(TableClientLogger)
 { }
 
-TAsyncError TPartitionChunkReader::AsyncOpen()
+TFuture<void> TPartitionChunkReader::AsyncOpen()
 {
     State.StartOperation();
 
     Logger.AddTag("ChunkId: %v", ChunkReader->GetChunkId());
 
     std::vector<int> extensionTags;
-    extensionTags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
+    extensionTags.push_back(TProtoExtensionTag<TChannelsExt>::Value);
 
     LOG_INFO("Requesting chunk meta");
     ChunkReader->GetMeta(PartitionTag, &extensionTags)
@@ -71,30 +73,30 @@ TAsyncError TPartitionChunkReader::AsyncOpen()
     return State.GetOperationError();
 }
 
-void TPartitionChunkReader::OnGotMeta(IChunkReader::TGetMetaResult result)
+void TPartitionChunkReader::OnGotMeta(const TErrorOr<TChunkMeta>& metaOrError)
 {
-    if (!result.IsOK()) {
-        OnFail(result);
+    if (!metaOrError.IsOK()) {
+        OnFail(metaOrError);
         return;
     }
 
     LOG_INFO("Chunk meta received");
 
-    const auto& chunkMeta = result.Value();
+    const auto& meta = metaOrError.Value();
 
-    auto type = EChunkType(chunkMeta.type());
+    auto type = EChunkType(meta.type());
     if (type != EChunkType::Table) {
         LOG_FATAL("Invalid chunk type %v", type);
     }
 
-    if (chunkMeta.version() != FormatVersion) {
+    if (meta.version() != FormatVersion) {
         OnFail(TError("Invalid chunk format version: expected %v, actual %v",
             FormatVersion,
-            chunkMeta.version()));
+            meta.version()));
         return;
     }
 
-    auto channelsExt = GetProtoExtension<NProto::TChannelsExt>(chunkMeta.extensions());
+    auto channelsExt = GetProtoExtension<TChannelsExt>(meta.extensions());
     YCHECK(channelsExt.items_size() == 1);
 
     std::vector<TSequentialReader::TBlockInfo> blockSequence;
@@ -130,7 +132,7 @@ void TPartitionChunkReader::OnGotMeta(IChunkReader::TGetMetaResult result)
     }
 }
 
-void TPartitionChunkReader::OnNextBlock(TError error)
+void TPartitionChunkReader::OnNextBlock(const TError& error)
 {
     if (!error.IsOK()) {
         State.Fail(error);
@@ -207,7 +209,7 @@ bool TPartitionChunkReader::FetchNext()
     return true;
 }
 
-TAsyncError TPartitionChunkReader::GetReadyEvent()
+TFuture<void> TPartitionChunkReader::GetReadyEvent()
 {
     return State.GetOperationError();
 }
@@ -230,9 +232,9 @@ TFuture<void> TPartitionChunkReader::GetFetchingCompleteEvent()
     return SequentialReader->GetFetchingCompleteEvent();
 }
 
-NChunkClient::NProto::TDataStatistics TPartitionChunkReader::GetDataStatistics() const
+TDataStatistics TPartitionChunkReader::GetDataStatistics() const
 {
-    NChunkClient::NProto::TDataStatistics result;
+    TDataStatistics result;
     result.set_chunk_count(1);
 
     if (SequentialReader) {
@@ -262,14 +264,14 @@ TPartitionChunkReaderProvider::TPartitionChunkReaderProvider(
     : RowIndex_(-1)
     , Config(std::move(config))
     , UncompressedBlockCache(std::move(uncompressedBlockCache))
-    , DataStatistics(NChunkClient::NProto::ZeroDataStatistics())
+    , DataStatistics(ZeroDataStatistics())
 { }
 
 TPartitionChunkReaderPtr TPartitionChunkReaderProvider::CreateReader(
-    const NChunkClient::NProto::TChunkSpec& chunkSpec,
-    const NChunkClient::IChunkReaderPtr chunkReader)
+    const TChunkSpec& chunkSpec,
+    const IChunkReaderPtr chunkReader)
 {
-    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
+    auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
 
     return New<TPartitionChunkReader>(
         this,
@@ -287,7 +289,7 @@ bool TPartitionChunkReaderProvider::KeepInMemory() const
 
 void TPartitionChunkReaderProvider::OnReaderOpened(
     TPartitionChunkReaderPtr reader,
-    NChunkClient::NProto::TChunkSpec& chunkSpec)
+    TChunkSpec& chunkSpec)
 {
     TGuard<TSpinLock> guard(SpinLock);
     YCHECK(ActiveReaders.insert(reader).second);

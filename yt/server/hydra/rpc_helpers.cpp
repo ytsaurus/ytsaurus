@@ -22,7 +22,7 @@ TCallback<void(const TErrorOr<TMutationResponse>&)> CreateRpcResponseHandler(ISe
                 context->Reply(TError());
             }
         } else {
-            context->Reply(TError(result));
+            context->Reply(result);
         }
     });
 }

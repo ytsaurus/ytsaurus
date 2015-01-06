@@ -70,22 +70,20 @@ const ev::loop_ref& TTcpDispatcherThread::GetEventLoop() const
     return EventLoop;
 }
 
-TAsyncError TTcpDispatcherThread::AsyncRegister(IEventLoopObjectPtr object)
+TFuture<void> TTcpDispatcherThread::AsyncRegister(IEventLoopObjectPtr object)
 {
     LOG_DEBUG("Object registration enqueued (%v)", object->GetLoggingId());
 
     return BIND(&TTcpDispatcherThread::DoRegister, MakeStrong(this), object)
-        .Guarded()
         .AsyncVia(GetInvoker())
         .Run();
 }
 
-TAsyncError TTcpDispatcherThread::AsyncUnregister(IEventLoopObjectPtr object)
+TFuture<void> TTcpDispatcherThread::AsyncUnregister(IEventLoopObjectPtr object)
 {
     LOG_DEBUG("Object unregistration enqueued (%v)", object->GetLoggingId());
 
     return BIND(&TTcpDispatcherThread::DoUnregister, MakeStrong(this), object)
-        .Guarded()
         .AsyncVia(GetInvoker())
         .Run();
 }

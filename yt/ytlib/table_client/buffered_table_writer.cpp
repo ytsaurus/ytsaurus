@@ -127,7 +127,7 @@ public:
         return true;
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
         YUNREACHABLE();
     }

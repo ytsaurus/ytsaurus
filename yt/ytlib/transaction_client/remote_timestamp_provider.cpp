@@ -43,14 +43,14 @@ public:
         LatestTimestampExecutor_->Start();
     }
 
-    virtual TFuture<TErrorOr<TTimestamp>> GenerateTimestamps(int count) override
+    virtual TFuture<TTimestamp> GenerateTimestamps(int count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count > 0);
 
         TRequest request;
         request.Count = count;
-        request.Promise = NewPromise<TErrorOr<TTimestamp>>();
+        request.Promise = NewPromise<TTimestamp>();
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
@@ -82,7 +82,7 @@ private:
     struct TRequest
     {
         int Count;
-        TPromise<TErrorOr<TTimestamp>> Promise;
+        TPromise<TTimestamp> Promise;
     };
 
     TSpinLock SpinLock_;
@@ -122,7 +122,7 @@ private:
     void OnGenerateResponse(
         std::vector<TRequest> requests,
         int count,
-        TTimestampServiceProxy::TRspGenerateTimestampsPtr rsp)
+        const TTimestampServiceProxy::TErrorOrRspGenerateTimestampsPtr& rspOrError)
     {
         TError error;
         {
@@ -130,14 +130,15 @@ private:
 
             GenerateInProgress_ = false;
 
-            if (rsp->IsOK()) {
+            if (rspOrError.IsOK()) {
+                const auto& rsp = rspOrError.Value();
                 auto firstTimestamp = TTimestamp(rsp->timestamp());
                 LatestTimestamp_ = firstTimestamp + requests.size();
                 LOG_DEBUG("Fresh timestamps generated (Timestamps: %v-%v)",
                     firstTimestamp,
                     LatestTimestamp_);
             } else {
-                error = TError("Error generating fresh timestamps") << *rsp;
+                error = TError("Error generating fresh timestamps") << rspOrError;
                 LOG_ERROR(error);
             }
 
@@ -147,6 +148,7 @@ private:
         }
 
         if (error.IsOK()) {
+            const auto& rsp = rspOrError.Value();
             auto timestamp = rsp->timestamp();
             for (auto& request : requests) {
                 request.Promise.Set(timestamp);
@@ -170,16 +172,17 @@ private:
             MakeStrong(this)));
     }
 
-    void OnUpdateResponse(TTimestampServiceProxy::TRspGenerateTimestampsPtr rsp)
+    void OnUpdateResponse(const TTimestampServiceProxy::TErrorOrRspGenerateTimestampsPtr& rspOrError)
     {
-        if (rsp->IsOK()) {
+        if (rspOrError.IsOK()) {
+            const auto& rsp = rspOrError.Value();
             auto timestamp = TTimestamp(rsp->timestamp());
             LOG_DEBUG("Current timestamp updated (Timestamp: %v)", timestamp);
 
             TGuard<TSpinLock> guard(SpinLock_);
             LatestTimestamp_ = std::max(LatestTimestamp_, timestamp);
         } else {
-            LOG_WARNING(*rsp, "Error updating current timestamp");          
+            LOG_WARNING(rspOrError, "Error updating current timestamp");
         }
 
         LatestTimestampExecutor_->ScheduleNext();

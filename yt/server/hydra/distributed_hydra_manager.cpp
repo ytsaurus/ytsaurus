@@ -280,24 +280,20 @@ public:
         ReadOnly_ = value;
     }
 
-    virtual TFuture<TErrorOr<int>> BuildSnapshotDistributed() override
+    virtual TFuture<int> BuildSnapshotDistributed() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto epochContext = AutomatonEpochContext_;
 
         if (!epochContext || GetAutomatonState() != EPeerState::Leading || !ActiveLeader_) {
-            return MakeFuture<TErrorOr<int>>(TError(
+            return MakeFuture<int>(TError(
                 NHydra::EErrorCode::InvalidState,
                 "Not an active leader"));
         }
 
         return BuildSnapshotAndWatch(epochContext).Apply(
-            BIND([] (const TErrorOr<TRemoteSnapshotParams>& errorOrParams) -> TErrorOr<int> {
-                if (!errorOrParams.IsOK()) {
-                    return TError(errorOrParams);
-                }
-                const auto& params = errorOrParams.Value();
+            BIND([] (const TRemoteSnapshotParams& params) -> int {
                 return params.SnapshotId;
             }));
     }
@@ -320,20 +316,20 @@ public:
         });
     }
 
-    virtual TFuture<TErrorOr<TMutationResponse>> CommitMutation(const TMutationRequest& request) override
+    virtual TFuture<TMutationResponse> CommitMutation(const TMutationRequest& request) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(!DecoratedAutomaton_->GetMutationContext());
 
         if (ReadOnly_) {
-            return MakeFuture<TErrorOr<TMutationResponse>>(TError(
+            return MakeFuture<TMutationResponse>(TError(
                 NHydra::EErrorCode::ReadOnly,
                 "Read-only mode is active"));
         }
 
         auto epochContext = AutomatonEpochContext_;
         if (!epochContext || !ActiveLeader_ || GetAutomatonState() != EPeerState::Leading) {
-            return MakeFuture<TErrorOr<TMutationResponse>>(TError(
+            return MakeFuture<TMutationResponse>(TError(
                 NHydra::EErrorCode::InvalidState,
                 "Not an active leader"));
         }
@@ -847,16 +843,16 @@ private:
         WatchChangelogRotation(epochContext, changelogResult);
     }
 
-    TFuture<TErrorOr<TRemoteSnapshotParams>> BuildSnapshotAndWatch(TEpochContextPtr epochContext)
+    TFuture<TRemoteSnapshotParams> BuildSnapshotAndWatch(TEpochContextPtr epochContext)
     {
-        TFuture<TError> changelogResult;
-        TFuture<TErrorOr<TRemoteSnapshotParams>> snapshotResult;
+        TFuture<void> changelogResult;
+        TFuture<TRemoteSnapshotParams> snapshotResult;
         std::tie(changelogResult, snapshotResult) = epochContext->Checkpointer->BuildSnapshot();
         WatchChangelogRotation(epochContext, changelogResult);
         return snapshotResult;
     }
 
-    void WatchChangelogRotation(TEpochContextPtr epochContext, TAsyncError result)
+    void WatchChangelogRotation(TEpochContextPtr epochContext, TFuture<void> result)
     {
         result.Subscribe(BIND(
             &TDistributedHydraManager::OnChangelogRotated,

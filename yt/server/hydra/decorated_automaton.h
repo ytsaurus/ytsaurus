@@ -8,7 +8,7 @@
 
 #include <core/concurrency/thread_affinity.h>
 
-#include <core/actions/invoker.h>
+#include <core/actions/future.h>
 
 #include <core/rpc/public.h>
 
@@ -99,18 +99,18 @@ public:
     void LogLeaderMutation(
         const TMutationRequest& request,
         TSharedRef* recordData,
-        TFuture<TError>* localFlushResult,
-        TFuture<TErrorOr<TMutationResponse>>* commitResult);
+        TFuture<void>* localFlushResult,
+        TFuture<TMutationResponse>* commitResult);
 
     void CancelPendingLeaderMutations(const TError& error);
 
     void LogFollowerMutation(
         const TSharedRef& recordData,
-        TAsyncError* localFlushResult);
+        TFuture<void>* localFlushResult);
 
-    TFuture<TErrorOr<TRemoteSnapshotParams>> BuildSnapshot();
+    TFuture<TRemoteSnapshotParams> BuildSnapshot();
 
-    TAsyncError RotateChangelog(TEpochContextPtr epochContext);
+    TFuture<void> RotateChangelog(TEpochContextPtr epochContext);
 
     void CommitMutations(TVersion version);
 
@@ -151,7 +151,7 @@ private:
     TVersion AutomatonVersion_;
 
     TVersion SnapshotVersion_;
-    TPromise<TErrorOr<TRemoteSnapshotParams>> SnapshotParamsPromise_;
+    TPromise<TRemoteSnapshotParams> SnapshotParamsPromise_;
     std::atomic_flag BuildingSnapshot_;
     TInstant LastSnapshotTime_;
 
@@ -161,7 +161,7 @@ private:
         TMutationRequest Request;
         TInstant Timestamp;
         ui64 RandomSeed;
-        TPromise<TErrorOr<TMutationResponse>> CommitPromise;
+        TPromise<TMutationResponse> CommitPromise;
     };
 
     NProto::TMutationHeader MutationHeader_; // pooled instance

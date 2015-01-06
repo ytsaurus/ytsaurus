@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 
 #include <core/actions/callback.h>
 #include <core/actions/callback_internal.h>

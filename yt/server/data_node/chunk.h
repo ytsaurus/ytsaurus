@@ -2,8 +2,9 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
 #include <core/misc/ref.h>
+
+#include <core/actions/future.h>
 
 #include <ytlib/chunk_client/chunk_meta.pb.h>
 #include <ytlib/chunk_client/chunk_info.pb.h>
@@ -47,12 +48,6 @@ struct IChunk
     //! Returns the full path to the chunk data file.
     virtual Stroka GetFileName() const = 0;
 
-    typedef TErrorOr<std::vector<TSharedRef>> TReadBlocksResult;
-    typedef TFuture<TReadBlocksResult> TAsyncReadBlocksResult;
-
-    typedef TErrorOr<TRefCountedChunkMetaPtr> TGetMetaResult;
-    typedef TFuture<TGetMetaResult> TAsyncGetMetaResult;
-
     //! Returns chunk meta.
     /*!
      *  \param priority Request priority.
@@ -61,12 +56,12 @@ struct IChunk
      *
      *  \note The meta is fetched asynchronously and is cached.
      */
-    virtual TAsyncGetMetaResult GetMeta(
+    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         i64 priority,
         const std::vector<int>* tags = nullptr) = 0;
 
     //! Asynchronously reads a range of blocks.
-    virtual TAsyncReadBlocksResult ReadBlocks(
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
         int firstBlockIndex,
         int blockCount,
         i64 priority) = 0;

@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
-#include <core/misc/ref_counted.h>
+#include <core/actions/future.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -17,13 +16,13 @@ struct IWriterBase
 {
     //! Initializes the writer. Must be called (and its result must be waited for)
     //! before making any other calls.
-    virtual TAsyncError Open() = 0;
+    virtual TFuture<void> Open() = 0;
 
     //! Returns an asynchronous flag enabling to wait until data is written.
-    virtual TAsyncError GetReadyEvent() = 0;
+    virtual TFuture<void> GetReadyEvent() = 0;
 
     //! Closes the writer. Must be the last call to the writer.
-    virtual TAsyncError Close() = 0;
+    virtual TFuture<void> Close() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

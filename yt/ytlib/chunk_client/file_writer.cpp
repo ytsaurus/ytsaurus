@@ -29,10 +29,10 @@ TFileWriter::TFileWriter(
     , IsOpen_(false)
     , IsClosed_(false)
     , DataSize_(0)
-    , Result_(OKFuture)
+    , Result_(VoidFuture)
 { }
 
-TAsyncError TFileWriter::Open()
+TFuture<void> TFileWriter::Open()
 {
     YCHECK(!IsOpen_);
     YCHECK(!IsClosed_);
@@ -46,7 +46,7 @@ TAsyncError TFileWriter::Open()
     DataFile_->Flock(LOCK_EX);
 
     IsOpen_ = true;
-    return OKFuture;
+    return VoidFuture;
 }
 
 bool TFileWriter::WriteBlock(const TSharedRef& block)
@@ -82,12 +82,12 @@ bool TFileWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
     return result;
 }
 
-TAsyncError TFileWriter::GetReadyEvent()
+TFuture<void> TFileWriter::GetReadyEvent()
 {
     return Result_;
 }
 
-TAsyncError TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMeta)
+TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMeta)
 {
     if (!IsOpen_ || !Result_.Get().IsOK()) {
         return Result_;
@@ -156,7 +156,7 @@ TAsyncError TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMeta
 
     ChunkInfo_.set_disk_space(DataSize_ + metaData.Size() + sizeof (TChunkMetaHeader));
 
-    return OKFuture;
+    return VoidFuture;
 }
 
 void TFileWriter::Abort()

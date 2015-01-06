@@ -135,13 +135,13 @@ public:
 
     ~TReplicationWriter();
 
-    virtual TAsyncError Open() override;
+    virtual TFuture<void> Open() override;
 
     virtual bool WriteBlock(const TSharedRef& block) override;
     virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override;
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
-    virtual TAsyncError Close(const TChunkMeta& chunkMeta) override;
+    virtual TFuture<void> Close(const TChunkMeta& chunkMeta) override;
 
     virtual const TChunkInfo& GetChunkInfo() const override;
     virtual TChunkReplicaList GetWrittenChunkReplicas() const override;
@@ -304,9 +304,9 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
         GetEndBlockIndex(),
         node->Descriptor.GetDefaultAddress());
 
-    auto rsp = WaitFor(req->Invoke());
+    auto rspOrError = WaitFor(req->Invoke());
 
-    if (rsp->IsOK()) {
+    if (rspOrError.IsOK()) {
         SentTo_[node->Index] = true;
 
         LOG_DEBUG("Blocks are put (Blocks: %v-%v, Address: %v)",
@@ -314,7 +314,7 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
             GetEndBlockIndex(),
             node->Descriptor.GetDefaultAddress());
     } else {
-        writer->OnNodeFailed(node, rsp->GetError());
+        writer->OnNodeFailed(node, rspOrError);
     }
 
     ScheduleProcess();
@@ -342,9 +342,9 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
             req->set_block_count(Blocks_.size());
             ToProto(req->mutable_target(), dstNode->Descriptor);
 
-            auto rsp = WaitFor(req->Invoke());
+            auto rspOrError = WaitFor(req->Invoke());
 
-            if (rsp->IsOK()) {
+            if (rspOrError.IsOK()) {
                 LOG_DEBUG("Blocks are sent (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
                     FirstBlockIndex_,
                     GetEndBlockIndex(),
@@ -353,12 +353,9 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
 
                 SentTo_[dstNode->Index] = true;
             } else {
-                auto error = rsp->GetError();
-                if (error.GetCode() == EErrorCode::PipelineFailed) {
-                    writer->OnNodeFailed(dstNode, error);
-                } else {
-                    writer->OnNodeFailed(srcNode, error);
-                }
+                writer->OnNodeFailed(
+                    rspOrError.GetCode() == EErrorCode::PipelineFailed ? dstNode : srcNode,
+                    rspOrError);
             }
 
             break;
@@ -495,13 +492,14 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
     
     ToProto(req->mutable_chunk_id(), ChunkId_);
 
-    auto rsp = WaitFor(req->Invoke());
+    auto rspOrError = WaitFor(req->Invoke());
 
     THROW_ERROR_EXCEPTION_IF_FAILED(
-        *rsp, 
+        rspOrError,
         EErrorCode::MasterCommunicationFailed, 
         "Failed to allocate targets for chunk %v", 
         ChunkId_);
+    const auto& rsp = rspOrError.Value();
 
     NodeDirectory_->MergeFrom(rsp->node_directory());
 
@@ -540,9 +538,9 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     req->set_session_type(static_cast<int>(SessionType_));
     req->set_sync_on_close(Config_->SyncOnClose);
 
-    auto rsp = WaitFor(req->Invoke());
-    if (!rsp->IsOK()) {
-        LOG_WARNING(*rsp, "Failed to start write session on node %v", address);
+    auto rspOrError = WaitFor(req->Invoke());
+    if (!rspOrError.IsOK()) {
+        LOG_WARNING(rspOrError, "Failed to start write session on node %v", address);
         return;
     }
 
@@ -562,10 +560,9 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     ++AliveNodeCount_;
 }
 
-TAsyncError TReplicationWriter::Open()
+TFuture<void> TReplicationWriter::Open()
 {
     return BIND(&TReplicationWriter::DoOpen, MakeStrong(this))
-        .Guarded()
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 }
@@ -644,14 +641,14 @@ void TReplicationWriter::FlushBlocks(TNodePtr node, int blockIndex)
     ToProto(req->mutable_chunk_id(), ChunkId_);
     req->set_block_index(blockIndex);
 
-    auto rsp = WaitFor(req->Invoke());
+    auto rspOrError = WaitFor(req->Invoke());
 
-    if (rsp->IsOK()) {
+    if (rspOrError.IsOK()) {
         LOG_DEBUG("Block flushed (Block: %v, Address: %v)",
             blockIndex,
             node->Descriptor.GetDefaultAddress());
     } else {
-        OnNodeFailed(node, rsp->GetError());
+        OnNodeFailed(node, rspOrError);
     }
 }
 
@@ -772,14 +769,15 @@ void TReplicationWriter::FinishChunk(TNodePtr node)
     *req->mutable_chunk_meta() = ChunkMeta_;
     req->set_block_count(BlockCount_);
 
-    auto rsp = WaitFor(req->Invoke());
+    auto rspOrError = WaitFor(req->Invoke());
 
-    if (!rsp->IsOK()) {
-        OnNodeFailed(node, rsp->GetError());
+    if (!rspOrError.IsOK()) {
+        OnNodeFailed(node, rspOrError);
         return;
     }
 
-    auto& chunkInfo = rsp->chunk_info();
+    const auto& rsp = rspOrError.Value();
+    const auto& chunkInfo = rsp->chunk_info();
     LOG_DEBUG("Chunk finished (Address: %v, DiskSpace: %v)",
         node->Descriptor.GetDefaultAddress(),
         chunkInfo.disk_space());
@@ -866,7 +864,7 @@ bool TReplicationWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
     return WindowSlots_.IsReady();
 }
 
-TAsyncError TReplicationWriter::GetReadyEvent()
+TFuture<void> TReplicationWriter::GetReadyEvent()
 {
     YCHECK(IsOpen_);
     YCHECK(!IsClosing_);
@@ -879,8 +877,8 @@ TAsyncError TReplicationWriter::GetReadyEvent()
         // No need to capture #this by strong reference, because
         // WindowSlots are always released when Writer is alive,
         // and callcack is called synchronously.
-        WindowSlots_.GetReadyEvent().Subscribe(BIND([ = ] () {
-            State_.FinishOperation(TError());
+        WindowSlots_.GetReadyEvent().Subscribe(BIND([=] (const TError& error) {
+            State_.FinishOperation(error);
         }));
     }
 
@@ -939,7 +937,7 @@ void TReplicationWriter::DoClose()
     }
 }
 
-TAsyncError TReplicationWriter::Close(const TChunkMeta& chunkMeta)
+TFuture<void> TReplicationWriter::Close(const TChunkMeta& chunkMeta)
 {
     YCHECK(IsOpen_);
     YCHECK(!IsClosing_);

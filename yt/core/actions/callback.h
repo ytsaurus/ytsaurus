@@ -106,6 +106,7 @@
 #include "bind_internal.h"
 
 #include <core/misc/mpl.h>
+#include <core/misc/error.h>
 
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
 #include <core/misc/source_location.h>
@@ -114,12 +115,6 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-class TErrorOr;
-
-template <class T>
-TPromise<T> NewPromise();
 
 /*! \internal */
 ////////////////////////////////////////////////////////////////////////////////
@@ -141,38 +136,25 @@ namespace NDetail {
 template <class TRunnable, class TSignature, class TBoundArgs>
 struct TBindState;
 
-// TODO(sandello): Move these somewhere closer to TFuture & TPromise.
-template <class R>
-struct TFutureHelper
-{
-    typedef TFuture<R> TFutureType;
-    typedef TPromise<R> TPromiseType;
-    typedef R TValueType;
-    static const bool WrappedInFuture = false;
-};
-
-template <class R>
-struct TFutureHelper< TFuture<R> >
-{
-    typedef TFuture<R> TFutureType;
-    typedef TPromise<R> TPromiseType;
-    typedef R TValueType;
-    static const bool WrappedInFuture = true;
-};
-
-template <class R>
-struct TFutureHelper< TPromise<R> >
-{
-    typedef TFuture<R> TFutureType;
-    typedef TPromise<R> TPromiseType;
-    typedef R TValueType;
-    static const bool WrappedInFuture = true;
-};
-
 template <class S1, class S2>
 class TCallbackRunnableAdapter;
 
 } // namespace NDetail
+
+// NB: Needed here due to TCallback::Via and TCallback::AsyncVia.
+template <class T>
+struct TFutureTraits
+{
+    typedef T TUnderlying;
+    typedef TFuture<T> TWrapped;
+};
+
+template <class T>
+struct TFutureTraits<TFuture<T>>
+{
+    typedef T TUnderlying;
+    typedef TFuture<T> TWrapped;
+};
 
 template <class R, class... TArgs>
 class TCallback<R(TArgs...)>
@@ -182,7 +164,7 @@ public:
     typedef R(TSignature)(TArgs...);
 
     TCallback()
-        : TCallbackBase(TIntrusivePtr< NYT::NDetail::TBindStateBase >())
+        : TCallbackBase(TIntrusivePtr<NYT::NDetail::TBindStateBase>())
     { }
 
     TCallback(const TCallback& other)
@@ -196,7 +178,7 @@ public:
     template <class TRunnable, class TSignature, class TBoundArgs>
     explicit TCallback(TIntrusivePtr<
             NYT::NDetail::TBindState<TRunnable, TSignature, TBoundArgs>
-        >&& bindState)
+       >&& bindState)
         : TCallbackBase(std::move(bindState))
     {
         // Force the assignment to a local variable of TTypedInvokeFunction
@@ -245,16 +227,11 @@ public:
 
     TCallback Via(TIntrusivePtr<IInvoker> invoker);
 
-    TCallback<typename NYT::NDetail::TFutureHelper<R>::TFutureType(TArgs...)>
+    TCallback<typename TFutureTraits<R>::TWrapped(TArgs...)>
     AsyncVia(TIntrusivePtr<IInvoker> invoker);
 
-    // TODO(babenko): currently only implemented for simple return types (no TErrorOr).
-    TCallback<TErrorOr<R>(TArgs...)> Guarded();
-
 private:
-    typedef R(*TTypedInvokeFunction)(
-        NYT::NDetail::TBindStateBase*,
-        TArgs&& ...);
+    typedef R(*TTypedInvokeFunction)(NYT::NDetail::TBindStateBase*, TArgs&& ...);
 
 };
 

@@ -173,12 +173,9 @@ TSchedulerThread::TSchedulerThread(
     , ThreadName(threadName)
     , EnableLogging(enableLogging)
     , Profiler("/action_queue", tagIds)
-    , Started(NewPromise())
-    , ThreadId(InvalidThreadId)
     , Thread(ThreadMain, (void*) this)
-    , FibersCreated(0)
-    , FibersAlive(0)
 {
+    // TODO(babenko): VS compat
     Epoch.store(0, std::memory_order_relaxed);
     Profiler.SetEnabled(enableProfiling);
 }
@@ -199,7 +196,7 @@ void TSchedulerThread::Start()
 
     OnStart();
 
-    Started.Get();
+    Started.ToFuture().Get();
 }
 
 void TSchedulerThread::Shutdown()
@@ -278,8 +275,8 @@ void TSchedulerThread::ThreadMainStep()
     RunQueue.pop_front();
 
     YCHECK(CurrentFiber->GetState() == EFiberState::Suspended);
+    CurrentFiber->SetRunning();
 
-    CurrentFiber->SetState(EFiberState::Running);
     SwitchExecutionContext(
         &SchedulerContext,
         CurrentFiber->GetContext(),
@@ -313,7 +310,6 @@ void TSchedulerThread::ThreadMainStep()
             break;
 
         case EFiberState::Terminated:
-        case EFiberState::Canceled:
             // Advance epoch as this (idle) fiber just died.
             if (CurrentFiber == IdleFiber) {
                 Epoch.fetch_add(0x2, std::memory_order_relaxed);
@@ -409,13 +405,9 @@ void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoke
     auto unwind = BIND(&NDetail::UnwindFiber, fiber);
 
     if (future) {
-        auto continuation = BIND(
-            &GuardedInvoke,
-            Passed(std::move(invoker)),
-            Passed(std::move(resume)),
-            unwind);
-        future.OnCanceled(std::move(unwind));
-        future.Subscribe(std::move(continuation));
+        future.Subscribe(BIND([=] (const TError&) mutable {
+            GuardedInvoke(std::move(invoker), std::move(resume), std::move(unwind));
+        }));
     } else {
         GuardedInvoke(std::move(invoker), std::move(resume), std::move(unwind));
     }
@@ -449,7 +441,7 @@ void TSchedulerThread::Return()
     VERIFY_THREAD_AFFINITY(HomeThread);
 
     YASSERT(CurrentFiber);
-    YASSERT(CurrentFiber->CanReturn());
+    YASSERT(CurrentFiber->IsTerminated());
 
     SwitchExecutionContext(
         CurrentFiber->GetContext(),
@@ -470,7 +462,9 @@ void TSchedulerThread::Yield()
         throw TFiberCanceledException();
     }
 
-    fiber->SetState(EFiberState::Suspended);
+    YCHECK(CurrentFiber->GetState() == EFiberState::Running);
+    fiber->SetSuspended();
+
     SwitchExecutionContext(
         fiber->GetContext(),
         &SchedulerContext,
@@ -512,8 +506,8 @@ void TSchedulerThread::YieldTo(TFiberPtr&& other)
     RunQueue.emplace_front(std::move(CurrentFiber));
     CurrentFiber = std::move(other);
 
-    caller->SetState(EFiberState::Suspended);
-    target->SetState(EFiberState::Running);
+    caller->SetSuspended();
+    target->SetRunning();
 
     SwitchExecutionContext(
         caller->GetContext(),
@@ -543,7 +537,8 @@ void TSchedulerThread::SwitchTo(IInvokerPtr invoker)
     YASSERT(!SwitchToInvoker);
     SwitchToInvoker = std::move(invoker);
 
-    fiber->SetState(EFiberState::Sleeping);
+    fiber->SetSleeping();
+
     SwitchExecutionContext(
         fiber->GetContext(),
         &SchedulerContext,
@@ -574,7 +569,8 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
     YASSERT(!SwitchToInvoker);
     SwitchToInvoker = std::move(invoker);
 
-    fiber->SetState(EFiberState::Sleeping);
+    fiber->SetSleeping(WaitForFuture);
+
     SwitchExecutionContext(
         fiber->GetContext(),
         &SchedulerContext,

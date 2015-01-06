@@ -220,16 +220,16 @@ protected:
     virtual void OnCustomAttributesUpdated();
 
 private:
-    TFuture< TErrorOr<TYsonString> > DoFindAttribute(const Stroka& key);
+    TFuture<TYsonString> DoFindAttribute(const Stroka& key);
 
-    static TErrorOr<TYsonString> DoGetAttributeFragment(const TYPath& path, TErrorOr<TYsonString> wholeYsonOrError);
-    TFuture< TErrorOr<TYsonString> > DoGetAttribute(const TYPath& path);
+    static TYsonString DoGetAttributeFragment(const TYPath& path, const TYsonString& wholeYson);
+    TFuture<TYsonString> DoGetAttribute(const TYPath& path);
 
-    static bool DoExistsAttributeFragment(const TYPath& path, TErrorOr<TYsonString> wholeYsonOrError);
+    static bool DoExistsAttributeFragment(const TYPath& path, const TErrorOr<TYsonString>& wholeYsonOrError);
     TFuture<bool> DoExistsAttribute(const TYPath& path);
 
-    static TErrorOr<TYsonString> DoListAttributeFragment(const TYPath& path, TErrorOr<TYsonString> wholeYsonOrError);
-    TFuture< TErrorOr<TYsonString> > DoListAttribute(const TYPath& path);
+    static TYsonString DoListAttributeFragment(const TYPath& path, const TYsonString& wholeYson);
+    TFuture<TYsonString> DoListAttribute(const TYPath& path);
 
     void DoSetAttribute(const TYPath& path, const TYsonString& newYson);
 

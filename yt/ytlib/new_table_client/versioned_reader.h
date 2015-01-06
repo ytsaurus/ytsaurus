@@ -23,7 +23,7 @@ struct IVersionedReader
 {
     //! Initializes the reader. Must be called (and its result must be waited for)
     //! before making any other calls.
-    virtual TAsyncError Open() = 0;
+    virtual TFuture<void> Open() = 0;
 
     //! Tries to read more rows from the reader.
     /*!
@@ -52,7 +52,7 @@ struct IVersionedReader
 
     //! Returns an asynchronous flag enabling to wait for more data to come.
     //! \see #Read.
-    virtual TAsyncError GetReadyEvent() = 0;
+    virtual TFuture<void> GetReadyEvent() = 0;
 
 };
 

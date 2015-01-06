@@ -10,8 +10,6 @@
 #include <core/rpc/service_detail.h>
 #include <core/rpc/helpers.h>
 
-#include <core/actions/invoker_util.h>
-
 #include <ytlib/security_client/public.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
@@ -116,7 +114,7 @@ public:
         if (requestCount == 0) {
             Reply();
         } else {
-            Continue();
+            Continue(TError());
         }
     }
 
@@ -135,9 +133,12 @@ private:
 
     const NLog::TLogger& Logger;
 
-    void Continue()
+
+    void Continue(const TError& error)
     {
         try {
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+
             auto objectManager = Bootstrap->GetObjectManager();
             auto rootService = objectManager->GetRootService();
 
@@ -158,7 +159,7 @@ private:
                 // Don't allow the thread to be blocked for too long by a single batch.
                 if (objectManager->AdviceYield(startTime)) {
                     hydraFacade->GetEpochAutomatonInvoker()->Invoke(
-                        BIND(&TExecuteSession::Continue, MakeStrong(this)));
+                        BIND(&TExecuteSession::Continue, MakeStrong(this), TError()));
                     return;
                 }
 
@@ -217,9 +218,7 @@ private:
                     requestHeader.method(),
                     NTracing::ServerReceiveAnnotation);
 
-                auto asyncResponseMessage = ExecuteVerb(
-                    rootService,
-                    std::move(requestMessage));
+                auto asyncResponseMessage = ExecuteVerb(rootService, std::move(requestMessage));
 
                 // Optimize for the (typical) case of synchronous response.
                 if (asyncResponseMessage.IsSet() && !objectManager->AdviceYield(startTime)) {
@@ -251,10 +250,17 @@ private:
         bool mutating,
         const NTracing::TTraceContext& traceContext,
         const TRequestHeader* requestHeader,
-        TSharedRefArray responseMessage)
+        const TErrorOr<TSharedRefArray>& responseMessageOrError)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        if (!responseMessageOrError.IsOK()) {
+            // Unexpected error.
+            Context->Reply(responseMessageOrError);
+            return;
+        }
+
+        const auto& responseMessage = responseMessageOrError.Value();
         if (responseMessage) {
             NTracing::TraceEvent(
                 traceContext,
@@ -415,9 +421,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
     context->SetRequestInfo();
 
     auto objectManager = Bootstrap->GetObjectManager();
-    objectManager->GCCollect().Subscribe(BIND([=] () {
-        context->Reply();
-    }));
+    context->ReplyFrom(objectManager->GCCollect());
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, BuildSnapshot)
@@ -435,7 +439,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, BuildSnapshot)
 
     hydraManager->BuildSnapshotDistributed().Subscribe(BIND([=] (const TErrorOr<int>& errorOrSnapshotId) {
         if (!errorOrSnapshotId.IsOK()) {
-            context->Reply(TError(errorOrSnapshotId));
+            context->Reply(errorOrSnapshotId);
             return;
         }
 

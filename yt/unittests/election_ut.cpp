@@ -194,12 +194,13 @@ TEST_F(TElectionTest, BecomeLeaderOneHealthyFollower)
                 TElectionServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(RpcTimeout);
 
-                auto possible_leader_response = WaitFor(proxy.GetStatus()->Invoke());
-                EXPECT_TRUE(possible_leader_response->IsOK()) << ToString(possible_leader_response->GetError());
+                auto rspOrError = WaitFor(proxy.GetStatus()->Invoke());
+                EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
+                const auto& rsp = rspOrError.Value();
 
                 response->set_state(static_cast<int>(EPeerState::Following));
                 response->set_vote_id(0);
-                ToProto(response->mutable_vote_epoch_id(), possible_leader_response->vote_epoch_id());
+                ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
                 response->set_priority(id);
                 response->set_self_id(id);
                 context->Reply();
@@ -240,12 +241,13 @@ TEST_F(TElectionTest, BecomeLeaderTwoHealthyFollowers)
                 TElectionServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(RpcTimeout);
 
-                auto possible_leader_response = WaitFor(proxy.GetStatus()->Invoke());
-                EXPECT_TRUE(possible_leader_response->IsOK()) << ToString(possible_leader_response->GetError());
+                auto rspOrError = WaitFor(proxy.GetStatus()->Invoke());
+                EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
+                const auto& rsp = rspOrError.Value();
 
                 response->set_state(static_cast<int>(EPeerState::Following));
                 response->set_vote_id(0);
-                ToProto(response->mutable_vote_epoch_id(), possible_leader_response->vote_epoch_id());
+                ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
                 response->set_priority(id);
                 response->set_self_id(id);
                 context->Reply();
@@ -280,12 +282,13 @@ TEST_F(TElectionTest, BecomeLeaderQuorumLostOnce)
                 TElectionServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(RpcTimeout);
 
-                auto possible_leader_response = WaitFor(proxy.GetStatus()->Invoke());
-                EXPECT_TRUE(possible_leader_response->IsOK()) << ToString(possible_leader_response->GetError());
+                auto rspOrError = WaitFor(proxy.GetStatus()->Invoke());
+                EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
+                const auto& rsp = rspOrError.Value();
 
                 response->set_state(static_cast<int>(EPeerState::Following));
                 response->set_vote_id(0);
-                ToProto(response->mutable_vote_epoch_id(), possible_leader_response->vote_epoch_id());
+                ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
                 response->set_priority(id);
                 response->set_self_id(id);
                 context->Reply();
@@ -332,12 +335,13 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
                 TElectionServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(RpcTimeout);
 
-                auto possible_leader_response = WaitFor(proxy.GetStatus()->Invoke());
-                EXPECT_TRUE(possible_leader_response->IsOK()) << ToString(possible_leader_response->GetError());
+                auto rspOrError = WaitFor(proxy.GetStatus()->Invoke());
+                EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
+                const auto& rsp = rspOrError.Value();
 
                 response->set_state(static_cast<int>(EPeerState::Following));
                 response->set_vote_id(0);
-                ToProto(response->mutable_vote_epoch_id(), possible_leader_response->vote_epoch_id());
+                ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
                 response->set_priority(id);
                 response->set_self_id(id);
                 context->Reply();

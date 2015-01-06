@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
 #include <core/misc/small_vector.h>
 
 #include <core/actions/future.h>
@@ -86,7 +85,7 @@ public:
         NHive::TCellDirectoryPtr cellDirectory);
     ~TTableMountCache();
 
-    TFuture<TErrorOr<TTableMountInfoPtr>> GetTableInfo(const NYPath::TYPath& path);
+    TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path);
     
     void Clear();
 

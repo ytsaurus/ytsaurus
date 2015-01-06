@@ -96,16 +96,17 @@ private:
 
     void OnResponse(
         TPeerId peerId,
-        TSnapshotServiceProxy::TRspLookupSnapshotPtr rsp)
+        const TSnapshotServiceProxy::TErrorOrRspLookupSnapshotPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (!rsp->IsOK()) {
-            LOG_WARNING(rsp->GetError(), "Error looking up snapshots at peer %v",
+        if (!rspOrError.IsOK()) {
+            LOG_WARNING(rspOrError, "Error looking up snapshots at peer %v",
                 peerId);
             return;
         }
 
+        const auto& rsp = rspOrError.Value();
         LOG_INFO("Found snapshot %v found on peer %v",
             rsp->snapshot_id(),
             peerId);

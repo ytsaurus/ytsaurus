@@ -75,7 +75,7 @@ TChunkInfo TJournalChunk::GetInfo() const
     return info;
 }
 
-IChunk::TAsyncGetMetaResult TJournalChunk::GetMeta(
+TFuture<TRefCountedChunkMetaPtr> TJournalChunk::GetMeta(
     i64 /*priority*/,
     const std::vector<int>* tags /*= nullptr*/)
 {
@@ -88,10 +88,10 @@ IChunk::TAsyncGetMetaResult TJournalChunk::GetMeta(
     miscExt.set_sealed(CachedSealed_);
     SetProtoExtension(Meta_->mutable_extensions(), miscExt);
 
-    return MakeFuture<TGetMetaResult>(FilterCachedMeta(tags));
+    return MakeFuture(FilterCachedMeta(tags));
 }
 
-IChunk::TAsyncReadBlocksResult TJournalChunk::ReadBlocks(
+TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlocks(
     int firstBlockIndex,
     int blockCount,
     i64 priority)
@@ -99,7 +99,7 @@ IChunk::TAsyncReadBlocksResult TJournalChunk::ReadBlocks(
     YCHECK(firstBlockIndex >= 0);
     YCHECK(blockCount >= 0);
 
-    auto promise = NewPromise<TReadBlocksResult>();
+    auto promise = NewPromise<std::vector<TSharedRef>>();
 
     auto callback = BIND(
         &TJournalChunk::DoReadBlocks,
@@ -118,7 +118,7 @@ IChunk::TAsyncReadBlocksResult TJournalChunk::ReadBlocks(
 void TJournalChunk::DoReadBlocks(
     int firstBlockIndex,
     int blockCount,
-    TPromise<TReadBlocksResult> promise)
+    TPromise<std::vector<TSharedRef>> promise)
 {
     auto config = Bootstrap_->GetConfig()->DataNode;
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
@@ -172,7 +172,7 @@ void TJournalChunk::DoReadBlocks(
 
         promise.Set(blocks);
     } catch (const std::exception& ex) {
-        promise.Set(ex);
+        promise.Set(TError(ex));
     }
 }
 

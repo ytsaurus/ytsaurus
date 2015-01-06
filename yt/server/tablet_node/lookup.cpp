@@ -42,7 +42,7 @@ class TLookupSession
 public:
     TLookupSession()
         : MemoryPool_(TLookupPoolTag())
-        , RunCallback_(BIND(&TLookupSession::DoRun, this).Guarded())
+        , RunCallback_(BIND(&TLookupSession::DoRun, this))
     { }
 
     void Prepare(
@@ -72,14 +72,19 @@ public:
         reader->ReadUnversionedRowset(&LookupKeys_);
     }
 
-    TAsyncError Run(
+    TFuture<void> Run(
         IInvokerPtr invoker,
         TWireProtocolWriter* writer)
     {
         if (invoker) {
             return RunCallback_.AsyncVia(invoker).Run(writer);
         } else {
-            return MakeFuture(RunCallback_.Run(writer));
+            try {
+                RunCallback_.Run(writer);
+                return VoidFuture;
+            } catch (const std::exception& ex) {
+                return MakeFuture(TError(ex));
+            }
         }
     }
 
@@ -109,7 +114,7 @@ private:
     int SchemaColumnCount_;
     TColumnFilter ColumnFilter_;
 
-    TCallback<TError(TWireProtocolWriter* writer)> RunCallback_;
+    TCallback<void(TWireProtocolWriter* writer)> RunCallback_;
 
 
     void CreateLookupers(
@@ -135,8 +140,7 @@ private:
             auto futureRowOrError = lookuper->Lookup(key);
             auto maybeRowOrError = futureRowOrError.TryGet();
             if (maybeRowOrError) {
-                THROW_ERROR_EXCEPTION_IF_FAILED(*maybeRowOrError);
-                merger->AddPartialRow(maybeRowOrError->Value());
+                merger->AddPartialRow(maybeRowOrError->ValueOrThrow());
             } else {
                 if (!(*collector)) {
                     *collector = New<TParallelCollector<TVersionedRow>>();

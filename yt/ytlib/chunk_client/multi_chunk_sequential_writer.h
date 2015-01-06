@@ -41,13 +41,13 @@ public:
         const NTransactionClient::TTransactionId& transactionId,
         const TChunkListId& parentChunkListId);
 
-    virtual TAsyncError Open() override;
-    virtual TAsyncError Close() override;
+    virtual TFuture<void> Open() override;
+    virtual TFuture<void> Close() override;
 
     // Returns pointer to writer facade, which allows single write operation.
     // In nullptr is returned, caller should subscribe to ReadyEvent.
     TFacade* GetCurrentWriter();
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
     void SetProgress(double progress);
 
@@ -86,31 +86,31 @@ protected:
     };
 
     void CreateNextSession();
-    void InitCurrentSession(TSession nextSession);
+    void InitCurrentSession(const TErrorOr<TSession>& nextSessionOrError);
 
-    void OnChunkCreated(NObjectClient::TMasterYPathProxy::TRspCreateObjectsPtr rsp);
+    void OnChunkCreated(const NObjectClient::TMasterYPathProxy::TErrorOrRspCreateObjectsPtr& rspOrError);
 
-    TAsyncError FinishCurrentSession();
+    TFuture<void> FinishCurrentSession();
 
     void OnChunkClosed(
         int chunkIndex,
         TSession currentSession,
-        TAsyncErrorPromise finishResult,
-        TError error);
+        TPromise<void> finishResult,
+        const TError& error);
 
     void OnChunkConfirmed(
         TChunkId chunkId,
-        TAsyncErrorPromise finishResult,
-        NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+        TPromise<void> finishResult,
+        const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
 
     void OnChunkFinished(
         TChunkId chunkId,
-        TError error);
+        const TError& error);
 
     void OnRowWritten();
 
     void AttachChunks();
-    void OnClose(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+    void OnClose(const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
 
     void SwitchSession();
 

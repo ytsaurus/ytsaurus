@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/actions/invoker.h>
+#include <core/actions/public.h>
 
 #include <core/ytree/yson_string.h>
 #include <core/ytree/convert.h>

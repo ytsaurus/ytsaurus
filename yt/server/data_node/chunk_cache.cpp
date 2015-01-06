@@ -118,7 +118,7 @@ public:
         Register(chunk);
     }
 
-    TAsyncDownloadResult Download(
+    TFuture<IChunkPtr> Download(
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
         const TChunkReplicaList& seedReplicas)
@@ -242,11 +242,11 @@ private:
 
             try {
                 NFS::ForcePath(NFS::GetDirectoryName(fileName));
-                auto asyncError = chunkWriter->Open();
+                auto result = chunkWriter->Open();
 
                 // File writer opens synchronously.
-                YCHECK(asyncError.IsSet());
-                YCHECK(asyncError.Get().IsOK());
+                YCHECK(result.IsSet());
+                YCHECK(result.Get().IsOK());
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Error opening cached chunk for writing");
             }
@@ -317,15 +317,10 @@ private:
         }
     }
 
-    TDownloadResult OnChunkDownloaded(TErrorOr<TCachedBlobChunkPtr> result)
+    IChunkPtr OnChunkDownloaded(TCachedBlobChunkPtr chunk)
     {
-        if (!result.IsOK()) {
-            return TError(result);
-        }
-
-        auto chunk = result.Value();
         Register(chunk);
-        return TDownloadResult(chunk);
+        return chunk;
     }
 
 };
@@ -365,7 +360,7 @@ int TChunkCache::GetChunkCount()
     return Impl_->GetSize();
 }
 
-TChunkCache::TAsyncDownloadResult TChunkCache::DownloadChunk(
+TFuture<IChunkPtr> TChunkCache::DownloadChunk(
     const TChunkId& chunkId,
     TNodeDirectoryPtr nodeDirectory,
     const TChunkReplicaList& seedReplicas)

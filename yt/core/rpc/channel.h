@@ -6,6 +6,8 @@
 #include <core/misc/property.h>
 #include <core/misc/error.h>
 
+#include <core/actions/future.h>
+
 #include <core/bus/client.h>
 
 #include <core/ytree/public.h>

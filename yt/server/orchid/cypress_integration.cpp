@@ -163,22 +163,23 @@ private:
         TOrchidManifestPtr manifest,
         const TYPath& path,
         const Stroka& method,
-        TOrchidServiceProxy::TRspExecutePtr response)
+        const TOrchidServiceProxy::TErrorOrRspExecutePtr& rspOrError)
     {
-        if (response->IsOK()) {
+        if (rspOrError.IsOK()) {
             LOG_DEBUG("Orchid request succeded (RequestId: %v)",
                 context->GetRequestId());
-            auto innerResponseMessage = TSharedRefArray(response->Attachments());
+            const auto& rsp = rspOrError.Value();
+            auto innerResponseMessage = TSharedRefArray(rsp->Attachments());
             context->Reply(innerResponseMessage);
         } else {
-            LOG_DEBUG(*response, "Orchid request failed (RequestId: %v)",
+            LOG_DEBUG(rspOrError, "Orchid request failed (RequestId: %v)",
                 context->GetRequestId());
             context->Reply(TError("Error executing an Orchid operation (Path: %v, Method: %v, RemoteAddress: %v, RemoteRoot: %v)",
                 path,
                 method,
                 manifest->RemoteAddress,
                 manifest->RemoteRoot)
-                << response->GetError());
+                << rspOrError);
         }
     }
 

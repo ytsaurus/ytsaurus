@@ -38,7 +38,7 @@ using namespace NChunkClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;
-static auto NullRowFuture = MakeFuture<TErrorOr<TVersionedRow>>(TVersionedRow());
+static auto NullRowFuture = MakeFuture(TVersionedRow());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -453,10 +453,10 @@ public:
         , UpperKey_(std::move(upperKey))
     { }
 
-    virtual TAsyncError Open() override
+    virtual TFuture<void> Open() override
     {
         Iterator_ = Store_->Rows_->FindGreaterThanOrEqualTo(TKeyWrapper{LowerKey_.Get()});
-        return OKFuture;
+        return VoidFuture;
     }
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
@@ -491,9 +491,9 @@ public:
         return true;
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
-        return OKFuture;
+        return VoidFuture;
     }
 
 private:
@@ -533,7 +533,7 @@ public:
             columnFilter)
     { }
 
-    virtual TFuture<TErrorOr<TVersionedRow>> Lookup(TKey key) override
+    virtual TFuture<TVersionedRow> Lookup(TKey key) override
     {
         auto iterator = Store_->Rows_->FindEqualTo(TRowWrapper{key});
         if (!iterator.IsValid()) {
@@ -542,7 +542,7 @@ public:
 
         auto dynamicRow = iterator.GetCurrent();
         auto versionedRow = ProduceSingleRowVersion(dynamicRow);
-        return MakeFuture<TErrorOr<TVersionedRow>>(versionedRow);
+        return MakeFuture(versionedRow);
     }
 
 };

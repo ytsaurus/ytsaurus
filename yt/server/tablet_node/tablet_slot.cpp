@@ -525,11 +525,9 @@ private:
             return;
 
         auto cancelableContext = epochContext->CancelableContext;
-        auto done = BIND(&TImpl::DoBuildOrchidYsonAutomaton, MakeStrong(this))
+        WaitFor(BIND(&TImpl::DoBuildOrchidYsonAutomaton, MakeStrong(this))
             .AsyncVia(GetGuardedAutomatonInvoker())
-            .Run(cancelableContext, consumer)
-            .Finally();
-        WaitFor(done);
+            .Run(cancelableContext, consumer));
     }
 
     void DoBuildOrchidYsonAutomaton(TCancelableContextPtr context, IYsonConsumer* consumer)

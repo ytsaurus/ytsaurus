@@ -54,7 +54,7 @@ private:
 
     NJobTrackerClient::NProto::TJobResult DoRun();
     void SendHeartbeat();
-    void OnHeartbeatResponse(NExecAgent::TSupervisorServiceProxy::TRspOnJobProgressPtr rsp);
+    void OnHeartbeatResponse(const TError& error);
 
     void RetrieveJobSpec();
     void ReportResult(const NJobTrackerClient::NProto::TJobResult& result);
@@ -68,7 +68,7 @@ private:
 
     virtual const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const override;
     virtual void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& usage) override;
-    void OnResourcesUpdated(NExecAgent::TSupervisorServiceProxy::TRspUpdateResourceUsagePtr rsp);
+    void OnResourcesUpdated(const TError& error);
 
     virtual void ReleaseNetwork() override;
 

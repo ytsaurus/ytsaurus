@@ -5,6 +5,8 @@
 #include <core/misc/error.h>
 #include <core/misc/nullable.h>
 
+#include <core/actions/future.h>
+
 #include <core/ytree/yson_string.h>
 #include <core/ytree/attribute_provider.h>
 #include <core/ytree/permission.h>
@@ -278,85 +280,85 @@ struct IClientBase
     virtual IConnectionPtr GetConnection() = 0;
 
     // Transactions
-    virtual TFuture<TErrorOr<ITransactionPtr>> StartTransaction(
+    virtual TFuture<ITransactionPtr> StartTransaction(
         NTransactionClient::ETransactionType type,
         const TTransactionStartOptions& options = TTransactionStartOptions()) = 0;
 
 
     // Tables
-    virtual TFuture<TErrorOr<IRowsetPtr>> LookupRow(
+    virtual TFuture<IRowsetPtr> LookupRow(
         const NYPath::TYPath& path,
         NVersionedTableClient::TNameTablePtr nameTable,
         NVersionedTableClient::TKey key,
         const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
 
-    virtual TFuture<TErrorOr<IRowsetPtr>> LookupRows(
+    virtual TFuture<IRowsetPtr> LookupRows(
         const NYPath::TYPath& path,
         NVersionedTableClient::TNameTablePtr nameTable,
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
 
-    virtual TFuture<TErrorOr<NQueryClient::TQueryStatistics>> SelectRows(
+    virtual TFuture<NQueryClient::TQueryStatistics> SelectRows(
         const Stroka& query,
         NVersionedTableClient::ISchemafulWriterPtr writer,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
-    virtual TFuture<TErrorOr<std::pair<IRowsetPtr, NQueryClient::TQueryStatistics>>> SelectRows(
+    virtual TFuture<std::pair<IRowsetPtr, NQueryClient::TQueryStatistics>> SelectRows(
         const Stroka& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
     // TODO(babenko): batch read and batch write
 
     // Cypress
-    virtual TFuture<TErrorOr<NYTree::TYsonString>> GetNode(
+    virtual TFuture<NYTree::TYsonString> GetNode(
         const NYPath::TYPath& path,
         const TGetNodeOptions& options = TGetNodeOptions()) = 0;
 
-    virtual TFuture<TError> SetNode(
+    virtual TFuture<void> SetNode(
         const NYPath::TYPath& path,
         const NYTree::TYsonString& value,
         const TSetNodeOptions& options = TSetNodeOptions()) = 0;
 
-    virtual TFuture<TError> RemoveNode(
+    virtual TFuture<void> RemoveNode(
         const NYPath::TYPath& path,
         const TRemoveNodeOptions& options = TRemoveNodeOptions()) = 0;
 
-    virtual TFuture<TErrorOr<NYTree::TYsonString>> ListNodes(
+    virtual TFuture<NYTree::TYsonString> ListNodes(
         const NYPath::TYPath& path,
         const TListNodesOptions& options = TListNodesOptions()) = 0;
 
-    virtual TFuture<TErrorOr<NCypressClient::TNodeId>> CreateNode(
+    virtual TFuture<NCypressClient::TNodeId> CreateNode(
         const NYPath::TYPath& path,
         NObjectClient::EObjectType type,
         const TCreateNodeOptions& options = TCreateNodeOptions()) = 0;
 
-    virtual TFuture<TErrorOr<NCypressClient::TLockId>> LockNode(
+    virtual TFuture<NCypressClient::TLockId> LockNode(
         const NYPath::TYPath& path,
         NCypressClient::ELockMode mode,
         const TLockNodeOptions& options = TLockNodeOptions()) = 0;
 
-    virtual TFuture<TErrorOr<NCypressClient::TNodeId>> CopyNode(
+    virtual TFuture<NCypressClient::TNodeId> CopyNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
         const TCopyNodeOptions& options = TCopyNodeOptions()) = 0;
 
-    virtual TFuture<TErrorOr<NCypressClient::TNodeId>> MoveNode(
+    virtual TFuture<NCypressClient::TNodeId> MoveNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
         const TMoveNodeOptions& options = TMoveNodeOptions()) = 0;
 
-    virtual TFuture<TErrorOr<NCypressClient::TNodeId>> LinkNode(
+    virtual TFuture<NCypressClient::TNodeId> LinkNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
         const TLinkNodeOptions& options = TLinkNodeOptions()) = 0;
 
-    virtual TFuture<TErrorOr<bool>> NodeExists(
+    virtual TFuture<bool> NodeExists(
         const NYPath::TYPath& path,
         const TNodeExistsOptions& options = TNodeExistsOptions()) = 0;
 
 
     // Objects
-    virtual TFuture<TErrorOr<NObjectClient::TObjectId>> CreateObject(
+    virtual TFuture<NObjectClient::TObjectId> CreateObject(
         NObjectClient::EObjectType type,
         const TCreateObjectOptions& options = TCreateObjectOptions()) = 0;
 
@@ -419,36 +421,36 @@ struct IClient
 
 
     // Tables
-    virtual TAsyncError MountTable(
+    virtual TFuture<void> MountTable(
         const NYPath::TYPath& path,
         const TMountTableOptions& options = TMountTableOptions()) = 0;
 
-    virtual TAsyncError UnmountTable(
+    virtual TFuture<void> UnmountTable(
         const NYPath::TYPath& path,
         const TUnmountTableOptions& options = TUnmountTableOptions()) = 0;
 
-    virtual TAsyncError RemountTable(
+    virtual TFuture<void> RemountTable(
         const NYPath::TYPath& path,
         const TRemountTableOptions& options = TRemountTableOptions()) = 0;
 
-    virtual TAsyncError ReshardTable(
+    virtual TFuture<void> ReshardTable(
         const NYPath::TYPath& path,
         const std::vector<NVersionedTableClient::TKey>& pivotKeys,
         const TReshardTableOptions& options = TReshardTableOptions()) = 0;
 
 
     // Security
-    virtual TAsyncError AddMember(
+    virtual TFuture<void> AddMember(
         const Stroka& group,
         const Stroka& member,
         const TAddMemberOptions& options = TAddMemberOptions()) = 0;
 
-    virtual TAsyncError RemoveMember(
+    virtual TFuture<void> RemoveMember(
         const Stroka& group,
         const Stroka& member,
         const TRemoveMemberOptions& options = TRemoveMemberOptions()) = 0;
 
-    virtual TFuture<TErrorOr<TCheckPermissionResult>> CheckPermission(
+    virtual TFuture<TCheckPermissionResult> CheckPermission(
         const Stroka& user,
         const NYPath::TYPath& path,
         NYTree::EPermission permission,

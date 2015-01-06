@@ -90,7 +90,7 @@ class TPrepareCallbacksMock
     : public IPrepareCallbacks
 {
 public:
-    MOCK_METHOD2(GetInitialSplit, TFuture<TErrorOr<TDataSplit>>(
+    MOCK_METHOD2(GetInitialSplit, TFuture<TDataSplit>(
         const TYPath&,
         TTimestamp));
 };
@@ -219,12 +219,12 @@ TTableSchema GetSampleTableSchema()
 }
 
 template <class T>
-TFuture<TErrorOr<T>> WrapInFuture(const T& value)
+TFuture<T> WrapInFuture(const T& value)
 {
     return MakeFuture(TErrorOr<T>(value));
 }
 
-TFuture<TErrorOr<void>> WrapVoidInFuture()
+TFuture<void> WrapVoidInFuture()
 {
     return MakeFuture(TErrorOr<void>());
 }
@@ -261,7 +261,7 @@ TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns)
     return dataSplit;
 }
 
-TFuture<TErrorOr<TDataSplit>> RaiseTableNotFound(
+TFuture<TDataSplit> RaiseTableNotFound(
     const TYPath& path,
     TTimestamp)
 {
@@ -1476,19 +1476,19 @@ class TReaderMock
     : public ISchemafulReader
 {
 public:
-    MOCK_METHOD1(Open, TAsyncError(const TTableSchema&));
+    MOCK_METHOD1(Open, TFuture<void>(const TTableSchema&));
     MOCK_METHOD1(Read, bool(std::vector<TUnversionedRow>*));
-    MOCK_METHOD0(GetReadyEvent, TAsyncError());
+    MOCK_METHOD0(GetReadyEvent, TFuture<void>());
 };
 
 class TWriterMock
     : public ISchemafulWriter
 {
 public:
-    MOCK_METHOD2(Open, TAsyncError(const TTableSchema&, const TNullable<TKeyColumns>&));
-    MOCK_METHOD0(Close, TAsyncError());
+    MOCK_METHOD2(Open, TFuture<void>(const TTableSchema&, const TNullable<TKeyColumns>&));
+    MOCK_METHOD0(Close, TFuture<void>());
     MOCK_METHOD1(Write, bool(const std::vector<TUnversionedRow>&));
-    MOCK_METHOD0(GetReadyEvent, TAsyncError());
+    MOCK_METHOD0(GetReadyEvent, TFuture<void>());
 };
 
 TOwningRow BuildRow(
@@ -1529,7 +1529,6 @@ protected:
         i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
         auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
-            .Guarded()
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,

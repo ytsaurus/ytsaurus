@@ -51,10 +51,10 @@ void TStartOpExecutor::DoExecute(const TDriverRequest& request)
 
     requestCopy.OutputStream = CreateAsyncAdapter(&output);
 
-    auto response = Driver->Execute(requestCopy).Get();
-    if (!response.Error.IsOK()) {
+    auto error = Driver->Execute(requestCopy).Get();
+    if (!error.IsOK()) {
         printf("failed\n");
-        THROW_ERROR response.Error;
+        THROW_ERROR error;
     }
 
     auto operationId = ConvertTo<TOperationId>(TYsonString(str));

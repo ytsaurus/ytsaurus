@@ -133,7 +133,6 @@ void TBootstrap::Run()
     ControlQueue = New<TActionQueue>("Control");
 
     auto result = BIND(&TBootstrap::DoRun, this)
-        .Guarded()
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get();

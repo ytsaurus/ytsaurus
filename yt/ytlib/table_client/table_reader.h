@@ -42,7 +42,7 @@ public:
     virtual void Open();
 
     virtual bool FetchNextItem() override;
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
     virtual bool IsValid() const override;
     virtual const TRow& GetRow() const override;

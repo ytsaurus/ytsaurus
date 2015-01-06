@@ -24,19 +24,18 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TErrorOr<TCachedVersionedChunkMetaPtr>> TCachedVersionedChunkMeta::Load(
+TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
     IChunkReaderPtr chunkReader,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns)
 {
     auto cachedMeta = New<TCachedVersionedChunkMeta>();
-
     return BIND(&TCachedVersionedChunkMeta::DoLoad, cachedMeta)
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run(chunkReader, schema, keyColumns);
 }
 
-TErrorOr<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::DoLoad(
+TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
     IChunkReaderPtr chunkReader,
     const TTableSchema& readerSchema,
     const TKeyColumns& keyColumns)
@@ -66,9 +65,9 @@ TErrorOr<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::DoLoad(
         Misc_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
         BlockMeta_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
 
-        return TErrorOr<TCachedVersionedChunkMetaPtr>(this);
+        return this;
     } catch (const std::exception& ex) {
-        return TError("Error caching meta of chunk %v",
+        THROW_ERROR_EXCEPTION("Error caching meta of chunk %v",
             chunkReader->GetChunkId())
             << ex;
     }

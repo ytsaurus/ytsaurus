@@ -63,7 +63,7 @@ public:
     ~TTableChunkWriter();
 
     TTableChunkWriterFacade* GetFacade();
-    TAsyncError Close();
+    TFuture<void> Close();
 
     i64 GetMetaSize() const;
     NChunkClient::NProto::TChunkMeta GetMasterMeta() const;
@@ -137,7 +137,7 @@ private:
 
     virtual void PrepareBlock() override;
 
-    void OnFinalBlocksWritten(TError error);
+    void OnFinalBlocksWritten(const TError& error);
 
     void EmitIndexEntry();
     i64 EmitSample(const TRow& row, NProto::TSample* sample);

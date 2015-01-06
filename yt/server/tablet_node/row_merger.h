@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <core/misc/public.h>
 #include <core/misc/small_vector.h>
 
 #include <ytlib/new_table_client/versioned_row.h>

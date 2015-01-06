@@ -25,7 +25,6 @@ class TSchedulerServiceProxy;
 
 class TOperation;
 typedef TIntrusivePtr<TOperation> TOperationPtr;
-typedef TErrorOr<TOperationPtr> TOperationStartResult;
 
 class TJob;
 typedef TIntrusivePtr<TJob> TJobPtr;

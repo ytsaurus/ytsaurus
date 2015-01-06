@@ -4,7 +4,8 @@
 #include "client.h"
 
 #include <core/misc/ref.h>
-#include <core/misc/error.h>
+
+#include <core/actions/future.h>
 
 #include <core/ypath/public.h>
 
@@ -17,10 +18,10 @@ struct IFileReader
     : public virtual TRefCounted
 {
     //! Opens the reader. No other method can be called prior to the success of this one.
-    virtual TAsyncError Open() = 0;
+    virtual TFuture<void> Open() = 0;
 
     //! Reads another portion of file.
-    virtual TFuture<TErrorOr<TSharedRef>> Read() = 0;
+    virtual TFuture<TSharedRef> Read() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFileReader)

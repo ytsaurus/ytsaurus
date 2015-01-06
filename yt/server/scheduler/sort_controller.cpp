@@ -1691,7 +1691,7 @@ private:
 
         TSamplesFetcherPtr samplesFetcher;
 
-        TAsyncError asyncSamplesResult;
+        TFuture<void> asyncSamplesResult;
         PROFILE_TIMING ("/input_processing_time") {
             auto chunks = CollectInputChunks();
             int sampleCount = SuggestPartitionCount() * Spec->SamplesPerPartition;

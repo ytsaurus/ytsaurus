@@ -87,12 +87,14 @@ void TAsyncTableReader::Open()
         batchReq->AddRequest(req, "fetch");
     }
 
-    auto batchRsp = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error fetching table info");
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error fetching table info");
+    const auto& batchRsp = batchRspOrError.Value();
 
     {
-        auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspGetBasicAttributes>("get_basic_attrs");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting object attributes");
+        auto rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspGetBasicAttributes>("get_basic_attrs");
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting object attributes");
+        const auto& rsp = rspOrError.Value();
 
         auto type = EObjectType(rsp->type());
         if (type != EObjectType::Table) {
@@ -104,8 +106,9 @@ void TAsyncTableReader::Open()
     }
 
     {
-        auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspFetch>("fetch");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching table chunks");
+        auto rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspFetch>("fetch");
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching table chunks");
+        const auto& rsp = rspOrError.Value();
 
         NodeDirectory->MergeFrom(rsp->node_directory());
         auto chunkSpecs = FromProto<TChunkSpec>(rsp->chunks());
@@ -151,7 +154,7 @@ bool TAsyncTableReader::FetchNextItem()
     return false;
 }
 
-TAsyncError TAsyncTableReader::GetReadyEvent()
+TFuture<void> TAsyncTableReader::GetReadyEvent()
 {
     if (IsAborted()) {
         return MakeFuture(TError("Transaction aborted"));

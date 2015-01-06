@@ -27,7 +27,7 @@ TTransaction::TTransaction(const TTransactionId& id)
     , StartTimestamp_(NullTimestamp)
     , PrepareTimestamp_(NullTimestamp)
     , CommitTimestamp_(NullTimestamp)
-    , Finished_(NewPromise())
+    , Finished_(NewPromise<void>())
 { }
 
 void TTransaction::Save(TSaveContext& context) const
@@ -161,7 +161,7 @@ void TTransaction::SetFinished()
 void TTransaction::ResetFinished()
 {
     Finished_.Set();
-    Finished_ = NewPromise();
+    Finished_ = NewPromise<void>();
 }
 
 ETransactionState TTransaction::GetPersistentState() const

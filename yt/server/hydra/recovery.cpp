@@ -185,15 +185,15 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
     auto req = proxy.LookupChangelog();
     req->set_changelog_id(changelogId);
 
-    auto rsp = WaitFor(req->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting changelog %v info from leader",
+    auto rspOrError = WaitFor(req->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting changelog %v info from leader",
         changelogId);
+    const auto& rsp = rspOrError.Value();
 
     int remoteRecordCount = rsp->record_count();
     int localRecordCount = changelog->GetRecordCount();
     // NB: Don't download records past the sync point since they are expected to be postponed.
-    int syncRecordCount =
-        changelogId == SyncVersion_.SegmentId
+    int syncRecordCount = changelogId == SyncVersion_.SegmentId
         ? SyncVersion_.RecordId
         : remoteRecordCount;
 
@@ -311,13 +311,12 @@ TLeaderRecovery::TLeaderRecovery(
         epochContext)
 { }
 
-TAsyncError TLeaderRecovery::Run(TVersion targetVersion)
+TFuture<void> TLeaderRecovery::Run(TVersion targetVersion)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     
     SyncVersion_ = targetVersion;
     return BIND(&TLeaderRecovery::DoRun, MakeStrong(this))
-        .Guarded()
         .AsyncVia(EpochContext_->EpochSystemAutomatonInvoker)
         .Run(targetVersion);
 }
@@ -357,12 +356,11 @@ TFollowerRecovery::TFollowerRecovery(
     SyncVersion_ = PostponedVersion_ = syncVersion;
 }
 
-TAsyncError TFollowerRecovery::Run()
+TFuture<void> TFollowerRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return BIND(&TFollowerRecovery::DoRun, MakeStrong(this))
-        .Guarded()
         .AsyncVia(EpochContext_->EpochSystemAutomatonInvoker)
         .Run();
 }

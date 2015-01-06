@@ -58,12 +58,12 @@ public:
         return FD_;
     }
 
-    TAsyncError Write(const void* buffer, int length)
+    TFuture<void> Write(const void* buffer, int length)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(length > 0);
 
-        auto promise = NewPromise<TError>();
+        auto promise = NewPromise<void>();
         auto this_ = MakeStrong(this);
         BIND([=] () {
             UNUSED(this_);
@@ -108,7 +108,7 @@ public:
         return promise.ToFuture();
     }
 
-    TAsyncError Close()
+    TFuture<void> Close()
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(WriteResultPromise_.IsSet());
@@ -125,7 +125,6 @@ public:
             FDWatcher_.stop();
             SafeClose(FD_);
         })
-        .Guarded()
         .AsyncVia(TIODispatcher::Get()->Impl_->GetInvoker())
         .Run();
     }
@@ -159,7 +158,7 @@ private:
     //! \note Thread-unsafe. Must be accessed from ev-thread only.
     ev::io FDWatcher_;
 
-    TAsyncErrorPromise WriteResultPromise_ = MakePromise(TError());
+    TPromise<void> WriteResultPromise_ = MakePromise(TError());
 
     EWriterState State_ = EWriterState::Active;
 
@@ -233,7 +232,7 @@ TAsyncWriter::TAsyncWriter(int fd)
 
 TAsyncWriter::~TAsyncWriter()
 {
-    // abort does not fail
+    // Abort does not fail.
     Impl_->Abort();
 }
 
@@ -242,12 +241,12 @@ int TAsyncWriter::GetHandle() const
     return Impl_->GetHandle();
 }
 
-TAsyncError TAsyncWriter::Write(const void* data, size_t size)
+TFuture<void> TAsyncWriter::Write(const void* data, size_t size)
 {
     return Impl_->Write(data, size);
 }
 
-TAsyncError TAsyncWriter::Close()
+TFuture<void> TAsyncWriter::Close()
 {
     return Impl_->Close();
 }

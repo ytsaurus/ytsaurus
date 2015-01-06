@@ -539,16 +539,17 @@ private:
 
             awaiter->Await(
                 std::move(asyncChunkOrError),
-                BIND([=] (NDataNode::TChunkCache::TDownloadResult result) {
-                    if (!result.IsOK()) {
+                BIND([=] (const TErrorOr<IChunkPtr>& chunkOrError) {
+                    UNUSED(this_);
+                    if (!chunkOrError.IsOK()) {
                         auto wrappedError = TError(
                             "Failed to download chunk %v",
                             chunkId)
-                            << result;
-                        this_->DoAbort(wrappedError);
+                            << chunkOrError;
+                        DoAbort(wrappedError);
                         return;
                     }
-                    this_->CachedChunks.push_back(result.Value());
+                    CachedChunks.push_back(chunkOrError.Value());
                 }));
         }
 
@@ -780,6 +781,7 @@ private:
             error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork);
     }
 
+
     void ThrowIfFinished()
     {
         if (JobPhase == EJobPhase::Finished) {
@@ -788,17 +790,11 @@ private:
     }
 
     template <class T>
-    T CheckedWaitFor(TFuture<T> future)
+    TErrorOr<T> CheckedWaitFor(TFuture<T> future)
     {
         auto result = WaitFor(future);
         ThrowIfFinished();
         return result;
-    }
-
-    void CheckedWaitFor(TFuture<void> future)
-    {
-        WaitFor(future);
-        ThrowIfFinished();
     }
 
 };

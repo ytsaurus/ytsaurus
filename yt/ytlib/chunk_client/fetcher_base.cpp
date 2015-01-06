@@ -34,7 +34,7 @@ TFetcherBase::TFetcherBase(
     , NodeDirectory_(nodeDirectory)
     , Invoker_(invoker)
     , Logger(logger)
-    , FetchingResult_(NewPromise<TError>())
+    , FetchingResult_(NewPromise<void>())
 { }
 
 void TFetcherBase::AddChunk(TRefCountedChunkSpecPtr chunk)
@@ -43,7 +43,7 @@ void TFetcherBase::AddChunk(TRefCountedChunkSpecPtr chunk)
     Chunks_.push_back(chunk);
 }
 
-TAsyncError TFetcherBase::Fetch()
+TFuture<void> TFetcherBase::Fetch()
 {
     StartFetchingRound();
     return FetchingResult_;

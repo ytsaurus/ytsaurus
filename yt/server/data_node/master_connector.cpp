@@ -263,16 +263,17 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     return result;
 }
 
-void TMasterConnector::OnRegisterResponse(TNodeTrackerServiceProxy::TRspRegisterNodePtr rsp)
+void TMasterConnector::OnRegisterResponse(const TNodeTrackerServiceProxy::TErrorOrRspRegisterNodePtr& rspOrError)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (!rsp->IsOK()) {
-        LOG_WARNING(*rsp, "Error registering node");
+    if (!rspOrError.IsOK()) {
+        LOG_WARNING(rspOrError, "Error registering node");
         ResetAndScheduleRegister();
         return;
     }
 
+    const auto& rsp = rspOrError.Value();
     NodeId_ = rsp->node_id();
     YCHECK(State_ == EState::Registering);
     State_ = EState::Registered;
@@ -392,14 +393,13 @@ TChunkRemoveInfo TMasterConnector::BuildRemoveChunkInfo(IChunkPtr chunk)
     return result;
 }
 
-void TMasterConnector::OnFullNodeHeartbeatResponse(TNodeTrackerServiceProxy::TRspFullHeartbeatPtr rsp)
+void TMasterConnector::OnFullNodeHeartbeatResponse(const TNodeTrackerServiceProxy::TErrorOrRspFullHeartbeatPtr& rspOrError)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (!rsp->IsOK()) {
-        auto error = rsp->GetError();
-        LOG_WARNING(error, "Error reporting full node heartbeat to master");
-        if (IsRetriableError(error)) {
+    if (!rspOrError.IsOK()) {
+        LOG_WARNING(rspOrError, "Error reporting full node heartbeat to master");
+        if (IsRetriableError(rspOrError)) {
             ScheduleNodeHeartbeat();
         } else {
             ResetAndScheduleRegister();
@@ -423,14 +423,13 @@ void TMasterConnector::OnFullNodeHeartbeatResponse(TNodeTrackerServiceProxy::TRs
     ScheduleNodeHeartbeat();
 }
 
-void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServiceProxy::TRspIncrementalHeartbeatPtr rsp)
+void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServiceProxy::TErrorOrRspIncrementalHeartbeatPtr& rspOrError)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (!rsp->IsOK()) {
-        auto error = rsp->GetError();
-        LOG_WARNING(error, "Error reporting incremental node heartbeat to master");
-        if (IsRetriableError(error)) {
+    if (!rspOrError.IsOK()) {
+        LOG_WARNING(rspOrError, "Error reporting incremental node heartbeat to master");
+        if (IsRetriableError(rspOrError)) {
             ScheduleNodeHeartbeat();
         } else {
             ResetAndScheduleRegister();
@@ -466,8 +465,8 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
         ReportedRemoved_.clear();
     }
 
+    const auto& rsp = rspOrError.Value();
     auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-    
     for (const auto& info : rsp->tablet_slots_to_remove()) {
         auto cellId = FromProto<TCellId>(info.cell_id());
         YCHECK(cellId != NullCellId);
@@ -558,14 +557,13 @@ void TMasterConnector::SendJobHeartbeat()
         FormatResourceUsage(req->resource_usage(), req->resource_limits()));
 }
 
-void TMasterConnector::OnJobHeartbeatResponse(TJobTrackerServiceProxy::TRspHeartbeatPtr rsp)
+void TMasterConnector::OnJobHeartbeatResponse(const TJobTrackerServiceProxy::TErrorOrRspHeartbeatPtr& rspOrError)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (!rsp->IsOK()) {
-        auto error = rsp->GetError();
-        LOG_WARNING(error, "Error reporting job heartbeat to master");
-        if (IsRetriableError(error)) {
+    if (!rspOrError.IsOK()) {
+        LOG_WARNING(rspOrError, "Error reporting job heartbeat to master");
+        if (IsRetriableError(rspOrError)) {
             ScheduleJobHeartbeat();
         } else {
             ResetAndScheduleRegister();
@@ -574,7 +572,8 @@ void TMasterConnector::OnJobHeartbeatResponse(TJobTrackerServiceProxy::TRspHeart
     }
 
     LOG_DEBUG("Successfully reported job heartbeat to master");
-    
+
+    const auto& rsp = rspOrError.Value();
     auto jobController = Bootstrap_->GetJobController();
     jobController->ProcessHeartbeat(rsp.Get());
 
