@@ -1158,8 +1158,7 @@ EStoreType TDynamicMemoryStore::GetType() const
 
 i64 TDynamicMemoryStore::GetUncompressedDataSize() const
 {
-    // Ignore memory stores when deciding to compact.
-    return 0;
+    return GetUnalignedPoolCapacity() + GetAlignedPoolCapacity();
 }
 
 i64 TDynamicMemoryStore::GetRowCount() const

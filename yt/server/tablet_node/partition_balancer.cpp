@@ -88,31 +88,38 @@ private:
 
     void ScanPartition(TTabletSlotPtr slot, TPartition* partition)
     {
-        i64 dataSize = partition->GetUncompressedDataSize();
-        
         auto* tablet = partition->GetTablet();
-        int partitionCount = static_cast<int>(tablet->Partitions().size());
 
         const auto& config = tablet->GetConfig();
 
-        if (dataSize >  config->MaxPartitionDataSize) {
-            int splitFactor = static_cast<int>(std::min(
-                dataSize / config->DesiredPartitionDataSize + 1,
-                static_cast<i64>(config->MaxPartitionCount - partitionCount)));
+        int partitionCount = tablet->Partitions().size();
+
+        i64 actualDataSize = partition->GetUncompressedDataSize();
+
+        // Maximum data size the partition might have if all chunk stores from Eden go here.
+        i64 maxPotentialDataSize = actualDataSize;
+        for (auto store : tablet->GetEden()->Stores()) {
+            if (store->GetType() == EStoreType::Chunk) {
+                maxPotentialDataSize += store->GetUncompressedDataSize();
+            }
+        }
+
+        if (actualDataSize >  config->MaxPartitionDataSize) {
+            int splitFactor = std::min(
+                actualDataSize / config->DesiredPartitionDataSize + 1,
+                static_cast<i64>(config->MaxPartitionCount - partitionCount));
             if (splitFactor > 1) {
                 RunSplit(partition, splitFactor);
             }
         }
         
-        if (dataSize + tablet->GetEden()->GetUncompressedDataSize() < config->MinPartitionDataSize && partitionCount > 1) {
+        if (maxPotentialDataSize < config->MinPartitionDataSize && partitionCount > 1) {
             int firstPartitionIndex = partition->GetIndex();
             int lastPartitionIndex = firstPartitionIndex + 1;
-
             if (lastPartitionIndex == partitionCount) {
                 --firstPartitionIndex;
                 --lastPartitionIndex;
             }
-
             RunMerge(partition, firstPartitionIndex, lastPartitionIndex);
         }
 
