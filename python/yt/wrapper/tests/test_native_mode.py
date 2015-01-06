@@ -179,6 +179,8 @@ class NativeModeTester(YtTestBase, YTEnv):
 
         yt.write_table(table, ["y=1\n"])
         self.check(["y=1\n"], yt.read_table(table))
+
+        yt.write_table(table, [{"y": "1"}], raw=False)
         assert [{"y": "1"}] == list(yt.read_table(table, raw=False))
 
     def test_empty_table(self):
