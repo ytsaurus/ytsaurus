@@ -168,7 +168,7 @@ protected:
     // If (Epoch & 0x1) == 0x1 then the thread is stopping.
     std::atomic<ui32> Epoch;
 
-    TPromise<void> Started = NewPromise<void>();
+    TPromise<void> Started;
 
     TThreadId ThreadId = InvalidThreadId;
     TThread Thread;
