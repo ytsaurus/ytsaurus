@@ -42,11 +42,10 @@ TUnversionedRowBuilder* TLoadContext::GetRowBuilder() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TTabletAutomaton::TTabletAutomaton(TTabletSlot* slot)
-    : Slot_(slot)
 {
-    Logger.AddTag("CellId: %v", Slot_->GetCellId());
+    Logger.AddTag("CellId: %v", slot->GetCellId());
 
-    LoadContext_.SetSlot(Slot_);
+    LoadContext_.SetSlot(slot);
 }
 
 TSaveContext& TTabletAutomaton::SaveContext()
