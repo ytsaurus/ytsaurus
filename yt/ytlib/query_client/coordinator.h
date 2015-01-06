@@ -26,7 +26,7 @@ TKeyRange GetRange(const TDataSplits& splits);
 
 std::vector<TKeyRange> GetRanges(const TGroupedDataSplits& groupedSplits);
 
-typedef std::pair<ISchemafulReaderPtr, TFuture<TErrorOr<TQueryStatistics>>> TEvaluateResult;
+typedef std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> TEvaluateResult;
 
 TQueryStatistics CoordinateAndExecute(
     const TPlanFragmentPtr& fragment,

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 #include <core/misc/guid.h>
 #include <core/misc/string.h>
 #include <core/misc/nullable.h>

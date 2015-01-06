@@ -2,9 +2,11 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
+#include <core/misc/checksum.h>
 
 #include <core/concurrency/async_stream.h>
+
+#include <core/actions/future.h>
 
 #include <ytlib/hydra/hydra_manager.pb.h>
 
@@ -18,7 +20,7 @@ struct ISnapshotReader
     : public NConcurrency::IAsyncInputStream
 {
     //! Opens the reader.
-    virtual TAsyncError Open() = 0;
+    virtual TFuture<void> Open() = 0;
 
     //! Returns the snapshot parameters.
     virtual TSnapshotParams GetParams() const = 0;
@@ -33,10 +35,10 @@ struct ISnapshotWriter
     : public NConcurrency::IAsyncOutputStream
 {
     //! Opens the writer.
-    virtual TAsyncError Open() = 0;
+    virtual TFuture<void> Open() = 0;
 
     //! Closes and registers the snapshot.
-    virtual TAsyncError Close() = 0;
+    virtual TFuture<void> Close() = 0;
 
     //! Returns the snapshot parameters.
     /*
@@ -62,7 +64,6 @@ struct TSnapshotParams
 struct ISnapshotStore
     : public virtual TRefCounted
 {
-    //! Creates a reader for a given snapshot id.
     virtual ISnapshotReaderPtr CreateReader(int snapshotId) = 0;
 
     //! Creates a writer for a given snapshot id.
@@ -74,7 +75,7 @@ struct ISnapshotStore
 
     //! Returns the largest snapshot id not exceeding #maxSnapshotId that is known to exist
     //! in the store or #NonexistingSnapshotId if no such snapshot is present.
-    virtual TFuture<TErrorOr<int>> GetLatestSnapshotId(int maxSnapshotId = std::numeric_limits<i32>::max()) = 0;
+    virtual TFuture<int> GetLatestSnapshotId(int maxSnapshotId = std::numeric_limits<i32>::max()) = 0;
 
 };
 

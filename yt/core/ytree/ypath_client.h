@@ -94,14 +94,11 @@ protected:
 class TYPathResponse
     : public TRefCounted
 {
-    DEFINE_BYVAL_RW_PROPERTY(TError, Error);
+public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
 
 public:
     void Deserialize(TSharedRefArray message);
-
-    bool IsOK() const;
-    operator TError() const;
 
 protected:
     virtual void DeserializeBody(const TRef& data);
@@ -128,8 +125,9 @@ protected:
 #define DEFINE_YPATH_PROXY_METHOD_IMPL(ns, method, isMutating) \
     typedef ::NYT::NYTree::TTypedYPathRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
     typedef ::NYT::NYTree::TTypedYPathResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
-    typedef TIntrusivePtr<TReq##method> TReq##method##Ptr; \
-    typedef TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
+    typedef ::NYT::TIntrusivePtr<TReq##method> TReq##method##Ptr; \
+    typedef ::NYT::TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
+    typedef ::NYT::TErrorOr<TRsp##method##Ptr> TErrorOrRsp##method##Ptr; \
     \
     static TReq##method##Ptr method(const NYT::NYPath::TYPath& path = "") \
     { \
@@ -194,7 +192,7 @@ Stroka SyncYPathGetKey(
     const TYPath& path);
 
 //! Asynchronously executes |Get| verb.
-TFuture< TErrorOr<TYsonString> > AsyncYPathGet(
+TFuture<TYsonString> AsyncYPathGet(
     IYPathServicePtr service,
     const TYPath& path,
     const TAttributeFilter& attributeFilter = TAttributeFilter::None,
@@ -208,7 +206,7 @@ TYsonString SyncYPathGet(
     bool ignoreOpaque = false);
 
 //! Asynchronously executes |Exists| verb.
-TFuture< TErrorOr<bool> > AsyncYPathExists(
+TFuture<bool> AsyncYPathExists(
     IYPathServicePtr service,
     const TYPath& path);
 

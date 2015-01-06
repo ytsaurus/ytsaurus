@@ -35,15 +35,14 @@ public:
         , SnapshotId_(snapshotId)
     { }
 
-    virtual TAsyncError Open() override
+    virtual TFuture<void> Open() override
     {
         return BIND(&TLocalSnapshotReader::DoOpen, MakeStrong(this))
-            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run();
     }
 
-    virtual TFuture<TErrorOr<size_t>> Read(void* buf, size_t len) override
+    virtual TFuture<size_t> Read(void* buf, size_t len) override
     {
         return UnderlyingReader_->Read(buf, len);
     }
@@ -108,10 +107,9 @@ public:
         return FileStore_->CreateWriter(snapshotId, meta);
     }
 
-    virtual TFuture<TErrorOr<int>> GetLatestSnapshotId(int maxSnapshotId) override
+    virtual TFuture<int> GetLatestSnapshotId(int maxSnapshotId) override
     {
         return BIND(&TLocalSnapshotStore::DoGetLatestSnapshotId, MakeStrong(this))
-            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(maxSnapshotId);
     }
@@ -124,7 +122,10 @@ private:
 
     int DoGetLatestSnapshotId(int maxSnapshotId)
     {
-        auto remoteSnapshotInfo = WaitFor(DiscoverLatestSnapshot(Config_, CellManager_, maxSnapshotId));
+        auto remoteSnapshotInfo = WaitFor(DiscoverLatestSnapshot(
+            Config_,
+            CellManager_,
+            maxSnapshotId)).ValueOrThrow();
         int localSnapshotId = FileStore_->GetLatestSnapshotId(maxSnapshotId);
         return std::max(localSnapshotId, remoteSnapshotInfo.SnapshotId);
     }

@@ -17,7 +17,7 @@ class TMutation
 public:
     explicit TMutation(IHydraManagerPtr hydraManager);
 
-    TFuture<TErrorOr<TMutationResponse>> Commit();
+    TFuture<TMutationResponse> Commit();
 
     TMutationPtr SetRequestData(TSharedRef data, Stroka type);
     template <class TRequest>

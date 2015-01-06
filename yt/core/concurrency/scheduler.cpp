@@ -59,27 +59,6 @@ void SwitchTo(IInvokerPtr invoker)
     GetCurrentScheduler()->SwitchTo(std::move(invoker));
 }
 
-void WaitFor(TFuture<void> future, IInvokerPtr invoker)
-{
-    YASSERT(future);
-    YASSERT(invoker);
-
-    if (future.IsCanceled()) {
-        throw TFiberCanceledException();
-    }
-
-    auto* scheduler = TryGetCurrentScheduler();
-    if (scheduler) {
-        scheduler->WaitFor(std::move(future), std::move(invoker));
-    } else {
-        // If we call WaitFor from a fiber-unfriendly thread, we fallback to blocking wait.
-        YCHECK(invoker == GetCurrentInvoker());
-        YCHECK(invoker == GetSyncInvoker());
-        future.Get();
-    }
-}
-
-
 void SubscribeContextSwitched(TClosure callback)
 {
     GetCurrentScheduler()->SubscribeContextSwitched(std::move(callback));

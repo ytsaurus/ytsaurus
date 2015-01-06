@@ -103,7 +103,7 @@ private:
 
             auto now = TInstant::Now();
             if (now > Deadline_) {
-                ReportError(TError(NRpc::EErrorCode::Timeout, "Request retries timed out"));
+                ReportError(TError(NYT::EErrorCode::Timeout, "Request retries timed out"));
                 return;
             }
 

@@ -114,7 +114,7 @@ public:
         return this;
     }
 
-    TAsyncError CommitTransaction(
+    TFuture<void> CommitTransaction(
         const TTransactionId& transactionId,
         const std::vector<TCellId>& participantCellIds)
     {
@@ -124,7 +124,7 @@ public:
             NullMutationId));
     }
 
-    TAsyncError AbortTransaction(
+    TFuture<void> AbortTransaction(
         const TTransactionId& transactionId,
         bool force)
     {
@@ -317,12 +317,12 @@ private:
             }));
     }
 
-    static TAsyncError MessageToError(TFuture<TSharedRefArray> asyncMessage)
+    static TFuture<void> MessageToError(TFuture<TSharedRefArray> asyncMessage)
     {
-        return asyncMessage.Apply(BIND([] (const TSharedRefArray& message) -> TError {
+        return asyncMessage.Apply(BIND([] (const TSharedRefArray& message) -> TFuture<void> {
             TResponseHeader header;
             YCHECK(ParseResponseHeader(message, &header));
-            return FromProto<TError>(header.error());
+            return MakeFuture<void>(FromProto<TError>(header.error()));
         }));
     }
 
@@ -819,7 +819,7 @@ IServicePtr TTransactionSupervisor::GetRpcService()
     return Impl_->GetRpcService();
 }
 
-TAsyncError TTransactionSupervisor::CommitTransaction(
+TFuture<void> TTransactionSupervisor::CommitTransaction(
     const TTransactionId& transactionId,
     const std::vector<TCellId>& participantCellIds)
 {
@@ -828,7 +828,7 @@ TAsyncError TTransactionSupervisor::CommitTransaction(
         participantCellIds);
 }
 
-TAsyncError TTransactionSupervisor::AbortTransaction(
+TFuture<void> TTransactionSupervisor::AbortTransaction(
     const TTransactionId& transactionId,
     bool force)
 {

@@ -41,8 +41,8 @@ struct ITransaction
     virtual const NTransactionClient::TTransactionId& GetId() const = 0;
     virtual NTransactionClient::TTimestamp GetStartTimestamp() const = 0;
 
-    virtual TAsyncError Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions()) = 0;
-    virtual TAsyncError Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions()) = 0;
+    virtual TFuture<void> Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions()) = 0;
+    virtual TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions()) = 0;
 
     // Tables
     virtual void WriteRow(

@@ -24,17 +24,17 @@ TSchemafulYsonWriter::TSchemafulYsonWriter(
         true)
 { }
 
-TAsyncError TSchemafulYsonWriter::Open(
+TFuture<void> TSchemafulYsonWriter::Open(
     const TTableSchema& schema,
     const TNullable<TKeyColumns>& /*keyColumns*/)
 {
     Schema_ = schema;
-    return OKFuture;
+    return VoidFuture;
 }
 
-TAsyncError TSchemafulYsonWriter::Close()
+TFuture<void> TSchemafulYsonWriter::Close()
 {
-    return OKFuture;
+    return VoidFuture;
 }
 
 bool TSchemafulYsonWriter::Write(const std::vector<TUnversionedRow>& rows)
@@ -83,7 +83,7 @@ bool TSchemafulYsonWriter::Write(const std::vector<TUnversionedRow>& rows)
     return Result_.IsSet() && Result_.Get().IsOK();
 }
 
-TAsyncError TSchemafulYsonWriter::GetReadyEvent()
+TFuture<void> TSchemafulYsonWriter::GetReadyEvent()
 {
     return Result_;
 }

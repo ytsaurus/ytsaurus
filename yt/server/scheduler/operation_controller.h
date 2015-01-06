@@ -6,7 +6,7 @@
 
 #include <core/misc/error.h>
 
-#include <core/actions/invoker.h>
+#include <core/actions/future.h>
 #include <core/actions/cancelable_context.h>
 
 #include <core/concurrency/public.h>
@@ -146,13 +146,13 @@ struct IOperationController
     virtual void Essentiate() = 0;
 
     //! Performs a possibly lengthy initial preparation.
-    virtual TFuture<TError> Prepare() = 0;
+    virtual TFuture<void> Prepare() = 0;
 
     //! Called by a scheduler in response to IOperationHost::OnOperationCompleted.
     /*!
      *  The controller must commit the transactions related to the operation.
      */
-    virtual TFuture<TError> Commit() = 0;
+    virtual TFuture<void> Commit() = 0;
 
     //! Called from a forked copy of the scheduler to make a snapshot of operation's progress.
     virtual void SaveSnapshot(TOutputStream* stream) = 0;
@@ -163,7 +163,7 @@ struct IOperationController
      *  The controller may try to recover its state from the snapshot, if any
      *  (see TOperation::Snapshot).
      */
-    virtual TFuture<TError> Revive() = 0;
+    virtual TFuture<void> Revive() = 0;
 
     //! Notifies the controller that the operation has been aborted.
     /*!

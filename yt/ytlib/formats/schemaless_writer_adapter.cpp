@@ -15,7 +15,7 @@ namespace NFormats {
 using namespace NVersionedTableClient;
 using namespace NYson;
 
-TAsyncError TSchemalessWriterAdapter::StaticError_ = MakeFuture(TError());
+TFuture<void> TSchemalessWriterAdapter::StaticError_ = MakeFuture(TError());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +26,7 @@ TSchemalessWriterAdapter::TSchemalessWriterAdapter(
     , NameTable_(nameTable)
 { }
 
-TAsyncError TSchemalessWriterAdapter::Open()
+TFuture<void> TSchemalessWriterAdapter::Open()
 {
     return MakeFuture(TError());
 }
@@ -73,12 +73,12 @@ bool TSchemalessWriterAdapter::Write(const std::vector<TUnversionedRow> &rows)
     return true;
 }
 
-TAsyncError TSchemalessWriterAdapter::GetReadyEvent()
+TFuture<void> TSchemalessWriterAdapter::GetReadyEvent()
 {
     return MakeFuture(Error_);
 }
 
-TAsyncError TSchemalessWriterAdapter::Close()
+TFuture<void> TSchemalessWriterAdapter::Close()
 {
     return MakeFuture(Error_);
 }

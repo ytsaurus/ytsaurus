@@ -226,8 +226,7 @@ void TRequestExecutor::DoExecute()
 
 void TRequestExecutor::DoExecute(const TDriverRequest& request)
 {
-    auto response = Driver->Execute(request).Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(response.Error);
+    Driver->Execute(request).Get().ThrowOnError();
 }
 
 IMapNodePtr TRequestExecutor::GetParameters()

@@ -65,13 +65,15 @@ void TFileChunkOutput::Open()
         Options->ReplicationFactor,
         Config->UploadReplicationFactor);
     
-    auto rsp = CreateChunk(MasterChannel, Config, Options, EObjectType::Chunk, TransactionId).Get();
-    if (!rsp->IsOK()) {
+    auto rspOrError = CreateChunk(MasterChannel, Config, Options, EObjectType::Chunk, TransactionId).Get();
+    if (!rspOrError.IsOK()) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::MasterCommunicationFailed,
-            "Error creating chunk") << *rsp;
+            "Error creating chunk")
+            << rspOrError;
     }
 
+    const auto& rsp = rspOrError.Value();
     ChunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
 
     Logger.AddTag("ChunkId: %v", ChunkId);
@@ -137,8 +139,8 @@ void TFileChunkOutput::DoFinish()
         ToProto(req->mutable_replicas(), ChunkWriter->GetWrittenChunkReplicas());
         GenerateMutationId(req);
 
-        auto rsp = proxy.Execute(req).Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error confirming chunk");
+        auto rspOrError = proxy.Execute(req).Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error confirming chunk");
     }
     LOG_INFO("Chunk confirmed");
 

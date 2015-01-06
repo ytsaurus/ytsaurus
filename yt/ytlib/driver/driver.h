@@ -52,22 +52,6 @@ struct TDriverRequest
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An instance of driver request.
-struct TDriverResponse
-{
-    TDriverResponse()
-    { }
-
-    explicit TDriverResponse(TError error)
-        : Error(error)
-    { }
-
-    //! An error returned by the command, if any.
-    TError Error;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Command meta-descriptor.
 /*!
  *  Contains various meta-information describing a given command type.
@@ -119,7 +103,7 @@ struct IDriver
     : public virtual TRefCounted
 {
     //! Asynchronously executes a given request.
-    virtual TFuture<TDriverResponse> Execute(const TDriverRequest& request) = 0;
+    virtual TFuture<void> Execute(const TDriverRequest& request) = 0;
 
     //! Returns a descriptor for the command with a given name or
     //! |Null| if no command with this name is registered.

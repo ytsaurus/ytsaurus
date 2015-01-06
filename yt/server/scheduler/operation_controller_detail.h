@@ -80,10 +80,10 @@ public:
 
     virtual void Initialize() override;
     virtual void Essentiate() override;
-    virtual TFuture<TError> Prepare() override;
+    virtual TFuture<void> Prepare() override;
     virtual void SaveSnapshot(TOutputStream* output) override;
-    virtual TFuture<TError> Revive() override;
-    virtual TFuture<TError> Commit() override;
+    virtual TFuture<void> Revive() override;
+    virtual TFuture<void> Commit() override;
 
     virtual void OnJobRunning(TJobPtr job, const NJobTrackerClient::NProto::TJobStatus& status) override;
     virtual void OnJobCompleted(TJobPtr job) override;
@@ -604,7 +604,7 @@ protected:
 
 
     // Preparation.
-    TError DoPrepare();
+    void DoPrepare();
     void GetInputObjectIds();
     void GetOutputObjectIds();
     void ValidateFileTypes();
@@ -630,7 +630,7 @@ protected:
     virtual void StartOutputTransaction(NObjectClient::TTransactionId parentTransactionId);
 
     // Completion.
-    TError DoCommit();
+    void DoCommit();
     void CommitResults();
 
 
@@ -842,7 +842,7 @@ private:
 
     private:
         void LocateChunks();
-        void OnLocateChunksResponse(NChunkClient::TChunkServiceProxy::TRspLocateChunksPtr rsp);
+        void OnLocateChunksResponse(const NChunkClient::TChunkServiceProxy::TErrorOrRspLocateChunksPtr& rspOrError);
 
         TOperationControllerBase* Controller;
         NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;

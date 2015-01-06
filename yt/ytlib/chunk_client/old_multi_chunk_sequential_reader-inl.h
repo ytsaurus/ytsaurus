@@ -35,7 +35,7 @@ TOldMultiChunkSequentialReader<TChunkReader>::TOldMultiChunkSequentialReader(
 }
 
 template <class TChunkReader>
-TAsyncError TOldMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
+TFuture<void> TOldMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
 {
     YCHECK(CurrentReaderIndex == -1);
     YCHECK(!State.HasRunningOperation());
@@ -49,7 +49,7 @@ TAsyncError TOldMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
         ++CurrentReaderIndex;
 
         State.StartOperation();
-        Sessions[CurrentReaderIndex].Subscribe(
+        Sessions[CurrentReaderIndex].ToFuture().Subscribe(
             BIND(&TOldMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk, MakeWeak(this))
                 .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
     }
@@ -60,7 +60,7 @@ TAsyncError TOldMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
 template <class TChunkReader>
 void TOldMultiChunkSequentialReader<TChunkReader>::OnReaderOpened(
     const typename TBase::TSession& session,
-    TError error)
+    const TError& error)
 {
     if (!error.IsOK()) {
         TBase::AddFailedChunk(session);
@@ -74,8 +74,15 @@ void TOldMultiChunkSequentialReader<TChunkReader>::OnReaderOpened(
 
 template <class TChunkReader>
 void TOldMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk(
-    typename TBase::TSession nextSession)
+    const TErrorOr<typename TBase::TSession>& nextSessionOrError)
 {
+    if (!nextSessionOrError.IsOK()) {
+        State.Fail(nextSessionOrError);
+        return;
+    }
+
+    const auto& nextSession = nextSessionOrError.Value();
+
     if (CurrentReaderIndex > 0 && !ReaderProvider->KeepInMemory()) {
         Sessions[CurrentReaderIndex - 1].Reset();
     }
@@ -108,7 +115,7 @@ bool TOldMultiChunkSequentialReader<TChunkReader>::ValidateReader()
             if (!State.HasRunningOperation())
                 State.StartOperation();
 
-            Sessions[CurrentReaderIndex].Subscribe(
+            Sessions[CurrentReaderIndex].ToFuture().Subscribe(
                 BIND(&TOldMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk, MakeWeak(this))
                     .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
             return false;
@@ -136,7 +143,7 @@ bool TOldMultiChunkSequentialReader<TChunkReader>::FetchNext()
 }
 
 template <class TChunkReader>
-void TOldMultiChunkSequentialReader<TChunkReader>::OnItemFetched(TError error)
+void TOldMultiChunkSequentialReader<TChunkReader>::OnItemFetched(const TError& error)
 {
     // Reader may have already failed, e.g. if prefetched chunk failed to open.
     if (!State.IsActive()) {

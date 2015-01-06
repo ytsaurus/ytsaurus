@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
+#include <core/actions/future.h>
 
 #include <ytlib/new_table_client/public.h>
 
@@ -30,7 +30,7 @@ IRowsetPtr CreateRowset(
     const NVersionedTableClient::TTableSchema& schema,
     std::vector<NVersionedTableClient::TUnversionedRow> rows);
 
-std::tuple<NVersionedTableClient::ISchemafulWriterPtr, TPromise<TErrorOr<IRowsetPtr>>>
+std::tuple<NVersionedTableClient::ISchemafulWriterPtr, TPromise<IRowsetPtr>>
     CreateSchemafulRowsetWriter();
 
 ///////////////////////////////////////////////////////////////////////////////

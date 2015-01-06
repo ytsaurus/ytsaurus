@@ -104,8 +104,14 @@ public:
         return RuntimeInfo_;
     }
 
-    void Run(TLiteHandler handler)
+    void Run(const TErrorOr<TLiteHandler>& handlerOrError)
     {
+        if (!handlerOrError.IsOK()) {
+            Reply(TError(handlerOrError));
+            return;
+        }
+
+        auto handler = handlerOrError.Value();
         if (!handler)
             return;
 

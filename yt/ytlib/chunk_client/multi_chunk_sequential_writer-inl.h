@@ -64,14 +64,14 @@ TOldMultiChunkSequentialWriter<TProvider>::TOldMultiChunkSequentialWriter(
 }
 
 template <class TProvider>
-TAsyncError TOldMultiChunkSequentialWriter<TProvider>::Open()
+TFuture<void> TOldMultiChunkSequentialWriter<TProvider>::Open()
 {
     YCHECK(!State.HasRunningOperation());
 
     CreateNextSession();
 
     State.StartOperation();
-    NextSession.Subscribe(BIND(
+    NextSession.ToFuture().Subscribe(BIND(
         &TOldMultiChunkSequentialWriter::InitCurrentSession,
         MakeWeak(this)));
 
@@ -113,7 +113,7 @@ auto TOldMultiChunkSequentialWriter<TProvider>::GetCurrentWriter() -> TFacade*
 }
 
 template <class TProvider>
-TAsyncError TOldMultiChunkSequentialWriter<TProvider>::GetReadyEvent()
+TFuture<void> TOldMultiChunkSequentialWriter<TProvider>::GetReadyEvent()
 {
     if (CurrentSession.ChunkWriter) {
         return CurrentSession.ChunkWriter->GetReadyEvent();
@@ -142,7 +142,7 @@ void TOldMultiChunkSequentialWriter<TProvider>::CreateNextSession()
 
 template <class TProvider>
 void TOldMultiChunkSequentialWriter<TProvider>::OnChunkCreated(
-    NObjectClient::TMasterYPathProxy::TRspCreateObjectsPtr rsp)
+    const NObjectClient::TMasterYPathProxy::TErrorOrRspCreateObjectsPtr& rspOrError)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YCHECK(NextSession);
@@ -152,12 +152,13 @@ void TOldMultiChunkSequentialWriter<TProvider>::OnChunkCreated(
     }
 
     try {
-        TSession session;
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            *rsp, 
+            rspOrError,
             EErrorCode::MasterCommunicationFailed, 
             "Error creating chunk");
+        const auto& rsp = rspOrError.Value();
 
+        TSession session;
         session.ChunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
         LOG_DEBUG("Chunk created (ChunkId: %v)", session.ChunkId);
 
@@ -204,10 +205,16 @@ void TOldMultiChunkSequentialWriter<TProvider>::SetProgress(double progress)
 }
 
 template <class TProvider>
-void TOldMultiChunkSequentialWriter<TProvider>::InitCurrentSession(TSession nextSession)
+void TOldMultiChunkSequentialWriter<TProvider>::InitCurrentSession(const TErrorOr<TSession>& nextSessionOrError)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    if (!nextSessionOrError.IsOK()) {
+        State.Fail(nextSessionOrError);
+        return;
+    }
+
+    auto nextSession = nextSessionOrError.Value();
     nextSession.ChunkWriter = Provider->CreateChunkWriter(nextSession.AsyncWriter);
     CurrentSession = nextSession;
 
@@ -228,7 +235,7 @@ void TOldMultiChunkSequentialWriter<TProvider>::SwitchSession()
         if (!error.IsOK())
             return;
 
-        NextSession.Subscribe(BIND(
+        NextSession.ToFuture().Subscribe(BIND(
             &TOldMultiChunkSequentialWriter::InitCurrentSession,
             MakeWeak(this)));
     };
@@ -246,13 +253,13 @@ void TOldMultiChunkSequentialWriter<TProvider>::SwitchSession()
 }
 
 template <class TProvider>
-TAsyncError TOldMultiChunkSequentialWriter<TProvider>::FinishCurrentSession()
+TFuture<void> TOldMultiChunkSequentialWriter<TProvider>::FinishCurrentSession()
 {
     if (CurrentSession.IsNull()) {
         return MakePromise(TError());
     }
 
-    auto finishResult = NewPromise<TError>();
+    auto finishResult = NewPromise<void>();
     if (CurrentSession.ChunkWriter->GetDataSize() > 0) {
         LOG_DEBUG("Finishing chunk (ChunkId: %v)",
             CurrentSession.ChunkId);
@@ -295,8 +302,8 @@ template <class TProvider>
 void TOldMultiChunkSequentialWriter<TProvider>::OnChunkClosed(
     int chunkIndex,
     TSession currentSession,
-    TAsyncErrorPromise finishResult,
-    TError error)
+    TPromise<void> finishResult,
+    const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -349,12 +356,12 @@ void TOldMultiChunkSequentialWriter<TProvider>::OnChunkClosed(
 template <class TProvider>
 void TOldMultiChunkSequentialWriter<TProvider>::OnChunkConfirmed(
     TChunkId chunkId,
-    TAsyncErrorPromise finishResult,
-    NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    TPromise<void> finishResult,
+    const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto error = batchRsp->GetCumulativeError();
+    auto error = NObjectClient::GetCumulativeError(batchRspOrError);
     if (!error.IsOK()) {
         auto wrappedError = TError(
             EErrorCode::MasterCommunicationFailed,
@@ -374,7 +381,7 @@ void TOldMultiChunkSequentialWriter<TProvider>::OnChunkConfirmed(
 template <class TProvider>
 void TOldMultiChunkSequentialWriter<TProvider>::OnChunkFinished(
     TChunkId chunkId,
-    TError error)
+    const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -388,7 +395,7 @@ void TOldMultiChunkSequentialWriter<TProvider>::OnChunkFinished(
 }
 
 template <class TProvider>
-TAsyncError TOldMultiChunkSequentialWriter<TProvider>::Close()
+TFuture<void> TOldMultiChunkSequentialWriter<TProvider>::Close()
 {
     if (State.IsActive()) {
         State.StartOperation();
@@ -435,13 +442,13 @@ void TOldMultiChunkSequentialWriter<TProvider>::AttachChunks()
 
 template <class TProvider>
 void TOldMultiChunkSequentialWriter<TProvider>::OnClose(
-    NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
 {
     if (!State.IsActive()) {
         return;
     }
 
-    auto error = batchRsp->GetCumulativeError();
+    auto error = NObjectClient::GetCumulativeError(batchRspOrError);
     if (!error.IsOK()) {
         auto wrappedError = TError(
             EErrorCode::MasterCommunicationFailed,

@@ -40,18 +40,18 @@ public:
         : Writer_(writer)
     { }
 
-    virtual TAsyncError Open(
+    virtual TFuture<void> Open(
         const TTableSchema& schema,
         const TNullable<TKeyColumns>& /*keyColumns*/) override
     {
         Writer_->WriteTableSchema(schema);
-        return OKFuture;
+        return VoidFuture;
     }
 
-    virtual TAsyncError Close() override
+    virtual TFuture<void> Close() override
     {
         Writer_->WriteCommand(EWireProtocolCommand::EndOfRowset);
-        return OKFuture;
+        return VoidFuture;
     }
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override
@@ -61,9 +61,9 @@ public:
         return true;
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
-        return OKFuture;
+        return VoidFuture;
     }
 
 private:
@@ -340,13 +340,13 @@ public:
         , Finished_(false)
     { }
 
-    virtual TAsyncError Open(const TTableSchema& schema) override
+    virtual TFuture<void> Open(const TTableSchema& schema) override
     {
         auto actualSchema = Reader_->ReadTableSchema();
         if (schema != actualSchema) {
             return MakeFuture(TError("Schema mismatch while parsing wire protocol"));
         }
-        return OKFuture;
+        return VoidFuture;
     }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
@@ -366,9 +366,9 @@ public:
         return true;
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
-        return OKFuture;
+        return VoidFuture;
     }
 
 private:

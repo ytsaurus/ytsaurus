@@ -74,13 +74,13 @@ public:
         , Process(proxyPath)
         , Waited(false)
         , EnvironmentBuilder(envBuilder)
-        , OnExit(NewPromise<TError>())
+        , OnExit(NewPromise<void>())
         , ControllerThread(ThreadFunc, this)
     {
         Logger.AddTag("JobId: %v", jobId);
     }
 
-    virtual TAsyncError Run() override
+    virtual TFuture<void> Run() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -212,7 +212,7 @@ private:
     TSpinLock SpinLock;
     TError Error;
 
-    TPromise<TError> OnExit;
+    TPromise<void> OnExit;
 
     TThread ControllerThread;
 
@@ -228,13 +228,13 @@ class TUnsafeProxyController
 public:
     explicit TUnsafeProxyController(const TJobId& jobId)
         : Logger(ExecAgentLogger)
-        , OnExit(NewPromise<TError>())
+        , OnExit(NewPromise<void>())
         , ControllerThread(ThreadFunc, this)
     {
         Logger.AddTag("JobId: %v", jobId);
     }
 
-    TAsyncError Run()
+    TFuture<void> Run()
     {
         ControllerThread.Start();
         ControllerThread.Detach();
@@ -269,7 +269,7 @@ private:
     }
 
     NLog::TLogger Logger;
-    TPromise<TError> OnExit;
+    TPromise<void> OnExit;
     TThread ControllerThread;
 };
 

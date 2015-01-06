@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <core/actions/invoker.h>
 #include <core/actions/callback.h>
 
 namespace NYT {

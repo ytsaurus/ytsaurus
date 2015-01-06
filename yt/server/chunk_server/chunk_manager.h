@@ -126,7 +126,7 @@ public:
     EChunkStatus ComputeChunkStatus(TChunk* chunk);
 
     void SealChunk(TChunk* chunk, const NChunkClient::NProto::TMiscExt& info);
-    TFuture<TErrorOr<NChunkClient::NProto::TMiscExt>> GetChunkQuorumInfo(TChunk* chunk);
+    TFuture<NChunkClient::NProto::TMiscExt> GetChunkQuorumInfo(TChunk* chunk);
 
 private:
     class TImpl;

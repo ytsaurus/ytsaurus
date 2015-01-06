@@ -82,7 +82,7 @@ public:
         TEpochContext* epochContext);
 
     //! Performs leader recovery up to a given version.
-    TAsyncError Run(TVersion targetVersion);
+    TFuture<void> Run(TVersion targetVersion);
 
 private:
     void DoRun(TVersion targetVersion);
@@ -119,7 +119,7 @@ public:
         TVersion syncVersion);
 
     //! Performs follower recovery bringing the follower up-to-date and synchronized with the leader.
-    TAsyncError Run();
+    TFuture<void> Run();
 
     //! Postpones an incoming request for changelog rotation.
     void PostponeChangelogRotation(TVersion version);

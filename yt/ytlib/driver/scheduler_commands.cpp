@@ -30,8 +30,7 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
     GenerateMutationId(req);
     req->set_spec(ConvertToYsonString(Request_->Spec).Data());
 
-    auto rsp = WaitFor(req->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
 
     auto operationId = FromProto<TOperationId>(rsp->operation_id());
     Reply(BuildYsonStringFluently().Value(operationId));
@@ -94,8 +93,7 @@ void TAbortOperationCommand::DoExecute()
     auto req = proxy.AbortOperation();
     ToProto(req->mutable_operation_id(), Request_->OperationId);
 
-    auto rsp = WaitFor(req->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    WaitFor(req->Invoke()).ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,8 +104,7 @@ void TSuspendOperationCommand::DoExecute()
     auto req = proxy.SuspendOperation();
     ToProto(req->mutable_operation_id(), Request_->OperationId);
 
-    auto rsp = WaitFor(req->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    WaitFor(req->Invoke()).ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,8 +115,7 @@ void TResumeOperationCommand::DoExecute()
     auto req = proxy.ResumeOperation();
     ToProto(req->mutable_operation_id(), Request_->OperationId);
 
-    auto rsp = WaitFor(req->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    WaitFor(req->Invoke()).ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

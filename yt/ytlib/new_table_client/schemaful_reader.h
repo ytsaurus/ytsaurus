@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
+#include <core/actions/future.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -24,7 +24,7 @@ struct ISchemafulReader
      *  \note 
      *  Read timestamp and read limits should be passed in constructor if applicable.
      */
-    virtual TAsyncError Open(const TTableSchema& schema) = 0;
+    virtual TFuture<void> Open(const TTableSchema& schema) = 0;
 
     //! See #IVersionedReader::Read.
     /*!
@@ -34,7 +34,7 @@ struct ISchemafulReader
     virtual bool Read(std::vector<TUnversionedRow>* rows) = 0;
 
     //! See #IVersionedReader::GetReadyEvent.
-    virtual TAsyncError GetReadyEvent() = 0;
+    virtual TFuture<void> GetReadyEvent() = 0;
 
 };
 

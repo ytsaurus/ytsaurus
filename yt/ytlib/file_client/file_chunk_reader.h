@@ -77,10 +77,10 @@ public:
         i64 startOffset,
         i64 endOffset);
 
-    TAsyncError AsyncOpen();
+    TFuture<void> AsyncOpen();
 
     bool FetchNext();
-    TAsyncError GetReadyEvent();
+    TFuture<void> GetReadyEvent();
 
     const TFacade* GetFacade() const;
 
@@ -106,8 +106,8 @@ private:
 
     NLog::TLogger Logger;
 
-    void OnNextBlock(TError error);
-    void OnGotMeta(NChunkClient::IChunkReader::TGetMetaResult result);
+    void OnNextBlock(const TError& error);
+    void OnGotMeta(const TErrorOr<NChunkClient::NProto::TChunkMeta>& metaOrError);
 
 };
 

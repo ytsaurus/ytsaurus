@@ -51,7 +51,7 @@ void DoDownloadChangelog(
         }
 
         auto asyncChangelogInfo = DiscoverChangelog(config, cellManager, changelogId, recordCount);
-        auto changelogInfo = WaitFor(asyncChangelogInfo);
+        auto changelogInfo = WaitFor(asyncChangelogInfo).ValueOrThrow();
         if (changelogInfo.ChangelogId == NonexistingSegmentId) {
             THROW_ERROR_EXCEPTION("Unable to find a download source for changelog %v with %v records",
                 changelogId,
@@ -82,8 +82,9 @@ void DoDownloadChangelog(
             req->set_start_record_id(downloadedRecordCount);
             req->set_record_count(desiredChunkSize);
 
-            auto rsp = WaitFor(req->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error downloading changelog");
+            auto rspOrError = WaitFor(req->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error downloading changelog");
+            const auto& rsp = rspOrError.Value();
 
             const auto& attachments = rsp->Attachments();
             YCHECK(attachments.size() == 1);
@@ -126,7 +127,7 @@ void DoDownloadChangelog(
 
 } // namespace
 
-TAsyncError DownloadChangelog(
+TFuture<void> DownloadChangelog(
     TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
     IChangelogStorePtr changelogStore,
@@ -134,7 +135,6 @@ TAsyncError DownloadChangelog(
     int recordCount)
 {
     return BIND(&DoDownloadChangelog)
-        .Guarded()
         .AsyncVia(GetHydraIOInvoker())
         .Run(config, cellManager, changelogStore, changelogId, recordCount);
 }

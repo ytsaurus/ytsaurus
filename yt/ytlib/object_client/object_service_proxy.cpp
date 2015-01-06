@@ -118,10 +118,14 @@ TObjectServiceProxy::TRspExecuteBatch::GetAsyncResult()
     return Promise;
 }
 
-void TObjectServiceProxy::TRspExecuteBatch::FireCompleted()
+void TObjectServiceProxy::TRspExecuteBatch::FireCompleted(const TError& error)
 {
     BeforeCompleted();
-    Promise.Set(this);
+    if (error.IsOK()) {
+        Promise.Set(this);
+    } else {
+        Promise.Set(error);
+    }
     Promise.Reset();
 }
 
@@ -143,39 +147,22 @@ int TObjectServiceProxy::TRspExecuteBatch::GetSize() const
     return Body.part_counts_size();
 }
 
-TError TObjectServiceProxy::TRspExecuteBatch::GetCumulativeError()
-{
-    if (!IsOK()) {
-        return GetError();
-    }
-
-    TError cumulativeError("Error communicating with master");
-    for (auto rsp : GetResponses()) {
-        auto error = rsp->GetError();
-        if (!error.IsOK()) {
-            cumulativeError.InnerErrors().push_back(error);
-        }
-    }
-
-    return cumulativeError.InnerErrors().empty() ? TError() : cumulativeError;
-}
-
-TYPathResponsePtr TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const
+TErrorOr<TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const
 {
     return GetResponse<TYPathResponse>(index);
 }
 
-TYPathResponsePtr TObjectServiceProxy::TRspExecuteBatch::FindResponse(const Stroka& key) const
+TNullable<TErrorOr<TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const Stroka& key) const
 {
     return FindResponse<TYPathResponse>(key);
 }
 
-TYPathResponsePtr TObjectServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
+TErrorOr<TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
 {
     return GetResponse<TYPathResponse>(key);
 }
 
-std::vector<NYTree::TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key) const
+std::vector<TErrorOr<NYTree::TYPathResponsePtr>> TObjectServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key) const
 {
     return GetResponses<TYPathResponse>(key);
 }
@@ -218,6 +205,25 @@ TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch()
     return
         New<TReqExecuteBatch>(Channel_, ServiceName_, "Execute")
         ->SetTimeout(DefaultTimeout_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TError GetCumulativeError(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
+{
+    if (!batchRspOrError.IsOK()) {
+        return batchRspOrError;
+    }
+
+    TError cumulativeError("Error communicating with master");
+    const auto& batchRsp = batchRspOrError.Value();
+    for (const auto& rspOrError : batchRsp->GetResponses()) {
+        if (!rspOrError.IsOK()) {
+            cumulativeError.InnerErrors().push_back(rspOrError);
+        }
+    }
+
+    return cumulativeError.InnerErrors().empty() ? TError() : cumulativeError;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

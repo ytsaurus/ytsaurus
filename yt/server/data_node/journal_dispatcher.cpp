@@ -125,16 +125,16 @@ public:
         return Config_->MultiplexedChangelog != nullptr;
     }
 
-    TFuture<TErrorOr<IChangelogPtr>> OpenChangelog(
+    TFuture<IChangelogPtr> OpenChangelog(
         TLocationPtr location,
         const TChunkId& chunkId,
         bool enableMultiplexing);
 
-    TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(
+    TFuture<IChangelogPtr> CreateChangelog(
         TJournalChunkPtr chunk,
         bool enableMultiplexing);
 
-    TAsyncError RemoveChangelog(TJournalChunkPtr chunk);
+    TFuture<void> RemoveChangelog(TJournalChunkPtr chunk);
 
 private:
     friend class TCachedChangelog;
@@ -292,9 +292,9 @@ private:
     }
 
 
-    TAsyncError AppendMultiplexedRecord(const TMultiplexedRecord& record, TCachedChangelogPtr changelog);
+    TFuture<void> AppendMultiplexedRecord(const TMultiplexedRecord& record, TCachedChangelogPtr changelog);
 
-    TAsyncError DoAppendMultiplexedRecord(const TMultiplexedRecord& record)
+    TFuture<void> DoAppendMultiplexedRecord(const TMultiplexedRecord& record)
     {
         auto multiplexedData = TSharedRef::Allocate(
             record.Data.Size() +
@@ -312,8 +312,8 @@ private:
     }
 
 
-    TErrorOr<IChangelogPtr> CreateNewMultiplexedChangelog(
-        TAsyncError flushResult,
+    IChangelogPtr CreateNewMultiplexedChangelog(
+        TFuture<void> flushResult,
         int oldId,
         int newId)
     {
@@ -331,7 +331,7 @@ private:
     }
 
     void WaitAndMarkMultplexedChangelogClean(
-        const std::vector<TAsyncError>& results,
+        const std::vector<TFuture<void>>& results,
         int id)
     {
         for (const auto& result : results) {
@@ -472,7 +472,7 @@ public:
         return UnderlyingChangelog_->IsSealed();
     }
 
-    virtual TAsyncError Append(const TSharedRef& data) override
+    virtual TFuture<void> Append(const TSharedRef& data) override
     {
         if (EnableMultiplexing_) {
             int recordId = UnderlyingChangelog_->GetRecordCount();
@@ -492,7 +492,7 @@ public:
         }
     }
 
-    virtual TAsyncError Flush() override
+    virtual TFuture<void> Flush() override
     {
         return UnderlyingChangelog_->Flush();
     }
@@ -505,23 +505,23 @@ public:
         return UnderlyingChangelog_->Read(firstRecordId, maxRecords, maxBytes);
     }
 
-    virtual TAsyncError Seal(int recordCount) override
+    virtual TFuture<void> Seal(int recordCount) override
     {
         return UnderlyingChangelog_->Seal(recordCount);
     }
 
-    virtual TAsyncError Unseal() override
+    virtual TFuture<void> Unseal() override
     {
         return UnderlyingChangelog_->Unseal();
     }
 
-    virtual TAsyncError Close() override
+    virtual TFuture<void> Close() override
     {
         Owner_->TryRemove(this);
         return UnderlyingChangelog_->Close();
     }
 
-    TAsyncError GetLastSplitFlushResult() const
+    TFuture<void> GetLastSplitFlushResult() const
     {
         YASSERT(EnableMultiplexing_);
         return LastSplitFlushResult_;
@@ -532,7 +532,7 @@ private:
     bool EnableMultiplexing_;
     IChangelogPtr UnderlyingChangelog_;
 
-    TAsyncError LastSplitFlushResult_;
+    TFuture<void> LastSplitFlushResult_;
 
 };
 
@@ -787,7 +787,7 @@ void TJournalDispatcher::TImpl::Initialize()
     LOG_INFO("Journal dispatcher started");
 }
 
-TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::OpenChangelog(
+TFuture<IChangelogPtr> TJournalDispatcher::TImpl::OpenChangelog(
     TLocationPtr location,
     const TChunkId& chunkId,
     bool enableMultiplexing)
@@ -808,12 +808,10 @@ TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::OpenChangelog(
             Passed(std::move(cookie))));
     }
 
-    return result.Apply(BIND([] (const TErrorOr<TCachedChangelogPtr>& result) {
-        return result.As<IChangelogPtr>();
-    }));
+    return result.As<IChangelogPtr>();
 }
 
-TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::CreateChangelog(
+TFuture<IChangelogPtr> TJournalDispatcher::TImpl::CreateChangelog(
     TJournalChunkPtr chunk,
     bool enableMultiplexing)
 {
@@ -831,12 +829,11 @@ TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::CreateChangelog(
         }
 
         // See remark on invoker choice above.
-        auto futureChangelogOrError = BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunk)
-            .Guarded()
+        auto futureChangelog = BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunk)
             .AsyncVia(ChangelogDispatcher_->GetInvoker())
             .Run();
 
-        auto lazyChangelog = CreateLazyChangelog(futureChangelogOrError);
+        auto lazyChangelog = CreateLazyChangelog(futureChangelog);
 
         auto cachedChangelog = New<TCachedChangelog>(
             this,
@@ -852,20 +849,20 @@ TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::TImpl::CreateChangelog(
             record.Header.RecordId = -1;
             auto multiplexedResult = AppendMultiplexedRecord(record, cachedChangelog);
 
-            return multiplexedResult.Apply(BIND([=] (const TError& error) -> TErrorOr<IChangelogPtr> {
-                return error.IsOK() ? TErrorOr<IChangelogPtr>(cachedChangelog) : TErrorOr<IChangelogPtr>(error);
+            return multiplexedResult.Apply(BIND([=] () {
+                return IChangelogPtr(cachedChangelog);
             }));
         } else {
-            return futureChangelogOrError.Apply(BIND([=] (const TErrorOr<IChangelogPtr>& result) {
-                return result.IsOK() ? TErrorOr<IChangelogPtr>(cachedChangelog) : TErrorOr<IChangelogPtr>(result);
+            return futureChangelog.Apply(BIND([=] (const IChangelogPtr&) {
+                return IChangelogPtr(cachedChangelog);
             }));
         }
     } catch (const std::exception& ex) {
-        return MakeFuture<TErrorOr<IChangelogPtr>>(ex);
+        return MakeFuture<IChangelogPtr>(ex);
     }
 }
 
-TAsyncError TJournalDispatcher::TImpl::RemoveChangelog(TJournalChunkPtr chunk)
+TFuture<void> TJournalDispatcher::TImpl::RemoveChangelog(TJournalChunkPtr chunk)
 {
     TMultiplexedRecord record;
     record.Header.Type = EMultiplexedRecordType::Remove;
@@ -880,12 +877,11 @@ TAsyncError TJournalDispatcher::TImpl::RemoveChangelog(TJournalChunkPtr chunk)
 
     // See remark on invoker choice above.
     return BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk)
-        .Guarded()
         .AsyncVia(ChangelogDispatcher_->GetInvoker())
         .Run();
 }
 
-TAsyncError TJournalDispatcher::TImpl::AppendMultiplexedRecord(
+TFuture<void> TJournalDispatcher::TImpl::AppendMultiplexedRecord(
     const TMultiplexedRecord& record,
     TCachedChangelogPtr changelog)
 {
@@ -913,7 +909,7 @@ TAsyncError TJournalDispatcher::TImpl::AppendMultiplexedRecord(
         // To mark a multiplexed changelog as clean we wait for
         // * the multiplexed changelog to get flushed
         // * last appended records in all active changelogs to get flushed
-        std::vector<TAsyncError> cleanResults;
+        std::vector<TFuture<void>> cleanResults;
         cleanResults.push_back(multiplexedFlushResult);
         for (const auto& pair : ActiveChangelogs_) {
             const auto& changelog = pair.second;
@@ -926,7 +922,7 @@ TAsyncError TJournalDispatcher::TImpl::AppendMultiplexedRecord(
         int oldId = MultiplexedChangelogId_;
         int newId = MultiplexedChangelogId_ + 1;
 
-        auto futureMultiplexedChangelogOrError =
+        auto futureMultiplexedChangelog =
             BIND(
                 &TImpl::CreateNewMultiplexedChangelog,
                 MakeStrong(this),
@@ -944,7 +940,7 @@ TAsyncError TJournalDispatcher::TImpl::AppendMultiplexedRecord(
         .AsyncVia(ChangelogDispatcher_->GetInvoker())
         .Run();
         
-        MultiplexedChangelog_ = CreateLazyChangelog(futureMultiplexedChangelogOrError);
+        MultiplexedChangelog_ = CreateLazyChangelog(futureMultiplexedChangelog);
         MultiplexedChangelogId_ = newId;
     }
 
@@ -984,7 +980,7 @@ bool TJournalDispatcher::AcceptsChunks() const
     return Impl_->AcceptsChunks();
 }
 
-TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::OpenChangelog(
+TFuture<IChangelogPtr> TJournalDispatcher::OpenChangelog(
     TLocationPtr location,
     const TChunkId& chunkId,
     bool enableMultiplexing)
@@ -992,14 +988,14 @@ TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::OpenChangelog(
     return Impl_->OpenChangelog(location, chunkId, enableMultiplexing);
 }
 
-TFuture<TErrorOr<IChangelogPtr>> TJournalDispatcher::CreateChangelog(
+TFuture<IChangelogPtr> TJournalDispatcher::CreateChangelog(
     TJournalChunkPtr chunk,
     bool enableMultiplexing)
 {
     return Impl_->CreateChangelog(chunk, enableMultiplexing);
 }
 
-TAsyncError TJournalDispatcher::RemoveChangelog(TJournalChunkPtr chunk)
+TFuture<void> TJournalDispatcher::RemoveChangelog(TJournalChunkPtr chunk)
 {
     return Impl_->RemoveChangelog(chunk);
 }

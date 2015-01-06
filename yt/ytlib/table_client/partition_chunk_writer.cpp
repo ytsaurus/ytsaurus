@@ -252,7 +252,7 @@ NChunkClient::NProto::TChunkMeta TPartitionChunkWriter::GetSchedulerMeta() const
     return meta;
 }
 
-TAsyncError TPartitionChunkWriter::Close()
+TFuture<void> TPartitionChunkWriter::Close()
 {
     YASSERT(!State.IsClosed());
 
@@ -263,12 +263,12 @@ TAsyncError TPartitionChunkWriter::Close()
         .Run()
         .Subscribe(
             BIND(&TPartitionChunkWriter::OnFinalBlocksWritten, MakeWeak(this))
-            .Via(TDispatcher::Get()->GetWriterInvoker()));
+                .Via(TDispatcher::Get()->GetWriterInvoker()));
 
     return State.GetOperationError();
 }
 
-void TPartitionChunkWriter::OnFinalBlocksWritten(TError error)
+void TPartitionChunkWriter::OnFinalBlocksWritten(const TError& error)
 {
     if (!error.IsOK()) {
         State.FinishOperation(error);

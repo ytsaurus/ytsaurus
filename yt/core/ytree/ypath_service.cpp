@@ -183,8 +183,10 @@ private:
                     .Via(NRpc::TDispatcher::Get()->GetPoolInvoker()));
         }
 
-        CachedTree_.Subscribe(BIND([=] (INodePtr root) {
-            ExecuteVerb(root, context);
+        CachedTree_.Subscribe(BIND([=] (const TErrorOr<INodePtr>& rootOrError) {
+            if (rootOrError.IsOK()) {
+                ExecuteVerb(rootOrError.Value(), context);
+            }
         }));
 
         return true;

@@ -275,8 +275,7 @@ void TInsertCommand::DoExecute()
 
     auto tableMountCache = Context_->GetClient()->GetConnection()->GetTableMountCache();
     auto tableInfoOrError = WaitFor(tableMountCache->GetTableInfo(Request_->Path.GetPath()));
-    THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
-    const auto& tableInfo = tableInfoOrError.Value();
+    const auto& tableInfo = tableInfoOrError.ValueOrThrow();
 
     // Parse input data.
     TBuildingTableConsumer consumer(

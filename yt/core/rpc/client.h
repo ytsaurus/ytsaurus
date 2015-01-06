@@ -134,6 +134,9 @@ class TTypedClientRequest
     , public TRequestMessage
 {
 public:
+    typedef decltype(((TResponse*) nullptr)->GetAsyncResult()) TInvokeResult;
+    typedef TIntrusivePtr<TTypedClientRequest> TThisPtr;
+
     TTypedClientRequest(
         IChannelPtr channel,
         const Stroka& path,
@@ -146,51 +149,50 @@ public:
             method,
             oneWay,
             protocolVersion)
-        , Codec_(NCompression::ECodec::None)
     { }
 
-    TFuture< TIntrusivePtr<TResponse> > Invoke()
+    TInvokeResult Invoke()
     {
-        auto clientContext = CreateClientContext();
-        auto response = NYT::New<TResponse>(std::move(clientContext));
-        auto promise = response->GetAsyncResult();
-        DoInvoke(response);
-        return promise;
+        auto context = CreateClientContext();
+        auto response = NYT::New<TResponse>(std::move(context));
+        auto future = response->GetAsyncResult();
+        DoInvoke(std::move(response));
+        return future;
     }
 
     // Override base methods for fluent use.
-    TIntrusivePtr<TTypedClientRequest> SetTimeout(TNullable<TDuration> timeout)
+    TThisPtr SetTimeout(TNullable<TDuration> timeout)
     {
         TClientRequest::SetTimeout(timeout);
         return this;
     }
 
-    TIntrusivePtr<TTypedClientRequest> SetRequestAck(bool value)
+    TThisPtr SetRequestAck(bool value)
     {
         TClientRequest::SetRequestAck(value);
         return this;
     }
 
-    TIntrusivePtr<TTypedClientRequest> SetCodec(NCompression::ECodec codec)
+    TThisPtr SetCodec(NCompression::ECodec codec)
     {
         Codec_ = codec;
         return this;
     }
 
-    TIntrusivePtr<TTypedClientRequest> SetRequestHeavy(bool value)
+    TThisPtr SetRequestHeavy(bool value)
     {
         TClientRequest::SetRequestHeavy(value);
         return this;
     }
 
-    TIntrusivePtr<TTypedClientRequest> SetResponseHeavy(bool value)
+    TThisPtr SetResponseHeavy(bool value)
     {
         TClientRequest::SetResponseHeavy(value);
         return this;
     }
 
 private:
-    NCompression::ECodec Codec_;
+    NCompression::ECodec Codec_ = NCompression::ECodec::None;
 
     virtual TSharedRef SerializeBody() const override
     {
@@ -228,8 +230,6 @@ DEFINE_REFCOUNTED_TYPE(IClientResponseHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-///////////////////////////////////////////////////////////////////////////////
-
 DEFINE_ENUM(EClientResponseState,
     (Sent)
     (Ack)
@@ -241,24 +241,19 @@ class TClientResponseBase
     : public IClientResponseHandler
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(TError, Error);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
-
-public:
-    bool IsOK() const;
-    operator TError() const;
 
 protected:
     using EState = EClientResponseState;
 
-    TSpinLock SpinLock_; // Protects state.
+    TSpinLock SpinLock_;
     EState State_;
 
     TClientContextPtr ClientContext_;
 
     explicit TClientResponseBase(TClientContextPtr clientContext);
 
-    virtual void FireCompleted() = 0;
+    virtual void FireCompleted(const TError& error) = 0;
 
     // IClientResponseHandler implementation.
     virtual void OnError(const TError& error) override;
@@ -307,7 +302,6 @@ public:
 
     explicit TTypedClientResponse(TClientContextPtr clientContext)
         : TClientResponse(std::move(clientContext))
-        , Promise_(NewPromise<TThisPtr>())
     { }
 
     TFuture<TThisPtr> GetAsyncResult()
@@ -316,12 +310,17 @@ public:
     }
 
 private:
-    TPromise<TThisPtr> Promise_;
+    TPromise<TThisPtr> Promise_ = NewPromise<TThisPtr>();
 
-    virtual void FireCompleted()
+
+    virtual void FireCompleted(const TError& error) override
     {
         BeforeCompleted();
-        Promise_.Set(this);
+        if (error.IsOK()) {
+            Promise_.Set(this);
+        } else {
+            Promise_.Set(error);
+        }
         Promise_.Reset();
     }
 
@@ -338,20 +337,18 @@ class TOneWayClientResponse
     : public TClientResponseBase
 {
 public:
-    typedef TIntrusivePtr<TOneWayClientResponse> TThisPtr;
-
     explicit TOneWayClientResponse(TClientContextPtr clientContext);
 
-    TFuture<TThisPtr> GetAsyncResult();
+    TFuture<void> GetAsyncResult();
 
 private:
-    TPromise<TThisPtr> Promise_;
+    TPromise<void> Promise_;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement() override;
     virtual void OnResponse(TSharedRefArray message) override;
 
-    virtual void FireCompleted();
+    virtual void FireCompleted(const TError& error);
 
 };
 
@@ -362,11 +359,9 @@ DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
 #define DEFINE_RPC_PROXY_METHOD(ns, method) \
     typedef ::NYT::NRpc::TTypedClientResponse<ns::TRsp##method> TRsp##method; \
     typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, TRsp##method> TReq##method; \
-    \
     typedef ::NYT::TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
     typedef ::NYT::TIntrusivePtr<TReq##method> TReq##method##Ptr; \
-    \
-    typedef ::NYT::TFuture< TRsp##method##Ptr > TInv##method; \
+    typedef ::NYT::TErrorOr<TRsp##method##Ptr> TErrorOrRsp##method##Ptr; \
     \
     TReq##method##Ptr method() \
     { \
@@ -379,13 +374,8 @@ DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DEFINE_ONE_WAY_RPC_PROXY_METHOD(ns, method) \
-    typedef ::NYT::NRpc::TOneWayClientResponse TRsp##method; \
-    typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, TRsp##method> TReq##method; \
-    \
-    typedef ::NYT::TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
+    typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ::NYT::NRpc::TOneWayClientResponse> TReq##method; \
     typedef ::NYT::TIntrusivePtr<TReq##method> TReq##method##Ptr; \
-    \
-    typedef ::NYT::TFuture< TRsp##method##Ptr > TInv##method; \
     \
     TReq##method##Ptr method() \
     { \

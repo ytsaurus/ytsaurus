@@ -11,8 +11,6 @@
 
 #include <core/yson/tokenizer.h>
 
-#include <core/actions/invoker.h>
-
 #include <core/logging/log.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
@@ -215,22 +213,22 @@ private:
         chunkReader->ReaderState.Fail(error);
     }
 
-    void OnGotMeta(NChunkClient::IChunkReader::TGetMetaResult result)
+    void OnGotMeta(const TErrorOr<NChunkClient::NProto::TChunkMeta>& metaOrError)
     {
         auto chunkReader = TableReader.Lock();
         if (!chunkReader)
             return;
 
-        if (!result.IsOK()) {
-            OnFail(result, chunkReader);
+        if (!metaOrError.IsOK()) {
+            OnFail(metaOrError, chunkReader);
             return;
         }
 
         LOG_DEBUG("Chunk meta received");
 
-        const auto& chunkMeta = result.Value();
+        const auto& meta = metaOrError.Value();
 
-        auto type = EChunkType(chunkMeta.type());
+        auto type = EChunkType(meta.type());
         if (type != EChunkType::Table) {
             auto error = TError("Invalid chunk type: expected %Qlv, actual %Qlv",
                 EChunkType::Table,
@@ -239,10 +237,10 @@ private:
             return;
         }
 
-        if (chunkMeta.version() != FormatVersion) {
+        if (meta.version() != FormatVersion) {
             auto error = TError("Invalid table chunk format version: expected %v, actual %v",
                 FormatVersion,
-                chunkMeta.version());
+                meta.version());
             OnFail(error, chunkReader);
             return;
         }
@@ -253,7 +251,7 @@ private:
         }
 
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(
-            chunkMeta.extensions());
+            meta.extensions());
 
         chunkReader->EndRowIndex = miscExt.row_count();
 
@@ -274,7 +272,7 @@ private:
             }
 
             chunkReader->KeyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(
-                chunkMeta.extensions());
+                meta.extensions());
 
             YCHECK(chunkReader->KeyColumnsExt.names_size() > 0);
             for (int i = 0; i < chunkReader->KeyColumnsExt.names_size(); ++i) {
@@ -297,7 +295,7 @@ private:
 
         if (HasRangeRequest) {
             auto indexExt = GetProtoExtension<NProto::TIndexExt>(
-                chunkMeta.extensions());
+                meta.extensions());
 
             if (StartLimit.HasKey()) {
                 StartValidator.reset(new TKeyValidator(StartLimit.GetKey(), true));
@@ -344,7 +342,7 @@ private:
             return;
         }
 
-        ChannelsExt = GetProtoExtension<NProto::TChannelsExt>(chunkMeta.extensions());
+        ChannelsExt = GetProtoExtension<NProto::TChannelsExt>(meta.extensions());
 
         SelectChannels(chunkReader);
         YCHECK(SelectedChannels.size() > 0);
@@ -499,7 +497,7 @@ private:
         return result;
     }
 
-    void OnStartingBlockReceived(int selectedChannelIndex, TError error)
+    void OnStartingBlockReceived(int selectedChannelIndex, const TError& error)
     {
         auto chunkReader = TableReader.Lock();
         if (!chunkReader)
@@ -558,7 +556,7 @@ private:
         }
     }
 
-    void ValidateRow(const TError error)
+    void ValidateRow(const TError& error)
     {
         auto chunkReader = TableReader.Lock();
         if (!chunkReader)
@@ -664,24 +662,24 @@ public:
                 .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
     }
 
-    void OnGotMeta(NChunkClient::IChunkReader::TGetMetaResult result)
+    void OnGotMeta(const TErrorOr<NChunkClient::NProto::TChunkMeta>& metaOrError)
     {
         auto chunkReader = TableReader.Lock();
         if (!chunkReader)
             return;
 
-        if (!result.IsOK()) {
-            OnFail(result, chunkReader);
+        if (!metaOrError.IsOK()) {
+            OnFail(metaOrError, chunkReader);
             return;
         }
 
         LOG_INFO("Chunk meta received");
 
-        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(
-            result.Value().extensions());
+        const auto& meta = metaOrError.Value();
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta.extensions());
         YCHECK(miscExt.row_count() > 0);
 
-        auto channelsExt = GetProtoExtension<NProto::TChannelsExt>(result.Value().extensions());
+        auto channelsExt = GetProtoExtension<NProto::TChannelsExt>(metaOrError.Value().extensions());
 
         YCHECK(channelsExt.items_size() == 1);
 
@@ -796,7 +794,7 @@ TTableChunkReader::TTableChunkReader(
 TTableChunkReader::~TTableChunkReader()
 { }
 
-TAsyncError TTableChunkReader::AsyncOpen()
+TFuture<void> TTableChunkReader::AsyncOpen()
 {
     ReaderState.StartOperation();
 
@@ -805,7 +803,7 @@ TAsyncError TTableChunkReader::AsyncOpen()
     return ReaderState.GetOperationError();
 }
 
-TAsyncError TTableChunkReader::GetReadyEvent()
+TFuture<void> TTableChunkReader::GetReadyEvent()
 {
     return ReaderState.GetOperationError();
 }
@@ -825,7 +823,7 @@ bool TTableChunkReader::FetchNext()
     return false;
 }
 
-void TTableChunkReader::OnRowFetched(TError error)
+void TTableChunkReader::OnRowFetched(const TError& error)
 {
     if (error.IsOK()) {
         ReaderState.FinishOperation();
@@ -855,7 +853,7 @@ bool TTableChunkReader::DoFetchNextRow()
     return ContinueFetchNextRow(-1, TError());
 }
 
-bool TTableChunkReader::ContinueFetchNextRow(int channelIndex, TError error)
+bool TTableChunkReader::ContinueFetchNextRow(int channelIndex, const TError& error)
 {
     if (!error.IsOK()) {
         YCHECK(RowState.HasRunningOperation());

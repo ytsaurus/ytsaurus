@@ -893,8 +893,7 @@ private:
                     auto defaultAttributes = ConvertToAttributes(New<TNodeConfig>());
                     ToProto(req->mutable_node_attributes(), *defaultAttributes);
 
-                    auto rsp = SyncExecuteVerb(rootService, req);
-                    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+                    SyncExecuteVerb(rootService, req);
                 }
 
                 // Create "orchid" child.
@@ -907,8 +906,7 @@ private:
                     attributes->Set("remote_address", address);
                     ToProto(req->mutable_node_attributes(), *attributes);
 
-                    auto rsp = SyncExecuteVerb(rootService, req);
-                    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+                    SyncExecuteVerb(rootService, req);
                 }
             } catch (const std::exception& ex) {
                 LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering node in Cypress");
@@ -923,8 +921,7 @@ private:
                 req->set_mode(static_cast<int>(ELockMode::Shared));
                 SetTransactionId(req, transaction->GetId());
 
-                auto rsp = SyncExecuteVerb(rootService, req);
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+                SyncExecuteVerb(rootService, req);
             }
 
             LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, %v)",

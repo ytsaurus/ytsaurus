@@ -3,7 +3,6 @@
 #include "channel_detail.h"
 #include "config.h"
 
-#include <core/concurrency/public.h>
 #include <core/concurrency/throughput_throttler.h>
 
 namespace NYT {
@@ -31,13 +30,19 @@ public:
         TNullable<TDuration> timeout,
         bool requestAck) override
     {
-        Throttler_->Throttle(1).Subscribe(BIND(
-            &IChannel::Send,
-            UnderlyingChannel_,
-            std::move(request),
-            std::move(responseHandler),
-            timeout,
-            requestAck));
+        auto this_ = MakeStrong(this);
+        Throttler_->Throttle(1).Subscribe(BIND([=] (const TError& error) mutable {
+            UNUSED(this_);
+            if (error.IsOK()) {
+                UnderlyingChannel_->Send(
+                    std::move(request),
+                    std::move(responseHandler),
+                    timeout,
+                    requestAck);
+            } else {
+                responseHandler->OnError(error);
+            }
+        }));
     }
 
 private:

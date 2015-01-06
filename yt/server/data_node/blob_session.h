@@ -46,7 +46,7 @@ private:
     {
         ESlotState State = ESlotState::Empty;
         TSharedRef Block;
-        TAsyncErrorPromise WrittenPromise = NewPromise<TError>();
+        TPromise<void> WrittenPromise = NewPromise<void>();
     };
 
     // Thread affinity: WriterThread
@@ -61,24 +61,24 @@ private:
     int BlockCount_ = 0;
 
 
-    virtual TAsyncError DoStart() override;
+    virtual TFuture<void> DoStart() override;
     void DoOpenWriter();
    
-    virtual TAsyncError DoPutBlocks(
+    virtual TFuture<void> DoPutBlocks(
         int startBlockIndex,
         const std::vector<TSharedRef>& blocks,
         bool enableCaching) override;
 
-    virtual TAsyncError DoSendBlocks(
+    virtual TFuture<void> DoSendBlocks(
         int startBlockIndex,
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& target) override;
 
-    virtual TAsyncError DoFlushBlocks(int blockIndex) override;
+    virtual TFuture<void> DoFlushBlocks(int blockIndex) override;
 
     virtual void DoCancel() override;
 
-    virtual TFuture<TErrorOr<IChunkPtr>> DoFinish(
+    virtual TFuture<IChunkPtr> DoFinish(
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
         const TNullable<int>& blockCount) override;
 
@@ -89,18 +89,18 @@ private:
     TSharedRef GetBlock(int blockIndex);
     void MarkAllSlotsWritten(const TError& error);
 
-    TAsyncError AbortWriter();
-    TError DoAbortWriter();
-    TError OnWriterAborted(TError error);
+    TFuture<void> AbortWriter();
+    void DoAbortWriter();
+    void OnWriterAborted(const TError& error);
 
-    TAsyncError CloseWriter(const NChunkClient::NProto::TChunkMeta& chunkMeta);
-    TError DoCloseWriter(const NChunkClient::NProto::TChunkMeta& chunkMeta);
-    TErrorOr<IChunkPtr> OnWriterClosed(TError error);
+    TFuture<void> CloseWriter(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+    void DoCloseWriter(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+    IChunkPtr OnWriterClosed(const TError& error);
 
-    TError DoWriteBlock(const TSharedRef& block, int blockIndex);
-    void OnBlockWritten(int blockIndex, TError error);
+    void DoWriteBlock(const TSharedRef& block, int blockIndex);
+    void OnBlockWritten(int blockIndex, const TError& error);
 
-    TError OnBlockFlushed(int blockIndex, TError error);
+    void OnBlockFlushed(int blockIndex, const TError& error);
 
     void ReleaseSpace();
 

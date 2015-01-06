@@ -449,7 +449,7 @@ TYsonString TTcpConnection::GetEndpointDescription() const
     return ConvertToYsonString(Address_);
 }
 
-TAsyncError TTcpConnection::Send(TSharedRefArray message, EDeliveryTrackingLevel level)
+TFuture<void> TTcpConnection::Send(TSharedRefArray message, EDeliveryTrackingLevel level)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -492,12 +492,12 @@ void TTcpConnection::Terminate(const TError& error)
         MakeStrong(this)));
 }
 
-void TTcpConnection::SubscribeTerminated(const TCallback<void(TError)>& callback)
+void TTcpConnection::SubscribeTerminated(const TCallback<void(const TError&)>& callback)
 {
-    TerminatedPromise_.Subscribe(callback);
+    TerminatedPromise_.ToFuture().Subscribe(callback);
 }
 
-void TTcpConnection::UnsubscribeTerminated(const TCallback<void(TError)>& callback)
+void TTcpConnection::UnsubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/)
 {
     YUNREACHABLE();
 }
@@ -1069,13 +1069,15 @@ void TTcpConnection::ProcessOutcomingMessages()
     auto messages = QueuedMessages_.DequeueAll();
 
     for (auto it = messages.rbegin(); it != messages.rend(); ++it) {
-        const auto& queuedMessage = *it;
-        LOG_DEBUG("Outcoming message dequeued (PacketId: %v)",
-            queuedMessage.PacketId);
+        auto& queuedMessage = *it;
 
         auto flags = queuedMessage.Level == EDeliveryTrackingLevel::Full
             ? EPacketFlags::RequestAck
             : EPacketFlags::None;
+
+        LOG_DEBUG("Outcoming message dequeued (PacketId: %v, Flags: %v)",
+            queuedMessage.PacketId,
+            flags);
 
         EnqueuePacket(
             EPacketType::Message,
@@ -1086,6 +1088,8 @@ void TTcpConnection::ProcessOutcomingMessages()
         if (Any(flags & EPacketFlags::RequestAck)) {
             TUnackedMessage unackedMessage(queuedMessage.PacketId, std::move(queuedMessage.Promise));
             UnackedMessages_.push(unackedMessage);            
+        } else if (queuedMessage.Promise) {
+            queuedMessage.Promise.Set();
         }
     }
 }

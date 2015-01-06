@@ -104,14 +104,14 @@ void TJobProxy::SendHeartbeat()
     LOG_DEBUG("Supervisor heartbeat sent");
 }
 
-void TJobProxy::OnHeartbeatResponse(TSupervisorServiceProxy::TRspOnJobProgressPtr rsp)
+void TJobProxy::OnHeartbeatResponse(const TError& error)
 {
-    if (!rsp->IsOK()) {
+    if (!error.IsOK()) {
         // NB: user process is not killed here.
         // Good user processes are supposed to die themselves
         // when io pipes are closed.
         // Bad processes will die at container shutdown.
-        LOG_ERROR(*rsp, "Error sending heartbeat to supervisor");
+        LOG_ERROR(error, "Error sending heartbeat to supervisor");
         Exit(EJobProxyExitCode::HeartbeatFailed);
     }
 
@@ -125,13 +125,13 @@ void TJobProxy::RetrieveJobSpec()
     auto req = SupervisorProxy_->GetJobSpec();
     ToProto(req->mutable_job_id(), JobId_);
 
-    auto asyncRsp = req->Invoke();
-    auto rsp = asyncRsp.Get();
-    if (!rsp->IsOK()) {
-        LOG_ERROR(*rsp, "Failed to get job spec");
+    auto rspOrError = req->Invoke().Get();
+    if (!rspOrError.IsOK()) {
+        LOG_ERROR(rspOrError, "Failed to get job spec");
         Exit(EJobProxyExitCode::HeartbeatFailed);
     }
 
+    const auto& rsp = rspOrError.Value();
     JobSpec_ = rsp->job_spec();
     ResourceUsage_ = rsp->resource_usage();
 
@@ -147,7 +147,9 @@ void TJobProxy::Run()
 {
     auto result = BIND(&TJobProxy::DoRun, Unretained(this))
         .AsyncVia(JobThread_->GetInvoker())
-        .Run().Get();
+        .Run()
+        .Get()
+        .ValueOrThrow();
 
     if (HeartbeatExecutor_) {
         HeartbeatExecutor_->Stop();
@@ -318,10 +320,9 @@ void TJobProxy::ReportResult(const TJobResult& result)
     ToProto(req->mutable_job_id(), JobId_);
     *req->mutable_result() = result;
 
-    auto asyncRsp = req->Invoke();
-    auto rsp = asyncRsp.Get();
-    if (!rsp->IsOK()) {
-        LOG_ERROR(*rsp, "Failed to report job result");
+    auto rspOrError = req->Invoke().Get();
+    if (!rspOrError.IsOK()) {
+        LOG_ERROR(rspOrError, "Failed to report job result");
         Exit(EJobProxyExitCode::ResultReportFailed);
     }
 }
@@ -352,10 +353,10 @@ void TJobProxy::SetResourceUsage(const TNodeResources& usage)
     req->Invoke().Subscribe(BIND(&TJobProxy::OnResourcesUpdated, MakeWeak(this)));
 }
 
-void TJobProxy::OnResourcesUpdated(TSupervisorServiceProxy::TRspUpdateResourceUsagePtr rsp)
+void TJobProxy::OnResourcesUpdated(const TError& error)
 {
-    if (!rsp->IsOK()) {
-        LOG_ERROR(*rsp, "Failed to update resource usage");
+    if (!error.IsOK()) {
+        LOG_ERROR(error, "Failed to update resource usage");
         Exit(EJobProxyExitCode::ResourcesUpdateFailed);
     }
 

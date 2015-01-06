@@ -83,7 +83,7 @@ ISessionPtr TSessionManager::StartSession(
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (static_cast<int>(SessionMap_.size()) >= Config_->MaxWriteSessions) {
-        TError error("Maximum concurrent write session limit %v has been reached",
+        auto error = TError("Maximum concurrent write session limit %v has been reached",
             Config_->MaxWriteSessions);
         LOG_ERROR(error);
         THROW_ERROR(error);

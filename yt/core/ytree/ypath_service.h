@@ -10,7 +10,7 @@
 
 #include <core/misc/property.h>
 
-#include <core/actions/invoker.h>
+#include <core/actions/public.h>
 
 #include <core/logging/common.h>
 
@@ -36,6 +36,7 @@ struct IYPathService
 {
     class TResolveResult
     {
+    public:
         DEFINE_BYVAL_RO_PROPERTY(IYPathServicePtr, Service);
         DEFINE_BYVAL_RO_PROPERTY(TYPath, Path);
 
@@ -87,7 +88,7 @@ struct IYPathService
     static IYPathServicePtr FromProducer(TYsonProducer producer);
 
     //! Creates a wrapper that handles all requests via the given invoker.
-    IYPathServicePtr Via(TIntrusivePtr<IInvoker> invoker);
+    IYPathServicePtr Via(IInvokerPtr invoker);
 
     //! Creates a wrapper that makes ephemeral snapshots to cache
     //! the underlying service.

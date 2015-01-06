@@ -35,7 +35,7 @@ void DoDownloadSnapshot(
     int snapshotId)
 {
     try {
-        auto params = WaitFor(DiscoverSnapshot(config, cellManager, snapshotId));
+        auto params = WaitFor(DiscoverSnapshot(config, cellManager, snapshotId)).ValueOrThrow();
         if (params.SnapshotId == NonexistingSegmentId) {
             THROW_ERROR_EXCEPTION("Unable to find a download source for snapshot %v",
                 snapshotId);
@@ -65,8 +65,9 @@ void DoDownloadSnapshot(
                 params.CompressedLength - downloadedLength);
             req->set_length(desiredBlockSize);
 
-            auto rsp = WaitFor(req->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error downloading snapshot");
+            auto rspOrError = WaitFor(req->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error downloading snapshot");
+            const auto& rsp = rspOrError.Value();
 
             const auto& attachments = rsp->Attachments();
             YCHECK(attachments.size() == 1);
@@ -96,14 +97,13 @@ void DoDownloadSnapshot(
 
 } // namespace
 
-TAsyncError DownloadSnapshot(
+TFuture<void> DownloadSnapshot(
     TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     TFileSnapshotStorePtr fileStore,
     int snapshotId)
 {
     return BIND(DoDownloadSnapshot)
-        .Guarded()
         .AsyncVia(GetHydraIOInvoker())
         .Run(config, cellManager, fileStore, snapshotId);
 }

@@ -682,7 +682,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* con
     return false;
 }
 
-TAsyncError TObjectProxyBase::GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer)
+TFuture<void> TObjectProxyBase::GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer)
 {
     return Null;
 }
@@ -831,15 +831,17 @@ void TObjectProxyBase::ForwardToLeader(IServiceContextPtr context)
         BIND(&TObjectProxyBase::OnLeaderResponse, MakeStrong(this), context));
 }
 
-void TObjectProxyBase::OnLeaderResponse(IServiceContextPtr context, TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+void TObjectProxyBase::OnLeaderResponse(
+    IServiceContextPtr context,
+    const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
 {
-    if (!batchRsp->IsOK()) {
-        auto error = batchRsp->GetError();
-        LOG_DEBUG(error, "Error forwarding request to leader");
-        context->Reply(error);
+    if (!batchRspOrError.IsOK()) {
+        LOG_DEBUG(batchRspOrError, "Error forwarding request to leader");
+        context->Reply(batchRspOrError);
         return;
     }
 
+    const auto& batchRsp = batchRspOrError.Value();
     auto responseMessage = batchRsp->GetResponseMessage(0);
     NRpc::NProto::TResponseHeader responseHeader;
     YCHECK(ParseResponseHeader(responseMessage, &responseHeader));

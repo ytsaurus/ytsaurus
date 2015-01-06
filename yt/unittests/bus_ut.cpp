@@ -112,7 +112,7 @@ private:
     int NumRepliesWaiting;
 };
 
-void TestReplies(int numRequests, int numParts)
+void TestReplies(int numRequests, int numParts, EDeliveryTrackingLevel level = EDeliveryTrackingLevel::Full)
 {
     auto server = StartBusServer(New<TReplying42BusHandler>(numParts));
     auto client = CreateTcpBusClient(New<TTcpBusClientConfig>("localhost:2000"));
@@ -120,15 +120,20 @@ void TestReplies(int numRequests, int numParts)
     auto bus = client->CreateBus(handler);
     auto message = CreateMessage(numParts);
 
-    TAsyncError result;
+    std::vector<TFuture<void>> results;
     for (int i = 0; i < numRequests; ++i) {
-        result = bus->Send(message, EDeliveryTrackingLevel::Full);
+        auto result = bus->Send(message, level);
+        if (result) {
+            results.push_back(result);
+        }
     }
 
-    result.Get();
-    if (!handler->Event_.WaitT(TDuration::Seconds(2))) {
-        EXPECT_TRUE(false); // timeout occurred
+    for (const auto& result : results) {
+        auto error = result.Get();
+        EXPECT_TRUE(error.IsOK());
     }
+
+    EXPECT_TRUE(handler->Event_.WaitT(TDuration::Seconds(2)));
 
     server->Stop();
 }
@@ -155,9 +160,19 @@ TEST(TBusTest, Failed)
     EXPECT_FALSE(result.IsOK());
 }
 
-TEST(TBusTest, OneReply)
+TEST(TBusTest, OneReplyNoTracking)
 {
-    TestReplies(1, 1);
+    TestReplies(1, 1, EDeliveryTrackingLevel::None);
+}
+
+TEST(TBusTest, OneReplyFullTracking)
+{
+    TestReplies(1, 1, EDeliveryTrackingLevel::Full);
+}
+
+TEST(TBusTest, OneReplyErrorOnlyTracking)
+{
+    TestReplies(1, 1, EDeliveryTrackingLevel::ErrorOnly);
 }
 
 TEST(TBusTest, ManyReplies)

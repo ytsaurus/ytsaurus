@@ -19,7 +19,7 @@ IChunkReaderPtr CreateNonRepairingErasureReader(
 
 typedef TCallback<void(double)> TRepairProgressHandler;
 
-TAsyncError RepairErasedParts(
+TFuture<void> RepairErasedParts(
     NErasure::ICodec* codec,
     const NErasure::TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderPtr>& readers,

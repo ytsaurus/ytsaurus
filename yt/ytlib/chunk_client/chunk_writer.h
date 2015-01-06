@@ -17,7 +17,7 @@ struct IChunkWriter
     : public virtual TRefCounted
 {
     //! Starts a new upload session.
-    virtual TAsyncError Open() = 0;
+    virtual TFuture<void> Open() = 0;
 
     //! Enqueues another block to be written.
     /*!
@@ -30,11 +30,11 @@ struct IChunkWriter
     virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) = 0;
 
     //! Returns an asynchronous flag used to backpressure the upload.
-    virtual TAsyncError GetReadyEvent() = 0;
+    virtual TFuture<void> GetReadyEvent() = 0;
 
     //! Called when the client has added all blocks and is
     //! willing to finalize the upload.
-    virtual TAsyncError Close(const NChunkClient::NProto::TChunkMeta& chunkMeta) = 0;
+    virtual TFuture<void> Close(const NChunkClient::NProto::TChunkMeta& chunkMeta) = 0;
 
     //! Returns the chunk info.
     /*!

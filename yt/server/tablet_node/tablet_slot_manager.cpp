@@ -302,18 +302,18 @@ private:
                     continue;
 
                 auto invoker = slot->GetGuardedAutomatonInvoker();
-                awaiter->Await(BIND([this, this_, slot] () {
+                awaiter->Await(
+                    BIND([=] () {
+                        UNUSED(this_);
                         if (slot->GetHydraManager()->IsActiveLeader()) {
                             Owner_->ScanSlot_.Fire(slot);
                         }
                     })
                     .AsyncVia(invoker)
-                    .Run()
-                    .Finally());
+                    .Run());
             }
 
-            return awaiter
-                ->Complete()
+            return awaiter->Complete()
                 .Apply(BIND(&TSlotScanner::OnComplete, this_));
         }
 
@@ -337,9 +337,10 @@ private:
         auto scanner = New<TSlotScanner>(this);
 
         auto this_ = MakeStrong(this);
-        scanner->Run().Subscribe(BIND([this, this_] () {
+        scanner->Run().Subscribe(BIND([=] (const TError& error) {
+            UNUSED(this_);
             VERIFY_THREAD_AFFINITY(ControlThread);
-            LOG_DEBUG("Slot scan completed");
+            LOG_DEBUG(error, "Slot scan completed");
             SlotScanExecutor_->ScheduleNext();
         }));
     }

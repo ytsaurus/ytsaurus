@@ -1610,13 +1610,13 @@ private:
                             snapshotId,
                             cellId);
                         auto req = TYPathProxy::Remove(snapshotsPath + "/" + key);
-                        ExecuteVerb(rootService, req).Subscribe(BIND([=] (TYPathProxy::TRspRemovePtr rsp) {
-                            if (rsp->IsOK()) {
+                        ExecuteVerb(rootService, req).Subscribe(BIND([=] (const TYPathProxy::TErrorOrRspRemovePtr& rspOrError) {
+                            if (rspOrError.IsOK()) {
                                 LOG_INFO("Tablet cell snapshot %v removed successfully (CellId: %v)",
                                     snapshotId,
                                     cellId);
                             } else {
-                                LOG_INFO(*rsp, "Error removing tablet cell snapshot %v (CellId: %v)",
+                                LOG_INFO(rspOrError, "Error removing tablet cell snapshot %v (CellId: %v)",
                                     snapshotId,
                                     cellId);
                             }
@@ -1648,13 +1648,13 @@ private:
                         changelogId,
                         cellId);
                     auto req = TYPathProxy::Remove(changelogsPath + "/" + key);
-                    ExecuteVerb(rootService, req).Subscribe(BIND([=] (TYPathProxy::TRspRemovePtr rsp) {
-                        if (rsp->IsOK()) {
+                    ExecuteVerb(rootService, req).Subscribe(BIND([=] (const TYPathProxy::TErrorOrRspRemovePtr& rspOrError) {
+                        if (rspOrError.IsOK()) {
                             LOG_INFO("Tablet cell changelog %v removed successfully (CellId: %v)",
                                 changelogId,
                                 cellId);
                         } else {
-                            LOG_INFO(*rsp, "Error removing tablet cell changelog %v (CellId: %v)",
+                            LOG_INFO(rspOrError, "Error removing tablet cell changelog %v (CellId: %v)",
                                 changelogId,
                                 cellId);
                         }

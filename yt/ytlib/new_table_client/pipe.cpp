@@ -17,9 +17,9 @@ struct TSchemafulPipe::TData
     : public TIntrinsicRefCounted
 {
     TData()
-        : WriterOpened(NewPromise())
-        , ReaderReadyEvent(NewPromise<TError>())
-        , WriterReadyEvent(NewPromise<TError>())
+        : WriterOpened(NewPromise<void>())
+        , ReaderReadyEvent(NewPromise<void>())
+        , WriterReadyEvent(NewPromise<void>())
         , RowsWritten(0)
         , RowsRead(0)
         , ReaderOpened(false)
@@ -36,8 +36,8 @@ struct TSchemafulPipe::TData
     TRowBuffer RowBuffer;
     TRingQueue<TUnversionedRow> RowQueue;
     
-    TPromise<TError> ReaderReadyEvent;
-    TPromise<TError> WriterReadyEvent;
+    TPromise<void> ReaderReadyEvent;
+    TPromise<void> WriterReadyEvent;
 
     int RowsWritten;
     int RowsRead;
@@ -55,10 +55,10 @@ class TSchemafulPipe::TReader
 public:
     explicit TReader(TDataPtr data)
         : Data_(std::move(data))
-        , ReadyEvent_(OKFuture)
+        , ReadyEvent_(VoidFuture)
     { }
 
-    virtual TAsyncError Open(const TTableSchema& schema) override
+    virtual TFuture<void> Open(const TTableSchema& schema) override
     {
         return Data_->WriterOpened.ToFuture().Apply(BIND(
             &TReader::OnOpened,
@@ -97,17 +97,17 @@ public:
         return true;
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
         return ReadyEvent_;
     }
 
 private:
     TDataPtr Data_;
-    TAsyncError ReadyEvent_;
+    TFuture<void> ReadyEvent_;
 
 
-    TError OnOpened(const TTableSchema& readerSchema)
+    void OnOpened(const TTableSchema& readerSchema)
     {
         {
             TGuard<TSpinLock> guard(Data_->SpinLock);
@@ -117,10 +117,8 @@ private:
         }
 
         if (readerSchema != Data_->Schema) {
-            return TError("Reader/writer schema mismatch");
+            THROW_ERROR_EXCEPTION("Reader/writer schema mismatch");
         }
-
-        return TError();
     }
 
 };
@@ -135,19 +133,19 @@ public:
         : Data_(std::move(data))
     { }
 
-    virtual TAsyncError Open(
+    virtual TFuture<void> Open(
         const TTableSchema& schema,
         const TNullable<TKeyColumns>& /*keyColumns*/) override
     {
         Data_->Schema = schema;
         Data_->WriterOpened.Set();
-        return OKFuture;
+        return VoidFuture;
     }
 
-    virtual TAsyncError Close() override
+    virtual TFuture<void> Close() override
     {
-        TPromise<TError> readerReadyEvent;
-        TPromise<TError> writerReadyEvent;
+        TPromise<void> readerReadyEvent;
+        TPromise<void> writerReadyEvent;
 
         bool doClose = false;
 
@@ -179,7 +177,7 @@ public:
         auto capturedRows = Data_->RowBuffer.Capture(rows);
 
         // Enqueue rows (with lock).
-        TPromise<TError> readerReadyEvent;
+        TPromise<void> readerReadyEvent;
 
         {
             TGuard<TSpinLock> guard(Data_->SpinLock);
@@ -197,7 +195,7 @@ public:
             }
 
             readerReadyEvent = std::move(Data_->ReaderReadyEvent);
-            Data_->ReaderReadyEvent = NewPromise<TError>();
+            Data_->ReaderReadyEvent = NewPromise<void>();
         }
 
         // Signal readers.
@@ -206,7 +204,7 @@ public:
         return true;
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
         // TODO(babenko): implement backpressure from reader
         TGuard<TSpinLock> guard(Data_->SpinLock);
@@ -245,8 +243,8 @@ public:
     {
         YCHECK(!error.IsOK());
 
-        TPromise<TError> readerReadyEvent;
-        TPromise<TError> writerReadyEvent;
+        TPromise<void> readerReadyEvent;
+        TPromise<void> writerReadyEvent;
 
         {
             TGuard<TSpinLock> guard(Data_->SpinLock);

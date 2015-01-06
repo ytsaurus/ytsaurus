@@ -200,14 +200,13 @@ TEST_P(TPipeBigReadWriteTest, RealReadWrite)
     .AsyncVia(queue->GetInvoker()).Run();
 
     auto writeError =  BIND(&WriteAll, Writer, data.data(), data.size(), blockSize)
-        .Guarded()
         .AsyncVia(queue->GetInvoker())
         .Run();
     auto readFromPipe = BIND(&ReadAll, Reader, true)
         .AsyncVia(queue->GetInvoker())
         .Run();
 
-    auto textFromPipe = readFromPipe.Get();
+    auto textFromPipe = readFromPipe.Get().ValueOrThrow();
     EXPECT_EQ(data.size(), textFromPipe.Size());
     auto result = std::mismatch(textFromPipe.Begin(), textFromPipe.End(), data.begin());
     EXPECT_TRUE(std::equal(textFromPipe.Begin(), textFromPipe.End(), data.begin())) <<

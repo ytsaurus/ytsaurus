@@ -2,11 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_client/data_statistics.h>
+#include <core/actions/future.h>
 
-#include <core/misc/error.h>
-#include <core/misc/ref_counted.h>
-#include <core/misc/nullable.h>
+#include <ytlib/chunk_client/data_statistics.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -33,7 +31,7 @@ struct IAsyncWriter
 
     virtual bool IsReady() = 0;
 
-    virtual TAsyncError GetReadyEvent() = 0;
+    virtual TFuture<void> GetReadyEvent() = 0;
 
     virtual void Close() = 0;
 };

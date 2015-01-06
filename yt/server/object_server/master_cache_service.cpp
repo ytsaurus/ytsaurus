@@ -135,7 +135,7 @@ private:
             , Logger(ObjectServerLogger)
         { }
 
-        TFuture<TErrorOr<TSharedRefArray>> Lookup(
+        TFuture<TSharedRefArray> Lookup(
             const TKey& key,
             TSharedRefArray requestMessage,
             TDuration successExpirationTime,
@@ -183,11 +183,8 @@ private:
                     Passed(std::move(cookie))));
             }
 
-            return result.Apply(BIND([] (const TErrorOr<TEntryPtr>& entryOrError) -> TErrorOr<TSharedRefArray> {
-        	    if (!entryOrError.IsOK()) {
-    	            return TError(entryOrError);
-            	}
-	            return entryOrError.Value()->GetResponseMessage();
+            return result.Apply(BIND([] (TEntryPtr entry) -> TSharedRefArray {
+	            return entry->GetResponseMessage();
             }));
         }
 
@@ -236,14 +233,15 @@ private:
 
         void OnResponse(
             std::unique_ptr<TInsertCookie> cookie,
-            TObjectServiceProxy::TRspExecutePtr rsp)
+            const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError)
         {
-            if (!rsp->IsOK()) {
-                LOG_WARNING(*rsp, "Cache population request failed");
-                cookie->Cancel(*rsp);
+            if (!rspOrError.IsOK()) {
+                LOG_WARNING(rspOrError, "Cache population request failed");
+                cookie->Cancel(rspOrError);
                 return;
             }
 
+            const auto& rsp = rspOrError.Value();
             const auto& key = cookie->GetKey();
 
             YCHECK(rsp->part_counts_size() == 1);
@@ -286,7 +284,7 @@ private:
             MergeRequestHeaderExtensions(&Request_->Header(), Context_->RequestHeader());
         }
 
-        TFuture<TErrorOr<TSharedRefArray>> Add(TSharedRefArray subrequestMessage)
+        TFuture<TSharedRefArray> Add(TSharedRefArray subrequestMessage)
         {
             Request_->add_part_counts(subrequestMessage.Size());
             Request_->Attachments().insert(
@@ -294,7 +292,7 @@ private:
                 subrequestMessage.Begin(),
                 subrequestMessage.End());
 
-            auto promise = NewPromise<TErrorOr<TSharedRefArray>>();
+            auto promise = NewPromise<TSharedRefArray>();
             Promises_.push_back(promise);
             return promise;
         }
@@ -311,17 +309,18 @@ private:
         TCtxExecutePtr Context_;
         TObjectServiceProxy Proxy_;
         TObjectServiceProxy::TReqExecutePtr Request_;
-        std::vector<TPromise<TErrorOr<TSharedRefArray>>> Promises_;
+        std::vector<TPromise<TSharedRefArray>> Promises_;
 
         const NLog::TLogger& Logger;
 
-        void OnResponse(TObjectServiceProxy::TRspExecutePtr rsp)
+
+        void OnResponse(const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError)
         {
-            if (!rsp->IsOK()) {
+            if (!rspOrError.IsOK()) {
                 LOG_DEBUG("Cache bypass request failed (RequestId: %v)",
                     Context_->GetRequestId());
                 for (auto& promise : Promises_) {
-                    promise.Set(rsp->GetError());
+                    promise.Set(rspOrError);
                 }
                 return;
             }
@@ -329,6 +328,7 @@ private:
             LOG_DEBUG("Cache bypass request succeded (RequestId: %v)",
                 Context_->GetRequestId());
 
+            const auto& rsp = rspOrError.Value();
             YCHECK(rsp->part_counts_size() == Promises_.size());
 
             int attachmentIndex = 0;

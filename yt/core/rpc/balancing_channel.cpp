@@ -47,7 +47,7 @@ public:
         return ConvertToYsonString(GetAllAddresses());
     }
 
-    virtual TFuture<TErrorOr<IChannelPtr>> DiscoverChannel(IClientRequestPtr request) override
+    virtual TFuture<IChannelPtr> DiscoverChannel(IClientRequestPtr request) override
     {
         return New<TSession>(this, request)->Run();
     }
@@ -72,13 +72,13 @@ private:
             IClientRequestPtr request)
             : Owner_(owner)
             , Request_(request)
-            , Promise_(NewPromise<TErrorOr<IChannelPtr>>())
+            , Promise_(NewPromise<IChannelPtr>())
             , Logger(Owner_->Logger)
         {
             Logger.AddTag("Service: %v", Request_->GetService());
         }
 
-        TFuture<TErrorOr<IChannelPtr>> Run()
+        TFuture<IChannelPtr> Run()
         {
             LOG_DEBUG("Starting peer discovery");
             DoRun();
@@ -90,7 +90,7 @@ private:
         IClientRequestPtr Request_;
 
         TSpinLock SpinLock_;
-        TPromise<TErrorOr<IChannelPtr>> Promise_;
+        TPromise<IChannelPtr> Promise_;
         yhash_set<Stroka> RequestedAddresses_;
 
         NLog::TLogger Logger;
@@ -134,9 +134,10 @@ private:
         void OnResponse(
             const Stroka& address,
             IChannelPtr channel,
-            TProxyBase::TRspDiscoverPtr rsp)
+            const TGenericProxy::TErrorOrRspDiscoverPtr& rspOrError)
         {
-            if (rsp->IsOK()) {
+            if (rspOrError.IsOK()) {
+                const auto& rsp = rspOrError.Value();
                 bool up = rsp->up();
                 auto suggestedAddresses = FromProto<Stroka>(rsp->suggested_addresses());
 
@@ -153,7 +154,7 @@ private:
                     BanPeer(address, Owner_->Config_->SoftBackoffTime);
                 }
             } else {
-                LOG_WARNING(*rsp, "Peer %v has failed to respond", address);
+                LOG_WARNING(rspOrError, "Peer %v has failed to respond", address);
                 BanPeer(address, Owner_->Config_->HardBackoffTime);
             }
 
@@ -202,7 +203,7 @@ private:
         }
 
        void BanPeer(const Stroka& address, TDuration backoffTime)
-        {
+       {
             {
                 TGuard<TSpinLock> thisGuard(SpinLock_);
                 TGuard<TSpinLock> ownerGuard(Owner_->SpinLock_);

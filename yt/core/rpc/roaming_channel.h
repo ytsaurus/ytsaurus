@@ -4,6 +4,8 @@
 
 #include <core/misc/error.h>
 
+#include <core/actions/future.h>
+
 namespace NYT {
 namespace NRpc {
 
@@ -14,7 +16,7 @@ struct IRoamingChannelProvider
     : public virtual TRefCounted
 {
     virtual NYTree::TYsonString GetEndpointDescription() const = 0;
-    virtual TFuture<TErrorOr<IChannelPtr>> DiscoverChannel(IClientRequestPtr request) = 0;
+    virtual TFuture<IChannelPtr> DiscoverChannel(IClientRequestPtr request) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IRoamingChannelProvider)

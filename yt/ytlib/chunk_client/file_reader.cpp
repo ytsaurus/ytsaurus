@@ -65,7 +65,7 @@ void TFileReader::Open()
     Opened_ = true;
 }
 
-IChunkReader::TAsyncReadBlocksResult TFileReader::ReadBlocks(const std::vector<int>& blockIndexes)
+TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(const std::vector<int>& blockIndexes)
 {
     YCHECK(Opened_);
 
@@ -83,13 +83,13 @@ IChunkReader::TAsyncReadBlocksResult TFileReader::ReadBlocks(const std::vector<i
             }
         }
 
-        return MakeFuture(TReadBlocksResult(std::move(blocks)));
+        return MakeFuture(std::move(blocks));
     } catch (const std::exception& ex) {
-        return MakeFuture<TReadBlocksResult>(ex);
+        return MakeFuture<std::vector<TSharedRef>>(ex);
     }
 }
 
-IChunkReader::TAsyncReadBlocksResult TFileReader::ReadBlocks(
+TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(
     int firstBlockIndex,
     int blockCount)
 {
@@ -107,9 +107,9 @@ IChunkReader::TAsyncReadBlocksResult TFileReader::ReadBlocks(
             blocks.push_back(ReadBlock(blockIndex));
         }
 
-        return MakeFuture(TReadBlocksResult(std::move(blocks)));
+        return MakeFuture(std::move(blocks));
     } catch (const std::exception& ex) {
-        return MakeFuture<TReadBlocksResult>(ex);
+        return MakeFuture<std::vector<TSharedRef>>(ex);
     }
 }
 
@@ -161,7 +161,7 @@ i64 TFileReader::GetFullSize() const
     return MetaSize_ + DataSize_;
 }
 
-IChunkReader::TAsyncGetMetaResult TFileReader::GetMeta(
+TFuture<NProto::TChunkMeta> TFileReader::GetMeta(
     const TNullable<int>& partitionTag,
     const std::vector<int>* extensionTags)
 {
@@ -170,7 +170,7 @@ IChunkReader::TAsyncGetMetaResult TFileReader::GetMeta(
     // Implement when necessary.
     YCHECK(!partitionTag);
     YCHECK(Opened_);
-    return MakeFuture(TGetMetaResult(GetMeta(extensionTags)));
+    return MakeFuture(GetMeta(extensionTags));
 }
 
 TChunkId TFileReader::GetChunkId() const 

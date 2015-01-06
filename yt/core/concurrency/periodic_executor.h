@@ -3,7 +3,6 @@
 #include "public.h"
 #include "delayed_executor.h"
 
-#include <core/actions/invoker.h>
 #include <core/actions/callback.h>
 #include <core/actions/future.h>
 
@@ -63,9 +62,9 @@ private:
     TDuration Splay;
 
     TSpinLock SpinLock;
-    bool Started;
-    bool Busy;
-    bool OutOfBandRequested;
+    bool Started = false;
+    bool Busy = false;
+    bool OutOfBandRequested = false;
     TDelayedExecutorCookie Cookie;
     TPromise<void> IdlePromise;
 

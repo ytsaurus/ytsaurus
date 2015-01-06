@@ -59,8 +59,8 @@ TMultiChunkSequentialWriterBase::TMultiChunkSequentialWriterBase(
     , UploadReplicationFactor_(std::min(Options_->ReplicationFactor, Config_->UploadReplicationFactor))
     , Progress_(0)
     , Closing_(false)
-    , ReadyEvent_(OKFuture)
-    , CompletionError_(NewPromise<TError>())
+    , ReadyEvent_(VoidFuture)
+    , CompletionError_(NewPromise<void>())
     , CloseChunksAwaiter_(New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker()))
     , Logger(ChunkClientLogger)
 {
@@ -70,7 +70,7 @@ TMultiChunkSequentialWriterBase::TMultiChunkSequentialWriterBase(
     Logger.AddTag("TransactionId: %v", TransactionId_);
 }
 
-TAsyncError TMultiChunkSequentialWriterBase::Open()
+TFuture<void> TMultiChunkSequentialWriterBase::Open()
 {
     ReadyEvent_= BIND(&TMultiChunkSequentialWriterBase::DoOpen, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
@@ -79,7 +79,7 @@ TAsyncError TMultiChunkSequentialWriterBase::Open()
     return ReadyEvent_;
 }
 
-TAsyncError TMultiChunkSequentialWriterBase::Close()
+TFuture<void> TMultiChunkSequentialWriterBase::Close()
 {
     YCHECK(!Closing_);
     Closing_ = true;
@@ -99,7 +99,7 @@ TAsyncError TMultiChunkSequentialWriterBase::Close()
     return ReadyEvent_;
 }
 
-TAsyncError TMultiChunkSequentialWriterBase::GetReadyEvent()
+TFuture<void> TMultiChunkSequentialWriterBase::GetReadyEvent()
 {
     if (CurrentSession_.IsActive()) {
         return CurrentSession_.FrontalWriter->GetReadyEvent();
@@ -133,7 +133,7 @@ TDataStatistics TMultiChunkSequentialWriterBase::GetDataStatistics() const
     }
 }
 
-TError TMultiChunkSequentialWriterBase::DoOpen()
+void TMultiChunkSequentialWriterBase::DoOpen()
 {
     CreateNextSession();
     NextSessionReady_ = VoidFuture;
@@ -168,12 +168,12 @@ void TMultiChunkSequentialWriterBase::CreateNextSession()
         reqExt->set_vital(Options_->ChunksVital);
         reqExt->set_erasure_codec(static_cast<int>(Options_->ErasureCodec));
 
-        auto rsp = WaitFor(objectProxy.Execute(req));
-
+        auto rspOrError = WaitFor(objectProxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            *rsp,
+            rspOrError,
             NChunkClient::EErrorCode::MasterCommunicationFailed,
             "Error creating chunk");
+        const auto& rsp = rspOrError.Value();
 
         NextSession_.ChunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
 
@@ -204,8 +204,7 @@ void TMultiChunkSequentialWriterBase::CreateNextSession()
             NextSession_.UnderlyingWriter = CreateErasureWriter(Config_, erasureCodec, writers);
         }
 
-        auto error = WaitFor(NextSession_.UnderlyingWriter->Open());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        WaitFor(NextSession_.UnderlyingWriter->Open()).ThrowOnError();
     } catch (const std::exception& ex) {
         auto error = TError("Failed to start new session") << ex;
         LOG_WARNING(error);
@@ -215,27 +214,28 @@ void TMultiChunkSequentialWriterBase::CreateNextSession()
 
 void TMultiChunkSequentialWriterBase::SwitchSession()
 {
-    ReadyEvent_ = BIND(
-        &TMultiChunkSequentialWriterBase::DoSwitchSession,
-        MakeStrong(this),
-        CurrentSession_)
-    .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
-    .Run();
+    ReadyEvent_ =
+        BIND(
+            &TMultiChunkSequentialWriterBase::DoSwitchSession,
+            MakeStrong(this),
+            CurrentSession_)
+        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+        .Run();
 
     CurrentSession_.Reset();
 }
 
-TError TMultiChunkSequentialWriterBase::DoSwitchSession(const TSession& session)
+void TMultiChunkSequentialWriterBase::DoSwitchSession(const TSession& session)
 {
     if (Config_->SyncChunkSwitch) {
         // Wait until session is finished.
-        WaitFor(FinishSession(session));
+        WaitFor(FinishSession(session)).ThrowOnError();
     } else {
         // Do not wait, fire and move on.
         FinishSession(session);
     }
 
-    return InitCurrentSession();
+    InitCurrentSession();
 }
 
 TFuture<void> TMultiChunkSequentialWriterBase::FinishSession(const TSession& session)
@@ -292,25 +292,26 @@ void TMultiChunkSequentialWriterBase::DoFinishSession(const TSession& session)
     NYT::ToProto(req->mutable_replicas(), replicas);
 
     TObjectServiceProxy objectProxy(MasterChannel_);
-    auto rsp = WaitFor(objectProxy.Execute(req));
+    auto rspOrError = WaitFor(objectProxy.Execute(req));
 
-    if (!rsp->IsOK()) {
+    if (!rspOrError.IsOK()) {
         CompletionError_.TrySet(TError(
             "Failed to confirm chunk %v",
             session.ChunkId)
-            << *rsp);
+            << rspOrError);
         return;
     }
 
     LOG_DEBUG("Chunk confirmed (ChunkId: %v)", session.ChunkId);
 }
 
-TError TMultiChunkSequentialWriterBase::InitCurrentSession()
+void TMultiChunkSequentialWriterBase::InitCurrentSession()
 {
-    WaitFor(NextSessionReady_);
+    WaitFor(NextSessionReady_).ThrowOnError();
 
-    if (CompletionError_.IsSet()) {
-        return CompletionError_.Get();
+    auto maybeError = CompletionError_.TryGet();
+    if (maybeError) {
+        maybeError->ThrowOnError();
     }
 
     CurrentSession_ = NextSession_;
@@ -321,8 +322,6 @@ TError TMultiChunkSequentialWriterBase::InitCurrentSession()
     NextSessionReady_ = BIND(&TMultiChunkSequentialWriterBase::CreateNextSession, MakeWeak(this))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
-
-    return TError();
 }
 
 bool TMultiChunkSequentialWriterBase::VerifyActive()
@@ -370,7 +369,7 @@ bool TMultiChunkSequentialWriterBase::TrySwitchSession()
 
 void TMultiChunkSequentialWriterBase::DoClose()
 {
-    WaitFor(CloseChunksAwaiter_->Complete());
+    WaitFor(CloseChunksAwaiter_->Complete()).ThrowOnError();
 
     if (CompletionError_.IsSet()) {
         return;
@@ -392,13 +391,14 @@ void TMultiChunkSequentialWriterBase::DoClose()
     }
 
     TObjectServiceProxy objectProxy(MasterChannel_);
-    auto rsp = WaitFor(objectProxy.Execute(req));
+    auto rspOrError = WaitFor(objectProxy.Execute(req));
 
-    if (!rsp->IsOK()) {
+    if (!rspOrError.IsOK()) {
         CompletionError_.TrySet(TError(
             EErrorCode::MasterCommunicationFailed, 
             "Error attaching chunks to chunk list %v",
-            ParentChunkListId_) << *rsp);
+            ParentChunkListId_)
+            << rspOrError);
         return;
     }
 

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <core/misc/common.h>
 #include <core/misc/enum.h>
 
 #include <ytlib/hive/public.h>

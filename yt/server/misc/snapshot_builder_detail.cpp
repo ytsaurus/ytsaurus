@@ -9,8 +9,6 @@
 
 #include <core/ytree/serialize.h>
 
-#include <core/actions/invoker_util.h>
-
 #if defined(_unix_)
     // for wait*()
     #include <sys/wait.h>
@@ -37,7 +35,7 @@ TSnapshotBuilderBase::~TSnapshotBuilderBase()
     YCHECK(ChildPid_ < 0);
 }
 
-TAsyncError TSnapshotBuilderBase::Run()
+TFuture<void> TSnapshotBuilderBase::Run()
 {
     YCHECK(ChildPid_ < 0);
 

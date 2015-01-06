@@ -4,8 +4,6 @@
 #include "property.h"
 #include "nullable.h"
 
-#include <core/actions/callback.h>
-
 #include <core/ytree/yson_string.h>
 #include <core/ytree/attributes.h>
 
@@ -86,7 +84,13 @@ public:
 
     bool IsOK() const;
 
+	void ThrowOnError() const;
+
     TNullable<TError> FindMatching(TErrorCode code) const;
+
+    template <class... TArgs>
+    TError Wrap(TArgs&&... args) const;
+    TError Wrap() const;
 
 private:
     TErrorCode Code_;
@@ -112,6 +116,7 @@ template <class T>
 struct TErrorTraits
 {
     typedef TErrorOr<T> TWrapped;
+    typedef T TUnwrapped;
 };
 
 template <class T>
@@ -119,6 +124,7 @@ struct TErrorTraits<TErrorOr<T>>
 {
     typedef T TUnderlying;
     typedef TErrorOr<T> TWrapped;
+    typedef T TUnwrapped;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,34 +206,11 @@ TException&& operator <<= (TException&& ex, const TError& error)
 #define THROW_ERROR_EXCEPTION(...) \
     THROW_ERROR ::NYT::TError(__VA_ARGS__)
 
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
-
-template <class TInner, class... TArgs>
-bool IsOK(const TInner& inner, TArgs&&... args);
-
-template <class TInner, class... TArgs>
-TError WrapError(const TInner& inner, TArgs&&... args);
-
-template <class TInner>
-TError WrapError(const TInner& inner);
-
-} // namespace NDetail
-
-#define THROW_ERROR_EXCEPTION_IF_FAILED(...) \
-    if (::NYT::NDetail::IsOK(__VA_ARGS__)) {\
+#define THROW_ERROR_EXCEPTION_IF_FAILED(error, ...) \
+    if ((error).IsOK()) {\
     } else { \
-        THROW_ERROR ::NYT::NDetail::WrapError(__VA_ARGS__); \
+        THROW_ERROR (error).Wrap(__VA_ARGS__); \
     }\
-
-////////////////////////////////////////////////////////////////////////////////
-
-typedef TFuture<TError>  TAsyncError;
-typedef TPromise<TError> TAsyncErrorPromise;
-
-//! A pre-set |TError| future with OK value.
-extern TFuture<TError> OKFuture;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -262,9 +245,6 @@ public:
 
     const T& ValueOrThrow() const;
     T& ValueOrThrow();
-
-    template <class U>
-    TErrorOr<U> As() const;
 
 private:
     TNullable<T> Value_;

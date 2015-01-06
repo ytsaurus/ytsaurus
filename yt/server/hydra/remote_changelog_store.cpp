@@ -55,26 +55,23 @@ public:
         Logger.AddTag("Path: %v", RemotePath_);
     }
 
-    virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(int id, const TChangelogMeta& meta) override
+    virtual TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& meta) override
     {
         return BIND(&TRemoteChangelogStore::DoCreateChangelog, MakeStrong(this))
-            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(id, meta);
     }
 
-    virtual TFuture<TErrorOr<IChangelogPtr>> OpenChangelog(int id) override
+    virtual TFuture<IChangelogPtr> OpenChangelog(int id) override
     {
         return BIND(&TRemoteChangelogStore::DoOpenChangelog, MakeStrong(this))
-            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(id);
     }
 
-    virtual TFuture<TErrorOr<int>> GetLatestChangelogId(int initialId) override
+    virtual TFuture<int> GetLatestChangelogId(int initialId) override
     {
         return BIND(&TRemoteChangelogStore::DoGetLatestChangelog, MakeStrong(this))
-            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(initialId);
     }
@@ -301,7 +298,7 @@ private:
             return false;
         }
 
-        virtual TAsyncError Append(const TSharedRef& data) override
+        virtual TFuture<void> Append(const TSharedRef& data) override
         {
             YCHECK(Writer_);
             DataSize_ += data.Size();
@@ -310,7 +307,7 @@ private:
             return FlushResult_;
         }
 
-        virtual TAsyncError Flush() override
+        virtual TFuture<void> Flush() override
         {
             return FlushResult_;
         }
@@ -336,19 +333,19 @@ private:
             return result.Value();
         }
 
-        virtual TAsyncError Seal(int recordCount) override
+        virtual TFuture<void> Seal(int recordCount) override
         {
             // TODO(babenko): implement
             YCHECK(recordCount == RecordCount_);
-            return OKFuture;
+            return VoidFuture;
         }
 
-        virtual TAsyncError Unseal() override
+        virtual TFuture<void> Unseal() override
         {
             YUNREACHABLE();
         }
 
-        virtual TAsyncError Close() override
+        virtual TFuture<void> Close() override
         {
             YCHECK(Writer_);
             return Writer_->Close();
@@ -362,7 +359,7 @@ private:
         i64 DataSize_;
         TRemoteChangelogStorePtr Owner_;
 
-        TAsyncError FlushResult_ = OKFuture;
+        TFuture<void> FlushResult_ = VoidFuture;
 
     };
 

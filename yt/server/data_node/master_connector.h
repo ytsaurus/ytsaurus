@@ -129,7 +129,7 @@ private:
     NNodeTrackerClient::NProto::TNodeStatistics ComputeStatistics();
 
     //! Handles registration response.
-    void OnRegisterResponse(NNodeTrackerClient::TNodeTrackerServiceProxy::TRspRegisterNodePtr rsp);
+    void OnRegisterResponse(const NNodeTrackerClient::TNodeTrackerServiceProxy::TErrorOrRspRegisterNodePtr& rspOrError);
 
     //! Sends out a full heartbeat.
     void SendFullNodeHeartbeat();
@@ -150,13 +150,13 @@ private:
     static NNodeTrackerClient::NProto::TChunkRemoveInfo BuildRemoveChunkInfo(IChunkPtr chunk);
 
     //! Handles full heartbeat response from Node Tracker.
-    void OnFullNodeHeartbeatResponse(NNodeTrackerClient::TNodeTrackerServiceProxy::TRspFullHeartbeatPtr rsp);
+    void OnFullNodeHeartbeatResponse(const NNodeTrackerClient::TNodeTrackerServiceProxy::TErrorOrRspFullHeartbeatPtr& rspOrError);
 
     //! Handles incremental heartbeat response from Node Tracker.
-    void OnIncrementalNodeHeartbeatResponse(NNodeTrackerClient::TNodeTrackerServiceProxy::TRspIncrementalHeartbeatPtr rsp);
+    void OnIncrementalNodeHeartbeatResponse(const NNodeTrackerClient::TNodeTrackerServiceProxy::TErrorOrRspIncrementalHeartbeatPtr& rspOrError);
 
     //! Handles heartbeat response from Job Tracker.
-    void OnJobHeartbeatResponse(NJobTrackerClient::TJobTrackerServiceProxy::TRspHeartbeatPtr rsp);
+    void OnJobHeartbeatResponse(const NJobTrackerClient::TJobTrackerServiceProxy::TErrorOrRspHeartbeatPtr& rspOrError);
 
     //! Resets connection state.
     void Reset();

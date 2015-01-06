@@ -152,16 +152,6 @@ TClientResponseBase::TClientResponseBase(TClientContextPtr clientContext)
     , ClientContext_(std::move(clientContext))
 { }
 
-bool TClientResponseBase::IsOK() const
-{
-    return Error_.IsOK();
-}
-
-TClientResponseBase::operator TError() const
-{
-    return Error_;
-}
-
 void TClientResponseBase::OnError(const TError& error)
 {
     {
@@ -172,11 +162,10 @@ void TClientResponseBase::OnError(const TError& error)
             return;
         }
         State_ = EState::Done;
-        Error_  = error;
     }
 
     NTracing::TTraceContextGuard guard(ClientContext_->GetTraceContext());
-    FireCompleted();
+    FireCompleted(error);
 }
 
 void TClientResponseBase::BeforeCompleted()
@@ -236,14 +225,14 @@ void TClientResponse::OnResponse(TSharedRefArray message)
 
     NTracing::TTraceContextGuard guard(ClientContext_->GetTraceContext());
     Deserialize(message);
-    FireCompleted();
+    FireCompleted(TError());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TOneWayClientResponse::TOneWayClientResponse(TClientContextPtr clientContext)
     : TClientResponseBase(std::move(clientContext))
-    , Promise_(NewPromise<TThisPtr>())
+    , Promise_(NewPromise<void>())
 { }
 
 void TOneWayClientResponse::OnAcknowledgement()
@@ -258,7 +247,7 @@ void TOneWayClientResponse::OnAcknowledgement()
     }
 
     NTracing::TTraceContextGuard guard(ClientContext_->GetTraceContext());
-    FireCompleted();
+    FireCompleted(TError());
 }
 
 void TOneWayClientResponse::OnResponse(TSharedRefArray /*message*/)
@@ -266,15 +255,15 @@ void TOneWayClientResponse::OnResponse(TSharedRefArray /*message*/)
     YUNREACHABLE();
 }
 
-TFuture<TOneWayClientResponsePtr> TOneWayClientResponse::GetAsyncResult()
+TFuture<void> TOneWayClientResponse::GetAsyncResult()
 {
     return Promise_;
 }
 
-void TOneWayClientResponse::FireCompleted()
+void TOneWayClientResponse::FireCompleted(const TError& error)
 {
     BeforeCompleted();
-    Promise_.Set(this);
+    Promise_.Set(error);
     Promise_.Reset();
 }
 

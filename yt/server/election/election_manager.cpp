@@ -177,12 +177,12 @@ private:
         TElectionServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(Owner->Config->ControlRpcTimeout);
 
-        auto request = proxy.PingFollower();
-        request->set_leader_id(Owner->CellManager->GetSelfPeerId());
-        ToProto(request->mutable_epoch_id(), Owner->EpochContext->EpochId);
+        auto req = proxy.PingFollower();
+        req->set_leader_id(Owner->CellManager->GetSelfPeerId());
+        ToProto(req->mutable_epoch_id(), Owner->EpochContext->EpochId);
 
         Awaiter->Await(
-            request->Invoke(),
+            req->Invoke(),
             BIND(&TFollowerPinger::OnPingResponse, MakeStrong(this), peerId)
                 .Via(Owner->ControlEpochInvoker));
     }
@@ -197,19 +197,19 @@ private:
             Owner->Config->FollowerPingPeriod);
     }
 
-    void OnPingResponse(TPeerId id, TElectionServiceProxy::TRspPingFollowerPtr response)
+    void OnPingResponse(TPeerId id, const TElectionServiceProxy::TErrorOrRspPingFollowerPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
         YCHECK(Owner->State == EPeerState::Leading);
 
-        if (response->IsOK()) {
-            OnPingResponseSuccess(id, response);
+        if (rspOrError.IsOK()) {
+            OnPingResponseSuccess(id, rspOrError.Value());
         } else {
-            OnPingResponseFailure(id, response);
+            OnPingResponseFailure(id, rspOrError);
         }
     }
 
-    void OnPingResponseSuccess(TPeerId id, TElectionServiceProxy::TRspPingFollowerPtr response)
+    void OnPingResponseSuccess(TPeerId id, TElectionServiceProxy::TRspPingFollowerPtr rsp)
     {
         LOG_DEBUG("Ping reply from follower %v", id);
 
@@ -224,11 +224,9 @@ private:
         SchedulePing(id);
     }
 
-    void OnPingResponseFailure(TPeerId id, TElectionServiceProxy::TRspPingFollowerPtr response)
+    void OnPingResponseFailure(TPeerId id, const TError& error)
     {
-        auto error = response->GetError();
         auto code = error.GetCode();
-
         if (code == NElection::EErrorCode::InvalidState ||
             code == NElection::EErrorCode::InvalidLeader ||
             code == NElection::EErrorCode::InvalidEpoch)
@@ -261,7 +259,7 @@ private:
         if (!Owner->CheckQuorum())
             return;
 
-        if (code == NRpc::EErrorCode::Timeout) {
+        if (code == NYT::EErrorCode::Timeout) {
             SendPing(id);
         } else {
             SchedulePing(id);
@@ -319,9 +317,9 @@ public:
             TElectionServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Owner->Config->ControlRpcTimeout);
 
-            auto request = proxy.GetStatus();
+            auto req = proxy.GetStatus();
             Awaiter->Await(
-                request->Invoke(),
+                req->Invoke(),
                 BIND(&TVotingRound::OnResponse, MakeStrong(this), id));
         }
 
@@ -370,20 +368,21 @@ private:
         }
     }
 
-    void OnResponse(TPeerId id, TElectionServiceProxy::TRspGetStatusPtr response)
+    void OnResponse(TPeerId id, const TElectionServiceProxy::TErrorOrRspGetStatusPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
-        if (!response->IsOK()) {
-            LOG_INFO(response->GetError(), "Error requesting status from peer %v",
+        if (!rspOrError.IsOK()) {
+            LOG_INFO(rspOrError, "Error requesting status from peer %v",
                 id);
             return;
         }
 
-        auto state = EPeerState(response->state());
-        auto vote = response->vote_id();
-        auto priority = response->priority();
-        auto epochId = FromProto<TEpochId>(response->vote_epoch_id());
+        const auto& rsp = rspOrError.Value();
+        auto state = EPeerState(rsp->state());
+        auto vote = rsp->vote_id();
+        auto priority = rsp->priority();
+        auto epochId = FromProto<TEpochId>(rsp->vote_epoch_id());
 
         LOG_DEBUG("Received status from peer %v (State: %v, VoteId: %v, Priority: %v)",
             id,

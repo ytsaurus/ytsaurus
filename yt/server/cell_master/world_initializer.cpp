@@ -459,9 +459,7 @@ private:
         attributes->Set("title", "World initialization");
         ToProto(req->mutable_object_attributes(), *attributes);
 
-        auto rsp = WaitFor(ExecuteVerb(service, req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
+        auto rsp = WaitFor(ExecuteVerb(service, req)).ValueOrThrow();
         return FromProto<TTransactionId>(rsp->object_ids(0));
     }
 
@@ -483,8 +481,7 @@ private:
         SetTransactionId(req, transactionId);
         req->set_type(static_cast<int>(type));
         ToProto(req->mutable_node_attributes(), *ConvertToAttributes(attributes));
-        auto rsp = WaitFor(ExecuteVerb(service, req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        WaitFor(ExecuteVerb(service, req)).ThrowOnError();
     }
 
 };

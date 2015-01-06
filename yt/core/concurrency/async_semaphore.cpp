@@ -27,11 +27,11 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
         YASSERT(FreeSlots_ <= TotalSlots_);
 
         if (ReadyEvent_ && FreeSlots_ > 0) {
-            ready.Swap(ReadyEvent_);
+            swap(ready, ReadyEvent_);
         }
 
         if (FreeEvent_ && FreeSlots_ == TotalSlots_) {
-            free.Swap(FreeEvent_);
+            swap(free, FreeEvent_);
         }
     }
 
@@ -97,7 +97,7 @@ TFuture<void> TAsyncSemaphore::GetReadyEvent()
         YCHECK(!ReadyEvent_);
         return VoidFuture;
     } else if (!ReadyEvent_) {
-        ReadyEvent_ = NewPromise();
+        ReadyEvent_ = NewPromise<void>();
     }
 
     return ReadyEvent_;
@@ -111,7 +111,7 @@ TFuture<void> TAsyncSemaphore::GetFreeEvent()
         YCHECK(!FreeEvent_);
         return VoidFuture;
     } else if (!FreeEvent_) {
-        FreeEvent_ = NewPromise();
+        FreeEvent_ = NewPromise<void>();
     }
 
     return FreeEvent_;

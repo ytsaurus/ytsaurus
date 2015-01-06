@@ -32,7 +32,7 @@ public:
 
     //! Runs single health check. 
     //! Don't call after #Start(), otherwise two checks may interfere.
-    TAsyncError RunCheck();
+    TFuture<void> RunCheck();
 
     void Start();
 
@@ -51,9 +51,9 @@ private:
 
 
     void OnCheck();
-    void OnCheckCompleted(TError error);
+    void OnCheckCompleted(const TError& error);
 
-    TError DoRunCheck();
+    void DoRunCheck();
 
 };
 

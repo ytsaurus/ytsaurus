@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
+#include <core/actions/future.h>
 
 #include <ytlib/election/public.h>
 
@@ -11,7 +11,7 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAsyncError DownloadSnapshot(
+TFuture<void> DownloadSnapshot(
     TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
     TFileSnapshotStorePtr fileStore,

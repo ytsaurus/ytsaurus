@@ -204,7 +204,7 @@ public:
         Logger.AddTag("SnapshotId: %v", SnapshotId_);
     }
 
-    TFuture<TErrorOr<TRemoteSnapshotParams>> Run()
+    TFuture<TRemoteSnapshotParams> Run()
     {
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 
@@ -230,16 +230,14 @@ public:
             SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, Meta_);
 
             AsyncTransferResult_ = BIND(&TSnapshotBuilder::TransferLoop, MakeStrong(this))
-                .Guarded()
                 .AsyncVia(GetWatchdogInvoker())
                 .Run();
 
             return TSnapshotBuilderBase::Run().Apply(
                 BIND(&TSnapshotBuilder::OnFinished, MakeStrong(this))
-                    .Guarded()
                     .AsyncVia(GetHydraIOInvoker()));
         } catch (const std::exception& ex) {
-            return MakeFuture<TErrorOr<TRemoteSnapshotParams>>(ex);
+            return MakeFuture<TRemoteSnapshotParams>(TError(ex));
         }
     }
 
@@ -253,7 +251,7 @@ private:
     TAsyncReaderPtr InputStream_;
     std::unique_ptr<TFile> OutputFile_;
 
-    TAsyncError AsyncTransferResult_;
+    TFuture<void> AsyncTransferResult_;
     ISnapshotWriterPtr SnapshotWriter_;
     
 
@@ -290,7 +288,7 @@ private:
         auto zeroCopyReader = CreateZeroCopyAdapter(InputStream_, SnapshotTransferBlockSize);
         auto zeroCopyWriter = CreateZeroCopyAdapter(SnapshotWriter_);
 
-        TAsyncError lastWriteResult;
+        TFuture<void> lastWriteResult;
         i64 bytesTotal = 0;
 
         while (true) {
@@ -514,8 +512,8 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
 void TDecoratedAutomaton::LogLeaderMutation(
     const TMutationRequest& request,
     TSharedRef* recordData,
-    TFuture<TError>* localFlushResult,
-    TFuture<TErrorOr<TMutationResponse>>* commitResult)
+    TFuture<void>* localFlushResult,
+    TFuture<TMutationResponse>* commitResult)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(recordData);
@@ -527,7 +525,7 @@ void TDecoratedAutomaton::LogLeaderMutation(
     pendingMutation.Request = request;
     pendingMutation.Timestamp = TInstant::Now();
     pendingMutation.RandomSeed  = RandomNumber<ui64>();
-    pendingMutation.CommitPromise = NewPromise<TErrorOr<TMutationResponse>>();
+    pendingMutation.CommitPromise = NewPromise<TMutationResponse>();
     PendingMutations_.push(pendingMutation);
 
     MutationHeader_.Clear(); // don't forget to cleanup the pooled instance
@@ -565,7 +563,7 @@ void TDecoratedAutomaton::CancelPendingLeaderMutations(const TError& error)
 
 void TDecoratedAutomaton::LogFollowerMutation(
     const TSharedRef& recordData,
-    TAsyncError* logResult)
+    TFuture<void>* logResult)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -591,7 +589,7 @@ void TDecoratedAutomaton::LogFollowerMutation(
     }
 }
 
-TFuture<TErrorOr<TRemoteSnapshotParams>> TDecoratedAutomaton::BuildSnapshot()
+TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -602,16 +600,16 @@ TFuture<TErrorOr<TRemoteSnapshotParams>> TDecoratedAutomaton::BuildSnapshot()
     SnapshotVersion_ = LoggedVersion_;
 
     if (SnapshotParamsPromise_) {
-        SnapshotParamsPromise_.Cancel();
+        SnapshotParamsPromise_.ToFuture().Cancel();
     }
-    SnapshotParamsPromise_ = NewPromise<TErrorOr<TRemoteSnapshotParams>>();
+    SnapshotParamsPromise_ = NewPromise<TRemoteSnapshotParams>();
 
     MaybeStartSnapshotBuilder();
 
     return SnapshotParamsPromise_;
 }
 
-TAsyncError TDecoratedAutomaton::RotateChangelog(TEpochContextPtr epochContext)
+TFuture<void> TDecoratedAutomaton::RotateChangelog(TEpochContextPtr epochContext)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -619,7 +617,6 @@ TAsyncError TDecoratedAutomaton::RotateChangelog(TEpochContextPtr epochContext)
         LoggedVersion_);
 
     return BIND(&TDecoratedAutomaton::DoRotateChangelog, MakeStrong(this))
-        .Guarded()
         .AsyncVia(epochContext->EpochUserAutomatonInvoker)
         .Run();
 }
@@ -838,7 +835,7 @@ void TDecoratedAutomaton::Reset()
     Changelog_.Reset();
     SnapshotVersion_ = TVersion();
     if (SnapshotParamsPromise_) {
-        SnapshotParamsPromise_.Cancel();
+        SnapshotParamsPromise_.ToFuture().Cancel();
         SnapshotParamsPromise_.Reset();
     }
 }

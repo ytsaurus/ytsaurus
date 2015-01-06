@@ -25,7 +25,7 @@ class TChunkWriterBase
     : public virtual TRefCounted
 {
 public:
-    TAsyncError GetReadyEvent();
+    TFuture<void> GetReadyEvent();
 
     const TNullable<TKeyColumns>& GetKeyColumns() const;
     i64 GetRowCount() const;
@@ -39,7 +39,7 @@ protected:
         TChunkWriterOptionsPtr options,
         NChunkClient::IChunkWriterPtr chunkWriter);
 
-    TError FlushBlocks();
+    void FlushBlocks();
 
     virtual void PrepareBlock() = 0;
 

@@ -80,7 +80,7 @@ protected:
     // NYTree::ISystemAttributeProvider members
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TAsyncError GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual TFuture<void> GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     TObjectBase* GetSchema(EObjectType type);
@@ -106,7 +106,9 @@ protected:
 
     void ValidateActiveLeader() const;
     void ForwardToLeader(NRpc::IServiceContextPtr context);
-    void OnLeaderResponse(NRpc::IServiceContextPtr context, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+    void OnLeaderResponse(
+        NRpc::IServiceContextPtr context,
+        const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
 
     virtual bool IsLoggingEnabled() const override;
     virtual NLog::TLogger CreateLogger() const override;

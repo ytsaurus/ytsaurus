@@ -55,8 +55,8 @@ private:
                     slashPosition = request.Request.length();
                 }
 
-                Stroka prefix = request.Request.substr(0, slashPosition).ToString();
-                Stroka suffix = request.Request.substr(slashPosition).ToString();
+                auto prefix = request.Request.substr(0, slashPosition).ToString();
+                auto suffix = request.Request.substr(slashPosition).ToString();
                 
                 {
                     auto it = impl->SyncHandlers.find(prefix);
@@ -70,7 +70,7 @@ private:
                 {
                     auto it = impl->AsyncHandlers.find(prefix);
                     if (it != impl->AsyncHandlers.end()) {
-                        Output() << it->second.Run(suffix).Get();
+                        Output() << it->second.Run(suffix).Get().ValueOrThrow();
                         LOG_DEBUG("Request served");
                         return true;
                     }

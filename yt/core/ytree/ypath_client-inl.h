@@ -9,14 +9,13 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTypedRequest>
-TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
+TFuture<TIntrusivePtr<typename TTypedRequest::TTypedResponse>>
 ExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request)
 {
     typedef typename TTypedRequest::TTypedResponse TTypedResponse;
 
     auto requestMessage = request->Serialize();
-    return
-        ExecuteVerb(service, requestMessage)
+    return ExecuteVerb(service, requestMessage)
         .Apply(BIND([] (const TSharedRefArray& responseMessage) -> TIntrusivePtr<TTypedResponse> {
             auto response = New<TTypedResponse>();
             response->Deserialize(responseMessage);
@@ -28,9 +27,7 @@ template <class TTypedRequest>
 TIntrusivePtr<typename TTypedRequest::TTypedResponse>
 SyncExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request)
 {
-    auto response = ExecuteVerb(service, request).Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(*response);
-    return response;
+    return ExecuteVerb(service, request).Get().ValueOrThrow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

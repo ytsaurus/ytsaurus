@@ -18,6 +18,7 @@ set( HDRS
   ${BASE}/future-inl.h
   ${BASE}/future.h
   ${BASE}/invoker.h
+  ${BASE}/invoker-inl.h
   ${BASE}/invoker_util.h
   ${BASE}/invoker_detail.h
   ${BASE}/signal.h

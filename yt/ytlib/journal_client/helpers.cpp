@@ -41,7 +41,7 @@ public:
         , Logger(JournalClientLogger)
     { }
 
-    TAsyncError Run()
+    TFuture<void> Run()
     {
         BIND(&TAbortSessionsQuorumSession::DoRun, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
@@ -60,7 +60,7 @@ private:
 
     std::vector<TError> InnerErrors_;
 
-    TAsyncErrorPromise Promise_ = NewPromise<TError>();
+    TPromise<void> Promise_ = NewPromise<void>();
 
     NLog::TLogger Logger;
 
@@ -91,20 +91,19 @@ private:
         }
     }
 
-    void OnResponse(const TNodeDescriptor& descriptor, TDataNodeServiceProxy::TRspFinishChunkPtr rsp)
+    void OnResponse(const TNodeDescriptor& descriptor, const TDataNodeServiceProxy::TErrorOrRspFinishChunkPtr& rspOrError)
     {
         ++ResponseCounter_;
         // NB: Missing session is also OK.
-        if (rsp->IsOK() || rsp->GetError().GetCode() == NChunkClient::EErrorCode::NoSuchSession) {
+        if (rspOrError.IsOK() || rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchSession) {
             ++SuccessCounter_;
             LOG_INFO("Journal chunk session aborted successfully (ChunkId: %v, Address: %v)",
                 ChunkId_,
                 descriptor.GetDefaultAddress());
 
         } else {
-            auto error = rsp->GetError();
-            InnerErrors_.push_back(error);
-            LOG_WARNING(error, "Failed to abort journal chunk session (ChunkId: %v, Address: %v)",
+            InnerErrors_.push_back(rspOrError);
+            LOG_WARNING(rspOrError, "Failed to abort journal chunk session (ChunkId: %v, Address: %v)",
                 ChunkId_,
                 descriptor.GetDefaultAddress());
         }
@@ -112,7 +111,7 @@ private:
         if (SuccessCounter_ == Quorum_) {
             LOG_INFO("Journal chunk session quroum aborted successfully (ChunkId: %v)",
                 ChunkId_);
-            Promise_.TrySet(TError());
+            Promise_.TrySet();
         }
         
         if (ResponseCounter_ == Replicas_.size()) {
@@ -125,7 +124,7 @@ private:
 
 };
 
-TAsyncError AbortSessionsQuorum(
+TFuture<void> AbortSessionsQuorum(
     const TChunkId& chunkId,
     const std::vector<TNodeDescriptor>& replicas,
     TDuration timeout,
@@ -153,7 +152,7 @@ public:
         , Logger(JournalClientLogger)
     { }
 
-    TFuture<TErrorOr<TMiscExt>> Run()
+    TFuture<TMiscExt> Run()
     {
         BIND(&TComputeQuorumRowCountSession::DoRun, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
@@ -170,7 +169,7 @@ private:
     std::vector<TMiscExt> Infos_;
     std::vector<TError> InnerErrors_;
 
-    TPromise<TErrorOr<TMiscExt>> Promise_ = NewPromise<TErrorOr<TMiscExt>>();
+    TPromise<TMiscExt> Promise_ = NewPromise<TMiscExt>();
 
     NLog::TLogger Logger;
 
@@ -207,9 +206,10 @@ private:
             BIND(&TComputeQuorumRowCountSession::OnComplete, MakeStrong(this)));
     }
 
-    void OnResponse(const TNodeDescriptor& descriptor, TDataNodeServiceProxy::TRspGetChunkMetaPtr rsp)
+    void OnResponse(const TNodeDescriptor& descriptor, const TDataNodeServiceProxy::TErrorOrRspGetChunkMetaPtr& rspOrError)
     {
-        if (rsp->IsOK()) {
+        if (rspOrError.IsOK()) {
+            const auto& rsp = rspOrError.Value();
             auto miscExt = GetProtoExtension<TMiscExt>(rsp->chunk_meta().extensions());
             Infos_.push_back(miscExt);
 
@@ -220,10 +220,9 @@ private:
                 miscExt.uncompressed_data_size(),
                 miscExt.compressed_data_size());
         } else {
-            auto error = rsp->GetError();
-            InnerErrors_.push_back(error);
+            InnerErrors_.push_back(rspOrError);
 
-            LOG_WARNING(error, "Failed to get journal info (ChunkId: %v, Address: %v)",
+            LOG_WARNING(rspOrError, "Failed to get journal info (ChunkId: %v, Address: %v)",
                 ChunkId_,
                 descriptor.GetDefaultAddress());
            
@@ -262,7 +261,7 @@ private:
 
 };
 
-TFuture<TErrorOr<TMiscExt>> ComputeQuorumInfo(
+TFuture<TMiscExt> ComputeQuorumInfo(
     const TChunkId& chunkId,
     const std::vector<TNodeDescriptor>& replicas,
     TDuration timeout,

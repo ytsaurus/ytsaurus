@@ -55,7 +55,7 @@ public:
         ITimestampProviderPtr timestampProvider,
         TCellDirectoryPtr cellDirectory);
 
-    TFuture<TErrorOr<TTransactionPtr>> Start(
+    TFuture<TTransactionPtr> Start(
         ETransactionType type,
         const TTransactionStartOptions& options);
 
@@ -99,7 +99,7 @@ public:
         , Ping_(false)
         , PingAncestors_(false)
         , State_(ETransactionState::Initializing)
-        , Aborted_(NewPromise())
+        , Aborted_(NewPromise<void>())
         , StartTimestamp_(NullTimestamp)
     { }
 
@@ -109,7 +109,7 @@ public:
     }
 
 
-    TAsyncError Start(
+    TFuture<void> Start(
         ETransactionType type,
         const TTransactionStartOptions& options)
     {
@@ -142,7 +142,7 @@ public:
 
         YCHECK(CellIdToStartTransactionResult_.insert(std::make_pair(
             Owner_->CellId_,
-            MakePromise<TError>(TError()))).second);
+            MakePromise<void>(TError()))).second);
     
         Register();
 
@@ -157,7 +157,7 @@ public:
         }
     }
 
-    TAsyncError Commit(const TTransactionCommitOptions& options)
+    TFuture<void> Commit(const TTransactionCommitOptions& options)
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -200,7 +200,7 @@ public:
 
             LOG_INFO("Trivial transaction committed (TransactionId: %v)",
                 Id_);
-            return OKFuture;
+            return VoidFuture;
         }
 
         auto coordinatorCellId = Type_ == ETransactionType::Master
@@ -227,20 +227,18 @@ public:
             BIND(&TImpl::OnTransactionCommitted, MakeStrong(this), coordinatorCellId));
     }
 
-    TAsyncError Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions())
+    TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions())
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto this_ = MakeStrong(this);
-        return SendAbort(options).Apply(BIND([this, this_] (const TError& error) -> TError {
-            if (error.IsOK()) {
-                DoAbort(TError("Transaction aborted by user request"));
-            }
-            return error;
+        return SendAbort(options).Apply(BIND([=] () {
+            UNUSED(this_);
+            DoAbort(TError("Transaction aborted by user request"));
         }));
     }
 
-    TAsyncError Ping()
+    TFuture<void> Ping()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -301,12 +299,12 @@ public:
     }
 
     
-    TAsyncError AddTabletParticipant(const NElection::TCellId& cellId)
+    TFuture<void> AddTabletParticipant(const TCellId& cellId)
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
         YCHECK(TypeFromId(cellId) == EObjectType::TabletCell);
 
-        TAsyncErrorPromise promise;
+        TPromise<void> promise;
         {
             TGuard<TSpinLock> guard(SpinLock_);
             
@@ -323,7 +321,7 @@ public:
                 return it->second;
             }
 
-            promise = NewPromise<TError>();
+            promise = NewPromise<void>();
             YCHECK(CellIdToStartTransactionResult_.insert(std::make_pair(cellId, promise)).second);
         }
 
@@ -351,7 +349,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        Aborted_.Subscribe(handler);
+        Aborted_.ToFuture().Subscribe(BIND([=] (const TError& error) {
+            if (error.IsOK()) {
+                handler.Run();
+            }
+        }));
     }
 
     void UnsubscribeAborted(const TCallback<void()>& handler)
@@ -374,7 +376,7 @@ private:
     TSpinLock SpinLock_;
     ETransactionState State_;
     TPromise<void> Aborted_;
-    yhash_map<TCellId, TAsyncErrorPromise> CellIdToStartTransactionResult_;
+    yhash_map<TCellId, TPromise<void>> CellIdToStartTransactionResult_;
     TError Error_;
 
     TTimestamp StartTimestamp_;
@@ -441,12 +443,9 @@ private:
     }
 
 
-    TAsyncError OnGotStartTimestamp(const TTransactionStartOptions& options, TErrorOr<TTimestamp> timestampOrError)
+    TFuture<void> OnGotStartTimestamp(const TTransactionStartOptions& options, TTimestamp timestamp)
     {
-        if (!timestampOrError.IsOK()) {
-            return MakeFuture(TError(timestampOrError));
-        }
-        StartTimestamp_ = timestampOrError.Value();
+        StartTimestamp_ = timestamp;
 
         Register();
 
@@ -464,7 +463,7 @@ private:
         }
     }
 
-    TAsyncError StartMasterTransaction(const TTransactionStartOptions& options)
+    TFuture<void> StartMasterTransaction(const TTransactionStartOptions& options)
     {
         TObjectServiceProxy proxy(Owner_->MasterChannel_);
         auto req = TMasterYPathProxy::CreateObjects();
@@ -489,21 +488,22 @@ private:
             BIND(&TImpl::OnMasterTransactionStarted, MakeStrong(this)));
     }
 
-    TError OnMasterTransactionStarted(TMasterYPathProxy::TRspCreateObjectsPtr rsp)
+    void OnMasterTransactionStarted(const TMasterYPathProxy::TErrorOrRspCreateObjectsPtr& rspOrError)
     {
-        if (!rsp->IsOK()) {
+        if (!rspOrError.IsOK()) {
             State_ = ETransactionState::Aborted;
-            return rsp->GetError();
+            THROW_ERROR rspOrError;
         }
 
         State_ = ETransactionState::Active;
-        
+
+        const auto& rsp = rspOrError.Value();
         YCHECK(rsp->object_ids_size() == 1);
         Id_ = FromProto<TTransactionId>(rsp->object_ids(0));
         
         YCHECK(CellIdToStartTransactionResult_.insert(std::make_pair(
             Owner_->CellId_,
-            MakePromise<TError>(TError()))).second);
+            MakePromise<void>(TError()))).second);
 
         LOG_INFO("Master transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
             Id_,
@@ -515,11 +515,9 @@ private:
         if (Ping_) {
             RunPeriodicPings();
         }
-
-        return TError();
     }
 
-    TAsyncError StartTabletTransaction(const TTransactionStartOptions& options)
+    TFuture<void> StartTabletTransaction(const TTransactionStartOptions& options)
     {
         Id_ = MakeId(
             EObjectType::TabletTransaction,
@@ -539,52 +537,54 @@ private:
         YCHECK(Ping_);
         RunPeriodicPings();
 
-        return OKFuture;
+        return VoidFuture;
     }
 
     void OnTabletParticipantAdded(
         const TCellId& cellId,
-        TAsyncErrorPromise promise,
-        TTabletServiceProxy::TRspStartTransactionPtr rsp)
+        TPromise<void> promise,
+        const TTabletServiceProxy::TErrorOrRspStartTransactionPtr& rspOrError)
     {
-        if (rsp->IsOK()) {
+        if (rspOrError.IsOK()) {
             LOG_DEBUG("Transaction tablet participant added (TransactionId: %v, CellId: %v)",
                 Id_,
                 cellId);
         } else {
-            LOG_DEBUG(*rsp, "Error adding transaction tablet participant (TransactionId: %v, CellId: %v)",
+            LOG_DEBUG(rspOrError, "Error adding transaction tablet participant (TransactionId: %v, CellId: %v)",
                 Id_,
                 cellId);
 
             DoAbort(TError("Error adding participant %v to transaction %v",
                 cellId,
                 Id_)
-                << *rsp);
+                << rspOrError);
         }
 
-        promise.Set(rsp->GetError());
+        promise.Set(rspOrError);
     }
 
-    TError OnTransactionCommitted(const TCellId& cellId, TTransactionSupervisorServiceProxy::TRspCommitTransactionPtr rsp)
+    void OnTransactionCommitted(
+        const TCellId& cellId,
+        const TTransactionSupervisorServiceProxy::TErrorOrRspCommitTransactionPtr& rspOrError)
     {
-        if (!rsp->IsOK()) {
+        if (!rspOrError.IsOK()) {
             auto error = TError("Error committing transaction at cell %v",
                 cellId)
-                << *rsp;
+                << rspOrError;
             DoAbort(error);
-            return error;
+            THROW_ERROR error;
         }
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            if (State_ != ETransactionState::Committing)
-                return Error_;
+            if (State_ != ETransactionState::Committing) {
+                THROW_ERROR Error_;
+            }
             State_ = ETransactionState::Committed;
         }
 
         LOG_INFO("Transaction committed (TransactionId: %v)",
             Id_);
-        return TError();
     }
 
 
@@ -594,11 +594,11 @@ private:
     public:
         explicit TPingSession(TIntrusivePtr<TTransaction::TImpl> transaction)
             : Transaction_(transaction)
-            , Promise_(NewPromise<TError>())
+            , Promise_(NewPromise<void>())
             , Awaiter_(New<TParallelAwaiter>(GetSyncInvoker()))
         { }
 
-        TAsyncError Run()
+        TFuture<void> Run()
         {
             auto participantGuids = Transaction_->GetParticipantGuids();
             for (const auto& cellId : participantGuids) {
@@ -630,19 +630,21 @@ private:
 
     private:
         TIntrusivePtr<TTransaction::TImpl> Transaction_;
-        TAsyncErrorPromise Promise_;
+        TPromise<void> Promise_;
         TParallelAwaiterPtr Awaiter_;
 
 
-        void OnResponse(const TCellId& cellId, TTransactionSupervisorServiceProxy::TRspPingTransactionPtr rsp)
+        void OnResponse(
+            const TCellId& cellId,
+            const TTransactionSupervisorServiceProxy::TErrorOrRspPingTransactionPtr& rspOrError)
         {
-            if (rsp->IsOK()) {
+            if (rspOrError.IsOK()) {
                 LOG_DEBUG("Transaction pinged (TransactionId: %v, CellId: %v)",
                     Transaction_->Id_,
                     cellId);
 
             } else {
-                if (rsp->GetError().GetCode() == NYTree::EErrorCode::ResolveError) {
+                if (rspOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
                     // Hard error.
                     LOG_WARNING("Transaction has expired or was aborted (TransactionId: %v, CellId: %v)",
                         Transaction_->Id_,
@@ -652,7 +654,7 @@ private:
                         cellId));
                 } else {
                     // Soft error.
-                    LOG_WARNING(*rsp, "Error pinging transaction (TransactionId: %v, CellId: %v)",
+                    LOG_WARNING(rspOrError, "Error pinging transaction (TransactionId: %v, CellId: %v)",
                         Transaction_->Id_,
                         cellId);
                 }
@@ -675,7 +677,7 @@ private:
         
     };
 
-    TAsyncError SendPing()
+    TFuture<void> SendPing()
     {
         return New<TPingSession>(this)->Run();
     }
@@ -712,7 +714,7 @@ private:
             , Options_(options)
         { }
 
-        TAsyncError Run()
+        TFuture<void> Run()
         {
             auto participantGuids = Transaction_->GetParticipantGuids();
             for (const auto& cellId : participantGuids) {
@@ -750,29 +752,30 @@ private:
         TTransactionId TransactionId_;
         TTransactionAbortOptions Options_;
 
-        TAsyncErrorPromise Promise_ = NewPromise<TError>();
+        TPromise<void> Promise_ = NewPromise<void>();
         TParallelAwaiterPtr Awaiter_ = New<TParallelAwaiter>(GetSyncInvoker());
 
 
-        void OnResponse(const TCellId& cellId, TTransactionSupervisorServiceProxy::TRspAbortTransactionPtr rsp)
+        void OnResponse(
+            const TCellId& cellId,
+            const TTransactionSupervisorServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError)
         {
-            if (rsp->IsOK()) {
+            if (rspOrError.IsOK()) {
                 LOG_DEBUG("Transaction aborted (TransactionId: %v, CellId: %v)",
                     TransactionId_,
                     cellId);
-
             } else {
-                if (rsp->GetError().GetCode() == NYTree::EErrorCode::ResolveError) {
+                if (rspOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
                     LOG_DEBUG("Transaction has expired or was already aborted, ignored (TransactionId: %v, CellId: %v)",
                         TransactionId_,
                         cellId);
                 } else {
-                    LOG_WARNING(*rsp, "Error aborting transaction (TransactionId: %v, CellId: %v)",
+                    LOG_WARNING(rspOrError, "Error aborting transaction (TransactionId: %v, CellId: %v)",
                         TransactionId_,
                         cellId);
                     OnError(TError("Error aborting transaction at cell %v",
                         cellId)
-                        << *rsp);
+                        << rspOrError);
                 }
             }
         }
@@ -791,7 +794,7 @@ private:
         }
     };
 
-    TAsyncError SendAbort(const TTransactionAbortOptions& options = TTransactionAbortOptions())
+    TFuture<void> SendAbort(const TTransactionAbortOptions& options = TTransactionAbortOptions())
     {
         return New<TAbortSession>(this, options)->Run();
     }
@@ -874,19 +877,15 @@ TTransactionManager::TImpl::TImpl(
     YCHECK(CellDirectory_);
 }
 
-TFuture<TErrorOr<TTransactionPtr>> TTransactionManager::TImpl::Start(
+TFuture<TTransactionPtr> TTransactionManager::TImpl::Start(
     ETransactionType type,
     const TTransactionStartOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto transaction = New<TTransaction::TImpl>(this);
-    return transaction->Start(type, options).Apply(
-        BIND([=] (const TError& error) -> TErrorOr<TTransactionPtr> {
-            if (!error.IsOK()) {
-                return error;
-            }
-            return TTransaction::Create(transaction);
+    return transaction->Start(type, options).Apply(BIND([=] () {
+        return TTransaction::Create(transaction);
     }));
 }
 
@@ -933,12 +932,12 @@ TTransactionPtr TTransaction::Create(TIntrusivePtr<TImpl> impl)
 TTransaction::~TTransaction()
 { }
 
-TAsyncError TTransaction::Commit(const TTransactionCommitOptions& options)
+TFuture<void> TTransaction::Commit(const TTransactionCommitOptions& options)
 {
     return Impl_->Commit(options);
 }
 
-TAsyncError TTransaction::Abort(const TTransactionAbortOptions& options)
+TFuture<void> TTransaction::Abort(const TTransactionAbortOptions& options)
 {
     return Impl_->Abort(options);
 }
@@ -948,7 +947,7 @@ void TTransaction::Detach()
     Impl_->Detach();
 }
 
-TAsyncError TTransaction::Ping()
+TFuture<void> TTransaction::Ping()
 {
     return Impl_->Ping();
 }
@@ -968,7 +967,7 @@ TTimestamp TTransaction::GetStartTimestamp() const
     return Impl_->GetStartTimestamp();
 }
 
-TAsyncError TTransaction::AddTabletParticipant(const NElection::TCellId& cellId)
+TFuture<void> TTransaction::AddTabletParticipant(const TCellId& cellId)
 {
     return Impl_->AddTabletParticipant(cellId);
 }
@@ -996,7 +995,7 @@ TTransactionManager::TTransactionManager(
 TTransactionManager::~TTransactionManager()
 { }
 
-TFuture<TErrorOr<TTransactionPtr>> TTransactionManager::Start(
+TFuture<TTransactionPtr> TTransactionManager::Start(
     ETransactionType type,
     const TTransactionStartOptions& options)
 {

@@ -9,30 +9,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-template <class TInner, class... TArgs>
-bool IsOK(const TInner& inner, TArgs&&... args)
-{
-    return inner.IsOK();
-}
-
-template <class TInner, class... TArgs>
-TError WrapError(const TInner& inner, TArgs&&... args)
-{
-    return TError(std::forward<TArgs>(args)...) << inner;
-}
-
-template <class TInner>
-TError WrapError(const TInner& inner)
-{
-    return inner;
-}
-
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
 inline TErrorCode::TErrorCode()
     : Value_(static_cast<int>(NYT::EErrorCode::OK))
 { }
@@ -105,6 +81,12 @@ TError::TErrorOr(TErrorCode code, const char* format, const TArgs&... args)
     }
 }
 
+template <class... TArgs>
+TError TError::Wrap(TArgs&&... args) const
+{
+    return TError(std::forward<TArgs>(args)...) << *this;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -126,12 +108,16 @@ TErrorOr<T>::TErrorOr(const T& value)
 template <class T>
 TErrorOr<T>::TErrorOr(const TError& other)
     : TError(other)
-{ }
+{
+    YASSERT(!IsOK());
+}
 
 template <class T>
 TErrorOr<T>::TErrorOr(TError&& other) noexcept
     : TError(std::move(other))
-{ }
+{
+    YASSERT(!IsOK());
+}
 
 template <class T>
 TErrorOr<T>::TErrorOr(const TErrorOr<T>& other)
@@ -152,8 +138,8 @@ TErrorOr<T>::TErrorOr(TErrorOr<T>&& other) noexcept
 }
 
 template <class T>
-template <class TOther>
-TErrorOr<T>::TErrorOr(const TErrorOr<TOther>& other)
+template <class U>
+TErrorOr<T>::TErrorOr(const TErrorOr<U>& other)
     : TError(other)
 {
     if (IsOK()) {
@@ -162,8 +148,8 @@ TErrorOr<T>::TErrorOr(const TErrorOr<TOther>& other)
 }
 
 template <class T>
-template <class TOther>
-TErrorOr<T>::TErrorOr(TErrorOr<TOther>&& other) noexcept
+template <class U>
+TErrorOr<T>::TErrorOr(TErrorOr<U>&& other) noexcept
     : TError(other)
 {
     if (IsOK()) {
@@ -190,17 +176,6 @@ TErrorOr<T>& TErrorOr<T>::operator = (TErrorOr<T>&& other) noexcept
     static_cast<TError&>(*this) = std::move(other);
     Value_ = std::move(other.Value_);
     return *this;
-}
-
-template <class T>
-template <class U>
-TErrorOr<U> TErrorOr<T>::As() const
-{
-    if (IsOK()) {
-        return static_cast<U>(*Value_);
-    } else {
-        return TError(*this);
-    }
 }
 
 template <class T>
@@ -239,55 +214,6 @@ template <class T>
 Stroka ToString(const TErrorOr<T>& valueOrError)
 {
     return ToString(TError(valueOrError));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
-
-template <class TSignature>
-struct TGuardedHelper;
-
-template <class U, class... TArgs>
-struct TGuardedHelper<U(TArgs...)>
-{
-    static TCallback<TErrorOr<U>(TArgs...)> Do(TCallback<U(TArgs...)> callback)
-    {
-        return
-            BIND([=] (TArgs... args) -> TErrorOr<U> {
-                try {
-                    return TErrorOr<U>(callback.Run(std::forward<TArgs>(args)...));
-                } catch (const std::exception& ex) {
-                    return ex;
-                }
-            });
-    }
-};
-
-template <class... TArgs>
-struct TGuardedHelper<void(TArgs...)>
-{
-    static TCallback<TErrorOr<void>(TArgs...)> Do(TCallback<void(TArgs...)> callback)
-    {
-        return
-            BIND([=] (TArgs... args) -> TErrorOr<void> {
-                try {
-                    callback.Run(std::forward<TArgs>(args)...);
-                    return TErrorOr<void>();
-                } catch (const std::exception& ex) {
-                    return ex;
-                }
-            });
-    }
-};
-
-} // namespace NDetail
-
-template <class U, class... TArgs>
-TCallback<TErrorOr<U>(TArgs...)>
-TCallback<U(TArgs...)>::Guarded()
-{
-    return NYT::NDetail::TGuardedHelper<U(TArgs...)>::Do(*this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <core/actions/invoker.h>
-
 #include <core/rpc/public.h>
 
 #include <core/yson/public.h>

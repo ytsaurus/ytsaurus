@@ -52,12 +52,12 @@ public:
         return UnderlyingChangelog_->IsSealed();
     }
 
-    virtual TAsyncError Append(const TSharedRef& data) override
+    virtual TFuture<void> Append(const TSharedRef& data) override
     {
         return UnderlyingChangelog_->Append(data);
     }
 
-    virtual TAsyncError Flush() override
+    virtual TFuture<void> Flush() override
     {
         return UnderlyingChangelog_->Flush();
     }
@@ -70,17 +70,17 @@ public:
         return UnderlyingChangelog_->Read(firstRecordId, maxRecords, maxBytes);
     }
 
-    virtual TAsyncError Seal(int recordCount) override
+    virtual TFuture<void> Seal(int recordCount) override
     {
         return UnderlyingChangelog_->Seal(recordCount);
     }
 
-    virtual TAsyncError Unseal() override
+    virtual TFuture<void> Unseal() override
     {
         return UnderlyingChangelog_->Unseal();
     }
 
-    virtual TAsyncError Close() override
+    virtual TFuture<void> Close() override
     {
         return UnderlyingChangelog_->Close();
     }
@@ -114,26 +114,23 @@ public:
         NFS::CleanTempFiles(Config_->Path);
     }
 
-    virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(int id, const TChangelogMeta& meta) override
+    virtual TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& meta) override
     {
         return BIND(&TLocalChangelogStore::DoCreateChangelog, MakeStrong(this))
-            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(id, meta);
     }
 
-    virtual TFuture<TErrorOr<IChangelogPtr>> OpenChangelog(int id) override
+    virtual TFuture<IChangelogPtr> OpenChangelog(int id) override
     {
         return BIND(&TLocalChangelogStore::DoOpenChangelog, MakeStrong(this))
-            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(id);
     }
 
-    virtual TFuture<TErrorOr<int>> GetLatestChangelogId(int initialId) override
+    virtual TFuture<int> GetLatestChangelogId(int initialId) override
     {
         return BIND(&TLocalChangelogStore::DoGetLatestChangelogId, MakeStrong(this))
-            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(initialId);
     }
@@ -172,9 +169,7 @@ private:
                 id);
         }
 
-        auto result = WaitFor(cookie.GetValue());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        return result.Value();
+        return WaitFor(cookie.GetValue()).ValueOrThrow();
     }
 
     IChangelogPtr DoOpenChangelog(int id)

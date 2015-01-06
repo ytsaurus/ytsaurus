@@ -49,7 +49,7 @@ void TAsyncStreamState::DoFail()
         StaticError = CurrentError;
         CurrentError.Reset();
     } else {
-        StaticError = NewPromise<TError>();
+        StaticError = NewPromise<void>();
     }
 }
 
@@ -106,14 +106,14 @@ void TAsyncStreamState::StartOperation()
     IsOperationFinished = false;
 }
 
-TAsyncError TAsyncStreamState::GetOperationError()
+TFuture<void> TAsyncStreamState::GetOperationError()
 {
     TGuard<TSpinLock> guard(SpinLock);
     if (IsOperationFinished || !IsActive_) {
         return StaticError.ToFuture();
     } else {
         YASSERT(!CurrentError);
-        CurrentError = NewPromise<TError>();
+        CurrentError = NewPromise<void>();
         return CurrentError;
     }
 }

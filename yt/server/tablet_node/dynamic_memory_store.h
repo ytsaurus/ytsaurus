@@ -6,7 +6,6 @@
 #include "dynamic_memory_store_comparer.h"
 #include "transaction.h"
 
-#include <core/misc/public.h>
 #include <core/misc/property.h>
 
 #include <core/actions/signal.h>

@@ -15,8 +15,6 @@
 
 #include <core/logging/log.h>
 
-#include <ytlib/hydra/hydra_manager.pb.h>
-
 #include <util/stream/lz.h>
 #include <util/stream/file.h>
 
@@ -56,18 +54,16 @@ public:
         return SnapshotId_;
     }
 
-    virtual TAsyncError Open() override
+    virtual TFuture<void> Open() override
     {
         return BIND(&TFileSnapshotReader::DoOpen, MakeStrong(this))
-            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run();
     }
 
-    virtual TFuture<TErrorOr<size_t>> Read(void* buf, size_t len) override
+    virtual TFuture<size_t> Read(void* buf, size_t len) override
     {
         return BIND(&TFileSnapshotReader::DoRead, MakeStrong(this))
-            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(buf, len);
     }
@@ -273,26 +269,23 @@ public:
         }
     }
 
-    virtual TAsyncError Open()
+    virtual TFuture<void> Open()
     {
         return BIND(&TFileSnapshotWriter::DoOpen, MakeStrong(this))
-            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run();
     }
 
-    virtual TAsyncError Write(const void* buf, size_t len) override
+    virtual TFuture<void> Write(const void* buf, size_t len) override
     {
         return BIND(&TFileSnapshotWriter::DoWrite, MakeStrong(this))
-            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(buf, len);
     }
 
-    virtual TAsyncError Close() override
+    virtual TFuture<void> Close() override
     {
         return BIND(&TFileSnapshotWriter::DoClose, MakeStrong(this))
-            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run();
     }

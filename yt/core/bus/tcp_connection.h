@@ -62,10 +62,10 @@ public:
 
     // IBus implementation.
     virtual NYTree::TYsonString GetEndpointDescription() const override;
-    virtual TAsyncError Send(TSharedRefArray message, EDeliveryTrackingLevel level) override;
+    virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel level) override;
     virtual void Terminate(const TError& error) override;
 
-    DECLARE_SIGNAL(void(TError), Terminated);
+    DECLARE_SIGNAL(void(const TError&), Terminated);
 
 private:
     struct TQueuedMessage
@@ -74,13 +74,13 @@ private:
         { }
 
         TQueuedMessage(TSharedRefArray message, EDeliveryTrackingLevel level)
-            : Promise(level != EDeliveryTrackingLevel::None ? NewPromise<TError>() : Null)
+            : Promise(level != EDeliveryTrackingLevel::None ? NewPromise<void>() : Null)
             , Message(std::move(message))
             , Level(level)
             , PacketId(TPacketId::Create())
         { }
 
-        TAsyncErrorPromise Promise;
+        TPromise<void> Promise;
         TSharedRefArray Message;
         EDeliveryTrackingLevel Level;
         TPacketId PacketId;
@@ -113,13 +113,13 @@ private:
         TUnackedMessage()
         { }
 
-        TUnackedMessage(const TPacketId& packetId, TAsyncErrorPromise promise)
+        TUnackedMessage(const TPacketId& packetId, TPromise<void> promise)
             : PacketId(packetId)
             , Promise(std::move(promise))
         { }
 
         TPacketId PacketId;
-        TAsyncErrorPromise Promise;
+        TPromise<void> Promise;
     };
 
     TTcpBusConfigPtr Config_;
@@ -156,7 +156,7 @@ private:
     TPacketDecoder Decoder_;
     TBlob ReadBuffer_;
 
-    TPromise<TError> TerminatedPromise_ = NewPromise<TError>();
+    TPromise<void> TerminatedPromise_ = NewPromise<void>();
 
     TRingQueue<TPacket*> QueuedPackets_;
     TRingQueue<TPacket*> EncodedPackets_;

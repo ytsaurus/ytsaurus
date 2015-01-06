@@ -73,7 +73,7 @@ void TGarbageCollector::Load(NCellMaster::TLoadContext& context)
     NYT::Load(context, Zombies);
     LockedZombies.clear();
 
-    CollectPromise = NewPromise();
+    CollectPromise = NewPromise<void>();
     if (Zombies.empty()) {
         CollectPromise.Set();
     }
@@ -86,7 +86,7 @@ void TGarbageCollector::Clear()
     Zombies.clear();
     LockedZombies.clear();
 
-    CollectPromise = NewPromise();
+    CollectPromise = NewPromise<void>();
     CollectPromise.Set();
 }
 
@@ -109,7 +109,7 @@ void TGarbageCollector::Enqueue(TObjectBase* object)
     YASSERT(!object->IsAlive());
 
     if (Zombies.empty() && LockedZombies.empty() && CollectPromise.IsSet()) {
-        CollectPromise = NewPromise();
+        CollectPromise = NewPromise<void>();
     }
 
     if (object->IsLocked()) {

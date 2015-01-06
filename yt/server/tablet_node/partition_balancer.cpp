@@ -333,8 +333,7 @@ private:
             LOG_INFO("Locating partition chunks (ChunkCount: %v)",
                 storeMap.size());
 
-            auto rsp = WaitFor(req->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+            auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
 
             LOG_INFO("Partition chunks located");
 

@@ -58,12 +58,12 @@ public:
         return FD_;
     }
 
-    TFuture<TErrorOr<size_t>> Read(void* buffer, int length)
+    TFuture<size_t> Read(void* buffer, int length)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(length > 0);
 
-        auto promise = NewPromise<TErrorOr<size_t>>();
+        auto promise = NewPromise<size_t>();
 
         auto this_ = MakeStrong(this);
         BIND([=] () {
@@ -135,7 +135,7 @@ private:
     //! \note Thread-unsafe. Must be accessed from ev-thread only.
     ev::io FDWatcher_;
 
-    TPromise<TErrorOr<size_t>> ReadResultPromise_ = MakePromise<TErrorOr<size_t>>(0);
+    TPromise<size_t> ReadResultPromise_ = MakePromise<size_t>(0);
 
     EReaderState State_ = EReaderState::Active;
 
@@ -212,7 +212,7 @@ TAsyncReader::TAsyncReader(int fd)
 
 TAsyncReader::~TAsyncReader()
 {
-    // abort does not fail
+    // Abort does not fail.
     Impl_->Abort();
 }
 
@@ -221,7 +221,7 @@ int TAsyncReader::GetHandle() const
     return Impl_->GetHandle();
 }
 
-TFuture<TErrorOr<size_t>> TAsyncReader::Read(void* buf, size_t len)
+TFuture<size_t> TAsyncReader::Read(void* buf, size_t len)
 {
     return Impl_->Read(buf, len);
 }

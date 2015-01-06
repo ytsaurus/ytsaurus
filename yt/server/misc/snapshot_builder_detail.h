@@ -22,7 +22,7 @@ public:
     TSnapshotBuilderBase();
     ~TSnapshotBuilderBase();
 
-    TAsyncError Run();
+    TFuture<void> Run();
 
 protected:
     //! Must be initialized in the deriving class.
@@ -42,7 +42,7 @@ protected:
 
 private:
     std::atomic<pid_t> ChildPid_;
-    TPromise<TError> Result_ = NewPromise<TError>();
+    TPromise<void> Result_ = NewPromise<void>();
     TInstant StartTime_;
     NConcurrency::TPeriodicExecutorPtr WatchdogExecutor_;
 

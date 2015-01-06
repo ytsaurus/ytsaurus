@@ -190,7 +190,7 @@ private:
             auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
             auto writerNodeDirectory = New<TNodeDirectory>();
 
-            auto rsp = WaitFor(CreateChunk(
+            auto rspOrError = WaitFor(CreateChunk(
                 host->GetMasterChannel(),
                 WriterConfig_,
                 writerOptions,
@@ -198,10 +198,11 @@ private:
                 transactionId));
 
             THROW_ERROR_EXCEPTION_IF_FAILED(
-                *rsp,
+                rspOrError,
                 NChunkClient::EErrorCode::MasterCommunicationFailed,
                 "Error creating chunk");
 
+            const auto& rsp = rspOrError.Value();
             FromProto(&outputChunkId, rsp->object_ids(0));
         }
 
@@ -327,8 +328,8 @@ private:
             *req->mutable_chunk_meta() = masterChunkMeta;
             NYT::ToProto(req->mutable_replicas(), writtenReplicas);
 
-            auto rsp = WaitFor(objectProxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Failed to confirm chunk");
+            auto rspOrError = WaitFor(objectProxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to confirm chunk");
         }
 
         // Attach chunk.
@@ -338,8 +339,8 @@ private:
             ToProto(req->add_children_ids(), outputChunkId);
             GenerateMutationId(req);
 
-            auto rsp = WaitFor(objectProxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error attaching chunk");
+            auto rspOrError = WaitFor(objectProxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error attaching chunk");
         }
     }
 

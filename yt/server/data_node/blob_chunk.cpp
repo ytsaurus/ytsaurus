@@ -65,7 +65,7 @@ bool TBlobChunkBase::IsActive() const
     return false;
 }
 
-IChunk::TAsyncGetMetaResult TBlobChunkBase::GetMeta(
+TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::GetMeta(
     i64 priority,
     const std::vector<int>* tags)
 {
@@ -74,7 +74,7 @@ IChunk::TAsyncGetMetaResult TBlobChunkBase::GetMeta(
         if (Meta_) {
             guard.Release();
             LOG_DEBUG("Meta cache hit (ChunkId: %v)", Id_);
-            return MakeFuture(TGetMetaResult(FilterCachedMeta(tags)));
+            return MakeFuture(FilterCachedMeta(tags));
         }
     }
 
@@ -85,15 +85,13 @@ IChunk::TAsyncGetMetaResult TBlobChunkBase::GetMeta(
     auto this_ = MakeStrong(this);
     auto invoker = Bootstrap_->GetControlInvoker();
     return ReadMeta(priority).Apply(
-        BIND([this_, this, tags_] (const TError& error) -> TGetMetaResult {
-            if (!error.IsOK()) {
-                return error;
-            }
+        BIND([=] () {
+            UNUSED(this_);
             return FilterCachedMeta(tags_.GetPtr());
         }).AsyncVia(invoker));
 }
 
-IChunk::TAsyncReadBlocksResult TBlobChunkBase::ReadBlocks(
+TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlocks(
     int firstBlockIndex,
     int blockCount,
     i64 priority)
@@ -110,7 +108,7 @@ IChunk::TAsyncReadBlocksResult TBlobChunkBase::ReadBlocks(
         pendingReadSizeGuard = blockStore->IncreasePendingReadSize(pendingSize);
     }
 
-    auto promise = NewPromise<TReadBlocksResult>();
+    auto promise = NewPromise<std::vector<TSharedRef>>();
 
     auto callback = BIND(
         &TBlobChunkBase::DoReadBlocks,
@@ -131,7 +129,7 @@ void TBlobChunkBase::DoReadBlocks(
     int firstBlockIndex,
     int blockCount,
     TPendingReadSizeGuard pendingReadSizeGuard,
-    TPromise<TReadBlocksResult> promise)
+    TPromise<std::vector<TSharedRef>> promise)
 {
     auto blockStore = Bootstrap_->GetBlockStore();
     auto readerCache = Bootstrap_->GetBlobReaderCache();
@@ -189,11 +187,11 @@ void TBlobChunkBase::DoReadBlocks(
 
         promise.Set(blocksOrError.Value());
     } catch (const std::exception& ex) {
-        promise.Set(ex);
+        promise.Set(TError(ex));
     }
 }
 
-TAsyncError TBlobChunkBase::ReadMeta(i64 priority)
+TFuture<void> TBlobChunkBase::ReadMeta(i64 priority)
 {
     auto readGuard = TChunkReadGuard::TryAcquire(this);
     if (!readGuard) {
@@ -201,7 +199,7 @@ TAsyncError TBlobChunkBase::ReadMeta(i64 priority)
             Id_));
     }
 
-    auto promise = NewPromise<TError>();
+    auto promise = NewPromise<void>();
     auto callback = BIND(
         &TBlobChunkBase::DoReadMeta,
         MakeStrong(this),
@@ -215,7 +213,7 @@ TAsyncError TBlobChunkBase::ReadMeta(i64 priority)
 
 void TBlobChunkBase::DoReadMeta(
     TChunkReadGuard /*readGuard*/,
-    TPromise<TError> promise)
+    TPromise<void> promise)
 {
     auto& Profiler = Location_->Profiler();
     LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v)",

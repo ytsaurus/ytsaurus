@@ -99,8 +99,7 @@ void TReadJournalCommand::DoExecute()
 
     while (true) {
         auto rowsOrError = WaitFor(reader->Read());
-        THROW_ERROR_EXCEPTION_IF_FAILED(rowsOrError);
-        const auto& rows = rowsOrError.Value();
+        const auto& rows = rowsOrError.ValueOrThrow();
 
         if (rows.empty())
             break;

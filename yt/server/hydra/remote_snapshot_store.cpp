@@ -72,10 +72,9 @@ public:
         return New<TWriter>(this, snapshotId, meta);
     }
 
-    virtual TFuture<TErrorOr<int>> GetLatestSnapshotId(int maxSnapshotId) override
+    virtual TFuture<int> GetLatestSnapshotId(int maxSnapshotId) override
     {
         return BIND(&TRemoteSnapshotStore::DoGetLatestSnapshotId, MakeStrong(this))
-            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(maxSnapshotId);
     }
@@ -102,18 +101,16 @@ private:
             Logger.AddTag("Path: %v", Path_);
         }
 
-        virtual TAsyncError Open() override
+        virtual TFuture<void> Open() override
         {
             return BIND(&TReader::DoOpen, MakeStrong(this))
-                .Guarded()
                 .AsyncVia(GetHydraIOInvoker())
                 .Run();
         }
 
-        virtual TFuture<TErrorOr<size_t>> Read(void* buf, size_t len) override
+        virtual TFuture<size_t> Read(void* buf, size_t len) override
         {
             return BIND(&TReader::DoRead, MakeStrong(this))
-                .Guarded()
                 .AsyncVia(GetHydraIOInvoker())
                 .Run(buf, len);
         }
@@ -211,25 +208,23 @@ private:
             Logger.AddTag("Path: %v", Path_);
         }
 
-        virtual TAsyncError Open() override
+        virtual TFuture<void> Open() override
         {
             return BIND(&TWriter::DoOpen, MakeStrong(this))
-                .Guarded()
                 .AsyncVia(GetHydraIOInvoker())
                 .Run();
         }
 
-        virtual TAsyncError Write(const void* buf, size_t len) override
+        virtual TFuture<void> Write(const void* buf, size_t len) override
         {
             YCHECK(Opened_ && !Closed_);
             Length_ += len;
             return Writer_->Write(TRef(const_cast<void*>(buf), len));
         }
 
-        virtual TAsyncError Close() override
+        virtual TFuture<void> Close() override
         {
             return BIND(&TWriter::DoClose, MakeStrong(this))
-                .Guarded()
                 .AsyncVia(GetHydraIOInvoker())
                 .Run();
         }

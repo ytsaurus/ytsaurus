@@ -28,13 +28,14 @@ using namespace NHttp;
 
 namespace {
 
-Stroka OnResponse(NYTree::TYPathProxy::TRspGetPtr rsp)
+Stroka OnResponse(const TYPathProxy::TErrorOrRspGetPtr& rspOrError)
 {
-    if (!rsp->IsOK()) {
+    if (!rspOrError.IsOK()) {
         // TODO(sandello): Proper JSON escaping here.
-        return FormatInternalServerErrorResponse(ToString(rsp->GetError()).Quote());
+        return FormatInternalServerErrorResponse(ToString(TError(rspOrError)).Quote());
     }
 
+    const auto& rsp = rspOrError.Value();
     // TODO(babenko): maybe extract method
     TStringStream output;
     try {

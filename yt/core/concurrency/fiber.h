@@ -5,7 +5,6 @@
 #include "execution_context.h"
 
 #include <core/actions/future.h>
-#include <core/actions/invoker.h>
 
 #include <core/misc/small_vector.h>
 
@@ -22,9 +21,16 @@ DEFINE_ENUM(EFiberState,
     (Suspended)   // Scheduled but not yet running.
     (Running)     // Currently executing.
     (Terminated)  // Terminated.
-    (Canceled)    // Canceled. :)
 );
 
+//! A fiber :)
+/*!
+ *  This class is not intended to be used directly.
+ *  Please use TCoroutine or TCallback::AsyncVia to instantiate fibers.
+ *
+ *  Some methods could only be called from the owner thread (which currently runs the fiber).
+ *  Others could be called from an arbitrary thread.
+ */
 class TFiber
     : public TRefCounted
 {
@@ -38,29 +44,88 @@ public:
 
     ~TFiber();
 
+    //! Returns a unique fiber id.
+    /*!
+     *  Thread affinity: any
+     *  Ids are unique for the duration of the process.
+     */
     TFiberId GetId() const;
 
+    //! Return the current fiber state.
+    /*!
+     *  Thread affinity: OwnerThread
+     */
     EFiberState GetState() const;
-    void SetState(EFiberState state);
 
+    //! Sets the current fiber state to EFiberState::Running.
+    /*!
+     *  Thread affinity: OwnerThread
+     */
+    void SetRunning();
+
+    //! Sets the current fiber state to EFiberState::Sleeping (optionally providing a future
+    //! the fiber is waiting for).
+    /*!
+     *  Thread affinity: OwnerThread
+     */
+    void SetSleeping(TFuture<void> awaitedFuture = TFuture<void>());
+
+    //! Sets the current fiber state to EFiberState::Suspended.
+    /*!
+     *  Thread affinity: OwnerThread
+     */
+    void SetSuspended();
+
+    //! Returns the underlying execution context.
+    /*!
+     *  Thread affinity: OwnerThread
+     */
     TExecutionContext* GetContext();
 
+    //! Marks the fiber as canceled.
+    /*!
+     *  Thread affinity: any
+     */
     void Cancel();
 
-    bool IsCanceled() const;
-    bool CanReturn() const;
+    //! Returns a cached callback that invokes #Cancel.
+    /*!
+     *  Thread affinity: any
+     */
+    TClosure GetCanceler() const;
 
-    // Fiber-specific data.
+    //! Returns |true| if the fiber was canceled.
+    /*!
+     *  Thread affinity: any
+     */
+    bool IsCanceled() const;
+
+    //! Returns |true| if the fiber has finished executing.
+    /*!
+     * This could either happen normally (i.e. the callee returns) or
+     * abnormally (TFiberCanceledException is thrown and is subsequently
+     * caught in the trampoline).
+     */
+    bool IsTerminated() const;
+
+    //! Provides access to the fiber-specific data.
+    /*!
+     *  Thread affinity: OwnerThread
+     */
     uintptr_t& FsdAt(int index);
 
 private:
     TFiberId Id_;
+
+    TSpinLock SpinLock_;
     EFiberState State_;
+    TFuture<void> AwaitedFuture_;
 
     std::shared_ptr<TExecutionStack> Stack_;
     TExecutionContext Context_;
 
     std::atomic<bool> Canceled_;
+    TClosure Canceler_;
 
     TClosure Callee_;
 
@@ -76,12 +141,12 @@ DEFINE_REFCOUNTED_TYPE(TFiber)
 
 namespace NDetail {
 
+//! Delegates to TFiber::GetCanceler for the current fiber.
+//! Used to avoid dependencies on |fiber.h|.
 TClosure GetCurrentFiberCanceler();
 
 void ResumeFiber(TFiberPtr fiber);
 void UnwindFiber(TFiberPtr fiber);
-
-void ShutdownUnwindThread();
 
 } // namespace NDetail
 

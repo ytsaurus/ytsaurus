@@ -37,7 +37,7 @@ struct IBus
      *
      *  \note Thread affinity: any
      */
-    virtual TAsyncError Send(TSharedRefArray message, EDeliveryTrackingLevel level) = 0;
+    virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel level) = 0;
 
     //! Terminates the bus.
     /*!
@@ -51,7 +51,7 @@ struct IBus
 
     //! Invoked upon bus termination
     //! (either due to call to #Terminate or other party's failure).
-    DECLARE_INTERFACE_SIGNAL(void(TError), Terminated);
+    DECLARE_INTERFACE_SIGNAL(void(const TError&), Terminated);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

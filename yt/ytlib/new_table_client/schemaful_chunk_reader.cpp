@@ -62,10 +62,10 @@ public:
         const TReadLimit& upperLimit,
         TTimestamp timestamp);
 
-    virtual TAsyncError Open(const TTableSchema& schema) final override;
+    virtual TFuture<void> Open(const TTableSchema& schema) final override;
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) final override;
-    virtual TAsyncError GetReadyEvent() final override;
+    virtual TFuture<void> GetReadyEvent() final override;
 
 private:
     struct TChunkReaderMemoryPoolTag { };
@@ -103,13 +103,13 @@ private:
     NLog::TLogger Logger;
 
     // ToDo (psushin): refactor it.
-    TAsyncError Open(
+    TFuture<void> Open(
         TNameTablePtr nameTable, 
         const TTableSchema& schema,
         bool includeAllColumns);
 
     void DoOpen();
-    void OnNextBlock(TError error);
+    void OnNextBlock(const TError& error);
 
 };
 
@@ -133,7 +133,7 @@ TChunkReader::TChunkReader(
     YCHECK(IsTrivial(upperLimit));
 }
 
-TAsyncError TChunkReader::Open(const TTableSchema& schema)
+TFuture<void> TChunkReader::Open(const TTableSchema& schema)
 {
     auto nameTable = New<TNameTable>();
     for (int i = 0; i < schema.Columns().size(); ++i) {
@@ -143,7 +143,7 @@ TAsyncError TChunkReader::Open(const TTableSchema& schema)
     return Open(nameTable, schema, false);
 }
 
-TAsyncError TChunkReader::Open(
+TFuture<void> TChunkReader::Open(
     TNameTablePtr nameTable,
     const TTableSchema& schema,
     bool includeAllColumns)
@@ -174,7 +174,7 @@ void TChunkReader::DoOpen()
     LOG_INFO("Requesting chunk meta");
     auto metaOrError = WaitFor(ChunkReader->GetMeta(Null, &tags));
     if (!metaOrError.IsOK()) {
-        State.Finish(metaOrError);
+        State.Fail(metaOrError);
         return;
     }
 
@@ -200,14 +200,14 @@ void TChunkReader::DoOpen()
         // Validate schema.
         auto* chunkColumn = chunkSchema.FindColumn(column.Name);
         if (!chunkColumn) {
-            State.Finish(TError(
+            State.Fail(TError(
                 "Chunk schema doesn't contain column %Qv",
                 column.Name));
             return;
         }
         
         if (chunkColumn->Type != column.Type) {
-            State.Finish(TError(
+            State.Fail(TError(
                 "Chunk schema column %Qv has incompatible type: expected %Qlv, actual %Qlv",
                 column.Name,
                 column.Type,
@@ -343,12 +343,12 @@ bool TChunkReader::Read(std::vector<TUnversionedRow> *rows)
     return true;
 }
 
-TAsyncError TChunkReader::GetReadyEvent()
+TFuture<void> TChunkReader::GetReadyEvent()
 {
     return State.GetOperationError();
 }
 
-void TChunkReader::OnNextBlock(TError error)
+void TChunkReader::OnNextBlock(const TError& error)
 {
     State.FinishOperation(error);
 }
@@ -362,10 +362,10 @@ class TTableChunkReaderAdapter
 public:
     TTableChunkReaderAdapter(TTableChunkReaderPtr underlyingReader);
 
-    virtual TAsyncError Open(const TTableSchema& schema) override;
+    virtual TFuture<void> Open(const TTableSchema& schema) override;
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
 private:
     struct TTableChunkReaderAdaptorMemoryPoolTag { };
@@ -384,7 +384,7 @@ TTableChunkReaderAdapter::TTableChunkReaderAdapter(
     , MemoryPool_(TTableChunkReaderAdaptorMemoryPoolTag())
 { }
 
-TAsyncError TTableChunkReaderAdapter::Open(const TTableSchema& schema)
+TFuture<void> TTableChunkReaderAdapter::Open(const TTableSchema& schema)
 {
     Schema_ = schema;
     return UnderlyingReader_->AsyncOpen();
@@ -496,7 +496,7 @@ bool TTableChunkReaderAdapter::Read(std::vector<TUnversionedRow>* rows)
     return true;
 }
 
-TAsyncError TTableChunkReaderAdapter::GetReadyEvent()
+TFuture<void> TTableChunkReaderAdapter::GetReadyEvent()
 {
     return UnderlyingReader_->GetReadyEvent();
 }

@@ -257,7 +257,7 @@ struct TExecuteRequest
     TResponseParametersConsumer ResponseParametersConsumer;
 
     TDriverRequest DriverRequest;
-    TDriverResponse DriverResponse;
+    TError DriverResponse;
 
     NTracing::TTraceContext TraceContext;
 
@@ -703,7 +703,7 @@ void TDriverWrap::ExecuteWork(uv_work_t* workRequest)
             outputStream->Write(buffer.Data(), length);
         }
 
-        request->DriverResponse = TDriverResponse();
+        request->DriverResponse = TError();
     }
 }
 
@@ -736,7 +736,7 @@ void TDriverWrap::ExecuteAfter(uv_work_t* workRequest)
 
     Invoke(
         request->ExecuteCallback,
-        ConvertErrorToV8(request->DriverResponse.Error),
+        ConvertErrorToV8(request->DriverResponse),
         Number::New(bytesIn),
         Number::New(bytesOut));
 }

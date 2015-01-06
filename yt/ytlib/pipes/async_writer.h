@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/actions/future.h>
+
 #include <core/concurrency/async_stream.h>
 
 namespace NYT {
@@ -21,9 +23,9 @@ public:
 
     int GetHandle() const;
 
-    virtual TAsyncError Write(const void* data, size_t size) override;
+    virtual TFuture<void> Write(const void* data, size_t size) override;
 
-    TAsyncError Close();
+    TFuture<void> Close();
 
     //! Thread-safe, can be called multiple times.
     TFuture<void> Abort();

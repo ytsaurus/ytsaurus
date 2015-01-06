@@ -215,7 +215,7 @@ TQueryStatistics CoordinateAndExecute(
     std::vector<ISchemafulReaderPtr> splitReaders;
 
     ISchemafulReaderPtr mergingReader;
-    std::vector<TFuture<TErrorOr<TQueryStatistics>>> subqueriesStatistics;
+    std::vector<TFuture<TQueryStatistics>> subqueriesStatistics;
 
     if (isOrdered) {
         size_t index = 0;
@@ -227,7 +227,7 @@ TQueryStatistics CoordinateAndExecute(
             auto subquery = subqueries[index];
 
             ISchemafulReaderPtr reader;
-            TFuture<TErrorOr<TQueryStatistics>> statistics;
+            TFuture<TQueryStatistics> statistics;
 
             std::tie(reader, statistics) = evaluateSubquery(subquery, index);
 
@@ -244,7 +244,7 @@ TQueryStatistics CoordinateAndExecute(
                 subquery->GetId());
 
             ISchemafulReaderPtr reader;
-            TFuture<TErrorOr<TQueryStatistics>> statistics;
+            TFuture<TQueryStatistics> statistics;
 
             std::tie(reader, statistics) = evaluateSubquery(subquery, index);
 

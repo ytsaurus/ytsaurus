@@ -35,8 +35,9 @@ void TBuildSnapshotExecutor::DoExecute()
     auto req = proxy.BuildSnapshot();
     req->set_set_read_only(SetReadOnlyArg.getValue());
 
-    auto rsp = req->Invoke().Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error building snapshot");
+    auto rspOrError = req->Invoke().Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error building snapshot");
+    const auto& rsp = rspOrError.Value();
 
     int snapshotId = rsp->snapshot_id();
     printf("Snapshot %d is built\n", snapshotId);
@@ -57,8 +58,8 @@ void TGCCollectExecutor::DoExecute()
     TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
     proxy.SetDefaultTimeout(Null); // infinity
     auto req = proxy.GCCollect();
-    auto rsp = req->Invoke().Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error collecting garbage");
+    auto rspOrError = req->Invoke().Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error collecting garbage");
 }
 
 Stroka TGCCollectExecutor::GetCommandName() const

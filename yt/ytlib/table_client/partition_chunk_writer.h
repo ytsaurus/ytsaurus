@@ -50,6 +50,7 @@ private:
 class TPartitionChunkWriter
     : public TChunkWriterBase
 {
+public:
     DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
 
 public:
@@ -62,7 +63,7 @@ public:
     ~TPartitionChunkWriter();
 
     TPartitionChunkWriterFacade* GetFacade();
-    TAsyncError Close();
+    TFuture<void> Close();
 
     i64 GetMetaSize() const;
 
@@ -89,7 +90,7 @@ private:
     NProto::TPartitionsExt PartitionsExt;
 
     virtual void PrepareBlock() override;
-    void OnFinalBlocksWritten(TError error);
+    void OnFinalBlocksWritten(const TError& error);
 
 };
 

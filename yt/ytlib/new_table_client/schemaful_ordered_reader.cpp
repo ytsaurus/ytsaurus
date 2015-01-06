@@ -18,10 +18,10 @@ public:
         : GetNextReader_(getNextReader)
     { }
 
-    virtual TAsyncError Open(const TTableSchema& schema) override
+    virtual TFuture<void> Open(const TTableSchema& schema) override
     {
         Schema_ = schema;
-        return OKFuture;
+        return VoidFuture;
     }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
@@ -47,7 +47,7 @@ public:
         return true;
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
         return ReadyEvent_;
     }
@@ -55,7 +55,7 @@ public:
 private:
     std::function<ISchemafulReaderPtr()> GetNextReader_;
     ISchemafulReaderPtr CurrentReader_;
-    TAsyncError ReadyEvent_;
+    TFuture<void> ReadyEvent_;
     TTableSchema Schema_;
 
 };

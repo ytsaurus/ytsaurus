@@ -73,7 +73,7 @@ protected:
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TAsyncError GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual TFuture<void> GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     virtual void BeforeInvoke(NRpc::IServiceContextPtr context) override;

@@ -6,7 +6,6 @@
 #include "execution_context.h"
 #include "thread_affinity.h"
 
-#include <core/actions/invoker.h>
 #include <core/actions/callback.h>
 #include <core/actions/future.h>
 #include <core/actions/signal.h>
@@ -169,16 +168,16 @@ protected:
     // If (Epoch & 0x1) == 0x1 then the thread is stopping.
     std::atomic<ui32> Epoch;
 
-    TPromise<void> Started;
+    TPromise<void> Started = NewPromise<void>();
 
-    TThreadId ThreadId;
+    TThreadId ThreadId = InvalidThreadId;
     TThread Thread;
 
     TExecutionContext SchedulerContext;
 
     std::list<TFiberPtr> RunQueue;
-    int FibersCreated;
-    int FibersAlive;
+    int FibersCreated = 0;
+    int FibersAlive = 0;
 
     TFiberPtr IdleFiber;
     TFiberPtr CurrentFiber;

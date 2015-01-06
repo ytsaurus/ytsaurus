@@ -67,10 +67,10 @@ public:
         TChunkReaderOptionsPtr options);
     ~TTableChunkReader();
 
-    TAsyncError AsyncOpen();
+    TFuture<void> AsyncOpen();
 
     bool FetchNext();
-    TAsyncError GetReadyEvent();
+    TFuture<void> GetReadyEvent();
 
     const TFacade* GetFacade() const;
 
@@ -112,11 +112,11 @@ private:
     class TPartitionInitializer;
 
     bool DoFetchNextRow();
-    bool ContinueFetchNextRow(int channelIndex, TError error);
+    bool ContinueFetchNextRow(int channelIndex, const TError& error);
 
     void MakeCurrentRow();
     bool ValidateRow();
-    void OnRowFetched(TError error);
+    void OnRowFetched(const TError& error);
 
     void ClearKey();
 
@@ -155,7 +155,7 @@ private:
 
     int PartitionTag;
 
-    TCallback<void(TError)> OnRowFetchedCallback;
+    TCallback<void(const TError&)> OnRowFetchedCallback;
 
     std::unique_ptr<TKeyValidator> EndValidator;
 
@@ -164,7 +164,7 @@ private:
     /*!
      *  See #DoNextRow for usage.
      */
-    const TAsyncErrorPromise SuccessResult;
+    const TPromise<void> SuccessResult;
 
     std::vector<TChannelReaderPtr> ChannelReaders;
 

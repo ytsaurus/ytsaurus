@@ -353,9 +353,38 @@ private:
             IClientRequestPtr request,
             TNullable<TDuration> timeout,
             bool requestAck,
-            TSharedRefArray requestMessage)
+            const TErrorOr<TSharedRefArray>& requestMessageOrError)
         {
+            VERIFY_THREAD_AFFINITY_ANY();
+
             const auto& requestId = request->GetRequestId();
+
+            if (!requestMessageOrError.IsOK()) {
+                TGuard<TSpinLock> guard(SpinLock_);
+                auto it = ActiveRequests_.find(requestId);
+                if (it == ActiveRequests_.end()) {
+                    // This one may easily get the actual response before the acknowledgment.
+                    LOG_DEBUG(requestMessageOrError, "Failed to serialize an incorrect or obsolete request (RequestId: %v)",
+                        requestId);
+                } else {
+                    // NB: Make copies, the instance will die soon.
+                    auto activeRequest = it->second;
+
+                    UnregisterRequest(it);
+
+                    // Don't need the guard anymore.
+                    guard.Release();
+
+                    auto detailedError = TError(
+                        NRpc::EErrorCode::TransportError,
+                        "Request serialization failed")
+                        << requestMessageOrError;
+                    NotifyError(activeRequest, detailedError);
+                }
+                return;
+            }
+
+            const auto& requestMessage = requestMessageOrError.Value();
 
             EDeliveryTrackingLevel level = requestAck
                 ? EDeliveryTrackingLevel::Full
@@ -366,14 +395,15 @@ private:
                 MakeStrong(this),
                 requestId));
 
-            LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v)",
+            LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v)",
                 requestId,
                 request->GetService(),
                 request->GetMethod(),
-                timeout);
+                timeout,
+                level);
         }
 
-        void OnAcknowledgement(const TRequestId& requestId, TError error)
+        void OnAcknowledgement(const TRequestId& requestId, const TError& error)
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
@@ -436,7 +466,7 @@ private:
                 UnregisterRequest(it);
             }
 
-            auto error = TError(NRpc::EErrorCode::Timeout, "Request timed out");
+            auto error = TError(NYT::EErrorCode::Timeout, "Request timed out");
             NotifyError(activeRequest, error);
         }
 
@@ -545,7 +575,7 @@ private:
         return session;
     }
 
-    void OnBusTerminated(TWeakPtr<TSession> session, TError error)
+    void OnBusTerminated(TWeakPtr<TSession> session, const TError& error)
     {
         auto session_ = session.Lock();
         if (!session_) {

@@ -109,7 +109,7 @@ private:
     bool Terminated_ = false;
     TError TerminationError_;
     int OutstandingRequestCount_ = 0;
-    TPromise<void> OutstandingRequestsCompleted_ = NewPromise();
+    TPromise<void> OutstandingRequestsCompleted_ = NewPromise<void>();
 
 };
 

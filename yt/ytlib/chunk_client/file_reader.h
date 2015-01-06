@@ -32,15 +32,15 @@ public:
     i64 GetFullSize() const;
 
     //! Synchronously returns the requested meta.
-    NChunkClient::NProto::TChunkMeta GetMeta(
+    NProto::TChunkMeta GetMeta(
         const std::vector<int>* extensionTags = nullptr);
 
     // IReader implementation.
-    virtual TAsyncReadBlocksResult ReadBlocks(const std::vector<int>& blockIndexes) override;
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override;
 
-    virtual TAsyncReadBlocksResult ReadBlocks(int firstBlockIndex, int blockCount) override;
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override;
     
-    virtual TAsyncGetMetaResult GetMeta(
+    virtual TFuture<NProto::TChunkMeta> GetMeta(
         const TNullable<int>& partitionTag,
         const std::vector<int>* extensionTags = nullptr) override;
 

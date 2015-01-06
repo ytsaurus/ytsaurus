@@ -270,8 +270,8 @@ private:
         auto objectManager = Bootstrap_->GetObjectManager();
         auto rootService = objectManager->GetRootService();
         auto chunkProxy = objectManager->GetProxy(chunk);
-        auto rsp = WaitFor(ExecuteVerb(rootService, req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        auto rspOrError = WaitFor(ExecuteVerb(rootService, req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
 
         LOG_INFO("Journal chunk sealed (ChunkId: %v)", chunk->GetId());
     }

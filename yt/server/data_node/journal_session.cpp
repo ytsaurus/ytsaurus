@@ -32,7 +32,7 @@ TJournalSession::TJournalSession(
         options,
         location,
         lease)
-    , LastAppendResult_(OKFuture)
+    , LastAppendResult_(VoidFuture)
 { }
 
 TChunkInfo TJournalSession::GetChunkInfo() const
@@ -43,7 +43,7 @@ TChunkInfo TJournalSession::GetChunkInfo() const
     return info;
 }
 
-TAsyncError TJournalSession::DoStart()
+TFuture<void> TJournalSession::DoStart()
 {
     Chunk_ = New<TJournalChunk>(
         Bootstrap_,
@@ -57,12 +57,10 @@ TAsyncError TJournalSession::DoStart()
     chunkStore->RegisterNewChunk(Chunk_);
 
     auto this_ = MakeStrong(this);
-    return asyncChangelog.Apply(BIND([this, this_] (const TErrorOr<IChangelogPtr>& result) -> TError {
-        if (result.IsOK()) {
-            Chunk_->AttachChangelog(result.Value());
-            Chunk_->SetActive(true);
-        }
-        return TError(result);
+    return asyncChangelog.Apply(BIND([=] (IChangelogPtr changelog) {
+        UNUSED(this_);
+        Chunk_->AttachChangelog(changelog);
+        Chunk_->SetActive(true);
     }).AsyncVia(Bootstrap_->GetControlInvoker()));
 }
 
@@ -77,11 +75,11 @@ void TJournalSession::DoCancel()
     Finished_.Fire(TError());
 }
 
-TFuture<TErrorOr<IChunkPtr>> TJournalSession::DoFinish(
+TFuture<IChunkPtr> TJournalSession::DoFinish(
     const TChunkMeta& /*chunkMeta*/,
     const TNullable<int>& blockCount)
 {
-    auto sealResult = OKFuture;
+    auto sealResult = VoidFuture;
     auto changelog = Chunk_->GetAttachedChangelog();
     if (blockCount) {
         if (*blockCount != changelog->GetRecordCount()) {
@@ -94,16 +92,15 @@ TFuture<TErrorOr<IChunkPtr>> TJournalSession::DoFinish(
     }
 
     auto this_ = MakeStrong(this);
-    return sealResult.Apply(BIND([this, this_] (const TError& error) -> TErrorOr<IChunkPtr> {
+    return sealResult.Apply(BIND([=] (const TError& error) -> IChunkPtr {
+        UNUSED(this_);
         DoCancel();
-        if (!error.IsOK()) {
-            return error;
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
         return IChunkPtr(Chunk_);
     }).AsyncVia(GetCurrentInvoker()));
 }
 
-TAsyncError TJournalSession::DoPutBlocks(
+TFuture<void> TJournalSession::DoPutBlocks(
     int startBlockIndex,
     const std::vector<TSharedRef>& blocks,
     bool /*enableCaching*/)
@@ -132,10 +129,10 @@ TAsyncError TJournalSession::DoPutBlocks(
         LastAppendResult_ = changelog->Append(blocks[index]);
     }
 
-    return OKFuture;
+    return VoidFuture;
 }
 
-TAsyncError TJournalSession::DoSendBlocks(
+TFuture<void> TJournalSession::DoSendBlocks(
     int /*startBlockIndex*/,
     int /*blockCount*/,
     const TNodeDescriptor& /*target*/)
@@ -143,7 +140,7 @@ TAsyncError TJournalSession::DoSendBlocks(
     THROW_ERROR_EXCEPTION("Sending blocks is not supported for journal chunks");
 }
 
-TAsyncError TJournalSession::DoFlushBlocks(int blockIndex)
+TFuture<void> TJournalSession::DoFlushBlocks(int blockIndex)
 {
     auto changelog = Chunk_->GetAttachedChangelog();
     int recordCount = changelog->GetRecordCount();

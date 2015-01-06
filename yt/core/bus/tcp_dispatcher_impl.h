@@ -46,8 +46,8 @@ public:
 
     const ev::loop_ref& GetEventLoop() const;
 
-    TAsyncError AsyncRegister(IEventLoopObjectPtr object);
-    TAsyncError AsyncUnregister(IEventLoopObjectPtr object);
+    TFuture<void> AsyncRegister(IEventLoopObjectPtr object);
+    TFuture<void> AsyncUnregister(IEventLoopObjectPtr object);
 
     TTcpDispatcherStatistics& Statistics(ETcpInterfaceType interfaceType);
 

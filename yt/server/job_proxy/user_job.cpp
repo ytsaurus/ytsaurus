@@ -106,7 +106,7 @@ public:
         , UserJobSpec_(userJobSpec)
         , JobId_(jobId)
         , Config_(host->GetConfig())
-        , JobErrorPromise_(NewPromise<TError>())
+        , JobErrorPromise_(NewPromise<void>())
         , MemoryUsage_(UserJobSpec_.memory_reserve())
         , PeriodicQueue_(New<TActionQueue>("UserJobPeriodic"))
         , Process_(GetExecPath(), false)
@@ -215,7 +215,7 @@ private:
 
     TJobProxyConfigPtr Config_;
 
-    TAsyncErrorPromise JobErrorPromise_;
+    TPromise<void> JobErrorPromise_;
 
     i64 MemoryUsage_;
 
@@ -232,7 +232,7 @@ private:
 
     std::vector<TContextPreservingInputPtr> ContextPreservingInputs_;
 
-    std::vector<TCallback<TError()>> IOActions_;
+    std::vector<TCallback<void()>> IOActions_;
     std::vector<TCallback<void()>> FinalizeActions_;
 
     TProcess Process_;
@@ -438,14 +438,12 @@ private:
 
         auto asyncInput = New<TAsyncReader>(pipe.ReadFD);
 
-        IOActions_.push_back(
-            BIND(
-                &TUserJob::ReadFromOutputPipe,
-                MakeWeak(this),
-                pipe,
-                asyncInput,
-                output)
-            .Guarded());
+        IOActions_.push_back(BIND(
+            &TUserJob::ReadFromOutputPipe,
+            MakeWeak(this),
+            pipe,
+            asyncInput,
+            output));
 
         return asyncInput;
     }
@@ -470,18 +468,15 @@ private:
         auto asyncOutput = New<TAsyncWriter>(pipe.WriteFD);
         TablePipeWriters_.push_back(asyncOutput);
 
-        IOActions_.push_back(
-            BIND([=] () {
-                auto output = CreateSyncAdapter(asyncOutput);
-                input->PipeReaderToOutput(output.get());
-                auto error = WaitFor(asyncOutput->Close());
-                if (!error.IsOK()) {
-                    THROW_ERROR TError("Table input pipe failed")
-                        << TErrorAttribute("fd", jobDescriptor)
-                        << error;
-                }
-            })
-            .Guarded());
+        IOActions_.push_back(BIND([=] () {
+            auto output = CreateSyncAdapter(asyncOutput);
+            input->PipeReaderToOutput(output.get());
+            auto error = WaitFor(asyncOutput->Close());
+            if (!error.IsOK()) {
+                THROW_ERROR_EXCEPTION("Table input pipe failed")
+                    << TErrorAttribute("fd", jobDescriptor);
+            }
+        }));
 
         if (!UserJobSpec_.check_input_fully_consumed()) {
             return;
@@ -649,7 +644,7 @@ private:
 
     void DoJobIO()
     {
-        auto onIOError = BIND([=] (TError error) {
+        auto onIOError = BIND([=] (const TError& error) {
             if (error.IsOK()) {
                 return;
             }

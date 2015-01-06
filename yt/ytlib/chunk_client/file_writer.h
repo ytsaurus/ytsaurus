@@ -24,14 +24,14 @@ public:
         const Stroka& fileName,
         bool syncOnClose = true);
 
-    virtual TAsyncError Open() override;
+    virtual TFuture<void> Open() override;
 
     virtual bool WriteBlock(const TSharedRef& block) override;
     virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override;
 
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
-    virtual TAsyncError Close(const NChunkClient::NProto::TChunkMeta& chunkMeta) override;
+    virtual TFuture<void> Close(const NChunkClient::NProto::TChunkMeta& chunkMeta) override;
 
     void Abort();
 
@@ -58,7 +58,7 @@ private:
     NChunkClient::NProto::TBlocksExt BlocksExt_;
     NChunkClient::NProto::TChunkMeta ChunkMeta_;
 
-    TAsyncError Result_;
+    TFuture<void> Result_;
 
 };
 

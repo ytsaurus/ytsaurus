@@ -70,10 +70,10 @@ TSharedRef TSequentialReader::GetCurrentBlock()
 
     const auto& slot = Window_[FirstReadyWindowIndex_];
     YCHECK(slot.Block.IsSet());
-    return slot.Block.Get();
+    return slot.Block.Get().Value();
 }
 
-TAsyncError TSequentialReader::FetchNextBlock()
+TFuture<void> TSequentialReader::FetchNextBlock()
 {
     // No thread affinity - can be called from
     // ContinueNextRow of NTableClient::TChunkReader.
@@ -84,7 +84,7 @@ TAsyncError TSequentialReader::FetchNextBlock()
     if (FirstReadyWindowIndex_ >= 0) {
         auto& slot = Window_[FirstReadyWindowIndex_];
         if (!slot.Cached) {
-            AsyncSemaphore_.Release(slot.Block.Get().Size());
+            AsyncSemaphore_.Release(slot.Block.Get().Value().Size());
         }
         slot.Block.Reset();
     }
@@ -95,8 +95,10 @@ TAsyncError TSequentialReader::FetchNextBlock()
 
     auto this_ = MakeStrong(this);
     Window_[FirstReadyWindowIndex_].Block
-        .Subscribe(BIND([this, this_] (const TSharedRef&) {
-            State_.FinishOperation();
+        .ToFuture()
+        .Subscribe(BIND([=] (const TErrorOr<TSharedRef>& result) {
+            UNUSED(this_);
+            State_.FinishOperation(result);
         }));
 
     return State_.GetOperationError();
@@ -105,15 +107,15 @@ TAsyncError TSequentialReader::FetchNextBlock()
 void TSequentialReader::OnGotBlocks(
     const std::vector<int>& windowIndexes,
     const std::vector<int>& blockIndexes,
-    IChunkReader::TReadBlocksResult readResult)
+    const TErrorOr<std::vector<TSharedRef>>& blocksOrError)
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
 
     if (!State_.IsActive())
         return;
 
-    if (!readResult.IsOK()) {
-        State_.Fail(readResult);
+    if (!blocksOrError.IsOK()) {
+        State_.Fail(blocksOrError);
         return;
     }
 
@@ -124,7 +126,7 @@ void TSequentialReader::OnGotBlocks(
         &TSequentialReader::DecompressBlocks,
         MakeWeak(this),
         windowIndexes,
-        readResult.Value()));
+        blocksOrError.Value()));
 }
 
 void TSequentialReader::DecompressBlocks(
@@ -205,8 +207,14 @@ void TSequentialReader::FetchNextGroup()
 void TSequentialReader::RequestBlocks(
     const std::vector<int>& windowIndexes,
     const std::vector<int>& blockIndexes,
-    i64 uncompressedSize)
+    i64 uncompressedSize,
+    const TError& error)
 {
+    if (!error.IsOK()) {
+        State_.Fail(error);
+        return;
+    }
+
     LOG_DEBUG("Requesting block group (Blocks: [%v], UncompressedSize: %v)",
         JoinToString(blockIndexes),
         uncompressedSize);
