@@ -191,6 +191,8 @@ void TSchedulerThread::Start()
     LOG_DEBUG_IF(EnableLogging, "Starting thread (Name: %v)",
         ThreadName);
 
+    Started = NewPromise<void>();
+
     Thread.Start();
     ThreadId = TThreadId(Thread.SystemId());
 
