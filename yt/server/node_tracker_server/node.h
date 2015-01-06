@@ -92,10 +92,9 @@ public:
     {
         NTabletServer::TTabletCell* Cell = nullptr;
         NHydra::EPeerState PeerState = NHydra::EPeerState::None;
-        int PeerId = -1;
+        int PeerId = NHydra::InvalidPeerId;
 
         void Persist(NCellMaster::TPersistenceContext& context);
-
     };
 
     typedef SmallVector<TTabletSlot, NTabletClient::TypicalCellSize> TTabletSlotList;
@@ -147,10 +146,10 @@ public:
 
     int GetTotalTabletSlots() const;
 
-    TTabletSlot* FindTabletSlot(NTabletServer::TTabletCell* cell);
-    TTabletSlot* GetTabletSlot(NTabletServer::TTabletCell* cell);
+    TTabletSlot* FindTabletSlot(const NTabletServer::TTabletCell* cell);
+    TTabletSlot* GetTabletSlot(const NTabletServer::TTabletCell* cell);
 
-    void DetachTabletCell(NTabletServer::TTabletCell* cell);
+    void DetachTabletCell(const NTabletServer::TTabletCell* cell);
 
     static ui64 GenerateVisitMark();
 

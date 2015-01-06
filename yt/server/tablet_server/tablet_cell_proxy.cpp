@@ -94,17 +94,13 @@ private:
             BuildYsonFluently(consumer)
                 .DoListFor(cell->Peers(), [&] (TFluentList fluent, const TTabletCell::TPeer& peer) {
                     if (peer.Address) {
-                        const auto* slot = peer.Node ? &peer.Node->TabletSlots()[peer.SlotIndex] : nullptr;
+                        const auto* slot = peer.Node ? peer.Node->GetTabletSlot(cell) : nullptr;
                         auto state = slot ? slot->PeerState : EPeerState::None;
                         fluent
                             .Item().BeginMap()
                                 .Item("address").Value(*peer.Address)
                                 .Item("state").Value(state)
                                 .Item("last_seen_time").Value(peer.LastSeenTime)
-                                .DoIf(peer.Node, [&] (TFluentMap fluent) {
-                                    fluent
-                                        .Item("slot_index").Value(peer.SlotIndex);
-                                })
                             .EndMap();
                     } else {
                         fluent
