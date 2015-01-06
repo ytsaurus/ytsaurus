@@ -78,8 +78,8 @@ public:
             electionConfig,
             cellManager,
             ActionQueue->GetInvoker(),
-            CallbacksMock,
-            RpcServer);
+            CallbacksMock);
+        RpcServer->RegisterService(ElectionManager->GetRpcService());
 
         EXPECT_CALL(*CallbacksMock, FormatPriority(_))
             .WillRepeatedly(Invoke([] (TPeerPriority priority) {

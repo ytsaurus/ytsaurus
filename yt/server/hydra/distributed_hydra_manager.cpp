@@ -59,35 +59,33 @@ public:
     public:
         explicit TElectionCallbacks(TDistributedHydraManagerPtr owner)
             : Owner_(owner)
+            , ControlInvoker_(owner->ControlInvoker_)
         { }
 
         virtual void OnStartLeading() override
         {
-            Owner_->ControlInvoker_->Invoke(
-                BIND(&TDistributedHydraManager::OnElectionStartLeading, Owner_));
+            ControlInvoker_->Invoke(BIND(&TDistributedHydraManager::OnElectionStartLeading, Owner_));
         }
 
         virtual void OnStopLeading() override
         {
-            Owner_->ControlInvoker_->Invoke(
-                BIND(&TDistributedHydraManager::OnElectionStopLeading, Owner_));
+            ControlInvoker_->Invoke(BIND(&TDistributedHydraManager::OnElectionStopLeading, Owner_));
         }
 
         virtual void OnStartFollowing() override
         {
-            Owner_->ControlInvoker_->Invoke(
-                BIND(&TDistributedHydraManager::OnElectionStartFollowing, Owner_));
+            ControlInvoker_->Invoke(BIND(&TDistributedHydraManager::OnElectionStartFollowing, Owner_));
         }
 
         virtual void OnStopFollowing() override
         {
-            Owner_->ControlInvoker_->Invoke(
-                BIND(&TDistributedHydraManager::OnElectionStopFollowing, Owner_));
+            ControlInvoker_->Invoke(BIND(&TDistributedHydraManager::OnElectionStopFollowing, Owner_));
         }
 
         virtual TPeerPriority GetPriority() override
         {
-            return Owner_->GetElectionPriority();
+            auto owner = Owner_.Lock();
+            return owner ? owner->GetElectionPriority() : TPeerPriority();
         }
 
         virtual Stroka FormatPriority(TPeerPriority priority) override
@@ -97,7 +95,8 @@ public:
         }
 
     private:
-        TDistributedHydraManagerPtr Owner_;
+        TWeakPtr<TDistributedHydraManager> Owner_;
+        IInvokerPtr ControlInvoker_;
 
     };
 
@@ -149,9 +148,7 @@ public:
             Config_,
             CellManager_,
             controlInvoker,
-            New<TElectionCallbacks>(this),
-            rpcServer);
-        ElectionManagerMonitoringProducer_ = ElectionManager_->GetMonitoringProducer();
+            New<TElectionCallbacks>(this));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
@@ -161,22 +158,22 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
 
         CellManager_->SubscribePeerReconfigured(
-            BIND(&TDistributedHydraManager::OnPeerReconfigured, Unretained(this))
+            BIND(&TDistributedHydraManager::OnPeerReconfigured, MakeWeak(this))
                 .Via(ControlInvoker_));
     }
 
-    virtual void Start() override
+    virtual void Initialize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (ControlState_ != EPeerState::None)
             return;
 
-        DecoratedAutomaton_->GetSystemInvoker()->Invoke(BIND(
-            &TDecoratedAutomaton::Clear,
-            DecoratedAutomaton_));
+        DecoratedAutomaton_->GetSystemInvoker()->Invoke(
+            BIND(&TDecoratedAutomaton::Clear, DecoratedAutomaton_));
 
         RpcServer_->RegisterService(this);
+        RpcServer_->RegisterService(ElectionManager_->GetRpcService());
 
         LOG_INFO("Hydra instance started (SelfAddress: %v, SelfId: %v)",
             CellManager_->GetSelfAddress(),
@@ -187,26 +184,29 @@ public:
         Participate();
     }
 
-    virtual void Stop() override
+    virtual void Finalize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (ControlState_ == EPeerState::Stopped)
             return;
 
+        ElectionManager_->Stop();
+
         if (ControlState_ != EPeerState::None) {
             RpcServer_->UnregisterService(this);
+            RpcServer_->UnregisterService(ElectionManager_->GetRpcService());
         }
-
-        ElectionManager_.Reset();
 
         if (ControlEpochContext_) {
             StopEpoch();
         }
 
         ControlState_ = EPeerState::Stopped;
+        ElectionManager_->Stop();
+        ActiveLeader_ = false;
 
-        AutomatonInvoker_->Invoke(BIND(&TDistributedHydraManager::DoStop, MakeStrong(this)));
+        AutomatonInvoker_->Invoke(BIND(&TDistributedHydraManager::DoFinalize, MakeStrong(this)));
 
         LOG_INFO("Hydra instance stopped");
     }
@@ -310,7 +310,7 @@ public:
                     .Item("state").Value(ControlState_)
                     .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
-                    .Item("elections").Do(ElectionManagerMonitoringProducer_)
+                    .Item("elections").Do(ElectionManager_->GetMonitoringProducer())
                     .Item("has_active_quorum").Value(ActiveLeader_)
                 .EndMap();
         });
@@ -368,9 +368,7 @@ private:
 
     TVersion ReachableVersion_;
 
-    // NB: Cyclic references: this -> ElectionManager -> Callbacks -> this
     TElectionManagerPtr ElectionManager_;
-    TYsonProducer ElectionManagerMonitoringProducer_;
 
     TDecoratedAutomatonPtr DecoratedAutomaton_;
 
@@ -725,21 +723,18 @@ private:
     }
 
 
-    void DoStop()
+    void DoFinalize()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         AutomatonEpochContext_.Reset();
-        ActiveLeader_ = false;
     }
 
     void DoRestart(TEpochContextPtr epochContext)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (ElectionManager_) {
-            ElectionManager_->Stop();
-        }
+        ElectionManager_->Stop();
     }
 
     void DoParticipate()
@@ -806,11 +801,15 @@ private:
     }
 
 
-    void OnCheckpointNeeded(TEpochContextPtr epochContext)
+    void OnCheckpointNeeded(TWeakPtr<TEpochContext> epochContext_)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (!ActiveLeader_)
+            return;
+
+        auto epochContext = epochContext_.Lock();
+        if (!epochContext)
             return;
         
         auto checkpointer = epochContext->Checkpointer;
@@ -825,9 +824,13 @@ private:
     }
 
 
-    void OnCommitFailed(TEpochContextPtr epochContext, const TError& error)
+    void OnCommitFailed(TWeakPtr<TEpochContext> epochContext_, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto epochContext = epochContext_.Lock();
+        if (!epochContext)
+            return;
 
         DecoratedAutomaton_->CancelPendingLeaderMutations(error);
 
@@ -902,9 +905,9 @@ private:
             epochContext.Get(),
             Profiler);
         epochContext->LeaderCommitter->SubscribeCheckpointNeeded(
-            BIND(&TDistributedHydraManager::OnCheckpointNeeded, MakeWeak(this), epochContext));
+            BIND(&TDistributedHydraManager::OnCheckpointNeeded, MakeWeak(this), MakeWeak(epochContext)));
         epochContext->LeaderCommitter->SubscribeCommitFailed(
-            BIND(&TDistributedHydraManager::OnCommitFailed, MakeWeak(this), epochContext));
+            BIND(&TDistributedHydraManager::OnCommitFailed, MakeWeak(this), MakeWeak(epochContext)));
 
         epochContext->Checkpointer = New<TCheckpointer>(
             Config_,
@@ -1137,15 +1140,17 @@ private:
 
         auto electionEpochContext = ElectionManager_->GetEpochContext();
 
+        auto epochContext = New<TEpochContext>();
+        epochContext->LeaderId = electionEpochContext->LeaderId;
+        epochContext->EpochId = electionEpochContext->EpochId;
+        epochContext->StartTime = electionEpochContext->StartTime;
+        epochContext->CancelableContext = electionEpochContext->CancelableContext;
+        epochContext->EpochControlInvoker = epochContext->CancelableContext->CreateInvoker(ControlInvoker_);
+        epochContext->EpochSystemAutomatonInvoker = epochContext->CancelableContext->CreateInvoker(DecoratedAutomaton_->GetSystemInvoker());
+        epochContext->EpochUserAutomatonInvoker = epochContext->CancelableContext->CreateInvoker(AutomatonInvoker_);
+
         YCHECK(!ControlEpochContext_);
-        ControlEpochContext_ = New<TEpochContext>();
-        ControlEpochContext_->LeaderId = electionEpochContext->LeaderId;
-        ControlEpochContext_->EpochId = electionEpochContext->EpochId;
-        ControlEpochContext_->StartTime = electionEpochContext->StartTime;
-        ControlEpochContext_->CancelableContext = electionEpochContext->CancelableContext;
-        ControlEpochContext_->EpochControlInvoker = ControlEpochContext_->CancelableContext->CreateInvoker(ControlInvoker_);
-        ControlEpochContext_->EpochSystemAutomatonInvoker = ControlEpochContext_->CancelableContext->CreateInvoker(DecoratedAutomaton_->GetSystemInvoker());
-        ControlEpochContext_->EpochUserAutomatonInvoker = ControlEpochContext_->CancelableContext->CreateInvoker(AutomatonInvoker_);
+        ControlEpochContext_ = epochContext;
     }
 
     void StopEpoch()

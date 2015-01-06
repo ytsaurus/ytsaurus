@@ -119,7 +119,7 @@ public:
 
     void Start()
     {
-        HydraManager_->Start();
+        HydraManager_->Initialize();
 
         SnapshotCleanupExecutor_ = New<TPeriodicExecutor>(
             GetHydraIOInvoker(),

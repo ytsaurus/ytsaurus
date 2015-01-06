@@ -60,7 +60,6 @@ class TLeaderCommitter
     : public TCommitterBase
 {
 public:
-    //! Creates an instance.
     TLeaderCommitter(
         TDistributedHydraManagerConfigPtr config,
         NElection::TCellManagerPtr cellManager,
@@ -68,6 +67,8 @@ public:
         IChangelogStorePtr changelogStore,
         TEpochContext* epochContext,
         const NProfiling::TProfiler& profiler);
+
+    void Finalize();
 
     ~TLeaderCommitter();
 
@@ -150,7 +151,6 @@ class TFollowerCommitter
     : public TCommitterBase
 {
 public:
-    //! Creates an instance.
     TFollowerCommitter(
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,

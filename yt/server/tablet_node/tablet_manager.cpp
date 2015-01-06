@@ -84,7 +84,7 @@ class TTabletManager::TImpl
 public:
     explicit TImpl(
         TTabletManagerConfigPtr config,
-        TTabletSlot* slot,
+        TTabletSlotPtr slot,
         TBootstrap* bootstrap)
         : TTabletAutomatonPart(
             slot,
@@ -537,7 +537,7 @@ private:
             mountConfig,
             writerOptions,
             tabletId,
-            Slot_,
+            Slot_.Get(), // FIXME(babenko)
             schema,
             keyColumns,
             pivotKey,
@@ -821,7 +821,7 @@ private:
             JoinToString(storeIdsToAdd),
             JoinToString(storeIdsToRemove));
 
-        auto* slot = tablet->GetSlot();
+        auto slot = tablet->GetSlot();
         auto hiveManager = slot->GetHiveManager();
 
         {
@@ -1317,7 +1317,8 @@ private:
             backingStore->GetId());
 
         auto this_ = MakeStrong(this);
-        auto callback = BIND([this, this_, store] () {
+        auto callback = BIND([=] () {
+            UNUSED(this_);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
             store->SetBackingStore(nullptr);
             LOG_DEBUG("Backing store released (StoreId: %v)", store->GetId());
@@ -1448,7 +1449,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TTabletId, T
 
 TTabletManager::TTabletManager(
     TTabletManagerConfigPtr config,
-    TTabletSlot* slot,
+    TTabletSlotPtr slot,
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         config,

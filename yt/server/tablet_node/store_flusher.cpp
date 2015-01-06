@@ -255,7 +255,7 @@ private:
     {
         // Capture everything needed below.
         // NB: Avoid accessing tablet from pool invoker.
-        auto* slot = tablet->GetSlot();
+        auto slot = tablet->GetSlot();
         auto hydraManager = slot->GetHydraManager();
         auto tabletManager = slot->GetTabletManager();
         auto tabletId = tablet->GetId();

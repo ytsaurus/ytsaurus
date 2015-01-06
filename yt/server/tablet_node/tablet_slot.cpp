@@ -271,8 +271,6 @@ public:
 
             Automaton_ = New<TTabletAutomaton>(Owner_);
 
-            auto rpcServer = Bootstrap_->GetRpcServer();
-
             std::vector<TTransactionId> prerequisiteTransactionIds;
             prerequisiteTransactionIds.push_back(PrerequisiteTransactionId_);
 
@@ -289,6 +287,8 @@ public:
                 Format("//sys/tablet_cells/%v/changelogs", CellId_),
                 Bootstrap_->GetMasterClient(),
                 prerequisiteTransactionIds);
+
+            auto rpcServer = Bootstrap_->GetRpcServer();
 
             HydraManager_ = CreateDistributedHydraManager(
                 Config_->HydraManager,
@@ -356,7 +356,7 @@ public:
 
             TabletManager_->Initialize();
 
-            HydraManager_->Start();
+            HydraManager_->Initialize();
 
             rpcServer->RegisterService(TransactionSupervisor_->GetRpcService());
             rpcServer->RegisterService(HiveManager_->GetRpcService());
@@ -375,34 +375,45 @@ public:
         auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
         tabletSlotManager->UnregisterTabletSnapshots(Owner_);
 
-        if (HydraManager_) {
-            HydraManager_->Stop();
-        }
-
-        // NB: Many subsystems (e.g. Transaction Manager) hold TTabletSlot instance by raw pointer.
-        // The above call to Stop cancels the current epoch and thus ensures that no new callbacks can be
-        // queued via control or automaton invokers. However, some background activities could still be
-        // running in the context of the automaton invoker. To save them from crashing we submit
-        // a callback whose sole purpose is to hold |this| a bit longer.
-        auto this_ = MakeStrong(this);
-        GetAutomatonInvoker()->Invoke(BIND([this_] () { }));
-
         auto rpcServer = Bootstrap_->GetRpcServer();
+
+        State_ = EPeerState::None;
+
+        CellManager_.Reset();
+
+        Automaton_.Reset();
+
+        if (HydraManager_) {
+            HydraManager_->Finalize();
+        }
+        HydraManager_.Reset();
+
+        ResponseKeeper_.Reset();
+
+        TabletManager_.Reset();
+
+        TransactionManager_.Reset();
+
         if (TransactionSupervisor_) {
             rpcServer->UnregisterService(TransactionSupervisor_->GetRpcService());
         }
+        TransactionSupervisor_.Reset();
+
         if (HiveManager_) {
             rpcServer->UnregisterService(HiveManager_->GetRpcService());
         }
+        HiveManager_.Reset();
+
         if (TabletService_) {
             rpcServer->UnregisterService(TabletService_);
         }
+        TabletService_.Reset();
+
+        TabletManager_.Reset();
 
         ResetEpochInvokers();
         ResetGuardedInvokers();
         
-        State_ = EPeerState::None;
-
         LOG_INFO("Slot finalized");
     }
 
