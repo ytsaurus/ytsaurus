@@ -41,9 +41,7 @@ TUnversionedRowBuilder* TLoadContext::GetRowBuilder() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletAutomaton::TTabletAutomaton(
-    NCellNode::TBootstrap* bootstrap,
-    TTabletSlot* slot)
+TTabletAutomaton::TTabletAutomaton(TTabletSlot* slot)
     : Slot_(slot)
 {
     Logger.AddTag("CellId: %v", Slot_->GetCellId());

@@ -46,16 +46,12 @@ class TTabletAutomaton
     : public NHydra::TCompositeAutomaton
 {
 public:
-    explicit TTabletAutomaton(
-        NCellNode::TBootstrap* bootstrap,
-        TTabletSlot* slot);
+    explicit TTabletAutomaton(TTabletSlot* slot);
 
     virtual TSaveContext& SaveContext() override;
     virtual TLoadContext& LoadContext() override;
 
 private:
-    TTabletSlot* Slot_;
-
     TSaveContext SaveContext_;
     TLoadContext LoadContext_;
 
