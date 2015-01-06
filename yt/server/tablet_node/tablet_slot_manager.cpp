@@ -272,10 +272,10 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         BuildYsonFluently(consumer)
-            .DoListFor(Slots_, [&] (TFluentList fluent, TTabletSlotPtr slot) {
+            .DoMapFor(Slots_, [&] (TFluentMap fluent, TTabletSlotPtr slot) {
                 if (slot) {
                     fluent
-                        .Item()
+                        .Item(ToString(slot->GetCellId()))
                         .Do(BIND(&TTabletSlot::BuildOrchidYson, slot));
                 }
             });

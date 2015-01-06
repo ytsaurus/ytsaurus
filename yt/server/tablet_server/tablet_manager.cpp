@@ -938,7 +938,7 @@ private:
 
             auto expectedIt = expectedCells.find(cell);
             if (expectedIt == expectedCells.end()) {
-                cell->AttachPeer(node, peerId, slotIndex);
+                cell->AttachPeer(node, peerId);
                 LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer online (Address: %v, CellId: %v, PeerId: %v)",
                     address,
                     cellId,

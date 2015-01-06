@@ -358,7 +358,7 @@ void TBootstrap::DoRun()
             ->Via(GetControlInvoker())));
     SetNodeByYPath(
         OrchidRoot,
-        "/tablet_slots",
+        "/tablet_cells",
         CreateVirtualNode(
             TabletSlotManager->GetOrchidService()
             ->Via(GetControlInvoker())

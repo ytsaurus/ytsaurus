@@ -517,9 +517,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         BuildYsonMapFluently(consumer)
-            .Item("index").Value(SlotIndex_)
             .Item("state").Value(GetControlState())
-            .Item("cell_id").Value(CellId_)
             .Item("prerequisite_transaction_id").Value(PrerequisiteTransactionId_)
             .Item("options").Value(*Options_);
     }

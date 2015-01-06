@@ -306,7 +306,7 @@ int TNode::GetTotalSessionCount() const
         GetSessionCount(EWriteSessionType::Repair);
 }
 
-TNode::TTabletSlot* TNode::FindTabletSlot(TTabletCell* cell)
+TNode::TTabletSlot* TNode::FindTabletSlot(const TTabletCell* cell)
 {
     for (auto& slot : TabletSlots_) {
         if (slot.Cell == cell) {
@@ -316,14 +316,14 @@ TNode::TTabletSlot* TNode::FindTabletSlot(TTabletCell* cell)
     return nullptr;
 }
 
-TNode::TTabletSlot* TNode::GetTabletSlot(TTabletCell* cell)
+TNode::TTabletSlot* TNode::GetTabletSlot(const TTabletCell* cell)
 {
     auto* slot = FindTabletSlot(cell);
     YCHECK(slot);
     return slot;
 }
 
-void TNode::DetachTabletCell(TTabletCell* cell)
+void TNode::DetachTabletCell(const TTabletCell* cell)
 {
     auto* slot = FindTabletSlot(cell);
     if (slot) {
