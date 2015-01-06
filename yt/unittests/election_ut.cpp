@@ -97,7 +97,6 @@ public:
         ElectionManager->Start();
         Sleep(1);
         ElectionManager->Stop();
-        ElectionManager.Reset();
         Sleep(1);
     }
 
@@ -129,6 +128,7 @@ private:
             }
         }
 
+        RpcServer->UnregisterService(ElectionManager->GetRpcService());
         ElectionManager.Reset();
     }
 
