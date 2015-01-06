@@ -96,7 +96,7 @@ public:
     {
         ElectionManager->Start();
         Sleep(1);
-        ElectionManager.Reset();
+        ElectionManager->Stop();
         Sleep(1);
     }
 
