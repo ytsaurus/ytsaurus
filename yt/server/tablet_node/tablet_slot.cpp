@@ -241,7 +241,7 @@ public:
         SetCellId(cellId);
 
         Options_ = ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options()));
-
+        PrerequisiteTransactionId_ = FromProto<TTransactionId>(createInfo.prerequisite_transaction_id());
         State_ = EPeerState::Stopped;
 
         LOG_INFO("Slot initialized");
@@ -254,16 +254,13 @@ public:
 
         CellConfigVersion_ = configureInfo.config_version();
         CellConfig_ = ConvertTo<TTabletCellConfigPtr>(TYsonString(configureInfo.config()));
-        auto prerequisiteTransactionId = FromProto<TTransactionId>(configureInfo.prerequisite_transaction_id());
-
+        
         if (HydraManager_) {
-            YCHECK(PrerequisiteTransactionId_ == prerequisiteTransactionId);
             CellManager_->Reconfigure(CellConfig_->ToElection(CellId_));
-
-            LOG_INFO("Slot reconfigured (ConfigVersion: %v)",
-                CellConfigVersion_);
+            LOG_INFO("Slot reconfigured (ConfigVersion: %v, PrerequisiteTransactionId: %v)",
+                CellConfigVersion_,
+                PrerequisiteTransactionId_);
         } else {
-            PrerequisiteTransactionId_ = prerequisiteTransactionId;
             PeerId_ = configureInfo.peer_id();
             State_ = EPeerState::Elections;
 
@@ -365,9 +362,8 @@ public:
             rpcServer->RegisterService(HiveManager_->GetRpcService());
             rpcServer->RegisterService(TabletService_);
 
-            LOG_INFO("Slot configured (ConfigVersion: %v, PrerequisiteTransactionId: %v)",
-                CellConfigVersion_,
-                prerequisiteTransactionId);
+            LOG_INFO("Slot configured (ConfigVersion: %v)",
+                CellConfigVersion_);
         }
     }
 

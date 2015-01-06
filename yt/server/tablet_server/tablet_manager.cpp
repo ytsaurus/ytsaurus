@@ -285,17 +285,17 @@ public:
         auto cellMapNodeProxy = GetCellMapNode();
         cellMapNodeProxy->RemoveChild(ToString(cell->GetId()));
 
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        hiveManager->RemoveMailbox(cell->GetId());
+
         for (const auto& peer : cell->Peers()) {
-            if (peer.Address) {
-                RemoveFromAddressToCellMap(*peer.Address, cell);
-            }
             if (peer.Node) {
                 peer.Node->DetachTabletCell(cell);
             }
+            if (peer.Address) {
+                RemoveFromAddressToCellMap(*peer.Address, cell);
+            }
         }
-
-        auto hiveManager = Bootstrap_->GetHiveManager();
-        hiveManager->RemoveMailbox(cell->GetId());
 
         AbortPrerequisiteTransaction(cell);
     }
@@ -831,10 +831,12 @@ private:
             const auto& cellId = cell->GetId();
             ToProto(protoInfo->mutable_cell_id(), cell->GetId());
             protoInfo->set_options(ConvertToYsonString(cell->GetOptions()).Data());
+            ToProto(protoInfo->mutable_prerequisite_transaction_id(), cell->GetPrerequisiteTransaction()->GetId());
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v)",
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v, PrerequisiteTransactionId: %v)",
                 node->GetAddress(),
-                cellId);
+                cellId,
+                cell->GetPrerequisiteTransaction()->GetId());
         };
 
         auto requestConfigureSlot = [&] (TTabletCell* cell) {
@@ -848,8 +850,7 @@ private:
             protoInfo->set_config_version(cell->GetConfigVersion());
             protoInfo->set_config(ConvertToYsonString(cell->GetConfig()).Data());
             protoInfo->set_peer_id(cell->GetPeerId(node));
-            ToProto(protoInfo->mutable_prerequisite_transaction_id(), GetObjectId(cell->GetPrerequisiteTransaction()));
-
+            
             LOG_INFO_UNLESS(IsRecovery(), "Tablet slot configuration update requested (Address: %v, CellId: %v, Version: %v)",
                 node->GetAddress(),
                 cellId,
@@ -875,9 +876,10 @@ private:
 
         // Our expectations.
         yhash_set<TTabletCell*> expectedCells;
-        for (auto& slot : node->TabletSlots()) {
-            if (IsObjectAlive(slot.Cell)) {
-                YCHECK(expectedCells.insert(slot.Cell).second);
+        for (const auto& slot : node->TabletSlots()) {
+            auto* cell = slot.Cell;
+            if (IsObjectAlive(cell)) {
+                YCHECK(expectedCells.insert(cell).second);
             }
         }
 
@@ -980,7 +982,7 @@ private:
             auto range = AddressToCell_.equal_range(address);
             for (auto it = range.first; it != range.second; ++it) {
                 auto* cell = it->second;
-                if (actualCells.find(cell) == actualCells.end()) {
+                if (IsObjectAlive(cell) && actualCells.find(cell) == actualCells.end()) {
                     requestCreateSlot(cell);
                     --availableSlots;
                 }
@@ -1009,7 +1011,10 @@ private:
 
         yhash_set<TTabletCell*> missingCells;
         for (const auto& pair : TabletCellMap_) {
-            YCHECK(missingCells.insert(pair.second).second);
+            auto* cell = pair.second;
+            if (IsObjectAlive(cell)) {
+               YCHECK(missingCells.insert(pair.second).second);
+            }
         }
             
         for (const auto& cellInfo : request.hive_cells()) {
@@ -1018,7 +1023,7 @@ private:
                 continue;
 
             auto* cell = FindTabletCell(cellId);
-            if (cell) {
+            if (IsObjectAlive(cell)) {
                 YCHECK(missingCells.erase(cell) == 1);
                 if (cellInfo.config_version() < cell->GetConfigVersion()) {
                     requestReconfigureCell(cell);
@@ -1049,7 +1054,6 @@ private:
             }
         }  
     }
-
 
 
     void HydraAssignPeers(const TReqAssignPeers& request)
@@ -1117,8 +1121,8 @@ private:
 
         RemoveFromAddressToCellMap(address, cell);
         cell->RevokePeer(peerId);
+        
         AbortPrerequisiteTransaction(cell);
-        ReconfigureCell(cell);
     }
 
     void HydraOnTabletMounted(const TRspMountTablet& response)
@@ -1435,6 +1439,20 @@ private:
         LOG_INFO_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
             cell->GetId(),
             transaction->GetId());
+
+        if (IsObjectAlive(cell)) {
+            for (auto peerId = 0; peerId < cell->Peers().size(); ++peerId) {
+                const auto& peer = cell->Peers()[peerId];
+                if (peer.Node) {
+                    cell->DetachPeer(peer.Node);
+                }
+                if (peer.Address) {
+                    RemoveFromAddressToCellMap(*peer.Address, cell);
+                    cell->RevokePeer(peerId);
+                }
+            }
+            ReconfigureCell(cell);
+        }
     }
 
 
