@@ -297,7 +297,7 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("max_partition_count", MaxPartitionCount)
-            .Default(2000)
+            .Default(10000)
             .GreaterThan(0);
 
         RegisterParameter("max_file_size", MaxFileSize)
