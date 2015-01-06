@@ -350,6 +350,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
             info->set_peer_state(static_cast<int>(slot->GetControlState()));
             info->set_peer_id(slot->GetPeerId());
             info->set_config_version(slot->GetCellConfigVersion());
+            ToProto(info->mutable_prerequisite_transaction_id(), slot->GetPrerequisiteTransactionId());
         } else {
             info->set_peer_state(static_cast<int>(NHydra::EPeerState::None));
         }

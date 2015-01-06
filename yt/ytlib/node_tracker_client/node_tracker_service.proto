@@ -60,6 +60,7 @@ message TTabletSlotInfo
     optional NYT.NProto.TGuid cell_id = 2;
     optional int32 peer_id = 3;
     optional int32 config_version = 4;
+    optional NYT.NProto.TGuid prerequisite_transaction_id = 5;
 }
 
 message THiveCellInfo

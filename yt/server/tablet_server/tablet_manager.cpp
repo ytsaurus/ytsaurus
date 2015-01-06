@@ -720,7 +720,6 @@ private:
 
     TPeriodicExecutorPtr CleanupExecutor_;
 
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     
@@ -817,7 +816,7 @@ private:
 
     void OnIncrementalHeartbeat(
         TNode* node,
-        const NNodeTrackerServer::NProto::TReqIncrementalHeartbeat& request,
+        const TReqIncrementalHeartbeat& request,
         TRspIncrementalHeartbeat* response)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -918,6 +917,17 @@ private:
                 LOG_INFO_UNLESS(IsRecovery(), "Invalid peer id for tablet cell: %v instead of %v (Address: %v, CellId: %v)",
                     slotInfo.peer_id(),
                     peerId,
+                    address,
+                    cellId);
+                requestRemoveSlot(cellId);
+                continue;
+            }
+
+            auto prerequisiteTransactionId = FromProto<TTransactionId>(slotInfo.prerequisite_transaction_id());
+            if (prerequisiteTransactionId != cell->GetPrerequisiteTransaction()->GetId())  {
+                LOG_INFO_UNLESS(IsRecovery(), "Invalid prerequisite transaction id for tablet cell: %v instead of %v (Address: %v, CellId: %v)",
+                    prerequisiteTransactionId,
+                    cell->GetPrerequisiteTransaction()->GetId(),
                     address,
                     cellId);
                 requestRemoveSlot(cellId);
