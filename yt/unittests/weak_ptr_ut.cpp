@@ -5,8 +5,9 @@
 #include <core/misc/weak_ptr.h>
 #include <core/misc/format.h>
 
+#include <core/concurrency/event_count.h>
+
 #include <util/system/thread.h>
-#include <util/system/event.h>
 
 #include <array>
 
@@ -26,14 +27,14 @@ using ::testing::StrictMock;
 static int ConstructorShadowState = 0;
 static int DestructorShadowState = 0;
 
-std::unique_ptr<Event> DeathEvent;
+std::unique_ptr<NConcurrency::TEvent> DeathEvent;
 
 void ResetShadowState()
 {
     ConstructorShadowState = 0;
     DestructorShadowState = 0;
 
-    DeathEvent.reset(new Event());
+    DeathEvent.reset(new NConcurrency::TEvent());
 }
 
 class TIntricateObject
@@ -376,7 +377,7 @@ TEST_F(TWeakPtrTest, AcquisionOfSlowlyDyingObject)
     EXPECT_THAT(*objectPtr, HasRefCounts(0, 2));
 
     // Finalize object destruction.
-    DeathEvent->Signal();
+    DeathEvent->NotifyAll();
     thread.Join();
 
     ASSERT_EQ(1, ConstructorShadowState);
