@@ -82,7 +82,7 @@ public:
         }
 
         SampleQueue.Enqueue(sample);
-        EventCount.Notify();
+        EventCount.NotifyOne();
     }
 
 

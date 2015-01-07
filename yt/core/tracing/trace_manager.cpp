@@ -244,7 +244,7 @@ private:
         }
 
         EventQueue_.Enqueue(event);
-        EventCount_.Notify();
+        EventCount_.NotifyOne();
     }
 
 

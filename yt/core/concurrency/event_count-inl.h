@@ -27,7 +27,7 @@ inline TEventCount::TEventCount()
     : Value_(0)
 { }
 
-inline void TEventCount::Notify()
+inline void TEventCount::NotifyOne()
 {
     DoNotify(1);
 }
@@ -124,6 +124,29 @@ void TEventCount::Await(TCondition condition)
         CancelWait();
         throw;
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TEvent::TEvent()
+    : Set_(false)
+{ }
+
+inline void TEvent::NotifyOne()
+{
+    Set_ = true;
+    EventCount_.NotifyOne();
+}
+
+inline void TEvent::NotifyAll()
+{
+    Set_ = true;
+    EventCount_.NotifyAll();
+}
+
+inline void TEvent::Wait()
+{
+    EventCount_.Await([=] () { return Set_.load(); });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

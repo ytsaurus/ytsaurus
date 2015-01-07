@@ -6,10 +6,9 @@
 #include "bind.h"
 
 #include <core/concurrency/delayed_executor.h>
+#include <core/concurrency/event_count.h>
 
 #include <core/misc/small_vector.h>
-
-#include <util/system/event.h>
 
 #include <atomic>
 
@@ -56,7 +55,7 @@ private:
     std::atomic<bool> Canceled_;
     std::atomic<bool> Set_;
     TNullable<TErrorOr<T>> Value_;
-    mutable std::unique_ptr<Event> ReadyEvent_;
+    mutable std::unique_ptr<NConcurrency::TEvent> ReadyEvent_;
     TResultHandlers ResultHandlers_;
     TCancelHandlers CancelHandlers_;
 
@@ -66,6 +65,7 @@ private:
     {
         // Calling subscribers may release the last reference to this.
         auto this_ = MakeStrong(this);
+        NConcurrency::TEvent* readyEvent = nullptr;
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
@@ -78,15 +78,17 @@ private:
             }
             Value_.Assign(std::forward<U>(value));
             Set_ = true;
+            readyEvent = ReadyEvent_.get();
         }
 
-        if (ReadyEvent_) {
-            ReadyEvent_->Signal();
+        if (readyEvent) {
+            readyEvent->NotifyAll();
         }
 
         for (const auto& handler : ResultHandlers_) {
             handler.Run(*Value_);
         }
+
         ResultHandlers_.clear();
         CancelHandlers_.clear();
 
@@ -183,7 +185,7 @@ public:
                 return *Value_;
             }
             if (!ReadyEvent_) {
-                ReadyEvent_.reset(new Event());
+                ReadyEvent_.reset(new NConcurrency::TEvent());
             }
         }
 
@@ -283,6 +285,7 @@ private:
         for (auto& handler : CancelHandlers_) {
             handler.Run();
         }
+
         CancelHandlers_.clear();
 
         return true;

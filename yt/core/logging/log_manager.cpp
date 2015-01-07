@@ -244,7 +244,7 @@ public:
         if (LoggingThread_->IsRunning()) {
             auto config = TLogConfig::CreateFromNode(node, path);
             ConfigsToUpdate_.Enqueue(config);
-            EventCount_.Notify();
+            EventCount_.NotifyOne();
         }
     }
 
@@ -311,7 +311,7 @@ public:
                     EventQueue_->IsRunning() &&
                     TInstant::Now() - now < Config_->ShutdownGraceTimeout)
                 {
-                    EventCount_.Notify();
+                    EventCount_.NotifyOne();
                     SchedYield();
                 }
             }
@@ -344,7 +344,7 @@ public:
         int backlogSize = LoggingProfiler.Increment(BacklogCounter_);
         LoggingProfiler.Increment(EnqueueCounter_);
         LogEventQueue_.Enqueue(std::move(event));
-        EventCount_.Notify();
+        EventCount_.NotifyOne();
 
         if (!Suspended_ && backlogSize == Config_->HighBacklogWatermark) {
             LOG_WARNING("Backlog size has exceeded high watermark %v, logging suspended",

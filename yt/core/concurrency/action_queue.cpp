@@ -50,13 +50,13 @@ public:
         bool enableLogging,
         bool enableProfiling)
         : Queue_(New<TInvokerQueue>(
-            &EventCount_,
+            &CallbackEventCount_,
             enableProfiling ? GetThreadTagIds(threadName) : NProfiling::EmptyTagIds,
             enableLogging,
             enableProfiling))
         , Thread_(New<TSingleQueueSchedulerThread>(
             Queue_,
-            &EventCount_,
+            &CallbackEventCount_,
             threadName,
             enableProfiling ? GetThreadTagIds(threadName) : NProfiling::EmptyTagIds,
             enableLogging,
@@ -83,7 +83,7 @@ public:
     }
 
 private:
-    TEventCount EventCount_;
+    TEventCount CallbackEventCount_;
     TInvokerQueuePtr Queue_;
     TSingleQueueSchedulerThreadPtr Thread_;
 
@@ -133,19 +133,18 @@ public:
         const Stroka& threadName,
         const std::vector<Stroka>& bucketNames)
         : TSchedulerThread(
-            &EventCount,
+            &CallbackEventCount_,
             threadName,
             GetThreadTagIds(threadName),
             true,
             true)
         , Buckets_(bucketNames.size())
-        , CurrentBucket_(nullptr)
     {
         Start();
         for (int index = 0; index < static_cast<int>(bucketNames.size()); ++index) {
             auto& queue = Buckets_[index].Queue;
             queue = New<TInvokerQueue>(
-                &EventCount,
+                &CallbackEventCount_,
                 GetBucketTagIds(threadName, bucketNames[index]),
                 true,
                 true);
@@ -173,23 +172,19 @@ public:
     }
 
 private:
-    TEventCount EventCount;
+    TEventCount CallbackEventCount_;
 
     struct TBucket
     {
-        TBucket()
-            : ExcessTime(0)
-        { }
-
         TInvokerQueuePtr Queue;
-        TCpuDuration ExcessTime;
+        TCpuDuration ExcessTime = 0;
     };
 
     std::vector<TBucket> Buckets_;
     TCpuInstant StartInstant_;
 
     TEnqueuedAction CurrentCallback_;
-    TBucket* CurrentBucket_;
+    TBucket* CurrentBucket_ = nullptr;
 
 
     TBucket* GetStarvingBucket()
@@ -269,7 +264,7 @@ class TThreadPool::TImpl
 public:
     TImpl(int threadCount, const Stroka& threadNamePrefix)
         : Queue_(New<TInvokerQueue>(
-            &EventCount_,
+            &CallbackEventCount_,
             GetThreadTagIds(threadNamePrefix),
             true,
             true))
@@ -277,7 +272,7 @@ public:
         for (int i = 0; i < threadCount; ++i) {
             auto thread = New<TSingleQueueSchedulerThread>(
                 Queue_,
-                &EventCount_,
+                &CallbackEventCount_,
                 Format("%v:%v", threadNamePrefix, i),
                 GetThreadTagIds(threadNamePrefix),
                 true,
@@ -306,7 +301,7 @@ public:
     }
 
 private:
-    TEventCount EventCount_;
+    TEventCount CallbackEventCount_;
     TInvokerQueuePtr Queue_;
     std::vector<TSchedulerThreadPtr> Threads_;
 

@@ -27,11 +27,11 @@ static NLog::TLogger Logger("ActionQueue");
 ///////////////////////////////////////////////////////////////////////////////
 
 TInvokerQueue::TInvokerQueue(
-    TEventCount* eventCount,
+    TEventCount* callbackEventCount,
     const NProfiling::TTagIdList& tagIds,
     bool enableLogging,
     bool enableProfiling)
-    : EventCount(eventCount)
+    : CallbackEventCount(callbackEventCount)
     , EnableLogging(enableLogging)
     // XXX(babenko): VS2013 Nov CTP does not have a proper ctor :(
     // , Running(true)
@@ -77,7 +77,7 @@ void TInvokerQueue::Invoke(const TClosure& callback)
     action.Callback = std::move(callback);
     Queue.Enqueue(action);
 
-    EventCount->Notify();
+    CallbackEventCount->NotifyOne();
 }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
@@ -110,7 +110,7 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
         return EBeginExecuteResult::QueueEmpty;
     }
 
-    EventCount->CancelWait();
+    CallbackEventCount->CancelWait();
 
     Profiler.Increment(DequeueCounter);
 
@@ -164,12 +164,12 @@ bool TInvokerQueue::IsEmpty() const
 ///////////////////////////////////////////////////////////////////////////////
 
 TSchedulerThread::TSchedulerThread(
-    TEventCount* eventCount,
+    TEventCount* callbackEventCount,
     const Stroka& threadName,
     const NProfiling::TTagIdList& tagIds,
     bool enableLogging,
     bool enableProfiling)
-    : EventCount(eventCount)
+    : CallbackEventCount(callbackEventCount)
     , ThreadName(threadName)
     , EnableLogging(enableLogging)
     , Profiler("/action_queue", tagIds)
@@ -191,14 +191,12 @@ void TSchedulerThread::Start()
     LOG_DEBUG_IF(EnableLogging, "Starting thread (Name: %v)",
         ThreadName);
 
-    Started = NewPromise<void>();
-
     Thread.Start();
     ThreadId = TThreadId(Thread.SystemId());
 
     OnStart();
 
-    Started.ToFuture().Get();
+    ThreadStartedEvent.Wait();
 }
 
 void TSchedulerThread::Shutdown()
@@ -212,7 +210,7 @@ void TSchedulerThread::Shutdown()
 
     Epoch.fetch_add(0x1, std::memory_order_relaxed);
 
-    EventCount->NotifyAll();
+    CallbackEventCount->NotifyAll();
 
     OnShutdown();
 
@@ -241,7 +239,7 @@ void TSchedulerThread::ThreadMain()
     try {
         OnThreadStart();
 
-        Started.Set();
+        ThreadStartedEvent.NotifyAll();
 
         while (IsRunning()) {
             ThreadMainStep();
@@ -360,7 +358,7 @@ void TSchedulerThread::FiberMain(unsigned int spawnedEpoch)
 
 bool TSchedulerThread::FiberMainStep(unsigned int spawnedEpoch)
 {
-    auto cookie = EventCount->PrepareWait();
+    auto cookie = CallbackEventCount->PrepareWait();
 
     if (!IsRunning()) {
         return false;
@@ -379,7 +377,7 @@ bool TSchedulerThread::FiberMainStep(unsigned int spawnedEpoch)
     }
 
     if (result == EBeginExecuteResult::QueueEmpty) {
-        EventCount->Wait(cookie);
+        CallbackEventCount->Wait(cookie);
         return true;
     }
 
@@ -609,13 +607,13 @@ void TSchedulerThread::OnThreadShutdown()
 
 TSingleQueueSchedulerThread::TSingleQueueSchedulerThread(
     TInvokerQueuePtr queue,
-    TEventCount* eventCount,
+    TEventCount* callbackEventCount,
     const Stroka& threadName,
     const NProfiling::TTagIdList& tagIds,
     bool enableLogging,
     bool enableProfiling)
     : TSchedulerThread(
-        eventCount,
+        callbackEventCount,
         threadName,
         tagIds,
         enableLogging,
@@ -676,7 +674,7 @@ TEVSchedulerThread::TEVSchedulerThread(
     const Stroka& threadName,
     bool enableLogging)
     : TSchedulerThread(
-        &EventCount,
+        &CallbackEventCount,
         threadName,
         NProfiling::EmptyTagIds,
         enableLogging,
@@ -716,7 +714,7 @@ EBeginExecuteResult TEVSchedulerThread::BeginExecute()
         }
     }
 
-    // NB: Never return QueueEmpty to prevent waiting on EventCount.
+    // NB: Never return QueueEmpty to prevent waiting on CallbackEventCount.
     return EBeginExecuteResult::Success;
 }
 
