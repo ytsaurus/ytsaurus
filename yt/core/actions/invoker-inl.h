@@ -5,14 +5,6 @@
 
 #include "bind.h"
 
-#include <core/concurrency/delayed_executor.h>
-
-#include <core/misc/small_vector.h>
-
-#include <util/system/event.h>
-
-#include <atomic>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
