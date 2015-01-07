@@ -10,6 +10,8 @@
 
 #include <core/misc/singleton.h>
 
+#include <core/concurrency/event_count.h>
+
 namespace NYT {
 namespace NBus {
 namespace {
@@ -87,29 +89,30 @@ class TChecking42BusHandler
     : public IMessageHandler
 {
 public:
-    TChecking42BusHandler(int numRepliesWaiting)
+    explicit TChecking42BusHandler(int numRepliesWaiting)
         : NumRepliesWaiting(numRepliesWaiting)
     { }
 
-    Event Event_;
-
-    virtual void OnMessage(
-        TSharedRefArray message,
-        IBusPtr replyBus)
+    void WaitUntilDone()
     {
-        UNUSED(replyBus);
-
-        Stroka value = Deserialize(message);
-        EXPECT_EQ("42", value);
-
-        --NumRepliesWaiting;
-        if (NumRepliesWaiting == 0) {
-            Event_.Signal();
-        }
+        Event_.Wait();
     }
 
 private:
-    int NumRepliesWaiting;
+    std::atomic<int> NumRepliesWaiting;
+    NConcurrency::TEvent Event_;
+
+
+    virtual void OnMessage(TSharedRefArray message, IBusPtr /*replyBus*/)
+    {
+        auto value = Deserialize(message);
+        EXPECT_EQ("42", value);
+
+        if (--NumRepliesWaiting == 0) {
+            Event_.NotifyAll();
+        }
+    }
+
 };
 
 void TestReplies(int numRequests, int numParts, EDeliveryTrackingLevel level = EDeliveryTrackingLevel::Full)
@@ -133,7 +136,7 @@ void TestReplies(int numRequests, int numParts, EDeliveryTrackingLevel level = E
         EXPECT_TRUE(error.IsOK());
     }
 
-    EXPECT_TRUE(handler->Event_.WaitT(TDuration::Seconds(2)));
+    handler->WaitUntilDone();
 
     server->Stop();
 }
