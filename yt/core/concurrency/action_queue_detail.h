@@ -62,7 +62,7 @@ class TInvokerQueue
 {
 public:
     TInvokerQueue(
-        TEventCount* eventCount,
+        TEventCount* callbackEventCount,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
         bool enableProfiling);
@@ -87,10 +87,10 @@ public:
     bool IsRunning() const;
 
 private:
-    TEventCount* EventCount;
-    NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
+    TEventCount* CallbackEventCount;
     bool EnableLogging;
 
+    NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
     std::atomic<bool> Running;
 
     NProfiling::TProfiler Profiler;
@@ -133,7 +133,7 @@ public:
 
 protected:
     TSchedulerThread(
-        TEventCount* eventCount,
+        TEventCount* callbackEventCount,
         const Stroka& threadName,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
@@ -159,7 +159,7 @@ protected:
 
     void OnContextSwitch();
 
-    TEventCount* EventCount;
+    TEventCount* CallbackEventCount;
     Stroka ThreadName;
     bool EnableLogging;
 
@@ -168,7 +168,7 @@ protected:
     // If (Epoch & 0x1) == 0x1 then the thread is stopping.
     std::atomic<ui32> Epoch;
 
-    TPromise<void> Started;
+    TEvent ThreadStartedEvent;
 
     TThreadId ThreadId = InvalidThreadId;
     TThread Thread;
@@ -198,7 +198,7 @@ class TSingleQueueSchedulerThread
 public:
     TSingleQueueSchedulerThread(
         TInvokerQueuePtr queue,
-        TEventCount* eventCount,
+        TEventCount* callbackEventCount,
         const Stroka& threadName,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
@@ -249,7 +249,7 @@ protected:
 
     };
 
-    TEventCount EventCount; // fake
+    TEventCount CallbackEventCount; // fake
 
     ev::dynamic_loop EventLoop;
     ev::async CallbackWatcher;

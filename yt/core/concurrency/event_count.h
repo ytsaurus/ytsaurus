@@ -30,7 +30,7 @@ namespace NConcurrency {
  * algorithm into a blocking one, by isolating the blocking logic. You call
  * PrepareWait() before checking your condition and then either CancelWait()
  * or Wait() depending on whether the condition was true. When another
- * thread makes the condition true, it must call Notify() / NotifyAll() just
+ * thread makes the condition true, it must call NotifyOne() / NotifyAll() just
  * like a regular condition variable.
  *
  * Let "<" denote the happens-before relationship.
@@ -87,7 +87,7 @@ public:
         ui32 Epoch_;
     };
 
-    void Notify();
+    void NotifyOne();
     void NotifyAll();
 
     TCookie PrepareWait();
@@ -118,6 +118,26 @@ private:
     TCondVar ConditionVariable_;
     TMutex Mutex_;
 #endif
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A single-shot non-resettable event implemented on top of TEventCount.
+class TEvent
+    : private TNonCopyable
+{
+public:
+    TEvent();
+
+    void NotifyOne();
+    void NotifyAll();
+
+    void Wait();
+
+private:
+    std::atomic<bool> Set_;
+    TEventCount EventCount_;
 
 };
 
