@@ -46,6 +46,8 @@ set( HDRS
   ${BASE}/fls.h
   ${BASE}/fls-inl.h
   ${BASE}/fork_aware_spinlock.h
+  ${BASE}/nonblocking_queue.h
+  ${BASE}/nonblocking_queue-inl.h
 )
 
 list(APPEND YT_SOURCE_FILES
