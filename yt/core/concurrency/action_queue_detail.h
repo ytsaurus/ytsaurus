@@ -15,7 +15,6 @@
 #include <core/ypath/public.h>
 
 #include <util/system/thread.h>
-#include <util/system/event.h>
 
 #include <util/thread/lfqueue.h>
 
