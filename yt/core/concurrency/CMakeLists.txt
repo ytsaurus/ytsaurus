@@ -36,6 +36,7 @@ set( HDRS
   ${BASE}/throughput_throttler.h
   ${BASE}/thread_affinity.h
   ${BASE}/event_count.h
+  ${BASE}/event_count-inl.h
   ${BASE}/rw_spinlock.h
   ${BASE}/rw_spinlock-inl.h
   ${BASE}/coroutine.h
