@@ -8,8 +8,6 @@
 #include <core/bus/tcp_server.h>
 #include <core/bus/tcp_client.h>
 
-#include <core/misc/singleton.h>
-
 #include <core/concurrency/event_count.h>
 
 namespace NYT {
