@@ -26,9 +26,8 @@ static TLazyIntrusivePtr<TActionQueue> WatchdogQueue(TActionQueue::CreateFactory
 ////////////////////////////////////////////////////////////////////////////////
 
 TSnapshotBuilderBase::TSnapshotBuilderBase()
-{
-    ChildPid_ = -1;
-}
+    : ChildPid_(-1)
+{ }
 
 TSnapshotBuilderBase::~TSnapshotBuilderBase()
 {
@@ -37,10 +36,13 @@ TSnapshotBuilderBase::~TSnapshotBuilderBase()
 
 TFuture<void> TSnapshotBuilderBase::Run()
 {
+#ifndef _unix_
+    THROW_ERROR_EXCEPTION("Building snapshots is not supported on this platform");
+#endif
+
     YCHECK(ChildPid_ < 0);
 
     try {
-#ifdef _unix_
         LOG_INFO("Going to fork");
 
         ChildPid_ = fork();
@@ -56,11 +58,6 @@ TFuture<void> TSnapshotBuilderBase::Run()
 
         DoRunParent();
         Result_.OnCanceled(BIND(&TSnapshotBuilderBase::OnCanceled, MakeWeak(this)));
-#else
-        RunParent();
-        RunChild();
-        Result_.Set(TError());
-#endif
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error building snapshot");
         Result_.Set(ex);
