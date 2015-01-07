@@ -13,6 +13,8 @@
 
 #include <core/concurrency/scheduler.h>
 
+#include <core/actions/invoker_util.h>
+
 #include <core/ytree/serialize.h>
 
 #include <core/logging/log.h>
@@ -117,7 +119,6 @@ public:
     virtual void Start() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(!Slot);
 
         if (JobState != EJobState::Waiting)
             return;
@@ -125,6 +126,7 @@ public:
         StartTime = TInstant::Now();
         JobState = EJobState::Running;
 
+        YCHECK(!Slot);
         auto slotManager = Bootstrap->GetSlotManager();
         Slot = slotManager->AcquireSlot();
 
@@ -145,7 +147,8 @@ public:
             RunFuture.Cancel();
         }
 
-        Slot->GetInvoker()->Invoke(BIND(&TJob::DoAbort, MakeStrong(this), error));
+        auto invoker = Slot ? Slot->GetInvoker() : GetSyncInvoker();
+        invoker->Invoke(BIND(&TJob::DoAbort, MakeStrong(this), error));
     }
 
     virtual const TJobId& GetId() const override
