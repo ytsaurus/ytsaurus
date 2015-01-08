@@ -49,6 +49,8 @@ Stroka GetParentFor(const Stroka& type)
 #endif
 }
 
+#ifdef _linux_
+
 std::vector<Stroka> ReadAllValues(const Stroka& fileName)
 {
     auto raw = TFileInput(fileName).ReadAll();
@@ -58,8 +60,6 @@ std::vector<Stroka> ReadAllValues(const Stroka& fileName)
     Split(raw.data(), " \n", values);
     return std::vector<Stroka>(values.begin(), values.end());
 }
-
-#ifdef _linux_
 
 TDuration FromJiffies(i64 jiffies)
 {
