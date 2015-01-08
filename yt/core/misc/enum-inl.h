@@ -210,10 +210,10 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 #define ENUM__RELATIONAL_OPERATOR(op) \
-    template<class T, bool = typename TEnumTraits<T>::IsEnum && !TEnumTraits<T>::IsBitEnum> \
+    template <class T, class = typename std::enable_if<TEnumTraits<T>::IsEnum && !TEnumTraits<T>::IsBitEnum>::type> \
     inline constexpr bool operator op (T lhs, T rhs) \
     { \
-        using TUnderlying = TEnumTraits<T>::TUnderlying; \
+        using TUnderlying = typename TEnumTraits<T>::TUnderlying; \
         return static_cast<TUnderlying>(lhs) op static_cast<TUnderlying>(rhs); \
     }
 
@@ -226,50 +226,54 @@ ENUM__RELATIONAL_OPERATOR(!= )
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define ENUM__BITWISE_OPERATORS(name) \
-    ENUM__BINARY_BITWISE_OPERATOR(name, &=, & ) \
-    ENUM__BINARY_BITWISE_OPERATOR(name, |=, | ) \
-    ENUM__BINARY_BITWISE_OPERATOR(name, ^=, ^ ) \
-    \
-    ENUM__UNARY_BITWISE_OPERATOR(name, ~ ) \
-    \
-    ENUM__BIT_SHIFT_OPERATOR(name, <<=, << ) \
-    ENUM__BIT_SHIFT_OPERATOR(name, >>=, >> )
-
-#define ENUM__BINARY_BITWISE_OPERATOR(name, assignOp, op) \
-    inline constexpr name operator op (name lhs, name rhs) \
+#define ENUM__BINARY_BITWISE_OPERATOR(assignOp, op) \
+    template <class T, class = typename std::enable_if<TEnumTraits<T>::IsEnum && TEnumTraits<T>::IsBitEnum>::type> \
+    inline constexpr T operator op (T lhs, T rhs) \
     { \
-        using TUnderlying = TEnumTraits<name>::TUnderlying; \
-        return name(static_cast<TUnderlying>(lhs) op static_cast<TUnderlying>(rhs)); \
+        using TUnderlying = typename TEnumTraits<T>::TUnderlying; \
+        return T(static_cast<TUnderlying>(lhs) op static_cast<TUnderlying>(rhs)); \
     } \
     \
-    inline name& operator assignOp (name& lhs, name rhs) \
+    template <class T, class = typename std::enable_if<TEnumTraits<T>::IsEnum && TEnumTraits<T>::IsBitEnum>::type> \
+    inline T& operator assignOp (T& lhs, T rhs) \
     { \
-        using TUnderlying = TEnumTraits<name>::TUnderlying; \
-        lhs = name(static_cast<TUnderlying>(lhs) op static_cast<TUnderlying>(rhs)); \
+        using TUnderlying = typename TEnumTraits<T>::TUnderlying; \
+        lhs = T(static_cast<TUnderlying>(lhs) op static_cast<TUnderlying>(rhs)); \
         return lhs; \
     }
 
-#define ENUM__UNARY_BITWISE_OPERATOR(name, op) \
-    inline constexpr name operator op (name value) \
+#define ENUM__UNARY_BITWISE_OPERATOR(op) \
+    template <class T, class = typename std::enable_if<TEnumTraits<T>::IsEnum && TEnumTraits<T>::IsBitEnum>::type> \
+    inline constexpr T operator op (T value) \
     { \
-        using TUnderlying = TEnumTraits<name>::TUnderlying; \
-        return name(op static_cast<TUnderlying>(value)); \
+        using TUnderlying = typename TEnumTraits<T>::TUnderlying; \
+        return T(op static_cast<TUnderlying>(value)); \
     }
 
-#define ENUM__BIT_SHIFT_OPERATOR(name, assignOp, op) \
-    inline constexpr name operator op (name lhs, size_t rhs) \
+#define ENUM__BIT_SHIFT_OPERATOR(assignOp, op) \
+    template <class T, class = typename std::enable_if<TEnumTraits<T>::IsEnum && TEnumTraits<T>::IsBitEnum>::type> \
+    inline constexpr T operator op (T lhs, size_t rhs) \
     { \
-        using TUnderlying = TEnumTraits<name>::TUnderlying; \
-        return name(static_cast<TUnderlying>(lhs) op rhs); \
+        using TUnderlying = typename TEnumTraits<T>::TUnderlying; \
+        return T(static_cast<TUnderlying>(lhs) op rhs); \
     } \
     \
-    inline name& operator assignOp (name& lhs, size_t rhs) \
+    template <class T, class = typename std::enable_if<TEnumTraits<T>::IsEnum && TEnumTraits<T>::IsBitEnum>::type> \
+    inline T& operator assignOp (T& lhs, size_t rhs) \
     { \
-        using TUnderlying = TEnumTraits<name>::TUnderlying; \
-        lhs = name(static_cast<TUnderlying>(lhs) op rhs); \
+        using TUnderlying = typename TEnumTraits<T>::TUnderlying; \
+        lhs = T(static_cast<TUnderlying>(lhs) op rhs); \
         return lhs; \
     }
+
+ENUM__BINARY_BITWISE_OPERATOR(&=, &)
+ENUM__BINARY_BITWISE_OPERATOR(|=, | )
+ENUM__BINARY_BITWISE_OPERATOR(^=, ^)
+
+ENUM__UNARY_BITWISE_OPERATOR(~) \
+
+ENUM__BIT_SHIFT_OPERATOR(<<=, << )
+ENUM__BIT_SHIFT_OPERATOR(>>=, >> )
 
 ////////////////////////////////////////////////////////////////////////////////
 
