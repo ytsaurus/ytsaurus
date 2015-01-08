@@ -41,7 +41,6 @@ TBlobChunkBase::TBlobChunkBase(
         descriptor.Id)
 {
     Info_.set_disk_space(descriptor.DiskSpace);
-
     if (meta) {
         InitializeCachedMeta(*meta);
     }
@@ -288,40 +287,28 @@ void TBlobChunkBase::AdjustReadRange(
     *blockCount = blockIndex - firstBlockIndex;
 }
 
-void TBlobChunkBase::SyncRemove()
-{
-    DoSyncRemove(GetFileName());
-}
-
-TFuture<void> TBlobChunkBase::AsyncRemove()
-{
-    // NB: Can be called from dtor, cannot capture this.
-    auto dataFileName = GetFileName();
-    auto id = Id_;
-    auto location = Location_;
-    return BIND([=] () {
-        LOG_DEBUG("Started removing blob chunk files (ChunkId: %v)",
-            id);
-
-        try {
-            DoSyncRemove(dataFileName);
-        } catch (const std::exception& ex) {
-            auto error = TError("Error removing blob chunk files") << ex;
-            LOG_ERROR(error);
-            location->Disable(error);
-        }
-
-        LOG_DEBUG("Finished removing blob chunk files (ChunkId: %v)",
-            id);
-    }).AsyncVia(location->GetWritePoolInvoker()).Run();
-}
-
-void TBlobChunkBase::DoSyncRemove(const Stroka& dataFileName)
+void TBlobChunkBase::SyncRemove(bool force)
 {
     auto readerCache = Bootstrap_->GetBlobReaderCache();
     readerCache->EvictReader(this);
 
-    RemoveChunkFiles(dataFileName);
+    if (force) {
+        FilesHolder_->Remove();
+    } else {
+        FilesHolder_->MoveToTrash();
+    }
+}
+
+TFuture<void> TBlobChunkBase::AsyncRemove()
+{
+    auto this_ = MakeStrong(this);
+    return
+        BIND([=] () {
+            UNUSED(this_);
+            SyncRemove(false);
+        })
+        .AsyncVia(Location_->GetWritePoolInvoker())
+        .Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -360,10 +347,10 @@ TCachedBlobChunk::~TCachedBlobChunk()
     if (ChunkCache_.IsExpired())
         return;
 
-    AsyncRemove();
-
-    LOG_INFO("Cached blob chunk destroyed (ChunkId: %v)",
-        Id_);
+    auto filesHolder = FilesHolder_;
+    Location_->GetWritePoolInvoker()->Invoke(BIND([filesHolder] () {
+        filesHolder->Remove();
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

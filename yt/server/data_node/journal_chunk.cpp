@@ -185,24 +185,19 @@ void TJournalChunk::UpdateCachedParams() const
     }
 }
 
-void TJournalChunk::SyncRemove()
+void TJournalChunk::SyncRemove(bool force)
 {
     if (Changelog_) {
-        LOG_DEBUG("Started closing journal chunk files (ChunkId: %v)",
-            Id_);
-        auto error = WaitFor(Changelog_->Close());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
-        LOG_DEBUG("Finished closing journal chunk files (ChunkId: %v)",
-            Id_);
+        LOG_DEBUG("Started closing journal chunk files (ChunkId: %v)", Id_);
+        WaitFor(Changelog_->Close()).ThrowOnError();
+        LOG_DEBUG("Finished closing journal chunk files (ChunkId: %v)", Id_);
         Changelog_.Reset();
     }
 
-    {
-        LOG_DEBUG("Started removing journal chunk files (ChunkId: %v)",
-            Id_);
-        RemoveChangelogFiles(GetFileName());
-        LOG_DEBUG("Finished removing journal chunk files (ChunkId: %v)",
-            Id_);
+    if (force) {
+        FilesHolder_->Remove();
+    } else {
+        FilesHolder_->MoveToTrash();
     }
 }
 

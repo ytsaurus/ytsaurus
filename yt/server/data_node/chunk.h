@@ -95,9 +95,11 @@ struct IChunk
     virtual bool IsRemoveScheduled() const = 0;
 
     //! Performs synchronous physical removal of chunk files.
-    //! For journal chunks this call bypasses multiplexed changelogs.
-    //! Only called during initialization.
-    virtual void SyncRemove() = 0;
+    //!
+    /*  For journal chunks this call bypasses multiplexed changelogs.
+     *  If #force is |true| then the files are just removed; otherwise these are move to the trash.
+     */
+    virtual void SyncRemove(bool force) = 0;
 
     //! Returns the instance cast to TJournalChunk. Fails if cast is not possible.
     TJournalChunkPtr AsJournalChunk();

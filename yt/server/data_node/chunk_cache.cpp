@@ -65,8 +65,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Chunk cache scan started");
-
         Location_ = New<TLocation>(
             ELocationType::Cache,
             "cache",
@@ -86,7 +84,7 @@ public:
             Put(chunk);
         }
 
-        LOG_INFO("Chunk cache scan completed, %v chunks found",
+        LOG_INFO("Chunk cache initialized, %v chunks total",
             GetSize());
     }
 
@@ -237,7 +235,7 @@ private:
                 chunkId,
                 seedReplicas);
 
-            auto fileName = Location_->GetChunkFileName(chunkId);
+            auto fileName = Location_->GetChunkPath(chunkId);
             auto chunkWriter = New<TFileWriter>(fileName);
 
             try {

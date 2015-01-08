@@ -19,7 +19,7 @@ public:
         TLocationPtr location,
         const TChunkDescriptor& descriptor);
 
-    virtual void SyncRemove() override;
+    virtual void SyncRemove(bool force) override;
 
     void SetActive(bool value);
     virtual bool IsActive() const override;
@@ -59,6 +59,9 @@ private:
         int firstBlockIndex,
         int blockCount,
         TPromise<std::vector<TSharedRef>> promise);
+
+    void DoRemove();
+    void DoMoveToTrash();
 
 };
 

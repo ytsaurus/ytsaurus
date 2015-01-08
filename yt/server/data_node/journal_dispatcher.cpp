@@ -18,7 +18,8 @@
 #include <server/hydra/changelog.h>
 #include <server/hydra/file_changelog_dispatcher.h>
 #include <server/hydra/lazy_changelog.h>
-#include <server/hydra/sync_file_changelog.h>
+#include <server/hydra/file_helpers.h>
+#include <server/hydra/private.h>
 
 #include <server/cell_node/bootstrap.h>
 
@@ -208,7 +209,7 @@ private:
         auto& Profiler = location->Profiler();
         PROFILE_TIMING("/journal_chunk_create_time") {
             try {
-                auto fileName = location->GetChunkFileName(chunkId);
+                auto fileName = location->GetChunkPath(chunkId);
                 changelog = ChangelogDispatcher_->CreateChangelog(
                     fileName,
                     TChangelogMeta(),
@@ -236,7 +237,7 @@ private:
         bool enableMultiplexing,
         TInsertCookie cookie)
     {
-        auto fileName = location->GetChunkFileName(chunkId);
+        auto fileName = location->GetChunkPath(chunkId);
         LOG_DEBUG("Started opening journal chunk (LocationId: %v, ChunkId: %v)",
             location->GetId(),
             chunkId);
@@ -278,16 +279,7 @@ private:
         auto location = chunk->GetLocation();
         auto& Profiler = location->Profiler();
         PROFILE_TIMING("/journal_chunk_remove_time") {
-            try {
-                chunk->SyncRemove();
-            } catch (const std::exception& ex) {
-                auto error = TError(
-                    NChunkClient::EErrorCode::IOError,
-                    "Error removing journal chunk %v",
-                    chunkId) << ex;
-                location->Disable(error);
-                THROW_ERROR error;
-            }
+            chunk->SyncRemove(false);
         }
     }
 
@@ -363,7 +355,7 @@ private:
         auto dataFileName = GetMultiplexedChangelogPath(changelogId);
         auto cleanDataFileName = dataFileName + "." + CleanExtension;
         NFS::Rename(dataFileName, cleanDataFileName);
-        NFS::Rename(dataFileName + "." + ChangelogIndexExtension, cleanDataFileName + "." + ChangelogIndexExtension);
+        NFS::Rename(dataFileName + ChangelogIndexSuffix, cleanDataFileName + ChangelogIndexSuffix);
         LOG_INFO("Multiplexed changelog %v is clean", changelogId);
     }
 

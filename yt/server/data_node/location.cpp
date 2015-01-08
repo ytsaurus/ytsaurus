@@ -34,10 +34,15 @@ using namespace NCellNode;
 using namespace NConcurrency;
 using namespace NElection;
 using namespace NObjectClient;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Others must not be able to list chunk store and chunk cache directories.
 static const int ChunkFilesPermissions = 0751;
+
+static const Stroka TrashDirectory("trash");
+static const auto TrashCheckPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,6 +71,11 @@ TLocation::TLocation(
     , MetaReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(static_cast<int>(ELocationQueue::Meta))))
     , WriteThreadPool_(New<TThreadPool>(bootstrap->GetConfig()->DataNode->WriteThreadCount, Format("Write:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
+    , TrashCheckExecutor_(New<TPeriodicExecutor>(
+        WritePoolInvoker_,
+        BIND(&TLocation::OnCheckTrash, MakeWeak(this)),
+        TrashCheckPeriod,
+        EPeriodicExecutorMode::Manual))
     , Logger(DataNodeLogger)
 {
     Logger.AddTag("Path: %v", Config_->Path);
@@ -159,6 +169,45 @@ Stroka TLocation::GetPath() const
     return Config_->Path;
 }
 
+Stroka TLocation::GetTrashPath() const
+{
+    return NFS::CombinePaths(GetPath(), TrashDirectory);
+}
+
+Stroka TLocation::GetRelativeChunkPath(const TChunkId& chunkId)
+{
+    int hashByte = chunkId.Parts32[0] & 0xff;
+    return Format("%02x/%v", hashByte, chunkId);
+}
+
+std::vector<Stroka> TLocation::GetChunkPartNames(const TChunkId& chunkId) const
+{
+    auto primaryName = ToString(chunkId);
+    switch (TypeFromId(DecodeChunkId(chunkId).Id)) {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk:
+            return {primaryName, primaryName + ChunkMetaSuffix};
+            break;
+
+        case EObjectType::JournalChunk:
+            return {primaryName, primaryName + ChangelogIndexSuffix};
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+Stroka TLocation::GetChunkPath(const TChunkId& chunkId) const
+{
+    return NFS::CombinePaths(GetPath(), GetRelativeChunkPath(chunkId));
+}
+
+Stroka TLocation::GetTrashChunkPath(const TChunkId& chunkId) const
+{
+    return NFS::CombinePaths(GetTrashPath(), GetRelativeChunkPath(chunkId));
+}
+
 void TLocation::UpdateSessionCount(int delta)
 {
     if (!IsEnabled())
@@ -183,14 +232,6 @@ void TLocation::UpdateChunkCount(int delta)
 int TLocation::GetChunkCount() const
 {
     return ChunkCount_;
-}
-
-Stroka TLocation::GetChunkFileName(const TChunkId& chunkId) const
-{
-    ui8 firstHashByte = static_cast<ui8>(chunkId.Parts32[0] & 0xff);
-    return NFS::CombinePaths(
-        GetPath(),
-        Format("%02x%v%v", firstHashByte, LOCSLASH_S, chunkId));
 }
 
 bool TLocation::IsFull() const
@@ -245,12 +286,15 @@ void TLocation::DoDisable(const TError& reason)
     SessionCount_ = 0;
     ChunkCount_ = 0;
 
+    TrashCheckExecutor_->Stop();
+
     Disabled_.Fire(reason);
 }
 
 std::vector<TChunkDescriptor> TLocation::Initialize()
 {
     std::vector<TChunkDescriptor> result;
+
     try {
         result = DoInitialize();
         Enabled_.store(true);
@@ -259,45 +303,65 @@ std::vector<TChunkDescriptor> TLocation::Initialize()
         LOG_ERROR(error);
         ScheduleDisable(error);
     }
+
+    TrashCheckExecutor_->Start();
+
     return result;
 }
 
 std::vector<TChunkDescriptor> TLocation::DoInitialize()
 {
-    auto path = GetPath();
-
-    LOG_INFO("Scanning storage location");
-
-    // Others must not be able to list chunk store and chunk cache dirs.
-    NFS::ForcePath(path, ChunkFilesPermissions);
-
     if (Config_->MinDiskSpace) {
-        i64 minSpace = Config_->MinDiskSpace.Get();
+        i64 minSpace = *Config_->MinDiskSpace;
         i64 totalSpace = GetTotalSpace();
         if (totalSpace < minSpace) {
-            THROW_ERROR_EXCEPTION("Min disk space requirement is not met: required %v, actual %v",
+            THROW_ERROR_EXCEPTION("Minimum disk space requirement is not met: required %v, actual %v",
                 minSpace,
                 totalSpace);
         }
     }
 
-    NFS::CleanTempFiles(path);
+    LOG_INFO("Scanning storage location");
+
+    NFS::ForcePath(GetPath(), ChunkFilesPermissions);
+    NFS::ForcePath(GetTrashPath(), ChunkFilesPermissions);
+    NFS::CleanTempFiles(GetPath());
+
+    // Force subdirectories.
+    for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
+        auto hashDirectory = Format("%02x", hashByte);
+        NFS::ForcePath(NFS::CombinePaths(GetPath(), hashDirectory), ChunkFilesPermissions);
+        NFS::ForcePath(NFS::CombinePaths(GetTrashPath(), hashDirectory), ChunkFilesPermissions);
+    }
 
     yhash_set<TChunkId> chunkIds;
-    auto fileNames = NFS::EnumerateFiles(path, std::numeric_limits<int>::max());
-    for (const auto& fileName : fileNames) {
-        if (fileName == CellIdFileName)
-            continue;
+    {
+        // Enumerate files under the location's directory.
+        // Note that these also include trash files but the latter are explicitly skipped.
+        auto fileNames = NFS::EnumerateFiles(GetPath(), std::numeric_limits<int>::max());
+        for (const auto& fileName : fileNames) {
+            // Skip cell_id file.
+            if (fileName == CellIdFileName)
+                continue;
 
-        TChunkId chunkId;
-        auto strippedFileName = NFS::GetFileNameWithoutExtension(fileName);
-        if (TChunkId::FromString(strippedFileName, &chunkId)) {
+            // Skip trash directory.
+            if (fileName.has_prefix(TrashDirectory + LOCSLASH_S))
+                continue;
+
+            TChunkId chunkId;
+            auto bareFileName = NFS::GetFileNameWithoutExtension(fileName);
+            if (!TChunkId::FromString(bareFileName, &chunkId)) {
+                LOG_ERROR("Unrecognized file %v in location directory", fileName);
+                continue;
+            }
+
             chunkIds.insert(chunkId);
-        } else {
-            LOG_ERROR("Unrecognized file %Qv", fileName);
         }
     }
 
+    // Construct the list of chunk descriptors.
+    // Also "repair" half-alive chunks (e.g. those having some of their essential parts missing)
+    // by moving them into trash.
     std::vector<TChunkDescriptor> descriptors;
     for (const auto& chunkId : chunkIds) {
         TNullable<TChunkDescriptor> maybeDescriptor;
@@ -305,11 +369,11 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
         switch (chunkType) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                maybeDescriptor = TryGetBlobDescriptor(chunkId);
+                maybeDescriptor = RepairBlobChunk(chunkId);
                 break;
 
             case EObjectType::JournalChunk:
-                maybeDescriptor = TryGetJournalDescriptor(chunkId);
+                maybeDescriptor = RepairJournalChunk(chunkId);
                 break;
 
             default:
@@ -318,7 +382,6 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
                     chunkId);
                 break;
         }
-
         if (maybeDescriptor) {
             descriptors.push_back(*maybeDescriptor);
         }
@@ -326,7 +389,32 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
 
     LOG_INFO("Done, %v chunks found", descriptors.size());
 
-    auto cellIdPath = NFS::CombinePaths(path, CellIdFileName);
+    LOG_INFO("Scanning storage trash");
+
+    yhash_set<TChunkId> trashChunkIds;
+    {
+        // Enumerate files under the location's trash directory.
+        // Note that some of them might have just been moved there during repair.
+        auto fileNames = NFS::EnumerateFiles(GetTrashPath(), std::numeric_limits<int>::max());
+
+        for (const auto& fileName : fileNames) {
+            TChunkId chunkId;
+            auto bareFileName = NFS::GetFileNameWithoutExtension(fileName);
+            if (!TChunkId::FromString(bareFileName, &chunkId)) {
+                LOG_ERROR("Unrecognized file %v in location trash directory", fileName);
+                continue;
+            }
+            trashChunkIds.insert(chunkId);
+        }
+
+        for (const auto& chunkId : trashChunkIds) {
+            RegisterTrashChunk(chunkId);
+        }
+    }
+
+    LOG_INFO("Done, %v trash chunks found", trashChunkIds.size());
+
+    auto cellIdPath = NFS::CombinePaths(GetPath(), CellIdFileName);
     if (NFS::Exists(cellIdPath)) {
         TFileInput cellIdFile(cellIdPath);
         auto cellIdString = cellIdFile.ReadAll();
@@ -347,11 +435,6 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
         cellIdFile.Write(ToString(Bootstrap_->GetCellId()));
     }
 
-    // Force subdirectories.
-    for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
-        NFS::ForcePath(NFS::CombinePaths(GetPath(), Format("%02x", hashByte)), ChunkFilesPermissions);
-    }
-
     // Initialize and start health checker.
     HealthChecker_ = New<TDiskHealthChecker>(
         Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
@@ -359,8 +442,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
         GetWritePoolInvoker());
 
     // Run first health check before initialization is complete to sort out read-only drives.
-    auto error = HealthChecker_->RunCheck().Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    HealthChecker_->RunCheck().Get().ThrowOnError();
 
     HealthChecker_->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
     HealthChecker_->Start();
@@ -368,69 +450,82 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
     return descriptors;
 }
 
-TNullable<TChunkDescriptor> TLocation::TryGetBlobDescriptor(const TChunkId& chunkId)
+TNullable<TChunkDescriptor> TLocation::RepairBlobChunk(const TChunkId& chunkId)
 {
-    auto fileName = GetChunkFileName(chunkId);
+    auto fileName = GetChunkPath(chunkId);
+    auto trashFileName = GetTrashChunkPath(chunkId);
+
     auto dataFileName = fileName;
     auto metaFileName = fileName + ChunkMetaSuffix;
+
+    auto trashDataFileName = trashFileName;
+    auto trashMetaFileName = trashFileName + ChunkMetaSuffix;
 
     bool hasData = NFS::Exists(dataFileName);
     bool hasMeta = NFS::Exists(metaFileName);
 
     if (hasMeta && hasData) {
-        i64 dataSize = NFS::GetFileSize(dataFileName);
-        i64 metaSize = NFS::GetFileSize(metaFileName);
-        if (metaSize == 0) {
-            // EXT4 specific thing.
-            // See https://bugs.launchpad.net/ubuntu/+source/linux/+bug/317781
-            LOG_WARNING("Chunk meta file %Qv is empty", metaFileName);
-            NFS::Remove(dataFileName);
-            NFS::Remove(metaFileName);
-            return Null;
+        i64 dataSize = NFS::GetFileStatistics(dataFileName).Size;
+        i64 metaSize = NFS::GetFileStatistics(metaFileName).Size;
+        if (metaSize > 0) {
+            TChunkDescriptor descriptor;
+            descriptor.Id = chunkId;
+            descriptor.DiskSpace = dataSize + metaSize;
+            return descriptor;
         }
-
-        TChunkDescriptor descriptor;
-        descriptor.Id = chunkId;
-        descriptor.DiskSpace = dataSize + metaSize;
-        return descriptor;
-    }  if (!hasMeta && hasData) {
-        LOG_WARNING("Missing meta file, removing data file %v", dataFileName);
+        // EXT4 specific thing.
+        // See https://bugs.launchpad.net/ubuntu/+source/linux/+bug/317781
+        LOG_WARNING("Chunk meta file %v is empty, removing chunk files",
+            metaFileName);
         NFS::Remove(dataFileName);
-        return Null;
-    } else if (!hasData && hasMeta) {
-        LOG_WARNING("Missing data file, removing meta file %v", dataFileName);
         NFS::Remove(metaFileName);
-        return Null;
-    } else {
-        // Has nothing :)
-        return Null;
+    }  if (!hasMeta && hasData) {
+        LOG_WARNING("Chunk meta file %v is missing, moving data file %v to trash",
+            metaFileName,
+            dataFileName);
+        NFS::Replace(dataFileName, trashDataFileName);
+    } else if (!hasData && hasMeta) {
+        LOG_WARNING("Chunk data file %v is missing, moving meta file %v to trash",
+            dataFileName,
+            metaFileName);
+        NFS::Replace(metaFileName, trashMetaFileName);
     }
+    return Null;
 }
 
-TNullable<TChunkDescriptor> TLocation::TryGetJournalDescriptor(const TChunkId& chunkId)
+TNullable<TChunkDescriptor> TLocation::RepairJournalChunk(const TChunkId& chunkId)
 {
-    auto fileName = GetChunkFileName(chunkId);
-    if (!NFS::Exists(fileName)) {
-        auto indexFileName = fileName + "." + NHydra::ChangelogIndexExtension;
-        if (NFS::Exists(indexFileName)) {
-            LOG_WARNING("Missing data file, removing index file %v", indexFileName);
-            NFS::Remove(indexFileName);
-        }
-        return Null;
+    auto fileName = GetChunkPath(chunkId);
+    auto trashFileName = GetTrashChunkPath(chunkId);
+
+    auto dataFileName = fileName;
+    auto indexFileName = fileName + ChangelogIndexSuffix;
+
+    auto trashDataFileName = trashFileName;
+    auto trashIndexFileName = trashFileName + ChangelogIndexSuffix;
+
+    bool hasData = NFS::Exists(dataFileName);
+    bool hasIndex = NFS::Exists(indexFileName);
+
+    if (hasData) {
+        auto dispatcher = Bootstrap_->GetJournalDispatcher();
+        // NB: This also creates the (possibly missing) index file.
+        auto changelog = dispatcher->OpenChangelog(this, chunkId, false)
+            .Get()
+            .ValueOrThrow();
+        TChunkDescriptor descriptor;
+        descriptor.Id = chunkId;
+        descriptor.DiskSpace = changelog->GetDataSize();
+        descriptor.Sealed = changelog->IsSealed();
+        return descriptor;
+    } else if (!hasData && hasIndex) {
+        LOG_WARNING("Journal data file %v is missing, moving index file %v to trash",
+            dataFileName,
+            indexFileName);
+        NFS::Replace(indexFileName, trashIndexFileName);
     }
 
-    auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    auto asyncChangelog = dispatcher->OpenChangelog(this, chunkId, false);
-
-    auto changelogOrError = asyncChangelog.Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
-    auto changelog = changelogOrError.Value();
-
-    TChunkDescriptor descriptor;
-    descriptor.Id = chunkId;
-    descriptor.DiskSpace = changelog->GetDataSize();
-    descriptor.Sealed = changelog->IsSealed();
-    return descriptor;
+    return Null;
 }
 
 void TLocation::OnHealthCheckFailed(const TError& error)
@@ -445,6 +540,96 @@ void TLocation::OnHealthCheckFailed(const TError& error)
         default:
             YUNREACHABLE();
     }
+}
+
+void TLocation::RegisterTrashChunk(const TChunkId& chunkId)
+{
+    auto timestamp = TInstant::Zero();
+    i64 diskSpace = 0;
+    auto partNames = GetChunkPartNames(chunkId);
+    for (const auto& name : partNames) {
+        auto directory = NFS::GetDirectoryName(GetTrashChunkPath(chunkId));
+        auto fileName = NFS::CombinePaths(directory, name);
+        auto statistics = NFS::GetFileStatistics(fileName);
+        timestamp = std::max(timestamp, statistics.ModificationTime);
+        diskSpace += statistics.Size;
+    }
+    TrashMap_.insert(std::make_pair(timestamp, TTrashChunkEntry{chunkId, diskSpace}));
+
+    LOG_DEBUG("Trash chunk registered (ChunkId: %v, Timestamp: %v, DiskSpace: %v)",
+        chunkId,
+        timestamp,
+        diskSpace);
+}
+
+void TLocation::OnCheckTrash()
+{
+    if (!IsEnabled())
+        return;
+
+    try {
+        CheckTrashTtl();
+        CheckTrashWatermark();
+        TrashCheckExecutor_->ScheduleNext();
+    } catch (const std::exception& ex) {
+        auto error = TError(ex);
+        LOG_ERROR(error);
+        Disable(error);
+    }
+}
+
+void TLocation::CheckTrashTtl()
+{
+    auto deadline = TInstant::Now() - Config_->MaxTrashTtl;
+    while (!TrashMap_.empty()) {
+        auto it = TrashMap_.begin();
+        if (it->first >= deadline)
+            break;
+        RemoveTrashFiles(it->second);
+        TrashMap_.erase(it);
+    }
+}
+
+void TLocation::CheckTrashWatermark()
+{
+    auto availableSpace = GetAvailableSpace();
+    if (availableSpace >= Config_->TrashCleanupWatermark || TrashMap_.empty())
+        return;
+
+    LOG_INFO("Low available disk space, starting trash cleanup (AvailableSpace: %v)",
+        availableSpace);
+
+    while (true) {
+        availableSpace = GetAvailableSpace();
+        if (availableSpace >= Config_->TrashCleanupWatermark || TrashMap_.empty())
+            break;
+
+        while (!TrashMap_.empty()) {
+            auto it = TrashMap_.begin();
+            RemoveTrashFiles(it->second);
+            availableSpace += it->second.DiskSpace;
+            TrashMap_.erase(it);
+        }
+    }
+
+    LOG_INFO("Finished trash cleanup (AvailableSpace: %v)",
+        availableSpace);
+}
+
+void TLocation::RemoveTrashFiles(const TTrashChunkEntry& entry)
+{
+    auto partNames = GetChunkPartNames(entry.ChunkId);
+    for (const auto& name : partNames) {
+        auto directory = NFS::GetDirectoryName(GetTrashChunkPath(entry.ChunkId));
+        auto fileName = NFS::CombinePaths(directory, name);
+        if (NFS::Exists(fileName)) {
+            NFS::Remove(fileName);
+        }
+    }
+
+    LOG_DEBUG("Trash chunk removed (ChunkId: %v, DiskSpace: %v)",
+        entry.ChunkId,
+        entry.DiskSpace);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
