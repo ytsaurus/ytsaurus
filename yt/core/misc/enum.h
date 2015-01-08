@@ -71,9 +71,7 @@ struct TEnumTraits<T, true>
     ENUM__CLASS(name, underlyingType, seq) \
     ENUM__BEGIN_TRAITS(name, underlyingType, false, seq) \
     ENUM__MINMAX(name, seq) \
-    ENUM__END_TRAITS(name) \
-    ENUM__EQUALITY_OPERATORS(name) \
-    ENUM__RELATIONAL_OPERATORS(name)
+    ENUM__END_TRAITS(name)
 
 //! Defines a smart enumeration with the default |int| underlying type.
 #define DEFINE_ENUM(name, seq) \
@@ -90,7 +88,6 @@ struct TEnumTraits<T, true>
     ENUM__BEGIN_TRAITS(name, underlyingType, true, seq) \
     ENUM__DECOMPOSE(name, seq) \
     ENUM__END_TRAITS(name) \
-    ENUM__EQUALITY_OPERATORS(name) \
     ENUM__BITWISE_OPERATORS(name)
 
 //! Defines a smart enumeration with the default |unsigned| underlying type.

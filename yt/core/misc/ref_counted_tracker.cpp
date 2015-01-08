@@ -152,7 +152,7 @@ TRefCountedTypeCookie TRefCountedTracker::GetCookie(
         return it->second;
     }
     auto cookie = CookieToKey_.size();
-    KeyToCookie_.emplace(key, cookie);
+    KeyToCookie_.emplace(key, TRefCountedTypeCookie(cookie));
     CookieToKey_.push_back(key);
     return cookie;
 }

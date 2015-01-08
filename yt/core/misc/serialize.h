@@ -635,8 +635,8 @@ struct TNullableListSerializer
 template <class TItemSerializer = TDefaultSerializer>
 struct TEnumIndexedVectorSerializer
 {
-    template <class T, class E, class C>
-    static void Save(C& context, const TEnumIndexedVector<T, E>& vector)
+    template <class T, class E, class C, E Min, E Max>
+    static void Save(C& context, const TEnumIndexedVector<T, E, Min, Max>& vector)
     {
         using NYT::Save;
         auto keys = TEnumTraits<E>::GetDomainValues();
@@ -647,8 +647,8 @@ struct TEnumIndexedVectorSerializer
         }
     }
 
-    template <class T, class E, class C>
-    static void Load(C& context, TEnumIndexedVector<T, E>& vector)
+    template <class T, class E, class C, E Min, E Max>
+    static void Load(C& context, TEnumIndexedVector<T, E, Min, Max>& vector)
     {
         using NYT::Load;
         std::fill(vector.begin(), vector.end(), T());
@@ -1179,8 +1179,8 @@ struct TSerializerTraits<yhash_map<K, V>, C, void>
     typedef TMapSerializer<> TSerializer;
 };
 
-template <class T, class E, class C>
-struct TSerializerTraits<TEnumIndexedVector<T, E>, C, void>
+template <class T, class E, class C, E Min, E Max>
+struct TSerializerTraits<TEnumIndexedVector<T, E, Min, Max>, C, void>
 {
     typedef TEnumIndexedVectorSerializer<> TSerializer;
 };
