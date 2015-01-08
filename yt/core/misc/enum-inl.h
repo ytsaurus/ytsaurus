@@ -210,7 +210,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 #define ENUM__RELATIONAL_OPERATOR(op) \
-    template<class T, class = std::enable_if_t<std::is_enum<T>::value>> \
+    template<class T, bool = typename TEnumTraits<T>::IsEnum && !TEnumTraits<T>::IsBitEnum> \
     inline constexpr bool operator op (T lhs, T rhs) \
     { \
         using TUnderlying = TEnumTraits<T>::TUnderlying; \
