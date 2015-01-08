@@ -407,12 +407,12 @@ template <class E>
 typename std::enable_if<NYT::TEnumTraits<E>::IsBitEnum, bool>::type
 Any(E value)
 {
-    return static_cast<typename TEnumTraits<E>::TUnderlying>(value) != 0;
+    return static_cast<typename NYT::TEnumTraits<E>::TUnderlying>(value) != 0;
 }
 
 template <class E>
 typename std::enable_if<NYT::TEnumTraits<E>::IsBitEnum, bool>::type
 None(E value)
 {
-    return static_cast<typename TEnumTraits<E>::TUnderlying>(value) == 0;
+    return static_cast<typename NYT::TEnumTraits<E>::TUnderlying>(value) == 0;
 }
