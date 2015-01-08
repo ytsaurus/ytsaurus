@@ -28,7 +28,7 @@ public:
         int blockCount,
         i64 priority) override;
 
-    virtual void SyncRemove() override;
+    virtual void SyncRemove(bool force) override;
 
 protected:
     TBlobChunkBase(
@@ -44,8 +44,6 @@ private:
     NChunkClient::NProto::TChunkInfo Info_;
     NChunkClient::NProto::TBlocksExt BlocksExt_;
 
-
-    void DoSyncRemove(const Stroka& dataFileName);
 
     TFuture<void> ReadMeta(i64 priority);
     void DoReadMeta(

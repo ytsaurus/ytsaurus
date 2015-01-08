@@ -34,7 +34,8 @@
 #include <server/hydra/changelog.h>
 #include <server/hydra/snapshot.h>
 #include <server/hydra/distributed_hydra_manager.h>
-#include <server/hydra/sync_file_changelog.h>
+#include <server/hydra/file_helpers.h>
+#include <server/hydra/private.h>
 
 #include <server/hive/transaction_supervisor.h>
 
@@ -215,7 +216,7 @@ private:
             try {
                 snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
             } catch (const std::exception& ex) {
-                LOG_WARNING("Unrecognized item %Qv in snapshot store",
+                LOG_WARNING("Unrecognized item %v in snapshot store",
                     fileName);
                 continue;
             }
@@ -232,17 +233,24 @@ private:
             if (NFS::GetFileExtension(fileName) != SnapshotExtension)
                 continue;
 
+            int snapshotId;
             try {
-                int snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
-                if (snapshotId < thresholdId) {
-                    LOG_INFO("Removing snapshot %v",
-                        snapshotId);
-
-                    auto dataFile = NFS::CombinePaths(snapshotsPath, fileName);
-                    NFS::Remove(dataFile);
-                }
+                snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
             } catch (const std::exception& ex) {
                 // Ignore, cf. logging above.
+                continue;
+            }
+
+            if (snapshotId < thresholdId) {
+                LOG_INFO("Removing snapshot %v",
+                    snapshotId);
+
+                try {
+                    NFS::Remove(fileName);
+                } catch (const std::exception& ex) {
+                    LOG_WARNING("Error removing %v from snapshot store",
+                        fileName);
+                }
             }
         }
 
@@ -256,17 +264,18 @@ private:
             try {
                 changelogId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
             } catch (const std::exception& ex) {
-                LOG_WARNING("Unrecognized item %Qv in changelog store",
+                LOG_WARNING("Unrecognized item %v in changelog store",
                     fileName);
                 continue;
             }
+
             if (changelogId < thresholdId) {
                 LOG_INFO("Removing changelog %v",
                     changelogId);
                 try {
                     RemoveChangelogFiles(NFS::CombinePaths(changelogsPath, fileName));
                 } catch (const std::exception& ex) {
-                    LOG_WARNING("Error removing stale changelog %Qv from changelog store",
+                    LOG_WARNING("Error removing %v from changelog store",
                         fileName);
                 }
             }

@@ -38,7 +38,7 @@ class TLocationConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! Location root path.
+    //! Root directory for the location.
     Stroka Path;
 
     //! Maximum space chunks are allowed to occupy.
@@ -53,6 +53,14 @@ public:
 
     //! All uploads to the location are aborted when available space becomes less than #HighWatermark.
     i64 HighWatermark;
+
+    //! Maximum amount of time files of a deleted chunk could rest in trash directory before
+    //! being permanently removed.
+    TDuration MaxTrashTtl;
+
+    //! When free space drops below this watermark, the system starts deleting files in trash directory,
+    //! starting from the eldest ones.
+    i64 TrashCleanupWatermark;
 
     TLocationConfig()
     {
@@ -70,10 +78,18 @@ public:
         RegisterParameter("high_watermark", HighWatermark)
             .GreaterThanOrEqual(0)
             .Default((i64) 10 * 1024 * 1024 * 1024); // 10 Gb
+        RegisterParameter("max_trash_ttl", MaxTrashTtl)
+            .Default(TDuration::Hours(1));
+        RegisterParameter("trash_cleanup_watermark", TrashCleanupWatermark)
+            .GreaterThanOrEqual(0)
+            .Default((i64) 40 * 1024 * 1024 * 1024); // 40 Gb
 
         RegisterValidator([&] () {
             if (HighWatermark > LowWatermark) {
-                THROW_ERROR_EXCEPTION("\"high_watermark\" cannot greater than \"low_watermark\"");
+                THROW_ERROR_EXCEPTION("\"high_watermark\" must be less than or equal to \"low_watermark\"");
+            }
+            if (LowWatermark > TrashCleanupWatermark) {
+                THROW_ERROR_EXCEPTION("\"low_watermark\" must be less than or equal to \"trash_cleanup_watermark\"");
             }
         });
     }

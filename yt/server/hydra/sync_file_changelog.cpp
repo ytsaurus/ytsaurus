@@ -29,16 +29,6 @@ static const auto& Logger = HydraLogger;
 
 namespace {
 
-//! Removes #destination if it exists. Then renames #destination into #source.
-void ReplaceFile(const Stroka& source, const Stroka& destination)
-{
-    if (NFS::Exists(destination)) {
-        NFS::Remove(destination);
-    }
-
-    NFS::Rename(source, destination);
-}
-
 template <class T>
 void ValidateSignature(const T& header)
 {
@@ -207,7 +197,7 @@ public:
         const Stroka& fileName,
         TFileChangelogConfigPtr config)
         : FileName_(fileName)
-        , IndexFileName_(fileName + "." + ChangelogIndexExtension)
+        , IndexFileName_(fileName + ChangelogIndexSuffix)
         , Config_(config)
         , Logger(HydraLogger)
     {
@@ -325,7 +315,7 @@ public:
             tempFile.Flush();
             tempFile.Close();
 
-            ReplaceFile(tempFileName, FileName_);
+            NFS::Replace(tempFileName, FileName_);
 
             DataFile_ = std::make_unique<TFileWrapper>(FileName_, RdWr);
             DataFile_->Flock(LOCK_EX | LOCK_NB);
@@ -615,7 +605,7 @@ private:
         tempFile.Flush();
         tempFile.Close();
 
-        ReplaceFile(tempFileName, IndexFileName_);
+        NFS::Replace(tempFileName, IndexFileName_);
 
         IndexFile_ = std::make_unique<TFile>(IndexFileName_, RdWr);
         IndexFile_->Flock(LOCK_EX | LOCK_NB);
@@ -917,18 +907,6 @@ void TSyncFileChangelog::Seal(int recordCount)
 void TSyncFileChangelog::Unseal()
 {
     Impl_->Unseal();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void RemoveChangelogFiles(const Stroka& dataFileName)
-{
-    NFS::Remove(dataFileName);
-
-    auto indexFileName = dataFileName + "." + ChangelogIndexExtension;
-    if (NFS::Exists(indexFileName)) {
-        NFS::Remove(indexFileName);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

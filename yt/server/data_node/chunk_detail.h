@@ -27,6 +27,30 @@ struct TChunkDescriptor
     bool Sealed = false;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! Provides low-level management for files comprising a chunk.
+class TChunkFilesHolder
+    : public TRefCounted
+{
+public:
+    TChunkFilesHolder(
+        TLocationPtr location,
+        const TChunkId& id);
+
+    void Remove();
+    void MoveToTrash();
+
+private:
+    TLocationPtr Location_;
+    TChunkId Id_;
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkFilesHolder);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! A base for any IChunk implementation.
 class TChunkBase
     : public IChunk
@@ -51,6 +75,8 @@ protected:
     TLocationPtr Location_;
     TChunkId Id_;
 
+    TChunkFilesHolderPtr FilesHolder_;
+
     int Version_ = 0;
 
     TRefCountedChunkMetaPtr Meta_;
@@ -59,6 +85,7 @@ protected:
     TPromise<void> RemovedPromise_; // if not null then remove is scheduled
     int ReadLockCounter_ = 0;
     bool Removing_ = false;
+
 
     TChunkBase(
         NCellNode::TBootstrap* bootstrap,

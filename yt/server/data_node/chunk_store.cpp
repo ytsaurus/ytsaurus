@@ -47,8 +47,6 @@ void TChunkStore::Initialize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_INFO("Chunk store scan started");
-
     for (int i = 0; i < Config_->StoreLocations.size(); ++i) {
         auto locationConfig = Config_->StoreLocations[i];
 
@@ -71,7 +69,7 @@ void TChunkStore::Initialize()
         Locations_.push_back(location);
     }
 
-    LOG_INFO("Chunk store scan complete, %v chunks found",
+    LOG_INFO("Chunk store initialized, %v chunks total",
         GetChunkCount());
 }
 
@@ -88,8 +86,8 @@ void TChunkStore::RegisterNewChunk(IChunkPtr chunk)
     if (!result.second) {
         auto oldChunk = result.first->second.Chunk;
         LOG_FATAL("Duplicate chunk: %v vs %v",
-            chunk->GetLocation()->GetChunkFileName(chunk->GetId()),
-            oldChunk->GetLocation()->GetChunkFileName(oldChunk->GetId()));
+            chunk->GetLocation()->GetChunkPath(chunk->GetId()),
+            oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId()));
     }
 
     DoRegisterChunk(entry);
@@ -104,8 +102,8 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
     auto result = ChunkMap_.insert(std::make_pair(chunk->GetId(), entry));
     if (!result.second) {
         auto oldChunk = result.first->second.Chunk;
-        auto oldPath = oldChunk->GetLocation()->GetChunkFileName(oldChunk->GetId());
-        auto currentPath = chunk->GetLocation()->GetChunkFileName(chunk->GetId());
+        auto oldPath = oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId());
+        auto currentPath = chunk->GetLocation()->GetChunkPath(chunk->GetId());
 
         // Check that replicas point to the different inodes.
         LOG_FATAL_IF(
@@ -128,7 +126,7 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
                 LOG_WARNING("Removing duplicate blob chunk: %v vs %v",
                     currentPath,
                     oldPath);
-                chunk->SyncRemove();
+                chunk->SyncRemove(true);
                 break;
             }
 
@@ -150,7 +148,7 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
                     shorterRowCount,
                     longerChunk->GetFileName(),
                     longerRowCount);
-                shorterChunk->SyncRemove();
+                shorterChunk->SyncRemove(true);
                 break;
             }
 

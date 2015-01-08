@@ -337,10 +337,10 @@ private:
         auto scanner = New<TSlotScanner>(this);
 
         auto this_ = MakeStrong(this);
-        scanner->Run().Subscribe(BIND([=] (const TError& error) {
+        scanner->Run().Subscribe(BIND([=] (const TError&) {
             UNUSED(this_);
             VERIFY_THREAD_AFFINITY(ControlThread);
-            LOG_DEBUG(error, "Slot scan completed");
+            LOG_DEBUG("Slot scan completed");
             SlotScanExecutor_->ScheduleNext();
         }));
     }
