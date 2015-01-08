@@ -99,18 +99,6 @@ struct TEnumTraits<T, true>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Returns |true| iff the enumeration value is not bitwise zero.
-template <class E>
-typename std::enable_if<TEnumTraits<E>::IsBitEnum, bool>::type
-Any(E value);
-
-//! Returns |true| iff the enumeration value is bitwise zero.
-template <class E>
-typename std::enable_if<TEnumTraits<E>::IsBitEnum, bool>::type
-None(E value);
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! A statically sized vector with elements of type |T| indexed by
 //! the items of enumeration type |E|.
 /*!
@@ -146,6 +134,18 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns |true| iff the enumeration value is not bitwise zero.
+template <class E>
+typename std::enable_if<NYT::TEnumTraits<E>::IsBitEnum, bool>::type
+Any(E value);
+
+//! Returns |true| iff the enumeration value is bitwise zero.
+template <class E>
+typename std::enable_if<NYT::TEnumTraits<E>::IsBitEnum, bool>::type
+None(E value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
