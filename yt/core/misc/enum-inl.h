@@ -209,74 +209,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define ENUM__RELATIONAL_OPERATOR(op) \
-    template <class T, class = typename std::enable_if<TEnumTraits<T>::IsEnum && !TEnumTraits<T>::IsBitEnum>::type> \
-    inline constexpr bool operator op (T lhs, T rhs) \
-    { \
-        using TUnderlying = typename TEnumTraits<T>::TUnderlying; \
-        return static_cast<TUnderlying>(lhs) op static_cast<TUnderlying>(rhs); \
-    }
-
-ENUM__RELATIONAL_OPERATOR(<)
-ENUM__RELATIONAL_OPERATOR(>)
-ENUM__RELATIONAL_OPERATOR(<= )
-ENUM__RELATIONAL_OPERATOR(>= )
-ENUM__RELATIONAL_OPERATOR(== )
-ENUM__RELATIONAL_OPERATOR(!= )
-
-////////////////////////////////////////////////////////////////////////////////
-
-#define ENUM__BINARY_BITWISE_OPERATOR(assignOp, op) \
-    template <class T, class = typename std::enable_if<TEnumTraits<T>::IsEnum && TEnumTraits<T>::IsBitEnum>::type> \
-    inline constexpr T operator op (T lhs, T rhs) \
-    { \
-        using TUnderlying = typename TEnumTraits<T>::TUnderlying; \
-        return T(static_cast<TUnderlying>(lhs) op static_cast<TUnderlying>(rhs)); \
-    } \
-    \
-    template <class T, class = typename std::enable_if<TEnumTraits<T>::IsEnum && TEnumTraits<T>::IsBitEnum>::type> \
-    inline T& operator assignOp (T& lhs, T rhs) \
-    { \
-        using TUnderlying = typename TEnumTraits<T>::TUnderlying; \
-        lhs = T(static_cast<TUnderlying>(lhs) op static_cast<TUnderlying>(rhs)); \
-        return lhs; \
-    }
-
-#define ENUM__UNARY_BITWISE_OPERATOR(op) \
-    template <class T, class = typename std::enable_if<TEnumTraits<T>::IsEnum && TEnumTraits<T>::IsBitEnum>::type> \
-    inline constexpr T operator op (T value) \
-    { \
-        using TUnderlying = typename TEnumTraits<T>::TUnderlying; \
-        return T(op static_cast<TUnderlying>(value)); \
-    }
-
-#define ENUM__BIT_SHIFT_OPERATOR(assignOp, op) \
-    template <class T, class = typename std::enable_if<TEnumTraits<T>::IsEnum && TEnumTraits<T>::IsBitEnum>::type> \
-    inline constexpr T operator op (T lhs, size_t rhs) \
-    { \
-        using TUnderlying = typename TEnumTraits<T>::TUnderlying; \
-        return T(static_cast<TUnderlying>(lhs) op rhs); \
-    } \
-    \
-    template <class T, class = typename std::enable_if<TEnumTraits<T>::IsEnum && TEnumTraits<T>::IsBitEnum>::type> \
-    inline T& operator assignOp (T& lhs, size_t rhs) \
-    { \
-        using TUnderlying = typename TEnumTraits<T>::TUnderlying; \
-        lhs = T(static_cast<TUnderlying>(lhs) op rhs); \
-        return lhs; \
-    }
-
-ENUM__BINARY_BITWISE_OPERATOR(&=, &)
-ENUM__BINARY_BITWISE_OPERATOR(|=, | )
-ENUM__BINARY_BITWISE_OPERATOR(^=, ^)
-
-ENUM__UNARY_BITWISE_OPERATOR(~) \
-
-ENUM__BIT_SHIFT_OPERATOR(<<=, << )
-ENUM__BIT_SHIFT_OPERATOR(>>=, >> )
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class T>
 auto TEnumTraits<T, true>::Decompose(TType value) -> std::vector<TType>
 {
@@ -355,22 +287,6 @@ const TStringBuf& TEnumTraits<T, true>::GetTypeName()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class E>
-typename std::enable_if<TEnumTraits<E>::IsBitEnum, bool>::type
-Any(E value)
-{
-    return static_cast<typename TEnumTraits<E>::TUnderlying>(value) != 0;
-}
-
-template <class E>
-typename std::enable_if<TEnumTraits<E>::IsBitEnum, bool>::type
-None(E value)
-{
-    return static_cast<typename TEnumTraits<E>::TUnderlying>(value) == 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class T, class E, E Min, E Max>
 TEnumIndexedVector<T, E, Min, Max>::TEnumIndexedVector()
     : Items_(N)
@@ -416,3 +332,87 @@ const T* TEnumIndexedVector<T, E, Min, Max>::end() const
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define ENUM__RELATIONAL_OPERATOR(op) \
+template <class T, class = typename std::enable_if<NYT::TEnumTraits<T>::IsEnum && !NYT::TEnumTraits<T>::IsBitEnum>::type> \
+constexpr bool operator op (T lhs, T rhs) \
+{ \
+    using TUnderlying = typename NYT::TEnumTraits<T>::TUnderlying; \
+    return static_cast<TUnderlying>(lhs) op static_cast<TUnderlying>(rhs); \
+}
+
+ENUM__RELATIONAL_OPERATOR(<)
+ENUM__RELATIONAL_OPERATOR(>)
+ENUM__RELATIONAL_OPERATOR(<= )
+ENUM__RELATIONAL_OPERATOR(>= )
+ENUM__RELATIONAL_OPERATOR(== )
+ENUM__RELATIONAL_OPERATOR(!= )
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define ENUM__BINARY_BITWISE_OPERATOR(assignOp, op) \
+template <class T, class = typename std::enable_if<NYT::TEnumTraits<T>::IsBitEnum>::type> \
+constexpr T operator op (T lhs, T rhs) \
+{ \
+    using TUnderlying = typename NYT::TEnumTraits<T>::TUnderlying; \
+    return T(static_cast<TUnderlying>(lhs) op static_cast<TUnderlying>(rhs)); \
+} \
+\
+template <class T, class = typename std::enable_if<NYT::TEnumTraits<T>::IsBitEnum>::type> \
+T& operator assignOp (T& lhs, T rhs) \
+{ \
+    using TUnderlying = typename NYT::TEnumTraits<T>::TUnderlying; \
+    lhs = T(static_cast<TUnderlying>(lhs) op static_cast<TUnderlying>(rhs)); \
+    return lhs; \
+}
+
+#define ENUM__UNARY_BITWISE_OPERATOR(op) \
+template <class T, class = typename std::enable_if<NYT::TEnumTraits<T>::IsBitEnum>::type> \
+constexpr T operator op (T value) \
+{ \
+    using TUnderlying = typename NYT::TEnumTraits<T>::TUnderlying; \
+    return T(op static_cast<TUnderlying>(value)); \
+}
+
+#define ENUM__BIT_SHIFT_OPERATOR(assignOp, op) \
+template <class T, class = typename std::enable_if<NYT::TEnumTraits<T>::IsBitEnum>::type> \
+constexpr T operator op (T lhs, size_t rhs) \
+{ \
+    using TUnderlying = typename NYT::TEnumTraits<T>::TUnderlying; \
+    return T(static_cast<TUnderlying>(lhs) op rhs); \
+} \
+\
+template <class T, class = typename std::enable_if<NYT::TEnumTraits<T>::IsBitEnum>::type> \
+T& operator assignOp (T& lhs, size_t rhs) \
+{ \
+    using TUnderlying = typename NYT::TEnumTraits<T>::TUnderlying; \
+    lhs = T(static_cast<TUnderlying>(lhs) op rhs); \
+    return lhs; \
+}
+
+ENUM__BINARY_BITWISE_OPERATOR(&=, &)
+ENUM__BINARY_BITWISE_OPERATOR(|=, | )
+ENUM__BINARY_BITWISE_OPERATOR(^=, ^)
+
+ENUM__UNARY_BITWISE_OPERATOR(~) \
+
+ENUM__BIT_SHIFT_OPERATOR(<<=, << )
+ENUM__BIT_SHIFT_OPERATOR(>>=, >> )
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class E>
+typename std::enable_if<NYT::TEnumTraits<E>::IsBitEnum, bool>::type
+Any(E value)
+{
+    return static_cast<typename TEnumTraits<E>::TUnderlying>(value) != 0;
+}
+
+template <class E>
+typename std::enable_if<NYT::TEnumTraits<E>::IsBitEnum, bool>::type
+None(E value)
+{
+    return static_cast<typename TEnumTraits<E>::TUnderlying>(value) == 0;
+}
