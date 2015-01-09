@@ -68,11 +68,11 @@ const TMethodDescriptor& GetMethodDescriptor(const Stroka& service, const Stroka
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChannel
+class TBusChannel
     : public IChannel
 {
 public:
-    explicit TChannel(IBusClientPtr client)
+    explicit TBusChannel(IBusClientPtr client)
         : Client_(std::move(client))
     {
         YCHECK(Client_);
@@ -569,7 +569,7 @@ private:
         }
 
         bus->SubscribeTerminated(BIND(
-            &TChannel::OnBusTerminated,
+            &TBusChannel::OnBusTerminated,
             MakeWeak(this),
             MakeWeak(session)));
         return session;
@@ -598,7 +598,7 @@ IChannelPtr CreateBusChannel(IBusClientPtr client)
 {
     YCHECK(client);
 
-    return New<TChannel>(std::move(client));
+    return New<TBusChannel>(std::move(client));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
