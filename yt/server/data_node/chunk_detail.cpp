@@ -23,70 +23,6 @@ static const auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkFilesHolder::TChunkFilesHolder(
-    TLocationPtr location,
-    const TChunkId& id)
-    : Location_(location)
-    , Id_(id)
-{ }
-
-void TChunkFilesHolder::Remove()
-{
-    try {
-        LOG_DEBUG("Started removing chunk files (ChunkId: %v)", Id_);
-
-        auto partNames = Location_->GetChunkPartNames(Id_);
-        auto directory = NFS::GetDirectoryName(Location_->GetChunkPath(Id_));
-
-        for (const auto& name : partNames) {
-            auto fileName = NFS::CombinePaths(directory, name);
-            NFS::Remove(fileName);
-        }
-
-        LOG_DEBUG("Finished removing chunk files (ChunkId: %v)", Id_);
-    } catch (const std::exception& ex) {
-        auto error = TError(
-            NChunkClient::EErrorCode::IOError,
-            "Error removing chunk %v",
-            Id_)
-            << ex;
-        LOG_ERROR(error);
-        Location_->Disable(error);
-    }
-}
-
-void TChunkFilesHolder::MoveToTrash()
-{
-    try {
-        LOG_DEBUG("Started moving chunk files to trash (ChunkId: %v)", Id_);
-
-        auto partNames = Location_->GetChunkPartNames(Id_);
-        auto directory = NFS::GetDirectoryName(Location_->GetChunkPath(Id_));
-        auto trashDirectory = NFS::GetDirectoryName(Location_->GetTrashChunkPath(Id_));
-
-        for (const auto& name : partNames) {
-            auto srcFileName = NFS::CombinePaths(directory, name);
-            auto dstFileName = NFS::CombinePaths(trashDirectory, name);
-            NFS::Replace(srcFileName, dstFileName);
-            NFS::Touch(dstFileName);
-        }
-
-        LOG_DEBUG("Finished moving chunk files to trash (ChunkId: %v)", Id_);
-
-        Location_->RegisterTrashChunk(Id_);
-    } catch (const std::exception& ex) {
-        auto error = TError(
-            NChunkClient::EErrorCode::IOError,
-            "Error moving chunk %v to trash",
-            Id_)
-             << ex;
-        LOG_ERROR(error);
-        Location_->Disable(error);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TChunkBase::TChunkBase(
     TBootstrap* bootstrap,
     TLocationPtr location,
@@ -94,7 +30,6 @@ TChunkBase::TChunkBase(
     : Bootstrap_(bootstrap)
     , Location_(location)
     , Id_(id)
-    , FilesHolder_(New<TChunkFilesHolder>(Location_, Id_))
 { }
 
 const TChunkId& TChunkBase::GetId() const

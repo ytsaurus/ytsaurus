@@ -293,9 +293,9 @@ void TBlobChunkBase::SyncRemove(bool force)
     readerCache->EvictReader(this);
 
     if (force) {
-        FilesHolder_->Remove();
+        Location_->RemoveChunkFiles(Id_);
     } else {
-        FilesHolder_->MoveToTrash();
+        Location_->MoveChunkFilesToTrash(Id_);
     }
 }
 
@@ -347,10 +347,10 @@ TCachedBlobChunk::~TCachedBlobChunk()
     if (ChunkCache_.IsExpired())
         return;
 
-    auto filesHolder = FilesHolder_;
-    Location_->GetWritePoolInvoker()->Invoke(BIND([filesHolder] () {
-        filesHolder->Remove();
-    }));
+    Location_->GetWritePoolInvoker()->Invoke(BIND(
+        &TLocation::RemoveChunkFiles,
+        Location_,
+        Id_));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -124,10 +124,8 @@ void TJournalChunk::DoReadBlocks(
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
 
     try {
-        auto changelogOrError = WaitFor(dispatcher->OpenChangelog(Location_, Id_, false));
-        THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
-        auto changelog = changelogOrError.Value();
-    
+        auto changelog = WaitFor(dispatcher->OpenChangelog(Location_, Id_, false)).ValueOrThrow();
+
         LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
             Id_,
             firstBlockIndex,
@@ -195,9 +193,9 @@ void TJournalChunk::SyncRemove(bool force)
     }
 
     if (force) {
-        FilesHolder_->Remove();
+        Location_->RemoveChunkFiles(Id_);
     } else {
-        FilesHolder_->MoveToTrash();
+        Location_->MoveChunkFilesToTrash(Id_);
     }
 }
 
