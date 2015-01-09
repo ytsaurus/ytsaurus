@@ -98,9 +98,6 @@ public:
     //! Returns the number of chunks.
     int GetChunkCount() const;
 
-    //! Returns the names of files (without directory) comprising a chunk.
-    std::vector<Stroka> GetChunkPartNames(const TChunkId& chunkId) const;
-
     //! Returns a full path for a primary chunk file.
     Stroka GetChunkPath(const TChunkId& chunkId) const;
 
@@ -128,8 +125,11 @@ public:
     //! Marks the location as disabled.
     void Disable(const TError& reason);
 
-    //! Registers a chunk placed in the trash directory.
-    void RegisterTrashChunk(const TChunkId& chunkId);
+    //! Permantenly removes the files comprising a given chunk.
+    void RemoveChunkFiles(const TChunkId& chunkId);
+
+    //! Moves the files comprising a given chunk into trash directory.
+    void MoveChunkFilesToTrash(const TChunkId& chunkId);
 
     //! Raised when the location gets disabled.
     /*!
@@ -183,7 +183,9 @@ private:
     void DoDisable(const TError& reason);
 
     static Stroka GetRelativeChunkPath(const TChunkId& chunkId);
+    std::vector<Stroka> GetChunkPartNames(const TChunkId& chunkId) const;
 
+    void RegisterTrashChunk(const TChunkId& chunkId);
     void OnCheckTrash();
     void CheckTrashTtl();
     void CheckTrashWatermark();

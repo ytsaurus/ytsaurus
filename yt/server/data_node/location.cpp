@@ -542,6 +542,61 @@ void TLocation::OnHealthCheckFailed(const TError& error)
     }
 }
 
+void TLocation::RemoveChunkFiles(const TChunkId& chunkId)
+{
+    try {
+        LOG_DEBUG("Started removing chunk files (ChunkId: %v)", chunkId);
+
+        auto partNames = GetChunkPartNames(chunkId);
+        auto directory = NFS::GetDirectoryName(GetChunkPath(chunkId));
+
+        for (const auto& name : partNames) {
+            auto fileName = NFS::CombinePaths(directory, name);
+            NFS::Remove(fileName);
+        }
+
+        LOG_DEBUG("Finished removing chunk files (ChunkId: %v)", chunkId);
+    } catch (const std::exception& ex) {
+        auto error = TError(
+            NChunkClient::EErrorCode::IOError,
+            "Error removing chunk %v",
+            chunkId)
+            << ex;
+        LOG_ERROR(error);
+        Disable(error);
+    }
+}
+
+void TLocation::MoveChunkFilesToTrash(const TChunkId& chunkId)
+{
+    try {
+        LOG_DEBUG("Started moving chunk files to trash (ChunkId: %v)", chunkId);
+
+        auto partNames = GetChunkPartNames(chunkId);
+        auto directory = NFS::GetDirectoryName(GetChunkPath(chunkId));
+        auto trashDirectory = NFS::GetDirectoryName(GetTrashChunkPath(chunkId));
+
+        for (const auto& name : partNames) {
+            auto srcFileName = NFS::CombinePaths(directory, name);
+            auto dstFileName = NFS::CombinePaths(trashDirectory, name);
+            NFS::Replace(srcFileName, dstFileName);
+            NFS::Touch(dstFileName);
+        }
+
+        LOG_DEBUG("Finished moving chunk files to trash (ChunkId: %v)", chunkId);
+
+        RegisterTrashChunk(chunkId);
+    } catch (const std::exception& ex) {
+        auto error = TError(
+            NChunkClient::EErrorCode::IOError,
+            "Error moving chunk %v to trash",
+            chunkId)
+            << ex;
+        LOG_ERROR(error);
+        Disable(error);
+    }
+}
+
 void TLocation::RegisterTrashChunk(const TChunkId& chunkId)
 {
     auto timestamp = TInstant::Zero();
