@@ -40,10 +40,12 @@ public:
     void Clear();
 
     //! Runs all callbacks in the list.
-    void Fire(const TArgs&... args) const;
+    template <class... TCallArgs>
+    void Fire(TCallArgs&&... args) const;
 
     //! Runs all callbacks in the list and clears the list.
-    void FireAndClear(const TArgs&... args) const;
+    template <class... TCallArgs>
+    void FireAndClear(TCallArgs&&... args);
 
 private:
     mutable TSpinLock SpinLock_;

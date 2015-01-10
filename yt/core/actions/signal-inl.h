@@ -37,7 +37,8 @@ void TCallbackList<void(TArgs...)>::Clear()
 }
 
 template <class... TArgs>
-void TCallbackList<void(TArgs...)>::Fire(const TArgs&... args) const
+template <class... TCallArgs>
+void TCallbackList<void(TArgs...)>::Fire(TCallArgs&&... args) const
 {
     TGuard<TSpinLock> guard(SpinLock_);
 
@@ -48,12 +49,13 @@ void TCallbackList<void(TArgs...)>::Fire(const TArgs&... args) const
     guard.Release();
 
     for (const auto& callback : callbacks) {
-        callback.Run(args...);
+        callback.Run(std::forward<TCallArgs>(args)...);
     }
 }
 
 template <class... TArgs>
-void TCallbackList<void(TArgs...)>::FireAndClear(const TArgs&... args) const
+template <class... TCallArgs>
+void TCallbackList<void(TArgs...)>::FireAndClear(TCallArgs&&... args)
 {
     std::vector<TCallback> callbacks;
     {
@@ -64,7 +66,7 @@ void TCallbackList<void(TArgs...)>::FireAndClear(const TArgs&... args) const
     }
 
     for (const auto& callback : callbacks) {
-        callback.Run(args...);
+        callback.Run(std::forward<TCallArgs>(args)...);
     }
 }
 
