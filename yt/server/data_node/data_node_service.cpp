@@ -1077,20 +1077,12 @@ private:
 
         ValidateConnected();
 
-        Bootstrap_
-            ->GetChunkCache()
-            ->DownloadChunk(chunkId)
-            .Subscribe(BIND([=] (const TErrorOr<IChunkPtr>& chunkOrError) {
-                if (chunkOrError.IsOK()) {
-                    context->Reply();
-                } else {
-                    context->Reply(TError(
-                        NChunkClient::EErrorCode::ChunkPrecachingFailed,
-                        "Error precaching chunk %v",
-                        chunkId)
-                        << chunkOrError);
-                }
-            }));
+        auto chunkCache = Bootstrap_->GetChunkCache();
+        auto chunkOrError = WaitFor(chunkCache->DownloadChunk(chunkId));
+        THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError, "Error precaching chunk %v",
+            chunkId);
+
+        context->Reply();
     }
 
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
