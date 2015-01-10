@@ -327,9 +327,14 @@ void TTcpConnection::SyncClose(const TError& error)
 
     LOG_DEBUG(detailedError, "Connection closed");
 
-    // Invoke user callback.
+    {
+        TGuard<TSpinLock> guard(TerminateSpinLock_);
+        TerminateError_ = detailedError;
+    }
+
+    // Invoke user callbacks.
     PROFILE_TIMING ("/terminate_handler_time") {
-        TerminatedPromise_.Set(detailedError);
+        Terminated_.FireAndClear(detailedError);
     }
 
     UpdateConnectionCount(-1);
@@ -476,30 +481,33 @@ void TTcpConnection::Terminate(const TError& error)
     VERIFY_THREAD_AFFINITY_ANY();
     YCHECK(!error.IsOK());
 
-    {
-        // Check if another termination request is already in progress.
-        TGuard<TSpinLock> guard(TerminationSpinLock_);
-        if (!TerminationError_.IsOK()) {
-            return;
-        }
-        TerminationError_ = error;
-    }
-
-    LOG_DEBUG("Bus termination requested");
-
     DispatcherThread_->GetInvoker()->Invoke(BIND(
         &TTcpConnection::OnTerminated,
-        MakeStrong(this)));
+        MakeStrong(this),
+        error));
+}
+
+void TTcpConnection::OnTerminated(const TError& error)
+{
+    VERIFY_THREAD_AFFINITY(EventLoop);
+
+    SyncClose(error);
 }
 
 void TTcpConnection::SubscribeTerminated(const TCallback<void(const TError&)>& callback)
 {
-    TerminatedPromise_.ToFuture().Subscribe(callback);
+    TGuard<TSpinLock> guard(TerminateSpinLock_);
+    if (TerminateError_.IsOK()) {
+        Terminated_.Subscribe(callback);
+    } else {
+        guard.Release();
+        callback.Run(TerminateError_);
+    }
 }
 
-void TTcpConnection::UnsubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/)
+void TTcpConnection::UnsubscribeTerminated(const TCallback<void(const TError&)>& callback)
 {
-    YUNREACHABLE();
+    Terminated_.Unsubscribe(callback);
 }
 
 void TTcpConnection::OnSocket(ev::io&, int revents)
@@ -1122,23 +1130,6 @@ void TTcpConnection::UpdateSocketWatcher()
     if (GetState() == ETcpConnectionState::Open) {
         SocketWatcher_->set(HasUnsentData() ? ev::READ|ev::WRITE : ev::READ);
     }
-}
-
-void TTcpConnection::OnTerminated()
-{
-    VERIFY_THREAD_AFFINITY(EventLoop);
-    
-    if (GetState() == ETcpConnectionState::Closed) {
-        return;
-    }
-
-    TError error;
-    {
-        TGuard<TSpinLock> guard(TerminationSpinLock_);
-        error = TerminationError_;
-    }
-
-    SyncClose(error);
 }
 
 int TTcpConnection::GetSocketError() const

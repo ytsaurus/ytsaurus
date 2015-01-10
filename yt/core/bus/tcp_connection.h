@@ -148,15 +148,14 @@ private:
     std::atomic<bool> MessageEnqueuedCallbackPending_;
     TMultipleProducerSingleConsumerLockFreeStack<TQueuedMessage> QueuedMessages_;
 
-    TSpinLock TerminationSpinLock_;
-    TError TerminationError_;
+    TSpinLock TerminateSpinLock_;
+    TError TerminateError_;
+    TCallbackList<void(const TError&)> Terminated_;
 
     std::unique_ptr<ev::io> SocketWatcher_;
 
     TPacketDecoder Decoder_;
     TBlob ReadBuffer_;
-
-    TPromise<void> TerminatedPromise_ = NewPromise<void>();
 
     TRingQueue<TPacket*> QueuedPackets_;
     TRingQueue<TPacket*> EncodedPackets_;
@@ -229,7 +228,7 @@ private:
     void DiscardUnackedMessages(const TError& error);
     void UpdateSocketWatcher();
 
-    void OnTerminated();
+    void OnTerminated(const TError& error);
 
     TTcpDispatcherStatistics& Statistics();
     void UpdateConnectionCount(int delta);
