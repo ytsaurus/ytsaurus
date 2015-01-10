@@ -224,12 +224,11 @@ public:
 
     //! See #TIntrinsicRefCounted::DangerousGetPtr.
     template <class T>
-    static ::NYT::TIntrusivePtr<T> DangerousGetPtr(T* object)
+    static TIntrusivePtr<T> DangerousGetPtr(T* object)
     {
-        return
-            object->RefCounter_->TryRef()
-            ? ::NYT::TIntrusivePtr<T>(object, false)
-            : ::NYT::TIntrusivePtr<T>();
+        return object->RefCounter_->TryRef()
+            ? TIntrusivePtr<T>(object, false)
+            : TIntrusivePtr<T>();
     }
 
 private:
@@ -297,12 +296,11 @@ public:
      * its raw pointer from the collection there.
      */
     template <class T>
-    static ::NYT::TIntrusivePtr<T> DangerousGetPtr(T* object)
+    static TIntrusivePtr<T> DangerousGetPtr(T* object)
     {
-        return
-            NDetail::AtomicallyIncrementIfNonZero(object->RefCounter_) > 0
-            ? ::NYT::TIntrusivePtr<T>(object, false)
-            : ::NYT::TIntrusivePtr<T>();
+        return NDetail::AtomicallyIncrementIfNonZero(object->RefCounter_) > 0
+            ? TIntrusivePtr<T>(object, false)
+            : TIntrusivePtr<T>();
     }
 
 private:
