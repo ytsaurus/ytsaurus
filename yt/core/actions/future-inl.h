@@ -21,12 +21,10 @@ namespace NYT {
 IInvokerPtr GetFinalizerInvoker();
 
 namespace NConcurrency {
-namespace NDetail {
 
-// fiber.h
+// scheduler.h
 TClosure GetCurrentFiberCanceler();
 
-} // namespace NDetail
 } // namespace NConcurrency
 
 namespace NDetail {
@@ -906,7 +904,7 @@ struct TAsyncViaHelper<R(TArgs...)>
     // TODO(babenko): consider moving args
     static void Inner(const TSourceCallback& this_, TPromise<TUnderlying> promise, TArgs... args)
     {
-        auto canceler = NConcurrency::NDetail::GetCurrentFiberCanceler();
+        auto canceler = NConcurrency::GetCurrentFiberCanceler();
         if (canceler) {
             promise.OnCanceled(std::move(canceler));
         }

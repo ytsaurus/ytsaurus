@@ -141,10 +141,6 @@ DEFINE_REFCOUNTED_TYPE(TFiber)
 
 namespace NDetail {
 
-//! Delegates to TFiber::GetCanceler for the current fiber.
-//! Used to avoid dependencies on |fiber.h|.
-TClosure GetCurrentFiberCanceler();
-
 void ResumeFiber(TFiberPtr fiber);
 void UnwindFiber(TFiberPtr fiber);
 

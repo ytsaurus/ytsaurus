@@ -157,13 +157,13 @@ void TFiber::Trampoline(void* opaque)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
 TClosure GetCurrentFiberCanceler()
 {
     auto* scheduler = TryGetCurrentScheduler();
     return scheduler ? scheduler->GetCurrentFiber()->GetCanceler() : TClosure();
 }
+
+namespace NDetail {
 
 void ResumeFiber(TFiberPtr fiber)
 {
