@@ -18,7 +18,7 @@ TFuture<void> MakeDelayed(TDuration delay)
     auto promise = NewPromise<void>();
     NConcurrency::TDelayedExecutor::Submit(
         BIND([=] () mutable {
-            promise.Set();
+            promise.TrySet();
         }),
         delay);
     promise.OnCanceled(
