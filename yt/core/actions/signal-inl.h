@@ -55,14 +55,13 @@ void TCallbackList<void(TArgs...)>::Fire(const TArgs&... args) const
 template <class... TArgs>
 void TCallbackList<void(TArgs...)>::FireAndClear(const TArgs&... args) const
 {
-    TGuard<TSpinLock> guard(SpinLock_);
-
-    if (Callbacks_.empty())
-        return;
-
     std::vector<TCallback> callbacks;
-    swap(callbacks, Callbacks_);
-    guard.Release();
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        if (Callbacks_.empty())
+            return;
+        swap(callbacks, Callbacks_);
+    }
 
     for (const auto& callback : callbacks) {
         callback.Run(args...);
