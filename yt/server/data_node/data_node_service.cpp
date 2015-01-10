@@ -92,29 +92,40 @@ public:
         YCHECK(Config_);
         YCHECK(Bootstrap_);
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CancelChunk));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlocks));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlocks)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)
+            .SetCancelable(true)
             .SetEnableReorder(true)
             .SetMaxQueueSize(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange)
+            .SetCancelable(true)
             .SetEnableReorder(true)
             .SetMaxQueueSize(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
+            .SetCancelable(true)
             .SetEnableReorder(true)
             .SetMaxQueueSize(5000));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
             .SetOneWay(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
+            .SetCancelable(true)
             .SetResponseCodec(NCompression::ECodec::Lz4)
             .SetResponseHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSplits)
+            .SetCancelable(true)
             .SetResponseCodec(NCompression::ECodec::Lz4)
             .SetResponseHeavy(true));
 
