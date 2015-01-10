@@ -30,7 +30,8 @@ TLocalSnapshotService::TLocalSnapshotService(
     , FileStore_(fileStore)
 {
     RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupSnapshot));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot)
+        .SetCancelable(true));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, LookupSnapshot)

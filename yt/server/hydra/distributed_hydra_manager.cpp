@@ -151,7 +151,8 @@ public:
             New<TElectionCallbacks>(this));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupChangelog));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LogMutations));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RotateChangelog));

@@ -55,6 +55,7 @@ public:
         YCHECK(Executor_);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
+            .SetCancelable(true)
             .SetEnableReorder(true));
     }
 
