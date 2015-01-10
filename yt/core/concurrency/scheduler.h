@@ -113,6 +113,10 @@ TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker);
 class TFiberCanceledException
 { };
 
+//! Delegates to TFiber::GetCanceler for the current fiber.
+//! Used to avoid dependencies on |fiber.h|.
+TClosure GetCurrentFiberCanceler();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NConcurrency
