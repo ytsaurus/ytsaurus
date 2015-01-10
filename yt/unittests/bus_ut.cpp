@@ -54,7 +54,7 @@ class TEmptyBusHandler
     : public IMessageHandler
 {
 public:
-    virtual void OnMessage(
+    virtual void HandleMessage(
         TSharedRefArray message,
         IBusPtr replyBus)
     {
@@ -71,7 +71,7 @@ public:
         : NumPartsExpecting(numParts)
     { }
 
-    virtual void OnMessage(
+    virtual void HandleMessage(
         TSharedRefArray message,
         IBusPtr replyBus)
     {
@@ -101,7 +101,7 @@ private:
     NConcurrency::TEvent Event_;
 
 
-    virtual void OnMessage(TSharedRefArray message, IBusPtr /*replyBus*/)
+    virtual void HandleMessage(TSharedRefArray message, IBusPtr /*replyBus*/)
     {
         auto value = Deserialize(message);
         EXPECT_EQ("42", value);

@@ -30,7 +30,7 @@ TObjectServiceProxy::TReqExecuteBatch::Invoke()
     auto clientContxt = CreateClientContext();
     auto batchRsp = New<TRspExecuteBatch>(clientContxt, KeyToIndexes);
     auto promise = batchRsp->GetAsyncResult();
-    DoInvoke(batchRsp);
+    Send(batchRsp);
     return promise;
 }
 
@@ -118,9 +118,8 @@ TObjectServiceProxy::TRspExecuteBatch::GetAsyncResult()
     return Promise;
 }
 
-void TObjectServiceProxy::TRspExecuteBatch::FireCompleted(const TError& error)
+void TObjectServiceProxy::TRspExecuteBatch::SetPromise(const TError& error)
 {
-    BeforeCompleted();
     if (error.IsOK()) {
         Promise.Set(this);
     } else {

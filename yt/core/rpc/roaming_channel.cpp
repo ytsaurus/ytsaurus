@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "roaming_channel.h"
 #include "client.h"
+#include "channel_detail.h"
 
 #include <core/actions/future.h>
 
@@ -44,7 +45,7 @@ public:
         }
     }
 
-    virtual void Send(
+    virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
@@ -59,8 +60,8 @@ public:
 
             if (Terminated_) {
                 guard.Release();
-                responseHandler->OnError(TError(NRpc::EErrorCode::TransportError, "Channel terminated"));
-                return;
+                responseHandler->HandleError(TError(NRpc::EErrorCode::TransportError, "Channel terminated"));
+                return nullptr;
             }
 
             channelPromise = ChannelPromise_;
@@ -75,13 +76,18 @@ public:
             }
         }
 
+        auto requestControlThunk = New<TClientRequestControlThunk>();
+
         channelPromise.ToFuture().Subscribe(BIND(
             &TRoamingChannel::OnGotChannel,
             MakeStrong(this),
             request,
             responseHandler,
             timeout,
-            requestAck));
+            requestAck,
+            requestControlThunk));
+
+        return requestControlThunk;
     }
 
     virtual TFuture<void> Terminate(const TError& error) override
@@ -123,28 +129,29 @@ private:
             , IsChannelFailureError_(isChannelFailureError)
         { }
 
-        virtual void OnAcknowledgement() override
+        virtual void HandleAcknowledgement() override
         {
-            UnderlyingHandler_->OnAcknowledgement();
+            UnderlyingHandler_->HandleAcknowledgement();
         }
 
-        virtual void OnResponse(TSharedRefArray message) override
+        virtual void HandleResponse(TSharedRefArray message) override
         {
-            UnderlyingHandler_->OnResponse(message);
+            UnderlyingHandler_->HandleResponse(message);
         }
 
-        virtual void OnError(const TError& error) override
+        virtual void HandleError(const TError& error) override
         {
-            UnderlyingHandler_->OnError(error);
+            UnderlyingHandler_->HandleError(error);
             if (IsChannelFailureError_.Run(error)) {
                 OnFailed_.Run();
             }
         }
 
     private:
-        IClientResponseHandlerPtr UnderlyingHandler_;
-        TClosure OnFailed_;
-        TCallback<bool(const TError&)> IsChannelFailureError_;
+        const IClientResponseHandlerPtr UnderlyingHandler_;
+        const TClosure OnFailed_;
+        const TCallback<bool(const TError&)> IsChannelFailureError_;
+
     };
 
 
@@ -176,21 +183,23 @@ private:
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
         bool requestAck,
+        TClientRequestControlThunkPtr requestControlThunk,
         const TErrorOr<IChannelPtr>& result)
     {
         if (!result.IsOK()) {
-            responseHandler->OnError(result);
+            responseHandler->HandleError(result);
         } else {
             auto channel = result.Value();
             auto responseHandlerWrapper = New<TResponseHandler>(
                 responseHandler,
                 BIND(&TRoamingChannel::OnChannelFailed, MakeStrong(this), channel),
                 IsChannelFailureError_);
-            channel->Send(
+            auto requestControl = channel->Send(
                 request,
                 responseHandlerWrapper,
                 timeout,
                 requestAck);
+            requestControlThunk->SetUnderlying(std::move(requestControl));
         }
     }
 
@@ -207,9 +216,10 @@ private:
     }
 
 
+    const IRoamingChannelProviderPtr Provider_;
+    const TCallback<bool(const TError&)> IsChannelFailureError_;
+
     TNullable<TDuration> DefaultTimeout_;
-    IRoamingChannelProviderPtr Provider_;
-    TCallback<bool(const TError&)> IsChannelFailureError_;
 
     TSpinLock SpinLock;
     volatile bool Terminated_ = false;

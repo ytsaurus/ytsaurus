@@ -17,6 +17,21 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Controls the lifetime of a request sent via IChannel::Sent.
+struct IClientRequestControl
+    : public virtual TIntrinsicRefCounted
+{
+    //! Cancels the request.
+    /*!
+     *  An implementation is free to ignore cancelations.
+     */
+    virtual void Cancel() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IClientRequestControl)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! An interface for exchanging request-response pairs.
 /*!
  * \note Thread affinity: any.
@@ -39,8 +54,11 @@ struct IChannel
      *  \param request A request to send.
      *  \param responseHandler An object that will handle a response.
      *  \param timeout Request processing timeout.
+     *  \returns an object controlling the lifetime of the request;
+     *  the latter could be |nullptr| if no control is supported by the implementation in general
+     *  or for this particular request.
      */
-    virtual void Send(
+    virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
@@ -55,6 +73,8 @@ struct IChannel
 };
 
 DEFINE_REFCOUNTED_TYPE(IChannel)
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Provides means for parsing addresses and creating channels.
 struct IChannelFactory

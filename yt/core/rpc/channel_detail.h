@@ -18,7 +18,7 @@ public:
 
     virtual NYTree::TYsonString GetEndpointDescription() const override;
 
-    virtual void Send(
+    virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
@@ -27,10 +27,36 @@ public:
     virtual TFuture<void> Terminate(const TError& error) override;
 
 protected:
-    IChannelPtr UnderlyingChannel_;
+    const IChannelPtr UnderlyingChannel_;
+
     TNullable<TDuration> DefaultTimeout_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TChannelWrapper)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TClientRequestControlThunk
+    : public IClientRequestControl
+{
+public:
+    void SetUnderlying(IClientRequestControlPtr underlyingControl);
+
+    virtual void Cancel() override;
+
+private:
+    TSpinLock SpinLock_;
+    bool Canceled_ = false;
+    bool UnderlyingCanceled_ = false;
+    IClientRequestControlPtr Underlying_;
+
+
+    void PropagateCancel(TGuard<TSpinLock>& guard);
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TClientRequestControlThunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 

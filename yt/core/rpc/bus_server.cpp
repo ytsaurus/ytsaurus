@@ -53,17 +53,31 @@ private:
     IBusServerPtr BusServer_;
 
 
-    virtual void OnMessage(TSharedRefArray message, IBusPtr replyBus) override
+    virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) override
     {
-        std::unique_ptr<NProto::TRequestHeader> header(new NProto::TRequestHeader());
+        auto messageType = GetMessageType(message);
+        switch (messageType) {
+            case EMessageType::Request:
+                OnRequestMessage(std::move(message), std::move(replyBus));
+                break;
 
-        if (message.Size() < 2) {
-            LOG_WARNING("Too few message parts");
-            return;
+            case EMessageType::RequestCancelation:
+                OnRequestCancelationMessage(std::move(message), std::move(replyBus));
+                break;
+
+            default:
+                // Unable to reply, no request id is known.
+                // Let's just drop the message.
+                LOG_ERROR("Invalid incoming message type %x, ignored", static_cast<ui32>(messageType));
+                break;
         }
+    }
 
+    void OnRequestMessage(TSharedRefArray message, IBusPtr replyBus)
+    {
+        auto header = std::make_unique<NProto::TRequestHeader>();
         if (!ParseRequestHeader(message, header.get())) {
-            // Unable to reply, no requestId is known.
+            // Unable to reply, no request id is known.
             // Let's just drop the message.
             LOG_ERROR("Error parsing request header");
             return;
@@ -71,16 +85,23 @@ private:
 
         auto requestId = FromProto<TRequestId>(header->request_id());
         const auto& serviceName = header->service();
-        const auto& method = header->method();
+        const auto& methodName = header->method();
         auto realmId = header->has_realm_id() ? FromProto<TRealmId>(header->realm_id()) : NullRealmId;
         bool oneWay = header->has_one_way() ? header->one_way() : false;
         auto timeout = header->has_timeout() ? MakeNullable(TDuration(header->timeout())) : Null;
         auto requestStartTime = header->has_request_start_time() ? MakeNullable(header->request_start_time()) : Null;
         auto retryStartTime = header->has_retry_start_time() ? MakeNullable(header->retry_start_time()) : Null;
 
+        if (message.Size() < 2) {
+            LOG_ERROR("Too few request parts: expected >= 2, actual %v (RequestId: %v)",
+                message.Size(),
+                requestId);
+            return;
+        }
+
         LOG_DEBUG("Request received (Method: %v:%v, RealmId: %v, RequestId: %v, OneWay: %v, Timeout: %v, RequestStartTime: %v, RetryStartTime: %v)",
             serviceName,
-            method,
+            methodName,
             realmId,
             requestId,
             oneWay,
@@ -119,12 +140,45 @@ private:
             return;
         }
 
-        service->OnRequest(
+        service->HandleRequest(
             std::move(header),
             std::move(message),
             std::move(replyBus));
     }
 
+    void OnRequestCancelationMessage(TSharedRefArray message, IBusPtr /*replyBus*/)
+    {
+        NProto::TRequestCancelationHeader header;
+        if (!ParseRequestCancelationHeader(message, &header)) {
+            // Unable to reply, no request id is known.
+            // Let's just drop the message.
+            LOG_ERROR("Error parsing request cancelation header");
+            return;
+        }
+
+        auto requestId = FromProto<TRequestId>(header.request_id());
+        const auto& serviceName = header.service();
+        const auto& methodName = header.method();
+        auto realmId = header.has_realm_id() ? FromProto<TRealmId>(header.realm_id()) : NullRealmId;
+
+        TServiceId serviceId(serviceName, realmId);
+        auto service = FindService(serviceId);
+        if (!service) {
+            LOG_DEBUG("Service is not registered (Service: %v, RealmId: %v, RequestId: %v)",
+                serviceName,
+                realmId,
+                requestId);
+            return;
+        }
+
+        LOG_DEBUG("Request cancelation received (Method: %v:%v, RealmId: %v, RequestId: %v)",
+            methodName,
+            serviceName,
+            realmId,
+            requestId);
+
+        service->HandleRequestCancelation(requestId);
+    }
 };
 
 IServerPtr CreateBusServer(NBus::IBusServerPtr busServer)

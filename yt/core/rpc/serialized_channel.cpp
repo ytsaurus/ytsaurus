@@ -21,7 +21,7 @@ public:
         : TChannelWrapper(std::move(underlyingChannel))
     { }
 
-    virtual void Send(
+    virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
@@ -39,6 +39,8 @@ public:
         }
 
         TrySendQueuedRequests();
+
+        return entry->RequestControlThunk;
     }
 
     virtual TFuture<void> Terminate(const TError& /*error*/) override
@@ -69,26 +71,26 @@ private:
             , Owner_(std::move(owner))
         { }
 
-        virtual void OnAcknowledgement() override
+        virtual void HandleAcknowledgement() override
         {
-            UnderlyingHandler_->OnAcknowledgement();
+            UnderlyingHandler_->HandleAcknowledgement();
         }
 
-        virtual void OnResponse(TSharedRefArray message) override
+        virtual void HandleResponse(TSharedRefArray message) override
         {
-            UnderlyingHandler_->OnResponse(std::move(message));
+            UnderlyingHandler_->HandleResponse(std::move(message));
             Owner_->OnRequestCompleted();
         }
 
-        virtual void OnError(const TError& error) override
+        virtual void HandleError(const TError& error) override
         {
-            UnderlyingHandler_->OnError(error);
+            UnderlyingHandler_->HandleError(error);
             Owner_->OnRequestCompleted();
         }
 
     private:
-        IClientResponseHandlerPtr UnderlyingHandler_;
-        TSerializedChannelPtr Owner_;
+        const IClientResponseHandlerPtr UnderlyingHandler_;
+        const TSerializedChannelPtr Owner_;
 
     };
 
@@ -108,8 +110,9 @@ private:
 
         IClientRequestPtr Request;
         IClientResponseHandlerPtr Handler;
-        TNullable<TDuration> Timeout;
-        bool RequestAck;
+        const TNullable<TDuration> Timeout;
+        const bool RequestAck;
+        TClientRequestControlThunkPtr RequestControlThunk = New<TClientRequestControlThunk>();
     };
 
     typedef TIntrusivePtr<TEntry> TEntryPtr;
@@ -129,13 +132,15 @@ private:
             guard.Release();
 
             auto serializedHandler = New<TResponseHandler>(entry->Handler, this);
-            UnderlyingChannel_->Send(
+            auto requestControl = UnderlyingChannel_->Send(
                 entry->Request,
                 serializedHandler,
                 entry->Timeout,
                 entry->RequestAck);
+            entry->RequestControlThunk->SetUnderlying(std::move(requestControl));
             entry->Request.Reset();
             entry->Handler.Reset();
+            entry->RequestControlThunk.Reset();
         }
     }
 

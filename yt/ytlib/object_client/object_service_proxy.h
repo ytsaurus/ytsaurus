@@ -206,7 +206,7 @@ public:
         NProto::TRspExecute Body;
         std::vector<int> BeginPartIndexes;
 
-        virtual void FireCompleted(const TError& error) override;
+        virtual void SetPromise(const TError& error) override;
         virtual void DeserializeBody(const TRef& data) override;
 
     };

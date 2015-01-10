@@ -31,6 +31,15 @@ TTcpDispatcherStatistics& operator += (
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Local means UNIX domain sockets.
+//! Remove means standard TCP sockets.
+DEFINE_ENUM(ETcpInterfaceType,
+    (Local)
+    (Remote)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTcpDispatcher
 {
 public:
@@ -51,7 +60,7 @@ private:
     friend class TTcpBusServerProxy;
 
     class TImpl;
-    std::unique_ptr<TImpl> Impl;
+    std::unique_ptr<TImpl> Impl_;
 
 };
 
