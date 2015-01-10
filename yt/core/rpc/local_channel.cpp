@@ -129,7 +129,11 @@ private:
         virtual void Terminate(const TError& /*error*/) override
         { }
 
-        DEFINE_SIGNAL(void(const TError&), Terminated);
+        virtual void SubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
+        { }
+
+        virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
+        { }
 
     private:
         IClientResponseHandlerPtr Handler_;
