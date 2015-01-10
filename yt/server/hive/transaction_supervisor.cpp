@@ -322,7 +322,9 @@ private:
         return asyncMessage.Apply(BIND([] (const TSharedRefArray& message) -> TFuture<void> {
             TResponseHeader header;
             YCHECK(ParseResponseHeader(message, &header));
-            return MakeFuture<void>(FromProto<TError>(header.error()));
+            return header.has_error()
+                ? MakeFuture<void>(FromProto<TError>(header.error()))
+                : VoidFuture;
         }));
     }
 

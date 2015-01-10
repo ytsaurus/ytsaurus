@@ -31,6 +31,8 @@ struct IBusServer
     virtual void Stop() = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IBusServer)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NBus

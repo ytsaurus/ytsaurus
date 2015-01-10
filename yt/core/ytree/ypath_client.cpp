@@ -68,6 +68,11 @@ TRequestId TYPathRequest::GetRequestId() const
     return NullRequestId;
 }
 
+TRealmId TYPathRequest::GetRealmId() const
+{
+    return NullRealmId;
+}
+
 const Stroka& TYPathRequest::GetMethod() const
 {
     return Header_.method();
@@ -76,12 +81,6 @@ const Stroka& TYPathRequest::GetMethod() const
 const Stroka& TYPathRequest::GetService() const
 {
     return Header_.service();
-}
-
-const Stroka& TYPathRequest::GetPath() const
-{
-    const auto& headerExt = Header_.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    return headerExt.path();
 }
 
 TInstant TYPathRequest::GetStartTime() const
@@ -124,8 +123,10 @@ void TYPathResponse::Deserialize(TSharedRefArray message)
         THROW_ERROR_EXCEPTION("Error parsing response header");
     }
 
-    auto error = NYT::FromProto<TError>(header.error());
-    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    if (header.has_error()) {
+        auto error = NYT::FromProto<TError>(header.error());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    }
 
     // Deserialize body.
     YASSERT(message.Size() >= 2);

@@ -28,15 +28,15 @@ public:
         bool mutating);
 
     virtual bool IsOneWay() const override;
-    virtual NRpc::TRequestId GetRequestId() const override;
 
+    virtual NRpc::TRequestId GetRequestId() const override;
+    virtual NRpc::TRealmId GetRealmId() const override;
     virtual const Stroka& GetMethod() const override;
     virtual const Stroka& GetService() const override;
-    const Stroka& GetPath() const;
 
     virtual TInstant GetStartTime() const override;
     virtual void SetStartTime(TInstant value) override;
-    
+
     virtual const NRpc::NProto::TRequestHeader& Header() const override;
     virtual NRpc::NProto::TRequestHeader& Header() override;
 

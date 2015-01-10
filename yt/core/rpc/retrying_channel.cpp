@@ -37,7 +37,7 @@ public:
         YCHECK(Config_);
     }
 
-    virtual void Send(
+    virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
@@ -46,7 +46,7 @@ public:
         YASSERT(request);
         YASSERT(responseHandler);
 
-        New<TRetryingRequest>(
+        return New<TRetryingRequest>(
             Config_,
             UnderlyingChannel_,
             request,
@@ -59,6 +59,10 @@ public:
 
 
 private:
+    const TRetryingChannelConfigPtr Config_;
+    const TCallback<bool(const TError&)> IsRetriableError_;
+
+
     class TRetryingRequest
         : public IClientResponseHandler
     {
@@ -67,15 +71,14 @@ private:
             TRetryingChannelConfigPtr config,
             IChannelPtr underlyingChannel,
             IClientRequestPtr request,
-            IClientResponseHandlerPtr originalHandler,
+            IClientResponseHandlerPtr responseHandler,
             TNullable<TDuration> timeout,
             bool requestAck,
             TCallback<bool(const TError&)> isRetriableError)
             : Config_(std::move(config))
             , UnderlyingChannel_(std::move(underlyingChannel))
-            , CurrentAttempt_(1)
             , Request_(std::move(request))
-            , OriginalHandler_(std::move(originalHandler))
+            , ResponseHandler_(std::move(responseHandler))
             , Timeout_(timeout)
             , RequestAck_(requestAck)
             , IsRetriableError_(isRetriableError)
@@ -83,7 +86,7 @@ private:
             YASSERT(Config_);
             YASSERT(UnderlyingChannel_);
             YASSERT(Request_);
-            YASSERT(OriginalHandler_);
+            YASSERT(ResponseHandler_);
 
             YCHECK(!Request_->IsOneWay());
 
@@ -92,54 +95,38 @@ private:
                 : TInstant::Max();
         }
 
-        void Send()
+        IClientRequestControlPtr Send()
         {
-            LOG_DEBUG("Request attempt started (RequestId: %v, Attempt: %v of %v, RequestTimeout: %v, RetryTimeout: %v)",
-                Request_->GetRequestId(),
-                CurrentAttempt_,
-                Config_->RetryAttempts,
-                Timeout_,
-                Config_->RetryTimeout);
-
-            auto now = TInstant::Now();
-            if (now > Deadline_) {
-                ReportError(TError(NYT::EErrorCode::Timeout, "Request retries timed out"));
-                return;
-            }
-
-            auto timeout = ComputeAttemptTimeout(now);
-            UnderlyingChannel_->Send(
-                Request_,
-                this,
-                timeout,
-                RequestAck_);
+            DoSend();
+            return RequestControlThunk_;
         }
 
     private:
-        TRetryingChannelConfigPtr Config_;
-        IChannelPtr UnderlyingChannel_;
+        const TRetryingChannelConfigPtr Config_;
+        const IChannelPtr UnderlyingChannel_;
+        const IClientRequestPtr Request_;
+        const IClientResponseHandlerPtr ResponseHandler_;
+        const TNullable<TDuration> Timeout_;
+        const bool RequestAck_;
+        const TCallback<bool(const TError&)> IsRetriableError_;
+        const TClientRequestControlThunkPtr RequestControlThunk_ = New<TClientRequestControlThunk>();
 
         //! The current attempt number (1-based).
-        int CurrentAttempt_;
-        IClientRequestPtr Request_;
-        IClientResponseHandlerPtr OriginalHandler_;
-        TNullable<TDuration> Timeout_;
-        bool RequestAck_;
+        int CurrentAttempt_ = 1;
         TInstant Deadline_;
         std::vector<TError> InnerErrors_;
 
-
         // IClientResponseHandler implementation.
 
-        virtual void OnAcknowledgement() override
+        virtual void HandleAcknowledgement() override
         {
             LOG_DEBUG("Request attempt acknowledged (RequestId: %v)",
                 Request_->GetRequestId());
 
-            // NB: OriginalHandler is not notified.
+            // NB: The underlying handler is not notified.
         }
 
-        virtual void OnError(const TError& error) override
+        virtual void HandleError(const TError& error) override
         {
             LOG_DEBUG(error, "Request attempt failed (RequestId: %v, Attempt: %v of %v)",
                 Request_->GetRequestId(),
@@ -147,7 +134,7 @@ private:
                 Config_->RetryAttempts);
 
             if (!IsRetriableError_.Run(error)) {
-                OriginalHandler_->OnError(error);
+                ResponseHandler_->HandleError(error);
                 return;
             }
 
@@ -155,12 +142,12 @@ private:
             Retry();
         }
 
-        virtual void OnResponse(TSharedRefArray message) override
+        virtual void HandleResponse(TSharedRefArray message) override
         {
             LOG_DEBUG("Request attempt succeeded (RequestId: %v)",
                 Request_->GetRequestId());
 
-            OriginalHandler_->OnResponse(message);
+            ResponseHandler_->HandleResponse(message);
         }
 
 
@@ -178,7 +165,7 @@ private:
             auto detailedError = error
                 << TErrorAttribute("endpoint", UnderlyingChannel_->GetEndpointDescription())
                 << InnerErrors_;
-            OriginalHandler_->OnError(detailedError);
+            ResponseHandler_->HandleError(detailedError);
         }
 
         void Retry()
@@ -190,16 +177,36 @@ private:
             }
 
             TDelayedExecutor::Submit(
-                BIND(&TRetryingRequest::Send, MakeStrong(this)),
+                BIND(&TRetryingRequest::DoSend, MakeStrong(this)),
                 Config_->RetryBackoffTime);
         }
 
-        TCallback<bool(const TError&)> IsRetriableError_;
+        void DoSend()
+        {
+            LOG_DEBUG("Request attempt started (RequestId: %v, Attempt: %v of %v, RequestTimeout: %v, RetryTimeout: %v)",
+                Request_->GetRequestId(),
+                CurrentAttempt_,
+                Config_->RetryAttempts,
+                Timeout_,
+                Config_->RetryTimeout);
+
+            auto now = TInstant::Now();
+            if (now > Deadline_) {
+                ReportError(TError(NYT::EErrorCode::Timeout, "Request retries timed out"));
+                return;
+            }
+
+            auto timeout = ComputeAttemptTimeout(now);
+            auto requestControl = UnderlyingChannel_->Send(
+                Request_,
+                this,
+                timeout,
+                RequestAck_);
+            RequestControlThunk_->SetUnderlying(std::move(requestControl));
+        }
+
     };
 
-    TRetryingChannelConfigPtr Config_;
-
-    TCallback<bool(const TError&)> IsRetriableError_;
 };
 
 IChannelPtr CreateRetryingChannel(

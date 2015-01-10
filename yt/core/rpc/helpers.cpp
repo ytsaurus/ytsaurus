@@ -56,14 +56,14 @@ public:
         , User_(user)
     { }
 
-    virtual void Send(
+    virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
         bool requestAck) override
     {
         SetAuthenticatedUser(request, User_);
-        UnderlyingChannel_->Send(
+        return UnderlyingChannel_->Send(
             request,
             responseHandler,
             timeout,
@@ -127,14 +127,14 @@ public:
         , RealmId_(realmId)
     { }
 
-    virtual void Send(
+    virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
         bool requestAck) override
     {
         ToProto(request->Header().mutable_realm_id(), RealmId_);
-        UnderlyingChannel_->Send(
+        return UnderlyingChannel_->Send(
             request,
             responseHandler,
             timeout,

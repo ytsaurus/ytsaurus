@@ -47,11 +47,11 @@ public:
     DEFINE_RPC_PROXY_METHOD(NMyRpc, DoNothing);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, CustomMessageError);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, NotRegistered);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, LongReply);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, SlowCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, SlowCanceledCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, NoReply);
 
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, OneWay);
-    DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, CheckAll);
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, NotRegistredOneWay);
 
 };
@@ -82,7 +82,7 @@ TSharedRef SharedRefFromString(const Stroka& s)
     return TSharedRef::FromString(s);
 }
 
-IChannelPtr CreateChannel(const Stroka& address)
+IChannelPtr CreateChannel(const Stroka& address = "localhost:2000")
 {
     auto client = CreateTcpBusClient(New<TTcpBusClientConfig>(address));
     return CreateBusChannel(client);
@@ -104,67 +104,91 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyAttachments));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DoNothing));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CustomMessageError));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(LongReply));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SlowCall)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SlowCanceledCall)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(NoReply));
-
         RegisterMethod(RPC_SERVICE_METHOD_DESC(OneWay)
             .SetOneWay(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckAll)
-            .SetOneWay(true));
-
         // Note: NotRegisteredCall and NotRegistredOneWay are not registered
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, SomeCall);
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, ModifyAttachments);
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, DoNothing);
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, CustomMessageError);
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, LongReply);
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, NoReply);
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, SomeCall)
+    {
+        context->SetRequestInfo();
+        int a = request->a();
+        response->set_b(a + 100);
+        context->Reply();
+    }
 
-    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, OneWay);
-    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, CheckAll);
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, ModifyAttachments)
+    {
+        for (const auto& attachment : request->Attachments()) {
+            auto data = TBlob(TDefaultBlobTag());
+            data.Append(attachment);
+            data.Append("_", 1);
+            response->Attachments().push_back(TSharedRef::FromBlob(std::move(data)));
+        }
+        context->Reply();
+    }
 
-    TFuture<void> GetOneWayCalled()
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, DoNothing)
+    {
+        context->SetRequestInfo();
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, CustomMessageError)
+    {
+        context->SetRequestInfo();
+        context->Reply(TError(NYT::EErrorCode(42), "Some Error"));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, SlowCall)
+    {
+        context->SetRequestInfo();
+        Sleep(TDuration::Seconds(1.0));
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, SlowCanceledCall)
+    {
+        try {
+            context->SetRequestInfo();
+            WaitFor(MakeDelayed(TDuration::Seconds(2)));
+            context->Reply();
+        } catch (const TFiberCanceledException&) {
+            SlowCallCanceled_ = true;
+            throw;
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, NoReply)
+    { }
+
+    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, OneWay)
+    {
+        context->SetRequestInfo();
+        OneWayCalled_.Set();
+    }
+
+
+    TFuture<void> GetOneWayCalled() const
     {
         return OneWayCalled_;
     }
 
+    bool GetSlowCallCanceled() const
+    {
+        return SlowCallCanceled_;
+    }
+
 private:
     TPromise<void> OneWayCalled_ = NewPromise<void>();
+    bool SlowCallCanceled_ = false;
 
 };
-
-DEFINE_RPC_SERVICE_METHOD(TMyService, SomeCall)
-{
-    int a = request->a();
-    response->set_b(a + 100);
-    context->Reply();
-}
-
-DEFINE_RPC_SERVICE_METHOD(TMyService, DoNothing)
-{
-    context->Reply();
-}
-
-DEFINE_RPC_SERVICE_METHOD(TMyService, LongReply)
-{
-    Sleep(TDuration::Seconds(1.0));
-    context->Reply();
-}
-
-DEFINE_RPC_SERVICE_METHOD(TMyService, NoReply)
-{ }
-
-DEFINE_RPC_SERVICE_METHOD(TMyService, CustomMessageError)
-{
-    context->Reply(TError(NYT::EErrorCode(42), "Some Error"));
-}
-
-DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, OneWay)
-{
-    OneWayCalled_.Set();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -177,25 +201,25 @@ public:
         auto busConfig = New<TTcpBusServerConfig>(2000);
         auto busServer = CreateTcpBusServer(busConfig);
 
-        RpcServer = CreateBusServer(busServer);
+        Server_ = CreateBusServer(busServer);
 
-        Queue = New<TActionQueue>();
+        Queue_ = New<TActionQueue>();
 
-        Service = New<TMyService>(Queue->GetInvoker());
-        RpcServer->RegisterService(Service);
-        RpcServer->Start();
+        Service_ = New<TMyService>(Queue_->GetInvoker());
+        Server_->RegisterService(Service_);
+        Server_->Start();
     }
 
     virtual void TearDown()
     {
-        RpcServer->Stop();
-        RpcServer.Reset();
+        Server_->Stop();
+        Server_.Reset();
     }
 
 protected:
-    TActionQueuePtr Queue;
-    TIntrusivePtr<TMyService> Service;
-    IServerPtr RpcServer;
+    TActionQueuePtr Queue_;
+    TIntrusivePtr<TMyService> Service_;
+    IServerPtr Server_;
 
 };
 
@@ -203,7 +227,7 @@ protected:
 
 TEST_F(TRpcTest, Send)
 {
-    TMyProxy proxy(CreateChannel("localhost:2000"));
+    TMyProxy proxy(CreateChannel());
     auto req = proxy.SomeCall();
     req->set_a(42);
     auto rspOrError = req->Invoke().Get();
@@ -218,7 +242,7 @@ TEST_F(TRpcTest, ManyAsyncRequests)
 
     auto collector = New<TParallelCollector<void>>();
 
-    TMyProxy proxy(CreateChannel("localhost:2000"));
+    TMyProxy proxy(CreateChannel());
 
     for (int i = 0; i < RequestCount; ++i) {
         auto request = proxy.SomeCall();
@@ -232,22 +256,9 @@ TEST_F(TRpcTest, ManyAsyncRequests)
     EXPECT_TRUE(collector->Complete().Get().IsOK());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttachments)
-{
-    for (const auto& attachment : request->Attachments()) {
-        auto data = TBlob(TDefaultBlobTag());
-        data.Append(attachment);
-        data.Append("_", 1);
-        response->Attachments().push_back(TSharedRef::FromBlob(std::move(data)));
-    }
-    context->Reply();
-}
-
 TEST_F(TRpcTest, Attachments)
 {
-    TMyProxy proxy(CreateChannel("localhost:2000"));
+    TMyProxy proxy(CreateChannel());
     auto req = proxy.ModifyAttachments();
 
     req->Attachments().push_back(SharedRefFromString("Hello"));
@@ -265,12 +276,10 @@ TEST_F(TRpcTest, Attachments)
     EXPECT_EQ("TMyProxy_",  StringFromSharedRef(attachments[2]));
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 // Now test different types of errors
 TEST_F(TRpcTest, OK)
 {
-    TMyProxy proxy(CreateChannel("localhost:2000"));
+    TMyProxy proxy(CreateChannel());
     auto req = proxy.DoNothing();
     auto rspOrError = req->Invoke().Get();
     EXPECT_TRUE(rspOrError.IsOK());
@@ -278,7 +287,7 @@ TEST_F(TRpcTest, OK)
 
 TEST_F(TRpcTest, NoAck)
 {
-    TMyProxy proxy(CreateChannel("localhost:2000"));
+    TMyProxy proxy(CreateChannel());
     auto req = proxy.DoNothing()->SetRequestAck(false);
     auto rspOrError = req->Invoke().Get();
     EXPECT_TRUE(rspOrError.IsOK());
@@ -294,7 +303,7 @@ TEST_F(TRpcTest, TransportError)
 
 TEST_F(TRpcTest, NoService)
 {
-    TNonExistingServiceProxy proxy(CreateChannel("localhost:2000"));
+    TNonExistingServiceProxy proxy(CreateChannel());
     auto req = proxy.DoNothing();
     auto rspOrError = req->Invoke().Get();
     EXPECT_EQ(NRpc::EErrorCode::NoSuchService, rspOrError.GetCode());
@@ -302,70 +311,81 @@ TEST_F(TRpcTest, NoService)
 
 TEST_F(TRpcTest, NoMethod)
 {
-    TMyProxy proxy(CreateChannel("localhost:2000"));
+    TMyProxy proxy(CreateChannel());
     auto req = proxy.NotRegistered();
     auto rspOrError = req->Invoke().Get();
     EXPECT_EQ(NRpc::EErrorCode::NoSuchMethod, rspOrError.GetCode());
 }
 
-TEST_F(TRpcTest, Timeout)
+TEST_F(TRpcTest, ClientTimeout)
 {
-    TMyProxy proxy(CreateChannel("localhost:2000"));
+    TMyProxy proxy(CreateChannel());
     proxy.SetDefaultTimeout(TDuration::Seconds(0.5));
-    auto req = proxy.LongReply();
+    auto req = proxy.SlowCall();
     auto rspOrError = req->Invoke().Get();
     EXPECT_EQ(NYT::EErrorCode::Timeout, rspOrError.GetCode());
 }
 
-TEST_F(TRpcTest, LongReply)
+TEST_F(TRpcTest, ServerTimeout)
 {
-    TMyProxy proxy(CreateChannel("localhost:2000"));
+    TMyProxy proxy(CreateChannel());
+    proxy.SetDefaultTimeout(TDuration::Seconds(0.5));
+    auto req = proxy.SlowCanceledCall();
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_EQ(NYT::EErrorCode::Timeout, rspOrError.GetCode());
+    Sleep(TDuration::Seconds(1));
+    EXPECT_TRUE(Service_->GetSlowCallCanceled());
+}
+
+TEST_F(TRpcTest, ClientCancel)
+{
+    TMyProxy proxy(CreateChannel());
+    auto req = proxy.SlowCanceledCall();
+    auto asyncRspOrError = req->Invoke();
+    Sleep(TDuration::Seconds(0.5));
+    EXPECT_FALSE(asyncRspOrError.IsSet());
+    asyncRspOrError.Cancel();
+    EXPECT_TRUE(asyncRspOrError.IsSet());
+    auto rspOrError = asyncRspOrError.Get();
+    EXPECT_EQ(NYT::EErrorCode::Canceled, rspOrError.GetCode());
+    Sleep(TDuration::Seconds(1));
+    EXPECT_TRUE(Service_->GetSlowCallCanceled());
+}
+
+TEST_F(TRpcTest, SlowCall)
+{
+    TMyProxy proxy(CreateChannel());
     proxy.SetDefaultTimeout(TDuration::Seconds(2.0));
-    auto req = proxy.LongReply();
+    auto req = proxy.SlowCall();
     auto rspOrError = req->Invoke().Get();
     EXPECT_TRUE(rspOrError.IsOK());
 }
 
 TEST_F(TRpcTest, NoReply)
 {
-    TMyProxy proxy(CreateChannel("localhost:2000"));
+    TMyProxy proxy(CreateChannel());
 
     auto req = proxy.NoReply();
     auto rspOrError = req->Invoke().Get();
-    EXPECT_EQ(NRpc::EErrorCode::Unavailable, rspOrError.GetCode());
+    EXPECT_EQ(NYT::EErrorCode::Canceled, rspOrError.GetCode());
 }
 
 TEST_F(TRpcTest, CustomErrorMessage)
 {
-    TMyProxy proxy(CreateChannel("localhost:2000"));
+    TMyProxy proxy(CreateChannel());
     auto req = proxy.CustomMessageError();
     auto rspOrError = req->Invoke().Get();
     EXPECT_EQ(NYT::EErrorCode(42), rspOrError.GetCode());
     EXPECT_EQ("Some Error", rspOrError.GetMessage());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, CheckAll)
-{
-    EXPECT_EQ(12345, request->value());
-    EXPECT_EQ(true, request->ok());
-    EXPECT_EQ(Stroka("hello, TMyService"), request->message());
-
-    const auto& attachments = request->Attachments();
-    EXPECT_EQ(3, attachments.size());
-    EXPECT_EQ("Attachments", StringFromSharedRef(attachments[0]));
-    EXPECT_EQ("are", StringFromSharedRef(attachments[1]));
-    EXPECT_EQ("ok", StringFromSharedRef(attachments[2]));
-}
-
 TEST_F(TRpcTest, OneWayOK)
 {
-    TMyProxy proxy(CreateChannel("localhost:2000"));
+    TMyProxy proxy(CreateChannel());
     auto req = proxy.OneWay();
     auto rspOrError = req->Invoke().Get();
     EXPECT_TRUE(rspOrError.IsOK());
-    Service->GetOneWayCalled().Get();
+    Service_->GetOneWayCalled().Get();
 }
 
 TEST_F(TRpcTest, OneWayTransportError)
@@ -378,7 +398,7 @@ TEST_F(TRpcTest, OneWayTransportError)
 
 TEST_F(TRpcTest, OneWayNoService)
 {
-    TNonExistingServiceProxy proxy(CreateChannel("localhost:2000"));
+    TNonExistingServiceProxy proxy(CreateChannel());
     auto req = proxy.OneWay();
     auto rspOrError = req->Invoke().Get();
     // In this case we receive OK instead of NoSuchService
@@ -387,38 +407,37 @@ TEST_F(TRpcTest, OneWayNoService)
 
 TEST_F(TRpcTest, OneWayNoMethod)
 {
-    TMyProxy proxy(CreateChannel("localhost:2000"));
+    TMyProxy proxy(CreateChannel());
     auto req = proxy.NotRegistredOneWay();
     auto rspOrError = req->Invoke().Get();
     // In this case we receive OK instead of NoSuchMethod
     EXPECT_TRUE(rspOrError.IsOK());
 }
 
-TEST_F(TRpcTest, LostConnection)
+TEST_F(TRpcTest, ConnectionLost)
 {
-    TMyProxy proxy(CreateChannel("localhost:2000"));
-    proxy.SetDefaultTimeout(TDuration::Seconds(10));
+    TMyProxy proxy(CreateChannel());
 
-    auto req = proxy.LongReply();
+    auto req = proxy.SlowCanceledCall();
     auto asyncRspOrError = req->Invoke();
 
-    Sleep(TDuration::Seconds(0.2));
+    Sleep(TDuration::Seconds(0.5));
 
     EXPECT_FALSE(asyncRspOrError.IsSet());
-    RpcServer->Stop();
+    Server_->Stop();
 
-    Sleep(TDuration::Seconds(0.2));
+    Sleep(TDuration::Seconds(0.5));
 
-    // check that lost of connection is detected fast
     EXPECT_TRUE(asyncRspOrError.IsSet());
     auto rspOrError = asyncRspOrError.Get();
     EXPECT_FALSE(rspOrError.IsOK());
     EXPECT_EQ(NRpc::EErrorCode::TransportError, rspOrError.GetCode());
+    EXPECT_TRUE(Service_->GetSlowCallCanceled());
 }
 
 TEST_F(TRpcTest, ProtocolVersionMismatch)
 {
-    TMyProxy proxy(CreateChannel("localhost:2000"), 1);
+    TMyProxy proxy(CreateChannel(), 1);
     auto req = proxy.SomeCall();
     req->set_a(42);
     auto rspOrError = req->Invoke().Get();

@@ -24,29 +24,34 @@ public:
         Throttler_ = CreateLimitedThrottler(throttlerConfig);
     }
 
-    virtual void Send(
+    virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
         bool requestAck) override
     {
+        auto requestControlThunk = New<TClientRequestControlThunk>();
         auto this_ = MakeStrong(this);
-        Throttler_->Throttle(1).Subscribe(BIND([=] (const TError& error) mutable {
+        Throttler_->Throttle(1).Subscribe(BIND([=] (const TError& error) {
             UNUSED(this_);
-            if (error.IsOK()) {
-                UnderlyingChannel_->Send(
-                    std::move(request),
-                    std::move(responseHandler),
-                    timeout,
-                    requestAck);
-            } else {
-                responseHandler->OnError(error);
+
+            if (!error.IsOK()) {
+                responseHandler->HandleError(error);
+                return;
             }
+
+            auto requestControl = UnderlyingChannel_->Send(
+                std::move(request),
+                std::move(responseHandler),
+                timeout,
+                requestAck);
+            requestControlThunk->SetUnderlying(std::move(requestControl));
         }));
+        return requestControlThunk;
     }
 
 private:
-    TThrottlingChannelConfigPtr Config_;
+    const TThrottlingChannelConfigPtr Config_;
 
     NConcurrency::IThroughputThrottlerPtr Throttler_;
 

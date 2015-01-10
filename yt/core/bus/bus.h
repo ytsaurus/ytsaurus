@@ -54,6 +54,8 @@ struct IBus
     DECLARE_INTERFACE_SIGNAL(void(const TError&), Terminated);
 };
 
+DEFINE_REFCOUNTED_TYPE(IBus)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Handles incoming bus messages.
@@ -65,12 +67,15 @@ struct IMessageHandler
      *  \param message The just arrived message.
      *  \param replyBus A bus that can be used for replying back.
      *
-     *  \note Thread affinity: the method is called from an unspecified thread
+     *  \note
+     *  Thread affinity: the method is called from an unspecified thread
      *  and must return ASAP.
      *
      */
-    virtual void OnMessage(TSharedRefArray message, IBusPtr replyBus) = 0;
+    virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IMessageHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 

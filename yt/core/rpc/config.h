@@ -54,6 +54,7 @@ public:
     TNullable<NCompression::ECodec> ResponseCodec;
     TNullable<int> MaxQueueSize;
     TNullable<int> MaxConcurrency;
+    TNullable<NLog::ELogLevel> LogLevel;
 
     TMethodConfig()
     {
@@ -66,6 +67,8 @@ public:
         RegisterParameter("max_queue_size", MaxQueueSize)
             .Default();
         RegisterParameter("max_concurrency", MaxConcurrency)
+            .Default();
+        RegisterParameter("log_level", LogLevel)
             .Default();
     }
 };

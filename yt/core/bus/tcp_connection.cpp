@@ -92,12 +92,12 @@ TTcpConnection::TTcpConnection(
     switch (ConnectionType_) {
         case EConnectionType::Client:
             YCHECK(Socket_ == INVALID_SOCKET);
-            SetState(ETcpConnectionState::Resolving);
+            State_ = ETcpConnectionState::Resolving;
             break;
 
         case EConnectionType::Server:
             YCHECK(Socket_ != INVALID_SOCKET);
-            SetState(ETcpConnectionState::Opening);
+            State_ = ETcpConnectionState::Opening;
             break;
 
         default:
@@ -116,16 +116,6 @@ TTcpConnection::~TTcpConnection()
 {
     CloseSocket();
     Cleanup();
-}
-
-ETcpConnectionState TTcpConnection::GetState() const
-{
-    return ETcpConnectionState(State_.load());
-}
-
-void TTcpConnection::SetState(ETcpConnectionState state)
-{
-    State_.store(static_cast<int>(state));
 }
 
 void TTcpConnection::Cleanup()
@@ -229,7 +219,7 @@ const TConnectionId& TTcpConnection::GetId() const
 
 void TTcpConnection::SyncOpen()
 {
-    SetState(ETcpConnectionState::Open);
+    State_ = ETcpConnectionState::Open;
 
     LOG_DEBUG("Connection established");
 
@@ -290,7 +280,7 @@ void TTcpConnection::OnAddressResolved(const TNetworkAddress& netAddress)
 
     InitSocketWatcher();
 
-    SetState(ETcpConnectionState::Opening);
+    State_ = ETcpConnectionState::Opening;
 }
 
 void TTcpConnection::SyncClose(const TError& error)
@@ -299,11 +289,11 @@ void TTcpConnection::SyncClose(const TError& error)
     YCHECK(!error.IsOK());
 
     // Check for second close attempt.
-    if (GetState() == ETcpConnectionState::Closed) {
+    if (State_ == ETcpConnectionState::Closed) {
         return;
     }
 
-    SetState(ETcpConnectionState::Closed);
+    State_ = ETcpConnectionState::Closed;
 
     // Stop all watchers.
     SocketWatcher_.reset();
@@ -513,7 +503,7 @@ void TTcpConnection::UnsubscribeTerminated(const TCallback<void(const TError&)>&
 void TTcpConnection::OnSocket(ev::io&, int revents)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
-    YASSERT(GetState() != ETcpConnectionState::Closed);
+    YASSERT(State_ != ETcpConnectionState::Closed);
 
     if (revents & ev::ERROR) {
         SyncClose(TError(NRpc::EErrorCode::TransportError, "Socket failed"));
@@ -536,7 +526,7 @@ void TTcpConnection::OnSocket(ev::io&, int revents)
 
 void TTcpConnection::OnSocketRead()
 {
-    if (GetState() == ETcpConnectionState::Closed) {
+    if (State_ == ETcpConnectionState::Closed) {
         return;
     }
 
@@ -725,7 +715,7 @@ bool TTcpConnection::OnMessagePacketReceived()
 
     auto message = Decoder_.GetMessage();
     PROFILE_AGGREGATED_TIMING (InHandlerTime) {
-        Handler_->OnMessage(std::move(message), this);
+        Handler_->HandleMessage(std::move(message), this);
     }
 
     return true;
@@ -744,13 +734,13 @@ void TTcpConnection::EnqueuePacket(
 
 void TTcpConnection::OnSocketWrite()
 {
-    if (GetState() == ETcpConnectionState::Closed) {
+    if (State_ == ETcpConnectionState::Closed) {
         return;
     }
 
     // For client sockets the first write notification means that
     // connection was established (either successfully or not).
-    if (ConnectionType_ == EConnectionType::Client && GetState() == ETcpConnectionState::Opening) {
+    if (ConnectionType_ == EConnectionType::Client && State_ == ETcpConnectionState::Opening) {
         // Check if connection was established successfully.
         int error = GetSocketError();
         if (error != 0) {
@@ -1050,7 +1040,7 @@ void TTcpConnection::OnMessageEnqueued()
 
     MessageEnqueuedCallbackPending_.store(false);
 
-    switch (GetState()) {
+    switch (State_.load()) {
         case ETcpConnectionState::Resolving:
         case ETcpConnectionState::Opening:
             // Do nothing.
@@ -1127,7 +1117,7 @@ void TTcpConnection::DiscardUnackedMessages(const TError& error)
 
 void TTcpConnection::UpdateSocketWatcher()
 {
-    if (GetState() == ETcpConnectionState::Open) {
+    if (State_ == ETcpConnectionState::Open) {
         SocketWatcher_->set(HasUnsentData() ? ev::READ|ev::WRITE : ev::READ);
     }
 }

@@ -42,7 +42,7 @@ TTcpDispatcherStatistics& operator += (
 ////////////////////////////////////////////////////////////////////////////////
 
 TTcpDispatcher::TTcpDispatcher()
-    : Impl(new TImpl())
+    : Impl_(new TImpl())
 { }
 
 TTcpDispatcher* TTcpDispatcher::Get()
@@ -52,12 +52,12 @@ TTcpDispatcher* TTcpDispatcher::Get()
 
 void TTcpDispatcher::Shutdown()
 {
-    Impl->Shutdown();
+    Impl_->Shutdown();
 }
 
 TTcpDispatcherStatistics TTcpDispatcher::GetStatistics(ETcpInterfaceType interfaceType)
 {
-    return Impl->GetStatistics(interfaceType);
+    return Impl_->GetStatistics(interfaceType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -95,9 +95,11 @@ void TServiceContextBase::Reply(TSharedRefArray responseMessage)
     // NB: One must parse responseMessage and only use its content since,
     // e.g., responseMessage may contain invalid request id.
     TResponseHeader header;
-    YCHECK(DeserializeFromProto(&header, responseMessage[0]));
+    YCHECK(ParseResponseHeader(responseMessage, &header));
 
-    Error_ = FromProto<TError>(header.error());
+    if (header.has_error()) {
+        Error_ = FromProto<TError>(header.error());
+    }
     if (Error_.IsOK()) {
         YASSERT(responseMessage.Size() >= 2);
         ResponseBody_ = responseMessage[1];

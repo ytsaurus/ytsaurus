@@ -142,7 +142,7 @@ private:
     int Port_ = 0;
 
     // ETcpConnectionState actually, managed by GetState and SetState.
-    std::atomic<int> State_;
+    std::atomic<ETcpConnectionState> State_;
 
     TClosure MessageEnqueuedCallback_;
     std::atomic<bool> MessageEnqueuedCallbackPending_;
@@ -176,9 +176,6 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 
     void Cleanup();
-
-    ETcpConnectionState GetState() const;
-    void SetState(ETcpConnectionState state);
 
     void SyncOpen();
     void SyncResolve();
