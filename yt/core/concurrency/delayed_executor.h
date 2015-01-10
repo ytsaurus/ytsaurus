@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/actions/public.h>
+#include <core/actions/callback.h>
 
 namespace NYT {
 namespace NConcurrency {
