@@ -537,7 +537,7 @@ private:
             mountConfig,
             writerOptions,
             tabletId,
-            Slot_.Get(), // FIXME(babenko)
+            Slot_,
             schema,
             keyColumns,
             pivotKey,
