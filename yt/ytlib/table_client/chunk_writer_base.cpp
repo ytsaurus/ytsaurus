@@ -10,7 +10,7 @@
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/misc/protobuf_helpers.h>
 

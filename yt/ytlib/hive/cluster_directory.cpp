@@ -2,7 +2,7 @@
 
 #include <core/ytree/convert.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <ytlib/api/config.h>
 #include <ytlib/api/connection.h>
