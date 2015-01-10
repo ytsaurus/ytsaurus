@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "log_manager.h"
+#include "log.h"
 #include "writer.h"
 #include "config.h"
 #include "private.h"
