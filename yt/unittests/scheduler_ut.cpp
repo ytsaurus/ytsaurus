@@ -24,10 +24,9 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TFuture<T> DelayedIdentity(T x)
+TFuture<T> MakeDelayedFuture(T x)
 {
-    return
-        MakeDelayed(TDuration::MilliSeconds(10))
+    return TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10))
         .Apply(BIND([=] () { return x; }));
 }
 
@@ -53,10 +52,10 @@ protected:
 
 TEST_W(TSchedulerTest, SimpleAsync)
 {
-    auto asyncA = DelayedIdentity(3);
+    auto asyncA = MakeDelayedFuture(3);
     int a = WaitFor(asyncA).ValueOrThrow();
 
-    auto asyncB = DelayedIdentity(4);
+    auto asyncB = MakeDelayedFuture(4);
     int b = WaitFor(asyncB).ValueOrThrow();
 
     EXPECT_EQ(7, a + b);
@@ -299,7 +298,7 @@ TEST_F(TSchedulerTest, WaitForInSerializedInvoker)
     auto invoker = CreateSerializedInvoker(Queue1->GetInvoker());
     BIND([&] () {
         for (int i = 0; i < 10; ++i) {
-            WaitFor(MakeDelayed(TDuration::MilliSeconds(10))).ThrowOnError();
+            WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10))).ThrowOnError();
         }
     }).AsyncVia(invoker).Run().Get().ThrowOnError();
 }
@@ -309,7 +308,7 @@ TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker1)
     auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 1);
     BIND([&] () {
         for (int i = 0; i < 10; ++i) {
-            WaitFor(MakeDelayed(TDuration::MilliSeconds(10))).ThrowOnError();
+            WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10))).ThrowOnError();
         }
     }).AsyncVia(invoker).Run().Get().ThrowOnError();
 }

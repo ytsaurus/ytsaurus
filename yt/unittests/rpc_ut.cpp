@@ -7,6 +7,7 @@
 
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/parallel_collector.h>
+#include <core/concurrency/delayed_executor.h>
 
 #include <core/bus/bus.h>
 #include <core/bus/config.h>
@@ -156,7 +157,7 @@ public:
     {
         try {
             context->SetRequestInfo();
-            WaitFor(MakeDelayed(TDuration::Seconds(2)));
+            WaitFor(TDelayedExecutor::MakeDelayed(TDuration::Seconds(2)));
             context->Reply();
         } catch (const TFiberCanceledException&) {
             SlowCallCanceled_ = true;

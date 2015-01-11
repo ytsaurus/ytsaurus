@@ -69,6 +69,21 @@ public:
         Start();
     }
 
+    TFuture<void> MakeDelayed(TDuration delay)
+    {
+        auto promise = NewPromise<void>();
+        Submit(
+            BIND([=] () mutable {
+                promise.TrySet();
+            }),
+            delay);
+        promise.OnCanceled(
+            BIND([=] () mutable {
+                promise.TrySet(TError(NYT::EErrorCode::Canceled, "Delayed promise canceled"));
+            }));
+        return promise;
+    }
+
     TDelayedExecutorCookie Submit(TClosure callback, TDuration delay)
     {
         return Submit(std::move(callback), delay.ToDeadLine());
@@ -165,6 +180,11 @@ private:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+
+TFuture<void> TDelayedExecutor::MakeDelayed(TDuration delay)
+{
+    return RefCountedSingleton<TImpl>()->MakeDelayed(delay);
+}
 
 TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TDuration delay)
 {

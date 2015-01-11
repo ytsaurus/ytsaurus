@@ -782,7 +782,7 @@ private:
                 break;
             } catch (const std::exception& ex) {
                 LOG_ERROR(ex, "Error computing reachable version, backing off and retrying");
-                WaitFor(MakeDelayed(Config_->RestartBackoffTime));
+                WaitFor(TDelayedExecutor::MakeDelayed(Config_->RestartBackoffTime));
             }
         }
 
@@ -989,7 +989,7 @@ private:
             LeaderActive_.Fire();
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Leader recovery failed, backing off and restarting");
-            WaitFor(MakeDelayed(Config_->RestartBackoffTime));
+            WaitFor(TDelayedExecutor::MakeDelayed(Config_->RestartBackoffTime));
             Restart(epochContext);
         }
     }
@@ -1078,7 +1078,7 @@ private:
             FollowerRecoveryComplete_.Fire();
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Follower recovery failed, backing off and restarting");
-            WaitFor(MakeDelayed(Config_->RestartBackoffTime));
+            WaitFor(TDelayedExecutor::MakeDelayed(Config_->RestartBackoffTime));
             Restart(epochContext);
         }
     }
