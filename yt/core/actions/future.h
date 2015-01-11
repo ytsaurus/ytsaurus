@@ -73,9 +73,6 @@ TFuture<T> MakeFuture(TErrorOr<T> value);
 template <class T>
 TFuture<T> MakeFuture(T value);
 
-//! Constructs a future that gets set when a given #delay elapses.
-TFuture<void> MakeDelayed(TDuration delay);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>

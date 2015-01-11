@@ -13,6 +13,9 @@ namespace NConcurrency {
 class TDelayedExecutor
 {
 public:
+    //! Constructs a future that gets set when a given #delay elapses.
+    static TFuture<void> MakeDelayed(TDuration delay);
+
     //! Submits #callback for execution after a given #delay.
     static TDelayedExecutorCookie Submit(TClosure callback, TDuration delay);
 
@@ -38,8 +41,6 @@ public:
     static void Shutdown();
 
 private:
-    TDelayedExecutor();
-
     class TImpl;
 
 };
