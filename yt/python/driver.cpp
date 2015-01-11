@@ -210,7 +210,9 @@ public:
             NObjectClient::TObjectServiceProxy proxy(DriverInstance_->GetConnection()->GetMasterChannel());
             proxy.SetDefaultTimeout(Null); // infinity
             auto req = proxy.GCCollect();
-            req->Invoke().Get().ValueOrThrow();
+            req->Invoke()
+                .Get()
+                .ThrowOnError();
         } catch (const TErrorException& ex) {
             return ConvertTo<Py::Object>(ex.Error());
         } catch (const std::exception& ex) {
@@ -235,9 +237,9 @@ public:
             proxy.SetDefaultTimeout(Null); // infinity
             auto req = proxy.BuildSnapshot();
             req->set_set_read_only(setReadOnly);
-
-            auto rsp = req->Invoke().Get().ValueOrThrow();
-            int snapshotId = rsp->snapshot_id();
+            int snapshotId = req->Invoke()
+                .Get()
+                .ValueOrThrow()->snapshot_id();
             printf("Snapshot %d is built\n", snapshotId);
         } catch (const TErrorException& ex) {
             return ConvertTo<Py::Object>(ex.Error());

@@ -124,7 +124,8 @@ void TJournalChunk::DoReadBlocks(
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
 
     try {
-        auto changelog = WaitFor(dispatcher->OpenChangelog(Location_, Id_, false)).ValueOrThrow();
+        auto changelog = WaitFor(dispatcher->OpenChangelog(Location_, Id_, false))
+            .ValueOrThrow();
 
         LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
             Id_,
@@ -187,7 +188,8 @@ void TJournalChunk::SyncRemove(bool force)
 {
     if (Changelog_) {
         LOG_DEBUG("Started closing journal chunk files (ChunkId: %v)", Id_);
-        WaitFor(Changelog_->Close()).ThrowOnError();
+        WaitFor(Changelog_->Close())
+            .ThrowOnError();
         LOG_DEBUG("Finished closing journal chunk files (ChunkId: %v)", Id_);
         Changelog_.Reset();
     }

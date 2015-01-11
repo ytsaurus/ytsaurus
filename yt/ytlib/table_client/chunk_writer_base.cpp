@@ -196,10 +196,12 @@ void TChunkWriterBase::FlushBlocks()
         if (EncodingWriter->IsReady()) {
             continue;
         }
-        WaitFor(EncodingWriter->GetReadyEvent()).ThrowOnError();
+        WaitFor(EncodingWriter->GetReadyEvent())
+            .ThrowOnError();
     }
 
-    WaitFor(EncodingWriter->Flush()).ThrowOnError();
+    WaitFor(EncodingWriter->Flush())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

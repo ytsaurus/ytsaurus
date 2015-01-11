@@ -169,7 +169,8 @@ private:
                 id);
         }
 
-        return WaitFor(cookie.GetValue()).ValueOrThrow();
+        return WaitFor(cookie.GetValue())
+            .ValueOrThrow();
     }
 
     IChangelogPtr DoOpenChangelog(int id)
