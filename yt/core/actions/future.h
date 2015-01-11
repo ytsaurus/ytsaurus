@@ -120,7 +120,7 @@ template <class T>
 class TFutureBase
 {
 public:
-    typedef T TValueType;
+    using TValueType = T;
 
     //! Creates a null future.
     TFutureBase() = default;
@@ -259,7 +259,7 @@ template <class T>
 class TPromiseBase
 {
 public:
-    typedef T TValueType;
+    using TValueType = T;
 
     //! Creates a null promise.
     TPromiseBase() = default;
@@ -393,6 +393,24 @@ private:
     friend TPromise<U> MakePromise(TErrorOr<U> value);
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+struct TFutureCombineTraits
+{
+    using TCombined = std::vector<T>;
+};
+
+template <>
+struct TFutureCombineTraits<void>
+{
+    using TCombined = void;
+};
+
+template <class T>
+TFuture<typename TFutureCombineTraits<T>::TCombined>
+Combine(std::vector<TFuture<T>> items);
 
 ////////////////////////////////////////////////////////////////////////////////
 

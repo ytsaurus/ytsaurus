@@ -936,4 +936,110 @@ TCallback<R(TArgs...)>::AsyncVia(IInvokerPtr invoker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+
+template <class T>
+class TFutureCombinerResultHolder
+{
+public:
+    explicit TFutureCombinerResultHolder(int size)
+        : Result_(size)
+    { }
+
+    void SetItem(int index, const TErrorOr<T>& value)
+    {
+        Result_[index] = value.Value();
+    }
+
+    void SetPromise(TPromise<std::vector<T>>& promise)
+    {
+        promise.Set(std::move(Result_));
+    }
+
+private:
+    std::vector<T> Result_;
+
+};
+
+template <>
+class TFutureCombinerResultHolder<void>
+{
+public:
+    explicit TFutureCombinerResultHolder(int /*size*/)
+    { }
+
+    void SetItem(int /*index*/, const TError& /*value*/)
+    { }
+
+    void SetPromise(TPromise<void>& promise)
+    {
+        promise.Set();
+    }
+};
+
+template <class T>
+class TFutureCombiner
+    : public TRefCounted
+{
+public:
+    TFutureCombiner(std::vector<TFuture<T>> items)
+        : Items_(std::move(items))
+        , ResultHolder_(Items_.size())
+        , OutstandingCount_(Items_.size())
+    { }
+
+    TFuture<typename TFutureCombineTraits<T>::TCombined> Run()
+    {
+        if (Items_.empty()) {
+            ResultHolder_.SetPromise(Promise_);
+        } else {
+            for (int index = 0; index < Items_.size(); ++index) {
+                Items_[index].Subscribe(BIND(&TFutureCombiner::OnSet, MakeStrong(this), index));
+            }
+            Promise_.OnCanceled(BIND(&TFutureCombiner::OnCanceled, MakeWeak(this)));
+        }
+        return Promise_;
+    }
+
+private:
+    std::vector<TFuture<T>> Items_;
+
+    TPromise<typename TFutureCombineTraits<T>::TCombined> Promise_ = NewPromise<typename TFutureCombineTraits<T>::TCombined>();
+    TFutureCombinerResultHolder<T> ResultHolder_;
+    std::atomic<int> OutstandingCount_;
+
+
+    void OnCanceled()
+    {
+        for (int index = 0; index < Items_.size(); ++index) {
+            Items_[index].Cancel();
+        }
+    }
+
+    void OnSet(int index, const TErrorOr<T>& result)
+    {
+        if (result.IsOK()) {
+            ResultHolder_.SetItem(index, result);
+            if (--OutstandingCount_ == 0) {
+                ResultHolder_.SetPromise(Promise_);
+            }
+        } else {
+            Promise_.TrySet(TError(result));
+            OnCanceled();
+        }
+    }
+};
+
+} // namespace NDetail
+
+template <class T>
+TFuture<typename TFutureCombineTraits<T>::TCombined>
+Combine(std::vector<TFuture<T>> items)
+{
+    return New<NDetail::TFutureCombiner<T>>(std::move(items))->Run();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
