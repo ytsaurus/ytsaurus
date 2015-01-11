@@ -78,7 +78,8 @@ TObjectServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
     auto outerRequest = ExecuteBatch();
     outerRequest->AddRequest(innerRequest);
     return outerRequest->Invoke().Apply(BIND([] (TRspExecuteBatchPtr outerResponse) {
-        return outerResponse->GetResponse<TTypedResponse>(0).ValueOrThrow();
+        return outerResponse->GetResponse<TTypedResponse>(0)
+            .ValueOrThrow();
     }));
 }
 

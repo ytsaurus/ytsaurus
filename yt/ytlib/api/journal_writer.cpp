@@ -293,7 +293,8 @@ private:
         
         TCommand DequeueCommand()
         {
-            return WaitFor(CommandQueue_.Dequeue()).ValueOrThrow();
+            return WaitFor(CommandQueue_.Dequeue())
+                .ValueOrThrow();
         }
 
 

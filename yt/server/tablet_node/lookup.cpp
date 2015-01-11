@@ -232,8 +232,8 @@ void LookupRows(
         tabletSnapshot->TabletId,
         tabletSnapshot->Slot->GetCellId());
 
-    auto result = WaitFor(executor->Run(poolInvoker, writer));
-    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    WaitFor(executor->Run(std::move(poolInvoker), writer))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

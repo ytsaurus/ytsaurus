@@ -161,7 +161,11 @@ private:
         auto Logger = BuildLogger(fragment->Query);
 
         TGroupedDataSplits groupedSplits;
-        return CoordinateAndExecute(fragment, writer, false, [&] (const TDataSplits& prunedSplits) {
+        return CoordinateAndExecute(
+            fragment,
+            writer,
+            false,
+            [&] (const TDataSplits& prunedSplits) {
                 auto splits = Split(prunedSplits, nodeDirectory, Logger);
 
                 LOG_DEBUG("Regrouping %v splits", splits.size());
@@ -183,7 +187,8 @@ private:
                 }
 
                 return GetRanges(groupedSplits);
-            }, [&] (const TConstQueryPtr& subquery, size_t index) {
+            },
+            [&] (const TConstQueryPtr& subquery, size_t index) {
                 std::vector<ISchemafulReaderPtr> bottomSplitReaders;
                 for (const auto& dataSplit : groupedSplits[index]) {
                     bottomSplitReaders.push_back(GetReader(dataSplit, nodeDirectory));
@@ -203,12 +208,14 @@ private:
                 }));
 
                 return std::make_pair(pipe->GetReader(), statistics);
-            }, [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+            },
+            [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 auto asyncQueryStatisticsOrError = BIND(&TEvaluator::Run, Evaluator_)
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
                     .Run(topQuery, std::move(reader), std::move(writer));
 
-                return WaitFor(asyncQueryStatisticsOrError).ValueOrThrow();
+                return WaitFor(asyncQueryStatisticsOrError)
+                    .ValueOrThrow();
             }, false);
     }
 

@@ -337,11 +337,13 @@ void TErasureWriter::WriteDataPart(IChunkWriterPtr writer, const std::vector<TSh
 
     for (const auto& block : blocks) {
         if (!writer->WriteBlock(block)) {
-            WaitFor(writer->GetReadyEvent()).ThrowOnError();
+            WaitFor(writer->GetReadyEvent())
+                .ThrowOnError();
         }
     }
 
-    WaitFor(writer->Close(ChunkMeta_)).ThrowOnError();
+    WaitFor(writer->Close(ChunkMeta_))
+        .ThrowOnError();
 }
 
 void TErasureWriter::EncodeAndWriteParityBlocks()
@@ -365,10 +367,12 @@ void TErasureWriter::EncodeAndWriteParityBlocks()
             .Run();
         auto parityBlocksOrError = WaitFor(asyncParityBlocks);
         const auto& parityBlocks = parityBlocksOrError.ValueOrThrow();
-        WaitFor(WriteParityBlocks(parityBlocks)).ThrowOnError();
+        WaitFor(WriteParityBlocks(parityBlocks))
+            .ThrowOnError();
     }
 
-    WaitFor(CloseParityWriters()).ThrowOnError();
+    WaitFor(CloseParityWriters())
+        .ThrowOnError();
 }
 
 TFuture<void> TErasureWriter::WriteParityBlocks(const std::vector<TSharedRef>& blocks)

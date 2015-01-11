@@ -288,7 +288,8 @@ TEST_W(TSchedulerTest, WaitForAsyncVia)
 
     auto x = BIND([&] () { }).AsyncVia(invoker).Run();
 
-    WaitFor(x).ThrowOnError();
+    WaitFor(x)
+        .ThrowOnError();
 }
 
 // Various invokers.
@@ -298,7 +299,8 @@ TEST_F(TSchedulerTest, WaitForInSerializedInvoker)
     auto invoker = CreateSerializedInvoker(Queue1->GetInvoker());
     BIND([&] () {
         for (int i = 0; i < 10; ++i) {
-            WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10))).ThrowOnError();
+            WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10)))
+                .ThrowOnError();
         }
     }).AsyncVia(invoker).Run().Get().ThrowOnError();
 }
@@ -308,7 +310,8 @@ TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker1)
     auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 1);
     BIND([&] () {
         for (int i = 0; i < 10; ++i) {
-            WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10))).ThrowOnError();
+            WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10)))
+                .ThrowOnError();
         }
     }).AsyncVia(invoker).Run().Get().ThrowOnError();
 }
@@ -326,7 +329,8 @@ TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker2)
 
     auto a2 = BIND([&] () {
         invoker->Invoke(a1);
-        WaitFor(future).ThrowOnError();
+        WaitFor(future)
+            .ThrowOnError();
     });
 
     a2.AsyncVia(invoker).Run().Get().ThrowOnError();
@@ -343,7 +347,8 @@ TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker3)
     bool a1finished = false;
     auto a1 = BIND([&] () {
         a1called = true;
-        WaitFor(future).ThrowOnError();
+        WaitFor(future)
+            .ThrowOnError();
         a1finished = true;
     });
 

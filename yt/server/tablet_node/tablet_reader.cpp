@@ -278,7 +278,7 @@ protected:
             .Apply(BIND([=] (const TError& error) {
                 UNUSED(this_);
                 Refilling_ = false;
-            error.ThrowOnError();
+                error.ThrowOnError();
             }));
     }
 

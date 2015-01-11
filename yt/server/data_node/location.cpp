@@ -442,7 +442,9 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
         GetWritePoolInvoker());
 
     // Run first health check before initialization is complete to sort out read-only drives.
-    HealthChecker_->RunCheck().Get().ThrowOnError();
+    HealthChecker_->RunCheck()
+        .Get()
+        .ThrowOnError();
 
     HealthChecker_->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
     HealthChecker_->Start();

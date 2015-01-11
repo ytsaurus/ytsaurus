@@ -70,7 +70,9 @@ private:
                 {
                     auto it = impl->AsyncHandlers.find(prefix);
                     if (it != impl->AsyncHandlers.end()) {
-                        Output() << it->second.Run(suffix).Get().ValueOrThrow();
+                        Output() << it->second.Run(suffix)
+                            .Get()
+                            .ValueOrThrow();
                         LOG_DEBUG("Request served");
                         return true;
                     }

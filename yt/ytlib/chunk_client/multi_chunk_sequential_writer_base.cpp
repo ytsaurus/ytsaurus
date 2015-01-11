@@ -204,7 +204,8 @@ void TMultiChunkSequentialWriterBase::CreateNextSession()
             NextSession_.UnderlyingWriter = CreateErasureWriter(Config_, erasureCodec, writers);
         }
 
-        WaitFor(NextSession_.UnderlyingWriter->Open()).ThrowOnError();
+        WaitFor(NextSession_.UnderlyingWriter->Open())
+            .ThrowOnError();
     } catch (const std::exception& ex) {
         auto error = TError("Failed to start new session") << ex;
         LOG_WARNING(error);
@@ -229,7 +230,8 @@ void TMultiChunkSequentialWriterBase::DoSwitchSession(const TSession& session)
 {
     if (Config_->SyncChunkSwitch) {
         // Wait until session is finished.
-        WaitFor(FinishSession(session)).ThrowOnError();
+        WaitFor(FinishSession(session))
+            .ThrowOnError();
     } else {
         // Do not wait, fire and move on.
         FinishSession(session);
@@ -307,7 +309,8 @@ void TMultiChunkSequentialWriterBase::DoFinishSession(const TSession& session)
 
 void TMultiChunkSequentialWriterBase::InitCurrentSession()
 {
-    WaitFor(NextSessionReady_).ThrowOnError();
+    WaitFor(NextSessionReady_)
+        .ThrowOnError();
 
     auto maybeError = CompletionError_.TryGet();
     if (maybeError) {
@@ -369,7 +372,8 @@ bool TMultiChunkSequentialWriterBase::TrySwitchSession()
 
 void TMultiChunkSequentialWriterBase::DoClose()
 {
-    WaitFor(CloseChunksAwaiter_->Complete()).ThrowOnError();
+    WaitFor(CloseChunksAwaiter_->Complete())
+        .ThrowOnError();
 
     if (CompletionError_.IsSet()) {
         return;

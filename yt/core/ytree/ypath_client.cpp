@@ -272,7 +272,9 @@ TFuture<TYsonString> AsyncYPathGet(
 Stroka SyncYPathGetKey(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::GetKey(path);
-    return ExecuteVerb(service, request).Get().ValueOrThrow()->value();
+    return ExecuteVerb(service, request)
+        .Get()
+        .ValueOrThrow()->value();
 }
 
 TYsonString SyncYPathGet(
@@ -331,7 +333,9 @@ void SyncYPathRemove(
 std::vector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::List(path);
-    auto response = ExecuteVerb(service, request).Get().ValueOrThrow();
+    auto response = ExecuteVerb(service, request)
+        .Get()
+        .ValueOrThrow();
     return ConvertTo<std::vector<Stroka>>(TYsonString(response->keys()));
 }
 

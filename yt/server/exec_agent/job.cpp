@@ -636,7 +636,8 @@ private:
             fileName,
             descriptor.chunks_size());
 
-        WaitFor(DownloadChunks(descriptor.chunks())).ThrowOnError();
+        WaitFor(DownloadChunks(descriptor.chunks()))
+            .ThrowOnError();
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
 
         auto chunks = PatchCachedChunkReplicas(descriptor.chunks());
@@ -657,7 +658,8 @@ private:
             provider);
 
         try {
-            WaitFor(reader->AsyncOpen()).ThrowOnError();
+            WaitFor(reader->AsyncOpen())
+                .ThrowOnError();
 
             auto producer = [&] (TOutputStream* output) {
                 auto* facade = reader->GetFacade();
@@ -666,7 +668,8 @@ private:
                     output->Write(block.Begin(),block.Size());
 
                     if (!reader->FetchNext()) {
-                        WaitFor(reader->GetReadyEvent()).ThrowOnError();
+                        WaitFor(reader->GetReadyEvent())
+                            .ThrowOnError();
                     }
                     facade = reader->GetFacade();
                 }
@@ -693,7 +696,8 @@ private:
             descriptor.file_name(),
             descriptor.chunks_size());
 
-        WaitFor(DownloadChunks(descriptor.chunks())).ThrowOnError();
+        WaitFor(DownloadChunks(descriptor.chunks()))
+            .ThrowOnError();
 
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
 

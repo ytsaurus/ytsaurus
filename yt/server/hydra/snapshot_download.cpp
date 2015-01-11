@@ -35,7 +35,8 @@ void DoDownloadSnapshot(
     int snapshotId)
 {
     try {
-        auto params = WaitFor(DiscoverSnapshot(config, cellManager, snapshotId)).ValueOrThrow();
+        auto params = WaitFor(DiscoverSnapshot(config, cellManager, snapshotId))
+            .ValueOrThrow();
         if (params.SnapshotId == NonexistingSegmentId) {
             THROW_ERROR_EXCEPTION("Unable to find a download source for snapshot %v",
                 snapshotId);

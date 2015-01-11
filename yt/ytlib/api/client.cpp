@@ -181,7 +181,9 @@ private:
 
         auto openResult = RowsetReader_->Open(schema);
         YCHECK(openResult.IsSet()); // this reader is sync
-        openResult.Get().ThrowOnError();
+        openResult
+            .Get()
+            .ThrowOnError();
     }
 };
 
@@ -240,7 +242,8 @@ private:
         TTimestamp timestamp)
     {
         auto tableMountCache = Connection_->GetTableMountCache();
-        auto info = WaitFor(tableMountCache->GetTableInfo(path)).ValueOrThrow();
+        auto info = WaitFor(tableMountCache->GetTableInfo(path))
+            .ValueOrThrow();
 
         TDataSplit result;
         SetObjectId(&result, info->TableId);
@@ -301,7 +304,8 @@ private:
     {
         auto tableId = GetObjectIdFromDataSplit(split);
         auto tableMountCache = Connection_->GetTableMountCache();
-        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId))).ValueOrThrow();
+        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
+            .ValueOrThrow();
         return tableInfo->Sorted
             ? SplitSortedTableFurther(split, std::move(nodeDirectory))
             : SplitUnsortedTableFurther(split, std::move(nodeDirectory), std::move(tableInfo));
@@ -320,7 +324,8 @@ private:
         ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
         req->set_fetch_all_meta_extensions(true);
 
-        auto rsp = WaitFor(proxy.Execute(req)).ValueOrThrow();
+        auto rsp = WaitFor(proxy.Execute(req))
+            .ValueOrThrow();
 
         nodeDirectory->MergeFrom(rsp->node_directory());
 
@@ -425,7 +430,11 @@ private:
         auto Logger = BuildLogger(fragment->Query);
         
         std::vector<std::pair<TDataSplits, Stroka>> groupedSplits;
-        return CoordinateAndExecute(fragment, writer, false, [&] (const TDataSplits& prunedSplits) {
+        return CoordinateAndExecute(
+            fragment,
+            writer,
+            false,
+            [&] (const TDataSplits& prunedSplits) {
                 auto splits = Split(prunedSplits, nodeDirectory, Logger);
 
                 LOG_DEBUG("Regrouping %v splits", splits.size());
@@ -454,13 +463,15 @@ private:
                     ranges.push_back(GetRange(group.second));
                 }
                 return ranges;
-            }, [&] (const TConstQueryPtr& subquery, size_t index) {
+            },
+            [&] (const TConstQueryPtr& subquery, size_t index) {
                 auto subfragment = New<TPlanFragment>(fragment->GetSource());
                 subfragment->NodeDirectory = nodeDirectory;
                 subfragment->DataSplits = groupedSplits[index].first;
                 subfragment->Query = subquery;
                 return Delegate(subfragment, groupedSplits[index].second);
-            }, [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+            },
+            [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 auto evaluator = Connection_->GetQueryEvaluator();
                 return evaluator->Run(topQuery, std::move(reader), std::move(writer));
             });
@@ -474,7 +485,11 @@ private:
         auto Logger = BuildLogger(fragment->Query);
         
         TDataSplits splits;
-        return CoordinateAndExecute(fragment, writer, true, [&] (const TDataSplits& prunedSplits) {
+        return CoordinateAndExecute(
+            fragment,
+            writer,
+            true,
+            [&] (const TDataSplits& prunedSplits) {
                 splits = Split(prunedSplits, nodeDirectory, Logger);
 
                 LOG_DEBUG("Sorting %v splits", splits.size());
@@ -488,7 +503,8 @@ private:
                     ranges.push_back(GetBothBoundsFromDataSplit(split));
                 }
                 return ranges;
-            }, [&] (const TConstQueryPtr& subquery, size_t index) {
+            },
+            [&] (const TConstQueryPtr& subquery, size_t index) {
                 auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(splits[index].replicas());
                 if (replicas.empty()) {
                     auto objectId = GetObjectIdFromDataSplit(splits[index]);
@@ -505,7 +521,8 @@ private:
                 subfragment->Query = subquery;
 
                 return Delegate(subfragment, descriptor.GetDefaultAddress());
-            }, [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+            },
+            [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 auto evaluator = Connection_->GetQueryEvaluator();
                 return evaluator->Run(topQuery, std::move(reader), std::move(writer));
             });
@@ -853,7 +870,8 @@ private:
     TTableMountInfoPtr SyncGetTableInfo(const TYPath& path)
     {
         const auto& tableMountCache = Connection_->GetTableMountCache();
-        return WaitFor(tableMountCache->GetTableInfo(path)).ValueOrThrow();
+        return WaitFor(tableMountCache->GetTableInfo(path))
+            .ValueOrThrow();
     }
 
     static TTabletInfoPtr SyncGetTabletInfo(
@@ -1122,7 +1140,8 @@ private:
             collector->Collect(session->Invoke(std::move(channel)));
         }
 
-        WaitFor(collector->Complete()).ThrowOnError();
+        WaitFor(collector->Complete())
+            .ThrowOnError();
 
         std::vector<TUnversionedRow> resultRows;
         resultRows.resize(keys.size());
@@ -1162,7 +1181,8 @@ private:
             options.InputRowLimit.Get(Connection_->GetConfig()->DefaultInputRowLimit),
             options.OutputRowLimit.Get(Connection_->GetConfig()->DefaultOutputRowLimit),
             options.Timestamp);
-        return WaitFor(QueryHelper_->Execute(fragment, writer)).ValueOrThrow();
+        return WaitFor(QueryHelper_->Execute(fragment, writer))
+            .ValueOrThrow();
     }
 
 
@@ -1181,7 +1201,8 @@ private:
             ToProto(req->mutable_cell_id(), options.CellId);
         }
 
-        WaitFor(ObjectProxy_->Execute(req)).ThrowOnError();
+        WaitFor(ObjectProxy_->Execute(req))
+            .ThrowOnError();
     }
 
     void DoUnmountTable(
@@ -1197,7 +1218,8 @@ private:
         }
         req->set_force(options.Force);
 
-        WaitFor(ObjectProxy_->Execute(req)).ThrowOnError();
+        WaitFor(ObjectProxy_->Execute(req))
+            .ThrowOnError();
     }
 
     void DoRemountTable(
@@ -1212,7 +1234,8 @@ private:
             req->set_first_tablet_index(*options.LastTabletIndex);
         }
 
-        WaitFor(ObjectProxy_->Execute(req)).ThrowOnError();
+        WaitFor(ObjectProxy_->Execute(req))
+            .ThrowOnError();
     }
 
     void DoReshardTable(
@@ -1229,7 +1252,8 @@ private:
         }
         ToProto(req->mutable_pivot_keys(), pivotKeys);
 
-        WaitFor(ObjectProxy_->Execute(req)).ThrowOnError();
+        WaitFor(ObjectProxy_->Execute(req))
+            .ThrowOnError();
     }
 
 
@@ -1250,7 +1274,8 @@ private:
             ToProto(req->mutable_options(), *options.Options);
         }
 
-        auto rsp = WaitFor(ObjectProxy_->Execute(req)).ValueOrThrow();
+        auto rsp = WaitFor(ObjectProxy_->Execute(req))
+            .ValueOrThrow();
 
         return TYsonString(rsp->value());
     }
@@ -1269,8 +1294,10 @@ private:
         req->set_value(value.Data());
         batchReq->AddRequest(req);
 
-        auto batchRsp = WaitFor(batchReq->Invoke()).ValueOrThrow();
-        batchRsp->GetResponse<TYPathProxy::TRspSet>(0).ThrowOnError();
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        batchRsp->GetResponse<TYPathProxy::TRspSet>(0)
+            .ThrowOnError();
     }
 
     void DoRemoveNode(
@@ -1287,8 +1314,10 @@ private:
         req->set_force(options.Force);
         batchReq->AddRequest(req);
 
-        auto batchRsp = WaitFor(batchReq->Invoke()).ValueOrThrow();
-        batchRsp->GetResponse<TYPathProxy::TRspRemove>(0).ThrowOnError();
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        batchRsp->GetResponse<TYPathProxy::TRspRemove>(0)
+            .ThrowOnError();
     }
 
     TYsonString DoListNodes(
@@ -1304,8 +1333,8 @@ private:
             req->set_max_size(*options.MaxSize);
         }
 
-        auto rsp = WaitFor(ObjectProxy_->Execute(req)).ValueOrThrow();
-
+        auto rsp = WaitFor(ObjectProxy_->Execute(req))
+            .ValueOrThrow();
         return TYsonString(rsp->keys());
     }
 
@@ -1328,8 +1357,10 @@ private:
         }
         batchReq->AddRequest(req);
 
-        auto batchRsp = WaitFor(batchReq->Invoke()).ValueOrThrow();
-        auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>(0).ValueOrThrow();
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>(0)
+            .ValueOrThrow();
         return FromProto<TNodeId>(rsp->node_id());
     }
 
@@ -1348,8 +1379,10 @@ private:
         req->set_waitable(options.Waitable);
         batchReq->AddRequest(req);
 
-        auto batchRsp = WaitFor(batchReq->Invoke()).ValueOrThrow();
-        auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspLock>(0).ValueOrThrow();
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspLock>(0)
+            .ValueOrThrow();
         return FromProto<TLockId>(rsp->lock_id());
     }
 
@@ -1368,8 +1401,10 @@ private:
         req->set_preserve_account(options.PreserveAccount);
         batchReq->AddRequest(req);
 
-        auto batchRsp = WaitFor(batchReq->Invoke()).ValueOrThrow();
-        auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCopy>(0).ValueOrThrow();
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCopy>(0)
+            .ValueOrThrow();
         return FromProto<TNodeId>(rsp->object_id());
     }
 
@@ -1389,8 +1424,10 @@ private:
         req->set_remove_source(true);
         batchReq->AddRequest(req);
 
-        auto batchRsp = WaitFor(batchReq->Invoke()).ValueOrThrow();
-        auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCopy>(0).ValueOrThrow();
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCopy>(0)
+            .ValueOrThrow();
         return FromProto<TNodeId>(rsp->object_id());
     }
 
@@ -1413,8 +1450,10 @@ private:
         ToProto(req->mutable_node_attributes(), *attributes);
         batchReq->AddRequest(req);
 
-        auto batchRsp = WaitFor(batchReq->Invoke()).ValueOrThrow();
-        auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>(0).ValueOrThrow();
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>(0)
+            .ValueOrThrow();
         return FromProto<TNodeId>(rsp->node_id());
     }
 
@@ -1425,7 +1464,8 @@ private:
         auto req = TYPathProxy::Exists(path);
         SetTransactionId(req, options, true);
 
-        auto rsp = WaitFor(ObjectProxy_->Execute(req)).ValueOrThrow();
+        auto rsp = WaitFor(ObjectProxy_->Execute(req))
+            .ValueOrThrow();
         return rsp->value();
     }
 
@@ -1448,8 +1488,10 @@ private:
         }
         batchReq->AddRequest(req);
 
-        auto batchRsp = WaitFor(batchReq->Invoke()).ValueOrThrow();
-        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>(0).ValueOrThrow();
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>(0)
+            .ValueOrThrow();
         return FromProto<TObjectId>(rsp->object_ids(0));
     }
 
@@ -1468,7 +1510,8 @@ private:
         req->set_name(member);
         GenerateMutationId(req, options);
 
-        WaitFor(ObjectProxy_->Execute(req)).ThrowOnError();
+        WaitFor(ObjectProxy_->Execute(req))
+            .ThrowOnError();
     }
 
     void DoRemoveMember(
@@ -1480,7 +1523,8 @@ private:
         req->set_name(member);
         GenerateMutationId(req, options);
 
-        WaitFor(ObjectProxy_->Execute(req)).ThrowOnError();
+        WaitFor(ObjectProxy_->Execute(req))
+            .ThrowOnError();
     }
 
     TCheckPermissionResult DoCheckPermission(
@@ -1494,7 +1538,8 @@ private:
         req->set_permission(static_cast<int>(permission));
         SetTransactionId(req, options, true);
 
-        auto rsp = WaitFor(ObjectProxy_->Execute(req)).ValueOrThrow();
+        auto rsp = WaitFor(ObjectProxy_->Execute(req))
+            .ValueOrThrow();
 
         TCheckPermissionResult result;
         result.Action = ESecurityAction(rsp->action());
@@ -2001,8 +2046,8 @@ private:
                 request->Run();
             }
 
-            WaitFor(TransactionStartCollector_->Complete()).ThrowOnError();
-
+            WaitFor(TransactionStartCollector_->Complete())
+                .ThrowOnError();
 
             auto writeCollector = New<TParallelCollector<void>>();
             for (const auto& pair : TabletToSession_) {
@@ -2012,14 +2057,16 @@ private:
                 writeCollector->Collect(session->Invoke(std::move(channel)));
             }
 
-            WaitFor(writeCollector->Complete()).ThrowOnError();
+            WaitFor(writeCollector->Complete())
+                .ThrowOnError();
         } catch (const std::exception& ex) {
             // Fire and forget.
             Transaction_->Abort();
             throw;
         }
 
-        WaitFor(Transaction_->Commit(options)).ThrowOnError();
+        WaitFor(Transaction_->Commit(options))
+            .ThrowOnError();
     }
 
 };

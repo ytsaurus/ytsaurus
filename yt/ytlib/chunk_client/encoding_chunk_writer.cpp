@@ -38,7 +38,8 @@ void TEncodingChunkWriter::WriteBlock(std::vector<TSharedRef>&& data)
 
 void TEncodingChunkWriter::Close()
 {
-    WaitFor(EncodingWriter_->Flush()).ThrowOnError();
+    WaitFor(EncodingWriter_->Flush())
+        .ThrowOnError();
 
     MiscExt_.set_uncompressed_data_size(EncodingWriter_->GetUncompressedSize());
     MiscExt_.set_compressed_data_size(EncodingWriter_->GetCompressedSize());
@@ -46,7 +47,8 @@ void TEncodingChunkWriter::Close()
     MiscExt_.set_meta_size(Meta_.ByteSize());
     SetProtoExtension(Meta_.mutable_extensions(), MiscExt_);
 
-    WaitFor(ChunkWriter_->Close(Meta_)).ThrowOnError();
+    WaitFor(ChunkWriter_->Close(Meta_))
+        .ThrowOnError();
 }
 
 TFuture<void> TEncodingChunkWriter::GetReadyEvent() const
