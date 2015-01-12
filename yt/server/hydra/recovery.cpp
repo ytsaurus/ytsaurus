@@ -142,7 +142,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             NProto::TChangelogMeta meta;
             meta.set_prev_record_count(currentVersion.RecordId);
             
-            auto changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId, meta))
+            changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId, meta))
                 .ValueOrThrow();
 
             TVersion newLoggedVersion(changelogId, 0);
