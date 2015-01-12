@@ -248,35 +248,35 @@ std::vector <typename T::const_iterator> GetSortedMapIterators(const T& map)
 }
 
 template <class TKey>
-std::vector <typename yhash_set<TKey>::const_iterator> GetSortedIterators(
+std::vector<typename yhash_set<TKey>::const_iterator> GetSortedIterators(
     const yhash_set<TKey>& set)
 {
     return GetSortedSetIterators(set);
 }
 
 template <class TKey, class TValue>
-std::vector <typename std::map<TKey, TValue>::const_iterator> GetSortedIterators(
+std::vector<typename std::map<TKey, TValue>::const_iterator> GetSortedIterators(
     const std::map<TKey, TValue>& map)
 {
     return GetSortedMapIterators(map);
 }
 
 template <class TKey, class TValue>
-std::vector <typename yhash_map<TKey, TValue>::const_iterator> GetSortedIterators(
+std::vector<typename yhash_map<TKey, TValue>::const_iterator> GetSortedIterators(
     const yhash_map<TKey, TValue>& map)
 {
     return GetSortedMapIterators(map);
 }
 
 template <class TKey, class TValue>
-std::vector <typename yhash_multimap<TKey, TValue>::const_iterator> GetSortedIterators(
+std::vector<typename yhash_multimap<TKey, TValue>::const_iterator> GetSortedIterators(
     const yhash_multimap<TKey, TValue>& map)
 {
     return GetSortedMapIterators(map);
 }
 
 template <class TKey, class TValue>
-std::vector <typename std::multimap<TKey, TValue>::const_iterator> GetSortedIterators(
+std::vector<typename std::multimap<TKey, TValue>::const_iterator> GetSortedIterators(
     const std::multimap<TKey, TValue>& map)
 {
     return GetSortedMapIterators(map);
@@ -762,8 +762,8 @@ struct TSerializerTraits<Stroka, C, void>
     typedef TStrokaSerializer TSerializer;
 };
 
-template <class T, class C>
-struct TSerializerTraits<std::vector<T>, C, void>
+template <class T, class A, class C>
+struct TSerializerTraits<std::vector<T, A>, C, void>
 {
     typedef TVectorSerializer TSerializer;
 };
@@ -777,20 +777,20 @@ struct TSerializerTraits<TSmallVector<T, size>, C, void>
     typedef TVectorSerializer TSerializer;
 };
 
-template <class T, class C>
-struct TSerializerTraits<std::list<T>, C, void>
+template <class T, class A, class C>
+struct TSerializerTraits<std::list<T, A>, C, void>
 {
     typedef TListSerializer TSerializer;
 };
 
-template <class T, class C>
-struct TSerializerTraits<std::set<T>, C, void>
+template <class T, class Q, class A, class C>
+struct TSerializerTraits<std::set<T, Q, A>, C, void>
 {
     typedef TSetSerializer TSerializer;
 };
 
-template <class T, class C>
-struct TSerializerTraits<std::unordered_set<T>, C, void>
+template <class T, class H, class P, class A, class C>
+struct TSerializerTraits<std::unordered_set<T, H, P, A>, C, void>
 {
     typedef TSetSerializer TSerializer;
 };
@@ -801,20 +801,20 @@ struct TSerializerTraits<yhash_set<T>, C, void>
     typedef TSetSerializer TSerializer;
 };
 
-template <class T, class C>
-struct TSerializerTraits<std::unique_ptr<std::list<T>>, C, void>
+template <class T, class A, class C>
+struct TSerializerTraits<std::unique_ptr<std::list<T, A>>, C, void>
 {
     typedef TNullableListSerializer TSerializer;
 };
 
-template <class T, class C>
-struct TSerializerTraits<std::unique_ptr<std::set<T>>, C, void>
+template <class T, class Q, class A, class C>
+struct TSerializerTraits<std::unique_ptr<std::set<T, Q, A>>, C, void>
 {
     typedef TNullableSetSerializer TSerializer;
 };
 
-template <class T, class C>
-struct TSerializerTraits<std::unique_ptr<std::unordered_set<T>>, C, void>
+template <class T, class H, class P, class A, class C>
+struct TSerializerTraits<std::unique_ptr<std::unordered_set<T, H, P, A>>, C, void>
 {
     typedef TNullableSetSerializer TSerializer;
 };
@@ -825,26 +825,26 @@ struct TSerializerTraits<std::unique_ptr<yhash_set<T>>, C, void>
     typedef TNullableSetSerializer TSerializer;
 };
 
-template <class K, class V, class C>
-struct TSerializerTraits<std::map<K, V>, C, void>
+template <class K, class V, class Q, class A, class C>
+struct TSerializerTraits<std::map<K, V, Q, A>, C, void>
 {
     typedef TMapSerializer TSerializer;
 };
 
-template <class K, class V, class C>
-struct TSerializerTraits<std::unordered_map<K, V>, C, void>
+template <class K, class V, class H, class P, class A, class C>
+struct TSerializerTraits<std::unordered_map<K, V, H, P, A>, C, void>
 {
     typedef TMapSerializer TSerializer;
 };
 
-template <class K, class V, class C>
-struct TSerializerTraits<yhash_map<K, V>, C, void>
+template <class K, class V, class Q, class A, class C>
+struct TSerializerTraits<yhash_map<K, V, Q, A>, C, void>
 {
     typedef TMapSerializer TSerializer;
 };
 
-template <class K, class V, class C>
-struct TSerializerTraits<std::multimap<K, V>, C, void>
+template <class K, class V, class Q, class A, class C>
+struct TSerializerTraits<std::multimap<K, V, Q, A>, C, void>
 {
     typedef TMultiMapSerializer TSerializer;
 };
