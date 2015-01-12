@@ -101,7 +101,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
     int initialChangelogId;
     if (snapshotId != NonexistingSegmentId && snapshotId > currentVersion.SegmentId) {
         // Load the snapshot.
-        LOG_DEBUG("Using snapshot %v for recovery", snapshotId);
+        LOG_INFO("Using snapshot %v for recovery", snapshotId);
 
         auto reader = SnapshotStore_->CreateReader(snapshotId);
 
@@ -428,7 +428,7 @@ void TFollowerRecovery::PostponeChangelogRotation(TVersion version)
 
     PostponedMutations_.push_back(TPostponedMutation::CreateChangelogRotation());
 
-    LOG_DEBUG("Postponing changelog rotation at version %v",
+    LOG_INFO("Postponing changelog rotation at version %v",
         PostponedVersion_);
 
     PostponedVersion_.Rotate();
