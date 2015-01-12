@@ -790,6 +790,12 @@ struct TSerializerTraits<std::set<T>, C, void>
 };
 
 template <class T, class C>
+struct TSerializerTraits<std::unordered_set<T>, C, void>
+{
+    typedef TSetSerializer TSerializer;
+};
+
+template <class T, class C>
 struct TSerializerTraits<yhash_set<T>, C, void>
 {
     typedef TSetSerializer TSerializer;
@@ -808,6 +814,12 @@ struct TSerializerTraits<std::unique_ptr<std::set<T>>, C, void>
 };
 
 template <class T, class C>
+struct TSerializerTraits<std::unique_ptr<std::unordered_set<T>>, C, void>
+{
+    typedef TNullableSetSerializer TSerializer;
+};
+
+template <class T, class C>
 struct TSerializerTraits<std::unique_ptr<yhash_set<T>>, C, void>
 {
     typedef TNullableSetSerializer TSerializer;
@@ -815,6 +827,12 @@ struct TSerializerTraits<std::unique_ptr<yhash_set<T>>, C, void>
 
 template <class K, class V, class C>
 struct TSerializerTraits<std::map<K, V>, C, void>
+{
+    typedef TMapSerializer TSerializer;
+};
+
+template <class K, class V, class C>
+struct TSerializerTraits<std::unordered_map<K, V>, C, void>
 {
     typedef TMapSerializer TSerializer;
 };

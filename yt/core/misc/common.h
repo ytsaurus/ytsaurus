@@ -122,3 +122,38 @@ namespace NYT {
 using ::ToString;
 
 } // namespace NYT
+
+// Forward declrations.
+namespace std {
+
+template <class T, class A>
+class list;
+
+template <class T, class A>
+class vector;
+
+template <class T, class C, class A>
+class set;
+
+template <class T, class C, class A>
+class multiset;
+
+template <class T, class H, class P, class A>
+class unordered_set;
+
+template <class T, class H, class P, class A>
+class unordered_multiset;
+
+template <class K, class T, class C, class A>
+class map;
+
+template <class K, class T, class C, class A>
+class multimap;
+
+template <class K,class T, class H, class P, class A>
+class unordered_map;
+
+template <class K,class T, class H, class P, class A>
+class unordered_multimap;
+
+} // namespace std
