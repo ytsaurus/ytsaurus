@@ -13,8 +13,8 @@
 
 # First look in ENV{LLVM_ROOT} then system path.
 find_program(LLVM_CONFIG_EXECUTABLE
-  llvm-config-3.5
-  llvm-config-mp-3.5
+  llvm-config-3.6
+  llvm-config-mp-3.6
   llvm-config
   PATHS
   $ENV{LLVM_ROOT}/bin

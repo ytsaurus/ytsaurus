@@ -92,11 +92,10 @@ public:
 
         // Create engine.
         std::string what;
-        Engine_.reset(llvm::EngineBuilder(module.get())
+        Engine_.reset(llvm::EngineBuilder(std::move(module))
             .setEngineKind(llvm::EngineKind::JIT)
             .setOptLevel(llvm::CodeGenOpt::Default)
-            .setUseMCJIT(true)
-            .setMCJITMemoryManager(new TCGMemoryManager(RoutineRegistry_))
+            .setMCJITMemoryManager(std::make_unique<TCGMemoryManager>(RoutineRegistry_))
             .setMCPU(hostCpu)
             .setErrorStr(&what)
             .create());
@@ -107,7 +106,7 @@ public:
         }
 
         // Now engine holds the module.
-        module.release();
+        //module.release();
 
         Module_->setDataLayout(Engine_->getDataLayout()->getStringRepresentation());
     }
@@ -177,7 +176,7 @@ private:
         std::unique_ptr<llvm::PassManager> modulePassManager_;
 
         functionPassManager_ = std::make_unique<llvm::FunctionPassManager>(Module_);
-        functionPassManager_->add(new llvm::DataLayoutPass(Module_));
+        functionPassManager_->add(new llvm::DataLayoutPass());
         passManagerBuilder.populateFunctionPassManager(*functionPassManager_);
 
         functionPassManager_->doInitialization();
@@ -189,7 +188,7 @@ private:
         functionPassManager_->doFinalization();
 
         modulePassManager_ = std::make_unique<llvm::PassManager>();
-        modulePassManager_->add(new llvm::DataLayoutPass(Module_));
+        modulePassManager_->add(new llvm::DataLayoutPass());
         passManagerBuilder.populateModulePassManager(*modulePassManager_);
 
         modulePassManager_->run(*Module_);
