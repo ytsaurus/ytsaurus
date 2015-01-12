@@ -13,6 +13,9 @@
 
 #include <server/cell_master/public.h>
 
+#include <set>
+#include <unordered_set>
+
 namespace NYT {
 namespace NObjectServer {
 
@@ -55,10 +58,11 @@ private:
     NConcurrency::TPeriodicExecutorPtr SweepExecutor;
 
     //! Contains objects with zero ref counter and zero lock counter.
-    yhash_set<TObjectBase*> Zombies;
+    //! |std::set| is preferred over |std::unordered_set| since we'll be iterating over this set.
+    std::set<TObjectBase*> Zombies;
 
     //! Contains objects with zero ref counter and positive lock counter.
-    yhash_set<TObjectBase*> LockedZombies;
+    std::unordered_set<TObjectBase*> LockedZombies;
 
     //! This promise is set each time #GCQueue becomes empty.
     TPromise<void> CollectPromise;

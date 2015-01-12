@@ -4,8 +4,6 @@
 #include "config.h"
 #include "object_manager.h"
 
-#include <core/misc/collection_helpers.h>
-
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
 #include <server/cell_master/serialization_context.h>
@@ -171,8 +169,6 @@ void TGarbageCollector::CheckEmpty()
 void TGarbageCollector::OnSweep()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-
-    ShrinkHashTable(&Zombies);
 
     auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto metaStateManager = metaStateFacade->GetManager();
