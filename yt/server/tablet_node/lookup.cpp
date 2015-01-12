@@ -9,7 +9,6 @@
 #include <core/misc/object_pool.h>
 #include <core/misc/protobuf_helpers.h>
 
-#include <core/concurrency/parallel_collector.h>
 #include <core/concurrency/scheduler.h>
 
 #include <core/logging/log.h>
@@ -133,19 +132,16 @@ private:
     void InvokeLookupers(
         const std::vector<IVersionedLookuperPtr>& lookupers,
         TUnversionedRowMerger* merger,
-        TIntrusivePtr<TParallelCollector<TVersionedRow>>* collector,
+        std::vector<TFuture<TVersionedRow>>* asyncRows,
         TKey key)
     {
         for (const auto& lookuper : lookupers) {
-            auto futureRowOrError = lookuper->Lookup(key);
-            auto maybeRowOrError = futureRowOrError.TryGet();
+            auto asyncRow = lookuper->Lookup(key);
+            auto maybeRowOrError = asyncRow.TryGet();
             if (maybeRowOrError) {
                 merger->AddPartialRow(maybeRowOrError->ValueOrThrow());
             } else {
-                if (!(*collector)) {
-                    *collector = New<TParallelCollector<TVersionedRow>>();
-                }
-                (*collector)->Collect(futureRowOrError);
+                asyncRows->push_back(asyncRow);
             }
         }
     }
@@ -173,19 +169,17 @@ private:
                 CreateLookupers(&PartitionLookupers_, currentPartitionSnapshot);
             }
 
-            TIntrusivePtr<TParallelCollector<TVersionedRow>> collector;
+            std::vector<TFuture<TVersionedRow>> asyncRows;
 
             // Send requests, collect sync responses.
-            InvokeLookupers(EdenLookupers_, &merger, &collector, key);
-            InvokeLookupers(PartitionLookupers_, &merger, &collector, key);
+            InvokeLookupers(EdenLookupers_, &merger, &asyncRows, key);
+            InvokeLookupers(PartitionLookupers_, &merger, &asyncRows, key);
 
             // Wait for async responses.
-            if (collector) {
-                auto result = WaitFor(collector->Complete());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                for (auto row : result.Value()) {
-                    merger.AddPartialRow(row);
-                }
+            auto rows = WaitFor(Combine(asyncRows))
+                .ValueOrThrow();
+            for (auto row : rows) {
+                merger.AddPartialRow(row);
             }
 
             // Merge partial rows.

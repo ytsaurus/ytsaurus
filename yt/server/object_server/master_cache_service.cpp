@@ -15,8 +15,6 @@
 
 #include <core/ytree/ypath.pb.h>
 
-#include <core/concurrency/parallel_collector.h>
-
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/security_client/public.h>
@@ -360,7 +358,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
     int attachmentIndex = 0;
     const auto& attachments = request->Attachments();
 
-    auto responseCollector = New<TParallelCollector<TSharedRefArray>>();
+    std::vector<TFuture<TSharedRefArray>> asyncMasterResponseMessages;
     TIntrusivePtr<TMasterRequest> masterRequest;
 
     for (int subrequestIndex = 0; subrequestIndex < request->part_counts_size(); ++subrequestIndex) {
@@ -394,7 +392,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 subrequestIndex,
                 key);
 
-            responseCollector->Collect(Cache_->Lookup(
+            asyncMasterResponseMessages.push_back(Cache_->Lookup(
                 key,
                 std::move(subrequestMessage),
                 TDuration::MilliSeconds(cachingRequestHeaderExt.success_expiration_time()),
@@ -409,7 +407,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 masterRequest = New<TMasterRequest>(MasterChannel_, context);
             }
 
-            responseCollector->Collect(masterRequest->Add(subrequestMessage));
+            asyncMasterResponseMessages.push_back(masterRequest->Add(subrequestMessage));
         }
     }
 
@@ -417,24 +415,19 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
         masterRequest->Invoke();
     }
 
-    responseCollector->Complete().Subscribe(BIND([=] (const TErrorOr<std::vector<TSharedRefArray>>& subresponseMessagesOrError) {
-        if (!subresponseMessagesOrError.IsOK()) {
-            context->Reply(subresponseMessagesOrError);
-            return;
-        }
+    auto masterResponseMessages = WaitFor(Combine(asyncMasterResponseMessages))
+        .ValueOrThrow();
 
-        const auto& responseMessages = subresponseMessagesOrError.Value();
-        auto& responseAttachments = response->Attachments();
-        for (const auto& subresponseMessage : responseMessages) {
-            response->add_part_counts(subresponseMessage.Size());
-            responseAttachments.insert(
-                responseAttachments.end(),
-                subresponseMessage.Begin(),
-                subresponseMessage.End());
-        }
+    auto& responseAttachments = response->Attachments();
+    for (const auto& masterResponseMessage : masterResponseMessages) {
+        response->add_part_counts(masterResponseMessage.Size());
+        responseAttachments.insert(
+            responseAttachments.end(),
+            masterResponseMessage.Begin(),
+            masterResponseMessage.End());
+    }
 
-        context->Reply();
-    }));
+    context->Reply();
 }
 
 IServicePtr CreateMasterCacheService(

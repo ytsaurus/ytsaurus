@@ -8,7 +8,6 @@
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/nonblocking_queue.h>
-#include <core/concurrency/parallel_collector.h>
 
 #include <core/misc/address.h>
 #include <core/misc/variant.h>
@@ -490,7 +489,7 @@ private:
 
             LOG_INFO("Starting chunk sessions");
             try {
-                auto collector = New<TParallelCollector<void>>();
+                std::vector<TFuture<void>> asyncResults;
                 for (auto node : CurrentSession_->Nodes) {
                     auto req = node->LightProxy.StartChunk();
                     ToProto(req->mutable_chunk_id(), CurrentSession_->ChunkId);
@@ -499,9 +498,9 @@ private:
                     auto asyncRsp = req->Invoke().Apply(
                         BIND(&TImpl::OnChunkStarted, MakeStrong(this), node)
                             .AsyncVia(GetCurrentInvoker()));
-                    collector->Collect(asyncRsp);
+                    asyncResults.push_back(asyncRsp);
                 }
-                auto result = WaitFor(collector->Complete());
+                auto result = WaitFor(Combine(asyncResults));
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error starting chunk sessions");
             } catch (const std::exception& ex) {
                 LOG_WARNING(ex, "Chunk open attempt failed");

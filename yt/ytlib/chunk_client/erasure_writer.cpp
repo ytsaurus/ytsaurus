@@ -8,7 +8,6 @@
 
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/parallel_awaiter.h>
-#include <core/concurrency/parallel_collector.h>
 
 #include <core/erasure/codec.h>
 
@@ -302,13 +301,13 @@ void TErasureWriter::DoOpen()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    auto collector = New<TParallelCollector<void>>();
+    std::vector<TFuture<void>> asyncResults;
     for (auto writer : Writers_) {
-        collector->Collect(writer->Open());
+        asyncResults.push_back(writer->Open());
     }
+    WaitFor(Combine(asyncResults))
+        .ThrowOnError();
 
-    auto error = WaitFor(collector->Complete());
-    THROW_ERROR_EXCEPTION_IF_FAILED(error);
     IsOpen_ = true;
 }
 
@@ -317,18 +316,18 @@ TFuture<void> TErasureWriter::WriteDataBlocks()
     VERIFY_THREAD_AFFINITY(WriterThread);
     YCHECK(Groups_.size() <= Writers_.size());
 
-    auto this_ = MakeStrong(this);
-    auto parallelCollector = New<TParallelCollector<void>>();
+    std::vector<TFuture<void>> asyncResults;
     for (int index = 0; index < Groups_.size(); ++index) {
-        parallelCollector->Collect(BIND(
+        asyncResults.push_back(
+            BIND(
                 &TErasureWriter::WriteDataPart,
-                this_,
+                MakeStrong(this),
                 Writers_[index],
                 Groups_[index])
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
             .Run());
     }
-    return parallelCollector->Complete();
+    return Combine(asyncResults);
 }
 
 void TErasureWriter::WriteDataPart(IChunkWriterPtr writer, const std::vector<TSharedRef>& blocks)
@@ -379,26 +378,26 @@ TFuture<void> TErasureWriter::WriteParityBlocks(const std::vector<TSharedRef>& b
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    // Write blocks of current window in parallel manner
-    auto collector = New<TParallelCollector<void>>();
-    for (int i = 0; i < Codec_->GetParityPartCount(); ++i) {
-        auto& writer = Writers_[Codec_->GetDataPartCount() + i];
-        writer->WriteBlock(blocks[i]);
-        collector->Collect(writer->GetReadyEvent());
+    // Write blocks of current window in parallel manner.
+    std::vector<TFuture<void>> asyncResults;
+    for (int index = 0; index < Codec_->GetParityPartCount(); ++index) {
+        const auto& writer = Writers_[Codec_->GetDataPartCount() + index];
+        writer->WriteBlock(blocks[index]);
+        asyncResults.push_back(writer->GetReadyEvent());
     }
-    return collector->Complete();
+    return Combine(asyncResults);
 }
 
 TFuture<void> TErasureWriter::CloseParityWriters()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    auto collector = New<TParallelCollector<void>>();
-    for (int i = 0; i < Codec_->GetParityPartCount(); ++i) {
-        auto& writer = Writers_[Codec_->GetDataPartCount() + i];
-        collector->Collect(writer->Close(ChunkMeta_));
+    std::vector<TFuture<void>> asyncResults;
+    for (int index = 0; index < Codec_->GetParityPartCount(); ++index) {
+        const auto& writer = Writers_[Codec_->GetDataPartCount() + index];
+        asyncResults.push_back(writer->Close(ChunkMeta_));
     }
-    return collector->Complete();
+    return Combine(asyncResults);
 }
 
 TFuture<void> TErasureWriter::Close(const NProto::TChunkMeta& chunkMeta)
@@ -408,18 +407,19 @@ TFuture<void> TErasureWriter::Close(const NProto::TChunkMeta& chunkMeta)
     PrepareBlocks();
     PrepareChunkMeta(chunkMeta);
 
-    auto this_ = MakeStrong(this);
     auto invoker = TDispatcher::Get()->GetWriterInvoker();
-    auto collector = New<TParallelCollector<void>>();
-    collector->Collect(
+
+    std::vector<TFuture<void>> asyncResults {
         BIND(&TErasureWriter::WriteDataBlocks, MakeStrong(this))
-        .AsyncVia(invoker)
-        .Run());
-    collector->Collect(
+            .AsyncVia(invoker)
+            .Run(),
         BIND(&TErasureWriter::EncodeAndWriteParityBlocks, MakeStrong(this))
-        .AsyncVia(invoker)
-        .Run());
-    return collector->Complete().Apply(BIND(&TErasureWriter::OnClosed, MakeStrong(this)));
+            .AsyncVia(invoker)
+            .Run()
+    };
+
+    return Combine(asyncResults).Apply(
+        BIND(&TErasureWriter::OnClosed, MakeStrong(this)));
 }
 
 

@@ -27,8 +27,6 @@ set( HDRS
   ${BASE}/action_queue_detail.h
   ${BASE}/parallel_awaiter-inl.h
   ${BASE}/parallel_awaiter.h
-  ${BASE}/parallel_collector-inl.h
-  ${BASE}/parallel_collector.h
   ${BASE}/async_semaphore.h
   ${BASE}/thread.h
   ${BASE}/delayed_executor.h

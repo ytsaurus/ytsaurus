@@ -10,8 +10,6 @@
 #include "config.h"
 
 #include <core/concurrency/scheduler.h>
-#include <core/concurrency/parallel_collector.h>
-#include <core/concurrency/parallel_awaiter.h>
 
 #include <core/ytree/attribute_helpers.h>
 #include <core/ytree/ypath_proxy.h>
@@ -621,10 +619,10 @@ public:
         TransactionManager_->AbortAll();
 
         auto error = TError("Client terminated");
-        auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
-        awaiter->Await(MasterChannel_->Terminate(error));
-        awaiter->Await(SchedulerChannel_->Terminate(error));
-        return awaiter->Complete();
+        return Combine(std::vector<TFuture<void>> {
+            MasterChannel_->Terminate(error),
+            SchedulerChannel_->Terminate(error)
+        });
     }
 
 
@@ -1132,15 +1130,15 @@ private:
             session->AddKey(index, key);
         }
 
-        auto collector = New<TParallelCollector<void>>();
+        std::vector<TFuture<void>> asyncResults;
         for (const auto& pair : tabletToSession) {
             const auto& tabletInfo = pair.first;
             const auto& session = pair.second;
             auto channel = GetTabletChannel(tabletInfo->CellId);
-            collector->Collect(session->Invoke(std::move(channel)));
+            asyncResults.push_back(session->Invoke(std::move(channel)));
         }
 
-        WaitFor(collector->Complete())
+        WaitFor(Combine(asyncResults))
             .ThrowOnError();
 
         std::vector<TUnversionedRow> resultRows;
@@ -1570,7 +1568,6 @@ public:
         NTransactionClient::TTransactionPtr transaction)
         : Client_(std::move(client))
         , Transaction_(std::move(transaction))
-        , TransactionStartCollector_(New<TParallelCollector<void>>())
     { }
 
 
@@ -2010,8 +2007,8 @@ private:
     typedef TIntrusivePtr<TTabletCommitSession> TTabletSessionPtr;
 
     yhash_map<TTabletInfoPtr, TTabletSessionPtr> TabletToSession_;
-    
-    TIntrusivePtr<TParallelCollector<void>> TransactionStartCollector_;
+
+    std::vector<TFuture<void>> AsyncTransactionStartResults_;
 
     // Maps ids from name table to schema, for each involved name table.
     yhash_map<TNameTablePtr, TNameTableToSchemaIdMapping> NameTableToIdMapping_;
@@ -2031,7 +2028,7 @@ private:
     {
         auto it = TabletToSession_.find(tabletInfo);
         if (it == TabletToSession_.end()) {
-            TransactionStartCollector_->Collect(Transaction_->AddTabletParticipant(tabletInfo->CellId));
+            AsyncTransactionStartResults_.push_back(Transaction_->AddTabletParticipant(tabletInfo->CellId));
             it = TabletToSession_.insert(std::make_pair(
                 tabletInfo,
                 New<TTabletCommitSession>(this, tabletInfo))).first;
@@ -2046,18 +2043,18 @@ private:
                 request->Run();
             }
 
-            WaitFor(TransactionStartCollector_->Complete())
+            WaitFor(Combine(AsyncTransactionStartResults_))
                 .ThrowOnError();
 
-            auto writeCollector = New<TParallelCollector<void>>();
+            std::vector<TFuture<void>> asyncResults;
             for (const auto& pair : TabletToSession_) {
                 const auto& tabletInfo = pair.first;
                 const auto& session = pair.second;
                 auto channel = Client_->GetTabletChannel(tabletInfo->CellId);
-                writeCollector->Collect(session->Invoke(std::move(channel)));
+                asyncResults.push_back(session->Invoke(std::move(channel)));
             }
 
-            WaitFor(writeCollector->Complete())
+            WaitFor(Combine(asyncResults))
                 .ThrowOnError();
         } catch (const std::exception& ex) {
             // Fire and forget.
