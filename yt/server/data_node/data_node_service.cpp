@@ -704,20 +704,20 @@ private:
                     chunkId);
             }
 
-            auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(meta.extensions());
+            auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
             auto chunkKeyColumns = FromProto<TKeyColumns>(keyColumnsExt);
             ValidateKeyColumns(keyColumns, chunkKeyColumns);
 
-    switch (chunkMeta.version()) {
-        case ETableChunkFormat::Old:
-            MakeOldChunkSplits(
-                chunkSpec,
-                splittedChunk,
-                minSplitSize,
-                keyColumns.size(),
-                miscExt,
-                chunkMeta);
-            break;
+        switch (chunkMeta.version()) {
+            case ETableChunkFormat::Old:
+                MakeOldChunkSplits(
+                    chunkSpec,
+                    splittedChunk,
+                    minSplitSize,
+                    keyColumns.size(),
+                    miscExt,
+                    chunkMeta);
+                break;
 
             case ETableChunkFormat::SchemalessHorizontal:
             case ETableChunkFormat::VersionedSimple:
@@ -728,7 +728,7 @@ private:
         default: {
             auto error = TError("Unsupported chunk version (ChunkId: %v; ChunkFormat: %v)",
                 chunkId,
-                ETableChunkFormat(chunkMeta.version()));
+                ETableChunkFormat(meta.version()));
             LOG_WARNING(error);
             ToProto(splittedChunk->mutable_error(), error);
             return;
@@ -962,6 +962,10 @@ void TDataNodeService::MakeOldChunkSplits(
                 case ETableChunkFormat::VersionedSimple:
                     ProcessVersionedChunkSamples(sampleRequest, sampleResponse, keyColumns, meta);
                     break;
+
+            case ETableChunkFormat::SchemalessHorizontal:
+                ProcessUnversionedChunkSamples(sampleRequest, sampleResponse, keyColumns, chunkMeta);
+                break;
 
             default:
                 THROW_ERROR_EXCEPTION("Invalid version %v of chunk %v",

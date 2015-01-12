@@ -18,6 +18,7 @@ namespace NYT {
 namespace NDataNode {
 
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NVersionedTableClient;
 using namespace NDataNode;
 using namespace NCellNode;

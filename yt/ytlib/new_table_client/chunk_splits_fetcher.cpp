@@ -83,7 +83,7 @@ void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
         GetStatistics(*chunk, &chunkDataSize);
 
         TOwningKey minKey, maxKey;
-        GetBoundaryKeys(chunk->chunk_meta(), &minKey, &maxKey);
+        YCHECK(TryGetBoundaryKeys(chunk->chunk_meta(), &minKey, &maxKey));
 
         if (chunkDataSize < ChunkSliceSize_ || CompareRows(minKey, maxKey, KeyColumns_.size()) == 0) {
             ChunkSplits_.push_back(chunk);

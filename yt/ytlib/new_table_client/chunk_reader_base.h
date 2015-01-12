@@ -27,9 +27,9 @@ public:
         const NChunkClient::NProto::TMiscExt& misc,
         NChunkClient::IBlockCachePtr uncompressedBlockCache);
 
-    virtual TAsyncError Open() override;
+    virtual TFuture<void> Open() override;
 
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
 
@@ -49,7 +49,7 @@ protected:
     NChunkClient::TSequentialReaderPtr SequentialReader_;
 
     NChunkClient::NProto::TMiscExt Misc_;
-    TAsyncError ReadyEvent_;
+    TFuture<void> ReadyEvent_;
 
     bool BlockEnded_;
 
@@ -64,9 +64,9 @@ protected:
     int GetEndBlockIndex(const NProto::TBlockMetaExt& blockMeta) const;
     int GetEndBlockIndex(const NProto::TBlockIndexExt& blockIndex) const;
 
-    TError DoOpen();
+    void DoOpen();
 
-    TError DoSwitchBlock();
+    void DoSwitchBlock();
 
     bool OnBlockEnded();
 

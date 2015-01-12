@@ -36,11 +36,11 @@ public:
         const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
         bool enableTableIndex);
 
-    virtual TAsyncError Open() override;
+    virtual TFuture<void> Open() override;
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
     virtual int GetTableIndex() const override;
 
@@ -74,10 +74,10 @@ private:
     i64 RowCount_ = 0;
     i64 RowIndex_ = 0;
 
-    TAsyncError ReadyEvent_;
+    TFuture<void> ReadyEvent_;
     int TableIndex_;
 
-    TError DoOpen();
+    void DoOpen();
 
     friend bool CompareSessions(const TSession* lhs, const TSession* rhs);
 
@@ -124,7 +124,7 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
     }
 }
 
-TAsyncError TSchemalessSortedMergingReader::Open()
+TFuture<void> TSchemalessSortedMergingReader::Open()
 {
     LOG_INFO(
         "Opening schemaless sorted merging reader (SessionCount: %d)",
@@ -137,18 +137,16 @@ TAsyncError TSchemalessSortedMergingReader::Open()
     return ReadyEvent_;
 }
 
-TError TSchemalessSortedMergingReader::DoOpen()
+void TSchemalessSortedMergingReader::DoOpen()
 {
-    std::vector<TAsyncError> openErrors;
+    std::vector<TFuture<void>> openErrors;
     for (auto& session : SessionHolder_) {
         openErrors.push_back(session.Reader->Open());
     }
 
     for (auto& asyncError : openErrors) {
         auto error = WaitFor(asyncError);
-        if (!error.IsOK()) {
-            return TError("Failed to open schemaless merging reader") << error;
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to open schemaless merging reader");
     }
 
     for (auto& session : SessionHolder_) {
@@ -161,8 +159,6 @@ TError TSchemalessSortedMergingReader::DoOpen()
     if (!SessionHeap_.empty()) {
         MakeHeap(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions);
     }
-
-    return TError();
 }
 
 bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow> *rows)
@@ -213,7 +209,7 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow> *rows)
     return true;
 }
 
-TAsyncError TSchemalessSortedMergingReader::GetReadyEvent()
+TFuture<void> TSchemalessSortedMergingReader::GetReadyEvent()
 {
     return ReadyEvent_;
 }

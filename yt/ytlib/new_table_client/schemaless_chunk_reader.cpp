@@ -159,7 +159,7 @@ TSchemalessChunkReader::TSchemalessChunkReader(
 
 std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequence() 
 {
-    YCHECK(ChunkMeta_.version() == ETableChunkFormat::SchemalessHorizontal);
+    YCHECK(ChunkMeta_.version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
 
     if (PartitionTag_) {
         return GetBlockSequencePartition();
@@ -625,9 +625,9 @@ public:
         const TRichYPath& richPath,
         TNameTablePtr nameTable);
 
-    virtual TAsyncError Open() override;
+    virtual TFuture<void> Open() override;
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
     virtual i64 GetTableRowIndex() const override;
     virtual TNameTablePtr GetNameTable() const override;
@@ -650,7 +650,7 @@ private:
 
     TUnderlyingReaderPtr UnderlyingReader_;
 
-    TError DoOpen();
+    void DoOpen();
 
 };
 
@@ -679,7 +679,7 @@ TSchemalessTableReader::TSchemalessTableReader(
     Logger.AddTag("Path: %v, TransactihonId: %v", RichPath_.GetPath(), TransactionId_);
 }
 
-TAsyncError TSchemalessTableReader::Open()
+TFuture<void> TSchemalessTableReader::Open()
 {
     LOG_INFO("Opening table reader");
 
@@ -688,7 +688,7 @@ TAsyncError TSchemalessTableReader::Open()
         .Run();
 }
 
-TError TSchemalessTableReader::DoOpen()
+void TSchemalessTableReader::DoOpen()
 {
     TObjectServiceProxy objectProxy(MasterChannel_);
 
@@ -710,29 +710,26 @@ TError TSchemalessTableReader::DoOpen()
     }
 
     LOG_INFO("Fetching table info");
-    auto batchRsp = WaitFor(batchReq->Invoke());
-    if (!batchRsp->IsOK()) {
-        return TError("Error fetching table info") << *batchRsp;
-    }
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error fetching table info");
 
+    auto batchRsp = batchRspOrError.Value();
     {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_type");
-        if (!rsp->IsOK()) {
-            return TError("Error getting object type") << *rsp;
-        }
-
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_type");
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting object type");
+        auto rsp = rspOrError.Value();
+        
         auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
         if (type != EObjectType::Table) {
-            return TError("Invalid type of %v: expected %Qlv, actual %Qlv",
+            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                 RichPath_.GetPath(),
                 EObjectType(EObjectType::Table),
                 type);
         }
     } {
-        auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspFetch>("fetch");
-        if (!rsp->IsOK()) {
-            return TError("Error fetching table chunks") << *rsp;
-        }
+        auto rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspFetch>("fetch");
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching table chunks");
+        auto rsp = rspOrError.Value();
 
         auto nodeDirectory = New<TNodeDirectory>();
         nodeDirectory->MergeFrom(rsp->node_directory());
@@ -748,7 +745,7 @@ TError TSchemalessTableReader::DoOpen()
                 continue;
             }
              
-            return TError(
+            THROW_ERROR_EXCEPTION(
                 "Chunk is unavailable (ChunkId: %v)",
                 NYT::FromProto<TChunkId>(chunkSpec.chunk_id()));
         }
@@ -765,8 +762,7 @@ TError TSchemalessTableReader::DoOpen()
             TKeyColumns());
 
         auto error = WaitFor(UnderlyingReader_->Open());
-        if (!error.IsOK())
-            return error;
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
     if (Transaction_) {
@@ -774,7 +770,6 @@ TError TSchemalessTableReader::DoOpen()
     }
 
     LOG_INFO("Table reader opened");
-    return TError();
 }
 
 bool TSchemalessTableReader::Read(std::vector<TUnversionedRow> *rows)
@@ -787,7 +782,7 @@ bool TSchemalessTableReader::Read(std::vector<TUnversionedRow> *rows)
     return UnderlyingReader_->Read(rows);
 }
 
-TAsyncError TSchemalessTableReader::GetReadyEvent()
+TFuture<void> TSchemalessTableReader::GetReadyEvent()
 {
     if (IsAborted()) {
         return MakeFuture(TError("Transaction aborted (TransactionId: %v))", TransactionId_));

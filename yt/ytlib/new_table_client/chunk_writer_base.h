@@ -58,7 +58,7 @@ protected:
 
     virtual void PrepareChunkMeta();
 
-    virtual TError DoClose();
+    virtual void DoClose();
 
     virtual ETableChunkFormat GetFormatVersion() const = 0;
 
@@ -79,7 +79,7 @@ public:
         NChunkClient::IChunkWriterPtr asyncWriter,
         const TKeyColumns& keyColumns = TKeyColumns());
 
-    virtual TAsyncError Open() override;
+    virtual TFuture<void> Open() override;
 
     virtual i64 GetMetaSize() const override;
     virtual i64 GetDataSize() const override;
@@ -110,7 +110,7 @@ private:
     i64 SamplesExtSize_ = 0;
     double AverageSampleSize_ = 0;
 
-    TError DoClose();
+    void DoClose();
 
     void EmitSample(const TUnversionedValue* begin, const TUnversionedValue* end);
 
