@@ -56,7 +56,9 @@ class Master(WinNode, Server):
 
         config = Template({
                 'master' : {
-                    'addresses' : MasterAddresses
+                    'addresses' : MasterAddresses,
+                    'cell_tag' : 0,
+                    'cell_id' : 'ffffffff-ffffffff-ffffffff-ffffffff'
                 },
                 'timestamp_provider' : {
                     'addresses' : MasterAddresses
@@ -100,7 +102,9 @@ class Holder(WinNode, Server):
         config = Template({
             'cluster_connection' : {
                 'master' : {
-                    'addresses' : MasterAddresses
+                    'addresses' : MasterAddresses,
+                    'cell_tag' : 0,
+                    'cell_id' : 'ffffffff-ffffffff-ffffffff-ffffffff'
                 },
                 'timestamp_provider' : {
                     'addresses' : MasterAddresses
@@ -145,9 +149,6 @@ class Holder(WinNode, Server):
                     'temp_path' : r'%(work_dir)s\snapshots'
                 },
                 'tablet_manager' : {
-                },
-                'hydra_manager' : {
-                    'max_changelog_record_count' : 10
                 }
             },
             'rpc_port' : r'%(port)d',
