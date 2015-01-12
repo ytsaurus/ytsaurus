@@ -212,70 +212,91 @@ private:
             }, false);
     }
 
-    TDataSplits SplitFurther(
-        const TDataSplit& split,
-        TNodeDirectoryPtr nodeDirectory)
-    {
-        auto tabletId = GetObjectIdFromDataSplit(split);
-        YCHECK(TypeFromId(tabletId) == EObjectType::Tablet);
-
-        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
-
-        auto lowerBound = GetLowerBoundFromDataSplit(split);
-        auto upperBound = GetUpperBoundFromDataSplit(split);
-        auto keyColumns = GetKeyColumnsFromDataSplit(split);
-        auto schema = GetTableSchemaFromDataSplit(split);
-        auto timestamp = GetTimestampFromDataSplit(split);
-
-        // NB: splitKeys[0] < lowerBound is possible.
-        auto splitKeys = BuildSplitKeys(tabletSnapshot, lowerBound, upperBound);
-
-        std::vector<TDataSplit> subsplits;
-        for (int splitKeyIndex = 0; splitKeyIndex < splitKeys.size(); ++splitKeyIndex) {
-            const auto& thisKey = splitKeys[splitKeyIndex];
-            const auto& nextKey = (splitKeyIndex == splitKeys.size() - 1)
-                ? MaxKey()
-                : splitKeys[splitKeyIndex + 1];
-            TDataSplit subsplit;
-            SetObjectId(&subsplit, tabletId);
-            SetKeyColumns(&subsplit, keyColumns);
-            SetTableSchema(&subsplit, schema);
-            SetLowerBound(&subsplit, std::max(lowerBound, thisKey));
-            SetUpperBound(&subsplit, std::min(upperBound, nextKey));
-            SetTimestamp(&subsplit, timestamp);
-            subsplits.push_back(std::move(subsplit));
-        }
-
-        return subsplits;
-    }
-
     TDataSplits Split(
         const TDataSplits& splits,
         TNodeDirectoryPtr nodeDirectory,
         const NLog::TLogger& Logger)
     {
+        std::map<TGuid, TDataSplits> splitsByTablet;
+
         TDataSplits allSplits;
         for (const auto& split : splits) {
             auto objectId = GetObjectIdFromDataSplit(split);
             auto type = TypeFromId(objectId);
 
-            if (type != EObjectType::Tablet) {
+            if (type == EObjectType::Tablet) {
+                splitsByTablet[objectId].push_back(split);
+            } else {
                 allSplits.push_back(split);
                 continue;
             }
+        }
 
-            auto newSplits = SplitFurther(split, nodeDirectory);
+        for (auto& tabletIdSplit : splitsByTablet) {
+            auto tabletId = tabletIdSplit.first;
+            auto& splits = tabletIdSplit.second;
 
-            LOG_DEBUG("Got %v splits for input %v", newSplits.size(), objectId);
+            YCHECK(!splits.empty());
 
-            allSplits.insert(allSplits.end(), newSplits.begin(), newSplits.end());
+            auto keyColumns = GetKeyColumnsFromDataSplit(splits.front());
+            auto schema = GetTableSchemaFromDataSplit(splits.front());
+            auto timestamp = GetTimestampFromDataSplit(splits.front());
+
+            std::sort(splits.begin(), splits.end(), [] (const TDataSplit& lhs, const TDataSplit& rhs) {
+                return GetLowerBoundFromDataSplit(lhs) < GetLowerBoundFromDataSplit(rhs);
+            });
+
+            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+            auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
+
+            size_t lastIndex = 0;
+            std::vector<std::pair<TOwningKey, TOwningKey>> resultRanges;
+            for (size_t index = 1; index < splits.size(); ++index) {
+                auto lowerBound = GetLowerBoundFromDataSplit(splits[index]);
+                auto upperBound = GetUpperBoundFromDataSplit(splits[index - 1]);
+
+                size_t totalSampleCount, partitionCount; 
+                std::tie(totalSampleCount, partitionCount) = GetBoundSampleKeys(tabletSnapshot, upperBound, lowerBound);
+
+                if (totalSampleCount != 0 || partitionCount != 0) {
+                    resultRanges.emplace_back(GetLowerBoundFromDataSplit(splits[lastIndex]), upperBound);
+                    lastIndex = index;
+                }
+            }
+
+            resultRanges.emplace_back(GetLowerBoundFromDataSplit(splits[lastIndex]), GetUpperBoundFromDataSplit(splits.back()));
+
+            size_t totalSampleCount = 0;
+            for (const auto& range : resultRanges) {
+                size_t sampleCount, partitionCount; 
+                std::tie(sampleCount, partitionCount) = GetBoundSampleKeys(tabletSnapshot, range.first, range.second);
+                totalSampleCount += sampleCount;
+            }
+
+            for (const auto& range : resultRanges) {
+                auto splitKeys = BuildSplitKeys(tabletSnapshot, range.first, range.second, totalSampleCount);
+
+                for (int splitKeyIndex = 0; splitKeyIndex < splitKeys.size(); ++splitKeyIndex) {
+                    const auto& thisKey = splitKeys[splitKeyIndex];
+                    const auto& nextKey = (splitKeyIndex == splitKeys.size() - 1)
+                        ? MaxKey()
+                        : splitKeys[splitKeyIndex + 1];
+                    TDataSplit subsplit;
+                    SetObjectId(&subsplit, tabletId);
+                    SetKeyColumns(&subsplit, keyColumns);
+                    SetTableSchema(&subsplit, schema);
+                    SetLowerBound(&subsplit, std::max(range.first, thisKey));
+                    SetUpperBound(&subsplit, std::min(range.second, nextKey));
+                    SetTimestamp(&subsplit, timestamp);
+                    allSplits.push_back(std::move(subsplit));
+                }
+            }
         }
 
         return allSplits;
     }
 
-    std::vector<TOwningKey> BuildSplitKeys(
+    std::pair<size_t, size_t> GetBoundSampleKeys(
         TTabletSnapshotPtr tabletSnapshot,
         const TOwningKey& lowerBound,
         const TOwningKey& upperBound)
@@ -319,13 +340,53 @@ private:
             auto startSampleIt = partitionIt == startPartitionIt && !sampleKeys.empty()
                 ? findStartSample(sampleKeys)
                 : sampleKeys.begin();
-            auto endSampleIt = partitionIt == endPartitionIt - 1
+            auto endSampleIt = partitionIt + 1 == endPartitionIt
                 ? findEndSample(sampleKeys)
                 : sampleKeys.end();
 
             totalSampleCount += std::distance(startSampleIt, endSampleIt);
         }
 
+        return std::make_pair(totalSampleCount, partitionCount);
+    }
+
+    std::vector<TOwningKey> BuildSplitKeys(
+        TTabletSnapshotPtr tabletSnapshot,
+        const TOwningKey& lowerBound,
+        const TOwningKey& upperBound,
+        int totalSampleCount)
+    {
+        auto findStartSample = [&] (const std::vector<TOwningKey>& sampleKeys) {
+            return std::upper_bound(
+                sampleKeys.begin(),
+                sampleKeys.end(),
+                lowerBound);
+        };
+        auto findEndSample = [&] (const std::vector<TOwningKey>& sampleKeys) {
+            return std::lower_bound(
+                sampleKeys.begin(),
+                sampleKeys.end(),
+                upperBound);
+        };
+
+        // Run binary search to find the relevant partitions.
+        const auto& partitions = tabletSnapshot->Partitions;
+        YCHECK(lowerBound >= partitions[0]->PivotKey);
+        auto startPartitionIt = std::upper_bound(
+            partitions.begin(),
+            partitions.end(),
+            lowerBound,
+            [] (const TOwningKey& lhs, const TPartitionSnapshotPtr& rhs) {
+                return lhs < rhs->PivotKey;
+            }) - 1;
+        auto endPartitionIt = std::lower_bound(
+            startPartitionIt,
+            partitions.end(),
+            upperBound,
+            [] (const TPartitionSnapshotPtr& lhs, const TOwningKey& rhs) {
+                return lhs->PivotKey < rhs;
+            });
+        int partitionCount = std::distance(startPartitionIt, endPartitionIt);
         int freeSlotCount = std::max(0, Config_->MaxSubsplitsPerTablet - partitionCount);
         int cappedSampleCount = std::min(freeSlotCount, totalSampleCount);
         int currentSamplesCount = 1;
