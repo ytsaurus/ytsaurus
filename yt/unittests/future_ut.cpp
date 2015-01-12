@@ -6,7 +6,6 @@
 #include <core/actions/cancelable_context.h>
 
 #include <core/concurrency/parallel_awaiter.h>
-#include <core/concurrency/parallel_collector.h>
 
 #include <util/system/thread.h>
 
@@ -517,30 +516,6 @@ TEST(TFutureTest, ApplyIntToFutureInt)
     EXPECT_EQ(42, target.Get().Value());
 }
 
-TEST(TFutureTest, Regression_de94ea0)
-{
-    int counter = 0;
-
-    auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
-    auto trigger = NewPromise<void>();
-
-    awaiter->Await(
-        trigger.ToFuture(),
-        BIND([&counter] (const TError& error) {
-            EXPECT_TRUE(error.IsOK());
-            ++counter;
-        }));
-
-    EXPECT_EQ(0, counter);
-    trigger.Set();
-    EXPECT_EQ(1, counter);
-
-    auto completed = NewPromise<void>();
-    completed.SetFrom(awaiter->Complete());
-
-    EXPECT_TRUE(completed.IsSet());
-}
-
 static TFuture<int> AsyncDivide(int a, int b, TDuration delay)
 {
     auto promise = NewPromise<int>();
@@ -556,35 +531,51 @@ static TFuture<int> AsyncDivide(int a, int b, TDuration delay)
     return promise;
 }
 
-TEST(TFutureTest, ParallelCollectorEmpty)
+TEST(TFutureTest, CombineEmpty)
 {
-    auto collector = New< TParallelCollector<int> >();
-    auto resultOrError = collector->Complete().Get();
+    std::vector<TFuture<int>> futures;
+    auto resultOrError = Combine(futures).Get();
     EXPECT_TRUE(resultOrError.IsOK());
     const auto& result = resultOrError.Value();
     EXPECT_TRUE(result.size() == 0);
 }
 
-TEST(TFutureTest, ParallelCollectorSuccess)
+TEST(TFutureTest, CombineNonEmpty)
 {
-    auto collector = New< TParallelCollector<int> >();
-    collector->Collect(AsyncDivide(5, 2, TDuration::Seconds(0.1)));
-    collector->Collect(AsyncDivide(30, 3, TDuration::Seconds(0.2)));
-    auto resultOrError = collector->Complete().Get();
+    std::vector<TFuture<int>> asyncResults {
+        AsyncDivide(5, 2, TDuration::Seconds(0.1)),
+        AsyncDivide(30, 3, TDuration::Seconds(0.2))
+    };
+    auto resultOrError = Combine(asyncResults).Get();
     EXPECT_TRUE(resultOrError.IsOK());
     const auto& result = resultOrError.Value();
-    EXPECT_TRUE(result.size() == 2);
-    EXPECT_TRUE(result[0] == 2);
-    EXPECT_TRUE(result[1] == 10);
+    EXPECT_EQ(2, result.size());
+    EXPECT_EQ(2, result[0]);
+    EXPECT_EQ(10, result[1]);
 }
 
-TEST(TFutureTest, ParallelCollectorError)
+TEST(TFutureTest, CombineError)
 {
-    auto collector = New< TParallelCollector<int> >();
-    collector->Collect(AsyncDivide(5, 2, TDuration::Seconds(0.1)));
-    collector->Collect(AsyncDivide(30, 0, TDuration::Seconds(0.2)));
-    auto resultOrError = collector->Complete().Get();
+    std::vector<TFuture<int>> asyncResults {
+        AsyncDivide(5, 2, TDuration::Seconds(0.1)),
+        AsyncDivide(30, 0, TDuration::Seconds(0.2))
+    };
+    auto resultOrError = Combine(asyncResults).Get();
     EXPECT_FALSE(resultOrError.IsOK());
+}
+
+TEST(TFutureTest, CombineCancel)
+{
+    std::vector<TFuture<void>> asyncResults {
+        TDelayedExecutor::MakeDelayed(TDuration::Seconds(5)),
+        TDelayedExecutor::MakeDelayed(TDuration::Seconds(5)),
+        TDelayedExecutor::MakeDelayed(TDuration::Seconds(5))
+    };
+    auto asyncResult = Combine(asyncResults);
+    asyncResult.Cancel();
+    EXPECT_TRUE(asyncResult.IsSet());
+    const auto& result = asyncResult.Get();
+    EXPECT_EQ(NYT::EErrorCode::Canceled, result.GetCode());
 }
 
 TEST(TFutureTest, AsyncViaCanceledInvoker)
@@ -637,7 +628,6 @@ TEST(TFutureTest, Timeout)
     auto f1 = p.ToFuture();
     auto f2 = f1.WithTimeout(SleepQuantum);
     auto result = f2.Get();
-    EXPECT_FALSE(result.IsOK());
     EXPECT_EQ(NYT::EErrorCode::Timeout, result.GetCode());
 }
 

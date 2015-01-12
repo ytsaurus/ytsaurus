@@ -6,7 +6,6 @@
 #include <core/misc/error.h>
 
 #include <core/concurrency/action_queue.h>
-#include <core/concurrency/parallel_collector.h>
 #include <core/concurrency/delayed_executor.h>
 
 #include <core/bus/bus.h>
@@ -241,20 +240,20 @@ TEST_F(TRpcTest, ManyAsyncRequests)
 {
     const int RequestCount = 1000;
 
-    auto collector = New<TParallelCollector<void>>();
+    std::vector<TFuture<void>> asyncResults;
 
     TMyProxy proxy(CreateChannel());
 
     for (int i = 0; i < RequestCount; ++i) {
         auto request = proxy.SomeCall();
         request->set_a(i);
-        auto result = request->Invoke().Apply(BIND([=] (TMyProxy::TRspSomeCallPtr rsp) {
+        auto asyncResult = request->Invoke().Apply(BIND([=] (TMyProxy::TRspSomeCallPtr rsp) {
             EXPECT_EQ(i + 100, rsp->b());
         }));
-        collector->Collect(result);
+        asyncResults.push_back(asyncResult);
     }
 
-    EXPECT_TRUE(collector->Complete().Get().IsOK());
+    EXPECT_TRUE(Combine(asyncResults).Get().IsOK());
 }
 
 TEST_F(TRpcTest, Attachments)
@@ -394,7 +393,7 @@ TEST_F(TRpcTest, OneWayTransportError)
     TMyProxy proxy(CreateChannel("localhost:9999"));
     auto req = proxy.OneWay();
     auto rspOrError = req->Invoke().Get();
-    EXPECT_FALSE(rspOrError.IsOK());
+    EXPECT_EQ(NYT::NRpc::EErrorCode::TransportError, rspOrError.GetCode());
 }
 
 TEST_F(TRpcTest, OneWayNoService)
@@ -431,7 +430,6 @@ TEST_F(TRpcTest, ConnectionLost)
 
     EXPECT_TRUE(asyncRspOrError.IsSet());
     auto rspOrError = asyncRspOrError.Get();
-    EXPECT_FALSE(rspOrError.IsOK());
     EXPECT_EQ(NRpc::EErrorCode::TransportError, rspOrError.GetCode());
     EXPECT_TRUE(Service_->GetSlowCallCanceled());
 }
@@ -442,7 +440,6 @@ TEST_F(TRpcTest, ProtocolVersionMismatch)
     auto req = proxy.SomeCall();
     req->set_a(42);
     auto rspOrError = req->Invoke().Get();
-    EXPECT_FALSE(rspOrError.IsOK());
     EXPECT_EQ(NRpc::EErrorCode::ProtocolError, rspOrError.GetCode());
 }
 

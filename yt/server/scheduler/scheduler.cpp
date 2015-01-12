@@ -22,7 +22,6 @@
 #include <core/actions/invoker_util.h>
 
 #include <core/concurrency/action_queue.h>
-#include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/scheduler.h>
 
 #include <core/rpc/dispatcher.h>
@@ -501,7 +500,7 @@ public:
                 ToProto(response->add_jobs_to_abort(), job->GetId());
             }
 
-            auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
+            std::vector<TFuture<void>> asyncResults;
             auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetPoolInvoker();
             for (auto job : schedulingContext->StartedJobs()) {
                 auto* startInfo = response->add_jobs_to_start();
@@ -509,19 +508,17 @@ public:
                 *startInfo->mutable_resource_limits() = job->ResourceUsage();
 
                 // Build spec asynchronously.
-                awaiter->Await(
+                asyncResults.push_back(
                     BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
-                    .AsyncVia(specBuilderInvoker)
-                    .Run());
+                        .AsyncVia(specBuilderInvoker)
+                        .Run());
 
                 // Release to avoid circular references.
                 job->SetSpecBuilder(TJobSpecBuilder());
                 operationsToLog.insert(job->GetOperation());
             }
 
-            awaiter->Complete(BIND([=] () {
-                context->Reply();
-            }));
+            context->ReplyFrom(Combine(asyncResults));
 
             for (auto operation : operationsToLog) {
                 LogOperationProgress(operation);

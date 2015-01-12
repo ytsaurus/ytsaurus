@@ -225,7 +225,6 @@ private:
             LOG_WARNING(rspOrError, "Failed to get journal info (ChunkId: %v, Address: %v)",
                 ChunkId_,
                 descriptor.GetDefaultAddress());
-           
         }
     }
 

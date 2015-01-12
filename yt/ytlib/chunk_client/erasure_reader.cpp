@@ -9,7 +9,6 @@
 #include "replication_reader.h"
 
 #include <core/concurrency/parallel_awaiter.h>
-#include <core/concurrency/parallel_collector.h>
 #include <core/concurrency/scheduler.h>
 
 #include <core/erasure/codec.h>
@@ -576,12 +575,12 @@ TFuture<void> TRepairReader::RepairBlockIfNeeded()
     WindowIndex_ += 1;
     i64 windowSize = (WindowIndex_ == WindowCount_) ? LastWindowSize_ : WindowSize_;
 
-    auto collector = New<TParallelCollector<TSharedRef>>();
+    std::vector<TFuture<TSharedRef>> asyncBlocks;
     for (auto windowReader : WindowReaders_) {
-        collector->Collect(windowReader->Read(windowSize));
+        asyncBlocks.push_back(windowReader->Read(windowSize));
     }
 
-    return collector->Complete().Apply(
+    return Combine(asyncBlocks).Apply(
         BIND(&TRepairReader::OnBlocksCollected, MakeStrong(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
 }
@@ -693,26 +692,25 @@ private:
     void DoRun()
     {
         // Prepare reader.
-        {
-            auto result = WaitFor(Reader_->Prepare());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        WaitFor(Reader_->Prepare())
+            .ThrowOnError();
 
         // Open writers.
-        auto collector = New<TParallelCollector<void>>();
-        for (auto writer : Writers_) {
-            collector->Collect(writer->Open());
+        {
+            std::vector<TFuture<void>> asyncResults;
+            for (auto writer : Writers_) {
+                asyncResults.push_back(writer->Open());
+            }
+            WaitFor(Combine(asyncResults))
+                .ThrowOnError();
         }
-        auto error = WaitFor(collector->Complete());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
 
         // Repair all blocks with the help of TRepairReader and push them to the
         // corresponding writers.
         while (Reader_->HasNextBlock()) {
-            auto blockOrError = WaitFor(Reader_->RepairNextBlock());
-            THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
+            auto block = WaitFor(Reader_->RepairNextBlock())
+                .ValueOrThrow();
 
-            const auto& block = blockOrError.Value();
             RepairedDataSize_ += block.Data.Size();
 
             if (OnProgress_) {
@@ -722,28 +720,24 @@ private:
 
             auto writer = GetWriterForIndex(block.Index);
             if (!writer->WriteBlock(block.Data)) {
-                auto result = WaitFor(writer->GetReadyEvent());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                WaitFor(writer->GetReadyEvent())
+                    .ThrowOnError();
             }
         }
 
         // Fetch chunk meta.
-        TChunkMeta meta;
-        {
-            auto reader = Readers_.front(); // an arbitrary one will do
-            auto metaOrError = WaitFor(reader->GetMeta());
-            THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError);
-            meta = metaOrError.Value();
-        }
+        auto reader = Readers_.front(); // an arbitrary one will do
+        auto meta = WaitFor(reader->GetMeta())
+            .ValueOrThrow();
 
         // Close all writers.
         {
-            auto collector = New<TParallelCollector<void>>();
+            std::vector<TFuture<void>> asyncResults;
             for (auto writer : Writers_) {
-                collector->Collect(writer->Close(meta));
+                asyncResults.push_back(writer->Close(meta));
             }
-            auto result = WaitFor(collector->Complete());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            WaitFor(Combine(asyncResults))
+                .ThrowOnError();
         }
     }
 

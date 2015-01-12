@@ -515,50 +515,36 @@ private:
         return JobResult.HasValue();
     }
 
-    TFuture<void> DownloadChunks(
-        const google::protobuf::RepeatedPtrField<NYT::NChunkClient::NProto::TChunkSpec>& chunks)
+    void DownloadChunks(const google::protobuf::RepeatedPtrField<TChunkSpec>& chunks)
     {
-        auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
         auto chunkCache = Bootstrap->GetChunkCache();
         auto this_ = MakeStrong(this);
 
+        std::vector<TFuture<IChunkPtr>> asyncResults;
         for (const auto chunk : chunks) {
             auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
             auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunk.replicas());
 
             if (IsErasureChunkId(chunkId)) {
-                DoAbort(TError("Cannot download erasure chunk %v", chunkId));
-                break;
+                THROW_ERROR_EXCEPTION("Some files and/or tables required by job contain erasure chunks");
             }
 
-            auto asyncChunkOrError = chunkCache->DownloadChunk(
+            asyncResults.push_back(chunkCache->DownloadChunk(
                 chunkId,
                 NodeDirectory,
-                seedReplicas);
-
-            awaiter->Await(
-                std::move(asyncChunkOrError),
-                BIND([=] (const TErrorOr<IChunkPtr>& chunkOrError) {
-                    UNUSED(this_);
-                    if (!chunkOrError.IsOK()) {
-                        auto wrappedError = TError(
-                            "Failed to download chunk %v",
-                            chunkId)
-                            << chunkOrError;
-                        DoAbort(wrappedError);
-                        return;
-                    }
-                    CachedChunks.push_back(chunkOrError.Value());
-                }));
+                seedReplicas));
         }
 
-        return awaiter->Complete();
+        auto resultsOrError = WaitFor(Combine(asyncResults));
+        THROW_ERROR_EXCEPTION_IF_FAILED(resultsOrError, "Error downloading chunks required by job");
+
+        const auto& results = resultsOrError.Value();
+        CachedChunks.insert(CachedChunks.end(), results.begin(), results.end());
     }
 
-    std::vector<TChunkSpec> PatchCachedChunkReplicas(
-        const google::protobuf::RepeatedPtrField<NYT::NChunkClient::NProto::TChunkSpec>& chunks)
+    std::vector<TChunkSpec> PatchCachedChunkReplicas(const google::protobuf::RepeatedPtrField<TChunkSpec>& chunks)
     {
-        std::vector<NChunkClient::NProto::TChunkSpec> result;
+        std::vector<TChunkSpec> result;
         result.insert(result.end(), chunks.begin(), chunks.end());
         for (auto& chunk : result) {
             chunk.clear_replicas();
@@ -583,7 +569,7 @@ private:
         }
 
         const auto& chunk = descriptor.chunks(0);
-        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk.chunk_meta().extensions());
+        auto miscExt = GetProtoExtension<TMiscExt>(chunk.chunk_meta().extensions());
         auto compressionCodecId = NCompression::ECodec(miscExt.compression_codec());
         auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
         return !IsErasureChunkId(chunkId) && (compressionCodecId == NCompression::ECodec::None);
@@ -591,9 +577,9 @@ private:
 
     void PrepareRegularFileViaSymlink(const TRegularFileDescriptor& descriptor)
     {
-        const auto& chunk = descriptor.chunks(0);
-        auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
-        auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunk.replicas());
+        const auto& chunkSpec = descriptor.chunks(0);
+        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+        auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
         const auto& fileName = descriptor.file_name();
 
         LOG_INFO("Preparing regular user file via symlink (FileName: %v, ChunkId: %v)",
@@ -609,12 +595,12 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError, "Failed to download user file %Qv",
             fileName);
 
-        auto result = chunkOrError.Value();
-        CachedChunks.push_back(result);
+        const auto& chunk = chunkOrError.Value();
+        CachedChunks.push_back(chunk);
 
         try {
             Slot->MakeLink(
-                result->GetFileName(),
+                chunk->GetFileName(),
                 fileName,
                 descriptor.executable());
         } catch (const std::exception& ex) {
@@ -636,8 +622,7 @@ private:
             fileName,
             descriptor.chunks_size());
 
-        WaitFor(DownloadChunks(descriptor.chunks()))
-            .ThrowOnError();
+        DownloadChunks(descriptor.chunks());
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
 
         auto chunks = PatchCachedChunkReplicas(descriptor.chunks());
@@ -696,9 +681,7 @@ private:
             descriptor.file_name(),
             descriptor.chunks_size());
 
-        WaitFor(DownloadChunks(descriptor.chunks()))
-            .ThrowOnError();
-
+        DownloadChunks(descriptor.chunks());
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
 
         auto chunks = PatchCachedChunkReplicas(descriptor.chunks());

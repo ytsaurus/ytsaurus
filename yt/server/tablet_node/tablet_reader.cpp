@@ -13,7 +13,6 @@
 #include <core/misc/heap.h>
 
 #include <core/concurrency/scheduler.h>
-#include <core/concurrency/parallel_collector.h>
 
 #include <ytlib/new_table_client/versioned_row.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
@@ -183,23 +182,19 @@ protected:
         }
 
         // Open readers.
-        TIntrusivePtr<TParallelCollector<void>> openCollector;
+        std::vector<TFuture<void>> asyncResults;
         for (const auto& session : Sessions_) {
             auto asyncResult = session.Reader->Open();
-            if (asyncResult.IsSet()) {
-                THROW_ERROR_EXCEPTION_IF_FAILED(asyncResult.Get());
+            auto maybeResult = asyncResult.TryGet();
+            if (maybeResult) {
+                maybeResult->ThrowOnError();
             } else {
-                if (!openCollector) {
-                    openCollector = New<TParallelCollector<void>>();
-                }
-                openCollector->Collect(asyncResult);
+                asyncResults.push_back(asyncResult);
             }
         }
 
-        if (openCollector) {
-            auto result = WaitFor(openCollector->Complete());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        WaitFor(Combine(asyncResults))
+            .ThrowOnError();
 
         // Construct an empty heap.
         SessionHeap_.reserve(Sessions_.size());
@@ -252,34 +247,30 @@ protected:
     void RefillExhaustedSessions()
     {
         YCHECK(RefillingSessions_.empty());
-        
-        TIntrusivePtr<TParallelCollector<void>> refillCollector;
+
+        std::vector<TFuture<void>> asyncResults;
         for (auto* session : ExhaustedSessions_) {
             // Try to refill the session right away.
             if (!RefillSession(session)) {
                 // No data at the moment, must wait.
-                if (!refillCollector) {
-                    refillCollector = New<TParallelCollector<void>>();
-                }
-                refillCollector->Collect(session->Reader->GetReadyEvent());
+                asyncResults.push_back(session->Reader->GetReadyEvent());
                 RefillingSessions_.push_back(session);
             }
         }
         ExhaustedSessions_.clear();
 
-        if (!refillCollector) {
+        if (asyncResults.empty()) {
             ReadyEvent_ = VoidFuture;
             return;
         }
 
         auto this_ = MakeStrong(this);
         Refilling_ = true;
-        ReadyEvent_ = refillCollector->Complete()
-            .Apply(BIND([=] (const TError& error) {
-                UNUSED(this_);
-                Refilling_ = false;
-                error.ThrowOnError();
-            }));
+        ReadyEvent_ = Combine(asyncResults).Apply(BIND([=] (const TError& error) {
+            UNUSED(this_);
+            Refilling_ = false;
+            error.ThrowOnError();
+        }));
     }
 
 };

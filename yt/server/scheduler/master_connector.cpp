@@ -8,15 +8,12 @@
 #include "serialize.h"
 #include "scheduler_strategy.h"
 
+#include <core/concurrency/scheduler.h>
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/delayed_executor.h>
-#include <core/concurrency/parallel_awaiter.h>
 
 #include <core/misc/address.h>
-
-#include <core/concurrency/parallel_awaiter.h>
-#include <core/concurrency/scheduler.h>
 
 #include <core/rpc/serialized_channel.h>
 #include <core/rpc/helpers.h>
@@ -678,8 +675,7 @@ private:
         // - Try to ping the previous incarnations of scheduler transactions.
         void CheckOperationTransactions()
         {
-            auto awaiter = New<TParallelAwaiter>(GetCurrentInvoker());
-
+            std::vector<TFuture<void>> asyncResults;
             for (auto operation : Result.Operations) {
                 operation->SetState(EOperationState::Reviving);
 
@@ -687,8 +683,7 @@ private:
                     if (!transaction)
                         return;
 
-                    awaiter->Await(
-                        transaction->Ping(),
+                    asyncResults.push_back(transaction->Ping().Apply(
                         BIND([=] (const TError& error) {
                             if (!error.IsOK() && !operation->GetCleanStart()) {
                                 operation->SetCleanStart(true);
@@ -696,7 +691,7 @@ private:
                                     operation->GetId(),
                                     transaction->GetId());
                             }
-                        }));
+                        })));
                 };
 
                 if (operation->GetState() != EOperationState::Aborting) {
@@ -710,7 +705,8 @@ private:
                 }
             }
 
-            WaitFor(awaiter->Complete());
+            WaitFor(Combine(asyncResults))
+                .ThrowOnError();
         }
 
         // - Check snapshots for existence and validate versions.
@@ -787,14 +783,12 @@ private:
         // - Abort orphaned transactions.
         void AbortTransactions()
         {
-            auto awaiter = New<TParallelAwaiter>(GetCurrentInvoker());
-
+            std::vector<TFuture<void>> asyncResults;
             for (auto operation : Result.Operations) {
-                auto scheduleAbort = [=] (TTransactionPtr transaction) {
+                auto scheduleAbort = [&] (TTransactionPtr transaction) {
                     if (!transaction)
                         return;
-
-                    awaiter->Await(transaction->Abort());
+                    asyncResults.push_back(transaction->Abort());
                 };
 
                 // NB: Async transaction is always aborted.
@@ -822,7 +816,8 @@ private:
                 }
             }
 
-            WaitFor(awaiter->Complete());
+            WaitFor(Combine(asyncResults))
+                .ThrowOnError();
         }
 
         // - Remove unneeded snapshots.
@@ -1236,7 +1231,7 @@ private:
 
         // Issue updates for active operations.
         std::vector<TOperationPtr> finishedOperations;
-        auto awaiter = New<TParallelAwaiter>(CancelableControlInvoker);
+        std::vector<TFuture<void>> asyncResults;
         for (auto& pair : UpdateLists) {
             auto& list = pair.second;
             auto operation = list.Operation;
@@ -1249,13 +1244,15 @@ private:
                 auto batchReq = StartBatchRequest(&list);
                 PrepareOperationUpdate(&list, batchReq);
 
-                awaiter->Await(
-                    batchReq->Invoke(),
-                    BIND(&TImpl::OnOperationNodeUpdated, MakeStrong(this), operation));
+                asyncResults.push_back(batchReq->Invoke().Apply(
+                    BIND(&TImpl::OnOperationNodeUpdated, MakeStrong(this), operation)
+                        .AsyncVia(CancelableControlInvoker)));
             }
         }
 
-        awaiter->Complete(BIND(&TImpl::OnOperationNodesUpdated, MakeStrong(this)));
+        Combine(asyncResults).Subscribe(
+             BIND(&TImpl::OnOperationNodesUpdated, MakeStrong(this))
+                .Via(CancelableControlInvoker));
 
         // Cleanup finished operations.
         for (auto operation : finishedOperations) {
@@ -1270,21 +1267,23 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        auto error = GetOperationNodeUpdateError(operation, batchRspOrError);
-        if (!error.IsOK()) {
-            LOG_ERROR(error);
-            Disconnect();
-            return;
-        }
+        GetOperationNodeUpdateError(operation, batchRspOrError)
+            .ThrowOnError();
 
         LOG_DEBUG("Operation node updated (OperationId: %v)",
             operation->GetId());
     }
 
-    void OnOperationNodesUpdated()
+    void OnOperationNodesUpdated(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
+
+        if (!error.IsOK()) {
+            LOG_ERROR(error);
+            Disconnect();
+            return;
+        }
 
         LOG_INFO("Operation nodes updated");
 
