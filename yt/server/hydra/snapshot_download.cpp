@@ -44,10 +44,8 @@ void DoDownloadSnapshot(
 
         auto writer = fileStore->CreateRawWriter(snapshotId);
 
-        {
-            auto result = WaitFor(writer->Open());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        WaitFor(writer->Open())
+            .ThrowOnError();
 
         LOG_INFO("Downloading %v bytes from peer %v",
             params.CompressedLength,
@@ -78,16 +76,14 @@ void DoDownloadSnapshot(
                 downloadedLength,
                 block.Size());
 
-            auto result = WaitFor(writer->Write(block.Begin(), block.Size()));
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            WaitFor(writer->Write(block.Begin(), block.Size()))
+                .ThrowOnError();
 
             downloadedLength += block.Size();
         }
 
-        {
-            auto result = WaitFor(writer->Close());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        WaitFor(writer->Close())
+            .ThrowOnError();
 
         LOG_INFO("Snapshot downloaded successfully");
     } catch (const std::exception& ex) {

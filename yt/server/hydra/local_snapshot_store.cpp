@@ -53,10 +53,10 @@ public:
     }
 
 private:
-    TDistributedHydraManagerConfigPtr Config_;
-    TCellManagerPtr CellManager_;
-    TFileSnapshotStorePtr FileStore_;
-    int SnapshotId_;
+    const TDistributedHydraManagerConfigPtr Config_;
+    const TCellManagerPtr CellManager_;
+    const TFileSnapshotStorePtr FileStore_;
+    const int SnapshotId_;
 
     ISnapshotReaderPtr UnderlyingReader_;
 
@@ -64,20 +64,19 @@ private:
     void DoOpen()
     {
         if (!FileStore_->CheckSnapshotExists(SnapshotId_)) {
-            auto result = WaitFor(DownloadSnapshot(
+            auto asyncResult = DownloadSnapshot(
                 Config_,
                 CellManager_,
                 FileStore_,
-                SnapshotId_));
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                SnapshotId_);
+            WaitFor(asyncResult)
+                .ThrowOnError();
         }
 
         UnderlyingReader_ = FileStore_->CreateReader(SnapshotId_);
 
-        {
-            auto result = WaitFor(UnderlyingReader_->Open());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        WaitFor(UnderlyingReader_->Open())
+            .ThrowOnError();
     }
 
 };
@@ -115,9 +114,9 @@ public:
     }
 
 private:
-    TDistributedHydraManagerConfigPtr Config_;
-    TCellManagerPtr CellManager_;
-    TFileSnapshotStorePtr FileStore_;
+    const TDistributedHydraManagerConfigPtr Config_;
+    const TCellManagerPtr CellManager_;
+    const TFileSnapshotStorePtr FileStore_;
 
 
     int DoGetLatestSnapshotId(int maxSnapshotId)
