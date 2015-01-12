@@ -219,7 +219,7 @@ private:
     void InitLargestPartition();
     void FlushBlock(int partitionIndex);
 
-    virtual TError DoClose() override;
+    virtual void DoClose() override;
     virtual void PrepareChunkMeta() override;
 
     virtual ETableChunkFormat GetFormatVersion() const override;
@@ -342,7 +342,7 @@ TNameTablePtr TPartitionChunkWriter::GetNameTable() const
     return NameTable_;
 }
 
-TError TPartitionChunkWriter::DoClose()
+void TPartitionChunkWriter::DoClose()
 {
     for (int partitionIndex = 0; partitionIndex < BlockWriters_.size(); ++partitionIndex) {
         if (BlockWriters_[partitionIndex]->GetRowCount() > 0) {
@@ -350,7 +350,7 @@ TError TPartitionChunkWriter::DoClose()
         }
     }
 
-    return TChunkWriterBase::DoClose();
+    TChunkWriterBase::DoClose();
 }
 
 void TPartitionChunkWriter::PrepareChunkMeta()
@@ -426,9 +426,9 @@ private:
     ISchemalessMultiChunkWriterPtr UnderlyingWriter_;
 
 
-    virtual TAsyncError Open() override;
-    virtual TAsyncError GetReadyEvent() override;
-    virtual TAsyncError Close() override;
+    virtual TFuture<void> Open() override;
+    virtual TFuture<void> GetReadyEvent() override;
+    virtual TFuture<void> Close() override;
 
     virtual void SetProgress(double progress) override;
     virtual const std::vector<TChunkSpec>& GetWrittenChunks() const override;
@@ -463,17 +463,17 @@ bool TReorderingSchemalessMultiChunkWriter::Write(const std::vector<TUnversioned
     return result;
 }
 
-TAsyncError TReorderingSchemalessMultiChunkWriter::Open()
+TFuture<void> TReorderingSchemalessMultiChunkWriter::Open()
 {
     return UnderlyingWriter_->Open();
 }
 
-TAsyncError TReorderingSchemalessMultiChunkWriter::GetReadyEvent()
+TFuture<void> TReorderingSchemalessMultiChunkWriter::GetReadyEvent()
 {
     return UnderlyingWriter_->GetReadyEvent();
 }
 
-TAsyncError TReorderingSchemalessMultiChunkWriter::Close()
+TFuture<void> TReorderingSchemalessMultiChunkWriter::Close()
 {
     return UnderlyingWriter_->Close();
 }
@@ -651,10 +651,10 @@ public:
         TTransactionPtr transaction,
         TTransactionManagerPtr transactionManager);
 
-    virtual TAsyncError Open() override;
+    virtual TFuture<void> Open() override;
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
-    virtual TAsyncError GetReadyEvent() override;
-    virtual TAsyncError Close() override;
+    virtual TFuture<void> GetReadyEvent() override;
+    virtual TFuture<void> Close() override;
     virtual TNameTablePtr GetNameTable() const override;
     virtual bool IsSorted() const override;
 
@@ -680,10 +680,10 @@ private:
 
 
     void DoOpen();
-    TError FetchTableInfo();
-    TError CreateUploadTransaction();
+    void FetchTableInfo();
+    void CreateUploadTransaction();
 
-    TError DoClose();
+    void DoClose();
 
 };
 
@@ -715,12 +715,11 @@ TSchemalessTableWriter::TSchemalessTableWriter(
         TransactionId_);
 }
 
-TAsyncError TSchemalessTableWriter::Open()
+TFuture<void> TSchemalessTableWriter::Open()
 {
     LOG_INFO("Opening table writer");
 
     return BIND(&TSchemalessTableWriter::DoOpen, MakeStrong(this))
-        .Guarded()
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
 }
@@ -735,7 +734,7 @@ bool TSchemalessTableWriter::Write(const std::vector<TUnversionedRow>& rows)
     return UnderlyingWriter_->Write(rows);
 }
 
-TAsyncError TSchemalessTableWriter::GetReadyEvent()
+TFuture<void> TSchemalessTableWriter::GetReadyEvent()
 {
     if (IsAborted()) {
         return MakeFuture(TError("Transaction aborted (Path: %v, TransactionId: %v)", 
@@ -746,14 +745,14 @@ TAsyncError TSchemalessTableWriter::GetReadyEvent()
     return UnderlyingWriter_->GetReadyEvent();
 }
 
-TAsyncError TSchemalessTableWriter::Close()
+TFuture<void> TSchemalessTableWriter::Close()
 {
     return BIND(&TSchemalessTableWriter::DoClose, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
 }
 
-TError TSchemalessTableWriter::CreateUploadTransaction()
+void TSchemalessTableWriter::CreateUploadTransaction()
 {
     TTransactionStartOptions options;
     options.ParentId = TransactionId_;
@@ -767,19 +766,17 @@ TError TSchemalessTableWriter::CreateUploadTransaction()
         ETransactionType::Master,
         options));
 
-    if (!transactionOrError.IsOK()) {
-        return TError("Error creating upload transaction (Path: %v, TransactionId: %v)", 
-            RichPath_.GetPath(),
-            TransactionId_) << transactionOrError;
-    }
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        transactionOrError, 
+        "Error creating upload transaction (Path: %v, TransactionId: %v)", 
+        RichPath_.GetPath(),
+        TransactionId_);
 
     UploadTransaction_ = transactionOrError.Value();
     ListenTransaction(UploadTransaction_);
-
-    return TError();
 }
 
-TError TSchemalessTableWriter::FetchTableInfo()
+void TSchemalessTableWriter::FetchTableInfo()
 {
     LOG_INFO("Requesting table info");
 
@@ -810,34 +807,31 @@ TError TSchemalessTableWriter::FetchTableInfo()
         auto req = TTableYPathProxy::PrepareForUpdate(path);
         SetTransactionId(req, UploadTransaction_);
         GenerateMutationId(req);
-        req->set_mode(clear ? EUpdateMode::Overwrite : EUpdateMode::Append);
+        req->set_mode(clear 
+            ? static_cast<int>(EUpdateMode::Overwrite) 
+            : static_cast<int>(EUpdateMode::Append));
         batchReq->AddRequest(req, "prepare_for_update");
     }
 
-    auto batchRsp = WaitFor(batchReq->Invoke());
-
-    if (!batchRsp->IsOK()) {
-        return TError("Error requesting table info (Path: %v, TransactionId: %v)", 
-            path,
-            TransactionId_) << *batchRsp;
-    }
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        GetCumulativeError(batchRspOrError), 
+        "Error requesting table info (Path: %v, TransactionId: %v)", 
+        path,
+        TransactionId_);
+    const auto& batchRsp = batchRspOrError.Value();
 
     {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
-        if (!rsp->IsOK()) {
-            return TError("Error getting table attributes (Path: %v, TransactionId: %v)", 
-                path,
-                TransactionId_) << *rsp;
-        }
-
-        auto node = ConvertToNode(TYsonString(rsp->value()));
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
+        auto node = ConvertToNode(TYsonString(rspOrError.Value()->value()));
         const auto& attributes = node->Attributes();
 
         auto type = attributes.Get<EObjectType>("type");
         if (type != EObjectType::Table) {
-            return TError("Invalid type of cypress node: expected %Qlv, actual %Qlv (Path: %v, TransactionId: %v)",
-                ~EObjectType(EObjectType::Table),
-                ~type,
+            THROW_ERROR_EXCEPTION(
+                "Invalid type of cypress node: expected %Qlv, actual %Qlv (Path: %v, TransactionId: %v)",
+                EObjectType::Table,
+                type,
                 path,
                 TransactionId_);
         }
@@ -845,7 +839,7 @@ TError TSchemalessTableWriter::FetchTableInfo()
         // TODO(psushin): Keep in sync with OnInputsReceived (operation_controller_detail.cpp).
         if (!KeyColumns_.empty() && RichPath_.GetAppend()) {
             if (attributes.Get<i64>("row_count") > 0) {
-                return TError("Cannot write sorted data into a non-empty table (Path: %v, TransactionId: %v)",
+                THROW_ERROR_EXCEPTION("Cannot write sorted data into a non-empty table (Path: %v, TransactionId: %v)",
                     path,
                     TransactionId_);
             }
@@ -859,32 +853,19 @@ TError TSchemalessTableWriter::FetchTableInfo()
     } {
         using NYT::FromProto;
 
-        auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
-        if (!rsp->IsOK()) {
-            return TError("Error preparing table for update (Path: %v, TransactionId: %v)", 
-                path,
-                TransactionId_) << *rsp;
-        }
-        ChunkListId_ = FromProto<TChunkListId>(rsp->chunk_list_id());
+        auto rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
+        ChunkListId_ = FromProto<TChunkListId>(rspOrError.Value()->chunk_list_id());
     }
 
     LOG_INFO("Table info received (ChunkListId: %v)", ChunkListId_);
-    return TError();
 }
 
 void TSchemalessTableWriter::DoOpen()
 {
-    {
-        auto error = CreateUploadTransaction();
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
-    }
-
+    CreateUploadTransaction();
     LOG_INFO("Upload transaction created (TransactionId: %v)", UploadTransaction_->GetId());
 
-    {
-        auto error = FetchTableInfo();
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
-    }
+    FetchTableInfo();
 
     UnderlyingWriter_ = CreateSchemalessMultiChunkWriter(
         Config_,
@@ -908,14 +889,12 @@ void TSchemalessTableWriter::DoOpen()
     }
 }
 
-TError TSchemalessTableWriter::DoClose()
+void TSchemalessTableWriter::DoClose()
 {
     LOG_INFO("Closing table writer");
     {
         auto error = WaitFor(UnderlyingWriter_->Close());
-        if (!error.IsOK()) {
-            return TError("Error closing chunk writer") << error;
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing chunk writer");
         LOG_INFO("Chunk writer closed");
     }
 
@@ -932,28 +911,26 @@ TError TSchemalessTableWriter::DoClose()
         ToProto(req->mutable_key_columns(), KeyColumns_);
 
         TObjectServiceProxy objectProxy(MasterChannel_);
-        auto rsp = WaitFor(objectProxy.Execute(req));
+        auto rspOrError = WaitFor(objectProxy.Execute(req));
 
-        if (!rsp->IsOK()) {
-            return TError("Error marking table as sorted (Path: %v, TransactionId: %v)", 
-                RichPath_.GetPath(),
-                TransactionId_) << *rsp;
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError, 
+            "Error marking table as sorted (Path: %v, TransactionId: %v)", 
+            RichPath_.GetPath(),
+            TransactionId_)
     }
 
     LOG_INFO("Committing upload transaction");
     {
         auto error = WaitFor(UploadTransaction_->Commit());
-        if (!error.IsOK()) {
-            return TError("Error committing upload transaction (Path: %v, TransactionId: %v)", 
-                RichPath_.GetPath(),
-                TransactionId_) << error;
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            error, 
+            "Error committing upload transaction (Path: %v, TransactionId: %v)", 
+            RichPath_.GetPath(),
+            TransactionId_);
         LOG_INFO("Upload transaction committed");
         LOG_INFO("Table writer closed");
     }
-
-    return TError();
 }
 
 TNameTablePtr TSchemalessTableWriter::GetNameTable() const

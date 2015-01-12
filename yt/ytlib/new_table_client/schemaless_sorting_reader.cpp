@@ -31,7 +31,7 @@ public:
         , ReadRowCount_(0)
     { }
 
-    virtual TAsyncError Open() override
+    virtual TFuture<void> Open() override
     {
         // ToDo(psushin): make it really async.
         auto error = WaitFor(UnderlyingReader_->Open());
@@ -63,7 +63,7 @@ public:
                 return CompareRows(lhs.Get(), rhs.Get(), KeyColumns_.size()) < 0;
             });
 
-        return MakeFuture(TError());
+        return VoidFuture;
     }
 
     virtual bool Read(std::vector<TUnversionedRow> *rows) override
@@ -83,7 +83,7 @@ public:
         return true;
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
         YUNREACHABLE();
     }

@@ -42,12 +42,11 @@
 
 #include <ytlib/driver/dispatcher.h>
 
-#include <ytlib/new_table_client/name_table.h>
-
 #include <ytlib/hive/config.h>
 #include <ytlib/hive/cell_directory.h>
 
 #include <ytlib/new_table_client/schemaful_writer.h>
+#include <ytlib/new_table_client/name_table.h>
 
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/plan_helpers.h>
@@ -70,7 +69,6 @@
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
-#include <ytlib/new_table_client/chunk_meta.pb.h>
 
 namespace NYT {
 namespace NApi {
@@ -86,7 +84,6 @@ using namespace NRpc;
 using namespace NVersionedTableClient;
 using namespace NVersionedTableClient::NProto;
 using namespace NTableClient;
-using namespace NTableClient::NProto;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NSecurityClient;
@@ -348,11 +345,8 @@ private:
             SetKeyColumns(&chunkSpec, keyColumns);
             SetTableSchema(&chunkSpec, schema);
 
-            auto boundaryKeys = FindProtoExtension<TOldBoundaryKeysExt>(chunkSpec.chunk_meta().extensions());
-            if (boundaryKeys) {
-                auto chunkLowerBound = NYT::FromProto<TOwningKey>(boundaryKeys->start());
-                auto chunkUpperBound = NYT::FromProto<TOwningKey>(boundaryKeys->end());
-                // Boundary keys are exact, so advance right bound to its successor.
+            TOwningKey chunkLowerBound, chunkUpperBound;
+            if (TryGetBoundaryKeys(chunkSpec.chunk_meta(), &chunkLowerBound, &chunkUpperBound)) {
                 chunkUpperBound = GetKeySuccessor(chunkUpperBound.Get());
                 SetLowerBound(&chunkSpec, chunkLowerBound);
                 SetUpperBound(&chunkSpec, chunkUpperBound);

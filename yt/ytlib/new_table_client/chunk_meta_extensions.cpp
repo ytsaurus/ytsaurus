@@ -18,25 +18,32 @@ using NChunkClient::EChunkType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void GetBoundaryKeys(const TChunkMeta& chunkMeta, TOwningKey* minKey, TOwningKey* maxKey)
+bool TryGetBoundaryKeys(const TChunkMeta& chunkMeta, TOwningKey* minKey, TOwningKey* maxKey)
 {
-    if (chunkMeta.version() == ETableChunkFormat::Old) {
-        auto boundaryKeys = GetProtoExtension<TOldBoundaryKeysExt>(chunkMeta.extensions());
-        FromProto(minKey, boundaryKeys.start());
-        FromProto(maxKey, boundaryKeys.end());
+    if (chunkMeta.version() == static_cast<int>(ETableChunkFormat::Old)) {
+        auto boundaryKeys = FindProtoExtension<TOldBoundaryKeysExt>(chunkMeta.extensions());
+        if (!boundaryKeys) {
+            return false;
+        }
+        FromProto(minKey, boundaryKeys->start());
+        FromProto(maxKey, boundaryKeys->end());
     } else {
-        auto boundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunkMeta.extensions());
-        FromProto(minKey, boundaryKeys.min());
-        FromProto(maxKey, boundaryKeys.max());
+        auto boundaryKeys = FindProtoExtension<TBoundaryKeysExt>(chunkMeta.extensions());
+        if (!boundaryKeys) {
+            return false;
+        }
+        FromProto(minKey, boundaryKeys->min());
+        FromProto(maxKey, boundaryKeys->max());
     }
+    return true;
 }
 
 TChunkMeta FilterChunkMetaByPartitionTag(const TChunkMeta& chunkMeta, int partitionTag)
 {
-    YCHECK(chunkMeta.type() == EChunkType::Table);
+    YCHECK(chunkMeta.type() == static_cast<int>(EChunkType::Table));
     auto filteredChunkMeta = chunkMeta;
 
-    if (chunkMeta.version() == ETableChunkFormat::Old) {
+    if (chunkMeta.version() == static_cast<int>(ETableChunkFormat::Old)) {
         auto channelsExt = GetProtoExtension<TChannelsExt>(chunkMeta.extensions());
         // Partition chunks must have only one channel.
         YCHECK(channelsExt.items_size() == 1);

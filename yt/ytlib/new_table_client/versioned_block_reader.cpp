@@ -16,9 +16,6 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int TSimpleVersionedBlockReader::FormatVersion = ETableChunkFormat::VersionedSimple;
-
-////////////////////////////////////////////////////////////////////////////////
 TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     const TSharedRef& block,
     const TBlockMeta& meta,

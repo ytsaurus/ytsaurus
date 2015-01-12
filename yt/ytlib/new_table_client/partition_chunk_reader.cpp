@@ -54,7 +54,7 @@ TPartitionChunkReader::TPartitionChunkReader(
 
 std::vector<TSequentialReader::TBlockInfo> TPartitionChunkReader::GetBlockSequence()
 {
-    YCHECK(ChunkMeta_.version() == ETableChunkFormat::SchemalessHorizontal);
+    YCHECK(ChunkMeta_.version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
 
     std::vector<int> extensionTags = {
         TProtoExtensionTag<TBlockMetaExt>::Value,

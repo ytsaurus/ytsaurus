@@ -42,7 +42,8 @@ TOwningKey GetMinKey(const TChunkTree* chunkTree);
 TOwningKey GetMaxKey(const TChunk* chunk)
 {
     TOwningKey key;
-    if (chunk->ChunkMeta().version() == ETableChunkFormat::Old) {
+    auto chunkFormat = ETableChunkFormat(chunk->ChunkMeta().version());
+    if (chunkFormat == ETableChunkFormat::Old) {
         // Deprecated chunks.
         auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(
             chunk->ChunkMeta().extensions());
@@ -81,7 +82,8 @@ TOwningKey GetMaxKey(const TChunkTree* chunkTree)
 TOwningKey GetMinKey(const TChunk* chunk)
 {
     TOwningKey key;
-    if (chunk->ChunkMeta().version() == ETableChunkFormat::Old) {
+    auto chunkFormat = ETableChunkFormat(chunk->ChunkMeta().version());
+    if (chunkFormat == ETableChunkFormat::Old) {
         // Deprecated chunks.
         auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(
             chunk->ChunkMeta().extensions());

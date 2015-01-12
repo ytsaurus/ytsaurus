@@ -91,7 +91,7 @@ public:
             KeyColumns_);
     }
 
-    virtual TAsyncError Open() override
+    virtual TFuture<void> Open() override
     {
         SortQueue_ = New<TActionQueue>("Sort");
 
@@ -103,7 +103,7 @@ public:
             return MakeFuture(TError(ex));
         }
 
-        return MakeFuture(TError());
+        return VoidFuture;
     }
 
     virtual bool Read(std::vector<TUnversionedRow> *rows) override
@@ -142,7 +142,7 @@ public:
         return true;
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
         YUNREACHABLE();
     }

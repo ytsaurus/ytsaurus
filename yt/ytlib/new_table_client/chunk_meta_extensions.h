@@ -29,7 +29,7 @@ DECLARE_PROTO_EXTENSION(NVersionedTableClient::NProto::TPartitionsExt, 15)
 
 namespace NVersionedTableClient {
 
-void GetBoundaryKeys(
+bool TryGetBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta, 
     TOwningKey* minKey, 
     TOwningKey* maxKey);

@@ -10,7 +10,6 @@
 #include <core/yson/consumer.h>
 #include <core/yson/writer.h>
 
-#include <ytlib/new_table_client/public.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
 namespace NYT {
@@ -98,6 +97,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*
 DEFINE_ENUM(ETableConsumerControlState,
     (None)
     (ExpectName)
@@ -165,10 +165,6 @@ protected:
     ETableConsumerControlState ControlState_;
     EControlAttribute ControlAttribute_;
 
-    const char* ValueBegin_;
-    TBlobOutput ValueBuffer_;
-    NYson::TYsonWriter ValueWriter_;
-
     int Depth_;
     int ColumnIndex_;
 
@@ -202,56 +198,18 @@ public:
     void SetTreatMissingAsNull(bool value);
 
 private:
-    i64 RowIndex_;
+    virtual TError AttachLocationAttributes(TError error) override;
+
+    virtual void OnBeginRow() override;
+    virtual void OnValue(const NVersionedTableClient::TUnversionedValue& value) override;
+    virtual void OnEndRow() override;
+
+    int RowIndex_;
     NVersionedTableClient::TUnversionedOwningRowBuilder Builder_;
     std::vector<NVersionedTableClient::TUnversionedOwningRow> Rows_;
 
-
-    virtual TError AttachLocationAttributes(TError error) override;
-
-    virtual void OnBeginRow() override;
-    virtual void OnValue(const NVersionedTableClient::TUnversionedValue& value) override;
-    virtual void OnEndRow() override;
-
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TWritingTableConsumer
-    : public TTableConsumerBase
-{
-public:
-    TWritingTableConsumer();
-
-    void AddWriter(NVersionedTableClient::ISchemalessWriterPtr writer);
-    void AddWriters(const std::vector<NVersionedTableClient::ISchemalessWriterPtr>& writers);
-
-    void Flush();
-
-    void SetTableIndex(int tableIndex);
-
-private:
-    std::vector<NVersionedTableClient::ISchemalessWriterPtr> Writers_;
-    NVersionedTableClient::ISchemalessWriterPtr CurrentWriter_;
-
-    i64 RowIndex_;
-    int TableIndex_;
-
-    NVersionedTableClient::TUnversionedOwningRowBuilder Builder_;
-    std::vector<NVersionedTableClient::TUnversionedOwningRow> OwningRows_;
-    std::vector<NVersionedTableClient::TUnversionedRow> Rows_;
-
-    i64 CurrentSize_;
-
-    virtual TError AttachLocationAttributes(TError error) override;
-
-    virtual void OnBeginRow() override;
-    virtual void OnValue(const NVersionedTableClient::TUnversionedValue& value) override;
-    virtual void OnEndRow() override;
-
-    virtual void OnControlInt64Scalar(i64 value) override;
-
-};
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 

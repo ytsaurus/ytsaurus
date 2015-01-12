@@ -1026,7 +1026,7 @@ protected:
             leftEndpoint.Type = EEndpointType::Left;
             leftEndpoint.ChunkSpec = chunk;
 
-            GetBoundaryKeys(chunk->chunk_meta(), &leftEndpoint.MinBoundaryKey, &leftEndpoint.MaxBoundaryKey);
+            YCHECK(TryGetBoundaryKeys(chunk->chunk_meta(), &leftEndpoint.MinBoundaryKey, &leftEndpoint.MaxBoundaryKey));
 
             leftEndpoint.IsTeleport = false;
             Endpoints.push_back(leftEndpoint);

@@ -93,8 +93,8 @@ TDataStatistics TChunkWriterBase::GetDataStatistics() const
 
 void TChunkWriterBase::FillCommonMeta(TChunkMeta* meta) const
 {
-    meta->set_type(EChunkType::Table);
-    meta->set_version(GetFormatVersion());
+    meta->set_type(static_cast<int>(EChunkType::Table));
+    meta->set_version(static_cast<int>(GetFormatVersion()));
 }
 
 void TChunkWriterBase::RegisterBlock(TBlock& block)
@@ -121,11 +121,10 @@ void TChunkWriterBase::PrepareChunkMeta()
     SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
 }
 
-TError TChunkWriterBase::DoClose()
+void TChunkWriterBase::DoClose()
 {
     PrepareChunkMeta();
-
-    return EncodingChunkWriter_->Close();
+    EncodingChunkWriter_->Close();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,7 +142,7 @@ TSequentialChunkWriterBase::TSequentialChunkWriterBase(
     , AverageSampleSize_(0.0)
 { }
 
-TAsyncError TSequentialChunkWriterBase::Open()
+TFuture<void> TSequentialChunkWriterBase::Open()
 {
     BlockWriter_.reset(CreateBlockWriter());
     return TChunkWriterBase::Open();
@@ -220,13 +219,13 @@ void TSequentialChunkWriterBase::PrepareChunkMeta()
     SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
 }
 
-TError TSequentialChunkWriterBase::DoClose()
+void TSequentialChunkWriterBase::DoClose()
 {
     if (BlockWriter_->GetRowCount() > 0) {
         FinishBlock();
     }
 
-    return TChunkWriterBase::DoClose();
+    TChunkWriterBase::DoClose();
 }
 
 i64 TSequentialChunkWriterBase::GetUncompressedSize() const

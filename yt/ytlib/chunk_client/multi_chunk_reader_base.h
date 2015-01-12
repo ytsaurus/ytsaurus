@@ -33,9 +33,9 @@ public:
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const std::vector<NProto::TChunkSpec>& chunkSpecs);
 
-    virtual TAsyncError Open() override;
+    virtual TFuture<void> Open() override;
 
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
     virtual NProto::TDataStatistics GetDataStatistics() const override;
 
@@ -65,11 +65,12 @@ protected:
 
     TSession CurrentSession_;
 
-    TAsyncError ReadyEvent_;
-    TAsyncErrorPromise CompletionError_;
+    TFuture<void> ReadyEvent_;
+    TPromise<void> CompletionError_;
 
 
-    virtual TError DoOpen() = 0;
+    // ToDo(psushin): throw exceptions.
+    virtual void DoOpen() = 0;
 
     virtual IChunkReaderBasePtr CreateTemplateReader(
         const NProto::TChunkSpec& chunkSpec,
@@ -142,7 +143,7 @@ private:
     std::vector<TPromise<IChunkReaderBasePtr>> NextReaders_;
 
 
-    virtual TError DoOpen() override;
+    virtual void DoOpen() override;
 
     virtual void OnReaderOpened(IChunkReaderBasePtr chunkReader, int chunkIndex) override;
 
@@ -152,9 +153,9 @@ private:
 
     virtual void OnError() override;
 
-    TError WaitForNextReader();
+    void WaitForNextReader();
 
-    TError WaitForCurrentReader();
+    void WaitForCurrentReader();
 
 };
 
@@ -173,13 +174,14 @@ public:
         const std::vector<NProto::TChunkSpec>& chunkSpecs);
 
 private:
-    typedef NConcurrency::TNonblockingQueue<TNullable<TSession>> TSessionQueue;
+    typedef NConcurrency::TNonblockingQueue<TSession> TSessionQueue;
+    static const TError SentinelSession;
 
     TSessionQueue ReadySessions_;
     int FinishedReaderCount_;
 
 
-    virtual TError DoOpen() override;
+    virtual void DoOpen() override;
 
     virtual void OnReaderOpened(IChunkReaderBasePtr chunkReader, int chunkIndex) override;
 
@@ -189,7 +191,7 @@ private:
 
     virtual void OnError() override;
 
-    TError WaitForReadyReader();
+    void WaitForReadyReader();
 
     void WaitForReader(TSession session);
 

@@ -40,7 +40,7 @@ TChunkReaderBase::TChunkReaderBase(
     , BlockEnded_(false)
 { }
 
-TAsyncError TChunkReaderBase::Open()
+TFuture<void> TChunkReaderBase::Open()
 {
     ReadyEvent_ = BIND(&TChunkReaderBase::DoOpen, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
@@ -48,50 +48,39 @@ TAsyncError TChunkReaderBase::Open()
     return ReadyEvent_;
 }
 
-TAsyncError TChunkReaderBase::GetReadyEvent()
+TFuture<void> TChunkReaderBase::GetReadyEvent()
 {
     return ReadyEvent_;
 }
 
-TError TChunkReaderBase::DoOpen()
+void TChunkReaderBase::DoOpen()
 {
-    try {
-        auto blocks = GetBlockSequence();
+    auto blocks = GetBlockSequence();
 
-        if (blocks.empty()) {
-            return TError();
-        }
-
-        SequentialReader_ = New<TSequentialReader>(
-            Config_,
-            std::move(blocks),
-            UnderlyingReader_,
-            UncompressedBlockCache_,
-            ECodec(Misc_.compression_codec()));
-
-        YCHECK(SequentialReader_->HasMoreBlocks());
-
-        auto error = WaitFor(SequentialReader_->FetchNextBlock());
-        if (!error.IsOK())
-            return error;
-
-        InitFirstBlock();
-
-        return TError();
-    } catch (const std::exception& ex) {
-        return TError(ex);
+    if (blocks.empty()) {
+        return;
     }
+
+    SequentialReader_ = New<TSequentialReader>(
+        Config_,
+        std::move(blocks),
+        UnderlyingReader_,
+        UncompressedBlockCache_,
+        ECodec(Misc_.compression_codec()));
+
+    YCHECK(SequentialReader_->HasMoreBlocks());
+
+    auto error = WaitFor(SequentialReader_->FetchNextBlock());
+    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+
+    InitFirstBlock();
 }
 
-TError TChunkReaderBase::DoSwitchBlock()
+void TChunkReaderBase::DoSwitchBlock()
 {
     auto error = WaitFor(SequentialReader_->FetchNextBlock());
-
-    if (error.IsOK()) {
-        InitNextBlock();
-    }
-
-    return error;
+    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    InitNextBlock();
 }
 
 bool TChunkReaderBase::OnBlockEnded()
@@ -257,9 +246,8 @@ TFuture<void> TChunkReaderBase::GetFetchingCompletedEvent()
     if (SequentialReader_)
         return SequentialReader_->GetFetchingCompletedEvent();
     else
-        return MakeFuture();
+        return VoidFuture;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

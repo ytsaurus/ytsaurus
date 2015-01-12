@@ -100,6 +100,14 @@ DEFINE_REFCOUNTED_TYPE(TWritingValueConsumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EControlState,
+    (None)
+    (ExpectName)
+    (ExpectValue)
+    (ExpectEndAttributes)
+    (ExpectEntity)
+);
+
 class TTableConsumer
     : public NYson::IYsonConsumer
 {
@@ -136,14 +144,6 @@ protected:
 
     void OnControlInt64Scalar(i64 value);
     void OnControlStringScalar(const TStringBuf& value);
-
-    DECLARE_ENUM(EControlState,
-        (None)
-        (ExpectName)
-        (ExpectValue)
-        (ExpectEndAttributes)
-        (ExpectEntity)
-    );
 
     std::vector<IValueConsumerPtr> ValueConsumers_;
     IValueConsumer* CurrentValueConsumer_;

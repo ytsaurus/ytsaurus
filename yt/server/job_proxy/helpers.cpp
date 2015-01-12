@@ -81,7 +81,7 @@ void TContextPreservingInput::WriteRows(const std::vector<TUnversionedRow>& rows
     std::vector<TUnversionedRow> oneRow(1, TUnversionedRow());
     for (auto row : rows) {
         oneRow[0] = row;
-        YCHECK(Writer_->Write(onRow));
+        YCHECK(Writer_->Write(oneRow));
         
         if (CurrentBuffer_.Size() < BufferSize) {
             continue;
