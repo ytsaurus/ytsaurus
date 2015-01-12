@@ -415,8 +415,6 @@ void TSequentialMultiChunkReaderBase::OnError()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TError TParallelMultiChunkReaderBase::SentinelSession = TError("Sentinel sessoin");
-
 TParallelMultiChunkReaderBase::TParallelMultiChunkReaderBase(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
@@ -474,7 +472,7 @@ void TParallelMultiChunkReaderBase::OnReaderFinished()
 
     ++FinishedReaderCount_;
     if (FinishedReaderCount_ == ChunkSpecs_.size()) {
-        ReadySessions_.Enqueue(SentinelSession);
+        ReadySessions_.Enqueue(TError("Sentinel session"));
         CompletionError_.TrySet(TError());
         ReadyEvent_ = CompletionError_.ToFuture();
     } else {
@@ -489,7 +487,7 @@ void TParallelMultiChunkReaderBase::OnReaderFinished()
 void TParallelMultiChunkReaderBase::OnError()
 {
     // Someone may wait for this future.
-    ReadySessions_.Enqueue(SentinelSession);
+    ReadySessions_.Enqueue(TError("Sentinel session"));
 }
 
 void TParallelMultiChunkReaderBase::WaitForReadyReader()

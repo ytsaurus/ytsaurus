@@ -175,7 +175,6 @@ public:
 
 private:
     typedef NConcurrency::TNonblockingQueue<TSession> TSessionQueue;
-    static const TError SentinelSession;
 
     TSessionQueue ReadySessions_;
     int FinishedReaderCount_;

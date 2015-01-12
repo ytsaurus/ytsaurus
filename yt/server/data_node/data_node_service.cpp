@@ -704,57 +704,58 @@ private:
                     chunkId);
             }
 
-            auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
+            auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(meta.extensions());
             auto chunkKeyColumns = FromProto<TKeyColumns>(keyColumnsExt);
             ValidateKeyColumns(keyColumns, chunkKeyColumns);
 
-        switch (chunkMeta.version()) {
-            case ETableChunkFormat::Old:
-                MakeOldChunkSplits(
-                    chunkSpec,
-                    splittedChunk,
-                    minSplitSize,
-                    keyColumns.size(),
-                    miscExt,
-                    chunkMeta);
-                break;
+            auto chunkFormat = ETableChunkFormat(meta.version());
+            switch (chunkFormat) {
+                case ETableChunkFormat::Old:
+                    MakeOldChunkSplits(
+                        chunkSpec,
+                        splittedChunk,
+                        minSplitSize,
+                        keyColumns.size(),
+                        miscExt,
+                        meta);
+                    break;
 
-            case ETableChunkFormat::SchemalessHorizontal:
-            case ETableChunkFormat::VersionedSimple:
-                // ToDo(psushin): implement splitting.
-                splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
-                break;
+                case ETableChunkFormat::SchemalessHorizontal:
+                case ETableChunkFormat::VersionedSimple:
+                    // ToDo(psushin): implement splitting.
+                    splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
+                    break;
 
-        default: {
-            auto error = TError("Unsupported chunk version (ChunkId: %v; ChunkFormat: %v)",
-                chunkId,
-                ETableChunkFormat(meta.version()));
-            LOG_WARNING(error);
-            ToProto(splittedChunk->mutable_error(), error);
-            return;
-        }
-    }
+                default: {
+                    auto error = TError("Unsupported chunk version (ChunkId: %v; ChunkFormat: %v)",
+                        chunkId,
+                        ETableChunkFormat(meta.version()));
+                    LOG_WARNING(error);
+                    ToProto(splittedChunk->mutable_error(), error);
+                    return;
+                }
+            }
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             LOG_WARNING(error);
             ToProto(splittedChunk->mutable_error(), error);
         }
-}
-
-void TDataNodeService::MakeOldChunkSplits(
-    const TChunkSpec* chunkSpec,
-    TRspGetChunkSplits::TChunkSplits* splittedChunk,
-    i64 minSplitSize,
-    int keyColumnCount,
-    const TMiscExt& miscExt,
-    const TChunkMeta& chunkMeta)
-{
-    auto indexExt = GetProtoExtension<TIndexExt>(chunkMeta.extensions());
-    if (indexExt.items_size() == 1) {
-        // Only one index entry available - no need to split.
-        splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
-        return;
     }
+
+    void MakeOldChunkSplits(
+        const TChunkSpec* chunkSpec,
+        TRspGetChunkSplits::TChunkSplits* splittedChunk,
+        i64 minSplitSize,
+        int keyColumnCount,
+        const TMiscExt& miscExt,
+        const TChunkMeta& meta)
+    {
+        auto indexExt = GetProtoExtension<TIndexExt>(meta.extensions());
+        if (indexExt.items_size() == 1) {
+            // Only one index entry available - no need to split.
+            splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
+            return;
+        }
 
         auto backIt = --indexExt.items().end();
         auto dataSizeBetweenSamples = static_cast<i64>(std::ceil(
@@ -963,14 +964,19 @@ void TDataNodeService::MakeOldChunkSplits(
                     ProcessVersionedChunkSamples(sampleRequest, sampleResponse, keyColumns, meta);
                     break;
 
-            case ETableChunkFormat::SchemalessHorizontal:
-                ProcessUnversionedChunkSamples(sampleRequest, sampleResponse, keyColumns, chunkMeta);
-                break;
+                case ETableChunkFormat::SchemalessHorizontal:
+                    ProcessUnversionedChunkSamples(sampleRequest, sampleResponse, keyColumns, meta);
+                    break;
 
-            default:
-                THROW_ERROR_EXCEPTION("Invalid version %v of chunk %v",
-                        meta.version(),
-                        chunkId);
+                default:
+                    THROW_ERROR_EXCEPTION("Invalid version %v of chunk %v",
+                            meta.version(),
+                            chunkId);
+            }
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            LOG_WARNING(error);
+            ToProto(sampleResponse->mutable_error(), error);
         }
     }
 
@@ -1199,8 +1205,6 @@ void TDataNodeService::MakeOldChunkSplits(
                 chunkId);
         }
     }
-
-
 
     i64 GetPendingOutSize() const
     {
