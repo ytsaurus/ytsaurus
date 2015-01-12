@@ -38,7 +38,7 @@ TFuture<void> TSnapshotBuilderBase::Run()
 {
 #ifndef _unix_
     THROW_ERROR_EXCEPTION("Building snapshots is not supported on this platform");
-#endif
+#else
 
     YCHECK(ChildPid_ < 0);
 
@@ -64,6 +64,7 @@ TFuture<void> TSnapshotBuilderBase::Run()
     }
 
     return Result_;
+#endif
 }
 
 void TSnapshotBuilderBase::DoRunChild()

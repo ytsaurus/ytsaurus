@@ -86,6 +86,7 @@ using namespace NCypressServer;
 using namespace NCellMaster;
 
 using NTabletNode::TTableMountConfigPtr;
+using NNodeTrackerServer::NProto::TReqIncrementalHeartbeat;
 
 ////////////////////////////////////////////////////////////////////////////////
 
