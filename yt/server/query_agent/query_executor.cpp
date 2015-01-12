@@ -280,8 +280,16 @@ private:
                 totalSampleCount += sampleCount;
             }
 
+            int nextSampleIndex = 1;
+            int currentSamplesCount = 1;
             for (const auto& range : resultRanges) {
-                auto splitKeys = BuildSplitKeys(tabletSnapshot, range.first, range.second, totalSampleCount);
+                auto splitKeys = BuildSplitKeys(
+                    tabletSnapshot,
+                    range.first,
+                    range.second,
+                    nextSampleIndex,
+                    currentSamplesCount,
+                    totalSampleCount);
 
                 for (int splitKeyIndex = 0; splitKeyIndex < splitKeys.size(); ++splitKeyIndex) {
                     const auto& thisKey = splitKeys[splitKeyIndex];
@@ -361,6 +369,8 @@ private:
         TTabletSnapshotPtr tabletSnapshot,
         const TOwningKey& lowerBound,
         const TOwningKey& upperBound,
+        int& nextSampleIndex,
+        int& currentSamplesCount,
         int totalSampleCount)
     {
         auto findStartSample = [&] (const std::vector<TOwningKey>& sampleKeys) {
@@ -396,8 +406,6 @@ private:
         int partitionCount = std::distance(startPartitionIt, endPartitionIt);
         int freeSlotCount = std::max(0, Config_->MaxSubsplitsPerTablet - partitionCount);
         int cappedSampleCount = std::min(freeSlotCount, totalSampleCount);
-        int currentSamplesCount = 1;
-        int nextSampleIndex = 1;
         int nextSampleCount = cappedSampleCount != 0
             ? nextSampleIndex * totalSampleCount / cappedSampleCount
             : 0;
