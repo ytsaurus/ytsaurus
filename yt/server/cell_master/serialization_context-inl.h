@@ -241,6 +241,18 @@ struct TObjectRefSerializerTraits< std::list<K, A> >
     typedef TObjectRefListSerializer TSerializer;
 };
 
+template <class K, class C, class A>
+struct TObjectRefSerializerTraits< std::set<K, C, A> >
+{
+    typedef TObjectRefSetSerializer TSerializer;
+};
+
+template <class K, class H, class E, class A>
+struct TObjectRefSerializerTraits< std::unordered_set<K, H, E, A> >
+{
+    typedef TObjectRefSetSerializer TSerializer;
+};
+
 template <class K, class H, class E, class A>
 struct TObjectRefSerializerTraits< yhash_set<K, H, E, A> >
 {
