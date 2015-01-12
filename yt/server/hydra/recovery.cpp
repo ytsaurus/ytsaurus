@@ -42,13 +42,14 @@ public:
     { }
 
 private:
-    IAsyncInputStreamPtr UnderlyingStream_;
+    const IAsyncInputStreamPtr UnderlyingStream_;
+
 
     virtual size_t DoRead(void* buf, size_t len) override
     {
-        auto result = UnderlyingStream_->Read(buf, len).Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        return result.Value();
+        return UnderlyingStream_->Read(buf, len)
+            .Get()
+            .ValueOrThrow();
     }
 
 };
@@ -105,10 +106,8 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 
         auto reader = SnapshotStore_->CreateReader(snapshotId);
 
-        {
-            auto result = WaitFor(reader->Open());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        WaitFor(reader->Open())
+            .ThrowOnError();
 
         auto meta = reader->GetParams().Meta;
         auto snapshotVersion = TVersion(snapshotId - 1, meta.prev_record_count());
@@ -131,9 +130,8 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 
     for (int changelogId = initialChangelogId; changelogId <= targetVersion.SegmentId; ++changelogId) {
         bool isLastChangelog = (changelogId == targetVersion.SegmentId);
-        auto changelogOrError = WaitFor(ChangelogStore_->TryOpenChangelog(changelogId));
-        THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
-        auto changelog = changelogOrError.Value();
+        auto changelog = WaitFor(ChangelogStore_->TryOpenChangelog(changelogId))
+            .ValueOrThrow();
         if (!changelog) {
             auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
 
@@ -144,9 +142,8 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             NProto::TChangelogMeta meta;
             meta.set_prev_record_count(currentVersion.RecordId);
             
-            auto changelogOrError = WaitFor(ChangelogStore_->CreateChangelog(changelogId, meta));
-            THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
-            changelog = changelogOrError.Value();
+            auto changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId, meta))
+                .ValueOrThrow();
 
             TVersion newLoggedVersion(changelogId, 0);
             // NB: Equality is only possible when segmentId == 0.
@@ -393,8 +390,8 @@ void TFollowerRecovery::DoRun()
                     break;
 
                 case TPostponedMutation::EType::ChangelogRotation: {
-                    auto result = WaitFor(DecoratedAutomaton_->RotateChangelog(EpochContext_));
-                    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                    WaitFor(DecoratedAutomaton_->RotateChangelog(EpochContext_))
+                        .ThrowOnError();
                     break;
                 }
 

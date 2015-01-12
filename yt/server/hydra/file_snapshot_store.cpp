@@ -79,10 +79,10 @@ public:
     }
 
 private:
-    Stroka FileName_;
-    int SnapshotId_;
-    bool IsRaw_;
-    i64 Offset_;
+    const Stroka FileName_;
+    const int SnapshotId_;
+    const bool IsRaw_;
+    const i64 Offset_;
 
     NLog::TLogger Logger = HydraLogger;
 
@@ -299,11 +299,11 @@ public:
     DEFINE_SIGNAL(void(), Closed);
 
 private:
-    Stroka FileName_;
-    ECodec Codec_;
-    int SnapshotId_;
-    TSnapshotMeta Meta_;
-    bool IsRaw_;
+    const Stroka FileName_;
+    const ECodec Codec_;
+    const int SnapshotId_;
+    const TSnapshotMeta Meta_;
+    const bool IsRaw_;
 
     TSharedRef SerializedMeta_;
 
@@ -561,7 +561,7 @@ public:
     }
 
 private:
-    TLocalSnapshotStoreConfigPtr Config_;
+    const TLocalSnapshotStoreConfigPtr Config_;
 
     NLog::TLogger Logger = HydraLogger;
 
