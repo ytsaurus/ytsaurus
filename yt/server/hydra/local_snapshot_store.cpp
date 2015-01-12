@@ -98,7 +98,11 @@ public:
 
     virtual ISnapshotReaderPtr CreateReader(int snapshotId) override
     {
-        return FileStore_->CreateReader(snapshotId);
+        return New<TLocalSnapshotReader>(
+            Config_,
+            CellManager_,
+            FileStore_,
+            snapshotId);
     }
 
     virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotMeta& meta) override
