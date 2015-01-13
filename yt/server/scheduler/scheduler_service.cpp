@@ -10,6 +10,8 @@
 
 #include <ytlib/security_client/public.h>
 
+#include <ytlib/cypress_client/rpc_helpers.h>
+
 #include <server/cell_scheduler/bootstrap.h>
 
 namespace NYT {
@@ -20,6 +22,7 @@ using namespace NCellScheduler;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NSecurityClient;
+using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -49,8 +52,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, StartOperation)
     {
         auto type = EOperationType(request->type());
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto mutationId = GetMutationId(context->RequestHeader());
+        auto transactionId = GetTransactionId(context);
+        auto mutationId = GetMutationId(context);
 
         auto maybeUser = FindAuthenticatedUser(context);
         auto user = maybeUser ? *maybeUser : RootUserName;
