@@ -247,11 +247,6 @@ protected:
         return transactionManager->Attach(options);
     }
 
-    void SetTransactionId(NRpc::IClientRequestPtr request, EAllowNullTransaction allowNullTransaction)
-    {
-        NCypressClient::SetTransactionId(request, this->GetTransactionId(allowNullTransaction));
-    }
-
     void SetTransactionalOptions(NApi::TTransactionalOptions* options)
     {
         options->TransactionId = this->Request_->TransactionId;
