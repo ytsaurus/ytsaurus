@@ -389,8 +389,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("file", file)
         upload(file, "{value=42};\n")
 
-        #command = 'bash -c "cat <&0 & sleep 0.1; cat some_file.txt >&4; wait;"'
-        command = 'bash -c "cat some_file.txt >&4; wait;"'
+        command = 'bash -c "cat <&0 & sleep 0.1; cat some_file.txt >&4; wait;"'
         map(in_="//tmp/t_input",
             out=["//tmp/t_output1", "//tmp/t_output2"],
             command=command,
@@ -398,7 +397,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             verbose=True)
 
         assert read("//tmp/t_output2") == [{"value": 42}]
-        #assert sorted([row.items() for row in read("//tmp/t_output1")]) == [[("index", i)] for i in xrange(count)]
+        assert sorted([row.items() for row in read("//tmp/t_output1")]) == [[("index", i)] for i in xrange(count)]
 
     def test_first_after_second(self):
         create("table", "//tmp/t_input")

@@ -420,7 +420,7 @@ private:
         TableOutputs_.resize(writers.size());
         for (int i = 0; i < writers.size(); ++i) {
             auto valueConsumers = CreateValueConsumers();
-            std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(valueConsumers));
+            std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(valueConsumers, i));
             auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.get());
             TableOutputs_[i].reset(new TTableOutput(
                 std::move(parser),

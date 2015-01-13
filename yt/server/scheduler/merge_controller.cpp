@@ -975,7 +975,7 @@ protected:
         LOG_INFO("Spec key columns are %v",
             specKeyColumns ? ~ConvertToYsonString(*specKeyColumns, EYsonFormat::Text).Data() : "<Null>");
 
-        KeyColumns = CheckInputTablesSorted(GetSpecKeyColumns());
+        KeyColumns = CheckInputTablesSorted(specKeyColumns);
         LOG_INFO("Adjusted key columns are %v",
             ConvertToYsonString(KeyColumns, EYsonFormat::Text).Data());
 
@@ -1161,7 +1161,7 @@ private:
         while (startIndex < Endpoints.size()) {
             auto& key = Endpoints[startIndex].GetKey();
 
-            yhash_set<TRefCountedChunkSpecPtr> TeleportChunks;
+            yhash_set<TRefCountedChunkSpecPtr> teleportChunks;
             yhash_set<TRefCountedChunkSpecPtr> localOpenedSlices;
 
             // Slices with equal left and right boundaries.
@@ -1181,7 +1181,7 @@ private:
                 if (endpoint.IsTeleport) {
                     auto partitionTag = endpoint.ChunkSpec->partition_tag();
                     auto chunkSpec = CreateCompleteChunk(endpoint.ChunkSpec);
-                    YCHECK(TeleportChunks.insert(chunkSpec).second);
+                    YCHECK(teleportChunks.insert(chunkSpec).second);
                     while (currentIndex < Endpoints.size() &&
                         Endpoints[currentIndex].IsTeleport &&
                         Endpoints[currentIndex].ChunkSpec->partition_tag() == partitionTag)
@@ -1260,10 +1260,10 @@ private:
                 EndManiacTask();
             }
 
-            if (!TeleportChunks.empty()) {
+            if (!teleportChunks.empty()) {
                 endTask();
 
-                for (auto& chunkSpec : TeleportChunks) {
+                for (auto& chunkSpec : teleportChunks) {
                     AddTeleportChunk(chunkSpec);
                 }
             }
@@ -1609,9 +1609,9 @@ private:
                 YCHECK(!lastBreakpoint || CompareRows(key, *lastBreakpoint, prefixLength) != 0);
 
                 auto nextBreakpoint = GetKeyPrefixSuccessor(key.Get(), prefixLength);
-                //LOG_DEBUG("Finish current task, flushing %v chunks at key %v",
-                //    openedSlices.size(),
-                //    nextBreakpoint);
+                LOG_TRACE("Finish current task, flushing %v chunks at key %v",
+                    openedSlices.size(),
+                    nextBreakpoint);
 
                 for (const auto& chunkSpec : openedSlices) {
                     this->AddPendingChunk(CreateChunkSlice(
