@@ -511,18 +511,20 @@ IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
 
 TTabletSnapshotPtr TTablet::BuildSnapshot() const
 {
-    auto snapshot = New<TTabletSnapshot>();
-    snapshot->TabletId = Id_;
-    snapshot->Slot = Slot_;
-    snapshot->Config = Config_;
-    snapshot->Schema = Schema_;
-    snapshot->KeyColumns = KeyColumns_;
-    snapshot->Eden = Eden_->BuildSnapshot();
-    snapshot->Partitions.reserve(PartitionList_.size());
+    auto tabletSnapshot = New<TTabletSnapshot>();
+    tabletSnapshot->TabletId = Id_;
+    tabletSnapshot->Slot = Slot_;
+    tabletSnapshot->Config = Config_;
+    tabletSnapshot->Schema = Schema_;
+    tabletSnapshot->KeyColumns = KeyColumns_;
+    tabletSnapshot->Eden = Eden_->BuildSnapshot();
+    tabletSnapshot->Partitions.reserve(PartitionList_.size());
     for (const auto& partition : PartitionList_) {
-        snapshot->Partitions.push_back(partition->BuildSnapshot());
+        auto partitionSnapshot = partition->BuildSnapshot();
+        tabletSnapshot->Partitions.push_back(partitionSnapshot);
+        tabletSnapshot->StoreCount += partitionSnapshot->Stores.size();
     }
-    return snapshot;
+    return tabletSnapshot;
 }
 
 void TTablet::Initialize()

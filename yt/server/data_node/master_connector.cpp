@@ -34,6 +34,7 @@
 
 #include <server/tablet_node/tablet_slot_manager.h>
 #include <server/tablet_node/tablet_slot.h>
+#include <server/tablet_node/tablet.h>
 
 #include <server/data_node/journal_dispatcher.h>
 
@@ -355,6 +356,15 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         } else {
             info->set_peer_state(static_cast<int>(NHydra::EPeerState::None));
         }
+    }
+
+    auto tabletSnapshots = tabletSlotManager->GetTabletSnapshots();
+    for (auto snapshot : tabletSnapshots) {
+        auto* info = request->add_tablets();
+        ToProto(info->mutable_tablet_id(), snapshot->TabletId);
+        auto* statistics = info->mutable_statistics();
+        statistics->set_partition_count(snapshot->Partitions.size());
+        statistics->set_store_count(snapshot->StoreCount);
     }
 
     auto cellDirectory = Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory();
