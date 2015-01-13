@@ -393,6 +393,34 @@ TEST_F(TSchedulerTest, PropagateFiberCancelationToFuture)
     EXPECT_TRUE(f1.IsCanceled());
 }
 
+TEST_W(TSchedulerTest, WaitForCanceledFuture)
+{
+    auto promise = NewPromise<void>();
+    auto future = promise.ToFuture();
+    future.Cancel();
+    EXPECT_TRUE(future.IsCanceled());
+    auto error = WaitFor(future);
+    EXPECT_EQ(NYT::EErrorCode::Canceled, error.GetCode());
+}
+
+TEST_F(TSchedulerTest, AsyncViaCanceledBeforeStart)
+{
+    auto invoker = Queue1->GetInvoker();
+    auto asyncResult1 = BIND([] () {
+        Sleep(TDuration::Seconds(1));
+    }).AsyncVia(invoker).Run();
+    auto asyncResult2 = BIND([] () {
+        Sleep(TDuration::Seconds(1));
+    }).AsyncVia(invoker).Run();
+    EXPECT_FALSE(asyncResult1.IsSet());
+    EXPECT_FALSE(asyncResult2.IsSet());
+    asyncResult2.Cancel();
+    EXPECT_TRUE(asyncResult1.Get().IsOK());
+    Sleep(TDuration::Seconds(0.1));
+    EXPECT_TRUE(asyncResult2.IsSet());
+    EXPECT_EQ(NYT::EErrorCode::Canceled, asyncResult2.Get().GetCode());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
