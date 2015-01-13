@@ -4,7 +4,7 @@
 
 #include <ytlib/chunk_client/chunk_owner_ypath.pb.h>
 
-#include <ytlib/object_client/object_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <core/ytree/ypath_proxy.h>
 
@@ -20,7 +20,7 @@ DEFINE_ENUM(EUpdateMode,
 );
 
 struct TChunkOwnerYPathProxy
-    : public NObjectClient::TObjectYPathProxy
+    : public NCypressClient::TCypressYPathProxy
 {
     static Stroka GetServiceName()
     {

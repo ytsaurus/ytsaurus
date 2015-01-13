@@ -14,6 +14,11 @@ namespace NCypressClient {
 struct TCypressYPathProxy
     : public NObjectClient::TObjectYPathProxy
 {
+    static Stroka GetServiceName()
+    {
+        return "Cypress";
+    }
+
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Create);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Lock);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Copy);
