@@ -400,6 +400,7 @@ protected:
 
             auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
 
+            RegisterInput(joblet);
             RegisterIntermediate(
                 joblet,
                 stripe,
@@ -1215,7 +1216,7 @@ protected:
             const auto& address = node->Node->GetAddress();
 
             partition->AssignedAddress = address;
-            auto task = partition->Maniac 
+            auto task = partition->Maniac
                 ? static_cast<TTaskPtr>(partition->UnorderedMergeTask)
                 : static_cast<TTaskPtr>(partition->SortTask);
 
@@ -1433,7 +1434,7 @@ protected:
     // Should get rid of this "value count" stuff completely.
     i64 GetValueCountEstimate(i64 dataSize) const
     {
-        return static_cast<i64>((double) TotalInputValueCount * dataSize / TotalInputDataSize);
+        return static_cast<i64>((double) TotalEstimateInputValueCount * dataSize / TotalEstimateInputDataSize);
     }
 
     int GetEmpiricalParitionCount(i64 dataSize) const
@@ -1454,8 +1455,8 @@ protected:
 
     int SuggestPartitionCount() const
     {
-        YCHECK(TotalInputDataSize > 0);
-        i64 dataSizeAfterPartition = 1 + static_cast<i64>(TotalInputDataSize * Spec->MapSelectivityFactor);
+        YCHECK(TotalEstimateInputDataSize > 0);
+        i64 dataSizeAfterPartition = 1 + static_cast<i64>(TotalEstimateInputDataSize * Spec->MapSelectivityFactor);
 
         i64 result;
         if (Spec->PartitionDataSize || Spec->PartitionCount) {
@@ -1475,13 +1476,13 @@ protected:
     {
         if (Spec->DataSizePerPartitionJob || Spec->PartitionJobCount) {
             return SuggestJobCount(
-                TotalInputDataSize,
-                Spec->DataSizePerPartitionJob.Get(TotalInputDataSize),
+                TotalEstimateInputDataSize,
+                Spec->DataSizePerPartitionJob.Get(TotalEstimateInputDataSize),
                 Spec->PartitionJobCount);
         } else {
             // Experiments show that this number is suitable as default
             // both for partition count and for partition job count.
-            int partitionCount = GetEmpiricalParitionCount(TotalInputDataSize);
+            int partitionCount = GetEmpiricalParitionCount(TotalEstimateInputDataSize);
             return static_cast<int>(Clamp(
                 partitionCount,
                 1,
@@ -1686,7 +1687,7 @@ private:
 
         OutputTables[0].Options->KeyColumns = Spec->SortBy;
 
-        if (TotalInputDataSize == 0)
+        if (TotalEstimateInputDataSize == 0)
             return;
 
         TSamplesFetcherPtr samplesFetcher;
@@ -1772,7 +1773,7 @@ private:
         // Choose sort job count and initialize the pool.
         int sortJobCount = static_cast<int>(
             Clamp(
-                1 + TotalInputDataSize / Spec->DataSizePerSortJob,
+                1 + TotalEstimateInputDataSize / Spec->DataSizePerSortJob,
                 1,
                 Config->MaxJobCount));
         auto stripes = SliceInputChunks(Config->SortJobMaxSliceDataSize, sortJobCount);
@@ -1788,7 +1789,7 @@ private:
 
         // Initialize counters.
         PartitionJobCounter.Set(0);
-        // NB: Cannot use TotalInputDataSize due to slicing and rounding issues.
+        // NB: Cannot use TotalEstimateInputDataSize due to slicing and rounding issues.
         SortDataSizeCounter.Set(SimpleSortPool->GetTotalDataSize());
 
         LOG_INFO("Sorting without partitioning (SortJobCount: %v)",
@@ -2276,7 +2277,7 @@ private:
     {
         TSortControllerBase::CustomPrepare();
 
-        if (TotalInputDataSize == 0)
+        if (TotalEstimateInputDataSize == 0)
             return;
 
         for (const auto& file : RegularFiles) {

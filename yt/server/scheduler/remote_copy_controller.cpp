@@ -228,6 +228,7 @@ private:
         virtual void OnJobCompleted(TJobletPtr joblet) override
         {
             TTask::OnJobCompleted(joblet);
+            RegisterInput(joblet);
             RegisterOutput(joblet, joblet->JobIndex);
         }
 
@@ -318,7 +319,7 @@ private:
         }
 
         auto jobCount = SuggestJobCount(
-            TotalInputDataSize,
+            TotalEstimateInputDataSize,
             Spec_->DataSizePerJob,
             Spec_->JobCount);
         jobCount = std::min(jobCount, static_cast<int>(stripes.size()));

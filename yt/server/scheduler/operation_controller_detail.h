@@ -156,10 +156,16 @@ protected:
 
 
     // These totals are approximate.
-    int TotalInputChunkCount;
-    i64 TotalInputDataSize;
-    i64 TotalInputRowCount;
-    i64 TotalInputValueCount;
+    int TotalEstimateInputChunkCount;
+    i64 TotalEstimateInputDataSize;
+    i64 TotalEstimateInputRowCount;
+    i64 TotalEstimateInputValueCount;
+
+    // These totals are exact
+    int TotalActualInputChunkCount;
+    i64 TotalActualInputDataSize;
+    i64 TotalActualInputRowCount;
+    i64 TotalActualInputValueCount;
 
     // These totals are exact.
     int TotalIntermeidateChunkCount;
@@ -524,6 +530,7 @@ protected:
         static TChunkStripePtr BuildIntermediateChunkStripe(
             google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
 
+        void RegisterInput(TJobletPtr joblet);
         void RegisterOutput(TJobletPtr joblet, int key);
 
     };
@@ -753,6 +760,8 @@ protected:
         int key,
         TOutputTable* outputTable);
 
+    void RegisterInput(TJobletPtr joblet);
+
     void RegisterOutput(
         NChunkClient::TRefCountedChunkSpecPtr chunkSpec,
         int key,
@@ -783,7 +792,7 @@ protected:
     //! processing. Each stripe receives exactly one chunk (as suitable for most
     //! jobs except merge). The resulting stripes are of approximately equal
     //! size. The size per stripe is either |maxSliceDataSize| or
-    //! |TotalInputDataSize / jobCount|, whichever is smaller. If the resulting
+    //! |TotalEstimateInputDataSize / jobCount|, whichever is smaller. If the resulting
     //! list contains less than |jobCount| stripes then |jobCount| is decreased
     //! appropriately.
     std::vector<TChunkStripePtr> SliceInputChunks(i64 maxSliceDataSize, int jobCount);
