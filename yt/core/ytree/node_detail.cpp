@@ -220,9 +220,8 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 
         auto child = FindChild(key);
         if (!child) {
-            if (method == "Exists" || method == "Create" || method == "Remove" ||
-                ((method == "Set" || method == "Copy") &&
-                 tokenizer.Advance() == NYPath::ETokenType::EndOfStream))
+            if (method == "Exists" || method == "Create" || method == "Copy" || method == "Remove" ||
+                method == "Set" && tokenizer.Advance() == NYPath::ETokenType::EndOfStream)
             {
                 return IYPathService::TResolveResult::Here("/" + path);
             } else {

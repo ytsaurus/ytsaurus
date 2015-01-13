@@ -289,6 +289,14 @@ class TestCypress(YTEnvSetup):
         link("//tmp/a", "//tmp/b")
         copy("//tmp/b/t", "//tmp/t")
 
+    def test_copy_recursive_success(self):
+        create("map_node", "//tmp/a")
+        copy("//tmp/a", "//tmp/b/c", recursive=True)
+
+    def test_copy_recursive_fail(self):
+        create("map_node", "//tmp/a")
+        with pytest.raises(YtError): copy("//tmp/a", "//tmp/b/c", recursive=False)
+
     def test_copy_tx1(self):
         tx = start_transaction()
 
@@ -423,6 +431,14 @@ class TestCypress(YTEnvSetup):
         set("//tmp/t1/@account", "max")
         move("//tmp/t1", "//tmp/t2") # preserve is ON
         assert get("//tmp/t2/@account") == "max"
+
+    def test_move_recursive_success(self):
+        create("map_node", "//tmp/a")
+        move("//tmp/a", "//tmp/b/c", recursive=True)
+
+    def test_move_recursive_fail(self):
+        create("map_node", "//tmp/a")
+        with pytest.raises(YtError): move("//tmp/a", "//tmp/b/c", recursive=False)
 
     def test_embedded_attributes(self):
         set("//tmp/a", {})
