@@ -305,6 +305,9 @@ public:
      */
     TNullable<TErrorOr<T>> TryGet() const;
 
+    //! Checks if the promise is canceled.
+    bool IsCanceled() const;
+
     //! Attaches a cancellation handler.
     /*!
      *  \param handler A callback to call when TFuture<T>::Cancel is triggered

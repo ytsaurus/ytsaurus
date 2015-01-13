@@ -779,6 +779,12 @@ TNullable<TErrorOr<T>> TPromiseBase<T>::TryGet() const
 }
 
 template <class T>
+bool TPromiseBase<T>::IsCanceled() const
+{
+    return Impl_->IsCanceled();
+}
+
+template <class T>
 void TPromiseBase<T>::OnCanceled(TClosure handler)
 {
     YASSERT(Impl_);
@@ -904,6 +910,7 @@ struct TAsyncViaHelper<R(TArgs...)>
     // TODO(babenko): consider moving args
     static void Inner(const TSourceCallback& this_, TPromise<TUnderlying> promise, TArgs... args)
     {
+        if (promise.isca)
         auto canceler = NConcurrency::GetCurrentFiberCanceler();
         if (canceler) {
             promise.OnCanceled(std::move(canceler));
