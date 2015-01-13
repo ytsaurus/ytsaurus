@@ -65,7 +65,7 @@ public:
                     .EndMap();
             });
     }
-    
+
     // Persistence.
 
     virtual void Persist(TPersistenceContext& context) override
@@ -207,6 +207,7 @@ private:
         {
             TTask::OnJobCompleted(joblet);
 
+            RegisterInput(joblet);
             RegisterOutput(joblet, joblet->JobIndex);
         }
 
@@ -271,7 +272,7 @@ private:
             LOG_INFO("Processing inputs");
 
             auto jobCount = SuggestJobCount(
-                TotalInputDataSize,
+                TotalEstimateInputDataSize,
                 Spec->DataSizePerJob,
                 Spec->JobCount);
 

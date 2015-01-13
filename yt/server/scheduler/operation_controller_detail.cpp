@@ -932,6 +932,11 @@ TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
     return stripe;
 }
 
+void TOperationControllerBase::TTask::RegisterInput(TJobletPtr joblet)
+{
+    Controller->RegisterInput(joblet);
+}
+
 void TOperationControllerBase::TTask::RegisterOutput(TJobletPtr joblet, int key)
 {
     Controller->RegisterOutput(joblet, key);
@@ -956,10 +961,13 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableBackgroundInvoker(CancelableContext->CreateInvoker(Host->GetBackgroundInvoker()))
     , Prepared(false)
     , Running(false)
-    , TotalInputChunkCount(0)
-    , TotalInputDataSize(0)
-    , TotalInputRowCount(0)
-    , TotalInputValueCount(0)
+    , TotalEstimateInputChunkCount(0)
+    , TotalEstimateInputDataSize(0)
+    , TotalEstimateInputRowCount(0)
+    , TotalEstimateInputValueCount(0)
+    , TotalActualInputChunkCount(0)
+    , TotalActualInputDataSize(0)
+    , TotalActualInputRowCount(0)
     , TotalIntermeidateChunkCount(0)
     , TotalIntermediateDataSize(0)
     , TotalIntermediateRowCount(0)
@@ -3083,18 +3091,18 @@ void TOperationControllerBase::CollectTotals()
             i64 chunkValueCount;
             NChunkClient::GetStatistics(chunk, &chunkDataSize, &chunkRowCount, &chunkValueCount);
 
-            TotalInputDataSize += chunkDataSize;
-            TotalInputRowCount += chunkRowCount;
-            TotalInputValueCount += chunkValueCount;
-            ++TotalInputChunkCount;
+            TotalEstimateInputDataSize += chunkDataSize;
+            TotalEstimateInputRowCount += chunkRowCount;
+            TotalEstimateInputValueCount += chunkValueCount;
+            ++TotalEstimateInputChunkCount;
         }
     }
 
-    LOG_INFO("Input totals collected (ChunkCount: %v, DataSize: %v, RowCount: %v, ValueCount: %v)",
-        TotalInputChunkCount,
-        TotalInputDataSize,
-        TotalInputRowCount,
-        TotalInputValueCount);
+    LOG_INFO("Estimate input totals collected (ChunkCount: %v, DataSize: %v, RowCount: %v, ValueCount: %v)",
+        TotalEstimateInputChunkCount,
+        TotalEstimateInputDataSize,
+        TotalEstimateInputRowCount,
+        TotalEstimateInputValueCount);
 }
 
 void TOperationControllerBase::CustomPrepare()
@@ -3144,8 +3152,8 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
         }
     };
 
-    // TODO(ignat): we slice on two parts even id TotalInputDataSize very small.
-    i64 sliceDataSize = std::min(maxSliceDataSize, (i64)std::max(Config->SliceDataSizeMultiplier * TotalInputDataSize / jobCount, 1.0));
+    // TODO(ignat): we slice on two parts even id TotalEstimateInputDataSize very small.
+    i64 sliceDataSize = std::min(maxSliceDataSize, (i64)std::max(Config->SliceDataSizeMultiplier * TotalEstimateInputDataSize / jobCount, 1.0));
 
     for (const auto& chunkSpec : CollectInputChunks()) {
         int oldSize = result.size();
@@ -3311,6 +3319,16 @@ void TOperationControllerBase::RegisterEndpoints(
     }
 }
 
+void TOperationControllerBase::RegisterInput(TJobletPtr joblet)
+{
+    // Update input statistics.
+    const auto& jobResult = joblet->Job->Result();
+    const auto& inputStatistics = jobResult.statistics().input();
+    TotalActualInputChunkCount += inputStatistics.chunk_count();
+    TotalActualInputRowCount += inputStatistics.row_count();
+    TotalActualInputDataSize += inputStatistics.uncompressed_data_size();
+}
+
 void TOperationControllerBase::RegisterOutput(
     TRefCountedChunkSpecPtr chunkSpec,
     int key,
@@ -3447,10 +3465,16 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
             .Item("failed").Value(FailedJobStatistics)
             .Item("aborted").Value(AbortedJobStatistics)
         .EndMap()
-        .Item("input_statistics").BeginMap()
-            .Item("chunk_count").Value(TotalInputChunkCount)
-            .Item("uncompressed_data_size").Value(TotalInputDataSize)
-            .Item("row_count").Value(TotalInputRowCount)
+        .Item("estimate_input_statistics").BeginMap()
+            .Item("chunk_count").Value(TotalEstimateInputChunkCount)
+            .Item("uncompressed_data_size").Value(TotalEstimateInputDataSize)
+            .Item("row_count").Value(TotalEstimateInputRowCount)
+            .Item("unavailable_chunk_count").Value(UnavailableInputChunkCount)
+        .EndMap()
+        .Item("actual_input_statistics").BeginMap()
+            .Item("chunk_count").Value(TotalActualInputChunkCount)
+            .Item("uncompressed_data_size").Value(TotalActualInputDataSize)
+            .Item("row_count").Value(TotalActualInputRowCount)
             .Item("unavailable_chunk_count").Value(UnavailableInputChunkCount)
         .EndMap()
         .Item("intermediate_statistics").BeginMap()
@@ -3731,10 +3755,14 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 {
     using NYT::Persist;
 
-    Persist(context, TotalInputChunkCount);
-    Persist(context, TotalInputDataSize);
-    Persist(context, TotalInputRowCount);
-    Persist(context, TotalInputValueCount);
+    Persist(context, TotalEstimateInputChunkCount);
+    Persist(context, TotalEstimateInputDataSize);
+    Persist(context, TotalEstimateInputRowCount);
+    Persist(context, TotalEstimateInputValueCount);
+
+    Persist(context, TotalActualInputChunkCount);
+    Persist(context, TotalActualInputDataSize);
+    Persist(context, TotalActualInputRowCount);
 
     Persist(context, TotalIntermeidateChunkCount);
     Persist(context, TotalIntermediateDataSize);

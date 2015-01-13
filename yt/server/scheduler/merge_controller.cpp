@@ -280,6 +280,7 @@ protected:
         {
             TTask::OnJobCompleted(joblet);
 
+            RegisterInput(joblet);
             RegisterOutput(joblet, PartitionIndex);
         }
 
@@ -421,11 +422,11 @@ protected:
     void CalculateSizes()
     {
         auto jobCount = SuggestJobCount(
-            TotalInputDataSize,
+            TotalEstimateInputDataSize,
             Spec->DataSizePerJob,
             Spec->JobCount);
 
-        MaxDataSizePerJob = 1 + TotalInputDataSize / jobCount;
+        MaxDataSizePerJob = 1 + TotalEstimateInputDataSize / jobCount;
         ChunkSliceSize = std::min(Config->MergeJobMaxSliceDataSize, MaxDataSizePerJob);
     }
 
