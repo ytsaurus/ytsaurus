@@ -786,12 +786,14 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto sourcePath = request->source_path();
     bool preserveAccount = request->preserve_account();
     bool removeSource = request->remove_source();
+    auto recursive = request->recursive();
     auto targetPath = GetRequestYPath(context);
 
-    context->SetRequestInfo("SourcePath: %v, PreserveAccount: %v, RemoveSource: %v",
+    context->SetRequestInfo("SourcePath: %v, PreserveAccount: %v, RemoveSource: %v, Recursive: %v",
         sourcePath,
         preserveAccount,
-        removeSource);
+        removeSource,
+        recursive);
 
     auto ytreeSourceProxy = GetResolver()->ResolvePath(sourcePath);
     auto* sourceProxy = dynamic_cast<ICypressNodeProxy*>(ytreeSourceProxy.Get());
@@ -839,7 +841,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto* clonedTrunkImpl = clonedImpl->GetTrunkNode();
     auto clonedProxy = GetProxy(clonedTrunkImpl);
 
-    SetChild(factory, targetPath, clonedProxy, false);
+    SetChild(factory, targetPath, clonedProxy, recursive);
 
     factory->Commit();
 
