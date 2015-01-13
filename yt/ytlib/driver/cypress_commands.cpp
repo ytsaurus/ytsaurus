@@ -71,7 +71,6 @@ void TRemoveCommand::DoExecute()
     auto asyncResult = Context_->GetClient()->RemoveNode(
         Request_->Path.GetPath(),
         options);
-
     WaitFor(asyncResult)
         .ThrowOnError();
 }
