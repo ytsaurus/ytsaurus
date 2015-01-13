@@ -61,6 +61,8 @@
 #include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/read_limit.h>
 
+#include <ytlib/scheduler/scheduler_service_proxy.h>
+
 // TODO(babenko): refactor this
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/table_client/table_ypath_proxy.h>
@@ -88,6 +90,7 @@ using namespace NTabletClient::NProto;
 using namespace NSecurityClient;
 using namespace NQueryClient;
 using namespace NChunkClient;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -621,6 +624,7 @@ public:
         QueryHelper_ = New<TQueryHelper>(Connection_, MasterChannel_, NodeChannelFactory_);
 
         ObjectProxy_.reset(new TObjectServiceProxy(MasterChannel_));
+        SchedulerProxy_.reset(new TSchedulerServiceProxy(SchedulerChannel_));
 
         Logger.AddTag("Client: %p", this);
     }
@@ -868,6 +872,21 @@ public:
         const TCheckPermissionOptions& options),
         (user, path, permission, options))
 
+    IMPLEMENT_METHOD(TOperationId, StartOperation, (
+        EOperationType type,
+        const TYsonString& spec,
+        const TStartOperationOptions& options),
+        (type, spec, options))
+    IMPLEMENT_METHOD(void, AbortOperation, (
+        const TOperationId& operationId),
+        (operationId))
+    IMPLEMENT_METHOD(void, SuspendOperation, (
+        const TOperationId& operationId),
+        (operationId))
+    IMPLEMENT_METHOD(void, ResumeOperation, (
+        const TOperationId& operationId),
+        (operationId))
+
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 
@@ -895,6 +914,7 @@ private:
     TTransactionManagerPtr TransactionManager_;
     TQueryHelperPtr QueryHelper_;
     std::unique_ptr<TObjectServiceProxy> ObjectProxy_;
+    std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;
 
     NLog::TLogger Logger;
 
@@ -1602,6 +1622,51 @@ private:
         result.ObjectId = rsp->has_object_id() ? FromProto<TObjectId>(rsp->object_id()) : NullObjectId;
         result.Subject = rsp->has_subject() ? MakeNullable(rsp->subject()) : Null;
         return result;
+    }
+
+
+    TOperationId DoStartOperation(
+        EOperationType type,
+        const TYsonString& spec,
+        TStartOperationOptions options)
+    {
+        auto req = SchedulerProxy_->StartOperation();
+        SetTransactionId(req, options, true);
+        GenerateMutationId(req, options);
+        req->set_type(static_cast<int>(type));
+        req->set_spec(spec.Data());
+        
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+
+        return FromProto<TOperationId>(rsp->operation_id());
+    }
+
+    void DoAbortOperation(const TOperationId& operationId)
+    {
+        auto req = SchedulerProxy_->AbortOperation();
+        ToProto(req->mutable_operation_id(), operationId);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+    }
+
+    void DoSuspendOperation(const TOperationId& operationId)
+    {
+        auto req = SchedulerProxy_->SuspendOperation();
+        ToProto(req->mutable_operation_id(), operationId);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+    }
+
+    void DoResumeOperation(const TOperationId& operationId)
+    {
+        auto req = SchedulerProxy_->ResumeOperation();
+        ToProto(req->mutable_operation_id(), operationId);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
     }
 
 };

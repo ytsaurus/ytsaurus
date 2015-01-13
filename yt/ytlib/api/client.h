@@ -31,6 +31,8 @@
 
 #include <ytlib/security_client/public.h>
 
+#include <ytlib/scheduler/public.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -267,6 +269,11 @@ struct TJournalWriterOptions
     , public TPrerequisiteOptions
 { };
 
+struct TStartOperationOptions
+    : public TTransactionalOptions
+    , public TMutatingOptions
+{ };
+
 ///////////////////////////////////////////////////////////////////////////////
 
 //! Provides a basic set of functions that can be invoked
@@ -457,6 +464,20 @@ struct IClient
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
         const TCheckPermissionOptions& options = TCheckPermissionOptions()) = 0;
+
+
+    // Scheduler
+    virtual TFuture<NScheduler::TOperationId> StartOperation(
+        NScheduler::EOperationType type,
+        const NYTree::TYsonString& spec,
+        const TStartOperationOptions& options = TStartOperationOptions()) = 0;
+
+    virtual TFuture<void> AbortOperation(const NScheduler::TOperationId& operationId) = 0;
+
+    virtual TFuture<void> SuspendOperation(const NScheduler::TOperationId& operationId) = 0;
+
+    virtual TFuture<void> ResumeOperation(const NScheduler::TOperationId& operationId) = 0;
+
 
 };
 
