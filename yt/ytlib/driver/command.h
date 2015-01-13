@@ -142,8 +142,6 @@ protected:
     // TODO(babenko): deprecate
     std::unique_ptr<NScheduler::TSchedulerServiceProxy> SchedulerProxy;
 
-    TCommandBase();
-
     virtual void Prepare();
 
     void Reply(const TError& error);
