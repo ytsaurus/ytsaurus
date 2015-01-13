@@ -228,8 +228,6 @@ public:
     explicit TImpl(TExecutorConfigPtr config)
         : TSyncSlruCacheBase(config->CGCache)
     {
-        Compiler_ = CreateFragmentCompiler();
-
         CallCGQueryPtr_ = &CallCGQuery;
     }
 
@@ -349,7 +347,7 @@ private:
             try {
                 TRACE_CHILD("QueryClient", "Compile") {
                     LOG_DEBUG("Started compiling fragment");
-                    cgQuery = New<TCachedCGQuery>(id, Compiler_(query, binding));
+                    cgQuery = New<TCachedCGQuery>(id, CodegenEvaluate(query, binding));
                     LOG_DEBUG("Finished compiling fragment");
                     TryInsert(cgQuery, &cgQuery);
                 }
@@ -381,8 +379,6 @@ private:
         TRow constants,
         TExecutionContext* executionContext);
 
-private:
-    TCGFragmentCompiler Compiler_;
 };
 
 #endif

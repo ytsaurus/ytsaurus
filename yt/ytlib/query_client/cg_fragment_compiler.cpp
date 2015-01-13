@@ -363,12 +363,11 @@ typedef std::function<void(TCGIRBuilder& builder)> TCodegenVoidBlock;
 
 class TCGContext
 {
-public:
-    static TCGQueryCallback CodegenEvaluate(
+private:
+    friend TCGQueryCallback CodegenEvaluate(
         const TConstQueryPtr& query,
         const TCGBinding& binding);
 
-private:
     const TCGModulePtr Module_;
     const TCGBinding& Binding_;
     Value* ConstantsRow_;
@@ -1567,7 +1566,7 @@ void TCGContext::CodegenGroupOp(
 
 }
 
-TCGQueryCallback TCGContext::CodegenEvaluate(
+TCGQueryCallback CodegenEvaluate(
     const TConstQueryPtr& query,
     const TCGBinding& binding)
 {
@@ -1624,12 +1623,6 @@ TCGQueryCallback TCGContext::CodegenEvaluate(
     builder.CreateRetVoid();
 
     return module->GetCompiledFunction<TCGQuerySignature>(entryFunctionName);
-}
-
-TCGFragmentCompiler CreateFragmentCompiler()
-{
-    using namespace std::placeholders;
-    return std::bind(&TCGContext::CodegenEvaluate, _1, _2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
