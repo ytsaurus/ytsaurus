@@ -486,16 +486,25 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/@id") == get("//tmp/a/@parent_id")
 
     def test_create(self):
-        remove("//tmp/*")
         create("map_node", "//tmp/some_node")
 
+    def test_create_recursive_fail(self):
+        create("map_node", "//tmp/some_node")
         with pytest.raises(YtError): create("map_node", "//tmp/a/b")
+
+    def test_create_recursive_success(self):
         create("map_node", "//tmp/a/b", recursive=True)
 
+    def test_create_ignore_existing_fail(self):
         with pytest.raises(YtError): create("map_node", "//tmp/a/b")
+    
+    def test_create_ignore_existing_success(self):
+        create("map_node", "//tmp/a/b", recursive=True)
         create("map_node", "//tmp/a/b", ignore_existing=True)
 
-        with pytest.raises(YtError): create("table", "//tmp/a/b", ignore_existing=True)
+    def test_create_ignore_existing_fail(self):
+        create("map_node", "//tmp/a/b", recursive=True)
+        with pytest.raises(YtError): create("table", "//tmp/a/b", ignore_existing=False)
 
     def test_link1(self):
         with pytest.raises(YtError): link("//tmp/a", "//tmp/b")
