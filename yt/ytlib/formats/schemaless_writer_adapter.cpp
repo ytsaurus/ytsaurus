@@ -37,6 +37,12 @@ bool TSchemalessWriterAdapter::Write(const std::vector<TUnversionedRow> &rows)
             Consumer_->OnBeginMap();
             for (auto* it = row.Begin(); it != row.End(); ++it) {
                 auto& value = *it;
+
+                if (value.Type == EValueType::Null) {
+                    // Simply skip null values.
+                    continue;
+                }
+
                 Consumer_->OnKeyedItem(NameTable_->GetName(value.Id));
                 switch (value.Type) {
                     case EValueType::Int64:

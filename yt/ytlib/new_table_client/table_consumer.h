@@ -113,7 +113,7 @@ class TTableConsumer
 {
 public:
     explicit TTableConsumer(IValueConsumerPtr consumer);
-    explicit TTableConsumer(const std::vector<IValueConsumerPtr>& consumers);
+    TTableConsumer(const std::vector<IValueConsumerPtr>& consumers, int tableIndex = 0);
 
 protected:
 

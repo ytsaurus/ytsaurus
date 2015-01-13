@@ -85,6 +85,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// ToDo(psushin): use key column count to speed up comparison.
 bool CompareSessions(
     const TSchemalessSortedMergingReader::TSession* lhs,
     const TSchemalessSortedMergingReader::TSession* rhs)

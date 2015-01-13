@@ -84,9 +84,7 @@ void TBuildingValueConsumer::OnEndRow() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////////////////////
-
-TTableConsumer::TTableConsumer(const std::vector<IValueConsumerPtr>& valueConsumers)
+TTableConsumer::TTableConsumer(const std::vector<IValueConsumerPtr>& valueConsumers, int tableIndex)
     : ValueConsumers_(valueConsumers)
     , ControlState_(EControlState::None)
     , ValueWriter_(&ValueBuffer_)
@@ -95,7 +93,9 @@ TTableConsumer::TTableConsumer(const std::vector<IValueConsumerPtr>& valueConsum
     , RowIndex_(0)
 {
     YCHECK(!ValueConsumers_.empty());
-    CurrentValueConsumer_ = ValueConsumers_.front().Get();
+    YCHECK(ValueConsumers_.size() > tableIndex);
+    YCHECK(tableIndex >= 0);
+    CurrentValueConsumer_ = ValueConsumers_[tableIndex].Get();
 }
 
 TTableConsumer::TTableConsumer(IValueConsumerPtr valueConsumer)
@@ -132,6 +132,7 @@ void TTableConsumer::OnStringScalar(const TStringBuf& value)
     if (ControlState_ == EControlState::ExpectValue) {
         YASSERT(Depth_ == 1);
         OnControlStringScalar(value);
+        ControlState_ = EControlState::ExpectEndAttributes;
         return;
     }
 
@@ -151,6 +152,7 @@ void TTableConsumer::OnInt64Scalar(i64 value)
     if (ControlState_ == EControlState::ExpectValue) {
         YASSERT(Depth_ == 1);
         OnControlInt64Scalar(value);
+        ControlState_ = EControlState::ExpectEndAttributes;
         return;
     }
 
@@ -444,7 +446,6 @@ void TTableConsumer::OnEndAttributes()
             YUNREACHABLE();
     }
 }
-
 
 void TTableConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
 {

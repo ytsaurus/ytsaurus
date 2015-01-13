@@ -192,10 +192,10 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         assert read('//tmp/out') == \
             [
                 {'key': "0", 'value': "1"},
-                {'key': "2", 'value': "9"},
                 {'key': "2", 'value': "6"},
                 {'key': "2", 'value': "7"},
-                {'key': "2", 'value': "8"}
+                {'key': "2", 'value': "8"},
+                {'key': "2", 'value': "9"}
             ]
 
         assert get('//tmp/out/@sorted')
