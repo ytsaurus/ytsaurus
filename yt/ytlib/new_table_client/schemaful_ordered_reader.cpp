@@ -2,8 +2,7 @@
 #include "schemaful_ordered_reader.h"
 #include "schemaful_reader.h"
 #include "schema.h"
-
-#include <core/actions/future.h>
+#include "unversioned_row.h"
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -26,6 +25,8 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
+        rows->clear();
+
         if (ReadyEvent_ && !ReadyEvent_.IsSet()) {
             return true;
         }

@@ -1,8 +1,7 @@
 #include "stdafx.h"
 #include "schemaful_merging_reader.h"
 #include "schemaful_reader.h"
-
-#include <core/actions/future.h>
+#include "unversioned_row.h"
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -33,6 +32,7 @@ public:
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
         bool pending = false;
+        rows->clear();
 
         for (auto& session : Sessions_) {
             if (session.Exhausted) {
