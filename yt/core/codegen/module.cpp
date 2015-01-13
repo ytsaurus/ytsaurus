@@ -105,9 +105,6 @@ public:
                 << TError(Stroka(what));
         }
 
-        // Now engine holds the module.
-        //module.release();
-
         Module_->setDataLayout(Engine_->getDataLayout()->getStringRepresentation());
     }
 
