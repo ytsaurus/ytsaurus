@@ -11,10 +11,7 @@ using namespace NScheduler;
 ////////////////////////////////////////////////////////////////////////////////
 
 void TCommandBase::Prepare()
-{
-    //ObjectProxy.reset(new TObjectServiceProxy(Context->GetClient()->GetMasterChannel()));
-    SchedulerProxy.reset(new TSchedulerServiceProxy(Context_->GetClient()->GetSchedulerChannel()));
-}
+{ }
 
 void TCommandBase::Reply(const TError& error)
 {
