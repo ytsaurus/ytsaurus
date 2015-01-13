@@ -8,6 +8,7 @@
 #include "journal_writer.h"
 #include "rowset.h"
 #include "config.h"
+#include "private.h"
 
 #include <core/concurrency/scheduler.h>
 
@@ -90,6 +91,10 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const auto& Logger = ApiLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TQueryResponseReader)
 DECLARE_REFCOUNTED_CLASS(TQueryHelper)
 DECLARE_REFCOUNTED_CLASS(TClient)
@@ -119,6 +124,37 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
     }
     return mapping;
 }
+
+template <class T>
+class TBox
+{
+public:
+    explicit TBox(TCallback<T()> callback)
+        : Value_(callback.Run())
+    { }
+
+    T Unwrap()
+    {
+        return std::move(Value_);
+    }
+
+private:
+    T Value_;
+
+};
+
+template <>
+class TBox<void>
+{
+public:
+    explicit TBox(TClosure callback)
+    {
+        callback.Run();
+    }
+
+    void Unwrap()
+    { }
+};
 
 } // namespace
 
@@ -230,9 +266,9 @@ public:
     }
 
 private:
-    IConnectionPtr Connection_;
-    IChannelPtr MasterChannel_;
-    IChannelFactoryPtr NodeChannelFactory_;
+    const IConnectionPtr Connection_;
+    const IChannelPtr MasterChannel_;
+    const IChannelFactoryPtr NodeChannelFactory_;
 
 
     TDataSplit DoGetInitialSplit(
@@ -585,6 +621,8 @@ public:
         QueryHelper_ = New<TQueryHelper>(Connection_, MasterChannel_, NodeChannelFactory_);
 
         ObjectProxy_.reset(new TObjectServiceProxy(MasterChannel_));
+
+        Logger.AddTag("Client: %p", this);
     }
 
 
@@ -634,10 +672,12 @@ public:
 #define IMPLEMENT_METHOD(returnType, method, signature, args) \
     virtual TFuture<returnType> method signature override \
     { \
-        return Execute<returnType>(BIND( \
-            &TClient::Do ## method, \
-            MakeStrong(this), \
-            DROP_BRACES args)); \
+        return Execute( \
+            #method, \
+            BIND( \
+                &TClient::Do ## method, \
+                MakeStrong(this), \
+                DROP_BRACES args)); \
     }
 
     virtual TFuture<IRowsetPtr> LookupRow(
@@ -844,8 +884,10 @@ public:
 private:
     friend class TTransaction;
 
-    IConnectionPtr Connection_;
-    TClientOptions Options_;
+    const IConnectionPtr Connection_;
+    const TClientOptions Options_;
+
+    const IInvokerPtr Invoker_;
 
     IChannelPtr MasterChannel_;
     IChannelPtr SchedulerChannel_;
@@ -853,13 +895,27 @@ private:
     TTransactionManagerPtr TransactionManager_;
     TQueryHelperPtr QueryHelper_;
     std::unique_ptr<TObjectServiceProxy> ObjectProxy_;
-    IInvokerPtr Invoker_;
-    
 
-    template <class TResult, class TSignature>
-    TFuture<TResult> Execute(TCallback<TSignature> callback)
+    NLog::TLogger Logger;
+
+
+    template <class T>
+    TFuture<T> Execute(const Stroka& commandName, TCallback<T()> callback)
     {
-        return callback
+        auto this_ = MakeStrong(this);
+        return
+            BIND([=] () {
+                UNUSED(this_);
+                try {
+                    LOG_DEBUG("Command started (Command: %v)", commandName);
+                    TBox<T> result(callback);
+                    LOG_DEBUG("Command completed (Command: %v)", commandName);
+                    return result.Unwrap();
+                } catch (const std::exception& ex) {
+                    LOG_DEBUG(ex, "Command failed (Command: %v)", commandName);
+                    throw;
+                }
+            })
             .AsyncVia(Invoker_)
             .Run();
     }
