@@ -348,13 +348,18 @@ public:
         return tableProxy->Attributes().Get<TTableSchema>("schema", TTableSchema());
     }
 
-    TTabletStatistics GetTabletStatistics(TTablet* tablet)
+    TTabletStatistics GetTabletStatistics(const TTablet* tablet)
     {
         const auto* table = tablet->GetTable();
         const auto* rootChunkList = table->GetChunkList();
         const auto* tabletChunkList = rootChunkList->Children()[tablet->GetIndex()]->AsChunkList();
         const auto& treeStatistics = tabletChunkList->Statistics();
         TTabletStatistics tabletStatistics;
+        if (tablet->GetState() == ETabletState::Mounted) {
+            const auto& nodeStatistics = tablet->NodeStatistics();
+            tabletStatistics.PartitionCount = nodeStatistics.partition_count();
+            tabletStatistics.StoreCount = nodeStatistics.store_count();
+        }
         tabletStatistics.UnmergedRowCount = treeStatistics.RowCount;
         tabletStatistics.UncompressedDataSize = treeStatistics.UncompressedDataSize;
         tabletStatistics.CompressedDataSize = treeStatistics.CompressedDataSize;
@@ -990,6 +995,15 @@ private:
             }
         }
 
+        // Copy tablet statistics.
+        for (auto& tabletInfo : request.tablets()) {
+            auto tabletId = FromProto<TTabletId>(tabletInfo.tablet_id());
+            auto* tablet = FindTablet(tabletId);
+            if (!tablet || tablet->GetState() != ETabletState::Mounted)
+                continue;
+            tablet->NodeStatistics() = tabletInfo.statistics();
+        }
+
         // Request to remove orphaned Hive cells.
         // Reconfigure missing and outdated ones.
         auto requestReconfigureCell = [&] (TTabletCell* cell) {
@@ -1475,6 +1489,7 @@ private:
                     force);
 
                 tablet->SetState(ETabletState::Unmounting);
+                tablet->NodeStatistics().Clear();
 
                 auto hiveManager = Bootstrap_->GetHiveManager();
 
@@ -1732,7 +1747,7 @@ TTableSchema TTabletManager::GetTableSchema(TTableNode* table)
     return Impl_->GetTableSchema(table);
 }
 
-TTabletStatistics TTabletManager::GetTabletStatistics(TTablet* tablet)
+TTabletStatistics TTabletManager::GetTabletStatistics(const TTablet* tablet)
 {
     return Impl_->GetTabletStatistics(tablet);
 }

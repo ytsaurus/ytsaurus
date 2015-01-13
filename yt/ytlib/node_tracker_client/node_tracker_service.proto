@@ -69,6 +69,18 @@ message THiveCellInfo
     required int32 config_version = 2;
 }
 
+message TTabletStatistics
+{
+    required int32 partition_count = 1;
+    required int32 store_count = 2;
+}
+
+message TTabletInfo
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required TTabletStatistics statistics = 2;
+}
+
 message TReqIncrementalHeartbeat
 {
     required int32 node_id = 1;
@@ -83,6 +95,7 @@ message TReqIncrementalHeartbeat
 
     // Tablet Manager stuff.
     repeated TTabletSlotInfo tablet_slots = 6;
+    repeated TTabletInfo tablets = 8;
 
     // Hive Manager stuff.
     repeated THiveCellInfo hive_cells = 7;

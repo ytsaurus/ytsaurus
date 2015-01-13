@@ -2,6 +2,7 @@
 #include "tablet_proxy.h"
 #include "tablet.h"
 #include "tablet_cell.h"
+#include "tablet_manager.h"
 #include "private.h"
 
 #include <core/yson/consumer.h>
@@ -45,6 +46,7 @@ private:
     {
         const auto* tablet = GetThisTypedImpl();
         attributes->push_back("state");
+        attributes->push_back("statistics");
         attributes->push_back("index");
         attributes->push_back("table_id");
         attributes->push_back("pivot_key");
@@ -57,10 +59,17 @@ private:
     {
         const auto* tablet = GetThisTypedImpl();
         const auto* table = tablet->GetTable();
+        auto tabletManager = Bootstrap->GetTabletManager();
 
         if (key == "state") {
             BuildYsonFluently(consumer)
                 .Value(tablet->GetState());
+            return true;
+        }
+
+        if (key == "statistics") {
+            BuildYsonFluently(consumer)
+                .Value(tabletManager->GetTabletStatistics(tablet));
             return true;
         }
 

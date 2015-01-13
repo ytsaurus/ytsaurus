@@ -147,6 +147,19 @@ public:
     }
 
 
+    std::vector<TTabletSnapshotPtr> GetTabletSnapshots()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TReaderGuard guard(TabletSnapshotsSpinLock_);
+        std::vector<TTabletSnapshotPtr> snapshots;
+        snapshots.reserve(TabletIdToSnapshot_.size());
+        for (const auto& pair : TabletIdToSnapshot_) {
+            snapshots.push_back(pair.second);
+        }
+        return snapshots;
+    }
+
     TTabletSnapshotPtr FindTabletSnapshot(const TTabletId& tabletId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -392,6 +405,11 @@ void TTabletSlotManager::ConfigureSlot(TTabletSlotPtr slot, const TConfigureTabl
 void TTabletSlotManager::RemoveSlot(TTabletSlotPtr slot)
 {
     Impl_->RemoveSlot(slot);
+}
+
+std::vector<TTabletSnapshotPtr> TTabletSlotManager::GetTabletSnapshots()
+{
+    return Impl_->GetTabletSnapshots();
 }
 
 TTabletSnapshotPtr TTabletSlotManager::FindTabletSnapshot(const TTabletId& tabletId)

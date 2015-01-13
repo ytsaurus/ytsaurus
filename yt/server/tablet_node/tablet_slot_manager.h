@@ -50,6 +50,9 @@ public:
     // The following section of methods is used to maintain tablet id to slot mapping.
     // It is safe to call them from any thread.
 
+    //! Returns the list of snapshots for all registered tablets.
+    std::vector<TTabletSnapshotPtr> GetTabletSnapshots();
+
     //! Returns the snapshot for a given tablet or |nullptr| if none.
     TTabletSnapshotPtr FindTabletSnapshot(const TTabletId& tabletId);
 

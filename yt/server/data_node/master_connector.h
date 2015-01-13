@@ -71,8 +71,8 @@ public:
 private:
     using EState = EMasterConnectorState;
 
-    TDataNodeConfigPtr Config_;
-    NCellNode::TBootstrap* Bootstrap_;
+    const TDataNodeConfigPtr Config_;
+    const NCellNode::TBootstrap* Bootstrap_;
 
     bool Started_;
     IInvokerPtr ControlInvoker_;

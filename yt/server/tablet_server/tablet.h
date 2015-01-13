@@ -5,8 +5,11 @@
 #include <core/misc/property.h>
 #include <core/misc/enum.h>
 #include <core/misc/ref_tracked.h>
+#include <core/misc/nullable.h>
 
 #include <ytlib/new_table_client/unversioned_row.h>
+
+#include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
 #include <server/object_server/object.h>
 
@@ -21,6 +24,8 @@ namespace NTabletServer {
 
 struct TTabletStatistics
 {
+    TNullable<int> PartitionCount = 0;
+    TNullable<int> StoreCount = 0;
     i64 UnmergedRowCount = 0;
     i64 UncompressedDataSize = 0;
     i64 CompressedDataSize = 0;
@@ -42,6 +47,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);
     DEFINE_BYVAL_RW_PROPERTY(NVersionedTableClient::TOwningKey, PivotKey);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TTabletStatistics, NodeStatistics);
 
 public:
     explicit TTablet(const TTabletId& id);

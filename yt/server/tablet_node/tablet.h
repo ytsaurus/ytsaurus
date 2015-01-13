@@ -39,6 +39,8 @@ struct TTabletSnapshot
     typedef TPartitionList::iterator TPartitionListIterator;
     TPartitionList Partitions;
 
+    int StoreCount = 0;
+
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
         const TOwningKey& lowerBound,

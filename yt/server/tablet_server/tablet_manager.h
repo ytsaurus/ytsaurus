@@ -37,7 +37,7 @@ public:
 
     NVersionedTableClient::TTableSchema GetTableSchema(NTableServer::TTableNode* table);
 
-    TTabletStatistics GetTabletStatistics(TTablet* tablet);
+    TTabletStatistics GetTabletStatistics(const TTablet* tablet);
     
 
     void MountTable(
