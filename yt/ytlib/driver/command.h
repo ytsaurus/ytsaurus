@@ -7,7 +7,6 @@
 #include <core/misc/error.h>
 #include <core/misc/mpl.h>
 
-#include <core/ytree/public.h>
 #include <core/ytree/yson_serializable.h>
 #include <core/ytree/convert.h>
 
@@ -24,9 +23,6 @@
 
 #include <ytlib/security_client/public.h>
 
-#include <ytlib/scheduler/scheduler_service_proxy.h>
-
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <ytlib/api/connection.h>
@@ -139,14 +135,13 @@ protected:
     ICommandContextPtr Context_ = nullptr;
     bool Replied_ = false;
 
-    // TODO(babenko): deprecate
-    std::unique_ptr<NScheduler::TSchedulerServiceProxy> SchedulerProxy;
 
     virtual void Prepare();
 
     void Reply(const TError& error);
     void Reply(const NYTree::TYsonString& yson);
     void Reply();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -161,7 +156,7 @@ public:
         Context_ = context;
         try {
             ParseRequest();
-            
+
             Prepare();
 
             DoExecute();
