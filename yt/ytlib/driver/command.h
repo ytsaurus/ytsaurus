@@ -136,8 +136,8 @@ class TCommandBase
     : public ICommand
 {
 protected:
-    ICommandContextPtr Context_;
-    bool Replied_;
+    ICommandContextPtr Context_ = nullptr;
+    bool Replied_ = false;
 
     // TODO(babenko): deprecate
     std::unique_ptr<NScheduler::TSchedulerServiceProxy> SchedulerProxy;

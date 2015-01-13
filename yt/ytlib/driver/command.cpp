@@ -10,11 +10,6 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommandBase::TCommandBase()
-    : Context_(nullptr)
-    , Replied_(false)
-{ }
-
 void TCommandBase::Prepare()
 {
     //ObjectProxy.reset(new TObjectServiceProxy(Context->GetClient()->GetMasterChannel()));
