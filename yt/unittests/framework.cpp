@@ -78,7 +78,7 @@ void RunAndTrackFiber(TClosure closure)
 
     auto promise = NewPromise<TFiberPtr>();
 
-    BIND([=] () mutable {
+    BIND([invoker, promise, closure] () mutable {
         // NB: Make sure TActionQueue does not keep a strong reference to this fiber by forcing a yield.
         SwitchTo(invoker);
         promise.Set(GetCurrentScheduler()->GetCurrentFiber());
