@@ -23,7 +23,9 @@ TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker)
     YASSERT(invoker);
 
     if (future.IsCanceled()) {
-        throw TFiberCanceledException();
+        return TError(
+            NYT::EErrorCode::Canceled,
+            "Attempt to wait for a canceled future");
     }
 
     auto* scheduler = TryGetCurrentScheduler();
