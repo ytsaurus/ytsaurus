@@ -910,11 +910,18 @@ struct TAsyncViaHelper<R(TArgs...)>
     // TODO(babenko): consider moving args
     static void Inner(const TSourceCallback& this_, TPromise<TUnderlying> promise, TArgs... args)
     {
-        if (promise.isca)
+        if (promise.IsCanceled()) {
+            promise.Set(TError(
+                NYT::EErrorCode::Canceled,
+                "Computation was canceled before being started"));
+            return;
+        }
+
         auto canceler = NConcurrency::GetCurrentFiberCanceler();
         if (canceler) {
             promise.OnCanceled(std::move(canceler));
         }
+
         NYT::NDetail::TPromiseSetter<TUnderlying, R(TArgs...)>::Do(promise, this_, args...);
     }
 
