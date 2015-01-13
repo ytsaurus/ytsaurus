@@ -732,15 +732,17 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     DeclareMutating();
 
     auto type = EObjectType(request->type());
+    auto ignoreExisting = request->ignore_existing();
+    auto recursive = request->recursive();
     const auto& path = GetRequestYPath(context);
 
     context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v",
         type,
-        request->ignore_existing(),
-        request->recursive());
+        ignoreExisting,
+        recursive);
 
     if (path.Empty()) {
-        if (request->ignore_existing() && GetThisImpl()->GetType() == type) {
+        if (ignoreExisting && GetThisImpl()->GetType() == type) {
             ToProto(response->mutable_node_id(), GetId());
             context->Reply();
             return;
