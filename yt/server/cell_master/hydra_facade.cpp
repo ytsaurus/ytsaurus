@@ -246,7 +246,7 @@ private:
                     snapshotId);
 
                 try {
-                    NFS::Remove(fileName);
+                    NFS::Remove(NFS::CombinePaths(snapshotsPath, fileName));
                 } catch (const std::exception& ex) {
                     LOG_WARNING(ex, "Error removing %v from snapshot store",
                         fileName);
