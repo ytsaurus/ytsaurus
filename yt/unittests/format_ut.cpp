@@ -102,6 +102,9 @@ TEST(TFormatTest, Quotes)
 {
     EXPECT_EQ("\"True\"", Format("%Qv", true));
     EXPECT_EQ("'False'", Format("%qv", false));
+    EXPECT_EQ("'\\\'\"'", Format("%qv", "\'\""));
+    EXPECT_EQ("\"\\x01\"", Format("%Qv", "\x1"));
+    EXPECT_EQ("'\\x33'", Format("%qv", '\x33'));
 }
 
 TEST(TFormatTest, Nullable)
