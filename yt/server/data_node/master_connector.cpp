@@ -496,8 +496,7 @@ void TMasterConnector::OnChunkAdded(TChunkPtr chunk)
 
     if (RemovedSinceLastSuccess.find(chunk) != RemovedSinceLastSuccess.end()) {
         RemovedSinceLastSuccess.erase(chunk);
-        LOG_DEBUG("Trying to add a chunk whose removal has been registered, canceling removal and addition");
-        return;
+        LOG_DEBUG("Trying to add a chunk whose removal has been registered, canceling removal");
     }
 
     LOG_DEBUG("Registered addition of chunk");
@@ -523,9 +522,8 @@ void TMasterConnector::OnChunkRemoved(TChunkPtr chunk)
     }
 
     if (AddedSinceLastSuccess.find(chunk) != AddedSinceLastSuccess.end()) {
+        LOG_DEBUG("Trying to remove a chunk whose addition has been registered, canceling addition");
         AddedSinceLastSuccess.erase(chunk);
-        LOG_DEBUG("Trying to remove a chunk whose addition has been registered, canceling addition and removal");
-        return;
     }
 
     LOG_DEBUG("Registered removal of chunk");
