@@ -15,6 +15,7 @@
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_slice.h>
+#include <ytlib/chunk_client/data_statistics.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/private.h>
@@ -635,11 +636,11 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet)
 {
     if (Controller->IsRowCountPreserved()) {
         const auto& statistics = joblet->Job->Result().statistics();
-        if (statistics.input().row_count() != statistics.output().row_count()) {
+        if (statistics.input().row_count() != GetTotalOutput(statistics).row_count()) {
             Controller->OnOperationFailed(TError(
                 "Input/output row count mismatch in completed job: %v != %v",
                 statistics.input().row_count(),
-                statistics.output().row_count())
+                GetTotalOutput(statistics).row_count())
                 << TErrorAttribute("task", GetId()));
         }
     }
@@ -961,19 +962,12 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableBackgroundInvoker(CancelableContext->CreateInvoker(Host->GetBackgroundInvoker()))
     , Prepared(false)
     , Running(false)
-    , TotalEstimateInputChunkCount(0)
-    , TotalEstimateInputDataSize(0)
-    , TotalEstimateInputRowCount(0)
-    , TotalEstimateInputValueCount(0)
-    , TotalActualInputChunkCount(0)
-    , TotalActualInputDataSize(0)
-    , TotalActualInputRowCount(0)
-    , TotalIntermeidateChunkCount(0)
-    , TotalIntermediateDataSize(0)
-    , TotalIntermediateRowCount(0)
-    , TotalOutputChunkCount(0)
-    , TotalOutputDataSize(0)
-    , TotalOutputRowCount(0)
+    , TotalEstimatedInputChunkCount(0)
+    , TotalEstimatedInputDataSize(0)
+    , TotalEstimatedInputRowCount(0)
+    , TotalEstimatedInputValueCount(0)
+    , TotalExactInput(NChunkClient::NProto::ZeroDataStatistics())
+    , TotalIntermeidate(NChunkClient::NProto::ZeroDataStatistics())
     , UnavailableInputChunkCount(0)
     , JobCounter(0)
     , CompletedJobStatistics(ZeroJobStatistics())
@@ -3123,18 +3117,18 @@ void TOperationControllerBase::CollectTotals()
             i64 chunkValueCount;
             NChunkClient::GetStatistics(chunk, &chunkDataSize, &chunkRowCount, &chunkValueCount);
 
-            TotalEstimateInputDataSize += chunkDataSize;
-            TotalEstimateInputRowCount += chunkRowCount;
-            TotalEstimateInputValueCount += chunkValueCount;
-            ++TotalEstimateInputChunkCount;
+            TotalEstimatedInputDataSize += chunkDataSize;
+            TotalEstimatedInputRowCount += chunkRowCount;
+            TotalEstimatedInputValueCount += chunkValueCount;
+            ++TotalEstimatedInputChunkCount;
         }
     }
 
     LOG_INFO("Estimate input totals collected (ChunkCount: %v, DataSize: %v, RowCount: %v, ValueCount: %v)",
-        TotalEstimateInputChunkCount,
-        TotalEstimateInputDataSize,
-        TotalEstimateInputRowCount,
-        TotalEstimateInputValueCount);
+        TotalEstimatedInputChunkCount,
+        TotalEstimatedInputDataSize,
+        TotalEstimatedInputRowCount,
+        TotalEstimatedInputValueCount);
 }
 
 void TOperationControllerBase::CustomPrepare()
@@ -3184,8 +3178,8 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
         }
     };
 
-    // TODO(ignat): we slice on two parts even id TotalEstimateInputDataSize very small.
-    i64 sliceDataSize = std::min(maxSliceDataSize, (i64)std::max(Config->SliceDataSizeMultiplier * TotalEstimateInputDataSize / jobCount, 1.0));
+    // TODO(ignat): we slice on two parts even id TotalEstimatedInputDataSize very small.
+    i64 sliceDataSize = std::min(maxSliceDataSize, (i64)std::max(Config->SliceDataSizeMultiplier * TotalEstimatedInputDataSize / jobCount, 1.0));
 
     for (const auto& chunkSpec : CollectInputChunks()) {
         int oldSize = result.size();
@@ -3355,10 +3349,7 @@ void TOperationControllerBase::RegisterInput(TJobletPtr joblet)
 {
     // Update input statistics.
     const auto& jobResult = joblet->Job->Result();
-    const auto& inputStatistics = jobResult.statistics().input();
-    TotalActualInputChunkCount += inputStatistics.chunk_count();
-    TotalActualInputRowCount += inputStatistics.row_count();
-    TotalActualInputDataSize += inputStatistics.uncompressed_data_size();
+    TotalExactInput += jobResult.statistics().input();
 }
 
 void TOperationControllerBase::RegisterOutput(
@@ -3382,10 +3373,14 @@ void TOperationControllerBase::RegisterOutput(
 {
     // Update output statistics.
     const auto& jobResult = joblet->Job->Result();
-    const auto& outputStatistics = jobResult.statistics().output();
-    TotalOutputChunkCount += outputStatistics.chunk_count();
-    TotalOutputRowCount += outputStatistics.row_count();
-    TotalOutputDataSize += outputStatistics.uncompressed_data_size();
+    const auto& statistics = jobResult.statistics();
+    for (auto i = 0; i < statistics.output_size(); ++i) {
+        if (i >= TotalOutputs.size()) {
+            YCHECK(i == TotalOutputs.size());
+            TotalOutputs.push_back(NChunkClient::NProto::ZeroDataStatistics());
+        }
+        TotalOutputs[i] += statistics.output(i);
+    }
 
     const auto* userJobResult = FindUserJobResult(joblet);
 
@@ -3438,10 +3433,7 @@ void TOperationControllerBase::RegisterIntermediate(
 {
     // Update output statistics.
     const auto& jobResult = joblet->Job->Result();
-    const auto& outputStatistics = jobResult.statistics().output();
-    TotalIntermeidateChunkCount += outputStatistics.chunk_count();
-    TotalIntermediateRowCount += outputStatistics.row_count();
-    TotalIntermediateDataSize += outputStatistics.uncompressed_data_size();
+    TotalIntermeidate += GetTotalOutput(jobResult.statistics());
 
     for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto chunkId = FromProto<TChunkId>(chunkSlice->GetChunkSpec()->chunk_id());
@@ -3497,28 +3489,19 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
             .Item("failed").Value(FailedJobStatistics)
             .Item("aborted").Value(AbortedJobStatistics)
         .EndMap()
-        .Item("estimate_input_statistics").BeginMap()
-            .Item("chunk_count").Value(TotalEstimateInputChunkCount)
-            .Item("uncompressed_data_size").Value(TotalEstimateInputDataSize)
-            .Item("row_count").Value(TotalEstimateInputRowCount)
+        .Item("estimated_input_statistics").BeginMap()
+            .Item("chunk_count").Value(TotalEstimatedInputChunkCount)
+            .Item("uncompressed_data_size").Value(TotalEstimatedInputDataSize)
+            .Item("row_count").Value(TotalEstimatedInputRowCount)
             .Item("unavailable_chunk_count").Value(UnavailableInputChunkCount)
         .EndMap()
-        .Item("actual_input_statistics").BeginMap()
-            .Item("chunk_count").Value(TotalActualInputChunkCount)
-            .Item("uncompressed_data_size").Value(TotalActualInputDataSize)
-            .Item("row_count").Value(TotalActualInputRowCount)
-            .Item("unavailable_chunk_count").Value(UnavailableInputChunkCount)
-        .EndMap()
-        .Item("intermediate_statistics").BeginMap()
-            .Item("chunk_count").Value(TotalIntermeidateChunkCount)
-            .Item("uncompressed_data_size").Value(TotalIntermediateDataSize)
-            .Item("row_count").Value(TotalIntermediateRowCount)
-        .EndMap()
-        .Item("output_statistics").BeginMap()
-            .Item("chunk_count").Value(TotalOutputChunkCount)
-            .Item("uncompressed_data_size").Value(TotalOutputDataSize)
-            .Item("row_count").Value(TotalOutputRowCount)
-        .EndMap()
+        .Item("exact_input_statistics").Value(TotalExactInput)
+        .Item("intermediate_statistics").Value(TotalIntermeidate)
+        .Item("output_statistics").DoListFor(
+            TotalOutputs,
+            [] (TFluentList fluent, const NChunkClient::NProto::TDataStatistics& statistics) {
+                fluent.Item().Value(statistics);
+            })
         .Item("live_preview").BeginMap()
             .Item("output_supported").Value(IsOutputLivePreviewSupported())
             .Item("intermediate_supported").Value(IsIntermediateLivePreviewSupported())
@@ -3787,22 +3770,14 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 {
     using NYT::Persist;
 
-    Persist(context, TotalEstimateInputChunkCount);
-    Persist(context, TotalEstimateInputDataSize);
-    Persist(context, TotalEstimateInputRowCount);
-    Persist(context, TotalEstimateInputValueCount);
+    Persist(context, TotalEstimatedInputChunkCount);
+    Persist(context, TotalEstimatedInputDataSize);
+    Persist(context, TotalEstimatedInputRowCount);
+    Persist(context, TotalEstimatedInputValueCount);
 
-    Persist(context, TotalActualInputChunkCount);
-    Persist(context, TotalActualInputDataSize);
-    Persist(context, TotalActualInputRowCount);
-
-    Persist(context, TotalIntermeidateChunkCount);
-    Persist(context, TotalIntermediateDataSize);
-    Persist(context, TotalIntermediateRowCount);
-
-    Persist(context, TotalOutputChunkCount);
-    Persist(context, TotalOutputDataSize);
-    Persist(context, TotalOutputRowCount);
+    Persist(context, TotalExactInput);
+    Persist(context, TotalIntermeidate);
+    Persist(context, TotalOutputs);
 
     Persist(context, UnavailableInputChunkCount);
 

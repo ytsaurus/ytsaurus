@@ -276,7 +276,7 @@ public:
         TJobStatistics result;
         result.set_time(GetElapsedTime().MilliSeconds());
         ToProto(result.mutable_input(), Reader->GetProvider()->GetDataStatistics());
-        ToProto(result.mutable_output(), Writer->GetDataStatistics());
+        ToProto(result.add_output(), Writer->GetDataStatistics());
         return result;
     }
 

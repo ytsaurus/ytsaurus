@@ -319,7 +319,7 @@ private:
         }
 
         auto jobCount = SuggestJobCount(
-            TotalEstimateInputDataSize,
+            TotalEstimatedInputDataSize,
             Spec_->DataSizePerJob,
             Spec_->JobCount);
         jobCount = std::min(jobCount, static_cast<int>(stripes.size()));

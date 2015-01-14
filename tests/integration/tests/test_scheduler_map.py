@@ -568,7 +568,19 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert get("//tmp/t2/@row_count") == 1
 
         progress = get("//sys/operations/{0}/@progress".format(op_id))
-        assert progress["actual_input_statistics"]["row_count"] == 1
+        assert progress["exact_input_statistics"]["row_count"] == 1
+
+    def test_multiple_output_row_count(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        create("table", "//tmp/t3")
+        write("//tmp/t1", [{"key" : i} for i in xrange(5)])
+
+        op_id = map(command="cat; echo {hello=world} >&4", in_="//tmp/t1", out=["//tmp/t2", "//tmp/t3"])
+        progress = get("//sys/operations/{0}/@progress".format(op_id))
+        assert progress["output_statistics"][0]["row_count"] == 5
+        assert progress["output_statistics"][1]["row_count"] == 1
+
 
     def test_invalid_output_record(self):
         create("table", "//tmp/t1")

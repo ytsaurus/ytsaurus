@@ -18,7 +18,7 @@ message TJobSpec
 message TJobStatistics
 {
     required NChunkClient.NProto.TDataStatistics input = 1;
-    required NChunkClient.NProto.TDataStatistics output = 2;
+    repeated NChunkClient.NProto.TDataStatistics output = 2;
     required int64 time = 3;
 
     optional bytes statistics = 6;
@@ -28,7 +28,7 @@ message TJobStatistics
 message TJobResult
 {
     required NYT.NProto.TError error = 1;
-    required TJobStatistics statistics = 2; 
+    required TJobStatistics statistics = 2;
 
     extensions 100 to max;
 }
