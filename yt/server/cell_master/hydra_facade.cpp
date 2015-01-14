@@ -248,7 +248,7 @@ private:
                 try {
                     NFS::Remove(fileName);
                 } catch (const std::exception& ex) {
-                    LOG_WARNING("Error removing %v from snapshot store",
+                    LOG_WARNING(ex, "Error removing %v from snapshot store",
                         fileName);
                 }
             }
@@ -275,7 +275,7 @@ private:
                 try {
                     RemoveChangelogFiles(NFS::CombinePaths(changelogsPath, fileName));
                 } catch (const std::exception& ex) {
-                    LOG_WARNING("Error removing %v from changelog store",
+                    LOG_WARNING(ex, "Error removing %v from changelog store",
                         fileName);
                 }
             }
