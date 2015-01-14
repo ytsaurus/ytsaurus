@@ -239,7 +239,8 @@ protected:
     virtual void DoClone(
         TJournalNode* /*sourceNode*/,
         TJournalNode* /*clonedNode*/,
-        ICypressNodeFactoryPtr /*factory*/) override
+        ICypressNodeFactoryPtr /*factory*/,
+        ENodeCloneMode /*mode*/) override
     {
         THROW_ERROR_EXCEPTION("Journals cannot be cloned");
     }

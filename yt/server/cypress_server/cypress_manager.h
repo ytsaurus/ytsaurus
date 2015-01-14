@@ -74,7 +74,8 @@ public:
     //! Clones a node and registers its clone.
     TCypressNodeBase* CloneNode(
         TCypressNodeBase* sourceNode,
-        ICypressNodeFactoryPtr factory);
+        ICypressNodeFactoryPtr factory,
+        ENodeCloneMode mode);
 
     //! Returns the root node.
     TCypressNodeBase* GetRootNode() const;

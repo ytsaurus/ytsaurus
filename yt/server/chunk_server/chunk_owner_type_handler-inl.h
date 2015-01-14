@@ -229,9 +229,10 @@ template <class TChunkOwner>
 void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     TChunkOwner* sourceNode,
     TChunkOwner* clonedNode,
-    NCypressServer::ICypressNodeFactoryPtr factory)
+    NCypressServer::ICypressNodeFactoryPtr factory,
+    NCypressServer::ENodeCloneMode mode)
 {
-    TBase::DoClone(sourceNode, clonedNode, factory);
+    TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
     auto objectManager = TBase::Bootstrap->GetObjectManager();
 

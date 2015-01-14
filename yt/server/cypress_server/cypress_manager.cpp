@@ -207,14 +207,16 @@ public:
         return node;
     }
 
-    virtual TCypressNodeBase* CloneNode(TCypressNodeBase* sourceNode) override
+    virtual TCypressNodeBase* CloneNode(
+        TCypressNodeBase* sourceNode,
+        ENodeCloneMode mode) override
     {
         ValidateCreatedNodeType(sourceNode->GetType());
 
         GetClonedNodeAccount(sourceNode)->ValidateResourceUsageIncrease(sourceNode->GetResourceUsage());
 
         auto cypressManager = Bootstrap_->GetCypressManager();
-        auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this);
+        auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this, mode);
 
         RegisterCreatedNode(clonedTrunkNode);
 
@@ -593,7 +595,8 @@ TCypressNodeBase* TCypressManager::CreateNode(const TNodeId& id)
 
 TCypressNodeBase* TCypressManager::CloneNode(
     TCypressNodeBase* sourceNode,
-    ICypressNodeFactoryPtr factory)
+    ICypressNodeFactoryPtr factory,
+    ENodeCloneMode mode)
 {
     YCHECK(sourceNode);
     YCHECK(factory);
@@ -604,7 +607,7 @@ TCypressNodeBase* TCypressManager::CloneNode(
     securityManager->ValidatePermission(account, EPermission::Use);
 
     auto handler = GetHandler(sourceNode);
-    auto* clonedNode = handler->Clone(sourceNode, factory);
+    auto* clonedNode = handler->Clone(sourceNode, factory, mode);
 
     // Set account.
     securityManager->SetAccount(clonedNode, account);

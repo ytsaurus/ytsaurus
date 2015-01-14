@@ -199,13 +199,14 @@ protected:
     virtual void DoClone(
         TTableNode* sourceNode,
         TTableNode* clonedNode,
-        NCypressServer::ICypressNodeFactoryPtr factory) override
+        NCypressServer::ICypressNodeFactoryPtr factory,
+        ENodeCloneMode mode) override
     {
         if (sourceNode->IsDynamic()) {
             THROW_ERROR_EXCEPTION("Dynamic tables cannot be cloned");
         }
 
-        TBase::DoClone(sourceNode, clonedNode, factory);
+        TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
         clonedNode->SetSorted(sourceNode->GetSorted());
         clonedNode->KeyColumns() = sourceNode->KeyColumns();
