@@ -160,10 +160,8 @@ private:
             LOG_DEBUG("Opening remote snapshot reader");
             {
                 TFileReaderOptions options;
-                Reader_ = Store_->MasterClient_->CreateFileReader(
-                    Store_->GetRemotePath(SnapshotId_),
-                    options,
-                    Store_->Config_->Reader);
+                options.Config = Store_->Config_->Reader;
+                Reader_ = Store_->MasterClient_->CreateFileReader(Store_->GetRemotePath(SnapshotId_), options);
 
                 auto result = Reader_->Open().Get();
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
@@ -295,10 +293,8 @@ private:
                 TFileWriterOptions options;
                 options.TransactionId = Transaction_->GetId();
                 options.PrerequisiteTransactionIds = Store_->PrerequisiteTransactionIds_;
-                Writer_ = Store_->MasterClient_->CreateFileWriter(
-                    Store_->GetRemotePath(SnapshotId_),
-                    options,
-                    Store_->Config_->Writer);
+                options.Config = Store_->Config_->Writer;
+                Writer_ = Store_->MasterClient_->CreateFileWriter(Store_->GetRemotePath(SnapshotId_), options);
 
                 auto error = WaitFor(Writer_->Open());
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);

@@ -42,11 +42,13 @@ void TSnapshotDownloader::Run()
     auto client = Bootstrap->GetMasterClient();
 
     auto snapshotPath = GetSnapshotPath(Operation->GetId());
-    
-    auto reader = client->CreateFileReader(
-        snapshotPath,
-        TFileReaderOptions(),
-        Config->SnapshotReader);
+
+    IFileReaderPtr reader;
+    {
+        TFileReaderOptions options;
+        options.Config = Config->SnapshotReader;
+        reader = client->CreateFileReader(snapshotPath, options);
+    }
 
     {
         auto result = WaitFor(reader->Open());

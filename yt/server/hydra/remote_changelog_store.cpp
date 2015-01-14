@@ -114,10 +114,8 @@ private:
         {
             TJournalWriterOptions options;
             options.PrerequisiteTransactionIds = PrerequisiteTransactionIds_;
-            writer = MasterClient_->CreateJournalWriter(
-                path,
-                options,
-                Config_->Writer);
+            options.Config = Config_->Writer;
+            writer = MasterClient_->CreateJournalWriter(path, options);
             auto result = WaitFor(writer->Open());
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
@@ -320,11 +318,8 @@ private:
             TJournalReaderOptions options;
             options.FirstRowIndex = firstRecordId;
             options.RowCount = maxRecords;
-
-            auto reader = Owner_->MasterClient_->CreateJournalReader(
-                Path_,
-                options,
-                Owner_->Config_->Reader);
+            options.Config = Owner_->Config_->Reader;
+            auto reader = Owner_->MasterClient_->CreateJournalReader(Path_, options);
 
             THROW_ERROR_EXCEPTION_IF_FAILED(WaitFor(reader->Open()));
 

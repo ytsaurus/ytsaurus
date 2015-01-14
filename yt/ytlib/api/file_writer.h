@@ -36,8 +36,7 @@ DEFINE_REFCOUNTED_TYPE(IFileWriter)
 IFileWriterPtr CreateFileWriter(
     IClientPtr client,
     const NYPath::TYPath& path,
-    const TFileWriterOptions& options = TFileWriterOptions(),
-    TFileWriterConfigPtr config = TFileWriterConfigPtr());
+    const TFileWriterOptions& options = TFileWriterOptions());
 
 ///////////////////////////////////////////////////////////////////////////////
 

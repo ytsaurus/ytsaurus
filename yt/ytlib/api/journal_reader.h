@@ -32,8 +32,7 @@ DEFINE_REFCOUNTED_TYPE(IJournalReader)
 IJournalReaderPtr CreateJournalReader(
     IClientPtr client,
     const NYPath::TYPath& path,
-    const TJournalReaderOptions& options = TJournalReaderOptions(),
-    TJournalReaderConfigPtr config = TJournalReaderConfigPtr());
+    const TJournalReaderOptions& options = TJournalReaderOptions());
 
 ///////////////////////////////////////////////////////////////////////////////
 
