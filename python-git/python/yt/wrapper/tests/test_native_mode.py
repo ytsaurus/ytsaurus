@@ -1,9 +1,10 @@
 #!/usr/bin/python
 
 from yt.wrapper.client import Yt
-import yt.yson as yson
+from yt.wrapper.common import parse_bool
 from yt.wrapper.tests.base import YtTestBase, TEST_DIR
 from yt.environment import YTEnv
+import yt.yson as yson
 import yt.wrapper as yt
 
 import inspect
@@ -240,9 +241,16 @@ class NativeModeTester(YtTestBase, YTEnv):
 
         yt.mkdir(dir)
         yt.run_merge([tableX, tableY], res_table)
-        self.check(["x=1\n"], yt.read_table(tableX))
-        self.check(["y=2\n"], yt.read_table(tableY))
         self.check(["x=1\n", "y=2\n"], yt.read_table(res_table))
+
+        yt.run_merge(tableX, res_table)
+        self.assertFalse(parse_bool(yt.get_attribute(res_table, "sorted")))
+        self.check(["x=1\n"], yt.read_table(res_table))
+
+        yt.run_sort(tableX, sort_by="x")
+        yt.run_merge(tableX, res_table)
+        self.assertTrue(parse_bool(yt.get_attribute(res_table, "sorted")))
+        self.check(["x=1\n"], yt.read_table(res_table))
 
     def test_run_operation(self):
         table = TEST_DIR + "/table"

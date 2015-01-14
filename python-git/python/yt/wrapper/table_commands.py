@@ -864,8 +864,9 @@ def run_merge(source_table, destination_table, mode=None,
 
     :param source_table: list of string or `TablePath`, list tables names to merge
     :param destination_table: string or `TablePath`, path to result table
-    :param mode: ['unordered' (default), 'ordered', or 'sorted']. Mode `sorted` keeps sortedness \
+    :param mode: ['auto' (default), 'unordered', 'ordered', or 'sorted']. Mode `sorted` keeps sortedness \
                  of output tables, mode `ordered` is about chunk magic, not for ordinary users.
+                 In 'auto' mode system chooses proper mode depending on the table sortedness.
     :param strategy: standard operation parameter
     :param table_writer: standard operation parameter
     :param replication_factor: (int) number of destination table replicas.
@@ -884,12 +885,16 @@ def run_merge(source_table, destination_table, mode=None,
         _remove_tables([destination_table], client=client)
         return
 
+    mode = get_value(mode, "auto")
+    if mode == "auto":
+        mode = "sorted" if all(map(is_sorted, source_table)) else "unordered"
+
     spec = compose(
         _configure_spec,
         lambda _: _add_table_writer_spec("job_io", table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
-        lambda _: update({"mode": get_value(mode, "unordered")}, _),
+        lambda _: update({"mode": mode}, _),
         lambda _: get_value(_, {})
     )(spec)
 
