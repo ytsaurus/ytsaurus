@@ -1116,6 +1116,7 @@ def _run_operation(binary, source_table, destination_table,
                   memory_limit=None,
                   spec=None,
                   op_name=None,
+                  sort_by=None,
                   reduce_by=None,
                   client=None):
     """Run script operation.
@@ -1146,7 +1147,10 @@ def _run_operation(binary, source_table, destination_table,
     finalize = None
 
     if op_name == "reduce":
-        sort_by = _prepare_sort_by(reduce_by)
+        if sort_by is None:
+            sort_by = _prepare_sort_by(reduce_by)
+        else:
+            sort_by = _prepare_sort_by(sort_by)
         reduce_by = _prepare_reduce_by(reduce_by)
 
         if config.RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED:
@@ -1204,6 +1208,7 @@ def _run_operation(binary, source_table, destination_table,
             lambda _: _add_table_writer_spec("job_io", table_writer, _),
             lambda _: _add_input_output_spec(source_table, destination_table, _),
             lambda _: update({"reduce_by": reduce_by}, _) if op_name == "reduce" else _,
+            lambda _: update({"sort_by": sort_by}, _) if op_name == "reduce" and sort_by is not None else _,
             lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
             lambda _: memorize_files(*_add_user_command_spec(op_type, binary,
                 format, input_format, output_format,
