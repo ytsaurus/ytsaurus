@@ -25,9 +25,9 @@ public:
         , Consumer(consumer)
     { }
     
-    void DoParse(EYsonType ParsingMode)
+    void DoParse(EYsonType parsingMode)
     {
-        switch (ParsingMode) {
+        switch (parsingMode) {
             case EYsonType::Node:
                 ParseNode<true>();
                 break;
