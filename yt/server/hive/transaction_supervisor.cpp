@@ -401,11 +401,13 @@ private:
                 transactionId);
             SetCommitFailed(commit, ex);
             PersistentCommitMap_.Remove(transactionId);
-            // Best effort, fire-and-forget.
-            auto this_ = MakeStrong(this);
-            EpochAutomatonInvoker_->Invoke(BIND([this, this_, transactionId] () {
-                AbortTransaction(transactionId, false);
-            }));
+            if (IsLeader()) {
+                // Best effort, fire-and-forget.
+                auto this_ = MakeStrong(this);
+                EpochAutomatonInvoker_->Invoke(BIND([this, this_, transactionId] () {
+                    AbortTransaction(transactionId, false);
+                }));
+            }
             return;
         }
 
