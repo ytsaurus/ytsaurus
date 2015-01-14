@@ -50,9 +50,7 @@ protected:
         TChunkOwnerTypeHandler::SetDefaultAttributes(attributes, transaction);
 
         if (!attributes->Contains("compression_codec")) {
-            attributes->Set(
-                "compression_codec",
-                NCompression::ECodec(NCompression::ECodec::None));
+            attributes->Set("compression_codec", NCompression::ECodec::None);
         }
     }
 
