@@ -49,6 +49,8 @@ struct ICypressNodeFactory
 
 };
 
+DEFINE_REFCOUNTED_TYPE(ICypressNodeFactory)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Extends NYTree::INode by adding functionality that is common to all
@@ -77,6 +79,8 @@ struct ICypressNodeProxy
         bool preserveAccount) const = 0;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(ICypressNodeProxy)
 
 ////////////////////////////////////////////////////////////////////////////////
 

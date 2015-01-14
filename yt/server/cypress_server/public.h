@@ -13,31 +13,20 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressManagerConfig;
-typedef TIntrusivePtr<TCypressManagerConfig> TCypressManagerConfigPtr;
+DECLARE_REFCOUNTED_STRUCT(INodeTypeHandler)
+DECLARE_REFCOUNTED_STRUCT(ICypressNodeFactory)
+DECLARE_REFCOUNTED_STRUCT(ICypressNodeProxy)
+DECLARE_REFCOUNTED_STRUCT(ICypressNodeVisitor)
 
-class TAccessTracker;
-typedef TIntrusivePtr<TAccessTracker> TAccessTrackerPtr;
-
-class TCypressManager;
-typedef TIntrusivePtr<TCypressManager> TCypressManagerPtr;
-
-struct INodeTypeHandler;
-typedef TIntrusivePtr<INodeTypeHandler> INodeTypeHandlerPtr;
+DECLARE_REFCOUNTED_CLASS(TAccessTracker)
+DECLARE_REFCOUNTED_CLASS(TCypressManager)
 
 class TCypressNodeBase;
 
 struct TLockRequest;
 class TLock;
 
-struct ICypressNodeFactory;
-typedef TIntrusivePtr<ICypressNodeFactory> ICypressNodeFactoryPtr;
-
-struct ICypressNodeProxy;
-typedef TIntrusivePtr<ICypressNodeProxy> ICypressNodeProxyPtr;
-
-struct ICypressNodeVisitor;
-typedef TIntrusivePtr<ICypressNodeVisitor> ICypressNodeVisitorPtr;
+DECLARE_REFCOUNTED_CLASS(TCypressManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
