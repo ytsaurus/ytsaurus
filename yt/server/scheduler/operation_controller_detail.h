@@ -156,26 +156,19 @@ protected:
 
 
     // These totals are approximate.
-    int TotalEstimateInputChunkCount;
-    i64 TotalEstimateInputDataSize;
-    i64 TotalEstimateInputRowCount;
-    i64 TotalEstimateInputValueCount;
-
-    // These totals are exact
-    int TotalActualInputChunkCount;
-    i64 TotalActualInputDataSize;
-    i64 TotalActualInputRowCount;
-    i64 TotalActualInputValueCount;
+    int TotalEstimatedInputChunkCount;
+    i64 TotalEstimatedInputDataSize;
+    i64 TotalEstimatedInputRowCount;
+    i64 TotalEstimatedInputValueCount;
 
     // These totals are exact.
-    int TotalIntermeidateChunkCount;
-    i64 TotalIntermediateDataSize;
-    i64 TotalIntermediateRowCount;
+    NChunkClient::NProto::TDataStatistics TotalExactInput;
 
     // These totals are exact.
-    int TotalOutputChunkCount;
-    i64 TotalOutputDataSize;
-    i64 TotalOutputRowCount;
+    NChunkClient::NProto::TDataStatistics TotalIntermeidate;
+
+    // These totals are exact.
+    std::vector<NChunkClient::NProto::TDataStatistics> TotalOutputs;
 
     int UnavailableInputChunkCount;
 

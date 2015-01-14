@@ -189,7 +189,7 @@ void TJobProxy::Run()
         }
 
         customStatistics.Add("/job_proxy/input", jobStatistics.input());
-        customStatistics.Add("/job_proxy/output", jobStatistics.output());
+        customStatistics.Add("/job_proxy/output", GetTotalOutput(jobStatistics));
 
         ToProto(jobStatistics.mutable_statistics(), NYTree::ConvertToYsonString(customStatistics).Data());
         ToProto(result.mutable_statistics(), jobStatistics);
@@ -208,15 +208,15 @@ std::unique_ptr<IUserJobIO> TJobProxy::CreateUserJobIO()
         case NScheduler::EJobType::Map:
             return CreateMapJobIO(this);
 
-        case NScheduler::EJobType::SortedReduce: 
+        case NScheduler::EJobType::SortedReduce:
             return CreateSortedReduceJobIO(this);
 
-        case NScheduler::EJobType::PartitionMap: 
+        case NScheduler::EJobType::PartitionMap:
             return CreatePartitionMapJobIO(this);
 
         // ToDo(psushin): handle separately to form job result differently.
-        case NScheduler::EJobType::ReduceCombiner: 
-        case NScheduler::EJobType::PartitionReduce: 
+        case NScheduler::EJobType::ReduceCombiner:
+        case NScheduler::EJobType::PartitionReduce:
             return CreatePartitionReduceJobIO(this);
 
         default:

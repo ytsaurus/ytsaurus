@@ -45,6 +45,8 @@
 
 #include <ytlib/chunk_client/data_statistics.h>
 
+#include <ytlib/job_tracker_client/statistics.h>
+
 #include <ytlib/node_tracker_client/helpers.h>
 
 #include <ytlib/scheduler/helpers.h>
@@ -1921,7 +1923,7 @@ private:
                     const auto& statistics = jobStatus->result().statistics();
                     LOG_INFO("Job completed, removal scheduled (Input: {%v}, Output: {%v}, Time: %v)",
                         statistics.input(),
-                        statistics.output(),
+                        GetTotalOutput(statistics),
                         statistics.time());
                 } else {
                     LOG_INFO("Job completed, removal scheduled");

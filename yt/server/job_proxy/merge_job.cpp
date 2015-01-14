@@ -136,7 +136,7 @@ public:
                 // Unsorted write - use dummy key.
                 struct TKeyMemoryPoolTag {};
                 TChunkedMemoryPool keyMemoryPool { TKeyMemoryPoolTag() };
-                
+
                 int keyColumnCount = KeyColumns ? KeyColumns->size() : 0;
                 auto key = TKey::Allocate(&keyMemoryPool, keyColumnCount);
 
@@ -197,7 +197,7 @@ public:
         TJobStatistics result;
         result.set_time(GetElapsedTime().MilliSeconds());
         ToProto(result.mutable_input(), Reader->GetDataStatistics());
-        ToProto(result.mutable_output(), Writer->GetDataStatistics());
+        ToProto(result.add_output(), Writer->GetDataStatistics());
         return result;
     }
 

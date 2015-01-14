@@ -134,7 +134,7 @@ public:
         result.set_time(GetElapsedTime().MilliSeconds());
         // TODO(ignat): report intermediate statistics for block copying.
         ToProto(result.mutable_input(), DataStatistics_);
-        ToProto(result.mutable_output(), DataStatistics_);
+        ToProto(result.add_output(), DataStatistics_);
 
         return result;
     }
@@ -299,15 +299,14 @@ private:
         }
 
         // Prepare data statistics
-        {
-            auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
-            TDataStatistics chunkStatistics;
-            chunkStatistics.set_compressed_data_size(miscExt.compressed_data_size());
-            chunkStatistics.set_uncompressed_data_size(miscExt.uncompressed_data_size());
-            chunkStatistics.set_row_count(miscExt.row_count());
-            chunkStatistics.set_chunk_count(1);
-            DataStatistics_ += chunkStatistics;
-        }
+        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
+
+        TDataStatistics chunkStatistics;
+        chunkStatistics.set_compressed_data_size(miscExt.compressed_data_size());
+        chunkStatistics.set_uncompressed_data_size(miscExt.uncompressed_data_size());
+        chunkStatistics.set_row_count(miscExt.row_count());
+        chunkStatistics.set_chunk_count(1);
+        DataStatistics_ += chunkStatistics;
 
         TObjectServiceProxy objectProxy(host->GetMasterChannel());
 
@@ -362,7 +361,7 @@ private:
                 FailedChunkId_ = reader->GetChunkId();
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reading block");
             }
-            
+
             auto block = result.Value().front();
             CopiedChunkSize_ += block.Size();
 

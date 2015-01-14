@@ -1276,11 +1276,15 @@ protected:
             for (auto partition : Partitions) {
                 totalInputRowCount += partition->ChunkPoolOutput->GetTotalRowCount();
             }
-            if (totalInputRowCount != TotalOutputRowCount) {
+            i64 totalOutputRowCount = 0;
+            for (const auto& statistics : TotalOutputs) {
+                totalOutputRowCount += statistics.row_count();
+            }
+            if (totalInputRowCount != totalOutputRowCount) {
                 OnOperationFailed(TError(
                     "Input/output row count mismatch in sort operation: %v != %v",
                     totalInputRowCount,
-                    TotalOutputRowCount));
+                    totalOutputRowCount));
             }
         }
 
@@ -1434,7 +1438,7 @@ protected:
     // Should get rid of this "value count" stuff completely.
     i64 GetValueCountEstimate(i64 dataSize) const
     {
-        return static_cast<i64>((double) TotalEstimateInputValueCount * dataSize / TotalEstimateInputDataSize);
+        return static_cast<i64>((double) TotalEstimatedInputValueCount * dataSize / TotalEstimatedInputDataSize);
     }
 
     int GetEmpiricalParitionCount(i64 dataSize) const
@@ -1455,8 +1459,8 @@ protected:
 
     int SuggestPartitionCount() const
     {
-        YCHECK(TotalEstimateInputDataSize > 0);
-        i64 dataSizeAfterPartition = 1 + static_cast<i64>(TotalEstimateInputDataSize * Spec->MapSelectivityFactor);
+        YCHECK(TotalEstimatedInputDataSize > 0);
+        i64 dataSizeAfterPartition = 1 + static_cast<i64>(TotalEstimatedInputDataSize * Spec->MapSelectivityFactor);
 
         i64 result;
         if (Spec->PartitionDataSize || Spec->PartitionCount) {
@@ -1476,13 +1480,13 @@ protected:
     {
         if (Spec->DataSizePerPartitionJob || Spec->PartitionJobCount) {
             return SuggestJobCount(
-                TotalEstimateInputDataSize,
-                Spec->DataSizePerPartitionJob.Get(TotalEstimateInputDataSize),
+                TotalEstimatedInputDataSize,
+                Spec->DataSizePerPartitionJob.Get(TotalEstimatedInputDataSize),
                 Spec->PartitionJobCount);
         } else {
             // Experiments show that this number is suitable as default
             // both for partition count and for partition job count.
-            int partitionCount = GetEmpiricalParitionCount(TotalEstimateInputDataSize);
+            int partitionCount = GetEmpiricalParitionCount(TotalEstimatedInputDataSize);
             return static_cast<int>(Clamp(
                 partitionCount,
                 1,
@@ -1687,7 +1691,7 @@ private:
 
         OutputTables[0].Options->KeyColumns = Spec->SortBy;
 
-        if (TotalEstimateInputDataSize == 0)
+        if (TotalEstimatedInputDataSize == 0)
             return;
 
         TSamplesFetcherPtr samplesFetcher;
@@ -1773,7 +1777,7 @@ private:
         // Choose sort job count and initialize the pool.
         int sortJobCount = static_cast<int>(
             Clamp(
-                1 + TotalEstimateInputDataSize / Spec->DataSizePerSortJob,
+                1 + TotalEstimatedInputDataSize / Spec->DataSizePerSortJob,
                 1,
                 Config->MaxJobCount));
         auto stripes = SliceInputChunks(Config->SortJobMaxSliceDataSize, sortJobCount);
@@ -1789,7 +1793,7 @@ private:
 
         // Initialize counters.
         PartitionJobCounter.Set(0);
-        // NB: Cannot use TotalEstimateInputDataSize due to slicing and rounding issues.
+        // NB: Cannot use TotalEstimatedInputDataSize due to slicing and rounding issues.
         SortDataSizeCounter.Set(SimpleSortPool->GetTotalDataSize());
 
         LOG_INFO("Sorting without partitioning (SortJobCount: %v)",
@@ -2277,7 +2281,7 @@ private:
     {
         TSortControllerBase::CustomPrepare();
 
-        if (TotalEstimateInputDataSize == 0)
+        if (TotalEstimatedInputDataSize == 0)
             return;
 
         for (const auto& file : RegularFiles) {

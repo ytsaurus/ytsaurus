@@ -3,6 +3,9 @@
 #include "public.h"
 
 #include <ytlib/scheduler/job.pb.h>
+
+#include <ytlib/chunk_client/public.h>
+
 #include <core/yson/public.h>
 
 namespace NYT {
@@ -17,6 +20,8 @@ TJobStatistics  operator +  (const TJobStatistics& lhs, const TJobStatistics& rh
 
 TJobStatistics& operator -= (TJobStatistics& lhs, const TJobStatistics& rhs);
 TJobStatistics  operator -  (const TJobStatistics& lhs, const TJobStatistics& rhs);
+
+NChunkClient::NProto::TDataStatistics GetTotalOutput(const TJobStatistics& statistics);
 
 const TJobStatistics& ZeroJobStatistics();
 
