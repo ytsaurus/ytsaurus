@@ -77,7 +77,7 @@ inline void FormatValue(TStringBuilder* builder, const TStringBuf& value, const 
     }
 
     if (singleQuotes || doubleQuotes) {
-        char int2hex = [] (unsigned char x) {
+        auto int2hex = [] (unsigned char x)->char {
             YASSERT(x < 16);
             return x < 10 ? ('0' + x) : ('A' + x - 10);
         };
