@@ -56,12 +56,6 @@ message TBlockMetaExt
     repeated TBlockMeta blocks = 1;
 }
 
-// For each column in block, stores corresponding index in name table.
-message TBlockIndexesExt
-{
-    repeated int32 index_in_name_table = 1;
-}
-
 message TBlockIndexExt
 {
     // Number of entries equals to block count.
@@ -69,7 +63,6 @@ message TBlockIndexExt
 }
 
 // Chunk meta extension.
-
 message TBoundaryKeysExt
 {
     required bytes min = 1;
