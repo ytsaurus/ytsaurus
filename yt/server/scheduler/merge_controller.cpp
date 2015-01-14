@@ -422,11 +422,11 @@ protected:
     void CalculateSizes()
     {
         auto jobCount = SuggestJobCount(
-            TotalEstimateInputDataSize,
+            TotalEstimatedInputDataSize,
             Spec->DataSizePerJob,
             Spec->JobCount);
 
-        MaxDataSizePerJob = 1 + TotalEstimateInputDataSize / jobCount;
+        MaxDataSizePerJob = 1 + TotalEstimatedInputDataSize / jobCount;
         ChunkSliceSize = std::min(Config->MergeJobMaxSliceDataSize, MaxDataSizePerJob);
     }
 

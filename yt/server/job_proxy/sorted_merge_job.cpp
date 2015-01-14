@@ -125,7 +125,7 @@ public:
                     Writer->WriteRowUnsafe(*row, Reader->GetKey());
                 }
             }
-            
+
             PROFILE_TIMING_CHECKPOINT("merge");
 
             LOG_INFO("Finalizing");
@@ -162,7 +162,7 @@ public:
         TJobStatistics result;
         result.set_time(GetElapsedTime().MilliSeconds());
         ToProto(result.mutable_input(), Reader->GetDataStatistics());
-        ToProto(result.mutable_output(), Writer->GetDataStatistics());
+        ToProto(result.add_output(), Writer->GetDataStatistics());
         return result;
     }
 
