@@ -68,13 +68,8 @@ public:
     TJournalWriter(
         IClientPtr client,
         const TYPath& path,
-        const TJournalWriterOptions& options,
-        TJournalWriterConfigPtr config)
-        : Impl_(New<TImpl>(
-            client,
-            path,
-            options,
-            config))
+        const TJournalWriterOptions& options)
+        : Impl_(New<TImpl>(client, path, options))
     { }
 
     ~TJournalWriter()
@@ -106,12 +101,11 @@ private:
         TImpl(
             IClientPtr client,
             const TYPath& path,
-            const TJournalWriterOptions& options,
-            TJournalWriterConfigPtr config)
+            const TJournalWriterOptions& options)
             : Client_(client)
             , Path_(path)
             , Options_(options)
-            , Config_(config ? config : New<TJournalWriterConfig>())
+            , Config_(options.Config ? options.Config : New<TJournalWriterConfig>())
             , ObjectProxy_(Client_->GetMasterChannel())
         {
             if (Options_.TransactionId != NullTransactionId) {
@@ -976,20 +970,14 @@ private:
 
 
     TIntrusivePtr<TImpl> Impl_;
-
 };
 
 IJournalWriterPtr CreateJournalWriter(
     IClientPtr client,
     const TYPath& path,
-    const TJournalWriterOptions& options,
-    TJournalWriterConfigPtr config)
+    const TJournalWriterOptions& options)
 {
-    return New<TJournalWriter>(
-        client,
-        path,
-        options,
-        config);
+    return New<TJournalWriter>(client, path, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -54,12 +54,11 @@ public:
     TFileReader(
         IClientPtr client,
         const TYPath& path,
-        const TFileReaderOptions& options,
-        TFileReaderConfigPtr config)
+        const TFileReaderOptions& options)
         : Client_(client)
         , Path_(path)
         , Options_(options)
-        , Config_(config ? config : New<TFileReaderConfig>())
+        , Config_(options.Config ? options.Config : New<TFileReaderConfig>())
         , Logger(ApiLogger)
     {
         if (Options_.TransactionId != NullTransactionId) {
@@ -221,16 +220,9 @@ private:
 IFileReaderPtr CreateFileReader(
     IClientPtr client,
     const TYPath& path,
-    const TFileReaderOptions& options,
-    TFileReaderConfigPtr config)
+    const TFileReaderOptions& options)
 {
-    YCHECK(client);
-
-    return New<TFileReader>(
-        client,
-        path,
-        options,
-        config);
+    return New<TFileReader>(client, path, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

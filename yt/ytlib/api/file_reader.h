@@ -29,8 +29,7 @@ DEFINE_REFCOUNTED_TYPE(IFileReader)
 IFileReaderPtr CreateFileReader(
     IClientPtr client,
     const NYPath::TYPath& path,
-    const TFileReaderOptions& options = TFileReaderOptions(),
-    TFileReaderConfigPtr config = TFileReaderConfigPtr());
+    const TFileReaderOptions& options);
 
 ///////////////////////////////////////////////////////////////////////////////
 

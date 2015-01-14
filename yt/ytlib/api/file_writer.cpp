@@ -50,12 +50,11 @@ public:
     TFileWriter(
         IClientPtr client,
         const TYPath& path,
-        const TFileWriterOptions& options,
-        TFileWriterConfigPtr config)
+        const TFileWriterOptions& options)
         : Client_(client)
         , Path_(path)
         , Options_(options)
-        , Config_(config ? config : New<TFileWriterConfig>())
+        , Config_(options.Config ? options.Config : New<TFileWriterConfig>())
     {
         if (Options_.TransactionId != NullTransactionId) {
             auto transactionManager = Client_->GetTransactionManager();
@@ -256,14 +255,9 @@ private:
 IFileWriterPtr CreateFileWriter(
     IClientPtr client,
     const TYPath& path,
-    const TFileWriterOptions& options,
-    TFileWriterConfigPtr config)
+    const TFileWriterOptions& options)
 {
-    return New<TFileWriter>(
-        client,
-        path,
-        options,
-        config);
+    return New<TFileWriter>(client, path, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
