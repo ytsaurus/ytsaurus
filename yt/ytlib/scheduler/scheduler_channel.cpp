@@ -41,12 +41,17 @@ public:
     virtual TFuture<IChannelPtr> DiscoverChannel(IClientRequestPtr request) override
     {
         TObjectServiceProxy proxy(MasterChannel_);
-        auto req = TYPathProxy::Get("//sys/scheduler/@address");
+        auto batchReq = proxy.ExecuteBatch();
+        batchReq->AddRequest(TYPathProxy::Get("//sys/scheduler/@address"));
         auto this_ = MakeStrong(this);
-        return proxy
-            .Execute(req)
-            .Apply(BIND([this, this_] (TYPathProxy::TRspGetPtr rsp) -> IChannelPtr {
-                auto address = ConvertTo<Stroka>(TYsonString(rsp->value()));
+        return batchReq->Invoke()
+            .Apply(BIND([this, this_] (TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) -> IChannelPtr {
+                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
+                if (!rsp.IsOK()) {
+                    THROW_ERROR_EXCEPTION("Cannot connect to scheduler") << rsp;
+                }
+                auto rspValue = rsp.Value();
+                auto address = ConvertTo<Stroka>(TYsonString(rspValue->value()));
                 return ChannelFactory_->CreateChannel(address);
             }));
     }
