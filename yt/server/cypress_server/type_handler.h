@@ -96,7 +96,8 @@ struct INodeTypeHandler
     //! Constructs a deep copy of the node.
     virtual TCypressNodeBase* Clone(
         TCypressNodeBase* sourceNode,
-        ICypressNodeFactoryPtr factory) = 0;
+        ICypressNodeFactoryPtr factory,
+        ENodeCloneMode mode) = 0;
 
 };
 

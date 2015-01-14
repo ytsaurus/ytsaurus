@@ -305,9 +305,10 @@ ICypressNodeProxyPtr TMapNodeTypeHandler::DoGetProxy(
 void TMapNodeTypeHandler::DoClone(
     TMapNode* sourceNode,
     TMapNode* clonedNode,
-    ICypressNodeFactoryPtr factory)
+    ICypressNodeFactoryPtr factory,
+    ENodeCloneMode mode)
 {
-    TBase::DoClone(sourceNode, clonedNode, factory);
+    TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
     auto* transaction = factory->GetTransaction();
 
@@ -338,7 +339,7 @@ void TMapNodeTypeHandler::DoClone(
 
         auto* childNode = cypressManager->GetVersionedNode(childTrunkNode, transaction);
 
-        auto* clonedChildNode = factory->CloneNode(childNode);
+        auto* clonedChildNode = factory->CloneNode(childNode, mode);
         auto* clonedTrunkChildNode = clonedChildNode->GetTrunkNode();
 
         YCHECK(clonedNode->KeyToChild().insert(std::make_pair(key, clonedTrunkChildNode)).second);
@@ -455,9 +456,10 @@ void TListNodeTypeHandler::DoMerge(
 void TListNodeTypeHandler::DoClone(
     TListNode* sourceNode,
     TListNode* clonedNode,
-    ICypressNodeFactoryPtr factory)
+    ICypressNodeFactoryPtr factory,
+    ENodeCloneMode mode)
 {
-    TBase::DoClone(sourceNode, clonedNode, factory);
+    TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
     auto objectManager = Bootstrap->GetObjectManager();
     auto cypressManager = Bootstrap->GetCypressManager();
@@ -467,7 +469,7 @@ void TListNodeTypeHandler::DoClone(
     const auto& indexToChild = sourceNode->IndexToChild();
     for (int index = 0; index < indexToChild.size(); ++index) {
         auto* childNode = indexToChild[index];
-        auto* clonedChildNode = factory->CloneNode(childNode);
+        auto* clonedChildNode = factory->CloneNode(childNode, mode);
         auto* clonedChildTrunkNode = clonedChildNode->GetTrunkNode();
 
         clonedNode->IndexToChild().push_back(clonedChildTrunkNode);
@@ -566,9 +568,10 @@ void TLinkNodeTypeHandler::DoMerge(
 void TLinkNodeTypeHandler::DoClone(
     TLinkNode* sourceNode,
     TLinkNode* clonedNode,
-    ICypressNodeFactoryPtr factory)
+    ICypressNodeFactoryPtr factory,
+    ENodeCloneMode mode)
 {
-    TBase::DoClone(sourceNode, clonedNode, factory);
+    TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
     clonedNode->SetTargetId(sourceNode->GetTargetId());
 }
@@ -646,9 +649,10 @@ void TDocumentNodeTypeHandler::DoMerge(
 void TDocumentNodeTypeHandler::DoClone(
     TDocumentNode* sourceNode,
     TDocumentNode* clonedNode,
-    ICypressNodeFactoryPtr factory)
+    ICypressNodeFactoryPtr factory,
+    ENodeCloneMode mode)
 {
-    TBase::DoClone(sourceNode, clonedNode, factory);
+    TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
     clonedNode->SetValue(CloneNode(sourceNode->GetValue()));
 }

@@ -39,6 +39,17 @@ typedef TIntrusivePtr<ICypressNodeProxy> ICypressNodeProxyPtr;
 struct ICypressNodeVisitor;
 typedef TIntrusivePtr<ICypressNodeVisitor> ICypressNodeVisitorPtr;
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! Describes the reason for cloning a node.
+//! Some node types may allow moving but not copying.
+DEFINE_ENUM(ENodeCloneMode,
+    (Copy)
+    (Move)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 using NCypressClient::TNodeId;
 using NCypressClient::TLockId;
 using NCypressClient::ELockMode;

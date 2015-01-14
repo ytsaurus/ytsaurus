@@ -839,7 +839,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 
     auto factory = CreateCypressFactory(preserveAccount);
 
-    auto* clonedImpl = factory->CloneNode(sourceImpl);
+    auto* clonedImpl = factory->CloneNode(
+        sourceImpl,
+        removeSource ? ENodeCloneMode::Move : ENodeCloneMode::Copy);
     auto* clonedTrunkImpl = clonedImpl->GetTrunkNode();
     auto clonedProxy = GetProxy(clonedTrunkImpl);
 

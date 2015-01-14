@@ -53,7 +53,8 @@ protected:
     virtual void DoClone(
         TChunkOwner* sourceNode,
         TChunkOwner* clonedNode,
-        NCypressServer::ICypressNodeFactoryPtr factory) override;
+        NCypressServer::ICypressNodeFactoryPtr factory,
+        NCypressServer::ENodeCloneMode mode) override;
 
 private:
     void MergeChunkLists(

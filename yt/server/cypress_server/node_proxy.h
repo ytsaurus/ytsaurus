@@ -44,7 +44,8 @@ struct ICypressNodeFactory
         const TNodeId& id) = 0;
 
     virtual TCypressNodeBase* CloneNode(
-        TCypressNodeBase* sourceNode) = 0;
+        TCypressNodeBase* sourceNode,
+        ENodeCloneMode mode) = 0;
 
 };
 
