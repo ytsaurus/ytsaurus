@@ -107,6 +107,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkInfo_);
     Load(context, ChunkMeta_);
 
+    // COMPAT(babenko)
     if (context.GetVersion() < 100) {
         SetReplicationFactor(Load<i16>(context));
     } else {
@@ -114,7 +115,12 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         SetReadQuorum(Load<i8>(context));
         SetWriteQuorum(Load<i8>(context));
     }
-    SetErasureCodec(Load<NErasure::ECodec>(context));
+    // COMPAT(babenko)
+    if (context.GetVersion() < 111) {
+        SetErasureCodec(NErasure::ECodec(Load<int>(context)));
+    } else {
+        SetErasureCodec(Load<NErasure::ECodec>(context));
+    }
 
     SetMovable(Load<bool>(context));
     SetVital(Load<bool>(context));
