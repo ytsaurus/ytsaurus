@@ -397,9 +397,13 @@ private:
         FileOutput_->Finish();
 
         Params_.Meta = Meta_;
-        Params_.Checksum = ChecksumOutput_->GetChecksum();
+        if (ChecksumOutput_) {
+            Params_.Checksum = ChecksumOutput_->GetChecksum();
+        }
         Params_.CompressedLength = File_->GetLength();
-        Params_.UncompressedLength = LengthMeasureOutput_->GetLength();
+        if (LengthMeasureOutput_) {
+            Params_.UncompressedLength = LengthMeasureOutput_->GetLength();
+        }
 
         if (!IsRaw_) {
             TSnapshotHeader header;
