@@ -202,8 +202,21 @@ protected:
         NCypressServer::ICypressNodeFactoryPtr factory,
         ENodeCloneMode mode) override
     {
-        if (sourceNode->IsDynamic()) {
-            THROW_ERROR_EXCEPTION("Dynamic tables cannot be cloned");
+        switch (mode) {
+            case ENodeCloneMode::Copy:
+                if (sourceNode->IsDynamic()) {
+                    THROW_ERROR_EXCEPTION("Dynamic tables cannot be copied");
+                }
+                break;
+
+            case ENodeCloneMode::Move:
+                if (sourceNode->HasMountedTablets()) {
+                    THROW_ERROR_EXCEPTION("Dynamic tables with mounted tablets cannot be moved");
+                }
+                break;
+
+            default:
+                YUNREACHABLE();
         }
 
         TBase::DoClone(sourceNode, clonedNode, factory, mode);
