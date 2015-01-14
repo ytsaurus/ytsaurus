@@ -700,8 +700,7 @@ private:
 
             auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
             if (!miscExt.sorted()) {
-                THROW_ERROR_EXCEPTION("Chunk %v is not sorted",
-                    chunkId);
+                THROW_ERROR_EXCEPTION("Chunk %v is not sorted", chunkId);
             }
 
             auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(meta.extensions());

@@ -22,9 +22,9 @@ public:
 
     TChunkWriterConfig()
     {
-        // Block less than 1M is nonsense.
+        // Allow very small blocks for testing purposes.
         RegisterParameter("block_size", BlockSize)
-            .GreaterThanOrEqual((i64) 1024 * 1024)
+            .GreaterThanOrEqual((i64) 1024)
             .Default((i64) 16 * 1024 * 1024);
 
         RegisterParameter("max_buffer_size", MaxBufferSize)

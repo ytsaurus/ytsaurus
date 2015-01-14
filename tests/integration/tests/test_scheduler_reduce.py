@@ -282,8 +282,7 @@ echo {v = 2} >&7
             '//tmp/in',
             [ {'key': "%.010d" % num} for num in xrange(count) ],
             sorted_by = ['key'],
-            table_writer = {"index_rate": 0.001}
-            )
+            table_writer = {"block_size": 1024})
 
         reduce(
             in_ = '//tmp/in',

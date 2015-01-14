@@ -25,14 +25,15 @@
 #include <ytlib/file_client/file_ypath_proxy.h>
 #include <ytlib/file_client/file_chunk_reader.h>
 
-#include <ytlib/table_client/table_producer.h>
-#include <ytlib/table_client/table_chunk_reader.h>
-#include <ytlib/table_client/sync_reader.h>
-#include <ytlib/table_client/config.h>
+#include <ytlib/new_table_client/config.h>
+#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/schemaless_chunk_reader.h>
+#include <ytlib/new_table_client/helpers.h>
 
 #include <ytlib/file_client/config.h>
 #include <ytlib/file_client/file_chunk_reader.h>
 
+#include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 
@@ -70,8 +71,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NTableClient;
-using namespace NTableClient::NProto;
+using namespace NVersionedTableClient;
 using namespace NFileClient;
 using namespace NCellNode;
 using namespace NDataNode;
@@ -686,33 +686,28 @@ private:
 
         auto chunks = PatchCachedChunkReplicas(descriptor.chunks());
 
-        auto config = New<TTableReaderConfig>();
-
-        auto readerProvider = New<TTableChunkReaderProvider>(
-            chunks,
+        auto config = New<TMultiChunkReaderConfig>();
+        auto options = New<TMultiChunkReaderOptions>();
+        auto nameTable = New<TNameTable>();
+        auto reader = CreateSchemalessSequentialMultiChunkReader(
             config,
-            Bootstrap->GetUncompressedBlockCache());
-
-        auto asyncReader = New<TTableChunkSequenceReader>(
-            config,
-            Bootstrap->GetMasterClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
+            options,
+            Bootstrap->GetMasterClient()->GetMasterChannel(),
             Bootstrap->GetBlockStore()->GetCompressedBlockCache(),
+            Bootstrap->GetUncompressedBlockCache(),
             NodeDirectory,
-            std::move(chunks),
-            readerProvider);
+            chunks,
+            nameTable);
 
-        auto syncReader = CreateSyncReader(asyncReader);
         auto format = ConvertTo<NFormats::TFormat>(TYsonString(descriptor.format()));
 
         try {
-            syncReader->Open();
+            WaitFor(reader->Open()).ThrowOnError();
 
             auto producer = [&] (TOutputStream* output) {
-                auto consumer = CreateConsumerForFormat(
-                    format,
-                    NFormats::EDataType::Tabular,
-                    output);
-                ProduceYson(syncReader, consumer.get());
+                TBufferedOutput bufferedOutput(output);
+                auto writer = CreateSchemalessWriterForFormat(format, nameTable, &bufferedOutput);
+                PipeReaderToWriter(reader, writer, 10000);
             };
 
             Slot->MakeFile(fileName, producer);
