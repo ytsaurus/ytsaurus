@@ -807,51 +807,31 @@ public:
 
     virtual IFileReaderPtr CreateFileReader(
         const TYPath& path,
-        const TFileReaderOptions& options,
-        TFileReaderConfigPtr config) override
+        const TFileReaderOptions& options) override
     {
-        return NApi::CreateFileReader(
-            this,
-            path,
-            options,
-            config);
+        return NApi::CreateFileReader(this, path, options);
     }
 
     virtual IFileWriterPtr CreateFileWriter(
         const TYPath& path,
-        const TFileWriterOptions& options,
-        TFileWriterConfigPtr config) override
+        const TFileWriterOptions& options) override
     {
-        return NApi::CreateFileWriter(
-            this,
-            path,
-            options,
-            config);
+        return NApi::CreateFileWriter(this, path, options);
     }
 
 
     virtual IJournalReaderPtr CreateJournalReader(
         const TYPath& path,
-        const TJournalReaderOptions& options,
-        TJournalReaderConfigPtr config) override
+        const TJournalReaderOptions& options) override
     {
-        return NApi::CreateJournalReader(
-            this,
-            path,
-            options,
-            config);
+        return NApi::CreateJournalReader(this, path, options);
     }
 
     virtual IJournalWriterPtr CreateJournalWriter(
         const TYPath& path,
-        const TJournalWriterOptions& options,
-        TJournalWriterConfigPtr config) override
+        const TJournalWriterOptions& options) override
     {
-        return NApi::CreateJournalWriter(
-            this,
-            path,
-            options,
-            config);
+        return NApi::CreateJournalWriter(this, path, options);
     }
 
 
@@ -1904,25 +1884,22 @@ public:
 
     DELEGATE_TRANSACTIONAL_METHOD(IFileReaderPtr, CreateFileReader, (
         const TYPath& path,
-        const TFileReaderOptions& options,
-        TFileReaderConfigPtr config),
-        (path, options, config))
+        const TFileReaderOptions& options),
+        (path, options))
     DELEGATE_TRANSACTIONAL_METHOD(IFileWriterPtr, CreateFileWriter, (
         const TYPath& path,
-        const TFileWriterOptions& options,
-        TFileWriterConfigPtr config),
-        (path, options, config))
+        const TFileWriterOptions& options),
+        (path, options))
+
 
     DELEGATE_TRANSACTIONAL_METHOD(IJournalReaderPtr, CreateJournalReader, (
         const TYPath& path,
-        const TJournalReaderOptions& options,
-        TJournalReaderConfigPtr config),
-        (path, options, config))
+        const TJournalReaderOptions& options),
+        (path, options))
     DELEGATE_TRANSACTIONAL_METHOD(IJournalWriterPtr, CreateJournalWriter, (
         const TYPath& path,
-        const TJournalWriterOptions& options,
-        TJournalWriterConfigPtr config),
-        (path, options, config))
+        const TJournalWriterOptions& options),
+        (path, options))
 
 #undef DELEGATE_TRANSACTIONAL_METHOD
 #undef DELEGATE_TIMESTAMPTED_METHOD

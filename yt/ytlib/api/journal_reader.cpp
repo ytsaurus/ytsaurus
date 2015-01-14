@@ -46,12 +46,11 @@ public:
     TJournalReader(
         IClientPtr client,
         const TYPath& path,
-        const TJournalReaderOptions& options,
-        TJournalReaderConfigPtr config)
+        const TJournalReaderOptions& options)
         : Client_(client)
         , Path_(path)
         , Options_(options)
-        , Config_(config ? config : New<TJournalReaderConfig>())
+        , Config_(options.Config ? options.Config : New<TJournalReaderConfig>())
         , Logger(ApiLogger)
     {
         if (Options_.TransactionId != NullTransactionId) {
@@ -234,14 +233,9 @@ private:
 IJournalReaderPtr CreateJournalReader(
     IClientPtr client,
     const TYPath& path,
-    const TJournalReaderOptions& options,
-    TJournalReaderConfigPtr config)
+    const TJournalReaderOptions& options)
 {
-    return New<TJournalReader>(
-        client,
-        path,
-        options,
-        config);
+    return New<TJournalReader>(client, path, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

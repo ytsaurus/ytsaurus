@@ -44,10 +44,6 @@ void TReadJournalCommand::DoExecute()
         }
     };
 
-    auto config = UpdateYsonSerializable(
-        Context_->GetConfig()->JournalReader,
-        Request_->GetOptions());
-
     auto path = Request_->Path.Normalize();
 
     if (path.GetRanges().size() > 1) {
@@ -57,6 +53,7 @@ void TReadJournalCommand::DoExecute()
     TJournalReaderOptions options;
     if (path.GetRanges().size() == 1) {
         auto range = path.GetRanges()[0];
+
         checkLimit(range.LowerLimit());
         checkLimit(range.UpperLimit());
 
@@ -71,13 +68,14 @@ void TReadJournalCommand::DoExecute()
             options.FirstRowIndex = range.LowerLimit().GetRowIndex();
         }
     }
-
+    options.Config = UpdateYsonSerializable(
+        Context_->GetConfig()->JournalReader,
+        Request_->GetOptions());
     SetTransactionalOptions(&options);
 
     auto reader = Context_->GetClient()->CreateJournalReader(
         Request_->Path.GetPath(),
-        options,
-        config);
+        options);
 
     {
         auto error = WaitFor(reader->Open());
@@ -249,17 +247,15 @@ private:
 
 void TWriteJournalCommand::DoExecute()
 {
-    auto config = UpdateYsonSerializable(
+    TJournalWriterOptions options;
+    options.Config = UpdateYsonSerializable(
         Context_->GetConfig()->JournalWriter,
         Request_->GetOptions());
-
-    TJournalWriterOptions options;
     SetTransactionalOptions(&options);
 
     auto writer = Context_->GetClient()->CreateJournalWriter(
         Request_->Path.GetPath(),
-        options,
-        config);
+        options);
 
     {
         auto error = WaitFor(writer->Open());

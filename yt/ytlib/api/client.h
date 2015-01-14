@@ -247,6 +247,7 @@ struct TFileReaderOptions
 {
     TNullable<i64> Offset;
     TNullable<i64> Length;
+    TFileReaderConfigPtr Config;
 };
 
 struct TFileWriterOptions
@@ -254,6 +255,7 @@ struct TFileWriterOptions
     , public TPrerequisiteOptions
 {
     bool Append = true;
+    TFileWriterConfigPtr Config;
 };
 
 struct TJournalReaderOptions
@@ -262,12 +264,15 @@ struct TJournalReaderOptions
 {
     TNullable<i64> FirstRowIndex;
     TNullable<i64> RowCount;
+    TJournalReaderConfigPtr Config;
 };
 
 struct TJournalWriterOptions
     : public TTransactionalOptions
     , public TPrerequisiteOptions
-{ };
+{
+    TJournalWriterConfigPtr Config;
+};
 
 struct TStartOperationOptions
     : public TTransactionalOptions
@@ -375,25 +380,21 @@ struct IClientBase
     // Files
     virtual IFileReaderPtr CreateFileReader(
         const NYPath::TYPath& path,
-        const TFileReaderOptions& options = TFileReaderOptions(),
-        TFileReaderConfigPtr config = TFileReaderConfigPtr()) = 0;
+        const TFileReaderOptions& options = TFileReaderOptions()) = 0;
 
     virtual IFileWriterPtr CreateFileWriter(
         const NYPath::TYPath& path,
-        const TFileWriterOptions& options = TFileWriterOptions(),
-        TFileWriterConfigPtr config = TFileWriterConfigPtr()) = 0;
+        const TFileWriterOptions& options = TFileWriterOptions()) = 0;
 
 
     // Journals
     virtual IJournalReaderPtr CreateJournalReader(
         const NYPath::TYPath& path,
-        const TJournalReaderOptions& options = TJournalReaderOptions(),
-        TJournalReaderConfigPtr config = TJournalReaderConfigPtr()) = 0;
+        const TJournalReaderOptions& options = TJournalReaderOptions()) = 0;
 
     virtual IJournalWriterPtr CreateJournalWriter(
         const NYPath::TYPath& path,
-        const TJournalWriterOptions& options = TJournalWriterOptions(),
-        TJournalWriterConfigPtr config = TJournalWriterConfigPtr()) = 0;
+        const TJournalWriterOptions& options = TJournalWriterOptions()) = 0;
 
     // TODO(babenko): scheduler commands
 
