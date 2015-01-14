@@ -101,6 +101,8 @@ struct INodeTypeHandler
 
 };
 
+DEFINE_REFCOUNTED_TYPE(INodeTypeHandler)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypressServer
