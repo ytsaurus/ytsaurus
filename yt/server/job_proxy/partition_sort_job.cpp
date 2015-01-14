@@ -210,7 +210,7 @@ public:
 
                 struct TKeyMemoryPoolTag {};
                 TChunkedMemoryPool keyMemoryPool { TKeyMemoryPoolTag() };
-                
+
                 auto key = TKey::Allocate(&keyMemoryPool, keyColumnCount);
                 bool isRowReady = false;
 
@@ -292,7 +292,7 @@ public:
                         syncWriter->WriteRow(row);
                     } catch (const TErrorException& ex) {
                         LOG_FATAL_IF(
-                            ex.Error().FindMatching(NTableClient::EErrorCode::SortOrderViolation), 
+                            ex.Error().FindMatching(NTableClient::EErrorCode::SortOrderViolation),
                             "Sort order violation in sort job.");
                         throw;
                     }
@@ -363,7 +363,7 @@ public:
         TJobStatistics result;
         result.set_time(GetElapsedTime().MilliSeconds());
         ToProto(result.mutable_input(), Reader->GetProvider()->GetDataStatistics());
-        ToProto(result.mutable_output(), Writer->GetProvider()->GetDataStatistics());
+        ToProto(result.add_output(), Writer->GetProvider()->GetDataStatistics());
         return result;
     }
 

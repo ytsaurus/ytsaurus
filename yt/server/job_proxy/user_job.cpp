@@ -147,7 +147,7 @@ public:
         LOG_INFO(jobExitError, "Job process completed");
 
         AddStatistic(
-            "/user_job/builtin/time", 
+            "/user_job/builtin/time",
             TSummary(static_cast<i64>(GetElapsedTime().MilliSeconds())));
 
         WaitFor(BlockIOWatchdogExecutor_->Stop());
@@ -164,8 +164,8 @@ public:
         CleanupCGroups();
 
         TJobResult result;
-        ToProto(result.mutable_error(), jobResultError.IsOK() 
-            ? TError() 
+        ToProto(result.mutable_error(), jobResultError.IsOK()
+            ? TError()
             : TError("User job failed") << jobResultError);
         auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
@@ -400,7 +400,7 @@ private:
     void PrepareOutputTablePipes(std::function<TPipe()> createPipe)
     {
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.output_format()));
-        
+
         auto& writers = JobIO_->GetWriters();
         TableOutputs_.resize(writers.size());
         for (int i = 0; i < writers.size(); ++i) {
@@ -502,8 +502,8 @@ private:
 
         for (int i = 0; i < readers.size(); ++i) {
             auto input = New<TContextPreservingInput>(
-                readers[i], 
-                format, 
+                readers[i],
+                format,
                 Config_->JobIO->TableReader->EnableTableIndex);
 
             ContextPreservingInputs_.push_back(input);
@@ -632,7 +632,11 @@ private:
         result.set_time(GetElapsedTime().MilliSeconds());
 
         ToProto(result.mutable_input(), GetDataStatistics(JobIO_->GetReaders()));
-        ToProto(result.mutable_output(), GetDataStatistics(JobIO_->GetWriters()));
+
+        for (const auto& writer : JobIO_->GetWriters()) {
+            auto* output = result.add_output();
+            ToProto(output, writer->GetDataStatistics());
+        }
 
         {
             TGuard<TSpinLock> guard(StatisticsLock_);
@@ -648,7 +652,7 @@ private:
             if (error.IsOK()) {
                 return;
             }
-            
+
             if (!JobErrorPromise_.TrySet(error)) {
                 return;
             }

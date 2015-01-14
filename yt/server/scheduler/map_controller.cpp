@@ -272,7 +272,7 @@ private:
             LOG_INFO("Processing inputs");
 
             auto jobCount = SuggestJobCount(
-                TotalEstimateInputDataSize,
+                TotalEstimatedInputDataSize,
                 Spec->DataSizePerJob,
                 Spec->JobCount);
 
