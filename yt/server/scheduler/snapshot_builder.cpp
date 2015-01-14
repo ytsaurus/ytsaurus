@@ -197,10 +197,8 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
         // Upload new snapshot.
         {
             TFileWriterOptions options;
-            auto writer = MasterClient->CreateFileWriter(
-                snapshotPath,
-                options,
-                Config->SnapshotWriter);
+            options.Config = Config->SnapshotWriter;
+            auto writer = MasterClient->CreateFileWriter(snapshotPath, options);
 
             {
                 auto result = WaitFor(writer->Open());

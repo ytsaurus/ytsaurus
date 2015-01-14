@@ -35,8 +35,7 @@ DEFINE_REFCOUNTED_TYPE(IJournalWriter)
 IJournalWriterPtr CreateJournalWriter(
     IClientPtr client,
     const NYPath::TYPath& path,
-    const TJournalWriterOptions& options = TJournalWriterOptions(),
-    TJournalWriterConfigPtr config = TJournalWriterConfigPtr());
+    const TJournalWriterOptions& options = TJournalWriterOptions());
 
 ///////////////////////////////////////////////////////////////////////////////
 
