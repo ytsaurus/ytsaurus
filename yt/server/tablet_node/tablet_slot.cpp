@@ -80,12 +80,9 @@ public:
         , SlotIndex_(slotIndex)
         , Config_(config)
         , Bootstrap_(bootstrap)
-        , State_(EPeerState::None)
-        , PeerId_(InvalidPeerId)
         , AutomatonQueue_(New<TFairShareActionQueue>(
             Format("TabletSlot:%v", SlotIndex_),
             TEnumTraits<EAutomatonThreadQueue>::GetDomainNames()))
-        , Logger(TabletNodeLogger)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
 
@@ -372,49 +369,17 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ != EPeerState::None);
 
+        LOG_INFO("Finalizing slot");
+
         auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
         tabletSlotManager->UnregisterTabletSnapshots(Owner_);
 
-        auto rpcServer = Bootstrap_->GetRpcServer();
-
         State_ = EPeerState::None;
-
-        CellManager_.Reset();
-
-        Automaton_.Reset();
-
-        if (HydraManager_) {
-            HydraManager_->Finalize();
-        }
-        HydraManager_.Reset();
-
-        ResponseKeeper_.Reset();
-
-        TabletManager_.Reset();
-
-        TransactionManager_.Reset();
-
-        if (TransactionSupervisor_) {
-            rpcServer->UnregisterService(TransactionSupervisor_->GetRpcService());
-        }
-        TransactionSupervisor_.Reset();
-
-        if (HiveManager_) {
-            rpcServer->UnregisterService(HiveManager_->GetRpcService());
-        }
-        HiveManager_.Reset();
-
-        if (TabletService_) {
-            rpcServer->UnregisterService(TabletService_);
-        }
-        TabletService_.Reset();
-
-        TabletManager_.Reset();
 
         ResetEpochInvokers();
         ResetGuardedInvokers();
-        
-        LOG_INFO("Slot finalized");
+
+        Bootstrap_->GetControlInvoker()->Invoke(BIND(&TImpl::DoFinalize, MakeStrong(this)));
     }
 
 
@@ -431,14 +396,14 @@ public:
     }
 
 private:
-    TTabletSlot* Owner_;
-    int SlotIndex_;
-    TTabletNodeConfigPtr Config_;
-    NCellNode::TBootstrap* Bootstrap_;
+    TTabletSlot* const Owner_;
+    const int SlotIndex_;
+    const TTabletNodeConfigPtr Config_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
     TCellId CellId_;
-    mutable EPeerState State_;
-    TPeerId PeerId_;
+    mutable EPeerState State_ = EPeerState::None;
+    TPeerId PeerId_ = InvalidPeerId;
     int CellConfigVersion_ = 0;
     TTabletCellConfigPtr CellConfig_;
     TTabletCellOptionsPtr Options_;
@@ -466,7 +431,7 @@ private:
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> GuardedAutomatonInvokers_;
 
-    NLog::TLogger Logger;
+    NLog::TLogger Logger = TabletNodeLogger;
 
 
     void SetCellId(const TCellId& cellId)
@@ -512,6 +477,59 @@ private:
     void OnStopEpoch()
     {
         ResetEpochInvokers();
+    }
+
+
+    void DoFinalize()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // Wait for all pending activities in automaton thread to stop.
+        LOG_INFO("Flushing automaton thread");
+
+        SwitchTo(GetAutomatonInvoker());
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        // NB: Epoch invokers are already canceled so we don't expect any more callbacks.
+        LOG_INFO("Automaton thread flushed");
+
+        SwitchTo(Bootstrap_->GetControlInvoker());
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // Stop everything and release the references to break cycles.
+        CellManager_.Reset();
+
+        Automaton_.Reset();
+
+        if (HydraManager_) {
+            HydraManager_->Finalize();
+        }
+        HydraManager_.Reset();
+
+        ResponseKeeper_.Reset();
+
+        TabletManager_.Reset();
+
+        TransactionManager_.Reset();
+
+        auto rpcServer = Bootstrap_->GetRpcServer();
+
+        if (TransactionSupervisor_) {
+            rpcServer->UnregisterService(TransactionSupervisor_->GetRpcService());
+        }
+        TransactionSupervisor_.Reset();
+
+        if (HiveManager_) {
+            rpcServer->UnregisterService(HiveManager_->GetRpcService());
+        }
+        HiveManager_.Reset();
+
+        if (TabletService_) {
+            rpcServer->UnregisterService(TabletService_);
+        }
+        TabletService_.Reset();
+
+        TabletManager_.Reset();
     }
 
 
