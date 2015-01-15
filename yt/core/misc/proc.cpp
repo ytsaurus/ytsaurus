@@ -174,14 +174,14 @@ bool TryDup2(int oldFd, int newFd)
 {
     while (true) {
         auto res = ::dup2(oldFd, newFd);
-        
+
         if (res != -1) {
             return true;
         }
-        
+
         if (errno == EINTR || errno == EBUSY) {
             continue;
-        } 
+        }
 
         return false;
     }
@@ -194,7 +194,7 @@ bool TryClose(int fd)
         if (res != -1) {
             return true;
         }
-         
+
         switch (errno) {
             // Please read
             // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
@@ -204,7 +204,7 @@ bool TryClose(int fd)
             // If the descriptor is no longer valid, just ignore it.
             case EBADF:
                 return true;
-            default: 
+            default:
                 return false;
         }
     }
@@ -309,11 +309,6 @@ void RunCleaner(const Stroka& /* path */)
 }
 
 void CloseAllDescriptors()
-{
-    YUNIMPLEMENTED();
-}
-
-void SafeClose(int /* fd */, bool /* ignoreInvalidFd */)
 {
     YUNIMPLEMENTED();
 }
