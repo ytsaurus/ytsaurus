@@ -277,7 +277,7 @@ private:
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("replication_factor", Store_->Options_->SnapshotReplicationFactor);
                 attributes->Set("prev_record_count", Meta_.prev_record_count());
-                options.Attributes = attributes.get();
+                options.Attributes = std::move(attributes);
                 options.PrerequisiteTransactionIds = Store_->PrerequisiteTransactionIds_;
 
                 auto error = WaitFor(Transaction_->CreateNode(

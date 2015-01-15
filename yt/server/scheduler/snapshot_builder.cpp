@@ -186,7 +186,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
             TCreateNodeOptions options;
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("version", GetCurrentSnapshotVersion());
-            options.Attributes = attributes.get();
+            options.Attributes = std::move(attributes);
             auto result = WaitFor(transaction->CreateNode(
                 snapshotPath,
                 EObjectType::File,
