@@ -34,7 +34,7 @@ struct TColumnFilter
 
     TColumnFilter(const std::initializer_list<int>& indexes)
         : All(false)
-          , Indexes(indexes.begin(), indexes.end())
+        , Indexes(indexes.begin(), indexes.end())
     { }
 
     bool All;
