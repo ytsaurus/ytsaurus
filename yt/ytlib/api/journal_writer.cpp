@@ -327,7 +327,7 @@ private:
                 options.EnableUncommittedAccounting = false;
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Format("Journal upload to %v", Path_));
-                options.Attributes = attributes.get();
+                options.Attributes = std::move(attributes);
 
                 auto transactionManager = Client_->GetTransactionManager();
                 auto transactionOrError = WaitFor(transactionManager->Start(

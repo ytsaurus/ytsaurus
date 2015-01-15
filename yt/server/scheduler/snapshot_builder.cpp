@@ -163,7 +163,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
             attributes->Set(
                 "title",
                 Format("Snapshot upload for operation %v", operation->GetId()));
-            options.Attributes = attributes.get();
+            options.Attributes = std::move(attributes);
             auto transactionOrError = WaitFor(MasterClient->StartTransaction(
                 NTransactionClient::ETransactionType::Master,
                 options));

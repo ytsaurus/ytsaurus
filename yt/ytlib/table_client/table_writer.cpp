@@ -146,7 +146,7 @@ void TAsyncTableWriter::Open()
     options.EnableUncommittedAccounting = false;
     auto attributes = CreateEphemeralAttributes();
     attributes->Set("title", Format("Table upload to %s", RichPath.GetPath()));
-    options.Attributes = attributes.get();
+    options.Attributes = std::move(attributes);
     auto transactionOrError = WaitFor(TransactionManager->Start(
         ETransactionType::Master,
         options));

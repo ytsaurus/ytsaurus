@@ -299,7 +299,7 @@ private:
                 attributes->Set("title", Format("Flushing store %v, tablet %v",
                     store->GetId(),
                     tabletId));
-                options.Attributes = attributes.get();
+                options.Attributes = std::move(attributes);
 
                 auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
                     NTransactionClient::ETransactionType::Master,

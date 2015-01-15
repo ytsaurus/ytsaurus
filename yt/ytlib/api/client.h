@@ -117,7 +117,7 @@ struct TTransactionStartOptions
     bool AutoAbort = true;
     bool Ping = true;
     bool PingAncestors = true;
-    NYTree::IAttributeDictionary* Attributes = nullptr;
+    std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
 };
 
 struct TTransactionCommitOptions
@@ -154,7 +154,8 @@ struct TGetNodeOptions
     : public TTransactionalOptions
     , public TSuppressableAccessTrackingOptions
 {
-    NYTree::IAttributeDictionary* Options = nullptr;
+    // XXX(sandello): This one is used only in ProfileManager to pass `from_time`.
+    std::shared_ptr<const NYTree::IAttributeDictionary> Options;
     NYTree::TAttributeFilter AttributeFilter;
     TNullable<i64> MaxSize;
     bool IgnoreOpaque = false;
@@ -188,7 +189,7 @@ struct TCreateNodeOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
-    NYTree::IAttributeDictionary* Attributes = nullptr;
+    std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
     bool Recursive = false;
     bool IgnoreExisting = false;
 };
@@ -224,7 +225,8 @@ struct TLinkNodeOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
-    NYTree::IAttributeDictionary* Attributes = nullptr;
+    //! Attributes of a newly created link node.
+    std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
     bool Recursive = false;
     bool IgnoreExisting = false;
 };
@@ -238,7 +240,7 @@ struct TCreateObjectOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
-    NYTree::IAttributeDictionary* Attributes = nullptr;
+    std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
 };
 
 struct TFileReaderOptions

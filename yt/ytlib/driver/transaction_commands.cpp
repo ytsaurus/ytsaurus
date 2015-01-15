@@ -35,8 +35,7 @@ void TStartTransactionCommand::DoExecute()
 
     std::unique_ptr<IAttributeDictionary> attributes;
     if (Request_->Attributes) {
-        attributes = ConvertToAttributes(Request_->Attributes);
-        options.Attributes = attributes.get();
+        options.Attributes = ConvertToAttributes(Request_->Attributes);
     }
 
     auto transactionManager = Context_->GetClient()->GetTransactionManager();
