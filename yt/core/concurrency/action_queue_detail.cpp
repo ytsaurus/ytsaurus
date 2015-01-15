@@ -124,12 +124,12 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
     try {
         TCurrentInvokerGuard guard(this);
         callback.Run();
-        return EBeginExecuteResult::Success;
     } catch (const TFiberCanceledException&) {
         // Still consider this a success.
         // This caller is responsible for terminating the current fiber.
-        return EBeginExecuteResult::Terminated;
     }
+
+    return EBeginExecuteResult::Success;
 }
 
 void TInvokerQueue::EndExecute(TEnqueuedAction* action)
@@ -494,25 +494,28 @@ void TSchedulerThread::YieldTo(TFiberPtr&& other)
     VERIFY_THREAD_AFFINITY(HomeThread);
 
     YASSERT(CurrentFiber);
+
+    if (CurrentFiber->IsCanceled()) {
+        throw TFiberCanceledException();
+    }
+
+    // Memoize raw pointers.
     auto caller = CurrentFiber.Get();
     auto target = other.Get();
 
-    if (caller->IsCanceled()) {
-        RunQueue.emplace_front(std::move(other));
+    RunQueue.emplace_front(std::move(CurrentFiber));
+    CurrentFiber = std::move(other);
 
-        throw TFiberCanceledException();
-    } else {
-        RunQueue.emplace_front(std::move(CurrentFiber));
-        CurrentFiber = std::move(other);
+    caller->SetSuspended();
+    target->SetRunning();
 
-        caller->SetSuspended();
-        target->SetRunning();
+    SwitchExecutionContext(
+        caller->GetContext(),
+        target->GetContext(),
+        /* as per FiberTrampoline */ target);
 
-        SwitchExecutionContext(
-            caller->GetContext(),
-            target->GetContext(),
-            /* as per FiberTrampoline */ target);
-    }
+    // Cannot access |this| from this point as the fiber might be resumed
+    // in other scheduler.
 
     if (caller->IsCanceled()) {
         throw TFiberCanceledException();
