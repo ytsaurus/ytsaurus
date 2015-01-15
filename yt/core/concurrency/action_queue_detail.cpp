@@ -492,12 +492,7 @@ void TSchedulerThread::UnsubscribeContextSwitched(TClosure callback)
 void TSchedulerThread::YieldTo(TFiberPtr&& other)
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
-
     YASSERT(CurrentFiber);
-
-    if (CurrentFiber->IsCanceled()) {
-        throw TFiberCanceledException();
-    }
 
     // Memoize raw pointers.
     auto caller = CurrentFiber.Get();
