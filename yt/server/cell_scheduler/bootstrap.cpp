@@ -138,7 +138,7 @@ void TBootstrap::DoRun()
     ClusterDirectory_ = New<TClusterDirectory>(MasterClient_->GetConnection());
 
     Scheduler_ = New<TScheduler>(Config_->Scheduler, this);
-    
+
     ChunkLocationThrottler_ = CreateLimitedThrottler(Config_->Scheduler->ChunkLocationThrottler);
 
 
@@ -172,7 +172,7 @@ void TBootstrap::DoRun()
             ->GetOrchidService()
             ->Via(GetControlInvoker())
             ->Cached(Config_->OrchidCacheExpirationTime)));
-    
+
     SetBuildAttributes(orchidRoot, "scheduler");
 
     RpcServer_->RegisterService(CreateOrchidService(
