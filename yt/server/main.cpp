@@ -231,6 +231,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
 #ifdef _linux_
     if (isCleaner) {
+        NConcurrency::SetCurrentThreadName("CleanerMain");
+
         Stroka path = parser.DirToRemove.getValue();
         if (path.empty() || path[0] != '/') {
             THROW_ERROR_EXCEPTION("A path should be absolute. Path: %v", ~path);
@@ -252,6 +254,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isKiller) {
+        NConcurrency::SetCurrentThreadName("KillerMain");
+
         YCHECK(setuid(0) == 0);
         auto path = parser.ProcessGroupPath.getValue();
         NCGroup::TNonOwningCGroup group(path);
@@ -317,6 +321,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isExecutor) {
+        NConcurrency::SetCurrentThreadName("ExecutorMain");
+
         const int permissions = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
         for (auto fd : parser.PreparePipes.getValue()) {
             SetPermissions(fd, permissions);
