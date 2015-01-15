@@ -52,7 +52,7 @@ def process_logs(import_list, remove_list, link_queue, destination_dir, source_p
                 link_queue.append({"src": dst, "dst": dst_link})
 
 def main():
-    parser = argparse.ArgumentParser(description='Prepare tables to merge')
+    parser = argparse.ArgumentParser(description='Find tables to import from redwood')
     parser.add_argument('--path', required=True)
     parser.add_argument('--import-queue', required=True)
     parser.add_argument('--remove-queue', required=True)
