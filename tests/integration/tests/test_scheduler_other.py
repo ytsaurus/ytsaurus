@@ -185,3 +185,33 @@ class TestSchedulingTags(YTEnvSetup):
         assert len(get_job_nodes(op_id)) <= 2
 
 
+class TestSchedulerConfig(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler" : {
+            "event_log" : {
+                "retry_backoff_time" : 7,
+                "flush_period" : 5000
+            }
+        }
+    }
+
+    def test_basic(self):
+        orchid_scheduler_config = "//sys/scheduler/orchid/scheduler/config"
+        assert get("{0}/event_log/flush_period".format(orchid_scheduler_config)) == 5000
+        assert get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7
+
+        set("//sys/scheduler/config", { "event_log" : { "flush_period" : 10000 } })
+        time.sleep(2)
+
+        assert get("{0}/event_log/flush_period".format(orchid_scheduler_config)) == 10000
+        assert get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7
+
+        set("//sys/scheduler/config", {})
+        time.sleep(2)
+
+        assert get("{0}/event_log/flush_period".format(orchid_scheduler_config)) == 5000
+        assert get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7

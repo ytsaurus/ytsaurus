@@ -104,6 +104,7 @@ public:
         TSchedulerConfigPtr config,
         TBootstrap* bootstrap)
         : Config_(config)
+        , ConfigAtStart_(ConvertToNode(Config_))
         , Bootstrap_(bootstrap)
         , BackgroundQueue_(New<TActionQueue>("Background"))
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
@@ -658,6 +659,7 @@ private:
     friend class TSchedulingContext;
 
     TSchedulerConfigPtr Config_;
+    INodePtr ConfigAtStart_;
     TBootstrap* Bootstrap_;
 
     TActionQueuePtr BackgroundQueue_;
@@ -946,15 +948,28 @@ private:
             return;
         }
 
+        INodePtr oldConfig = ConvertToNode(Config_);
+
         try {
             const auto& rsp = rspOrError.Value();
-            if (!ReconfigureYsonSerializable(Config_, TYsonString(rsp->value())))
-                return;
+            auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
+
+            try {
+                Config_->Load(ConfigAtStart_, /* validate */ true, /* setDefaults */ true);
+                Config_->Load(configFromCypress, /* validate */ true, /* setDefaults */ false);
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Error updating cell scheduler configuration");
+                Config_->Load(oldConfig, /* validate */ true, /* setDefaults */ true);
+            }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error parsing updated scheduler configuration");
         }
 
-        LOG_INFO("Scheduler configuration updated");
+        INodePtr newConfig = ConvertToNode(Config_);
+
+        if (!NYTree::AreNodesEqual(oldConfig, newConfig)) {
+            LOG_INFO("Scheduler configuration updated");
+        }
     }
 
 
@@ -1762,6 +1777,7 @@ private:
                 .Item("clusters").DoMapFor(GetClusterDirectory()->GetClusterNames(), [=] (TFluentMap fluent, const Stroka& clusterName) {
                     BuildClusterYson(clusterName, fluent);
                 })
+                .Item("config").Value(Config_)
                 .DoIf(Strategy_ != nullptr, BIND(&ISchedulerStrategy::BuildOrchid, Strategy_.get()))
             .EndMap();
     }
