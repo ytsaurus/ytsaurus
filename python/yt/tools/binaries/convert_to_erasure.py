@@ -16,7 +16,7 @@ def main():
     parser.add_argument("--dst")
     parser.add_argument("--erasure-codec", required=True)
     parser.add_argument("--compression-codec")
-    parser.add_argument("--desired-chunk-size", type=int, default=2 * 1024 ** 3)
+    parser.add_argument("--desired-chunk-size", type=int)
     parser.add_argument('--proxy')
     args = parser.parse_args()
         
