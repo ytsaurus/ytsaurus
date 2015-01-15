@@ -421,6 +421,38 @@ TEST_F(TSchedulerTest, AsyncViaCanceledBeforeStart)
     EXPECT_EQ(NYT::EErrorCode::Canceled, asyncResult2.Get().GetCode());
 }
 
+TEST_F(TSchedulerTest, CancelCurrentFiber)
+{
+    auto invoker = Queue1->GetInvoker();
+    auto asyncResult = BIND([=] () {
+        NYT::NConcurrency::GetCurrentFiberCanceler().Run();
+        SwitchTo(invoker);
+    }).AsyncVia(invoker).Run();
+    asyncResult.Get();
+    EXPECT_TRUE(asyncResult.IsSet());
+    EXPECT_EQ(NYT::EErrorCode::Canceled, asyncResult.Get().GetCode());
+}
+
+TEST_F(TSchedulerTest, YieldToFromCanceledFiber)
+{
+    auto promise = NewPromise<void>();
+    auto invoker1 = Queue1->GetInvoker();
+    auto invoker2 = Queue2->GetInvoker();
+
+    auto asyncResult = BIND([=] () mutable {
+        BIND([=] () {
+            NYT::NConcurrency::GetCurrentFiberCanceler().Run();
+        }).AsyncVia(invoker2).Run().Get();
+        WaitFor(promise.ToFuture(), invoker2);
+    }).AsyncVia(invoker1).Run();
+
+    promise.Set();
+    asyncResult.Get();
+
+    EXPECT_TRUE(asyncResult.IsSet());
+    EXPECT_TRUE(asyncResult.Get().IsOK());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
