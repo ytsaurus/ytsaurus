@@ -1135,7 +1135,8 @@ bool TTcpConnection::IsSocketError(ssize_t result)
 #ifdef _win_
     return
         result != WSAEWOULDBLOCK &&
-        result != WSAEINPROGRESS;
+        result != WSAEINPROGRESS &&
+        result != 0;
 #else
     return
         result != EWOULDBLOCK &&

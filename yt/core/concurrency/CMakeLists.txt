@@ -25,6 +25,8 @@ set( HDRS
   ${BASE}/async_stream.h
   ${BASE}/action_queue.h
   ${BASE}/action_queue_detail.h
+  ${BASE}/execution_stack.h
+  ${BASE}/execution_context.h
   ${BASE}/parallel_awaiter-inl.h
   ${BASE}/parallel_awaiter.h
   ${BASE}/async_semaphore.h
