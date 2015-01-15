@@ -100,7 +100,7 @@ private:
             attributes->Set("read_quorum", Options_->ChangelogReadQuorum);
             attributes->Set("write_quorum", Options_->ChangelogWriteQuorum);
             attributes->Set("prev_record_count", meta.prev_record_count());
-            options.Attributes = attributes.get();
+            options.Attributes = std::move(attributes);
             options.PrerequisiteTransactionIds = PrerequisiteTransactionIds_;
 
             auto result = WaitFor(MasterClient_->CreateNode(
