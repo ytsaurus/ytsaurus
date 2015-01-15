@@ -345,7 +345,7 @@ private:
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Format("Eden partitioning, tablet %v",
                     tabletId));
-                options.Attributes = attributes.get();
+                options.Attributes = std::move(attributes);
 
                 auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
@@ -595,7 +595,7 @@ private:
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Format("Partition compaction, tablet %v",
                     tabletId));
-                options.Attributes = attributes.get();
+                options.Attributes = std::move(attributes);
 
                 auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
                     NTransactionClient::ETransactionType::Master,

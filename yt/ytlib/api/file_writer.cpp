@@ -117,7 +117,7 @@ private:
             options.EnableUncommittedAccounting = false;
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Format("File upload to %v", Path_));
-            options.Attributes = attributes.get();
+            options.Attributes = std::move(attributes);
             options.PrerequisiteTransactionIds = Options_.PrerequisiteTransactionIds;
 
             auto transactionManager = Client_->GetTransactionManager();

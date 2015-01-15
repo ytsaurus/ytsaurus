@@ -25,9 +25,10 @@ void TGetCommand::DoExecute()
     TGetNodeOptions options;
     options.MaxSize = Request_->MaxSize;
     options.IgnoreOpaque = Request_->IgnoreOpaque;
-    auto requestOptions = IAttributeDictionary::FromMap(Request_->GetOptions());
-    options.Options = requestOptions.get();
-    options.AttributeFilter = TAttributeFilter(EAttributeFilterMode::MatchingOnly, Request_->Attributes);
+    options.Options = IAttributeDictionary::FromMap(Request_->GetOptions());
+    options.AttributeFilter = TAttributeFilter(
+        EAttributeFilterMode::MatchingOnly,
+        Request_->Attributes);
     SetTransactionalOptions(&options);
     SetSuppressableAccessTrackingOptions(&options);
 
@@ -110,7 +111,7 @@ void TCreateCommand::DoExecute()
         TCreateNodeOptions options;
         options.Recursive = Request_->Recursive;
         options.IgnoreExisting = Request_->IgnoreExisting;
-        options.Attributes = attributes.get();
+        options.Attributes = std::move(attributes);
         SetTransactionalOptions(&options);
         SetMutatingOptions(&options);
 
@@ -129,7 +130,7 @@ void TCreateCommand::DoExecute()
         }
 
         TCreateObjectOptions options;
-        options.Attributes = attributes.get();
+        options.Attributes = std::move(attributes);
         SetTransactionalOptions(&options);
         SetMutatingOptions(&options);
 
@@ -233,7 +234,7 @@ void TLinkCommand::DoExecute()
     auto attributes = Request_->Attributes
         ? ConvertToAttributes(Request_->Attributes)
         : CreateEphemeralAttributes();
-    options.Attributes = attributes.get();
+    options.Attributes = std::move(attributes);
     SetTransactionalOptions(&options);
     SetMutatingOptions(&options);
 

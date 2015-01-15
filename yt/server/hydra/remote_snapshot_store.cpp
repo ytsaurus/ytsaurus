@@ -261,7 +261,7 @@ private:
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Format("Snapshot upload to %v",
                     Path_));
-                options.Attributes = attributes.get();
+                options.Attributes = std::move(attributes);
 
                 auto transactionOrError = WaitFor(Store_->MasterClient_->StartTransaction(
                     NTransactionClient::ETransactionType::Master,

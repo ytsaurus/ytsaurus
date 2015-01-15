@@ -1501,7 +1501,7 @@ private:
         req->set_ignore_existing(options.IgnoreExisting);
         SetTransactionId(req, options, true);
         GenerateMutationId(req, options);
-        auto attributes = options.Attributes ? ConvertToAttributes(options.Attributes) : CreateEphemeralAttributes();
+        auto attributes = options.Attributes ? ConvertToAttributes(options.Attributes.get()) : CreateEphemeralAttributes();
         attributes->Set("target_path", srcPath);
         ToProto(req->mutable_node_attributes(), *attributes);
         batchReq->AddRequest(req);
