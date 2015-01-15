@@ -241,7 +241,8 @@ public:
         PrerequisiteTransactionId_ = FromProto<TTransactionId>(createInfo.prerequisite_transaction_id());
         State_ = EPeerState::Stopped;
 
-        LOG_INFO("Slot initialized");
+        LOG_INFO("Slot initialized (PrerequisiteTransactionId: %v)",
+            PrerequisiteTransactionId_);
     }
 
     void Configure(const TConfigureTabletSlotInfo& configureInfo)
@@ -254,9 +255,8 @@ public:
         
         if (HydraManager_) {
             CellManager_->Reconfigure(CellConfig_->ToElection(CellId_));
-            LOG_INFO("Slot reconfigured (ConfigVersion: %v, PrerequisiteTransactionId: %v)",
-                CellConfigVersion_,
-                PrerequisiteTransactionId_);
+            LOG_INFO("Slot reconfigured (ConfigVersion: %v)",
+                CellConfigVersion_);
         } else {
             PeerId_ = configureInfo.peer_id();
             State_ = EPeerState::Elections;
