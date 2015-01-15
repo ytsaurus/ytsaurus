@@ -181,8 +181,9 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
             recordCount = ConvertTo<int>(result.Value());
         }
-        LOG_DEBUG("Changelog %v quorum record count received",
-            id);
+        LOG_DEBUG("Changelog %v quorum record count received (RecordCount: %v)",
+            id,
+            recordCount);
 
         return CreateRemoteChangelog(
             id,
