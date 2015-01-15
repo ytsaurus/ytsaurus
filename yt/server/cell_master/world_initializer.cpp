@@ -195,7 +195,7 @@ private:
                     .BeginMap()
                         .Item("opaque").Value(true)
                     .EndMap());
-            
+
             CreateNode(
                 "//sys/tokens",
                 transactionId,
@@ -215,7 +215,7 @@ private:
                         .Item("value").BeginMap()
                         .EndMap()
                     .EndMap());
-            
+
             CreateNode(
                 "//sys/empty_yamr_table",
                 transactionId,
@@ -255,6 +255,12 @@ private:
                 BuildYsonStringFluently()
                     .BeginMap()
                         .Item("opaque").Value(true)
+                        .Item("acl").BeginList()
+                            .Item().Value(TAccessControlEntry(
+                                ESecurityAction::Allow,
+                                securityManager->GetUsersGroup(),
+                                EPermissionSet(EPermission::Read | EPermission::Write)))
+                        .EndList()
                     .EndMap());
 
             CreateNode(
