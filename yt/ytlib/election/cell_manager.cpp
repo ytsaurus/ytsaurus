@@ -117,7 +117,7 @@ const NProfiling::TTagIdList& TCellManager::GetPeerQuorumTags() const
 void TCellManager::Reconfigure(TCellConfigPtr newConfig)
 {
     if (Config->CellId != newConfig->CellId) {
-        THROW_ERROR_EXCEPTION("Cannot change cell GUID from %v to %v",
+        THROW_ERROR_EXCEPTION("Cannot change cell id from %v to %v",
             Config->CellId,
             newConfig->CellId);
     }

@@ -30,7 +30,7 @@ public:
     ~TCellDirectory();
 
 
-    //! Returns a leader channel for a given cell GUID (|nullptr| if none is known).
+    //! Returns a leader channel for a given cell id (|nullptr| if none is known).
     NRpc::IChannelPtr FindChannel(const TCellId& cellId);
 
     //! Similar to #FindChannel but throws an exception if no channel is known.
