@@ -24,6 +24,7 @@
 
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
+#include <search.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -611,7 +612,11 @@ void TLocation::RegisterTrashChunk(const TChunkId& chunkId)
         timestamp = std::max(timestamp, statistics.ModificationTime);
         diskSpace += statistics.Size;
     }
-    TrashMap_.insert(std::make_pair(timestamp, TTrashChunkEntry{chunkId, diskSpace}));
+
+    {
+        TGuard<TSpinLock> guard(TrashMapSpinLock_);
+        TrashMap_.insert(std::make_pair(timestamp, TTrashChunkEntry{chunkId, diskSpace}));
+    }
 
     LOG_DEBUG("Trash chunk registered (ChunkId: %v, Timestamp: %v, DiskSpace: %v)",
         chunkId,
@@ -638,34 +643,50 @@ void TLocation::OnCheckTrash()
 void TLocation::CheckTrashTtl()
 {
     auto deadline = TInstant::Now() - Config_->MaxTrashTtl;
-    while (!TrashMap_.empty()) {
-        auto it = TrashMap_.begin();
-        if (it->first >= deadline)
-            break;
-        RemoveTrashFiles(it->second);
-        TrashMap_.erase(it);
+    while (true) {
+        TTrashChunkEntry entry;
+        {
+            TGuard<TSpinLock> guard(TrashMapSpinLock_);
+            if (TrashMap_.empty())
+                break;
+            auto it = TrashMap_.begin();
+            if (it->first >= deadline)
+                break;
+            entry = it->second;
+            TrashMap_.erase(it);
+        }
+        RemoveTrashFiles(entry);
     }
 }
 
 void TLocation::CheckTrashWatermark()
 {
-    auto availableSpace = GetAvailableSpace();
-    if (availableSpace >= Config_->TrashCleanupWatermark || TrashMap_.empty())
+    i64 availableSpace;
+    auto beginCleanup = [&] () {
+        TGuard<TSpinLock> guard(TrashMapSpinLock_);
+        availableSpace = GetAvailableSpace();
+        return availableSpace < Config_->TrashCleanupWatermark && !TrashMap_.empty();
+    };
+
+    if (!beginCleanup())
         return;
 
     LOG_INFO("Low available disk space, starting trash cleanup (AvailableSpace: %v)",
         availableSpace);
 
-    while (true) {
-        availableSpace = GetAvailableSpace();
-        if (availableSpace >= Config_->TrashCleanupWatermark || TrashMap_.empty())
-            break;
-
-        while (!TrashMap_.empty()) {
-            auto it = TrashMap_.begin();
-            RemoveTrashFiles(it->second);
-            availableSpace += it->second.DiskSpace;
-            TrashMap_.erase(it);
+    while (beginCleanup()) {
+        while (true) {
+            TTrashChunkEntry entry;
+            {
+                TGuard<TSpinLock> guard(TrashMapSpinLock_);
+                if (TrashMap_.empty())
+                    break;
+                auto it = TrashMap_.begin();
+                entry = it->second;
+                TrashMap_.erase(it);
+            }
+            RemoveTrashFiles(entry);
+            availableSpace += entry.DiskSpace;
         }
     }
 
