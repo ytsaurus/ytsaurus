@@ -46,11 +46,7 @@ DEFINE_ENUM(EBeginExecuteResult,
 
 struct TEnqueuedAction
 {
-    TEnqueuedAction()
-        : Finished(true)
-    { }
-
-    bool Finished;
+    bool Finished = true;
     NProfiling::TCpuInstant EnqueuedAt;
     NProfiling::TCpuInstant StartedAt;
     TClosure Callback;
