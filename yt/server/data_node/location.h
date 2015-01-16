@@ -168,6 +168,7 @@ private:
         i64 DiskSpace;
     };
 
+    TSpinLock TrashMapSpinLock_;
     std::multimap<TInstant, TTrashChunkEntry> TrashMap_;
     NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;
 
