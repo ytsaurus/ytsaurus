@@ -289,7 +289,6 @@ const TStringBuf& TEnumTraits<T, true>::GetTypeName()
 
 template <class T, class E, E Min, E Max>
 TEnumIndexedVector<T, E, Min, Max>::TEnumIndexedVector()
-    : Items_(N)
 { }
 
 template <class T, class E, E Min, E Max>
