@@ -502,7 +502,7 @@ For append mode in destination table add <append=true> modificator to path.
     parser.add_argument("--reduce-combiner-output-format", action=ParseFormat, help="see --format help")
 
 def operation_id_args(parser):
-    parser.add_argument("op", help="operation id")
+    parser.add_argument("operation", help="operation id")
 
 def add_abort_op_parser(add_parser):
     parser = add_parser("abort-op", yt.abort_operation)

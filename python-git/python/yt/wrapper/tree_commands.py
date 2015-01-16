@@ -239,10 +239,6 @@ def find_free_subpath(path, client=None):
     :param path: (string)
     :return: (string)
     """
-    # Temporary comment it because of race condition while uploading file
-    # TODO(ignat): Uncomment it with appearance of proper locking
-    #if not path.endswith("/") and not exists(path):
-    #    return path
     LENGTH = 10
     char_set = string.ascii_letters + string.digits
     while True:
