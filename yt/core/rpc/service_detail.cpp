@@ -197,7 +197,9 @@ private:
                 Reply(ex);
             }
         } catch (const TFiberCanceledException&) {
-            // Request canceled, do nothing.
+            // Request canceled; cleanup and rethrow.
+            DoAfterRun();
+            throw;
         }
 
         DoAfterRun();
