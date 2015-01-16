@@ -8,7 +8,6 @@ namespace NYT {
 namespace NJobProxy {
 
 using namespace NFormats;
-using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////
 

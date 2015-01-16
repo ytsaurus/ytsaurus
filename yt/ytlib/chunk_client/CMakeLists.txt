@@ -61,12 +61,6 @@ set( HDRS
   ${BASE}/format.h
   ${BASE}/memory_reader.h
   ${BASE}/memory_writer.h
-  ${BASE}/old_multi_chunk_parallel_reader-inl.h
-  ${BASE}/old_multi_chunk_parallel_reader.h
-  ${BASE}/old_multi_chunk_reader_base-inl.h
-  ${BASE}/old_multi_chunk_reader_base.h
-  ${BASE}/old_multi_chunk_sequential_reader-inl.h
-  ${BASE}/old_multi_chunk_sequential_reader.h
   ${BASE}/multi_chunk_sequential_writer-inl.h
   ${BASE}/multi_chunk_sequential_writer.h
   ${BASE}/multi_chunk_reader.h

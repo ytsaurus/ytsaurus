@@ -22,7 +22,6 @@
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
 #include <ytlib/file_client/file_chunk_reader.h>
