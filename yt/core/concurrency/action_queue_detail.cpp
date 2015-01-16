@@ -74,7 +74,7 @@ void TInvokerQueue::Invoke(const TClosure& callback)
     TEnqueuedAction action;
     action.Finished = false;
     action.EnqueuedAt = GetCpuInstant();
-    action.Callback = std::move(callback);
+    action.Callback = callback;
     Queue.Enqueue(action);
 
     CallbackEventCount->NotifyOne();
