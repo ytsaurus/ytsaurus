@@ -207,6 +207,8 @@ void TChunk::Confirm(
     ChunkInfo_.Swap(chunkInfo);
     ChunkMeta_.Swap(chunkMeta);
     MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+
+    YASSERT(IsConfirmed());
 }
 
 bool TChunk::IsConfirmed() const

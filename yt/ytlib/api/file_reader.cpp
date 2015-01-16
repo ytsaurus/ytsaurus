@@ -194,19 +194,15 @@ private:
         CheckAborted();
 
         TSharedRef block;
-        auto endOfRead = !Reader_->ReadBlock(&block);
+        while (true) {
+            auto endOfData = !Reader_->ReadBlock(&block);
 
-        if (block.Empty()) {
-            if (endOfRead)
-                return TSharedRef();
-
+            if (!block.Empty() || endOfData) {
+                return block;
+            }
             WaitFor(Reader_->GetReadyEvent()).
                 ThrowOnError();
-            YCHECK(Reader_->ReadBlock(&block));
-            YCHECK(!block.Empty());
         }
-
-        return block;
     }
 
 };

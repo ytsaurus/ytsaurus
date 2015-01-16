@@ -82,7 +82,9 @@ TFileChunkWriter::TFileChunkWriter(
     , EncodingChunkWriter_(New<TEncodingChunkWriter>(config, options, chunkWriter))
     , Buffer_(TFileChunkBlockTag())
     , Logger(FileClientLogger)
-{ }
+{ 
+    Logger.AddTag("ChunkWriter: %v", chunkWriter.Get());
+}
 
 bool TFileChunkWriter::Write(const TRef& data)
 {
@@ -122,6 +124,7 @@ TFuture<void> TFileChunkWriter::GetReadyEvent()
 void TFileChunkWriter::FlushBlock()
 {
     YCHECK(!Buffer_.IsEmpty());
+    LOG_DEBUG("Flushing block (BlockSize: %v)", Buffer_.Size());
 
     auto* block = BlocksExt_.add_blocks();
     block->set_size(Buffer_.Size());
@@ -155,7 +158,7 @@ TFuture<void> TFileChunkWriter::Close()
 
 i64 TFileChunkWriter::GetDataSize() const
 {
-    return EncodingChunkWriter_->GetDataStatistics().compressed_data_size(); + Buffer_.Size();
+    return EncodingChunkWriter_->GetDataStatistics().compressed_data_size() + Buffer_.Size();
 }
 
 i64 TFileChunkWriter::GetMetaSize() const
@@ -166,6 +169,8 @@ i64 TFileChunkWriter::GetMetaSize() const
 TChunkMeta TFileChunkWriter::GetMasterMeta() const
 {
     TChunkMeta meta;
+    meta.set_type(static_cast<int>(EChunkType::File));
+    meta.set_version(FormatVersion);
     SetProtoExtension(meta.mutable_extensions(), EncodingChunkWriter_->MiscExt());
     return meta;
 }
