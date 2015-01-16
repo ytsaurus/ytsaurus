@@ -25,7 +25,6 @@
 
 #include <deque>
 #include <atomic>
-#include <Foundation/Foundation.h>
 
 namespace NYT {
 namespace NChunkClient {
