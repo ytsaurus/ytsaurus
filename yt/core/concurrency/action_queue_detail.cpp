@@ -285,14 +285,18 @@ void TSchedulerThread::ThreadMainStep()
     // Notify context switch subscribers.
     OnContextSwitch();
 
+    auto maybeReleaseIdleFiber = [&] () {
+        if (CurrentFiber == IdleFiber) {
+            // Advance epoch as this (idle) fiber might be rescheduled elsewhere.
+            Epoch.fetch_add(0x2, std::memory_order_relaxed);
+            IdleFiber.Reset();
+        }
+    };
+
     switch (CurrentFiber->GetState()) {
         case EFiberState::Sleeping:
-            // Advance epoch as this (idle) fiber might be rescheduled elsewhere.
-            if (CurrentFiber == IdleFiber) {
-                Epoch.fetch_add(0x2, std::memory_order_relaxed);
-                IdleFiber.Reset();
-            }
-            // Reschedule this fiber.
+            maybeReleaseIdleFiber();
+            // Reschedule this fiber to wake up later.
             Reschedule(
                 std::move(CurrentFiber),
                 std::move(WaitForFuture),
@@ -310,12 +314,8 @@ void TSchedulerThread::ThreadMainStep()
             break;
 
         case EFiberState::Terminated:
-            // Advance epoch as this (idle) fiber just died.
-            if (CurrentFiber == IdleFiber) {
-                Epoch.fetch_add(0x2, std::memory_order_relaxed);
-                IdleFiber.Reset();
-            }
-            // We do not own this fiber any more, so forget about it.
+            maybeReleaseIdleFiber();
+            // We do not own this fiber anymore, so forget about it.
             CurrentFiber.Reset();
             break;
 
@@ -370,7 +370,7 @@ bool TSchedulerThread::FiberMainStep(unsigned int spawnedEpoch)
     auto currentEpoch = Epoch.load(std::memory_order_relaxed);
 
     if (spawnedEpoch == currentEpoch) {
-        // Make the matching call to EndExecute unless it is already done in ThreadMain.
+        // Make the matching call to EndExecute unless it is already done in ThreadMainStep.
         // NB: It is safe to call EndExecute even if no actual action was dequeued and
         // invoked in BeginExecute.
         EndExecute();
