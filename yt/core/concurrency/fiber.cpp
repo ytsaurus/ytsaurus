@@ -14,6 +14,12 @@ namespace NConcurrency {
 
 static std::atomic<TFiberId> FiberIdGenerator(InvalidFiberId + 1);
 
+#ifdef DEBUG
+// TODO(sandello): Make it an intrusive list.
+static std::atomic_flag FiberRegistryLock = ATOMIC_FLAG_INIT;
+static std::list<TFiber*> FiberRegistry;
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TFiber::TFiber(TClosure callee, EExecutionStack stack)
@@ -24,7 +30,13 @@ TFiber::TFiber(TClosure callee, EExecutionStack stack)
     , Canceled_(false)
     , Canceler_(BIND(&TFiber::Cancel, MakeWeak(this)))
     , Callee_(std::move(callee))
-{  }
+{
+#ifdef DEBUG
+    while (FiberRegistryLock.test_and_set(std::memory_order_acquire));
+    Iterator_ = FiberRegistry.insert(FiberRegistry.begin(), this);
+    FiberRegistryLock.clear(std::memory_order_release);
+#endif
+}
 
 TFiber::~TFiber()
 {
@@ -35,6 +47,11 @@ TFiber::~TFiber()
             NDetail::FlsDestruct(index, slot);
         }
     }
+#ifdef DEBUG
+    while (FiberRegistryLock.test_and_set(std::memory_order_acquire));
+    FiberRegistry.erase(Iterator_);
+    FiberRegistryLock.clear(std::memory_order_release);
+#endif
 }
 
 TFiberId TFiber::GetId() const
