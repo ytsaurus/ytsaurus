@@ -42,13 +42,17 @@ public:
     TLookupSession()
         : MemoryPool_(TLookupPoolTag())
         , RunCallback_(BIND(&TLookupSession::DoRun, this))
-    { }
+    {
+        LOG_DEBUG("TLookupSession::ctor %v", this);
+    }
 
     void Prepare(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
         TWireProtocolReader* reader)
     {
+        LOG_DEBUG("TLookupSession::Prepare %v", this);
+
         Clean();
 
         TabletSnapshot_ = std::move(tabletSnapshot);
@@ -75,6 +79,7 @@ public:
         IInvokerPtr invoker,
         TWireProtocolWriter* writer)
     {
+        LOG_DEBUG("TLookupSession::Run %v %v", this, writer);
         if (invoker) {
             return RunCallback_.AsyncVia(invoker).Run(writer);
         } else {
@@ -95,10 +100,12 @@ public:
 
     void Clean()
     {
+        LOG_DEBUG("TLookupSession::Clean %v", this);
         MemoryPool_.Clear();
         LookupKeys_.clear();
         EdenLookupers_.clear();
         PartitionLookupers_.clear();
+        Error_ = TError();
     }
 
 private:
@@ -106,6 +113,7 @@ private:
     std::vector<TUnversionedRow> LookupKeys_;
     std::vector<IVersionedLookuperPtr> EdenLookupers_;
     std::vector<IVersionedLookuperPtr> PartitionLookupers_;
+    TError Error_;
 
     TTabletSnapshotPtr TabletSnapshot_;
     TTimestamp Timestamp_;
@@ -139,7 +147,11 @@ private:
             auto asyncRow = lookuper->Lookup(key);
             auto maybeRowOrError = asyncRow.TryGet();
             if (maybeRowOrError) {
-                merger->AddPartialRow(maybeRowOrError->ValueOrThrow());
+                if (maybeRowOrError->IsOK()) {
+                    merger->AddPartialRow(maybeRowOrError->Value());
+                } else {
+                    Error_ = *maybeRowOrError;
+                }
             } else {
                 asyncRows->push_back(asyncRow);
             }
@@ -148,6 +160,8 @@ private:
 
     void DoRun(TWireProtocolWriter* writer)
     {
+        LOG_DEBUG("TLookupSession::DoRun1 %v %v %v", this, writer, LookupKeys_.size());
+
         CreateLookupers(&EdenLookupers_, TabletSnapshot_->Eden);
 
         TUnversionedRowMerger merger(
@@ -161,6 +175,7 @@ private:
         TPartitionSnapshotPtr currentPartitionSnapshot;
 
         for (auto key : LookupKeys_) {
+            LOG_DEBUG("TLookupSession::DoRun2 %v %v", this, writer);
             ValidateServerKey(key, KeyColumnCount_, TabletSnapshot_->Schema);
 
             auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);
@@ -175,13 +190,19 @@ private:
             InvokeLookupers(EdenLookupers_, &merger, &asyncRows, key);
             InvokeLookupers(PartitionLookupers_, &merger, &asyncRows, key);
 
+            LOG_DEBUG("TLookupSession::DoRun3 %v %v %v", this, writer, asyncRows.size());
             // Wait for async responses.
             auto rows = WaitFor(Combine(asyncRows))
                 .ValueOrThrow();
+
+            // Check the sync error.
+            Error_.ThrowOnError();
+
             for (auto row : rows) {
                 merger.AddPartialRow(row);
             }
 
+            LOG_DEBUG("TLookupSession::DoRun4 %v %v", this, writer);
             // Merge partial rows.
             auto mergedRow = merger.BuildMergedRow();
             writer->WriteUnversionedRow(mergedRow);
@@ -219,14 +240,23 @@ void LookupRows(
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {
-    auto executor = ObjectPool<TLookupSession>().Allocate();
-    executor->Prepare(tabletSnapshot, timestamp, reader);
-    LOG_DEBUG("Looking up %v keys (TabletId: %v, CellId: %v)",
-        executor->GetLookupKeys().size(),
+    auto session = ObjectPool<TLookupSession>().Allocate();
+    session->Prepare(tabletSnapshot, timestamp, reader);
+    LOG_DEBUG("Looking up %v keys (TabletId: %v, CellId: %v, Session: %v)",
+        session->GetLookupKeys().size(),
         tabletSnapshot->TabletId,
-        tabletSnapshot->Slot->GetCellId());
+        tabletSnapshot->Slot->GetCellId(),
+        session.get());
 
-    WaitFor(executor->Run(std::move(poolInvoker), writer))
+    auto asyncResult = session->Run(std::move(poolInvoker), writer);
+    auto result =  WaitFor(asyncResult);
+    LOG_DEBUG(result, "Done looking up %v keys (TabletId: %v, CellId: %v, Session: %v)",
+        session->GetLookupKeys().size(),
+        tabletSnapshot->TabletId,
+        tabletSnapshot->Slot->GetCellId(),
+        session.get());
+
+    result
         .ThrowOnError();
 }
 
