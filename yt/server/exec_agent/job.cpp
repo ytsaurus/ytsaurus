@@ -12,6 +12,7 @@
 #include <core/misc/assert.h>
 
 #include <core/concurrency/scheduler.h>
+#include <core/concurrency/thread_affinity.h>
 
 #include <core/actions/invoker_util.h>
 
@@ -34,8 +35,8 @@
 #include <ytlib/file_client/file_chunk_reader.h>
 
 #include <ytlib/chunk_client/config.h>
-#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/helpers.h>
@@ -626,37 +627,29 @@ private:
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
 
         auto chunks = PatchCachedChunkReplicas(descriptor.chunks());
-        auto config = New<TFileReaderConfig>();
 
-        auto provider = New<TFileChunkReaderProvider>(
-            config,
-            Bootstrap->GetUncompressedBlockCache());
-
-        typedef TOldMultiChunkSequentialReader<TFileChunkReader> TReader;
-
-        auto reader = New<TReader>(
-            config,
-            Bootstrap->GetMasterClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
+        auto reader = CreateFileMultiChunkReader(
+            New<TFileReaderConfig>(),
+            New<TMultiChunkReaderOptions>(),
+            Bootstrap->GetMasterClient()->GetMasterChannel(),
             Bootstrap->GetBlockStore()->GetCompressedBlockCache(),
+            Bootstrap->GetUncompressedBlockCache(),
             NodeDirectory,
-            std::move(chunks),
-            provider);
+            std::move(chunks));
 
         try {
-            WaitFor(reader->AsyncOpen())
+            WaitFor(reader->Open())
                 .ThrowOnError();
 
             auto producer = [&] (TOutputStream* output) {
-                auto* facade = reader->GetFacade();
-                while (facade) {
-                    auto block = facade->GetBlock();
-                    output->Write(block.Begin(),block.Size());
-
-                    if (!reader->FetchNext()) {
+                TSharedRef block;
+                while (reader->ReadBlock(&block)) {
+                    if (!block.Empty()) {
                         WaitFor(reader->GetReadyEvent())
                             .ThrowOnError();
+                    } else {
+                        output->Write(block.Begin(), block.Size());
                     }
-                    facade = reader->GetFacade();
                 }
             };
 

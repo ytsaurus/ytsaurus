@@ -1,214 +1,222 @@
 #include "stdafx.h"
-#include "file_chunk_writer.h"
-#include "private.h"
-#include "config.h"
 
-#include <ytlib/chunk_client/encoding_writer.h>
+#include "file_chunk_writer.h"
+#include "chunk_meta_extensions.h"
+#include "config.h"
+#include "private.h"
+
+#include <ytlib/api/public.h>
+
+#include <ytlib/chunk_client/encoding_chunk_writer.h>
 #include <ytlib/chunk_client/chunk_writer.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/dispatcher.h>
+#include <ytlib/chunk_client/multi_chunk_writer_base.h>
+
+#include <core/logging/log.h>
+
+#include <core/rpc/channel.h>
 
 namespace NYT {
 namespace NFileClient {
 
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
+using namespace NProto;
+using namespace NRpc;
+using namespace NTransactionClient;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCompressedFileChunkBlockTag { };
+class TFileChunkWriter
+    : public IFileChunkWriter
+{
+public:
+    TFileChunkWriter(
+        TFileChunkWriterConfigPtr config,
+        TEncodingWriterOptionsPtr options,
+        IChunkWriterPtr chunkWriter);
+
+    virtual bool Write(const TRef& data) override;
+
+    virtual TFuture<void> GetReadyEvent() override;
+
+    virtual TFuture<void> Open() override;
+    virtual TFuture<void> Close() override;
+
+    virtual i64 GetMetaSize() const override;
+    virtual i64 GetDataSize() const override;
+
+    virtual TChunkMeta GetMasterMeta() const override;
+    virtual TChunkMeta GetSchedulerMeta() const override;
+
+    virtual TDataStatistics GetDataStatistics() const override;
+
+private:
+    TFileChunkWriterConfigPtr Config_;
+    TEncodingChunkWriterPtr EncodingChunkWriter_;
+
+    TBlob Buffer_;
+    
+    TBlocksExt BlocksExt_;
+    i64 BlocksExtSize_ = 0;
+
+    NLog::TLogger Logger;
+
+    void FlushBlock();
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TFileChunkWriter)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TFileChunkBlockTag { };
 
 TFileChunkWriter::TFileChunkWriter(
     TFileChunkWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
     IChunkWriterPtr chunkWriter)
-    : Config(config)
-    , Options(options)
-    , EncodingWriter(New<TEncodingWriter>(config, options, chunkWriter))
-    , ChunkWriter(chunkWriter)
-    , Facade(this)
-    , Buffer(TCompressedFileChunkBlockTag())
-    , Size(0)
-    , BlockCount(0)
+    : Config_(config)
+    , EncodingChunkWriter_(New<TEncodingChunkWriter>(config, options, chunkWriter))
+    , Buffer_(TFileChunkBlockTag())
     , Logger(FileClientLogger)
 { }
 
-TFileChunkWriter::~TFileChunkWriter()
-{ }
-
-TFileChunkWriterFacade* TFileChunkWriter::GetFacade()
+bool TFileChunkWriter::Write(const TRef& data)
 {
-    if (State.IsActive() && EncodingWriter->IsReady()) {
-        return &Facade;
-    }
-
-    return nullptr;
-}
-
-TFuture<void> TFileChunkWriter::GetReadyEvent()
-{
-    State.StartOperation();
-
-    auto this_ = MakeStrong(this);
-    EncodingWriter->GetReadyEvent().Subscribe(BIND([=](const TError& error){
-        this_->State.FinishOperation(error);
-    }));
-
-    return State.GetOperationError();
-}
-
-void TFileChunkWriter::FlushBlock()
-{
-    if (Buffer.IsEmpty())
-        return;
-
-    LOG_INFO("Writing block (BlockIndex: %v)", BlockCount);
-    auto* block = BlocksExt.add_blocks();
-    block->set_size(Buffer.Size());
-
-    EncodingWriter->WriteBlock(TSharedRef::FromBlob(std::move(Buffer)));
-
-    Buffer.Clear();
-    ++BlockCount;
-}
-
-TFuture<void> TFileChunkWriter::Close()
-{
-    YCHECK(!State.IsClosed());
-
-    State.StartOperation();
-
-    FlushBlock();
-
-    EncodingWriter->Flush().Subscribe(
-        BIND(&TFileChunkWriter::OnFinalBlocksWritten, MakeWeak(this))
-            .Via(TDispatcher::Get()->GetWriterInvoker()));
-
-    return State.GetOperationError();
-}
-
-void TFileChunkWriter::OnFinalBlocksWritten(const TError& error)
-{
-    if (!error.IsOK()) {
-        State.FinishOperation(error);
-        return;
-    }
-
-    Meta.set_type(static_cast<int>(EChunkType::File));
-    Meta.set_version(FormatVersion);
-
-    SetProtoExtension(Meta.mutable_extensions(), BlocksExt);
-
-    MiscExt.set_uncompressed_data_size(EncodingWriter->GetUncompressedSize());
-    MiscExt.set_compressed_data_size(EncodingWriter->GetCompressedSize());
-    MiscExt.set_meta_size(Meta.ByteSize());
-    MiscExt.set_compression_codec(static_cast<int>(Options->CompressionCodec));
-
-    SetProtoExtension(Meta.mutable_extensions(), MiscExt);
-
-    auto this_ = MakeStrong(this);
-    ChunkWriter->Close(Meta).Subscribe(BIND([=] (const TError& error) {
-        // ToDo(psushin): more verbose diagnostic.
-        UNUSED(this_);
-        State.Finish(error);
-    }));
-}
-
-void TFileChunkWriter::Write(const TRef& data)
-{
-    LOG_DEBUG("Writing data (Size: %v)",
-        data.Size());
+    LOG_DEBUG("Writing data (Size: %v)", data.Size());
 
     if (data.Empty())
-        return;
+        return true;
 
-    if (Buffer.IsEmpty()) {
-        Buffer.Reserve(static_cast<size_t>(Config->BlockSize));
+    if (Buffer_.IsEmpty()) {
+        Buffer_.Reserve(static_cast<size_t>(Config_->BlockSize));
     }
 
     size_t dataSize = data.Size();
     const char* dataPtr = data.Begin();
     while (dataSize != 0) {
         // Copy a part of data trying to fill up the current block.
-        size_t remainingSize = static_cast<size_t>(Config->BlockSize) - Buffer.Size();
+        size_t remainingSize = static_cast<size_t>(Config_->BlockSize) - Buffer_.Size();
         size_t bytesToCopy = std::min(dataSize, remainingSize);
-        Buffer.Append(dataPtr, bytesToCopy);
+        Buffer_.Append(dataPtr, bytesToCopy);
         dataPtr += bytesToCopy;
         dataSize -= bytesToCopy;
 
         // Flush the block if full.
-        if (Buffer.Size() == Config->BlockSize) {
+        if (Buffer_.Size() == Config_->BlockSize) {
             FlushBlock();
         }
     }
 
-    Size += data.Size();
+    return EncodingChunkWriter_->IsReady();
+}
+
+TFuture<void> TFileChunkWriter::GetReadyEvent()
+{
+    return EncodingChunkWriter_->GetReadyEvent();
+}
+
+void TFileChunkWriter::FlushBlock()
+{
+    YCHECK(!Buffer_.IsEmpty());
+
+    auto* block = BlocksExt_.add_blocks();
+    block->set_size(Buffer_.Size());
+
+    BlocksExtSize_ += sizeof(TBlockInfo);
+
+    EncodingChunkWriter_->WriteBlock(TSharedRef::FromBlob(std::move(Buffer_)));
+}
+
+TFuture<void> TFileChunkWriter::Open()
+{
+    return VoidFuture;
+}
+
+TFuture<void> TFileChunkWriter::Close()
+{
+    if (!Buffer_.IsEmpty()) {
+        FlushBlock();
+    }
+
+    auto& meta = EncodingChunkWriter_->Meta();
+    meta.set_type(static_cast<int>(EChunkType::File));
+    meta.set_version(FormatVersion);
+
+    SetProtoExtension(meta.mutable_extensions(), BlocksExt_);
+
+    return BIND(&TEncodingChunkWriter::Close, EncodingChunkWriter_)
+        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+        .Run();
 }
 
 i64 TFileChunkWriter::GetDataSize() const
 {
-    return EncodingWriter->GetCompressedSize() + Buffer.Size();
+    return EncodingChunkWriter_->GetDataStatistics().compressed_data_size(); + Buffer_.Size();
 }
 
 i64 TFileChunkWriter::GetMetaSize() const
 {
-    return sizeof(NChunkClient::NProto::TMiscExt) +
-        BlockCount * sizeof(NProto::TBlockInfo) +
-        sizeof(NChunkClient::NProto::TChunkMeta);
+    return BlocksExtSize_;
 }
 
-NChunkClient::NProto::TChunkMeta TFileChunkWriter::GetMasterMeta() const
+TChunkMeta TFileChunkWriter::GetMasterMeta() const
 {
-    static const int masterMetaTagsArray[] = { TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value };
-    static const yhash_set<int> masterMetaTags(masterMetaTagsArray, masterMetaTagsArray + 1);
-
-    auto meta = Meta;
-    FilterProtoExtensions(
-        meta.mutable_extensions(),
-        Meta.extensions(),
-        masterMetaTags);
+    TChunkMeta meta;
+    SetProtoExtension(meta.mutable_extensions(), EncodingChunkWriter_->MiscExt());
     return meta;
 }
 
-NChunkClient::NProto::TChunkMeta TFileChunkWriter::GetSchedulerMeta() const
+TChunkMeta TFileChunkWriter::GetSchedulerMeta() const
 {
     return GetMasterMeta();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TFileChunkWriterFacade::TFileChunkWriterFacade(TFileChunkWriter* writer)
-    : Writer(writer)
-{ }
-
-void TFileChunkWriterFacade::Write(const TRef& data)
+TDataStatistics TFileChunkWriter::GetDataStatistics() const
 {
-    Writer->Write(data);
+    return EncodingChunkWriter_->GetDataStatistics();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileChunkWriterProvider::TFileChunkWriterProvider(
+IFileChunkWriterPtr CreateFileChunkWriter(
     TFileChunkWriterConfigPtr config,
-    NChunkClient::TEncodingWriterOptionsPtr options)
-    : Config(config)
-    , Options(options)
-    , ActiveWriters(0)
-{ }
-
-TFileChunkWriterPtr TFileChunkWriterProvider::CreateChunkWriter(NChunkClient::IChunkWriterPtr chunkWriter)
+    TEncodingWriterOptionsPtr options,
+    IChunkWriterPtr chunkWriter)
 {
-    YCHECK(ActiveWriters == 0);
-    ++ActiveWriters;
-    return New<TFileChunkWriter>(Config, Options, chunkWriter);
+    return New<TFileChunkWriter>(config, options, chunkWriter);
 }
 
-void TFileChunkWriterProvider::OnChunkFinished()
+IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
+    TFileWriterConfigPtr config,
+    TMultiChunkWriterOptionsPtr options,
+    IChannelPtr masterChannel,
+    const TTransactionId& transactionId,
+    const TChunkListId& parentChunkListId)
 {
-    --ActiveWriters;
-    YCHECK(ActiveWriters == 0);
-}
+    typedef TMultiChunkWriterBase<
+        IFileMultiChunkWriter,
+        IFileChunkWriter,
+        const TRef&> TFileMultiChunkWriter;
 
-void TFileChunkWriterProvider::OnChunkClosed(TFileChunkWriterPtr /*writer*/)
-{ }
+    auto createChunkWriter = [=] (IChunkWriterPtr chunkWriter) {
+         return CreateFileChunkWriter(
+            config,
+            options, 
+            chunkWriter);
+    };
+
+    return New<TFileMultiChunkWriter>(
+        config, 
+        options, 
+        masterChannel, 
+        transactionId, 
+        parentChunkListId, 
+        createChunkWriter);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

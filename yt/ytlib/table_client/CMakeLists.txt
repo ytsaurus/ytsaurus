@@ -15,7 +15,6 @@ set( SRCS
   ${BASE}/table_chunk_writer.cpp
   ${BASE}/table_consumer.cpp
   ${BASE}/table_producer.cpp
-  ${BASE}/table_reader.cpp
   ${BASE}/table_writer.cpp
   ${BASE}/value.cpp
 )
@@ -39,7 +38,6 @@ set( HDRS
   ${BASE}/table_chunk_writer.h
   ${BASE}/table_consumer.h
   ${BASE}/table_producer.h
-  ${BASE}/table_reader.h
   ${BASE}/table_writer.h
   ${BASE}/table_ypath_proxy.h
   ${BASE}/value.h

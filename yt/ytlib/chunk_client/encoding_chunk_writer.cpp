@@ -36,6 +36,14 @@ void TEncodingChunkWriter::WriteBlock(std::vector<TSharedRef>&& data)
     EncodingWriter_->WriteBlock(std::move(data));
 }
 
+void TEncodingChunkWriter::WriteBlock(TSharedRef&& data)
+{
+    ++CurrentBlockIndex_;
+
+    LargestBlockSize_ = std::max(LargestBlockSize_, static_cast<i64>(data.Size()));
+    EncodingWriter_->WriteBlock(std::move(data));
+}
+
 void TEncodingChunkWriter::Close()
 {
     WaitFor(EncodingWriter_->Flush())

@@ -100,9 +100,8 @@ private:
     TTransactionPtr Transaction_;
     TTransactionPtr UploadTransaction_;
 
-    typedef TOldMultiChunkSequentialWriter<TFileChunkWriterProvider> TWriter;
-    TIntrusivePtr<TWriter> Writer_;
-    
+    IFileMultiChunkWriterPtr Writer_;
+
     NLog::TLogger Logger = ApiLogger;
 
 
@@ -209,11 +208,7 @@ private:
             writerOptions->Account,
             chunkListId);
 
-        auto provider = New<TFileChunkWriterProvider>(
-            Config_,
-            writerOptions);
-
-        Writer_ = New<TWriter>(
+        Writer_ = CreateFileMultiChunkWriter(
             Config_,
             writerOptions,
             provider,
@@ -231,12 +226,10 @@ private:
     {
         CheckAborted();
 
-        while (!Writer_->GetCurrentWriter()) {
-            auto result = WaitFor(Writer_->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        if (!Writer_->Write(data)) {
+            WaitFor(Writer_->GetReadyEvent())
+                .ThrowOnError();
         }
-        
-        Writer_->GetCurrentWriter()->Write(data);
     }
 
     void DoClose()

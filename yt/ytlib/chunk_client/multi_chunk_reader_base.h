@@ -69,7 +69,6 @@ protected:
     TPromise<void> CompletionError_;
 
 
-    // ToDo(psushin): throw exceptions.
     virtual void DoOpen() = 0;
 
     virtual IChunkReaderBasePtr CreateTemplateReader(
