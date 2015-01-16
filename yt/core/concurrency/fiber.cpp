@@ -54,6 +54,7 @@ void TFiber::SetRunning()
 {
     // THREAD_AFFINITY(OwnerThread);
     TGuard<TSpinLock> guard(SpinLock_);
+    YASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Running;
     AwaitedFuture_.Reset();
 }
@@ -62,6 +63,7 @@ void TFiber::SetSleeping(TFuture<void> awaitedFuture)
 {
     // THREAD_AFFINITY(OwnerThread);
     TGuard<TSpinLock> guard(SpinLock_);
+    YASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Sleeping;
     YASSERT(!AwaitedFuture_);
     AwaitedFuture_ = std::move(awaitedFuture);
@@ -71,6 +73,7 @@ void TFiber::SetSuspended()
 {
     // THREAD_AFFINITY(OwnerThread);
     TGuard<TSpinLock> guard(SpinLock_);
+    YASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Suspended;
     AwaitedFuture_.Reset();
 }
