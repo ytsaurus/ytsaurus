@@ -56,7 +56,9 @@ void TObjectPool<T>::Reclaim(T* obj)
     if (PoolSize_ < TPooledObjectTraits<T>::GetMaxPoolSize()) {
         PooledObjects_.Enqueue(obj);
         ++PoolSize_;
-    }    
+    } else {
+        FreeInstance(obj);
+    }
 
     if (PoolSize_ > TPooledObjectTraits<T>::GetMaxPoolSize()) {
         T* objToDestroy;
