@@ -276,7 +276,7 @@ class YsonFormat(Format):
     """
 
     def __init__(self, format=None, process_table_index=True, ignore_inner_attributes=False, boolean_as_string=True,
-                 attributes=None, raw=None):
+                 table_index_column="@table_index", attributes=None, raw=None):
         """
         :param format: (one of "text" (default), "pretty", "binary") output format \
         (actual only for output).
@@ -290,6 +290,7 @@ class YsonFormat(Format):
         self.process_table_index = process_table_index
         self.ignore_inner_attributes = ignore_inner_attributes
         self.boolean_as_string = boolean_as_string
+        self.table_index_column = table_index_column
 
     def _check_bindings(self):
         require(yson.TYPE == "BINARY", YtError("Yson bindings required"))
@@ -298,8 +299,7 @@ class YsonFormat(Format):
         """Not supported"""
         raise YtFormatError("load_row is not supported in Yson")
 
-    @staticmethod
-    def _process_input_rows(rows):
+    def _process_input_rows(self, rows):
         table_index = 0
         for row in rows:
             if isinstance(row, yson.YsonEntity):
@@ -309,7 +309,9 @@ class YsonFormat(Format):
                     raise YtError("Wrong table switcher in Yson rows")
                 continue
 
+            # TODO(ignat): Deprecated!
             row["input_table_index"] = table_index
+            row[self.table_index_column] = table_index
             yield row
 
     def load_rows(self, stream, raw=None):
@@ -327,16 +329,19 @@ class YsonFormat(Format):
         self._check_bindings()
         self._dump_rows([row], stream)
 
-    @staticmethod
-    def _process_output_rows(rows):
+    def _process_output_rows(self, rows):
         table_index = 0
         for row in rows:
-            new_table_index = row.get("output_table_index", 0)
+            new_table_index = row.get(self.table_index_column, 0)
+            # COMPAT(ignat): Deprecated
+            new_table_index = row.get("output_table_index", new_table_index)
             if new_table_index != table_index:
                 yield yson.to_yson_type(None, attributes={"table_index": new_table_index})
                 table_index = new_table_index
             if hasattr(row, "attributes"):
                 row.attributes = {}
+            row.pop(self.table_index_column, None)
+            # COMPAT(ignat): Deprecated
             row.pop("output_table_index", None)
             row.pop("input_table_index", None)
             yield row
@@ -492,11 +497,11 @@ class JsonFormat(Format):
     .. seealso:: `JSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#json>`_
     """
 
-    def __init__(self, process_table_index=True, table_index_field_name="table_index", attributes=None, raw=None):
+    def __init__(self, process_table_index=True, table_index_column="@table_index", attributes=None, raw=None):
         attributes = get_value(attributes, {})
         super(JsonFormat, self).__init__("json", attributes, raw)
         self.process_table_index = process_table_index
-        self.table_index_field_name = table_index_field_name
+        self.table_index_column = table_index_column
 
     def _loads(self, string, raw):
         if raw:
@@ -531,7 +536,7 @@ class JsonFormat(Format):
                 table_index = row["$attributes"]["table_index"]
             else:
                 if table_index is not None:
-                    row[self.table_index_field_name] = table_index
+                    row[self.table_index_column] = table_index
                 yield row
 
     def load_rows(self, stream, raw=None):
@@ -552,14 +557,14 @@ class JsonFormat(Format):
     def _process_output_rows(self, rows):
         table_index = 0
         for row in rows:
-            new_table_index = row[self.table_index_field_name] \
-                if self.table_index_field_name in row \
+            new_table_index = row[self.table_index_column] \
+                if self.table_index_column in row \
                 else 0
             if new_table_index != table_index:
                 table_index = new_table_index
                 yield {"$value": None, "$attributes": {"table_index": table_index}}
-            if self.table_index_field_name in row:
-                del row[self.table_index_field_name]
+            if self.table_index_column in row:
+                del row[self.table_index_column]
             yield row
 
     def _dump_rows(self, rows, stream):
