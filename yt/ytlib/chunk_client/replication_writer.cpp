@@ -25,6 +25,7 @@
 
 #include <deque>
 #include <atomic>
+#include <Foundation/Foundation.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -875,9 +876,11 @@ TFuture<void> TReplicationWriter::GetReadyEvent()
 
         // No need to capture #this by strong reference, because
         // WindowSlots are always released when Writer is alive,
-        // and callcack is called synchronously.
+        // and callback is called synchronously.
         WindowSlots_.GetReadyEvent().Subscribe(BIND([=] (const TError& error) {
-            State_.FinishOperation(error);
+            if (error.IsOK()) {
+                State_.FinishOperation(TError());
+            }
         }));
     }
 
