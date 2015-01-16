@@ -42,7 +42,7 @@ namespace NQueryClient {
 
 struct TExecutionContext
 {
-#ifdef DEBUG
+#ifndef NDEBUG
     size_t StackSizeGuardHelper;
 #endif
     TTableSchema Schema;
