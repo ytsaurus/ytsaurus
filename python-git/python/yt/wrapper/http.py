@@ -6,7 +6,6 @@ from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectRespons
 from command import parse_commands
 
 import os
-import copy
 import string
 import time
 import types
