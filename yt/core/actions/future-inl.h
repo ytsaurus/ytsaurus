@@ -1000,7 +1000,8 @@ public:
     TFutureCombiner(std::vector<TFuture<T>> items)
         : Items_(std::move(items))
         , ResultHolder_(Items_.size())
-        , OutstandingCount_(Items_.size())
+        , PendingResponseCount_(Items_.size())
+        , ErrorResponseCount_(0)
     { }
 
     TFuture<typename TFutureCombineTraits<T>::TCombined> Run()
@@ -1021,7 +1022,9 @@ private:
 
     TPromise<typename TFutureCombineTraits<T>::TCombined> Promise_ = NewPromise<typename TFutureCombineTraits<T>::TCombined>();
     TFutureCombinerResultHolder<T> ResultHolder_;
-    std::atomic<int> OutstandingCount_;
+    std::atomic<int> PendingResponseCount_;
+    std::atomic<int> ErrorResponseCount_;
+    TError Error_;
 
 
     void OnCanceled()
@@ -1035,12 +1038,18 @@ private:
     {
         if (result.IsOK()) {
             ResultHolder_.SetItem(index, result);
-            if (--OutstandingCount_ == 0) {
-                ResultHolder_.SetPromise(Promise_);
-            }
         } else {
-            Promise_.TrySet(TError(result));
+            if (++ErrorResponseCount_ == 1) {
+                Error_ = result;
+            }
             OnCanceled();
+        }
+        if (--PendingResponseCount_ == 0) {
+            if (Error_.IsOK()) {
+                ResultHolder_.SetPromise(Promise_);
+            } else {
+                Promise_.Set(Error_);
+            }
         }
     }
 };

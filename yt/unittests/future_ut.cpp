@@ -564,6 +564,19 @@ TEST(TFutureTest, CombineError)
     EXPECT_FALSE(resultOrError.IsOK());
 }
 
+TEST(TFutureTest, CombineNoPrematureExit)
+{
+    std::vector<TFuture<int>> asyncResults {
+        AsyncDivide(5, 2, TDuration::Seconds(0.5)),
+        MakeFuture<int>(TError("oops"))
+    };
+    auto asyncResult = Combine(asyncResults);
+    Sleep(TDuration::Seconds(0.1));
+    EXPECT_FALSE(asyncResult.IsSet());
+    auto result = asyncResult.Get();
+    EXPECT_FALSE(result.IsOK());
+}
+
 TEST(TFutureTest, CombineCancel)
 {
     std::vector<TFuture<void>> asyncResults {
