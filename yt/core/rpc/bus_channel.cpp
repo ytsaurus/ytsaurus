@@ -108,8 +108,8 @@ public:
         }
 
         return sessionOrError.Value()->Send(
-            request,
-            responseHandler,
+            std::move(request),
+            std::move(responseHandler),
             timeout,
             requestAck);
     }
@@ -398,7 +398,7 @@ private:
 
                 auto it = ActiveRequestMap_.find(requestId);
                 if (it == ActiveRequestMap_.end()) {
-                    LOG_DEBUG("Timeout occurred for an unkown request, ignored (RequestId: %v)",
+                    LOG_DEBUG("Timeout occurred for an unknown request, ignored (RequestId: %v)",
                         requestId);
                     return;
                 }
@@ -502,7 +502,7 @@ private:
                     auto detailedError = TError(
                         NRpc::EErrorCode::TransportError,
                         "Request serialization failed")
-                                         << requestMessageOrError;
+                         << requestMessageOrError;
                     NotifyError(activeRequest, detailedError);
                 }
                 return;
@@ -555,8 +555,8 @@ private:
             } else {
                 auto detailedError = TError(
                     NRpc::EErrorCode::TransportError,
-                    "Request acknowledgment failed") <<
-                    error;
+                    "Request acknowledgment failed")
+                    << error;
                 NotifyError(requestControl, detailedError);
             }
         }
