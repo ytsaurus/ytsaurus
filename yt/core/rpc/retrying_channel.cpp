@@ -49,8 +49,8 @@ public:
         return New<TRetryingRequest>(
             Config_,
             UnderlyingChannel_,
-            request,
-            responseHandler,
+            std::move(request),
+            std::move(responseHandler),
             timeout,
             requestAck,
             IsRetriableError_)
@@ -81,7 +81,7 @@ private:
             , ResponseHandler_(std::move(responseHandler))
             , Timeout_(timeout)
             , RequestAck_(requestAck)
-            , IsRetriableError_(isRetriableError)
+            , IsRetriableError_(std::move(isRetriableError))
         {
             YASSERT(Config_);
             YASSERT(UnderlyingChannel_);
