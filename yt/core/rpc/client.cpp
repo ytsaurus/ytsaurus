@@ -30,7 +30,7 @@ TClientRequest::TClientRequest(
     : RequestAck_(true)
     , RequestHeavy_(false)
     , ResponseHeavy_(false)
-    , Channel_(channel)
+    , Channel_(std::move(channel))
 {
     YASSERT(Channel_);
 
