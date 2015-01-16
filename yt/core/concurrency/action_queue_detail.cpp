@@ -119,7 +119,7 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
         WaitTimeCounter,
         CpuDurationToValue(action->StartedAt - action->EnqueuedAt));
 
-    // Move callback to the stack frame to ensure that we hold it as hold as it runs.
+    // Move callback to the stack frame to ensure that we hold it as long as it runs.
     auto callback = std::move(action->Callback);
     try {
         TCurrentInvokerGuard guard(this);
