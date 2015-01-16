@@ -94,11 +94,6 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const auto& Logger = ApiLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TQueryResponseReader)
 DECLARE_REFCOUNTED_CLASS(TQueryHelper)
 DECLARE_REFCOUNTED_CLASS(TClient)
 DECLARE_REFCOUNTED_CLASS(TTransaction)
@@ -896,7 +891,7 @@ private:
     std::unique_ptr<TObjectServiceProxy> ObjectProxy_;
     std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;
 
-    NLog::TLogger Logger;
+    NLog::TLogger Logger = ApiLogger;
 
 
     template <class T>
