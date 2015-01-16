@@ -1,115 +1,64 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_meta_extensions.h"
 
-#include <core/misc/async_stream_state.h>
+#include <ytlib/api/config.h>
 
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/chunk_writer_base.h>
+#include <ytlib/chunk_client/multi_chunk_writer.h>
+#include <ytlib/chunk_client/writer_base.h>
 
-#include <core/logging/log.h>
+#include <ytlib/transaction_client/public.h>
+
+#include <core/rpc/public.h>
 
 namespace NYT {
 namespace NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileChunkWriterFacade
-    : public TNonCopyable
+struct IFileWriter
+    : public virtual NChunkClient::IWriterBase
 {
-public:
-    explicit TFileChunkWriterFacade(TFileChunkWriter* writer);
-
-    void Write(const TRef& data);
-
-private:
-    friend class TFileChunkWriter;
-    TFileChunkWriter* Writer;
-
+    virtual bool Write(const TRef& data) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IFileWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileChunkWriter
-    : public TRefCounted
-{
-public:
-    TFileChunkWriter(
-        TFileChunkWriterConfigPtr config,
-        NChunkClient::TEncodingWriterOptionsPtr options,
-        NChunkClient::IChunkWriterPtr chunkWriter);
+struct IFileChunkWriter
+    : public IFileWriter
+    , public virtual NChunkClient::IChunkWriterBase
+{ };
 
-    ~TFileChunkWriter();
-
-    // If |nullptr| is returned, invoke #GetReadyEvent and wait.
-    TFileChunkWriterFacade* GetFacade();
-    TFuture<void> GetReadyEvent();
-
-    TFuture<void> Close();
-
-    i64 GetDataSize() const;
-    i64 GetMetaSize() const;
-
-    NChunkClient::NProto::TChunkMeta GetMasterMeta() const;
-    NChunkClient::NProto::TChunkMeta GetSchedulerMeta() const;
-
-    void Write(const TRef& data);
-
-private:
-    TFileChunkWriterConfigPtr Config;
-    NChunkClient::TEncodingWriterOptionsPtr Options;
-    NChunkClient::TEncodingWriterPtr EncodingWriter;
-    NChunkClient::IChunkWriterPtr ChunkWriter;
-
-    TFileChunkWriterFacade Facade;
-    TBlob Buffer;
-
-    i64 Size;
-    i32 BlockCount;
-
-    NChunkClient::NProto::TMiscExt MiscExt;
-    NFileClient::NProto::TBlocksExt BlocksExt;
-
-    NChunkClient::NProto::TChunkMeta Meta;
-
-    TAsyncStreamState State;
-
-    NLog::TLogger Logger;
-
-    void OnFinalBlocksWritten(const TError& error);
-    void FlushBlock();
-
-};
-
-DEFINE_REFCOUNTED_TYPE(TFileChunkWriter)
+DEFINE_REFCOUNTED_TYPE(IFileChunkWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileChunkWriterProvider
-    : public virtual TRefCounted
-{
-public:
-    typedef TFileChunkWriter TChunkWriter;
-    typedef TFileChunkWriterFacade TFacade;
+IFileChunkWriterPtr CreateFileChunkWriter(
+    TFileChunkWriterConfigPtr config,
+    NChunkClient::TEncodingWriterOptionsPtr options,
+    NChunkClient::IChunkWriterPtr chunkWriter);
 
-    TFileChunkWriterProvider(
-        TFileChunkWriterConfigPtr config,
-        NChunkClient::TEncodingWriterOptionsPtr options);
+////////////////////////////////////////////////////////////////////////////////
 
-    TFileChunkWriterPtr CreateChunkWriter(NChunkClient::IChunkWriterPtr chunkWriter);
-    void OnChunkFinished();
-    void OnChunkClosed(TFileChunkWriterPtr writer);
+struct IFileMultiChunkWriter
+    : public IFileWriter
+    , public virtual NChunkClient::IMultiChunkWriter
+{ };
 
-private:
-    TFileChunkWriterConfigPtr Config;
-    NChunkClient::TEncodingWriterOptionsPtr Options;
+DEFINE_REFCOUNTED_TYPE(IFileMultiChunkWriter)
 
-    int ActiveWriters;
+////////////////////////////////////////////////////////////////////////////////
 
-};
-
-DEFINE_REFCOUNTED_TYPE(TFileChunkWriterProvider)
+IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
+    NApi::TFileWriterConfigPtr config,
+    NChunkClient::TMultiChunkWriterOptionsPtr options,
+    NRpc::IChannelPtr masterChannel,
+    const NTransactionClient::TTransactionId& transactionId,
+    const NChunkClient::TChunkListId& parentChunkListId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -741,6 +741,59 @@ private:
         }
     }
 
+/*
+    void MakeNewChunkSplits(
+        const TChunkSpec* chunkSpec,
+        TRspGetChunkSplits::TChunkSplits* splittedChunk,
+        i64 minSplitSize,
+        int keyColumnCount,
+        const TMiscExt& miscExt,
+        const TChunkMeta& meta)
+    {
+        auto indexExt = GetProtoExtension<TBlockIndexExt>(meta.extensions());
+        auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta.extensions());
+
+        if (indexExt.entries_size() == 1) {
+            // Only one index entry available - no need to split.
+            splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
+            return;
+        }
+
+        using NChunkClient::TReadLimit;
+        auto comparer = [&] (
+            const TReadLimit& limit,
+            const Stroka& indexEntry,
+            bool isStartLimit) -> int
+        {
+            if (!limit.HasRowIndex() && !limit.HasKey()) {
+                return isStartLimit ? -1 : 1;
+            }
+
+            auto result = 0;
+            if (limit.HasRowIndex()) {
+                auto diff = limit.GetRowIndex() - indexRow.row_index();
+                // Sign function.
+                result += (diff > 0) - (diff < 0);
+            }
+
+            if (limit.HasKey()) {
+                TOwningKey indexKey;
+                FromProto(&indexKey, indexRow.key());
+                result += CompareRows(limit.GetKey(), indexKey, keyColumnCount);
+            }
+
+            if (result == 0) {
+                return isStartLimit ? -1 : 1;
+            }
+
+            return (result > 0) - (result < 0);
+        };
+
+
+
+    }
+*/
+
     void MakeOldChunkSplits(
         const TChunkSpec* chunkSpec,
         TRspGetChunkSplits::TChunkSplits* splittedChunk,

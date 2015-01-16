@@ -98,8 +98,7 @@ private:
 
     TTransactionPtr Transaction_;
 
-    typedef TOldMultiChunkSequentialReader<TFileChunkReader> TReader;
-    TIntrusivePtr<TReader> Reader_;
+    IFileMultiChunkReaderPtr Reader_;
 
     NLog::TLogger Logger;
 
@@ -168,21 +167,19 @@ private:
             nodeDirectory->MergeFrom(rsp->node_directory());
 
             auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
-            auto provider = New<TFileChunkReaderProvider>(
+            Reader_ = CreateFileMultiChunkReader(
                 Config_,
-                Client_->GetConnection()->GetUncompressedBlockCache());
-            Reader_ = New<TReader>(
-                Config_,
+                New<TMultiChunkReaderOptions>(),
                 masterChannel,
                 Client_->GetConnection()->GetCompressedBlockCache(),
+                Client_->GetConnection()->GetUncompressedBlockCache(),
                 nodeDirectory,
-                std::move(chunks),
-                provider);
+                std::move(chunks));
         }
 
         {
-            auto result = WaitFor(Reader_->AsyncOpen());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            WaitFor(Reader_->Open())
+                .ThrowOnError();
         }
 
         if (Transaction_) {
@@ -196,24 +193,20 @@ private:
     {
         CheckAborted();
 
-        if (IsFinished_) {
-            return TSharedRef();
+        TSharedRef block;
+        auto endOfRead = !Reader_->ReadBlock(&block);
+
+        if (block.Empty()) {
+            if (endOfRead)
+                return TSharedRef();
+
+            WaitFor(Reader_->GetReadyEvent()).
+                ThrowOnError();
+            YCHECK(Reader_->ReadBlock(&block));
+            YCHECK(!block.Empty());
         }
 
-        if (!IsFirstBlock_ && !Reader_->FetchNext()) {
-            auto result = WaitFor(Reader_->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
-
-        IsFirstBlock_ = false;
-
-        auto* facade = Reader_->GetFacade();
-        if (facade) {
-            return facade->GetBlock();
-        } else {
-            IsFinished_ = true;
-            return TSharedRef();
-        }
+        return block;
     }
 
 };

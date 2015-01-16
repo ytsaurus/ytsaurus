@@ -102,13 +102,9 @@ typedef TIntrusivePtr<TChunkReaderOptions> TChunkReaderOptionsPtr;
 class TTableReaderConfig;
 typedef TIntrusivePtr<TTableReaderConfig> TTableReaderConfigPtr;
 
-class TAsyncTableReader;
-typedef TIntrusivePtr<TAsyncTableReader> TAsyncTableReaderPtr;
-
 class TAsyncWriter;
 typedef TIntrusivePtr<TAsyncWriter> TAsyncWriterPtr;
 
-class TTableProducer;
 class TLegacyTableConsumer;
 
 class TWritingTableConsumer;
@@ -117,12 +113,6 @@ typedef SmallVector< std::pair<TStringBuf, TStringBuf>, 32 > TRow;
 typedef std::vector<Stroka> TKeyColumns;
 
 struct IPartitioner;
-
-typedef NChunkClient::TOldMultiChunkParallelReader<TTableChunkReader> TTableChunkParallelReader;
-typedef TIntrusivePtr<TTableChunkParallelReader> TTableChunkParallelReaderPtr;
-
-typedef NChunkClient::TOldMultiChunkSequentialReader<TTableChunkReader> TTableChunkSequenceReader;
-typedef TIntrusivePtr<TTableChunkSequenceReader> TTableChunkSequenceReaderPtr;
 
 typedef NChunkClient::TOldMultiChunkSequentialWriter<TTableChunkWriterProvider> TTableChunkSequenceWriter;
 typedef TIntrusivePtr<TTableChunkSequenceWriter> TTableChunkSequenceWriterPtr;

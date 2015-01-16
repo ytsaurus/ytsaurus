@@ -92,7 +92,7 @@ void TFileChunkOutput::Open()
     auto error = ChunkWriter->Open().Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(error)
 
-    Writer = New<TFileChunkWriter>(
+    Writer = CreateFileChunkWriter(
         Config,
         New<TEncodingWriterOptions>(),
         ChunkWriter);
@@ -111,14 +111,10 @@ void TFileChunkOutput::DoWrite(const void* buf, size_t len)
 {
     YCHECK(IsOpen);
 
-
-    TFileChunkWriterFacade* facade = nullptr;
-    while ((facade = Writer->GetFacade()) == nullptr) {
-        auto error = WaitFor(Writer->GetReadyEvent());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    if (!Writer->Write(TRef(const_cast<void*>(buf), len))) {
+        WaitFor(Writer->GetReadyEvent())
+            .ThrowOnError();
     }
-
-    facade->Write(TRef(const_cast<void*>(buf), len));
 }
 
 void TFileChunkOutput::DoFinish()
@@ -130,8 +126,8 @@ void TFileChunkOutput::DoFinish()
 
     LOG_INFO("Closing file writer");
 
-    auto error = WaitFor(Writer->Close());
-    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    WaitFor(Writer->Close())
+        .ThrowOnError();
 
     LOG_INFO("Confirming chunk");
     {
