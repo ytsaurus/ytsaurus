@@ -183,11 +183,13 @@ class PrintOperationInfo(object):
 def abort_operation(operation, client=None):
     """Abort operation.
 
+    Do nothing if operation is in final state.
+
     :param operation: (string) operation id.
     """
-    #TODO(ignat): remove check!?
-    if not get_operation_state(operation, client=client).is_final():
-        make_request("abort_op", {"operation_id": operation}, client=client)
+    if get_operation_state(operation, client=client).is_final():
+        return
+    make_request("abort_op", {"operation_id": operation}, client=client)
 
 def suspend_operation(operation, client=None):
     """Suspend operation.

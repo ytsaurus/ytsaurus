@@ -295,7 +295,7 @@ test_smart_format()
     ./mapreduce -sort -src "ignat/smart_x" -dst "ignat/smart_x"
     check "1 1\t\n1 2\tz=10" "`./mapreduce -read "ignat/smart_x"`"
 
-    # TODO(ignat): improve this test to chech that reduce is made by proper columns
+    # TODO(ignat): improve this test to check that reduce is made by proper columns
     echo -e "1 2\t\tz=1" | ./mapreduce -write "ignat/smart_x" -append
     ./mapreduce -reduce "tr '=' ' ' | awk '{sum+=\$4} END {print sum \"\t\"}'" -src "ignat/smart_x" -dst "ignat/output" -jobcount 2
     check "11\t" "`./mapreduce -read "ignat/output"`"

@@ -34,7 +34,7 @@ class Transaction(object):
     initial_transaction = "0-0-0-0"
     initial_ping_ancestor_transactions = False
 
-    def __init__(self, timeout=None, attributes=None, null=False, client=None):
+    def __init__(self, timeout=None, attributes=None, null=False, ping_ancestor_transactions=False, client=None):
         self.client = get_value(client, config.CLIENT)
         self.null = null
 
@@ -48,11 +48,10 @@ class Transaction(object):
         else:
             self.transaction_id = start_transaction(timeout=timeout, attributes=attributes, client=client)
         if self.client is None:
-            Transaction.stack.append(self.transaction_id)
+            Transaction.stack.append((self.transaction_id, ping_ancestor_transactions))
             self._update_global_config()
         else:
-            # TODO(ignat): eliminate hack with ping ancestor transactions
-            self.client._add_transaction(self.transaction_id, True)
+            self.client._add_transaction(self.transaction_id, ping_ancestor_transactions)
 
         self.finished = False
 
@@ -92,11 +91,10 @@ class Transaction(object):
 
     def _update_global_config(self):
         if Transaction.stack:
-            config.TRANSACTION = Transaction.stack[-1]
-            config.PING_ANCESTOR_TRANSACTIONS = True
+            config.TRANSACTION, config.PING_ANCESTOR_TRANSACTIONS = Transaction.stack[-1]
         else:
-            config.TRANSACTION = Transaction.initial_transaction
-            config.PING_ANCESTOR_TRANSACTIONS = Transaction.initial_ping_ancestor_transactions
+            config.TRANSACTION, config.PING_ANCESTOR_TRANSACTIONS = \
+                Transaction.initial_transaction, Transaction.initial_ping_ancestor_transactions
 
 class PingTransaction(Thread):
     """
@@ -148,14 +146,18 @@ class PingTransaction(Thread):
 
 class PingableTransaction(object):
     """Self-pinged transaction"""
-    def __init__(self, timeout=None, attributes=None, client=None):
+    def __init__(self, timeout=None, attributes=None, ping_ancestor_transactions=False, client=None):
         self.timeout = get_value(timeout, config.http.get_timeout())
         self.attributes = attributes
+        self.ping_ancestor_transactions = ping_ancestor_transactions
         self.client = client
 
     def __enter__(self):
-        self.transaction = Transaction(self.timeout, self.attributes, client=self.client)
-        self.transaction.__enter__()
+        self.transaction = Transaction(
+            timeout=self.timeout,
+            attributes=self.attributes,
+            ping_ancestor_transactions=self.ping_ancestor_transactions,
+            client=self.client).__enter__()
 
         transaction = config.TRANSACTION if self.client is None else self.client._get_transaction()[0]
         delay = (self.timeout / 1000.0) / max(2, config.http.REQUEST_RETRY_COUNT)
