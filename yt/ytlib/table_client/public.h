@@ -38,12 +38,6 @@ typedef TIntrusivePtr<IWriterBase> IWriterBasePtr;
 struct IAsyncWriter;
 typedef TIntrusivePtr<IAsyncWriter> IAsyncWriterPtr;
 
-struct ISyncReader;
-typedef TIntrusivePtr<ISyncReader> ISyncReaderPtr;
-
-struct IAsyncReader;
-typedef TIntrusivePtr<IAsyncReader> IReaderPtr;
-
 class TChunkWriterConfig;
 typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
 
@@ -55,25 +49,11 @@ class TTableChunkWriterFacade;
 class TTableChunkWriterProvider;
 typedef TIntrusivePtr<TTableChunkWriterProvider> TTableChunkWriterProviderPtr;
 
-class TPartitionChunkWriter;
-typedef TIntrusivePtr<TPartitionChunkWriter> TPartitionChunkWriterPtr;
-
-class TPartitionChunkWriterFacade;
-
-class TPartitionChunkWriterProvider;
-typedef TIntrusivePtr<TPartitionChunkWriterProvider> TPartitionChunkWriterProviderPtr;
-
 class TTableChunkReader;
 typedef TIntrusivePtr<TTableChunkReader> TTableChunkReaderPtr;
 
 class TTableChunkReaderProvider;
 typedef TIntrusivePtr<TTableChunkReaderProvider> TTableChunkReaderProviderPtr;
-
-class TPartitionChunkReader;
-typedef TIntrusivePtr<TPartitionChunkReader> TPartitionChunkReaderPtr;
-
-class TPartitionChunkReaderProvider;
-typedef TIntrusivePtr<TPartitionChunkReaderProvider> TPartitionChunkReaderProviderPtr;
 
 class TChannelWriter;
 typedef TIntrusivePtr<TChannelWriter> TChannelWriterPtr;
@@ -111,8 +91,6 @@ class TWritingTableConsumer;
 
 typedef SmallVector< std::pair<TStringBuf, TStringBuf>, 32 > TRow;
 typedef std::vector<Stroka> TKeyColumns;
-
-struct IPartitioner;
 
 typedef NChunkClient::TOldMultiChunkSequentialWriter<TTableChunkWriterProvider> TTableChunkSequenceWriter;
 typedef TIntrusivePtr<TTableChunkSequenceWriter> TTableChunkSequenceWriterPtr;

@@ -6,21 +6,16 @@ set( SRCS
   ${BASE}/channel_writer.cpp
   ${BASE}/chunk_writer_base.cpp
   ${BASE}/chunk_meta_extensions.cpp
-  ${BASE}/partition_chunk_reader.cpp
-  ${BASE}/partition_chunk_writer.cpp
-  ${BASE}/partitioner.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp
   ${BASE}/table_chunk_reader.cpp
   ${BASE}/table_chunk_writer.cpp
   ${BASE}/table_consumer.cpp
-  ${BASE}/table_producer.cpp
   ${BASE}/table_writer.cpp
   ${BASE}/value.cpp
 )
 
 set( HDRS
-  ${BASE}/async_reader.h
   ${BASE}/async_writer.h
   ${BASE}/buffered_table_writer.h
   ${BASE}/channel_reader.h
@@ -28,16 +23,11 @@ set( HDRS
   ${BASE}/chunk_meta_extensions.h
   ${BASE}/chunk_writer_base.h
   ${BASE}/config.h
-  ${BASE}/partition_chunk_reader.h
-  ${BASE}/partition_chunk_writer.h
-  ${BASE}/partitioner.h
   ${BASE}/private.h
   ${BASE}/public.h
-  ${BASE}/sync_reader.h
   ${BASE}/table_chunk_reader.h
   ${BASE}/table_chunk_writer.h
   ${BASE}/table_consumer.h
-  ${BASE}/table_producer.h
   ${BASE}/table_writer.h
   ${BASE}/table_ypath_proxy.h
   ${BASE}/value.h

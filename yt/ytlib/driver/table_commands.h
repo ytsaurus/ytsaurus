@@ -2,8 +2,6 @@
 
 #include "command.h"
 
-#include <ytlib/table_client/public.h>
-
 #include <ytlib/ypath/rich.h>
 
 #include <ytlib/formats/format.h>
