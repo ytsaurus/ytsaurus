@@ -387,7 +387,7 @@ bool TSchedulerThread::FiberMainStep(unsigned int spawnedEpoch)
 
     if (spawnedEpoch != currentEpoch) {
         // If the current fiber has seen WaitFor/SwitchTo calls then
-        // its ownership has been transfered to the callback. In the latter case
+        // its ownership has been transferred to the callback. In the latter case
         // we must abandon the current fiber immediately since the queue's thread
         // had spawned (or will soon spawn) a brand new fiber to continue
         // serving the queue.
