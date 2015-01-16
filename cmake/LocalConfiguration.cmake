@@ -205,10 +205,15 @@ if(MSVC)
 endif()
 
 # Now configure platform-independent options.
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  add_definitions(-DDEBUG)
+
+if(MSVC OR MSVC_IDE)
+
 else()
-  add_definitions(-DNDEBUG)
+  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+      add_definitions(-DDEBUG)
+  else()
+      add_definitions(-DNDEBUG)
+  endif()
 endif()
 
 # Explicitly request C99 format macroses.
