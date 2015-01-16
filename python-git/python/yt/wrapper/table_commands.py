@@ -50,8 +50,8 @@ Operation run under self-pinged transaction, if `yt.wrapper.config.DETACHED` is 
 
 import config
 import py_wrapper
-from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, \
-                   is_prefix, get_value, compose, bool_to_string, chunk_iter_lines, get_version, MB
+from common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
+                   compose, bool_to_string, chunk_iter_lines, get_version, MB, EMPTY_GENERATOR
 from errors import YtIncorrectResponse, YtError, format_error
 from driver import get_host_for_heavy_operation, make_request, ResponseStream
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
@@ -84,6 +84,8 @@ DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_yamr_table", simplify=False)
 
 def _prepare_source_tables(tables, replace_unexisting_by_empty=True, client=None):
     result = [to_table(table, client=client) for table in flatten(tables)]
+    if not result:
+        raise YtError("You must specify non-empty list of source tables")
     if config.TREAT_UNEXISTING_AS_EMPTY:
         if not replace_unexisting_by_empty:
             return [table for table in result if exists(table.name, client=client)]
@@ -508,7 +510,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
     table = to_table(table, client=client)
     format = _prepare_format(format, raw)
     if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name, client=client):
-        return EMPTY_GENERATOR
+        return StringIO() if raw else EMPTY_GENERATOR
 
     params = {
         "path": table.get_json(),
@@ -930,10 +932,8 @@ def run_sort(source_table, destination_table=None, sort_by=None,
         return
 
     if all(is_prefix(sort_by, get_sorted_by(table.name, [], client=client)) for table in source_table):
-        #(TODO) Hack detected: make something with it
-        if len(source_table) > 0:
-            run_merge(source_table, destination_table, "sorted",
-                      strategy=strategy, table_writer=table_writer, spec=spec, client=client)
+        run_merge(source_table, destination_table, "sorted",
+                  strategy=strategy, table_writer=table_writer, spec=spec, client=client)
         return
 
     spec = compose(
