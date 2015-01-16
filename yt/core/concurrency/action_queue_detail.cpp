@@ -552,9 +552,7 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
     YASSERT(CurrentFiber);
     auto fiber = CurrentFiber.Get();
 
-    if (fiber->IsCanceled()) {
-        throw TFiberCanceledException();
-    }
+    // NB: Cannot throw TFiberCanceledException here; must wait for |future| to become set.
 
     // Update scheduling state.
     YASSERT(!WaitForFuture);
