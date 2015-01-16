@@ -597,16 +597,6 @@ protected:
         }
     }
 
-    void ReadBinaryBoolean(bool* value)
-    {
-        TBaseStream::Advance(1);
-        if (TBaseStream::IsEmpty()) {
-            TBaseStream::Refresh();
-        }
-        *value = *TBaseStream::Begin();
-        TBaseStream::Advance(1);
-    }
-
     /// Helpers
     void SkipCharToken(char symbol)
     {
