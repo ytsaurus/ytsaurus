@@ -289,7 +289,9 @@ const TStringBuf& TEnumTraits<T, true>::GetTypeName()
 
 template <class T, class E, E Min, E Max>
 TEnumIndexedVector<T, E, Min, Max>::TEnumIndexedVector()
-{ }
+{
+    std::fill(begin(), end(), T());
+}
 
 template <class T, class E, E Min, E Max>
 T& TEnumIndexedVector<T, E, Min, Max>::operator[] (E index)
