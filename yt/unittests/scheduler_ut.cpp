@@ -453,6 +453,16 @@ TEST_F(TSchedulerTest, YieldToFromCanceledFiber)
     EXPECT_TRUE(asyncResult.Get().IsOK());
 }
 
+TEST_F(TSchedulerTest, JustYield)
+{
+    auto invoker = Queue1->GetInvoker();
+    BIND([] () {
+        for (int i = 0; i < 10; ++i) {
+            Yield();
+        }
+    }).AsyncVia(invoker).Run().Get();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
