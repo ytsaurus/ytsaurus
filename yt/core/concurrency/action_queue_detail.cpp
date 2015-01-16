@@ -124,12 +124,10 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
     try {
         TCurrentInvokerGuard guard(this);
         callback.Run();
+        return EBeginExecuteResult::Success;
     } catch (const TFiberCanceledException&) {
-        // Still consider this a success.
-        // This caller is responsible for terminating the current fiber.
+        return EBeginExecuteResult::Terminated;
     }
-
-    return EBeginExecuteResult::Success;
 }
 
 void TInvokerQueue::EndExecute(TEnqueuedAction* action)
@@ -727,12 +725,10 @@ EBeginExecuteResult TEVSchedulerThread::BeginExecuteCallbacks()
     try {
         TCurrentInvokerGuard guard(Invoker);
         callback.Run();
+        return EBeginExecuteResult::Success;
     } catch (const TFiberCanceledException&) {
-        // Still consider this a success.
-        // This caller is responsible for terminating the current fiber.
+        return EBeginExecuteResult::Terminated;
     }
-
-    return EBeginExecuteResult::Success;
 }
 
 void TEVSchedulerThread::EndExecute()
