@@ -30,7 +30,7 @@ using namespace NConcurrency;
 
 static const size_t InitialGroupOpHashtableCapacity = 1024;
 
-#ifdef DEBUG
+#ifndef NDEBUG
 #define CHECK_STACK() \
     { \
         int dummy; \

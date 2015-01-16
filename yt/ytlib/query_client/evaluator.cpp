@@ -367,7 +367,7 @@ private:
         TRow constants,
         TExecutionContext* executionContext)
     {
-#ifdef DEBUG
+#ifndef NDEBUG
         int dummy;
         executionContext->StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
