@@ -73,8 +73,7 @@ private:
     NLog::TLogger Logger;
 
     void DoOpen();
-
-    TSharedRef GetBlock() const;
+    TSharedRef GetBlock();
 
 };
 
@@ -96,7 +95,6 @@ TFileChunkReader::TFileChunkReader(
     , CodecId_(codecId)
     , StartOffset_(startOffset)
     , EndOffset_(endOffset)
-    //, ReadyEvent_(VoidFuture)
     , Logger(FileClientLogger)
 {
     Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
@@ -209,10 +207,10 @@ bool TFileChunkReader::ReadBlock(TSharedRef* block)
         }
     }
 
+    YCHECK(ReadyEvent_.IsSet());
     if (ReadyEvent_.Get().IsOK()) {
         *block = GetBlock();
-        StartOffset_ = std::max(StartOffset_ - static_cast<i64>(block->Size()), (i64)0);
-        EndOffset_ = std::max(EndOffset_ - static_cast<i64>(block->Size()), (i64)0);
+        YCHECK(!block->Empty());
         BlockFetched_ = true;
     }
 
@@ -224,7 +222,7 @@ TFuture<void> TFileChunkReader::GetReadyEvent()
     return ReadyEvent_;
 }
 
-TSharedRef TFileChunkReader::GetBlock() const
+TSharedRef TFileChunkReader::GetBlock() 
 {
     auto block = SequentialReader_->GetCurrentBlock();
 
@@ -241,6 +239,9 @@ TSharedRef TFileChunkReader::GetBlock() const
         begin = block.Begin() + StartOffset_;
     }
 
+    StartOffset_ = std::max(StartOffset_ - static_cast<i64>(block.Size()), (i64)0);
+    EndOffset_ = std::max(EndOffset_ - static_cast<i64>(block.Size()), (i64)0);
+
     return block.Slice(TRef(begin, end));
 }
 
@@ -256,6 +257,7 @@ TDataStatistics TFileChunkReader::GetDataStatistics() const
     auto dataStatistics = ZeroDataStatistics();
     dataStatistics.set_uncompressed_data_size(SequentialReader_->GetUncompressedDataSize());
     dataStatistics.set_compressed_data_size(SequentialReader_->GetCompressedDataSize());
+    return dataStatistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

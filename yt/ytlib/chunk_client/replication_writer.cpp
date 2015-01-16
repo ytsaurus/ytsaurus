@@ -441,7 +441,7 @@ TReplicationWriter::TReplicationWriter(
     , WindowSlots_(config->SendWindowSize)
     , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
 {
-    Logger.AddTag("ChunkId: %v", ChunkId_);
+    Logger.AddTag("ChunkId: %v, ChunkWriter: %v", ChunkId_, this);
 }
 
 TReplicationWriter::~TReplicationWriter()
