@@ -639,6 +639,8 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
     bool prelock,
     ui32 lockMask)
 {
+    YASSERT(lockMask != 0);
+
     TDynamicRow result;
 
     auto addValues = [&] (TDynamicRow dynamicRow) {
