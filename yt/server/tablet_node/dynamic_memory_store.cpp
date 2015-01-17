@@ -23,7 +23,6 @@
 #include <ytlib/new_table_client/versioned_lookuper.h>
 
 #include <ytlib/tablet_client/config.h>
-#include <Foundation/Foundation.h>
 
 namespace NYT {
 namespace NTabletNode {
