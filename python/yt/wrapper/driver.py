@@ -124,7 +124,7 @@ def get_hosts(client=None):
 
     return make_get_request_with_retries("http://{0}/{1}".format(proxy, hosts))
 
-def get_host_for_heavy_operation(client=None):
+def get_heavy_proxy(client=None):
     client = get_value(client, config.CLIENT)
     if config.USE_HOSTS:
         hosts = get_hosts(client=client)
@@ -139,8 +139,10 @@ def get_host_for_heavy_operation(client=None):
 def make_request(command_name, params,
                  data=None, proxy=None,
                  return_content=True, verbose=False,
-                 retry_unavailable_proxy=True, client=None,
-                 response_should_be_json=False):
+                 retry_unavailable_proxy=True,
+                 response_should_be_json=False,
+                 use_heavy_proxy=False,
+                 client=None):
     """
     Makes request to yt proxy. Command name is the name of command in YT API.
     """
@@ -153,7 +155,10 @@ def make_request(command_name, params,
         logger.debug(msg, *args, **kwargs)
 
     # Prepare request url.
-    proxy = get_proxy_url(proxy, client)
+    if use_heavy_proxy:
+        proxy = get_heavy_proxy(client)
+    else:
+        proxy = get_proxy_url(proxy, client)
 
     version, commands = get_api(client)
     api_path = "api/" + version
