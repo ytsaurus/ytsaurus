@@ -669,8 +669,6 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
     };
 
     auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
-        ValidateRow(dynamicRow);
-
         // Make sure the row is not blocked.
         ValidateRowNotBlocked(dynamicRow, lockMask, transaction->GetStartTimestamp());
 
@@ -687,8 +685,6 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
     Rows_->Insert(TRowWrapper{row}, newKeyProvider, existingKeyConsumer);
 
     OnMemoryUsageUpdated();
-
-    ValidateRow(result);
 
     return result;
 }
@@ -716,8 +712,6 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     };
 
     auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
-        ValidateRow(dynamicRow);
-
         // Make sure the row is not blocked.
         ValidateRowNotBlocked(dynamicRow, TDynamicRow::PrimaryLockMask, transaction->GetStartTimestamp());
 
@@ -731,8 +725,6 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     Rows_->Insert(TRowWrapper{key}, newKeyProvider, existingKeyConsumer);
 
     OnMemoryUsageUpdated();
-
-    ValidateRow(result);
 
     return result;
 }
@@ -826,7 +818,6 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicR
 void TDynamicMemoryStore::ConfirmRow(TTransaction* transaction, TDynamicRow row)
 {
     transaction->LockedRows().push_back(TDynamicRowRef(this, row));
-    ValidateRow(row);
 }
 
 void TDynamicMemoryStore::PrepareRow(TTransaction* transaction, TDynamicRow row)
@@ -842,14 +833,10 @@ void TDynamicMemoryStore::PrepareRow(TTransaction* transaction, TDynamicRow row)
             }
         }
     }
-
-    ValidateRow(row);
 }
 
 void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
 {
-    ValidateRow(row);
-
     auto commitTimestamp = transaction->GetCommitTimestamp();
     YASSERT(commitTimestamp != NullTimestamp);
 
@@ -896,14 +883,10 @@ void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
         MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
         MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
     }
-
-    ValidateRow(row);
 }
 
 void TDynamicMemoryStore::AbortRow(TTransaction* transaction, TDynamicRow row)
 {
-    ValidateRow(row);
-
     auto* locks = row.BeginLocks(KeyColumnCount_);
 
     if (!row.GetDeleteLockFlag()) {
@@ -932,8 +915,6 @@ void TDynamicMemoryStore::AbortRow(TTransaction* transaction, TDynamicRow row)
     row.SetDeleteLockFlag(false);
 
     Unlock();
-
-    ValidateRow(row);
 }
 
 TDynamicRow TDynamicMemoryStore::AllocateRow()
@@ -1387,18 +1368,6 @@ void TDynamicMemoryStore::OnMemoryUsageUpdated()
 TOwningKey TDynamicMemoryStore::RowToKey(TDynamicRow row)
 {
     return NTabletNode::RowToKey(Schema_, KeyColumns_, row);
-}
-
-void TDynamicMemoryStore::ValidateRow(TDynamicRow row)
-{
-    auto* locks = row.BeginLocks(KeyColumnCount_);
-    for (int index = KeyColumnCount_; index < SchemaColumnCount_; ++index) {
-        const auto& lock = locks[ColumnIndexToLockIndex_[index]];
-        if (!lock.Transaction) {
-            auto list = row.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
-            YASSERT(!list.HasUncommitted());
-        }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
