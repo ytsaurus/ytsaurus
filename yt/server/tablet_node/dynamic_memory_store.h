@@ -201,8 +201,6 @@ private:
 
     TOwningKey RowToKey(TDynamicRow row);
 
-    void ValidateRow(TDynamicRow row);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicMemoryStore)
