@@ -53,7 +53,7 @@ import py_wrapper
 from common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
                    compose, bool_to_string, chunk_iter_lines, get_version, MB, EMPTY_GENERATOR
 from errors import YtIncorrectResponse, YtError, format_error
-from driver import get_host_for_heavy_operation, make_request, ResponseStream
+from driver import make_request, ResponseStream
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
@@ -531,7 +531,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             "read",
             params,
             return_content=False,
-            proxy=get_host_for_heavy_operation(client=client),
+            use_heavy_proxy=True,
             client=client)
         return read_content(ResponseStream.from_response(response))
     else:
@@ -575,7 +575,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 "read",
                 params,
                 return_content=False,
-                proxy=get_host_for_heavy_operation(client=client),
+                use_heavy_proxy=True,
                 client=client)
             if "X-YT-Response-Parameters" not in response.headers:
                 raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)")
@@ -595,7 +595,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                     "read",
                     params,
                     return_content=False,
-                    proxy=get_host_for_heavy_operation(client=client),
+                    use_heavy_proxy=True,
                     client=client)
                 response_stream = ResponseStream.from_response(self.response)
                 for row in format.load_rows(response_stream, raw=True):
@@ -828,7 +828,7 @@ def select(query, timestamp=None, format=None, response_type=None, raw=True, cli
         "select",
         params,
         return_content=False,
-        proxy=get_host_for_heavy_operation(),
+        use_heavy_proxy=True,
         client=client)
 
     response_stream = ResponseStream.from_response(response)
