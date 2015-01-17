@@ -85,7 +85,7 @@ private:
         THolder holder(this);
 
         NConcurrency::TEvent* readyEvent = nullptr;
-
+        bool canceled;
         {
             TGuard<TSpinLock> guard(SpinLock_);
             if (MustSet) {
@@ -97,6 +97,7 @@ private:
             }
             Value_.Assign(std::forward<U>(value));
             Set_ = true;
+            canceled = Canceled_;
             readyEvent = ReadyEvent_.get();
         }
 
@@ -107,9 +108,11 @@ private:
         for (const auto& handler : ResultHandlers_) {
             handler.Run(*Value_);
         }
-
         ResultHandlers_.clear();
-        CancelHandlers_.clear();
+
+        if (!canceled) {
+            CancelHandlers_.clear();
+        }
 
         return true;
     }
