@@ -23,6 +23,7 @@
 #include <ytlib/new_table_client/versioned_lookuper.h>
 
 #include <ytlib/tablet_client/config.h>
+#include <Foundation/Foundation.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -1392,10 +1393,10 @@ void TDynamicMemoryStore::ValidateRow(TDynamicRow row)
     auto* locks = row.BeginLocks(KeyColumnCount_);
     for (int index = KeyColumnCount_; index < SchemaColumnCount_; ++index) {
         const auto& lock = locks[ColumnIndexToLockIndex_[index]];
-        if (lock.Transaction)
-            return;
-        auto list = row.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
-        YASSERT(!list.HasUncommitted());
+        if (!lock.Transaction) {
+            auto list = row.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
+            YASSERT(!list.HasUncommitted());
+        }
     }
 }
 
