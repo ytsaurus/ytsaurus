@@ -4,7 +4,7 @@ import config
 import yt.logger as logger
 from common import require, chunk_iter, bool_to_string, parse_bool
 from errors import YtError, YtResponseError
-from driver import ResponseStream, get_host_for_heavy_operation
+from driver import ResponseStream
 from heavy_commands import make_heavy_request
 from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create, link, get_attribute
 from transaction_commands import _make_transactional_request
@@ -48,7 +48,7 @@ def download_file(path, response_type=None, file_reader=None, offset=None, lengt
         "download",
         params,
         return_content=False,
-        proxy=get_host_for_heavy_operation(client=client),
+        use_heavy_proxy=True,
         client=client)
     return ResponseStream.from_response(response)
 
