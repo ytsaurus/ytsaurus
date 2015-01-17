@@ -43,26 +43,6 @@ public:
     typedef SmallVector<TCancelHandler, 8> TCancelHandlers;
 
 private:
-    class THolder
-        : private ::TNonCopyable
-    {
-    public:
-        explicit THolder(TFutureState* state)
-            : State_(state)
-        {
-            State_->RefFuture();
-        }
-
-        ~THolder()
-        {
-            State_->UnrefFuture();
-        }
-
-    private:
-        TFutureState* const State_;
-
-    };
-
     //! Number of promises.
     std::atomic<int> StrongRefCount_;
     //! Number of futures plus one if there's at least one promise.
@@ -82,7 +62,7 @@ private:
     bool DoSet(U&& value)
     {
         // Calling subscribers may release the last reference to this.
-        THolder holder(this);
+        TIntrusivePtr<TFutureState> this_(this);
 
         NConcurrency::TEvent* readyEvent = nullptr;
         bool canceled;
@@ -288,8 +268,6 @@ public:
 
     bool Cancel()
     {
-        // Calling subscribers may release the last reference to this.
-        auto this_ = MakeStrong(this);
         return DoCancel();
     }
 
@@ -297,7 +275,7 @@ private:
     bool DoCancel()
     {
         // Calling subscribers may release the last reference to this.
-        THolder holder(this);
+        TIntrusivePtr<TFutureState> this_(this);
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
