@@ -1666,7 +1666,10 @@ public:
         NTransactionClient::TTransactionPtr transaction)
         : Client_(std::move(client))
         , Transaction_(std::move(transaction))
-    { }
+        , Logger(Client_->Logger)
+    {
+        Logger.AddTag("TransactionId: %v", GetId());
+    }
 
 
     virtual IConnectionPtr GetConnection() override
@@ -1745,6 +1748,8 @@ public:
             std::move(nameTable),
             std::move(rows),
             options)));
+        LOG_DEBUG("Row writes buffered (RowCount: %v)",
+            rows.size());
     }
 
 
@@ -1773,6 +1778,8 @@ public:
             std::move(nameTable),
             std::move(keys),
             options)));
+        LOG_DEBUG("Row deletes buffered (RowCount: %v)",
+            keys.size());
     }
 
 
@@ -1903,6 +1910,9 @@ private:
     TClientPtr Client_;
     NTransactionClient::TTransactionPtr Transaction_;
 
+    NLog::TLogger Logger;
+
+
     class TRequestBase
     {
     public:
@@ -2022,16 +2032,19 @@ private:
             : TransactionId_(owner->Transaction_->GetId())
             , TabletId_(tabletInfo->TabletId)
             , Config_(owner->Client_->Connection_->GetConfig())
-        { }
+            , Logger(owner->Logger)
+        {
+            Logger.AddTag("TabletId: %v", TabletId_);
+        }
         
         TWireProtocolWriter* GetWriter()
         {
-            if (Batches_.empty() || CurrentRowCount_ >= Config_->MaxRowsPerWriteRequest) {
+            if (Batches_.empty() || Batches_.back()->RowCount >= Config_->MaxRowsPerWriteRequest) {
                 Batches_.emplace_back(new TBatch());
-                CurrentRowCount_ = 0;
             }
-            ++CurrentRowCount_;
-            return &Batches_.back()->Writer;
+            auto& batch = Batches_.back();
+            ++batch->RowCount;
+            return &batch->Writer;
         }
 
         TFuture<void> Invoke(IChannelPtr channel)
@@ -2053,15 +2066,17 @@ private:
         TTabletId TabletId_;
         TConnectionConfigPtr Config_;
 
+        NLog::TLogger Logger;
+
         struct TBatch
         {
             TWireProtocolWriter Writer;
             std::vector<TSharedRef> RequestData;
+            int RowCount = 0;
         };
 
         std::vector<std::unique_ptr<TBatch>> Batches_;
-        int CurrentRowCount_ = 0; // in the current batch
-        
+
         IChannelPtr InvokeChannel_;
         int InvokeBatchIndex_ = 0;
         TPromise<void> InvokePromise_ = NewPromise<void>();
@@ -2075,6 +2090,9 @@ private:
             }
 
             const auto& batch = Batches_[InvokeBatchIndex_];
+
+            LOG_DEBUG("Sending batch (RowCount: %v)",
+                batch->RowCount);
 
             TTabletServiceProxy proxy(InvokeChannel_);
             auto req = proxy.Write()
@@ -2090,9 +2108,11 @@ private:
         void OnResponse(const TTabletServiceProxy::TErrorOrRspWritePtr& rspOrError)
         {
             if (rspOrError.IsOK()) {
+                LOG_DEBUG("Batch sent successfully");
                 ++InvokeBatchIndex_;
                 InvokeNextBatch();
             } else {
+                LOG_DEBUG(rspOrError, "Error sending batch");
                 InvokePromise_.Set(rspOrError);
             }
         }
