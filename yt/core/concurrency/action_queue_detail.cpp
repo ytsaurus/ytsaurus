@@ -26,6 +26,15 @@ static NLog::TLogger Logger("ActionQueue");
 
 ///////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+void ResumeFiber(TFiberPtr fiber);
+void UnwindFiber(TFiberPtr fiber);
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 TInvokerQueue::TInvokerQueue(
     TEventCount* callbackEventCount,
     const NProfiling::TTagIdList& tagIds,
@@ -453,8 +462,8 @@ void TSchedulerThread::Yield()
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
 
-    YASSERT(CurrentFiber);
     auto fiber = CurrentFiber.Get();
+    YASSERT(fiber);
 
     if (fiber->IsCanceled()) {
         throw TFiberCanceledException();
@@ -495,6 +504,8 @@ void TSchedulerThread::YieldTo(TFiberPtr&& other)
     // Memoize raw pointers.
     auto caller = CurrentFiber.Get();
     auto target = other.Get();
+
+    // TODO(babenko): handle canceled caller
 
     RunQueue.emplace_front(std::move(CurrentFiber));
     CurrentFiber = std::move(other);
@@ -549,10 +560,29 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
 
-    YASSERT(CurrentFiber);
     auto fiber = CurrentFiber.Get();
+    YASSERT(fiber);
 
-    // NB: Cannot throw TFiberCanceledException here; must wait for |future| to become set.
+    if (fiber->IsCanceled()) {
+        throw TFiberCanceledException();
+    }
+
+    UninterruptableWaitFor(std::move(future), std::move(invoker));
+
+    // Cannot access |this| from this point as the fiber might be resumed
+    // in other scheduler.
+
+    if (fiber->IsCanceled()) {
+        throw TFiberCanceledException();
+    }
+}
+
+void TSchedulerThread::UninterruptableWaitFor(TFuture<void> future, IInvokerPtr invoker)
+{
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
+    auto fiber = CurrentFiber.Get();
+    YASSERT(fiber);
 
     // Update scheduling state.
     YASSERT(!WaitForFuture);
@@ -569,10 +599,6 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
 
     // Cannot access |this| from this point as the fiber might be resumed
     // in other scheduler.
-
-    if (fiber->IsCanceled()) {
-        throw TFiberCanceledException();
-    }
 }
 
 void TSchedulerThread::OnStart()

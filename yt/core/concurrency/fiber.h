@@ -9,7 +9,6 @@
 #include <core/misc/small_vector.h>
 
 #include <atomic>
-#include <exception>
 
 namespace NYT {
 namespace NConcurrency {
@@ -139,15 +138,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TFiber)
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
-
-void ResumeFiber(TFiberPtr fiber);
-void UnwindFiber(TFiberPtr fiber);
-
-} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 

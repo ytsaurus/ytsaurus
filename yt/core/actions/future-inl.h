@@ -24,6 +24,7 @@ namespace NConcurrency {
 
 // scheduler.h
 TClosure GetCurrentFiberCanceler();
+void UninterruptableWaitFor(TFuture<void> future);
 
 } // namespace NConcurrency
 
@@ -954,8 +955,49 @@ TCallback<R(TArgs...)>::AsyncVia(IInvokerPtr invoker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
+template <class T>
+TFutureHolder<T>::TFutureHolder()
+{ }
 
+template <class T>
+TFutureHolder<T>::TFutureHolder(TNull)
+{ }
+
+template <class T>
+TFutureHolder<T>::TFutureHolder(TFuture<T> future)
+    : Future_(std::move(future))
+{ }
+
+template <class T>
+TFutureHolder<T>::~TFutureHolder()
+{
+    if (Future_ && !Future_.IsSet()) {
+        Future_.Cancel();
+        NConcurrency::UninterruptableWaitFor(Future_.template As<void>());
+    }
+}
+
+template <class T>
+TFuture<T>& TFutureHolder<T>::Get()
+{
+    return Future_;
+}
+
+template <class T>
+const TFuture<T>& TFutureHolder<T>::Get() const
+{
+    return Future_;
+}
+
+template <class T>
+TFutureHolder<T> MakeHolder(TFuture<T> future)
+{
+    return TFutureHolder<T>(std::move(future));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
 
 template <class T>
 class TFutureCombinerResultHolder
@@ -1001,11 +1043,10 @@ class TFutureCombiner
     : public TRefCounted
 {
 public:
-    TFutureCombiner(std::vector<TFuture<T>> items)
-        : Items_(std::move(items))
+    explicit TFutureCombiner(const std::vector<TFuture<T>>& items)
+        : Items_(items)
         , ResultHolder_(Items_.size())
         , PendingResponseCount_(Items_.size())
-        , ErrorResponseCount_(0)
     { }
 
     TFuture<typename TFutureCombineTraits<T>::TCombined> Run()
@@ -1027,8 +1068,6 @@ private:
     TPromise<typename TFutureCombineTraits<T>::TCombined> Promise_ = NewPromise<typename TFutureCombineTraits<T>::TCombined>();
     TFutureCombinerResultHolder<T> ResultHolder_;
     std::atomic<int> PendingResponseCount_;
-    std::atomic<int> ErrorResponseCount_;
-    TError Error_;
 
 
     void OnCanceled()
@@ -1042,18 +1081,12 @@ private:
     {
         if (result.IsOK()) {
             ResultHolder_.SetItem(index, result);
-        } else {
-            if (++ErrorResponseCount_ == 1) {
-                Error_ = result;
-            }
-            OnCanceled();
-        }
-        if (--PendingResponseCount_ == 0) {
-            if (Error_.IsOK()) {
+            if (--PendingResponseCount_ == 0) {
                 ResultHolder_.SetPromise(Promise_);
-            } else {
-                Promise_.Set(Error_);
             }
+        } else {
+            OnCanceled();
+            Promise_.TrySet(TError(result));
         }
     }
 };
@@ -1061,10 +1094,22 @@ private:
 } // namespace NDetail
 
 template <class T>
-TFuture<typename TFutureCombineTraits<T>::TCombined>
-Combine(std::vector<TFuture<T>> items)
+TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
+    const std::vector<TFuture<T>>& futures)
 {
-    return New<NDetail::TFutureCombiner<T>>(std::move(items))->Run();
+    return New<NDetail::TFutureCombiner<T>>(futures)->Run();
+}
+
+template <class T>
+TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
+    const std::vector<TFutureHolder<T>>& holders)
+{
+    std::vector<TFuture<T>> futures;
+    futures.reserve(holders.size());
+    for (auto& holder : holders) {
+        futures.push_back(holder.Get());
+    }
+    return Combine(futures);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

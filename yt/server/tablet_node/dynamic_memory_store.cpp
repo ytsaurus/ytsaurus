@@ -533,7 +533,7 @@ public:
             columnFilter)
     { }
 
-    virtual TFuture<TVersionedRow> Lookup(TKey key) override
+    virtual TFutureHolder<TVersionedRow> Lookup(TKey key) override
     {
         auto iterator = Store_->Rows_->FindEqualTo(TRowWrapper{key});
         if (!iterator.IsValid()) {

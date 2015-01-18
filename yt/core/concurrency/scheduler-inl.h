@@ -33,7 +33,7 @@ TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker)
         scheduler->WaitFor(future.template As<void>(), std::move(invoker));
         YASSERT(future.IsSet());
     } else {
-        // If called from a fiber-unfriendly thread, we fallback to blocking wait.
+        // When called from a fiber-unfriendly context, we fallback to blocking wait.
         YCHECK(invoker == GetCurrentInvoker());
         YCHECK(invoker == GetSyncInvoker());
     }

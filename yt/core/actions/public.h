@@ -26,6 +26,9 @@ class TPromise;
 template <>
 class TPromise<void>;
 
+template <class T>
+class TFutureHolder;
+
 DECLARE_REFCOUNTED_STRUCT(IInvoker)
 DECLARE_REFCOUNTED_STRUCT(IPrioritizedInvoker)
 
