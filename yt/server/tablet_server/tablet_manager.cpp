@@ -199,7 +199,7 @@ public:
             BIND(&TImpl::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND(&TImpl::HydraAssignPeers, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraRevokePeer, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraRevokePeers, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletMounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletStores, Unretained(this)));
@@ -1113,7 +1113,7 @@ private:
         ReconfigureCell(cell);
     }
 
-    void HydraRevokePeer(const TReqRevokePeer& request)
+    void HydraRevokePeers(const TReqRevokePeers& request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1122,21 +1122,10 @@ private:
         if (!IsObjectAlive(cell))
             return;
 
-        auto peerId = request.peer_id();
-        const auto& peer = cell->Peers()[peerId];
-        if (!peer.Address || peer.Node)
-            return;
+        for (auto peerId : request.peer_ids()) {
+            DoRevokePeer(cell, peerId);
+        }
 
-        const auto& address = *peer.Address;
-
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
-            cell->GetId(),
-            address,
-            peerId);
-
-        RemoveFromAddressToCellMap(address, cell);
-        cell->RevokePeer(peerId);
-        
         AbortPrerequisiteTransaction(cell);
     }
 
@@ -1455,21 +1444,28 @@ private:
             cell->GetId(),
             transaction->GetId());
 
-        if (IsObjectAlive(cell)) {
-            for (auto peerId = 0; peerId < cell->Peers().size(); ++peerId) {
-                const auto& peer = cell->Peers()[peerId];
-                if (peer.Node) {
-                    cell->DetachPeer(peer.Node);
-                }
-                if (peer.Address) {
-                    RemoveFromAddressToCellMap(*peer.Address, cell);
-                    cell->RevokePeer(peerId);
-                }
-            }
-            ReconfigureCell(cell);
+        for (auto peerId = 0; peerId < cell->Peers().size(); ++peerId) {
+            DoRevokePeer(cell, peerId);
         }
     }
 
+
+    void DoRevokePeer(TTabletCell* cell, TPeerId peerId)
+    {
+        const auto& peer = cell->Peers()[peerId];
+        if (!peer.Address || peer.Node)
+            return;
+
+        const auto& address = *peer.Address;
+
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
+            cell->GetId(),
+            address,
+            peerId);
+
+        RemoveFromAddressToCellMap(address, cell);
+        cell->RevokePeer(peerId);
+    }
 
     void DoUnmountTable(
         TTableNode* table,
