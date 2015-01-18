@@ -11,10 +11,10 @@ message TReqAssignPeers
     repeated int32 node_ids = 2;
 }
 
-message TReqRevokePeer
+message TReqRevokePeers
 {
     required NYT.NProto.TGuid cell_id = 1;
-    required int32 peer_id = 2;
+    repeated int32 peer_ids = 2;
 }
 
 message TRspMountTablet
