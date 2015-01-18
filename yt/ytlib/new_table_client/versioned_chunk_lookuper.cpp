@@ -62,7 +62,7 @@ public:
         }
     }
 
-    virtual TFuture<TVersionedRow> Lookup(TKey key) override
+    virtual TFutureHolder<TVersionedRow> Lookup(TKey key) override
     {
         MemoryPool_.Clear();
         UncompressedBlock_.Reset();

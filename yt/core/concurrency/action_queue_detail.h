@@ -125,6 +125,7 @@ public:
     virtual void SubscribeContextSwitched(TClosure callback) override;
     virtual void UnsubscribeContextSwitched(TClosure callback) override;
     virtual void WaitFor(TFuture<void> future, IInvokerPtr invoker) override;
+    virtual void UninterruptableWaitFor(TFuture<void> future, IInvokerPtr invoker) override;
 
 protected:
     TSchedulerThread(

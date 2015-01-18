@@ -399,6 +399,62 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Provides a noncopyable but movable wrapper around TFuture<T> whose
+//! destructor blocks until the underlying future is set.
+/*!
+ *  Use TFutureHolder when returning the result of an asynchronous computation that
+ *  relies on the existence of a certain unsafe context provided by the caller.
+ *
+ *  E.g. here
+ *  @code
+ *  TFutureHolder<void> FillArray(std::vector<int>* array);
+ *  @endcode
+ *  the caller must provide a pointer to the array, which will be asynchronously
+ *  filled by the callee. One must ensure that this pointer remains valid as long as
+ *  the computation is not finished.
+ */
+template <class T>
+class TFutureHolder
+{
+public:
+    //! Constructs an empty holder.
+    TFutureHolder();
+
+    //! Constructs an empty holder.
+    TFutureHolder(TNull);
+
+    //! Wraps #future into a holder.
+    TFutureHolder(TFuture<T> future);
+
+    //! Cancels the underlying future (if any) and blocks until it is set.
+    ~TFutureHolder();
+
+    TFutureHolder(const TFutureHolder<T>& other) = delete;
+    TFutureHolder(TFutureHolder<T>&& other) = default;
+
+    TFutureHolder& operator = (const TFutureHolder<T>& other) = delete;
+    TFutureHolder& operator = (TFutureHolder<T>&& other) = default;
+
+    //! Returns |true| if the holder has an underlying future.
+    explicit operator bool() const;
+
+    //! Returns the underlying future.
+    const TFuture<T>& Get() const;
+
+    //! Returns the underlying future.
+    TFuture<T>& Get();
+
+private:
+    TFuture<T> Future_;
+
+};
+
+//! Wraps a given #future into a holder.
+template <class T>
+TFutureHolder<T> MakeHolder(TFuture<T> future);
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 struct TFutureCombineTraits
 {
@@ -411,9 +467,21 @@ struct TFutureCombineTraits<void>
     using TCombined = void;
 };
 
+//! Combines a number of same-typed asynchronous computations into a single one.
+/*!
+ *  If |T| is |void|, then the asynchronous return type is |void|, otherwise
+ *  it is |std::vector<T>|.
+ *
+ *  If any of #futures fails, the others are canceled and the error is propagated immediately.
+ */
 template <class T>
-TFuture<typename TFutureCombineTraits<T>::TCombined>
-Combine(std::vector<TFuture<T>> items);
+TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
+    const std::vector<TFuture<T>>& futures);
+
+//! A variant of |Combine| that accepts future holders instead of futures.
+template <class T>
+TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
+    const std::vector<TFutureHolder<T>>& holders);
 
 ////////////////////////////////////////////////////////////////////////////////
 
