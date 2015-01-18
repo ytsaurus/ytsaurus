@@ -141,6 +141,9 @@ class TCallbackRunnableAdapter;
 
 } // namespace NDetail
 
+template <class T>
+class TFuture;
+
 // NB: Needed here due to TCallback::Via and TCallback::AsyncVia.
 template <class T>
 struct TFutureTraits
