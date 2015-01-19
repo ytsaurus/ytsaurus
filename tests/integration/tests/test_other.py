@@ -6,6 +6,17 @@ import os
 
 ##################################################################
 
+class TestJobProbe(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 4
+    NUM_SCHEDULERS = 1
+
+    def test_probe(self):
+        probe("2ecc18b8-d251226a-98f4da8b-51379237")
+        time.sleep(1)
+        assert get("//sys/scheduler/orchid/scheduler/last_event") == "2ecc18b8-d251226a-98f4da8b-51379237"
+
+
 class TestResourceLeak(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3

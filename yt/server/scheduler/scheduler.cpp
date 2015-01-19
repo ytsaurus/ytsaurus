@@ -197,6 +197,11 @@ public:
             .Item("address").Value(ServiceAddress_);
     }
 
+    void SetLastEvent(const Stroka& value)
+    {
+        LastEvent_ = value;
+    }
+
 
     ISchedulerStrategy* GetStrategy()
     {
@@ -261,6 +266,13 @@ public:
                 id);
         }
         return operation;
+    }
+
+
+    TJobPtr FindJob(const TJobId& jobId)
+    {
+        auto it = IdToJob_.find(jobId);
+        return it == IdToJob_.end() ? nullptr : it->second;
     }
 
 
@@ -674,6 +686,8 @@ private:
 
     TActionQueuePtr BackgroundQueue_;
     TActionQueuePtr SnapshotIOQueue_;
+
+    Stroka LastEvent_;
 
     std::unique_ptr<TMasterConnector> MasterConnector_;
 
@@ -1180,13 +1194,6 @@ private:
 
         LOG_INFO("Operation has been revived and is now running (OperationId: %v)",
             operation->GetId());
-    }
-
-
-    TJobPtr FindJob(const TJobId& jobId)
-    {
-        auto it = IdToJob_.find(jobId);
-        return it == IdToJob_.end() ? nullptr : it->second;
     }
 
 
@@ -1775,6 +1782,7 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
+                .Item("last_event").Value(LastEvent_)
                 .Item("connected").Value(MasterConnector_->IsConnected())
                 .Item("cell").BeginMap()
                     .Item("resource_limits").Value(TotalResourceLimits_)
@@ -2102,6 +2110,11 @@ void TScheduler::Initialize()
     Impl_->Initialize();
 }
 
+void TScheduler::SetLastEvent(const Stroka& value)
+{
+    Impl_->SetLastEvent(value);
+}
+
 ISchedulerStrategy* TScheduler::GetStrategy()
 {
     return Impl_->GetStrategy();
@@ -2145,6 +2158,11 @@ TOperationPtr TScheduler::FindOperation(const TOperationId& id)
 TOperationPtr TScheduler::GetOperationOrThrow(const TOperationId& id)
 {
     return Impl_->GetOperationOrThrow(id);
+}
+
+TJobPtr TScheduler::FindJob(const TJobId& id)
+{
+    return Impl_->FindJob(id);
 }
 
 TExecNodePtr TScheduler::FindNode(const Stroka& address)
