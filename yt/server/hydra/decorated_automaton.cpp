@@ -44,116 +44,92 @@ static const i64 SnapshotTransferBlockSize = (i64) 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDecoratedAutomaton::TUserLockGuard
+TSystemLockGuard::TSystemLockGuard()
+{ }
+
+TSystemLockGuard::TSystemLockGuard(TSystemLockGuard&& other)
+    : Automaton_(std::move(other.Automaton_))
+{ }
+
+TSystemLockGuard::~TSystemLockGuard()
 {
-public:
-    TUserLockGuard(TUserLockGuard&& other)
-        : Automaton_(std::move(other.Automaton_))
-    { }
+    Release();
+}
 
-    ~TUserLockGuard()
-    {
-        if (Automaton_) {
-            Automaton_->ReleaseUserLock();
-        }
+TSystemLockGuard& TSystemLockGuard::operator=(TSystemLockGuard&& other)
+{
+    Release();
+    Automaton_ = std::move(other.Automaton_);
+    return *this;
+}
+
+void TSystemLockGuard::Release()
+{
+    if (Automaton_) {
+        Automaton_->ReleaseSystemLock();
+        Automaton_.Reset();
     }
+}
 
-    explicit operator bool()
-    {
-        return static_cast<bool>(Automaton_);
-    }
+TSystemLockGuard::operator bool() const
+{
+    return static_cast<bool>(Automaton_);
+}
 
-    static TUserLockGuard TryAcquire(TDecoratedAutomatonPtr automaton)
-    {
-        return automaton->TryAcquireUserLock()
-            ? TUserLockGuard(std::move(automaton))
-            : TUserLockGuard();
-    }
+TSystemLockGuard TSystemLockGuard::Acquire(TDecoratedAutomatonPtr automaton)
+{
+    automaton->AcquireSystemLock();
+    return TSystemLockGuard(std::move(automaton));
+}
 
-private:
-    TUserLockGuard()
-    { }
-
-    explicit TUserLockGuard(TDecoratedAutomatonPtr automaton)
-        : Automaton_(std::move(automaton))
-    { }
-
-
-    TDecoratedAutomatonPtr Automaton_;
-
-};
+TSystemLockGuard::TSystemLockGuard(TDecoratedAutomatonPtr automaton)
+    : Automaton_(std::move(automaton))
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDecoratedAutomaton::TSystemLockGuard
+TUserLockGuard::TUserLockGuard()
+{ }
+
+TUserLockGuard::TUserLockGuard(TUserLockGuard&& other)
+    : Automaton_(std::move(other.Automaton_))
+{ }
+
+TUserLockGuard::~TUserLockGuard()
 {
-public:
-    TSystemLockGuard(TSystemLockGuard&& other)
-        : Automaton_(std::move(other.Automaton_))
-    { }
+    Release();
+}
 
-    ~TSystemLockGuard()
-    {
-        if (Automaton_) {
-            Automaton_->ReleaseSystemLock();
-        }
-    }
-
-    static TSystemLockGuard Acquire(TDecoratedAutomatonPtr automaton)
-    {
-        automaton->AcquireSystemLock();
-        return TSystemLockGuard(std::move(automaton));
-    }
-
-private:
-    explicit TSystemLockGuard(TDecoratedAutomatonPtr automaton)
-        : Automaton_(std::move(automaton))
-    { }
-
-
-    TDecoratedAutomatonPtr Automaton_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDecoratedAutomaton::TGuardedUserInvoker
-    : public TInvokerWrapper
+TUserLockGuard& TUserLockGuard::operator=(TUserLockGuard&& other)
 {
-public:
-    TGuardedUserInvoker(
-        TDecoratedAutomatonPtr decoratedAutomaton,
-        IInvokerPtr underlyingInvoker)
-        : TInvokerWrapper(std::move(underlyingInvoker))
-        , Owner_(decoratedAutomaton)
-    { }
+    Release();
+    Automaton_ = std::move(other.Automaton_);
+    return *this;
+}
 
-    virtual void Invoke(const TClosure& callback) override
-    {
-        auto guard = TUserLockGuard::TryAcquire(Owner_);
-        if (!guard)
-            return;
-
-        auto this_ = MakeStrong(this);
-        auto doInvoke = [this, this_] (IInvokerPtr invoker, const TClosure& callback) {
-            if (Owner_->GetState() != EPeerState::Leading &&
-                Owner_->GetState() != EPeerState::Following)
-                return;
-
-            TCurrentInvokerGuard guard(std::move(invoker));
-            callback.Run();
-        };
-
-        UnderlyingInvoker_->Invoke(BIND(
-            doInvoke,
-            MakeStrong(this),
-            callback));
+void TUserLockGuard::Release()
+{
+    if (Automaton_) {
+        Automaton_->ReleaseUserLock();
+        Automaton_.Reset();
     }
+}
 
-private:
-    TDecoratedAutomatonPtr Owner_;
+TUserLockGuard::operator bool() const
+{
+    return static_cast<bool>(Automaton_);
+}
 
-};
+TUserLockGuard TUserLockGuard::TryAcquire(TDecoratedAutomatonPtr automaton)
+{
+    return automaton->TryAcquireUserLock()
+        ? TUserLockGuard(std::move(automaton))
+        : TUserLockGuard();
+}
+
+TUserLockGuard::TUserLockGuard(TDecoratedAutomatonPtr automaton)
+    : Automaton_(std::move(automaton))
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -184,6 +160,46 @@ public:
 
 private:
     TDecoratedAutomaton* Owner_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDecoratedAutomaton::TGuardedUserInvoker
+    : public TInvokerWrapper
+{
+public:
+    TGuardedUserInvoker(
+        TDecoratedAutomatonPtr decoratedAutomaton,
+        IInvokerPtr underlyingInvoker)
+        : TInvokerWrapper(std::move(underlyingInvoker))
+          , Owner_(decoratedAutomaton)
+    { }
+
+    virtual void Invoke(const TClosure& callback) override
+    {
+        auto guard = TUserLockGuard::TryAcquire(Owner_);
+        if (!guard)
+            return;
+
+        auto this_ = MakeStrong(this);
+        auto doInvoke = [this, this_] (IInvokerPtr invoker, const TClosure& callback) {
+            if (Owner_->GetState() != EPeerState::Leading &&
+                Owner_->GetState() != EPeerState::Following)
+                return;
+
+            TCurrentInvokerGuard guard(std::move(invoker));
+            callback.Run();
+        };
+
+        UnderlyingInvoker_->Invoke(BIND(
+            doInvoke,
+            MakeStrong(this),
+            callback));
+    }
+
+private:
+    TDecoratedAutomatonPtr Owner_;
 
 };
 

@@ -365,6 +365,7 @@ private:
     std::atomic<bool> ReadOnly_;
     std::atomic<bool> ActiveLeader_;
     EPeerState ControlState_;
+    TSystemLockGuard SystemLockGuard_;
 
     TVersion ReachableVersion_;
 
@@ -981,8 +982,12 @@ private:
             LOG_INFO("Leader active");
 
             ActiveLeader_ = true;
-
             LeaderActive_.Fire();
+
+            SwitchTo(epochContext->EpochControlInvoker);
+            VERIFY_THREAD_AFFINITY(ControlThread);
+
+            SystemLockGuard_.Release();
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Leader recovery failed, backing off and restarting");
             WaitFor(TDelayedExecutor::MakeDelayed(Config_->RestartBackoffTime));
@@ -1067,11 +1072,16 @@ private:
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
-        
+
             LOG_INFO("Follower recovery complete");
 
             DecoratedAutomaton_->OnFollowerRecoveryComplete();
             FollowerRecoveryComplete_.Fire();
+
+            SwitchTo(epochContext->EpochControlInvoker);
+            VERIFY_THREAD_AFFINITY(ControlThread);
+
+            SystemLockGuard_.Release();
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Follower recovery failed, backing off and restarting");
             WaitFor(TDelayedExecutor::MakeDelayed(Config_->RestartBackoffTime));
@@ -1101,6 +1111,8 @@ private:
         DecoratedAutomaton_->OnStopFollowing();
 
         Participate();
+
+        SystemLockGuard_ = TSystemLockGuard();
     }
 
     void CheckForSyncPing(TVersion version)
@@ -1148,6 +1160,8 @@ private:
 
         YCHECK(!ControlEpochContext_);
         ControlEpochContext_ = epochContext;
+
+        SystemLockGuard_ = TSystemLockGuard::Acquire(DecoratedAutomaton_);
     }
 
     void StopEpoch()
@@ -1158,6 +1172,8 @@ private:
         ControlEpochContext_->CancelableContext->Cancel();
         ControlEpochContext_.Reset();
         ActiveLeader_ = false;
+
+        SystemLockGuard_.Release();
     }
 
     TEpochContextPtr GetEpochContext(const TEpochId& epochId)
