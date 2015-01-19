@@ -456,11 +456,41 @@ TEST_F(TSchedulerTest, YieldToFromCanceledFiber)
 TEST_F(TSchedulerTest, JustYield)
 {
     auto invoker = Queue1->GetInvoker();
-    BIND([] () {
+    auto asyncResult = BIND([] () {
         for (int i = 0; i < 10; ++i) {
             Yield();
         }
     }).AsyncVia(invoker).Run().Get();
+    EXPECT_TRUE(asyncResult.IsOK());
+}
+
+TEST_F(TSchedulerTest, CancelInAdjacentCallback)
+{
+    auto invoker = Queue1->GetInvoker();
+    auto asyncResult1 = BIND([=] () {
+        NYT::NConcurrency::GetCurrentFiberCanceler().Run();
+    }).AsyncVia(invoker).Run().Get();
+    auto asyncResult2 = BIND([=] () {
+        Yield();
+    }).AsyncVia(invoker).Run().Get();
+    EXPECT_TRUE(asyncResult1.IsOK());
+    EXPECT_TRUE(asyncResult2.IsOK());
+}
+
+TEST_F(TSchedulerTest, CancelInAdjacentThread)
+{
+    auto closure = TClosure();
+    auto invoker = Queue1->GetInvoker();
+    auto asyncResult1 = BIND([=, &closure] () {
+        closure = NYT::NConcurrency::GetCurrentFiberCanceler();
+    }).AsyncVia(invoker).Run().Get();
+    closure.Run(); // *evil laugh*
+    auto asyncResult2 = BIND([=] () {
+        Yield();
+    }).AsyncVia(invoker).Run().Get();
+    closure.Reset(); // *evil smile*
+    EXPECT_TRUE(asyncResult1.IsOK());
+    EXPECT_TRUE(asyncResult2.IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

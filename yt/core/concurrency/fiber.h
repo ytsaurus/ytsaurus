@@ -81,17 +81,17 @@ public:
      */
     TExecutionContext* GetContext();
 
-    //! Marks the fiber as canceled.
-    /*!
-     *  Thread affinity: any
-     */
-    void Cancel();
-
     //! Returns a cached callback that invokes #Cancel.
     /*!
      *  Thread affinity: any
      */
-    TClosure GetCanceler() const;
+    const TClosure& GetCanceler();
+
+    //! Returns |true| if canceler was captured by anyone.
+    /*!
+     *  Thread affinity: any
+     */
+    bool IsCancelable() const;
 
     //! Returns |true| if the fiber was canceled.
     /*!
@@ -120,16 +120,17 @@ private:
 #endif
 
     TSpinLock SpinLock_;
+
     EFiberState State_;
     TFuture<void> AwaitedFuture_;
 
+    TClosure Callee_;
     std::shared_ptr<TExecutionStack> Stack_;
     TExecutionContext Context_;
 
     std::atomic<bool> Canceled_;
     TClosure Canceler_;
-
-    TClosure Callee_;
+    void Cancel();
 
     SmallVector<uintptr_t, 8> Fsd_;
     void FsdResize();
