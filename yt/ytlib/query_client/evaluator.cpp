@@ -312,7 +312,7 @@ public:
                     intermediateBuffer.GetCapacity());
 
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to evaluate plan fragment") << ex;
+                THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
             }
 
             statistics.SyncTime = wallTime - statistics.AsyncTime;
