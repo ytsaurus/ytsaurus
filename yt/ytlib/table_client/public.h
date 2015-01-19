@@ -82,18 +82,8 @@ typedef TIntrusivePtr<TChunkReaderOptions> TChunkReaderOptionsPtr;
 class TTableReaderConfig;
 typedef TIntrusivePtr<TTableReaderConfig> TTableReaderConfigPtr;
 
-class TAsyncWriter;
-typedef TIntrusivePtr<TAsyncWriter> TAsyncWriterPtr;
-
-class TLegacyTableConsumer;
-
-class TWritingTableConsumer;
-
 typedef SmallVector< std::pair<TStringBuf, TStringBuf>, 32 > TRow;
 typedef std::vector<Stroka> TKeyColumns;
-
-typedef NChunkClient::TOldMultiChunkSequentialWriter<TTableChunkWriterProvider> TTableChunkSequenceWriter;
-typedef TIntrusivePtr<TTableChunkSequenceWriter> TTableChunkSequenceWriterPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -129,9 +129,6 @@ DECLARE_REFCOUNTED_CLASS(TFileWriter)
 
 DECLARE_REFCOUNTED_CLASS(TMemoryWriter)
 
-template <class TChunkWriter>
-class TOldMultiChunkSequentialWriter;
-
 DECLARE_REFCOUNTED_CLASS(TRefCountedChunkSpec)
 DECLARE_REFCOUNTED_CLASS(TChunkSlice)
 
