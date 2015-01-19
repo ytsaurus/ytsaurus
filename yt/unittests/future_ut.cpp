@@ -18,7 +18,11 @@ using namespace NConcurrency;
 
 static const auto SleepQuantum = TDuration::MilliSeconds(50);
 
-TEST(TFutureTest, IsNull)
+class TFutureTest
+    : public ::testing::Test
+{ };
+
+TEST_F(TFutureTest, IsNull)
 {
     TFuture<int> empty;
     TFuture<int> nonEmpty = MakeFuture(42);
@@ -37,7 +41,7 @@ TEST(TFutureTest, IsNull)
     EXPECT_TRUE(nonEmpty);
 }
 
-TEST(TFutureTest, IsNullVoid)
+TEST_F(TFutureTest, IsNullVoid)
 {
     TFuture<void> empty;
     TFuture<void> nonEmpty = VoidFuture;
@@ -56,7 +60,7 @@ TEST(TFutureTest, IsNullVoid)
     EXPECT_TRUE(nonEmpty);
 }
 
-TEST(TFutureTest, Reset)
+TEST_F(TFutureTest, Reset)
 {
     auto foo = MakeFuture(42);
 
@@ -65,7 +69,7 @@ TEST(TFutureTest, Reset)
     EXPECT_FALSE(foo);
 }
 
-TEST(TFutureTest, IsSet)
+TEST_F(TFutureTest, IsSet)
 {
     auto promise = NewPromise<int>();
     auto future = promise.ToFuture();
@@ -77,7 +81,7 @@ TEST(TFutureTest, IsSet)
     EXPECT_TRUE(promise.IsSet());
 }
 
-TEST(TFutureTest, SetAndGet)
+TEST_F(TFutureTest, SetAndGet)
 {
     auto promise = NewPromise<int>();
     auto future = promise.ToFuture();
@@ -88,7 +92,7 @@ TEST(TFutureTest, SetAndGet)
 }
 
 #ifndef NDEBUG
-TEST(TFutureDeathTest, DoubleSet)
+TEST_F(TFutureTest, DoubleSet)
 {
     // Debug-only.
     auto promise = NewPromise<int>();
@@ -98,7 +102,7 @@ TEST(TFutureDeathTest, DoubleSet)
 }
 #endif
 
-TEST(TFutureTest, SetAndTryGet)
+TEST_F(TFutureTest, SetAndTryGet)
 {
     auto promise = NewPromise<int>();
     auto future = promise.ToFuture();
@@ -123,7 +127,7 @@ public:
     MOCK_METHOD1(Tacke, void(int));
 };
 
-TEST(TFutureTest, Subscribe)
+TEST_F(TFutureTest, Subscribe)
 {
     TMock firstMock;
     TMock secondMock;
@@ -162,7 +166,7 @@ static void* AsynchronousVoidSetter(void* param)
     return NULL;
 }
 
-TEST(TFutureTest, SubscribeWithAsynchronousSet)
+TEST_F(TFutureTest, SubscribeWithAsynchronousSet)
 {
     TMock firstMock;
     TMock secondMock;
@@ -185,7 +189,7 @@ TEST(TFutureTest, SubscribeWithAsynchronousSet)
     future.Subscribe(secondSubscriber);
 }
 
-TEST(TFutureTest, CascadedApply)
+TEST_F(TFutureTest, CascadedApply)
 {
     auto kicker = NewPromise<bool>();
 
@@ -248,7 +252,7 @@ TEST(TFutureTest, CascadedApply)
     EXPECT_EQ(50, leftPrime.Get().Value());
 }
 
-TEST(TFutureTest, ApplyVoidToVoid)
+TEST_F(TFutureTest, ApplyVoidToVoid)
 {
     int state = 0;
 
@@ -269,7 +273,7 @@ TEST(TFutureTest, ApplyVoidToVoid)
     EXPECT_TRUE(target.IsSet());
 }
 
-TEST(TFutureTest, ApplyVoidToFutureVoid)
+TEST_F(TFutureTest, ApplyVoidToFutureVoid)
 {
     int state = 0;
 
@@ -309,7 +313,7 @@ TEST(TFutureTest, ApplyVoidToFutureVoid)
     EXPECT_TRUE(target.IsSet());
 }
 
-TEST(TFutureTest, ApplyVoidToInt)
+TEST_F(TFutureTest, ApplyVoidToInt)
 {
     int state = 0;
 
@@ -337,7 +341,7 @@ TEST(TFutureTest, ApplyVoidToInt)
     EXPECT_EQ(17, target.Get().Value());
 }
 
-TEST(TFutureTest, ApplyVoidToFutureInt)
+TEST_F(TFutureTest, ApplyVoidToFutureInt)
 {
     int state = 0;
 
@@ -379,7 +383,7 @@ TEST(TFutureTest, ApplyVoidToFutureInt)
     EXPECT_EQ(42, target.Get().Value());
 }
 
-TEST(TFutureTest, ApplyIntToVoid)
+TEST_F(TFutureTest, ApplyIntToVoid)
 {
     int state = 0;
 
@@ -402,7 +406,7 @@ TEST(TFutureTest, ApplyIntToVoid)
     EXPECT_EQ(21, source.Get().Value());
 }
 
-TEST(TFutureTest, ApplyIntToFutureVoid)
+TEST_F(TFutureTest, ApplyIntToFutureVoid)
 {
     int state = 0;
 
@@ -444,7 +448,7 @@ TEST(TFutureTest, ApplyIntToFutureVoid)
     EXPECT_TRUE(target.IsSet());
 }
 
-TEST(TFutureTest, ApplyIntToInt)
+TEST_F(TFutureTest, ApplyIntToInt)
 {
     int state = 0;
 
@@ -471,7 +475,7 @@ TEST(TFutureTest, ApplyIntToInt)
     EXPECT_EQ(42, target.Get().Value());
 }
 
-TEST(TFutureTest, ApplyIntToFutureInt)
+TEST_F(TFutureTest, ApplyIntToFutureInt)
 {
     int state = 0;
 
@@ -531,7 +535,7 @@ static TFuture<int> AsyncDivide(int a, int b, TDuration delay)
     return promise;
 }
 
-TEST(TFutureTest, CombineEmpty)
+TEST_F(TFutureTest, CombineEmpty)
 {
     std::vector<TFuture<int>> futures;
     auto resultOrError = Combine(futures).Get();
@@ -540,7 +544,7 @@ TEST(TFutureTest, CombineEmpty)
     EXPECT_TRUE(result.size() == 0);
 }
 
-TEST(TFutureTest, CombineNonEmpty)
+TEST_F(TFutureTest, CombineNonEmpty)
 {
     std::vector<TFuture<int>> asyncResults {
         AsyncDivide(5, 2, TDuration::Seconds(0.1)),
@@ -554,7 +558,7 @@ TEST(TFutureTest, CombineNonEmpty)
     EXPECT_EQ(10, result[1]);
 }
 
-TEST(TFutureTest, CombineError)
+TEST_F(TFutureTest, CombineError)
 {
     std::vector<TFuture<int>> asyncResults {
         AsyncDivide(5, 2, TDuration::Seconds(0.1)),
@@ -564,7 +568,7 @@ TEST(TFutureTest, CombineError)
     EXPECT_FALSE(resultOrError.IsOK());
 }
 
-TEST(TFutureTest, CombinePrematureExit)
+TEST_F(TFutureTest, CombinePrematureExit)
 {
     std::vector<TFuture<int>> asyncResults {
         AsyncDivide(5, 2, TDuration::Seconds(0.5)),
@@ -576,7 +580,7 @@ TEST(TFutureTest, CombinePrematureExit)
     EXPECT_FALSE(result.IsOK());
 }
 
-TEST(TFutureTest, CombineCancel)
+TEST_F(TFutureTest, CombineCancel)
 {
     std::vector<TFuture<void>> asyncResults {
         TDelayedExecutor::MakeDelayed(TDuration::Seconds(5)),
@@ -590,7 +594,7 @@ TEST(TFutureTest, CombineCancel)
     EXPECT_EQ(NYT::EErrorCode::Canceled, result.GetCode());
 }
 
-TEST(TFutureTest, AsyncViaCanceledInvoker)
+TEST_F(TFutureTest, AsyncViaCanceledInvoker)
 {
     auto context = New<TCancelableContext>();
     auto invoker = context->CreateInvoker(GetSyncInvoker());
@@ -601,7 +605,7 @@ TEST(TFutureTest, AsyncViaCanceledInvoker)
     ASSERT_EQ(NYT::EErrorCode::Canceled, error.GetCode());
 }
 
-TEST(TFutureTest, LastPromiseDied)
+TEST_F(TFutureTest, LastPromiseDied)
 {
     TFuture<void> future;
     {
@@ -614,7 +618,7 @@ TEST(TFutureTest, LastPromiseDied)
     EXPECT_EQ(NYT::EErrorCode::Canceled, future.Get().GetCode());
 }
 
-TEST(TFutureTest, PropagateErrorSync)
+TEST_F(TFutureTest, PropagateErrorSync)
 {
     auto p = NewPromise<int>();
     auto f1 = p.ToFuture();
@@ -624,7 +628,7 @@ TEST(TFutureTest, PropagateErrorSync)
     EXPECT_FALSE(f2.Get().IsOK());
 }
 
-TEST(TFutureTest, PropagateErrorAsync)
+TEST_F(TFutureTest, PropagateErrorAsync)
 {
     auto p = NewPromise<int>();
     auto f1 = p.ToFuture();
@@ -634,7 +638,7 @@ TEST(TFutureTest, PropagateErrorAsync)
     EXPECT_FALSE(f2.Get().IsOK());
 }
 
-TEST(TFutureTest, Timeout)
+TEST_F(TFutureTest, Timeout)
 {
     auto p = NewPromise<int>();
     auto f1 = p.ToFuture();
@@ -643,7 +647,7 @@ TEST(TFutureTest, Timeout)
     EXPECT_EQ(NYT::EErrorCode::Timeout, result.GetCode());
 }
 
-TEST(TFutureTest, HolderBlocked)
+TEST_W(TFutureTest, HolderBlocked)
 {
     auto future = TDelayedExecutor::MakeDelayed(TDuration::Seconds(0.1));
     MakeHolder(future);
