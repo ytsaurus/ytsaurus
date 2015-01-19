@@ -680,6 +680,13 @@ public:
                 DROP_BRACES args)); \
     }
 
+    IMPLEMENT_METHOD(IRowsetPtr, LookupRows, (
+        const TYPath& path,
+        TNameTablePtr nameTable,
+        const std::vector<NVersionedTableClient::TKey>& keys,
+        const TLookupRowsOptions& options),
+        (path, nameTable, keys, options))
+
     virtual TFuture<IRowsetPtr> LookupRow(
         const TYPath& path,
         TNameTablePtr nameTable,
@@ -692,13 +699,7 @@ public:
             std::vector<NVersionedTableClient::TKey>(1, key),
             options);
     }
-    
-    IMPLEMENT_METHOD(IRowsetPtr, LookupRows, (
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        const std::vector<NVersionedTableClient::TKey>& keys,
-        const TLookupRowsOptions& options),
-        (path, nameTable, keys, options))
+
     IMPLEMENT_METHOD(TQueryStatistics, SelectRows, (
         const Stroka& query,
         ISchemafulWriterPtr writer,
@@ -1233,8 +1234,17 @@ private:
             options.InputRowLimit.Get(Connection_->GetConfig()->DefaultInputRowLimit),
             options.OutputRowLimit.Get(Connection_->GetConfig()->DefaultOutputRowLimit),
             options.Timestamp);
-        return WaitFor(QueryHelper_->Execute(fragment, writer))
+        auto statistics = WaitFor(QueryHelper_->Execute(fragment, writer))
             .ValueOrThrow();
+        if (options.FailOnIncompleteResult) {
+            if (statistics.IncompleteInput) {
+                THROW_ERROR_EXCEPTION("Query terminated prematurely due to excessive input; consider rewriting your query or changing input limit");
+            }
+            if (statistics.IncompleteOutput) {
+                THROW_ERROR_EXCEPTION("Query terminated prematurely due to excessive output; consider rewriting your query or changing output limit");
+            }
+        }
+        return statistics;
     }
 
 
@@ -1820,12 +1830,13 @@ public:
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options),
         (path, nameTable, keys, options))
+
+
     DELEGATE_TIMESTAMPTED_METHOD(TFuture<NQueryClient::TQueryStatistics>, SelectRows, (
         const Stroka& query,
         ISchemafulWriterPtr writer,
         const TSelectRowsOptions& options),
         (query, writer, options))
-
     typedef std::pair<IRowsetPtr, NQueryClient::TQueryStatistics> TSelectRowsResult;
     DELEGATE_TIMESTAMPTED_METHOD(TFuture<TSelectRowsResult>, SelectRows, (
         const Stroka& query,
