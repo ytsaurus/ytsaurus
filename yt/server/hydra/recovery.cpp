@@ -268,10 +268,12 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
             targetRecordId - 1,
             changelogId);
 
-        auto recordsData = changelog->Read(
+        auto asyncRecordsData = changelog->Read(
             startRecordId,
             recordsNeeded,
             Config_->MaxChangelogRecordsPerRequest);
+        auto recordsData = WaitFor(asyncRecordsData)
+            .ValueOrThrow();
         int recordsRead = static_cast<int>(recordsData.size());
 
         LOG_INFO("Finished reading records %v-%v from changelog %v",

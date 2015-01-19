@@ -485,7 +485,7 @@ public:
         return result;
     }
 
-    std::vector<TSharedRef> Read(
+    TFuture<std::vector<TSharedRef>> Read(
         TSyncFileChangelogPtr changelog,
         int recordId,
         int maxRecords,
@@ -494,20 +494,9 @@ public:
         YCHECK(recordId >= 0);
         YCHECK(maxRecords >= 0);
 
-        if (maxRecords == 0) {
-            return std::vector<TSharedRef>();
-        }
-
-        auto queue = FindQueueAndLock(changelog);
-        if (queue) {
-            auto records = queue->Read(recordId, maxRecords, maxBytes);
-            queue->Unlock();
-            return std::move(records);
-        } else {
-            PROFILE_TIMING ("/changelog_read_io_time") {
-                return changelog->Read(recordId, maxRecords, maxBytes);
-            }
-        }
+        return BIND(&TImpl::DoRead, MakeStrong(this))
+            .AsyncVia(GetInvoker())
+            .Run(changelog, recordId, maxRecords, maxBytes);
     }
 
     TFuture<void> Flush(TSyncFileChangelogPtr changelog)
@@ -659,6 +648,29 @@ private:
         SweepQueues();
     }
 
+
+    std::vector<TSharedRef> DoRead(
+        TSyncFileChangelogPtr changelog,
+        int recordId,
+        int maxRecords,
+        i64 maxBytes)
+    {
+        if (maxRecords == 0) {
+            return std::vector<TSharedRef>();
+        }
+
+        auto queue = FindQueueAndLock(changelog);
+        if (queue) {
+            auto records = queue->Read(recordId, maxRecords, maxBytes);
+            queue->Unlock();
+            return std::move(records);
+        } else {
+            PROFILE_TIMING ("/changelog_read_io_time") {
+                return changelog->Read(recordId, maxRecords, maxBytes);
+            }
+        }
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -715,7 +727,7 @@ public:
         return DispatcherImpl_->Flush(SyncChangelog_);
     }
 
-    virtual std::vector<TSharedRef> Read(
+    virtual TFuture<std::vector<TSharedRef>> Read(
         int firstRecordId,
         int maxRecords,
         i64 maxBytes) const override

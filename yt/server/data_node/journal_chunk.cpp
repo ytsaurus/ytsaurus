@@ -135,23 +135,23 @@ void TJournalChunk::DoReadBlocks(
 
         NProfiling::TScopedTimer timer;
 
-        std::vector<TSharedRef> blocks;
-        try {
-            blocks = changelog->Read(
-                firstBlockIndex,
-                std::min(blockCount, config->MaxBlocksPerRead),
-                config->MaxBytesPerRead);
-        } catch (const std::exception& ex) {
+        auto asyncBlocks = changelog->Read(
+            firstBlockIndex,
+            std::min(blockCount, config->MaxBlocksPerRead),
+            config->MaxBytesPerRead);
+        auto blocksOrError = WaitFor(asyncBlocks);
+        if (!blocksOrError.IsOK()) {
             auto error = TError(
                 NChunkClient::EErrorCode::IOError,
                 "Error reading journal chunk %v",
                 Id_)
-                << ex;
+                << blocksOrError;
             Location_->Disable(error);
             THROW_ERROR error;
         }
 
         auto readTime = timer.GetElapsed();
+        const auto& blocks = blocksOrError.Value();
         int blocksRead = static_cast<int>(blocks.size());
         i64 bytesRead = GetTotalSize(blocks);
 

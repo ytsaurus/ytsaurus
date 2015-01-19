@@ -48,11 +48,11 @@ public:
         const std::vector<TTransactionId>& prerequisiteTransactionIds)
         : Config_(config)
         , Options_(options)
-        , RemotePath_(remotePath)
+        , Path_(remotePath)
         , MasterClient_(masterClient)
         , PrerequisiteTransactionIds_(prerequisiteTransactionIds)
     {
-        Logger.AddTag("Path: %v", RemotePath_);
+        Logger.AddTag("Path: %v", Path_);
     }
 
     virtual TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& meta) override
@@ -77,20 +77,19 @@ public:
     }
 
 private:
-    TRemoteChangelogStoreConfigPtr Config_;
-    TRemoteChangelogStoreOptionsPtr Options_;
-    TYPath RemotePath_;
-    IClientPtr MasterClient_;
-    std::vector<TTransactionId> PrerequisiteTransactionIds_;
+    const TRemoteChangelogStoreConfigPtr Config_;
+    const TRemoteChangelogStoreOptionsPtr Options_;
+    const TYPath Path_;
+    const IClientPtr MasterClient_;
+    const std::vector<TTransactionId> PrerequisiteTransactionIds_;
 
     NLog::TLogger Logger = HydraLogger;
 
 
     IChangelogPtr DoCreateChangelog(int id, const TChangelogMeta& meta)
     {
+        auto path = GetChangelogPath(id);
         try {
-            auto path = GetRemotePath(id);
-
             LOG_DEBUG("Creating changelog %v",
                 id);
 
@@ -133,18 +132,16 @@ private:
                 0,
                 0);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error creating changelog %v in remote store %v",
-                id,
-                RemotePath_)
+            THROW_ERROR_EXCEPTION("Error creating remote changelog %v",
+                path)
                 << ex;
         }
     }
 
     IChangelogPtr DoOpenChangelog(int id)
     {
+        auto path = GetChangelogPath(id);
         try {
-            auto path = GetRemotePath(id);
-
             TChangelogMeta meta;
             int recordCount;
             i64 dataSize;
@@ -163,7 +160,7 @@ private:
                         NHydra::EErrorCode::NoSuchChangelog,
                         "Changelog %v does not exist in remote store %v",
                         id,
-                        RemotePath_);
+                        Path_);
                 }
 
                 auto node = ConvertToNode(result.ValueOrThrow());
@@ -201,9 +198,8 @@ private:
                 recordCount,
                 dataSize);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error opening changelog %v in remote store %v",
-                id,
-                RemotePath_)
+            THROW_ERROR_EXCEPTION("Error opening remote changelog %v",
+                path)
                 << ex;
         }
     }
@@ -212,7 +208,7 @@ private:
     {
         try {
             LOG_DEBUG("Requesting changelog list from remote store");
-            auto result = WaitFor(MasterClient_->ListNodes(RemotePath_))
+            auto result = WaitFor(MasterClient_->ListNodes(Path_))
                 .ValueOrThrow();
             LOG_DEBUG("Changelog list received");
 
@@ -227,7 +223,7 @@ private:
                 } catch (const std::exception&) {
                     LOG_WARNING("Unrecognized item %Qv in remote store %v",
                         key,
-                        RemotePath_);
+                        Path_);
                     continue;
                 }
                 YCHECK(ids.insert(id).second);
@@ -248,7 +244,7 @@ private:
             return latestId;
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error computing the latest changelog id in remote store %v",
-                RemotePath_)
+                Path_)
                 << ex;
         }
     }
@@ -270,9 +266,9 @@ private:
             this);
     }
 
-    TYPath GetRemotePath(int id)
+    TYPath GetChangelogPath(int id)
     {
-        return Format("%v/%09d", RemotePath_, id);
+        return Format("%v/%09d", Path_, id);
     }
 
 
@@ -290,9 +286,9 @@ private:
             : Path_(path)
             , Meta_(meta)
             , Writer_(writer)
+            , Owner_(owner)
             , RecordCount_(recordCount)
             , DataSize_(dataSize)
-            , Owner_(owner)
         { }
 
         virtual const TChangelogMeta& GetMeta() const override
@@ -330,28 +326,14 @@ private:
             return FlushResult_;
         }
 
-        virtual std::vector<TSharedRef> Read(
+        virtual TFuture<std::vector<TSharedRef>> Read(
             int firstRecordId,
             int maxRecords,
             i64 /*maxBytes*/) const override
         {
-            try {
-                TJournalReaderOptions options;
-                options.FirstRowIndex = firstRecordId;
-                options.RowCount = maxRecords;
-                options.Config = Owner_->Config_->Reader;
-                auto reader = Owner_->MasterClient_->CreateJournalReader(Path_, options);
-
-                WaitFor(reader->Open())
-                    .ThrowOnError();
-
-                return WaitFor(reader->Read())
-                    .ValueOrThrow();
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error reading remote changelog %v",
-                    Path_)
-                    << ex;
-            }
+            return BIND(&TRemoteChangelog::DoRead, MakeStrong(this))
+                .AsyncVia(GetHydraIOInvoker())
+                .Run(firstRecordId, maxRecords);
         }
 
         virtual TFuture<void> Seal(int recordCount) override
@@ -373,14 +355,36 @@ private:
         }
 
     private:
-        TYPath Path_;
-        TChangelogMeta Meta_;
-        IJournalWriterPtr Writer_;
+        const TYPath Path_;
+        const TChangelogMeta Meta_;
+        const IJournalWriterPtr Writer_;
+        const TRemoteChangelogStorePtr Owner_;
+
         int RecordCount_;
         i64 DataSize_;
-        TRemoteChangelogStorePtr Owner_;
-
         TFuture<void> FlushResult_ = VoidFuture;
+
+
+        std::vector<TSharedRef> DoRead(int firstRecordId, int maxRecords) const
+        {
+            try {
+                TJournalReaderOptions options;
+                options.FirstRowIndex = firstRecordId;
+                options.RowCount = maxRecords;
+                options.Config = Owner_->Config_->Reader;
+                auto reader = Owner_->MasterClient_->CreateJournalReader(Path_, options);
+
+                WaitFor(reader->Open())
+                    .ThrowOnError();
+
+                return WaitFor(reader->Read())
+                    .ValueOrThrow();
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error reading remote changelog %v",
+                    Path_)
+                    << ex;
+            }
+        }
 
     };
 
@@ -391,14 +395,14 @@ DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStore)
 IChangelogStorePtr CreateRemoteChangelogStore(
     TRemoteChangelogStoreConfigPtr config,
     TRemoteChangelogStoreOptionsPtr options,
-    const TYPath& remotePath,
+    const TYPath& path,
     IClientPtr masterClient,
     const std::vector<TTransactionId>& prerequisiteTransactionIds)
 {
     return New<TRemoteChangelogStore>(
         config,
         options,
-        remotePath,
+        path,
         masterClient,
         prerequisiteTransactionIds);
 }

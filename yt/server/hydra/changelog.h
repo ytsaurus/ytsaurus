@@ -44,16 +44,15 @@ struct IChangelog
      */
     virtual TFuture<void> Flush() = 0;
 
-    //! Synchronously reads records from the changelog.
+    //! Asynchronously reads records from the changelog.
     //! The call may return less records than requested.
-    //! This call throws on error.
     /*!
      *  \param firstRecordId The record id to start from.
      *  \param maxRecords A hint limits the number of records to read.
      *  \param maxBytes A hint limiting the number of bytes to read.
      *  \returns A list of records.
      */
-    virtual std::vector<TSharedRef> Read(
+    virtual TFuture<std::vector<TSharedRef>> Read(
         int firstRecordId,
         int maxRecords,
         i64 maxBytes) const = 0;

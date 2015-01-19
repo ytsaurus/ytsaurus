@@ -16,7 +16,7 @@ namespace NHydra {
 IChangelogStorePtr CreateRemoteChangelogStore(
     TRemoteChangelogStoreConfigPtr config,
     TRemoteChangelogStoreOptionsPtr options,
-    const NYPath::TYPath& remotePath,
+    const NYPath::TYPath& path,
     NApi::IClientPtr masterClient,
     const std::vector<NTransactionClient::TTransactionId>& prerequisiteTransactionIds =
         std::vector<NTransactionClient::TTransactionId>());
