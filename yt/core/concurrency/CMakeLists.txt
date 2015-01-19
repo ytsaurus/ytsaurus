@@ -1,6 +1,7 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/core/concurrency )
 set( SRCS
+  ${BASE}/private.cpp
   ${BASE}/action_queue.cpp
   ${BASE}/action_queue_detail.cpp
   ${BASE}/async_semaphore.cpp
@@ -20,6 +21,7 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/public.h
+  ${BASE}/private.h
   ${BASE}/counter.h
   ${BASE}/counter-inl.h
   ${BASE}/async_stream.h
