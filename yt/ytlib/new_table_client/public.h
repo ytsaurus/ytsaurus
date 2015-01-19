@@ -164,6 +164,8 @@ typedef NChunkClient::TSequentialReaderConfigPtr TChunkReaderConfigPtr;
 DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TTableReaderConfig)
 
+DECLARE_REFCOUNTED_CLASS(TBufferedTableWriterConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient

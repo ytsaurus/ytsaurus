@@ -80,6 +80,25 @@ class TTableWriterConfig
 
 DEFINE_REFCOUNTED_TYPE(TTableWriterConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TBufferedTableWriterConfig
+    : public TTableWriterConfig
+{
+public:
+    TDuration RetryBackoffTime;
+    TDuration FlushPeriod;
+
+    TBufferedTableWriterConfig()
+    {
+        RegisterParameter("retry_backoff_time", RetryBackoffTime)
+            .Default(TDuration::Seconds(3));
+        RegisterParameter("flush_period", FlushPeriod)
+            .Default(TDuration::Seconds(60));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBufferedTableWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

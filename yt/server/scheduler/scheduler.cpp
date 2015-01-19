@@ -51,9 +51,10 @@
 
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/table_client/async_writer.h>
-#include <ytlib/table_client/buffered_table_writer.h>
-#include <ytlib/table_client/table_consumer.h>
+#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/schemaless_writer.h>
+#include <ytlib/new_table_client/schemaless_buffered_table_writer.h>
+#include <ytlib/new_table_client/table_consumer.h>
 
 #include <core/ytree/ypath_proxy.h>
 #include <core/ytree/fluent.h>
@@ -79,6 +80,7 @@ using namespace NScheduler::NProto;
 using namespace NJobTrackerClient;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
+using namespace NVersionedTableClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NTableClient;
@@ -176,14 +178,20 @@ public:
             ProfilingPeriod);
         ProfilingExecutor_->Start();
 
-        EventLogWriter_ = CreateBufferedTableWriter(
+        auto nameTable = New<TNameTable>();
+        EventLogWriter_ = CreateSchemalessBufferedTableWriter(
             Config_->EventLog,
             // TODO(ignat): pass Client instead of Channel and TransactionManager
             Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader),
             Bootstrap_->GetMasterClient()->GetTransactionManager(),
+            nameTable,
             Config_->EventLog->Path);
-        EventLogWriter_->Open();
-        EventLogConsumer_.reset(new TLegacyTableConsumer(EventLogWriter_));
+
+        // Open is always synchronous for buffered writer.
+        YCHECK(EventLogWriter_->Open().IsSet());
+
+        auto valueConsumer = New<TWritingValueConsumer>(EventLogWriter_, true);
+        EventLogConsumer_.reset(new TTableConsumer(valueConsumer));
 
         LogEventFluently(ELogEventType::SchedulerStarted)
             .Item("address").Value(ServiceAddress_);
@@ -695,7 +703,7 @@ private:
 
     Stroka ServiceAddress_;
 
-    NTableClient::IAsyncWriterPtr EventLogWriter_;
+    ISchemalessWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogConsumer_;
 
     yhash_map<Stroka, TNodeResources> SchedulingTagResources_;
@@ -2195,4 +2203,5 @@ void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
 
 } // namespace NScheduler
 } // namespace NYT
+
 
