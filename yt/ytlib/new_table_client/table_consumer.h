@@ -73,7 +73,7 @@ class TWritingValueConsumer
     : public IValueConsumer
 {
 public:
-    TWritingValueConsumer(ISchemalessWriterPtr writer);
+    TWritingValueConsumer(ISchemalessWriterPtr writer, bool flushImmediately = false);
 
     void Flush();
 
@@ -85,6 +85,7 @@ private:
     std::vector<TUnversionedRow> Rows_;
 
     i64 CurrentBufferSize_;
+    bool FlushImmediately_;
 
     virtual TNameTablePtr GetNameTable() const override;
 

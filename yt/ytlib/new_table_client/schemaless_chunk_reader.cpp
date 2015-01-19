@@ -33,7 +33,6 @@
 
 #include <core/ytree/ypath_proxy.h>
 
-
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -386,18 +385,29 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     i64 tableRowIndex,
     TNullable<int> partitionTag)
 {
-    return New<TSchemalessChunkReader>(
-        config, 
-        underlyingReader, 
-        nameTable,
-        uncompressedBlockCache,
-        keyColumns, 
-        masterMeta, 
-        lowerLimit, 
-        upperLimit, 
-        columnFilter,
-        tableRowIndex,
-        partitionTag);
+    auto type = EChunkType(masterMeta.type());
+    YCHECK(type == EChunkType::Table);
+
+    auto formatVersion = ETableChunkFormat(masterMeta.version());
+
+    switch (formatVersion) {
+        case ETableChunkFormat::SchemalessHorizontal:
+            return New<TSchemalessChunkReader>(
+                config, 
+                underlyingReader, 
+                nameTable,
+                uncompressedBlockCache,
+                keyColumns, 
+                masterMeta, 
+                lowerLimit, 
+                upperLimit, 
+                columnFilter,
+                tableRowIndex,
+                partitionTag);
+
+        default:
+            YUNREACHABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

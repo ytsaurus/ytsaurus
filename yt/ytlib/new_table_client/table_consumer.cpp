@@ -454,9 +454,10 @@ void TTableConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TWritingValueConsumer::TWritingValueConsumer(ISchemalessWriterPtr writer)
+TWritingValueConsumer::TWritingValueConsumer(ISchemalessWriterPtr writer, bool flushImmediately)
     : Writer_(writer)
     , CurrentBufferSize_(0)
+    , FlushImmediately_(flushImmediately)
 {
     YCHECK(Writer_);
 }
@@ -499,7 +500,7 @@ void TWritingValueConsumer::OnEndRow()
     CurrentBufferSize_ += row.GetSize();
     Rows_.emplace_back(row.Get());
 
-    if (CurrentBufferSize_ > MaxBufferSize) {
+    if (CurrentBufferSize_ > MaxBufferSize || FlushImmediately_) {
         Flush();
     }
 }
