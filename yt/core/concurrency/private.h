@@ -1,0 +1,17 @@
+#pragma once
+
+#include <core/misc/public.h>
+
+#include <core/logging/log.h>
+
+namespace NYT {
+namespace NConcurrency {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NLog::TLogger ConcurrencyLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NConcurrency
+} // namespace NYT
