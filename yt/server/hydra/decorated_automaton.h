@@ -52,6 +52,56 @@ DEFINE_REFCOUNTED_TYPE(TEpochContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSystemLockGuard
+    : private TNonCopyable
+{
+public:
+    TSystemLockGuard();
+    TSystemLockGuard(TSystemLockGuard&& other);
+    ~TSystemLockGuard();
+
+    TSystemLockGuard& operator = (TSystemLockGuard&& other);
+
+    void Release();
+
+    explicit operator bool() const;
+
+    static TSystemLockGuard Acquire(TDecoratedAutomatonPtr automaton);
+
+private:
+    explicit TSystemLockGuard(TDecoratedAutomatonPtr automaton);
+
+    TDecoratedAutomatonPtr Automaton_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUserLockGuard
+    : private TNonCopyable
+{
+public:
+    TUserLockGuard();
+    TUserLockGuard(TUserLockGuard&& other);
+    ~TUserLockGuard();
+
+    TUserLockGuard& operator = (TUserLockGuard&& other);
+
+    void Release();
+
+    explicit operator bool() const;
+
+    static TUserLockGuard TryAcquire(TDecoratedAutomatonPtr automaton);
+
+private:
+    explicit TUserLockGuard(TDecoratedAutomatonPtr automaton);
+
+    TDecoratedAutomatonPtr Automaton_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDecoratedAutomaton
     : public TRefCounted
 {
@@ -122,8 +172,8 @@ public:
     TMutationContext* GetMutationContext();
 
 private:
-    class TUserLockGuard;
-    class TSystemLockGuard;
+    friend class TUserLockGuard;
+    friend class TSystemLockGuard;
     class TGuardedUserInvoker;
     class TSystemInvoker;
     class TSnapshotBuilder;
