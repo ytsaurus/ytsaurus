@@ -1,7 +1,6 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client )
 set( SRCS
-  ${BASE}/buffered_table_writer.cpp
   ${BASE}/channel_reader.cpp
   ${BASE}/channel_writer.cpp
   ${BASE}/chunk_writer_base.cpp
@@ -10,14 +9,11 @@ set( SRCS
   ${BASE}/public.cpp
   ${BASE}/table_chunk_reader.cpp
   ${BASE}/table_chunk_writer.cpp
-  ${BASE}/table_consumer.cpp
-  ${BASE}/table_writer.cpp
   ${BASE}/value.cpp
 )
 
 set( HDRS
   ${BASE}/async_writer.h
-  ${BASE}/buffered_table_writer.h
   ${BASE}/channel_reader.h
   ${BASE}/channel_writer.h
   ${BASE}/chunk_meta_extensions.h
@@ -27,8 +23,6 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/table_chunk_reader.h
   ${BASE}/table_chunk_writer.h
-  ${BASE}/table_consumer.h
-  ${BASE}/table_writer.h
   ${BASE}/table_ypath_proxy.h
   ${BASE}/value.h
 )
