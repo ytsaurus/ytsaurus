@@ -121,9 +121,9 @@ void TFiber::Cancel()
     }
 
     if (awaitedFuture) {
-        awaitedFuture.Cancel();
         LOG_DEBUG("Sending cancelation to fiber %x, propagating to the awaited future",
             Id_);
+        awaitedFuture.Cancel();
     } else {
         LOG_DEBUG("Sending cancelation to fiber %x",
             Id_);
