@@ -71,7 +71,7 @@ public:
         reader->ReadUnversionedRowset(&LookupKeys_);
     }
 
-    TFuture<void> Run(
+    TFutureHolder<void> Run(
         IInvokerPtr invoker,
         TWireProtocolWriter* writer)
     {
@@ -228,8 +228,8 @@ void LookupRows(
         tabletSnapshot->Slot->GetCellId(),
         session.get());
 
-    auto asyncResult = session->Run(std::move(poolInvoker), writer);
-    return WaitFor(asyncResult)
+    auto resultHolder = session->Run(std::move(poolInvoker), writer);
+    return WaitFor(resultHolder.Get())
         .ThrowOnError();
 }
 
