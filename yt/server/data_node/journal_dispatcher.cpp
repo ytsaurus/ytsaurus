@@ -141,10 +141,10 @@ private:
     friend class TCachedChangelog;
     friend class TMultiplexedReplay;
 
-    NCellNode::TBootstrap* Bootstrap_;
-    TDataNodeConfigPtr Config_;
+    NCellNode::TBootstrap* const Bootstrap_;
+    const TDataNodeConfigPtr Config_;
 
-    TFileChangelogDispatcherPtr ChangelogDispatcher_;
+    const TFileChangelogDispatcherPtr ChangelogDispatcher_;
 
     //! Protects a section of members.
     TSpinLock SpinLock_;
@@ -489,7 +489,7 @@ public:
         return UnderlyingChangelog_->Flush();
     }
 
-    virtual std::vector<TSharedRef> Read(
+    virtual TFuture<std::vector<TSharedRef>> Read(
         int firstRecordId,
         int maxRecords,
         i64 maxBytes) const override
@@ -520,9 +520,9 @@ public:
     }
 
 private:
-    TImplPtr Owner_;
-    bool EnableMultiplexing_;
-    IChangelogPtr UnderlyingChangelog_;
+    const TImplPtr Owner_;
+    const bool EnableMultiplexing_;
+    const IChangelogPtr UnderlyingChangelog_;
 
     TFuture<void> LastSplitFlushResult_;
 
@@ -587,7 +587,7 @@ public:
     }
 
 private:
-    TImplPtr Owner_;
+    const TImplPtr Owner_;
 
     struct TSplitEntry
     {
@@ -616,10 +616,12 @@ private:
         int startRecordId = 0;
         int recordCount = multiplexedChangelog->GetRecordCount();
         while (startRecordId < recordCount) {
-            auto records = multiplexedChangelog->Read(
+            auto asyncRecords = multiplexedChangelog->Read(
                 startRecordId,
                 recordCount,
                 Owner_->Config_->MultiplexedChangelog->ReplayBufferSize);
+            auto records = WaitFor(asyncRecords)
+                .ValueOrThrow();
 
             for (const auto& record : records) {
                 YCHECK(record.Size() >= sizeof (TMultiplexedRecordHeader));

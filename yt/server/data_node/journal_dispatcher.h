@@ -52,7 +52,7 @@ private:
 
     class TMultiplexedReplay;
 
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

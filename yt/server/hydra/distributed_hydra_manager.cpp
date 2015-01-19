@@ -127,7 +127,6 @@ public:
     {
         VERIFY_INVOKER_THREAD_AFFINITY(controlInvoker, ControlThread);
         VERIFY_INVOKER_THREAD_AFFINITY(automatonInvoker, AutomatonThread);
-        VERIFY_INVOKER_THREAD_AFFINITY(GetHydraIOInvoker(), IOThread);
 
         Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 
@@ -398,7 +397,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, ReadChangeLog)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        UNUSED(response);
 
         int changelogId = request->changelog_id();
         int startRecordId = request->start_record_id();
@@ -412,19 +410,17 @@ private:
         YCHECK(startRecordId >= 0);
         YCHECK(recordCount >= 0);
 
-        SwitchTo(GetHydraIOInvoker());
-        VERIFY_THREAD_AFFINITY(IOThread);
-
         auto changelog = OpenChangelogOrThrow(changelogId);
 
-        std::vector<TSharedRef> recordData;
-        auto recordsData = changelog->Read(
+        auto asyncRecordsData = changelog->Read(
             startRecordId,
             recordCount,
             Config_->MaxChangelogBytesPerRequest);
+        auto recordsData = WaitFor(asyncRecordsData)
+            .ValueOrThrow();
 
         // Pack refs to minimize allocations.
-        context->Response().Attachments().push_back(PackRefs(recordsData));
+        response->Attachments().push_back(PackRefs(recordsData));
 
         context->SetResponseInfo("RecordCount: %v", recordsData.size());
         context->Reply();
@@ -796,9 +792,8 @@ private:
 
     IChangelogPtr OpenChangelogOrThrow(int id)
     {
-        auto changelogOrError = WaitFor(ChangelogStore_->OpenChangelog(id));
-        THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
-        return changelogOrError.Value();
+        return WaitFor(ChangelogStore_->OpenChangelog(id))
+            .ValueOrThrow();
     }
 
 
@@ -871,8 +866,9 @@ private:
         if (error.IsOK()) {
             LOG_INFO("Distributed changelog rotation succeeded");
         } else {
-            if (Restart(epochContext))
+            if (Restart(epochContext)) {
                 LOG_ERROR(error, "Distributed changelog rotation failed");
+            }
         }
     }
 
@@ -1194,7 +1190,6 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-    DECLARE_THREAD_AFFINITY_SLOT(IOThread);
 
 };
 

@@ -455,16 +455,16 @@ public:
         }
 
         maxRecords = std::min(maxRecords, RecordCount_ - firstRecordId);
-        int lastRecordId = firstRecordId + maxRecords;
+        int lastRecordId = firstRecordId + maxRecords; // non-inclusive
 
         // Read envelope piece of changelog.
         auto envelope = ReadEnvelope(firstRecordId, lastRecordId, std::min(Index_.back().FilePosition, maxBytes));
 
         // Read records from envelope data and save them to the records.
-        i64 readSize = 0;
+        i64 readBytes = 0;
         TMemoryInput inputStream(envelope.Blob.Begin(), envelope.GetLength());
         for (int recordId = envelope.GetStartRecordId();
-             recordId < envelope.GetEndRecordId();
+             recordId < envelope.GetEndRecordId() && recordId < lastRecordId && readBytes < maxBytes;
              ++recordId)
         {
             // Read and check header.
@@ -477,9 +477,9 @@ public:
             inputStream.Skip(AlignUp(header.DataSize));
 
             // Add data to the records.
-            if (recordId >= firstRecordId && recordId < lastRecordId) {
+            if (recordId >= firstRecordId) {
                 records.push_back(data);
-                readSize += data.Size();
+                readBytes += data.Size();
             }
         }
 

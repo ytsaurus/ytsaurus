@@ -96,7 +96,7 @@ private:
         TReader(TRemoteSnapshotStorePtr store, int snapshotId)
             : Store_(store)
             , SnapshotId_(snapshotId)
-            , Path_(Store_->GetRemotePath(SnapshotId_))
+            , Path_(Store_->GetSnapshotPath(SnapshotId_))
         {
             Logger.AddTag("Path: %v", Path_);
         }
@@ -163,7 +163,7 @@ private:
                 {
                     TFileReaderOptions options;
                     options.Config = Store_->Config_->Reader;
-                    Reader_ = Store_->MasterClient_->CreateFileReader(Store_->GetRemotePath(SnapshotId_), options);
+                    Reader_ = Store_->MasterClient_->CreateFileReader(Store_->GetSnapshotPath(SnapshotId_), options);
 
                     WaitFor(Reader_->Open())
                         .ThrowOnError();
@@ -215,7 +215,7 @@ private:
             : Store_(store)
             , SnapshotId_(snapshotId)
             , Meta_(meta)
-            , Path_(Store_->GetRemotePath(SnapshotId_))
+            , Path_(Store_->GetSnapshotPath(SnapshotId_))
         {
             Logger.AddTag("Path: %v", Path_);
         }
@@ -311,7 +311,7 @@ private:
                     options.TransactionId = Transaction_->GetId();
                     options.PrerequisiteTransactionIds = Store_->PrerequisiteTransactionIds_;
                     options.Config = Store_->Config_->Writer;
-                    Writer_ = Store_->MasterClient_->CreateFileWriter(Store_->GetRemotePath(SnapshotId_), options);
+                    Writer_ = Store_->MasterClient_->CreateFileWriter(Store_->GetSnapshotPath(SnapshotId_), options);
 
                     WaitFor(Writer_->Open())
                         .ThrowOnError();
@@ -390,7 +390,7 @@ private:
         }
     }
 
-    TYPath GetRemotePath(int snapshotId)
+    TYPath GetSnapshotPath(int snapshotId)
     {
         return Format("%v/%09v", Path_, snapshotId);
     }

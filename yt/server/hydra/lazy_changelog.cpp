@@ -56,9 +56,11 @@ public:
     virtual TFuture<void> Append(const TSharedRef& data) override
     {
         TGuard<TSpinLock> guard(SpinLock_);
+
         if (!UnderlyingError_.IsOK()) {
             return MakeFuture(UnderlyingError_);
         }
+
         if (UnderlyingChangelog_) {
             guard.Release();
             return UnderlyingChangelog_->Append(data);
@@ -75,7 +77,7 @@ public:
         }));
     }
 
-    virtual std::vector<TSharedRef> Read(
+    virtual TFuture<std::vector<TSharedRef>> Read(
         int firstRecordId,
         int maxRecords,
         i64 maxBytes) const override
@@ -83,7 +85,7 @@ public:
         TGuard<TSpinLock> guard(SpinLock_);
 
         if (!UnderlyingError_.IsOK()) {
-            THROW_ERROR_EXCEPTION(UnderlyingError_);
+            return MakeFuture<std::vector<TSharedRef>>(UnderlyingError_);
         }
 
         if (UnderlyingChangelog_) {
@@ -98,7 +100,7 @@ public:
             for (int index = 0; index < recordCount; ++index) {
                 result[index] = BacklogRecords_[index + firstRecordId];
             }
-            return result;
+            return MakeFuture(result);
         }
     }
 

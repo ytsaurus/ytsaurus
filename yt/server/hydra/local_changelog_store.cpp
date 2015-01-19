@@ -62,7 +62,7 @@ public:
         return UnderlyingChangelog_->Flush();
     }
 
-    virtual std::vector<TSharedRef> Read(
+    virtual TFuture<std::vector<TSharedRef>> Read(
         int firstRecordId,
         int maxRecords,
         i64 maxBytes) const override
