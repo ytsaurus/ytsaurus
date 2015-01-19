@@ -39,7 +39,7 @@ void ResumeFiber(TFiberPtr fiber)
 
 void UnwindFiber(TFiberPtr fiber)
 {
-    fiber->Cancel();
+    fiber->GetCanceler().Run();
 
     BIND(&ResumeFiber, Passed(std::move(fiber)))
         .Via(GetFinalizerInvoker())
@@ -295,7 +295,6 @@ void TSchedulerThread::ThreadMainStep()
             &TSchedulerThread::FiberMain,
             MakeStrong(this),
             Epoch.load(std::memory_order_relaxed)));
-
         RunQueue.push_back(IdleFiber);
     }
 
@@ -397,6 +396,8 @@ bool TSchedulerThread::FiberMainStep(unsigned int spawnedEpoch)
     // CancelWait must be called within BeginExecute, if needed.
     auto result = BeginExecute();
 
+    // NB: We might get to this point after a long sleep, and scheduler might spawn
+    // another event loop. So we carefully examine scheduler state.
     auto currentEpoch = Epoch.load(std::memory_order_relaxed);
 
     if (spawnedEpoch == currentEpoch) {
@@ -424,12 +425,14 @@ bool TSchedulerThread::FiberMainStep(unsigned int spawnedEpoch)
         return false;
     }
 
-    return true;
+    return !CurrentFiber->IsCancelable();
 }
 
 void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvokerPtr invoker)
 {
     SetCurrentInvoker(invoker, fiber.Get());
+
+    fiber->GetCanceler(); // Initialize canceler; who knows what might happen to this fiber?
 
     auto resume = BIND(&ResumeFiber, fiber);
     auto unwind = BIND(&UnwindFiber, fiber);

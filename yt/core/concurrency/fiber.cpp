@@ -27,11 +27,10 @@ static std::list<TFiber*> FiberRegistry;
 TFiber::TFiber(TClosure callee, EExecutionStack stack)
     : Id_(FiberIdGenerator++)
     , State_(EFiberState::Suspended)
+    , Callee_(std::move(callee))
     , Stack_(CreateExecutionStack(stack))
     , Context_(CreateExecutionContext(Stack_.get(), &TFiber::Trampoline))
     , Canceled_(false)
-    , Canceler_(BIND(&TFiber::Cancel, MakeWeak(this)))
-    , Callee_(std::move(callee))
 {
 #ifdef DEBUG
     while (FiberRegistryLock.test_and_set(std::memory_order_acquire));
@@ -112,7 +111,7 @@ void TFiber::Cancel()
     VERIFY_THREAD_AFFINITY_ANY();
 
     bool expected = false;
-    if (!Canceled_.compare_exchange_strong(expected, true))
+    if (!Canceled_.compare_exchange_strong(expected, true, std::memory_order_relaxed))
         return;
 
     TFuture<void> awaitedFuture;
@@ -131,18 +130,29 @@ void TFiber::Cancel()
     }
 }
 
-TClosure TFiber::GetCanceler() const
+const TClosure& TFiber::GetCanceler()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    TGuard<TSpinLock> guard(SpinLock_);
+    if (!Canceler_) {
+        Canceler_ = BIND(&TFiber::Cancel, MakeWeak(this));
+    }
+
     return Canceler_;
+}
+
+bool TFiber::IsCancelable() const
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+    return Canceler_.operator bool();
 }
 
 bool TFiber::IsCanceled() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Canceled_;
+    return Canceled_.load(std::memory_order_relaxed);
 }
 
 bool TFiber::IsTerminated() const
