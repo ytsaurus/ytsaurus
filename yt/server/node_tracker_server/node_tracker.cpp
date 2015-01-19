@@ -243,7 +243,7 @@ public:
     TNode* FindNodeByHostName(const Stroka& hostName)
     {
         auto it = HostNameToNodeMap_.find(hostName);
-        return it == AddressToNodeMap_.end() ? nullptr : it->second;
+        return it == HostNameToNodeMap_.end() ? nullptr : it->second;
     }
 
     TNode* GetNodeOrThrow(TNodeId id)
