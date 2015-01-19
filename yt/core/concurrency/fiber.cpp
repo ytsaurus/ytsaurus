@@ -4,6 +4,7 @@
 #include "scheduler.h"
 #include "fls.h"
 #include "thread_affinity.h"
+#include "private.h"
 
 #include <core/misc/lazy_ptr.h>
 
@@ -12,6 +13,7 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = ConcurrencyLogger;
 static std::atomic<TFiberId> FiberIdGenerator(InvalidFiberId + 1);
 
 #ifdef DEBUG
@@ -57,6 +59,7 @@ TFiber::~TFiber()
 TFiberId TFiber::GetId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
     return Id_;
 }
 
@@ -64,12 +67,14 @@ EFiberState TFiber::GetState() const
 {
     // THREAD_AFFINITY(OwnerThread);
     // NB: These annotations are fake since owner may change.
+
     return State_;
 }
 
 void TFiber::SetRunning()
 {
     // THREAD_AFFINITY(OwnerThread);
+
     TGuard<TSpinLock> guard(SpinLock_);
     YASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Running;
@@ -79,6 +84,7 @@ void TFiber::SetRunning()
 void TFiber::SetSleeping(TFuture<void> awaitedFuture)
 {
     // THREAD_AFFINITY(OwnerThread);
+
     TGuard<TSpinLock> guard(SpinLock_);
     YASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Sleeping;
@@ -89,6 +95,7 @@ void TFiber::SetSleeping(TFuture<void> awaitedFuture)
 void TFiber::SetSuspended()
 {
     // THREAD_AFFINITY(OwnerThread);
+
     TGuard<TSpinLock> guard(SpinLock_);
     YASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Suspended;
@@ -103,32 +110,43 @@ TExecutionContext* TFiber::GetContext()
 void TFiber::Cancel()
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    Canceled_.store(true, std::memory_order_relaxed);
+
+    bool expected = false;
+    if (!Canceled_.compare_exchange_strong(expected, true))
+        return;
+
     TFuture<void> awaitedFuture;
     {
         TGuard<TSpinLock> guard(SpinLock_);
         awaitedFuture = std::move(AwaitedFuture_);
     }
+
     if (awaitedFuture) {
         awaitedFuture.Cancel();
+        LOG_DEBUG("Fiber cancelation received; propagated to the awaited future");
+    } else {
+        LOG_DEBUG("Fiber cancelation received");
     }
 }
 
 TClosure TFiber::GetCanceler() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
     return Canceler_;
 }
 
 bool TFiber::IsCanceled() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return Canceled_.load(std::memory_order_relaxed);
+
+    return Canceled_;
 }
 
 bool TFiber::IsTerminated() const
 {
     // THREAD_AFFINITY(OwnerThread);
+
     return State_ == EFiberState::Terminated;
 }
 
@@ -184,23 +202,6 @@ TClosure GetCurrentFiberCanceler()
 }
 
 namespace NDetail {
-
-void ResumeFiber(TFiberPtr fiber)
-{
-    YCHECK(fiber->GetState() == EFiberState::Sleeping);
-    fiber->SetSuspended();
-
-    GetCurrentScheduler()->YieldTo(std::move(fiber));
-}
-
-void UnwindFiber(TFiberPtr fiber)
-{
-    fiber->Cancel();
-
-    BIND(&ResumeFiber, Passed(std::move(fiber)))
-        .Via(GetFinalizerInvoker())
-        .Run();
-}
 
 } // namespace NDetail
 
