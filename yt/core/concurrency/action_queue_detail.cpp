@@ -3,6 +3,7 @@
 #include "fiber.h"
 #include "scheduler.h"
 #include "thread.h"
+#include "private.h"
 
 #include <core/actions/invoker_util.h>
 
@@ -22,16 +23,38 @@ using namespace NProfiling;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("ActionQueue");
+static const auto& Logger = ConcurrencyLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
+namespace {
 
-void ResumeFiber(TFiberPtr fiber);
-void UnwindFiber(TFiberPtr fiber);
+void ResumeFiber(TFiberPtr fiber)
+{
+    YCHECK(fiber->GetState() == EFiberState::Sleeping);
+    fiber->SetSuspended();
 
-} // namespace NDetail
+    GetCurrentScheduler()->YieldTo(std::move(fiber));
+}
+
+void UnwindFiber(TFiberPtr fiber)
+{
+    fiber->Cancel();
+
+    BIND(&ResumeFiber, Passed(std::move(fiber)))
+        .Via(GetFinalizerInvoker())
+        .Run();
+}
+
+void CheckForCanceledFiber(TFiber* fiber)
+{
+    if (fiber->IsCanceled()) {
+        LOG_DEBUG("Throwing fiber cancelation exception");
+        throw TFiberCanceledException();
+    }
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -408,8 +431,8 @@ void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoke
 {
     SetCurrentInvoker(invoker, fiber.Get());
 
-    auto resume = BIND(&NDetail::ResumeFiber, fiber);
-    auto unwind = BIND(&NDetail::UnwindFiber, fiber);
+    auto resume = BIND(&ResumeFiber, fiber);
+    auto unwind = BIND(&UnwindFiber, fiber);
 
     if (future) {
         future.Subscribe(BIND([=] (const TError&) mutable {
@@ -465,9 +488,7 @@ void TSchedulerThread::Yield()
     auto fiber = CurrentFiber.Get();
     YASSERT(fiber);
 
-    if (fiber->IsCanceled()) {
-        throw TFiberCanceledException();
-    }
+    CheckForCanceledFiber(fiber);
 
     YCHECK(CurrentFiber->GetState() == EFiberState::Running);
     fiber->SetSuspended();
@@ -477,9 +498,7 @@ void TSchedulerThread::Yield()
         &SchedulerContext,
         nullptr);
 
-    if (fiber->IsCanceled()) {
-        throw TFiberCanceledException();
-    }
+    CheckForCanceledFiber(fiber);
 }
 
 void TSchedulerThread::SubscribeContextSwitched(TClosure callback)
@@ -521,9 +540,7 @@ void TSchedulerThread::YieldTo(TFiberPtr&& other)
     // Cannot access |this| from this point as the fiber might be resumed
     // in other scheduler.
 
-    if (caller->IsCanceled()) {
-        throw TFiberCanceledException();
-    }
+    CheckForCanceledFiber(caller);
 }
 
 void TSchedulerThread::SwitchTo(IInvokerPtr invoker)
@@ -533,9 +550,7 @@ void TSchedulerThread::SwitchTo(IInvokerPtr invoker)
     YASSERT(CurrentFiber);
     auto fiber = CurrentFiber.Get();
 
-    if (fiber->IsCanceled()) {
-        throw TFiberCanceledException();
-    }
+    CheckForCanceledFiber(fiber);
 
     // Update scheduling state.
     YASSERT(!SwitchToInvoker);
@@ -551,9 +566,7 @@ void TSchedulerThread::SwitchTo(IInvokerPtr invoker)
     // Cannot access |this| from this point as the fiber might be resumed
     // in other scheduler.
 
-    if (fiber->IsCanceled()) {
-        throw TFiberCanceledException();
-    }
+    CheckForCanceledFiber(fiber);
 }
 
 void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
@@ -563,18 +576,14 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
     auto fiber = CurrentFiber.Get();
     YASSERT(fiber);
 
-    if (fiber->IsCanceled()) {
-        throw TFiberCanceledException();
-    }
+    CheckForCanceledFiber(fiber);
 
     UninterruptableWaitFor(std::move(future), std::move(invoker));
 
     // Cannot access |this| from this point as the fiber might be resumed
     // in other scheduler.
 
-    if (fiber->IsCanceled()) {
-        throw TFiberCanceledException();
-    }
+    CheckForCanceledFiber(fiber);
 }
 
 void TSchedulerThread::UninterruptableWaitFor(TFuture<void> future, IInvokerPtr invoker)
