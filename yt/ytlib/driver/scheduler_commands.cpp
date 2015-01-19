@@ -18,6 +18,14 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobProbeCommand::DoExecute()
+{
+    auto result = Context_->GetClient()->GenerateInputContext(Request_->JobId, Request_->Path);
+    WaitFor(result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSchedulerCommandBase::StartOperation(EOperationType type)
 {
     TStartOperationOptions options;

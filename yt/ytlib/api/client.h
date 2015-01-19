@@ -34,6 +34,8 @@
 
 #include <ytlib/scheduler/public.h>
 
+#include <ytlib/job_tracker_client/public.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -300,7 +302,7 @@ struct TStartOperationOptions
 //! both standalone and inside transaction.
 /*
  *  This interface contains methods shared by IClient and ITransaction.
- *  
+ *
  *  Thread affinity: single
  */
 struct IClientBase
@@ -424,10 +426,10 @@ DEFINE_REFCOUNTED_TYPE(IClientBase)
  *  The needed username is passed to #IConnection::CreateClient via options.
  *  Note that YT API has no built-in authentication mechanisms so it must be wrapped
  *  with appropriate logic.
- *  
+ *
  *  Most methods accept |TransactionId| as a part of their options.
  *  A similar effect can be achieved by issuing requests via ITransaction.
- *  
+ *
  */
 struct IClient
     : public IClientBase
@@ -494,6 +496,10 @@ struct IClient
 
     virtual TFuture<void> ResumeOperation(const NScheduler::TOperationId& operationId) = 0;
 
+
+    virtual TFuture<void> GenerateInputContext(
+        const NJobTrackerClient::TJobId& jobId,
+        const NYPath::TYPath& path) = 0;
 
 };
 

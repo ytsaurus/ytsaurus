@@ -148,6 +148,9 @@ public:
 
         REGISTER(TWriteJournalCommand,      "write_journal",     Tabular,    Null,       true,  true );
         REGISTER(TReadJournalCommand,       "read_journal",      Null,       Tabular,    false, true );
+
+        REGISTER(TJobProbeCommand,          "probe_job",         Null,       Null,       true,  false);
+
 #undef REGISTER
     }
 
@@ -185,7 +188,7 @@ public:
             .AsyncVia(invoker)
             .Run();
     }
-    
+
     virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) override
     {
         auto it = Commands.find(commandName);

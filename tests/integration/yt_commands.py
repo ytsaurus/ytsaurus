@@ -96,6 +96,11 @@ def command(command_name, parameters, input_stream=None, output_stream=None, ver
 
 ###########################################################################
 
+def probe(job_id, path, **kwargs):
+    kwargs["job_id"] = job_id
+    kwargs["path"] = path
+    return command("probe_job", kwargs)
+
 def lock(path, waitable=False, **kwargs):
     kwargs["path"] = path
     kwargs["waitable"] = waitable
@@ -188,7 +193,7 @@ def insert(path, value, is_raw=False, **kwargs):
         value = yson.dumps(value)
         # remove surrounding [ ]
         value = value[1:-1]
-        
+
     kwargs["path"] = path
     return command("insert", kwargs, input_stream=StringIO(value))
 
@@ -427,7 +432,7 @@ def create_rack(name, **kwargs):
 def remove_rack(name, **kwargs):
     remove("//sys/racks/" + name, **kwargs)
     gc_collect()
-    
+
 #########################################
 # Helpers:
 

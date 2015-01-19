@@ -61,6 +61,7 @@
 #include <ytlib/chunk_client/read_limit.h>
 
 #include <ytlib/scheduler/scheduler_service_proxy.h>
+#include <ytlib/scheduler/job_probe_service_proxy.h>
 
 // TODO(babenko): refactor this
 #include <ytlib/object_client/object_service_proxy.h>
@@ -153,7 +154,7 @@ public:
     TFuture<TQueryStatistics> GetQueryResult() const
     {
         return QueryResult_.ToFuture();
-    }    
+    }
 
 private:
     TFuture<TQueryServiceProxy::TRspExecutePtr> AsyncResponse_;
@@ -163,7 +164,7 @@ private:
 
     TPromise<TQueryStatistics> QueryResult_ = NewPromise<TQueryStatistics>();
 
-    
+
     void OnResponse(
         const TTableSchema& schema,
         TQueryServiceProxy::TRspExecutePtr response)
@@ -394,16 +395,16 @@ private:
             }
 
             TDataSplit subsplit;
-            SetObjectId(&subsplit, tabletInfo->TabletId);   
+            SetObjectId(&subsplit, tabletInfo->TabletId);
             SetKeyColumns(&subsplit, keyColumns);
             SetTableSchema(&subsplit, schema);
-            
+
             auto pivotKey = tabletInfo->PivotKey;
             auto nextPivotKey = (it + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(it + 1))->PivotKey;
 
             SetLowerBound(&subsplit, std::max(lowerBound, pivotKey));
             SetUpperBound(&subsplit, std::min(upperBound, nextPivotKey));
-            SetTimestamp(&subsplit, timestamp); 
+            SetTimestamp(&subsplit, timestamp);
 
             for (const auto& tabletReplica : tabletInfo->Replicas) {
                 nodeDirectory->AddDescriptor(tabletReplica.Id, tabletReplica.Descriptor);
@@ -588,6 +589,7 @@ public:
             ObjectProxies_[kind].reset(new TObjectServiceProxy(MasterChannels_[kind]));
         }
         SchedulerProxy_.reset(new TSchedulerServiceProxy(SchedulerChannel_));
+        JobProbeProxy_.reset(new TJobProbeServiceProxy(SchedulerChannel_));
 
         TransactionManager_ = New<TTransactionManager>(
             Connection_->GetConfig()->TransactionManager,
@@ -850,6 +852,11 @@ public:
         const TOperationId& operationId),
         (operationId))
 
+    IMPLEMENT_METHOD(void, GenerateInputContext, (
+        const TJobId& jobId,
+        const TYPath& path),
+        (jobId, path))
+
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 
@@ -878,6 +885,7 @@ private:
     TQueryHelperPtr QueryHelper_;
     TEnumIndexedVector<std::unique_ptr<TObjectServiceProxy>, EMasterChannelKind> ObjectProxies_;
     std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;
+    std::unique_ptr<TJobProbeServiceProxy> JobProbeProxy_;
 
     NLog::TLogger Logger = ApiLogger;
 
@@ -940,7 +948,7 @@ private:
         ++commandOptions.MutationId.Parts32[0];
         return result;
     }
-    
+
 
     TTransactionId GetTransactionId(const TTransactionalOptions& commandOptions, bool allowNullTransaction)
     {
@@ -1086,7 +1094,7 @@ private:
             TTabletServiceProxy::TRspReadPtr Response;
         };
 
-        std::vector<std::unique_ptr<TBatch>> Batches_;           
+        std::vector<std::unique_ptr<TBatch>> Batches_;
 
         IChannelPtr InvokeChannel_;
         int InvokeBatchIndex_ = 0;
@@ -1213,7 +1221,7 @@ private:
 
         std::vector<TUnversionedRow> resultRows;
         resultRows.resize(keys.size());
-        
+
         std::vector<std::unique_ptr<TWireProtocolReader>> readers;
 
         for (const auto& pair : tabletToSession) {
@@ -1660,7 +1668,7 @@ private:
         GenerateMutationId(req, options);
         req->set_type(static_cast<int>(type));
         req->set_spec(spec.Data());
-        
+
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
@@ -1689,6 +1697,17 @@ private:
     {
         auto req = SchedulerProxy_->ResumeOperation();
         ToProto(req->mutable_operation_id(), operationId);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+    }
+
+
+    void DoGenerateInputContext(const TJobId& jobId, const TYPath& path)
+    {
+        auto req = JobProbeProxy_->GenerateInputContext();
+        ToProto(req->mutable_job_id(), jobId);
+        ToProto(req->mutable_path(), path);
 
         WaitFor(req->Invoke())
             .ThrowOnError();
@@ -1770,7 +1789,7 @@ public:
             adjustedOptions);
     }
 
-        
+
     virtual void WriteRow(
         const TYPath& path,
         TNameTablePtr nameTable,
@@ -2132,7 +2151,7 @@ private:
         {
             Logger.AddTag("TabletId: %v", TabletId_);
         }
-        
+
         TWireProtocolWriter* GetWriter()
         {
             if (Batches_.empty() || Batches_.back()->RowCount >= Config_->MaxRowsPerWriteRequest) {

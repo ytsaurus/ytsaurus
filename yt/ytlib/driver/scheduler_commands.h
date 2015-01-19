@@ -3,9 +3,39 @@
 #include "command.h"
 
 #include <ytlib/scheduler/public.h>
+#include <ytlib/job_tracker_client/public.h>
 
 namespace NYT {
 namespace NDriver {
+
+//////////////////////////////////////////////////////////////////////////////
+
+struct TJobProbeRequest
+    : public TTransactionalRequest
+    , public TMutatingRequest
+{
+    NJobTrackerClient::TJobId JobId;
+    NYPath::TYPath Path;
+
+    TJobProbeRequest()
+    {
+        RegisterParameter("job_id", JobId);
+        RegisterParameter("path", Path);
+    }
+};
+
+//////////////////////////////////////////////////////////////////////////////
+
+class TJobProbeCommand
+    : public TTypedCommand<TJobProbeRequest>
+{
+protected:
+    typedef TJobProbeCommand TThis;
+
+private:
+    virtual void DoExecute() override;
+
+};
 
 //////////////////////////////////////////////////////////////////////////////
 
