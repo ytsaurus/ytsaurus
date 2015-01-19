@@ -100,7 +100,7 @@ void UninterruptableWaitFor(TFuture<void> future, IInvokerPtr invoker)
 
     auto* scheduler = TryGetCurrentScheduler();
     if (scheduler) {
-        scheduler->UninterruptableWaitFor(std::move(future), std::move(invoker));
+        scheduler->UninterruptableWaitFor(future, std::move(invoker));
     } else {
         // When called from a fiber-unfriendly context, we fallback to blocking wait.
         YCHECK(invoker == GetCurrentInvoker());
