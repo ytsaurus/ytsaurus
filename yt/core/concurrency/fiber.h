@@ -81,13 +81,13 @@ public:
      */
     TExecutionContext* GetContext();
 
-    //! Returns a cached callback that invokes #Cancel.
+    //! Returns a cached callback that schedules fiber cancelation.
     /*!
      *  Thread affinity: any
      */
     const TClosure& GetCanceler();
 
-    //! Returns |true| if canceler was captured by anyone.
+    //! Returns |true| if the canceler was requested by anyone.
     /*!
      *  Thread affinity: any
      */
