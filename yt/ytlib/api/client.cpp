@@ -569,10 +569,11 @@ private:
 
         TQueryServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(config->QueryTimeout);
+
         auto req = proxy.Execute();
         fragment->NodeDirectory->DumpTo(req->mutable_node_directory());
         ToProto(req->mutable_plan_fragment(), fragment);
-        req->set_response_codec(static_cast<int>(config->SelectResponseCodec));
+        req->set_response_codec(static_cast<int>(config->QueryResponseCodec));
 
         auto resultReader = New<TQueryResponseReader>(req->Invoke());
         return std::make_pair(resultReader, resultReader->GetQueryResult());
@@ -1107,8 +1108,10 @@ private:
             const auto& batch = Batches_[InvokeBatchIndex_];
 
             TTabletServiceProxy proxy(InvokeChannel_);
-            auto req = proxy.Read()
-                ->SetRequestAck(false);
+            proxy.SetDefaultTimeout(Config_->LookupTimeout);
+            proxy.SetDefaultRequestAck(false);
+
+            auto req = proxy.Read();
             ToProto(req->mutable_tablet_id(), TabletId_);
             req->set_timestamp(Options_.Timestamp);
             req->set_response_codec(static_cast<int>(Config_->LookupResponseCodec));
@@ -2095,8 +2098,10 @@ private:
                 batch->RowCount);
 
             TTabletServiceProxy proxy(InvokeChannel_);
-            auto req = proxy.Write()
-                ->SetRequestAck(false);
+            proxy.SetDefaultTimeout(Config_->WriteTimeout);
+            proxy.SetDefaultRequestAck(false);
+
+            auto req = proxy.Write();
             ToProto(req->mutable_transaction_id(), TransactionId_);
             ToProto(req->mutable_tablet_id(), TabletId_);
             req->Attachments() = std::move(batch->RequestData);
