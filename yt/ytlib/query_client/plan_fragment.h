@@ -285,7 +285,7 @@ class TQuery
     : public TIntrinsicRefCounted
 {
 public:
-    explicit TQuery(
+    TQuery(
         i64 inputRowLimit,
         i64 outputRowLimit,
         const TGuid& id = TGuid::Create())
