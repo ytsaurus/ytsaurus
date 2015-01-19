@@ -145,7 +145,7 @@ const TClosure& TFiber::GetCanceler()
 bool TFiber::IsCancelable() const
 {
     TGuard<TSpinLock> guard(SpinLock_);
-    return Canceler_.operator bool();
+    return static_cast<bool>(Canceler_);
 }
 
 bool TFiber::IsCanceled() const
