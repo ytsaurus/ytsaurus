@@ -1174,6 +1174,7 @@ private:
                 TReqWriteRow req;
                 reader->ReadMessage(&req);
                 auto row = reader->ReadUnversionedRow();
+                Magic(STRINGBUF("ExecuteSingleWrite:Write"), row);
                 rowRef = storeManager->WriteRow(
                     transaction,
                     row,
@@ -1186,6 +1187,7 @@ private:
                 TReqDeleteRow req;
                 reader->ReadMessage(&req);
                 auto key = reader->ReadUnversionedRow();
+                Magic(STRINGBUF("ExecuteSingleWrite:Delete"), key);
                 rowRef = storeManager->DeleteRow(
                     transaction,
                     key,

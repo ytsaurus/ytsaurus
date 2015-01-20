@@ -50,6 +50,7 @@ TUnversionedRowMerger::TUnversionedRowMerger(
 
 void TUnversionedRowMerger::AddPartialRow(TVersionedRow row)
 {
+    Magic(STRINGBUF("TUnversionedRowMerger::AddPartialRow"), row);
     if (!row)
         return;
 
@@ -132,6 +133,7 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
     MergedRow_ = TUnversionedRow();
 
     Cleanup();
+    Magic(STRINGBUF("TUnversionedRowMerger::BuildMergedRow"), mergedRow);
     return mergedRow;
 }
 
@@ -170,6 +172,7 @@ TVersionedRowMerger::TVersionedRowMerger(
 
 void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
 {
+    Magic(STRINGBUF("TVersionedRowMerger::AddPartialRow"), row);
     if (!row)
         return;
 
@@ -349,6 +352,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
     std::copy(DeleteTimestamps_.begin(), DeleteTimestamps_.end(), row.BeginDeleteTimestamps());
 
     Cleanup();
+    Magic(STRINGBUF("TVersionedRowMerger::BuildMergedRow"), row);
     return row;
 }
 
