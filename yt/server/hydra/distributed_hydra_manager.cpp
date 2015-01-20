@@ -206,7 +206,10 @@ public:
         ElectionManager_->Stop();
         ActiveLeader_ = false;
 
-        AutomatonInvoker_->Invoke(BIND(&TDistributedHydraManager::DoFinalize, MakeStrong(this)));
+        SwitchTo(AutomatonInvoker_);
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        AutomatonEpochContext_.Reset();
 
         LOG_INFO("Hydra instance stopped");
     }
@@ -720,13 +723,6 @@ private:
         return true;
     }
 
-
-    void DoFinalize()
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        AutomatonEpochContext_.Reset();
-    }
 
     void DoRestart(TEpochContextPtr epochContext)
     {
