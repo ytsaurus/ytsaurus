@@ -376,6 +376,21 @@ protected:
             endLimit->set_row_index(newUpperBound);
         }
 
+        if (stackEntry.LowerBound.has_chunk_index()) {
+            int newLowerBound = stackEntry.LowerBound.chunk_index() - childLowerBound.chunk_index();
+            if (newLowerBound > 0) {
+                startLimit->set_chunk_index(newLowerBound);
+            }
+        }
+
+        if (stackEntry.UpperBound.has_chunk_index() &&
+            stackEntry.UpperBound.chunk_index() < childUpperBound.chunk_index())
+        {
+            int newUpperBound = stackEntry.UpperBound.chunk_index() - childLowerBound.chunk_index();
+            YCHECK(newUpperBound > 0);
+            endLimit->set_chunk_index(newUpperBound);
+        }
+
         if (stackEntry.LowerBound.has_offset()) {
             i64 newLowerBound = stackEntry.LowerBound.offset() - childLowerBound.offset();
             if (newLowerBound > 0) {
