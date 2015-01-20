@@ -358,13 +358,14 @@ public:
     DEFINE_SIGNAL(void(), StopFollowing);
 
 private:
-    TDistributedHydraManagerConfigPtr Config_;
-    NRpc::IServerPtr RpcServer_;
-    TCellManagerPtr CellManager_;
-    IInvokerPtr ControlInvoker_;
-    IInvokerPtr AutomatonInvoker_;
-    IChangelogStorePtr ChangelogStore_;
-    ISnapshotStorePtr SnapshotStore_;
+    const TDistributedHydraManagerConfigPtr Config_;
+    const NRpc::IServerPtr RpcServer_;
+    const TCellManagerPtr CellManager_;
+    const IInvokerPtr ControlInvoker_;
+    const IInvokerPtr AutomatonInvoker_;
+    const IChangelogStorePtr ChangelogStore_;
+    const ISnapshotStorePtr SnapshotStore_;
+
     std::atomic<bool> ReadOnly_;
     std::atomic<bool> ActiveLeader_;
     EPeerState ControlState_;
