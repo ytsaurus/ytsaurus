@@ -120,16 +120,17 @@ public:
     void Configure(TAddressResolverConfigPtr config);
 
 private:
-    TAddressResolverConfigPtr Config;
+    TAddressResolverConfigPtr Config_;
 
-    TSpinLock CacheLock;
-    yhash_map<Stroka, TNetworkAddress> Cache;
+    TSpinLock CacheLock_;
+    yhash_map<Stroka, TNetworkAddress> Cache_;
 
-    NConcurrency::TPeriodicExecutorPtr LocalHostChecker;
+    NConcurrency::TPeriodicExecutorPtr LocalHostChecker_;
 
-    bool GetLocalHostNameFailed = false;
-    TSpinLock CachedLocalHostNameLock;
-    Stroka CachedLocalHostName;
+    bool GetLocalHostNameFailed_ = false;
+    TSpinLock CachedLocalHostNameLock_;
+    Stroka CachedLocalHostName_;
+
 
     TNetworkAddress DoResolve(const Stroka& hostName);
     Stroka DoGetLocalHostName();
