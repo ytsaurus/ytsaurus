@@ -173,7 +173,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         IInvokerPtr underlyingInvoker)
         : TInvokerWrapper(std::move(underlyingInvoker))
-          , Owner_(decoratedAutomaton)
+        , Owner_(decoratedAutomaton)
     { }
 
     virtual void Invoke(const TClosure& callback) override
