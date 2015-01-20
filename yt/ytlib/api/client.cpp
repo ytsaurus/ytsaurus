@@ -1228,20 +1228,24 @@ private:
         ISchemafulWriterPtr writer,
         TSelectRowsOptions options)
     {
+        auto inputRowLimit = options.InputRowLimit.Get(Connection_->GetConfig()->DefaultInputRowLimit);
+        auto outputRowLimit = options.OutputRowLimit.Get(Connection_->GetConfig()->DefaultOutputRowLimit);
         auto fragment = PreparePlanFragment(
             QueryHelper_.Get(),
             query,
-            options.InputRowLimit.Get(Connection_->GetConfig()->DefaultInputRowLimit),
-            options.OutputRowLimit.Get(Connection_->GetConfig()->DefaultOutputRowLimit),
+            inputRowLimit,
+            outputRowLimit,
             options.Timestamp);
         auto statistics = WaitFor(QueryHelper_->Execute(fragment, writer))
             .ValueOrThrow();
         if (options.FailOnIncompleteResult) {
             if (statistics.IncompleteInput) {
-                THROW_ERROR_EXCEPTION("Query terminated prematurely due to excessive input; consider rewriting your query or changing input limit");
+                THROW_ERROR_EXCEPTION("Query terminated prematurely due to excessive input; consider rewriting your query or changing input limit")
+                    << TErrorAttribute("input_row_limit", inputRowLimit);
             }
             if (statistics.IncompleteOutput) {
-                THROW_ERROR_EXCEPTION("Query terminated prematurely due to excessive output; consider rewriting your query or changing output limit");
+                THROW_ERROR_EXCEPTION("Query terminated prematurely due to excessive output; consider rewriting your query or changing output limit")
+                    << TErrorAttribute("output_row_limit", outputRowLimit);
             }
         }
         return statistics;
