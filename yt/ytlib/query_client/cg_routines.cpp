@@ -234,13 +234,12 @@ const TRow* InsertGroupRow(
 {
     CHECK_STACK()
 
-    --executionContext->OutputRowLimit;
-
     TRow row = *rowPtr;
-
     auto inserted = lookupRows->insert(row);
 
     if (inserted.second) {
+        --executionContext->OutputRowLimit;
+
         groupedRows->push_back(row);
         for (int index = 0; index < valueCount; ++index) {
             CaptureValue(&row[index], executionContext->PermanentBuffer->GetUnalignedPool());
