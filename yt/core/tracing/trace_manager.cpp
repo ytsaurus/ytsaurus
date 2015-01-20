@@ -45,9 +45,8 @@ public:
         Config_ = New<TTraceManagerConfig>();
         Config_->Load(node, true, true, path);
 
-        Endpoint_ = GetLocalEndpoint();
-
         if (Config_->Address) {
+            Endpoint_ = GetLocalEndpoint();
             Channel_ = NRpc::GetBusChannelFactory()->CreateChannel(*Config_->Address);
 
             SendExecutor_ = New<TPeriodicExecutor>(
