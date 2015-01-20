@@ -19,7 +19,6 @@
 
 #include <ytlib/chunk_client/private.h>
 #include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
