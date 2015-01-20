@@ -20,7 +20,6 @@ struct TQueryStatistics
     bool IncompleteOutput = false;
 
     TQueryStatistics& operator += (const TQueryStatistics& other);
-
 };
 
 void ToProto(NProto::TQueryStatistics* serialized, const TQueryStatistics& original);
