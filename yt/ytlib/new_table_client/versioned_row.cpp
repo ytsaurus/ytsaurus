@@ -6,6 +6,8 @@
 
 #include <numeric>
 
+#include <core/logging/log.h> // FIXME(babenko): remove this
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -344,6 +346,15 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+static NLog::TLogger Logger("MAGIC");
+
+void Magic(const TStringBuf& what, TVersionedRow row)
+{
+    if (row && row.GetKeyCount() >= 2 && row.BeginKeys()[1].Type == EValueType::Int64 && row.BeginKeys()[1].Data.Int64 % 256 == 3) {
+        LOG_DEBUG("%v %v", what, row);
+    }
+}
 
 } // namespace NVersionedTableClient
 } // namespace NYT

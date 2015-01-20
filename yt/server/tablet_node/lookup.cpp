@@ -135,6 +135,7 @@ private:
         std::vector<TFutureHolder<TVersionedRow>>* rowHolders,
         TKey key)
     {
+        Magic(STRINGBUF("TLookupSession::InvokerLookupers"), key);
         for (const auto& lookuper : lookupers) {
             auto rowHolder = lookuper->Lookup(key);
             auto maybeRowOrError = rowHolder.Get().TryGet();
@@ -161,6 +162,7 @@ private:
         TPartitionSnapshotPtr currentPartitionSnapshot;
 
         for (auto key : LookupKeys_) {
+            Magic(STRINGBUF("TLookupSession::DoRun"), key);
             ValidateServerKey(key, KeyColumnCount_, TabletSnapshot_->Schema);
 
             auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);

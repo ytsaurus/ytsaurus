@@ -338,6 +338,9 @@ private:
             while (true) {
                 // NB: Memory store reader is always synchronous.
                 reader->Read(&rows);
+                for (auto row : rows) {
+                    Magic(STRINGBUF("TStoreFlusher::FlushStore"), row);
+                }
                 if (rows.empty())
                     break;
                 if (!writer->Write(rows)) {
