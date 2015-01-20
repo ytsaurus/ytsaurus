@@ -303,6 +303,9 @@ public:
     //! Maximum number of samples to request for partitioning.
     int MaxPartitioningSampleCount;
 
+    //! Maximum number of concurrent partition samplings.
+    int MaxConcurrentSamplings;
+
     //! Mininmum intervals between resampling.
     TDuration ResamplingPeriod;
 
@@ -316,6 +319,9 @@ public:
         RegisterParameter("max_partitioning_sample_count", MaxPartitioningSampleCount)
             .Default(1000)
             .GreaterThanOrEqual(10);
+        RegisterParameter("max_concurrent_samplings", MaxConcurrentSamplings)
+            .GreaterThan(0)
+            .Default(8);
         RegisterParameter("resampling_period", ResamplingPeriod)
             .Default(TDuration::Minutes(1));
     }

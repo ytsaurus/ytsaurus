@@ -11,6 +11,7 @@
 #include "private.h"
 
 #include <core/concurrency/scheduler.h>
+#include <core/concurrency/async_semaphore.h>
 
 #include <core/logging/log.h>
 
@@ -54,6 +55,7 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
+        , Semaphore_(Config_->MaxConcurrentSamplings)
     { }
 
     void Start()
@@ -65,6 +67,7 @@ public:
 private:
     TPartitionBalancerConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
+    TAsyncSemaphore Semaphore_;
 
 
     void OnScanSlot(TTabletSlotPtr slot)
@@ -242,14 +245,18 @@ private:
         if (partition->GetState() != EPartitionState::Normal)
             return;
 
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
+        if (!guard)
+            return;
+
         partition->SetState(EPartitionState::Sampling);
 
-        BIND(&TPartitionBalancer::DoRunSample, MakeStrong(this))
+        BIND(&TPartitionBalancer::DoRunSample, MakeStrong(this), Passed(std::move(guard)))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
             .Run(partition);
     }
 
-    void DoRunSample(TPartition* partition)
+    void DoRunSample(TAsyncSemaphoreGuard /* guard */, TPartition* partition)
     {
         auto Logger = BuildLogger(partition);
 
