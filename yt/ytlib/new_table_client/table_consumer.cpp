@@ -86,11 +86,7 @@ void TBuildingValueConsumer::OnEndRow() {
 
 TTableConsumer::TTableConsumer(const std::vector<IValueConsumerPtr>& valueConsumers, int tableIndex)
     : ValueConsumers_(valueConsumers)
-    , ControlState_(EControlState::None)
     , ValueWriter_(&ValueBuffer_)
-    , Depth_(0)
-    , ColumnIndex_(0)
-    , RowIndex_(0)
 {
     YCHECK(!ValueConsumers_.empty());
     YCHECK(ValueConsumers_.size() > tableIndex);
@@ -264,7 +260,7 @@ void TTableConsumer::OnBeginList()
         ThrowMapExpected();
     } else {
         if (Depth_ == 1) {
-            ValueBegin_ = ValueBuffer_.Begin() + ValueBuffer_.Size();
+            ValueBeginOffset_ = ValueBuffer_.Size();
         }
         ValueWriter_.OnBeginList();
     }
@@ -284,7 +280,7 @@ void TTableConsumer::OnBeginAttributes()
         ControlState_ = EControlState::ExpectName;
     } else {
         if (Depth_ == 1) {
-            ValueBegin_ = ValueBuffer_.Begin() + ValueBuffer_.Size();
+            ValueBeginOffset_ = ValueBuffer_.Size();
         }
         ValueWriter_.OnBeginAttributes();
     }
@@ -337,7 +333,7 @@ void TTableConsumer::OnBeginMap()
         CurrentValueConsumer_->OnBeginRow();
     } else {
         if (Depth_ == 1) {
-            ValueBegin_ = ValueBuffer_.Begin() + ValueBuffer_.Size();
+            ValueBeginOffset_ = ValueBuffer_.Size();
         }
         ValueWriter_.OnBeginMap();
     }
@@ -398,8 +394,12 @@ void TTableConsumer::OnEndMap()
         ValueWriter_.OnEndMap();
         if (Depth_ == 1) {
             CurrentValueConsumer_->OnValue(MakeUnversionedAnyValue(
-                TStringBuf(ValueBegin_, ValueBuffer_.Begin() + ValueBuffer_.Size()),
+                TStringBuf(
+                    ValueBuffer_.Begin() + ValueBeginOffset_, 
+                    ValueBuffer_.Begin() + ValueBuffer_.Size()),
                 ColumnIndex_));
+            ValueBuffer_.Clear();
+            ValueBeginOffset_ = -1;
         }
     } else {
         CurrentValueConsumer_->OnEndRow();
@@ -418,8 +418,12 @@ void TTableConsumer::OnEndList()
     ValueWriter_.OnEndList();
     if (Depth_ == 1) {
         CurrentValueConsumer_->OnValue(MakeUnversionedAnyValue(
-            TStringBuf(ValueBegin_, ValueBuffer_.Begin() + ValueBuffer_.Size()),
+            TStringBuf(
+                ValueBuffer_.Begin() + ValueBeginOffset_, 
+                ValueBuffer_.Begin() + ValueBuffer_.Size()),
             ColumnIndex_));
+        ValueBuffer_.Clear();
+        ValueBeginOffset_ = -1;
     }
 }
 
@@ -445,11 +449,6 @@ void TTableConsumer::OnEndAttributes()
         default:
             YUNREACHABLE();
     }
-}
-
-void TTableConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
-{
-    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

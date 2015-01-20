@@ -110,7 +110,7 @@ DEFINE_ENUM(EControlState,
 );
 
 class TTableConsumer
-    : public NYson::IYsonConsumer
+    : public NYson::TYsonConsumerBase
 {
 public:
     explicit TTableConsumer(IValueConsumerPtr consumer);
@@ -141,7 +141,6 @@ protected:
 
     virtual void OnEndList() override;
     virtual void OnEndAttributes() override;
-    virtual void OnRaw(const TStringBuf& yson, NYson::EYsonType type) override;
 
     void OnControlInt64Scalar(i64 value);
     void OnControlStringScalar(const TStringBuf& value);
@@ -149,17 +148,17 @@ protected:
     std::vector<IValueConsumerPtr> ValueConsumers_;
     IValueConsumer* CurrentValueConsumer_;
 
-    EControlState ControlState_;
+    EControlState ControlState_ = EControlState::None;
     NTableClient::EControlAttribute ControlAttribute_;
 
-    const char* ValueBegin_;
+    i64 ValueBeginOffset_ = -1;
     TBlobOutput ValueBuffer_;
     NYson::TYsonWriter ValueWriter_;
 
-    int Depth_;
-    int ColumnIndex_;
+    int Depth_ = 0;
+    int ColumnIndex_ = 0;
 
-    i64 RowIndex_;
+    i64 RowIndex_ = 0;
 
 };
 

@@ -688,8 +688,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
         check("//tmp/t3", 10, 5) # number of jobs can"t be more that number of chunks
 
     @only_linux
-    # ToDo(psushin): rewrite user table files generation.
-    @pytest.mark.skipif(True)
     def test_with_user_files(self):
         create("table", "//tmp/input")
         write("//tmp/input", {"foo": "bar"})
@@ -740,8 +738,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read("//tmp/output") == []
 
     @only_linux
-    # ToDo(psushin): rewrite user table files generation.
-    @pytest.mark.skipif(True)
     def test_multi_chunk_user_files(self):
         create("table", "//tmp/input")
         write("//tmp/input", {"foo": "bar"})
