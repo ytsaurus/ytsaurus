@@ -306,6 +306,9 @@ bool operator == (TVersionedRow lhs, TVersionedRow rhs);
 //! Compares versioned rows for nonequality.
 bool operator != (TVersionedRow lhs, TVersionedRow rhs);
 
+Stroka ToString(TVersionedRow row);
+Stroka ToString(const TVersionedOwningRow& row);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A helper used for constructing TVersionedRow instances.
