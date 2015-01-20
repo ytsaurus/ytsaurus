@@ -232,7 +232,13 @@ struct TPerlMappingTraits<{{{type}}}>
     }
 };"""
 
-    print "// This file was auto-generated. Do not edit."
+    print """// This file was auto-generated. Do not edit.
+#ifndef PERL_MAPPING_TRAITS_GENERATED_H_
+#error "Direct inclusion of this file is not allowed"
+#endif
+#undef PERL_MAPPING_TRAITS_GENERATED_H_
+"""
+
     for option in result:
         print pystache.render(template, option)
 
