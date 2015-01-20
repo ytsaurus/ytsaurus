@@ -760,9 +760,9 @@ private:
                     LOG_INFO("The latest snapshot is %v", maxSnapshotId);
                 }
 
-                auto maxChangelogIdOrError = WaitFor(ChangelogStore_->GetLatestChangelogId(maxSnapshotId));
-                THROW_ERROR_EXCEPTION_IF_FAILED(maxChangelogIdOrError);
-                int maxChangelogId = maxChangelogIdOrError.Value();
+                auto asyncMaxChangelog = ChangelogStore_->GetLatestChangelogId(maxSnapshotId);
+                int maxChangelogId = WaitFor(asyncMaxChangelog)
+                    .ValueOrThrow();
 
                 if (maxChangelogId == NonexistingSegmentId) {
                     LOG_INFO("No changelogs found");
