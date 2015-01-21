@@ -20,6 +20,8 @@ function(PROTOC proto output)
     ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}.pb.cc
     PARENT_SCOPE)
 
+  get_property(protoc_location TARGET protoc PROPERTY LOCATION)
+
   # Specify custom command how to generate .pb.h and .pb.cc.
   add_custom_command(
     OUTPUT
@@ -28,7 +30,7 @@ function(PROTOC proto output)
     COMMAND
       ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}${_relative_path}
     COMMAND
-      ${EXECUTABLE_OUTPUT_PATH}/${CMAKE_CFG_INTDIR}/protoc
+      ${protoc_location}
         -I${_source_realpath}
         --cpp_out=${CMAKE_BINARY_DIR}
         ${_proto_realpath}

@@ -36,7 +36,6 @@ include(DumpCMakeVariables)
 
 include(LocalFunctions)
 include(LocalConfiguration)
-include(LocalXCode)
 
 include(Version)
 include(PCH)
@@ -145,17 +144,16 @@ exec_program(
   ${CMAKE_BINARY_DIR}/debian
 )
 
+add_subdirectory(cmake/deps-protobuf)
 add_subdirectory(cmake/deps-arcadia-util)
 add_subdirectory(cmake/deps-arcadia-library-blockcodecs)
 add_subdirectory(cmake/deps-arcadia-library-lwtrace)
 add_subdirectory(cmake/deps-arcadia-library-messagebus)
-add_subdirectory(cmake/deps-protobuf)
 add_subdirectory(cmake/deps-ev)
 add_subdirectory(cmake/deps-z-lz-lzo)
 add_subdirectory(cmake/deps-jerasure)
 add_subdirectory(cmake/deps-yajl)
 add_subdirectory(cmake/deps-contrib-benchmark)
-
 add_subdirectory(library/json)
 add_subdirectory(library/httpserver)
 add_subdirectory(library/lfalloc)
