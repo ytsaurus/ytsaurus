@@ -2,26 +2,20 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client )
 set( SRCS
   ${BASE}/channel_reader.cpp
-  #${BASE}/channel_writer.cpp
-  #${BASE}/chunk_writer_base.cpp
   ${BASE}/chunk_meta_extensions.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp
   ${BASE}/table_chunk_reader.cpp
-  #${BASE}/table_chunk_writer.cpp
   ${BASE}/value.cpp
 )
 
 set( HDRS
   ${BASE}/channel_reader.h
-  #${BASE}/channel_writer.h
   ${BASE}/chunk_meta_extensions.h
-  #${BASE}/chunk_writer_base.h
   ${BASE}/config.h
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/table_chunk_reader.h
-  #${BASE}/table_chunk_writer.h
   ${BASE}/table_ypath_proxy.h
   ${BASE}/value.h
 )
