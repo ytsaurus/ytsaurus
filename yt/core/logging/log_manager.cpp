@@ -21,6 +21,7 @@
 #include <core/ytree/yson_serializable.h>
 
 #include <core/profiling/profiler.h>
+#include <core/profiling/timing.h>
 
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>
@@ -43,6 +44,7 @@ namespace NLog {
 
 using namespace NYTree;
 using namespace NConcurrency;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -412,20 +414,13 @@ private:
             return result;
         }
 
-        bool configsUpdated = false;
-        TLogConfigPtr config;
-        while (ConfigsToUpdate_.Dequeue(&config)) {
-            DoUpdateConfig(config);
-            configsUpdated = true;
-        }
+        bool configsUpdated = UpdateConfig(true);
 
         int eventsWritten = 0;
 
         while (LogEventQueue_.DequeueAll(true, [&] (TLogEvent& event) {
-            // To avoid starvation of config update
-            while (ConfigsToUpdate_.Dequeue(&config)) {
-                DoUpdateConfig(config);
-            }
+                // To avoid starvation of config update
+                UpdateConfig(false);
 
                 if (ReopenRequested_) {
                     ReopenRequested_ = false;
@@ -672,6 +667,24 @@ private:
         }
     }
 
+    bool UpdateConfig(bool instantUpdate)
+    {
+        TLogConfigPtr config;
+        bool configsUpdated = false;
+        auto now = GetCpuInstant();
+        if (instantUpdate ||
+            now < LastConfigUpdateTime_ ||
+            CpuDurationToDuration(now - LastConfigUpdateTime_) > TDuration::Seconds(1))
+        {
+            while (ConfigsToUpdate_.Dequeue(&config)) {
+                DoUpdateConfig(config);
+                configsUpdated = true;
+            }
+
+            LastConfigUpdateTime_ = now;
+        }
+        return configsUpdated;
+    }
 
     void PushLogEvent(TLogEvent&& event)
     {
@@ -718,6 +731,7 @@ private:
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches_;
     yhash_map<int, TNotificationWatch*> NotificationWatchesIndex_;
 
+    TCpuInstant LastConfigUpdateTime_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
