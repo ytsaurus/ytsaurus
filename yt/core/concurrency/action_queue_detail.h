@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "invoker_queue.h"
 #include "event_count.h"
 #include "scheduler.h"
 #include "execution_context.h"
@@ -27,80 +28,11 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInvokerQueue;
-typedef TIntrusivePtr<TInvokerQueue> TInvokerQueuePtr;
-
 class TSchedulerThread;
 typedef TIntrusivePtr<TSchedulerThread> TSchedulerThreadPtr;
 
 class TSingleQueueSchedulerThread;
 typedef TIntrusivePtr<TSingleQueueSchedulerThread> TSingleQueueSchedulerThreadPtr;
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EBeginExecuteResult,
-    (Success)
-    (QueueEmpty)
-    (Terminated)
-);
-
-struct TEnqueuedAction
-{
-    bool Finished = true;
-    NProfiling::TCpuInstant EnqueuedAt;
-    NProfiling::TCpuInstant StartedAt;
-    TClosure Callback;
-};
-
-class TInvokerQueue
-    : public IInvoker
-{
-public:
-    TInvokerQueue(
-        TEventCount* callbackEventCount,
-        const NProfiling::TTagIdList& tagIds,
-        bool enableLogging,
-        bool enableProfiling);
-
-    void SetThreadId(TThreadId threadId);
-
-    virtual void Invoke(const TClosure& callback) override;
-
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-    virtual TThreadId GetThreadId() const override;
-    virtual bool CheckAffinity(IInvokerPtr invoker) const override;
-#endif
-
-    void Shutdown();
-
-    EBeginExecuteResult BeginExecute(TEnqueuedAction* action);
-    void EndExecute(TEnqueuedAction* action);
-
-    int GetSize() const;
-    bool IsEmpty() const;
-
-    bool IsRunning() const;
-
-private:
-    TEventCount* CallbackEventCount;
-    bool EnableLogging;
-
-    NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
-    std::atomic<bool> Running = {true};
-
-    NProfiling::TProfiler Profiler;
-
-    NProfiling::TRateCounter EnqueueCounter;
-    NProfiling::TRateCounter DequeueCounter;
-    std::atomic<int> QueueSize = {0};
-    NProfiling::TAggregateCounter QueueSizeCounter;
-    NProfiling::TAggregateCounter WaitTimeCounter;
-    NProfiling::TAggregateCounter ExecTimeCounter;
-    NProfiling::TAggregateCounter TotalTimeCounter;
-
-    TLockFreeQueue<TEnqueuedAction> Queue;
-
-};
 
 ///////////////////////////////////////////////////////////////////////////////
 
