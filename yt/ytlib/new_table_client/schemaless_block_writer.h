@@ -17,7 +17,7 @@ class THorizontalSchemalessBlockWriter
     : public IBlockWriter
 {
 public:
-    THorizontalSchemalessBlockWriter();
+    THorizontalSchemalessBlockWriter(i64 reserveSize = 2 * 64 * 1024);
 
     void WriteRow(TUnversionedRow row);
 
@@ -26,11 +26,18 @@ public:
     virtual i64 GetBlockSize() const override;
     virtual i64 GetRowCount() const override;
 
+    i64 GetCapacity() const;
+
     static const ETableChunkFormat FormatVersion = ETableChunkFormat::SchemalessHorizontal;
+
+    static const i64 MinReserveSize;
+    static const i64 MaxReserveSize;
 
 private:
     i64 RowCount_;
     bool Closed_;
+
+    const i64 ReserveSize_;
 
     TChunkedOutputStream Offsets_;
     TChunkedOutputStream Data_;

@@ -644,7 +644,7 @@ private:
             auto producer = [&] (TOutputStream* output) {
                 TSharedRef block;
                 while (reader->ReadBlock(&block)) {
-                    if (!block.Empty()) {
+                    if (block.Empty()) {
                         WaitFor(reader->GetReadyEvent())
                             .ThrowOnError();
                     } else {

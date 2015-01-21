@@ -32,55 +32,17 @@ const int FormatVersion = 1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IWriterBase;
-typedef TIntrusivePtr<IWriterBase> IWriterBasePtr;
-
-struct IAsyncWriter;
-typedef TIntrusivePtr<IAsyncWriter> IAsyncWriterPtr;
-
-class TChunkWriterConfig;
-typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
-
-class TTableChunkWriter;
-typedef TIntrusivePtr<TTableChunkWriter> TTableChunkWriterPtr;
-
-class TTableChunkWriterFacade;
-
-class TTableChunkWriterProvider;
-typedef TIntrusivePtr<TTableChunkWriterProvider> TTableChunkWriterProviderPtr;
-
 class TTableChunkReader;
 typedef TIntrusivePtr<TTableChunkReader> TTableChunkReaderPtr;
 
 class TTableChunkReaderProvider;
 typedef TIntrusivePtr<TTableChunkReaderProvider> TTableChunkReaderProviderPtr;
 
-class TChannelWriter;
-typedef TIntrusivePtr<TChannelWriter> TChannelWriterPtr;
-
 class TChannelReader;
 typedef TIntrusivePtr<TChannelReader> TChannelReaderPtr;
 
-class TChunkWriterConfig;
-typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
-
-class TChunkWriterOptions;
-typedef TIntrusivePtr<TChunkWriterOptions> TChunkWriterOptionsPtr;
-
-class TTableWriterConfig;
-typedef TIntrusivePtr<TTableWriterConfig> TTableWriterConfigPtr;
-
-class TBufferedTableWriterConfig;
-typedef TIntrusivePtr<TBufferedTableWriterConfig> TBufferedTableWriterConfigPtr;
-
-class TTableWriterOptions;
-typedef TIntrusivePtr<TTableWriterOptions> TTableWriterOptionsPtr;
-
 class TChunkReaderOptions;
 typedef TIntrusivePtr<TChunkReaderOptions> TChunkReaderOptionsPtr;
-
-class TTableReaderConfig;
-typedef TIntrusivePtr<TTableReaderConfig> TTableReaderConfigPtr;
 
 typedef SmallVector< std::pair<TStringBuf, TStringBuf>, 32 > TRow;
 typedef std::vector<Stroka> TKeyColumns;

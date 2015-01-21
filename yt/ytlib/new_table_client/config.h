@@ -18,6 +18,8 @@ public:
 
     i64 MaxBufferSize;
 
+    i64 MaxRowWeight;
+
     double SampleRate;
 
     TChunkWriterConfig()
@@ -29,6 +31,11 @@ public:
 
         RegisterParameter("max_buffer_size", MaxBufferSize)
             .GreaterThanOrEqual((i64) 5 * 1024 * 1024)
+            .Default((i64) 16 * 1024 * 1024);
+
+        RegisterParameter("max_row_weight", MaxRowWeight)
+            .GreaterThanOrEqual((i64) 5 * 1024 * 1024)
+            .LessThanOrEqual((i64) 128 * 1024 * 1024)
             .Default((i64) 16 * 1024 * 1024);
 
         RegisterParameter("sample_rate", SampleRate)

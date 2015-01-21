@@ -17,17 +17,18 @@
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
+#include <ytlib/chunk_client/chunk_ypath_proxy.h>
+#include <ytlib/chunk_client/data_statistics.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/table_client/table_chunk_reader.h>
-#include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/public.h>
 
 #include <core/misc/protobuf_helpers.h>
 
@@ -52,6 +53,7 @@ using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
 using namespace NTableClient::NProto;
 using namespace NJobTrackerClient::NProto;
+using namespace NVersionedTableClient;
 using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,8 +73,8 @@ public:
         , SchedulerJobSpecExt_(JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
     {
         auto config = host->GetConfig();
-        ReaderConfig_ = config->JobIO->TableReader;
-        WriterConfig_ = config->JobIO->TableWriter;
+        ReaderConfig_ = config->JobIO->NewTableReader;
+        WriterConfig_ = config->JobIO->NewTableWriter;
 
         YCHECK(SchedulerJobSpecExt_.input_specs_size() == 1);
         YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);

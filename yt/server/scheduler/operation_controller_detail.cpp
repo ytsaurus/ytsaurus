@@ -3677,17 +3677,17 @@ i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfi
     for (const auto& outputTable : OutputTables) {
         if (outputTable.Options->ErasureCodec == NErasure::ECodec::None) {
             i64 maxBufferSize = std::max(
-                ioConfig->TableWriter->MaxRowWeight,
-                ioConfig->TableWriter->MaxBufferSize);
+                ioConfig->NewTableWriter->MaxRowWeight,
+                ioConfig->NewTableWriter->MaxBufferSize);
             result += GetOutputWindowMemorySize(ioConfig) + maxBufferSize;
         } else {
             auto* codec = NErasure::GetCodec(outputTable.Options->ErasureCodec);
             double replicationFactor = (double) codec->GetTotalPartCount() / codec->GetDataPartCount();
-            result += static_cast<i64>(ioConfig->TableWriter->DesiredChunkSize * replicationFactor);
+            result += static_cast<i64>(ioConfig->NewTableWriter->DesiredChunkSize * replicationFactor);
         }
     }
 
-    if (!ioConfig->TableWriter->SyncChunkSwitch) {
+    if (!ioConfig->NewTableWriter->SyncChunkSwitch) {
         // Each writer may have up to 2 active chunks: closing one and current one.
         result *= 2;
     }
@@ -3709,23 +3709,23 @@ i64 TOperationControllerBase::GetFinalIOMemorySize(
 void TOperationControllerBase::InitIntermediateInputConfig(TJobIOConfigPtr config)
 {
     // Disable master requests.
-    config->TableReader->AllowFetchingSeedsFromMaster = false;
+    config->NewTableReader->AllowFetchingSeedsFromMaster = false;
 }
 
 void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr config)
 {
     // Don't replicate intermediate output.
-    config->TableWriter->UploadReplicationFactor = 1;
-    config->TableWriter->MinUploadReplicationFactor = 1;
+    config->NewTableWriter->UploadReplicationFactor = 1;
+    config->NewTableWriter->MinUploadReplicationFactor = 1;
 
     // Cache blocks on nodes.
-    config->TableWriter->EnableCaching = true;
+    config->NewTableWriter->EnableCaching = true;
 
     // Don't move intermediate chunks.
-    config->TableWriter->ChunksMovable = false;
+    config->NewTableWriter->ChunksMovable = false;
 
     // Don't sync intermediate chunks.
-    config->TableWriter->SyncOnClose = false;
+    config->NewTableWriter->SyncOnClose = false;
 }
 
 void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)

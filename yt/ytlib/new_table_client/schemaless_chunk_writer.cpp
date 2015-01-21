@@ -208,10 +208,12 @@ private:
 
     std::vector<std::unique_ptr<THorizontalSchemalessBlockWriter>> BlockWriters_;
 
-    i64 CurrentBufferSize_;
+    i64 CurrentBufferSize_ = 0;
 
-    int LargestPartitionIndex_;
-    i64 LargestPartitionSize_;
+    int LargestPartitionIndex_ = 0;
+    i64 LargestPartitionSize_ = 0;
+
+    i64 BlockReserveSize_;
 
 
     void WriteRow(TUnversionedRow row);
@@ -246,8 +248,10 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     int partitionCount = Partitioner_->GetPartitionCount();
     BlockWriters_.reserve(partitionCount);
 
+    BlockReserveSize_ = Config_->MaxBufferSize / partitionCount;
+
     for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
-        BlockWriters_.emplace_back(new THorizontalSchemalessBlockWriter());
+        BlockWriters_.emplace_back(new THorizontalSchemalessBlockWriter(BlockReserveSize_));
 
         auto* partitionAttributes = PartitionsExt_.add_partitions();
         partitionAttributes->set_row_count(0);
@@ -272,10 +276,10 @@ void TPartitionChunkWriter::WriteRow(TUnversionedRow row)
     auto partitionIndex = Partitioner_->GetPartitionIndex(row);
     auto& blockWriter = BlockWriters_[partitionIndex];
 
-    i64 oldSize = blockWriter->GetBlockSize();
+    i64 oldSize = blockWriter->GetCapacity();
     blockWriter->WriteRow(row);
 
-    i64 newSize = blockWriter->GetBlockSize();
+    i64 newSize = blockWriter->GetCapacity();
 
     i64 sizeDelta = newSize - oldSize;
     CurrentBufferSize_ += sizeDelta;
@@ -291,7 +295,7 @@ void TPartitionChunkWriter::WriteRow(TUnversionedRow row)
 
     if (LargestPartitionSize_ >= Config_->BlockSize || CurrentBufferSize_ >= Config_->MaxBufferSize) {
         FlushBlock(LargestPartitionIndex_);
-        BlockWriters_[LargestPartitionIndex_].reset(new THorizontalSchemalessBlockWriter());
+        BlockWriters_[LargestPartitionIndex_].reset(new THorizontalSchemalessBlockWriter(BlockReserveSize_));
 
         CurrentBufferSize_ -= LargestPartitionSize_;
         InitLargestPartition();
@@ -310,11 +314,11 @@ void TPartitionChunkWriter::FlushBlock(int partitionIndex)
 void TPartitionChunkWriter::InitLargestPartition()
 {
     LargestPartitionIndex_ = 0;
-    LargestPartitionSize_ = BlockWriters_.front()->GetBlockSize();
+    LargestPartitionSize_ = BlockWriters_.front()->GetCapacity();
     for (int partitionIndex = 1; partitionIndex < BlockWriters_.size(); ++partitionIndex) {
         auto& blockWriter = BlockWriters_[partitionIndex];
-        if (blockWriter->GetBlockSize() > LargestPartitionSize_) {
-            LargestPartitionSize_ = blockWriter->GetBlockSize();
+        if (blockWriter->GetCapacity() > LargestPartitionSize_) {
+            LargestPartitionSize_ = blockWriter->GetCapacity();
             LargestPartitionIndex_ = partitionIndex;
         }
     }

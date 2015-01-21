@@ -12,11 +12,17 @@ using namespace NProto;
 
 struct THorizontalSchemalessBlockWriterTag { };
 
-THorizontalSchemalessBlockWriter::THorizontalSchemalessBlockWriter()
+const i64 THorizontalSchemalessBlockWriter::MinReserveSize = (i64) 16 * 1024;
+const i64 THorizontalSchemalessBlockWriter::MaxReserveSize = (i64) 2 * 1024 * 1024;
+
+THorizontalSchemalessBlockWriter::THorizontalSchemalessBlockWriter(i64 reserveSize)
     : RowCount_(0)
     , Closed_(false)
-    , Offsets_(THorizontalSchemalessBlockWriterTag())
-    , Data_(THorizontalSchemalessBlockWriterTag())
+    , ReserveSize_(std::min(
+        std::max(MinReserveSize, reserveSize), 
+        MaxReserveSize))
+    , Offsets_(THorizontalSchemalessBlockWriterTag(), 4 * 1024, ReserveSize_ / 2)
+    , Data_(THorizontalSchemalessBlockWriterTag(), 4 * 1024, ReserveSize_ / 2)
 { }
 
 void THorizontalSchemalessBlockWriter::WriteRow(TUnversionedRow row)
@@ -77,6 +83,12 @@ i64 THorizontalSchemalessBlockWriter::GetRowCount() const
 {
     YCHECK(!Closed_);
     return RowCount_;
+}
+
+i64 THorizontalSchemalessBlockWriter::GetCapacity() const
+{
+    YCHECK(!Closed_);
+    return Offsets_.GetCapacity() + Data_.GetCapacity();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

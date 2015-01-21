@@ -9,8 +9,6 @@
 
 #include <core/bus/config.h>
 
-#include <ytlib/table_client/config.h>
-
 #include <ytlib/file_client/config.h>
 
 #include <ytlib/hydra/config.h>
