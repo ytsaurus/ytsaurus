@@ -9,6 +9,7 @@
 #include <core/misc/pattern_formatter.h>
 #include <core/misc/raw_formatter.h>
 #include <core/misc/hash.h>
+#include <core/misc/lock_free.h>
 
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>
@@ -222,15 +223,9 @@ public:
             false,
             false))
         , LoggingThread_(New<TThread>(this))
-        // Version forces this very module's Logger object to update to our own
-        // default configuration (default level etc.).
-        , Version_(-1)
         , EnqueueCounter_("/enqueue_rate")
         , WriteCounter_("/write_rate")
         , BacklogCounter_("/backlog")
-        , Suspended_(false)
-        , ReopenRequested_(false)
-        , ShutdownRequested_(false)
     {
         SystemWriters_.push_back(New<TStderrLogWriter>());
         DoUpdateConfig(TLogConfig::CreateDefault(), false);
@@ -301,15 +296,14 @@ public:
 
             // Add fatal message to log and notify event log queue.
             LoggingProfiler.Increment(EnqueueCounter_);
-            LogEventQueue_.Enqueue(event);
+            PushLogEvent(std::move(event));
 
             if (LoggingThread_->GetId() != GetCurrentThreadId()) {
-                // Waiting for release of log queue.
+                // Waiting for output of all previous messages.
                 // Waiting no more than 1 second to prevent hanging.
                 auto now = TInstant::Now();
-                while (
-                    !LogEventQueue_.IsEmpty() &&
-                    EventQueue_->IsRunning() &&
+                auto enqueuedEvents = EnqueuedLogEvents_.load();
+                while (enqueuedEvents > DequeuedLogEvents_.load() ||
                     TInstant::Now() - now < Config_->ShutdownGraceTimeout)
                 {
                     EventCount_.NotifyOne();
@@ -344,7 +338,7 @@ public:
 
         int backlogSize = LoggingProfiler.Increment(BacklogCounter_);
         LoggingProfiler.Increment(EnqueueCounter_);
-        LogEventQueue_.Enqueue(std::move(event));
+        PushLogEvent(std::move(event));
         EventCount_.NotifyOne();
 
         if (!Suspended_ && backlogSize == Config_->HighBacklogWatermark) {
@@ -426,21 +420,22 @@ private:
         }
 
         int eventsWritten = 0;
-        TLogEvent event;
-        while (LogEventQueue_.Dequeue(&event)) {
+
+        while (LogEventQueue_.DequeueAll(true, [&] (TLogEvent& event) {
             // To avoid starvation of config update
             while (ConfigsToUpdate_.Dequeue(&config)) {
                 DoUpdateConfig(config);
             }
 
-            if (ReopenRequested_) {
-                ReopenRequested_ = false;
-                ReloadWriters();
-            }
+                if (ReopenRequested_) {
+                    ReopenRequested_ = false;
+                    ReloadWriters();
+                }
 
-            Write(event);
-            ++eventsWritten;
-        }
+                Write(event);
+                ++eventsWritten;
+            }))
+        { }
 
         int backlogSize = LoggingProfiler.Increment(BacklogCounter_, -eventsWritten);
         if (Suspended_ && backlogSize < Config_->LowBacklogWatermark) {
@@ -452,6 +447,8 @@ private:
         if (eventsWritten > 0 && !Config_->FlushPeriod) {
             FlushWriters();
         }
+
+        DequeuedLogEvents_ += eventsWritten;
 
         if (configsUpdated || eventsWritten > 0) {
             EventCount_.CancelWait();
@@ -676,6 +673,12 @@ private:
     }
 
 
+    void PushLogEvent(TLogEvent&& event)
+    {
+        EnqueuedLogEvents_++;
+        LogEventQueue_.Enqueue(std::move(event));
+    }
+
     TEventCount EventCount_;
     TInvokerQueuePtr EventQueue_;
 
@@ -686,22 +689,26 @@ private:
 
     // Configuration.
     TForkAwareSpinLock SpinLock_;
-    std::atomic<int> Version_;
+    // Version forces this very module's Logger object to update to our own
+    // default configuration (default level etc.).
+    std::atomic<int> Version_ = {-1};
     TLogConfigPtr Config_;
     NProfiling::TRateCounter EnqueueCounter_;
     NProfiling::TRateCounter WriteCounter_;
     NProfiling::TAggregateCounter BacklogCounter_;
-    bool Suspended_;
-
+    bool Suspended_ = false;
     TLockFreeQueue<TLogConfigPtr> ConfigsToUpdate_;
-    TLockFreeQueue<TLogEvent> LogEventQueue_;
+    TMultipleProducerSingleConsumerLockFreeStack<TLogEvent> LogEventQueue_;
+
+    std::atomic<ui64> EnqueuedLogEvents_ = {0};
+    std::atomic<ui64> DequeuedLogEvents_ = {0};
 
     yhash_map<Stroka, ILogWriterPtr> Writers_;
     yhash_map<std::pair<Stroka, ELogLevel>, ILogWriters> CachedWriters_;
     ILogWriters SystemWriters_;
 
-    volatile bool ReopenRequested_;
-    std::atomic<bool> ShutdownRequested_;
+    volatile bool ReopenRequested_ = false;
+    std::atomic<bool> ShutdownRequested_ = {false};
 
     TPeriodicExecutorPtr FlushExecutor_;
     TPeriodicExecutorPtr WatchExecutor_;
