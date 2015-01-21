@@ -5,6 +5,8 @@
 #include <core/actions/callback.h>
 #include <core/actions/invoker.h>
 
+#include <core/misc/shutdownable.h>
+
 #include <core/profiling/profiler.h>
 
 #include <util/thread/lfqueue.h>
@@ -37,6 +39,7 @@ struct TEnqueuedAction
 
 class TInvokerQueue
     : public IInvoker
+    , public IShutdownable
 {
 public:
     TInvokerQueue(
@@ -56,7 +59,7 @@ public:
     virtual bool CheckAffinity(IInvokerPtr invoker) const override;
 #endif
 
-    void Shutdown();
+    virtual void Shutdown() override;
 
     EBeginExecuteResult BeginExecute(TEnqueuedAction* action);
     void EndExecute(TEnqueuedAction* action);

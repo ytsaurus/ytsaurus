@@ -4,6 +4,8 @@
 
 #include <core/actions/callback.h>
 
+#include <core/misc/shutdownable.h>
+
 namespace NYT {
 namespace NConcurrency {
 
@@ -11,15 +13,17 @@ namespace NConcurrency {
 
 class TActionQueue
     : public TRefCounted
+    , public IShutdownable
 {
 public:
     explicit TActionQueue(
         const Stroka& threadName = "<ActionQueue>",
         bool enableLogging = true,
         bool enableProfiling = true);
+
     virtual ~TActionQueue();
 
-    void Shutdown();
+    virtual void Shutdown() override;
 
     IInvokerPtr GetInvoker();
 
@@ -39,14 +43,16 @@ DEFINE_REFCOUNTED_TYPE(TActionQueue)
 
 class TFairShareActionQueue
     : public TRefCounted
+    , public IShutdownable
 {
 public:
     explicit TFairShareActionQueue(
         const Stroka& threadName,
         const std::vector<Stroka>& bucketNames);
+
     virtual ~TFairShareActionQueue();
 
-    void Shutdown();
+    virtual void Shutdown() override;
 
     IInvokerPtr GetInvoker(int index);
 
@@ -61,6 +67,7 @@ DEFINE_REFCOUNTED_TYPE(TFairShareActionQueue)
 
 class TThreadPool
     : public TRefCounted
+    , public IShutdownable
 {
 public:
     TThreadPool(
@@ -68,7 +75,7 @@ public:
         const Stroka& threadNamePrefix);
     virtual ~TThreadPool();
 
-    void Shutdown();
+    virtual void Shutdown() override;
 
     IInvokerPtr GetInvoker();
 

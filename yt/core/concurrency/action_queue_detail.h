@@ -11,6 +11,8 @@
 #include <core/actions/future.h>
 #include <core/actions/signal.h>
 
+#include <core/misc/shutdownable.h>
+
 #include <core/profiling/profiler.h>
 
 #include <core/ypath/public.h>
@@ -39,12 +41,13 @@ typedef TIntrusivePtr<TSingleQueueSchedulerThread> TSingleQueueSchedulerThreadPt
 class TSchedulerThread
     : public TRefCounted
     , public IScheduler
+    , public IShutdownable
 {
 public:
     virtual ~TSchedulerThread();
 
     void Start();
-    void Shutdown();
+    virtual void Shutdown() override;
 
     TThreadId GetId() const;
     bool IsRunning() const;
@@ -143,7 +146,6 @@ protected:
 
     virtual EBeginExecuteResult BeginExecute() override;
     virtual void EndExecute() override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,7 +194,6 @@ protected:
 
     EBeginExecuteResult BeginExecuteCallbacks();
     void OnCallback(ev::async&, int);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
