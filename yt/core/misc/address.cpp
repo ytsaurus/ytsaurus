@@ -35,7 +35,7 @@ static NLog::TLogger Logger("Network");
 static NProfiling::TProfiler Profiler("/network");
 
 static const auto WarningDuration = TDuration::MilliSeconds(100);
-static const Stroka FailedLocalHostName("<unknown>");
+static const char* FailedLocalHostName = "<unknown>";
 
 // TOOD(babenko): get rid of this, write truly asynchronous address resolver.
 static TLazyIntrusivePtr<TActionQueue> AddressResolverQueue(TActionQueue::CreateFactory("AddressResolver"));
