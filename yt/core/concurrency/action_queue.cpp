@@ -289,7 +289,7 @@ public:
     void Shutdown()
     {
         Queue_->Shutdown();
-        for (auto thread : Threads_) {
+        for (auto& thread : Threads_) {
             thread->Shutdown();
         }
     }
@@ -323,10 +323,10 @@ IInvokerPtr TThreadPool::GetInvoker()
     return Impl->GetInvoker();
 }
 
-TCallback<TThreadPoolPtr()> TThreadPool::CreateFactory(int queueCount, const Stroka& threadName)
+TCallback<TThreadPoolPtr()> TThreadPool::CreateFactory(int threadCount, const Stroka& threadName)
 {
     return BIND([=] () {
-        return NYT::New<NConcurrency::TThreadPool>(queueCount, threadName);
+        return NYT::New<NConcurrency::TThreadPool>(threadCount, threadName);
     });
 }
 

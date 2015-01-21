@@ -68,10 +68,9 @@ TSchedulerThread::TSchedulerThread(
     , ThreadName(threadName)
     , EnableLogging(enableLogging)
     , Profiler("/action_queue", tagIds)
+    , Epoch(0)
     , Thread(ThreadMain, (void*) this)
 {
-    // TODO(babenko): VS compat
-    Epoch.store(0, std::memory_order_relaxed);
     Profiler.SetEnabled(enableProfiling);
 }
 
@@ -79,6 +78,7 @@ TSchedulerThread::~TSchedulerThread()
 {
     YCHECK(!IsRunning());
     Thread.Detach();
+    // TODO(sandello): Why not join here?
 }
 
 void TSchedulerThread::Start()
@@ -133,8 +133,9 @@ void TSchedulerThread::ThreadMain()
 
     try {
         OnThreadStart();
-
         ThreadStartedEvent.NotifyAll();
+        LOG_DEBUG_IF(EnableLogging, "Thread started (Name: %v)",
+            ThreadName);
 
         while (IsRunning()) {
             ThreadMainStep();

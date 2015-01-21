@@ -128,7 +128,7 @@ TTcpDispatcher::TImpl* TTcpDispatcher::TImpl::Get()
 
 void TTcpDispatcher::TImpl::Shutdown()
 {
-    for (auto thread : Threads_) {
+    for (auto& thread : Threads_) {
         thread->Shutdown();
     }
 }
@@ -137,7 +137,7 @@ TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType 
 {
     // This is racy but should be OK as an approximation.
     TTcpDispatcherStatistics result;
-    for (auto thread : Threads_) {
+    for (auto& thread : Threads_) {
         result += thread->Statistics(interfaceType);
     }
     return result;
