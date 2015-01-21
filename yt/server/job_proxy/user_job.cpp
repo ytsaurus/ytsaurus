@@ -523,9 +523,9 @@ private:
 
         for (int i = 0; i < readers.size(); ++i) {
             auto input = New<TContextPreservingInput>(
-                readers[i],
-                format,
-                Config_->JobIO->TableReader->EnableTableIndex);
+                readers[i], 
+                format, 
+                Config_->JobIO->EnableInputTableIndex);
 
             ContextPreservingInputs_.push_back(input);
             PrepareInputTablePipe(createPipe(), 3 * i, input);

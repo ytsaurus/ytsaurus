@@ -172,8 +172,8 @@ private:
             i64 result = 0;
 
             // Replication writer
-            result += Controller_->Spec_->JobIO->TableWriter->SendWindowSize +
-                Controller_->Spec_->JobIO->TableWriter->GroupSize;
+            result += Controller_->Spec_->JobIO->NewTableWriter->SendWindowSize +
+                Controller_->Spec_->JobIO->NewTableWriter->GroupSize;
 
             // Max block size
             i64 maxBlockSize = 0;

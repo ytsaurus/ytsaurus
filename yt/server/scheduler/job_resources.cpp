@@ -58,15 +58,15 @@ i64 GetLFAllocBufferSize()
 i64 GetOutputWindowMemorySize(TJobIOConfigPtr ioConfig)
 {
     return
-        ioConfig->TableWriter->SendWindowSize +
-        ioConfig->TableWriter->EncodeWindowSize;
+        ioConfig->NewTableWriter->SendWindowSize +
+        ioConfig->NewTableWriter->EncodeWindowSize;
 }
 
 i64 GetIntermediateOutputIOMemorySize(TJobIOConfigPtr ioConfig)
 {
     auto result = GetOutputWindowMemorySize(ioConfig) +
-        ioConfig->TableWriter->MaxBufferSize;
-    if (!ioConfig->TableWriter->SyncChunkSwitch) {
+        ioConfig->NewTableWriter->MaxBufferSize;
+    if (!ioConfig->NewTableWriter->SyncChunkSwitch) {
         // possibly writing two (or even more) chunks at the time of chunk switch.
         result *= 2;
     }
@@ -83,13 +83,13 @@ i64 GetInputIOMemorySize(
     int concurrentReaders = std::min(stat.ChunkCount, MaxPrefetchWindow);
 
     // Group can be overcommited by one block.
-    i64 groupSize = stat.MaxBlockSize + ioConfig->TableReader->GroupSize;
-    i64 windowSize = std::max(stat.MaxBlockSize, ioConfig->TableReader->WindowSize);
+    i64 groupSize = stat.MaxBlockSize + ioConfig->NewTableReader->GroupSize;
+    i64 windowSize = std::max(stat.MaxBlockSize, ioConfig->NewTableReader->WindowSize);
     i64 bufferSize = std::min(stat.DataSize, concurrentReaders * (windowSize + groupSize));
     // One block for table chunk reader.
     bufferSize += concurrentReaders * (ChunkReaderMemorySize + stat.MaxBlockSize);
 
-    i64 maxBufferSize = std::max(ioConfig->TableReader->MaxBufferSize, 2 * stat.MaxBlockSize);
+    i64 maxBufferSize = std::max(ioConfig->NewTableReader->MaxBufferSize, 2 * stat.MaxBlockSize);
 
     return std::min(bufferSize, maxBufferSize) + stat.ChunkCount * ChunkSpecOverhead;
 }
