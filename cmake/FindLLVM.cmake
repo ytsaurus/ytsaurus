@@ -14,7 +14,9 @@
 # First look in ENV{LLVM_ROOT} then system path.
 find_program(LLVM_CONFIG_EXECUTABLE
   llvm-config-3.6
+  llvm-config-3.5
   llvm-config-mp-3.6
+  llvm-config-mp-3.5
   llvm-config
   PATHS
   $ENV{LLVM_ROOT}/bin
@@ -33,8 +35,8 @@ else()
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
 
-  if(NOT LLVM_VERSION VERSION_GREATER "3.4")
-    message(FATAL_ERROR "LLVM 3.5+ is required.")
+  if(NOT LLVM_VERSION VERSION_GREATER "3.5")
+    message(FATAL_ERROR "LLVM 3.6+ is required.")
   endif()
 
   execute_process(
