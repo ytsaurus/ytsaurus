@@ -30,8 +30,8 @@ DEFINE_ENUM(EBeginExecuteResult,
 struct TEnqueuedAction
 {
     bool Finished = true;
-    NProfiling::TCpuInstant EnqueuedAt;
-    NProfiling::TCpuInstant StartedAt;
+    NProfiling::TCpuInstant EnqueuedAt = 0;
+    NProfiling::TCpuInstant StartedAt = 0;
     TClosure Callback;
 };
 
@@ -44,6 +44,8 @@ public:
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
         bool enableProfiling);
+
+    ~TInvokerQueue();
 
     void SetThreadId(TThreadId threadId);
 
@@ -60,6 +62,7 @@ public:
     void EndExecute(TEnqueuedAction* action);
 
     int GetSize() const;
+
     bool IsEmpty() const;
 
     bool IsRunning() const;
@@ -69,6 +72,7 @@ private:
     bool EnableLogging;
 
     NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
+
     std::atomic<bool> Running = {true};
 
     TLockFreeQueue<TEnqueuedAction> Queue;

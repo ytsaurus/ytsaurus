@@ -1,8 +1,6 @@
 #include "stdafx.h"
-#include "action_queue_detail.h"
+#include "invoker_queue.h"
 #include "private.h"
-
-#include <core/logging/log.h>
 
 namespace NYT {
 namespace NConcurrency {
@@ -33,6 +31,10 @@ TInvokerQueue::TInvokerQueue(
     Profiler.SetEnabled(enableProfiling);
 }
 
+TInvokerQueue::~TInvokerQueue()
+{
+}
+
 void TInvokerQueue::SetThreadId(TThreadId threadId)
 {
     ThreadId = threadId;
@@ -50,7 +52,8 @@ void TInvokerQueue::Invoke(const TClosure& callback)
         return;
     }
 
-    ++QueueSize;
+    QueueSize.fetch_add(1, std::memory_order_relaxed);
+
     Profiler.Increment(EnqueueCounter);
 
     LOG_TRACE_IF(EnableLogging, "Callback enqueued: %p",
@@ -82,14 +85,9 @@ void TInvokerQueue::Shutdown()
     Running.store(false, std::memory_order_relaxed);
 }
 
-bool TInvokerQueue::IsRunning() const
-{
-    return Running;
-}
-
 EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 {
-    YASSERT(action->Finished);
+    YASSERT(action && action->Finished);
 
     if (!Queue.Dequeue(action)) {
         return EBeginExecuteResult::QueueEmpty;
@@ -100,6 +98,7 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
     Profiler.Increment(DequeueCounter);
 
     action->StartedAt = GetCpuInstant();
+
     Profiler.Aggregate(
         WaitTimeCounter,
         CpuDurationToValue(action->StartedAt - action->EnqueuedAt));
@@ -117,31 +116,39 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 
 void TInvokerQueue::EndExecute(TEnqueuedAction* action)
 {
-    if (action->Finished)
+    YASSERT(action);
+
+    if (action->Finished) {
         return;
+    }
 
-    int size = --QueueSize;
-    Profiler.Aggregate(QueueSizeCounter, size);
+    int queueSize = QueueSize.fetch_sub(1, std::memory_order_relaxed) - 1;
+    Profiler.Aggregate(QueueSizeCounter, queueSize);
 
-    auto endedAt = GetCpuInstant();
+    auto finishedAt = GetCpuInstant();
     Profiler.Aggregate(
         ExecTimeCounter,
-        CpuDurationToValue(endedAt - action->StartedAt));
+        CpuDurationToValue(finishedAt - action->StartedAt));
     Profiler.Aggregate(
         TotalTimeCounter,
-        CpuDurationToValue(endedAt - action->EnqueuedAt));
+        CpuDurationToValue(finishedAt - action->EnqueuedAt));
 
     action->Finished = true;
 }
 
 int TInvokerQueue::GetSize() const
 {
-    return QueueSize.load();
+    return QueueSize.load(std::memory_order_relaxed);
 }
 
 bool TInvokerQueue::IsEmpty() const
 {
     return const_cast<TLockFreeQueue<TEnqueuedAction>&>(Queue).IsEmpty();
+}
+
+bool TInvokerQueue::IsRunning() const
+{
+    return Running.load(std::memory_order_relaxed);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

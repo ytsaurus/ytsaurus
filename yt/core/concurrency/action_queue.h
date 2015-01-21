@@ -31,7 +31,6 @@ public:
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TActionQueue)
@@ -54,7 +53,6 @@ public:
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareActionQueue)
@@ -75,13 +73,12 @@ public:
     IInvokerPtr GetInvoker();
 
     static TCallback<TThreadPoolPtr()> CreateFactory(
-        int queueCount,
+        int threadCount,
         const Stroka& threadName);
 
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TThreadPool)
