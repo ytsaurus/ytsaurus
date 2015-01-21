@@ -11,7 +11,7 @@ template <class T>
 struct TMultipleProducerSingleConsumerLockFreeStack<T>::TNode
 {
     T Value;
-    std::atomic<TNode*> Next;
+    TNode* Next;
 
     TNode(const T& value)
         : Value(value)
@@ -31,7 +31,7 @@ TMultipleProducerSingleConsumerLockFreeStack<T>::~TMultipleProducerSingleConsume
 {
     auto* current = Head.load();
     while (current) {
-        auto* next = current->Next.load();
+        auto* next = current->Next;
         delete current;
         current = next;
     }
@@ -80,11 +80,42 @@ std::vector<T> TMultipleProducerSingleConsumerLockFreeStack<T>::DequeueAll()
     auto* current = expected;
     while (current) {
         results.push_back(std::move(current->Value));
-        auto* next = current->Next.load();
+        auto* next = current->Next;
         delete current;
         current = next;
     }
     return results;
+}
+
+template <class T>
+bool TMultipleProducerSingleConsumerLockFreeStack<T>::DequeueAll(bool reverse, std::function<void(T&)> functor)
+{
+    TNode* expected;
+    do {
+        expected = Head.load(std::memory_order_relaxed);
+        if (!expected) {
+            return false;
+        }
+    } while (!Head.compare_exchange_weak(expected, nullptr));
+
+    auto* current = expected;
+    if (reverse) {
+        auto* next = current->Next;
+        current->Next = nullptr;
+        while (next) {
+            auto* second = next->Next;
+            next->Next = current;
+            current = next;
+            next = second;
+        }
+    }
+    while (current) {
+        functor(current->Value);
+        auto* next = current->Next;
+        delete current;
+        current = next;
+    }
+    return true;
 }
 
 template <class T>
