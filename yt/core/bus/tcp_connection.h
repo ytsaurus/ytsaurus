@@ -48,6 +48,7 @@ public:
         const TConnectionId& id,
         int socket,
         const Stroka& address,
+        bool isUnixDomain,
         int priority,
         IMessageHandlerPtr handler);
 
@@ -130,6 +131,7 @@ private:
     int Socket_;
     int Fd_;
     Stroka Address_;
+    bool IsUnixDomain_;
 #ifdef _linux_
     int Priority_;
 #endif
@@ -137,7 +139,7 @@ private:
 
     NLog::TLogger Logger;
     NProfiling::TProfiler Profiler;
-    
+
     // Only used by client sockets.
     int Port_ = 0;
 
@@ -183,7 +185,7 @@ private:
 
     void InitFd();
     void InitSocketWatcher();
-    
+
     void ConnectSocket(const TNetworkAddress& netAddress);
     void CloseSocket();
 

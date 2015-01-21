@@ -744,7 +744,7 @@ class TBusChannelFactory
 public:
     virtual IChannelPtr CreateChannel(const Stroka& address) override
     {
-        auto config = New<TTcpBusClientConfig>(address);
+        auto config = TTcpBusClientConfig::CreateTcp(address);
         auto client = CreateTcpBusClient(config);
         return CreateBusChannel(client);
     }

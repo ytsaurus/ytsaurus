@@ -60,6 +60,7 @@ TTcpConnection::TTcpConnection(
     const TConnectionId& id,
     int socket,
     const Stroka& address,
+    bool isUnixDomain,
     int priority,
     IMessageHandlerPtr handler)
     : Config_(std::move(config))
@@ -70,6 +71,7 @@ TTcpConnection::TTcpConnection(
     , Socket_(socket)
     , Fd_(INVALID_SOCKET)
     , Address_(address)
+    , IsUnixDomain_(isUnixDomain)
 #ifdef _linux_
     , Priority_(priority)
 #endif
@@ -225,7 +227,7 @@ void TTcpConnection::SyncOpen()
 
     // Flush messages that were enqueued when the connection was still opening.
     ProcessOutcomingMessages();
-    
+
     // Simulate read-write notification.
     OnSocket(*SocketWatcher_, ev::READ|ev::WRITE);
 }
@@ -233,6 +235,12 @@ void TTcpConnection::SyncOpen()
 void TTcpConnection::SyncResolve()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
+
+    if (IsUnixDomain_) {
+        auto netAddress = GetUnixDomainAddress(Address_);
+        OnAddressResolved(netAddress);
+        return;
+    }
 
     TStringBuf hostName;
     try {
@@ -770,7 +778,7 @@ void TTcpConnection::OnSocketWrite()
         size_t bytesWritten;
         bool success = WriteFragments(&bytesWritten);
         bytesWrittenTotal += bytesWritten;
-        
+
         FlushWrittenFragments(bytesWritten);
         FlushWrittenPackets(bytesWritten);
 
@@ -965,7 +973,7 @@ bool TTcpConnection::MaybeEncodeFragments()
 
         LOG_TRACE("Finished encoding packet (PacketId: %v)", packet->PacketId);
     }
-    
+
     flushCoalesced();
 
     return true;
@@ -1085,7 +1093,7 @@ void TTcpConnection::ProcessOutcomingMessages()
 
         if (Any(flags & EPacketFlags::RequestAck)) {
             TUnackedMessage unackedMessage(queuedMessage.PacketId, std::move(queuedMessage.Promise));
-            UnackedMessages_.push(unackedMessage);            
+            UnackedMessages_.push(unackedMessage);
         } else if (queuedMessage.Promise) {
             queuedMessage.Promise.Set();
         }
