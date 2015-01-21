@@ -9,7 +9,7 @@
 #include <core/misc/id_generator.h>
 #include <core/misc/hash.h>
 
-#include <core/concurrency/action_queue_detail.h>
+#include <core/concurrency/scheduler_thread.h>
 
 #include <core/ytree/node.h>
 #include <core/ytree/ephemeral_node_factory.h>

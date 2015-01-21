@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <util/system/defaults.h>
-
 namespace NYT {
 namespace NConcurrency {
 

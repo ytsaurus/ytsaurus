@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "action_queue.h"
-#include "action_queue_detail.h"
+#include "scheduler_thread.h"
+#include "single_queue_scheduler_thread.h"
 
 #include <core/actions/invoker_detail.h>
 
