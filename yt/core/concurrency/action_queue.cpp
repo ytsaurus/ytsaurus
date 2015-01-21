@@ -2,7 +2,6 @@
 #include "action_queue.h"
 #include "action_queue_detail.h"
 
-#include <core/actions/invoker_util.h>
 #include <core/actions/invoker_detail.h>
 
 #include <core/ypath/token.h>

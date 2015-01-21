@@ -18,6 +18,7 @@ set( SRCS
   ${BASE}/execution_context.cpp
   ${BASE}/fls.cpp
   ${BASE}/fork_aware_spinlock.cpp
+  ${BASE}/invoker_queue.cpp
 )
 set( HDRS
   ${BASE}/public.h
@@ -52,6 +53,7 @@ set( HDRS
   ${BASE}/nonblocking_queue.h
   ${BASE}/nonblocking_queue-inl.h
   ${BASE}/atomic_flag_spinlock.h
+  ${BASE}/invoker_queue.h
 )
 
 list(APPEND YT_SOURCE_FILES
