@@ -387,8 +387,6 @@ Stroka TAddressResolver::GetLocalHostName()
         return FailedLocalHostName;
     }
 
-    ++ReenteranceLock;
-
     {
         TGuard<TSpinLock> guard(CachedLocalHostNameLock_);
         if (!CachedLocalHostName_.empty()) {
@@ -398,9 +396,12 @@ Stroka TAddressResolver::GetLocalHostName()
 
     Stroka result;
     try {
+        ++ReenteranceLock;
         result = DoGetLocalHostName();
+        --ReenteranceLock;
     } catch (const std::exception& ex) {
         GetLocalHostNameFailed_ = true;
+        --ReenteranceLock;
         LOG_ERROR(ex, "Unable to determine localhost FQDN");
         return FailedLocalHostName;
     }
@@ -422,8 +423,6 @@ Stroka TAddressResolver::GetLocalHostName()
                 TDuration::Minutes(1));
         }
     }
-
-    --ReenteranceLock;
 
     return result;
 }
