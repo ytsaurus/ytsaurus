@@ -21,6 +21,7 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TNetworkAddress GetUnixDomainAddress(const Stroka& name);
 TNetworkAddress GetLocalBusAddress(int port);
 bool IsLocalServiceAddress(const Stroka& address);
 
@@ -77,10 +78,10 @@ public:
     TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType) const;
 
     TTcpDispatcherThreadPtr AllocateThread();
-    
+
 private:
     friend TTcpDispatcher;
-    
+
     TImpl();
 
     std::vector<TTcpDispatcherThreadPtr> Threads_;

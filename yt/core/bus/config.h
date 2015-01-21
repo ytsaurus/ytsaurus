@@ -35,16 +35,36 @@ class TTcpBusServerConfig
     : public TTcpBusConfig
 {
 public:
-    int Port;
+    TNullable<int> Port;
+    TNullable<Stroka> UnixDomainName;
     int MaxBacklogSize;
 
-    explicit TTcpBusServerConfig(int port = -1)
-        : Port(port)
+    TTcpBusServerConfig()
     {
-        RegisterParameter("port", Port);
+        RegisterParameter("port", Port)
+            .Default();
+        RegisterParameter("unix_domain_name", UnixDomainName)
+            .Default();
+
         RegisterParameter("max_backlog_size", MaxBacklogSize)
             .Default(8192);
+
+        RegisterValidator([&] () {
+            if (Port) {
+                return;
+            }
+            if (UnixDomainName) {
+                return;
+            }
+
+            THROW_ERROR_EXCEPTION("Port and UnixDomainName are empty at the same time");
+        });
     }
+
+    static TTcpBusServerConfigPtr CreateTcp(int port);
+
+    static TTcpBusServerConfigPtr CreateUnixDomain(const Stroka& address);
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TTcpBusServerConfig)
@@ -53,14 +73,32 @@ class TTcpBusClientConfig
     : public TTcpBusConfig
 {
 public:
-    Stroka Address;
+    TNullable<Stroka> Address;
+    TNullable<Stroka> UnixDomainName;
 
-    explicit TTcpBusClientConfig(const Stroka& address = "")
-        : Address(address)
+    TTcpBusClientConfig()
     {
         RegisterParameter("address", Address)
-            .NonEmpty();
+            .Default();
+        RegisterParameter("unix_domain_name", UnixDomainName)
+            .Default();
+
+        RegisterValidator([&] () {
+            if (Address) {
+                return;
+            }
+            if (UnixDomainName) {
+                return;
+            }
+
+            THROW_ERROR_EXCEPTION("Address and UnixDomainName are empty at the same time");
+        });
     }
+
+    static TTcpBusClientConfigPtr CreateTcp(const Stroka& address);
+
+    static TTcpBusClientConfigPtr CreateUnixDomain(const Stroka& address);
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TTcpBusClientConfig)

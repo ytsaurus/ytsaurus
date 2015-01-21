@@ -129,7 +129,7 @@ void TBootstrap::DoRun()
     clientOptions.User = NSecurityClient::SchedulerUserName;
     MasterClient_ = connection->CreateClient(clientOptions);
 
-    BusServer_ = CreateTcpBusServer(New<TTcpBusServerConfig>(Config_->RpcPort));
+    BusServer_ = CreateTcpBusServer(TTcpBusServerConfig::CreateTcp(Config_->RpcPort));
 
     RpcServer_ = CreateBusServer(BusServer_);
 

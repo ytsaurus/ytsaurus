@@ -22,13 +22,11 @@ static const int ThreadCount = 8;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNetworkAddress GetLocalBusAddress(int port)
+TNetworkAddress GetUnixDomainAddress(const Stroka& name)
 {
 #ifdef _win_
-    UNUSED(port);
     THROW_ERROR_EXCEPTION("Local bus transport is not supported under this platform");
 #else
-    auto name = Format("yt-local-bus-%v", port);
     sockaddr_un sockAddr;
     memset(&sockAddr, 0, sizeof(sockAddr));
     sockAddr.sun_family = AF_UNIX;
@@ -39,6 +37,12 @@ TNetworkAddress GetLocalBusAddress(int port)
         sizeof (char) +
         name.length());
 #endif
+}
+
+TNetworkAddress GetLocalBusAddress(int port)
+{
+    auto name = Format("yt-local-bus-%v", port);
+    return GetUnixDomainAddress(name);
 }
 
 bool IsLocalServiceAddress(const Stroka& address)

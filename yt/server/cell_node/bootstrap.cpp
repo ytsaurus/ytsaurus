@@ -178,7 +178,7 @@ void TBootstrap::DoRun()
         QueryThreadPool->GetInvoker(),
         Config->QueryAgent->MaxConcurrentRequests);
 
-    BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
+    BusServer = CreateTcpBusServer(TTcpBusServerConfig::CreateTcp(Config->RpcPort));
 
     RpcServer = CreateBusServer(BusServer);
 

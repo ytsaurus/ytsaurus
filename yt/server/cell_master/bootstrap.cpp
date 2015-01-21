@@ -264,7 +264,7 @@ void TBootstrap::DoRun()
 
     HttpServer.reset(new NHttp::TServer(Config->MonitoringPort));
 
-    auto busServerConfig = New<TTcpBusServerConfig>(Config->RpcPort);
+    auto busServerConfig = TTcpBusServerConfig::CreateTcp(Config->RpcPort);
     auto busServer = CreateTcpBusServer(busServerConfig);
 
     RpcServer = CreateBusServer(busServer);
@@ -304,7 +304,7 @@ void TBootstrap::DoRun()
     HydraFacade = New<THydraFacade>(Config, this);
 
     WorldInitializer = New<TWorldInitializer>(Config, this);
-    
+
     CellDirectory = New<TCellDirectory>(
         Config->CellDirectory,
         GetBusChannelFactory());
@@ -323,27 +323,27 @@ void TBootstrap::DoRun()
     ObjectManager = New<TObjectManager>(Config->ObjectManager, this);
 
     SecurityManager = New<TSecurityManager>(Config->SecurityManager, this);
-    
+
     NodeTracker = New<TNodeTracker>(Config->NodeTracker, this);
-    
+
     TransactionManager = New<TTransactionManager>(Config->TransactionManager, this);
-    
+
     CypressManager = New<TCypressManager>(Config->CypressManager, this);
-    
+
     ChunkManager = New<TChunkManager>(Config->ChunkManager, this);
 
     TabletManager = New<TTabletManager>(Config->TabletManager, this);
-    
+
     auto timestampManager = New<TTimestampManager>(
         Config->TimestampManager,
         HydraFacade->GetAutomatonInvoker(),
         HydraFacade->GetHydraManager(),
         HydraFacade->GetAutomaton());
-    
+
     auto timestampProvider = CreateRemoteTimestampProvider(
         Config->TimestampProvider,
         GetBusChannelFactory());
-    
+
     TransactionSupervisor = New<TTransactionSupervisor>(
         Config->TransactionSupervisor,
         HydraFacade->GetAutomatonInvoker(),
@@ -385,7 +385,7 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/config",
         CreateVirtualNode(CreateYsonFileService(ConfigFileName)));
-    
+
     SetBuildAttributes(orchidRoot, "master");
 
     RpcServer->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker())); // null realm

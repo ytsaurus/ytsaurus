@@ -229,7 +229,7 @@ protected:
             InitSocket(clientSocket);
 
             auto dispatcherThread = TTcpDispatcher::TImpl::Get()->AllocateThread();
-            
+
             auto connection = New<TTcpConnection>(
                 Config,
                 dispatcherThread,
@@ -238,6 +238,7 @@ protected:
                 TConnectionId::Create(),
                 clientSocket,
                 ToString(clientAddress, false),
+                false,
                 0,
                 Handler);
 
@@ -336,7 +337,7 @@ private:
             memset(&serverAddress, 0, sizeof(serverAddress));
             serverAddress.sin6_family = AF_INET6;
             serverAddress.sin6_addr = in6addr_any;
-            serverAddress.sin6_port = htons(Config->Port);
+            serverAddress.sin6_port = htons(Config->Port.Get());
             if (bind(ServerSocket, (sockaddr*)&serverAddress, sizeof(serverAddress)) != 0) {
                 CloseServerSocket();
                 THROW_ERROR_EXCEPTION("Failed to bind a server socket to port %v", Config->Port)
@@ -391,7 +392,7 @@ private:
     {
         return ETcpInterfaceType::Local;
     }
-    
+
     virtual void CreateServerSocket() override
     {
         int type = SOCK_STREAM;
@@ -409,7 +410,12 @@ private:
         ServerFd = ServerSocket;
 
         {
-            auto netAddress = GetLocalBusAddress(Config->Port);
+            TNetworkAddress netAddress;
+            if (Config->UnixDomainName) {
+                netAddress = GetUnixDomainAddress(Config->UnixDomainName.Get());
+            } else {
+                netAddress = GetLocalBusAddress(Config->Port.Get());
+            }
             if (bind(ServerSocket, netAddress.GetSockAddr(), netAddress.GetLength()) != 0) {
                 CloseServerSocket();
                 THROW_ERROR_EXCEPTION("Failed to bind a local server socket")
@@ -522,7 +528,9 @@ private:
 IBusServerPtr CreateTcpBusServer(TTcpBusServerConfigPtr config)
 {
     std::vector<IBusServerPtr> servers;
-    servers.push_back(New< TTcpBusServerProxy<TRemoteTcpBusServer> >(config));
+    if (config->Port) {
+        servers.push_back(New< TTcpBusServerProxy<TRemoteTcpBusServer> >(config));
+    }
 #ifdef _linux_
     servers.push_back(New< TTcpBusServerProxy<TLocalTcpBusServer> >(config));
 #endif
