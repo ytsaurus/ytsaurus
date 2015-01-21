@@ -4,7 +4,7 @@
 #include "trace_service_proxy.h"
 #include "private.h"
 
-#include <core/concurrency/action_queue_detail.h>
+#include <core/concurrency/scheduler_thread.h>
 #include <core/concurrency/periodic_executor.h>
 
 #include <core/misc/address.h>

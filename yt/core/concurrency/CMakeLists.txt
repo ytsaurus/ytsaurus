@@ -3,7 +3,6 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/core/concurrency )
 set( SRCS
   ${BASE}/private.cpp
   ${BASE}/action_queue.cpp
-  ${BASE}/action_queue_detail.cpp
   ${BASE}/async_semaphore.cpp
   ${BASE}/thread.cpp
   ${BASE}/delayed_executor.cpp
@@ -19,6 +18,9 @@ set( SRCS
   ${BASE}/fls.cpp
   ${BASE}/fork_aware_spinlock.cpp
   ${BASE}/invoker_queue.cpp
+  ${BASE}/scheduler_thread.cpp
+  ${BASE}/single_queue_scheduler_thread.cpp
+  ${BASE}/ev_scheduler_thread.cpp
 )
 set( HDRS
   ${BASE}/public.h
@@ -27,7 +29,6 @@ set( HDRS
   ${BASE}/counter-inl.h
   ${BASE}/async_stream.h
   ${BASE}/action_queue.h
-  ${BASE}/action_queue_detail.h
   ${BASE}/execution_stack.h
   ${BASE}/execution_context.h
   ${BASE}/parallel_awaiter-inl.h
@@ -54,6 +55,9 @@ set( HDRS
   ${BASE}/nonblocking_queue-inl.h
   ${BASE}/atomic_flag_spinlock.h
   ${BASE}/invoker_queue.h
+  ${BASE}/scheduler_thread.h
+  ${BASE}/single_queue_scheduler_thread.h
+  ${BASE}/ev_scheduler_thread.h
 )
 
 list(APPEND YT_SOURCE_FILES

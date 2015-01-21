@@ -7,7 +7,7 @@
 #include <core/misc/address.h>
 #include <core/misc/random.h>
 
-#include <core/concurrency/action_queue_detail.h>
+#include <core/concurrency/ev_scheduler_thread.h>
 #include <core/concurrency/event_count.h>
 
 #include <util/thread/lfqueue.h>
