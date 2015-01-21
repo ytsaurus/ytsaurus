@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from yt.tools.convertion_tools import convert_to_erasure
+from yt.tools.conversion_tools import convert_to_erasure
 
 import yt.wrapper as yt
 from yt.wrapper.cli_helpers import die
