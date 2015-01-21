@@ -1,5 +1,5 @@
 from yt.wrapper.common import generate_uuid
-from yt.tools.convertion_tools import convert_to_erasure
+from yt.tools.conversion_tools import convert_to_erasure
 import yt.logger as logger
 import yt.wrapper as yt
 
