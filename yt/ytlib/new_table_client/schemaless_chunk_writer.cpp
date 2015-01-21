@@ -764,7 +764,7 @@ void TSchemalessTableWriter::CreateUploadTransaction()
 
     auto attributes = CreateEphemeralAttributes();
     attributes->Set("title", Format("Table upload to %v", RichPath_.GetPath()));
-    options.Attributes = attributes.get();
+    options.Attributes = std::move(attributes);
 
     auto transactionOrError = WaitFor(TransactionManager_->Start(
         ETransactionType::Master,
