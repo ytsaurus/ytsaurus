@@ -271,7 +271,7 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
         auto asyncRecordsData = changelog->Read(
             startRecordId,
             recordsNeeded,
-            Config_->MaxChangelogRecordsPerRequest);
+            Config_->MaxChangelogBytesPerRequest);
         auto recordsData = WaitFor(asyncRecordsData)
             .ValueOrThrow();
         int recordsRead = static_cast<int>(recordsData.size());
