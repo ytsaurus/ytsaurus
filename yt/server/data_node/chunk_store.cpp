@@ -98,10 +98,10 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(chunk->GetLocation()->IsEnabled());
 
-    auto entry = BuildEntry(chunk);
-    auto result = ChunkMap_.insert(std::make_pair(chunk->GetId(), entry));
-    if (!result.second) {
-        auto oldChunk = result.first->second.Chunk;
+    bool doRegister = true;
+    auto it = ChunkMap_.find(chunk->GetId());
+    if (it != ChunkMap_.end()) {
+        auto oldChunk = it->second.Chunk;
         auto oldPath = oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId());
         auto currentPath = chunk->GetLocation()->GetChunkPath(chunk->GetId());
 
@@ -127,6 +127,7 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
                     currentPath,
                     oldPath);
                 chunk->SyncRemove(true);
+                doRegister = false;
                 break;
             }
 
@@ -149,6 +150,11 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
                     longerChunk->GetFileName(),
                     longerRowCount);
                 shorterChunk->SyncRemove(true);
+                if (shorterChunk == oldChunk) {
+                    UnregisterChunk(oldChunk);
+                } else {
+                    doRegister = false;
+                }
                 break;
             }
 
@@ -158,7 +164,11 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
         return;
     }
 
-    DoRegisterChunk(entry);
+    if (doRegister) {
+        auto entry = BuildEntry(chunk);
+        YCHECK(ChunkMap_.insert(std::make_pair(chunk->GetId(), entry)).second);
+        DoRegisterChunk(entry);
+    }
 }
 
 void TChunkStore::DoRegisterChunk(const TChunkEntry& entry)
