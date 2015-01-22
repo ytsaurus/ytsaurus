@@ -36,9 +36,39 @@ TLogEvent GetBannerEvent()
 
 } // namespace
 
+class TStreamLogWriter::TDateFormatter
+{
+public:
+    TDateFormatter()
+    {
+        Update(TInstant::Now());
+    }
+
+    void Format(TMessageBuffer* out, TInstant dateTime)
+    {
+        if (dateTime.MicroSeconds() >= Deadline_) {
+            Update(dateTime);
+        }
+        out->AppendString(Buffer_.GetData());
+    }
+
+private:
+    void Update(TInstant dateTime)
+    {
+        Buffer_.Reset();
+        FormatDateTime(&Buffer_, dateTime);
+        Buffer_.AppendChar('\0');
+        Deadline_ = dateTime.MicroSeconds() + 1000 - (dateTime.MicroSeconds() % 1000);
+    }
+
+    TMessageBuffer Buffer_;
+    ui64 Deadline_;
+};
+
 TStreamLogWriter::TStreamLogWriter(TOutputStream* stream)
     : Stream_(stream)
     , Buffer_(new TMessageBuffer())
+    , DateFormatter_(new TDateFormatter())
 { }
 
 void TStreamLogWriter::Write(const TLogEvent& event)
@@ -50,7 +80,7 @@ void TStreamLogWriter::Write(const TLogEvent& event)
     auto* buffer = Buffer_.get();
     buffer->Reset();
 
-    FormatDateTime(buffer, event.DateTime);
+    DateFormatter_->Format(buffer, event.DateTime);
     buffer->AppendChar('\t');
     FormatLevel(buffer, event.Level);
     buffer->AppendChar('\t');
