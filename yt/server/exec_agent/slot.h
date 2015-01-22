@@ -8,6 +8,8 @@
 
 #include <core/logging/log.h>
 
+#include <core/bus/public.h>
+
 #include <ytlib/cgroup/cgroup.h>
 
 #include <ytlib/formats/format.h>
@@ -26,6 +28,7 @@ public:
     TSlot(
         TSlotManagerConfigPtr config,
         const Stroka& path,
+        const Stroka& nodeId,
         int slotIndex,
         TNullable<int> userId);
 
@@ -35,6 +38,7 @@ public:
     TNullable<int> GetUserId() const;
     const NCGroup::TNonOwningCGroup& GetProcessGroup() const;
     std::vector<Stroka> GetCGroupPaths() const;
+    NBus::TTcpBusServerConfigPtr GetRpcServerConfig() const;
 
     void Acquire();
     void InitSandbox();
@@ -51,8 +55,8 @@ public:
 
     //! Writes to a file #fileName in the sandbox; #dataProducer provides the data.
     void MakeFile(
-        const Stroka& fileName, 
-        std::function<void (TOutputStream*)> dataProducer, 
+        const Stroka& fileName,
+        std::function<void (TOutputStream*)> dataProducer,
         bool isExecutable = false);
 
     const Stroka& GetWorkingDirectory() const;
@@ -62,6 +66,7 @@ private:
     bool IsClean_;
 
     Stroka Path_;
+    Stroka NodeId_;
     int SlotIndex_;
     TNullable<int> UserId_;
 

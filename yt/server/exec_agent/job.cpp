@@ -214,7 +214,7 @@ public:
 
         if (error.IsOK()) {
             return;
-        } 
+        }
 
         if (IsFatalError(error)) {
             error.Attributes().Set("fatal", IsFatalError(error));
@@ -371,6 +371,8 @@ private:
         auto proxyConfig = CloneYsonSerializable(Bootstrap->GetJobProxyConfig());
         proxyConfig->JobIO = ioConfig;
         proxyConfig->UserId = Slot->GetUserId();
+
+        proxyConfig->RpcServer = Slot->GetRpcServerConfig();
 
         auto proxyConfigPath = NFS::CombinePaths(
             Slot->GetWorkingDirectory(),
@@ -719,9 +721,9 @@ private:
     {
         auto resultError = FromProto<TError>(jobResult.error());
 
-        if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) || 
+        if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
-            resultError.FindMatching(EErrorCode::ConfigCreationFailed) || 
+            resultError.FindMatching(EErrorCode::ConfigCreationFailed) ||
             resultError.FindMatching(static_cast<int>(EExitStatus::ExitCodeBase) + static_cast<int>(EJobProxyExitCode::HeartbeatFailed)))
         {
             return MakeNullable(EAbortReason::Other);

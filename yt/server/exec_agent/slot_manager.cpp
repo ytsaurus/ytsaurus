@@ -6,6 +6,7 @@
 #include <core/misc/fs.h>
 
 #include <server/cell_node/bootstrap.h>
+#include <server/cell_node/config.h>
 #include <server/data_node/chunk_cache.h>
 
 #ifdef _unix_
@@ -55,6 +56,7 @@ void TSlotManager::Initialize(int slotCount)
 #endif
 
     try {
+        auto nodeRpcPort = Bootstrap->GetConfig()->RpcPort;
         for (int slotId = 0; slotId < slotCount; ++slotId) {
             auto slotName = ToString(slotId);
             auto slotPath = NFS::CombinePaths(Config->Path, slotName);
@@ -62,7 +64,7 @@ void TSlotManager::Initialize(int slotCount)
             if (jobControlEnabled) {
                 userId = Config->StartUid + slotId;
             }
-            auto slot = New<TSlot>(Config, slotPath, slotId, userId);
+            auto slot = New<TSlot>(Config, slotPath, Format("yt-node-%v", nodeRpcPort), slotId, userId);
             slot->Initialize();
             Slots.push_back(slot);
         }

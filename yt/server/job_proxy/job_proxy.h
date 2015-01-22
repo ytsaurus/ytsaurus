@@ -28,11 +28,15 @@ public:
     //! Runs the job. Blocks until the job is complete.
     void Run();
 
+    IInvokerPtr GetControlInvoker() const;
+
 private:
     TJobProxyConfigPtr Config_;
     NJobAgent::TJobId JobId_;
 
     NLog::TLogger Logger;
+
+    NRpc::IServerPtr RpcServer;
 
     std::unique_ptr<NExecAgent::TSupervisorServiceProxy> SupervisorProxy_;
 
@@ -47,6 +51,7 @@ private:
 
     IJobPtr Job_;
     NConcurrency::TActionQueuePtr JobThread_;
+    NConcurrency::TActionQueuePtr ControlThread_;
 
     NJobTrackerClient::NProto::TJobSpec JobSpec_;
     NNodeTrackerClient::NProto::TNodeResources ResourceUsage_;

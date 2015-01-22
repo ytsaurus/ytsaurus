@@ -69,5 +69,5 @@ IServicePtr CreateJobProbeService(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////
 
-}
-}
+} // namespace NScheduler
+} // namespace NYT
