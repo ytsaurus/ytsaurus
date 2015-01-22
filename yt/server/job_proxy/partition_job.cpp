@@ -47,7 +47,7 @@ public:
 
         TotalRowCount_ = GetCumulativeRowCount(chunkSpecs);
 
-        auto keyColumns = FromProto<Stroka>(PartitionJobSpecExt_.key_columns());
+        auto keyColumns = FromProto<TKeyColumns>(PartitionJobSpecExt_.key_columns());
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
         Reader_ = CreateSchemalessParallelMultiChunkReader(

@@ -20,10 +20,6 @@ struct ISchemafulReader
 {
     //! Initializes the reader. Must be called (and its result must be waited for)
     //! before making any other calls.
-    /*!
-     *  \note 
-     *  Read timestamp and read limits should be passed in constructor if applicable.
-     */
     virtual TFuture<void> Open(const TTableSchema& schema) = 0;
 
     //! See #IVersionedReader::Read.

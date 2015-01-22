@@ -2413,7 +2413,7 @@ private:
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).Data());
 
             partitionJobSpecExt->set_partition_count(Partitions.size());
-            ToProto(partitionJobSpecExt->mutable_key_columns(), Spec->ReduceBy);
+            ToProto(partitionJobSpecExt->mutable_key_columns(), Spec->SortBy);
 
             if (Spec->Mapper) {
                 InitUserJobSpecTemplate(

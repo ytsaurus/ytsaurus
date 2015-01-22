@@ -368,7 +368,7 @@ public:
     virtual TFuture<void> GetReadyEvent() override;
 
 private:
-    struct TTableChunkReaderAdaptorMemoryPoolTag { };
+    struct TTableChunkReaderAdapterMemoryPoolTag { };
 
     TTableChunkReaderPtr UnderlyingReader_;
     TTableSchema Schema_;
@@ -381,7 +381,7 @@ private:
 TTableChunkReaderAdapter::TTableChunkReaderAdapter(
     TTableChunkReaderPtr underlyingReader)
     : UnderlyingReader_(underlyingReader)
-    , MemoryPool_(TTableChunkReaderAdaptorMemoryPoolTag())
+    , MemoryPool_(TTableChunkReaderAdapterMemoryPoolTag())
 { }
 
 TFuture<void> TTableChunkReaderAdapter::Open(const TTableSchema& schema)

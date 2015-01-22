@@ -36,7 +36,7 @@ TContextPreservingInput::TContextPreservingInput(
     auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &CurrentBuffer_);
 
     Consumer_ = consumer.get();
-    Writer_ = CreateSchemalessWriterAdaptor(
+    Writer_ = CreateSchemalessWriterAdapter(
         std::move(consumer), 
         Reader_->GetNameTable());
 }

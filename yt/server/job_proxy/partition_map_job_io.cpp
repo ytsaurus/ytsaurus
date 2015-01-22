@@ -45,7 +45,7 @@ public:
         const auto& jobSpec = Host_->GetJobSpec();
         const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
         auto partitioner = CreateHashPartitioner(jobSpecExt.partition_count());
-        auto keyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
+        auto keyColumns = FromProto<TKeyColumns>(jobSpecExt.key_columns());
 
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
         return CreatePartitionMultiChunkWriter(

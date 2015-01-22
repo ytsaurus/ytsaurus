@@ -230,16 +230,16 @@ message TPartitionJobSpecExt
     // Number of partitions.
     required int32 partition_count = 1;
 
+    // Deprecated = 2.
+    // Deprecated = 3.
+    // Deprecated = 4.
+
     // If empty then THashPartitioner is used.
     // Otherwise TOrderedPartitioner is used.
 
-    // Deprecated = 2.
-
-    repeated string key_columns = 3;
-
-    // Deprecated = 4;
-
     repeated string partition_keys = 5;
+
+    required NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
