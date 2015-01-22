@@ -17,6 +17,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (Default)
     (ChunkMaintenance)
     (ChunkLocator)
+    (ChunkTraverser)
     (Heartbeat)
 );
 
