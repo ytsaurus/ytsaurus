@@ -19,12 +19,11 @@ class TSnapshotBuilderBase
     : public TRefCounted
 {
 public:
-    TSnapshotBuilderBase();
-    ~TSnapshotBuilderBase();
-
     TFuture<void> Run();
 
 protected:
+    ~TSnapshotBuilderBase();
+
     //! Must be initialized in the deriving class.
     NLog::TLogger Logger;
 
@@ -41,7 +40,7 @@ protected:
     IInvokerPtr GetWatchdogInvoker();
 
 private:
-    std::atomic<pid_t> ChildPid_;
+    pid_t ChildPid_ = -1;
     TPromise<void> Result_ = NewPromise<void>();
     TInstant StartTime_;
     NConcurrency::TPeriodicExecutorPtr WatchdogExecutor_;
@@ -51,12 +50,11 @@ private:
     void DoRunChild();
 
     void OnWatchdogCheck();
-    void OnCanceled();
 
     void Cleanup();
 
-    void MaybeKillChild();
-    static void DoKillChild(pid_t childPid);
+    void OnCanceled();
+    void DoCancel();
 
 };
 

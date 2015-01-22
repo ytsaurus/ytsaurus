@@ -9,7 +9,7 @@
 
 #include <core/ytree/serialize.h>
 
-#if defined(_unix_)
+#ifdef _unix_
     // for wait*()
     #include <sys/wait.h>
 #endif
@@ -24,10 +24,6 @@ static const auto WatchdogCheckPeriod = TDuration::MilliSeconds(100);
 static TLazyIntrusivePtr<TActionQueue> WatchdogQueue(TActionQueue::CreateFactory("SnapshotWD"));
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TSnapshotBuilderBase::TSnapshotBuilderBase()
-    : ChildPid_(-1)
-{ }
 
 TSnapshotBuilderBase::~TSnapshotBuilderBase()
 {
@@ -81,7 +77,7 @@ void TSnapshotBuilderBase::DoRunChild()
 
 void TSnapshotBuilderBase::DoRunParent()
 {
-    LOG_INFO("Fork succeded (ChildPid: %v)", ChildPid_.load());
+    LOG_INFO("Fork succeded (ChildPid: %v)", ChildPid_);
 
     RunParent();
     
@@ -104,40 +100,34 @@ IInvokerPtr TSnapshotBuilderBase::GetWatchdogInvoker()
 
 void TSnapshotBuilderBase::OnWatchdogCheck()
 {
-#if defined(_unix_)
+#ifdef _unix_
+    if (ChildPid_ < 0)
+        return;
+
     auto timeout = GetTimeout();
     if (TInstant::Now() > StartTime_ + timeout) {
         auto error = TError("Snapshot child process timed out")
             << TErrorAttribute("timeout", timeout);
         LOG_ERROR(error);
         Result_.Set(error);
-        MaybeKillChild();
+        DoCancel();
         return;
     }
 
-    auto childPid = ChildPid_.load();
-    if (childPid < 0)
-        return;
-
     int status;
-    if (waitpid(childPid, &status, WNOHANG) == 0)
+    if (waitpid(ChildPid_, &status, WNOHANG) == 0)
         return;
 
     auto error = StatusToError(status);
     if (error.IsOK()) {
-        LOG_INFO("Snapshot child process finished (ChildPid: %v)", childPid);
+        LOG_INFO("Snapshot child process finished (ChildPid: %v)", ChildPid_);
     } else {
-        LOG_ERROR(error, "Snapshot child process failed (ChildPid: %v)", childPid);
+        LOG_ERROR(error, "Snapshot child process failed (ChildPid: %v)", ChildPid_);
     }
     Result_.Set(error);
 
     Cleanup();
 #endif
-}
-
-void TSnapshotBuilderBase::OnCanceled()
-{
-    MaybeKillChild();
 }
 
 void TSnapshotBuilderBase::Cleanup()
@@ -149,26 +139,26 @@ void TSnapshotBuilderBase::Cleanup()
     }
 }
 
-void TSnapshotBuilderBase::MaybeKillChild()
+void TSnapshotBuilderBase::OnCanceled()
 {
-    auto childPid = ChildPid_.load();
-    if (childPid < 0)
-        return;
-
-    if (!ChildPid_.compare_exchange_strong(childPid, -1))
-        return;
-
-    Cleanup();
-
-    LOG_INFO("Killing snapshot child process (ChildPid: %v)", childPid);
-    WatchdogQueue->GetInvoker()->Invoke(BIND(&TSnapshotBuilderBase::DoKillChild, childPid));
+    LOG_INFO("Snapshot builder canceled");
+    WatchdogQueue->GetInvoker()->Invoke(BIND(&TSnapshotBuilderBase::DoCancel, MakeStrong(this)));
 }
 
-void TSnapshotBuilderBase::DoKillChild(pid_t childPid)
+void TSnapshotBuilderBase::DoCancel()
 {
-#if defined(_unix_)
-    kill(childPid, 9);
+    if (ChildPid_ < 0)
+        return;
+
+    LOG_INFO("Killing snapshot child process (ChildPid: %v)", ChildPid_);
+
+#ifdef _unix_
+    ::kill(ChildPid_, 9);
 #endif
+
+    Result_.TrySet(TError("Snapshot builder canceled"));
+
+    Cleanup();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
