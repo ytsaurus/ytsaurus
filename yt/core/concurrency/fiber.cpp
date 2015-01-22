@@ -7,15 +7,12 @@
 #include "atomic_flag_spinlock.h"
 #include "private.h"
 
-#include <core/misc/lazy_ptr.h>
-
 namespace NYT {
 namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ConcurrencyLogger;
-static std::atomic<TFiberId> FiberIdGenerator(InvalidFiberId + 1);
 
 #ifdef DEBUG
 // TODO(sandello): Make it an intrusive list.
@@ -23,10 +20,37 @@ static std::atomic_flag FiberRegistryLock = ATOMIC_FLAG_INIT;
 static std::list<TFiber*> FiberRegistry;
 #endif
 
+static class TFiberIdGenerator
+{
+public:
+    TFiberIdGenerator()
+    {
+        Seed_.store(static_cast<TFiberId>(::time(nullptr)));
+    }
+
+    TFiberId Generate()
+    {
+        while (true) {
+            auto seed = Seed_++;
+            auto id = seed * Factor;
+            if (id != InvalidFiberId) {
+                return id;
+            }
+        }
+    }
+
+private:
+    static const TFiberId Factor = std::numeric_limits<TFiberId>::max() - 173864;
+    static_assert(Factor % 2 == 1, "Factor must be coprime with 2^n.");
+
+    std::atomic<TFiberId> Seed_;
+
+} FiberIdGenerator;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TFiber::TFiber(TClosure callee, EExecutionStack stack)
-    : Id_(FiberIdGenerator++)
+    : Id_(FiberIdGenerator.Generate())
     , State_(EFiberState::Suspended)
     , Callee_(std::move(callee))
     , Stack_(CreateExecutionStack(stack))
