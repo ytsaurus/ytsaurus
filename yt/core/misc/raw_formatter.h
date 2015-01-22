@@ -82,27 +82,48 @@ public:
     //! Formats |number| in base |radix| and updates the internal cursor.
     void AppendNumber(uintptr_t number, int radix = 10, int width = 0)
     {
-        int i = 0;
-        while (Cursor + i < End) {
-            const int modulus = number % radix;
-            number /= radix;
-            Cursor[i] = (modulus < 10 ? '0' + modulus : 'a' + modulus - 10);
-            ++i;
-            if (number == 0) {
-                break;
+        int digits = 0;
+
+        if (radix == 16) {
+            // Optimize output of hex numbers.
+
+            uintptr_t reverse = 0;
+            int length = 0;
+            do {
+                reverse <<= 4;
+                reverse |= number & 0xf;
+                number >>= 4;
+                ++length;
+            } while (number > 0);
+
+            for (int index = 0; index < length && Cursor + digits < End; ++index) {
+                unsigned int modulus = reverse & 0xf;
+                Cursor[digits] = (modulus < 10 ? '0' + modulus : 'a' + modulus - 10);
+                ++digits;
+                reverse >>= 4;
             }
+        } else {
+            while (Cursor + digits < End) {
+                const int modulus = number % radix;
+                number /= radix;
+                Cursor[digits] = (modulus < 10 ? '0' + modulus : 'a' + modulus - 10);
+                ++digits;
+                if (number == 0) {
+                    break;
+                }
+            }
+
+            // Reverse the bytes written.
+            std::reverse(Cursor, Cursor + digits);
         }
 
-        // Reverse the bytes written.
-        std::reverse(Cursor, Cursor + i);
-
-        if (i < width) {
-            auto delta = width - i;
-            std::copy(Cursor, Cursor + i, Cursor + delta);
+        if (digits < width) {
+            auto delta = width - digits;
+            std::copy(Cursor, Cursor + digits, Cursor + delta);
             std::fill(Cursor, Cursor + delta, ' ');
             Cursor += width;
         } else {
-            Cursor += i;
+            Cursor += digits;
         }
     }
 
