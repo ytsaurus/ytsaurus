@@ -260,6 +260,8 @@ void TBootstrap::DoRun()
         LOG_ERROR("No custom cell tag is set, cluster can only be used for testing purposes");
     }
 
+    Config->Master->ValidateAllPeersPresent();
+
     HttpServer.reset(new NHttp::TServer(Config->MonitoringPort));
 
     auto busServerConfig = New<TTcpBusServerConfig>(Config->RpcPort);

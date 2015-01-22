@@ -103,7 +103,9 @@ public:
     {
         auto cellConfig = New<TCellConfig>();
         cellConfig->CellId = config->CellId;
-        cellConfig->Addresses = config->Addresses;
+        for (const auto& address : config->Addresses) {
+            cellConfig->Addresses.push_back(address);
+        }
         return RegisterCell(cellConfig, version);
     }
 
@@ -126,8 +128,8 @@ public:
     }
 
 private:
-    TCellDirectoryConfigPtr Config_;
-    IChannelFactoryPtr ChannelFactory_;
+    const TCellDirectoryConfigPtr Config_;
+    const IChannelFactoryPtr ChannelFactory_;
 
     struct TEntry
     {
@@ -143,7 +145,11 @@ private:
     {
         auto peerConfig = New<TPeerConnectionConfig>();
         peerConfig->CellId = entry->Descriptor.Config->CellId;
-        peerConfig->Addresses = entry->Descriptor.Config->Addresses;
+        for (const auto& maybeAddress : entry->Descriptor.Config->Addresses) {
+            if (maybeAddress) {
+                peerConfig->Addresses.push_back(*maybeAddress);
+            }
+        }
         peerConfig->DiscoverTimeout = Config_->DiscoverTimeout;
         peerConfig->SoftBackoffTime = Config_->SoftBackoffTime;
         peerConfig->HardBackoffTime = Config_->HardBackoffTime;

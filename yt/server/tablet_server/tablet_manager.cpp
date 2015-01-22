@@ -1324,9 +1324,8 @@ private:
         
         auto config = cell->GetConfig();
         config->Addresses.clear();
-        for (int index = 0; index < static_cast<int>(cell->Peers().size()); ++index) {
-            const auto& peer = cell->Peers()[index];
-            config->Addresses.push_back(peer.Address ? *peer.Address : "");
+        for (const auto& peer : cell->Peers()) {
+            config->Addresses.push_back(peer.Address);
         }
 
         UpdateCellDirectory(cell);
