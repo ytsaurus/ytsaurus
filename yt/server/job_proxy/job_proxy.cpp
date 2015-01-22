@@ -13,6 +13,7 @@
 #include "sorted_reduce_job_io.h"
 #include "partition_reduce_job_io.h"
 #include "user_job_io.h"
+#include "job_probe_service.h"
 
 #include <core/actions/invoker_util.h>
 
@@ -30,8 +31,10 @@
 #include <core/logging/log_manager.h>
 
 #include <core/bus/tcp_client.h>
+#include <core/bus/tcp_server.h>
 
 #include <core/rpc/bus_channel.h>
+#include <core/rpc/server.h>
 #include <core/rpc/helpers.h>
 
 #include <ytlib/scheduler/public.h>
@@ -88,6 +91,7 @@ TJobProxy::TJobProxy(
     , Logger(JobProxyLogger)
     , JobProxyMemoryLimit_(InitialJobProxyMemoryLimit)
     , JobThread_(New<TActionQueue>("JobMain"))
+    , ControlThread_(New<TActionQueue>("Control"))
 {
     Logger.AddTag("JobId: %v", JobId_);
 }
@@ -257,6 +261,10 @@ IJobPtr TJobProxy::CreateBuiltinJob()
 
 TJobResult TJobProxy::DoRun()
 {
+    RpcServer = CreateBusServer(CreateTcpBusServer(Config_->RpcServer));
+    RpcServer->RegisterService(CreateJobProbeService(this));
+    RpcServer->Start();
+
     auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
     auto supervisorChannel = CreateBusChannel(supervisorClient);
 
@@ -421,6 +429,11 @@ void TJobProxy::Exit(EJobProxyExitCode exitCode)
 NLog::TLogger TJobProxy::GetLogger() const
 {
     return Logger;
+}
+
+IInvokerPtr TJobProxy::GetControlInvoker() const
+{
+    return ControlThread_->GetInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

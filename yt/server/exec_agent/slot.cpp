@@ -10,6 +10,8 @@
 #include <core/misc/proc.h>
 #include <core/misc/string.h>
 
+#include <core/bus/config.h>
+
 #include <core/ytree/yson_producer.h>
 
 namespace NYT {
@@ -29,11 +31,13 @@ Stroka GetSlotProcessGroup(int slotId)
 TSlot::TSlot(
     TSlotManagerConfigPtr config,
     const Stroka& path,
+    const Stroka& nodeId,
     int slotIndex,
     TNullable<int> userId)
     : IsFree_(true)
     , IsClean_(true)
     , Path_(path)
+    , NodeId_(nodeId)
     , SlotIndex_(slotIndex)
     , UserId_(userId)
     , SlotThread_(New<TActionQueue>(Format("ExecSlot:%v", slotIndex)))
@@ -119,6 +123,13 @@ std::vector<Stroka> TSlot::GetCGroupPaths() const
     }
     return result;
 }
+
+NBus::TTcpBusServerConfigPtr TSlot::GetRpcServerConfig() const
+{
+    Stroka unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
+    return NBus::TTcpBusServerConfig::CreateUnixDomain(unixDomainName);
+}
+
 
 void TSlot::DoCleanSandbox()
 {
