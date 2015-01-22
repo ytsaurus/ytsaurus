@@ -141,7 +141,6 @@ void TGarbageCollector::UnlockAll()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     for (auto* object : LockedZombies_) {
-        YASSERT(object->IsLocked());
         YCHECK(Zombies_.insert(object).second);
     }
     LockedZombies_.clear();
