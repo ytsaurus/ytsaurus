@@ -130,6 +130,11 @@ NBus::TTcpBusServerConfigPtr TSlot::GetRpcServerConfig() const
     return NBus::TTcpBusServerConfig::CreateUnixDomain(unixDomainName);
 }
 
+NBus::TTcpBusClientConfigPtr TSlot::GetRpcClientConfig() const
+{
+    Stroka unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
+    return NBus::TTcpBusClientConfig::CreateUnixDomain(unixDomainName);
+}
 
 void TSlot::DoCleanSandbox()
 {
