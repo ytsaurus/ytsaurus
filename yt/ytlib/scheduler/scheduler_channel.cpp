@@ -47,18 +47,18 @@ public:
         return batchReq->Invoke()
             .Apply(BIND([this, this_] (TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) -> IChannelPtr {
                 auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
-                if (!rsp.IsOK()) {
-                    THROW_ERROR_EXCEPTION("Cannot connect to scheduler") << rsp;
+                if (rsp.FindMatching(NYT::NYTree::EErrorCode::ResolveError)) {
+                    THROW_ERROR_EXCEPTION("No scheduler is configured");
                 }
-                auto rspValue = rsp.Value();
-                auto address = ConvertTo<Stroka>(TYsonString(rspValue->value()));
+                THROW_ERROR_EXCEPTION_IF_FAILED(rsp, "Cannot determine scheduler address");
+                auto address = ConvertTo<Stroka>(TYsonString(rsp.Value()->value()));
                 return ChannelFactory_->CreateChannel(address);
             }));
     }
 
 private:
-    IChannelFactoryPtr ChannelFactory_;
-    IChannelPtr MasterChannel_;
+    const IChannelFactoryPtr ChannelFactory_;
+    const IChannelPtr MasterChannel_;
 
 };
 
