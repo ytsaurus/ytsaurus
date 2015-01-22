@@ -209,7 +209,7 @@ private:
         // Register an alert and
         // schedule an out-of-order heartbeat to notify the master about the disaster.
         auto masterConnector = Bootstrap_->GetMasterConnector();
-        masterConnector->RegisterAlert(Format("Chunk cache at %Qv is disabled\n%v",
+        masterConnector->RegisterAlert(Format("Chunk cache at %v is disabled\n%v",
             Location_->GetPath(),
             reason));
         masterConnector->ForceRegister();
