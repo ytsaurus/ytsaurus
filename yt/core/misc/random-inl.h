@@ -8,11 +8,11 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TRandomGenerator::TRandomGenerator()
-    : X(0)
+    : Current_(0)
 { }
 
 inline TRandomGenerator::TRandomGenerator(ui64 seed)
-    : X(seed)
+    : Current_(seed)
 { }
 
 template <>
