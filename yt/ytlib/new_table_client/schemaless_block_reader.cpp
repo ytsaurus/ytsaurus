@@ -67,12 +67,12 @@ bool THorizontalSchemalessBlockReader::SkipToKey(const TOwningKey& key)
 
     return JumpToRowIndex(index);
 }
-    
+
 const TOwningKey& THorizontalSchemalessBlockReader::GetKey() const
 {
     return Key_;
 }
-    
+
 TUnversionedRow THorizontalSchemalessBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
 {
     TUnversionedRow row = TUnversionedRow::Allocate(memoryPool, ValueCount_);
