@@ -21,6 +21,10 @@
 #include <core/logging/log.h>
 #include <core/logging/log_manager.h>
 
+#include <core/bus/tcp_client.h>
+
+#include <core/rpc/bus_channel.h>
+
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/file_client/file_ypath_proxy.h>
@@ -42,6 +46,8 @@
 #include <ytlib/node_tracker_client/helpers.h>
 
 #include <ytlib/job_tracker_client/statistics.h>
+
+#include <ytlib/job_probe_client/job_probe_service_proxy.h>
 
 #include <ytlib/security_client/public.h>
 
@@ -274,6 +280,22 @@ public:
         } else {
             return TDuration::Seconds(0);
         }
+    }
+
+    std::vector<TChunkId> GetInputContexts() const override
+    {
+        auto jobProbeClient = CreateTcpBusClient(Slot->GetRpcClientConfig());
+        auto jobProbeChannel = CreateBusChannel(jobProbeClient);
+
+        auto jobProbeProxy = std::make_unique<NJobProbeClient::TJobProbeServiceProxy>(jobProbeChannel);
+
+        auto req = jobProbeProxy->GenerateInputContext();
+
+        ToProto(req->mutable_job_id(), JobId);
+        auto response = WaitFor(req->Invoke())
+            .ValueOrThrow();
+
+        return FromProto<TGuid>(response->chunk_id());
     }
 
 private:

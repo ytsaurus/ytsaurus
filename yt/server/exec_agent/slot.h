@@ -38,7 +38,9 @@ public:
     TNullable<int> GetUserId() const;
     const NCGroup::TNonOwningCGroup& GetProcessGroup() const;
     std::vector<Stroka> GetCGroupPaths() const;
+
     NBus::TTcpBusServerConfigPtr GetRpcServerConfig() const;
+    NBus::TTcpBusClientConfigPtr GetRpcClientConfig() const;
 
     void Acquire();
     void InitSandbox();

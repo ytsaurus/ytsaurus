@@ -177,6 +177,11 @@ public:
         YUNREACHABLE();
     }
 
+    virtual std::vector<NChunkClient::TChunkId> GetInputContexts() const override
+    {
+        YUNREACHABLE();
+    }
+
 protected:
     const TJobId JobId_;
     const TJobSpec JobSpec_;
@@ -356,7 +361,7 @@ private:
     {
         auto metaOrError = WaitFor(Chunk_->GetMeta(0));
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            metaOrError, 
+            metaOrError,
             "Error getting meta of chunk %v",
             ChunkId_);
 
@@ -380,7 +385,7 @@ private:
         {
             auto error = WaitFor(writer->Open());
             THROW_ERROR_EXCEPTION_IF_FAILED(
-                error, 
+                error,
                 "Error opening writer for chunk %v during replication",
                 ChunkId_);
         }
@@ -398,7 +403,7 @@ private:
                     blockCount - blockIndex,
                     FetchPriority));
             THROW_ERROR_EXCEPTION_IF_FAILED(
-                getResult, 
+                getResult,
                 "Error reading chunk %v during replication",
                 ChunkId_);
             const auto& blocks = getResult.Value();
@@ -411,7 +416,7 @@ private:
             if (!writeResult) {
                 auto error = WaitFor(writer->GetReadyEvent());
                 THROW_ERROR_EXCEPTION_IF_FAILED(
-                    error, 
+                    error,
                     "Error writing chunk %v during replication",
                     ChunkId_);
             }

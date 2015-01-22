@@ -10,6 +10,8 @@
 
 #include <ytlib/job_tracker_client/job.pb.h>
 
+#include <ytlib/chunk_client/public.h>
+
 namespace NYT {
 namespace NJobAgent {
 
@@ -47,6 +49,8 @@ struct IJob
 
     virtual NJobTrackerClient::NProto::TJobStatistics GetJobStatistics() const = 0;
     virtual void SetJobStatistics(const NJobTrackerClient::NProto::TJobStatistics& statistics) = 0;
+
+    virtual std::vector<NChunkClient::TChunkId> GetInputContexts() const = 0;
 
 };
 

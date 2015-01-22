@@ -52,9 +52,9 @@ struct IJob
     { }
 
     virtual NJobTrackerClient::NProto::TJobResult Run() = 0;
-    
+
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const = 0;
-    
+
     virtual double GetProgress() const = 0;
 
     virtual NJobTrackerClient::NProto::TJobStatistics GetStatistics() const = 0;
