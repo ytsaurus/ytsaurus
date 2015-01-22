@@ -26,8 +26,8 @@ public:
         TObjectManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
-    void StartSweep();
-    void StopSweep();
+    void Start();
+    void Stop();
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -49,19 +49,19 @@ public:
     int GetLockedGCQueueSize() const;
 
 private:
-    TObjectManagerConfigPtr Config;
-    NCellMaster::TBootstrap* Bootstrap;
+    TObjectManagerConfigPtr Config_;
+    NCellMaster::TBootstrap* Bootstrap_;
 
-    NConcurrency::TPeriodicExecutorPtr SweepExecutor;
+    NConcurrency::TPeriodicExecutorPtr SweepExecutor_;
 
     //! Contains objects with zero ref counter and zero lock counter.
-    yhash_set<TObjectBase*> Zombies;
+    yhash_set<TObjectBase*> Zombies_;
 
     //! Contains objects with zero ref counter and positive lock counter.
-    yhash_set<TObjectBase*> LockedZombies;
+    yhash_set<TObjectBase*> LockedZombies_;
 
     //! This promise is set each time #GCQueue becomes empty.
-    TPromise<void> CollectPromise;
+    TPromise<void> CollectPromise_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

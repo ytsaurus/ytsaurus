@@ -2,7 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/server/object_server )
 set( SRCS
   ${BASE}/attribute_set.cpp
-  ${BASE}/gc.cpp
+  ${BASE}/garbage_collector.cpp
   ${BASE}/master.cpp
   ${BASE}/object.cpp
   ${BASE}/staged_object.cpp
@@ -17,7 +17,7 @@ set( SRCS
 set( HDRS
   ${BASE}/attribute_set.h
   ${BASE}/config.h
-  ${BASE}/gc.h
+  ${BASE}/garbage_collector.h
   ${BASE}/master.h
   ${BASE}/object.h
   ${BASE}/staged_object.h

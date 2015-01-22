@@ -3,7 +3,7 @@
 #include "object.h"
 #include "config.h"
 #include "private.h"
-#include "gc.h"
+#include "garbage_collector.h"
 #include "attribute_set.h"
 #include "schema.h"
 #include "master.h"
@@ -636,14 +636,14 @@ void TObjectManager::OnLeaderActive()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    GarbageCollector_->StartSweep();
+    GarbageCollector_->Start();
 }
 
 void TObjectManager::OnStopLeading()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    GarbageCollector_->StopSweep();
+    GarbageCollector_->Stop();
 }
 
 TObjectBase* TObjectManager::FindObject(const TObjectId& id)
@@ -1016,7 +1016,7 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
         auto* object = handler->GetObject(id);
 
         // NB: The order of Dequeue/Destroy/CheckEmpty calls matters.
-        // CheckEmpty will raise CollectPromise when GC queue becomes empty.
+        // CheckEmpty will raise CollectPromise_ when GC queue becomes empty.
         // To enable cascaded GC sweep we don't want this to happen
         // if some ids are added during DestroyObject.
         GarbageCollector_->Dequeue(object);
