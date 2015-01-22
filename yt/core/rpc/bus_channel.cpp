@@ -341,9 +341,9 @@ private:
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            const auto& request = requestControl->GetRequest();
+            auto request = requestControl->GetRequest();
+            auto responseHandler = requestControl->GetResponseHandler();
             const auto& requestId = request->GetRequestId();
-
             {
                 TGuard<TSpinLock> guard(SpinLock_);
 
@@ -355,6 +355,7 @@ private:
                 }
 
                 requestControl->TimingCheckpoint(STRINGBUF("cancel"));
+                requestControl->Finalize();
                 ActiveRequestMap_.erase(it);
             }
 
@@ -363,6 +364,8 @@ private:
 
             NotifyError(
                 requestControl,
+                request,
+                responseHandler,
                 TError(NYT::EErrorCode::Canceled, "Request canceled"));
 
             IBusPtr bus;
@@ -385,17 +388,15 @@ private:
 
             auto message = CreateRequestCancelationMessage(header);
             bus->Send(std::move(message), EDeliveryTrackingLevel::None);
-
-            requestControl->Finalize();
         }
 
         void HandleTimeout(TClientRequestControlPtr requestControl)
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            const auto& request = requestControl->GetRequest();
+            auto request = requestControl->GetRequest();
+            auto responseHandler = requestControl->GetResponseHandler();
             const auto& requestId = request->GetRequestId();
-
             {
                 TGuard<TSpinLock> guard(SpinLock_);
 
@@ -407,14 +408,15 @@ private:
                 }
 
                 requestControl->TimingCheckpoint(STRINGBUF("timeout"));
+                requestControl->Finalize();
                 ActiveRequestMap_.erase(it);
             }
 
             NotifyError(
                 requestControl,
+                request,
+                responseHandler,
                 TError(NYT::EErrorCode::Timeout, "Request timed out"));
-
-            requestControl->Finalize();
         }
 
         void HandleMessage(TSharedRefArray message, IBusPtr /*replyBus*/)
@@ -430,6 +432,8 @@ private:
             auto requestId = FromProto<TRequestId>(header.request_id());
 
             TClientRequestControlPtr requestControl;
+            IClientRequestPtr request;
+            IClientResponseHandlerPtr responseHandler;
             {
                 TGuard<TSpinLock> guard(SpinLock_);
 
@@ -448,7 +452,10 @@ private:
                 }
 
                 requestControl = it->second;
+                request = requestControl->GetRequest();
+                responseHandler = requestControl->GetResponseHandler();
                 requestControl->TimingCheckpoint(STRINGBUF("reply"));
+                requestControl->Finalize();
                 ActiveRequestMap_.erase(it);
             }
 
@@ -458,16 +465,14 @@ private:
                     error = FromProto<TError>(header.error());
                 }
                 if (error.IsOK()) {
-                    NotifyResponse(requestControl, std::move(message));
+                    NotifyResponse(request, responseHandler, std::move(message));
                 } else {
                     if (error.GetCode() == EErrorCode::PoisonPill) {
                         LOG_FATAL(error, "Poison pill received");
                     }
-                    NotifyError(requestControl, error);
+                    NotifyError(requestControl, request, responseHandler, error);
                 }
             }
-
-            requestControl->Finalize();
         }
 
     private:
@@ -503,6 +508,9 @@ private:
                 } else {
                     // NB: Make copies, the instance will die soon.
                     auto requestControl = it->second;
+                    auto request = requestControl->GetRequest();
+                    auto responseHandler = requestControl->GetResponseHandler();
+                    requestControl->Finalize();
                     ActiveRequestMap_.erase(it);
 
                     // Don't need the guard anymore.
@@ -510,10 +518,10 @@ private:
 
                     NotifyError(
                         requestControl,
+                        request,
+                        responseHandler,
                         TError(NRpc::EErrorCode::TransportError, "Request serialization failed")
                             << requestMessageOrError);
-
-                    requestControl->Finalize();
                 }
                 return;
             }
@@ -542,7 +550,8 @@ private:
             VERIFY_THREAD_AFFINITY_ANY();
 
             TClientRequestControlPtr requestControl;
-            bool finalize = false;
+            IClientRequestPtr request;
+            IClientResponseHandlerPtr responseHandler;
             {
                 TGuard<TSpinLock> guard(SpinLock_);
 
@@ -555,44 +564,44 @@ private:
                 }
 
                 requestControl = it->second;
+                request = requestControl->GetRequest();
+                responseHandler = requestControl->GetResponseHandler();
                 requestControl->TimingCheckpoint(STRINGBUF("ack"));
-                if (!error.IsOK() || requestControl->GetRequest()->IsOneWay()) {
+                if (!error.IsOK() || request->IsOneWay()) {
+                    requestControl->Finalize();
                     ActiveRequestMap_.erase(it);
-                    finalize = true;
                 }
             }
 
             if (error.IsOK()) {
-                NotifyAcknowledgement(requestControl);
+                NotifyAcknowledgement(request, responseHandler);
             } else {
                 NotifyError(
                     requestControl,
+                    request,
+                    responseHandler,
                     TError(NRpc::EErrorCode::TransportError, "Request acknowledgment failed")
                          << error);
-            }
-
-            if (finalize) {
-                requestControl->Finalize();
             }
         }
 
 
-        void NotifyAcknowledgement(const TClientRequestControlPtr& requestControl)
+        void NotifyAcknowledgement(
+            const IClientRequestPtr& request,
+            const IClientResponseHandlerPtr& responseHandler)
         {
-            const auto& request = requestControl->GetRequest();
-            const auto& responseHandler = requestControl->GetResponseHandler();
-
             LOG_DEBUG("Request acknowledged (RequestId: %v)",
                 request->GetRequestId());
 
             responseHandler->HandleAcknowledgement();
         }
 
-        void NotifyError(const TClientRequestControlPtr& requestControl, const TError& error)
+        void NotifyError(
+            const TClientRequestControlPtr& requestControl,
+            const IClientRequestPtr& request,
+            const IClientResponseHandlerPtr& responseHandler,
+            const TError& error)
         {
-            const auto& request = requestControl->GetRequest();
-            const auto& responseHandler = requestControl->GetResponseHandler();
-
             auto detailedError = error
                 << TErrorAttribute("request_id", request->GetRequestId())
                 << TErrorAttribute("service", request->GetService())
@@ -611,11 +620,11 @@ private:
             responseHandler->HandleError(detailedError);
         }
 
-        void NotifyResponse(const TClientRequestControlPtr& requestControl, TSharedRefArray message)
+        void NotifyResponse(
+            const IClientRequestPtr& request,
+            const IClientResponseHandlerPtr& responseHandler,
+            TSharedRefArray message)
         {
-            const auto& request = requestControl->GetRequest();
-            const auto& responseHandler = requestControl->GetResponseHandler();
-
             LOG_DEBUG("Response received (RequestId: %v)",
                 request->GetRequestId());
 
