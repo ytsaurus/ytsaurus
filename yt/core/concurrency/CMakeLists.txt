@@ -51,6 +51,7 @@ set( HDRS
   ${BASE}/fork_aware_spinlock.h
   ${BASE}/nonblocking_queue.h
   ${BASE}/nonblocking_queue-inl.h
+  ${BASE}/atomic_flag_spinlock.h
 )
 
 list(APPEND YT_SOURCE_FILES
