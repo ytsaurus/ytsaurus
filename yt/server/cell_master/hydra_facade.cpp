@@ -162,9 +162,8 @@ public:
     void ValidateActiveLeader()
     {
         if (!HydraManager_->IsActiveLeader()) {
-            throw TNotALeaderException()
-                <<= ERROR_SOURCE_LOCATION()
-                >>= TError(NRpc::EErrorCode::Unavailable, "Not an active leader");
+            throw TNotALeaderException() <<=
+                TError(NRpc::EErrorCode::Unavailable, "Not an active leader");
         }
     }
 

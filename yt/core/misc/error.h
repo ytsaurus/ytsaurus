@@ -162,8 +162,6 @@ TError operator << (TError error, const TError& innerError);
 TError operator << (TError error, const std::vector<TError>& innerErrors);
 TError operator << (TError error, std::unique_ptr<NYTree::IAttributeDictionary> attributes);
 
-TError operator >>= (const TErrorAttribute& attribute, TError error);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TErrorException
@@ -194,14 +192,8 @@ TException&& operator <<= (TException&& ex, const TError& error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define ERROR_SOURCE_LOCATION() \
-    ::NYT::TErrorAttribute("file", ::NYT::NYTree::ConvertToYsonString(__FILE__)) >>= \
-    ::NYT::TErrorAttribute("line", ::NYT::NYTree::ConvertToYsonString(__LINE__))
-
 #define THROW_ERROR \
-    throw \
-        ::NYT::TErrorException() <<= \
-        ERROR_SOURCE_LOCATION() >>= \
+    throw ::NYT::TErrorException() <<=
 
 #define THROW_ERROR_EXCEPTION(...) \
     THROW_ERROR ::NYT::TError(__VA_ARGS__)

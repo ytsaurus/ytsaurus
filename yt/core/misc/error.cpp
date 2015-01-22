@@ -9,6 +9,10 @@
 
 #include <core/yson/tokenizer.h>
 
+#include <core/tracing/trace_context.h>
+
+#include <core/concurrency/scheduler.h>
+
 #include <util/system/error.h>
 
 namespace NYT {
@@ -158,11 +162,16 @@ TError TError::Wrap() const
 
 void TError::CaptureOriginAttributes()
 {
-    // Use ad-hoc YSON conversions for performance reasons.
-    Attributes().SetYson("host", ConvertToYsonString(TAddressResolver::Get()->GetLocalHostName()));
-    Attributes().SetYson("datetime", ConvertToYsonString(ToString(TInstant::Now())));
-    Attributes().SetYson("pid", ConvertToYsonString(getpid()));
-    Attributes().SetYson("tid", ConvertToYsonString(NConcurrency::GetCurrentThreadId()));
+    Attributes().Set("host", TAddressResolver::Get()->GetLocalHostName());
+    Attributes().Set("datetime", TInstant::Now());
+    Attributes().Set("pid", ::getpid());
+    Attributes().Set("tid", NConcurrency::GetCurrentThreadId());
+    Attributes().Set("fid", NConcurrency::GetCurrentFiberId());
+    auto traceContext = NTracing::GetCurrentTraceContext();
+    if (traceContext.IsEnabled()) {
+        Attributes().SetYson("trace_id", ConvertToYsonString(traceContext.GetTraceId()));
+        Attributes().SetYson("span_id", ConvertToYsonString(traceContext.GetSpanId()));
+    }
 }
 
 TNullable<TError> TError::FindMatching(TErrorCode code) const
@@ -215,30 +224,19 @@ void AppendError(TStringBuilder* builder, const TError& error, int indent)
     // Pretty-print origin.
     auto host = error.Attributes().Find<Stroka>("host");
     auto datetime = error.Attributes().Find<Stroka>("datetime");
-    auto pid = error.Attributes().Find<i64>("pid");
-    auto tid = error.Attributes().Find<i64>("tid");
-    if (host && datetime && pid && tid) {
+    auto pid = error.Attributes().Find<pid_t>("pid");
+    auto tid = error.Attributes().Find<NConcurrency::TThreadId>("tid");
+    auto fid = error.Attributes().Find<NConcurrency::TFiberId>("fid");
+    if (host && datetime && pid && tid && fid) {
         AppendAttribute(
             builder,
             "origin",
-            Format("%v on %v (pid %v, tid %v)",
+            Format("%v on %v (pid %v, tid %x, fid %x)",
                 *host,
                 *datetime,
                 *pid,
-                *tid),
-            indent);
-    }
-
-    // Pretty-print location.
-    auto file = error.Attributes().Find<Stroka>("file");
-    auto line = error.Attributes().Find<i64>("line");
-    if (file && line) {
-        AppendAttribute(
-            builder,
-            "location",
-            Format("%v:%v",
-                *file,
-                *line),
+                *tid,
+                *fid),
             indent);
     }
 
@@ -248,8 +246,7 @@ void AppendError(TStringBuilder* builder, const TError& error, int indent)
             key == "datetime" ||
             key == "pid" ||
             key == "tid" ||
-            key == "file" ||
-            key == "line")
+            key == "fid")
             continue;
 
         auto value = error.Attributes().GetYson(key);
@@ -400,11 +397,6 @@ TError operator << (TError error, std::unique_ptr<NYTree::IAttributeDictionary> 
         error.Attributes().SetYson(key, attributes->GetYson(key));
     }
     return error;
-}
-
-TError operator >>= (const TErrorAttribute& attribute, TError error)
-{
-    return error << attribute;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
