@@ -119,13 +119,15 @@ size_t GetVersionedRowDataSize(
  *  A lightweight wrapper around |TVersionedRowHeader*|.
  *
  *  Provides access to the following parts:
- *  1) write timestamps, sorted in decreasing order;
+ *  1) write timestamps, sorted in descending order;
  *     at most one if a specific revision is requested;
- *  2) delete timestamps, sorted in decreasing order;
+ *  2) delete timestamps, sorted in descending order;
  *     at most one if a specific revision is requested;
  *  3) unversioned keys;
- *  4) versioned values, sorted in ascending order by |(id,timestamp)|;
- *     no position-to-id matching is ever assumed.
+ *  4) versioned values, sorted by |id| (in ascending order) and then by |timestamp| (in descending order);
+ *     note that no position-to-id matching is ever assumed.
+ *
+ *  The order of values described in 4) is typically referred to as "canonical".
  *
  *  Memory layout:
  *  1) TVersionedRowHeader
@@ -312,7 +314,10 @@ Stroka ToString(const TVersionedOwningRow& row);
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A helper used for constructing TVersionedRow instances.
-//! Not very efficient, only useful in tests.
+/*!
+ *  Not very efficient, only useful in tests.
+ *  The resulting row is canonically ordered.
+ */
 class TVersionedRowBuilder
 {
 public:

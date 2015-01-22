@@ -35,7 +35,7 @@ struct IVersionedReader
      *      (for compactions).
      *
      *  Value ids correspond to column indexes in schema.
-     *  Values are sorted in ascending order by ids, and then in ascending order by timestamps.
+     *  The returned rows are canonically sorted (see TVersionedRow).
      *
      *  If |false| is returned then the end of the rowset is reached.
      *  If |true| is returned but |rows| is empty then no more data is available at the moment.
