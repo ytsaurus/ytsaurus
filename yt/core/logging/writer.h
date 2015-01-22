@@ -47,7 +47,10 @@ protected:
     TOutputStream* Stream_;
 
 private:
+    class TDateFormatter;
+
     std::unique_ptr<TMessageBuffer> Buffer_;
+    std::unique_ptr<TDateFormatter> DateFormatter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
