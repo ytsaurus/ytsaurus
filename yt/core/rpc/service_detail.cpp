@@ -696,23 +696,32 @@ void TServiceBase::RegisterCancelableRequest(TServiceContext* context)
     const auto& requestId = context->GetRequestId();
     const auto& replyBus = context->GetReplyBus();
 
+    bool subscribe = false;
     int requestsPerBus;
     {
         TGuard<TSpinLock> guard(CancelableRequestLock_);
         // NB: We're OK with duplicate request ids.
         IdToContext_.insert(std::make_pair(requestId, context));
-        auto& contexts = ReplyBusToContexts_[context->GetReplyBus()];
+        auto it = ReplyBusToContexts_.find(context->GetReplyBus());
+        if (it == ReplyBusToContexts_.end()) {
+            subscribe = true;
+            it = ReplyBusToContexts_.insert(std::make_pair(
+                context->GetReplyBus(),
+                yhash_set<TServiceContext*>())).first;
+        }
+        auto& contexts = it->second;
         contexts.insert(context);
         requestsPerBus = contexts.size();
     }
 
-    if (requestsPerBus == 1) {
+    if (subscribe) {
         replyBus->SubscribeTerminated(BIND(&TServiceBase::OnReplyBusTerminated, MakeWeak(this), replyBus));
     }
 
-    LOG_DEBUG("Cancelable request registered (RequestId: %v, ReplyBus: %p, RequestsPerBus: %v)",
+    LOG_DEBUG("Cancelable request registered (RequestId: %v, ReplyBus: %p, Subscribe: %v, RequestsPerBus: %v)",
         requestId,
         replyBus.Get(),
+        subscribe,
         requestsPerBus);
 }
 

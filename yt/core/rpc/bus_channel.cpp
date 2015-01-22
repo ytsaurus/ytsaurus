@@ -269,8 +269,8 @@ private:
                 const auto& requestControl = pair.second;
                 LOG_DEBUG(error, "Request failed due to channel termination (RequestId: %v)",
                     requestId);
-                requestControl->Finalize();
                 requestControl->GetResponseHandler()->HandleError(error);
+                requestControl->Finalize();
             }
         }
 
@@ -355,14 +355,15 @@ private:
                 }
 
                 requestControl->TimingCheckpoint(STRINGBUF("cancel"));
-                UnregisterRequest(it);
+                ActiveRequestMap_.erase(it);
             }
 
             LOG_DEBUG("Request canceled (RequestId: %v)",
                 requestId);
 
-            auto error = TError(NYT::EErrorCode::Canceled, "Request canceled");
-            NotifyError(requestControl, error);
+            NotifyError(
+                requestControl,
+                TError(NYT::EErrorCode::Canceled, "Request canceled"));
 
             IBusPtr bus;
             {
@@ -384,6 +385,8 @@ private:
 
             auto message = CreateRequestCancelationMessage(header);
             bus->Send(std::move(message), EDeliveryTrackingLevel::None);
+
+            requestControl->Finalize();
         }
 
         void HandleTimeout(TClientRequestControlPtr requestControl)
@@ -404,11 +407,14 @@ private:
                 }
 
                 requestControl->TimingCheckpoint(STRINGBUF("timeout"));
-                UnregisterRequest(it);
+                ActiveRequestMap_.erase(it);
             }
 
-            auto error = TError(NYT::EErrorCode::Timeout, "Request timed out");
-            NotifyError(requestControl, error);
+            NotifyError(
+                requestControl,
+                TError(NYT::EErrorCode::Timeout, "Request timed out"));
+
+            requestControl->Finalize();
         }
 
         void HandleMessage(TSharedRefArray message, IBusPtr /*replyBus*/)
@@ -443,21 +449,25 @@ private:
 
                 requestControl = it->second;
                 requestControl->TimingCheckpoint(STRINGBUF("reply"));
-                UnregisterRequest(it);
+                ActiveRequestMap_.erase(it);
             }
 
-            TError error;
-            if (header.has_error()) {
-                error = FromProto<TError>(header.error());
-            }
-            if (error.IsOK()) {
-                NotifyResponse(requestControl, std::move(message));
-            } else {
-                if (error.GetCode() == EErrorCode::PoisonPill) {
-                    LOG_FATAL(error, "Poison pill received");
+            {
+                TError error;
+                if (header.has_error()) {
+                    error = FromProto<TError>(header.error());
                 }
-                NotifyError(requestControl, error);
+                if (error.IsOK()) {
+                    NotifyResponse(requestControl, std::move(message));
+                } else {
+                    if (error.GetCode() == EErrorCode::PoisonPill) {
+                        LOG_FATAL(error, "Poison pill received");
+                    }
+                    NotifyError(requestControl, error);
+                }
             }
+
+            requestControl->Finalize();
         }
 
     private:
@@ -492,18 +502,18 @@ private:
                         requestId);
                 } else {
                     // NB: Make copies, the instance will die soon.
-                    auto activeRequest = it->second;
-
-                    UnregisterRequest(it);
+                    auto requestControl = it->second;
+                    ActiveRequestMap_.erase(it);
 
                     // Don't need the guard anymore.
                     guard.Release();
 
-                    auto detailedError = TError(
-                        NRpc::EErrorCode::TransportError,
-                        "Request serialization failed")
-                         << requestMessageOrError;
-                    NotifyError(activeRequest, detailedError);
+                    NotifyError(
+                        requestControl,
+                        TError(NRpc::EErrorCode::TransportError, "Request serialization failed")
+                            << requestMessageOrError);
+
+                    requestControl->Finalize();
                 }
                 return;
             }
@@ -532,6 +542,7 @@ private:
             VERIFY_THREAD_AFFINITY_ANY();
 
             TClientRequestControlPtr requestControl;
+            bool finalize = false;
             {
                 TGuard<TSpinLock> guard(SpinLock_);
 
@@ -546,27 +557,23 @@ private:
                 requestControl = it->second;
                 requestControl->TimingCheckpoint(STRINGBUF("ack"));
                 if (!error.IsOK() || requestControl->GetRequest()->IsOneWay()) {
-                    UnregisterRequest(it);
+                    ActiveRequestMap_.erase(it);
+                    finalize = true;
                 }
             }
 
             if (error.IsOK()) {
                 NotifyAcknowledgement(requestControl);
             } else {
-                auto detailedError = TError(
-                    NRpc::EErrorCode::TransportError,
-                    "Request acknowledgment failed")
-                    << error;
-                NotifyError(requestControl, detailedError);
+                NotifyError(
+                    requestControl,
+                    TError(NRpc::EErrorCode::TransportError, "Request acknowledgment failed")
+                         << error);
             }
-        }
 
-        void UnregisterRequest(TActiveRequestMap::iterator it)
-        {
-            VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-
-            it->second->Finalize();
-            ActiveRequestMap_.erase(it);
+            if (finalize) {
+                requestControl->Finalize();
+            }
         }
 
 
@@ -679,6 +686,8 @@ private:
         {
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
             Profiler.TimingStop(Timer_, STRINGBUF("total"));
+            Request_.Reset();
+            ResponseHandler_.Reset();
         }
 
         virtual void Cancel() override
@@ -688,9 +697,9 @@ private:
 
     private:
         const TSessionPtr Session_;
-        const IClientRequestPtr Request_;
+        IClientRequestPtr Request_;
         const TNullable<TDuration> Timeout_;
-        const IClientResponseHandlerPtr ResponseHandler_;
+        IClientResponseHandlerPtr ResponseHandler_;
 
         TDelayedExecutorCookie TimeoutCookie_;
         NProfiling::TTimer Timer_;
