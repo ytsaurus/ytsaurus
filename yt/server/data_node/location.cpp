@@ -608,9 +608,11 @@ void TLocation::RegisterTrashChunk(const TChunkId& chunkId)
     for (const auto& name : partNames) {
         auto directory = NFS::GetDirectoryName(GetTrashChunkPath(chunkId));
         auto fileName = NFS::CombinePaths(directory, name);
-        auto statistics = NFS::GetFileStatistics(fileName);
-        timestamp = std::max(timestamp, statistics.ModificationTime);
-        diskSpace += statistics.Size;
+        if (NFS::Exists(fileName)) {
+            auto statistics = NFS::GetFileStatistics(fileName);
+            timestamp = std::max(timestamp, statistics.ModificationTime);
+            diskSpace += statistics.Size;
+        }
     }
 
     {
