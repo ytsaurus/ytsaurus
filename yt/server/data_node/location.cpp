@@ -178,7 +178,7 @@ Stroka TLocation::GetTrashPath() const
 Stroka TLocation::GetRelativeChunkPath(const TChunkId& chunkId)
 {
     int hashByte = chunkId.Parts32[0] & 0xff;
-    return Format("%02x/%v", hashByte, chunkId);
+    return NFS::CombinePaths(Format("%02x", hashByte), ToString(chunkId));
 }
 
 std::vector<Stroka> TLocation::GetChunkPartNames(const TChunkId& chunkId) const
