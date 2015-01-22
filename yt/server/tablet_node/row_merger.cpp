@@ -229,7 +229,6 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
     auto partialValueIt = PartialValues_.begin();
     while (partialValueIt != PartialValues_.end()) {
         // Extract a range of values for the current column.
-        ColumnValues_.clear();
         auto columnBeginIt = partialValueIt;
         auto columnEndIt = partialValueIt;
         while (columnEndIt != PartialValues_.end() && columnEndIt->Id == partialValueIt->Id) {
@@ -239,9 +238,9 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         // Merge with delete timestamps and put result into ColumnValues_.
         // Delete timestamps are represented by TheBottom sentinels.
         {
+            ColumnValues_.clear();
             auto timestampBeginIt = DeleteTimestamps_.begin();
             auto timestampEndIt = DeleteTimestamps_.end();
-            ColumnValues_.clear();
             auto columnValueIt = columnBeginIt;
             auto timestampIt = timestampBeginIt;
             while (columnValueIt != columnEndIt || timestampIt != timestampEndIt) {
@@ -296,11 +295,11 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         }
 
         // Save output values and timestamps.
-        for (auto it = retentionBeginIt; it != ColumnValues_.end(); ++it) {
+        for (auto it = ColumnValues_.rbegin(); it.base() != retentionBeginIt; ++it) {
             const auto& value = *it;
             if (value.Type != EValueType::TheBottom) {
                 WriteTimestamps_.push_back(value.Timestamp);
-                MergedValues_.push_back(*it);
+                MergedValues_.push_back(value);
             }
         }
 

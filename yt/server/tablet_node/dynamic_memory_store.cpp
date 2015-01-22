@@ -380,7 +380,7 @@ protected:
             versionedRow.BeginDeleteTimestamps(),
             versionedRow.EndDeleteTimestamps());
 
-        // Fixed values (sorted by |(id,timestamp)| pairs in ascending order).
+        // Fixed values (sorted by |id| in ascending order and then by |timestamp| in descending order).
         auto copyFixedValues = [] (const TValueListSnapshot& snapshot, TVersionedValue* beginValues) -> TVersionedValue* {
             auto currentList = snapshot.List;
             auto* currentValue = beginValues;
@@ -391,7 +391,6 @@ protected:
                 }
                 currentList = currentList.GetSuccessor();
             }
-            std::reverse(beginValues, currentValue);
             return currentValue;
         };
         {
