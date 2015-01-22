@@ -35,7 +35,7 @@ else()
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
 
-  if(NOT LLVM_VERSION VERSION_GREATER "3.5")
+  if(LLVM_VERSION VERSION_LESS "3.6")
     message(FATAL_ERROR "LLVM 3.6+ is required.")
   endif()
 
