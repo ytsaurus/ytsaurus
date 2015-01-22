@@ -4,6 +4,7 @@
 #include "scheduler.h"
 #include "fls.h"
 #include "thread_affinity.h"
+#include "atomic_flag_spinlock.h"
 #include "private.h"
 
 #include <core/misc/lazy_ptr.h>
@@ -33,9 +34,8 @@ TFiber::TFiber(TClosure callee, EExecutionStack stack)
     , Canceled_(false)
 {
 #ifdef DEBUG
-    while (FiberRegistryLock.test_and_set(std::memory_order_acquire));
+    TGuard<std::atomic_flag> guard(FiberRegistryLock);
     Iterator_ = FiberRegistry.insert(FiberRegistry.begin(), this);
-    FiberRegistryLock.clear(std::memory_order_release);
 #endif
 }
 
@@ -49,9 +49,8 @@ TFiber::~TFiber()
         }
     }
 #ifdef DEBUG
-    while (FiberRegistryLock.test_and_set(std::memory_order_acquire));
+    TGuard<std::atomic_flag> guard(FiberRegistryLock);
     FiberRegistry.erase(Iterator_);
-    FiberRegistryLock.clear(std::memory_order_release);
 #endif
 }
 
