@@ -296,7 +296,7 @@ private:
                     .EndMap());
 
             for (const auto& address : Config_->Master->Addresses) {
-                auto addressPath = "/" + ToYPathLiteral(address);
+                auto addressPath = "/" + ToYPathLiteral(*address);
 
                 CreateNode(
                     "//sys/masters" + addressPath,

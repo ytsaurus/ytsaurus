@@ -76,7 +76,7 @@ TPeerId TCellManager::GetSelfPeerId() const
 
 const Stroka& TCellManager::GetSelfAddress() const
 {
-    return GetPeerAddress(GetSelfPeerId());
+    return *GetPeerAddress(GetSelfPeerId());
 }
 
 int TCellManager::GetQuorumCount() const
@@ -89,7 +89,7 @@ int TCellManager::GetPeerCount() const
     return Config->Addresses.size();
 }
 
-const Stroka& TCellManager::GetPeerAddress(TPeerId id) const
+const TNullable<Stroka>& TCellManager::GetPeerAddress(TPeerId id) const
 {
     return Config->Addresses[id];
 }
@@ -154,8 +154,12 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig)
 
 IChannelPtr TCellManager::CreatePeerChannel(TPeerId id)
 {
+    auto maybeAddress = GetPeerAddress(id);
+    if (!maybeAddress) {
+        return nullptr;
+    }
     return CreateRealmChannel(
-        ChannelFactory->CreateChannel(GetPeerAddress(id)),
+        ChannelFactory->CreateChannel(*maybeAddress),
         Config->CellId);
 }
 
