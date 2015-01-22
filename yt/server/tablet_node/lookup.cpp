@@ -227,7 +227,7 @@ void LookupRows(
     LOG_DEBUG("Looking up %v keys (TabletId: %v, CellId: %v, Session: %v)",
         session->GetLookupKeys().size(),
         tabletSnapshot->TabletId,
-        tabletSnapshot->Slot->GetCellId(),
+        tabletSnapshot->Slot ? tabletSnapshot->Slot->GetCellId() : NullCellId,
         session.get());
 
     auto resultHolder = session->Run(std::move(poolInvoker), writer);
