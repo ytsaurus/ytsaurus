@@ -620,6 +620,20 @@ class TestSchedulerMapCommands(YTEnvSetup):
         for job_id in ls(jobs_path):
             assert len(download(jobs_path + "/" + job_id + "/fail_contexts/0")) > 0
 
+    def test_generate_input_context(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write("//tmp/t1", {"foo": "bar"})
+
+        op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command="sleep 2; cat")
+
+        jobs_path = "//sys/operations/" + op_id + "/jobs"
+        for job_id in ls(jobs_path):
+            probe(job_id)
+
+        track_op(op_id)
+
+
     @only_linux
     def test_sorted_output(self):
         create("table", "//tmp/t1")

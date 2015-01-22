@@ -73,7 +73,7 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetReplicationOutThrottler() const;
     NConcurrency::IThroughputThrottlerPtr GetRepairInThrottler() const;
     NConcurrency::IThroughputThrottlerPtr GetRepairOutThrottler() const;
-    
+
     NConcurrency::IThroughputThrottlerPtr GetInThrottler(NChunkClient::EWriteSessionType sessionType) const;
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EWriteSessionType sessionType) const;
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EReadSessionType sessionType) const;
