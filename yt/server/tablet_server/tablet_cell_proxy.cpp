@@ -73,7 +73,7 @@ private:
 
         attributes->push_back("health");
         attributes->push_back("peers");
-        attributes->push_back("tablet_ids");
+        attributes->push_back(TAttributeInfo("tablet_ids", true, true));
         attributes->push_back("config_version");
         attributes->push_back(TAttributeInfo("prerequisite_transaction_id", cell->GetPrerequisiteTransaction() != nullptr));
 
