@@ -111,16 +111,17 @@ def pretty_format(error, indent=0):
 
     attributes = error.get("attributes", {})
 
-    origin_keys = ["host", "datetime", "pid", "tid"]
+    origin_keys = ["host", "datetime", "pid", "tid", "fid"]
     if all(key in attributes for key in origin_keys):
         lines.append(
             format_attribute(
                 "origin",
-                "%s in %s (pid %d, tid %x)" % (
+                "%s in %s (pid %d, tid %x, fid %x)" % (
                     attributes["host"],
                     attributes["datetime"],
                     attributes["pid"],
-                    attributes["tid"])))
+                    attributes["tid"],
+                    attributes["fid"])))
 
     location_keys = ["file", "line"]
     if all(key in attributes for key in location_keys):
