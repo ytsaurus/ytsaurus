@@ -289,9 +289,7 @@ TEST_F(TVersionedRowMergerTest, KeepAll2)
     EXPECT_EQ(
         BuildVersionedRow(
             "0",
-            "<id=1;ts=100> 1;"
-            "<id=1;ts=200> 2;"
-            "<id=1;ts=300> 3;"),
+            "<id=1;ts=300> 3; <id=1;ts=200> 2; <id=1;ts=100> 1;"),
         merger.BuildMergedRow());
 }
 
@@ -310,7 +308,7 @@ TEST_F(TVersionedRowMergerTest, KeepAll3)
     EXPECT_EQ(
         BuildVersionedRow(
             "0",
-            "<id=1;ts=100> 1; <id=1;ts=200> 2; <id=1;ts=300> 3;",
+            "<id=1;ts=300> 3; <id=1;ts=200> 2; <id=1;ts=100> 1;",
             { 50, 150, 250 }),
         merger.BuildMergedRow());
 }
@@ -330,7 +328,7 @@ TEST_F(TVersionedRowMergerTest, KeepAll4)
     EXPECT_EQ(
         BuildVersionedRow(
             "0",
-            "<id=1;ts=100> 1; <id=1;ts=200> 2; <id=1;ts=300> 3;"
+            "<id=1;ts=300> 3; <id=1;ts=200> 2; <id=1;ts=100> 1;"
             "<id=2;ts=200> 3.14;"
             "<id=3;ts=500> \"test\";"),
         merger.BuildMergedRow());
@@ -350,8 +348,8 @@ TEST_F(TVersionedRowMergerTest, KeepAll5)
     EXPECT_EQ(
         BuildVersionedRow(
             "0",
-            "<id=1;ts=100> 1; <id=1;ts=200> 2;"
-            "<id=2;ts=100> 3; <id=2;ts=200> 4"),
+            "<id=1;ts=200> 2; <id=1;ts=100> 1;"
+            "<id=2;ts=200> 4; <id=2;ts=100> 3;"),
         merger.BuildMergedRow());
 }
 
@@ -391,7 +389,9 @@ TEST_F(TVersionedRowMergerTest, KeepLatest2)
     EXPECT_EQ(
         BuildVersionedRow(
             "0",
-            "<id=1;ts=200> 2; <id=2;ts=100> 3.14; <id=3;ts=300> \"test\""),
+            "<id=1;ts=200> 2;"
+            "<id=2;ts=100> 3.14;"
+            "<id=3;ts=300> \"test\""),
         merger.BuildMergedRow());
 }
 
@@ -447,7 +447,7 @@ TEST_F(TVersionedRowMergerTest, KeepLatest5)
     EXPECT_EQ(
         BuildVersionedRow(
             "0",
-            "<id=1;ts=200> 2; <id=1;ts=300> 3;",
+            "<id=1;ts=300> 3; <id=1;ts=200> 2;",
             { 250 }),
         merger.BuildMergedRow());
 }
@@ -523,7 +523,7 @@ TEST_F(TVersionedRowMergerTest, Expire3)
     EXPECT_EQ(
         BuildVersionedRow(
             "0",
-            "<id=1;ts=300> 3; <id=1;ts=400> 4;"
+            "<id=1;ts=400> 4; <id=1;ts=300> 3;"
             "<id=2;ts=200> 3.14;"
             "<id=3;ts=300> \"test\";",
             { 350 }),

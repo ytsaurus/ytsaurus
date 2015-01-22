@@ -253,10 +253,10 @@ TVersionedRow TVersionedRowBuilder::FinishRow()
                 return false;
             }
             if (lhs.Timestamp < rhs.Timestamp) {
-                return true;
+                return false;
             }
             if (lhs.Timestamp > rhs.Timestamp) {
-                return false;
+                return true;
             }
             return false;
         });
