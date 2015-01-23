@@ -93,6 +93,10 @@ struct ISchemalessTableReader
     : public ISchemalessReader
 {
     virtual i64 GetTableRowIndex() const = 0;
+
+    //! Approximate row count readable with this reader.
+    //! May change over time and finally converges to actually read row count.
+    virtual i64 GetSessionRowCount() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessTableReader)
