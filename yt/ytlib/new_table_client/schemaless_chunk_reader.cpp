@@ -101,7 +101,7 @@ private:
 
     int CurrentBlockIndex_;
     i64 CurrentRowIndex_;
-    i64 RowCount_;
+    i64 RowCount_ = 0;
 
     TChunkMeta ChunkMeta_;
     TBlockMetaExt BlockMetaExt_;
@@ -150,7 +150,6 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     , KeyColumns_(keyColumns)
     , TableRowIndex_(tableRowIndex)
     , PartitionTag_(partitionTag)
-    , RowCount_(0)
     , ChunkMeta_(masterMeta)
 {
     Logger.AddTag("SchemalessChunkReader: %p", this);
@@ -262,6 +261,9 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::CreateBlockSe
     std::vector<TSequentialReader::TBlockInfo> blocks;
 
     if (beginIndex >= BlockMetaExt_.blocks_size()) {
+        // Take the last block meta.
+        auto& blockMeta = *(--BlockMetaExt_.blocks().end());
+        CurrentRowIndex_ = blockMeta.chunk_row_count();
         return blocks;
     }
 
@@ -641,6 +643,7 @@ public:
 
     virtual i64 GetTableRowIndex() const override;
     virtual TNameTablePtr GetNameTable() const override;
+    virtual i64 GetSessionRowCount() const override;
 
 private:
     typedef TSchemalessMultiChunkReader<TSequentialMultiChunkReaderBase> TUnderlyingReader;
@@ -806,6 +809,12 @@ i64 TSchemalessTableReader::GetTableRowIndex() const
 {
     YCHECK(UnderlyingReader_);
     return UnderlyingReader_->GetTableRowIndex();
+}
+
+i64 TSchemalessTableReader::GetSessionRowCount() const
+{
+    YCHECK(UnderlyingReader_);
+    return UnderlyingReader_->GetSessionRowCount();
 }
 
 TNameTablePtr TSchemalessTableReader::GetNameTable() const
