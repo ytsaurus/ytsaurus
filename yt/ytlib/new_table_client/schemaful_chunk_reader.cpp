@@ -8,6 +8,8 @@
 #include "schema.h"
 #include "schemaful_reader.h"
 #include "unversioned_row.h"
+#include "schemaless_chunk_reader.h"
+#include "schemaful_reader_adapter.h"
 
 #include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/chunk_spec.h>
@@ -539,6 +541,23 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
                 New<TChunkReaderOptions>());
 
             return New<TTableChunkReaderAdapter>(std::move(tableChunkReader));
+        }
+
+        case ETableChunkFormat::SchemalessHorizontal: {
+            auto createSchemalessReader = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
+                return CreateSchemalessChunkReader(
+                    std::move(config),
+                    std::move(chunkReader),
+                    std::move(nameTable),
+                    std::move(uncompressedBlockCache),
+                    TKeyColumns(),
+                    chunkMeta,
+                    lowerLimit,
+                    upperLimit,
+                    columnFilter);
+            };
+
+            return CreateSchemafulReaderAdapter(createSchemalessReader);
         }
 
         case ETableChunkFormat::Schemaful:

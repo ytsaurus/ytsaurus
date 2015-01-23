@@ -54,6 +54,24 @@ TUnversionedRow TSchemalessRowReorderer::ReorderRow(TUnversionedRow row, TChunke
     return result;
 }
 
+TUnversionedRow TSchemalessRowReorderer::ReorderKey(TUnversionedRow row, TChunkedMemoryPool* memoryPool)
+{
+    TUnversionedRow result = TUnversionedRow::Allocate(memoryPool, KeyColumns_.size());
+    // Initialize with empty key.
+    ::memcpy(result.Begin(), EmptyKey_.data(), KeyColumns_.size() * sizeof(TUnversionedValue));
+
+    for (auto it = row.Begin(); it != row.End(); ++it) {
+        const auto& value = *it;
+        if (value.Id < IdMapping_.size()) {
+            int keyIndex = IdMapping_[value.Id];
+            if (keyIndex >= 0) {
+                result.Begin()[keyIndex] = value;
+            }
+        }
+    }
+    return result;
+}
+
 TUnversionedOwningRow TSchemalessRowReorderer::ReorderRow(TUnversionedRow row)
 {
     std::vector<TUnversionedValue> result = EmptyKey_;
