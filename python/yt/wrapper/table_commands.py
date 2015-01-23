@@ -75,6 +75,8 @@ import sys
 import types
 import exceptions
 import tempfile
+import socket
+import getpass
 import simplejson as json
 from cStringIO import StringIO
 
@@ -280,7 +282,13 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
     return spec, files + additional_files
 
 def _configure_spec(spec):
-    spec = update({"wrapper_version": get_version()}, spec)
+    started_by = {
+        "hostname": socket.getfqdn(),
+        "pid": os.getpid(),
+        "user": getpass.getuser(),
+        "command": sys.argv,
+        "wrapper_version": get_version()}
+    spec = update({"started_by": started_by}, spec)
     if config.POOL is not None:
         spec = update({"pool": config.POOL}, spec)
     if config.INTERMEDIATE_DATA_ACCOUNT is not None:
