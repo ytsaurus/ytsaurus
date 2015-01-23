@@ -64,6 +64,8 @@ public:
 public:
     TLoadContext();
 
+    void Reset();
+
     void RegisterEntity(TEntityBase* entity);
 
     template <class T>
