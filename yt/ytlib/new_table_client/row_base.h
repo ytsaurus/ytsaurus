@@ -37,6 +37,14 @@ struct TColumnFilter
         , Indexes(indexes.begin(), indexes.end())
     { }
 
+    TColumnFilter(int schemaColumnCount)
+        : All(false)
+    {
+        for (int i = 0; i < schemaColumnCount; ++i) {
+            Indexes.push_back(i);
+        }
+    }
+
     bool All;
     SmallVector<int, TypicalColumnCount> Indexes;
 };

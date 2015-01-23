@@ -135,7 +135,6 @@ TEST_F(TSchemalessChunksTest, ReadAllUnsorted)
     std::vector<TUnversionedRow> expected = CreateManyRows();
 
     TColumnFilter columnFilter;
-    columnFilter.All = true;
 
     auto chunkReader = CreateSchemalessChunkReader(
         New<TChunkReaderConfig>(),
@@ -172,7 +171,6 @@ TEST_F(TSchemalessChunksTest, EmptyRead)
     std::vector<TUnversionedRow> expected;
 
     TColumnFilter columnFilter;
-    columnFilter.All = true;
 
     TReadLimit lowerLimit;
     lowerLimit.SetRowIndex(SmallRowCount);
@@ -215,7 +213,6 @@ TEST_F(TSchemalessChunksTest, ReadSortedRange)
     std::vector<TUnversionedRow> expected = CreateManyRows(100000, 800000);
 
     TColumnFilter columnFilter;
-    columnFilter.All = true;
 
     TUnversionedOwningRowBuilder lowerBuilder;
     lowerBuilder.AddValue(MakeUnversionedStringValue(A, 0));
