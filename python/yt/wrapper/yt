@@ -603,8 +603,9 @@ def add_execute_parser(add_parser):
 def main():
     config_parser = ArgumentParser(add_help=False)
     config_parser.add_argument("--proxy", help="specify cluster to run command, "
-                                               "by default YT_PREFIX from environment")
-    config_parser.add_argument("--prefix", help="specify common prefix for all relative paths")
+                                               "by default YT_PROXY from environment")
+    config_parser.add_argument("--prefix", help="specify common prefix for all relative paths, "
+                                                "by default YT_PREFIX from environment")
     config_parser.add_argument("--tx", help="perform command in the context of the given "
                                             "transaction, by default 0-0-0-0")
     config_parser.add_argument("--ping-ancestor-txs", action="store_true",
