@@ -25,6 +25,11 @@ TLoadContext::TLoadContext()
     : Version_(-1)
 { }
 
+void TLoadContext::Reset()
+{
+    Entities_.clear();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompositeAutomatonPart::TCompositeAutomatonPart(
@@ -235,6 +240,7 @@ void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
     auto checkpointableInput = CreateCheckpointableInputStream(&bufferedInput);
 
     auto& context = LoadContext();
+    context.Reset();
     context.SetInput(checkpointableInput.get());
 
     LOG_INFO("Started loading composite automaton");
