@@ -390,13 +390,13 @@ private:
             bus->Send(std::move(message), EDeliveryTrackingLevel::None);
         }
 
-        void HandleTimeout(TClientRequestControlPtr requestControl)
+        void HandleTimeout(const TRequestId& requestId)
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            auto request = requestControl->GetRequest();
-            auto responseHandler = requestControl->GetResponseHandler();
-            const auto& requestId = request->GetRequestId();
+            TClientRequestControlPtr requestControl;
+            IClientRequestPtr request;
+            IClientResponseHandlerPtr responseHandler;
             {
                 TGuard<TSpinLock> guard(SpinLock_);
 
@@ -407,6 +407,9 @@ private:
                     return;
                 }
 
+                requestControl = it->second;
+                request = requestControl->GetRequest();
+                responseHandler = requestControl->GetResponseHandler();
                 requestControl->TimingCheckpoint(STRINGBUF("timeout"));
                 requestControl->Finalize();
                 ActiveRequestMap_.erase(it);
@@ -666,7 +669,7 @@ private:
 
             if (Timeout_) {
                 TimeoutCookie_ = TDelayedExecutor::Submit(
-                    BIND(&TClientRequestControl::OnTimeout, MakeStrong(this)),
+                    BIND(&TSession::HandleTimeout, Session_, Request_->GetRequestId()),
                     *Timeout_);
             }
         }
@@ -712,12 +715,6 @@ private:
 
         TDelayedExecutorCookie TimeoutCookie_;
         NProfiling::TTimer Timer_;
-
-
-        void OnTimeout()
-        {
-            Session_->HandleTimeout(this);
-        }
 
     };
 
