@@ -38,9 +38,9 @@ public:
 
     TJobIOConfig()
     {
-        RegisterParameter("new_table_reader", NewTableReader)
+        RegisterParameter("table_reader", NewTableReader)
             .DefaultNew();
-        RegisterParameter("new_table_writer", NewTableWriter)
+        RegisterParameter("table_writer", NewTableWriter)
             .DefaultNew();
 
         RegisterParameter("error_file_writer", ErrorFileWriter)

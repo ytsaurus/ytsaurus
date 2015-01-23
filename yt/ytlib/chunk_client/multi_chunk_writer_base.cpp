@@ -51,7 +51,6 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId)
     : Logger(ChunkClientLogger)
-    , Config_(config)
     , Options_(options)
     , MasterChannel_(masterChannel)
     , TransactionId_(transactionId)
@@ -64,8 +63,11 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     , CompletionError_(NewPromise<void>())
     , CloseChunksAwaiter_(New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker()))
 {
-    YCHECK(Config_);
+    YCHECK(config);
     YCHECK(MasterChannel_);
+
+    Config_ = CloneYsonSerializable(config);
+    Config_->UploadReplicationFactor = std::min(Options_->ReplicationFactor, Config_->UploadReplicationFactor);
 
     Logger.AddTag("TransactionId: %v", TransactionId_);
 }
