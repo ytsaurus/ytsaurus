@@ -341,9 +341,9 @@ private:
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            auto request = requestControl->GetRequest();
-            auto responseHandler = requestControl->GetResponseHandler();
-            const auto& requestId = request->GetRequestId();
+            const auto& requestId = requestControl->GetRequestId();
+            IClientRequestPtr request;
+            IClientResponseHandlerPtr responseHandler;
             {
                 TGuard<TSpinLock> guard(SpinLock_);
 
@@ -354,6 +354,8 @@ private:
                     return;
                 }
 
+                request = requestControl->GetRequest();
+                responseHandler = requestControl->GetResponseHandler();
                 requestControl->TimingCheckpoint(STRINGBUF("cancel"));
                 requestControl->Finalize();
                 ActiveRequestMap_.erase(it);
@@ -658,6 +660,7 @@ private:
             IClientResponseHandlerPtr responseHandler)
             : Session_(std::move(session))
             , Request_(std::move(request))
+            , RequestId_(Request_->GetRequestId())
             , Timeout_(timeout)
             , ResponseHandler_(std::move(responseHandler))
         {
@@ -669,7 +672,7 @@ private:
 
             if (Timeout_) {
                 TimeoutCookie_ = TDelayedExecutor::Submit(
-                    BIND(&TSession::HandleTimeout, Session_, Request_->GetRequestId()),
+                    BIND(&TSession::HandleTimeout, Session_, RequestId_),
                     *Timeout_);
             }
         }
@@ -677,6 +680,11 @@ private:
         const IClientRequestPtr& GetRequest() const
         {
             return Request_;
+        }
+
+        const TRequestId& GetRequestId() const
+        {
+            return RequestId_;
         }
 
         TNullable<TDuration> GetTimeout() const
@@ -710,6 +718,7 @@ private:
     private:
         const TSessionPtr Session_;
         IClientRequestPtr Request_;
+        const TRequestId RequestId_;
         const TNullable<TDuration> Timeout_;
         IClientResponseHandlerPtr ResponseHandler_;
 
