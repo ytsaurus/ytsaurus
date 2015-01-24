@@ -268,7 +268,7 @@ protected:
             return;
 
         auto chunkManager = Bootstrap->GetChunkManager();
-        chunkManager->ScheduleChunkSeal(journal->GetTrailingChunk());
+        chunkManager->MaybeScheduleChunkSeal(journal->GetTrailingChunk());
     }
 
 };

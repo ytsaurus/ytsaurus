@@ -20,7 +20,7 @@ public:
 
     void Start();
 
-    void ScheduleSeal(TChunk* chunk);
+    void MaybeScheduleSeal(TChunk* chunk);
 
 private:
     class TImpl;

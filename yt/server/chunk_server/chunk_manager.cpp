@@ -736,9 +736,9 @@ public:
         ChunkReplicator_->SchedulePropertiesUpdate(chunkTree);
     }
 
-    void ScheduleChunkSeal(TChunk* chunk)
+    void MaybeScheduleChunkSeal(TChunk* chunk)
     {
-        ChunkSealer_->ScheduleSeal(chunk);
+        ChunkSealer_->MaybeScheduleSeal(chunk);
     }
 
 
@@ -1313,7 +1313,7 @@ private:
         }
 
         if (ChunkSealer_ && !cached && chunk->IsJournal()) {
-            ChunkSealer_->ScheduleSeal(chunk);
+            ChunkSealer_->MaybeScheduleSeal(chunk);
         }
 
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
@@ -1793,9 +1793,9 @@ void TChunkManager::ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree)
     Impl_->ScheduleChunkPropertiesUpdate(chunkTree);
 }
 
-void TChunkManager::ScheduleChunkSeal(TChunk* chunk)
+void TChunkManager::MaybeScheduleChunkSeal(TChunk* chunk)
 {
-    Impl_->ScheduleChunkSeal(chunk);
+    Impl_->MaybeScheduleChunkSeal(chunk);
 }
 
 int TChunkManager::GetTotalReplicaCount()
