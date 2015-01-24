@@ -837,7 +837,7 @@ IPrioritizedInvokerPtr TServiceBase::GetDefaultInvoker()
 void TServiceBase::BeforeInvoke()
 { }
 
-bool TServiceBase::IsUp() const
+bool TServiceBase::IsUp(TCtxDiscoverPtr /*context*/) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -855,7 +855,7 @@ DEFINE_RPC_SERVICE_METHOD(TServiceBase, Discover)
 {
     context->SetRequestInfo();
 
-    response->set_up(IsUp());
+    response->set_up(IsUp(context));
     ToProto(response->mutable_suggested_addresses(), SuggestAddresses());
 
     context->SetResponseInfo("Up: %v, SuggestedAddresses: [%v]",

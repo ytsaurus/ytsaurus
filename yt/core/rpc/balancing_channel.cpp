@@ -32,9 +32,11 @@ class TBalancingChannelProvider
 public:
     explicit TBalancingChannelProvider(
         TBalancingChannelConfigPtr config,
-        IChannelFactoryPtr channelFactory)
+        IChannelFactoryPtr channelFactory,
+        TDiscoverRequestHook discoverRequestHook)
         : Config_(config)
         , ChannelFactory_(channelFactory)
+        , DiscoverRequestHook_(discoverRequestHook)
         , Logger(RpcClientLogger)
     {
         Logger.AddTag("Channel: %v", this);
@@ -53,8 +55,9 @@ public:
     }
 
 private:
-    TBalancingChannelConfigPtr Config_;
-    IChannelFactoryPtr ChannelFactory_;
+    const TBalancingChannelConfigPtr Config_;
+    const IChannelFactoryPtr ChannelFactory_;
+    const TDiscoverRequestHook DiscoverRequestHook_;
 
     mutable TSpinLock SpinLock_;
     yhash_set<Stroka> ActiveAddresses_;
@@ -123,6 +126,10 @@ private:
                 proxy.SetDefaultTimeout(Owner_->Config_->DiscoverTimeout);
 
                 auto req = proxy.Discover();
+                if (Owner_->DiscoverRequestHook_) {
+                    Owner_->DiscoverRequestHook_.Run(req.Get());
+                }
+                
                 req->Invoke().Subscribe(BIND(
                     &TSession::OnResponse,
                     MakeStrong(this),
@@ -265,12 +272,16 @@ DEFINE_REFCOUNTED_TYPE(TBalancingChannelProvider)
 
 IChannelPtr CreateBalancingChannel(
     TBalancingChannelConfigPtr config,
-    IChannelFactoryPtr channelFactory)
+    IChannelFactoryPtr channelFactory,
+    TDiscoverRequestHook discoverRequestHook)
 {
     YCHECK(config);
     YCHECK(channelFactory);
 
-    auto channelProvider = New<TBalancingChannelProvider>(config, channelFactory);
+    auto channelProvider = New<TBalancingChannelProvider>(
+        config,
+        channelFactory,
+        discoverRequestHook);
     return CreateRoamingChannel(channelProvider);
 }
 
