@@ -400,8 +400,6 @@ struct IClientBase
         const NYPath::TYPath& path,
         const TJournalWriterOptions& options = TJournalWriterOptions()) = 0;
 
-    // TODO(babenko): scheduler commands
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IClientBase)
