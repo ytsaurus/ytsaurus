@@ -115,7 +115,7 @@ void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
 
 void Deserialize(TStatistics& value, NYTree::INodePtr node)
 {
-    // node represents a YSON encoded TStatistics or just a TSummary
+    // |node| represents a YSON-encoded TStatistics or just TSummary.
     try {
         TSummary summary;
         Deserialize(summary, node);
@@ -132,8 +132,7 @@ void Deserialize(TStatistics& value, NYTree::INodePtr node)
 TStatisticsConsumer::TStatisticsConsumer(
     TParsedStatisticsConsumer consumer,
     const NYPath::TYPath& path)
-    : Depth_(0)
-    , Path_(path)
+    : Path_(path)
     , TreeBuilder_(NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory()))
     , Consumer_(consumer)
 { }
@@ -234,7 +233,7 @@ void TStatisticsConsumer::ConvertToStatistics(TStatistics& value, NYTree::INodeP
         return;
     }
 
-    for (auto& pair : node->AsMap()->GetChildren()) {
+    for (const auto& pair : node->AsMap()->GetChildren()) {
         ConvertToStatistics(value, pair.second);
     }
 }
