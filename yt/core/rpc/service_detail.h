@@ -515,6 +515,8 @@ protected:
 
     typedef TIntrusivePtr<TRuntimeMethodInfo> TRuntimeMethodInfoPtr;
 
+    DECLARE_RPC_SERVICE_METHOD(NProto, Discover);
+
     //! Initializes the instance.
     /*!
      *  \param defaultInvoker
@@ -567,7 +569,7 @@ protected:
      *  \note
      *  Thread affinity: any
      */ 
-    virtual bool IsUp() const;
+    virtual bool IsUp(TCtxDiscoverPtr context) const;
 
     //! Used by peer discovery.
     //! Returns addresses of neighboring peers to be suggested to the client.
@@ -623,8 +625,6 @@ private:
     void RegisterCancelableRequest(TServiceContext* context);
     void UnregisterCancelableRequest(TServiceContext* context);
     TServiceContextPtr FindCancelableRequest(const TRequestId& requestId);
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, Discover);
 
 };
 

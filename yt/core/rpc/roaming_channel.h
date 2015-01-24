@@ -11,7 +11,7 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Enables on-demand channel construction with dynamicablly discovered endpoint.
+//! Enables on-demand channel construction with dynamically discovered endpoint.
 struct IRoamingChannelProvider
     : public virtual TRefCounted
 {
@@ -20,6 +20,8 @@ struct IRoamingChannelProvider
 };
 
 DEFINE_REFCOUNTED_TYPE(IRoamingChannelProvider)
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Creates a channel with a dynamically discovered endpoint.
 /*!
