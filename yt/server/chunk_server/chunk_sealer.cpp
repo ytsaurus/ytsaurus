@@ -160,6 +160,9 @@ private:
 
         SealQueue_.push_back(chunk);
         chunk->SetSealScheduled(true);
+
+        LOG_DEBUG("Chunk added to seal queue (ChunkId: %v)",
+            chunk->GetId());
     }
 
     TChunk* BeginDequeueChunk()
@@ -170,6 +173,8 @@ private:
         auto* chunk = SealQueue_.front();
         SealQueue_.pop_front();
         chunk->SetSealScheduled(false);
+        LOG_DEBUG("Chunk extracted from seal queue (ChunkId: %v)",
+            chunk->GetId());
         return chunk;
     }
 
@@ -242,24 +247,26 @@ private:
         }
 
         {
-            auto result = WaitFor(AbortSessionsQuorum(
+            auto asyncResult = AbortSessionsQuorum(
                 chunk->GetId(),
                 replicas,
                 Config_->JournalRpcTimeout,
-                chunk->GetReadQuorum()));
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                chunk->GetReadQuorum());
+            WaitFor(asyncResult)
+                .ThrowOnError();
         }
 
         auto req = TChunkYPathProxy::Seal(FromObjectId(chunk->GetId()));
         {
-            auto result = WaitFor(ComputeQuorumInfo(
+            auto asyncMiscExt = ComputeQuorumInfo(
                 chunk->GetId(),
                 replicas,
                 Config_->JournalRpcTimeout,
-                chunk->GetReadQuorum()));
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                chunk->GetReadQuorum());
+            auto miscExt = WaitFor(asyncMiscExt)
+                .ValueOrThrow();
             auto* info = req->mutable_info();
-            *info = result.Value();
+            *info = miscExt;
             info->set_sealed(true);
         }
 
@@ -270,8 +277,8 @@ private:
         auto objectManager = Bootstrap_->GetObjectManager();
         auto rootService = objectManager->GetRootService();
         auto chunkProxy = objectManager->GetProxy(chunk);
-        auto rspOrError = WaitFor(ExecuteVerb(rootService, req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
+        WaitFor(ExecuteVerb(rootService, req))
+            .ThrowOnError();
 
         LOG_INFO("Journal chunk sealed (ChunkId: %v)", chunk->GetId());
     }
