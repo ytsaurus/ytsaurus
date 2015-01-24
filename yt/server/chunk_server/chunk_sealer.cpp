@@ -65,7 +65,7 @@ public:
         for (const auto& pair : chunkManager->Chunks()) {
             auto* chunk = pair.second;
             if (chunk->IsAlive() && chunk->IsJournal()) {
-                ScheduleSeal(chunk);
+                MaybeScheduleSeal(chunk);
             }
         }
     }
@@ -80,7 +80,7 @@ public:
         RefreshExecutor_->Start();
     }
 
-    void ScheduleSeal(TChunk* chunk)
+    void MaybeScheduleSeal(TChunk* chunk)
     {
         YASSERT(chunk->IsAlive());
         YASSERT(chunk->IsJournal());
@@ -132,7 +132,7 @@ private:
         return chunk->StoredReplicas().size() >= chunk->GetReadQuorum();
     }
 
-    static bool CanSeal(TChunk* chunk)
+    static bool CanBeSealed(TChunk* chunk)
     {
         return
             IsSealNeeded(chunk) &&
@@ -198,7 +198,7 @@ private:
 
                 ++chunksDequeued;
 
-                if (!CanSeal(chunk)) {
+                if (!CanBeSealed(chunk)) {
                     EndDequeueChunk(chunk);
                     continue;
                 }
@@ -230,7 +230,7 @@ private:
 
     void GuardedSealChunk(TChunk* chunk)
     {
-        if (!CanSeal(chunk))
+        if (!CanBeSealed(chunk))
             return;
 
         LOG_INFO("Sealing journal chunk (ChunkId: %v)", chunk->GetId());
@@ -295,9 +295,9 @@ void TChunkSealer::Start()
     Impl_->Start();
 }
 
-void TChunkSealer::ScheduleSeal(TChunk* chunk)
+void TChunkSealer::MaybeScheduleSeal(TChunk* chunk)
 {
-    Impl_->ScheduleSeal(chunk);
+    Impl_->MaybeScheduleSeal(chunk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
