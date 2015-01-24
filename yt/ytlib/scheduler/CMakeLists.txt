@@ -12,6 +12,7 @@ set( HDRS
   ${BASE}/scheduler_channel.h
   ${BASE}/scheduler_service_proxy.h
   ${BASE}/statistics.h
+  ${BASE}/statistics-inl.h
 )
 
 list(APPEND YT_SOURCE_FILES
