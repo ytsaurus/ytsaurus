@@ -363,6 +363,10 @@ class YTEnv(object):
             current = os.path.join(self.path_to_run, node_name, str(i))
             os.mkdir(current)
 
+            config["addresses"] = {
+                "default": self._hostname + "-default",
+                "interconnect": self._hostname}
+
             config['rpc_port'] = self._ports[node_name][2 * i]
             config['monitoring_port'] = self._ports[node_name][2 * i + 1]
 
