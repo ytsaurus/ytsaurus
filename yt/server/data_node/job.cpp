@@ -531,7 +531,7 @@ private:
                 Bootstrap_->GetLocalDescriptor(),
                 partId,
                 partReplicas,
-                DefaultNetworkName,
+                InterconnectNetworkName,
                 EReadSessionType::Repair,
                 Bootstrap_->GetRepairInThrottler());
             readers.push_back(reader);
@@ -650,7 +650,7 @@ private:
                 Null,
                 ChunkId_,
                 replicas,
-                DefaultNetworkName,
+                InterconnectNetworkName,
                 EReadSessionType::Replication,
                 Bootstrap_->GetReplicationInThrottler());
 

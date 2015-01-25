@@ -34,7 +34,7 @@ std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
     const NErasure::ICodec* codec,
-    const Stroka& networkName = NNodeTrackerClient::DefaultNetworkName);
+    const Stroka& networkName = NNodeTrackerClient::InterconnectNetworkName);
 
 std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
@@ -44,7 +44,7 @@ std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
     const NErasure::ICodec* codec,
-    const Stroka& networkName = NNodeTrackerClient::DefaultNetworkName);
+    const Stroka& networkName = NNodeTrackerClient::InterconnectNetworkName);
 
 ///////////////////////////////////////////////////////////////////////////////
 

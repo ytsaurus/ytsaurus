@@ -60,7 +60,7 @@ void TPeerBlockUpdater::Update()
     auto blocks = Bootstrap->GetBlockStore()->GetAllBlocks();
     for (auto block : blocks) {
         if (block->Source()) {
-            const auto& sourceAddress = block->Source()->GetDefaultAddress();
+            const auto& sourceAddress = block->Source()->GetInterconnectAddress();
             TProxy::TReqUpdatePeerPtr request;
             auto it = requests.find(sourceAddress);
             if (it != requests.end()) {

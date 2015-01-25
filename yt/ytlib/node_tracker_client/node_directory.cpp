@@ -34,6 +34,15 @@ const Stroka& TNodeDescriptor::GetDefaultAddress() const
     return it->second;
 }
 
+const Stroka& TNodeDescriptor::GetInterconnectAddress() const
+{
+    auto it = Addresses_.find(InterconnectNetworkName);
+    if (it != Addresses_.end()) {
+        return it->second;
+    }
+    return GetDefaultAddress();
+}
+
 const Stroka& TNodeDescriptor::GetAddressOrThrow(const Stroka& name) const
 {
     auto it = Addresses_.find(name);
@@ -100,7 +109,7 @@ void FromProto(TNodeDescriptor* descriptor, const NProto::TNodeDescriptor& proto
 
 bool operator == (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
 {
-    return lhs.Addresses() == rhs.Addresses();
+    return lhs.GetDefaultAddress() == rhs.GetDefaultAddress();
 }
 
 bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
