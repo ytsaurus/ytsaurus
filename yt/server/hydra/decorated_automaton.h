@@ -164,11 +164,6 @@ public:
 
     void CommitMutations(TVersion version);
 
-    void RegisterKeptResponse(
-        const TMutationId& mutationId,
-        const TMutationResponse& response);
-    TNullable<TMutationResponse> FindKeptResponse(const TMutationId& mutationId);
-
     TMutationContext* GetMutationContext();
 
 private:
