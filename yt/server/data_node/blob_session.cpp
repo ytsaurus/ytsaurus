@@ -193,7 +193,7 @@ TFuture<void> TBlobSession::DoSendBlocks(
     int blockCount,
     const TNodeDescriptor& target)
 {
-    TDataNodeServiceProxy proxy(ChannelFactory->CreateChannel(target.GetDefaultAddress()));
+    TDataNodeServiceProxy proxy(ChannelFactory->CreateChannel(target.GetInterconnectAddress()));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
     auto req = proxy.PutBlocks();

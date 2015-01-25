@@ -39,6 +39,7 @@ class TNodeDirectoryBuilder;
 DECLARE_REFCOUNTED_CLASS(TNodeDirectory)
 
 extern const Stroka DefaultNetworkName;
+extern const Stroka InterconnectNetworkName;
 
 DEFINE_ENUM(EErrorCode,
     ((NoSuchNode)    (300))

@@ -482,7 +482,7 @@ private:
                     auto replica = replicas[RandomNumber(replicas.size())];
                     auto descriptor = nodeDirectory->GetDescriptor(replica);
 
-                    groupes[descriptor.GetDefaultAddress()].push_back(split);
+                    groupes[descriptor.GetInterconnectAddress()].push_back(split);
                 }
 
                 std::vector<TKeyRange> ranges;
@@ -552,7 +552,7 @@ private:
                 subfragment->DataSplits.push_back(splits[index]);
                 subfragment->Query = subquery;
 
-                return Delegate(subfragment, descriptor.GetDefaultAddress());
+                return Delegate(subfragment, descriptor.GetInterconnectAddress());
             },
             [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 auto evaluator = Connection_->GetQueryEvaluator();

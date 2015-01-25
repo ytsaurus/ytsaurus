@@ -510,14 +510,13 @@ private:
     {
         auto descriptor = FromProto<NNodeTrackerClient::TNodeDescriptor>(request.node_descriptor());
         const auto& statistics = request.statistics();
-        const auto& address = descriptor.GetDefaultAddress();
 
         // Kick-out any previous incarnation.
         {
             auto* existingNode = FindNodeByAddress(descriptor.GetDefaultAddress());
             if (existingNode) {
                 LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %v, ExistingId: %v)",
-                    address,
+                    descriptor.GetDefaultAddress(),
                     existingNode->GetId());
                 DoUnregisterNode(existingNode, false);
                 DoRemoveNode(existingNode);
@@ -903,7 +902,7 @@ private:
                     req->set_ignore_existing(true);
 
                     auto attributes = CreateEphemeralAttributes();
-                    attributes->Set("remote_address", address);
+                    attributes->Set("remote_address", descriptor.GetInterconnectAddress());
                     ToProto(req->mutable_node_attributes(), *attributes);
 
                     SyncExecuteVerb(rootService, req);
@@ -926,7 +925,7 @@ private:
 
             LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, %v)",
                 nodeId,
-                address,
+                descriptor.GetDefaultAddress(),
                 statistics);
 
             NodeRegistered_.Fire(node);

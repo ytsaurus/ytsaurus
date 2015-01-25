@@ -1325,7 +1325,9 @@ private:
         auto config = cell->GetConfig();
         config->Addresses.clear();
         for (const auto& peer : cell->Peers()) {
-            config->Addresses.push_back(peer.Address);
+            auto nodeTracker = Bootstrap_->GetNodeTracker();
+            auto node = nodeTracker->GetNodeByAddress(*peer.Address);
+            config->Addresses.push_back(node->GetDescriptor().GetInterconnectAddress());
         }
 
         UpdateCellDirectory(cell);

@@ -227,8 +227,8 @@ private:
 
             explicit TNode(const TNodeDescriptor& descriptor)
                 : Descriptor(descriptor)
-                , LightProxy(LightNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress()))
-                , HeavyProxy(HeavyNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress()))
+                , LightProxy(LightNodeChannelFactory->CreateChannel(descriptor.GetInterconnectAddress()))
+                , HeavyProxy(HeavyNodeChannelFactory->CreateChannel(descriptor.GetInterconnectAddress()))
             { }
         };
 
@@ -943,7 +943,6 @@ private:
         void OnReplicaFailed(const TError& error, TNodePtr node, TChunkSessionPtr session)
         {
             const auto& address = node->Descriptor.GetDefaultAddress();
-
             LOG_WARNING(error, "Journal replica failed (Address: %v, ChunkId: %v)",
                 address,
                 session->ChunkId);

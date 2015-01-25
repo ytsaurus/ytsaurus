@@ -409,7 +409,7 @@ private:
         remoteCopyJobSpecExt->set_connection_config(
             ConvertToYsonString(clusterDirectory->GetConnectionConfigOrThrow(Spec_->ClusterName)).Data());
 
-        auto networkName = NNodeTrackerClient::DefaultNetworkName;
+        auto networkName = NNodeTrackerClient::InterconnectNetworkName;
         if (Spec_->NetworkName) {
             networkName = *Spec_->NetworkName;
         } else {
