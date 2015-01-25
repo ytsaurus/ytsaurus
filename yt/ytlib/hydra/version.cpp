@@ -13,7 +13,7 @@ TVersion::TVersion()
     , RecordId(0)
 { }
 
-TVersion::TVersion(i32 segmentId, i32 recordId)
+TVersion::TVersion(int segmentId, int recordId)
     : SegmentId(segmentId)
     , RecordId(recordId)
 { }
