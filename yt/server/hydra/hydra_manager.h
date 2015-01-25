@@ -67,6 +67,15 @@ struct IHydraManager
      */
     virtual NElection::TEpochContextPtr GetAutomatonEpochContext() const = 0;
 
+    //! When called at the leader returns a preset future.
+    //! When called at a follower at instant T returns a future that gets set
+    //! when the committed version at this follower is equal to or larger than
+    //! the committed version at the leader at T.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
+    virtual TFuture<void> SyncWithLeader() = 0;
+
     //! Commits a mutation.
     /*!
      *  If the automaton is in read-only state then #EErrorCode::ReadOnly is returned.

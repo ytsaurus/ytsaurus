@@ -211,6 +211,23 @@ public:
         SwitchTo(AutomatonInvoker_);
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        switch (GetAutomatonState()) {
+            case EPeerState::Leading:
+            case EPeerState::LeaderRecovery:
+                StopLeading_.Fire();
+                DecoratedAutomaton_->OnStopLeading();
+                break;
+
+            case EPeerState::Following:
+            case EPeerState::FollowerRecovery:
+                StopFollowing_.Fire();
+                DecoratedAutomaton_->OnStopFollowing();
+                break;
+
+            default:
+                break;
+        }
+
         AutomatonEpochContext_.Reset();
 
         LOG_INFO("Hydra instance stopped");
@@ -321,6 +338,22 @@ public:
         });
     }
 
+    virtual TFuture<void> SyncWithLeader() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(!DecoratedAutomaton_->GetMutationContext());
+
+        auto epochContext = AutomatonEpochContext_;
+        if (!epochContext || !ActiveLeader_ && !ActiveFollower_) {
+            return MakeFuture(TError(
+                NHydra::EErrorCode::InvalidState,
+                "Not an active peer"));
+        }
+
+        // XXX(babenko): implement
+        return VoidFuture;
+    }
+
     virtual TFuture<TMutationResponse> CommitMutation(const TMutationRequest& request) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -333,7 +366,7 @@ public:
         }
 
         auto epochContext = AutomatonEpochContext_;
-        if (!epochContext || !ActiveLeader_ || GetAutomatonState() != EPeerState::Leading) {
+        if (!epochContext || !ActiveLeader_) {
             return MakeFuture<TMutationResponse>(TError(
                 NHydra::EErrorCode::InvalidState,
                 "Not an active leader"));
@@ -981,6 +1014,7 @@ private:
         }
     }
 
+public:
     void OnElectionStopLeading()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
