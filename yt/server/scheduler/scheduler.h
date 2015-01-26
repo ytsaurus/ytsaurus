@@ -70,6 +70,8 @@ public:
     TFuture<void> SuspendOperation(TOperationPtr operation);
     TFuture<void> ResumeOperation(TOperationPtr operation);
 
+    TFuture<void> GenerateInputContext(const TJobId& jobId, const NYPath::TYPath& path);
+
     typedef
         NRpc::TTypedServiceContext<
             NJobTrackerClient::NProto::TReqHeartbeat,
@@ -79,6 +81,8 @@ public:
     void ProcessHeartbeat(
         TExecNodePtr node,
         TCtxHeartbeatPtr context);
+
+    // save input context function
 
 private:
     class TImpl;

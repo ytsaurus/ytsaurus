@@ -20,8 +20,8 @@ using namespace NApi;
 
 void TJobProbeCommand::DoExecute()
 {
-    auto result = Context_->GetClient()->GenerateInputContext(Request_->JobId, Request_->Path);
-    WaitFor(result);
+    WaitFor(Context_->GetClient()->GenerateInputContext(Request_->JobId, Request_->Path))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
