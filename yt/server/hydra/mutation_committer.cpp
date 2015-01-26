@@ -232,6 +232,8 @@ private:
             Owner_->CellManager_->GetPeerQuorumTags());
 
         Awaiter_->Cancel();
+        Awaiter_.Reset();
+
         QuorumFlushResult_.Set(TError());
     }
 
@@ -242,6 +244,8 @@ private:
             Owner_->CellManager_->GetPeerQuorumTags());
 
         Awaiter_->Cancel();
+        Awaiter_.Reset();
+
         QuorumFlushResult_.Set(error);
 
         Owner_->EpochContext_->EpochUserAutomatonInvoker->Invoke(BIND(
