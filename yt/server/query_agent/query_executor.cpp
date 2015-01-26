@@ -169,7 +169,7 @@ private:
                 auto splits = Split(prunedSplits, nodeDirectory, Logger);
 
                 LOG_DEBUG("Regrouping %v splits", splits.size());
-                size_t splitsPerQuery = std::sqrtl(splits.size());
+                size_t splitsPerQuery = std::sqrt(splits.size());
 
                 for (auto offset = splits.begin(); offset < splits.end();) {
                     size_t rest = std::distance(offset, splits.end());
