@@ -72,12 +72,20 @@ public:
 
     void Start()
     {
+        YCHECK(!RefreshExecutor_);
         auto hydraFacade = Bootstrap_->GetHydraFacade();
         RefreshExecutor_ = New<TPeriodicExecutor>(
             hydraFacade->GetEpochAutomatonInvoker(),
             BIND(&TImpl::OnRefresh, MakeWeak(this)),
             Config_->ChunkRefreshPeriod);
         RefreshExecutor_->Start();
+    }
+
+    void Stop()
+    {
+        if (RefreshExecutor_) {
+            RefreshExecutor_->Stop();
+        }
     }
 
     void MaybeScheduleSeal(TChunk* chunk)
@@ -300,6 +308,12 @@ TChunkSealer::~TChunkSealer()
 void TChunkSealer::Start()
 {
     Impl_->Start();
+}
+
+
+void TChunkSealer::Stop()
+{
+    Impl_->Stop();
 }
 
 void TChunkSealer::MaybeScheduleSeal(TChunk* chunk)

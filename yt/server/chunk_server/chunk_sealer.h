@@ -19,6 +19,7 @@ public:
     ~TChunkSealer();
 
     void Start();
+    void Stop();
 
     void MaybeScheduleSeal(TChunk* chunk);
 

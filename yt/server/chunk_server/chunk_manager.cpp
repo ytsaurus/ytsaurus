@@ -1279,9 +1279,17 @@ private:
     {
         if (ChunkPlacement_) {
             ChunkPlacement_->Stop();
+            ChunkPlacement_.Reset();
         }
+
         if (ChunkReplicator_) {
             ChunkReplicator_->Stop();
+            ChunkReplicator_.Reset();
+        }
+
+        if (ChunkSealer_) {
+            ChunkSealer_->Stop();
+            ChunkSealer_.Reset();
         }
     }
 
