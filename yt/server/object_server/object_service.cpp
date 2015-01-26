@@ -114,7 +114,7 @@ public:
         if (requestCount == 0) {
             Reply();
         } else {
-            Continue(TError());
+            Continue();
         }
     }
 
@@ -134,11 +134,9 @@ private:
     const NLog::TLogger& Logger;
 
 
-    void Continue(const TError& error)
+    void Continue()
     {
         try {
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-
             auto objectManager = Bootstrap->GetObjectManager();
             auto rootService = objectManager->GetRootService();
 
@@ -159,7 +157,7 @@ private:
                 // Don't allow the thread to be blocked for too long by a single batch.
                 if (objectManager->AdviceYield(startTime)) {
                     hydraFacade->GetEpochAutomatonInvoker()->Invoke(
-                        BIND(&TExecuteSession::Continue, MakeStrong(this), TError()));
+                        BIND(&TExecuteSession::Continue, MakeStrong(this)));
                     return;
                 }
 
@@ -198,7 +196,7 @@ private:
                 // Forbid to reorder read requests before write ones.
                 if (!mutating && !LastMutationCommitted.IsSet()) {
                     LastMutationCommitted.Subscribe(
-                        BIND(&TExecuteSession::Continue, MakeStrong(this))
+                        BIND(&TExecuteSession::OnLastMutationCommitted, MakeStrong(this))
                             .Via(hydraFacade->GetEpochAutomatonInvoker()));
                     return;
                 }
@@ -243,6 +241,16 @@ private:
         } catch (const std::exception& ex) {
             Reply(ex);
         }
+    }
+
+    void OnLastMutationCommitted(const TError& error)
+    {
+        if (!error.IsOK()) {
+            Reply(error);
+            return;
+        }
+
+        Continue();
     }
 
     void OnResponse(
@@ -418,6 +426,8 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
     UNUSED(request);
     UNUSED(response);
 
+    ValidateActiveLeader();
+
     context->SetRequestInfo();
 
     auto objectManager = Bootstrap->GetObjectManager();
@@ -430,6 +440,8 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, BuildSnapshot)
 
     context->SetRequestInfo("SetReadOnly: %v",
         setReadOnly);
+
+    ValidateActiveLeader();
 
     auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
 
