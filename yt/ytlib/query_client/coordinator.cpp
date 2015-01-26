@@ -220,7 +220,7 @@ TQueryStatistics CoordinateAndExecute(
     if (isOrdered) {
         size_t index = 0;
 
-        mergingReader = CreateSchemafulOrderedReader([&] () -> ISchemafulReaderPtr {
+        mergingReader = CreateSchemafulOrderedReader([&, index] () mutable -> ISchemafulReaderPtr {
             if (index >= subqueries.size()) {
                 return nullptr;
             }
