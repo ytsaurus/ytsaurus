@@ -86,13 +86,13 @@ private:
     bool EnableLogging;
 
     NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
-    std::atomic<bool> Running;
+    std::atomic<bool> Running = {true};
 
     NProfiling::TProfiler Profiler;
 
     NProfiling::TRateCounter EnqueueCounter;
     NProfiling::TRateCounter DequeueCounter;
-    std::atomic<int> QueueSize;
+    std::atomic<int> QueueSize = {0};
     NProfiling::TAggregateCounter QueueSizeCounter;
     NProfiling::TAggregateCounter WaitTimeCounter;
     NProfiling::TAggregateCounter ExecTimeCounter;
