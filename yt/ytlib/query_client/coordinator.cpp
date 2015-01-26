@@ -47,11 +47,15 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         ? 0
         : 2 * query->GetInputRowLimit() / ranges.size();
 
+    auto subqueryOutputRowLimit = pushdownGroupClause
+        ? query->GetOutputRowLimit()
+        : std::numeric_limits<i64>::max();
+
     for (const auto& keyRange : ranges) {
         // Set initial schema and key columns
         auto subquery = New<TQuery>(
             subqueryInputRowLimit,
-            query->GetOutputRowLimit());
+            subqueryOutputRowLimit);
 
         subquery->TableSchema = query->TableSchema;
         subquery->KeyColumns = query->KeyColumns;
