@@ -61,7 +61,7 @@ TSharedRefArray CreateRequestMessage(
     std::vector<TSharedRef> parts;
     parts.reserve(2 + attachments.size());
 
-    parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{ EMessageType::Request }, header));
+    parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Request}, header));
 
     parts.push_back(body);
 
@@ -75,7 +75,7 @@ TSharedRefArray CreateRequestMessage(
 TSharedRefArray CreateRequestCancelationMessage(
     const TRequestCancelationHeader& header)
 {
-    auto headerData = SerializeToProtoWithHeader(TFixedMessageHeader{ EMessageType::RequestCancelation }, header);
+    auto headerData = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::RequestCancelation}, header);
     return TSharedRefArray(std::move(headerData));
 }
 
@@ -87,7 +87,7 @@ TSharedRefArray CreateResponseMessage(
     std::vector<TSharedRef> parts;
     parts.reserve(2 + attachments.size());
 
-    parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{ EMessageType::Response }, header));
+    parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Response}, header));
 
     parts.push_back(body);
 
@@ -114,7 +114,7 @@ TSharedRefArray CreateResponseMessage(
 TSharedRefArray CreateErrorResponseMessage(
     const TResponseHeader& header)
 {
-    auto headerData = SerializeToProtoWithHeader(TFixedMessageHeader{ EMessageType::Response }, header);
+    auto headerData = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Response}, header);
     return TSharedRefArray(std::move(headerData));
 }
 
@@ -174,7 +174,7 @@ TSharedRefArray SetRequestHeader(
 {
     YASSERT(GetMessageType(message) == EMessageType::Request);
     auto parts = message.ToVector();
-    parts[0] = SerializeToProtoWithHeader(TFixedMessageHeader{ EMessageType::Request }, header);
+    parts[0] = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Request}, header);
     return TSharedRefArray(parts);
 }
 
@@ -195,7 +195,7 @@ TSharedRefArray SetResponseHeader(
 {
     YASSERT(GetMessageType(message) == EMessageType::Response);
     auto parts = message.ToVector();
-    parts[0] = SerializeToProtoWithHeader(TFixedMessageHeader{ EMessageType::Response }, header);
+    parts[0] = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Response}, header);
     return TSharedRefArray(parts);
 }
 
