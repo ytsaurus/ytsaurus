@@ -65,18 +65,14 @@ TInvokerQueue::TInvokerQueue(
     bool enableProfiling)
     : CallbackEventCount(callbackEventCount)
     , EnableLogging(enableLogging)
-    // XXX(babenko): VS2013 Nov CTP does not have a proper ctor :(
-    // , Running(true)
     , Profiler("/action_queue")
     , EnqueueCounter("/enqueue_rate", tagIds)
     , DequeueCounter("/dequeue_rate", tagIds)
-    , QueueSize(0)
     , QueueSizeCounter("/size", tagIds)
     , WaitTimeCounter("/time/wait", tagIds)
     , ExecTimeCounter("/time/exec", tagIds)
     , TotalTimeCounter("/time/total", tagIds)
 {
-    Running.store(true, std::memory_order_relaxed);
     Profiler.SetEnabled(enableProfiling);
 }
 
