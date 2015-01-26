@@ -108,8 +108,8 @@ public:
             throw Py::RuntimeError("Incorrect arguments");
         }
 
-        Py::Callable class_type(TDriverResponse::type());
-        Py::PythonClassObject<TDriverResponse> pythonResponse(class_type.apply(Py::Tuple(), Py::Dict()));
+        Py::Callable classType(TDriverResponse::type());
+        Py::PythonClassObject<TDriverResponse> pythonResponse(classType.apply(Py::Tuple(), Py::Dict()));
         auto* response = pythonResponse.getCxxObject();
 
         TDriverRequest request;
