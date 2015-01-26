@@ -21,6 +21,12 @@
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
 
+#ifdef YT_USE_LLVM
+#include <ytlib/query_client/folding_profiler.h>
+#include <ytlib/query_client/cg_types.h>
+#include <ytlib/query_client/cg_fragment_compiler.h>
+#endif
+
 #include <tuple>
 
 #define _MIN_ "<\"type\"=\"min\">#"
@@ -1237,6 +1243,51 @@ INSTANTIATE_TEST_CASE_P(
                     Make<TReferenceExpression>("s")})),
             "is_prefix(\"abc\", s)")
     ));
+
+////////////////////////////////////////////////////////////////////////////////
+
+#ifdef YT_USE_LLVM
+
+TEST(TExpressionExecutorTest, BuildExpression)
+{
+    TTableSchema schema;
+    schema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+    schema.Columns().emplace_back(TColumnSchema("b", EValueType::Int64));
+    TKeyColumns keyColumns;
+    keyColumns.emplace_back("a");
+    keyColumns.emplace_back("b");
+
+    auto expr = PrepareExpression("a + b", schema);
+
+    TCGVariables variables;
+    llvm::FoldingSetNodeID id;
+    TCGBinding binding;
+    TFoldingProfiler(id, binding, variables).Profile(expr);
+    auto callback = CodegenExpression(expr, schema, binding);
+
+    auto expected = MakeUnversionedInt64Value(33 + 22);
+    auto row = NVersionedTableClient::BuildRow("a=33;b=22", keyColumns, schema, true);
+    TUnversionedValue result;
+
+    TQueryStatistics statistics;
+    TRowBuffer permanentBuffer;
+    TRowBuffer outputBuffer;
+    TRowBuffer intermediateBuffer;
+
+    TExecutionContext executionContext;
+    executionContext.Schema = schema;
+    executionContext.LiteralRows = &variables.LiteralRows;
+    executionContext.PermanentBuffer = &permanentBuffer;
+    executionContext.OutputBuffer = &outputBuffer;
+    executionContext.IntermediateBuffer = &intermediateBuffer;
+    executionContext.Statistics = &statistics;
+
+    callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext);
+
+    EXPECT_EQ(expected, result);
+}
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
