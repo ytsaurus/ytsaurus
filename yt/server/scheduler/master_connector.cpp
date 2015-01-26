@@ -301,6 +301,49 @@ public:
         list->WatcherHandlers.push_back(handler);
     }
 
+    TFuture<void> SaveInputContext(const TYPath& directory, const std::vector<TChunkId>& inputContexts)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto batchReq = StartBatchRequest();
+        int index = 0;
+
+        for (const auto& inputContext : inputContexts) {
+            if (inputContext != NChunkServer::NullChunkId) {
+                auto path = Format("%v/%v", directory, index);
+                auto req = GetFileSaveRequest(path, inputContext);
+
+                batchReq->AddRequest(req, "create_input_context");
+            }
+            ++index;
+        }
+        return batchReq->Invoke().Apply(
+            BIND(
+                &TImpl::OnSaveInputContext,
+                MakeStrong(this),
+                directory)
+            .AsyncVia(Bootstrap->GetControlInvoker()));
+    }
+
+    void OnSaveInputContext(
+        const TYPath& directory,
+        const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto error = GetCumulativeError(batchRspOrError);
+
+        if (!error.IsOK()) {
+            auto wrappedError = TError("Error saving input context into %v",
+                directory)
+                << error;
+            LOG_WARNING(wrappedError);
+            THROW_ERROR(wrappedError);
+        }
+
+        LOG_INFO("Input context saved (Directory: %v)",
+            directory);
+    }
 
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DEFINE_SIGNAL(void(), MasterDisconnected);
@@ -1429,19 +1472,7 @@ private:
                     for (const auto& failContextChunkId : request.FailContextChunkIds) {
                         if (failContextChunkId != NChunkServer::NullChunkId) {
                             auto failContextPath = GetFailContextPath(operation->GetId(), job->GetId(), index);
-
-                            auto req = TCypressYPathProxy::Create(failContextPath);
-                            GenerateMutationId(req);
-                            req->set_type(static_cast<int>(EObjectType::File));
-
-                            auto attributes = CreateEphemeralAttributes();
-                            attributes->Set("vital", false);
-                            attributes->Set("replication_factor", 1);
-                            attributes->Set("account", TmpAccountName);
-                            ToProto(req->mutable_node_attributes(), *attributes);
-
-                            auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file_ext);
-                            ToProto(reqExt->mutable_chunk_id(), failContextChunkId);
+                            auto req = GetFileSaveRequest(failContextPath, failContextChunkId);
 
                             batchReq->AddRequest(req, "create_fail_context");
                         }
@@ -1778,6 +1809,24 @@ private:
             LOG_ERROR(TError("Error updating cluster directory") << ex);
         }
     }
+
+    decltype(TCypressYPathProxy::Create()) GetFileSaveRequest(const Stroka& path, const TChunkId& chunkId)
+    {
+        auto req = TCypressYPathProxy::Create(path);
+        GenerateMutationId(req);
+        req->set_type(static_cast<int>(EObjectType::File));
+
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("vital", false);
+        attributes->Set("replication_factor", 1);
+        attributes->Set("account", TmpAccountName);
+        ToProto(req->mutable_node_attributes(), *attributes);
+
+        auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file_ext);
+        ToProto(reqExt->mutable_chunk_id(), chunkId);
+
+        return req;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1863,6 +1912,13 @@ void TMasterConnector::AddOperationWatcherRequester(TOperationPtr operation, TWa
 void TMasterConnector::AddOperationWatcherHandler(TOperationPtr operation, TWatcherHandler handler)
 {
     Impl->AddOperationWatcherHandler(operation, handler);
+}
+
+TFuture<void> TMasterConnector::SaveInputContext(
+    const TYPath& directory,
+    const std::vector<NChunkClient::TChunkId>& inputContexts)
+{
+    return Impl->SaveInputContext(directory, inputContexts);
 }
 
 DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterConnected, *Impl);

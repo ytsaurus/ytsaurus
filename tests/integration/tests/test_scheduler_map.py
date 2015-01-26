@@ -627,12 +627,15 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command="sleep 2; cat")
 
-        jobs_path = "//sys/operations/" + op_id + "/jobs"
-        for job_id in ls(jobs_path):
-            probe(job_id)
+        probed = False
+        while not probed:
+            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+            for job_id in ls(jobs_path):
+                probed = True
+                probe(job_id, "//tmp/input_contexts")
 
         track_op(op_id)
-
+        get("//tmp/input_contexts")
 
     @only_linux
     def test_sorted_output(self):

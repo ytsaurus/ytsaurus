@@ -32,6 +32,8 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
+#include <ytlib/job_probe_client/job_probe_service_proxy.h>
+
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/helpers.h>
 
@@ -44,6 +46,7 @@
 #include <ytlib/object_client/master_ypath_proxy.h>
 
 #include <ytlib/chunk_client/data_statistics.h>
+#include <ytlib/chunk_client/private.h>
 
 #include <ytlib/job_tracker_client/statistics.h>
 
@@ -79,6 +82,7 @@ using namespace NHydra;
 using namespace NScheduler::NProto;
 using namespace NJobTrackerClient;
 using namespace NChunkClient;
+using namespace NJobProbeClient;
 using namespace NNodeTrackerClient;
 using namespace NVersionedTableClient;
 using namespace NNodeTrackerClient::NProto;
@@ -435,6 +439,47 @@ public:
         return VoidFuture;
     }
 
+    TFuture<void> GenerateInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+    {
+        auto job = FindJob(jobId);
+
+        if (job == nullptr) {
+            THROW_ERROR_EXCEPTION("Unable to find %v job to probe", jobId);
+        }
+
+        const auto& address = job->GetNode()->Descriptor().GetDefaultAddress();
+        auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
+
+        auto probeProxy = std::make_unique<TJobProbeServiceProxy>(channel);
+
+        auto req = probeProxy->GenerateInputContext();
+        ToProto(req->mutable_job_id(), jobId);
+
+        return req->Invoke().Apply(
+            BIND(
+                &TImpl::OnGenerateInputContextResponse,
+                MakeStrong(this),
+                jobId,
+                path));
+    }
+
+    TFuture<void> OnGenerateInputContextResponse(const TJobId& jobId,
+        const NYPath::TYPath& path,
+        const TJobProbeServiceProxy::TRspGenerateInputContextPtr& response)
+    {
+        auto chunkIds = FromProto<TGuid>(response->chunk_id());
+
+        return BIND(&TImpl::DoSaveInputContext, MakeStrong(this), path, chunkIds)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+    }
+
+    TFuture<void> DoSaveInputContext(
+        const NYPath::TYPath& path,
+        const std::vector<NChunkClient::TChunkId>& chunkIds)
+    {
+        return MasterConnector_->SaveInputContext(path, chunkIds);
+    }
 
     void ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
     {
@@ -2212,6 +2257,11 @@ TFuture<void> TScheduler::ResumeOperation(TOperationPtr operation)
     return Impl_->ResumeOperation(operation);
 }
 
+TFuture<void> TScheduler::GenerateInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+{
+    return Impl_->GenerateInputContext(jobId, path);
+}
+
 void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
 {
     Impl_->ProcessHeartbeat(node, context);
@@ -2221,5 +2271,8 @@ void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
 
 } // namespace NScheduler
 } // namespace NYT
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> Implement scheduler-side job probe service
