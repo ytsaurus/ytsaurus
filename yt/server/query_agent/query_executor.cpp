@@ -169,21 +169,13 @@ private:
                 auto splits = Split(prunedSplits, nodeDirectory, Logger);
 
                 LOG_DEBUG("Regrouping %v splits", splits.size());
+                size_t splitsPerQuery = std::sqrtl(splits.size());
 
-                std::map<TGuid, TDataSplits> groups;
-
-                for (const auto& split : splits) {
-                    auto tabletId = GetObjectIdFromDataSplit(split);
-                    if (TypeFromId(tabletId) == EObjectType::Tablet) {
-                        groups[tabletId].push_back(split);
-                    } else {
-                        groupedSplits.emplace_back(1, split);
-                    }
-                }
-
-                groupedSplits.reserve(groupedSplits.size() + groups.size());
-                for (const auto& group : groups) {
-                    groupedSplits.emplace_back(std::move(group.second));
+                for (auto offset = splits.begin(); offset < splits.end();) {
+                    size_t rest = std::distance(offset, splits.end());
+                    auto offsetEnd = offset + std::min(rest, splitsPerQuery);
+                    groupedSplits.emplace_back(offset, offsetEnd);
+                    offset = offsetEnd;
                 }
 
                 return GetRanges(groupedSplits);
