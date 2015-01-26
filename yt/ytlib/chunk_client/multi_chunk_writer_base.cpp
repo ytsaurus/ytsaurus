@@ -56,7 +56,6 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     , TransactionId_(transactionId)
     , ParentChunkListId_(parentChunkListId)
     , NodeDirectory_(New<TNodeDirectory>())
-    , UploadReplicationFactor_(std::min(Options_->ReplicationFactor, Config_->UploadReplicationFactor))
     , Progress_(0)
     , Closing_(false)
     , ReadyEvent_(VoidFuture)
@@ -144,9 +143,7 @@ void TNontemplateMultiChunkWriterBase::DoOpen()
 
 void TNontemplateMultiChunkWriterBase::CreateNextSession()
 {
-    LOG_DEBUG("Creating chunk (ReplicationFactor: %v, UploadReplicationFactor: %v)",
-        Options_->ReplicationFactor,
-        UploadReplicationFactor_);
+    LOG_DEBUG("Creating chunk (ReplicationFactor: %v)", Options_->ReplicationFactor);
 
     try {
         TObjectServiceProxy objectProxy(MasterChannel_);

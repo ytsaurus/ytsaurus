@@ -91,8 +91,6 @@ private:
 
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 
-    const int UploadReplicationFactor_;
-
     volatile double Progress_;
 
     TSession CurrentSession_;
