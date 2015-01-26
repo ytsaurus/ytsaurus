@@ -13,6 +13,11 @@ TCGQueryCallback CodegenEvaluate(
     const TConstQueryPtr& query,
     const TCGBinding& binding);
 
+TCGExpressionCallback CodegenExpression(
+    const TConstExpressionPtr& expression,
+    const TTableSchema& tableSchema,
+    const TCGBinding& binding);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

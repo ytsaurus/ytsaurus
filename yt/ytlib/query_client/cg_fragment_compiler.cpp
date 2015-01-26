@@ -221,6 +221,11 @@ public:
             index,
             nameTwine);
 
+        StoreToValue(valuePtr, id);
+    }
+
+    void StoreToValue(Value* valuePtr, ui16 id, Twine nameTwine = "")
+    {
         Builder_.CreateStore(
             Builder_.getInt16(id),
             Builder_.CreateStructGEP(valuePtr, TTypeBuilder::Id, nameTwine + ".idPtr"));
@@ -366,6 +371,11 @@ class TCGContext
 private:
     friend TCGQueryCallback CodegenEvaluate(
         const TConstQueryPtr& query,
+        const TCGBinding& binding);
+
+    friend TCGExpressionCallback CodegenExpression(
+        const TConstExpressionPtr& expression,
+        const TTableSchema& tableSchema,
         const TCGBinding& binding);
 
     const TCGModulePtr Module_;
@@ -1755,6 +1765,46 @@ TCGQueryCallback CodegenEvaluate(
     builder.CreateRetVoid();
 
     return module->GetCompiledFunction<TCGQuerySignature>(entryFunctionName);
+}
+
+TCGExpressionCallback CodegenExpression(
+    const TConstExpressionPtr& expression,
+    const TTableSchema& tableSchema,
+    const TCGBinding& binding)
+{
+    auto module = TCGModule::Create(GetQueryRoutineRegistry());
+    auto& context = module->GetContext();
+
+    auto entryFunctionName = Stroka("EvaluateExpression");
+
+    Function* function = Function::Create(
+        TypeBuilder<TCGExpressionSignature, false>::get(context),
+        Function::ExternalLinkage,
+        entryFunctionName.c_str(),
+        module->GetModule());
+
+    auto args = function->arg_begin();
+    Value* resultPtr = args; resultPtr->setName("resultPtr");
+    Value* inputRow = ++args; inputRow->setName("inputRow");
+    Value* constants = ++args; constants->setName("constants");
+    Value* executionContextPtr = ++args; executionContextPtr->setName("passedFragmentParamsPtr");
+    YCHECK(++args == function->arg_end());
+
+    TCGIRBuilder builder(BasicBlock::Create(context, "entry", function));
+
+    TCGContext ctx(module, binding, constants, executionContextPtr);
+
+    auto result = ctx.CodegenExpr(
+        builder,
+        expression,
+        tableSchema,
+        inputRow);
+
+    result.StoreToValue(resultPtr, 0, "writeResult");
+
+    builder.CreateRetVoid();
+
+    return module->GetCompiledFunction<TCGExpressionSignature>(entryFunctionName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
