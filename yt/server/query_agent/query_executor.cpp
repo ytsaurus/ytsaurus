@@ -208,7 +208,7 @@ private:
 
                 return WaitFor(asyncQueryStatisticsOrError)
                     .ValueOrThrow();
-            });
+            }, false);
     }
 
     TDataSplits Split(
