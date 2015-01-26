@@ -76,7 +76,7 @@ void TReadTableCommand::DoExecute()
 
     auto reader = New<TAsyncTableReader>(
         config,
-        Context_->GetClient()->GetMasterChannel(),
+        Context_->GetClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
         Context_->GetClient()->GetConnection()->GetCompressedBlockCache(),
         Context_->GetClient()->GetConnection()->GetUncompressedBlockCache(),
@@ -144,7 +144,7 @@ void TWriteTableCommand::DoExecute()
 
     auto writer = CreateAsyncTableWriter(
         config,
-        Context_->GetClient()->GetMasterChannel(),
+        Context_->GetClient()->GetMasterChannel(EMasterChannelKind::Leader),
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
         Context_->GetClient()->GetTransactionManager(),
         Request_->Path,

@@ -277,8 +277,6 @@ private:
             , Logger(ObjectServerLogger)
         {
             Request_ = Proxy_.Execute();
-            Request_->mutable_prerequisite_transactions()->MergeFrom(Context_->Request().prerequisite_transactions());
-            Request_->mutable_prerequisite_revisions()->MergeFrom(Context_->Request().prerequisite_revisions());
             MergeRequestHeaderExtensions(&Request_->Header(), Context_->RequestHeader());
         }
 
@@ -343,7 +341,6 @@ private:
 
     };
 
-
 };
 
 DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
@@ -372,18 +369,18 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
         TRequestHeader subrequestHeader;
         YCHECK(ParseRequestHeader(subrequestMessage, &subrequestHeader));
 
-        const auto& ypathRequestHeaderExt = subrequestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
+        const auto& ypathExt = subrequestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
 
         TKey key;
         key.User = user;
-        key.Path = ypathRequestHeaderExt.path();
+        key.Path = ypathExt.path();
         key.Service = subrequestHeader.service();
         key.Method = subrequestHeader.method();
 
         if (subrequestHeader.HasExtension(TCachingHeaderExt::caching_header_ext)) {
             const auto& cachingRequestHeaderExt = subrequestHeader.GetExtension(TCachingHeaderExt::caching_header_ext);
 
-            if (ypathRequestHeaderExt.mutating()) {
+            if (ypathExt.mutating()) {
                 THROW_ERROR_EXCEPTION("Cannot cache responses for mutating requests");
             }
 

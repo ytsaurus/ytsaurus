@@ -75,9 +75,6 @@ static const size_t MaxRowsPerRead = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreFlusher;
-typedef TIntrusivePtr<TStoreFlusher> TStoreFlusherPtr;
-
 class TStoreFlusher
     : public TRefCounted
 {
@@ -274,7 +271,8 @@ private:
         auto automatonInvoker = tablet->GetEpochAutomatonInvoker();
         auto poolInvoker = ThreadPool_->GetInvoker();
 
-        TObjectServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
+        auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
 
         try {
             LOG_INFO("Store flush started");
@@ -324,7 +322,7 @@ private:
                 writerOptions,
                 schema,
                 keyColumns,
-                Bootstrap_->GetMasterClient()->GetMasterChannel(),
+                Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
                 transaction->GetId());
 
             {

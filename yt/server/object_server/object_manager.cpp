@@ -71,16 +71,29 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    virtual TResolveResult Resolve(
-        const TYPath& path,
-        IServiceContextPtr context) override
+    virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
     {
         auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        const auto& headerExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        if (headerExt.mutating() && !hydraManager->IsMutating() && !hydraManager->IsRecovery()) {
-            return TResolveResult::Here(path);
+        const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+
+        if (ypathExt.mutating()) {
+            // Mutating request.
+
+            if (hydraManager->IsMutating()) {
+                // Nested call.
+                return DoResolveThere(path, std::move(context));
+            }
+
+            if (hydraManager->IsRecovery()) {
+                // Recovery.
+                return DoResolveThere(path, std::move(context));
+            }
+
+            // Commit mutation.
+            return DoResolveHere(path);
         } else {
-            return DoResolve(path, std::move(context));
+            // Read-only request.
+            return DoResolveThere(path, context);
         }
     }
 
@@ -111,12 +124,13 @@ public:
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager
             ->CreateExecuteMutation(request)
-            ->SetAction(BIND(
-                &TObjectManager::ExecuteMutatingRequest,
-                objectManager,
-                userId,
-                mutationId,
-                context))
+            ->SetAction(
+                BIND(
+                    &TObjectManager::HydraExecuteLeader,
+                    objectManager,
+                    userId,
+                    mutationId,
+                    context))
             ->Commit()
             .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
                 if (!result.IsOK()) {
@@ -141,12 +155,15 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
 
 
-    TResolveResult DoResolve(
-        const TYPath& path,
-        IServiceContextPtr context)
+    static TResolveResult DoResolveHere(const TYPath& path)
+    {
+        return TResolveResult::Here(path);
+    }
+
+    TResolveResult DoResolveThere(const TYPath& path, IServiceContextPtr context)
     {
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto objectManager = Bootstrap_->GetObjectManager();
@@ -324,7 +341,7 @@ TObjectManager::TObjectManager(
 
     RegisterHandler(CreateMasterTypeHandler(Bootstrap_));
 
-    RegisterMethod(BIND(&TObjectManager::HydraExecute, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraExecuteFollower, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::HydraDestroyObjects, Unretained(this)));
 
     MasterObjectId_ = MakeWellKnownId(EObjectType::Master, Bootstrap_->GetCellTag());
@@ -795,7 +812,7 @@ TMutationPtr TObjectManager::CreateExecuteMutation(const NProto::TReqExecute& re
         Bootstrap_->GetHydraFacade()->GetHydraManager(),
         request,
         this,
-        &TObjectManager::HydraExecute);
+        &TObjectManager::HydraExecuteFollower);
 }
 
 TMutationPtr TObjectManager::CreateDestroyObjectsMutation(const NProto::TReqDestroyObjects& request)
@@ -924,40 +941,70 @@ bool TObjectManager::AdviceYield(TInstant startTime) const
     return TInstant::Now() > startTime + Config_->YieldTimeout;
 }
 
-void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceContextPtr context)
+void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    auto transactionManager = Bootstrap_->GetTransactionManager();
+    auto cypressManager = Bootstrap_->GetCypressManager();
 
-    // Validate that mutating requests are only being invoked inside mutations or recovery.
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    const auto& headerExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-    YCHECK(!headerExt.mutating() ||
-           hydraManager->IsMutating() ||
-           hydraManager->IsRecovery());
+    auto getPrerequisiteTransaction = [&] (const TTransactionId& transactionId) {
+        auto* transaction = transactionManager->FindTransaction(transactionId);
+        if (!IsObjectAlive(transaction)) {
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed: transaction %v is missing",
+                transactionId);
+        }
+        if (transaction->GetState() != ETransactionState::Active) {
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed: transaction %v is not active",
+                transactionId);
+        }
+        return transaction;
+    };
 
-    auto securityManager = Bootstrap_->GetSecurityManager();
-    auto* user = securityManager->GetAuthenticatedUser();
+    for (const auto& prerequisite : prerequisites.transactions()) {
+        auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
+        getPrerequisiteTransaction(transactionId);
+    }
 
-    auto objectId = proxy->GetVersionedId();
+    for (const auto& prerequisite : prerequisites.revisions()) {
+        auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
+        const auto& path = prerequisite.path();
+        i64 revision = prerequisite.revision();
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, Mutating: %v, User: %v)",
-        context->GetService(),
-        context->GetMethod(),
-        GetRequestYPath(context),
-        objectId,
-        headerExt.mutating(),
-        user->GetName());
+        auto* transaction = transactionId == NullTransactionId
+            ? nullptr
+            : getPrerequisiteTransaction(transactionId);
 
-    NProfiling::TTagIdList tagIds;
-    tagIds.push_back(GetTypeTagId(TypeFromId(objectId.ObjectId)));
-    tagIds.push_back(GetMethodTagId(context->GetMethod()));
+        auto resolver = cypressManager->CreateResolver(transaction);
+        INodePtr nodeProxy;
+        try {
+            nodeProxy = resolver->ResolvePath(path);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed: failed to resolve path %v",
+                path)
+                << ex;
+        }
 
-    PROFILE_TIMING ("/request_time", tagIds) {
-        proxy->GuardedInvoke(std::move(context));
+        auto* cypressNodeProxy = dynamic_cast<ICypressNodeProxy*>(nodeProxy.Get());
+        YCHECK(cypressNodeProxy);
+
+        auto* node = cypressNodeProxy->GetTrunkNode();
+        if (node->GetRevision() != revision) {
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed: node %v revision mismatch: expected %v, found %v",
+                path,
+                revision,
+                node->GetRevision());
+        }
     }
 }
 
-void TObjectManager::ExecuteMutatingRequest(
+void TObjectManager::HydraExecuteLeader(
     const TUserId& userId,
     const TMutationId& mutationId,
     IServiceContextPtr context)
@@ -975,8 +1022,8 @@ void TObjectManager::ExecuteMutatingRequest(
 
     if (mutationId != NullMutationId) {
         auto responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
-        asyncResponseMessage
-            .Subscribe(BIND([=] (const TErrorOr<TSharedRefArray>& messageOrError) {
+        asyncResponseMessage.Subscribe(
+            BIND([=] (const TErrorOr<TSharedRefArray>& messageOrError) {
                 if (messageOrError.IsOK()) {
                     responseKeeper->EndRequest(mutationId, messageOrError.Value());
                 }
@@ -984,7 +1031,7 @@ void TObjectManager::ExecuteMutatingRequest(
     }
 }
 
-void TObjectManager::HydraExecute(const NProto::TReqExecute& request)
+void TObjectManager::HydraExecuteFollower(const NProto::TReqExecute& request)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1001,7 +1048,7 @@ void TObjectManager::HydraExecute(const NProto::TReqExecute& request)
 
     auto mutationId = GetMutationId(context);
 
-    ExecuteMutatingRequest(
+    HydraExecuteLeader(
         userId,
         mutationId,
         std::move(context));
@@ -1029,6 +1076,12 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
     }
 
     GarbageCollector_->CheckEmpty();
+}
+
+
+NProfiling::TProfiler& TObjectManager::GetProfiler()
+{
+    return Profiler;
 }
 
 NProfiling::TTagId TObjectManager::GetTypeTagId(EObjectType type)

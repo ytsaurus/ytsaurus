@@ -95,7 +95,7 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptor, GetCommandDescriptor, "Describes the command");
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptors, GetCommandDescriptors, "Describes all commands");
         PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Force master to build a snapshot");
-        PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GcCollect, "Run garbage collection");
+        PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Run garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clear metadata caches");
 
         behaviors().readyType();
@@ -204,10 +204,11 @@ public:
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, ConfigureDispatcher)
 
-    Py::Object GcCollect(Py::Tuple& args, Py::Dict& kwargs)
+    Py::Object GCCollect(Py::Tuple& args, Py::Dict& kwargs)
     {
         try {
-            NObjectClient::TObjectServiceProxy proxy(DriverInstance_->GetConnection()->GetMasterChannel());
+            auto channel = DriverInstance_->GetConnection()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
+            NObjectClient::TObjectServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Null); // infinity
             auto req = proxy.GCCollect();
             req->Invoke()
@@ -220,7 +221,7 @@ public:
         }
         return Py::None();
     }
-    PYCXX_KEYWORDS_METHOD_DECL(TDriver, GcCollect)
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, GCCollect)
 
     Py::Object BuildSnapshot(Py::Tuple& args, Py::Dict& kwargs)
     {
@@ -233,7 +234,8 @@ public:
         }
 
         try {
-            NObjectClient::TObjectServiceProxy proxy(DriverInstance_->GetConnection()->GetMasterChannel());
+            auto channel = DriverInstance_->GetConnection()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
+            NObjectClient::TObjectServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Null); // infinity
             auto req = proxy.BuildSnapshot();
             req->set_set_read_only(setReadOnly);

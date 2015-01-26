@@ -1049,7 +1049,9 @@ void TOperationControllerBase::Essentiate()
 
     InitializeTransactions();
 
-    InputChunkScratcher = New<TInputChunkScratcher>(this, AuthenticatedInputMasterClient->GetMasterChannel());
+    InputChunkScratcher = New<TInputChunkScratcher>(
+        this,
+        AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower));
 }
 
 void TOperationControllerBase::DoInitialize()
@@ -1174,7 +1176,9 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
     LOG_INFO("Starting async scheduler transaction (OperationId: %v)",
         operationId);
 
-    TObjectServiceProxy proxy(AuthenticatedMasterClient->GetMasterChannel());
+    auto channel = AuthenticatedMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
     auto batchReq = proxy.ExecuteBatch();
 
     {
@@ -1226,7 +1230,9 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
     LOG_INFO("Starting sync scheduler transaction (OperationId: %v)",
         operationId);
 
-    TObjectServiceProxy proxy(AuthenticatedMasterClient->GetMasterChannel());
+    auto channel = AuthenticatedMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
     auto batchReq = proxy.ExecuteBatch();
 
     {
@@ -1277,7 +1283,9 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
 
     LOG_INFO("Starting input transaction (OperationId: %v)", operationId);
 
-    TObjectServiceProxy proxy(AuthenticatedInputMasterClient->GetMasterChannel());
+    auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
     auto batchReq = proxy.ExecuteBatch();
 
     {
@@ -1323,7 +1331,9 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
 
     LOG_INFO("Starting output transaction (OperationId: %v)", operationId);
 
-    TObjectServiceProxy proxy(AuthenticatedOutputMasterClient->GetMasterChannel());
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
     auto batchReq = proxy.ExecuteBatch();
 
     {
@@ -1368,7 +1378,7 @@ void TOperationControllerBase::InitChunkListPool()
 {
     ChunkListPool = New<TChunkListPool>(
         Config,
-        Host->GetMasterClient()->GetMasterChannel(),
+        Host->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
         CancelableControlInvoker,
         Operation->GetId(),
         Operation->GetOutputTransaction()->GetId());
@@ -1479,7 +1489,9 @@ void TOperationControllerBase::CommitResults()
 {
     LOG_INFO("Committing results");
 
-    TObjectServiceProxy proxy(AuthenticatedOutputMasterClient->GetMasterChannel());
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
     auto batchReq = proxy.ExecuteBatch();
 
     for (auto& table : OutputTables) {
@@ -2310,7 +2322,9 @@ void TOperationControllerBase::DoOperationFailed(const TError& error)
 void TOperationControllerBase::CreateLivePreviewTables()
 {
     // NB: use root credentials.
-    TObjectServiceProxy proxy(Host->GetMasterClient()->GetMasterChannel());
+    auto channel = Host->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
     auto batchReq = proxy.ExecuteBatch();
 
     auto addRequest = [&] (
@@ -2394,7 +2408,9 @@ void TOperationControllerBase::CreateLivePreviewTables()
 void TOperationControllerBase::PrepareLivePreviewTablesForUpdate()
 {
     // NB: use root credentials.
-    TObjectServiceProxy proxy(Host->GetMasterClient()->GetMasterChannel());
+    auto channel = Host->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
     auto batchReq = proxy.ExecuteBatch();
 
     auto addRequest = [&] (const TLivePreviewTableBase& table, const Stroka& key) {
@@ -2448,7 +2464,9 @@ void TOperationControllerBase::GetInputObjectIds()
 {
     LOG_INFO("Getting input object ids");
 
-    TObjectServiceProxy proxy(AuthenticatedInputMasterClient->GetMasterChannel());
+    auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    TObjectServiceProxy proxy(channel);
+
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& table : InputTables) {
@@ -2489,7 +2507,9 @@ void TOperationControllerBase::GetOutputObjectIds()
 {
     LOG_INFO("Getting output object ids");
 
-    TObjectServiceProxy proxy(AuthenticatedOutputMasterClient->GetMasterChannel());
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    TObjectServiceProxy proxy(channel);
+
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& table : OutputTables) {
@@ -2530,7 +2550,9 @@ void TOperationControllerBase::ValidateFileTypes()
 {
     LOG_INFO("Getting file object types");
 
-    TObjectServiceProxy proxy(AuthenticatedMasterClient->GetMasterChannel());
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    TObjectServiceProxy proxy(channel);
+
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& pair : GetFilePaths()) {
@@ -2582,7 +2604,9 @@ void TOperationControllerBase::ValidateFileTypes()
 
 void TOperationControllerBase::FetchInputTables()
 {
-    TObjectServiceProxy proxy(AuthenticatedInputMasterClient->GetMasterChannel());
+    auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    TObjectServiceProxy proxy(channel);
+
     auto batchReq = proxy.ExecuteBatch();
 
     for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
@@ -2643,7 +2667,9 @@ void TOperationControllerBase::RequestInputObjects()
 {
     LOG_INFO("Requesting input objects");
 
-    TObjectServiceProxy proxy(AuthenticatedInputMasterClient->GetMasterChannel());
+    auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    TObjectServiceProxy proxy(channel);
+
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& table : InputTables) {
@@ -2717,7 +2743,9 @@ void TOperationControllerBase::RequestOutputObjects()
 {
     LOG_INFO("Requesting output objects");
 
-    TObjectServiceProxy proxy(AuthenticatedOutputMasterClient->GetMasterChannel());
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    TObjectServiceProxy proxy(channel);
+
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& table : OutputTables) {
@@ -2820,7 +2848,9 @@ void TOperationControllerBase::RequestOutputObjects()
 
 void TOperationControllerBase::FetchFileObjects()
 {
-    TObjectServiceProxy proxy(AuthenticatedMasterClient->GetMasterChannel());
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    TObjectServiceProxy proxy(channel);
+
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& file : RegularFiles) {
@@ -2876,7 +2906,9 @@ void TOperationControllerBase::RequestFileObjects()
 {
     LOG_INFO("Requesting file objects");
 
-    TObjectServiceProxy proxy(AuthenticatedMasterClient->GetMasterChannel());
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    TObjectServiceProxy proxy(channel);
+
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& file : RegularFiles) {

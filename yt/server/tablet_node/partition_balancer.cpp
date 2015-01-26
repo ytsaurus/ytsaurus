@@ -317,7 +317,9 @@ private:
             Logger);
 
         {
-            TChunkServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
+            auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower);
+            TChunkServiceProxy proxy(channel);
+
             auto req = proxy.LocateChunks();
 
             yhash_map<TChunkId, TChunkStorePtr> storeMap;

@@ -3,8 +3,6 @@
 #include "config.h"
 #include "private.h"
 
-#include <core/concurrency/scheduler.h>
-
 #include <core/rpc/bus_channel.h>
 #include <core/rpc/retrying_channel.h>
 #include <core/rpc/caching_channel_factory.h>
@@ -43,6 +41,7 @@ using namespace NChunkClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NQueryClient;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,7 +67,27 @@ public:
         TCallback<bool(const TError&)> isRetriableError)
         : Config_(config)
     {
-        MasterChannel_ = CreateMasterChannel(Config_->Master, isRetriableError);
+        MasterChannels_[EMasterChannelKind::Leader] = CreatePeerChannel(
+            Config_->Master,
+            isRetriableError,
+            EPeerKind::Leader);
+
+        // XXX(babenko)
+        //MasterChannels_[EMasterChannelKind::LeaderOrFollower] = CreatePeerChannel(
+        //    Config_->Master,
+        //    isRetriableError,
+        //    EPeerKind::LeaderOrFollower);
+        MasterChannels_[EMasterChannelKind::LeaderOrFollower] = GetMasterChannel(EMasterChannelKind::Leader);
+
+        if (Config_->MasterCache) {
+            MasterChannels_[EMasterChannelKind::Cache] = CreatePeerChannel(
+                Config_->MasterCache,
+                isRetriableError,
+                EPeerKind::LeaderOrFollower);
+        } else {
+            // Disable cache.
+            MasterChannels_[EMasterChannelKind::Cache] = GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+        }
 
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
@@ -81,17 +100,10 @@ public:
             timestampProviderConfig,
             GetBusChannelFactory());
 
-        auto masterCacheConfig = Config_->MasterCache;
-        if (!masterCacheConfig) {
-            // Disable cache.
-            masterCacheConfig = Config_->Master;
-        }
-        MasterCacheChannel_ = CreateMasterChannel(masterCacheConfig, isRetriableError);
-
         SchedulerChannel_ = CreateSchedulerChannel(
             Config_->Scheduler,
             GetBusChannelFactory(),
-            MasterChannel_);
+            GetMasterChannel(EMasterChannelKind::Leader));
 
         NodeChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
 
@@ -108,7 +120,7 @@ public:
 
         TableMountCache_ = New<TTableMountCache>(
             Config_->TableMountCache,
-            MasterCacheChannel_,
+            GetMasterChannel(EMasterChannelKind::Cache),
             CellDirectory_);
 
         QueryEvaluator_ = New<TEvaluator>(Config_->QueryEvaluator);
@@ -121,14 +133,9 @@ public:
         return Config_;
     }
 
-    virtual IChannelPtr GetMasterChannel() override
+    virtual IChannelPtr GetMasterChannel(EMasterChannelKind kind) override
     {
-        return MasterChannel_;
-    }
-
-    virtual IChannelPtr GetMasterCacheChannel() override
-    {
-        return MasterCacheChannel_;
+        return MasterChannels_[kind];
     }
 
     virtual IChannelPtr GetSchedulerChannel() override
@@ -183,10 +190,9 @@ public:
 
 
 private:
-    TConnectionConfigPtr Config_;
+    const TConnectionConfigPtr Config_;
 
-    IChannelPtr MasterChannel_;
-    IChannelPtr MasterCacheChannel_;
+    TEnumIndexedVector<IChannelPtr, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
     IChannelFactoryPtr NodeChannelFactory_;
     IBlockCachePtr CompressedBlockCache_;
@@ -197,19 +203,21 @@ private:
     TEvaluatorPtr QueryEvaluator_;
 
     
-    static IChannelPtr CreateMasterChannel(
+    static IChannelPtr CreatePeerChannel(
         TMasterConnectionConfigPtr config,
-        TCallback<bool(const TError&)> isRetriableError)
+        TCallback<bool(const TError&)> isRetriableError,
+        EPeerKind kind)
     {
-        auto leaderChannel = CreateLeaderChannel(
+        auto channel = NHydra::CreatePeerChannel(
             config,
-            GetBusChannelFactory());
-        auto masterChannel = CreateRetryingChannel(
+            GetBusChannelFactory(),
+            kind);
+        auto retryingChannel = CreateRetryingChannel(
             config,
-            leaderChannel,
+            channel,
             isRetriableError);
-        masterChannel->SetDefaultTimeout(config->RpcTimeout);
-        return masterChannel;
+        retryingChannel->SetDefaultTimeout(config->RpcTimeout);
+        return retryingChannel;
     }
 
 };

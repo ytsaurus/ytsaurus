@@ -35,7 +35,6 @@ public:
     TObjectProxyBase(
         NCellMaster::TBootstrap* bootstrap,
         TObjectBase* object);
-    ~TObjectProxyBase();
 
     // IObjectProxy members
     virtual const TObjectId& GetId() const override;
@@ -48,13 +47,13 @@ public:
         bool sortKeys) override;
 
 protected:
-    friend class TObjectManager;
     class TCustomAttributeDictionary;
 
-    NCellMaster::TBootstrap* Bootstrap;
-    TObjectBase* Object;
+    NCellMaster::TBootstrap* const Bootstrap_;
+    TObjectBase* const Object_;
 
-    std::unique_ptr<NYTree::IAttributeDictionary> CustomAttributes;
+    std::unique_ptr<NYTree::IAttributeDictionary> CustomAttributes_;
+
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CheckPermission);
@@ -68,7 +67,6 @@ protected:
     //! Returns the ACD for the object or |nullptr| is none exists.
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() = 0;
 
-    void GuardedInvoke(NRpc::IServiceContextPtr context);
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
     // NYTree::TSupportsAttributes members
@@ -105,10 +103,11 @@ protected:
     bool IsLeader() const;
 
     void ValidateActiveLeader() const;
-    void ForwardToLeader(NRpc::IServiceContextPtr context);
-    void OnLeaderResponse(
-        NRpc::IServiceContextPtr context,
-        const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
+    // XXX(babenko)
+    //void ForwardToLeader(NRpc::IServiceContextPtr context);
+    //void OnLeaderResponse(
+    //    NRpc::IServiceContextPtr context,
+    //    const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
 
     virtual bool IsLoggingEnabled() const override;
     virtual NLog::TLogger CreateLogger() const override;
@@ -152,12 +151,12 @@ public:
 protected:
     const TObject* GetThisTypedImpl() const
     {
-        return static_cast<const TObject*>(Object);
+        return static_cast<const TObject*>(Object_);
     }
 
     TObject* GetThisTypedImpl()
     {
-        return static_cast<TObject*>(Object);
+        return static_cast<TObject*>(Object_);
     }
 
 };

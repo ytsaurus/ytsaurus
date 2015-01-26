@@ -13,6 +13,7 @@ namespace NDriver {
 
 struct TGetRequest
     : public TTransactionalRequest
+    , public TReadOnlyRequest
     , public TSuppressableAccessTrackingRequest
 {
     NYPath::TRichYPath Path;
@@ -102,6 +103,7 @@ private:
 
 struct TListRequest
     : public TTransactionalRequest
+    , public TReadOnlyRequest
     , public TSuppressableAccessTrackingRequest
 {
     NYPath::TRichYPath Path;
@@ -262,6 +264,7 @@ private:
 
 struct TExistsRequest
     : public TTransactionalRequest
+    , public TReadOnlyRequest
 {
     NYPath::TRichYPath Path;
 

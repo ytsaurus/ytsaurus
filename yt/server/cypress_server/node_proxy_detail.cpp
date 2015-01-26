@@ -322,7 +322,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
 
 TVersionedObjectId TNontemplateCypressNodeProxyBase::GetVersionedId() const
 {
-    return TVersionedObjectId(Object->GetId(), GetObjectId(Transaction));
+    return TVersionedObjectId(Object_->GetId(), GetObjectId(Transaction));
 }
 
 void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
@@ -965,7 +965,7 @@ int TMapNodeProxy::GetChildCount() const
 
     int result = 0;
     for (const auto* currentTransaction : transactions) {
-        TVersionedNodeId versionedId(Object->GetId(), GetObjectId(currentTransaction));
+        TVersionedNodeId versionedId(Object_->GetId(), GetObjectId(currentTransaction));
         const auto* node = cypressManager->FindNode(versionedId);
         if (node) {
             const auto* mapNode = static_cast<const TMapNode*>(node);
@@ -1096,7 +1096,7 @@ Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
     auto* trunkChildImpl = ToProxy(child)->GetTrunkNode();
 
     for (const auto* currentTransaction : transactions) {
-        TVersionedNodeId versionedId(Object->GetId(), GetObjectId(currentTransaction));
+        TVersionedNodeId versionedId(Object_->GetId(), GetObjectId(currentTransaction));
         const auto* node = cypressManager->FindNode(versionedId);
         if (node) {
             const auto* mapNode = static_cast<const TMapNode*>(node);

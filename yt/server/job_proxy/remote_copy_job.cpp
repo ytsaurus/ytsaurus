@@ -52,6 +52,7 @@ using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
 using namespace NTableClient::NProto;
 using namespace NJobTrackerClient::NProto;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,8 +69,6 @@ public:
         : TJob(host)
         , JobSpec_(host->GetJobSpec())
         , SchedulerJobSpecExt_(JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
-        , RemoteNodeDirectory_(New<TNodeDirectory>())
-        , CopiedChunks_(0)
     {
         auto config = host->GetConfig();
         ReaderConfig_ = config->JobIO->TableReader;
@@ -90,9 +89,12 @@ public:
 
         {
             auto remoteCopySpec = JobSpec_.GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
-            auto remoteConnectionConfig = ConvertTo<NApi::TConnectionConfigPtr>(TYsonString(remoteCopySpec.connection_config()));
+            auto remoteConnectionConfig = ConvertTo<TConnectionConfigPtr>(TYsonString(remoteCopySpec.connection_config()));
             NetworkName_ = Stroka(remoteCopySpec.network_name());
-            RemoteMasterChannel_ = NApi::CreateConnection(remoteConnectionConfig)->GetMasterChannel();
+            auto remoteConnection = CreateConnection(remoteConnectionConfig);
+            RemoteMasterChannel_ = CreateAuthenticatedChannel(
+                remoteConnection->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
+                NSecurityClient::JobUserName);
             RemoteNodeDirectory_->MergeFrom(remoteCopySpec.remote_node_directory());
         }
     }
@@ -150,10 +152,10 @@ private:
 
     TChunkListId OutputChunkListId_;
 
-    TNodeDirectoryPtr RemoteNodeDirectory_;
+    TNodeDirectoryPtr RemoteNodeDirectory_ = New<TNodeDirectory>();
 
-    int CopiedChunks_;
-    double CopiedChunkSize_;
+    int CopiedChunks_ = 0;
+    double CopiedChunkSize_ = 0.0;
     TNullable<double> TotalChunkSize_;
 
     TDataStatistics DataStatistics_;
@@ -297,14 +299,15 @@ private:
         }
 
         // Prepare data statistics
-        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
-        
-        TDataStatistics chunkStatistics;
-        chunkStatistics.set_compressed_data_size(miscExt.compressed_data_size());
-        chunkStatistics.set_uncompressed_data_size(miscExt.uncompressed_data_size());
-        chunkStatistics.set_row_count(miscExt.row_count());
-        chunkStatistics.set_chunk_count(1);
-        DataStatistics_ += chunkStatistics;
+        {
+            auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
+            TDataStatistics chunkStatistics;
+            chunkStatistics.set_compressed_data_size(miscExt.compressed_data_size());
+            chunkStatistics.set_uncompressed_data_size(miscExt.uncompressed_data_size());
+            chunkStatistics.set_row_count(miscExt.row_count());
+            chunkStatistics.set_chunk_count(1);
+            DataStatistics_ += chunkStatistics;
+        }
 
         TObjectServiceProxy objectProxy(host->GetMasterChannel());
 

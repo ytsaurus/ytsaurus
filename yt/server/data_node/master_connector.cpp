@@ -191,7 +191,9 @@ void TMasterConnector::SendRegister()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TNodeTrackerServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
+    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
+    TNodeTrackerServiceProxy proxy(channel);
+
     auto req = proxy.RegisterNode();
     *req->mutable_statistics() = ComputeStatistics();
     ToProto(req->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
@@ -287,7 +289,9 @@ void TMasterConnector::OnRegisterResponse(const TNodeTrackerServiceProxy::TError
 
 void TMasterConnector::SendFullNodeHeartbeat()
 {
-    TNodeTrackerServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
+    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
+    TNodeTrackerServiceProxy proxy(channel);
+
     auto request = proxy.FullHeartbeat()
         ->SetCodec(NCompression::ECodec::Lz4)
         ->SetTimeout(Config_->FullHeartbeatTimeout);
@@ -318,7 +322,9 @@ void TMasterConnector::SendFullNodeHeartbeat()
 
 void TMasterConnector::SendIncrementalNodeHeartbeat()
 {
-    TNodeTrackerServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
+    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
+    TNodeTrackerServiceProxy proxy(channel);
+
     auto request = proxy.IncrementalHeartbeat()
         ->SetCodec(NCompression::ECodec::Lz4);
 
@@ -553,7 +559,9 @@ void TMasterConnector::SendJobHeartbeat()
     YCHECK(NodeId_ != InvalidNodeId);
     YCHECK(State_ == EState::Online);
 
-    TJobTrackerServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
+    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
+    TJobTrackerServiceProxy proxy(channel);
+
     auto req = proxy.Heartbeat();
 
     auto jobController = Bootstrap_->GetJobController();

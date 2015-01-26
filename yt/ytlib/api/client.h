@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "connection.h"
 
 #include <core/misc/error.h>
 #include <core/misc/nullable.h>
@@ -61,6 +62,11 @@ struct TMutatingOptions
     NHydra::TMutationId MutationId;
 };
 
+struct TReadOnlyOptions
+{
+    EMasterChannelKind ReadFrom = EMasterChannelKind::LeaderOrFollower;
+};
+
 struct TPrerequisiteOptions
 {
     std::vector<NTransactionClient::TTransactionId> PrerequisiteTransactionIds;
@@ -98,7 +104,8 @@ struct TRemoveMemberOptions
 { };
 
 struct TCheckPermissionOptions
-    : public TTransactionalOptions
+    : public TReadOnlyOptions
+    , public TTransactionalOptions
 { };
 
 struct TCheckPermissionResult
@@ -154,6 +161,7 @@ struct TSelectRowsOptions
 
 struct TGetNodeOptions
     : public TTransactionalOptions
+    , public TReadOnlyOptions
     , public TSuppressableAccessTrackingOptions
 {
     // XXX(sandello): This one is used only in ProfileManager to pass `from_time`.
@@ -180,6 +188,7 @@ struct TRemoveNodeOptions
 
 struct TListNodesOptions
     : public TTransactionalOptions
+    , public TReadOnlyOptions
     , public TSuppressableAccessTrackingOptions
 {
     NYTree::TAttributeFilter AttributeFilter;
@@ -234,7 +243,8 @@ struct TLinkNodeOptions
 };
 
 struct TNodeExistsOptions
-    : public TTransactionalOptions
+    : public TReadOnlyOptions
+    , public TTransactionalOptions
 { };
 
 struct TCreateObjectOptions
@@ -421,7 +431,7 @@ struct IClient
     : public IClientBase
 {
     // TODO(babenko): consider hiding these guys
-    virtual NRpc::IChannelPtr GetMasterChannel() = 0;
+    virtual NRpc::IChannelPtr GetMasterChannel(EMasterChannelKind kind) = 0;
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual NRpc::IChannelFactoryPtr GetNodeChannelFactory() = 0;
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;

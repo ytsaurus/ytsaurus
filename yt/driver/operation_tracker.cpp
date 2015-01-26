@@ -104,7 +104,7 @@ void TOperationTracker::DumpProgress()
 {
     auto operationPath = GetOperationPath(OperationId);
 
-    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel(NApi::EMasterChannelKind::Leader));
     auto batchReq = proxy.ExecuteBatch();
 
     {
@@ -154,7 +154,7 @@ void TOperationTracker::DumpResult()
     auto operationPath = GetOperationPath(OperationId);
     auto jobsPath = GetJobsPath(OperationId);
 
-    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel(NApi::EMasterChannelKind::Leader));
     auto batchReq = proxy.ExecuteBatch();
 
     {
@@ -301,7 +301,7 @@ void TOperationTracker::DumpResult()
 EOperationType TOperationTracker::GetOperationType(const TOperationId& operationId)
 {
     auto operationPath = GetOperationPath(OperationId);
-    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel(NApi::EMasterChannelKind::Leader));
     auto req = TYPathProxy::Get(operationPath + "/@operation_type");
     auto rspOrError = proxy.Execute(req).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting operation type");
@@ -311,7 +311,7 @@ EOperationType TOperationTracker::GetOperationType(const TOperationId& operation
 
 bool TOperationTracker::CheckFinished()
 {
-    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel(NApi::EMasterChannelKind::Leader));
     auto operationPath = GetOperationPath(OperationId);
     auto req = TYPathProxy::Get(operationPath + "/@state");
     auto rspOrError = proxy.Execute(req).Get();

@@ -35,6 +35,7 @@ using namespace NYTree;
 using namespace NYPath;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NObjectClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTransactionClient;
@@ -135,10 +136,17 @@ private:
 
         LOG_INFO("Opening file");
 
-        TObjectServiceProxy proxy(Client_->GetMasterChannel());
+        auto masterChannel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(masterChannel);
+
         auto batchReq = proxy.ExecuteBatch();
-        for (const auto& id : Options_.PrerequisiteTransactionIds) {
-            batchReq->PrerequisiteTransactions().push_back(TObjectServiceProxy::TPrerequisiteTransaction(id));
+
+        {
+            auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
+            for (const auto& id : Options_.PrerequisiteTransactionIds) {
+                auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
+                ToProto(prerequisiteTransaction->mutable_transaction_id(), id);
+            }
         }
 
         {
@@ -209,7 +217,7 @@ private:
             Config_,
             writerOptions,
             provider,
-            Client_->GetMasterChannel(),
+            masterChannel,
             UploadTransaction_->GetId(),
             chunkListId);
 

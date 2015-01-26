@@ -43,6 +43,13 @@ DEFINE_ENUM(EErrorCode,
     ((OutOfOrderMutations)        (609))
 );
 
+
+DEFINE_ENUM(EPeerKind,
+    (Leader)
+    (Follower)
+    (LeaderOrFollower)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using NElection::TCellId;

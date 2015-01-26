@@ -30,7 +30,7 @@ TBuildSnapshotExecutor::TBuildSnapshotExecutor()
 
 void TBuildSnapshotExecutor::DoExecute()
 {
-    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel(NApi::EMasterChannelKind::Leader));
     proxy.SetDefaultTimeout(Null); // infinity
     auto req = proxy.BuildSnapshot();
     req->set_set_read_only(SetReadOnlyArg.getValue());
@@ -55,7 +55,7 @@ TGCCollectExecutor::TGCCollectExecutor()
 
 void TGCCollectExecutor::DoExecute()
 {
-    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel(NApi::EMasterChannelKind::Leader));
     proxy.SetDefaultTimeout(Null); // infinity
     auto req = proxy.GCCollect();
     auto rspOrError = req->Invoke().Get();

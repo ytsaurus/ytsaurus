@@ -59,7 +59,7 @@ private:
     {
         const auto* tablet = GetThisTypedImpl();
         const auto* table = tablet->GetTable();
-        auto tabletManager = Bootstrap->GetTabletManager();
+        auto tabletManager = Bootstrap_->GetTabletManager();
 
         if (key == "state") {
             BuildYsonFluently(consumer)

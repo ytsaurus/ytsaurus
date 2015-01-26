@@ -70,12 +70,12 @@ private:
             request->has_account() ? ~request->account() : "<Null>",
             request->object_count());
 
-        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction =  transactionId != NullTransactionId
             ? transactionManager->GetTransactionOrThrow(transactionId)
             : nullptr;
 
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Bootstrap_->GetSecurityManager();
         auto* account = request->has_account()
             ? securityManager->GetAccountByNameOrThrow(request->account())
             : nullptr;
@@ -85,7 +85,7 @@ private:
             ? FromProto(request->object_attributes())
             : CreateEphemeralAttributes();
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
 
         for (int index = 0; index < request->object_count(); ++index) {
             auto* object = objectManager->CreateObject(
@@ -119,10 +119,10 @@ private:
             objectId,
             recursive);
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetObjectOrThrow(objectId);
 
-        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->UnstageObject(object, recursive);
 
         context->Reply();

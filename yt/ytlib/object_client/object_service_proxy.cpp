@@ -3,6 +3,8 @@
 
 #include <core/rpc/message.h>
 
+#include <yt/ytlib/object_client/object_ypath.pb.h>
+
 namespace NYT {
 namespace NObjectClient {
 
@@ -50,19 +52,11 @@ TObjectServiceProxy::TReqExecuteBatch::AddRequestMessage(
     const Stroka& key)
 {
     if (!key.empty()) {
-        int index = static_cast<int>(PartCounts.size());
+        int index = static_cast<int>(InnerRequestMessages.size());
         KeyToIndexes.insert(std::make_pair(key, index));
     }
 
-    if (innerRequestMessage) {
-        PartCounts.push_back(static_cast<int>(innerRequestMessage.Size()));
-        Attachments_.insert(
-            Attachments_.end(),
-            innerRequestMessage.Begin(),
-            innerRequestMessage.End());
-    } else {
-        PartCounts.push_back(0);
-    }
+    InnerRequestMessages.push_back(innerRequestMessage);
 
     return this;
 }
@@ -76,25 +70,33 @@ TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::
 
 int TObjectServiceProxy::TReqExecuteBatch::GetSize() const
 {
-    return static_cast<int>(PartCounts.size());
+    return static_cast<int>(InnerRequestMessages.size());
 }
 
-TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
+TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody()
 {
-    NProto::TReqExecute req;
-
-    ToProto(req.mutable_part_counts(), PartCounts);
-
-    for (const auto& prerequisite : PrerequisiteTransactions_) {
-        auto* protoPrerequisite = req.add_prerequisite_transactions();
-        ToProto(protoPrerequisite->mutable_transaction_id(), prerequisite.TransactionId);
+    // Push TPrerequisitesExt down to individual requests.
+    if (Header_.HasExtension(NProto::TPrerequisitesExt::prerequisites_ext)) {
+        auto batchPrerequisitesExt = Header_.GetExtension(NProto::TPrerequisitesExt::prerequisites_ext);
+        for (auto& innerRequestMessage : InnerRequestMessages) {
+            NRpc::NProto::TRequestHeader requestHeader;
+            YCHECK(ParseRequestHeader(innerRequestMessage, &requestHeader));
+            auto* prerequisitesExt = requestHeader.MutableExtension(NProto::TPrerequisitesExt::prerequisites_ext);
+            prerequisitesExt->mutable_transactions()->MergeFrom(batchPrerequisitesExt.transactions());
+            prerequisitesExt->mutable_revisions()->MergeFrom(batchPrerequisitesExt.revisions());
+            innerRequestMessage = SetRequestHeader(innerRequestMessage, requestHeader);
+        }
+        Header_.ClearExtension(NProto::TPrerequisitesExt::prerequisites_ext);
     }
 
-    for (const auto& prerequisite : PrerequisiteRevisions_) {
-        auto* protoPrerequisite = req.add_prerequisite_revisions();
-        protoPrerequisite->set_path(prerequisite.Path);
-        ToProto(protoPrerequisite->mutable_transaction_id(), prerequisite.TransactionId);
-        protoPrerequisite->set_revision(prerequisite.Revision);
+    NProto::TReqExecute req;
+    for (const auto& innerRequestMessage : InnerRequestMessages) {
+        if (innerRequestMessage) {
+            req.add_part_counts(innerRequestMessage.Size());
+            Attachments_.insert(Attachments_.end(), innerRequestMessage.Begin(), innerRequestMessage.End());
+        } else {
+            req.add_part_counts(0);
+        }
     }
 
     TSharedRef data;
@@ -191,7 +193,7 @@ Stroka TObjectServiceProxy::GetServiceName()
 
 int TObjectServiceProxy::GetProtocolVersion()
 {
-    return 1;
+    return 2;
 }
 
 TObjectServiceProxy::TObjectServiceProxy(IChannelPtr channel)

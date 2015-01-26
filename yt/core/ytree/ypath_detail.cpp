@@ -25,10 +25,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPathServiceBase::TYPathServiceBase()
-    : LoggerCreated(false)
-{ }
-
 IYPathService::TResolveResult TYPathServiceBase::Resolve(
     const TYPath& path,
     IServiceContextPtr context)
@@ -75,11 +71,11 @@ IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(
 
 void TYPathServiceBase::EnsureLoggerCreated() const
 {
-    if (!LoggerCreated) {
+    if (!LoggerCreated_) {
         if (IsLoggingEnabled()) {
             Logger = CreateLogger();
         }
-        LoggerCreated = true;
+        LoggerCreated_ = true;
     }
 }
 
@@ -855,11 +851,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeSetterBase::TNodeSetterBase(INode* node, ITreeBuilder* builder)
-    : Node(node)
-    , TreeBuilder(builder)
-    , NodeFactory(node->CreateFactory())
+    : Node_(node)
+    , TreeBuilder_(builder)
+    , NodeFactory_(node->CreateFactory())
 {
-    Node->MutableAttributes()->Clear();
+    Node_->MutableAttributes()->Clear();
 }
 
 TNodeSetterBase::~TNodeSetterBase()
@@ -914,18 +910,18 @@ void TNodeSetterBase::OnMyBeginMap()
 
 void TNodeSetterBase::OnMyBeginAttributes()
 {
-    AttributesSetter.reset(new TAttributesSetter(Node->MutableAttributes()));
-    Forward(AttributesSetter.get(), TClosure(), EYsonType::MapFragment);
+    AttributesSetter_.reset(new TAttributesSetter(Node_->MutableAttributes()));
+    Forward(AttributesSetter_.get(), TClosure(), EYsonType::MapFragment);
 }
 
 void TNodeSetterBase::OnMyEndAttributes()
 {
-    AttributesSetter.reset();
+    AttributesSetter_.reset();
 }
 
 void TNodeSetterBase::Commit()
 {
-    NodeFactory->Commit();
+    NodeFactory_->Commit();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

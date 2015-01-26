@@ -51,7 +51,7 @@ public:
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
 
-    //! Throws TNotALeaderException if the peer is an active leader.
+    //! Throws TNotALeaderException if the peer is not an active leader.
     void ValidateActiveLeader();
 
 private:

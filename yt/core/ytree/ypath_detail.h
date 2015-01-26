@@ -78,8 +78,6 @@ class TYPathServiceBase
     : public virtual IYPathService
 {
 public:
-    TYPathServiceBase();
-
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
     virtual TResolveResult Resolve(const TYPath& path, NRpc::IServiceContextPtr context) override;
     virtual NLog::TLogger GetLogger() const override;
@@ -90,7 +88,8 @@ public:
 
 protected:
     mutable NLog::TLogger Logger;
-    mutable bool LoggerCreated;
+    mutable bool LoggerCreated_ = false;
+
 
     virtual void BeforeInvoke(NRpc::IServiceContextPtr context);
     virtual bool DoInvoke(NRpc::IServiceContextPtr context);
@@ -271,10 +270,12 @@ protected:
 protected:
     class TAttributesSetter;
 
-    INode* Node;
-    ITreeBuilder* TreeBuilder;
-    INodeFactoryPtr NodeFactory;
-    std::unique_ptr<TAttributesSetter> AttributesSetter;
+    INode* const Node_;
+    ITreeBuilder* const TreeBuilder_;
+
+    const INodeFactoryPtr NodeFactory_;
+
+    std::unique_ptr<TAttributesSetter> AttributesSetter_;
 
 };
 
@@ -326,14 +327,14 @@ class TNodeSetter<IMapNode>
 public:
     TNodeSetter(IMapNode* map, ITreeBuilder* builder)
         : TNodeSetterBase(map, builder)
-        , Map(map)
+        , Map_(map)
     { }
 
 private:
-    typedef TNodeSetter<IMapNode> TThis;
+    IMapNode* const Map_;
 
-    IMapNodePtr Map;
-    Stroka ItemKey;
+    Stroka ItemKey_;
+
 
     virtual ENodeType GetExpectedType() override
     {
@@ -342,20 +343,20 @@ private:
 
     virtual void OnMyBeginMap() override
     {
-        Map->Clear();
+        Map_->Clear();
     }
 
     virtual void OnMyKeyedItem(const TStringBuf& key) override
     {
-        ItemKey = key;
-        TreeBuilder->BeginTree();
-        Forward(TreeBuilder, BIND(&TThis::OnForwardingFinished, this));
+        ItemKey_ = key;
+        TreeBuilder_->BeginTree();
+        Forward(TreeBuilder_, BIND(&TNodeSetter::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
     {
-        YCHECK(Map->AddChild(TreeBuilder->EndTree(), ItemKey));
-        ItemKey.clear();
+        YCHECK(Map_->AddChild(TreeBuilder_->EndTree(), ItemKey_));
+        ItemKey_.clear();
     }
 
     virtual void OnMyEndMap() override
@@ -373,13 +374,12 @@ class TNodeSetter<IListNode>
 public:
     TNodeSetter(IListNode* list, ITreeBuilder* builder)
         : TNodeSetterBase(list, builder)
-        , List(list)
+        , List_(list)
     { }
 
 private:
-    typedef TNodeSetter<IListNode> TThis;
+    IListNode* const List_;
 
-    IListNodePtr List;
 
     virtual ENodeType GetExpectedType() override
     {
@@ -388,18 +388,18 @@ private:
 
     virtual void OnMyBeginList() override
     {
-        List->Clear();
+        List_->Clear();
     }
 
     virtual void OnMyListItem() override
     {
-        TreeBuilder->BeginTree();
-        Forward(TreeBuilder, BIND(&TThis::OnForwardingFinished, this));
+        TreeBuilder_->BeginTree();
+        Forward(TreeBuilder_, BIND(&TNodeSetter::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
     {
-        List->AddChild(TreeBuilder->EndTree());
+        List_->AddChild(TreeBuilder_->EndTree());
     }
 
     virtual void OnMyEndList() override
