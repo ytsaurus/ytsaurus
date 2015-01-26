@@ -119,7 +119,9 @@ struct TCGVariables
 };
 
 typedef void (TCGQuerySignature)(TRow, TExecutionContext*);
+typedef void (TCGExpressionSignature)(TValue*, TRow, TRow, TExecutionContext*);
 using TCGQueryCallback = NCodegen::TCGFunction<TCGQuerySignature>;
+using TCGExpressionCallback = NCodegen::TCGFunction<TCGExpressionSignature>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

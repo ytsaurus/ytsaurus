@@ -40,6 +40,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/cg_routines.cpp
     ${BASE}/cg_ir_builder.cpp
     ${BASE}/cg_fragment_compiler.cpp
+    ${BASE}/folding_profiler.cpp
   )
 
   set( HDRS
@@ -48,6 +49,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/cg_routines.h
     ${BASE}/cg_ir_builder.h
     ${BASE}/cg_fragment_compiler.h
+    ${BASE}/folding_profiler.h
   )
 endif()
 
