@@ -71,6 +71,8 @@ TStreamLogWriter::TStreamLogWriter(TOutputStream* stream)
     , DateFormatter_(new TDateFormatter())
 { }
 
+TStreamLogWriter::~TStreamLogWriter() = default;
+
 void TStreamLogWriter::Write(const TLogEvent& event)
 {
     if (!Stream_) {

@@ -37,6 +37,7 @@ class TStreamLogWriter
 {
 public:
     explicit TStreamLogWriter(TOutputStream* stream = nullptr);
+    ~TStreamLogWriter();
 
     virtual void Write(const TLogEvent& event) override;
     virtual void Flush() override;
