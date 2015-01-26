@@ -26,7 +26,7 @@ public:
     TNodeTrackerConfig()
     {
         RegisterParameter("registered_node_timeout", RegisteredNodeTimeout)
-            .Default(TDuration::Seconds(10));
+            .Default(TDuration::Seconds(60));
         RegisterParameter("online_node_timeout", OnlineNodeTimeout)
             .Default(TDuration::Seconds(60));
 
