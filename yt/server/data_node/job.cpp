@@ -485,7 +485,7 @@ public:
     { }
 
 private:
-    TRepairChunkJobSpecExt RepairJobSpecExt_;
+    const TRepairChunkJobSpecExt RepairJobSpecExt_;
 
 
     virtual void DoRun() override
@@ -526,7 +526,7 @@ private:
             auto reader = CreateReplicationReader(
                 Config_->RepairReader,
                 Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
-                Bootstrap_->GetMasterClient()->GetMasterChannel(),
+                Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
                 Bootstrap_->GetLocalDescriptor(),
                 partId,
@@ -645,7 +645,7 @@ private:
             auto reader = CreateReplicationReader(
                 Config_->SealReader,
                 Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
-                Bootstrap_->GetMasterClient()->GetMasterChannel(),
+                Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
                 Null,
                 ChunkId_,

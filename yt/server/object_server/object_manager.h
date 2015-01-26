@@ -8,6 +8,8 @@
 
 #include <core/profiling/profiler.h>
 
+#include <ytlib/object_client/object_ypath_proxy.h>
+
 #include <server/hydra/mutation.h>
 #include <server/hydra/entity_map.h>
 
@@ -184,6 +186,13 @@ public:
     //! Advices a client to yield if it spent a lot of time already.
     bool AdviceYield(TInstant startTime) const;
 
+    //! Validates prerequisites, throws on failure.
+    void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);
+
+    NProfiling::TProfiler& GetProfiler();
+    NProfiling::TTagId GetTypeTagId(EObjectType type);
+    NProfiling::TTagId GetMethodTagId(const Stroka& method);
+
     DECLARE_ENTITY_MAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
 
 private:
@@ -234,6 +243,8 @@ private:
     //! Stores deltas from parent transaction.
     NHydra::TEntityMap<TVersionedObjectId, TAttributeSet> AttributeMap_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
 
     void SaveKeys(NCellMaster::TSaveContext& context) const;
     void SaveValues(NCellMaster::TSaveContext& context) const;
@@ -253,24 +264,15 @@ private:
     virtual void OnLeaderActive() override;
     virtual void OnStopLeading() override;
 
-    void InterceptProxyInvocation(
-        TObjectProxyBase* proxy,
-        NRpc::IServiceContextPtr context);
-    void ExecuteMutatingRequest(
+    void HydraExecuteLeader(
         const NSecurityServer::TUserId& userId,
         const NRpc::TMutationId& mutationId,
         NRpc::IServiceContextPtr context);
-
-    void HydraExecute(const NProto::TReqExecute& request);
+    void HydraExecuteFollower(const NProto::TReqExecute& request);
     void HydraDestroyObjects(const NProto::TReqDestroyObjects& request);
-
-    NProfiling::TTagId GetTypeTagId(EObjectType type);
-    NProfiling::TTagId GetMethodTagId(const Stroka& method);
 
     void OnProfiling();
 
-
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectManager)

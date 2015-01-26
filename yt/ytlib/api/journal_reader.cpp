@@ -108,7 +108,7 @@ private:
 
         LOG_INFO("Fetching journal info");
 
-        TObjectServiceProxy proxy(Client_->GetMasterChannel());
+        TObjectServiceProxy proxy(Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower));
         auto batchReq = proxy.ExecuteBatch();
 
         {
@@ -197,7 +197,7 @@ private:
                 CurrentChunkReader_ = CreateReplicationReader(
                     Config_,
                     Client_->GetConnection()->GetCompressedBlockCache(),
-                    Client_->GetMasterChannel(),
+                    Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
                     NodeDirectory_,
                     Null,
                     chunkId,

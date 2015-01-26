@@ -78,6 +78,7 @@ using namespace NConcurrency;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NObjectClient;
+using namespace NObjectClient::NProto;
 using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NRpc;
@@ -596,31 +597,42 @@ public:
         , Options_(options)
         , Invoker_(NDriver::TDispatcher::Get()->GetLightInvoker())
     {
-        MasterChannel_ = Connection_->GetMasterChannel();
+        for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
+            MasterChannels_[kind] = Connection_->GetMasterChannel(kind);
+        }
         SchedulerChannel_ = Connection_->GetSchedulerChannel();
         NodeChannelFactory_ = Connection_->GetNodeChannelFactory();
 
         if (options.User != NSecurityClient::RootUserName) {
-            MasterChannel_ = CreateAuthenticatedChannel(MasterChannel_, options.User);
+            for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
+                MasterChannels_[kind] = CreateAuthenticatedChannel(MasterChannels_[kind], options.User);
+            }
             SchedulerChannel_ = CreateAuthenticatedChannel(SchedulerChannel_, options.User);
             NodeChannelFactory_ = CreateAuthenticatedChannelFactory(NodeChannelFactory_, options.User);
         }
 
-        MasterChannel_ = CreateScopedChannel(MasterChannel_);
+        for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
+            MasterChannels_[kind] = CreateScopedChannel(MasterChannels_[kind]);
+        }
         SchedulerChannel_ = CreateScopedChannel(SchedulerChannel_);
-            
+
+        for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
+            ObjectProxies_[kind].reset(new TObjectServiceProxy(MasterChannels_[kind]));
+        }
+        SchedulerProxy_.reset(new TSchedulerServiceProxy(SchedulerChannel_));
+
         TransactionManager_ = New<TTransactionManager>(
             Connection_->GetConfig()->TransactionManager,
             Connection_->GetConfig()->Master->CellTag,
             Connection_->GetConfig()->Master->CellId,
-            MasterChannel_,
+            GetMasterChannel(EMasterChannelKind::Leader),
             Connection_->GetTimestampProvider(),
             Connection_->GetCellDirectory());
 
-        QueryHelper_ = New<TQueryHelper>(Connection_, MasterChannel_, NodeChannelFactory_);
-
-        ObjectProxy_.reset(new TObjectServiceProxy(MasterChannel_));
-        SchedulerProxy_.reset(new TSchedulerServiceProxy(SchedulerChannel_));
+        QueryHelper_ = New<TQueryHelper>(
+            Connection_,
+            GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
+            NodeChannelFactory_);
 
         Logger.AddTag("Client: %p", this);
     }
@@ -631,9 +643,9 @@ public:
         return Connection_;
     }
 
-    virtual IChannelPtr GetMasterChannel() override
+    virtual IChannelPtr GetMasterChannel(EMasterChannelKind kind) override
     {
-        return MasterChannel_;
+        return MasterChannels_[kind];
     }
 
     virtual IChannelPtr GetSchedulerChannel() override
@@ -657,10 +669,12 @@ public:
         TransactionManager_->AbortAll();
 
         auto error = TError("Client terminated");
-        return Combine(std::vector<TFuture<void>> {
-            MasterChannel_->Terminate(error),
-            SchedulerChannel_->Terminate(error)
-        });
+        std::vector<TFuture<void>> asyncResults;
+        for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
+            asyncResults.push_back(MasterChannels_[kind]->Terminate(error));
+        }
+        asyncResults.push_back(SchedulerChannel_->Terminate(error));
+        return Combine(asyncResults);
     }
 
 
@@ -885,12 +899,12 @@ private:
 
     const IInvokerPtr Invoker_;
 
-    IChannelPtr MasterChannel_;
+    TEnumIndexedVector<IChannelPtr, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
     IChannelFactoryPtr NodeChannelFactory_;
     TTransactionManagerPtr TransactionManager_;
     TQueryHelperPtr QueryHelper_;
-    std::unique_ptr<TObjectServiceProxy> ObjectProxy_;
+    TEnumIndexedVector<std::unique_ptr<TObjectServiceProxy>, EMasterChannelKind> ObjectProxies_;
     std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;
 
     NLog::TLogger Logger = ApiLogger;
@@ -994,11 +1008,16 @@ private:
     }
 
     void SetPrerequisites(
-        TObjectServiceProxy::TReqExecuteBatchPtr batchReq,
+        IClientRequestPtr request,
         const TPrerequisiteOptions& options)
     {
+        if (options.PrerequisiteTransactionIds.empty())
+            return;
+
+        auto* prerequisitesExt = request->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
         for (const auto& id : options.PrerequisiteTransactionIds) {
-            batchReq->PrerequisiteTransactions().push_back(TObjectServiceProxy::TPrerequisiteTransaction(id));
+            auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
+            ToProto(prerequisiteTransaction->mutable_transaction_id(), id);
         }
     }
 
@@ -1226,7 +1245,7 @@ private:
     TQueryStatistics DoSelectRows(
         const Stroka& query,
         ISchemafulWriterPtr writer,
-        TSelectRowsOptions options)
+        const TSelectRowsOptions& options)
     {
         auto inputRowLimit = options.InputRowLimit.Get(Connection_->GetConfig()->DefaultInputRowLimit);
         auto outputRowLimit = options.OutputRowLimit.Get(Connection_->GetConfig()->DefaultOutputRowLimit);
@@ -1267,7 +1286,8 @@ private:
             ToProto(req->mutable_cell_id(), options.CellId);
         }
 
-        WaitFor(ObjectProxy_->Execute(req))
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
 
@@ -1284,7 +1304,8 @@ private:
         }
         req->set_force(options.Force);
 
-        WaitFor(ObjectProxy_->Execute(req))
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
 
@@ -1300,7 +1321,8 @@ private:
             req->set_first_tablet_index(*options.LastTabletIndex);
         }
 
-        WaitFor(ObjectProxy_->Execute(req))
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
 
@@ -1318,14 +1340,15 @@ private:
         }
         ToProto(req->mutable_pivot_keys(), pivotKeys);
 
-        WaitFor(ObjectProxy_->Execute(req))
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
 
 
     TYsonString DoGetNode(
         const TYPath& path,
-        TGetNodeOptions options)
+        const TGetNodeOptions& options)
     {
         auto req = TYPathProxy::Get(path);
         SetTransactionId(req, options, true);
@@ -1340,7 +1363,8 @@ private:
             ToProto(req->mutable_options(), *options.Options);
         }
 
-        auto rsp = WaitFor(ObjectProxy_->Execute(req))
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::LeaderOrFollower];
+        auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
 
         return TYsonString(rsp->value());
@@ -1351,7 +1375,8 @@ private:
         const TYsonString& value,
         TSetNodeOptions options)
     {
-        auto batchReq = ObjectProxy_->ExecuteBatch();
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
         auto req = TYPathProxy::Set(path);
@@ -1370,7 +1395,8 @@ private:
         const TYPath& path,
         TRemoveNodeOptions options)
     {
-        auto batchReq = ObjectProxy_->ExecuteBatch();
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
         auto req = TYPathProxy::Remove(path);
@@ -1388,7 +1414,7 @@ private:
 
     TYsonString DoListNodes(
         const TYPath& path,
-        TListNodesOptions options)
+        const TListNodesOptions& options)
     {
         auto req = TYPathProxy::List(path);
         SetTransactionId(req, options, true);
@@ -1399,7 +1425,8 @@ private:
             req->set_max_size(*options.MaxSize);
         }
 
-        auto rsp = WaitFor(ObjectProxy_->Execute(req))
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::LeaderOrFollower];
+        auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
         return TYsonString(rsp->keys());
     }
@@ -1409,7 +1436,8 @@ private:
         EObjectType type,
         TCreateNodeOptions options)
     {
-        auto batchReq = ObjectProxy_->ExecuteBatch();
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
         auto req = TCypressYPathProxy::Create(path);
@@ -1435,7 +1463,8 @@ private:
         NCypressClient::ELockMode mode,
         TLockNodeOptions options)
     {
-        auto batchReq = ObjectProxy_->ExecuteBatch();
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
         auto req = TCypressYPathProxy::Lock(path);
@@ -1457,7 +1486,8 @@ private:
         const TYPath& dstPath,
         TCopyNodeOptions options)
     {
-        auto batchReq = ObjectProxy_->ExecuteBatch();
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
         auto req = TCypressYPathProxy::Copy(dstPath);
@@ -1480,7 +1510,8 @@ private:
         const TYPath& dstPath,
         TMoveNodeOptions options)
     {
-        auto batchReq = ObjectProxy_->ExecuteBatch();
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
         auto req = TCypressYPathProxy::Copy(dstPath);
@@ -1504,7 +1535,8 @@ private:
         const TYPath& dstPath,
         TLinkNodeOptions options)
     {
-        auto batchReq = ObjectProxy_->ExecuteBatch();
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
         auto req = TCypressYPathProxy::Create(dstPath);
@@ -1532,7 +1564,8 @@ private:
         auto req = TYPathProxy::Exists(path);
         SetTransactionId(req, options, true);
 
-        auto rsp = WaitFor(ObjectProxy_->Execute(req))
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::LeaderOrFollower];
+        auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
         return rsp->value();
     }
@@ -1542,7 +1575,8 @@ private:
         EObjectType type,
         TCreateObjectOptions options)
     {
-        auto batchReq = ObjectProxy_->ExecuteBatch();
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
         auto req = TMasterYPathProxy::CreateObjects();
@@ -1578,7 +1612,8 @@ private:
         req->set_name(member);
         GenerateMutationId(req, options);
 
-        WaitFor(ObjectProxy_->Execute(req))
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
 
@@ -1591,7 +1626,8 @@ private:
         req->set_name(member);
         GenerateMutationId(req, options);
 
-        WaitFor(ObjectProxy_->Execute(req))
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
 
@@ -1599,14 +1635,15 @@ private:
         const Stroka& user,
         const TYPath& path,
         EPermission permission,
-        TCheckPermissionOptions options)
+        const TCheckPermissionOptions& options)
     {
         auto req = TObjectYPathProxy::CheckPermission(path);
         req->set_user(user);
         req->set_permission(static_cast<int>(permission));
         SetTransactionId(req, options, true);
 
-        auto rsp = WaitFor(ObjectProxy_->Execute(req))
+        const auto& proxy = ObjectProxies_[EMasterChannelKind::LeaderOrFollower];
+        auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
 
         TCheckPermissionResult result;
@@ -1949,9 +1986,9 @@ private:
             , NameTable_(std::move(nameTable))
         { }
 
-        TTransaction* Transaction_;
-        TYPath Path_;
-        TNameTablePtr NameTable_;
+        TTransaction* const Transaction_;
+        const TYPath Path_;
+        const TNameTablePtr NameTable_;
 
         TTableMountInfoPtr TableInfo_;
 
@@ -1994,7 +2031,7 @@ private:
 
     private:
         std::vector<TUnversionedRow> Rows_;
-        TWriteRowsOptions Options_;
+        const TWriteRowsOptions Options_;
 
     };
 
@@ -2034,7 +2071,7 @@ private:
 
     private:
         std::vector<TUnversionedRow> Keys_;
-        TDeleteRowsOptions Options_;
+        const TDeleteRowsOptions Options_;
 
     };
 
@@ -2080,9 +2117,9 @@ private:
         }
 
     private:
-        TTransactionId TransactionId_;
-        TTabletId TabletId_;
-        TConnectionConfigPtr Config_;
+        const TTransactionId TransactionId_;
+        const TTabletId TabletId_;
+        const TConnectionConfigPtr Config_;
 
         NLog::TLogger Logger;
 

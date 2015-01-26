@@ -50,8 +50,7 @@ class TObjectService
     : public NCellMaster::TMasterHydraServiceBase
 {
 public:
-    TObjectService(
-        TBootstrap* bootstrap)
+    TObjectService(TBootstrap* bootstrap)
         : TMasterHydraServiceBase(
             bootstrap,
             NObjectClient::TObjectServiceProxy::GetServiceName(),
@@ -113,9 +112,11 @@ public:
 
         if (requestCount == 0) {
             Reply();
-        } else {
-            Continue();
+            return;
         }
+
+        // XXX(babenko): get in sync with leader
+        Continue();
     }
 
 private:
@@ -141,15 +142,14 @@ private:
             auto rootService = objectManager->GetRootService();
 
             auto hydraFacade = Bootstrap->GetHydraFacade();
+            auto hydraManager = hydraFacade->GetHydraManager();
 
             auto startTime = TInstant::Now();
 
             auto& request = Context->Request();
             const auto& attachments = request.Attachments();
-            
-            ValidatePrerequisites();
 
-            auto securityManager = Bootstrap->GetSecurityManager();           
+            auto securityManager = Bootstrap->GetSecurityManager();
             auto* user = GetAuthenticatedUser();
             TAuthenticatedUserGuard userGuard(securityManager, user);
 
@@ -187,11 +187,11 @@ private:
                         "Error parsing request header");
                 }
 
-                const auto& requestHeaderExt = requestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
-                const auto& path = requestHeaderExt.path();
-
                 auto mutationId = GetMutationId(requestHeader);
-                bool mutating = requestHeaderExt.mutating();
+
+                const auto& ypathExt = requestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
+                const auto& path = ypathExt.path();
+                bool mutating = ypathExt.mutating();
 
                 // Forbid to reorder read requests before write ones.
                 if (!mutating && !LastMutationCommitted.IsSet()) {
@@ -285,12 +285,6 @@ private:
                 requestIndex,
                 error,
                 Context->GetRequestId());
-
-            if (mutating && error.GetCode() == NRpc::EErrorCode::Unavailable) {
-                // Commit failed -- stop further handling.
-                Context->Reply(error);
-                return;
-            }
         }
 
         ResponseMessages[requestIndex] = std::move(responseMessage);
@@ -331,71 +325,6 @@ private:
         Context->Reply(error);
     }
 
-    void ValidatePrerequisites()
-    {       
-        auto& request = Context->Request();
-
-        for (const auto& prerequisite : request.prerequisite_transactions()) {
-            auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
-            GetPrerequisiteTransaction(transactionId);
-        }
-
-        auto cypressManager = Bootstrap->GetCypressManager();
-        for (const auto& prerequisite : request.prerequisite_revisions()) {
-            auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
-            const auto& path = prerequisite.path();
-            i64 revision = prerequisite.revision();
-
-            auto* transaction = transactionId == NullTransactionId
-                ? nullptr
-                : GetPrerequisiteTransaction(transactionId);
-
-            auto resolver = cypressManager->CreateResolver(transaction);
-            INodePtr nodeProxy;
-            try {
-                nodeProxy = resolver->ResolvePath(path);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION(
-                    NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                    "Prerequisite check failed: failed to resolve path %v",
-                    path)
-                    << ex;
-            }
-
-            auto* cypressNodeProxy = dynamic_cast<ICypressNodeProxy*>(nodeProxy.Get());
-            YCHECK(cypressNodeProxy);
-
-            auto* node = cypressNodeProxy->GetTrunkNode();
-            if (node->GetRevision() != revision) {
-                THROW_ERROR_EXCEPTION(
-                    NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                    "Prerequisite check failed: node %v revision mismatch: expected %v, found %v",
-                    path,
-                    revision,
-                    node->GetRevision());
-            }
-        }
-    }
-
-    TTransaction* GetPrerequisiteTransaction(const TTransactionId& transactionId)
-    {
-        auto transactionManager = Bootstrap->GetTransactionManager();
-        auto* transaction = transactionManager->FindTransaction(transactionId);
-        if (!IsObjectAlive(transaction)) {
-            THROW_ERROR_EXCEPTION(
-                NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                "Prerequisite check failed: transaction %v is missing",
-                transactionId);
-        }
-        if (transaction->GetState() != ETransactionState::Active) {
-            THROW_ERROR_EXCEPTION(
-                NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                "Prerequisite check failed: transaction %v is not active",
-                transactionId);
-        }
-        return transaction;
-    }
-
     TUser* GetAuthenticatedUser()
     {
         auto securityManager = Bootstrap->GetSecurityManager();
@@ -413,7 +342,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     UNUSED(request);
     UNUSED(response);
 
-    ValidateActiveLeader();
+    ValidateActivePeer();
 
     auto session = New<TExecuteSession>(
         Bootstrap,
@@ -426,9 +355,9 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
     UNUSED(request);
     UNUSED(response);
 
-    ValidateActiveLeader();
-
     context->SetRequestInfo();
+
+    ValidateActiveLeader();
 
     auto objectManager = Bootstrap->GetObjectManager();
     context->ReplyFrom(objectManager->GCCollect());

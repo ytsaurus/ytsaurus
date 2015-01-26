@@ -113,8 +113,8 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        auto chunkManager = Bootstrap->GetChunkManager();
-        auto cypressManager = Bootstrap->GetCypressManager();
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto cypressManager = Bootstrap_->GetCypressManager();
 
         auto* chunk = GetThisTypedImpl();
         auto status = chunkManager->ComputeChunkStatus(chunk);
@@ -402,7 +402,7 @@ private:
     {
         auto* chunk = GetThisTypedImpl();
         if (chunk->IsJournal() && key == "quorum_row_count") {
-            auto chunkManager = Bootstrap->GetChunkManager();
+            auto chunkManager = Bootstrap_->GetChunkManager();
             auto rowCountResult = chunkManager->GetChunkQuorumInfo(chunk);
             return rowCountResult.Apply(BIND([=] (const TMiscExt& miscExt) {
                 BuildYsonFluently(consumer)
@@ -428,7 +428,7 @@ private:
 
         context->SetRequestInfo();
 
-        auto chunkManager = Bootstrap->GetChunkManager();
+        auto chunkManager = Bootstrap_->GetChunkManager();
         const auto* chunk = GetThisTypedImpl();
 
         auto replicas = chunk->GetReplicas();
@@ -466,7 +466,7 @@ private:
             return;
         }
 
-        auto chunkManager = Bootstrap->GetChunkManager();
+        auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager->ConfirmChunk(
             chunk,
             replicas,
@@ -488,7 +488,7 @@ private:
         YCHECK(info.sealed());
 
         auto* chunk = GetThisTypedImpl();
-        auto chunkManager = Bootstrap->GetChunkManager();
+        auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager->SealChunk(chunk, info);
 
         context->Reply();

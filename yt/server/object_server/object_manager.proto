@@ -7,7 +7,6 @@ import "yt/core/misc/guid.proto";
 message TReqExecute
 {
     required NYT.NProto.TGuid user_id = 1;
-    // TODO(babenko): optimize, use multipart records
     repeated bytes request_parts = 2;
 }
 

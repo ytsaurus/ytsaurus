@@ -81,6 +81,22 @@ typedef TIntrusivePtr<TMutatingRequest> TMutatingRequestPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TReadOnlyRequest
+    : public virtual TRequest
+{
+    NApi::EMasterChannelKind ReadFrom;
+
+    TReadOnlyRequest()
+    {
+        RegisterParameter("read_from", ReadFrom)
+            .Default(NApi::EMasterChannelKind::LeaderOrFollower);
+    }
+};
+
+typedef TIntrusivePtr<TReadOnlyRequest> TReadOnlyRequestPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSuppressableAccessTrackingRequest
     : public virtual TRequest
 {
@@ -288,10 +304,30 @@ private:
     {
         TTypedCommandBase<TRequest>::Prepare();
 
-        this->CurrentMutationId =
-            this->Request_->MutationId == NRpc::NullMutationId
+        this->CurrentMutationId = this->Request_->MutationId == NRpc::NullMutationId
             ? NRpc::GenerateMutationId()
             : this->Request_->MutationId;
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRequest, class = void>
+class TReadOnlyCommandBase
+{ };
+
+template <class TRequest>
+class TReadOnlyCommandBase <
+    TRequest,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TReadOnlyRequest&> >::TType
+>
+    : public virtual TTypedCommandBase<TRequest>
+{
+protected:
+    void SetReadOnlyOptions(NApi::TReadOnlyOptions* options)
+    {
+        options->ReadFrom = this->Request_->ReadFrom;
     }
 
 };
@@ -324,6 +360,7 @@ class TTypedCommand
     : public virtual TTypedCommandBase<TRequest>
     , public TTransactionalCommandBase<TRequest>
     , public TMutatingCommandBase<TRequest>
+    , public TReadOnlyCommandBase<TRequest>
     , public TSuppressableAccessTrackingCommmandBase<TRequest>
 { };
 

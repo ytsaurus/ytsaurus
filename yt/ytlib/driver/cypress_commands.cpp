@@ -30,6 +30,7 @@ void TGetCommand::DoExecute()
         EAttributeFilterMode::MatchingOnly,
         Request_->Attributes);
     SetTransactionalOptions(&options);
+    SetReadOnlyOptions(&options);
     SetSuppressableAccessTrackingOptions(&options);
 
     auto asyncResult = Context_->GetClient()->GetNode(
@@ -84,6 +85,7 @@ void TListCommand::DoExecute()
     options.MaxSize = Request_->MaxSize;
     options.AttributeFilter = TAttributeFilter(EAttributeFilterMode::MatchingOnly, Request_->Attributes);
     SetTransactionalOptions(&options);
+    SetReadOnlyOptions(&options);
     SetSuppressableAccessTrackingOptions(&options);
     
     auto asyncResult = Context_->GetClient()->ListNodes(
@@ -213,6 +215,7 @@ void TExistsCommand::DoExecute()
 {
     TNodeExistsOptions options;
     SetTransactionalOptions(&options);
+    SetReadOnlyOptions(&options);
 
     auto asyncResult = Context_->GetClient()->NodeExists(
         Request_->Path.GetPath(),

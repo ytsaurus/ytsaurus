@@ -30,11 +30,15 @@ public:
     ~TCellDirectory();
 
 
-    //! Returns a leader channel for a given cell id (|nullptr| if none is known).
-    NRpc::IChannelPtr FindChannel(const TCellId& cellId);
+    //! Returns a peer channel of a given kind for a given cell id (|nullptr| if none is known).
+    NRpc::IChannelPtr FindChannel(
+        const TCellId& cellId,
+        NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 
     //! Similar to #FindChannel but throws an exception if no channel is known.
-    NRpc::IChannelPtr GetChannelOrThrow(const TCellId& cellId);
+    NRpc::IChannelPtr GetChannelOrThrow(
+        const TCellId& cellId,
+        NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 
 
     //! Returns the registered cell by its id (or |nullptr| if none is known).

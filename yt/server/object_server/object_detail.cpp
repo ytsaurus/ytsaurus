@@ -44,8 +44,6 @@
 #include <server/object_server/type_handler.h>
 #include <server/object_server/object_manager.h>
 
-#include <stdexcept>
-
 namespace NYT {
 namespace NObjectServer {
 
@@ -66,7 +64,7 @@ class TObjectProxyBase::TCustomAttributeDictionary
 {
 public:
     explicit TCustomAttributeDictionary(TObjectProxyBase* proxy)
-        : Proxy(proxy)
+        : Proxy_(proxy)
     { }
 
     // IAttributeDictionary members
@@ -102,7 +100,7 @@ public:
     virtual void SetYson(const Stroka& key, const TYsonString& value) override
     {
         auto oldValue = FindYson(key);
-        Proxy->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
+        Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
 
         auto* attributes = GetOrCreateAttributes();
         attributes->Attributes()[key] = value;
@@ -111,7 +109,7 @@ public:
     virtual bool Remove(const Stroka& key) override
     {
         auto oldValue = FindYson(key);
-        Proxy->GuardedValidateCustomAttributeUpdate(key, oldValue, Null);
+        Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, Null);
 
         auto* attributes = FindAttributes();
         if (!attributes) {
@@ -131,38 +129,38 @@ public:
     }
 
 private:
-    TObjectProxyBase* Proxy;
+    TObjectProxyBase* const Proxy_;
 
-    mutable bool HasCachedAttributes = false;
-    mutable TAttributeSet* CachedAttributes = nullptr;
+    mutable bool HasCachedAttributes_ = false;
+    mutable TAttributeSet* CachedAttributes_ = nullptr;
 
 
     TAttributeSet* FindAttributes() const
     {
-        if (!HasCachedAttributes) {
-            auto objectManager = Proxy->Bootstrap->GetObjectManager();
-            CachedAttributes = objectManager->FindAttributes(TVersionedObjectId(Proxy->GetId()));
-            HasCachedAttributes = true;
+        if (!HasCachedAttributes_) {
+            auto objectManager = Proxy_->Bootstrap_->GetObjectManager();
+            CachedAttributes_ = objectManager->FindAttributes(TVersionedObjectId(Proxy_->GetId()));
+            HasCachedAttributes_ = true;
         }
-        return CachedAttributes;
+        return CachedAttributes_;
     }
 
     TAttributeSet* GetOrCreateAttributes()
     {
-        if (!CachedAttributes) {
-            auto objectManager = Proxy->Bootstrap->GetObjectManager();
-            CachedAttributes = objectManager->GetOrCreateAttributes(TVersionedObjectId(Proxy->GetId()));
-            HasCachedAttributes = true;
+        if (!CachedAttributes_) {
+            auto objectManager = Proxy_->Bootstrap_->GetObjectManager();
+            CachedAttributes_ = objectManager->GetOrCreateAttributes(TVersionedObjectId(Proxy_->GetId()));
+            HasCachedAttributes_ = true;
         }
-        return CachedAttributes;
+        return CachedAttributes_;
     }
 
     void RemoveAttributes()
     {
-        auto objectManager = Proxy->Bootstrap->GetObjectManager();
-        objectManager->RemoveAttributes(TVersionedObjectId(Proxy->GetId()));
-        HasCachedAttributes = false;
-        CachedAttributes = nullptr;
+        auto objectManager = Proxy_->Bootstrap_->GetObjectManager();
+        objectManager->RemoveAttributes(TVersionedObjectId(Proxy_->GetId()));
+        HasCachedAttributes_ = false;
+        CachedAttributes_ = nullptr;
     }
 
 };
@@ -172,19 +170,16 @@ private:
 TObjectProxyBase::TObjectProxyBase(
     TBootstrap* bootstrap,
     TObjectBase* object)
-    : Bootstrap(bootstrap)
-    , Object(object)
+    : Bootstrap_(bootstrap)
+    , Object_(object)
 {
-    YASSERT(bootstrap);
-    YASSERT(object);
+    YASSERT(Bootstrap_);
+    YASSERT(Object_);
 }
-
-TObjectProxyBase::~TObjectProxyBase()
-{ }
 
 const TObjectId& TObjectProxyBase::GetId() const
 {
-    return Object->GetId();
+    return Object_->GetId();
 }
 
 const IAttributeDictionary& TObjectProxyBase::Attributes() const
@@ -204,7 +199,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
     context->SetRequestInfo();
 
     ToProto(response->mutable_id(), GetId());
-    response->set_type(static_cast<int>(Object->GetType()));
+    response->set_type(static_cast<int>(Object_->GetType()));
 
     context->Reply();
 }
@@ -216,13 +211,13 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
     auto userName = request->user();
     auto permission = EPermission(request->permission());
     context->SetRequestInfo("User: %v, Permission: %v",
-        ~userName,
+        userName,
         permission);
 
-    auto securityManager = Bootstrap->GetSecurityManager();
+    auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetUserByNameOrThrow(userName);
 
-    auto result = securityManager->CheckPermission(Object, user, permission);
+    auto result = securityManager->CheckPermission(Object_, user, permission);
 
     response->set_action(static_cast<int>(result.Action));
     if (result.Object) {
@@ -241,9 +236,41 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
 
 void TObjectProxyBase::Invoke(IServiceContextPtr context)
 {
-    Bootstrap
-        ->GetObjectManager()
-        ->InterceptProxyInvocation(this, std::move(context));
+    const auto& requestHeader = context->RequestHeader();
+
+    // Validate that mutating requests are only being invoked inside mutations or recovery.
+    const auto& ypathExt = requestHeader.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    YCHECK(!ypathExt.mutating() ||
+           hydraManager->IsMutating() ||
+           hydraManager->IsRecovery());
+
+    auto securityManager = Bootstrap_->GetSecurityManager();
+    auto* user = securityManager->GetAuthenticatedUser();
+
+    auto objectManager = Bootstrap_->GetObjectManager();
+    if (requestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
+        auto prerequiesitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+        objectManager->ValidatePrerequisites(prerequiesitesExt);
+    }
+
+    auto objectId = GetVersionedId();
+    const auto& Logger = ObjectServerLogger;
+    LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, Mutating: %v, User: %v)",
+        context->GetService(),
+        context->GetMethod(),
+        GetRequestYPath(context),
+        objectId,
+        ypathExt.mutating(),
+        user->GetName());
+
+    NProfiling::TTagIdList tagIds;
+    tagIds.push_back(objectManager->GetTypeTagId(TypeFromId(objectId.ObjectId)));
+    tagIds.push_back(objectManager->GetMethodTagId(context->GetMethod()));
+    auto& Profiler = objectManager->GetProfiler();
+    PROFILE_TIMING ("/request_time", tagIds) {
+        TSupportsAttributes::Invoke(std::move(context));
+    }
 }
 
 void TObjectProxyBase::SerializeAttributes(
@@ -262,99 +289,98 @@ void TObjectProxyBase::SerializeAttributes(
     {
     public:
         explicit TAttributesConsumer(IYsonConsumer* underlyingConsumer)
-            : UnderlyingConsumer(underlyingConsumer)
-            , HasAttributes(false)
+            : UnderlyingConsumer_(underlyingConsumer)
         { }
 
         ~TAttributesConsumer()
         {
-            if (HasAttributes) {
-                UnderlyingConsumer->OnEndAttributes();
+            if (HasAttributes_) {
+                UnderlyingConsumer_->OnEndAttributes();
             }
         }
 
         virtual void OnStringScalar(const TStringBuf& value) override
         {
-            UnderlyingConsumer->OnStringScalar(value);
+            UnderlyingConsumer_->OnStringScalar(value);
         }
 
         virtual void OnInt64Scalar(i64 value) override
         {
-            UnderlyingConsumer->OnInt64Scalar(value);
+            UnderlyingConsumer_->OnInt64Scalar(value);
         }
 
         virtual void OnUint64Scalar(ui64 value) override
         {
-            UnderlyingConsumer->OnUint64Scalar(value);
+            UnderlyingConsumer_->OnUint64Scalar(value);
         }
 
         virtual void OnDoubleScalar(double value) override
         {
-            UnderlyingConsumer->OnDoubleScalar(value);
+            UnderlyingConsumer_->OnDoubleScalar(value);
         }
 
         virtual void OnBooleanScalar(bool value) override
         {
-            UnderlyingConsumer->OnBooleanScalar(value);
+            UnderlyingConsumer_->OnBooleanScalar(value);
         }
 
         virtual void OnEntity() override
         {
-            UnderlyingConsumer->OnEntity();
+            UnderlyingConsumer_->OnEntity();
         }
 
         virtual void OnBeginList() override
         {
-            UnderlyingConsumer->OnBeginList();
+            UnderlyingConsumer_->OnBeginList();
         }
 
         virtual void OnListItem() override
         {
-            UnderlyingConsumer->OnListItem();
+            UnderlyingConsumer_->OnListItem();
         }
 
         virtual void OnEndList() override
         {
-            UnderlyingConsumer->OnEndList();
+            UnderlyingConsumer_->OnEndList();
         }
 
         virtual void OnBeginMap() override
         {
-            UnderlyingConsumer->OnBeginMap();
+            UnderlyingConsumer_->OnBeginMap();
         }
 
         virtual void OnKeyedItem(const TStringBuf& key) override
         {
-            if (!HasAttributes) {
-                UnderlyingConsumer->OnBeginAttributes();
-                HasAttributes = true;
+            if (!HasAttributes_) {
+                UnderlyingConsumer_->OnBeginAttributes();
+                HasAttributes_ = true;
             }
-            UnderlyingConsumer->OnKeyedItem(key);
+            UnderlyingConsumer_->OnKeyedItem(key);
         }
 
         virtual void OnEndMap() override
         {
-            UnderlyingConsumer->OnEndMap();
+            UnderlyingConsumer_->OnEndMap();
         }
 
         virtual void OnBeginAttributes() override
         {
-            UnderlyingConsumer->OnBeginAttributes();
+            UnderlyingConsumer_->OnBeginAttributes();
         }
 
         virtual void OnEndAttributes() override
         {
-            UnderlyingConsumer->OnEndAttributes();
+            UnderlyingConsumer_->OnEndAttributes();
         }
 
         virtual void OnRaw(const TStringBuf& yson, EYsonType type) override
         {
-            UnderlyingConsumer->OnRaw(yson, type);
+            UnderlyingConsumer_->OnRaw(yson, type);
         }
 
     private:
-        IYsonConsumer* UnderlyingConsumer;
-        bool HasAttributes;
+        IYsonConsumer* const UnderlyingConsumer_;
+        bool HasAttributes_ = false;
 
     };
 
@@ -363,111 +389,111 @@ void TObjectProxyBase::SerializeAttributes(
     {
     public:
         TAttributeValueConsumer(IYsonConsumer* underlyingConsumer, const Stroka& key)
-            : UnderlyingConsumer(underlyingConsumer)
-            , Key(key)
-            , Empty(true)
+            : UnderlyingConsumer_(underlyingConsumer)
+            , Key_(key)
         { }
 
         virtual void OnStringScalar(const TStringBuf& value) override
         {
             ProduceKeyIfNeeded();
-            UnderlyingConsumer->OnStringScalar(value);
+            UnderlyingConsumer_->OnStringScalar(value);
         }
 
         virtual void OnInt64Scalar(i64 value) override
         {
             ProduceKeyIfNeeded();
-            UnderlyingConsumer->OnInt64Scalar(value);
+            UnderlyingConsumer_->OnInt64Scalar(value);
         }
 
         virtual void OnUint64Scalar(ui64 value) override
         {
             ProduceKeyIfNeeded();
-            UnderlyingConsumer->OnUint64Scalar(value);
+            UnderlyingConsumer_->OnUint64Scalar(value);
         }
 
         virtual void OnDoubleScalar(double value) override
         {
             ProduceKeyIfNeeded();
-            UnderlyingConsumer->OnDoubleScalar(value);
+            UnderlyingConsumer_->OnDoubleScalar(value);
         }
 
         virtual void OnBooleanScalar(bool value) override
         {
             ProduceKeyIfNeeded();
-            UnderlyingConsumer->OnBooleanScalar(value);
+            UnderlyingConsumer_->OnBooleanScalar(value);
         }
 
         virtual void OnEntity() override
         {
             ProduceKeyIfNeeded();
-            UnderlyingConsumer->OnEntity();
+            UnderlyingConsumer_->OnEntity();
         }
 
         virtual void OnBeginList() override
         {
             ProduceKeyIfNeeded();
-            UnderlyingConsumer->OnBeginList();
+            UnderlyingConsumer_->OnBeginList();
         }
 
         virtual void OnListItem() override
         {
             ProduceKeyIfNeeded();
-            UnderlyingConsumer->OnListItem();
+            UnderlyingConsumer_->OnListItem();
         }
 
         virtual void OnEndList() override
         {
             ProduceKeyIfNeeded();
-            UnderlyingConsumer->OnEndList();
+            UnderlyingConsumer_->OnEndList();
         }
 
         virtual void OnBeginMap() override
         {
             ProduceKeyIfNeeded();
-            UnderlyingConsumer->OnBeginMap();
+            UnderlyingConsumer_->OnBeginMap();
         }
 
         virtual void OnKeyedItem(const TStringBuf& key) override
         {
             ProduceKeyIfNeeded();
-            UnderlyingConsumer->OnKeyedItem(key);
+            UnderlyingConsumer_->OnKeyedItem(key);
         }
 
         virtual void OnEndMap() override
         {
             ProduceKeyIfNeeded();
-            UnderlyingConsumer->OnEndMap();
+            UnderlyingConsumer_->OnEndMap();
         }
 
         virtual void OnBeginAttributes() override
         {
             ProduceKeyIfNeeded();
-            UnderlyingConsumer->OnBeginAttributes();
+            UnderlyingConsumer_->OnBeginAttributes();
         }
 
         virtual void OnEndAttributes() override
         {
             ProduceKeyIfNeeded();
-            UnderlyingConsumer->OnEndAttributes();
+            UnderlyingConsumer_->OnEndAttributes();
         }
 
         virtual void OnRaw(const TStringBuf& yson, EYsonType type) override
         {
             ProduceKeyIfNeeded();
-            UnderlyingConsumer->OnRaw(yson, type);
+            UnderlyingConsumer_->OnRaw(yson, type);
         }
 
     private:
-        IYsonConsumer* UnderlyingConsumer;
-        Stroka Key;
-        bool Empty;
+        IYsonConsumer* const UnderlyingConsumer_;
+        const Stroka Key_;
+        bool Empty_ = true;
+
 
         void ProduceKeyIfNeeded()
         {
-            if (Empty) {
-                UnderlyingConsumer->OnKeyedItem(Key);
-                Empty = false;
+            if (Empty_) {
+                UnderlyingConsumer_->OnKeyedItem(Key_);
+                Empty_ = false;
             }
         }
 
@@ -541,26 +567,6 @@ void TObjectProxyBase::SerializeAttributes(
     }
 }
 
-void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
-{
-    // Cf. TYPathServiceBase::GuardedInvoke
-    TError error;
-    try {
-        BeforeInvoke(context);
-        if (!DoInvoke(context)) {
-            ThrowMethodNotSupported(context->GetMethod());
-        }
-    } catch (const std::exception& ex) {
-        error = ex;
-    }
-    
-    AfterInvoke(context);
-
-    if (!error.IsOK()) {
-        context->Reply(error);
-    }
-}
-
 bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetBasicAttributes);
@@ -575,10 +581,10 @@ bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)
 
 IAttributeDictionary* TObjectProxyBase::GetCustomAttributes()
 {
-    if (!CustomAttributes) {
-        CustomAttributes = DoCreateCustomAttributes();
+    if (!CustomAttributes_) {
+        CustomAttributes_ = DoCreateCustomAttributes();
     }
-    return CustomAttributes.get();
+    return CustomAttributes_.get();
 }
 
 ISystemAttributeProvider* TObjectProxyBase::GetBuiltinAttributeProvider()
@@ -611,8 +617,8 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attribu
 
 bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto securityManager = Bootstrap->GetSecurityManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
+    auto securityManager = Bootstrap_->GetSecurityManager();
 
     if (key == "id") {
         BuildYsonFluently(consumer)
@@ -628,24 +634,24 @@ bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* con
 
     if (key == "builtin") {
         BuildYsonFluently(consumer)
-            .Value(Object->IsBuiltin());
+            .Value(Object_->IsBuiltin());
         return true;
     }
 
     if (key == "ref_counter") {
         BuildYsonFluently(consumer)
-            .Value(Object->GetObjectRefCounter());
+            .Value(Object_->GetObjectRefCounter());
         return true;
     }
 
     if (key == "weak_ref_counter") {
         BuildYsonFluently(consumer)
-            .Value(Object->GetObjectWeakRefCounter());
+            .Value(Object_->GetObjectWeakRefCounter());
         return true;
     }
 
     if (key == "supported_permissions") {
-        auto handler = objectManager->GetHandler(Object);
+        auto handler = objectManager->GetHandler(Object_);
         auto permissions = handler->GetSupportedPermissions();
         BuildYsonFluently(consumer)
             .Value(TEnumTraits<EPermissionSet>::Decompose(permissions));
@@ -675,7 +681,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* con
 
     if (key == "effective_acl") {
         BuildYsonFluently(consumer)
-            .Value(securityManager->GetEffectiveAcl(Object));
+            .Value(securityManager->GetEffectiveAcl(Object_));
         return true;
     }
 
@@ -689,7 +695,7 @@ TFuture<void> TObjectProxyBase::GetBuiltinAttributeAsync(const Stroka& key, IYso
 
 bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
 {
-    auto securityManager = Bootstrap->GetSecurityManager();
+    auto securityManager = Bootstrap_->GetSecurityManager();
     auto* acd = FindThisAcd();
     if (acd) {
         if (key == "inherit_acl") {
@@ -704,7 +710,7 @@ bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString&
             ValidateNoTransaction();
             ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
-            auto supportedPermissions = securityManager->GetSupportedPermissions(Object);
+            auto supportedPermissions = securityManager->GetSupportedPermissions(Object_);
             auto valueNode = ConvertToNode(value);
             TAccessControlList newAcl;
             Deserilize(newAcl, supportedPermissions, valueNode, securityManager);
@@ -739,18 +745,18 @@ bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString&
 
 TObjectBase* TObjectProxyBase::GetSchema(EObjectType type)
 {
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
     return objectManager->GetSchema(type);
 }
 
 TObjectBase* TObjectProxyBase::GetThisSchema()
 {
-    return GetSchema(Object->GetType());
+    return GetSchema(Object_->GetType());
 }
 
 void TObjectProxyBase::DeclareMutating()
 {
-    auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
+    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     YCHECK(hydraManager->IsMutating());
 }
 
@@ -774,81 +780,82 @@ void TObjectProxyBase::ValidateNoTransaction()
 void TObjectProxyBase::ValidatePermission(EPermissionCheckScope scope, EPermission permission)
 {
     YCHECK(scope == EPermissionCheckScope::This);
-    ValidatePermission(Object, permission);
+    ValidatePermission(Object_, permission);
 }
 
 void TObjectProxyBase::ValidatePermission(TObjectBase* object, EPermission permission)
 {
     YCHECK(object);
-    auto securityManager = Bootstrap->GetSecurityManager();
+    auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
     securityManager->ValidatePermission(object, user, permission);
 }
 
 bool TObjectProxyBase::IsRecovery() const
 {
-    return Bootstrap->GetHydraFacade()->GetHydraManager()->IsRecovery();
+    return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
 }
 
 bool TObjectProxyBase::IsLeader() const
 {
-    return Bootstrap->GetHydraFacade()->GetHydraManager()->IsLeader();
+    return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader();
 }
 
 void TObjectProxyBase::ValidateActiveLeader() const
 {
-    Bootstrap->GetHydraFacade()->ValidateActiveLeader();
+    Bootstrap_->GetHydraFacade()->ValidateActiveLeader();
 }
 
-void TObjectProxyBase::ForwardToLeader(IServiceContextPtr context)
-{
-    auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
-    auto epochContext = hydraManager->GetAutomatonEpochContext();
-
-    LOG_DEBUG("Forwarding request to leader");
-
-    auto cellManager = Bootstrap->GetCellManager();
-    auto channel = cellManager->GetPeerChannel(epochContext->LeaderId);
-
-    // Update request path to include the current object id and transaction id.
-    auto requestMessage = context->GetRequestMessage();
-    NRpc::NProto::TRequestHeader requestHeader;
-    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
-    auto versionedId = GetVersionedId();
-    const auto& path = GetRequestYPath(requestHeader);
-    SetRequestYPath(&requestHeader, FromObjectId(versionedId.ObjectId) + path);
-    SetTransactionId(&requestHeader, versionedId.TransactionId);
-    auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
-
-    TObjectServiceProxy proxy(channel);
-    // TODO(babenko): timeout?
-    // TODO(babenko): prerequisite transactions?
-    // TODO(babenko): authenticated user?
-    proxy.SetDefaultTimeout(Bootstrap->GetConfig()->HydraManager->ControlRpcTimeout);
-    auto batchReq = proxy.ExecuteBatch();
-    batchReq->AddRequestMessage(updatedRequestMessage);
-    batchReq->Invoke().Subscribe(
-        BIND(&TObjectProxyBase::OnLeaderResponse, MakeStrong(this), context));
-}
-
-void TObjectProxyBase::OnLeaderResponse(
-    IServiceContextPtr context,
-    const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
-{
-    if (!batchRspOrError.IsOK()) {
-        LOG_DEBUG(batchRspOrError, "Error forwarding request to leader");
-        context->Reply(batchRspOrError);
-        return;
-    }
-
-    const auto& batchRsp = batchRspOrError.Value();
-    auto responseMessage = batchRsp->GetResponseMessage(0);
-    NRpc::NProto::TResponseHeader responseHeader;
-    YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
-    auto error = FromProto<TError>(responseHeader.error());
-    LOG_DEBUG(error, "Received response for forwarded request");
-    context->Reply(responseMessage);
-}
+// XXX(babenko)
+//void TObjectProxyBase::ForwardToLeader(IServiceContextPtr context)
+//{
+//    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+//    auto epochContext = hydraManager->GetAutomatonEpochContext();
+//
+//    LOG_DEBUG("Forwarding request to leader");
+//
+//    auto cellManager = Bootstrap_->GetCellManager();
+//    auto channel = cellManager->GetPeerChannel(epochContext->LeaderId);
+//
+//    // Update request path to include the current object id and transaction id.
+//    auto requestMessage = context->GetRequestMessage();
+//    NRpc::NProto::TRequestHeader requestHeader;
+//    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
+//    auto versionedId = GetVersionedId();
+//    const auto& path = GetRequestYPath(requestHeader);
+//    SetRequestYPath(&requestHeader, FromObjectId(versionedId.ObjectId) + path);
+//    SetTransactionId(&requestHeader, versionedId.TransactionId);
+//    auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
+//
+//    TObjectServiceProxy proxy(channel);
+//    // TODO(babenko): timeout?
+//    // TODO(babenko): prerequisite transactions?
+//    // TODO(babenko): authenticated user?
+//    proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->HydraManager->ControlRpcTimeout);
+//    auto batchReq = proxy.ExecuteBatch();
+//    batchReq->AddRequestMessage(updatedRequestMessage);
+//    batchReq->Invoke().Subscribe(
+//        BIND(&TObjectProxyBase::OnLeaderResponse, MakeStrong(this), context));
+//}
+//
+//void TObjectProxyBase::OnLeaderResponse(
+//    IServiceContextPtr context,
+//    const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
+//{
+//    if (!batchRspOrError.IsOK()) {
+//        LOG_DEBUG(batchRspOrError, "Error forwarding request to leader");
+//        context->Reply(batchRspOrError);
+//        return;
+//    }
+//
+//    const auto& batchRsp = batchRspOrError.Value();
+//    auto responseMessage = batchRsp->GetResponseMessage(0);
+//    NRpc::NProto::TResponseHeader responseHeader;
+//    YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
+//    auto error = FromProto<TError>(responseHeader.error());
+//    LOG_DEBUG(error, "Received response for forwarded request");
+//    context->Reply(responseMessage);
+//}
 
 bool TObjectProxyBase::IsLoggingEnabled() const
 {
@@ -894,25 +901,25 @@ void TNontemplateNonversionedObjectProxyBase::RemoveSelf(TReqRemove* request, TR
 
     ValidateRemoval();
 
-    if (Object->GetObjectRefCounter() != 1) {
+    if (Object_->GetObjectRefCounter() != 1) {
         THROW_ERROR_EXCEPTION("Object is in use");
     }
 
-    auto objectManager = Bootstrap->GetObjectManager();
-    objectManager->UnrefObject(Object);
+    auto objectManager = Bootstrap_->GetObjectManager();
+    objectManager->UnrefObject(Object_);
 
     context->Reply();
 }
 
 TVersionedObjectId TNontemplateNonversionedObjectProxyBase::GetVersionedId() const
 {
-    return TVersionedObjectId(Object->GetId());
+    return TVersionedObjectId(Object_->GetId());
 }
 
 TAccessControlDescriptor* TNontemplateNonversionedObjectProxyBase::FindThisAcd()
 {
-    auto securityManager = Bootstrap->GetSecurityManager();
-    return securityManager->FindAcd(Object);
+    auto securityManager = Bootstrap_->GetSecurityManager();
+    return securityManager->FindAcd(Object_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

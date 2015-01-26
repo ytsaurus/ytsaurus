@@ -55,6 +55,12 @@ struct IHydraManager
      */
     virtual bool IsActiveLeader() const = 0;
 
+    //! Returns |true| if the peer is a follower ready to serve reads.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual bool IsActiveFollower() const = 0;
+
     //! Returns the current epoch context, as viewed by the Control Thread.
     /*!
      *  \note Thread affinity: ControlThread

@@ -4,18 +4,6 @@ import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TPrerequisiteTransaction
-{
-    required NYT.NProto.TGuid transaction_id = 1;
-}
-
-message TPrerequisiteRevision
-{
-    required string path = 1;
-    required NYT.NProto.TGuid transaction_id = 2;
-    required int64 revision = 3;
-}
-
 message TReqExecute
 {
     // Each Execute call carries a number of YPath requests.
@@ -24,12 +12,6 @@ message TReqExecute
     // This array contains the lengths of those part sequences.
     // In particular, its length is just the number of encaplusated YPath requests.
     repeated int32 part_counts = 1;
-
-    // Describes transactions that must be alive in order for the request to be executed.
-    repeated TPrerequisiteTransaction prerequisite_transactions = 2;
-
-    // Describes node revisions that must match in order for the request to be executed.
-    repeated TPrerequisiteRevision prerequisite_revisions = 3;
 }
 
 message TRspExecute

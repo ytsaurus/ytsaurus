@@ -177,7 +177,7 @@ public:
         EventLogWriter_ = CreateBufferedTableWriter(
             Config_->EventLog,
             // TODO(ignat): pass Client instead of Channel and TransactionManager
-            Bootstrap_->GetMasterClient()->GetMasterChannel(),
+            Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader),
             Bootstrap_->GetMasterClient()->GetTransactionManager(),
             Config_->EventLog->Path);
         EventLogWriter_->Open();
@@ -1544,10 +1544,12 @@ private:
 
     void ReleaseStderrChunk(TJobPtr job, const TChunkId& chunkId)
     {
-        TObjectServiceProxy proxy(GetMasterClient()->GetMasterChannel());
         auto transaction = job->GetOperation()->GetAsyncSchedulerTransaction();
         if (!transaction)
             return;
+
+        auto channel = GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
 
         auto req = TMasterYPathProxy::UnstageObject();
         ToProto(req->mutable_object_id(), chunkId);

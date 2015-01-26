@@ -43,9 +43,9 @@ TYPathRequest::TYPathRequest(
     Header_.set_service(service);
     Header_.set_method(method);
 
-    auto* headerExt = Header_.MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    headerExt->set_mutating(mutating);
-    headerExt->set_path(path);
+    auto* ypathExt = Header_.MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    ypathExt->set_mutating(mutating);
+    ypathExt->set_path(path);
 }
 
 bool TYPathRequest::IsOneWay() const
@@ -150,14 +150,14 @@ const TYPath& GetRequestYPath(IServiceContextPtr context)
 
 const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header)
 {
-    const auto& headerExt = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    return headerExt.path();
+    const auto& ext = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    return ext.path();
 }
 
 void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path)
 {
-    auto* headerExt = header->MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    headerExt->set_path(path);
+    auto* ext = header->MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    ext->set_path(path);
 }
 
 TYPath ComputeResolvedYPath(const TYPath& wholePath, const TYPath& unresolvedPath)

@@ -53,6 +53,7 @@ using namespace NYPath;
 using namespace NRpc;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NObjectClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTransactionClient;
@@ -106,7 +107,9 @@ private:
             , Path_(path)
             , Options_(options)
             , Config_(options.Config ? options.Config : New<TJournalWriterConfig>())
-            , ObjectProxy_(Client_->GetMasterChannel())
+            , MasterChannel_(Client_->GetMasterChannel(EMasterChannelKind::Leader))
+            , ObjectProxy_(MasterChannel_)
+            , ChunkProxy_(MasterChannel_)
         {
             if (Options_.TransactionId != NullTransactionId) {
                 auto transactionManager = Client_->GetTransactionManager();
@@ -169,13 +172,14 @@ private:
         }
 
     private:
-        IClientPtr Client_;
-        TYPath Path_;
-        TJournalWriterOptions Options_;
-        TJournalWriterConfigPtr Config_;
+        const IClientPtr Client_;
+        const TYPath Path_;
+        const TJournalWriterOptions Options_;
+        const TJournalWriterConfigPtr Config_;
 
-        IInvokerPtr Invoker_;
+        const IChannelPtr MasterChannel_;
         TObjectServiceProxy ObjectProxy_;
+        TChunkServiceProxy ChunkProxy_;
 
         NLog::TLogger Logger = ApiLogger;
 
@@ -449,8 +453,7 @@ private:
             std::vector<TChunkReplica> replicas;
             std::vector<TNodeDescriptor> targets;
             {
-                TChunkServiceProxy chunkProxy(Client_->GetMasterChannel());
-                auto req = chunkProxy.AllocateWriteTargets();
+                auto req = ChunkProxy_.AllocateWriteTargets();
                 ToProto(req->mutable_chunk_id(), CurrentSession_->ChunkId);
                 ToProto(req->mutable_forbidden_addresses(), GetBannedNodes());
                 if (Config_->PreferLocalHost) {
@@ -957,10 +960,11 @@ private:
 
         TObjectServiceProxy::TReqExecuteBatchPtr CreateMasterBatchRequest()
         {
-            TObjectServiceProxy proxy(Client_->GetMasterChannel());
-            auto batchReq = proxy.ExecuteBatch();
+            auto batchReq = ObjectProxy_.ExecuteBatch();
+            auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
             for (const auto& id : Options_.PrerequisiteTransactionIds) {
-                batchReq->PrerequisiteTransactions().push_back(TObjectServiceProxy::TPrerequisiteTransaction(id));
+                auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
+                ToProto(prerequisiteTransaction->mutable_transaction_id(), id);
             }
             return batchReq;
         }
@@ -968,7 +972,8 @@ private:
     };
 
 
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
+
 };
 
 IJournalWriterPtr CreateJournalWriter(

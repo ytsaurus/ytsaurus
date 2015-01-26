@@ -49,7 +49,7 @@ protected:
     virtual bool IsRequestHeavy() const override;
     virtual bool IsResponseHeavy() const override;
 
-    virtual TSharedRef SerializeBody() const = 0;
+    virtual TSharedRef SerializeBody() = 0;
 
 };
 
@@ -80,7 +80,7 @@ public:
     { }
 
 protected:
-    virtual TSharedRef SerializeBody() const override
+    virtual TSharedRef SerializeBody() override
     {
         TSharedRef data;
         YCHECK(SerializeToProtoWithEnvelope(*this, &data));

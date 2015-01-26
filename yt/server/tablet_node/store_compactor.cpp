@@ -391,7 +391,7 @@ private:
                     writerOptions,
                     schema,
                     keyColumns,
-                    Bootstrap_->GetMasterClient()->GetMasterChannel(),
+                    Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
                     transaction->GetId());
 
                 {
@@ -620,7 +620,7 @@ private:
                 writerOptions,
                 schema,
                 keyColumns,
-                Bootstrap_->GetMasterClient()->GetMasterChannel(),
+                Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
                 transaction->GetId());
 
             {

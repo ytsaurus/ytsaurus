@@ -60,6 +60,7 @@ using namespace NYson;
 using namespace NYPath;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NObjectClient::NProto;
 using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NTransactionClient;
@@ -84,9 +85,8 @@ public:
         NCellScheduler::TBootstrap* bootstrap)
         : Config(config)
         , Bootstrap(bootstrap)
-        , Proxy(Bootstrap->GetMasterClient()->GetMasterChannel())
+        , Proxy(Bootstrap->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader))
         , ClusterDirectory(Bootstrap->GetClusterDirectory())
-        , Connected(false)
     { }
 
     void Start()
@@ -318,7 +318,7 @@ private:
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableControlInvoker;
 
-    bool Connected;
+    bool Connected = false;
 
     NTransactionClient::TTransactionPtr LockTransaction;
 
@@ -873,12 +873,14 @@ private:
 
     TObjectServiceProxy::TReqExecuteBatchPtr DoStartBatchRequest(TObjectServiceProxy* proxy, bool requireTransaction = true)
     {
-        auto req = proxy->ExecuteBatch();
+        auto batchReq = proxy->ExecuteBatch();
         if (requireTransaction) {
             YCHECK(LockTransaction);
-            req->PrerequisiteTransactions().push_back(TObjectServiceProxy::TPrerequisiteTransaction(LockTransaction->GetId()));
+            auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
+            auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
+            ToProto(prerequisiteTransaction->mutable_transaction_id(), LockTransaction->GetId());
         }
-        return req;
+        return batchReq;
     }
 
 
@@ -1071,8 +1073,9 @@ private:
             auto cellTag = CellTagFromId(id);
             if (batchReqs.find(cellTag) == batchReqs.end()) {
                 auto connection = ClusterDirectory->GetConnection(cellTag);
-                auto objectServiceProxy = TObjectServiceProxy(connection->GetMasterChannel());
-                batchReqs[cellTag] = objectServiceProxy.ExecuteBatch();
+                auto channel = connection->GetMasterChannel(EMasterChannelKind::Leader);
+                TObjectServiceProxy proxy(channel);
+                batchReqs[cellTag] = proxy.ExecuteBatch();
             }
 
             auto checkReq = TObjectYPathProxy::GetBasicAttributes(FromObjectId(id));
@@ -1081,7 +1084,6 @@ private:
 
         LOG_INFO("Refreshing transactions");
         TransactionRefreshExecutor->ScheduleNext();
-
 
         yhash_map<TCellTag, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> batchRsps;
 
@@ -1167,7 +1169,8 @@ private:
     {
         LOG_DEBUG("Operation update list registered (OperationId: %v)",
             operation->GetId());
-        TUpdateList list(Bootstrap->GetMasterClient()->GetMasterChannel(), operation);
+        auto channel = Bootstrap->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader);
+        TUpdateList list(channel, operation);
         auto pair = UpdateLists.insert(std::make_pair(operation->GetId(), list));
         YCHECK(pair.second);
         return &pair.first->second;

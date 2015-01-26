@@ -113,7 +113,8 @@ protected:
 
     virtual bool IsRequestHeavy() const;
     virtual bool IsResponseHeavy() const;
-    virtual TSharedRef SerializeBody() const = 0;
+
+    virtual TSharedRef SerializeBody() = 0;
 
     TClientContextPtr CreateClientContext();
 
@@ -195,7 +196,7 @@ private:
     NCompression::ECodec Codec_ = NCompression::ECodec::None;
 
 
-    virtual TSharedRef SerializeBody() const override
+    virtual TSharedRef SerializeBody() override
     {
         TSharedRef data;
         YCHECK(SerializeToProtoWithEnvelope(*this, &data, Codec_));

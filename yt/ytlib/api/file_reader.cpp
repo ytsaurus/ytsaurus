@@ -110,7 +110,8 @@ private:
 
         LOG_INFO("Fetching file info");
 
-        TObjectServiceProxy proxy(Client_->GetMasterChannel());
+        auto masterChannel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+        TObjectServiceProxy proxy(masterChannel);
         auto batchReq = proxy.ExecuteBatch();
 
         {
@@ -172,7 +173,7 @@ private:
                 Client_->GetConnection()->GetUncompressedBlockCache());
             Reader_ = New<TReader>(
                 Config_,
-                Client_->GetMasterChannel(),
+                masterChannel,
                 Client_->GetConnection()->GetCompressedBlockCache(),
                 nodeDirectory,
                 std::move(chunks),

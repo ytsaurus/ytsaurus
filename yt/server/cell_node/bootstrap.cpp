@@ -193,7 +193,7 @@ void TBootstrap::DoRun()
 
     auto throttlingMasterChannel = CreateThrottlingChannel(
         Config->MasterCacheService,
-        MasterClient->GetMasterChannel());
+        MasterClient->GetMasterChannel(EMasterChannelKind::Leader));
     RpcServer->RegisterService(CreateRedirectorService(
         TServiceId(NChunkClient::TChunkServiceProxy::GetServiceName(), GetCellId()),
         throttlingMasterChannel));
@@ -329,9 +329,8 @@ void TBootstrap::DoRun()
 
     RpcServer->RegisterService(CreateMasterCacheService(
         Config->MasterCacheService,
-        clusterConnection->GetMasterChannel(),
-        GetCellId()
-    ));
+        MasterClient->GetMasterChannel(EMasterChannelKind::Leader),
+        GetCellId()));
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SetNodeByYPath(

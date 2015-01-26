@@ -99,7 +99,7 @@ private:
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override
     {
         auto* account = GetThisTypedImpl();
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Bootstrap_->GetSecurityManager();
 
         if (key == "resource_limits") {
             account->ResourceLimits() = ConvertTo<TClusterResources>(value);

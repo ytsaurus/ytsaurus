@@ -121,8 +121,6 @@ public:
         , AutomatonInvoker_(automatonInvoker)
         , ChangelogStore_(changelogStore)
         , SnapshotStore_(snapshotStore)
-        , ReadOnly_(false)
-        , ActiveLeader_(false)
         , Profiler(HydraProfiler)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(controlInvoker, ControlThread);
@@ -207,6 +205,7 @@ public:
         ControlState_ = EPeerState::Stopped;
 
         ActiveLeader_ = false;
+        ActiveFollower_ = false;
 
         SwitchTo(AutomatonInvoker_);
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -259,6 +258,13 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return ActiveLeader_;
+    }
+
+    virtual bool IsActiveFollower() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return ActiveFollower_;
     }
 
     virtual NElection::TEpochContextPtr GetControlEpochContext() const override
@@ -333,7 +339,8 @@ public:
                     .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
                     .Item("elections").Do(ElectionManager_->GetMonitoringProducer())
-                    .Item("has_active_quorum").Value(ActiveLeader_)
+                    .Item("active_leader").Value(ActiveLeader_)
+                    .Item("active_follower").Value(ActiveFollower_)
                 .EndMap();
         });
     }
@@ -404,9 +411,10 @@ private:
     const IChangelogStorePtr ChangelogStore_;
     const ISnapshotStorePtr SnapshotStore_;
 
-    std::atomic<bool> ReadOnly_{false};
-    std::atomic<bool> ActiveLeader_{false};
-    EPeerState ControlState_{EPeerState::None};
+    std::atomic<bool> ReadOnly_ = {false};
+    std::atomic<bool> ActiveLeader_ = {false};
+    std::atomic<bool> ActiveFollower_ = {false};
+    EPeerState ControlState_ = EPeerState::None;
     TSystemLockGuard SystemLockGuard_;
 
     TVersion ReachableVersion_;
@@ -1100,6 +1108,8 @@ public:
             SwitchTo(epochContext->EpochControlInvoker);
             VERIFY_THREAD_AFFINITY(ControlThread);
 
+            ActiveFollower_ = true;
+
             SystemLockGuard_.Release();
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Follower recovery failed, backing off and restarting");
@@ -1191,6 +1201,7 @@ public:
         ControlEpochContext_->CancelableContext->Cancel();
         ControlEpochContext_.Reset();
         ActiveLeader_ = false;
+        ActiveFollower_ = false;
 
         SystemLockGuard_.Release();
     }
