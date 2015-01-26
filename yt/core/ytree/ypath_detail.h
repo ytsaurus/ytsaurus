@@ -293,20 +293,20 @@ class TNodeSetter
     public: \
         TNodeSetter(I##name##Node* node, ITreeBuilder* builder) \
             : TNodeSetterBase(node, builder) \
-            , Node(node) \
+            , Node_(node) \
         { } \
     \
     private: \
-        I##name##NodePtr Node; \
+        I##name##Node* const Node_; \
         \
         virtual ENodeType GetExpectedType() override \
         { \
             return ENodeType::name; \
         } \
         \
-        virtual void On##name##Scalar(NDetail::TScalarTypeTraits<type>::TConsumerType newWholeYson) override \
+        virtual void OnMy##name##Scalar(NDetail::TScalarTypeTraits<type>::TConsumerType value) override \
         { \
-            Node->SetValue(type(newWholeYson)); \
+            Node_->SetValue(type(value)); \
         } \
     }
 
