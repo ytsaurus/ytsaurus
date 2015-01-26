@@ -16,8 +16,8 @@ struct TVersion
     int SegmentId;
     int RecordId;
 
-    TVersion();
-    TVersion(int segmentId, int recordId);
+    TVersion() noexcept;
+    TVersion(int segmentId, int recordId) noexcept;
 
     bool operator < (TVersion other) const;
     bool operator == (TVersion other) const;
@@ -29,8 +29,8 @@ struct TVersion
     i64 ToRevision() const;
     static TVersion FromRevision(i64 revision);
 
-    void Advance(int delta = 1);
-    void Rotate();
+    TVersion Advance(int delta = 1);
+    TVersion Rotate();
 
 };
 

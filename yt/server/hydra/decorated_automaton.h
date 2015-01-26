@@ -191,9 +191,8 @@ private:
     TMutationContext* MutationContext_ = nullptr;
     IChangelogPtr Changelog_;
 
-    TSpinLock VersionSpinLock_;
-    TVersion LoggedVersion_;
-    TVersion AutomatonVersion_;
+    std::atomic<TVersion> LoggedVersion_;
+    std::atomic<TVersion> AutomatonVersion_;
 
     TVersion SnapshotVersion_;
     TPromise<TRemoteSnapshotParams> SnapshotParamsPromise_;
