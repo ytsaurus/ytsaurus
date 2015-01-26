@@ -169,7 +169,7 @@ if __name__ == '__main__':
 
     echo "{k=1;v=2}" | ./mapreduce -format yson -write "ignat/table"
     # TODO: We need to check equality in order independent manner
-    check "v=2\tk=1" "`./mapreduce -format dsv -read "ignat/table"`"
+    check "k=1\tv=2" "`./mapreduce -format dsv -read "ignat/table"`"
 }
 
 test_transactions()
