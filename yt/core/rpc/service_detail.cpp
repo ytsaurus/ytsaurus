@@ -98,7 +98,11 @@ public:
     ~TServiceContext()
     {
         if (!IsOneWay() && !Replied_ && !Canceled_) {
-            Reply(TError(NYT::EErrorCode::Canceled, "Request abandoned"));
+            if (Started_) {
+                Reply(TError(NYT::EErrorCode::Canceled, "Request abandoned"));
+            } else {
+                Reply(TError(NRpc::EErrorCode::Unavailable, "Service is currently unavailable"));
+            }
         }
 
         Unregister();
@@ -158,6 +162,7 @@ private:
     TDelayedExecutorCookie TimeoutCookie_;
 
     TSpinLock SpinLock_;
+    bool Started_ = false;
     bool RunningSync_ = false;
     bool Completed_ = false;
     bool Canceled_ = false;
@@ -209,6 +214,7 @@ private:
     {
         // No need for a lock here.
         RunningSync_ = true;
+        Started_ = true;
         SyncStartTime_ = GetCpuInstant();
 
         if (Profiler.GetEnabled()) {
