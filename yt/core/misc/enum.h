@@ -3,7 +3,6 @@
 #include "preprocessor.h"
 
 #include <stdexcept>
-#include <array>
 #include <type_traits>
 
 namespace NYT {
@@ -127,7 +126,9 @@ public:
 private:
     using TUnderlying = typename TEnumTraits<E>::TUnderlying;
     static constexpr int N = static_cast<TUnderlying>(Max) - static_cast<TUnderlying>(Min) + 1;
-    std::array<T, N> Items_;
+    // TODO(babenko): change this to std::array after migrating to GCC 4.9
+    // Cf. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=59659
+    std::vector<T> Items_;
 
 };
 
