@@ -184,9 +184,8 @@ private:
 
     IChangelogPtr GetUnderlyingChangelog() const
     {
-        auto changelogOrError = WaitFor(FutureChangelog_);
-        THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
-        return changelogOrError.Value();
+        return WaitFor(FutureChangelog_)
+            .ValueOrThrow();
     }
 
 };

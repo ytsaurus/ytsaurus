@@ -97,7 +97,7 @@ TFuture<IChunkPtr> TJournalSession::DoFinish(
     return sealResult.Apply(BIND([=] (const TError& error) -> IChunkPtr {
         UNUSED(this_);
         DoCancel();
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        error.ThrowOnError();
         return IChunkPtr(Chunk_);
     }).AsyncVia(GetCurrentInvoker()));
 }

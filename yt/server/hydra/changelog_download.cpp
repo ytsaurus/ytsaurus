@@ -41,9 +41,10 @@ void DoDownloadChangelog(
             recordCount,
             changelogId);
 
-        auto changelogOrError = WaitFor(changelogStore->OpenChangelog(changelogId));
-        THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
-        auto changelog = changelogOrError.Value();
+        auto asyncChangelog = changelogStore->OpenChangelog(changelogId);
+        auto changelog = WaitFor(asyncChangelog)
+            .ValueOrThrow();
+
         if (changelog->GetRecordCount() >= recordCount) {
             LOG_INFO("Local changelog already contains %v records, no download needed",
                 changelog->GetRecordCount());

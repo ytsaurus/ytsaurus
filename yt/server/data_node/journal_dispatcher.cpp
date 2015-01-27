@@ -737,9 +737,9 @@ private:
                 chunkId,
                 false);
 
-            auto changelogOrError = asyncChangelog.Get();
-            THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
-            auto changelog = changelogOrError.Value();
+            auto changelog = asyncChangelog
+                .Get()
+                .ValueOrThrow();
 
             journalChunk->AttachChangelog(changelog);
             it = SplitMap_.insert(std::make_pair(

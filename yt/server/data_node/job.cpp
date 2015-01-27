@@ -612,9 +612,9 @@ private:
         auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
         auto location = Chunk_->GetLocation();
 
-        auto changelogOrError = WaitFor(journalDispatcher->OpenChangelog(location, ChunkId_, false));
-        THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
-        auto changelog = changelogOrError.Value();
+        auto asyncChangelog = journalDispatcher->OpenChangelog(location, ChunkId_, false);
+        auto changelog = WaitFor(asyncChangelog)
+            .ValueOrThrow();
 
         auto journalChunk = Chunk_->AsJournalChunk();
         if (journalChunk->HasAttachedChangelog()) {
@@ -655,14 +655,11 @@ private:
                 Bootstrap_->GetReplicationInThrottler());
 
             while (currentRowCount < sealRowCount) {
-                auto blocksOrError = WaitFor(reader->ReadBlocks(
-                    currentRowCount,
-                    sealRowCount - currentRowCount));
-                THROW_ERROR_EXCEPTION_IF_FAILED(blocksOrError);
+                auto asyncBlocks  = reader->ReadBlocks(currentRowCount, sealRowCount - currentRowCount);
+                auto blocks = WaitFor(asyncBlocks)
+                    .ValueOrThrow();
 
-                const auto& blocks = blocksOrError.Value();
-                int blockCount = static_cast<int>(blocks.size());
-
+                int blockCount = blocks.size();
                 if (blockCount == 0) {
                     THROW_ERROR_EXCEPTION("Cannot download missing rows %v-%v to seal chunk %v",
                         currentRowCount,
@@ -686,10 +683,10 @@ private:
 
         LOG_INFO("Started sealing journal chunk (RowCount: %v)",
             sealRowCount);
-        {
-            auto error = WaitFor(changelog->Seal(sealRowCount));
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-        }
+
+        WaitFor(changelog->Seal(sealRowCount))
+            .ThrowOnError();
+
         LOG_INFO("Finished sealing journal chunk");
 
         auto chunkStore = Bootstrap_->GetChunkStore();

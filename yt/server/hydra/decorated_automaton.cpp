@@ -296,10 +296,8 @@ private:
     {
         LOG_INFO("Snapshot transfer loop started");
 
-        {
-            auto result = WaitFor(SnapshotWriter_->Open());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        WaitFor(SnapshotWriter_->Open())
+            .ThrowOnError();
 
         auto zeroCopyReader = CreateZeroCopyAdapter(InputStream_, SnapshotTransferBlockSize);
         auto zeroCopyWriter = CreateZeroCopyAdapter(SnapshotWriter_);
@@ -308,10 +306,10 @@ private:
         i64 bytesTotal = 0;
 
         while (true) {
-            auto result = WaitFor(zeroCopyReader->Read());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            auto asyncBlock = zeroCopyReader->Read();
+            auto block = WaitFor(asyncBlock)
+                .ValueOrThrow();
 
-            const auto& block = result.Value();
             if (!block)
                 break;
 
@@ -320,8 +318,8 @@ private:
         }
 
         if (lastWriteResult) {
-            auto error = WaitFor(lastWriteResult);
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            WaitFor(lastWriteResult)
+                .ThrowOnError();
         }
 
         LOG_INFO("Snapshot transfer loop completed (BytesTotal: %v)",
@@ -332,17 +330,13 @@ private:
     {
         Owner_->BuildingSnapshot_.clear();
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        error.ThrowOnError();
 
-        {
-            auto error = WaitFor(AsyncTransferResult_);
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-        }
+        WaitFor(AsyncTransferResult_)
+            .ThrowOnError();
 
-        {
-            auto error = WaitFor(SnapshotWriter_->Close());
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-        }
+        WaitFor(SnapshotWriter_->Close())
+            .ThrowOnError();
 
         const auto& params = SnapshotWriter_->GetParams();
 
@@ -641,19 +635,16 @@ void TDecoratedAutomaton::DoRotateChangelog()
         LOG_WARNING("Changelog %v is already sealed",
             loggedVersion.SegmentId);
     } else {
-        auto result = WaitFor(Changelog_->Seal(Changelog_->GetRecordCount()));
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        WaitFor(Changelog_->Seal(Changelog_->GetRecordCount()))
+            .ThrowOnError();
     }
 
     TChangelogMeta meta;
     meta.set_prev_record_count(Changelog_->GetRecordCount());
 
-    auto newChangelogOrError = WaitFor(ChangelogStore_->CreateChangelog(
-        loggedVersion.SegmentId + 1,
-        meta));
-    THROW_ERROR_EXCEPTION_IF_FAILED(newChangelogOrError);
-
-    Changelog_ = newChangelogOrError.Value();
+    auto asyncNewChangelog = ChangelogStore_->CreateChangelog(loggedVersion.SegmentId + 1, meta);
+    Changelog_ = WaitFor(asyncNewChangelog)
+        .ValueOrThrow();
     LoggedVersion_ = loggedVersion.Rotate();
 
     LOG_INFO("Changelog rotated");
