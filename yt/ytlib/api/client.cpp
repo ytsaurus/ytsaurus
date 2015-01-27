@@ -1005,6 +1005,18 @@ private:
     }
 
 
+    TObjectServiceProxy* GetReadProxy(const TReadOnlyOptions& options)
+    {
+        return ObjectProxies_[options.ReadFrom].get();
+    }
+
+    TObjectServiceProxy* GetWriteProxy()
+    {
+        return ObjectProxies_[EMasterChannelKind::Leader].get();
+    }
+
+
+
     class TTabletLookupSession
         : public TIntrinsicRefCounted
     {
@@ -1259,7 +1271,7 @@ private:
             ToProto(req->mutable_cell_id(), options.CellId);
         }
 
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto* proxy = GetWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -1277,7 +1289,7 @@ private:
         }
         req->set_force(options.Force);
 
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto* proxy = GetWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -1294,7 +1306,7 @@ private:
             req->set_first_tablet_index(*options.LastTabletIndex);
         }
 
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto* proxy = GetWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -1313,7 +1325,7 @@ private:
         }
         ToProto(req->mutable_pivot_keys(), pivotKeys);
 
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto* proxy = GetWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -1336,7 +1348,7 @@ private:
             ToProto(req->mutable_options(), *options.Options);
         }
 
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::LeaderOrFollower];
+        auto* proxy = GetReadProxy(options);
         auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
 
@@ -1348,7 +1360,7 @@ private:
         const TYsonString& value,
         TSetNodeOptions options)
     {
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto* proxy = GetWriteProxy();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1368,7 +1380,7 @@ private:
         const TYPath& path,
         TRemoveNodeOptions options)
     {
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto* proxy = GetWriteProxy();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1398,7 +1410,7 @@ private:
             req->set_max_size(*options.MaxSize);
         }
 
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::LeaderOrFollower];
+        auto* proxy = GetReadProxy(options);
         auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
         return TYsonString(rsp->keys());
@@ -1409,7 +1421,7 @@ private:
         EObjectType type,
         TCreateNodeOptions options)
     {
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto* proxy = GetWriteProxy();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1436,7 +1448,7 @@ private:
         NCypressClient::ELockMode mode,
         TLockNodeOptions options)
     {
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto* proxy = GetWriteProxy();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1459,7 +1471,7 @@ private:
         const TYPath& dstPath,
         TCopyNodeOptions options)
     {
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto* proxy = GetWriteProxy();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1483,7 +1495,7 @@ private:
         const TYPath& dstPath,
         TMoveNodeOptions options)
     {
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto* proxy = GetWriteProxy();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1508,7 +1520,7 @@ private:
         const TYPath& dstPath,
         TLinkNodeOptions options)
     {
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto* proxy = GetWriteProxy();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1537,7 +1549,7 @@ private:
         auto req = TYPathProxy::Exists(path);
         SetTransactionId(req, options, true);
 
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::LeaderOrFollower];
+        auto* proxy = GetReadProxy(options);
         auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
         return rsp->value();
@@ -1548,7 +1560,7 @@ private:
         EObjectType type,
         TCreateObjectOptions options)
     {
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto* proxy = GetWriteProxy();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1585,7 +1597,7 @@ private:
         req->set_name(member);
         GenerateMutationId(req, options);
 
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto* proxy = GetWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -1599,7 +1611,7 @@ private:
         req->set_name(member);
         GenerateMutationId(req, options);
 
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
+        auto* proxy = GetWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -1615,7 +1627,7 @@ private:
         req->set_permission(static_cast<int>(permission));
         SetTransactionId(req, options, true);
 
-        const auto& proxy = ObjectProxies_[EMasterChannelKind::LeaderOrFollower];
+        auto* proxy = GetReadProxy(options);
         auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
 

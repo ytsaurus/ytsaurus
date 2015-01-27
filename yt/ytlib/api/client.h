@@ -65,7 +65,7 @@ struct TMutatingOptions
 
 struct TReadOnlyOptions
 {
-    EMasterChannelKind ReadFrom = EMasterChannelKind::LeaderOrFollower;
+    EMasterChannelKind ReadFrom = EMasterChannelKind::Leader;
 };
 
 struct TPrerequisiteOptions

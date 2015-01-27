@@ -189,6 +189,11 @@ public:
     //! Validates prerequisites, throws on failure.
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);
 
+    //! Forwards a request to the leader.
+    TFuture<TSharedRefArray> ForwardToLeader(
+        TSharedRefArray requestMessage,
+        TNullable<TDuration> timeout = Null);
+
     NProfiling::TProfiler& GetProfiler();
     NProfiling::TTagId GetTypeTagId(EObjectType type);
     NProfiling::TTagId GetMethodTagId(const Stroka& method);

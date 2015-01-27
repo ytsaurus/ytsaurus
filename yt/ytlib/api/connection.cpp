@@ -75,12 +75,12 @@ public:
             isRetriableError,
             EPeerKind::Leader);
 
-        // XXX(babenko)
+        // TODO(babenko): read from followers
         //MasterChannels_[EMasterChannelKind::LeaderOrFollower] = CreatePeerChannel(
         //    Config_->Master,
         //    isRetriableError,
         //    EPeerKind::LeaderOrFollower);
-        MasterChannels_[EMasterChannelKind::LeaderOrFollower] = GetMasterChannel(EMasterChannelKind::Leader);
+        MasterChannels_[EMasterChannelKind::LeaderOrFollower] = MasterChannels_[EMasterChannelKind::Leader];
 
         if (Config_->MasterCache) {
             MasterChannels_[EMasterChannelKind::Cache] = CreatePeerChannel(

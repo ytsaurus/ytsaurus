@@ -38,96 +38,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFailedLeaderValidationWrapper
-    : public IYPathService
-{
-public:
-    explicit TFailedLeaderValidationWrapper(TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
-    { }
-
-    virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
-    {
-        UNUSED(context);
-
-        return TResolveResult::Here(path);
-    }
-
-    virtual void Invoke(IServiceContextPtr context) override
-    {
-        UNUSED(context);
-
-        Bootstrap->GetHydraFacade()->ValidateActiveLeader();
-    }
-
-    virtual NLog::TLogger GetLogger() const override
-    {
-        return NLog::TLogger();
-    }
-
-    // TODO(panin): remove this when getting rid of IAttributeProvider
-    virtual void SerializeAttributes(
-        IYsonConsumer* /*consumer*/,
-        const TAttributeFilter& /*filter*/,
-        bool /*sortKeys*/) override
-    {
-        YUNREACHABLE();
-    }
-
-private:
-    TBootstrap* Bootstrap;
-};
-
-class TLeaderValidatorWrapper
-    : public IYPathService
-{
-public:
-    TLeaderValidatorWrapper(
-        TBootstrap* bootstrap,
-        IYPathServicePtr underlyingService)
-        : Bootstrap(bootstrap)
-        , UnderlyingService(underlyingService)
-    { }
-
-    virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
-    {
-        auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
-        if (!hydraManager->IsActiveLeader()) {
-            return TResolveResult::There(
-                New<TFailedLeaderValidationWrapper>(Bootstrap),
-                path);
-        }
-        return UnderlyingService->Resolve(path, context);
-    }
-
-    virtual void Invoke(IServiceContextPtr context) override
-    {
-        Bootstrap->GetHydraFacade()->ValidateActiveLeader();
-        UnderlyingService->Invoke(context);
-    }
-
-    virtual NLog::TLogger GetLogger() const override
-    {
-        return UnderlyingService->GetLogger();
-    }
-
-    // TODO(panin): remove this when getting rid of IAttributeProvider
-    virtual void SerializeAttributes(
-        IYsonConsumer* consumer,
-        const TAttributeFilter& filter,
-        bool sortKeys) override
-    {
-        UnderlyingService->SerializeAttributes(consumer, filter, sortKeys);
-    }
-
-private:
-    TBootstrap* Bootstrap;
-    IYPathServicePtr UnderlyingService;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TVirtualNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TVirtualNode>
 {
@@ -151,8 +61,8 @@ public:
 private:
     typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TVirtualNode> TBase;
 
-    IYPathServicePtr Service;
-    EVirtualNodeOptions Options;
+    const IYPathServicePtr Service;
+    const EVirtualNodeOptions Options;
 
 
     virtual TResolveResult ResolveSelf(const TYPath& path, IServiceContextPtr context) override
@@ -210,17 +120,9 @@ private:
         return TBase::SetBuiltinAttribute(key, value);
     }
 
-    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
+    virtual bool IsLeaderReadRequired() const override
     {
-        auto hydraFacade = Bootstrap->GetHydraFacade();
-        auto hydraManager = hydraFacade->GetHydraManager();
-
-        // NB: IsMutating() check is needed to prevent leader fallback for propagated mutations.
-        if (Any(Options & EVirtualNodeOptions::RequireLeader) && !hydraManager->IsMutating()) {
-            hydraFacade->ValidateActiveLeader();
-        }
-
-        return TBase::DoInvoke(context);
+        return Any(Options & EVirtualNodeOptions::RequireLeader);
     }
 
     ISystemAttributeProvider* GetTargetBuiltinAttributeProvider()
