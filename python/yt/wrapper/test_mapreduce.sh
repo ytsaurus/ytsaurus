@@ -267,7 +267,7 @@ test_smart_format()
     set +B
     check_failed "./mapreduce -read ${ranged_table}"
     set -B
-    check "z=10\tx=1" "`./mapreduce -read ${ranged_table} -dsv`"
+    check "x=1\tz=10" "`./mapreduce -read ${ranged_table} -dsv`"
 
     unset YT_SMART_FORMAT
     # write in yamr
