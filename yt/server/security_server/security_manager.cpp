@@ -254,7 +254,7 @@ public:
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
         SuperusersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffd);
 
-        RegisterMethod(BIND(&TImpl::UpdateRequestStatistics, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdateRequestStatistics, Unretained(this)));
     }
 
     void Initialize()
@@ -278,7 +278,7 @@ public:
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
             this,
-            &TImpl::UpdateRequestStatistics);
+            &TImpl::HydraUpdateRequestStatistics);
     }
 
 
@@ -1436,41 +1436,42 @@ private:
     }
 
 
-    void UpdateRequestStatistics(const NProto::TReqUpdateRequestStatistics& request)
+    void HydraUpdateRequestStatistics(const NProto::TReqUpdateRequestStatistics& request)
     {
         auto* profilingManager = NProfiling::TProfileManager::Get();
         auto now = TInstant::Now();
         for (const auto& update : request.updates()) {
             auto userId = FromProto<TUserId>(update.user_id());
             auto* user = FindUser(userId);
-            if (user) {
-                // Update access time.
-                auto accessTime = TInstant(update.access_time());
-                if (accessTime > user->GetAccessTime()) {
-                    user->SetAccessTime(accessTime);
+            if (!IsObjectAlive(user))
+                continue;
+
+            // Update access time.
+            auto accessTime = TInstant(update.access_time());
+            if (accessTime > user->GetAccessTime()) {
+                user->SetAccessTime(accessTime);
+            }
+
+            // Update request counter.
+            i64 requestCounter = user->GetRequestCounter() + update.request_counter_delta();
+            user->SetRequestCounter(requestCounter);
+
+            NProfiling::TTagIdList tags;
+            tags.push_back(profilingManager->RegisterTag("user", user->GetName()));
+            Profiler.Enqueue("/user_request_counter", requestCounter, tags);
+
+            // Recompute request rate.
+            if (now > user->GetCheckpointTime() + Config_->RequestRateSmoothingPeriod) {
+                if (user->GetCheckpointTime() != TInstant::Zero()) {
+                    double requestRate =
+                        static_cast<double>(requestCounter - user->GetCheckpointRequestCounter()) /
+                        (now - user->GetCheckpointTime()).SecondsFloat();
+                    user->SetRequestRate(requestRate);
+                    // TODO(babenko): use tags in master
+                    Profiler.Enqueue("/user_request_rate/" + ToYPathLiteral(user->GetName()), static_cast<int>(requestRate));
                 }
-
-                // Update request counter.
-                i64 requestCounter = user->GetRequestCounter() + update.request_counter_delta();
-                user->SetRequestCounter(requestCounter);
-
-                NProfiling::TTagIdList tags;
-                tags.push_back(profilingManager->RegisterTag("user", user->GetName()));
-                Profiler.Enqueue("/user_request_counter", requestCounter, tags);
-
-                // Recompute request rate.
-                if (now > user->GetCheckpointTime() + Config_->RequestRateSmoothingPeriod) {
-                    if (user->GetCheckpointTime() != TInstant::Zero()) {
-                        double requestRate =
-                            static_cast<double>(requestCounter - user->GetCheckpointRequestCounter()) /
-                            (now - user->GetCheckpointTime()).SecondsFloat();
-                        user->SetRequestRate(requestRate);
-                        // TODO(babenko): use tags in master
-                        Profiler.Enqueue("/user_request_rate/" + ToYPathLiteral(user->GetName()), static_cast<int>(requestRate));
-                    }
-                    user->SetCheckpointTime(now);
-                    user->SetCheckpointRequestCounter(requestCounter);
-                }
+                user->SetCheckpointTime(now);
+                user->SetCheckpointRequestCounter(requestCounter);
             }
         }
     }

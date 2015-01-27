@@ -241,7 +241,7 @@ private:
     virtual void OnLeaderActive() override;
     virtual void OnStopLeading() override;
     
-    void UpdateAccessStatistics(const NProto::TReqUpdateAccessStatistics& request);
+    void HydraUpdateAccessStatistics(const NProto::TReqUpdateAccessStatistics& request);
 
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
