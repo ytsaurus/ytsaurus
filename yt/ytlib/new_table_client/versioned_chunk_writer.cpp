@@ -68,9 +68,6 @@ private:
     TBlockMetaExt BlockMetaExt_;
     i64 BlockMetaExtSize_ = 0;
 
-    TBlockIndexExt BlockIndexExt_;
-    i64 BlockIndexExtSize_ = 0;
-
     TSamplesExt SamplesExt_;
     i64 SamplesExtSize_ = 0;
     double AverageSampleSize_ = 0.0;
@@ -92,7 +89,7 @@ private:
     void EmitSample(TVersionedRow row);
 
     void FinishBlockIfLarge(TVersionedRow row);
-    void FinishBlock();
+    void FinishBlock(const TUnversionedValue* beginKey, const TUnversionedValue* endKey);
 
     void DoClose();
     void FillCommonMeta(TChunkMeta* meta) const;
@@ -172,7 +169,7 @@ TFuture<void> TVersionedChunkWriter::GetReadyEvent()
 i64 TVersionedChunkWriter::GetMetaSize() const
 {
     // Other meta parts are negligible.
-    return BlockIndexExtSize_ + BlockMetaExtSize_ + SamplesExtSize_;
+    return BlockMetaExtSize_ + SamplesExtSize_;
 }
 
 i64 TVersionedChunkWriter::GetDataSize() const
@@ -230,19 +227,16 @@ void TVersionedChunkWriter::FinishBlockIfLarge(TVersionedRow row)
         return;
     }
 
-    // Emit block index
-    ToProto(BlockIndexExt_.add_entries(), row.BeginKeys(), row.EndKeys());
-    BlockIndexExtSize_ = BlockIndexExt_.ByteSize();
-
-    FinishBlock();
+    FinishBlock(row.BeginKeys(), row.EndKeys());
     BlockWriter_.reset(new TSimpleVersionedBlockWriter(Schema_, KeyColumns_));
 }
 
-void TVersionedChunkWriter::FinishBlock()
+void TVersionedChunkWriter::FinishBlock(const TUnversionedValue* beginKey, const TUnversionedValue* endKey)
 {
     auto block = BlockWriter_->FlushBlock();
     block.Meta.set_chunk_row_count(RowCount_);
     block.Meta.set_block_index(BlockMetaExt_.blocks_size());
+    ToProto(block.Meta.mutable_last_key(), beginKey, endKey);
 
     BlockMetaExtSize_ += block.Meta.ByteSize();
 
@@ -258,7 +252,7 @@ void TVersionedChunkWriter::DoClose()
     using NYT::ToProto;
 
     if (BlockWriter_->GetRowCount() > 0) {
-        FinishBlock();
+        FinishBlock(LastKey_.Begin(), LastKey_.End());
     }
 
     ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
@@ -275,7 +269,6 @@ void TVersionedChunkWriter::DoClose()
     SetProtoExtension(meta.mutable_extensions(), keyColumnsExt);
 
     SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
-    SetProtoExtension(meta.mutable_extensions(), BlockIndexExt_);
     SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
 
     auto& miscExt = EncodingChunkWriter_->MiscExt();

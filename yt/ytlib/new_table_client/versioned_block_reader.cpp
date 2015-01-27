@@ -67,7 +67,7 @@ bool TSimpleVersionedBlockReader::NextRow()
     return JumpToRowIndex(RowIndex_ + 1);
 }
 
-bool TSimpleVersionedBlockReader::SkipToRowIndex(int rowIndex)
+bool TSimpleVersionedBlockReader::SkipToRowIndex(i64 rowIndex)
 {
     YCHECK(!Closed_);
     YCHECK(rowIndex >= RowIndex_);
@@ -94,7 +94,7 @@ bool TSimpleVersionedBlockReader::SkipToKey(TKey key)
     return JumpToRowIndex(index);
 }
 
-bool TSimpleVersionedBlockReader::JumpToRowIndex(int index)
+bool TSimpleVersionedBlockReader::JumpToRowIndex(i64 index)
 {
     YCHECK(!Closed_);
 
@@ -406,6 +406,11 @@ TTimestamp TSimpleVersionedBlockReader::ReadTimestamp(int timestampIndex)
     return *reinterpret_cast<TTimestamp*>(
         TimestampsData_.Begin() +
         timestampIndex * TSimpleVersionedBlockWriter::TimestampSize);
+}
+
+i64 TSimpleVersionedBlockReader::GetRowIndex() const
+{
+    return RowIndex_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

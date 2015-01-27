@@ -211,9 +211,7 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSeque
     }
 
     std::vector<int> extensionTags = {
-        TProtoExtensionTag<TBlockIndexExt>::Value,
         TProtoExtensionTag<TKeyColumnsExt>::Value,
-        TProtoExtensionTag<TBoundaryKeysExt>::Value
     };
 
     DownloadChunkMeta(extensionTags);
@@ -227,13 +225,8 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSeque
         KeyColumns_ = chunkKeyColumns;
     }
 
-    auto blockIndexExt = GetProtoExtension<TBlockIndexExt>(ChunkMeta_.extensions());
-    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
-
-    int beginIndex = std::max(
-        GetBeginBlockIndex(BlockMetaExt_),
-        GetBeginBlockIndex(blockIndexExt, boundaryKeysExt));
-    int endIndex = std::min(GetEndBlockIndex(BlockMetaExt_), GetEndBlockIndex(blockIndexExt));
+    int beginIndex = std::max(ApplyLowerRowLimit(BlockMetaExt_), ApplyLowerKeyLimit(BlockMetaExt_));
+    int endIndex = std::min(ApplyUpperRowLimit(BlockMetaExt_), ApplyUpperKeyLimit(BlockMetaExt_));
 
     return CreateBlockSequence(beginIndex, endIndex);
 }
@@ -252,8 +245,8 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSeque
     DownloadChunkMeta(std::vector<int>());
 
     return CreateBlockSequence(
-        GetBeginBlockIndex(BlockMetaExt_),
-        GetEndBlockIndex(BlockMetaExt_));
+        ApplyLowerRowLimit(BlockMetaExt_),
+        ApplyUpperRowLimit(BlockMetaExt_));
 }
 
 std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::CreateBlockSequence(int beginIndex, int endIndex)

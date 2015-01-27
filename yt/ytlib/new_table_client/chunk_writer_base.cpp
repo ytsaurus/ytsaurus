@@ -200,13 +200,8 @@ void TSequentialChunkWriterBase::EmitSample(const TUnversionedValue* begin, cons
     AverageSampleSize_ = static_cast<double>(SamplesExtSize_) / SamplesExt_.entries_size();
 }
 
-void TSequentialChunkWriterBase::OnBlockFinish()
-{ }
-
 void TSequentialChunkWriterBase::FinishBlock()
 {
-    OnBlockFinish();
-
     auto block = BlockWriter_->FlushBlock();
     RegisterBlock(block);
 }
@@ -261,7 +256,7 @@ TChunkMeta TSortedChunkWriterBase::GetMasterMeta() const
 
 i64 TSortedChunkWriterBase::GetMetaSize() const
 {
-    return TSequentialChunkWriterBase::GetMetaSize() + BlockIndexExtSize_;
+    return TSequentialChunkWriterBase::GetMetaSize();
 }
 
 void TSortedChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUnversionedValue* end)
@@ -278,12 +273,10 @@ void TSortedChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUnvers
     TSequentialChunkWriterBase::OnRow(begin, end);
 }
 
-void TSortedChunkWriterBase::OnBlockFinish()
+void TSortedChunkWriterBase::RegisterBlock(TBlock& block)
 {
-    ToProto(BlockIndexExt_.add_entries(), LastKey_);
-    BlockIndexExtSize_ = BlockIndexExt_.ByteSize();
-
-    TSequentialChunkWriterBase::OnBlockFinish();
+    ToProto(block.Meta.mutable_last_key(), LastKey_);
+    TSequentialChunkWriterBase::RegisterBlock(block);
 }
 
 void TSortedChunkWriterBase::PrepareChunkMeta()
@@ -296,7 +289,6 @@ void TSortedChunkWriterBase::PrepareChunkMeta()
     ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
 
     auto& meta = EncodingChunkWriter_->Meta();
-    SetProtoExtension(meta.mutable_extensions(), BlockIndexExt_);
 
     TKeyColumnsExt keyColumnsExt;
     NYT::ToProto(keyColumnsExt.mutable_names(), KeyColumns_);

@@ -56,13 +56,13 @@ protected:
     TChunkedMemoryPool MemoryPool_;
 
 
-    int GetBeginBlockIndex(const NProto::TBlockMetaExt& blockMeta) const;
-    int GetBeginBlockIndex(
-        const NProto::TBlockIndexExt& blockIndex,
-        const NProto::TBoundaryKeysExt& boundaryKeys) const;
+    // These methods return min block index, satisfying the lower limit.
+    int ApplyLowerRowLimit(const NProto::TBlockMetaExt& blockMeta) const;
+    int ApplyLowerKeyLimit(const NProto::TBlockMetaExt& blockMeta) const;
 
-    int GetEndBlockIndex(const NProto::TBlockMetaExt& blockMeta) const;
-    int GetEndBlockIndex(const NProto::TBlockIndexExt& blockIndex) const;
+    // These methods return max block index, satisfying the upper limit.
+    int ApplyUpperRowLimit(const NProto::TBlockMetaExt& blockMeta) const;
+    int ApplyUpperKeyLimit(const NProto::TBlockMetaExt& blockMeta) const;
 
     void DoOpen();
 

@@ -52,9 +52,9 @@ protected:
     i64 BlockMetaExtSize_;
 
 
-    void RegisterBlock(TBlock& block);
-
     void FillCommonMeta(NChunkClient::NProto::TChunkMeta* meta) const;
+
+    virtual void RegisterBlock(TBlock& block);
 
     virtual void PrepareChunkMeta();
 
@@ -93,8 +93,6 @@ protected:
     void OnRow(TVersionedRow row);
 
     virtual void OnRow(const TUnversionedValue* begin, const TUnversionedValue* end);
-
-    virtual void OnBlockFinish();
 
     virtual void PrepareChunkMeta() override;
 
@@ -141,14 +139,13 @@ public:
 protected:
     TOwningKey LastKey_;
 
-    NProto::TBlockIndexExt BlockIndexExt_;
     i64 BlockIndexExtSize_;
 
     NProto::TBoundaryKeysExt BoundaryKeysExt_;
 
 
     virtual void OnRow(const TUnversionedValue* begin, const TUnversionedValue* end) override;
-    virtual void OnBlockFinish() override;
+    virtual void RegisterBlock(TBlock& block) override;
     virtual void PrepareChunkMeta() override;
 
     using TSequentialChunkWriterBase::OnRow;

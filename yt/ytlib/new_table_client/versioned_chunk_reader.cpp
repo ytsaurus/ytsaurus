@@ -2,6 +2,7 @@
 #include "versioned_chunk_reader.h"
 #include "cached_versioned_chunk_meta.h"
 #include "chunk_meta_extensions.h"
+#include "chunk_reader_base.h"
 #include "config.h"
 #include "schema.h"
 #include "versioned_block_reader.h"
@@ -32,41 +33,30 @@ using NChunkClient::TReadLimit;
 
 struct TVersionedChunkReaderPoolTag { };
 
-template <class TBlockReader>
 class TVersionedChunkReader
     : public IVersionedReader
+    , public TChunkReaderBase
 {
 public:
     TVersionedChunkReader(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
-        IChunkReaderPtr chunkReader,
+        IChunkReaderPtr underlyingReader,
         IBlockCachePtr uncompressedBlockCache,
         TReadLimit lowerLimit,
         TReadLimit upperLimit,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp);
 
-    virtual TFuture<void> Open() override;
     virtual bool Read(std::vector<TVersionedRow>* rows) override;
-    virtual TFuture<void> GetReadyEvent() override;
 
 private:
-    const TChunkReaderConfigPtr Config_;
-    TCachedVersionedChunkMetaPtr CachedChunkMeta_;
-    IChunkReaderPtr ChunkReader_;
-    IBlockCachePtr UncompressedBlockCache_;
-    TReadLimit LowerLimit_;
-    TReadLimit UpperLimit_;
-
     const TTimestamp Timestamp_;
 
+    TCachedVersionedChunkMetaPtr CachedChunkMeta_;
     std::vector<TColumnIdMapping> SchemaIdMapping_;
 
-    std::unique_ptr<TBlockReader> BlockReader_;
-    std::unique_ptr<TBlockReader> PreviousBlockReader_;
-
-    TSequentialReaderPtr SequentialReader_;
+    std::unique_ptr<TSimpleVersionedBlockReader> BlockReader_;
 
     TChunkedMemoryPool MemoryPool_;
 
@@ -75,42 +65,39 @@ private:
 
     i64 RowCount_ = 0;
 
-    TPromise<void> ReadyEvent_ = MakePromise(TError());
 
+    virtual std::vector<TSequentialReader::TBlockInfo> GetBlockSequence() override;
 
-    int GetBeginBlockIndex() const;
-    int GetEndBlockIndex() const;
-
-    void DoOpen();
-    void DoSwitchBlock();
-    TBlockReader* NewBlockReader();
+    virtual void InitFirstBlock() override;
+    virtual void InitNextBlock() override;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TBlockReader>
-TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
+TVersionedChunkReader::TVersionedChunkReader(
     TChunkReaderConfigPtr config,
     TCachedVersionedChunkMetaPtr chunkMeta,
-    IChunkReaderPtr chunkReader,
+    IChunkReaderPtr underlyingReader,
     IBlockCachePtr uncompressedBlockCache,
     TReadLimit lowerLimit,
     TReadLimit upperLimit,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp)
-    : Config_(std::move(config))
-    , CachedChunkMeta_(std::move(chunkMeta))
-    , ChunkReader_(std::move(chunkReader))
-    , UncompressedBlockCache_(std::move(uncompressedBlockCache))
-    , LowerLimit_(std::move(lowerLimit))
-    , UpperLimit_(std::move(upperLimit))
+    : TChunkReaderBase(
+        std::move(config),
+        std::move(lowerLimit),
+        std::move(upperLimit),
+        std::move(underlyingReader),
+        chunkMeta->Misc(),
+        std::move(uncompressedBlockCache))
     , Timestamp_(timestamp)
+    , CachedChunkMeta_(std::move(chunkMeta))
     , MemoryPool_(TVersionedChunkReaderPoolTag())
 {
     YCHECK(CachedChunkMeta_->Misc().sorted());
     YCHECK(EChunkType(CachedChunkMeta_->ChunkMeta().type()) == EChunkType::Table);
-    YCHECK(ETableChunkFormat(CachedChunkMeta_->ChunkMeta().version()) == TBlockReader::FormatVersion);
+    YCHECK(ETableChunkFormat(CachedChunkMeta_->ChunkMeta().version()) == ETableChunkFormat::VersionedSimple);
     YCHECK(Timestamp_ != AsyncAllCommittedTimestamp || columnFilter.All);
 
     if (columnFilter.All) {
@@ -127,25 +114,12 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     }
 }
 
-template <class TBlockReader>
-TFuture<void> TVersionedChunkReader<TBlockReader>::Open()
-{
-    return BIND(&TVersionedChunkReader<TBlockReader>::DoOpen, MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run();
-}
-
-template <class TBlockReader>
-bool TVersionedChunkReader<TBlockReader>::Read(std::vector<TVersionedRow>* rows)
+bool TVersionedChunkReader::Read(std::vector<TVersionedRow>* rows)
 {
     YCHECK(rows->capacity() > 0);
 
     MemoryPool_.Clear();
     rows->clear();
-
-    if (PreviousBlockReader_) {
-        PreviousBlockReader_.reset();
-    }
 
     if (!ReadyEvent_.IsSet()) {
         // Waiting for the next block.
@@ -155,6 +129,11 @@ bool TVersionedChunkReader<TBlockReader>::Read(std::vector<TVersionedRow>* rows)
     if (!BlockReader_) {
         // Nothing to read from chunk.
         return false;
+    }
+
+    if (BlockEnded_) {
+        BlockReader_.reset();
+        return OnBlockEnded();
     }
 
     while (rows->size() < rows->capacity()) {
@@ -179,194 +158,73 @@ bool TVersionedChunkReader<TBlockReader>::Read(std::vector<TVersionedRow>* rows)
         }
 
         if (!BlockReader_->NextRow()) {
-            PreviousBlockReader_.swap(BlockReader_);
-            if (SequentialReader_->HasMoreBlocks()) {
-                ReadyEvent_ = NewPromise<void>();
-                BIND(&TVersionedChunkReader<TBlockReader>::DoSwitchBlock, MakeWeak(this))
-                    .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-                    .Run();
-                return true;
-            } else {
-                return false;
-            }
+            BlockEnded_ = true;
+            return true;
         }
     }
 
     return true;
 }
 
-template <class TBlockReader>
-TFuture<void> TVersionedChunkReader<TBlockReader>::GetReadyEvent()
+std::vector<TSequentialReader::TBlockInfo> TVersionedChunkReader::GetBlockSequence()
 {
-    return ReadyEvent_.ToFuture();
-}
+    const auto& blockMetaExt = CachedChunkMeta_->BlockMeta();
 
-template <class TBlockReader>
-int TVersionedChunkReader<TBlockReader>::GetBeginBlockIndex() const
-{
-    const auto& blockMetas = CachedChunkMeta_->BlockMeta().blocks();
-    const auto& blockIndexKeys = CachedChunkMeta_->BlockIndexKeys();
-
-    int beginBlockIndex = 0;
-    if (LowerLimit_.HasRowIndex()) {
-        // To make search symmetrical with blockIndex we ignore last block.
-        typedef decltype(blockMetas.end()) TIter;
-        auto rbegin = std::reverse_iterator<TIter>(blockMetas.end() - 1);
-        auto rend = std::reverse_iterator<TIter>(blockMetas.begin());
-        auto it = std::upper_bound(
-            rbegin,
-            rend,
-            LowerLimit_.GetRowIndex(),
-            [] (int index, const TBlockMeta& blockMeta) {
-                // Global (chunkwide) index of last row in block.
-                auto maxRowIndex = blockMeta.chunk_row_count() - 1;
-                return index > maxRowIndex;
-            });
-
-        if (it != rend) {
-            beginBlockIndex = std::max(
-                beginBlockIndex,
-                static_cast<int>(std::distance(it, rend)));
-        }
-    }
-
-    if (LowerLimit_.HasKey()) {
-        typedef decltype(blockIndexKeys.end()) TIter;
-        auto rbegin = std::reverse_iterator<TIter>(blockIndexKeys.end());
-        auto rend = std::reverse_iterator<TIter>(blockIndexKeys.begin());
-        auto it = std::upper_bound(
-            rbegin,
-            rend,
-            LowerLimit_.GetKey(),
-            [] (const TOwningKey& pivot, const TOwningKey& indexKey) {
-                return pivot > indexKey;
-            });
-
-        if (it != rend) {
-            beginBlockIndex = std::max(
-                beginBlockIndex,
-                static_cast<int>(std::distance(it, rend)));
-        }
-    }
-
-    return beginBlockIndex;
-}
-
-template <class TBlockReader>
-int TVersionedChunkReader<TBlockReader>::GetEndBlockIndex() const
-{
-    const auto& blockMetas = CachedChunkMeta_->BlockMeta().blocks();
-    const auto& blockIndexKeys = CachedChunkMeta_->BlockIndexKeys();
-
-    int endBlockIndex = blockMetas.size();
-    if (UpperLimit_.HasRowIndex()) {
-        auto begin = blockMetas.begin();
-        auto end = blockMetas.end() - 1;
-        auto it = std::lower_bound(
-            begin,
-            end,
-            UpperLimit_.GetRowIndex(),
-            [] (const TBlockMeta& blockMeta, int index) {
-                auto maxRowIndex = blockMeta.chunk_row_count() - 1;
-                return maxRowIndex < index;
-            });
-
-        if (it != end) {
-            endBlockIndex = std::min(
-                endBlockIndex,
-                static_cast<int>(std::distance(blockMetas.begin(), it)) + 1);
-        }
-    }
-
-    if (UpperLimit_.HasKey()) {
-        auto it = std::lower_bound(
-            blockIndexKeys.begin(),
-            blockIndexKeys.end(),
-            UpperLimit_.GetKey(),
-            [] (const TOwningKey& indexKey, const TOwningKey& pivot) {
-                return indexKey < pivot;
-            });
-
-        if (it != blockIndexKeys.end()) {
-            endBlockIndex = std::min(
-                endBlockIndex,
-                static_cast<int>(std::distance(blockIndexKeys.begin(), it)) + 1);
-        }
-    }
-
-    return endBlockIndex;
-}
-
-template <class TBlockReader>
-void TVersionedChunkReader<TBlockReader>::DoOpen()
-{
-    // Check sensible lower limit.
-    if (LowerLimit_.HasKey() && LowerLimit_.GetKey() > CachedChunkMeta_->GetMaxKey())
-        return;
-    if (LowerLimit_.HasRowIndex() &&
-        LowerLimit_.GetRowIndex() >= CachedChunkMeta_->Misc().row_count())
-        return;
-
-    CurrentBlockIndex_ = GetBeginBlockIndex();
-    auto endBlockIndex = GetEndBlockIndex();
-
-    const auto& blockMeta = CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_);
-    CurrentRowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
+    int CurrentBlockIndex_ = std::max(ApplyLowerRowLimit(blockMetaExt), ApplyLowerKeyLimit(blockMetaExt));
+    int endBlockIndex = std::min(ApplyUpperRowLimit(blockMetaExt), ApplyUpperKeyLimit(blockMetaExt));
 
     std::vector<TSequentialReader::TBlockInfo> blocks;
+
+    if (CurrentBlockIndex_ >= blockMetaExt.blocks_size()) {
+        return blocks;
+    }
+
+    auto& blockMeta = blockMetaExt.blocks(CurrentBlockIndex_);
+    CurrentRowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
+
     for (int index = CurrentBlockIndex_; index < endBlockIndex; ++index) {
+        auto& blockMeta = blockMetaExt.blocks(index);
         TSequentialReader::TBlockInfo blockInfo;
-        blockInfo.Index = index;
-        blockInfo.UncompressedDataSize = CachedChunkMeta_->BlockMeta().blocks(index).uncompressed_size();
+        blockInfo.Index = blockMeta.block_index();
+        blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
         blocks.push_back(blockInfo);
     }
 
-    if (blocks.empty())
-        return;
-
-    SequentialReader_ = New<TSequentialReader>(
-        Config_,
-        std::move(blocks),
-        ChunkReader_,
-        UncompressedBlockCache_,
-        NCompression::ECodec(CachedChunkMeta_->Misc().compression_codec()));
-
-    WaitFor(SequentialReader_->FetchNextBlock())
-        .ThrowOnError();
-
-    BlockReader_.reset(NewBlockReader());
-
-    if (LowerLimit_.HasRowIndex()) {
-        YCHECK(BlockReader_->SkipToRowIndex(LowerLimit_.GetRowIndex() - CurrentRowIndex_));
-    }
-
-    if (LowerLimit_.HasKey()) {
-        YCHECK(BlockReader_->SkipToKey(LowerLimit_.GetKey().Get()));
-    }
+    return blocks;
 }
 
-template <class TBlockReader>
-TBlockReader* TVersionedChunkReader<TBlockReader>::NewBlockReader()
+void TVersionedChunkReader::InitFirstBlock()
 {
-    return new TBlockReader(
+    BlockReader_.reset(new TSimpleVersionedBlockReader(
         SequentialReader_->GetCurrentBlock(),
         CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
         CachedChunkMeta_->ChunkSchema(),
         CachedChunkMeta_->KeyColumns(),
         SchemaIdMapping_,
-        Timestamp_);
-}
+        Timestamp_));
 
-template <class TBlockReader>
-void TVersionedChunkReader<TBlockReader>::DoSwitchBlock()
-{
-    auto error = WaitFor(SequentialReader_->FetchNextBlock());
-    ++CurrentBlockIndex_;
-    if (error.IsOK()) {
-        BlockReader_.reset(NewBlockReader());
+    if (LowerLimit_.HasRowIndex()) {
+        YCHECK(BlockReader_->SkipToRowIndex(LowerLimit_.GetRowIndex() - CurrentRowIndex_));
+        CurrentRowIndex_ = LowerLimit_.GetRowIndex();
     }
 
-    ReadyEvent_.Set(error);
+    if (LowerLimit_.HasKey()) {
+        auto blockRowIndex = BlockReader_->GetRowIndex();
+        YCHECK(BlockReader_->SkipToKey(LowerLimit_.GetKey().Get()));
+        CurrentRowIndex_ += BlockReader_->GetRowIndex() - blockRowIndex;
+    }
+}
+
+void TVersionedChunkReader::InitNextBlock()
+{
+    ++CurrentBlockIndex_;
+    BlockReader_.reset(new TSimpleVersionedBlockReader(
+        SequentialReader_->GetCurrentBlock(),
+        CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
+        CachedChunkMeta_->ChunkSchema(),
+        CachedChunkMeta_->KeyColumns(),
+        SchemaIdMapping_,
+        Timestamp_));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -384,7 +242,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     auto formatVersion = ETableChunkFormat(chunkMeta->ChunkMeta().version());
     switch (formatVersion) {
         case ETableChunkFormat::VersionedSimple:
-            return New<TVersionedChunkReader<TSimpleVersionedBlockReader>>(
+            return New<TVersionedChunkReader>(
                 std::move(config),
                 std::move(chunkMeta),
                 std::move(chunkReader),

@@ -1,6 +1,9 @@
 #pragma once
 
 #include "public.h"
+#include "versioned_row.h"
+
+#include <ytlib/chunk_client/reader_base.h>
 
 #include <core/misc/error.h>
 
@@ -19,12 +22,8 @@ namespace NVersionedTableClient {
  *  Useful for: merging and compactions.
  */
 struct IVersionedReader
-    : public virtual TRefCounted
+    : public virtual NChunkClient::IReaderBase
 {
-    //! Initializes the reader. Must be called (and its result must be waited for)
-    //! before making any other calls.
-    virtual TFuture<void> Open() = 0;
-
     //! Tries to read more rows from the reader.
     /*!
      *  Depending on implementation, rows may come in two different flavors.
@@ -49,10 +48,6 @@ struct IVersionedReader
      *     timestamp and the last deleted timestamp (if exists) are provided.
      */
     virtual bool Read(std::vector<TVersionedRow>* rows) = 0;
-
-    //! Returns an asynchronous flag enabling to wait for more data to come.
-    //! \see #Read.
-    virtual TFuture<void> GetReadyEvent() = 0;
 
 };
 
