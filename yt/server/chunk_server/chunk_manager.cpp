@@ -1506,7 +1506,7 @@ IObjectProxyPtr TChunkManager::TChunkTypeHandlerBase::DoGetProxy(
     TChunk* chunk,
     TTransaction* /*transaction*/)
 {
-    return CreateChunkProxy(Bootstrap, chunk);
+    return CreateChunkProxy(Bootstrap_, chunk);
 }
 
 TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
@@ -1581,7 +1581,7 @@ IObjectProxyPtr TChunkManager::TChunkListTypeHandler::DoGetProxy(
     TChunkList* chunkList,
     TTransaction* /*transaction*/)
 {
-    return CreateChunkListProxy(Bootstrap, chunkList);
+    return CreateChunkListProxy(Bootstrap_, chunkList);
 }
 
 TObjectBase* TChunkManager::TChunkListTypeHandler::Create(

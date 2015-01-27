@@ -104,14 +104,13 @@ public:
 
     virtual TObjectBase* FindObject(const TObjectId& id) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetSchema(Type);
         return id == object->GetId() ? object : nullptr;
     }
 
-    virtual void Destroy(TObjectBase* object) override
+    virtual void Destroy(TObjectBase* /*object*/) override
     {
-        UNUSED(object);
         YUNREACHABLE();
     }
 
@@ -119,7 +118,7 @@ public:
     {
         auto permissions = NonePermissions;
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto handler = objectManager->GetHandler(Type);
 
         if (!IsVersionedType(Type)) {
@@ -137,7 +136,7 @@ public:
 private:
     typedef TObjectTypeHandlerBase<TSchemaObject> TBase;
 
-    EObjectType Type;
+    const EObjectType Type;
 
     virtual Stroka DoGetName(TSchemaObject* /*object*/) override
     {
@@ -148,7 +147,7 @@ private:
         TSchemaObject* /*object*/,
         NTransactionServer::TTransaction* /*transaction*/) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetSchemaProxy(Type);
     }
 
@@ -157,9 +156,8 @@ private:
         return &object->Acd();
     }
 
-    virtual TObjectBase* DoGetParent(TSchemaObject* object) override
+    virtual TObjectBase* DoGetParent(TSchemaObject* /*object*/) override
     {
-        UNUSED(object);
         return nullptr;
     }
 

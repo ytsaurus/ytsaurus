@@ -4,8 +4,6 @@
 #include "config.h"
 #include "object_manager.h"
 
-#include <core/misc/collection_helpers.h>
-
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/serialize.h>
@@ -56,14 +54,7 @@ void TGarbageCollector::Stop()
 
 void TGarbageCollector::Save(NCellMaster::TSaveContext& context) const
 {
-    yhash_set<TObjectBase*> allZombies;
-    for (auto* object : Zombies_) {
-        YCHECK(allZombies.insert(object).second);
-    }
-    for (auto* object : LockedZombies_) {
-        YCHECK(allZombies.insert(object).second);
-    }
-    NYT::Save(context, allZombies);
+    NYT::Save(context, Zombies_);
 }
 
 void TGarbageCollector::Load(NCellMaster::TLoadContext& context)
@@ -71,7 +62,7 @@ void TGarbageCollector::Load(NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     NYT::Load(context, Zombies_);
-    LockedZombies_.clear();
+    YCHECK(Ghosts_.empty());
 
     CollectPromise_ = NewPromise<void>();
     if (Zombies_.empty()) {
@@ -84,7 +75,8 @@ void TGarbageCollector::Clear()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     Zombies_.clear();
-    LockedZombies_.clear();
+
+    Reset();
 
     CollectPromise_ = NewPromise<void>();
     CollectPromise_.Set();
@@ -97,63 +89,75 @@ TFuture<void> TGarbageCollector::Collect()
     return CollectPromise_;
 }
 
-void TGarbageCollector::Enqueue(TObjectBase* object)
+void TGarbageCollector::RegisterZombie(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(!object->IsAlive());
 
-    if (Zombies_.empty() && LockedZombies_.empty() && CollectPromise_.IsSet()) {
+    if (Zombies_.empty() && CollectPromise_.IsSet()) {
         CollectPromise_ = NewPromise<void>();
     }
 
-    if (object->IsLocked()) {
-        YCHECK(LockedZombies_.insert(object).second);
-        LOG_DEBUG("Object is put into locked zombie queue (ObjectId: %v)",
-            object->GetId());
+    LOG_DEBUG("Object has become zombie (ObjectId: %v)",
+        object->GetId());
+    YCHECK(Zombies_.insert(object).second);
+}
+
+void TGarbageCollector::DestroyZombie(TObjectBase* object)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    YCHECK(Zombies_.erase(object) == 1);
+
+    auto objectManager = Bootstrap_->GetObjectManager();
+    auto handler = objectManager->GetHandler(object->GetType());
+    handler->Destroy(object);
+
+    if (object->GetObjectWeakRefCounter() > 0) {
+        LOG_DEBUG("Zombie has become ghost (ObjectId: %v, WeakRefCounter: %v)",
+            object->GetId(),
+            object->GetObjectWeakRefCounter());
+        YCHECK(Ghosts_.insert(object).second);
+        object->SetDestroyed();
     } else {
-        YCHECK(Zombies_.insert(object).second);
-        LOG_TRACE("Object is put into zombie queue (ObjectId: %v)",
-            object->GetId());
+        LOG_DEBUG("Zombie disposed (ObjectId: %v)",
+            object->GetId(),
+            object->GetObjectWeakRefCounter());
+        delete object;
     }
 }
 
-void TGarbageCollector::Unlock(TObjectBase* object)
+void TGarbageCollector::DisposeGhost(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(!object->IsAlive());
     YASSERT(!object->IsLocked());
 
-    YCHECK(LockedZombies_.erase(object) == 1);
-    YCHECK(Zombies_.insert(object).second);
-    
-    LOG_DEBUG("Object is unlocked and moved to zombie queue (ObjectId: %v)",
-        object->GetId());
-}
-
-void TGarbageCollector::UnlockAll()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    for (auto* object : LockedZombies_) {
-        YCHECK(Zombies_.insert(object).second);
+    if (object->IsDestroyed()) {
+        LOG_DEBUG("Ghost disposed (ObjectId: %v)",
+            object->GetId());
+        YCHECK(Ghosts_.erase(object) == 1);
+        delete object;
     }
-    LockedZombies_.clear();
 }
 
-void TGarbageCollector::Dequeue(TObjectBase* object)
+void TGarbageCollector::Reset()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    YCHECK(Zombies_.erase(object) == 1);
+    for (auto* object : Ghosts_) {
+        delete object;
+    }
+    Ghosts_.clear();
 }
 
 void TGarbageCollector::CheckEmpty()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (Zombies_.empty() && LockedZombies_.empty()) {
+    if (Zombies_.empty()) {
         auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        LOG_DEBUG_UNLESS(hydraManager->IsRecovery(), "GC queue is empty");
+        LOG_DEBUG_UNLESS(hydraManager->IsRecovery(), "Zombie queue is empty");
         CollectPromise_.Set();
     }
 }
@@ -181,7 +185,7 @@ void TGarbageCollector::OnSweep()
         ToProto(request.add_object_ids(), object->GetId());
     }
 
-    LOG_DEBUG("Starting GC sweep for %v objects",
+    LOG_DEBUG("Starting sweep for %v zombie objects",
         request.object_ids_size());
 
     auto this_ = MakeStrong(this);
@@ -198,14 +202,14 @@ void TGarbageCollector::OnSweep()
         }).Via(invoker));
 }
 
-int TGarbageCollector::GetGCQueueSize() const
+int TGarbageCollector::GetZombieCount() const
 {
     return static_cast<int>(Zombies_.size());
 }
 
-int TGarbageCollector::GetLockedGCQueueSize() const
+int TGarbageCollector::GetGhostCount() const
 {
-    return static_cast<int>(LockedZombies_.size());
+    return static_cast<int>(Ghosts_.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

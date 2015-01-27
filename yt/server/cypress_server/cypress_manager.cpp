@@ -281,7 +281,7 @@ public:
 
     virtual TObjectBase* FindObject(const TObjectId& id) override
     {
-        auto cypressManager = Bootstrap->GetCypressManager();
+        auto cypressManager = Bootstrap_->GetCypressManager();
         return cypressManager->FindNode(TVersionedNodeId(id));
     }
 
@@ -310,13 +310,13 @@ private:
 
     void DoDestroy(TCypressNodeBase* node)
     {
-        auto cypressManager = Bootstrap->GetCypressManager();
+        auto cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->DestroyNode(node);
     }
 
     virtual Stroka DoGetName(TCypressNodeBase* node) override
     {
-        auto cypressManager = Bootstrap->GetCypressManager();
+        auto cypressManager = Bootstrap_->GetCypressManager();
         auto path = cypressManager->GetNodePath(node->GetTrunkNode(), node->GetTransaction());
         return Format("node %v", path);
     }
@@ -325,7 +325,7 @@ private:
         TCypressNodeBase* node,
         TTransaction* transaction) override
     {
-        auto cypressManager = Bootstrap->GetCypressManager();
+        auto cypressManager = Bootstrap_->GetCypressManager();
         return cypressManager->GetNodeProxy(node, transaction);
     }
 
@@ -366,7 +366,7 @@ private:
         TLock* lock,
         TTransaction* /*transaction*/) override
     {
-        return CreateLockProxy(Bootstrap, lock);
+        return CreateLockProxy(Bootstrap_, lock);
     }
 
 };
@@ -1385,7 +1385,7 @@ void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(trunkNode->IsTrunk());
 
-    auto nodeHolder = NodeMap.Release(trunkNode->GetVersionedId());
+    NodeMap.Release(trunkNode->GetVersionedId()).release();
 
     TCypressNodeBase::TLockList acquiredLocks;
     trunkNode->AcquiredLocks().swap(acquiredLocks);
