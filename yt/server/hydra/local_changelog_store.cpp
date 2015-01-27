@@ -195,9 +195,8 @@ private:
             }
         }
 
-        auto changelogOrError = WaitFor(cookie.GetValue());
-        THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
-        return changelogOrError.Value();
+        return WaitFor(cookie.GetValue())
+            .ValueOrThrow();
     }
 
     int DoGetLatestChangelogId(int initialId)

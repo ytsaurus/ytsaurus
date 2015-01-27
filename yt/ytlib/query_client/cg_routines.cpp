@@ -103,8 +103,8 @@ void WriteRow(TRow row, TExecutionContext* executionContext)
 
         if (!shouldNotWait) {
             NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
-            auto error = WaitFor(writer->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            WaitFor(writer->GetReadyEvent())
+                .ThrowOnError();
         }
         batch->clear();
         rowBuffer->Clear();
@@ -119,10 +119,8 @@ void ScanOpHelper(
 {
     auto* reader = executionContext->Reader;
 
-    {
-        auto error = WaitFor(reader->Open(executionContext->Schema));
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
-    }
+    WaitFor(reader->Open(executionContext->Schema))
+        .ThrowOnError();
 
     std::vector<TRow> rows;
     rows.reserve(MaxRowsPerRead);
@@ -157,8 +155,8 @@ void ScanOpHelper(
 
         if (shouldWait) {
             NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
-            auto error = WaitFor(reader->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            WaitFor(reader->GetReadyEvent())
+                .ThrowOnError();
         }
     }
 }

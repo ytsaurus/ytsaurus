@@ -255,8 +255,8 @@ public:
                 LOG_DEBUG("Opening writer");
                 {
                     NProfiling::TAggregatingTimingGuard timingGuard(&statistics.AsyncTime);
-                    auto error = WaitFor(writer->Open(query->GetTableSchema()));
-                    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+                    WaitFor(writer->Open(query->GetTableSchema()))
+                        .ThrowOnError();
                 }
 
                 LOG_DEBUG("Writer opened");
@@ -295,16 +295,16 @@ public:
 
                     if (!shouldNotWait) {
                         NProfiling::TAggregatingTimingGuard timingGuard(&statistics.AsyncTime);
-                        auto error = WaitFor(writer->GetReadyEvent());
-                        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+                        WaitFor(writer->GetReadyEvent())
+                            .ThrowOnError();
                     }
                 }
 
                 LOG_DEBUG("Closing writer");
                 {
                     NProfiling::TAggregatingTimingGuard timingGuard(&statistics.AsyncTime);
-                    auto error = WaitFor(writer->Close());
-                    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+                    WaitFor(writer->Close())
+                        .ThrowOnError();
                 }
 
                 LOG_DEBUG("Finished evaluating plan fragment (PermanentBufferCapacity: %v, OutputBufferCapacity: %v, IntermediateBufferCapacity: %v)",

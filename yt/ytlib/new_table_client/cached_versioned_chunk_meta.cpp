@@ -45,9 +45,9 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
 
         ValidateTableSchemaAndKeyColumns(readerSchema, keyColumns);
 
-        auto chunkMetaOrError = WaitFor(chunkReader->GetMeta());
-        THROW_ERROR_EXCEPTION_IF_FAILED(chunkMetaOrError)
-        ChunkMeta_.Swap(&chunkMetaOrError.Value());
+        auto asyncChunkMeta = chunkReader->GetMeta();
+        ChunkMeta_ = WaitFor(asyncChunkMeta)
+            .ValueOrThrow();
 
         ValidateChunkMeta();
         ValidateSchema(readerSchema);
