@@ -35,8 +35,6 @@ public:
 
     TFuture<void> Collect();
 
-    bool IsEnqueued(TObjectBase* object) const;
-
     void Enqueue(TObjectBase* object);
 
     void Unlock(TObjectBase* object);
