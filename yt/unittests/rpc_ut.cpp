@@ -88,6 +88,14 @@ IChannelPtr CreateChannel(const Stroka& address = "localhost:2000")
     return CreateBusChannel(client);
 }
 
+IChannelPtr CreateUnixDomainChannel(const Stroka& address = "unix_domain")
+{
+    auto config = TTcpBusClientConfig::CreateUnixDomain(address);
+    auto client = CreateTcpBusClient(config);
+    return CreateBusChannel(client);
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMyService
