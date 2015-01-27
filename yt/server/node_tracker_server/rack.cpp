@@ -30,12 +30,7 @@ void TRack::Save(NCellMaster::TSaveContext& context) const
 
 void TRack::Load(NCellMaster::TLoadContext& context)
 {
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 105) {
-        TObjectBase::Load(context);
-    } else {
-        RefCounter_ = 1;
-    }
+    TObjectBase::Load(context);
 
     using NYT::Load;
     Load(context, Name_);
