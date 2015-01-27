@@ -218,7 +218,7 @@ void TChunk::ValidateConfirmed()
 {
     if (!IsConfirmed()) {
         THROW_ERROR_EXCEPTION("Chunk %v is not confirmed",
-            Id);
+            Id_);
     }
 }
 
@@ -314,17 +314,17 @@ void TChunk::SetErasureCodec(NErasure::ECodec value)
 
 bool TChunk::IsErasure() const
 {
-    return TypeFromId(Id) == EObjectType::ErasureChunk;
+    return TypeFromId(Id_) == EObjectType::ErasureChunk;
 }
 
 bool TChunk::IsJournal() const
 {
-    return TypeFromId(Id) == EObjectType::JournalChunk;
+    return TypeFromId(Id_) == EObjectType::JournalChunk;
 }
 
 bool TChunk::IsRegular() const
 {
-    return TypeFromId(Id) == EObjectType::Chunk;
+    return TypeFromId(Id_) == EObjectType::Chunk;
 }
 
 bool TChunk::IsAvailable() const

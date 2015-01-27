@@ -68,7 +68,7 @@ void TCypressNodeBase::ResetParent()
 
 TVersionedNodeId TCypressNodeBase::GetVersionedId() const
 {
-    return TVersionedNodeId(Id, TransactionId);
+    return TVersionedNodeId(Id_, TransactionId);
 }
 
 void TCypressNodeBase::Save(TSaveContext& context) const
@@ -115,7 +115,7 @@ void TCypressNodeBase::Load(TLoadContext& context)
         TrunkNode_ = this;
         Transaction_ = nullptr;
     } else {
-        TrunkNode_ = context.Get<TCypressNodeBase>(TVersionedNodeId(Id));
+        TrunkNode_ = context.Get<TCypressNodeBase>(TVersionedNodeId(Id_));
         Transaction_ = context.Get<TTransaction>(TransactionId);
     }
 

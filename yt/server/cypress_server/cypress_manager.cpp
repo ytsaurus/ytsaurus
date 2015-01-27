@@ -475,7 +475,7 @@ TCypressManager::TCypressManager(
         "Cypress.Values",
         BIND(&TCypressManager::SaveValues, Unretained(this)));
 
-    RegisterMethod(BIND(&TCypressManager::UpdateAccessStatistics, Unretained(this)));
+    RegisterMethod(BIND(&TCypressManager::HydraUpdateAccessStatistics, Unretained(this)));
 }
 
 void TCypressManager::Initialize()
@@ -535,10 +535,10 @@ TMutationPtr TCypressManager::CreateUpdateAccessStatisticsMutation(
     const NProto::TReqUpdateAccessStatistics& request)
 {
    return CreateMutation(
-        Bootstrap_->GetHydraFacade()->GetHydraManager(),
-        request,
-        this,
-        &TCypressManager::UpdateAccessStatistics);
+       Bootstrap_->GetHydraFacade()->GetHydraManager(),
+       request,
+       this,
+       &TCypressManager::HydraUpdateAccessStatistics);
 }
 
 ICypressNodeFactoryPtr TCypressManager::CreateNodeFactory(
@@ -1654,22 +1654,23 @@ void TCypressManager::OnStopLeading()
     AccessTracker->Stop();
 }
 
-void TCypressManager::UpdateAccessStatistics(const NProto::TReqUpdateAccessStatistics& request)
+void TCypressManager::HydraUpdateAccessStatistics(const NProto::TReqUpdateAccessStatistics& request)
 {
     for (const auto& update : request.updates()) {
         auto nodeId = FromProto<TNodeId>(update.node_id());
         auto* node = FindNode(TVersionedNodeId(nodeId));
-        if (node) {
-            // Update access time.
-            auto accessTime = TInstant(update.access_time());
-            if (accessTime > node->GetAccessTime()) {
-                node->SetAccessTime(accessTime);
-            }
+        if (!IsObjectAlive(node))
+            continue;
 
-            // Update access counter.
-            i64 accessCounter = node->GetAccessCounter() + update.access_counter_delta();
-            node->SetAccessCounter(accessCounter);
+        // Update access time.
+        auto accessTime = TInstant(update.access_time());
+        if (accessTime > node->GetAccessTime()) {
+            node->SetAccessTime(accessTime);
         }
+
+        // Update access counter.
+        i64 accessCounter = node->GetAccessCounter() + update.access_counter_delta();
+        node->SetAccessCounter(accessCounter);
     }
 }
 

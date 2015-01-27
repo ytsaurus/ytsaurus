@@ -17,6 +17,7 @@ class TObjectBase
 {
 public:
     explicit TObjectBase(const TObjectId& id);
+    virtual ~TObjectBase();
 
     //! Returns the object id.
     const TObjectId& GetId() const;
@@ -64,22 +65,23 @@ public:
     //! Returns the current lock counter.
     int GetObjectWeakRefCounter() const;
 
-    //! Returns True iff the reference counter is non-zero.
+    //! Returns |true| iff the reference counter is positive.
     bool IsAlive() const;
 
-    //! Returns True iff the lock counter is non-zero.
+    //! Returns |true| iff the lock counter is non-zero.
     bool IsLocked() const;
 
-    //! Returns True iff the object is either non-versioned or versioned but does not belong to a transaction.
+    //! Returns |true| iff the object is either non-versioned or versioned but does not belong to a transaction.
     bool IsTrunk() const;
 
 protected:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    TObjectId Id;
-    int RefCounter = 0;
-    int WeakRefCounter = 0;
+    const TObjectId Id_;
+
+    int RefCounter_ = 0;
+    int WeakRefCounter_ = 0;
 
 };
 

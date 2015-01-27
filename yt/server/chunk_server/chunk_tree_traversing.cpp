@@ -142,7 +142,7 @@ protected:
             auto& entry = PeekStack();
             auto* chunkList = entry.ChunkList;
 
-            if (chunkList->GetVersion() != entry.ChunkListVersion) {
+            if (!chunkList->IsAlive() || chunkList->GetVersion() != entry.ChunkListVersion) {
                 Shutdown();
                 Visitor_->OnError(TError(
                     NRpc::EErrorCode::Unavailable,
@@ -447,8 +447,8 @@ public:
     TChunkTreeTraverser(
         IChunkTraverserCallbacksPtr callbacks,
         IChunkVisitorPtr visitor)
-        : Callbacks_(callbacks)
-        , Visitor_(visitor)
+        : Callbacks_(std::move(callbacks))
+        , Visitor_(std::move(visitor))
     { }
 
     void Run(

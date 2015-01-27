@@ -16,77 +16,84 @@ using namespace NCypressServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectBase::TObjectBase(const TObjectId& id)
-    : Id(id)
+    : Id_(id)
 { }
+
+TObjectBase::~TObjectBase()
+{
+    YASSERT(RefCounter_ == 0);
+    // To make debugging easier.
+    RefCounter_ = -1;
+}
 
 const TObjectId& TObjectBase::GetId() const
 {
-    return Id;
+    return Id_;
 }
 
 EObjectType TObjectBase::GetType() const
 {
-    return TypeFromId(Id);
+    return TypeFromId(Id_);
 }
 
 bool TObjectBase::IsBuiltin() const
 {
-    return IsWellKnownId(Id);
+    return IsWellKnownId(Id_);
 }
 
 int TObjectBase::RefObject()
 {
-    YASSERT(RefCounter >= 0);
-    return ++RefCounter;
+    YASSERT(RefCounter_ >= 0);
+    return ++RefCounter_;
 }
 
 int TObjectBase::UnrefObject()
 {
-    YASSERT(RefCounter > 0);
-    return --RefCounter;
+    YASSERT(RefCounter_ > 0);
+    return --RefCounter_;
 }
 
 int TObjectBase::WeakRefObject()
 {
     YCHECK(IsAlive());
-    YASSERT(WeakRefCounter >= 0);
-    return ++WeakRefCounter;
+    YASSERT(WeakRefCounter_ >= 0);
+    return ++WeakRefCounter_;
 }
 
 int TObjectBase::WeakUnrefObject()
 {
-    YASSERT(WeakRefCounter > 0);
-    return --WeakRefCounter;
+    YASSERT(WeakRefCounter_ > 0);
+    return --WeakRefCounter_;
 }
 
 void TObjectBase::ResetWeakRefCounter()
 {
-    WeakRefCounter = 0;
+    WeakRefCounter_ = 0;
 }
 
 int TObjectBase::GetObjectRefCounter() const
 {
-    return RefCounter;
+    return RefCounter_;
 }
 
 int TObjectBase::GetObjectWeakRefCounter() const
 {
-    return WeakRefCounter;
+    return WeakRefCounter_;
 }
 
 bool TObjectBase::IsAlive() const
 {
-    return RefCounter > 0;
+    return RefCounter_ > 0;
 }
 
 bool TObjectBase::IsLocked() const
 {
-    return WeakRefCounter > 0;
+    return WeakRefCounter_ > 0;
 }
 
 bool TObjectBase::IsTrunk() const
 {
-    if (!IsVersionedType(TypeFromId(Id))) {
+    if (!IsVersionedType(TypeFromId(Id_))) {
         return true;
     }
 
@@ -97,13 +104,13 @@ bool TObjectBase::IsTrunk() const
 void TObjectBase::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
-    Save(context, RefCounter);
+    Save(context, RefCounter_);
 }
 
 void TObjectBase::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    Load(context, RefCounter);
+    Load(context, RefCounter_);
 }
 
 TObjectId GetObjectId(const TObjectBase* object)

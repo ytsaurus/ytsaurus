@@ -34,7 +34,7 @@ void TRack::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= 105) {
         TObjectBase::Load(context);
     } else {
-        RefCounter = 1;
+        RefCounter_ = 1;
     }
 
     using NYT::Load;
