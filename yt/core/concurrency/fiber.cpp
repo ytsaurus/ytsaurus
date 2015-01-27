@@ -30,6 +30,9 @@ public:
 
     TFiberId Generate()
     {
+        const TFiberId Factor = std::numeric_limits<TFiberId>::max() - 173864;
+        YASSERT(Factor % 2 == 1); // Factor must be coprime with 2^n.
+
         while (true) {
             auto seed = Seed_++;
             auto id = seed * Factor;
@@ -40,9 +43,6 @@ public:
     }
 
 private:
-    static const TFiberId Factor = std::numeric_limits<TFiberId>::max() - 173864;
-    static_assert(Factor % 2 == 1, "Factor must be coprime with 2^n.");
-
     std::atomic<TFiberId> Seed_;
 
 } FiberIdGenerator;
