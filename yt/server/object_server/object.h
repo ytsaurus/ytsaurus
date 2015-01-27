@@ -19,6 +19,9 @@ public:
     explicit TObjectBase(const TObjectId& id);
     virtual ~TObjectBase();
 
+    //! Marks the object as destroyed.
+    void SetDestroyed();
+
     //! Returns the object id.
     const TObjectId& GetId() const;
 
@@ -68,7 +71,10 @@ public:
     //! Returns |true| iff the reference counter is positive.
     bool IsAlive() const;
 
-    //! Returns |true| iff the lock counter is non-zero.
+    //! Returns |true| iff the type handler has destroyed the object and called SetDestroyed.
+    bool IsDestroyed() const;
+
+    //! Returns |true| iff the weak ref counter is positive.
     bool IsLocked() const;
 
     //! Returns |true| iff the object is either non-versioned or versioned but does not belong to a transaction.
@@ -82,6 +88,9 @@ protected:
 
     int RefCounter_ = 0;
     int WeakRefCounter_ = 0;
+
+    static constexpr int DestroyedRefCounter = -1;
+    static constexpr int DisposedRefCounter = -2;
 
 };
 

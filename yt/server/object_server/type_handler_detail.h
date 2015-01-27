@@ -21,7 +21,7 @@ class TObjectTypeHandlerBase
 {
 public:
     explicit TObjectTypeHandlerBase(NCellMaster::TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
+        : Bootstrap_(bootstrap)
     {
         YCHECK(bootstrap);
     }
@@ -83,7 +83,8 @@ public:
     }
     
 protected:
-    NCellMaster::TBootstrap* Bootstrap;
+    NCellMaster::TBootstrap* const Bootstrap_;
+
 
     virtual Stroka DoGetName(TObject* object) = 0;
 
@@ -91,7 +92,7 @@ protected:
         TObject* object,
         NTransactionServer::TTransaction* /*transaction*/)
     {
-        return New< TNonversionedObjectProxyBase<TObject> >(Bootstrap, object);
+        return New< TNonversionedObjectProxyBase<TObject> >(Bootstrap_, object);
     }
 
     virtual NTransactionServer::TTransaction* DoGetStagingTransaction(
@@ -112,7 +113,7 @@ protected:
 
     virtual TObjectBase* DoGetParent(TObject* /*object*/)
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         return objectManager->FindSchema(GetType());
     }
 };
@@ -128,7 +129,7 @@ public:
 
     TObjectTypeHandlerWithMapBase(NCellMaster::TBootstrap* bootstrap, TMap* map)
         : TObjectTypeHandlerBase<TObject>(bootstrap)
-        , Map(map)
+        , Map_(map)
     { }
 
     virtual void Destroy(TObjectBase* object) override
@@ -140,23 +141,23 @@ public:
         }
 
         // Remove user attributes, if any.
-        auto objectManager = this->Bootstrap->GetObjectManager();
+        auto objectManager = this->Bootstrap_->GetObjectManager();
         objectManager->TryRemoveAttributes(TVersionedObjectId(object->GetId()));
 
         // Remove the object from the map but keep it alive.
-        auto objectHolder = Map->Release(object->GetId());
+        Map_->Release(object->GetId()).release();
 
         this->DoDestroy(static_cast<TObject*>(object));
     }
 
     virtual NObjectServer::TObjectBase* FindObject(const TObjectId& id) override
     {
-        return Map->Find(id);
+        return Map_->Find(id);
     }
 
 private:
     // We store map by a raw pointer. In most cases this should be OK.
-    TMap* Map;
+    TMap* const Map_;
 
     virtual void DoDestroy(TObject* /*object*/)
     { }

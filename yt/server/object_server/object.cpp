@@ -21,9 +21,14 @@ TObjectBase::TObjectBase(const TObjectId& id)
 
 TObjectBase::~TObjectBase()
 {
-    YASSERT(RefCounter_ == 0);
     // To make debugging easier.
-    RefCounter_ = -1;
+    RefCounter_ = DisposedRefCounter;
+}
+
+void TObjectBase::SetDestroyed()
+{
+    YASSERT(RefCounter_ == 0);
+    RefCounter_ = DestroyedRefCounter;
 }
 
 const TObjectId& TObjectBase::GetId() const
@@ -84,6 +89,11 @@ int TObjectBase::GetObjectWeakRefCounter() const
 bool TObjectBase::IsAlive() const
 {
     return RefCounter_ > 0;
+}
+
+bool TObjectBase::IsDestroyed() const
+{
+    return RefCounter_ == DestroyedRefCounter;
 }
 
 bool TObjectBase::IsLocked() const

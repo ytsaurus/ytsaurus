@@ -523,7 +523,7 @@ void TObjectManager::UnrefObject(TObjectBase* object)
         object->GetObjectWeakRefCounter());
 
     if (refCounter == 0) {
-        GarbageCollector_->Enqueue(object);
+        GarbageCollector_->RegisterZombie(object);
     }
 }
 
@@ -545,7 +545,7 @@ void TObjectManager::WeakUnrefObject(TObjectBase* object)
     if (weakRefCounter == 0) {
         --LockedObjectCount_;
         if (!object->IsAlive()) {
-            GarbageCollector_->Unlock(object);
+            GarbageCollector_->DisposeGhost(object);
         }
     }
 }
@@ -658,7 +658,7 @@ void TObjectManager::OnRecoveryStarted()
 {
     Profiler.SetEnabled(false);
 
-    GarbageCollector_->UnlockAll();
+    GarbageCollector_->Reset();
     LockedObjectCount_ = 0;
 }
 
@@ -1116,8 +1116,8 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
         // CheckEmpty will raise CollectPromise_ when GC queue becomes empty.
         // To enable cascaded GC sweep we don't want this to happen
         // if some ids are added during DestroyObject.
-        GarbageCollector_->Dequeue(object);
-        handler->Destroy(object);
+        GarbageCollector_->DestroyZombie(object);
+
         ++DestroyedObjectCount_;
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %v, Id: %v)",
@@ -1153,8 +1153,8 @@ void TObjectManager::OnProfiling()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    Profiler.Enqueue("/gc_queue_size", GarbageCollector_->GetGCQueueSize());
-    Profiler.Enqueue("/gc_lock_queue_size", GarbageCollector_->GetLockedGCQueueSize());
+    Profiler.Enqueue("/zombie_object_coun", GarbageCollector_->GetZombieCount());
+    Profiler.Enqueue("/ghost_object_count", GarbageCollector_->GetGhostCount());
     Profiler.Enqueue("/created_object_count", CreatedObjectCount_);
     Profiler.Enqueue("/destroyed_object_count", DestroyedObjectCount_);
     Profiler.Enqueue("/locked_object_count", LockedObjectCount_);

@@ -35,28 +35,31 @@ public:
 
     TFuture<void> Collect();
 
-    void Enqueue(TObjectBase* object);
+    void RegisterZombie(TObjectBase* object);
+    void DestroyZombie(TObjectBase* object);
 
-    void Unlock(TObjectBase* object);
-    void UnlockAll();
+    void DisposeGhost(TObjectBase* object);
 
-    void Dequeue(TObjectBase* object);
+    void Reset();
+
     void CheckEmpty();
 
-    int GetGCQueueSize() const;
-    int GetLockedGCQueueSize() const;
+    int GetZombieCount() const;
+    int GetGhostCount() const;
 
 private:
-    TObjectManagerConfigPtr Config_;
-    NCellMaster::TBootstrap* Bootstrap_;
+    const TObjectManagerConfigPtr Config_;
+    NCellMaster::TBootstrap* const Bootstrap_;
 
     NConcurrency::TPeriodicExecutorPtr SweepExecutor_;
 
-    //! Contains objects with zero ref counter and zero lock counter.
+    //! Contains objects with zero ref counter.
+    //! These are ready for IObjectTypeHandler::Destroy call.
     yhash_set<TObjectBase*> Zombies_;
 
-    //! Contains objects with zero ref counter and positive lock counter.
-    yhash_set<TObjectBase*> LockedZombies_;
+    //! Contains objects with zero ref counter and positive weak ref counter.
+    //! These were already destroyed (via IObjectTypeHandler::Destroy) and await disposal (via |delete|).
+    yhash_set<TObjectBase*> Ghosts_;
 
     //! This promise is set each time #GCQueue becomes empty.
     TPromise<void> CollectPromise_;

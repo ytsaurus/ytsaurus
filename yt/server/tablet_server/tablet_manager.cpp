@@ -130,7 +130,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TTabletCell* cell, TTransaction* /*transaction*/) override
     {
-        return CreateTabletCellProxy(Bootstrap, cell);
+        return CreateTabletCellProxy(Bootstrap_, cell);
     }
     
     virtual void DoDestroy(TTabletCell* cell) override;
@@ -160,7 +160,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TTablet* tablet, TTransaction* /*transaction*/) override
     {
-        return CreateTabletProxy(Bootstrap, tablet);
+        return CreateTabletProxy(Bootstrap_, tablet);
     }
 
     virtual void DoDestroy(TTablet* tablet) override;

@@ -238,7 +238,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TTransaction* transaction, TTransaction* /*dummyTransaction*/) override
     {
-        return New<TTransactionProxy>(Bootstrap, transaction);
+        return New<TTransactionProxy>(Bootstrap_, transaction);
     }
 
     virtual TAccessControlDescriptor* DoFindAcd(TTransaction* transaction) override

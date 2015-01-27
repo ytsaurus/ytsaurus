@@ -95,7 +95,7 @@ struct IObjectTypeHandler
         TReqCreateObjects* request,
         TRspCreateObjects* response) = 0;
 
-    //! Performs the necessary cleanup.
+    //! Performs the necessary type-dependent cleanup.
     virtual void Destroy(TObjectBase* object) = 0;
 
     //! Given #object, returns its staging transaction or |nullptr| is #object

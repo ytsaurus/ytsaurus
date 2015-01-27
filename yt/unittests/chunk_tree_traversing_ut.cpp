@@ -141,10 +141,11 @@ std::unique_ptr<TChunk> CreateChunk(
     i64 uncompressedDataSize,
     i64 dataWeight)
 {
-    std::unique_ptr<TChunk> chunk(new TChunk(GenerateId(EObjectType::Chunk)));
+    auto chunk = std::make_unique<TChunk>(GenerateId(EObjectType::Chunk));
+    chunk->RefObject();
 
     TChunkMeta chunkMeta;
-    chunkMeta.set_type(static_cast<int>(EChunkType::Table)); // this makes chunk confirmed
+    chunkMeta.set_type(static_cast<int>(EChunkType::Table));
 
     TMiscExt miscExt;
     miscExt.set_row_count(rowCount);
@@ -160,6 +161,13 @@ std::unique_ptr<TChunk> CreateChunk(
     return chunk;
 }
 
+std::unique_ptr<TChunkList> CreateChunkList()
+{
+    auto chunkList = std::make_unique<TChunkList>(GenerateId(EObjectType::ChunkList));
+    chunkList->RefObject();
+    return chunkList;
+}
+
 TEST(TraverseChunkTree, Simple)
 {
     //     listA           //
@@ -172,28 +180,28 @@ TEST(TraverseChunkTree, Simple)
     auto chunk2 = CreateChunk(2, 2, 2, 2);
     auto chunk3 = CreateChunk(3, 3, 3, 3);
 
-    TChunkList listA(GenerateId(EObjectType::ChunkList));
-    TChunkList listB(GenerateId(EObjectType::ChunkList));
+    auto listA = CreateChunkList();
+    auto listB = CreateChunkList();
 
     {
-        std::vector<TChunkTree*> chunks;
-        chunks.push_back(chunk2.get());
-        chunks.push_back(chunk3.get());
-        AttachToChunkList(&listB, chunks);
+        std::vector<TChunkTree*> items;
+        items.push_back(chunk2.get());
+        items.push_back(chunk3.get());
+        AttachToChunkList(listB.get(), items);
     }
 
     {
-        std::vector<TChunkTree*> chunks;
-        chunks.push_back(chunk1.get());
-        chunks.push_back(&listB);
-        AttachToChunkList(&listA, chunks);
+        std::vector<TChunkTree*> items;
+        items.push_back(chunk1.get());
+        items.push_back(listB.get());
+        AttachToChunkList(listA.get(), items);
     }
 
     auto callbacks = GetNonpreemptableChunkTraverserCallbacks();
 
     {
         auto visitor = New<TTestChunkVisitor>();
-        TraverseChunkTree(callbacks, visitor, &listA);
+        TraverseChunkTree(callbacks, visitor, listA.get());
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
@@ -224,7 +232,7 @@ TEST(TraverseChunkTree, Simple)
         TReadLimit endLimit;
         endLimit.SetRowIndex(5);
 
-        TraverseChunkTree(callbacks, visitor, &listA, startLimit, endLimit);
+        TraverseChunkTree(callbacks, visitor, listA.get(), startLimit, endLimit);
 
         TReadLimit correctStartLimit;
         correctStartLimit.SetRowIndex(1);

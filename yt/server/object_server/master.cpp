@@ -152,7 +152,7 @@ public:
 
     virtual TObjectBase* FindObject(const TObjectId& id) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetMasterObject();
         return id == object->GetId() ? object : nullptr;
     }
@@ -177,7 +177,7 @@ private:
         TMasterObject* /*object*/,
         NTransactionServer::TTransaction* /*transaction*/) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetMasterProxy();
     }
 
