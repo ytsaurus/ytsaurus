@@ -26,7 +26,8 @@ public:
     
     virtual TNullable<TInstant> GetRequestStartTime() const override;
     virtual TNullable<TInstant> GetRetryStartTime() const override;
-    
+    virtual TNullable<TDuration> GetTimeout() const override;
+
     virtual i64 GetPriority() const override;
     
     virtual const Stroka& GetService() const override;
@@ -132,7 +133,8 @@ public:
     
     virtual TNullable<TInstant> GetRequestStartTime() const override;
     virtual TNullable<TInstant> GetRetryStartTime() const override;
-    
+    virtual TNullable<TDuration> GetTimeout() const override;
+
     virtual i64 GetPriority() const override;
 
     virtual const Stroka& GetService() const override;
