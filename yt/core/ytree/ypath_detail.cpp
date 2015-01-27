@@ -825,25 +825,26 @@ class TNodeSetterBase::TAttributesSetter
 {
 public:
     explicit TAttributesSetter(IAttributeDictionary* attributes)
-        : Attributes(attributes)
+        : Attributes_(attributes)
     { }
 
 private:
-    IAttributeDictionary* Attributes;
+    IAttributeDictionary* const Attributes_;
 
-    TStringStream AttributeStream;
-    std::unique_ptr<TYsonWriter> AttributeWriter;
+    TStringStream AttributeStream_;
+    std::unique_ptr<TYsonWriter> AttributeWriter_;
+
 
     virtual void OnMyKeyedItem(const TStringBuf& key) override
     {
-        Stroka localKey(key);
-        AttributeWriter.reset(new TYsonWriter(&AttributeStream));
+        Stroka keyString(key);
+        AttributeWriter_.reset(new TYsonWriter(&AttributeStream_));
         Forward(
-            AttributeWriter.get(),
+            AttributeWriter_.get(),
             BIND ([=] () {
-                AttributeWriter.reset();
-                Attributes->SetYson(localKey, TYsonString(AttributeStream.Str()));
-                AttributeStream.clear();
+                AttributeWriter_.reset();
+                Attributes_->SetYson(keyString, TYsonString(AttributeStream_.Str()));
+                AttributeStream_.clear();
             }));
     }
 };
