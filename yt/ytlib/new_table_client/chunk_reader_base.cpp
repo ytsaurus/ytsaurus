@@ -96,134 +96,145 @@ bool TChunkReaderBase::OnBlockEnded()
     }
 }
 
-int TChunkReaderBase::GetBeginBlockIndex(const TBlockMetaExt& blockMeta) const
+int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta) const
 {
-    auto& blockMetaEntries = blockMeta.blocks();
+    if (!LowerLimit_.HasRowIndex()) {
+        return 0;
+    }
+
+    if (LowerLimit_.GetRowIndex() >= Misc_.row_count()) {
+        LOG_DEBUG(
+            "Lower limit overstep chunk boundaries (LowerLimit: %v, RowCount: %v)",
+            LowerLimit_,
+            Misc_.row_count());
+        return blockMeta.blocks_size();
+    }
+
+    const auto& blockMetaEntries = blockMeta.blocks();
     int beginBlockIndex = 0;
-    if (LowerLimit_.HasRowIndex()) {
-        if (LowerLimit_.GetRowIndex() >= Misc_.row_count()) {
-            LOG_DEBUG(
-                "Lower limit overstep chunk boundaries (LowerLimit: %v, RowCount: %v)",
-                LowerLimit_,
-                Misc_.row_count());
-            return blockMeta.blocks_size();
-        }
 
-        // To make search symmetrical with blockIndex we ignore last block.
-        typedef decltype(blockMetaEntries.end()) TIter;
-        auto rbegin = std::reverse_iterator<TIter>(blockMetaEntries.end() - 1);
-        auto rend = std::reverse_iterator<TIter>(blockMetaEntries.begin());
-        auto it = std::upper_bound(
-            rbegin,
-            rend,
-            LowerLimit_.GetRowIndex(),
-            [] (int index, const TBlockMeta& blockMeta) {
-                // Global (chunkwide) index of last row in block.
-                auto maxRowIndex = blockMeta.chunk_row_count() - 1;
-                return index > maxRowIndex;
-            });
+    typedef decltype(blockMetaEntries.end()) TIter;
+    auto rbegin = std::reverse_iterator<TIter>(blockMetaEntries.end() - 1);
+    auto rend = std::reverse_iterator<TIter>(blockMetaEntries.begin());
+    auto it = std::upper_bound(
+        rbegin,
+        rend,
+        LowerLimit_.GetRowIndex(),
+        [] (int index, const TBlockMeta& blockMeta) {
+            // Global (chunkwide) index of last row in block.
+            auto maxRowIndex = blockMeta.chunk_row_count() - 1;
+            return index > maxRowIndex;
+        });
 
-        if (it != rend) {
-            beginBlockIndex = std::max(
-                beginBlockIndex,
-                static_cast<int>(std::distance(it, rend)));
-        }
+    if (it != rend) {
+        beginBlockIndex = std::max(
+            beginBlockIndex,
+            static_cast<int>(std::distance(it, rend)));
     }
 
     return beginBlockIndex;
 }
 
-int TChunkReaderBase::GetBeginBlockIndex(const TBlockIndexExt& blockIndex, const TBoundaryKeysExt& boundaryKeys) const
+int TChunkReaderBase::ApplyLowerKeyLimit(const TBlockMetaExt& blockMeta) const
 {
-    auto& blockIndexEntries = blockIndex.entries();
+    if (!LowerLimit_.HasKey()) {
+        return 0;
+    }
+
+    const auto& blockMetaEntries = blockMeta.blocks();
     int beginBlockIndex = 0;
 
-    if (LowerLimit_.HasKey()) {
-        TOwningKey maxKey;
-        FromProto(&maxKey, boundaryKeys.max());
-        if (LowerLimit_.GetKey() > maxKey) {
-            LOG_DEBUG(
-                "Lower limit overstep chunk boundaries (LowerLimit: %v, MaxKey: %v)",
-                LowerLimit_,
-                maxKey);
+    TOwningKey maxKey;
+    auto& lastBlock = *(--blockMetaEntries.end());
+    FromProto(&maxKey, lastBlock.last_key());
+    if (LowerLimit_.GetKey() > maxKey) {
+        LOG_DEBUG(
+            "Lower limit overstep chunk boundaries (LowerLimit: %v, MaxKey: %v)",
+            LowerLimit_,
+            maxKey);
 
-            return blockIndex.entries_size();
-        }
+        return blockMetaEntries.size();
+    }
 
-        typedef decltype(blockIndexEntries.end()) TIter;
-        auto rbegin = std::reverse_iterator<TIter>(blockIndexEntries.end() - 1);
-        auto rend = std::reverse_iterator<TIter>(blockIndexEntries.begin());
-        auto it = std::upper_bound(
-            rbegin,
-            rend,
-            LowerLimit_.GetKey(),
-            [] (const TOwningKey& pivot, const TProtoStringType& protoKey) {
-                TOwningKey key;
-                FromProto(&key, protoKey);
-                return pivot > key;
-            });
+    typedef decltype(blockMetaEntries.end()) TIter;
+    auto rbegin = std::reverse_iterator<TIter>(blockMetaEntries.end() - 1);
+    auto rend = std::reverse_iterator<TIter>(blockMetaEntries.begin());
+    auto it = std::upper_bound(
+        rbegin,
+        rend,
+        LowerLimit_.GetKey(),
+        [] (const TOwningKey& pivot, const TBlockMeta& block) {
+            TOwningKey key;
+            YCHECK(block.has_last_key());
+            FromProto(&key, block.last_key());
+            return pivot > key;
+        });
 
-        if (it != rend) {
-            beginBlockIndex = std::max(
-                beginBlockIndex,
-                static_cast<int>(std::distance(it, rend)));
-        }
+    if (it != rend) {
+        beginBlockIndex = std::max(
+            beginBlockIndex,
+            static_cast<int>(std::distance(it, rend)));
     }
 
     return beginBlockIndex;
 }
 
-int TChunkReaderBase::GetEndBlockIndex(const TBlockMetaExt& blockMeta) const
+int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta) const
 {
     auto& blockMetaEntries = blockMeta.blocks();
     int endBlockIndex = blockMetaEntries.size();
 
-    if (UpperLimit_.HasRowIndex()) {
-        auto begin = blockMetaEntries.begin();
-        auto end = blockMetaEntries.end() - 1;
-        auto it = std::lower_bound(
-            begin,
-            end,
-            UpperLimit_.GetRowIndex(),
-            [] (const TBlockMeta& blockMeta, int index) {
-                auto maxRowIndex = blockMeta.chunk_row_count() - 1;
-                return maxRowIndex < index;
-            });
+    if (!UpperLimit_.HasRowIndex()) {
+        return endBlockIndex;
+    }
 
-        if (it != end) {
-            endBlockIndex = std::min(
-                endBlockIndex,
-                static_cast<int>(std::distance(begin, it)) + 1);
-        }
+    auto begin = blockMetaEntries.begin();
+    auto end = blockMetaEntries.end() - 1;
+    auto it = std::lower_bound(
+        begin,
+        end,
+        UpperLimit_.GetRowIndex(),
+        [] (const TBlockMeta& blockMeta, int index) {
+            auto maxRowIndex = blockMeta.chunk_row_count() - 1;
+            return maxRowIndex < index;
+        });
+
+    if (it != end) {
+        endBlockIndex = std::min(
+            endBlockIndex,
+            static_cast<int>(std::distance(begin, it)) + 1);
     }
 
     return endBlockIndex;
 }
 
-int TChunkReaderBase::GetEndBlockIndex(const TBlockIndexExt& blockIndex) const
+int TChunkReaderBase::ApplyUpperKeyLimit(const TBlockMetaExt& blockMeta) const
 {
-    auto& blockIndexEntries = blockIndex.entries();
-    int endBlockIndex = blockIndexEntries.size();
+    auto& blockMetaEntries = blockMeta.blocks();
+    int endBlockIndex = blockMetaEntries.size();
 
-    if (UpperLimit_.HasKey()) {
-        auto begin = blockIndexEntries.begin();
-        auto end = blockIndexEntries.end() - 1;
-        auto it = std::lower_bound(
-            begin,
-            end,
-            UpperLimit_.GetKey(),
-            [] (const TProtoStringType& protoKey, const TOwningKey& pivot) {
-                TOwningKey key;
-                FromProto(&key, protoKey);
-                return key < pivot;
-            });
-
-        if (it != end) {
-            endBlockIndex = std::min(
-                endBlockIndex,
-                static_cast<int>(std::distance(begin, it)) + 1);
-        }
+    if (!UpperLimit_.HasKey()) {
+        return endBlockIndex;
     }
+
+    auto begin = blockMetaEntries.begin();
+    auto end = blockMetaEntries.end() - 1;
+    auto it = std::lower_bound(
+        begin,
+        end,
+        UpperLimit_.GetKey(),
+        [] (const TBlockMeta& block, const TOwningKey& pivot) {
+            TOwningKey key;
+            FromProto(&key, block.last_key());
+            return key < pivot;
+        });
+
+    if (it != end) {
+        endBlockIndex = std::min(
+            endBlockIndex,
+            static_cast<int>(std::distance(begin, it)) + 1);
+    }
+
     return endBlockIndex;
 }
 

@@ -750,7 +750,6 @@ private:
         const TMiscExt& miscExt,
         const TChunkMeta& meta)
     {
-        auto indexExt = GetProtoExtension<TBlockIndexExt>(meta.extensions());
         auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta.extensions());
 
         if (indexExt.entries_size() == 1) {

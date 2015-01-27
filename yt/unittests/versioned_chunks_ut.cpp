@@ -298,9 +298,11 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
     std::vector<TVersionedRow> actual;
     actual.reserve(10);
 
-    EXPECT_FALSE(chunkReader->Read(&actual));
-
+    EXPECT_TRUE(chunkReader->Read(&actual));
     CheckResult(expected, actual);
+
+    EXPECT_FALSE(chunkReader->Read(&actual));
+    EXPECT_TRUE(actual.empty());
 }
 
 TEST_F(TVersionedChunksTest, ReadByTimestamp)
@@ -345,9 +347,11 @@ TEST_F(TVersionedChunksTest, ReadByTimestamp)
     std::vector<TVersionedRow> actual;
     actual.reserve(10);
 
-    EXPECT_FALSE(chunkReader->Read(&actual));
-
+    EXPECT_TRUE(chunkReader->Read(&actual));
     CheckResult(expected, actual);
+
+    EXPECT_FALSE(chunkReader->Read(&actual));
+    EXPECT_TRUE(actual.empty());
 }
 
 TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
@@ -406,9 +410,11 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
     std::vector<TVersionedRow> actual;
     actual.reserve(10);
 
-    EXPECT_FALSE(chunkReader->Read(&actual));
-
+    EXPECT_TRUE(chunkReader->Read(&actual));
     CheckResult(expected, actual);
+
+    EXPECT_FALSE(chunkReader->Read(&actual));
+    EXPECT_TRUE(actual.empty());
 }
 
 TEST_F(TVersionedChunksTest, ReadEmpty)
