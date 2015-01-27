@@ -231,7 +231,7 @@ private:
             Service_->BeforeInvoke();
         }
 
-        auto timeout = GetTimeout();
+        auto timeout = GetLocalTimeout();
         if (timeout == TDuration::Zero()) {
             LOG_DEBUG("Request dropped due to timeout before being run (RequestId: %v)",
                 RequestId_);
@@ -288,14 +288,14 @@ private:
 
     //! Returns TDuration::Zero() if the request has already timed out.
     //! Returns TDuration::Max() if the request has no associated timeout.
-    TDuration GetTimeout() const
+    TDuration GetLocalTimeout() const
     {
-        if (!RequestHeader_->has_timeout()) {
+        auto timeout = GetTimeout();
+        if (!timeout) {
             return TDuration::Max();
         }
 
-        auto timeout = TDuration(RequestHeader_->timeout());
-        auto deadlineTime = ArrivalTime_ + DurationToCpuDuration(timeout);
+        auto deadlineTime = ArrivalTime_ + DurationToCpuDuration(*timeout);
         if (deadlineTime < SyncStartTime_) {
             return TDuration::Zero();
         }

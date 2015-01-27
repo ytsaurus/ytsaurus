@@ -41,6 +41,9 @@ struct IServiceContext
     //! Returns the instant when the current retry of request was issued by the client, if known.
     virtual TNullable<TInstant> GetRetryStartTime() const = 0;
 
+    //! Returns the client-specified request timeout, if any.
+    virtual TNullable<TDuration> GetTimeout() const = 0;
+
     //! Returns request priority for reordering purposes.
     virtual i64 GetPriority() const = 0;
 
