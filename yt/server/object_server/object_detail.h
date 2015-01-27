@@ -40,6 +40,7 @@ public:
     virtual const TObjectId& GetId() const override;
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
+    virtual TResolveResult Resolve(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
     virtual void SerializeAttributes(
         NYson::IYsonConsumer* consumer,
@@ -100,14 +101,17 @@ protected:
         NYTree::EPermission permission);
 
     bool IsRecovery() const;
+    bool IsMutating() const;
     bool IsLeader() const;
+    bool IsFollower() const;
 
-    void ValidateActiveLeader() const;
-    // XXX(babenko)
-    //void ForwardToLeader(NRpc::IServiceContextPtr context);
-    //void OnLeaderResponse(
-    //    NRpc::IServiceContextPtr context,
-    //    const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
+    //! Returns |true| if reads for this node can only be served at leaders.
+    /*!
+     *  This flag is checked during YPath resolution so the fallback happens
+     *  not only for this particular node but also for all services reachable through
+     *  this node.
+     */
+    virtual bool IsLeaderReadRequired() const;
 
     virtual bool IsLoggingEnabled() const override;
     virtual NLog::TLogger CreateLogger() const override;

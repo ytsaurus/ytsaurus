@@ -163,6 +163,9 @@ public:
     //! Maximum number of records to collect before flushing the current batch.
     int MaxCommitBatchRecordCount;
 
+    //! Maximum time to wait before syncing with leader.
+    TDuration MaxLeaderSyncDelay;
+
     //! Changelog record count limit.
     /*!
      *  When this limit is reached, the current changelog is rotated and a snapshot
@@ -208,6 +211,9 @@ public:
             .Default(TDuration::MilliSeconds(10));
         RegisterParameter("max_commit_batch_record_count", MaxCommitBatchRecordCount)
             .Default(10000);
+
+        RegisterParameter("max_leader_sync_delay", MaxLeaderSyncDelay)
+            .Default(TDuration::MilliSeconds(10));
 
         RegisterParameter("max_changelog_record_count", MaxChangelogRecordCount)
             .Default(1000000)

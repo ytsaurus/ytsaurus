@@ -154,6 +154,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RotateChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncWithLeader));
 
         CellManager_->SubscribePeerReconfigured(
             BIND(&TDistributedHydraManager::OnPeerReconfigured, MakeWeak(this))
@@ -350,6 +351,10 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(!DecoratedAutomaton_->GetMutationContext());
 
+        if (ActiveLeader_) {
+            return VoidFuture;
+        }
+
         auto epochContext = AutomatonEpochContext_;
         if (!epochContext || !ActiveLeader_ && !ActiveFollower_) {
             return MakeFuture(TError(
@@ -357,8 +362,16 @@ public:
                 "Not an active peer"));
         }
 
-        // XXX(babenko): implement
-        return VoidFuture;
+        TFuture<void> result;
+        if (!epochContext->PendingLeaderSyncPromise) {
+            epochContext->PendingLeaderSyncPromise = NewPromise<void>();
+            TDelayedExecutor::Submit(
+                BIND(&TDistributedHydraManager::DoSyncWithLeader, MakeStrong(this), epochContext)
+                    .Via(epochContext->EpochUserAutomatonInvoker),
+                Config_->MaxLeaderSyncDelay);
+        }
+
+        return epochContext->PendingLeaderSyncPromise;
     }
 
     virtual TFuture<TMutationResponse> CommitMutation(const TMutationRequest& request) override
@@ -485,11 +498,11 @@ private:
         //
         // Additionally, it is vital for LogMutations, BuildSnapshot, and RotateChangelog handlers
         // to follow the same thread transition pattern (start in ControlThread, then switch to
-        // Automaton Thread) to ensure consisent callbacks ordering.
+        // Automaton Thread) to ensure consistent callbacks ordering.
         //
         // E.g. BulidSnapshot and RotateChangelog calls rely on the fact than all mutations
         // that were previously sent via LogMutations are accepted (and the logged version is
-        // propaged appropriately).
+        // propagated appropriately).
 
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -515,8 +528,10 @@ private:
 
         switch (ControlState_) {
             case EPeerState::Following: {
-                SwitchTo(epochContext->EpochSystemAutomatonInvoker);
+                SwitchTo(epochContext->EpochUserAutomatonInvoker);
                 VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+                CommitMutationsAtFollower(epochContext, committedVersion);
 
                 try {
                     auto asyncResult = epochContext->FollowerCommitter->LogMutations(
@@ -538,7 +553,7 @@ private:
 
             case EPeerState::FollowerRecovery: {
                 try {
-                    CheckForSyncPing(startVersion);
+                    CheckForInitialPing(startVersion);
                     epochContext->FollowerRecovery->PostponeMutations(
                         startVersion,
                         request->Attachments());
@@ -585,12 +600,15 @@ private:
 
         switch (ControlState_) {
             case EPeerState::Following:
-                epochContext->EpochUserAutomatonInvoker->Invoke(
-                    BIND(&TDecoratedAutomaton::CommitMutations, DecoratedAutomaton_, committedVersion));
+                epochContext->EpochUserAutomatonInvoker->Invoke(BIND(
+                    &TDistributedHydraManager::CommitMutationsAtFollower,
+                    MakeStrong(this),
+                    std::move(epochContext),
+                    committedVersion));
                 break;
 
             case EPeerState::FollowerRecovery:
-                CheckForSyncPing(loggedVersion);
+                CheckForInitialPing(loggedVersion);
                 break;
 
             default:
@@ -710,7 +728,7 @@ private:
                     // NB: No restart.
                     THROW_ERROR_EXCEPTION(
                         NHydra::EErrorCode::InvalidState,
-                        "Sync ping is not received yet");
+                        "Initial ping is not received yet");
                 }
 
                 try {
@@ -729,6 +747,32 @@ private:
                 YUNREACHABLE();
         }
 
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, SyncWithLeader)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto epochId = FromProto<TEpochId>(request->epoch_id());
+        context->SetRequestInfo("EpochId: %v",
+            epochId);
+
+        if (!ActiveLeader_) {
+            THROW_ERROR_EXCEPTION(
+                NHydra::EErrorCode::InvalidState,
+                "Not an active leader");
+        }
+
+        // Validate epoch id.
+        GetEpochContext(epochId);
+
+        auto version = DecoratedAutomaton_->GetAutomatonVersion();
+
+        context->SetResponseInfo("CommittedVersion: %s",
+            version);
+
+        response->set_committed_revision(version.ToRevision());
         context->Reply();
     }
 
@@ -909,9 +953,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (ControlState_ == EPeerState::Stopped)
-            return;
-
         LOG_INFO("Starting leader recovery");
 
         YCHECK(ControlState_ == EPeerState::Elections);
@@ -1027,9 +1068,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (ControlState_ == EPeerState::Stopped)
-            return;
-
         LOG_INFO("Stopped leading");
 
         StopEpoch();
@@ -1051,9 +1089,6 @@ public:
     void OnElectionStartFollowing()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (ControlState_ == EPeerState::Stopped)
-            return;
 
         LOG_INFO("Starting follower recovery");
 
@@ -1122,9 +1157,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (ControlState_ == EPeerState::Stopped)
-            return;
-
         LOG_INFO("Stopped following");
 
         StopEpoch();
@@ -1144,18 +1176,18 @@ public:
         SystemLockGuard_ = TSystemLockGuard();
     }
 
-    void CheckForSyncPing(TVersion version)
+    void CheckForInitialPing(TVersion version)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(ControlState_ == EPeerState::FollowerRecovery);
 
         auto epochContext = ControlEpochContext_;
 
-        // Check if sync ping is already received.
+        // Check if initial ping is already received.
         if (epochContext->FollowerRecovery)
             return;
 
-        LOG_INFO("Received sync ping from leader (Version: %v)",
+        LOG_INFO("Received initial ping from leader (Version: %v)",
             version);
 
         epochContext->FollowerRecovery = New<TFollowerRecovery>(
@@ -1232,6 +1264,88 @@ public:
             ControlEpochContext_->FollowerTracker->ResetFollower(peerId);
         }
     }
+
+
+    void DoSyncWithLeader(TEpochContextPtr epochContext)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        LOG_DEBUG("Syncing with leader");
+
+        YCHECK(!epochContext->ActiveLeaderSyncPromise);
+        epochContext->ActiveLeaderSyncPromise = std::move(epochContext->PendingLeaderSyncPromise);
+
+        auto channel = CellManager_->GetPeerChannel(epochContext->LeaderId);
+        YCHECK(channel);
+
+        THydraServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
+
+        auto req = proxy.SyncWithLeader();
+        ToProto(req->mutable_epoch_id(), epochContext->EpochId);
+
+        req->Invoke().Subscribe(
+        BIND(
+            &TDistributedHydraManager::OnSyncWithLeaderResponse,
+            MakeStrong(this),
+            epochContext)
+            .Via(epochContext->EpochUserAutomatonInvoker));
+    }
+
+    void OnSyncWithLeaderResponse(
+        TEpochContextPtr epochContext,
+        const THydraServiceProxy::TErrorOrRspSyncWithLeaderPtr& rspOrError)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (!rspOrError.IsOK()) {
+            if (Restart(epochContext)) {
+                LOG_ERROR(rspOrError, "Failed to sync with leader");
+            }
+            return;
+        }
+
+        const auto& rsp = rspOrError.Value();
+
+        YCHECK(!epochContext->ActiveLeaderSyncVersion);
+        epochContext->ActiveLeaderSyncVersion = TVersion::FromRevision(rsp->committed_revision());
+
+        LOG_DEBUG("Received sync response from leader (CommittedVersion: %s)",
+            epochContext->ActiveLeaderSyncVersion);
+
+        CheckForPendingLeaderSync(std::move(epochContext));
+    }
+
+    void CheckForPendingLeaderSync(TEpochContextPtr epochContext)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (!epochContext->ActiveLeaderSyncPromise || !epochContext->ActiveLeaderSyncVersion)
+            return;
+
+        auto neededCommittedVersion = *epochContext->ActiveLeaderSyncVersion;
+        auto actualCommittedVersion = DecoratedAutomaton_->GetAutomatonVersion();
+        if (neededCommittedVersion > actualCommittedVersion)
+            return;
+
+        LOG_DEBUG("Leader synced successfully (NeededCommittedVersion: %v, ActualCommittedVersion: %v)",
+            neededCommittedVersion,
+            actualCommittedVersion);
+
+        epochContext->ActiveLeaderSyncPromise.Set();
+        epochContext->ActiveLeaderSyncPromise.Reset();
+        epochContext->ActiveLeaderSyncVersion.Reset();
+    }
+
+
+    void CommitMutationsAtFollower(TEpochContextPtr epochContext, TVersion committedVersion)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        DecoratedAutomaton_->CommitMutations(committedVersion);
+        CheckForPendingLeaderSync(std::move(epochContext));
+    }
+
 
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

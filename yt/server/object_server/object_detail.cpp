@@ -234,6 +234,14 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
     context->Reply();
 }
 
+IYPathService::TResolveResult TObjectProxyBase::Resolve(const TYPath& path, IServiceContextPtr context)
+{
+    if (IsFollower() && !IsMutating()) {
+        throw TLeaderFallbackException();
+    }
+    return TYPathServiceBase::Resolve(path, context);
+}
+
 void TObjectProxyBase::Invoke(IServiceContextPtr context)
 {
     const auto& requestHeader = context->RequestHeader();
@@ -256,13 +264,14 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
 
     auto objectId = GetVersionedId();
     const auto& Logger = ObjectServerLogger;
-    LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, Mutating: %v, User: %v)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, Mutating: %v, User: %v, Leader: %v)",
         context->GetService(),
         context->GetMethod(),
         GetRequestYPath(context),
         objectId,
         ypathExt.mutating(),
-        user->GetName());
+        user->GetName(),
+        hydraManager->IsLeader());
 
     NProfiling::TTagIdList tagIds;
     tagIds.push_back(objectManager->GetTypeTagId(TypeFromId(objectId.ObjectId)));
@@ -798,66 +807,25 @@ bool TObjectProxyBase::IsRecovery() const
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
 }
 
+bool TObjectProxyBase::IsMutating() const
+{
+    return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsMutating();
+}
+
 bool TObjectProxyBase::IsLeader() const
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader();
 }
 
-void TObjectProxyBase::ValidateActiveLeader() const
+bool TObjectProxyBase::IsFollower() const
 {
-    Bootstrap_->GetHydraFacade()->ValidateActiveLeader();
+    return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsFollower();
 }
 
-// XXX(babenko)
-//void TObjectProxyBase::ForwardToLeader(IServiceContextPtr context)
-//{
-//    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-//    auto epochContext = hydraManager->GetAutomatonEpochContext();
-//
-//    LOG_DEBUG("Forwarding request to leader");
-//
-//    auto cellManager = Bootstrap_->GetCellManager();
-//    auto channel = cellManager->GetPeerChannel(epochContext->LeaderId);
-//
-//    // Update request path to include the current object id and transaction id.
-//    auto requestMessage = context->GetRequestMessage();
-//    NRpc::NProto::TRequestHeader requestHeader;
-//    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
-//    auto versionedId = GetVersionedId();
-//    const auto& path = GetRequestYPath(requestHeader);
-//    SetRequestYPath(&requestHeader, FromObjectId(versionedId.ObjectId) + path);
-//    SetTransactionId(&requestHeader, versionedId.TransactionId);
-//    auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
-//
-//    TObjectServiceProxy proxy(channel);
-//    // TODO(babenko): timeout?
-//    // TODO(babenko): prerequisite transactions?
-//    // TODO(babenko): authenticated user?
-//    proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->HydraManager->ControlRpcTimeout);
-//    auto batchReq = proxy.ExecuteBatch();
-//    batchReq->AddRequestMessage(updatedRequestMessage);
-//    batchReq->Invoke().Subscribe(
-//        BIND(&TObjectProxyBase::OnLeaderResponse, MakeStrong(this), context));
-//}
-//
-//void TObjectProxyBase::OnLeaderResponse(
-//    IServiceContextPtr context,
-//    const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
-//{
-//    if (!batchRspOrError.IsOK()) {
-//        LOG_DEBUG(batchRspOrError, "Error forwarding request to leader");
-//        context->Reply(batchRspOrError);
-//        return;
-//    }
-//
-//    const auto& batchRsp = batchRspOrError.Value();
-//    auto responseMessage = batchRsp->GetResponseMessage(0);
-//    NRpc::NProto::TResponseHeader responseHeader;
-//    YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
-//    auto error = FromProto<TError>(responseHeader.error());
-//    LOG_DEBUG(error, "Received response for forwarded request");
-//    context->Reply(responseMessage);
-//}
+bool TObjectProxyBase::IsLeaderReadRequired() const
+{
+    return false;
+}
 
 bool TObjectProxyBase::IsLoggingEnabled() const
 {

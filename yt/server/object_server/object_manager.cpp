@@ -22,6 +22,10 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
 
+#include <ytlib/election/cell_manager.h>
+
+#include <server/election/election_manager.h>
+
 #include <server/cell_master/serialize.h>
 
 #include <server/transaction_server/transaction_manager.h>
@@ -99,9 +103,11 @@ public:
 
     virtual void Invoke(IServiceContextPtr context) override
     {
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
-        auto userId = user->GetId();
+        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        if (hydraManager->IsActiveFollower()) {
+            ForwardToLeader(std::move(context));
+            return;
+        }
 
         auto responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
         auto mutationId = GetMutationId(context);
@@ -112,6 +118,10 @@ public:
                 return;
             }
         }
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        auto userId = user->GetId();
 
         NProto::TReqExecute request;
         ToProto(request.mutable_user_id(), userId);
@@ -209,6 +219,14 @@ private:
                 tokenizer.ThrowUnexpected();
                 YUNREACHABLE();
         }
+    }
+
+
+    void ForwardToLeader(IServiceContextPtr context)
+    {
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto asyncResponseMessage = objectManager->ForwardToLeader(context->GetRequestMessage());
+        context->ReplyFrom(std::move(asyncResponseMessage));
     }
 
 };
@@ -1002,6 +1020,38 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
                 node->GetRevision());
         }
     }
+}
+
+TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
+    TSharedRefArray requestMessage,
+    TNullable<TDuration> timeout)
+{
+    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    auto epochContext = hydraManager->GetAutomatonEpochContext();
+
+    LOG_DEBUG("Request forwarding started");
+
+    auto securityManager = Bootstrap_->GetSecurityManager();
+    auto* user = securityManager->GetAuthenticatedUser();
+
+    auto cellManager = Bootstrap_->GetCellManager();
+    auto channel = cellManager->GetPeerChannel(epochContext->LeaderId);
+
+    TObjectServiceProxy proxy(std::move(channel));
+    proxy.SetDefaultTimeout(timeout.Get(Config_->DefaultRpcForwardingTimeout));
+
+    auto batchReq = proxy.ExecuteBatch();
+    SetAuthenticatedUser(batchReq, user->GetName());
+    batchReq->AddRequestMessage(requestMessage);
+
+    return batchReq->Invoke().Apply(BIND([] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Request forwarding failed");
+
+        LOG_DEBUG("Request forwarding succeeded");
+
+        const auto& batchRsp = batchRspOrError.Value();
+        return batchRsp->GetResponseMessage(0);
+    }));
 }
 
 void TObjectManager::HydraExecuteLeader(

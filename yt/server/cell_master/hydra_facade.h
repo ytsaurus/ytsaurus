@@ -21,14 +21,8 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (Heartbeat)
 );
 
-class TNotALeaderException
-    : public TErrorException
-{
-public:
-    TNotALeaderException()
-    { }
-
-};
+class TLeaderFallbackException
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,9 +44,6 @@ public:
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
-
-    //! Throws TNotALeaderException if the peer is not an active leader.
-    void ValidateActiveLeader();
 
 private:
     class TImpl;

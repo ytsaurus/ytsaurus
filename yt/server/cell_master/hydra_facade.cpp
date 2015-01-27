@@ -159,14 +159,6 @@ public:
         return GuardedInvokers_[queue];
     }
 
-    void ValidateActiveLeader()
-    {
-        if (!HydraManager_->IsActiveLeader()) {
-            throw TNotALeaderException() <<=
-                TError(NRpc::EErrorCode::Unavailable, "Not an active leader");
-        }
-    }
-
 private:
     TCellMasterConfigPtr Config_;
     TBootstrap* Bootstrap_;
@@ -327,11 +319,6 @@ IInvokerPtr THydraFacade::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) 
 IInvokerPtr THydraFacade::GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const
 {
     return Impl_->GetGuardedAutomatonInvoker(queue);
-}
-
-void THydraFacade::ValidateActiveLeader()
-{
-    return Impl_->ValidateActiveLeader();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

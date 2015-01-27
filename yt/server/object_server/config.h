@@ -26,6 +26,9 @@ public:
     //! Amount of time to wait before yielding meta state thread to another request.
     TDuration YieldTimeout;
 
+    //! Timeout for forwarded requests (used when client timeout is omitted).
+    TDuration DefaultRpcForwardingTimeout;
+
     TObjectManagerConfig()
     {
         RegisterParameter("max_objects_per_gc_sweep", MaxObjectsPerGCSweep)
@@ -34,6 +37,8 @@ public:
             .Default(TDuration::MilliSeconds(1000));
         RegisterParameter("yield_timeout", YieldTimeout)
             .Default(TDuration::MilliSeconds(10));
+        RegisterParameter("default_rpc_forwarding_timeout", DefaultRpcForwardingTimeout)
+            .Default(TDuration::Seconds(30));
     }
 };
 

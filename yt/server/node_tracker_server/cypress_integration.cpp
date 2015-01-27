@@ -288,6 +288,12 @@ public:
     { }
 
 private:
+    virtual bool IsLeaderReadRequired() const override
+    {
+        // Needed due to "chunk_replicator_enabled" attribute.
+        return true;
+    }
+
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         attributes->push_back("offline");
@@ -354,7 +360,6 @@ private:
         }
 
         if (key == "chunk_replicator_enabled") {
-            ValidateActiveLeader();
             BuildYsonFluently(consumer)
                 .Value(chunkManager->IsReplicatorEnabled());
             return true;

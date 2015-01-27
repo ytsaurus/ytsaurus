@@ -63,7 +63,7 @@ protected:
                 .DoListFor(subject->MemberOf(), [] (NYTree::TFluentList fluent, TGroup* group) {
                     fluent
                         .Item().Value(group->GetName());
-            });
+                });
             return true;
         }
 

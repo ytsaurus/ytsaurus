@@ -95,3 +95,15 @@ message TRspRotateChangelog
 { }
                                                                               
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqSyncWithLeader
+{
+    required NYT.NProto.TGuid epoch_id = 1;
+}
+
+message TRspSyncWithLeader
+{
+    required int64 committed_revision = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

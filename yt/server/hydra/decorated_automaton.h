@@ -7,6 +7,7 @@
 #include <core/misc/ring_queue.h>
 
 #include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/delayed_executor.h>
 
 #include <core/actions/future.h>
 
@@ -31,11 +32,6 @@ namespace NHydra {
 struct TEpochContext
     : public NElection::TEpochContext
 {
-    TEpochContext()
-    {
-        Restarted.clear();
-    }
-
     IInvokerPtr EpochSystemAutomatonInvoker;
     IInvokerPtr EpochUserAutomatonInvoker;
     IInvokerPtr EpochControlInvoker;
@@ -45,7 +41,12 @@ struct TEpochContext
     TLeaderCommitterPtr LeaderCommitter;
     TFollowerCommitterPtr FollowerCommitter;
     TFollowerTrackerPtr FollowerTracker;
-    std::atomic_flag Restarted;
+
+    std::atomic_flag Restarted = ATOMIC_FLAG_INIT;
+
+    TNullable<TVersion> ActiveLeaderSyncVersion;
+    TPromise<void> ActiveLeaderSyncPromise;
+    TPromise<void> PendingLeaderSyncPromise;
 };
 
 DEFINE_REFCOUNTED_TYPE(TEpochContext)

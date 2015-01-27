@@ -50,7 +50,7 @@ class TObjectService
     : public NCellMaster::TMasterHydraServiceBase
 {
 public:
-    TObjectService(TBootstrap* bootstrap)
+    explicit TObjectService(TBootstrap* bootstrap)
         : TMasterHydraServiceBase(
             bootstrap,
             NObjectClient::TObjectServiceProxy::GetServiceName(),
@@ -98,12 +98,11 @@ public:
     void Run()
     {
         int requestCount = Context->Request().part_counts_size();
-        UserName = FindAuthenticatedUser(Context);
 
         Context->SetRequestInfo("RequestCount: %v", requestCount);
 
+        UserName = FindAuthenticatedUser(Context);
         auto* user = GetAuthenticatedUser();
-
         auto securityManager = Bootstrap->GetSecurityManager();
         securityManager->ValidateUserAccess(user, requestCount);
 
@@ -115,8 +114,13 @@ public:
             return;
         }
 
-        // XXX(babenko): get in sync with leader
-        Continue();
+        auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
+        auto sync = hydraManager->SyncWithLeader();
+        if (sync.IsSet()) {
+            Continue();
+        } else {
+            sync.Subscribe(BIND(&TExecuteSession::OnSync, MakeStrong(this)));
+        }
     }
 
 private:
@@ -134,6 +138,16 @@ private:
 
     const NLog::TLogger& Logger;
 
+
+    void OnSync(const TError& error)
+    {
+        if (!error.IsOK()) {
+            Reply(error);
+            return;
+        }
+
+        Continue();
+    }
 
     void Continue()
     {
@@ -216,7 +230,14 @@ private:
                     requestHeader.method(),
                     NTracing::ServerReceiveAnnotation);
 
-                auto asyncResponseMessage = ExecuteVerb(rootService, std::move(requestMessage));
+                TFuture<TSharedRefArray> asyncResponseMessage;
+                try {
+                    asyncResponseMessage = ExecuteVerb(rootService, requestMessage);
+                } catch (const TLeaderFallbackException&) {
+                    asyncResponseMessage = objectManager->ForwardToLeader(
+                        requestMessage,
+                        Context->GetTimeout());
+                }
 
                 // Optimize for the (typical) case of synchronous response.
                 if (asyncResponseMessage.IsSet() && !objectManager->AdviceYield(startTime)) {
@@ -342,7 +363,9 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     UNUSED(request);
     UNUSED(response);
 
-    ValidateActivePeer();
+    // TODO(babenko): read from followers
+    //ValidateActivePeer();
+    ValidateActiveLeader();
 
     auto session = New<TExecuteSession>(
         Bootstrap,
