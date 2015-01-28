@@ -186,7 +186,7 @@ struct TRemoveNodeOptions
     bool Force = false;
 };
 
-struct TListNodesOptions
+struct TListNodeOptions
     : public TTransactionalOptions
     , public TReadOnlyOptions
     , public TSuppressableAccessTrackingOptions
@@ -352,9 +352,9 @@ struct IClientBase
         const NYPath::TYPath& path,
         const TRemoveNodeOptions& options = TRemoveNodeOptions()) = 0;
 
-    virtual TFuture<NYTree::TYsonString> ListNodes(
+    virtual TFuture<NYTree::TYsonString> ListNode(
         const NYPath::TYPath& path,
-        const TListNodesOptions& options = TListNodesOptions()) = 0;
+        const TListNodeOptions& options = TListNodeOptions()) = 0;
 
     virtual TFuture<NCypressClient::TNodeId> CreateNode(
         const NYPath::TYPath& path,

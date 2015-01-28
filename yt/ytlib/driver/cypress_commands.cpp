@@ -81,14 +81,14 @@ void TRemoveCommand::DoExecute()
 
 void TListCommand::DoExecute()
 {
-    TListNodesOptions options;
+    TListNodeOptions options;
     options.MaxSize = Request_->MaxSize;
     options.AttributeFilter = TAttributeFilter(EAttributeFilterMode::MatchingOnly, Request_->Attributes);
     SetTransactionalOptions(&options);
     SetReadOnlyOptions(&options);
     SetSuppressableAccessTrackingOptions(&options);
     
-    auto asyncResult = Context_->GetClient()->ListNodes(
+    auto asyncResult = Context_->GetClient()->ListNode(
         Request_->Path.GetPath(),
         options);
     auto result = WaitFor(asyncResult)
