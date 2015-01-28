@@ -740,6 +740,9 @@ TLogManager::TLogManager()
     : Impl_(new TImpl())
 { }
 
+TLogManager::~TLogManager()
+{ }
+
 TLogManager* TLogManager::Get()
 {
     return Singleton<TLogManager>();

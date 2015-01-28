@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include <core/misc/shutdownable.h>
+
 #include <core/ytree/public.h>
 
 namespace NYT {
@@ -10,16 +12,19 @@ namespace NLog {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogManager
+    : public IShutdownable
 {
 public:
     TLogManager();
+
+    ~TLogManager();
 
     static TLogManager* Get();
 
     void Configure(NYTree::INodePtr node);
     void Configure(const Stroka& fileName, const NYPath::TYPath& path);
 
-    void Shutdown();
+    virtual void Shutdown() override;
 
     int GetVersion() const;
     ELogLevel GetMinLevel(const Stroka& category) const;

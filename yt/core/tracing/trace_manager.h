@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/shutdownable.h>
+
 #include <core/ytree/public.h>
 
 #include <util/generic/singleton.h>
@@ -12,14 +14,17 @@ namespace NTracing {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTraceManager
+    : public IShutdownable
 {
 public:
+    ~TTraceManager();
+
     static TTraceManager* Get();
 
     void Configure(NYTree::INodePtr node, const NYPath::TYPath& path = "");
     void Configure(const Stroka& fileName, const NYPath::TYPath& path);
 
-    void Shutdown();
+    virtual void Shutdown() override;
 
     void Enqueue(
         const NTracing::TTraceContext& context,

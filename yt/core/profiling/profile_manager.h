@@ -4,6 +4,8 @@
 
 #include <core/actions/public.h>
 
+#include <core/misc/shutdownable.h>
+
 #include <core/ytree/yson_string.h>
 #include <core/ytree/convert.h>
 
@@ -49,8 +51,11 @@ struct TTag
  *  This thread also provides a invoker for executing various callbacks.
  */
 class TProfileManager
+    : public IShutdownable
 {
 public:
+    ~TProfileManager();
+
     //! Returns the singleton instance.
     static TProfileManager* Get();
 
@@ -64,7 +69,7 @@ public:
     /*!
      *  After this call #Enqueue has no effect.
      */
-    void Shutdown();
+    virtual void Shutdown() override;
 
     //! Enqueues a new sample for processing.
     void Enqueue(const TQueuedSample& sample, bool selfProfiling);

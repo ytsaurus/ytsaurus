@@ -287,6 +287,14 @@ TTraceManager::TTraceManager()
     : Impl_(new TImpl())
 { }
 
+TTraceManager::~TTraceManager()
+{ }
+
+TTraceManager* TTraceManager::Get()
+{
+    return Singleton<TTraceManager>();
+}
+
 void TTraceManager::Configure(NYTree::INodePtr node, const NYPath::TYPath& path)
 {
     Impl_->Configure(node, path);
@@ -295,11 +303,6 @@ void TTraceManager::Configure(NYTree::INodePtr node, const NYPath::TYPath& path)
 void TTraceManager::Configure(const Stroka& fileName, const NYPath::TYPath& path)
 {
     Impl_->Configure(fileName, path);
-}
-
-TTraceManager* TTraceManager::Get()
-{
-    return Singleton<TTraceManager>();
 }
 
 void TTraceManager::Shutdown()
