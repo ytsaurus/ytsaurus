@@ -364,15 +364,15 @@ TTableConsumerBase::TTableConsumerBase(
     : TreatMissingAsNull_(true)
     , AllowNonSchemaColumns_(true)
     , KeyColumnCount_(static_cast<int>(keyColumns.size()))
-    , NameTable_(TNameTable::FromSchema(schema))
+    , NameTable_(TNameTable::FromSchema(schema, true))
     , ControlState_(ETableConsumerControlState::None)
     , Depth_(0)
     , ColumnIndex_(0)
 {
-    SchemaColumnDescriptors_.resize(schema.Columns().size());
-    for (const auto& column : schema.Columns()) {
-        int id = NameTable_->GetId(column.Name);
-        SchemaColumnDescriptors_[id].Type = column.Type;
+    SchemaColumnDescriptors_.resize(NameTable_->GetSize());
+    for (int index = 0; index < NameTable_->GetSize(); ++index) {
+        const auto& column = schema.GetColumnOrThrow(NameTable_->GetName(index));
+        SchemaColumnDescriptors_[index].Type = column.Type;
     }
 }
 

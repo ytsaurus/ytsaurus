@@ -24,6 +24,13 @@
 
 #include <ytlib/new_table_client/unversioned_row.h>
 
+#ifdef YT_USE_LLVM
+#include <ytlib/query_client/folding_profiler.h>
+#include <ytlib/query_client/cg_types.h>
+#include <ytlib/query_client/cg_fragment_compiler.h>
+#include <ytlib/query_client/query_statistics.h>
+#endif
+
 namespace NYT {
 namespace NTabletClient {
 
@@ -39,6 +46,7 @@ using namespace NTableClient;
 using namespace NVersionedTableClient;
 using namespace NHive;
 using namespace NNodeTrackerClient;
+using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,10 +67,6 @@ TTabletReplica::TTabletReplica(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableMountInfo::TTableMountInfo()
-    : Sorted(false)
-{ }
-
 TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row)
 {
     if (Tablets.empty()) {
@@ -77,6 +81,38 @@ TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row)
             return CompareRows(lhs, rhs->PivotKey.Get(), KeyColumns.size()) < 0;
         });
     return *(it - 1);
+}
+
+void TTableMountInfo::EvaluateKeys(TUnversionedRow fullRow, TRowBuffer& buffer)
+{
+#ifdef YT_USE_LLVM
+    for (int index = 0; index < KeyColumns.size(); ++index) {
+        if (Schema.Columns()[index].Expression) {
+            if (!Evaluators[index]) {
+                //FIXME folding
+                llvm::FoldingSetNodeID id;
+                TCGBinding binding;
+                auto expr = PrepareExpression(Schema.Columns()[index].Expression.Get(), Schema);
+                TFoldingProfiler(id, binding, Variables[index]).Profile(expr);
+                // FIXME check that all references are keys
+                Evaluators[index] = CodegenExpression(expr, Schema, binding);
+            }
+
+            TQueryStatistics statistics;
+            TExecutionContext executionContext;
+            executionContext.Schema = Schema;
+            executionContext.LiteralRows = &Variables[index].LiteralRows;
+            executionContext.PermanentBuffer = &buffer;
+            executionContext.OutputBuffer = &buffer;
+            executionContext.IntermediateBuffer = &buffer;
+            executionContext.Statistics = &statistics;
+
+            Evaluators[index](&fullRow[index], fullRow, Variables[index].ConstantsRowBuilder.GetRow(), &executionContext);
+        }
+    }
+#else
+    THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -218,6 +254,20 @@ private:
         tableInfo->Schema = FromProto<TTableSchema>(rsp->schema());
         tableInfo->KeyColumns = FromProto<TKeyColumns>(rsp->key_columns());
         tableInfo->Sorted = rsp->sorted();
+
+        for (int index = 0; index < tableInfo->KeyColumns.size(); ++index) {
+            if (tableInfo->Schema.Columns()[index].Expression) {
+                tableInfo->NeedKeyEvaluation = true;
+                break;
+            }
+        }
+#ifdef YT_USE_LLVM
+        if (tableInfo->NeedKeyEvaluation) {
+            auto keyColumnCount = tableInfo->KeyColumns.size();
+            tableInfo->Evaluators.resize(keyColumnCount);
+            tableInfo->Variables.resize(keyColumnCount);
+        }
+#endif
 
         auto nodeDirectory = New<TNodeDirectory>();
         nodeDirectory->MergeFrom(rsp->node_directory());

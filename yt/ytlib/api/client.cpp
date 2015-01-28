@@ -109,7 +109,7 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
     const TNameTablePtr& nameTable)
 {
     for (const auto& name : tableInfo->KeyColumns) {
-        if (!nameTable->FindId(name)) {
+        if (!nameTable->FindId(name) && !tableInfo->Schema.GetColumnOrThrow(name).Expression) {
             THROW_ERROR_EXCEPTION("Missing key column %Qv in name table",
                 name);
         }
@@ -2002,13 +2002,48 @@ private:
             TReqWriteRow req;
             req.set_lock_mode(static_cast<int>(Options_.LockMode));
 
-            for (auto row : Rows_) {
-                ValidateClientDataRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
-                auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
-                auto* writer = Transaction_->GetTabletWriter(tabletInfo);
-                writer->WriteCommand(EWireProtocolCommand::WriteRow);
-                writer->WriteMessage(req);
-                writer->WriteUnversionedRow(row, &idMapping);
+            if (TableInfo_->NeedKeyEvaluation) {
+                TRowBuffer buffer;
+                TChunkedMemoryPool pool;
+                int columnCount = TableInfo_->Schema.Columns().size();
+                auto tempRow = TUnversionedRow::Allocate(&pool, columnCount);
+                auto trivialIdMapping = TNameTableToSchemaIdMapping(columnCount);
+
+                for (int index = 0; index < columnCount; ++index) {
+                    trivialIdMapping[index] = index;
+                }
+
+                for (auto row : Rows_) {
+                    for (int index = 0; index < columnCount; ++index) {
+                        tempRow[index].Type = EValueType::Null;
+                    }
+                    for (int index = 0; index < row.GetCount(); ++index) {
+                        tempRow[idMapping[row[index].Id]] = row[index];
+                    }
+
+                    TableInfo_->EvaluateKeys(tempRow, buffer);
+
+                    for (int index = 0; index < columnCount; ++index) {
+                        tempRow[index].Id = index;
+                    }
+
+                    ValidateClientDataRow(tempRow, keyColumnCount, trivialIdMapping, TableInfo_->Schema);
+                    auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, tempRow);
+                    auto* writer = Transaction_->GetTabletWriter(tabletInfo);
+                    writer->WriteCommand(EWireProtocolCommand::WriteRow);
+                    writer->WriteMessage(req);
+                    writer->WriteUnversionedRow(tempRow, nullptr);
+                    buffer.Clear();
+                }
+            } else {
+                for (auto row : Rows_) {
+                    ValidateClientDataRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
+                    auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
+                    auto* writer = Transaction_->GetTabletWriter(tabletInfo);
+                    writer->WriteCommand(EWireProtocolCommand::WriteRow);
+                    writer->WriteMessage(req);
+                    writer->WriteUnversionedRow(row, &idMapping);
+                }
             }
         }
 
