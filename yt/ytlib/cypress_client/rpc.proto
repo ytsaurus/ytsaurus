@@ -20,6 +20,7 @@ message TAccessTrackingExt
     extend NRpc.NProto.TRequestHeader
     {
         optional bool suppress_access_tracking = 103;
+        optional bool suppress_modification_tracking = 104;
     }
 }
 
