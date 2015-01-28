@@ -32,58 +32,15 @@ static_assert(sizeof (TUnversionedValue) == 2 * sizeof (i64), "Wrong TUnversione
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWireProtocolWriter::TSchemafulRowsetWriter
-    : public ISchemafulWriter
-{
-public:
-    explicit TSchemafulRowsetWriter(TWireProtocolWriter* writer)
-        : Writer_(writer)
-    { }
-
-    virtual TFuture<void> Open(
-        const TTableSchema& schema,
-        const TNullable<TKeyColumns>& /*keyColumns*/) override
-    {
-        Writer_->WriteTableSchema(schema);
-        return VoidFuture;
-    }
-
-    virtual TFuture<void> Close() override
-    {
-        Writer_->WriteCommand(EWireProtocolCommand::EndOfRowset);
-        return VoidFuture;
-    }
-
-    virtual bool Write(const std::vector<TUnversionedRow>& rows) override
-    {
-        Writer_->WriteCommand(EWireProtocolCommand::RowsetChunk);
-        Writer_->WriteUnversionedRowset(rows);
-        return true;
-    }
-
-    virtual TFuture<void> GetReadyEvent() override
-    {
-        return VoidFuture;
-    }
-
-private:
-    TWireProtocolWriter* Writer_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TWireProtocolWriterChunkTag { };
 static const size_t PreallocateBlockSize = 4096;
 
 class TWireProtocolWriter::TImpl
+    : public TIntrinsicRefCounted
 {
 public:
     TImpl()
         : Stream_(TWireProtocolWriterChunkTag())
-        , BeginPreallocated_(nullptr)
-        , EndPreallocated_(nullptr)
-        , Current_(nullptr)
     {
         EnsureCapacity(WriterInitialBufferCapacity);
     }
@@ -109,7 +66,7 @@ public:
 
     void WriteUnversionedRow(
         TUnversionedRow row,
-        const TNameTableToSchemaIdMapping* idMapping)
+        const TNameTableToSchemaIdMapping* idMapping = nullptr)
     {
         if (row) {
             WriteRowValues(row.Begin(), row.End(), idMapping);
@@ -120,14 +77,14 @@ public:
 
     void WriteUnversionedRow(
         const std::vector<TUnversionedValue>& row,
-        const TNameTableToSchemaIdMapping* idMapping)
+        const TNameTableToSchemaIdMapping* idMapping = nullptr)
     {
         WriteRowValues(row.data(), row.data() + row.size(), idMapping);
     }
 
     void WriteUnversionedRowset(
         const std::vector<TUnversionedRow>& rowset,
-        const TNameTableToSchemaIdMapping* idMapping)
+        const TNameTableToSchemaIdMapping* idMapping = nullptr)
     {
         int rowCount = static_cast<int>(rowset.size());
         ValidateRowCount(rowCount);
@@ -145,9 +102,9 @@ public:
 
 private:
     TChunkedOutputStream Stream_;
-    char* BeginPreallocated_;
-    char* EndPreallocated_;
-    char* Current_;
+    char* BeginPreallocated_ = nullptr;
+    char* EndPreallocated_ = nullptr;
+    char* Current_ = nullptr;
 
     std::vector<TUnversionedValue> PooledValues_;
 
@@ -276,8 +233,49 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TWireProtocolWriter::TSchemafulRowsetWriter
+    : public ISchemafulWriter
+{
+public:
+    explicit TSchemafulRowsetWriter(TWireProtocolWriter::TImplPtr writer)
+        : Writer_(std::move(writer))
+    { }
+
+    virtual TFuture<void> Open(
+        const TTableSchema& schema,
+        const TNullable<TKeyColumns>& /*keyColumns*/) override
+    {
+        Writer_->WriteTableSchema(schema);
+        return VoidFuture;
+    }
+
+    virtual TFuture<void> Close() override
+    {
+        Writer_->WriteCommand(EWireProtocolCommand::EndOfRowset);
+        return VoidFuture;
+    }
+
+    virtual bool Write(const std::vector<TUnversionedRow>& rows) override
+    {
+        Writer_->WriteCommand(EWireProtocolCommand::RowsetChunk);
+        Writer_->WriteUnversionedRowset(rows);
+        return true;
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return VoidFuture;
+    }
+
+private:
+    const TWireProtocolWriter::TImplPtr Writer_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TWireProtocolWriter::TWireProtocolWriter()
-    : Impl_(new TImpl())
+    : Impl_(New<TImpl>())
 { }
 
 TWireProtocolWriter::~TWireProtocolWriter()
@@ -326,56 +324,8 @@ void TWireProtocolWriter::WriteUnversionedRowset(
 
 ISchemafulWriterPtr TWireProtocolWriter::CreateSchemafulRowsetWriter()
 {
-    return New<TSchemafulRowsetWriter>(this);
+    return New<TSchemafulRowsetWriter>(Impl_);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TWireProtocolReader::TSchemafulRowsetReader
-    : public ISchemafulReader
-{
-public:
-    explicit TSchemafulRowsetReader(TWireProtocolReader* reader)
-        : Reader_(reader)
-        , Finished_(false)
-    { }
-
-    virtual TFuture<void> Open(const TTableSchema& schema) override
-    {
-        auto actualSchema = Reader_->ReadTableSchema();
-        if (schema != actualSchema) {
-            return MakeFuture(TError("Schema mismatch while parsing wire protocol"));
-        }
-        return VoidFuture;
-    }
-
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
-    {
-        if (Finished_) {
-            return false;
-        }
-
-        while (true) {
-            auto command = Reader_->ReadCommand();
-            if (command == EWireProtocolCommand::EndOfRowset)
-                break;
-            YCHECK(command == EWireProtocolCommand::RowsetChunk);
-            Reader_->ReadUnversionedRowset(rows);
-        }
-        Finished_ = true;
-        return true;
-    }
-
-    virtual TFuture<void> GetReadyEvent() override
-    {
-        return VoidFuture;
-    }
-
-private:
-    TWireProtocolReader* Reader_;
-    bool Finished_;
-
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -383,6 +333,7 @@ struct TAlignedWireProtocolReaderPoolTag { };
 struct TUnalignedWireProtocolReaderPoolTag { };
 
 class TWireProtocolReader::TImpl
+    : public TIntrinsicRefCounted
 {
 public:
     explicit TImpl(const TSharedRef& data)
@@ -548,8 +499,55 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TWireProtocolReader::TSchemafulRowsetReader
+    : public ISchemafulReader
+{
+public:
+    explicit TSchemafulRowsetReader(TWireProtocolReader::TImplPtr reader)
+        : Reader_(std::move(reader))
+    { }
+
+    virtual TFuture<void> Open(const TTableSchema& schema) override
+    {
+        auto actualSchema = Reader_->ReadTableSchema();
+        if (schema != actualSchema) {
+            return MakeFuture(TError("Schema mismatch while parsing wire protocol"));
+        }
+        return VoidFuture;
+    }
+
+    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    {
+        if (Finished_) {
+            return false;
+        }
+
+        while (true) {
+            auto command = Reader_->ReadCommand();
+            if (command == EWireProtocolCommand::EndOfRowset)
+                break;
+            YCHECK(command == EWireProtocolCommand::RowsetChunk);
+            Reader_->ReadUnversionedRowset(rows);
+        }
+        Finished_ = true;
+        return true;
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return VoidFuture;
+    }
+
+private:
+    const TIntrusivePtr<TWireProtocolReader::TImpl> Reader_;
+    bool Finished_ = false;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TWireProtocolReader::TWireProtocolReader(const TSharedRef& data)
-    : Impl_(new TImpl(data))
+    : Impl_(New<TImpl>(data))
 { }
 
 TWireProtocolReader::~TWireProtocolReader()
@@ -607,7 +605,7 @@ void TWireProtocolReader::ReadUnversionedRowset(std::vector<TUnversionedRow>* ro
 
 ISchemafulReaderPtr TWireProtocolReader::CreateSchemafulRowsetReader()
 {
-    return New<TSchemafulRowsetReader>(this);
+    return New<TSchemafulRowsetReader>(Impl_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
