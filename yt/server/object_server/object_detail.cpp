@@ -290,6 +290,7 @@ void TObjectProxyBase::SerializeAttributes(
     public:
         explicit TAttributesConsumer(IYsonConsumer* underlyingConsumer)
             : UnderlyingConsumer_(underlyingConsumer)
+            , HasAttributes_(false)
         { }
 
         ~TAttributesConsumer()
@@ -380,7 +381,7 @@ void TObjectProxyBase::SerializeAttributes(
 
     private:
         IYsonConsumer* const UnderlyingConsumer_;
-        bool HasAttributes_ = false;
+        bool HasAttributes_;
 
     };
 
@@ -391,6 +392,7 @@ void TObjectProxyBase::SerializeAttributes(
         TAttributeValueConsumer(IYsonConsumer* underlyingConsumer, const Stroka& key)
             : UnderlyingConsumer_(underlyingConsumer)
             , Key_(key)
+            , Empty_(true)
         { }
 
         virtual void OnStringScalar(const TStringBuf& value) override
@@ -486,7 +488,7 @@ void TObjectProxyBase::SerializeAttributes(
     private:
         IYsonConsumer* const UnderlyingConsumer_;
         const Stroka Key_;
-        bool Empty_ = true;
+        bool Empty_;
 
 
         void ProduceKeyIfNeeded()
