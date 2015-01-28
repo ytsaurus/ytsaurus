@@ -76,7 +76,7 @@
             "type": "kiwi",
             "options": {
                 "url": "fb-kiwi1500.search.yandex.net",
-                "kwworm": "/home/monster/kwworm"
+                "kwworm": "/home/monster/kwworm -c {kiwi_url} -6 -u {kiwi_user} -r 12000 -f 60000 --balance fast --spread 16 --tcp-cork write -f protobin -n --fm-retry fixed:10 --fm-dline :300 --fm-shut --fm-infly 60000:200000000"
             },
             "fastbone": true
         },
@@ -84,7 +84,7 @@
             "type": "kiwi",
             "options": {
                 "url": "fb-kiwi000.search.yandex.net",
-                "kwworm": "/home/monster/kwworm"
+                "kwworm": "/home/monster/kwworm -c {kiwi_url} -6 -u {kiwi_user} -r 12000 -f 60000 --balance fast --spread 16 --tcp-cork write -f protobin -n --fm-retry fixed:10 --fm-dline :300 --fm-shut --fm-infly 60000:200000000"
             },
             "fastbone": true
         },
