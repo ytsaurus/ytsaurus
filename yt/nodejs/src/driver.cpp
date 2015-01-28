@@ -441,7 +441,7 @@ TDriverWrap::TDriverWrap(bool echo, Handle<Object> configObject)
     }
 
     try {
-        NDriver::TDispatcher::Get()->Configure(config->Driver->HeavyPoolSize);
+        NDriver::TDispatcher::Get()->Configure(config->Driver->LightPoolSize, config->Driver->HeavyPoolSize);
         Driver = CreateDriver(config->Driver);
     } catch (const std::exception& ex) {
         Message = Format("Error initializing driver instance\n%v", ex.what());
