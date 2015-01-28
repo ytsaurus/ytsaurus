@@ -16,7 +16,7 @@ struct TLookupRowsOptions;
 struct TSelectRowsOptions;
 struct TGetNodeOptions;
 struct TSetNodeOptions;
-struct TListNodesOptions;
+struct TListNodeOptions;
 struct TCreateNodeOptions;
 struct TLockNodeOptions;
 struct TCopyNodeOptions;

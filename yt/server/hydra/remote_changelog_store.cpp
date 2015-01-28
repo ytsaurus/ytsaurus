@@ -208,7 +208,7 @@ private:
     {
         try {
             LOG_DEBUG("Requesting changelog list from remote store");
-            auto result = WaitFor(MasterClient_->ListNodes(Path_))
+            auto result = WaitFor(MasterClient_->ListNode(Path_))
                 .ValueOrThrow();
             LOG_DEBUG("Changelog list received");
 

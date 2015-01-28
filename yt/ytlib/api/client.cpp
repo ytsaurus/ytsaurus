@@ -745,9 +745,9 @@ public:
         const TYPath& path,
         const TRemoveNodeOptions& options),
         (path, options))
-    IMPLEMENT_METHOD(TYsonString, ListNodes, (
+    IMPLEMENT_METHOD(TYsonString, ListNode, (
         const TYPath& path,
-        const TListNodesOptions& options),
+        const TListNodeOptions& options),
         (path, options))
     IMPLEMENT_METHOD(TNodeId, CreateNode, (
         const TYPath& path,
@@ -1382,9 +1382,9 @@ private:
             .ThrowOnError();
     }
 
-    TYsonString DoListNodes(
+    TYsonString DoListNode(
         const TYPath& path,
-        const TListNodesOptions& options)
+        const TListNodeOptions& options)
     {
         auto req = TYPathProxy::List(path);
         SetTransactionId(req, options, true);
@@ -1866,9 +1866,9 @@ public:
         const TYPath& path,
         const TRemoveNodeOptions& options),
         (path, options))
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<TYsonString>, ListNodes, (
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<TYsonString>, ListNode, (
         const TYPath& path,
-        const TListNodesOptions& options),
+        const TListNodeOptions& options),
         (path, options))
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<TNodeId>, CreateNode, (
         const TYPath& path,

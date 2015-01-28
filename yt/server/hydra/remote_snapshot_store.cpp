@@ -360,7 +360,7 @@ private:
     {
         try {
             LOG_DEBUG("Requesting snapshot list from remote store");
-            auto asyncResult = MasterClient_->ListNodes(Path_);
+            auto asyncResult = MasterClient_->ListNode(Path_);
             auto result = WaitFor(asyncResult)
                 .ValueOrThrow();
             LOG_DEBUG("Snapshot list received");
