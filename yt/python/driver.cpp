@@ -20,6 +20,7 @@
 #include <ytlib/formats/format.h>
 
 #include <ytlib/api/connection.h>
+#include <ytlib/api/admin.h>
 
 #include <ytlib/driver/config.h>
 #include <ytlib/driver/driver.h>
@@ -207,12 +208,8 @@ public:
     Py::Object GCCollect(Py::Tuple& args, Py::Dict& kwargs)
     {
         try {
-            auto channel = DriverInstance_->GetConnection()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
-            NObjectClient::TObjectServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Null); // infinity
-            auto req = proxy.GCCollect();
-            req->Invoke()
-                .Get()
+            auto admin = DriverInstance_->GetConnection()->CreateAdmin();
+            WaitFor(admin->GCCollect())
                 .ThrowOnError();
         } catch (const TErrorException& ex) {
             return ConvertTo<Py::Object>(ex.Error());
@@ -234,14 +231,9 @@ public:
         }
 
         try {
-            auto channel = DriverInstance_->GetConnection()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
-            NObjectClient::TObjectServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Null); // infinity
-            auto req = proxy.BuildSnapshot();
-            req->set_set_read_only(setReadOnly);
-            int snapshotId = req->Invoke()
-                .Get()
-                .ValueOrThrow()->snapshot_id();
+            auto admin = DriverInstance_->GetConnection()->CreateAdmin();
+            int snapshotId = WaitFor(admin->BuildSnapshot({setReadOnly}))
+                .ValueOrThrow();
             printf("Snapshot %d is built\n", snapshotId);
         } catch (const TErrorException& ex) {
             return ConvertTo<Py::Object>(ex.Error());

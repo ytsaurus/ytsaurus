@@ -54,6 +54,8 @@ TClientOptions GetRootClientOptions()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IAdminPtr CreateAdmin(IConnectionPtr connection, const TAdminOptions& options);
+
 IClientPtr CreateClient(IConnectionPtr connection, const TClientOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -176,6 +178,11 @@ public:
     virtual TEvaluatorPtr GetQueryEvaluator() override
     {
         return QueryEvaluator_;
+    }
+
+    virtual IAdminPtr CreateAdmin(const TAdminOptions& options) override
+    {
+        return NApi::CreateAdmin(this, options);
     }
 
     virtual IClientPtr CreateClient(const TClientOptions& options) override

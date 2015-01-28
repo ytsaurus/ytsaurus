@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/public.cpp
   ${BASE}/private.cpp
   ${BASE}/config.cpp
+  ${BASE}/admin.cpp
   ${BASE}/client.cpp
   ${BASE}/connection.cpp
   ${BASE}/transaction.cpp
@@ -16,6 +17,7 @@ set( SRCS
 set( HDRS
   ${BASE}/public.h
   ${BASE}/private.h
+  ${BASE}/admin.h
   ${BASE}/config.h
   ${BASE}/client.h
   ${BASE}/transaction.h
