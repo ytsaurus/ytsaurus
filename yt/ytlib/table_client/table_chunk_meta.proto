@@ -67,9 +67,4 @@ message TChannelsExt
     repeated TChunkChannel items = 1;
 }
 
-message TPartitionsExt
-{
-    repeated NChunkClient.NProto.TSizeOverrideExt partitions = 1;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
