@@ -407,9 +407,8 @@ while True:
         output_format = yt.YamrFormat(lenval=True,has_subkey=False)
     else:
         extract_value_script = extract_value_script_to_worm
-        write_command = "| {0} -c {1} -6 -u {2} -r 15000 -f 60000 --balance fast --spread 16 --tcp-cork write -f {3} -n "\
-                        "--fm-retry fixed:10 --fm-dline :300 --fm-shut --fm-infly 60000:200000000 2>&1"\
-                        .format(kiwi_client.kwworm, kiwi_client.url, kiwi_user, "protobin" if protobin else "prototext")
+        kiwi_command = kiwi_client.kwworm.format(kiwi_url=kiwi_client.url, kiwi_user=kiwi_user)
+        write_command = "| {0} 2>&1 >output; cat output; tail -n 100 output >&2".format(kiwi_command)
         output_format = yt.SchemafulDsvFormat(columns=["error"])
 
     tmp_dir = tempfile.mkdtemp()
