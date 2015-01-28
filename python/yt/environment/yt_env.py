@@ -370,6 +370,7 @@ class YTEnv(object):
             config['monitoring_port'] = self._ports[node_name][2 * i + 1]
 
             config['cluster_connection']['master']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
+            config['cluster_connection']['master_cache']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
             config['cluster_connection']['timestamp_provider']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
 
             config['data_node']['multiplexed_changelog']['path'] = os.path.join(current, 'multiplexed')
