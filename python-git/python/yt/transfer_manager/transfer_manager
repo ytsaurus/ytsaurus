@@ -143,10 +143,10 @@ class Task(object):
     def dict(self, hide_token=False, fields=None):
         result = deepcopy(self.__dict__)
         if hide_token:
-            for key in ["token", "source_cluster_token", "destination_cluster_token"] or key.startswith("_"):
+            for key in ["token", "source_cluster_token", "destination_cluster_token"]:
                 del result[key]
         for key in result.keys():
-            if result[key] is None or (fields is not None and key not in fields):
+            if result[key] is None or (fields is not None and key not in fields) or key.startswith("_"):
                 del result[key]
         return result
 
