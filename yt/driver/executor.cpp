@@ -139,7 +139,7 @@ void TExecutor::Execute(const std::vector<std::string>& args)
     NLog::TLogManager::Get()->Configure(Config->Logging);
     TAddressResolver::Get()->Configure(Config->AddressResolver);
 
-    TDispatcher::Get()->Configure(Config->Driver->HeavyPoolSize);
+    TDispatcher::Get()->Configure(Config->Driver->LightPoolSize, Config->Driver->HeavyPoolSize);
     Driver = CreateDriver(Config->Driver);
 
     DoExecute();

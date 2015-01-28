@@ -194,12 +194,13 @@ public:
 
     Py::Object ConfigureDispatcher(Py::Tuple& args, Py::Dict& kwargs)
     {
-        auto heavyPoolSize = Py::Int(ExtractArgument(args, kwargs, "command_name")).asLongLong();
+        auto lightPoolSize = Py::Int(ExtractArgument(args, kwargs, "light_pool_size"));
+        auto heavyPoolSize = Py::Int(ExtractArgument(args, kwargs, "heavy_pool_size"));
         if (args.length() > 0 || kwargs.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments");
         }
 
-        NDriver::TDispatcher::Get()->Configure(heavyPoolSize);
+        NDriver::TDispatcher::Get()->Configure(lightPoolSize, heavyPoolSize);
 
         return Py::None();
     }
