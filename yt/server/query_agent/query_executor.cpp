@@ -242,13 +242,13 @@ private:
             auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
             auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
 
-            size_t lastIndex = 0;
+            int lastIndex = 0;
             std::vector<std::pair<TOwningKey, TOwningKey>> resultRanges;
-            for (size_t index = 1; index < splits.size(); ++index) {
+            for (int index = 1; index < splits.size(); ++index) {
                 auto lowerBound = GetLowerBoundFromDataSplit(splits[index]);
                 auto upperBound = GetUpperBoundFromDataSplit(splits[index - 1]);
 
-                size_t totalSampleCount, partitionCount; 
+                int totalSampleCount, partitionCount;
                 std::tie(totalSampleCount, partitionCount) = GetBoundSampleKeys(tabletSnapshot, upperBound, lowerBound);
 
                 if (totalSampleCount != 0 || partitionCount != 0) {
@@ -259,23 +259,29 @@ private:
 
             resultRanges.emplace_back(GetLowerBoundFromDataSplit(splits[lastIndex]), GetUpperBoundFromDataSplit(splits.back()));
 
-            size_t totalSampleCount = 0;
+            int totalSampleCount = 0;
+            int totalPartitionCount = 0;
             for (const auto& range : resultRanges) {
-                size_t sampleCount, partitionCount; 
+                int sampleCount, partitionCount;
                 std::tie(sampleCount, partitionCount) = GetBoundSampleKeys(tabletSnapshot, range.first, range.second);
                 totalSampleCount += sampleCount;
+                totalPartitionCount += partitionCount;
             }
 
+            int freeSlotCount = std::max(0, Config_->MaxSubsplitsPerTablet - totalPartitionCount);
+            int cappedSampleCount = std::min(freeSlotCount, totalSampleCount);
+
             int nextSampleIndex = 1;
-            int currentSamplesCount = 1;
+            int currentSampleCount = 1;
             for (const auto& range : resultRanges) {
                 auto splitKeys = BuildSplitKeys(
                     tabletSnapshot,
                     range.first,
                     range.second,
                     nextSampleIndex,
-                    currentSamplesCount,
-                    totalSampleCount);
+                    currentSampleCount,
+                    totalSampleCount,
+                    cappedSampleCount);
 
                 for (int splitKeyIndex = 0; splitKeyIndex < splitKeys.size(); ++splitKeyIndex) {
                     const auto& thisKey = splitKeys[splitKeyIndex];
@@ -297,7 +303,7 @@ private:
         return allSplits;
     }
 
-    std::pair<size_t, size_t> GetBoundSampleKeys(
+    std::pair<int, int> GetBoundSampleKeys(
         TTabletSnapshotPtr tabletSnapshot,
         const TOwningKey& lowerBound,
         const TOwningKey& upperBound)
@@ -356,8 +362,9 @@ private:
         const TOwningKey& lowerBound,
         const TOwningKey& upperBound,
         int& nextSampleIndex,
-        int& currentSamplesCount,
-        int totalSampleCount)
+        int& currentSampleCount,
+        int totalSampleCount,
+        int cappedSampleCount)
     {
         auto findStartSample = [&] (const std::vector<TOwningKey>& sampleKeys) {
             return std::upper_bound(
@@ -390,8 +397,7 @@ private:
                 return lhs->PivotKey < rhs;
             });
         int partitionCount = std::distance(startPartitionIt, endPartitionIt);
-        int freeSlotCount = std::max(0, Config_->MaxSubsplitsPerTablet - partitionCount);
-        int cappedSampleCount = std::min(freeSlotCount, totalSampleCount);
+
         int nextSampleCount = cappedSampleCount != 0
             ? nextSampleIndex * totalSampleCount / cappedSampleCount
             : 0;
@@ -416,16 +422,16 @@ private:
             }
 
             for (auto sampleIt = startSampleIt; sampleIt < endSampleIt;) {
-                if (currentSamplesCount == nextSampleCount) {
+                if (currentSampleCount == nextSampleCount) {
                     ++nextSampleIndex;
                     nextSampleCount = nextSampleIndex * totalSampleCount / cappedSampleCount;
                     result.push_back(*sampleIt);
                 }
                 int samplesLeft = static_cast<int>(std::distance(sampleIt, endSampleIt));
-                int step = std::min(samplesLeft, nextSampleCount - currentSamplesCount);
+                int step = std::min(samplesLeft, nextSampleCount - currentSampleCount);
                 YCHECK(step > 0);
                 sampleIt += step;
-                currentSamplesCount += step;
+                currentSampleCount += step;
             }
         }
         return result;
