@@ -8,12 +8,10 @@ namespace NYPath {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStringBuf WildcardToken("*");
-TStringBuf SuppressRedirectToken("&");
-TStringBuf ListBeginToken("begin");
-TStringBuf ListEndToken("end");
-TStringBuf ListBeforeToken("before:");
-TStringBuf ListAfterToken("after:");
+const TStringBuf ListBeginToken("begin");
+const TStringBuf ListEndToken("end");
+const TStringBuf ListBeforeToken("before:");
+const TStringBuf ListAfterToken("after:");
 
 TStringBuf ExtractListIndex(const TStringBuf& token)
 {

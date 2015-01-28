@@ -693,60 +693,64 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
     auto builtinAttributeProvider = GetBuiltinAttributeProvider();
 
     NYPath::TTokenizer tokenizer(path);
-    tokenizer.Advance();
-    tokenizer.Expect(NYPath::ETokenType::Literal);
-
-    if (tokenizer.GetToken() == WildcardToken) {
-        if (customAttributes) {
-            auto customKeys = customAttributes->List();
-            std::sort(customKeys.begin(), customKeys.end());
-            for (const auto& key : customKeys) {
-                YCHECK(customAttributes->Remove(key));
+    switch (tokenizer.Advance()) {
+        case NYPath::ETokenType::Asterisk: {
+            if (customAttributes) {
+                auto customKeys = customAttributes->List();
+                std::sort(customKeys.begin(), customKeys.end());
+                for (const auto& key : customKeys) {
+                    YCHECK(customAttributes->Remove(key));
+                }
             }
+            break;
         }
-    } else {
-        tokenizer.Expect(NYPath::ETokenType::Literal);
-        auto key = tokenizer.GetLiteralValue();
 
-        auto customYson = customAttributes ? customAttributes->FindYson(key) : TNullable<TYsonString>(Null);
-        if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-            if (!customYson) {
-                if (builtinAttributeProvider) {
-                    auto* attributeInfo = builtinAttributeProvider->FindBuiltinAttributeInfo(key);
-                    if (attributeInfo) {
-                        ThrowCannotRemoveAttribute(key);
+        case NYPath::ETokenType::Literal: {
+            auto key = tokenizer.GetLiteralValue();
+            auto customYson = customAttributes ? customAttributes->FindYson(key) : TNullable<TYsonString>(Null);
+            if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+                if (!customYson) {
+                    if (builtinAttributeProvider) {
+                        auto* attributeInfo = builtinAttributeProvider->FindBuiltinAttributeInfo(key);
+                        if (attributeInfo) {
+                            ThrowCannotRemoveAttribute(key);
+                        } else {
+                            ThrowNoSuchCustomAttribute(key);
+                        }
                     } else {
                         ThrowNoSuchCustomAttribute(key);
                     }
-                } else {
-                    ThrowNoSuchCustomAttribute(key);
                 }
-            }
 
-            YCHECK(customAttributes->Remove(key));
-        } else {
-            if (customYson) {
-                auto customNode = ConvertToNode(customYson);
-                SyncYPathRemove(customNode, tokenizer.GetInput());
-                auto updatedCustomYson = ConvertToYsonStringStable(customNode);
-                customAttributes->SetYson(key, updatedCustomYson);
+                YCHECK(customAttributes->Remove(key));
             } else {
-                TStringStream stream;
-                TYsonWriter writer(&stream);
-                if (!builtinAttributeProvider || !builtinAttributeProvider->GetBuiltinAttribute(key, &writer)) {
-                    ThrowNoSuchBuiltinAttribute(key);
+                if (customYson) {
+                    auto customNode = ConvertToNode(customYson);
+                    SyncYPathRemove(customNode, tokenizer.GetInput());
+                    auto updatedCustomYson = ConvertToYsonStringStable(customNode);
+                    customAttributes->SetYson(key, updatedCustomYson);
+                } else {
+                    TStringStream stream;
+                    TYsonWriter writer(&stream);
+                    if (!builtinAttributeProvider || !builtinAttributeProvider->GetBuiltinAttribute(key, &writer)) {
+                        ThrowNoSuchBuiltinAttribute(key);
+                    }
+
+                    TYsonString builtinYson(stream.Str());
+                    auto builtinNode = ConvertToNode(builtinYson);
+                    SyncYPathRemove(builtinNode, tokenizer.GetInput());
+                    auto updatedSystemYson = ConvertToYsonStringStable(builtinNode);
+
+                    GuardedSetBuiltinAttribute(key, updatedSystemYson);
                 }
-
-                TYsonString builtinYson(stream.Str());
-                auto builtinNode = ConvertToNode(builtinYson);
-                SyncYPathRemove(builtinNode, tokenizer.GetInput());
-                auto updatedSystemYson = ConvertToYsonStringStable(builtinNode);
-
-                GuardedSetBuiltinAttribute(key, updatedSystemYson);
             }
+            break;
         }
-    }
 
+        default:
+            tokenizer.ThrowUnexpected();
+            break;
+    }
     OnCustomAttributesUpdated();
 }
 
