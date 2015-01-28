@@ -44,11 +44,6 @@ def get_master_config():
     return yson.loads(
 """
 {
-    address_resolver = {
-        enable_ipv4 = true;
-        enable_ipv6 = false;
-    };
-
     master = {
         addresses = [ ];
         cell_tag = 0;
@@ -116,11 +111,6 @@ def get_scheduler_config():
     return yson.loads(
 """
 {
-    address_resolver = {
-        enable_ipv4 = true;
-        enable_ipv6 = false;
-    };
-
     cluster_connection = {
         master = {
             addresses = [ ];
@@ -181,11 +171,6 @@ def get_node_config():
     return yson.loads(
 """
 {
-    address_resolver = {
-        enable_ipv4 = true;
-        enable_ipv6 = false;
-    };
-
     orchid_cache_expiration_time = 0;
 
     cluster_connection = {
@@ -319,11 +304,6 @@ def get_driver_config():
     return yson.loads(
 """
 {
-    address_resolver = {
-        enable_ipv4 = true;
-        enable_ipv6 = false;
-    };
-
     master = {
         addresses = [ ];
         cell_tag = 0;
@@ -365,10 +345,6 @@ def get_console_driver_config():
     return yson.loads(
 """
 {
-    address_resolver = {
-        enable_ipv4 = true;
-        enable_ipv6 = false;
-    };
     driver = { };
     logging = { };
     tracing = { };
@@ -407,10 +383,6 @@ def get_proxy_config():
     },
 
     "proxy" : {
-        "address_resolver" : {
-            "enable_ipv4" : "true",
-            "enable_ipv6" : "false"
-        },
         "driver" : { },
         "logging" : { },
         "tracing" : { }
