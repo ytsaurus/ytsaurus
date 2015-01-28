@@ -9,7 +9,7 @@
 
 #include <ytlib/chunk_client/chunk_slice.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -18,6 +18,8 @@ using namespace NNodeTrackerClient;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+
+using NVersionedTableClient::NProto::TPartitionsExt;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -1167,7 +1169,7 @@ public:
             auto elementaryStripe = New<TChunkStripe>(chunkSlice);
             ElementaryStripes.push_back(elementaryStripe);
 
-            auto partitionsExt = GetProtoExtension<NTableClient::NProto::TPartitionsExt>(
+            auto partitionsExt = GetProtoExtension<TPartitionsExt>(
                 chunkSlice->GetChunkSpec()->chunk_meta().extensions());
 
             YCHECK(partitionsExt.partitions_size() == Outputs.size());
@@ -1180,7 +1182,7 @@ public:
                     partitionAttributes.row_count());
             }
 
-            RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(
+            RemoveProtoExtension<TPartitionsExt>(
                 chunkSlice->GetChunkSpec()->mutable_chunk_meta()->mutable_extensions());
         }
 
@@ -1204,7 +1206,7 @@ public:
     {
         // Remove all partition extensions.
         for (auto chunkSlice : stripe->ChunkSlices) {
-            RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(
+            RemoveProtoExtension<TPartitionsExt>(
                 chunkSlice->GetChunkSpec()->mutable_chunk_meta()->mutable_extensions());
         }
 
