@@ -23,6 +23,9 @@ namespace NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAdminOptions
+{ };
+
 struct TClientOptions
 {
     Stroka User = NSecurityClient::GuestUserName;
@@ -58,6 +61,8 @@ struct IConnection
     virtual NTransactionClient::ITimestampProviderPtr GetTimestampProvider() = 0;
     virtual NHive::TCellDirectoryPtr GetCellDirectory() = 0;
     virtual NQueryClient::TEvaluatorPtr GetQueryEvaluator() = 0;
+
+    virtual IAdminPtr CreateAdmin(const TAdminOptions& options = TAdminOptions()) = 0;
 
     virtual IClientPtr CreateClient(const TClientOptions& options = TClientOptions()) = 0;
 

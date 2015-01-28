@@ -8,6 +8,7 @@
 #include "journal_writer.h"
 #include "rowset.h"
 #include "config.h"
+#include "box.h"
 #include "private.h"
 
 #include <core/concurrency/scheduler.h>
@@ -123,37 +124,6 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
     }
     return mapping;
 }
-
-template <class T>
-class TBox
-{
-public:
-    explicit TBox(TCallback<T()> callback)
-        : Value_(callback.Run())
-    { }
-
-    T Unwrap()
-    {
-        return std::move(Value_);
-    }
-
-private:
-    T Value_;
-
-};
-
-template <>
-class TBox<void>
-{
-public:
-    explicit TBox(TClosure callback)
-    {
-        callback.Run();
-    }
-
-    void Unwrap()
-    { }
-};
 
 } // namespace
 
@@ -1704,8 +1674,6 @@ DEFINE_REFCOUNTED_TYPE(TClient)
 
 IClientPtr CreateClient(IConnectionPtr connection, const TClientOptions& options)
 {
-    YCHECK(connection);
-
     return New<TClient>(std::move(connection), options);
 }
 

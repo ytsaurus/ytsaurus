@@ -307,6 +307,7 @@ struct IClientBase
 {
     virtual IConnectionPtr GetConnection() = 0;
 
+
     // Transactions
     virtual TFuture<ITransactionPtr> StartTransaction(
         NTransactionClient::ETransactionType type,
