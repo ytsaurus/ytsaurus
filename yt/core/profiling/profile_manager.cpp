@@ -382,6 +382,9 @@ TProfileManager::TProfileManager()
     : Impl_(new TImpl())
 { }
 
+TProfileManager::~TProfileManager()
+{ }
+
 TProfileManager* TProfileManager::Get()
 {
     return Singleton<TProfileManager>();
