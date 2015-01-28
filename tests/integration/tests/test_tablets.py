@@ -32,6 +32,16 @@ class TestTablets(YTEnvSetup):
                 "key_columns": ["key"]
             })
 
+    def _create_table_with_computed_column(self, path):
+        create("table", path,
+            attributes = {
+                "schema": [
+                    {"name": "key1", "type": "int64"},
+                    {"name": "key2", "type": "int64", "expression": "key1"},
+                    {"name": "value", "type": "int64"}],
+                "key_columns": ["key1", "key2"]
+            })
+
     def _get_tablet_leader_address(self, tablet_id):
         cell_id = get("//sys/tablets/" + tablet_id + "/@cell_id")
         peers = get("//sys/tablet_cells/" + cell_id + "/@peers")
@@ -149,6 +159,16 @@ class TestTablets(YTEnvSetup):
 
         with pytest.raises(YtError): read("//tmp/t")
         with pytest.raises(YtError): write("//tmp/t", [{"key": 1, "value": 2}])
+
+    def test_computed_column(self):
+        self._sync_create_cells(1, 1)
+        self._create_table_with_computed_column("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+
+        insert("//tmp/t", [{"key1": 1, "value": 2}])
+        expected = [{"key1": 1, "key2": 1, "value": 2}]
+        actual = select("* from [//tmp/t]");
+        self.assertItemsEqual(expected, actual);
 
     def test_no_copy(self):
         self._sync_create_cells(1, 1)

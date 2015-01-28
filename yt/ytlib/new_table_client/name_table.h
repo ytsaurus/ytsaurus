@@ -13,7 +13,7 @@ class TNameTable
     : public virtual TRefCounted
 {
 public:
-    static TNameTablePtr FromSchema(const TTableSchema& schema);
+    static TNameTablePtr FromSchema(const TTableSchema& schema, bool excludeComputedColumns = false);
     static TNameTablePtr FromKeyColumns(const TKeyColumns& keyColumns);
 
     int GetSize() const;

@@ -25,10 +25,12 @@ TColumnSchema::TColumnSchema()
 TColumnSchema::TColumnSchema(
     const Stroka& name,
     EValueType type,
-    const TNullable<Stroka>& lock)
+    const TNullable<Stroka>& lock,
+    const TNullable<Stroka>& expression)
     : Name(name)
     , Type(type)
     , Lock(lock)
+    , Expression(expression)
 { }
 
 struct TSerializableColumnSchema
@@ -52,6 +54,8 @@ struct TSerializableColumnSchema
             .NonEmpty();
         RegisterParameter("type", Type);
         RegisterParameter("lock", Lock)
+            .Default();
+        RegisterParameter("expression", Expression)
             .Default();
 
         RegisterValidator([&] () {
@@ -94,6 +98,9 @@ void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
     if (schema.Lock) {
         protoSchema->set_lock(*schema.Lock);
     }
+    if (schema.Expression) {
+        protoSchema->set_expression(*schema.Expression);
+    }
 }
 
 void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
@@ -101,6 +108,7 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
     schema->Name = protoSchema.name();
     schema->Type = EValueType(protoSchema.type());
     schema->Lock = protoSchema.has_lock() ? MakeNullable(protoSchema.lock()) : Null;
+    schema->Expression = protoSchema.has_expression() ? MakeNullable(protoSchema.expression()) : Null;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -286,6 +294,8 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
     if (schema.Columns().size() == keyColumns.size()) {
         THROW_ERROR_EXCEPTION("Schema must contains at least one non-key column");;
     }
+
+    //FIXME(savrus) validate auto keys
 }
 
 ////////////////////////////////////////////////////////////////////////////////

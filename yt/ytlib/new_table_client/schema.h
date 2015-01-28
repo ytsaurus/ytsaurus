@@ -22,7 +22,8 @@ struct TColumnSchema
     TColumnSchema(
         const Stroka& name,
         EValueType type,
-        const TNullable<Stroka>& lock = Null);
+        const TNullable<Stroka>& lock = Null,
+        const TNullable<Stroka>& expression = Null);
 
     TColumnSchema(const TColumnSchema&) = default;
     TColumnSchema(TColumnSchema&&) = default;
@@ -33,6 +34,7 @@ struct TColumnSchema
     Stroka Name;
     EValueType Type;
     TNullable<Stroka> Lock;
+    TNullable<Stroka> Expression;
 };
 
 void Serialize(const TColumnSchema& schema, NYson::IYsonConsumer* consumer);
