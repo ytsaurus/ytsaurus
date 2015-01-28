@@ -430,7 +430,7 @@ void TFollowerRecovery::PostponeChangelogRotation(TVersion version)
     LOG_INFO("Postponing changelog rotation at version %v",
         PostponedVersion_);
 
-    PostponedVersion_.Rotate();
+    PostponedVersion_ = PostponedVersion_.Rotate();
 }
 
 void TFollowerRecovery::PostponeMutations(
@@ -462,7 +462,7 @@ void TFollowerRecovery::PostponeMutations(
         PostponedMutations_.push_back(TPostponedMutation::CreateMutation(data));
     }
 
-    PostponedVersion_.Advance(recordsData.size());
+    PostponedVersion_ = PostponedVersion_.Advance(recordsData.size());
 }
 
 bool TFollowerRecovery::IsLeader() const
