@@ -115,8 +115,7 @@ class YTEnv(object):
         self.config_paths = defaultdict(lambda: [])
         self.log_paths = defaultdict(lambda: [])
 
-        short_hostname = socket.gethostname()
-        self._hostname = socket.gethostbyname_ex(short_hostname)[0]
+        self._hostname = socket.getfqdn()
         self._master_addresses = defaultdict(lambda: [])
         self._node_addresses = defaultdict(lambda: [])
         self._process_to_kill = defaultdict(lambda: [])
