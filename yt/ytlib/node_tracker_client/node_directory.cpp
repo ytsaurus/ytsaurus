@@ -45,6 +45,11 @@ const Stroka& TNodeDescriptor::GetInterconnectAddress() const
 
 const Stroka& TNodeDescriptor::GetAddressOrThrow(const Stroka& name) const
 {
+    // Fallback to default address if interconnect address requested.
+    if (name == InterconnectNetworkName) {
+        return GetInterconnectAddress();
+    }
+
     auto it = Addresses_.find(name);
     if (it == Addresses_.end()) {
         THROW_ERROR_EXCEPTION(
