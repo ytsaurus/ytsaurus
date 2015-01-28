@@ -25,8 +25,8 @@ TBuildingValueConsumer::TBuildingValueConsumer(
     const TKeyColumns& keyColumns)
     : Schema_(schema)
     , KeyColumns_(keyColumns)
-    , NameTable_(TNameTable::FromSchema(Schema_))
-    , WrittenFlags_(Schema_.Columns().size(), false)
+    , NameTable_(TNameTable::FromSchema(Schema_, true))
+    , WrittenFlags_(NameTable_->GetSize(), false)
 { }
 
 const std::vector<TUnversionedOwningRow>& TBuildingValueConsumer::Rows() const
@@ -371,6 +371,7 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
         if (CurrentValueConsumer_->GetAllowUnknownColumns()) {
             ColumnIndex_ = CurrentValueConsumer_->GetNameTable()->GetIdOrRegisterName(name);
         } else {
+            // TODO(savrus): Imporve diagnostics when encountered a computed column.
             auto maybeIndex = CurrentValueConsumer_->GetNameTable()->FindId(name);
             if (!maybeIndex) {
                 THROW_ERROR AttachLocationAttributes(TError("No such column %Qv in schema",

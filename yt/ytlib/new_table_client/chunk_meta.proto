@@ -11,6 +11,7 @@ message TColumnSchema
     required string name = 1;
     required int32 type = 2;
     optional string lock = 3;
+    optional string expression = 4;
 }
 
 message TTableSchemaExt
