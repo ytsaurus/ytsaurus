@@ -146,8 +146,8 @@ public:
         REGISTER(TRemoveMemberCommand,      "remove_member",     Null,       Null,       true,  false);
         REGISTER(TCheckPermissionCommand,   "check_permission",  Null,       Structured, false, false);
 
-        REGISTER(TWriteJournalCommand,      "write_journal",       Tabular,    Null,       true,  true );
-        REGISTER(TReadJournalCommand,       "read_journal",        Null,       Tabular,    false, true );
+        REGISTER(TWriteJournalCommand,      "write_journal",     Tabular,    Null,       true,  true );
+        REGISTER(TReadJournalCommand,       "read_journal",      Null,       Tabular,    false, true );
 #undef REGISTER
     }
 
