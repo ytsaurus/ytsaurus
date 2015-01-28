@@ -255,8 +255,7 @@ class YTEnv(object):
         if masters_count == 0:
              return
 
-        short_hostname = socket.gethostname()
-        hostname = socket.gethostbyname_ex(short_hostname)[0]
+        hostname = socket.getfqdn()
 
         self._master_addresses[master_name] = \
                 ["%s:%s" % (hostname, self._ports[master_name][2 * i])
