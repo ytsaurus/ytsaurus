@@ -63,6 +63,11 @@ const Stroka& TNodeDescriptor::GetAddressOrThrow(const Stroka& name) const
 
 TNullable<Stroka> TNodeDescriptor::FindAddress(const Stroka& name) const
 {
+    // Fallback to default address if interconnect address requested.
+    if (name == InterconnectNetworkName) {
+        return GetInterconnectAddress();
+    }
+
     auto it = Addresses_.find(name);
     if (it == Addresses_.end()) {
         return Null;
@@ -72,6 +77,11 @@ TNullable<Stroka> TNodeDescriptor::FindAddress(const Stroka& name) const
 
 const Stroka& TNodeDescriptor::GetAddress(const Stroka& name) const
 {
+    // Fallback to default address if interconnect address requested.
+    if (name == InterconnectNetworkName) {
+        return GetInterconnectAddress();
+    }
+
     auto it = Addresses_.find(name);
     YCHECK(it != Addresses_.end());
     return it->second;
