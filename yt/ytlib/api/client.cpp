@@ -996,9 +996,12 @@ private:
         IClientRequestPtr request,
         const TSuppressableAccessTrackingOptions& commandOptions)
     {
-        NCypressClient::SetSuppressAccessTracking(
-            &request->Header(),
-            commandOptions.SuppressAccessTracking);
+        if (commandOptions.SuppressAccessTracking) {
+            NCypressClient::SetSuppressAccessTracking(request, true);
+        }
+        if (commandOptions.SuppressModificationTracking) {
+            NCypressClient::SetSuppressModificationTracking(request, true);
+        }
     }
 
 

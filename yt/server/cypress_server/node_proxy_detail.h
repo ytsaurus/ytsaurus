@@ -61,10 +61,12 @@ protected:
     NTransactionServer::TTransaction* Transaction;
     TCypressNodeBase* TrunkNode;
 
-    mutable TCypressNodeBase* CachedNode;
+    mutable TCypressNodeBase* CachedNode = nullptr;
     mutable NYTree::INodeResolverPtr CachedResolver;
 
-    bool AccessTrackingSuppressed;
+    bool AccessTrackingSuppressed = false;
+    bool ModificationTrackingSuppressed = false;
+
 
     virtual NLog::TLogger CreateLogger() const override;
 
@@ -163,6 +165,7 @@ protected:
     using TObjectProxyBase::ValidatePermission;
 
     void SetModified();
+    void SuppressModificationTracking();
 
     void SetAccessed();
     void SuppressAccessTracking();

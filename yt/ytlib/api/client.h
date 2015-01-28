@@ -55,6 +55,7 @@ struct TTransactionalOptions
 struct TSuppressableAccessTrackingOptions
 {
     bool SuppressAccessTracking = false;
+    bool SuppressModificationTracking = false;
 };
 
 struct TMutatingOptions

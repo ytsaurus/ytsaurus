@@ -31,6 +31,15 @@ void SetSuppressAccessTracking(NRpc::NProto::TRequestHeader* header, bool value)
 //! Gets access tracking suppression flag.
 bool GetSuppressAccessTracking(const NRpc::NProto::TRequestHeader& header);
 
+//! Sets modification tracking suppression flag.
+void SetSuppressModificationTracking(NRpc::IClientRequestPtr request, bool value);
+
+//! Sets modification tracking suppression flag.
+void SetSuppressModificationTracking(NRpc::NProto::TRequestHeader* header, bool value);
+
+//! Gets modification tracking suppression flag.
+bool GetSuppressModificationTracking(const NRpc::NProto::TRequestHeader& header);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypressClient

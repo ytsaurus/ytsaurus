@@ -213,8 +213,6 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     , Bootstrap(bootstrap)
     , Transaction(transaction)
     , TrunkNode(trunkNode)
-    , CachedNode(nullptr)
-    , AccessTrackingSuppressed(false)
 {
     YASSERT(typeHandler);
     YASSERT(bootstrap);
@@ -471,6 +469,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 void TNontemplateCypressNodeProxyBase::BeforeInvoke(IServiceContextPtr context)
 {
     AccessTrackingSuppressed = GetSuppressAccessTracking(context->RequestHeader());
+    ModificationTrackingSuppressed = GetSuppressModificationTracking(context->RequestHeader());
 
     TObjectProxyBase::BeforeInvoke(std::move(context));
 }
@@ -645,10 +644,15 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
 
 void TNontemplateCypressNodeProxyBase::SetModified()
 {
-    if (TrunkNode->IsAlive()) {
+    if (TrunkNode->IsAlive() && !ModificationTrackingSuppressed) {
         auto cypressManager = Bootstrap->GetCypressManager();
         cypressManager->SetModified(TrunkNode, Transaction);
     }
+}
+
+void TNontemplateCypressNodeProxyBase::SuppressModificationTracking()
+{
+    ModificationTrackingSuppressed = true;
 }
 
 void TNontemplateCypressNodeProxyBase::SetAccessed()

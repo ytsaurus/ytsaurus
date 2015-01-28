@@ -101,10 +101,13 @@ struct TSuppressableAccessTrackingRequest
     : public virtual TRequest
 {
     bool SuppressAccessTracking;
+    bool SuppressModificationTracking;
 
     TSuppressableAccessTrackingRequest()
     {
         RegisterParameter("suppress_access_tracking", SuppressAccessTracking)
+            .Default(false);
+        RegisterParameter("suppress_modification_tracking", SuppressModificationTracking)
             .Default(false);
     }
 };
@@ -223,7 +226,7 @@ DEFINE_ENUM(EPingTransaction,
 template <class TRequest>
 class TTransactionalCommandBase<
     TRequest,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TTransactionalRequest&> >::TType
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TTransactionalRequest&>>::TType
 >
     : public virtual TTypedCommandBase<TRequest>
 {
@@ -273,7 +276,7 @@ class TMutatingCommandBase
 template <class TRequest>
 class TMutatingCommandBase <
     TRequest,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TMutatingRequest&> >::TType
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TMutatingRequest&>>::TType
 >
     : public virtual TTypedCommandBase<TRequest>
 {
@@ -320,7 +323,7 @@ class TReadOnlyCommandBase
 template <class TRequest>
 class TReadOnlyCommandBase <
     TRequest,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TReadOnlyRequest&> >::TType
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TReadOnlyRequest&>>::TType
 >
     : public virtual TTypedCommandBase<TRequest>
 {
@@ -341,7 +344,7 @@ class TSuppressableAccessTrackingCommmandBase
 template <class TRequest>
 class TSuppressableAccessTrackingCommmandBase <
     TRequest,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TSuppressableAccessTrackingRequest&> >::TType
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TSuppressableAccessTrackingRequest&>>::TType
 >
     : public virtual TTypedCommandBase<TRequest>
 {
@@ -349,6 +352,7 @@ protected:
     void SetSuppressableAccessTrackingOptions(NApi::TSuppressableAccessTrackingOptions* options)
     {
         options->SuppressAccessTracking = this->Request_->SuppressAccessTracking;
+        options->SuppressModificationTracking = this->Request_->SuppressModificationTracking;
     }
 
 };
