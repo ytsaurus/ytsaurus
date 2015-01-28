@@ -172,8 +172,7 @@ void TCompositeNodeMixin::RemoveRecursive(
     context->SetRequestInfo();
 
     NYPath::TTokenizer tokenizer(path);
-    tokenizer.Advance();
-    if (tokenizer.GetToken() == WildcardToken) {
+    if (tokenizer.Advance() == NYPath::ETokenType::Asterisk) {
         tokenizer.Advance();
         tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
@@ -199,37 +198,41 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     const auto& method = context->GetMethod();
 
     NYPath::TTokenizer tokenizer(path);
-    tokenizer.Advance();
-    tokenizer.Expect(NYPath::ETokenType::Literal);
-
-    if (tokenizer.GetToken() == WildcardToken) {
-        if (method != "Remove") {
-            THROW_ERROR_EXCEPTION("%Qv is only allowed for Remove method",
-                WildcardToken);
-        }
-
-        tokenizer.Advance();
-        tokenizer.Expect(NYPath::ETokenType::EndOfStream);
-
-        return IYPathService::TResolveResult::Here("/" + path);
-    } else {
-        auto key = tokenizer.GetLiteralValue();
-        if (key.Empty()) {
-            THROW_ERROR_EXCEPTION("Child key cannot be empty");
-        }
-
-        auto child = FindChild(key);
-        if (!child) {
-            if (method == "Exists" || method == "Create" || method == "Copy" || method == "Remove" ||
-                method == "Set" && tokenizer.Advance() == NYPath::ETokenType::EndOfStream)
-            {
-                return IYPathService::TResolveResult::Here("/" + path);
-            } else {
-                ThrowNoSuchChildKey(this, key);
+    switch (tokenizer.Advance()) {
+        case NYPath::ETokenType::Asterisk: {
+            if (method != "Remove") {
+                THROW_ERROR_EXCEPTION("\"*\" is only allowed for Remove method");
             }
+
+            tokenizer.Advance();
+            tokenizer.Expect(NYPath::ETokenType::EndOfStream);
+
+            return IYPathService::TResolveResult::Here("/" + path);
         }
 
-        return IYPathService::TResolveResult::There(child, tokenizer.GetSuffix());
+        case NYPath::ETokenType::Literal: {
+            auto key = tokenizer.GetLiteralValue();
+            if (key.Empty()) {
+                THROW_ERROR_EXCEPTION("Child key cannot be empty");
+            }
+
+            auto child = FindChild(key);
+            if (!child) {
+                if (method == "Exists" || method == "Create" || method == "Copy" || method == "Remove" ||
+                    method == "Set" && tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+                    return IYPathService::TResolveResult::Here("/" + path);
+                } else {
+                    ThrowNoSuchChildKey(this, key);
+                }
+            }
+
+            return IYPathService::TResolveResult::There(child, tokenizer.GetSuffix());
+            break;
+        }
+
+        default:
+            tokenizer.ThrowUnexpected();
+            YUNREACHABLE();
     }
 }
 
@@ -322,38 +325,51 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     IServiceContextPtr context)
 {
     NYPath::TTokenizer tokenizer(path);
-    tokenizer.Advance();
-    tokenizer.Expect(NYPath::ETokenType::Literal);
+    switch (tokenizer.Advance()) {
+        case NYPath::ETokenType::Asterisk: {
+            tokenizer.Advance();
+            tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
-    const auto& token = tokenizer.GetToken();
-    if (token == WildcardToken ||
-        token == ListBeginToken ||
-        token == ListEndToken)
-    {
-        tokenizer.Advance();
-        tokenizer.Expect(NYPath::ETokenType::EndOfStream);
-
-        return IYPathService::TResolveResult::Here("/" + path);
-    } else if (token.has_prefix(ListBeforeToken) ||
-               token.has_prefix(ListAfterToken))
-    {
-        auto indexToken = ExtractListIndex(token);
-        int index = ParseListIndex(indexToken);
-        AdjustChildIndex(index);
-
-        tokenizer.Advance();
-        tokenizer.Expect(NYPath::ETokenType::EndOfStream);
-
-        return IYPathService::TResolveResult::Here("/" + path);
-    } else {
-        int index = ParseListIndex(token);
-        int adjustedIndex = AdjustChildIndex(index);
-        auto child = FindChild(adjustedIndex);
-        const auto& method = context->GetMethod();
-        if (!child && method == "Exists") {
             return IYPathService::TResolveResult::Here("/" + path);
         }
-        return IYPathService::TResolveResult::There(child, tokenizer.GetSuffix());
+
+        case NYPath::ETokenType::Literal: {
+            const auto& token = tokenizer.GetToken();
+            if (token == ListBeginToken ||
+                token == ListEndToken)
+            {
+                tokenizer.Advance();
+                tokenizer.Expect(NYPath::ETokenType::EndOfStream);
+
+                return IYPathService::TResolveResult::Here("/" + path);
+            } else if (token.has_prefix(ListBeforeToken) ||
+                       token.has_prefix(ListAfterToken))
+            {
+                auto indexToken = ExtractListIndex(token);
+                int index = ParseListIndex(indexToken);
+                AdjustChildIndex(index);
+
+                tokenizer.Advance();
+                tokenizer.Expect(NYPath::ETokenType::EndOfStream);
+
+                return IYPathService::TResolveResult::Here("/" + path);
+            } else {
+                int index = ParseListIndex(token);
+                int adjustedIndex = AdjustChildIndex(index);
+                auto child = FindChild(adjustedIndex);
+                const auto& method = context->GetMethod();
+                if (!child && method == "Exists") {
+                    return IYPathService::TResolveResult::Here("/" + path);
+                }
+
+                return IYPathService::TResolveResult::There(child, tokenizer.GetSuffix());
+            }
+            break;
+        }
+
+        default:
+            tokenizer.ThrowUnexpected();
+            YUNREACHABLE();
     }
 }
 
