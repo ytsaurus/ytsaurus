@@ -232,7 +232,9 @@ public:
 
         try {
             auto admin = DriverInstance_->GetConnection()->CreateAdmin();
-            int snapshotId = WaitFor(admin->BuildSnapshot({setReadOnly}))
+            auto options = NApi::TBuildSnapshotOptions();
+            options.SetReadOnly = setReadOnly;
+            int snapshotId = WaitFor(admin->BuildSnapshot(options))
                 .ValueOrThrow();
             printf("Snapshot %d is built\n", snapshotId);
         } catch (const TErrorException& ex) {
