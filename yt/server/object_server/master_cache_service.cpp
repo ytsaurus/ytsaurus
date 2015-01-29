@@ -42,7 +42,7 @@ public:
         IChannelPtr masterChannel,
         const TRealmId& masterCellId)
         : TServiceBase(
-            NRpc::TDispatcher::Get()->GetPoolInvoker(),
+            NRpc::TDispatcher::Get()->GetInvoker(),
             TServiceId(TObjectServiceProxy::GetServiceName(), masterCellId),
             ObjectServerLogger,
             TObjectServiceProxy::GetProtocolVersion())

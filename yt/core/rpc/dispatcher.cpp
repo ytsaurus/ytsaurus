@@ -73,7 +73,7 @@ void TDispatcher::Shutdown()
     Impl_->Shutdown();
 }
 
-IInvokerPtr TDispatcher::GetPoolInvoker()
+IInvokerPtr TDispatcher::GetInvoker()
 {
     return Impl_->GetInvoker();
 }

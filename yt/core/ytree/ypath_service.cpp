@@ -180,7 +180,7 @@ private:
                 true)
                 .Subscribe(BIND(&TCachedYPathService::OnGotTree, MakeStrong(this), promise)
                     // Nothing to be proud of, but we do need some large pool.
-                    .Via(NRpc::TDispatcher::Get()->GetPoolInvoker()));
+                    .Via(NRpc::TDispatcher::Get()->GetInvoker()));
         }
 
         CachedTree_.Subscribe(BIND([=] (const TErrorOr<INodePtr>& rootOrError) {

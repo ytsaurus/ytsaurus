@@ -315,7 +315,7 @@ private:
 
             if (request->IsRequestHeavy()) {
                 BIND(&IClientRequest::Serialize, request)
-                    .AsyncVia(TDispatcher::Get()->GetPoolInvoker())
+                    .AsyncVia(TDispatcher::Get()->GetInvoker())
                     .Run()
                     .Subscribe(BIND(
                         &TSession::OnRequestSerialized,
@@ -635,7 +635,7 @@ private:
 
             if (request->IsResponseHeavy()) {
                 TDispatcher::Get()
-                    ->GetPoolInvoker()
+                    ->GetInvoker()
                     ->Invoke(
                 BIND(
                     &IClientResponseHandler::HandleResponse,

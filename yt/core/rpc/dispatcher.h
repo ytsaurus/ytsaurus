@@ -28,7 +28,7 @@ public:
     /*!
      * This invoker is used by RPC to dispatch callbacks.
      */
-    IInvokerPtr GetPoolInvoker();
+    IInvokerPtr GetInvoker();
 
 private:
     class TImpl;
