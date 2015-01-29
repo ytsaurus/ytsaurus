@@ -2,17 +2,22 @@
 
 #include "public.h"
 
+#include <core/misc/shutdownable.h>
+
 namespace NYT {
 namespace NPipes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TIODispatcher
+    : public IShutdownable
 {
 public:
+    ~TIODispatcher();
+
     static TIODispatcher* Get();
 
-    void Shutdown();
+    virtual void Shutdown() override;
 
 private:
     TIODispatcher();
@@ -23,7 +28,6 @@ private:
 
     class TImpl;
     TIntrusivePtr<TImpl> Impl_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

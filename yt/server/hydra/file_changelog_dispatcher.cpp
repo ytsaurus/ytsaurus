@@ -28,11 +28,11 @@ static const auto FlushThreadQuantum = TDuration::MilliSeconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileChangelogDispatcher::TChangelogQueue
+class TFileChangelogQueue
     : public TRefCounted
 {
 public:
-    explicit TChangelogQueue(TSyncFileChangelogPtr changelog)
+    explicit TFileChangelogQueue(TSyncFileChangelogPtr changelog)
         : Changelog_(changelog)
         , UseCount_(0)
         , FlushedRecordCount_(changelog->GetRecordCount())
@@ -431,8 +431,9 @@ private:
 
         promise.Set(TError());
     }
-
 };
+
+typedef TIntrusivePtr<TFileChangelogQueue> TFileChangelogQueuePtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -540,20 +541,20 @@ private:
     TPeriodicExecutorPtr PeriodicExecutor_;
 
     TSpinLock SpinLock_;
-    yhash_map<TSyncFileChangelogPtr, TChangelogQueuePtr> QueueMap_;
+    yhash_map<TSyncFileChangelogPtr, TFileChangelogQueuePtr> QueueMap_;
 
     NProfiling::TRateCounter RecordCounter_;
     NProfiling::TRateCounter SizeCounter_;
 
 
-    TChangelogQueuePtr FindQueue(TSyncFileChangelogPtr changelog) const
+    TFileChangelogQueuePtr FindQueue(TSyncFileChangelogPtr changelog) const
     {
         TGuard<TSpinLock> guard(SpinLock_);
         auto it = QueueMap_.find(changelog);
         return it == QueueMap_.end() ? nullptr : it->second;
     }
 
-    TChangelogQueuePtr FindQueueAndLock(TSyncFileChangelogPtr changelog) const
+    TFileChangelogQueuePtr FindQueueAndLock(TSyncFileChangelogPtr changelog) const
     {
         TGuard<TSpinLock> guard(SpinLock_);
         auto it = QueueMap_.find(changelog);
@@ -566,16 +567,16 @@ private:
         return queue;
     }
 
-    TChangelogQueuePtr GetQueueAndLock(TSyncFileChangelogPtr changelog)
+    TFileChangelogQueuePtr GetQueueAndLock(TSyncFileChangelogPtr changelog)
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        TChangelogQueuePtr queue;
+        TFileChangelogQueuePtr queue;
 
         auto it = QueueMap_.find(changelog);
         if (it != QueueMap_.end()) {
             queue = it->second;
         } else {
-            queue = New<TChangelogQueue>(changelog);
+            queue = New<TFileChangelogQueue>(changelog);
             YCHECK(QueueMap_.insert(std::make_pair(changelog, queue)).second);
             LOG_DEBUG("Changelog queue created (Path: %v)",
                 changelog->GetFileName());
@@ -588,7 +589,7 @@ private:
     void RunPendingActions()
     {
         // Take a snapshot.
-        std::vector<TChangelogQueuePtr> queues;
+        std::vector<TFileChangelogQueuePtr> queues;
         {
             TGuard<TSpinLock> guard(SpinLock_);
             for (const auto& pair : QueueMap_) {
@@ -680,10 +681,10 @@ class TFileChangelog
 {
 public:
     TFileChangelog(
-        TFileChangelogDispatcherPtr dispatcher,
+        TFileChangelogDispatcher::TImplPtr impl,
         TFileChangelogConfigPtr config,
         TSyncFileChangelogPtr changelog)
-        : DispatcherImpl_(dispatcher->Impl_)
+        : DispatcherImpl_(std::move(impl))
         , Config_(config)
         , SyncChangelog_(changelog)
         , RecordCount_(changelog->GetRecordCount())
@@ -796,7 +797,7 @@ IChangelogPtr TFileChangelogDispatcher::CreateChangelog(
     auto syncChangelog = New<TSyncFileChangelog>(path, config);
     syncChangelog->Create(meta);
 
-    return New<TFileChangelog>(this, config, syncChangelog);
+    return New<TFileChangelog>(Impl_, config, syncChangelog);
 }
 
 IChangelogPtr TFileChangelogDispatcher::OpenChangelog(
@@ -806,7 +807,7 @@ IChangelogPtr TFileChangelogDispatcher::OpenChangelog(
     auto syncChangelog = New<TSyncFileChangelog>(path, config);
     syncChangelog->Open();
 
-    return New<TFileChangelog>(this, config, syncChangelog);
+    return New<TFileChangelog>(Impl_, config, syncChangelog);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
