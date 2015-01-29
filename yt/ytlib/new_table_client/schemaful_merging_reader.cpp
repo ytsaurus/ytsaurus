@@ -3,6 +3,8 @@
 #include "schemaful_reader.h"
 #include "unversioned_row.h"
 
+#include <core/actions/cancelable_context.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -21,10 +23,16 @@ public:
         }
     }
 
+    ~TSchemafulMergingReader()
+    {
+        CancelableContext_->Cancel();
+    }
+
     virtual TFuture<void> Open(const TTableSchema& schema) override
     {
         for (auto& session : Sessions_) {
             session.ReadyEvent = session.Reader->Open(schema);
+            CancelableContext_->PropagateTo(session.ReadyEvent);
         }
         return VoidFuture;
     }
@@ -47,7 +55,7 @@ public:
 
                 const auto& error = session.ReadyEvent.Get();
                 if (!error.IsOK()) {
-                    ReadyEvent_ = session.ReadyEvent;
+                    ReadyEvent_ = MakePromise(error);
                     return true;
                 }
 
@@ -65,6 +73,7 @@ public:
 
             YASSERT(!session.ReadyEvent);
             session.ReadyEvent = session.Reader->GetReadyEvent();
+            CancelableContext_->PropagateTo(session.ReadyEvent);
             pending = true;
         }
 
@@ -78,6 +87,7 @@ public:
                 readyEvent.TrySetFrom(session.ReadyEvent);
             }
         }
+        readyEvent.OnCanceled(BIND(&TSchemafulMergingReader::OnCanceled, MakeWeak(this)));
         ReadyEvent_ = readyEvent;
 
         return true;
@@ -89,6 +99,8 @@ public:
     }
 
 private:
+    const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
+
     struct TSession
     {
         ISchemafulReaderPtr Reader;
@@ -97,7 +109,14 @@ private:
     };
 
     std::vector<TSession> Sessions_;
-    TFuture<void> ReadyEvent_;
+    TPromise<void> ReadyEvent_;
+
+
+    void OnCanceled()
+    {
+        ReadyEvent_.TrySet(TError(NYT::EErrorCode::Canceled, "Reader canceled"));
+        CancelableContext_->Cancel();
+    }
 
 };
 
