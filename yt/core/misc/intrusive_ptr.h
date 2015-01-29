@@ -294,7 +294,7 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
  *  are subsequently defined afterwards.
  */
 
-#ifdef __linux__
+#ifdef __GNUC__
     // Prevent GCC from throwing out our precious Ref/Unref functions in
     // release builds.
     #define REF_UNREF_DECLARATION_ATTRIBUTES __attribute__((used))
