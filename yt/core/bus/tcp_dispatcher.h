@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/shutdownable.h>
+
 namespace NYT {
 namespace NBus {
 
@@ -9,16 +11,14 @@ namespace NBus {
 
 struct TTcpDispatcherStatistics
 {
-    TTcpDispatcherStatistics();
+    int PendingInCount = 0;
+    i64 PendingInSize = 0;
 
-    int PendingInCount;
-    i64 PendingInSize;
+    int PendingOutCount = 0;
+    i64 PendingOutSize = 0;
 
-    int PendingOutCount;
-    i64 PendingOutSize;
-
-    int ClientConnectionCount;
-    int ServerConnectionCount;
+    int ClientConnectionCount = 0;
+    int ServerConnectionCount = 0;
 };
 
 TTcpDispatcherStatistics operator + (
@@ -41,11 +41,14 @@ DEFINE_ENUM(ETcpInterfaceType,
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTcpDispatcher
+    : public IShutdownable
 {
 public:
+    ~TTcpDispatcher();
+
     static TTcpDispatcher* Get();
 
-    void Shutdown();
+    virtual void Shutdown() override;
 
     TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType);
 

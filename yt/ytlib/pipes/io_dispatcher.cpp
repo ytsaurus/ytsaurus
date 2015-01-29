@@ -11,6 +11,9 @@ TIODispatcher::TIODispatcher()
     : Impl_(New<TIODispatcher::TImpl>())
 { }
 
+TIODispatcher::~TIODispatcher()
+{ }
+
 TIODispatcher* TIODispatcher::Get()
 {
     return Singleton<TIODispatcher>();
