@@ -5,6 +5,8 @@ import os
 import tempfile
 import subprocess
 
+from yt.wrapper import format
+
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
@@ -625,17 +627,35 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t2")
         write("//tmp/t1", {"foo": "bar"})
 
-        op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command="sleep 2; cat")
+        set("//tmp/input_contexts", {})
+
+        op_id = map(dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="sleep 2; cat",
+            spec={
+                "mapper": {
+                    "input_format": "json",
+                    "output_format": "json"
+                }
+            })
 
         probed = False
         while not probed:
             jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
-            for job_id in ls(jobs_path):
+            jobs = ls(jobs_path)
+            if not jobs:
+                time.sleep(0.2)
+                continue
+            for job_id in jobs:
                 probed = True
                 probe(job_id, "//tmp/input_contexts")
 
         track_op(op_id)
-        get("//tmp/input_contexts")
+        time.sleep(1)
+
+        context = download("//tmp/input_contexts/0")
+        assert format.JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
 
     @only_linux
     def test_sorted_output(self):
