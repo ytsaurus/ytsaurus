@@ -97,6 +97,8 @@ message TQuery
     required int64 input_row_limit = 2;
     required int64 output_row_limit = 3;
 
+    required int64 limit = 9;
+
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt table_schema = 4;
     required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 5;
 

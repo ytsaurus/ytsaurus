@@ -59,6 +59,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
         subquery->TableSchema = query->TableSchema;
         subquery->KeyColumns = query->KeyColumns;
+        subquery->Limit = query->Limit;
 
         // Set predicate
         int rangeSize = std::min(keyRange.first.GetCount(), keyRange.second.GetCount());
@@ -89,6 +90,8 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     auto topQuery = New<TQuery>(
         query->GetInputRowLimit(),
         query->GetOutputRowLimit());
+
+    topQuery->Limit = query->Limit;
 
     if (query->GroupClause) {
         if (pushdownGroupClause) {

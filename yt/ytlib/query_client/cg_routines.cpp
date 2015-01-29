@@ -43,11 +43,36 @@ static const size_t InitialGroupOpHashtableCapacity = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool CountWriteRow(TExecutionContext* executionContext)
+{
+    if (executionContext->OutputRowLimit > 0) {
+        --executionContext->OutputRowLimit;
+        return false;
+    } else {
+        executionContext->Statistics->IncompleteOutput = true;
+        return true;
+    }
+}
+
+bool CountOutputRow(TExecutionContext* executionContext)
+{
+    if (executionContext->Limit > 0) {
+        --executionContext->Limit;
+        return false;
+    } else {
+        executionContext->stopFlag = true;
+        return true;
+    }
+}
+
 void WriteRow(TRow row, TExecutionContext* executionContext)
 {
-    CHECK_STACK()
+    CHECK_STACK();
 
-    --executionContext->OutputRowLimit;
+    if (CountOutputRow(executionContext) | CountWriteRow(executionContext)) {
+        return;
+    }
+    
     ++executionContext->Statistics->RowsWritten;
 
     auto* batch = executionContext->Batch;
@@ -79,7 +104,7 @@ void ScanOpHelper(
     TExecutionContext* executionContext,
     int dataSplitsIndex,
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRow* rows, int size))
+    void (*consumeRows)(void** closure, TRow* rows, int size, char* stopFlag))
 {
     auto* reader = executionContext->Reader;
 
@@ -90,6 +115,8 @@ void ScanOpHelper(
 
     std::vector<TRow> rows;
     rows.reserve(MaxRowsPerRead);
+
+    executionContext->stopFlag = false;
 
     while (true) {
         executionContext->IntermediateBuffer->Clear();
@@ -105,29 +132,15 @@ void ScanOpHelper(
         if (executionContext->InputRowLimit < rows.size()) {
             rows.resize(executionContext->InputRowLimit);
             executionContext->Statistics->IncompleteInput = true;
+            hasMoreData = false;
         }
         executionContext->InputRowLimit -= rows.size();
-        executionContext->Statistics->RowsRead += rows.size();        
+        executionContext->Statistics->RowsRead += rows.size();
 
-        i64 rowsLeft = rows.size();
-        auto* currentRow = rows.data();
-
-        size_t consumeSize;
-        while ((consumeSize = std::min(executionContext->OutputRowLimit, rowsLeft)) > 0) {
-            consumeRows(consumeRowsClosure, currentRow, consumeSize);
-            currentRow += consumeSize;
-            rowsLeft -= consumeSize;
-        }
-
-        if (!(executionContext->OutputRowLimit >= 0 && rowsLeft == 0)) {
-            executionContext->Statistics->IncompleteOutput = true;
-        }
-
+        consumeRows(consumeRowsClosure, rows.data(), rows.size(), &executionContext->stopFlag);
         rows.clear();
 
-        if (!hasMoreData ||
-            executionContext->InputRowLimit <= 0 ||
-            executionContext->OutputRowLimit <= 0) {
+        if (!hasMoreData || executionContext->stopFlag) {
             break;
         }
 
@@ -140,13 +153,13 @@ void ScanOpHelper(
 }
 
 void GroupOpHelper(
-    void** consumeRowsClosure,
-    void (*consumeRows)(
-        void** closure,
-        std::vector<TRow>* groupedRows,
-        TLookupRows* rows),
+    TExecutionContext* executionContext,
     ui64 (*groupHasher)(TRow),
-    char (*groupComparer)(TRow, TRow))
+    char (*groupComparer)(TRow, TRow),
+    void** collectRowsClosure,
+    void (*collectRows)(void** closure, std::vector<TRow>* groupedRows, TLookupRows* rows),
+    void** consumeRowsClosure,
+    void (*consumeRows)(void** closure, std::vector<TRow>* groupedRows, char* stopFlag))
 {
     std::vector<TRow> groupedRows;
     TLookupRows lookupRows(
@@ -156,12 +169,15 @@ void GroupOpHelper(
 
     lookupRows.set_empty_key(TRow());
 
-    consumeRows(consumeRowsClosure, &groupedRows, &lookupRows);
+    collectRows(collectRowsClosure, &groupedRows, &lookupRows);
+
+    executionContext->stopFlag = false;
+    consumeRows(consumeRowsClosure, &groupedRows, &executionContext->stopFlag);
 }
 
 const TRow* FindRow(TExecutionContext* executionContext, TLookupRows* rows, TRow row)
 {
-    CHECK_STACK()
+    CHECK_STACK();
 
     auto it = rows->find(row);
     return it != rows->end()? &*it : nullptr;
@@ -196,13 +212,13 @@ const TRow* InsertGroupRow(
     auto inserted = lookupRows->insert(row);
 
     if (inserted.second) {
-        --executionContext->OutputRowLimit;
-
-        groupedRows->push_back(row);
-        for (int index = 0; index < valueCount; ++index) {
-            CaptureValue(&row[index], executionContext->PermanentBuffer->GetUnalignedPool());
+        if (!CountWriteRow(executionContext)) {
+            groupedRows->push_back(row);
+            for (int index = 0; index < valueCount; ++index) {
+                CaptureValue(&row[index], executionContext->PermanentBuffer->GetUnalignedPool());
+            }
+            *rowPtr = TRow::Allocate(executionContext->PermanentBuffer->GetAlignedPool(), valueCount);
         }
-        *rowPtr = TRow::Allocate(executionContext->PermanentBuffer->GetAlignedPool(), valueCount);
         return nullptr;
     } else {
         return &*inserted.first;

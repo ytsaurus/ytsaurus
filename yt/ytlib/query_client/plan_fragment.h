@@ -298,6 +298,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(i64, OutputRowLimit);
     DEFINE_BYVAL_RO_PROPERTY(TGuid, Id);
 
+    i64 Limit = std::numeric_limits<i64>::max();
+
     // TODO: Rename to InitialTableSchema
     TTableSchema TableSchema;
     TKeyColumns KeyColumns;

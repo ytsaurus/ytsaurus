@@ -698,6 +698,7 @@ void CodegenForEachRow(
     TCGIRBuilder& builder,
     Value* rows,
     Value* size,
+    Value* stopFlag,
     const TCodegenConsumer& codegenConsumer)
 {
     auto* loopBB = builder.CreateBBHere("loop");
@@ -714,7 +715,12 @@ void CodegenForEachRow(
 
     // if (index != size) ...
     Value* index = builder.CreateLoad(indexPtr, "index");
-    builder.CreateCondBr(builder.CreateICmpNE(index, size), loopBB, endloopBB);
+    Value* condition = builder.CreateAnd(
+        builder.CreateICmpNE(index, size),
+        builder.CreateICmpEQ(
+            builder.CreateLoad(stopFlag, "stopFlag"),
+            builder.getInt8(0)));
+    builder.CreateCondBr(condition, loopBB, endloopBB);
 
     builder.SetInsertPoint(loopBB);
 
@@ -1345,7 +1351,7 @@ void TCGContext::CodegenScanOp(
 
     // See ScanOpHelper.
     Function* function = Function::Create(
-        TypeBuilder<void(void**, TRow*, int), false>::get(builder.getContext()),
+        TypeBuilder<void(void**, TRow*, int, char*), false>::get(builder.getContext()),
         Function::ExternalLinkage,
         "ScanOpInner",
         module);
@@ -1354,6 +1360,7 @@ void TCGContext::CodegenScanOp(
     Value* closure = args; closure->setName("closure");
     Value* rows = ++args; rows->setName("rows");
     Value* size = ++args; size->setName("size");
+    Value* stopFlag = ++args; stopFlag->setName("stopFlag");
     YCHECK(++args == function->arg_end());
 
     TCGIRBuilder innerBuilder(
@@ -1361,17 +1368,15 @@ void TCGContext::CodegenScanOp(
         &builder,
         closure);
 
-    CodegenForEachRow(innerBuilder, rows, size, codegenConsumer);
+    CodegenForEachRow(innerBuilder, rows, size, stopFlag, codegenConsumer);
 
     innerBuilder.CreateRetVoid();
-
-    Value* executionContextPtr = GetExecutionContextPtr(builder);
 
     int dataSplitsIndex = 0;
 
     builder.CreateCall4(
         Module_->GetRoutine("ScanOpHelper"),
-        executionContextPtr,
+        GetExecutionContextPtr(builder),
         builder.getInt32(dataSplitsIndex),
         innerBuilder.GetClosure(),
         function);
@@ -1453,46 +1458,46 @@ void TCGContext::CodegenGroupOp(
     auto module = Module_->GetModule();
 
     // See GroupOpHelper.
-    Function* function = Function::Create(
+    Function* collect = Function::Create(
         TypeBuilder<void(void**, void*, void*), false>::get(builder.getContext()),
         Function::ExternalLinkage,
-        "GroupOpInner",
+        "CollectGroups",
         module);
 
-    auto args = function->arg_begin();
-    Value* closure = args; closure->setName("closure");
-    Value* groupedRows = ++args; groupedRows->setName("groupedRows");
-    Value* rows = ++args; rows->setName("rows");
-    YCHECK(++args == function->arg_end());
+    auto collectArgs = collect->arg_begin();
+    Value* collectClosure = collectArgs; collectClosure->setName("closure");
+    Value* groupedRows = ++collectArgs; groupedRows->setName("groupedRows");
+    Value* rows = ++collectArgs; rows->setName("rows");
+    YCHECK(++collectArgs == collect->arg_end());
 
-    TCGIRBuilder innerBuilder(
-        function,
+    TCGIRBuilder collectBuilder(
+        collect,
         &builder,
-        closure);
+        collectClosure);
 
     int keySize = clause.GroupItems.size();
     int aggregateItemCount = clause.AggregateItems.size();
 
-    Value* newRowPtr = innerBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
+    Value* newRowPtr = collectBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
-    innerBuilder.CreateCall3(
+    collectBuilder.CreateCall3(
         Module_->GetRoutine("AllocatePersistentRow"),
-        GetExecutionContextPtr(innerBuilder),
+        GetExecutionContextPtr(collectBuilder),
         builder.getInt32(keySize + aggregateItemCount),
         newRowPtr);
 
-    codegenSource(innerBuilder, [&] (TCGIRBuilder& innerBuilder, Value* row) {
-        Value* executionContextPtrRef = GetExecutionContextPtr(innerBuilder);
-        Value* groupedRowsRef = innerBuilder.ViaClosure(groupedRows);
-        Value* rowsRef = innerBuilder.ViaClosure(rows);
-        Value* newRowPtrRef = innerBuilder.ViaClosure(newRowPtr);
-        Value* newRowRef = innerBuilder.CreateLoad(newRowPtrRef);
+    codegenSource(collectBuilder, [&] (TCGIRBuilder& builder, Value* row) {
+        Value* executionContextPtrRef = GetExecutionContextPtr(builder);
+        Value* groupedRowsRef = builder.ViaClosure(groupedRows);
+        Value* rowsRef = builder.ViaClosure(rows);
+        Value* newRowPtrRef = builder.ViaClosure(newRowPtr);
+        Value* newRowRef = builder.CreateLoad(newRowPtrRef);
 
         for (int index = 0; index < keySize; ++index) {
             const auto& expr = clause.GroupItems[index].Expression;
             auto id = index;
 
-            CodegenExpr(innerBuilder, expr, sourceTableSchema, row)
+            CodegenExpr(builder, expr, sourceTableSchema, row)
                 .StoreToRow(newRowRef, index, id);
         }
 
@@ -1502,11 +1507,11 @@ void TCGContext::CodegenGroupOp(
 
             auto id = keySize + index;
 
-            CodegenExpr(innerBuilder, expr, sourceTableSchema, row)
+            CodegenExpr(builder, expr, sourceTableSchema, row)
                 .StoreToRow(newRowRef, keySize + index, id);
         }
 
-        Value* foundRowPtr = innerBuilder.CreateCall5(
+        Value* foundRowPtr = builder.CreateCall5(
             Module_->GetRoutine("InsertGroupRow"),
             executionContextPtrRef,
             rowsRef,
@@ -1514,12 +1519,12 @@ void TCGContext::CodegenGroupOp(
             newRowPtrRef,
             builder.getInt32(keySize + aggregateItemCount));
 
-        CodegenIf(innerBuilder, [&] (TCGIRBuilder& innerBuilder) {
-            return innerBuilder.CreateICmpNE(
+        CodegenIf(builder, [&] (TCGIRBuilder& builder) {
+            return builder.CreateICmpNE(
                 foundRowPtr,
                 llvm::ConstantPointerNull::get(newRowRef->getType()->getPointerTo()));
-        }, [&] (TCGIRBuilder& innerBuilder) {
-            Value* foundRow = innerBuilder.CreateLoad(foundRowPtr);
+        }, [&] (TCGIRBuilder& builder) {
+            Value* foundRow = builder.CreateLoad(foundRowPtr);
             for (int index = 0; index < aggregateItemCount; ++index) {
                 const auto& item = clause.AggregateItems[index];
                 const auto& name = item.Name;
@@ -1528,32 +1533,59 @@ void TCGContext::CodegenGroupOp(
                 auto type = item.Expression->Type;
                 auto fn = item.AggregateFunction;
 
-                CodegenAggregateFunction(innerBuilder, foundRow, newRowRef, fn, keySize + index, id, type, name.c_str());
+                CodegenAggregateFunction(builder, foundRow, newRowRef, fn, keySize + index, id, type, name.c_str());
             }
-        }, [&] (TCGIRBuilder& innerBuilder) {
+        }, [&] (TCGIRBuilder& builder) {
 
         });
     });
 
+    collectBuilder.CreateRetVoid();
+
+    Function* consume = Function::Create(
+        TypeBuilder<void(void**, void*, char*), false>::get(builder.getContext()),
+        Function::ExternalLinkage,
+        "Consume",
+        module);
+
+    auto consumeArgs = consume->arg_begin();
+    Value* consumeClosure = consumeArgs; consumeClosure->setName("closure");
+    Value* finalGroupedRows = ++consumeArgs; finalGroupedRows->setName("finalGroupedRows");
+    Value* stopFlag = ++consumeArgs; stopFlag->setName("stopFlag");
+    YCHECK(++consumeArgs == consume->arg_end());
+
+    TCGIRBuilder consumeBuilder(
+        consume,
+        &builder,
+        consumeClosure);
+
     CodegenForEachRow(
-        innerBuilder,
-        innerBuilder.CreateCall(Module_->GetRoutine("GetRowsData"), groupedRows),
-        innerBuilder.CreateCall(Module_->GetRoutine("GetRowsSize"), groupedRows),
+        consumeBuilder,
+        consumeBuilder.CreateCall(Module_->GetRoutine("GetRowsData"), finalGroupedRows),
+        consumeBuilder.CreateCall(Module_->GetRoutine("GetRowsSize"), finalGroupedRows),
+        stopFlag,
         codegenConsumer);
 
-    innerBuilder.CreateRetVoid();
+    consumeBuilder.CreateRetVoid();
 
     std::vector<EValueType> keyTypes;
     for (int index = 0; index < keySize; ++index) {
         keyTypes.push_back(clause.GroupItems[index].Expression->Type);
     }
 
-    builder.CreateCall4(
+    builder.CreateCallWithArgs(
         Module_->GetRoutine("GroupOpHelper"),
-        innerBuilder.GetClosure(),
-        function,
-        CodegenGroupHasherFunction(keyTypes),
-        CodegenGroupComparerFunction(keyTypes));
+        {
+            GetExecutionContextPtr(builder),
+            CodegenGroupHasherFunction(keyTypes),
+            CodegenGroupComparerFunction(keyTypes),
+
+            collectBuilder.GetClosure(),
+            collect,
+
+            consumeBuilder.GetClosure(),
+            consume,
+        });
 
 }
 
