@@ -502,7 +502,7 @@ public:
             }
 
             std::vector<TFuture<void>> asyncResults;
-            auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetPoolInvoker();
+            auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetInvoker();
             for (auto job : schedulingContext->StartedJobs()) {
                 auto* startInfo = response->add_jobs_to_start();
                 ToProto(startInfo->mutable_job_id(), job->GetId());

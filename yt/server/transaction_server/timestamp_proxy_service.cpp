@@ -23,7 +23,7 @@ class TTimestampProxyService
 public:
     explicit TTimestampProxyService(ITimestampProviderPtr provider)
         : TServiceBase(
-            NRpc::TDispatcher::Get()->GetPoolInvoker(),
+            NRpc::TDispatcher::Get()->GetInvoker(),
             TTimestampServiceProxy::GetServiceName(),
             TransactionServerLogger)
         , Provider_(provider)

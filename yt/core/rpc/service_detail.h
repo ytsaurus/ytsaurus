@@ -199,7 +199,7 @@ public:
         }
 
         if (this->Options_.HeavyResponse) {
-            TDispatcher::Get()->GetPoolInvoker()->Invoke(BIND(
+            TDispatcher::Get()->GetInvoker()->Invoke(BIND(
                 &TThis::SerializeResponseAndReply,
                 MakeStrong(this)));
         } else {

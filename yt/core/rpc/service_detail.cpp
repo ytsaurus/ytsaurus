@@ -462,7 +462,7 @@ void TServiceBase::Init(
     }
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
-        .SetInvoker(TDispatcher::Get()->GetPoolInvoker())
+        .SetInvoker(TDispatcher::Get()->GetInvoker())
         .SetSystem(true));
 }
 
@@ -689,7 +689,7 @@ void TServiceBase::RunRequest(const TServiceContextPtr& context)
     const auto& options = runtimeInfo->Descriptor.Options;
     if (options.HeavyRequest) {
         runtimeInfo->Descriptor.HeavyHandler
-            .AsyncVia(TDispatcher::Get()->GetPoolInvoker())
+            .AsyncVia(TDispatcher::Get()->GetInvoker())
             .Run(context, options)
             .Subscribe(BIND(&TServiceContext::Run, context));
     } else {
