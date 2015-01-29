@@ -56,8 +56,14 @@ struct TExecutionContext
     std::vector<TRow>* Batch;
 
     TQueryStatistics* Statistics;
+
+    // TODO: Rename to ReadRowLimit and WriteRowLimit
     i64 InputRowLimit;
     i64 OutputRowLimit;
+
+    i64 Limit;
+
+    char stopFlag = false;
 };
 
 namespace NDetail {

@@ -750,12 +750,12 @@ TPlanFragmentPtr PreparePlanFragment(
     auto planFragment = New<TPlanFragment>(source);
     planFragment->NodeDirectory = New<TNodeDirectory>();
 
+    auto query = PrepareQuery(ast, source, inputRowLimit, outputRowLimit, tableSchema);
+
     if (ast.Limit) {
-        outputRowLimit = ast.Limit;
+        query->Limit = ast.Limit;
         planFragment->Ordered = true;
     }
-
-    auto query = PrepareQuery(ast, source, inputRowLimit, outputRowLimit, tableSchema);
 
     SetTableSchema(&initialDataSplit, query->TableSchema);
     query->KeyColumns = GetKeyColumnsFromDataSplit(initialDataSplit);
@@ -1005,6 +1005,7 @@ void ToProto(NProto::TQuery* proto, const TConstQueryPtr& original)
 
     ToProto(proto->mutable_id(), original->GetId());
 
+    proto->set_limit(original->Limit);
 
     ToProto(proto->mutable_table_schema(), original->TableSchema);
     ToProto(proto->mutable_key_columns(), original->KeyColumns);
@@ -1070,6 +1071,8 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
         serialized.input_row_limit(),
         serialized.output_row_limit(),
         NYT::FromProto<TGuid>(serialized.id()));
+
+    query->Limit = serialized.limit();
 
     FromProto(&query->TableSchema, serialized.table_schema());
     FromProto(&query->KeyColumns, serialized.key_columns());
