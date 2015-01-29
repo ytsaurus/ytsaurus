@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "connection.h"
+#include "admin.h"
 #include "config.h"
 #include "private.h"
 
