@@ -8,6 +8,8 @@
 
 #include <ytlib/scheduler/job.pb.h>
 
+#include <ytlib/job_tracker_client/public.h>
+
 #include <core/logging/log.h>
 
 #include <core/rpc/public.h>
@@ -38,6 +40,8 @@ struct IJobHost
 
     virtual NLog::TLogger GetLogger() const = 0;
 
+    virtual std::vector<NChunkClient::TChunkId> GenerateInputContext(const NJobTrackerClient::TJobId& jobId) = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobHost)
@@ -58,6 +62,8 @@ struct IJob
     virtual double GetProgress() const = 0;
 
     virtual NJobTrackerClient::NProto::TJobStatistics GetStatistics() const = 0;
+
+    virtual std::vector<NChunkClient::TChunkId> GenerateInputContext() = 0;
 
 };
 

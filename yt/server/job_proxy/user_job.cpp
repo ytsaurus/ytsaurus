@@ -111,6 +111,7 @@ public:
         , Config_(host->GetConfig())
         , JobErrorPromise_(NewPromise<void>())
         , MemoryUsage_(UserJobSpec_.memory_reserve())
+        , PipeIOQueue_(New<TActionQueue>("PipesIO"))
         , PeriodicQueue_(New<TActionQueue>("UserJobPeriodic"))
         , Process_(GetExecPath(), false)
         , CpuAccounting_(CGroupPrefix + ToString(jobId))
@@ -214,6 +215,8 @@ private:
     TPromise<void> JobErrorPromise_;
 
     i64 MemoryUsage_;
+
+    TActionQueuePtr PipeIOQueue_;
 
     TActionQueuePtr PeriodicQueue_;
     TPeriodicExecutorPtr MemoryWatchdogExecutor_;
@@ -354,28 +357,69 @@ private:
             return;
         }
 
+        auto contexts = DoGetInputContexts();
+        auto contextChunkIds = SaveInputContexts(contexts);
+
+        for (const auto& contextChunkId : contextChunkIds) {
+            ToProto(schedulerResultExt->add_fail_context_chunk_ids(), contextChunkId);
+        }
+    }
+
+    std::vector<NChunkClient::TChunkId> GenerateInputContext() override
+    {
+        auto contexts = WaitFor(
+            BIND(&TUserJob::DoGetInputContexts, MakeStrong(this))
+                .AsyncVia(PipeIOQueue_->GetInvoker())
+                .Run())
+            .ValueOrThrow();
+
+        auto contextChunkIds = SaveInputContexts(contexts);
+
+        return contextChunkIds;
+    }
+
+    std::vector<NChunkClient::TChunkId> SaveInputContexts(const std::vector<TBlob>& contexts)
+    {
+        std::vector<NChunkClient::TChunkId> results;
+
+        if (!UserJobSpec_.has_stderr_transaction_id()) {
+            THROW_ERROR_EXCEPTION("There are no stderr transaction");
+        }
+
         auto host = Host.Lock();
         YCHECK(host);
 
         auto transactionId = FromProto<TTransactionId>(UserJobSpec_.stderr_transaction_id());
-        for (int inputIndex = 0; inputIndex < ContextPreservingInputs_.size(); ++inputIndex) {
-            auto input = ContextPreservingInputs_[inputIndex];
-
+        for (int index = 0; index < contexts.size(); ++index) {
             TErrorOutput contextOutput(
                 Config_->JobIO->ErrorFileWriter,
                 host->GetMasterChannel(),
                 transactionId);
 
-            auto context = input->GetContext();
+            auto context = contexts[index];
             contextOutput.Write(context.Begin(), context.Size());
             contextOutput.Finish();
 
             auto contextChunkId = contextOutput.GetChunkId();
-            ToProto(schedulerResultExt->add_fail_context_chunk_ids(), contextChunkId);
-            LOG_INFO("Fail context chunk generated (ChunkId: %v, InputIndex: %v)",
+            LOG_INFO("Input context chunk generated (ChunkId: %v, InputIndex: %v)",
                 contextChunkId,
-                inputIndex);
+                index);
+
+            results.push_back(contextChunkId);
         }
+
+        return results;
+    }
+
+    std::vector<TBlob> DoGetInputContexts()
+    {
+        std::vector<TBlob> results;
+
+        for (const auto& input : ContextPreservingInputs_) {
+            results.push_back(input->GetContext());
+        }
+
+        return results;
     }
 
     int GetMaxReservedDescriptor() const
@@ -671,13 +715,11 @@ private:
             }
         });
 
-        auto queue = New<TActionQueue>("PipesIO");
-
         auto runActions = [&] (std::vector<TCallback<void()>>& actions) {
             std::vector<TFuture<void>> result;
             for (auto& action : actions) {
                 auto asyncError = action
-                    .AsyncVia(queue->GetInvoker())
+                    .AsyncVia(PipeIOQueue_->GetInvoker())
                     .Run();
                 asyncError.Subscribe(onIOError);
                 result.emplace_back(std::move(asyncError));

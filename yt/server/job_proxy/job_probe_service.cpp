@@ -6,6 +6,8 @@
 
 #include <ytlib/job_probe_client/job_probe_service_proxy.h>
 
+#include <ytlib/chunk_client/public.h>
+
 #include <core/rpc/service_detail.h>
 
 namespace NYT {
@@ -42,7 +44,12 @@ private:
 
         context->SetRequestInfo("JobId: %v", jobId);
 
-//        context->SetResponseInfo("ChunkId: %v", response->chunk_id())
+        std::vector<NChunkClient::TChunkId> inputContexts = JobProxy_->GenerateInputContext(jobId);
+        context->SetResponseInfo("ChunkId: %v", JoinToString(inputContexts));
+
+        for (const auto& inputContext : inputContexts) {
+            ToProto(response->add_chunk_id(), inputContext);
+        }
         context->Reply();
     }
 };
