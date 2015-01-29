@@ -191,6 +191,8 @@ protected:
     friend bool operator!=(const TFuture<U>& lhs, const TFuture<U>& rhs);
     template <class U>
     friend void swap(TFuture<U>& lhs, TFuture<U>& rhs);
+    template <class U>
+    friend struct ::hash;
 
 };
 
@@ -334,6 +336,8 @@ protected:
     friend bool operator!=(const TPromise<U>& lhs, const TPromise<U>& rhs);
     template <class U>
     friend void swap(TPromise<U>& lhs, TPromise<U>& rhs);
+    template <class U>
+    friend struct ::hash;
 
 };
 
