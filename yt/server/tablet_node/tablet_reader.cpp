@@ -130,7 +130,7 @@ protected:
                 auto partialRow = *session->CurrentRow;
 
                 if (currentKeyBegin) {
-                    if (CompareRows(
+                    if (TabletSnapshot_->RowKeyComparer(
                             partialRow.BeginKeys(),
                             partialRow.EndKeys(),
                             currentKeyBegin,
@@ -145,10 +145,10 @@ protected:
 
                 if (++session->CurrentRow == session->Rows.end()) {
                     ExhaustedSessions_.push_back(session);
-                    ExtractHeap(SessionHeapBegin_, SessionHeapEnd_, CompareSessions);
+                    ExtractHeap(SessionHeapBegin_, SessionHeapEnd_,  GetSessionComparer());
                     --SessionHeapEnd_;
                 } else {
-                    AdjustHeapFront(SessionHeapBegin_, SessionHeapEnd_, CompareSessions);
+                    AdjustHeapFront(SessionHeapBegin_, SessionHeapEnd_,  GetSessionComparer());
                 }
             }
 
@@ -209,17 +209,17 @@ protected:
     }
 
 
-    static bool CompareSessions(const TSession* lhsSession, const TSession* rhsSession)
-    {
-        auto lhsRow = *lhsSession->CurrentRow;
-        auto rhsRow = *rhsSession->CurrentRow;
-        return CompareRows(
-            lhsRow.BeginKeys(),
-            lhsRow.EndKeys(),
-            rhsRow.BeginKeys(),
-            rhsRow.EndKeys()) < 0;
+    std::function<bool(const TSession*, const TSession*)> GetSessionComparer() {
+        return [&] (const TSession* lhsSession, const TSession* rhsSession) {
+            auto lhsRow = *lhsSession->CurrentRow;
+            auto rhsRow = *rhsSession->CurrentRow;
+            return TabletSnapshot_->RowKeyComparer(
+                lhsRow.BeginKeys(),
+                lhsRow.EndKeys(),
+                rhsRow.BeginKeys(),
+                rhsRow.EndKeys()) < 0;
+        };
     }
-
 
     bool RefillSession(TSession* session)
     {
@@ -232,7 +232,7 @@ protected:
         for (int index = 0; index < static_cast<int>(session->Rows.size()) - 1; ++index) {
             auto lhs = session->Rows[index];
             auto rhs = session->Rows[index + 1];
-            YASSERT(CompareRows(
+            YASSERT(TabletSnapshot_->RowKeyComparer(
                 lhs.BeginKeys(), lhs.EndKeys(),
                 rhs.BeginKeys(), rhs.EndKeys()) < 0);
         }
@@ -240,7 +240,7 @@ protected:
 
         session->CurrentRow = session->Rows.begin();
         *SessionHeapEnd_++ = session;
-        AdjustHeapBack(SessionHeapBegin_, SessionHeapEnd_, CompareSessions);
+        AdjustHeapBack(SessionHeapBegin_, SessionHeapEnd_, GetSessionComparer());
         return true;
     }
 
@@ -438,7 +438,7 @@ public:
         for (int index = 0; index < static_cast<int>(rows->size()) - 1; ++index) {
             auto lhs = (*rows)[index];
             auto rhs = (*rows)[index + 1];
-            YASSERT(CompareRows(
+            YASSERT(TabletSnapshot_->RowKeyComparer(
                 lhs.BeginKeys(), lhs.EndKeys(),
                 rhs.BeginKeys(), rhs.EndKeys()) < 0);
         }

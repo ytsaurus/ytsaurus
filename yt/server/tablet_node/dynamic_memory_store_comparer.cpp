@@ -9,6 +9,7 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NCodegen;
+using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,11 +21,13 @@ public:
         int keyColumnCount,
         const TTableSchema& schema,
         TCGFunction<TDDComparerSignature> ddComparer,
-        TCGFunction<TDUComparerSignature> duComparer)
+        TCGFunction<TDUComparerSignature> duComparer,
+        TCGFunction<TUUComparerSignature> uuComparer)
         : KeyColumnCount_(keyColumnCount)
         , Schema_(schema)
         , DDComparer_(std::move(ddComparer))
         , DUComparer_(std::move(duComparer))
+        , UUComparer_(std::move(uuComparer))
     { }
 
     TImpl(int keyColumnCount, const TTableSchema& schema)
@@ -41,12 +44,14 @@ public:
         if (enableCodegen) {
             TCGFunction<TDDComparerSignature> ddComparer;
             TCGFunction<TDUComparerSignature> duComparer;
-            std::tie(ddComparer, duComparer) = GenerateComparers(keyColumnCount, schema);
+            TCGFunction<TUUComparerSignature> uuComparer;
+            std::tie(ddComparer, duComparer, uuComparer) = GenerateComparers(keyColumnCount, schema);
             return New<TImpl>(
                 keyColumnCount,
                 schema,
                 std::move(ddComparer),
-                std::move(duComparer));
+                std::move(duComparer),
+                std::move(uuComparer));
         } else
 #endif
         {
@@ -91,6 +96,21 @@ public:
                 rhs.Row.GetCount());
         } else {
             return Compare(lhs, rhs.Row.Begin(), rhs.Row.GetCount());
+        }
+    }
+
+    int operator()(
+        const TUnversionedValue* lhsBegin,
+        const TUnversionedValue* lhsEnd,
+        const TUnversionedValue* rhsBegin,
+        const TUnversionedValue* rhsEnd) const
+    {
+        if (UUComparer_) {
+            YCHECK(lhsEnd - lhsBegin == KeyColumnCount_);
+            YCHECK(rhsEnd - rhsBegin == KeyColumnCount_);
+            return UUComparer_(lhsBegin, rhsBegin);
+        } else {
+            return CompareRows(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
         }
     }
 
@@ -279,6 +299,7 @@ private:
     const TTableSchema Schema_;
     TCGFunction<TDDComparerSignature> DDComparer_;
     TCGFunction<TDUComparerSignature> DUComparer_;
+    TCGFunction<TUUComparerSignature> UUComparer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -312,6 +333,15 @@ int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TRowWrapper rhs) const
 int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TKeyWrapper rhs) const
 {
     return Impl_->operator()(lhs, rhs);
+}
+
+int TDynamicRowKeyComparer::operator()(
+    const TUnversionedValue* lhsBegin,
+    const TUnversionedValue* lhsEnd,
+    const TUnversionedValue* rhsBegin,
+    const TUnversionedValue* rhsEnd) const
+{
+    return Impl_->operator()(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
