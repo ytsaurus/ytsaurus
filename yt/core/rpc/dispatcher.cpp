@@ -1,19 +1,61 @@
-#include "stdafx.h"
 #include "dispatcher.h"
 
-#include <util/generic/singleton.h>
+#include <core/misc/lazy_ptr.h>
+
+#include <core/concurrency/action_queue.h>
 
 namespace NYT {
 namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int ThreadPoolSize = 8;
+class TDispatcher::TImpl
+{
+public:
+    TImpl()
+        : PoolSize_(8)
+        , Pool_(BIND(
+            NYT::New<NConcurrency::TThreadPool, const int&, const Stroka&>,
+            ConstRef(PoolSize_),
+            "Rpc"))
+    { }
 
-////////////////////////////////////////////////////////////////////////////////
+    void Configure(int poolSize)
+    {
+        if (PoolSize_ == poolSize) {
+            return;
+        }
+
+        // We believe in proper memory ordering here.
+        YCHECK(!Pool_.HasValue());
+        PoolSize_ = poolSize;
+        // This is not redundant, since the check and the assignment above are
+        // not atomic and (adversary) thread can initialize thread pool in parallel.
+        YCHECK(!Pool_.HasValue());
+    }
+
+    IInvokerPtr GetInvoker()
+    {
+        return Pool_->GetInvoker();
+    }
+
+    void Shutdown()
+    {
+        if (Pool_.HasValue()) {
+            Pool_->Shutdown();
+        }
+    }
+
+private:
+    int PoolSize_;
+    TLazyIntrusivePtr<NConcurrency::TThreadPool> Pool_;
+};
 
 TDispatcher::TDispatcher()
-    : ThreadPool(New<NConcurrency::TThreadPool>(ThreadPoolSize, "Rpc"))
+    : Impl_(new TImpl())
+{ }
+
+TDispatcher::~TDispatcher()
 { }
 
 TDispatcher* TDispatcher::Get()
@@ -21,14 +63,19 @@ TDispatcher* TDispatcher::Get()
     return Singleton<TDispatcher>();
 }
 
-IInvokerPtr TDispatcher::GetPoolInvoker()
+void TDispatcher::Configure(int poolSize)
 {
-    return ThreadPool->GetInvoker();
+    Impl_->Configure(poolSize);
 }
 
 void TDispatcher::Shutdown()
 {
-    ThreadPool->Shutdown();
+    Impl_->Shutdown();
+}
+
+IInvokerPtr TDispatcher::GetPoolInvoker()
+{
+    return Impl_->GetInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
