@@ -1115,3 +1115,23 @@ TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+//! A hasher for TFuture.
+template <class T>
+struct hash<NYT::TFuture<T>>
+{
+    size_t operator () (const NYT::TFuture<T>& future) const
+    {
+        return THash<NYT::TIntrusivePtr<NYT::NDetail::TFutureState<T>>>()(future.Impl_);
+    }
+};
+
+//! A hasher for TPromise.
+template <class T>
+struct hash<NYT::TPromise<T>>
+{
+    size_t operator () (const NYT::TPromise<T>& promise) const
+    {
+        return THash<NYT::TIntrusivePtr<NYT::NDetail::TPromiseState<T>>>()(promise.Impl_);
+    }
+};
