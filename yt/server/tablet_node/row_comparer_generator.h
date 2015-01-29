@@ -14,14 +14,16 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef int(TDDComparerSignature)(ui32, TDynamicValueData*, ui32, TDynamicValueData*);
-typedef int(TDUComparerSignature)(ui32, TDynamicValueData*, TUnversionedValue*, int);
+typedef int(TDDComparerSignature)(ui32, const TDynamicValueData*, ui32, const TDynamicValueData*);
+typedef int(TDUComparerSignature)(ui32, const TDynamicValueData*, const TUnversionedValue*, int);
+typedef int(TUUComparerSignature)(const TUnversionedValue*, const TUnversionedValue*);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::tuple<
     NCodegen::TCGFunction<TDDComparerSignature>,
-    NCodegen::TCGFunction<TDUComparerSignature>>
+    NCodegen::TCGFunction<TDUComparerSignature>,
+    NCodegen::TCGFunction<TUUComparerSignature>>
 GenerateComparers(int keyColumnCount, const TTableSchema& schema);
 
 ////////////////////////////////////////////////////////////////////////////////

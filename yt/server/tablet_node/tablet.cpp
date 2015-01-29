@@ -519,6 +519,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot() const
     tabletSnapshot->KeyColumns = KeyColumns_;
     tabletSnapshot->Eden = Eden_->BuildSnapshot();
     tabletSnapshot->Partitions.reserve(PartitionList_.size());
+    tabletSnapshot->RowKeyComparer = GetRowKeyComparer();
     for (const auto& partition : PartitionList_) {
         auto partitionSnapshot = partition->BuildSnapshot();
         tabletSnapshot->Partitions.push_back(partitionSnapshot);
@@ -577,7 +578,7 @@ TPartition* TTablet::GetContainingPartition(IStorePtr store)
     return GetContainingPartition(store->GetMinKey(), store->GetMaxKey());
 }
 
-TDynamicRowKeyComparer TTablet::GetDynamicRowKeyComparer() const
+TDynamicRowKeyComparer TTablet::GetRowKeyComparer() const
 {
     return Comparer_;
 }

@@ -41,6 +41,8 @@ struct TTabletSnapshot
 
     int StoreCount = 0;
 
+    TDynamicRowKeyComparer RowKeyComparer;
+
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
         const TOwningKey& lowerBound,
@@ -142,7 +144,7 @@ public:
 
     TTabletSnapshotPtr BuildSnapshot() const;
 
-    TDynamicRowKeyComparer GetDynamicRowKeyComparer() const;
+    TDynamicRowKeyComparer GetRowKeyComparer() const;
 
 private:
     TTableMountConfigPtr Config_;

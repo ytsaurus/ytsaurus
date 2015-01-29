@@ -485,6 +485,8 @@ private:
             WaitFor(reader->Open())
                 .ThrowOnError();
 
+            const auto& rowComparer = tablet->GetRowKeyComparer();
+
             for (auto it = pivotKeys.begin(); it != pivotKeys.end(); ++it) {
                 currentPivotKey = *it;
                 nextPivotKey = it == pivotKeys.end() - 1 ? nextTabletPivotKey : *(it + 1);
@@ -494,9 +496,9 @@ private:
                     if (!row)
                         break;
 
-                    YCHECK(CompareRows(currentPivotKey.Begin(), currentPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0);
+                    YCHECK(rowComparer(currentPivotKey.Begin(), currentPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0);
 
-                    if (CompareRows(nextPivotKey.Begin(), nextPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0)
+                    if (rowComparer(nextPivotKey.Begin(), nextPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0)
                         break;
 
                     skipInputRow();

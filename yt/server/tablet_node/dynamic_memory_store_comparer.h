@@ -56,6 +56,11 @@ public:
     int operator()(TDynamicRow lhs, TDynamicRow rhs) const;
     int operator()(TDynamicRow lhs, TRowWrapper rhs) const;
     int operator()(TDynamicRow lhs, TKeyWrapper rhs) const;
+    int operator()(
+        const TUnversionedValue* lhsBegin,
+        const TUnversionedValue* lhsEnd,
+        const TUnversionedValue* rhsBegin,
+        const TUnversionedValue* rhsEnd) const;
 
 private:
     class TImpl;
