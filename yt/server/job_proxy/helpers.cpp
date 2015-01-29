@@ -43,7 +43,6 @@ TContextPreservingInput::TContextPreservingInput(
 
 void TContextPreservingInput::PipeReaderToOutput(TOutputStream* outputStream)
 {
-
     std::vector<TUnversionedRow> rows;
     rows.reserve(BufferRowCount);
     while (Reader_->Read(&rows)) {
@@ -81,7 +80,10 @@ void TContextPreservingInput::WriteRows(const std::vector<TUnversionedRow>& rows
     std::vector<TUnversionedRow> oneRow(1, TUnversionedRow());
     for (auto row : rows) {
         oneRow[0] = row;
-        YCHECK(Writer_->Write(oneRow));
+        if (!Writer_->Write(oneRow)) {
+            WaitFor(Writer_->GetReadyEvent())
+                .ThrowOnError();
+        }
         
         if (CurrentBuffer_.Size() < BufferSize) {
             continue;
