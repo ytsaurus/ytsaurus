@@ -1085,6 +1085,8 @@ private:
         auto* mutationContext = hydraManager->GetMutationContext();
         auto nodeTracker = Bootstrap_->GetNodeTracker();
 
+        AbortPrerequisiteTransaction(cell);
+
         YCHECK(request.node_ids_size() == cell->Peers().size());
         for (TPeerId peerId = 0; peerId < request.node_ids_size(); ++peerId) {
             auto nodeId = request.node_ids(peerId);
@@ -1403,8 +1405,6 @@ private:
 
     void StartPrerequisiteTransaction(TTabletCell* cell)
     {
-        AbortPrerequisiteTransaction(cell);
-
         auto transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->StartTransaction(nullptr, Null);
 
@@ -1413,6 +1413,7 @@ private:
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->FillAttributes(transaction, *attributes);
 
+        YCHECK(!cell->GetPrerequisiteTransaction());
         cell->SetPrerequisiteTransaction(transaction);
         YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
 
