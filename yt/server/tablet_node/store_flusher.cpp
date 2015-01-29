@@ -352,7 +352,9 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
             }
 
+            std::vector<TChunkId> chunkIds;
             for (const auto& chunkSpec : writer->GetWrittenChunks()) {
+                chunkIds.push_back(FromProto<TChunkId>(chunkSpec.chunk_id()));
                 auto* descriptor = hydraRequest.add_stores_to_add();
                 descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
@@ -364,7 +366,8 @@ private:
             CreateMutation(slot->GetHydraManager(), hydraRequest)
                 ->Commit();
 
-            LOG_INFO("Store flush completed");
+            LOG_INFO("Store flush completed (ChunkIds: [%v])",
+                JoinToString(chunkIds));
 
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {
