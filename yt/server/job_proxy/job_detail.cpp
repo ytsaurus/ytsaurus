@@ -43,6 +43,12 @@ TDuration TJob::GetElapsedTime() const
     return TInstant::Now() - StartTime;
 }
 
+std::vector<NChunkClient::TChunkId> TJob::GenerateInputContext()
+{
+	YUNREACHABLE();
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleJobBase::TSimpleJobBase(IJobHost* host)

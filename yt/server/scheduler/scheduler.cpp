@@ -2271,8 +2271,3 @@ void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
 
 } // namespace NScheduler
 } // namespace NYT
-<<<<<<< HEAD
-
-
-=======
->>>>>>> Implement scheduler-side job probe service

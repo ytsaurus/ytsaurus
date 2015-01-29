@@ -8,6 +8,8 @@
 
 #include <core/logging/log.h>
 
+#include <ytlib/job_tracker_client/public.h>
+
 #include <server/job_agent/public.h>
 
 #include <server/exec_agent/supervisor_service_proxy.h>
@@ -29,6 +31,8 @@ public:
     void Run();
 
     IInvokerPtr GetControlInvoker() const;
+
+    virtual std::vector<NChunkClient::TChunkId> GenerateInputContext(const NJobTrackerClient::TJobId& jobId) override;
 
 private:
     TJobProxyConfigPtr Config_;

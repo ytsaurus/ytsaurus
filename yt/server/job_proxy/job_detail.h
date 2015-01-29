@@ -31,6 +31,8 @@ protected:
 
     TDuration GetElapsedTime() const;
 
+    std::vector<NChunkClient::TChunkId> GenerateInputContext() override;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -96,6 +96,20 @@ TJobProxy::TJobProxy(
     Logger.AddTag("JobId: %v", JobId_);
 }
 
+std::vector<NChunkClient::TChunkId> TJobProxy::GenerateInputContext(const TJobId& jobId)
+{
+    if (JobId_ != jobId) {
+        THROW_ERROR_EXCEPTION("Job id mismatch");
+    }
+
+    if (!Job_) {
+        THROW_ERROR_EXCEPTION("Job is not started yet");
+    }
+
+    return Job_->GenerateInputContext();
+}
+
+
 void TJobProxy::SendHeartbeat()
 {
     auto req = SupervisorProxy_->OnJobProgress();
