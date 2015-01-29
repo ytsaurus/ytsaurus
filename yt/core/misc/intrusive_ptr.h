@@ -3,8 +3,8 @@
 #include "assert.h"
 #include "mpl.h"
 
-// For DoSwap
 #include <util/generic/utility.h>
+#include <util/generic/hash.h>
 
 // For std::move
 #include <utility>
@@ -347,3 +347,13 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 } //namespace NYT
+
+//! A hasher for TIntrusivePtr.
+template <class T>
+struct hash<NYT::TIntrusivePtr<T>>
+{
+    size_t operator () (const NYT::TIntrusivePtr<T>& ptr) const
+    {
+        return THash<T*>()(ptr.Get());
+    }
+};

@@ -1,20 +1,8 @@
 #pragma once
 
-#include "intrusive_ptr.h"
-
 #include <util/generic/hash.h>
 
 ////////////////////////////////////////////////////////////////////////////////
-
-//! A hasher for TIntrusivePtr.
-template <class T>
-struct hash<NYT::TIntrusivePtr<T>>
-{
-    size_t operator () (const NYT::TIntrusivePtr<T>& ptr) const
-    {
-        return THash<T*>()(ptr.Get());
-    }
-};
 
 //! Combines a pair of hash values.
 //! Cf. |boost::hash_combine|.
