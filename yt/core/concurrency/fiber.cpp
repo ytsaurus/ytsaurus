@@ -55,7 +55,6 @@ TFiber::TFiber(TClosure callee, EExecutionStack stack)
     , Callee_(std::move(callee))
     , Stack_(CreateExecutionStack(stack))
     , Context_(CreateExecutionContext(Stack_.get(), &TFiber::Trampoline))
-    , Canceled_(false)
 {
 #ifdef DEBUG
     TGuard<std::atomic_flag> guard(FiberRegistryLock);
@@ -144,11 +143,11 @@ void TFiber::Cancel()
     }
 
     if (awaitedFuture) {
-        LOG_DEBUG("Sending cancelation to fiber %x, propagating to the awaited future",
+        LOG_DEBUG("Sending cancelation to fiber %" PRIx64 ", propagating to the awaited future",
             Id_);
         awaitedFuture.Cancel();
     } else {
-        LOG_DEBUG("Sending cancelation to fiber %x",
+        LOG_DEBUG("Sending cancelation to fiber %" PRIx64,
             Id_);
     }
 }
