@@ -170,6 +170,12 @@ class TestTablets(YTEnvSetup):
         actual = select("* from [//tmp/t]");
         self.assertItemsEqual(expected, actual);
 
+        insert("//tmp/t", [{"key1": 2, "value": 2}])
+        delete("//tmp/t", [1])
+        expected = [{"key1": 2, "key2": 2, "value": 2}]
+        actual = select("* from [//tmp/t]");
+        self.assertItemsEqual(expected, actual);
+
     def test_no_copy(self):
         self._sync_create_cells(1, 1)
         self._create_table("//tmp/t1")
