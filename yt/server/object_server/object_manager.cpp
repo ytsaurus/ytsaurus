@@ -1062,6 +1062,10 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
         auto handler = GetHandler(type);
         auto* object = handler->GetObject(id);
 
+        // FIXME(babenko)
+        if (IsObjectAlive(object))
+            continue;
+
         // NB: The order of Dequeue/Destroy/CheckEmpty calls matters.
         // CheckEmpty will raise CollectPromise_ when GC queue becomes empty.
         // To enable cascaded GC sweep we don't want this to happen
@@ -1077,7 +1081,6 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
 
     GarbageCollector_->CheckEmpty();
 }
-
 
 NProfiling::TProfiler& TObjectManager::GetProfiler()
 {
