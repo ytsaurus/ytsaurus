@@ -408,7 +408,7 @@ while True:
     else:
         extract_value_script = extract_value_script_to_worm
         kiwi_command = kiwi_client.kwworm.format(kiwi_url=kiwi_client.url, kiwi_user=kiwi_user)
-        write_command = "| {0} 2>&1 >output; cat output; tail -n 100 output >&2".format(kiwi_command)
+        write_command = "| {0} >output 2>&1; RESULT=$?; cat output; tail -n 100 output >&2; exit $RESULT".format(kiwi_command)
         output_format = yt.SchemafulDsvFormat(columns=["error"])
 
     tmp_dir = tempfile.mkdtemp()
