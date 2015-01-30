@@ -1972,13 +1972,68 @@ private:
         TTransaction* const Transaction_;
         const TYPath Path_;
         const TNameTablePtr NameTable_;
-
         TTableMountInfoPtr TableInfo_;
+    };
 
+    class TModifyRequest
+        : public TRequestBase
+    {
+    protected:
+        using TRowValidator = std::function<void(TUnversionedRow, int, const TNameTableToSchemaIdMapping&, const TTableSchema&)>;
+
+        TModifyRequest(
+            TTransaction* transaction,
+            const TYPath& path,
+            TNameTablePtr nameTable)
+            : TRequestBase(transaction, path, std::move(nameTable))
+        { }
+
+        void Run(
+            std::vector<TUnversionedRow>& rows,
+            const ::google::protobuf::MessageLite& req,
+            EWireProtocolCommand command,
+            int columnCount,
+            TRowValidator validateRow)
+        {
+            const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
+            int keyColumnCount = TableInfo_->KeyColumns.size();
+
+            auto writeRequest = [&] (const TUnversionedRow row, const TNameTableToSchemaIdMapping* idMapping) {
+                auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
+                auto* writer = Transaction_->GetTabletWriter(tabletInfo);
+                writer->WriteCommand(command);
+                writer->WriteMessage(req);
+                writer->WriteUnversionedRow(row, idMapping);
+            };
+
+            if (TableInfo_->NeedKeyEvaluation) {
+                TRowBuffer buffer;
+                auto trivialIdMapping = TNameTableToSchemaIdMapping(columnCount);
+
+                for (int index = 0; index < columnCount; ++index) {
+                    trivialIdMapping[index] = index;
+                }
+
+                for (auto row : rows) {
+                    auto tempRow = TUnversionedRow::Allocate(buffer.GetAlignedPool(), columnCount);
+                    TableInfo_->EvaluateKeys(tempRow, buffer, row, idMapping);
+
+                    validateRow(tempRow, keyColumnCount, trivialIdMapping, TableInfo_->Schema);
+                    writeRequest(tempRow, nullptr);
+
+                    buffer.Clear();
+                }
+            } else {
+                for (auto row : rows) {
+                    validateRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
+                    writeRequest(row, &idMapping);
+                }
+            }
+        }
     };
 
     class TWriteRequest
-        : public TRequestBase
+        : public TModifyRequest
     {
     public:
         TWriteRequest(
@@ -1987,74 +2042,32 @@ private:
             TNameTablePtr nameTable,
             std::vector<TUnversionedRow> rows,
             const TWriteRowsOptions& options)
-            : TRequestBase(transaction, path, std::move(nameTable))
+            : TModifyRequest(transaction, path, std::move(nameTable))
             , Rows_(std::move(rows))
             , Options_(options)
         { }
 
         virtual void Run() override
         {
-            TRequestBase::Run();
-
-            const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
-            int keyColumnCount = static_cast<int>(TableInfo_->KeyColumns.size());
-
             TReqWriteRow req;
             req.set_lock_mode(static_cast<int>(Options_.LockMode));
 
-            if (TableInfo_->NeedKeyEvaluation) {
-                TRowBuffer buffer;
-                TChunkedMemoryPool pool;
-                int columnCount = TableInfo_->Schema.Columns().size();
-                auto tempRow = TUnversionedRow::Allocate(&pool, columnCount);
-                auto trivialIdMapping = TNameTableToSchemaIdMapping(columnCount);
-
-                for (int index = 0; index < columnCount; ++index) {
-                    trivialIdMapping[index] = index;
-                }
-
-                for (auto row : Rows_) {
-                    for (int index = 0; index < columnCount; ++index) {
-                        tempRow[index].Type = EValueType::Null;
-                    }
-                    for (int index = 0; index < row.GetCount(); ++index) {
-                        tempRow[idMapping[row[index].Id]] = row[index];
-                    }
-
-                    TableInfo_->EvaluateKeys(tempRow, buffer);
-
-                    for (int index = 0; index < columnCount; ++index) {
-                        tempRow[index].Id = index;
-                    }
-
-                    ValidateClientDataRow(tempRow, keyColumnCount, trivialIdMapping, TableInfo_->Schema);
-                    auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, tempRow);
-                    auto* writer = Transaction_->GetTabletWriter(tabletInfo);
-                    writer->WriteCommand(EWireProtocolCommand::WriteRow);
-                    writer->WriteMessage(req);
-                    writer->WriteUnversionedRow(tempRow, nullptr);
-                    buffer.Clear();
-                }
-            } else {
-                for (auto row : Rows_) {
-                    ValidateClientDataRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
-                    auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
-                    auto* writer = Transaction_->GetTabletWriter(tabletInfo);
-                    writer->WriteCommand(EWireProtocolCommand::WriteRow);
-                    writer->WriteMessage(req);
-                    writer->WriteUnversionedRow(row, &idMapping);
-                }
-            }
+            TRequestBase::Run();
+            TModifyRequest::Run(
+                Rows_,
+                req,
+                EWireProtocolCommand::WriteRow,
+                TableInfo_->Schema.Columns().size(),
+                ValidateClientDataRow);
         }
 
     private:
         std::vector<TUnversionedRow> Rows_;
         const TWriteRowsOptions Options_;
-
     };
 
     class TDeleteRequest
-        : public TRequestBase
+        : public TModifyRequest
     {
     public:
         TDeleteRequest(
@@ -2063,7 +2076,7 @@ private:
             TNameTablePtr nameTable,
             std::vector<NVersionedTableClient::TKey> keys,
             const TDeleteRowsOptions& options)
-            : TRequestBase(transaction, path, std::move(nameTable))
+            : TModifyRequest(transaction, path, std::move(nameTable))
             , Keys_(std::move(keys))
             , Options_(options)
         { }
@@ -2071,26 +2084,23 @@ private:
         virtual void Run() override
         {
             TRequestBase::Run();
-
-            const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
-            int keyColumnCount = static_cast<int>(TableInfo_->KeyColumns.size());
-            for (auto key : Keys_) {
-                ValidateClientKey(key, keyColumnCount, TableInfo_->Schema);
-                
-                TReqDeleteRow req;
-
-                auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, key);
-                auto* writer = Transaction_->GetTabletWriter(tabletInfo);
-                writer->WriteCommand(EWireProtocolCommand::DeleteRow);
-                writer->WriteMessage(req);
-                writer->WriteUnversionedRow(key, &idMapping);
-            }
+            TModifyRequest::Run(
+                Keys_,
+                TReqDeleteRow(),
+                EWireProtocolCommand::DeleteRow,
+                TableInfo_->KeyColumns.size(),
+                [] (TUnversionedRow row,
+                    int keyColumnCount,
+                    const TNameTableToSchemaIdMapping& idMapping,
+                    const TTableSchema& schema)
+                {
+                    ValidateClientKey(row, keyColumnCount, schema);
+                });
         }
 
     private:
         std::vector<TUnversionedRow> Keys_;
         const TDeleteRowsOptions Options_;
-
     };
 
     std::vector<std::unique_ptr<TRequestBase>> Requests_;
