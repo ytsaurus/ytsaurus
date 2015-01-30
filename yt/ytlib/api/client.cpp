@@ -1141,8 +1141,26 @@ private:
         typedef std::pair<int, NVersionedTableClient::TKey> TIndexedKey;
         std::vector<TIndexedKey> sortedKeys;
         sortedKeys.reserve(keys.size());
-        for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
-            sortedKeys.push_back(std::make_pair(index, keys[index]));
+
+        TRowBuffer buffer;
+
+        if (tableInfo->NeedKeyEvaluation) {
+            for (int keyIndex = 0; keyIndex < keys.size(); ++keyIndex) {
+                const auto& key = keys[keyIndex];
+                auto tempKey = TUnversionedRow::Allocate(buffer.GetAlignedPool(), keyColumnCount);
+                tableInfo->EvaluateKeys(tempKey, buffer, key, idMapping);
+                sortedKeys.push_back(std::make_pair(keyIndex, tempKey));
+            }
+
+            auto trivialIdMapping = TNameTableToSchemaIdMapping(keyColumnCount);
+            for (int index = 0; index < keyColumnCount; ++index) {
+                trivialIdMapping[index] = index;
+            }
+            idMapping = std::move(trivialIdMapping);
+        } else {
+            for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
+                sortedKeys.push_back(std::make_pair(index, keys[index]));
+            }
         }
         std::sort(
             sortedKeys.begin(),

@@ -192,10 +192,15 @@ def insert(path, value, is_raw=False, **kwargs):
     kwargs["path"] = path
     return command("insert", kwargs, input_stream=StringIO(value))
 
-def delete(path, key, is_raw=False, **kwargs):
+def delete(path, key, **kwargs):
     kwargs["path"] = path
     kwargs["key"] = key
     return command("delete", kwargs)
+
+def lookup(path, key, **kwargs):
+    kwargs["path"] = path
+    kwargs["key"] = key
+    return execute_command_with_output_format("lookup", kwargs)
 
 def start_transaction(**kwargs):
     out = command("start_tx", kwargs)
