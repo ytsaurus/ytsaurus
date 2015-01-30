@@ -171,6 +171,13 @@ class TestTablets(YTEnvSetup):
         self.assertItemsEqual(expected, actual);
 
         insert("//tmp/t", [{"key1": 2, "value": 2}])
+        expected = [{"key1": 1, "key2": 1, "value": 2}]
+        actual = lookup("//tmp/t", [1]);
+        self.assertItemsEqual(expected, actual);
+        expected = [{"key1": 2, "key2": 2, "value": 2}]
+        actual = lookup("//tmp/t", [2]);
+        self.assertItemsEqual(expected, actual);
+
         delete("//tmp/t", [1])
         expected = [{"key1": 2, "key2": 2, "value": 2}]
         actual = select("* from [//tmp/t]");
