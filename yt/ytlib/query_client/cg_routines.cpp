@@ -139,8 +139,6 @@ void ScanOpHelper(
     }
 }
 
-#ifdef YT_USE_CODEGENED_HASH
-    
 void GroupOpHelper(
     void** consumeRowsClosure,
     void (*consumeRows)(
@@ -156,34 +154,10 @@ void GroupOpHelper(
         groupHasher,
         groupComparer);
 
-#ifdef YT_USE_GOOGLE_HASH
     lookupRows.set_empty_key(TRow());
-#endif
 
     consumeRows(consumeRowsClosure, &groupedRows, &lookupRows);
 }
-
-#else
-
-void GroupOpHelper(
-    int keySize,
-    int aggregateItemCount,
-    void** consumeRowsClosure,
-    void (*consumeRows)(
-        void** closure,
-        std::vector<TRow>* groupedRows,
-        TLookupRows* rows))
-{
-    std::vector<TRow> groupedRows;
-    TLookupRows lookupRows(
-        InitialGroupOpHashtableCapacity,
-        NDetail::TGroupHasher(keySize),
-        NDetail::TGroupComparer(keySize));
-
-    consumeRows(consumeRowsClosure, &groupedRows, &lookupRows);
-}
-
-#endif
 
 const TRow* FindRow(TExecutionContext* executionContext, TLookupRows* rows, TRow row)
 {
@@ -191,22 +165,6 @@ const TRow* FindRow(TExecutionContext* executionContext, TLookupRows* rows, TRow
 
     auto it = rows->find(row);
     return it != rows->end()? &*it : nullptr;
-}
-
-void AddRow(
-    TExecutionContext* executionContext,
-    TLookupRows* lookupRows,
-    std::vector<TRow>* groupedRows,
-    TRow* newRow,
-    int valueCount)
-{
-    CHECK_STACK()
-
-    --executionContext->OutputRowLimit;
-
-    groupedRows->push_back(executionContext->PermanentBuffer->Capture(*newRow));
-    lookupRows->insert(groupedRows->back());
-    *newRow = TRow::Allocate(executionContext->IntermediateBuffer->GetAlignedPool(), valueCount);
 }
 
 void AllocatePersistentRow(TExecutionContext* executionContext, int valueCount, TRow* row)
@@ -368,7 +326,6 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(GroupOpHelper);
     REGISTER_ROUTINE(StringHash);
     REGISTER_ROUTINE(FindRow);
-    REGISTER_ROUTINE(AddRow);
     REGISTER_ROUTINE(InsertGroupRow);
     REGISTER_ROUTINE(AllocatePersistentRow);
     REGISTER_ROUTINE(AllocateRow);

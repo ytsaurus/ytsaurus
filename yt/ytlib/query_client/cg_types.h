@@ -16,9 +16,7 @@
 #include <unordered_set>
 #include <unordered_map>
 
-#ifdef YT_USE_GOOGLE_HASH
 #include <sparsehash/dense_hash_set>
-#endif
 
 // This file serves two purposes: first, to define types used during interaction
 // of native and JIT'ed code; second, to map necessary C++ types to LLVM types.
@@ -64,10 +62,6 @@ struct TExecutionContext
 
 namespace NDetail {
 
-#ifdef YT_USE_CODEGENED_HASH
-
-#ifdef YT_USE_GOOGLE_HASH
-
 typedef ui64 (*TGroupHasherFunc)(TRow);
 typedef char (*TGroupComparerFunc)(TRow, TRow);
 
@@ -97,67 +91,10 @@ struct TGroupComparer
     }
 };
 
-#else
-
-typedef ui64 (*TGroupHasher)(TRow);
-typedef char (*TGroupComparer)(TRow, TRow);
-
-#endif
-
-#else
-
-class TGroupHasher
-{
-public:
-    explicit TGroupHasher(int keySize)
-        : KeySize_(keySize)
-    { }
-
-    size_t operator() (TRow key) const
-    {
-        size_t result = 0;
-        for (int i = 0; i < KeySize_; ++i) {
-            result = HashCombine(result, key[i]);
-        }
-        return result;
-    }
-
-private:
-    int KeySize_;
-
-};
-
-class TGroupComparer
-{
-public:
-    explicit TGroupComparer(int keySize)
-        : KeySize_(keySize)
-    { }
-
-    bool operator() (TRow lhs, TRow rhs) const
-    {
-        for (int i = 0; i < KeySize_; ++i) {
-            if (CompareRowValues(lhs[i], rhs[i]) != 0) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-private:
-    int KeySize_;
-
-};
-
-#endif
 } // namespace NDetail
 
 typedef
-#ifdef YT_USE_GOOGLE_HASH
     google::sparsehash::dense_hash_set
-#else
-    std::unordered_set
-#endif
     <TRow, NDetail::TGroupHasher, NDetail::TGroupComparer>
     TLookupRows;
 
