@@ -133,7 +133,6 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
     MergedRow_ = TUnversionedRow();
 
     Cleanup();
-    Magic(STRINGBUF("TUnversionedRowMerger::BuildMergedRow"), mergedRow);
     return mergedRow;
 }
 
