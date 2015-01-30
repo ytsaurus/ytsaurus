@@ -4,9 +4,6 @@
 #include <ytlib/new_table_client/public.h>
 #include <ytlib/node_tracker_client/public.h>
 
-#define YT_USE_CODEGENED_HASH
-#define YT_USE_GOOGLE_HASH
-
 // TODO(babenko): kill this when refactoring TDataSplit
 namespace NYT { namespace NChunkClient { namespace NProto {
     class TChunkSpec;
