@@ -1350,15 +1350,6 @@ TUnversionedOwningRow BuildRow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("MAGIC");
-
-void Magic(const TStringBuf& what, TUnversionedRow row)
-{
-    if (row && row.GetCount() >= 2 && row[1].Type == EValueType::Int64 && row[1].Data.Int64 % 256 == 3) {
-        LOG_DEBUG("%v %v", what, row);
-    }
-}
-
 } // namespace NVersionedTableClient
 } // namespace NYT
 
