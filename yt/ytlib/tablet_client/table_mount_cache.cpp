@@ -44,7 +44,9 @@ using namespace NCypressClient;
 using namespace NVersionedTableClient;
 using namespace NHive;
 using namespace NNodeTrackerClient;
+#ifdef YT_USE_LLVM
 using namespace NQueryClient;
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,6 +113,30 @@ void TTableMountInfo::EvaluateKeys(TUnversionedRow fullRow, TRowBuffer& buffer)
 #else
     THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
 #endif
+}
+
+void TTableMountInfo::EvaluateKeys(
+    TUnversionedRow fullRow,
+    TRowBuffer& buffer,
+    const TUnversionedRow partialRow,
+    const TNameTableToSchemaIdMapping& idMapping)
+{
+    int columnCount = fullRow.GetCount();
+
+    for (int index = 0; index < columnCount; ++index) {
+        fullRow[index].Type = EValueType::Null;
+    }
+
+    for (int index = 0; index < partialRow.GetCount(); ++index) {
+        YCHECK(idMapping[partialRow[index].Id] < columnCount);
+        fullRow[idMapping[partialRow[index].Id]] = partialRow[index];
+    }
+
+    EvaluateKeys(fullRow, buffer);
+
+    for (int index = 0; index < columnCount; ++index) {
+        fullRow[index].Id = index;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
