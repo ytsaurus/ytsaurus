@@ -289,6 +289,9 @@ private:
         }
 
         try {
+            if (FindCommit(transactionId)) {
+                THROW_ERROR_EXCEPTION("Transaction %v is being committed");
+            }
             // Any exception thrown here is caught below.
             TransactionManager_->PrepareTransactionAbort(transactionId, force);
         } catch (const std::exception& ex) {
