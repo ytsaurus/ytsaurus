@@ -40,6 +40,13 @@ const char IntegerMarker = char(2);
 //! Marks the beginning of a binary double literal.
 const char DoubleMarker = char(3);
 
+//! It is necessary to throw proper error.
+//! Marks true and false values of boolean.
+const char FalseMarker = '\x04';
+const char TrueMarker = '\x05';
+//! Marks the beginning of a binary ui64 literal.
+const char Uint64Marker = '\x06';
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYson

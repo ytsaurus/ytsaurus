@@ -20,11 +20,11 @@ private:
     TConsumer* Consumer;
 
 public:
-    TParser(const TBlockStream& blockStream, TConsumer* consumer, TNullable<i64> memoryLimit) 
+    TParser(const TBlockStream& blockStream, TConsumer* consumer, TNullable<i64> memoryLimit)
         : TBase(blockStream, memoryLimit)
         , Consumer(consumer)
     { }
-    
+
     void DoParse(EYsonType ParsingMode)
     {
         switch (ParsingMode) {
@@ -67,11 +67,11 @@ public:
     void ParseMap()
     {
         Consumer->OnBeginMap();
-        ParseMapFragment(EndMapSymbol); 
+        ParseMapFragment(EndMapSymbol);
         TBase::SkipCharToken(EndMapSymbol);
         Consumer->OnEndMap();
     }
-    
+
     void ParseList()
     {
         Consumer->OnBeginList();
@@ -94,14 +94,14 @@ public:
             ParseAttributes();
             ch = TBase::SkipSpaceAndGetChar();
         }
-        
-        switch (ch) { 
-            case BeginMapSymbol: 
+
+        switch (ch) {
+            case BeginMapSymbol:
                 TBase::Advance(1);
-                ParseMap(); 
+                ParseMap();
                 break;
 
-            case BeginListSymbol: 
+            case BeginListSymbol:
                 TBase::Advance(1);
                 ParseList();
                 break;
@@ -134,6 +134,13 @@ public:
                 Consumer->OnDoubleScalar(value);
                 break;
             }
+            case FalseMarker:
+            case TrueMarker:
+                THROW_ERROR_EXCEPTION("Boolean values are not supported in 0.16");
+                break;
+            case Uint64Marker:
+                THROW_ERROR_EXCEPTION("Unsigned integers are not supported in 0.16");
+                break;
             case EntitySymbol:
                 TBase::Advance(1);
                 Consumer->OnEntity();
@@ -161,8 +168,8 @@ public:
     }
 
     void ParseKey(char ch)
-    {        
-        switch (ch) { 
+    {
+        switch (ch) {
             case '"': {
                 TBase::Advance(1);
                 TStringBuf value;
@@ -190,7 +197,7 @@ public:
             }
         }
     }
-    
+
     template <bool AllowFinish>
     void ParseMapFragment(char endSymbol)
     {
@@ -219,7 +226,7 @@ public:
                     ~Stroka(ch).Quote(),
                     ~TBase::GetPositionInfo());
             }
-            
+
         }
     }
 
@@ -246,7 +253,7 @@ public:
                     ~Stroka(endSymbol).Quote(),
                     ~Stroka(ch).Quote(),
                     ~TBase::GetPositionInfo());
-            }            
+            }
         }
     }
 
@@ -254,7 +261,7 @@ public:
     {
         ParseListFragment<false>(endSymbol);
     }
-    
+
     template <bool AllowFinish>
     void ReadNumeric()
     {
@@ -284,7 +291,7 @@ public:
             }
             Consumer->OnIntegerScalar(value);
         }
-    } 
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -293,9 +300,9 @@ public:
 
 template <class TConsumer, class TBlockStream>
 void ParseYsonStreamImpl(
-    const TBlockStream& blockStream, 
-    IYsonConsumer* consumer, 
-    EYsonType parsingMode = EYsonType::Node, 
+    const TBlockStream& blockStream,
+    IYsonConsumer* consumer,
+    EYsonType parsingMode = EYsonType::Node,
     bool enableLinePositionInfo = false,
     TNullable<i64> memoryLimit = Null)
 {
@@ -330,7 +337,7 @@ public:
     TStatelessYsonParserImpl(TConsumer* consumer)
         : Parser(TStringReader(), consumer, Null)
     { }
-    
+
     void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node) override
     {
         Parser.SetBuffer(data.begin(), data.end());
