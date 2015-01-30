@@ -128,7 +128,7 @@ private:
     std::shared_ptr<TExecutionStack> Stack_;
     TExecutionContext Context_;
 
-    std::atomic<bool> Canceled_;
+    std::atomic<bool> Canceled_ = {false};
     TClosure Canceler_;
     void Cancel();
 
