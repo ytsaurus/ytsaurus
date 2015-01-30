@@ -392,7 +392,7 @@ void TLookupCommand::DoExecute()
 
     auto lookupResult = WaitFor(Context_->GetClient()->LookupRow(
         Request_->Path.GetPath(),
-        nameTable,
+        TNameTable::FromSchema(tableInfo->Schema, true),
         Request_->Key.Get(),
         options));
     THROW_ERROR_EXCEPTION_IF_FAILED(lookupResult);
