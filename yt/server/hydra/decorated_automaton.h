@@ -127,6 +127,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(EPeerState, State);
 
     IInvokerPtr CreateGuardedUserInvoker(IInvokerPtr underlyingInvoker);
+    IInvokerPtr GetDefaultGuardedUserInvoker();
     IInvokerPtr GetSystemInvoker();
 
     TVersion GetLoggedVersion() const;
@@ -174,19 +175,18 @@ private:
     class TSystemInvoker;
     class TSnapshotBuilder;
 
-    TDistributedHydraManagerConfigPtr Config_;
-    NElection::TCellManagerPtr CellManager_;
-    IAutomatonPtr Automaton_;
+    const TDistributedHydraManagerConfigPtr Config_;
+    const NElection::TCellManagerPtr CellManager_;
+    const IAutomatonPtr Automaton_;
+    const IInvokerPtr AutomatonInvoker_;
+    const IInvokerPtr DefaultGuardedUserInvoker_;
+    const IInvokerPtr ControlInvoker_;
+    const IInvokerPtr SystemInvoker_;
+    const ISnapshotStorePtr SnapshotStore_;
+    const IChangelogStorePtr ChangelogStore_;
 
-    IInvokerPtr AutomatonInvoker_;
-    IInvokerPtr ControlInvoker_;
-
-    std::atomic<int> UserLock_;
-    std::atomic<int> SystemLock_;
-    IInvokerPtr SystemInvoker_;
-
-    ISnapshotStorePtr SnapshotStore_;
-    IChangelogStorePtr ChangelogStore_;
+    std::atomic<int> UserLock_ = {0};
+    std::atomic<int> SystemLock_ = {0};
 
     TEpochId Epoch_;
     TMutationContext* MutationContext_ = nullptr;

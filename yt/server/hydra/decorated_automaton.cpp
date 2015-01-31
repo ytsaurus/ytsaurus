@@ -365,9 +365,8 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , CellManager_(cellManager)
     , Automaton_(automaton)
     , AutomatonInvoker_(automatonInvoker)
+    , DefaultGuardedUserInvoker_(CreateGuardedUserInvoker(AutomatonInvoker_))
     , ControlInvoker_(controlInvoker)
-    , UserLock_(0)
-    , SystemLock_(0)
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(snapshotStore)
     , ChangelogStore_(changelogStore)
@@ -436,6 +435,13 @@ IInvokerPtr TDecoratedAutomaton::CreateGuardedUserInvoker(IInvokerPtr underlying
     VERIFY_THREAD_AFFINITY_ANY();
 
     return New<TGuardedUserInvoker>(this, underlyingInvoker);
+}
+
+IInvokerPtr TDecoratedAutomaton::GetDefaultGuardedUserInvoker()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return DefaultGuardedUserInvoker_;
 }
 
 IInvokerPtr TDecoratedAutomaton::GetSystemInvoker()
