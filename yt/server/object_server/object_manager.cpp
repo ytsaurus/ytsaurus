@@ -1038,7 +1038,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
     auto channel = cellManager->GetPeerChannel(epochContext->LeaderId);
 
     TObjectServiceProxy proxy(std::move(channel));
-    proxy.SetDefaultTimeout(timeout.Get(Config_->DefaultRpcForwardingTimeout));
+    proxy.SetDefaultTimeout(timeout.Get(Config_->ForwardingRpcTimeout));
 
     auto batchReq = proxy.ExecuteBatch();
     SetAuthenticatedUser(batchReq, user->GetName());
