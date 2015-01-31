@@ -37,6 +37,7 @@ TClientOptions GetRootClientOptions();
 
 DEFINE_ENUM(EMasterChannelKind,
     (Leader)
+    (Follower)
     (LeaderOrFollower)
     (Cache)
 );

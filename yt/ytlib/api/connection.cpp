@@ -70,27 +70,19 @@ public:
         TCallback<bool(const TError&)> isRetriableError)
         : Config_(config)
     {
-        MasterChannels_[EMasterChannelKind::Leader] = CreatePeerChannel(
-            Config_->Master,
-            isRetriableError,
-            EPeerKind::Leader);
-
-        // TODO(babenko): read from followers
-        //MasterChannels_[EMasterChannelKind::LeaderOrFollower] = CreatePeerChannel(
-        //    Config_->Master,
-        //    isRetriableError,
-        //    EPeerKind::LeaderOrFollower);
-        MasterChannels_[EMasterChannelKind::LeaderOrFollower] = MasterChannels_[EMasterChannelKind::Leader];
-
-        if (Config_->MasterCache) {
-            MasterChannels_[EMasterChannelKind::Cache] = CreatePeerChannel(
-                Config_->MasterCache,
+        auto initMasterChannel = [&] (EMasterChannelKind channelKind, TMasterConnectionConfigPtr config, EPeerKind peerKind) {
+            MasterChannels_[channelKind] = CreatePeerChannel(
+                config,
                 isRetriableError,
-                EPeerKind::LeaderOrFollower);
-        } else {
-            // Disable cache.
-            MasterChannels_[EMasterChannelKind::Cache] = GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
-        }
+                peerKind);
+        };
+
+        auto masterConfig = Config_->Master;
+        auto masterCacheConfig = Config_->MasterCache ? Config_->MasterCache : Config_->Master;
+        initMasterChannel(EMasterChannelKind::Leader, masterConfig, EPeerKind::Leader);
+        initMasterChannel(EMasterChannelKind::Follower, masterConfig, EPeerKind::Follower);
+        initMasterChannel(EMasterChannelKind::LeaderOrFollower, masterConfig, EPeerKind::LeaderOrFollower);
+        initMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, EPeerKind::LeaderOrFollower);
 
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
