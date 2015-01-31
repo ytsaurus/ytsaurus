@@ -48,12 +48,20 @@ void TRequestTracker::Stop()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    auto securityManager = Bootstrap_->GetSecurityManager();
+    for (const auto& pair : securityManager->Users()) {
+        auto* user = pair.second;
+        user->ResetRequestRate();
+    }
+
     FlushExecutor_.Reset();
     Reset();
 }
 
 void TRequestTracker::ChargeUser(TUser* user, int requestCount)
 {
+    YCHECK(FlushExecutor_);
+
     auto* update = user->GetRequestStatisticsUpdate();
     if (!update) {
         update = UpdateRequestStatisticsRequest_.add_updates();
@@ -87,7 +95,10 @@ void TRequestTracker::OnFlush()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (UsersWithRequestStatisticsUpdate_.empty()) {
+    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    if (UsersWithRequestStatisticsUpdate_.empty() ||
+        !hydraManager->IsActiveLeader() && !hydraManager->IsActiveFollower())
+    {
         FlushExecutor_->ScheduleNext();
         return;
     }
@@ -95,15 +106,13 @@ void TRequestTracker::OnFlush()
     LOG_DEBUG("Starting request statistics commit for %v users",
         UpdateRequestStatisticsRequest_.updates_size());
 
-    auto hydraFacade = Bootstrap_->GetHydraFacade();
-    auto invoker = hydraFacade->GetEpochAutomatonInvoker();
     auto this_ = MakeStrong(this);
-    Bootstrap_
-        ->GetSecurityManager()
-        ->CreateUpdateRequestStatisticsMutation(UpdateRequestStatisticsRequest_)
+    auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
+    CreateMutation(hydraManager, UpdateRequestStatisticsRequest_)
+        ->SetAllowLeaderForwarding(true)
         ->Commit()
-        .Subscribe(BIND([this, this_] (const TErrorOr<TMutationResponse>& error) {
-            if (error.IsOK()) {
+        .Subscribe(BIND([this, this_] (const TErrorOr<TMutationResponse>& result) {
+            if (result.IsOK()) {
                 FlushExecutor_->ScheduleOutOfBand();
             }
             FlushExecutor_->ScheduleNext();

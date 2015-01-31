@@ -271,17 +271,6 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup, TGroupId);
 
 
-    TMutationPtr CreateUpdateRequestStatisticsMutation(
-        const NProto::TReqUpdateRequestStatistics& request)
-    {
-        return CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            request,
-            this,
-            &TImpl::HydraUpdateRequestStatistics);
-    }
-
-
     TAccount* CreateAccount(const Stroka& name)
     {
         if (name.empty()) {
@@ -913,7 +902,8 @@ private:
     friend class TGroupTypeHandler;
 
 
-    TSecurityManagerConfigPtr Config_;
+    const TSecurityManagerConfigPtr Config_;
+    const TRequestTrackerPtr RequestTracker_;
 
     bool RecomputeResources_ = false;
     bool SetInitialChunkCountLimits_ = false;
@@ -959,8 +949,6 @@ private:
     TGroup* SuperusersGroup_ = nullptr;
 
     std::vector<TUser*> AuthenticatedUserStack_;
-
-    TRequestTrackerPtr RequestTracker_;
 
 
     static bool IsUncommittedAccountingEnabled(TCypressNodeBase* node)
@@ -1420,17 +1408,26 @@ private:
     }
 
 
-    virtual void OnLeaderActive() override
+protected:
+    virtual void OnRecoveryStarted() override
     {
-        RequestTracker_->Start();
-
         for (const auto& pair : UserMap_) {
             auto* user = pair.second;
-            user->ResetRequestRate();
+            user->ResetWeakRefCounter();
         }
     }
 
+    virtual void OnRecoveryComplete() override
+    {
+        RequestTracker_->Start();
+    }
+
     virtual void OnStopLeading() override
+    {
+        RequestTracker_->Stop();
+    }
+
+    virtual void OnStopFollowing() override
     {
         RequestTracker_->Stop();
     }
@@ -1458,6 +1455,7 @@ private:
 
             NProfiling::TTagIdList tags;
             tags.push_back(profilingManager->RegisterTag("user", user->GetName()));
+
             Profiler.Enqueue("/user_request_counter", requestCounter, tags);
 
             // Recompute request rate.
@@ -1467,8 +1465,7 @@ private:
                         static_cast<double>(requestCounter - user->GetCheckpointRequestCounter()) /
                         (now - user->GetCheckpointTime()).SecondsFloat();
                     user->SetRequestRate(requestRate);
-                    // TODO(babenko): use tags in master
-                    Profiler.Enqueue("/user_request_rate/" + ToYPathLiteral(user->GetName()), static_cast<int>(requestRate));
+                    Profiler.Enqueue("/user_request_rate", static_cast<int>(requestRate), tags);
                 }
                 user->SetCheckpointTime(now);
                 user->SetCheckpointRequestCounter(requestCounter);
@@ -1592,12 +1589,6 @@ TSecurityManager::~TSecurityManager()
 void TSecurityManager::Initialize()
 {
     return Impl_->Initialize();
-}
-
-TMutationPtr TSecurityManager::CreateUpdateRequestStatisticsMutation(
-    const NProto::TReqUpdateRequestStatistics& request)
-{
-    return Impl_->CreateUpdateRequestStatisticsMutation(request);
 }
 
 TAccount* TSecurityManager::FindAccountByName(const Stroka& name)
