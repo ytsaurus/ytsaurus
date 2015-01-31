@@ -28,7 +28,22 @@ class TestRff(YTEnvSetup):
             assert get("//tmp/x", read_from="follower") == i
 
     def test_leader_forwarding(self):
-        for i in xrange(100):
-            assert not get("//sys/nodes/@chunk_replicator_enabled", read_from="follower")
+        assert not get("//sys/nodes/@chunk_replicator_enabled", read_from="follower")
 
+    def test_access_stat(self):
+        time.sleep(1.0)
+        c1 = get("//tmp/@access_counter")
+        for i in xrange(100):
+            assert ls('//tmp', read_from="follower") == []
+        time.sleep(1.0)
+        c2 = get("//tmp/@access_counter")
+        assert c2 == c1 + 100
+
+    def test_request_stat(self):
+        create_user("u")
+        assert get("//sys/users/u/@request_counter") == 0
+        for i in xrange(100):
+            ls("//tmp", user="u", read_from="follower")
+        time.sleep(1.0)
+        assert get("//sys/users/u/@request_counter") == 100
 
