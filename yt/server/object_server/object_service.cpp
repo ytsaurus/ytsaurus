@@ -87,56 +87,46 @@ public:
         TCtxExecutePtr context)
         : Bootstrap(boostrap)
         , Context(std::move(context))
-        , LastMutationCommitted(VoidFuture)
-        , Replied(false)
-        , ResponseCount(0)
-        , CurrentRequestIndex(0)
-        , CurrentRequestPartIndex(0)
-        , Logger(ObjectServerLogger)
+        , RequestCount(Context->Request().part_counts_size())
     { }
 
     void Run()
     {
-        int requestCount = Context->Request().part_counts_size();
+        Context->SetRequestInfo("RequestCount: %v", RequestCount);
 
-        Context->SetRequestInfo("RequestCount: %v", requestCount);
-
-        UserName = FindAuthenticatedUser(Context);
-        auto* user = GetAuthenticatedUser();
-        auto securityManager = Bootstrap->GetSecurityManager();
-        securityManager->ValidateUserAccess(user, requestCount);
-
-        ResponseMessages.resize(requestCount);
-        RequestHeaders.resize(requestCount);
-
-        if (requestCount == 0) {
+        if (RequestCount == 0) {
             Reply();
             return;
         }
 
+        ResponseMessages.resize(RequestCount);
+        RequestHeaders.resize(RequestCount);
+        UserName = FindAuthenticatedUser(Context);
+
         auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
         auto sync = hydraManager->SyncWithLeader();
         if (sync.IsSet()) {
-            Continue();
+            OnSync(sync.Get());
         } else {
             sync.Subscribe(BIND(&TExecuteSession::OnSync, MakeStrong(this)));
         }
     }
 
 private:
-    TBootstrap* Bootstrap;
-    TCtxExecutePtr Context;
+    TBootstrap* const Bootstrap;
+    const TCtxExecutePtr Context;
 
-    TFuture<void> LastMutationCommitted;
-    std::atomic<bool> Replied;
-    std::atomic<int> ResponseCount;
+    int RequestCount;
+    TFuture<void> LastMutationCommitted = VoidFuture;
+    std::atomic<bool> Replied = {false};
+    std::atomic<int> ResponseCount = {0};
     std::vector<TSharedRefArray> ResponseMessages;
     std::vector<TRequestHeader> RequestHeaders;
-    int CurrentRequestIndex;
-    int CurrentRequestPartIndex;
+    int CurrentRequestIndex = 0;
+    int CurrentRequestPartIndex = 0;
     TNullable<Stroka> UserName;
 
-    const NLog::TLogger& Logger;
+    const NLog::TLogger& Logger = ObjectServerLogger;
 
 
     void OnSync(const TError& error)
@@ -145,6 +135,10 @@ private:
             Reply(error);
             return;
         }
+
+        auto* user = GetAuthenticatedUser();
+        auto securityManager = Bootstrap->GetSecurityManager();
+        securityManager->ValidateUserAccess(user, RequestCount);
 
         Continue();
     }
@@ -363,9 +357,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     UNUSED(request);
     UNUSED(response);
 
-    // TODO(babenko): read from followers
-    //ValidateActivePeer();
-    ValidateActiveLeader();
+    ValidateActivePeer();
 
     auto session = New<TExecuteSession>(
         Bootstrap,
