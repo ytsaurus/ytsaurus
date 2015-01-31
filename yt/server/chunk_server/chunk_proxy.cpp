@@ -58,6 +58,12 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TChunk> TBase;
 
+    virtual bool IsLeaderReadRequired() const override
+    {
+        // Needed due to TChunkManager::ComputeChunkStatus call below.
+        return true;
+    }
+
     virtual NLog::TLogger CreateLogger() const override
     {
         return ChunkServerLogger;
