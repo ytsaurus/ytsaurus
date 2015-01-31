@@ -29,8 +29,8 @@ public:
     void ChargeUser(TUser* user, int requestCount);
 
 private:
-    TSecurityManagerConfigPtr Config_;
-    NCellMaster::TBootstrap* Bootstrap_;
+    const TSecurityManagerConfigPtr Config_;
+    const NCellMaster::TBootstrap* Bootstrap_;
 
     NProto::TReqUpdateRequestStatistics UpdateRequestStatisticsRequest_;
     std::vector<TUser*> UsersWithRequestStatisticsUpdate_;
