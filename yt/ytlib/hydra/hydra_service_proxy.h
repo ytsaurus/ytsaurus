@@ -31,6 +31,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, RotateChangelog);
     DEFINE_RPC_PROXY_METHOD(NProto, PingFollower);
     DEFINE_RPC_PROXY_METHOD(NProto, SyncWithLeader);
+    DEFINE_RPC_PROXY_METHOD(NProto, CommitMutation);
 
 };
 

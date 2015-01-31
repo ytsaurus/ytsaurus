@@ -155,6 +155,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RotateChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncWithLeader));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitMutation)
+            .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
 
         CellManager_->SubscribePeerReconfigured(
             BIND(&TDistributedHydraManager::OnPeerReconfigured, MakeWeak(this))
@@ -774,6 +776,28 @@ private:
 
         response->set_committed_revision(version.ToRevision());
         context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, CommitMutation)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMutationRequest mutationRequest;
+        mutationRequest.Type = request->type();
+        mutationRequest.Data = request->Attachments()[0];
+
+        context->SetRequestInfo("Type: %v", mutationRequest.Type);
+
+        CommitMutation(mutationRequest).Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
+            if (!result.IsOK()) {
+                context->Reply(result);
+                return;
+            }
+
+            const auto& mutationResponse = result.Value();
+            response->Attachments() = mutationResponse.Data.ToVector();
+            context->Reply();
+        }));
     }
 
 

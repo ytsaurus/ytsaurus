@@ -107,3 +107,16 @@ message TRspSyncWithLeader
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqCommitMutation
+{
+    required string type = 1;
+    // Request data is passed via attachment.
+}
+
+message TRspCommitMutation
+{
+    // Response data is passed via attachments.
+}
+
+////////////////////////////////////////////////////////////////////////////////
