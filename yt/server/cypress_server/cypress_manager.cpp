@@ -531,16 +531,6 @@ INodeTypeHandlerPtr TCypressManager::GetHandler(const TCypressNodeBase* node)
     return GetHandler(node->GetType());
 }
 
-TMutationPtr TCypressManager::CreateUpdateAccessStatisticsMutation(
-    const NProto::TReqUpdateAccessStatistics& request)
-{
-   return CreateMutation(
-       Bootstrap_->GetHydraFacade()->GetHydraManager(),
-       request,
-       this,
-       &TCypressManager::HydraUpdateAccessStatistics);
-}
-
 ICypressNodeFactoryPtr TCypressManager::CreateNodeFactory(
     TTransaction* transaction,
     TAccount* account,
@@ -1152,15 +1142,15 @@ void TCypressManager::SetModified(
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    AccessTracker->OnModify(trunkNode, transaction);
+    AccessTracker->SetModified(trunkNode, transaction);
 }
 
 void TCypressManager::SetAccessed(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (IsLeader()) {
-        AccessTracker->OnAccess(trunkNode);
+    if (HydraManager->IsLeader() || HydraManager->IsFollower() && !HydraManager->IsMutating()) {
+        AccessTracker->SetAccessed(trunkNode);
     }
 }
 
@@ -1344,7 +1334,7 @@ void TCypressManager::Clear()
     InitBuiltin();
 }
 
-void TCypressManager::OnRecoveryComplete()
+void TCypressManager::OnRecoveryStarted()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1352,6 +1342,27 @@ void TCypressManager::OnRecoveryComplete()
         auto* node = pair.second;
         node->ResetWeakRefCounter();
     }
+}
+
+void TCypressManager::OnRecoveryComplete()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    AccessTracker->Start();
+}
+
+void TCypressManager::OnStopLeading()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    AccessTracker->Stop();
+}
+
+void TCypressManager::OnStopFollowing()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    AccessTracker->Stop();
 }
 
 void TCypressManager::RegisterNode(TCypressNodeBase* node)
@@ -1638,20 +1649,6 @@ TYPath TCypressManager::GetNodePath(
 
     auto proxy = GetNodeProxy(trunkNode, transaction);
     return proxy->GetResolver()->GetPath(proxy);
-}
-
-void TCypressManager::OnLeaderActive()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    AccessTracker->Start();
-}
-
-void TCypressManager::OnStopLeading()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    AccessTracker->Stop();
 }
 
 void TCypressManager::HydraUpdateAccessStatistics(const NProto::TReqUpdateAccessStatistics& request)

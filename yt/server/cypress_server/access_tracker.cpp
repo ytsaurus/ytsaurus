@@ -54,7 +54,7 @@ void TAccessTracker::Stop()
     Reset();
 }
 
-void TAccessTracker::OnModify(
+void TAccessTracker::SetModified(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
@@ -77,9 +77,10 @@ void TAccessTracker::OnModify(
     node->SetRevision(mutationContext->GetVersion().ToRevision());
 }
 
-void TAccessTracker::OnAccess(TCypressNodeBase* trunkNode)
+void TAccessTracker::SetAccessed(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YCHECK(FlushExecutor_);
     YCHECK(trunkNode->IsTrunk());
     YCHECK(trunkNode->IsAlive());
 
@@ -116,7 +117,10 @@ void TAccessTracker::OnFlush()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (NodesWithAccessStatisticsUpdate_.empty()) {
+    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    if (NodesWithAccessStatisticsUpdate_.empty() ||
+        !hydraManager->IsActiveLeader() && !hydraManager->IsActiveFollower())
+    {
         FlushExecutor_->ScheduleNext();
         return;
     }
@@ -126,12 +130,11 @@ void TAccessTracker::OnFlush()
 
     auto this_ = MakeStrong(this);
     auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
-    Bootstrap_
-        ->GetCypressManager()
-        ->CreateUpdateAccessStatisticsMutation(UpdateAccessStatisticsRequest_)
+    CreateMutation(hydraManager, UpdateAccessStatisticsRequest_)
+        ->SetAllowLeaderForwarding(true)
         ->Commit()
-        .Subscribe(BIND([this, this_] (const TErrorOr<TMutationResponse>& error) {
-            if (error.IsOK()) {
+        .Subscribe(BIND([this, this_] (const TErrorOr<TMutationResponse>& result) {
+            if (result.IsOK()) {
                 FlushExecutor_->ScheduleOutOfBand();
             }
             FlushExecutor_->ScheduleNext();
