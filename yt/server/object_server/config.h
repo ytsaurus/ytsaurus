@@ -27,7 +27,7 @@ public:
     TDuration YieldTimeout;
 
     //! Timeout for forwarded requests (used when client timeout is omitted).
-    TDuration DefaultRpcForwardingTimeout;
+    TDuration ForwardingRpcTimeout;
 
     TObjectManagerConfig()
     {
@@ -37,7 +37,7 @@ public:
             .Default(TDuration::MilliSeconds(1000));
         RegisterParameter("yield_timeout", YieldTimeout)
             .Default(TDuration::MilliSeconds(10));
-        RegisterParameter("default_rpc_forwarding_timeout", DefaultRpcForwardingTimeout)
+        RegisterParameter("forwarding_rpc_timeout", ForwardingRpcTimeout)
             .Default(TDuration::Seconds(30));
     }
 };
