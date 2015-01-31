@@ -236,7 +236,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
 
 IYPathService::TResolveResult TObjectProxyBase::Resolve(const TYPath& path, IServiceContextPtr context)
 {
-    if (IsFollower() && !IsMutating()) {
+    if (IsFollower() && !IsMutating() && IsLeaderReadRequired()) {
         throw TLeaderFallbackException();
     }
     return TYPathServiceBase::Resolve(path, context);
@@ -699,7 +699,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* con
     return false;
 }
 
-TFuture<void> TObjectProxyBase::GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer)
+TFuture<void> TObjectProxyBase::GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* /*consumer*/)
 {
     return Null;
 }
