@@ -530,6 +530,7 @@ void TObjectManager::UnrefObject(TObjectBase* object)
 void TObjectManager::WeakRefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YASSERT(!IsRecovery());
 
     int weakRefCounter = object->WeakRefObject();
     if (weakRefCounter == 1) {
@@ -540,6 +541,7 @@ void TObjectManager::WeakRefObject(TObjectBase* object)
 void TObjectManager::WeakUnrefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YASSERT(!IsRecovery());
 
     int weakRefCounter = object->WeakUnrefObject();
     if (weakRefCounter == 0) {
