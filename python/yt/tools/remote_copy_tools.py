@@ -185,7 +185,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
         shutil.rmtree(tmp_dir)
 
 
-def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_template=None, message_queue=None):
+def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_template=None, sort_spec_template=None, message_queue=None):
     proxies = yamr_client.proxies
     if not proxies:
         proxies = [yamr_client.server]
@@ -206,9 +206,18 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_templa
     temp_table = yt_client.create_temp_table(prefix=os.path.basename(src))
     yt_client.write_table(temp_table, read_commands, format=yt.SchemafulDsvFormat(columns=["command"]))
 
+    if spec_template is None:
+        spec_template = {}
     spec = deepcopy(spec_template)
     spec["data_size_per_job"] = 1
     spec["job_io"] = {"table_writer": {"max_row_weight": 128 * 1024 * 1024}}
+
+    if sort_spec_template is None:
+        sort_spec = deepcopy(spec)
+        del sort_spec["pool"]
+    else:
+        sort_spec_template = sort_spec
+
 
     command = """\
 set -ux
