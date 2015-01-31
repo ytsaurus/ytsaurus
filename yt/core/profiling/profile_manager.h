@@ -18,14 +18,9 @@ namespace NProfiling {
 //! reach the storage yet.
 struct TQueuedSample
 {
-    TQueuedSample()
-        : Time(-1)
-        , Value(-1)
-    { }
-
-    TCpuInstant Time;
+    TCpuInstant Time = -1;
     NYPath::TYPath Path;
-    TValue Value;
+    TValue Value = -1;
     TTagIdList TagIds;
 
 };
