@@ -331,10 +331,8 @@ void TVersionedChunkReader<TBlockReader>::DoOpen()
         UncompressedBlockCache_,
         NCompression::ECodec(CachedChunkMeta_->Misc().compression_codec()));
 
-    {
-        auto error = WaitFor(SequentialReader_->FetchNextBlock());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
-    }
+    WaitFor(SequentialReader_->FetchNextBlock())
+        .ThrowOnError();
 
     BlockReader_.reset(NewBlockReader());
 
