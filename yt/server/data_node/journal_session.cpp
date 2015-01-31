@@ -59,6 +59,8 @@ TFuture<void> TJournalSession::DoStart()
     auto this_ = MakeStrong(this);
     return asyncChangelog.Apply(BIND([=] (IChangelogPtr changelog) {
         UNUSED(this_);
+        if (Chunk_->IsRemoveScheduled())
+            return;
         Chunk_->AttachChangelog(changelog);
         Chunk_->SetActive(true);
     }).AsyncVia(Bootstrap_->GetControlInvoker()));
