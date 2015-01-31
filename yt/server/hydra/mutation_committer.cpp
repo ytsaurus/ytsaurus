@@ -34,11 +34,13 @@ static const auto AutoCheckpointCheckPeriod = TDuration::Seconds(15);
 ////////////////////////////////////////////////////////////////////////////////
 
 TCommitterBase::TCommitterBase(
+    TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
     const NProfiling::TProfiler& profiler)
-    : CellManager_(cellManager)
+    : Config_(config)
+    , CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)
     , EpochContext_(epochContext)
     , CommitCounter_("/commit_rate")
@@ -46,6 +48,7 @@ TCommitterBase::TCommitterBase(
     , Logger(HydraLogger)
     , Profiler(profiler)
 {
+    YCHECK(Config_);
     YCHECK(DecoratedAutomaton_);
     YCHECK(EpochContext_);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
@@ -82,7 +85,7 @@ public:
         BatchedRecordsData_.push_back(recordData);
         LocalFlushResult_ = std::move(localFlushResult);
 
-        LOG_DEBUG("Mutation is batched at version %v", currentVersion);
+        LOG_DEBUG("Mutation is batched (Version: %v)", currentVersion);
     }
 
     TFuture<void> GetQuorumFlushResult()
@@ -256,8 +259,8 @@ private:
 
 
     // NB: TBatch cannot outlive its owner.
-    TLeaderCommitter* Owner_;
-    TVersion StartVersion_;
+    TLeaderCommitter* const Owner_;
+    const TVersion StartVersion_;
 
     // Counting with the local flush.
     int FlushCount_ = 0;
@@ -284,14 +287,13 @@ TLeaderCommitter::TLeaderCommitter(
     TEpochContext* epochContext,
     const NProfiling::TProfiler& profiler)
     : TCommitterBase(
+        config,
         cellManager,
         decoratedAutomaton,
         epochContext,
         profiler)
-    , Config_(config)
     , ChangelogStore_(changelogStore)
 {
-    YCHECK(Config_);
     YCHECK(CellManager_);
     YCHECK(ChangelogStore_);
 
@@ -493,11 +495,13 @@ void TLeaderCommitter::FireCommitFailed(const TError& error)
 ////////////////////////////////////////////////////////////////////////////////
 
 TFollowerCommitter::TFollowerCommitter(
+    TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
     const NProfiling::TProfiler& profiler)
     : TCommitterBase(
+        config,
         cellManager,
         decoratedAutomaton,
         epochContext,
@@ -586,6 +590,23 @@ void TFollowerCommitter::ResumeLogging()
 
     PendingMutations_.clear();
     LoggingSuspended_ = false;
+}
+
+TFuture<TMutationResponse> TFollowerCommitter::Forward(const TMutationRequest& request)
+{
+    auto channel = CellManager_->GetPeerChannel(EpochContext_->LeaderId);
+    THydraServiceProxy proxy(channel);
+    proxy.SetDefaultTimeout(Config_->CommitForwardingRpcTimeout);
+
+    auto req = proxy.CommitMutation();
+    req->set_type(request.Type);
+    req->Attachments().push_back(request.Data);
+
+    return req->Invoke().Apply(BIND([] (const THydraServiceProxy::TErrorOrRspCommitMutationPtr& rspOrError) {
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error forwarding mutation to leader");
+        const auto& rsp = rspOrError.Value();
+        return TMutationResponse(TSharedRefArray(rsp->Attachments()));
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

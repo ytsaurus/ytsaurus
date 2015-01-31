@@ -130,8 +130,8 @@ class TDistributedHydraManagerConfig
     : public NElection::TElectionManagerConfig
 {
 public:
-    //! Commit RPC requests timeout (leader-to-follower commit propagation).
-    TDuration CommitRpcTimeout;
+    //! Follower-to-leader commit forwarding timeout.
+    TDuration CommitForwardingRpcTimeout;
 
     //! Backoff time for unrecoverable errors causing restart.
     TDuration RestartBackoffTime;
@@ -181,7 +181,7 @@ public:
 
     TDistributedHydraManagerConfig()
     {
-        RegisterParameter("commit_rpc_timeout", CommitRpcTimeout)
+        RegisterParameter("commit_rpc_timeout", CommitForwardingRpcTimeout)
             .Default(TDuration::Seconds(30));
 
         RegisterParameter("restart_backoff_time", RestartBackoffTime)

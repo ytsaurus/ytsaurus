@@ -26,6 +26,7 @@ class TCommitterBase
 {
 protected:
     TCommitterBase(
+        TDistributedHydraManagerConfigPtr config,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
@@ -34,9 +35,10 @@ protected:
     ~TCommitterBase();
 
 
-    NElection::TCellManagerPtr CellManager_;
-    TDecoratedAutomatonPtr DecoratedAutomaton_;
-    TEpochContext* EpochContext_;
+    const TDistributedHydraManagerConfigPtr Config_;
+    const NElection::TCellManagerPtr CellManager_;
+    const TDecoratedAutomatonPtr DecoratedAutomaton_;
+    const TEpochContext* EpochContext_;
 
     NProfiling::TRateCounter CommitCounter_;
     NProfiling::TRateCounter BatchFlushCounter_;
@@ -118,8 +120,7 @@ private:
     void FireCommitFailed(const TError& error);
 
 
-    TDistributedHydraManagerConfigPtr Config_;
-    IChangelogStorePtr ChangelogStore_;
+    const IChangelogStorePtr ChangelogStore_;
 
     struct TPendingMutation
     {
@@ -152,6 +153,7 @@ class TFollowerCommitter
 {
 public:
     TFollowerCommitter(
+        TDistributedHydraManagerConfigPtr config,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
@@ -172,6 +174,9 @@ public:
 
     //! Resumes an earlier suspended mutation logging and logs out all pending mutations.
     void ResumeLogging();
+
+    //! Fowards a given mutation to the leader via RPC.
+    TFuture<TMutationResponse> Forward(const TMutationRequest& request);
 
 private:
     TFuture<void> DoLogMutations(

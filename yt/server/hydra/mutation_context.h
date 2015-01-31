@@ -25,6 +25,7 @@ struct TMutationRequest
     Stroka Type;
     TSharedRef Data;
     TCallback<void(TMutationContext*)> Action;
+    bool AllowLeaderForwarding = false;
 };
 
 struct TMutationResponse

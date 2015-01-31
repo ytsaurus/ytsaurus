@@ -30,6 +30,12 @@ TMutationPtr TMutation::SetAction(TCallback<void(TMutationContext*)> action)
     return this;
 }
 
+TMutationPtr TMutation::SetAllowLeaderForwarding(bool value)
+{
+    Request_.AllowLeaderForwarding = value;
+    return this;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TMutationPtr CreateMutation(IHydraManagerPtr hydraManager)
