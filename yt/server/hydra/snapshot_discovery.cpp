@@ -64,7 +64,7 @@ public:
 
             LOG_INFO("Requesting snapshot info from peer %v", peerId);
 
-            TSnapshotServiceProxy proxy(CellManager_->GetPeerChannel(peerId));
+            TSnapshotServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
             auto req = proxy.LookupSnapshot();

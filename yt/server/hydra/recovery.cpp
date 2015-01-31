@@ -176,7 +176,10 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    THydraServiceProxy proxy(CellManager_->GetPeerChannel(EpochContext_->LeaderId));
+    auto channel = CellManager_->GetPeerChannel(EpochContext_->LeaderId);
+    YCHECK(channel);
+
+    THydraServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
     auto req = proxy.LookupChangelog();

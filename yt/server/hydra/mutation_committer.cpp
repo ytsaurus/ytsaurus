@@ -595,6 +595,8 @@ void TFollowerCommitter::ResumeLogging()
 TFuture<TMutationResponse> TFollowerCommitter::Forward(const TMutationRequest& request)
 {
     auto channel = CellManager_->GetPeerChannel(EpochContext_->LeaderId);
+    YCHECK(channel);
+
     THydraServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(Config_->CommitForwardingRpcTimeout);
 

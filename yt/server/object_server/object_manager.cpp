@@ -1038,6 +1038,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
 
     auto cellManager = Bootstrap_->GetCellManager();
     auto channel = cellManager->GetPeerChannel(epochContext->LeaderId);
+    YCHECK(channel);
 
     TObjectServiceProxy proxy(std::move(channel));
     proxy.SetDefaultTimeout(timeout.Get(Config_->ForwardingRpcTimeout));
