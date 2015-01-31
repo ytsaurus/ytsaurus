@@ -52,9 +52,6 @@ public:
         , UpperBound_(std::move(upperBound))
         , Timestamp_(timestamp)
         , Pool_(TTabletReaderPoolTag())
-        , ReadyEvent_(VoidFuture)
-        , Opened_(false)
-        , Refilling_(false)
     { }
 
 protected:
@@ -83,10 +80,10 @@ protected:
     SmallVector<TSession*, TypicalStoreCount> ExhaustedSessions_;
     SmallVector<TSession*, TypicalStoreCount> RefillingSessions_;
 
-    TFuture<void> ReadyEvent_;
+    TFuture<void> ReadyEvent_ = VoidFuture;
 
-    std::atomic<bool> Opened_;
-    std::atomic<bool> Refilling_;
+    std::atomic<bool> Opened_ = {false};
+    std::atomic<bool> Refilling_ = {false};
 
 
     template <class TRow, class TRowMerger>
