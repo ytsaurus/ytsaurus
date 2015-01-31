@@ -58,11 +58,7 @@ def import_table(object, args):
 
         logger.info("Destination table '%s' created", dst)
 
-        spec = {
-            "pool": params.yt_pool,
-            "job_io": {"table_writer": {"max_row_weight": 32 * 1024 * 1024}}
-        }
-        copy_yamr_to_yt_pull(yamr, yt_client, src, dst, fastbone=params.fastbone, spec_template=spec)
+        copy_yamr_to_yt_pull(yamr, yt_client, src, dst, fastbone=params.fastbone, spec_template={"pool": params.yt_pool})
 
         if params.erasure_codec is not None and params.erasure_codec == "none":
             params.erasure_codec = None
