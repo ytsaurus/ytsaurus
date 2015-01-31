@@ -77,11 +77,15 @@ public:
 
     void Invoke(IServiceContextPtr context) override
     {
-        // Prevent doing anything during recovery and at followers.
         auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
-        if (!hydraManager->IsLeader()) {
+
+        // Prevent doing anything during recovery.
+        if (hydraManager->IsRecovery())
             return;
-        }
+
+        // Prevent doing anything at followers during commit propagation.
+        if (hydraManager->IsMutating() && hydraManager->IsFollower())
+            return;
 
         auto manifest = LoadManifest();
 
