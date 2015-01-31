@@ -49,9 +49,6 @@ public:
     INodeTypeHandlerPtr GetHandler(NObjectClient::EObjectType type);
     INodeTypeHandlerPtr GetHandler(const TCypressNodeBase* node);
 
-    NHydra::TMutationPtr CreateUpdateAccessStatisticsMutation(
-        const NProto::TReqUpdateAccessStatistics& request);
-
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
 
@@ -167,7 +164,10 @@ private:
     void DestroyNode(TCypressNodeBase* trunkNode);
 
     // TAutomatonPart overrides.
+    virtual void OnRecoveryStarted() override;
     virtual void OnRecoveryComplete() override;
+    virtual void OnStopLeading() override;
+    virtual void OnStopFollowing() override;
 
     void DoClear();
     virtual void Clear() override;
@@ -238,9 +238,6 @@ private:
        TCypressNodeBase* trunkNode,
        NTransactionServer::TTransaction* transaction);
 
-    virtual void OnLeaderActive() override;
-    virtual void OnStopLeading() override;
-    
     void HydraUpdateAccessStatistics(const NProto::TReqUpdateAccessStatistics& request);
 
 

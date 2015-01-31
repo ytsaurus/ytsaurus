@@ -22,26 +22,22 @@ class TAccessTracker
     : public TRefCounted
 {
 public:
-    explicit TAccessTracker(
+    TAccessTracker(
         TCypressManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
-
 
     void Start();
     void Stop();
 
-
-    void OnModify(
+    void SetModified(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction);
 
-    void OnAccess(
-        TCypressNodeBase* trunkNode);
-
+    void SetAccessed(TCypressNodeBase* trunkNode);
 
 private:
-    TCypressManagerConfigPtr Config_;
-    NCellMaster::TBootstrap* Bootstrap_;
+    const TCypressManagerConfigPtr Config_;
+    NCellMaster::TBootstrap* const Bootstrap_;
 
     NProto::TReqUpdateAccessStatistics UpdateAccessStatisticsRequest_;
     std::vector<TCypressNodeBase*> NodesWithAccessStatisticsUpdate_;
