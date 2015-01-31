@@ -326,7 +326,7 @@ public:
     TFuture<T> ToFuture() const;
 
 protected:
-    explicit TPromiseBase(const TIntrusivePtr<NYT::NDetail::TPromiseState<T>> impl);
+    explicit TPromiseBase(TIntrusivePtr<NYT::NDetail::TPromiseState<T>> impl);
 
     TIntrusivePtr<NYT::NDetail::TPromiseState<T>> Impl_;
 
@@ -392,7 +392,7 @@ public:
     using TPromiseBase<void>::TrySet;
 
 private:
-    explicit TPromise(const TIntrusivePtr<NYT::NDetail::TPromiseState<void>> state);
+    explicit TPromise(TIntrusivePtr<NYT::NDetail::TPromiseState<void>> state);
 
     template <class U>
     friend TPromise<U> NewPromise();
