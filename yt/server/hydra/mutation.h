@@ -27,6 +27,8 @@ public:
     template <class TResponse>
     TMutationPtr SetAction(TCallback<TResponse()> action);
 
+    TMutationPtr SetAllowLeaderForwarding(bool value);
+
 private:
     IHydraManagerPtr HydraManager_;
 

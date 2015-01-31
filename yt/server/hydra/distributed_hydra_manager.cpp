@@ -388,13 +388,25 @@ public:
         }
 
         auto epochContext = AutomatonEpochContext_;
-        if (!epochContext || !ActiveLeader_) {
+        auto activeLeader = IsActiveLeader();
+        auto activeFollower = IsActiveFollower();
+        if (!epochContext || !activeLeader && !activeFollower) {
+            return MakeFuture<TMutationResponse>(TError(
+                NHydra::EErrorCode::InvalidState,
+                "Not an active peer"));
+        }
+
+        if (!request.AllowLeaderForwarding && !activeLeader) {
             return MakeFuture<TMutationResponse>(TError(
                 NHydra::EErrorCode::InvalidState,
                 "Not an active leader"));
         }
 
-        return epochContext->LeaderCommitter->Commit(request);
+        if (activeLeader) {
+            return epochContext->LeaderCommitter->Commit(request);
+        } else {
+            return epochContext->FollowerCommitter->Forward(request);
+        }
     }
 
     virtual TMutationContext* GetMutationContext() override
@@ -541,15 +553,13 @@ private:
                         request->Attachments());
                     WaitFor(asyncResult)
                         .ThrowOnError();
+                    response->set_logged(true);
                 } catch (const std::exception& ex) {
                     if (Restart(epochContext)) {
                         LOG_ERROR(ex, "Error logging mutations");
                     }
                     throw;
                 }
-
-                response->set_logged(true);
-
                 break;
             }
 
@@ -559,15 +569,13 @@ private:
                     epochContext->FollowerRecovery->PostponeMutations(
                         startVersion,
                         request->Attachments());
+                    response->set_logged(false);
                 } catch (const std::exception& ex) {
                     if (Restart(epochContext)) {
                         LOG_ERROR(ex, "Error postponing mutations during recovery");
                     }
                     throw;
                 }
-
-                response->set_logged(false);
-
                 break;
             }
 
@@ -1123,6 +1131,7 @@ public:
         auto epochContext = ControlEpochContext_;
 
         epochContext->FollowerCommitter = New<TFollowerCommitter>(
+            Config_,
             CellManager_,
             DecoratedAutomaton_,
             epochContext.Get(),
@@ -1369,7 +1378,6 @@ public:
         DecoratedAutomaton_->CommitMutations(committedVersion);
         CheckForPendingLeaderSync(std::move(epochContext));
     }
-
 
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
