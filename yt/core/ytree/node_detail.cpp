@@ -364,7 +364,6 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
 
                 return IYPathService::TResolveResult::There(child, tokenizer.GetSuffix());
             }
-            break;
         }
 
         default:
