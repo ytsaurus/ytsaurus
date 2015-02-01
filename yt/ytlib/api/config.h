@@ -57,8 +57,10 @@ class TConnectionConfig
 {
 public:
     TMasterConnectionConfigPtr Master;
-    NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
     TMasterConnectionConfigPtr MasterCache;
+    // TODO(babenko): remove once RFF is stable
+    bool EnableReadFromFollowers;
+    NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
     NHive::TCellDirectoryConfigPtr CellDirectory;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;

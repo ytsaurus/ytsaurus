@@ -28,9 +28,11 @@ TMasterConnectionConfig::TMasterConnectionConfig()
 TConnectionConfig::TConnectionConfig()
 {
     RegisterParameter("master", Master);
-    RegisterParameter("timestamp_provider", TimestampProvider)
-        .Default(nullptr);
     RegisterParameter("master_cache", MasterCache)
+        .Default(nullptr);
+    RegisterParameter("enable_read_from_followers", EnableReadFromFollowers)
+        .Default(false);
+    RegisterParameter("timestamp_provider", TimestampProvider)
         .Default(nullptr);
     RegisterParameter("cell_directory", CellDirectory)
         .DefaultNew();

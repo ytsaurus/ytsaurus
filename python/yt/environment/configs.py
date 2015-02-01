@@ -112,6 +112,8 @@ def get_scheduler_config():
 """
 {
     cluster_connection = {
+        enable_read_from_followers = true;
+
         master = {
             addresses = [ ];
             cell_tag = 0;
@@ -174,6 +176,8 @@ def get_node_config():
     orchid_cache_expiration_time = 0;
 
     cluster_connection = {
+        enable_read_from_followers = true;
+
         master = {
             addresses = [ ];
             cell_tag = 0;
@@ -304,6 +308,8 @@ def get_driver_config():
     return yson.loads(
 """
 {
+    enable_read_from_followers = true;
+
     master = {
         addresses = [ ];
         cell_tag = 0;
