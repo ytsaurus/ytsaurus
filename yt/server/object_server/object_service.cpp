@@ -108,7 +108,8 @@ public:
         if (sync.IsSet()) {
             OnSync(sync.Get());
         } else {
-            sync.Subscribe(BIND(&TExecuteSession::OnSync, MakeStrong(this)));
+            sync.Subscribe(BIND(&TExecuteSession::OnSync, MakeStrong(this))
+                .Via(GetCurrentInvoker()));
         }
     }
 
