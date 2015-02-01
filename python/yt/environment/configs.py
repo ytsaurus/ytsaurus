@@ -3,7 +3,7 @@ import simplejson as json
 
 """This module provides default ytserver configs"""
 
-def get_logging_pattern():
+def get_logging_config():
     return yson.loads(
 """
 {
