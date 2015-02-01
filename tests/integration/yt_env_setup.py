@@ -44,7 +44,6 @@ class YTEnvSetup(YTEnv):
         if cls.Env.configs['driver']:
             yt_commands.init_driver(cls.Env.configs['driver'])
             yt.bindings.driver.configure_logging(cls.Env.driver_logging_config)
-            yt.bindings.driver.configure_tracing(cls.Env.driver_tracing_config)
 
     @classmethod
     def teardown_class(cls):

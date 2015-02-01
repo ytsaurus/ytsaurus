@@ -37,9 +37,6 @@ def get_logging_config():
 }
 """)
 
-def get_tracing_config():
-    return {}
-
 def get_master_config():
     return yson.loads(
 """
