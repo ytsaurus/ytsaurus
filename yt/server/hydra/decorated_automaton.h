@@ -47,6 +47,7 @@ struct TEpochContext
     TNullable<TVersion> ActiveLeaderSyncVersion;
     TPromise<void> ActiveLeaderSyncPromise;
     TPromise<void> PendingLeaderSyncPromise;
+    bool LeaderSyncDeadlineReached = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TEpochContext)

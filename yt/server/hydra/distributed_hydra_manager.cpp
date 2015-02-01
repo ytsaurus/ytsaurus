@@ -364,11 +364,10 @@ public:
                 "Not an active peer"));
         }
 
-        TFuture<void> result;
         if (!epochContext->PendingLeaderSyncPromise) {
             epochContext->PendingLeaderSyncPromise = NewPromise<void>();
             TDelayedExecutor::Submit(
-                BIND(&TDistributedHydraManager::DoSyncWithLeader, MakeStrong(this), epochContext)
+                BIND(&TDistributedHydraManager::OnLeaderSyncDeadlineReached, MakeStrong(this), epochContext)
                     .Via(epochContext->EpochUserAutomatonInvoker),
                 Config_->MaxLeaderSyncDelay);
         }
@@ -1299,14 +1298,25 @@ public:
     }
 
 
-    void DoSyncWithLeader(TEpochContextPtr epochContext)
+    void OnLeaderSyncDeadlineReached(TEpochContextPtr epochContext)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        epochContext->LeaderSyncDeadlineReached = true;
+
+        if (!epochContext->ActiveLeaderSyncPromise) {
+            DoSyncWithLeader(epochContext);
+        }
+    }
+
+    void DoSyncWithLeader(TEpochContextPtr epochContext)
+    {
         LOG_DEBUG("Syncing with leader");
 
+        epochContext->LeaderSyncDeadlineReached = false;
+
         YCHECK(!epochContext->ActiveLeaderSyncPromise);
-        epochContext->ActiveLeaderSyncPromise = std::move(epochContext->PendingLeaderSyncPromise);
+        swap(epochContext->ActiveLeaderSyncPromise, epochContext->PendingLeaderSyncPromise);
 
         auto channel = CellManager_->GetPeerChannel(epochContext->LeaderId);
         YCHECK(channel);
@@ -1318,10 +1328,10 @@ public:
         ToProto(req->mutable_epoch_id(), epochContext->EpochId);
 
         req->Invoke().Subscribe(
-        BIND(
-            &TDistributedHydraManager::OnSyncWithLeaderResponse,
-            MakeStrong(this),
-            epochContext)
+            BIND(
+                &TDistributedHydraManager::OnSyncWithLeaderResponse,
+                MakeStrong(this),
+                epochContext)
             .Via(epochContext->EpochUserAutomatonInvoker));
     }
 
@@ -1346,7 +1356,7 @@ public:
         LOG_DEBUG("Received sync response from leader (CommittedVersion: %s)",
             epochContext->ActiveLeaderSyncVersion);
 
-        CheckForPendingLeaderSync(std::move(epochContext));
+        CheckForPendingLeaderSync(epochContext);
     }
 
     void CheckForPendingLeaderSync(TEpochContextPtr epochContext)
@@ -1368,6 +1378,10 @@ public:
         epochContext->ActiveLeaderSyncPromise.Set();
         epochContext->ActiveLeaderSyncPromise.Reset();
         epochContext->ActiveLeaderSyncVersion.Reset();
+
+        if (epochContext->LeaderSyncDeadlineReached) {
+            DoSyncWithLeader(epochContext);
+        }
     }
 
 
