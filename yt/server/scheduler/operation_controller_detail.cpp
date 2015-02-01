@@ -1047,7 +1047,7 @@ void TOperationControllerBase::Essentiate()
 
     InputChunkScratcher = New<TInputChunkScratcher>(
         this,
-        AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower));
+        AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader));
 }
 
 void TOperationControllerBase::DoInitialize()
