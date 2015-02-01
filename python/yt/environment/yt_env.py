@@ -24,7 +24,7 @@ GEN_PORT_ATTEMPTS = 10
 
 def init_logging(node, path, name):
     if not node:
-        node = configs.get_logging_pattern()
+        node = configs.get_logging_config()
 
     def process(node, key, value):
         if isinstance(value, str):
