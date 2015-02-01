@@ -11,7 +11,6 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Execution context.
 struct IExecutor
     : public virtual TRefCounted
 {
@@ -25,7 +24,6 @@ DEFINE_REFCOUNTED_TYPE(IExecutor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Preparation context.
 struct IPrepareCallbacks
 {
     virtual ~IPrepareCallbacks()
@@ -39,7 +37,6 @@ struct IPrepareCallbacks
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Evaluation context.
 struct IEvaluateCallbacks
 {
     virtual ~IEvaluateCallbacks()
