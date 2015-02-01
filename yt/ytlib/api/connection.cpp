@@ -80,9 +80,9 @@ public:
         auto masterConfig = Config_->Master;
         auto masterCacheConfig = Config_->MasterCache ? Config_->MasterCache : Config_->Master;
         initMasterChannel(EMasterChannelKind::Leader, masterConfig, EPeerKind::Leader);
-        initMasterChannel(EMasterChannelKind::Follower, masterConfig, EPeerKind::Follower);
-        initMasterChannel(EMasterChannelKind::LeaderOrFollower, masterConfig, EPeerKind::LeaderOrFollower);
-        initMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, EPeerKind::LeaderOrFollower);
+        initMasterChannel(EMasterChannelKind::Follower, masterConfig, Config_->EnableReadFromFollowers ? EPeerKind::Follower : EPeerKind::Leader);
+        initMasterChannel(EMasterChannelKind::LeaderOrFollower, masterConfig, Config_->EnableReadFromFollowers ? EPeerKind::LeaderOrFollower : EPeerKind::Leader);
+        initMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, Config_->EnableReadFromFollowers ? EPeerKind::LeaderOrFollower : EPeerKind::Leader);
 
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
