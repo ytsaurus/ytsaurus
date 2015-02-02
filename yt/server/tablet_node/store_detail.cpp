@@ -14,6 +14,7 @@ TStoreBase::TStoreBase(
     TTablet* tablet)
     : StoreId_(id)
     , Tablet_(tablet)
+    , Statistics_(Tablet_->GetStatistics())
     , TabletId_(Tablet_->GetId())
     , Schema_(Tablet_->Schema())
     , KeyColumns_(Tablet_->KeyColumns())
