@@ -278,7 +278,15 @@ bool TSchedulerThread::FiberMainStep(unsigned int spawnedEpoch)
         return false;
     }
 
-    return !CurrentFiber->IsCancelable();
+    if (CurrentFiber->IsCancelable()) {
+        // Someone has called TFiber::GetCanceler and thus has got an ability to cancel
+        // the current fiber at any moment. We cannot reuse it.
+        return false;
+    }
+
+    // Reuse the fiber but regenerate its id.
+    CurrentFiber->RegenerateId();
+    return true;
 }
 
 void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvokerPtr invoker)

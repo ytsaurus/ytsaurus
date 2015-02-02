@@ -50,6 +50,9 @@ public:
      */
     TFiberId GetId() const;
 
+    //! Generates a new id for this fiber. Used when the fiber instance is reused.
+    void RegenerateId();
+
     //! Return the current fiber state.
     /*!
      *  Thread affinity: OwnerThread
@@ -121,7 +124,7 @@ private:
 
     TSpinLock SpinLock_;
 
-    EFiberState State_;
+    EFiberState State_ = EFiberState::Suspended;
     TFuture<void> AwaitedFuture_;
 
     TClosure Callee_;
