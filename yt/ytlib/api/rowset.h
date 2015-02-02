@@ -30,7 +30,7 @@ IRowsetPtr CreateRowset(
     const NVersionedTableClient::TTableSchema& schema,
     std::vector<NVersionedTableClient::TUnversionedRow> rows);
 
-std::tuple<NVersionedTableClient::ISchemafulWriterPtr, TPromise<IRowsetPtr>>
+std::tuple<NVersionedTableClient::ISchemafulWriterPtr, TFuture<IRowsetPtr>>
     CreateSchemafulRowsetWriter();
 
 ///////////////////////////////////////////////////////////////////////////////

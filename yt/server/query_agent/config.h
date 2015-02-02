@@ -18,6 +18,7 @@ public:
     int ThreadPoolSize;
     int MaxConcurrentRequests;
     int MaxSubsplitsPerTablet;
+    int MaxSubqueries;
     int MaxQueryRetries;
 
     TQueryAgentConfig()
@@ -29,6 +30,9 @@ public:
             .GreaterThan(0)
             .Default(4);
         RegisterParameter("max_subsplits_per_tablet", MaxSubsplitsPerTablet)
+            .GreaterThan(0)
+            .Default(64);
+        RegisterParameter("max_subqueries", MaxSubqueries)
             .GreaterThan(0)
             .Default(16);
         RegisterParameter("max_query_retries", MaxQueryRetries)

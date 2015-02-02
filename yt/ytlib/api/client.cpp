@@ -697,7 +697,7 @@ public:
         auto result = NewPromise<std::pair<IRowsetPtr, TQueryStatistics>>();
 
         ISchemafulWriterPtr writer;
-        TPromise<IRowsetPtr> rowset;
+        TFuture<IRowsetPtr> rowset;
         std::tie(writer, rowset) = CreateSchemafulRowsetWriter();
 
         SelectRows(query, writer, options).Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& error) mutable {
