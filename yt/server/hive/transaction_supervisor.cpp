@@ -290,7 +290,8 @@ private:
 
         try {
             if (FindCommit(transactionId)) {
-                THROW_ERROR_EXCEPTION("Transaction %v is being committed");
+                THROW_ERROR_EXCEPTION("Transaction %v is being committed",
+                    transactionId);
             }
             // Any exception thrown here is caught below.
             TransactionManager_->PrepareTransactionAbort(transactionId, force);
