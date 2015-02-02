@@ -1,9 +1,10 @@
 #!/usr/bin/python
 
 from yt.wrapper.client import Yt
-import yt.yson as yson
+from yt.wrapper.common import parse_bool
 from yt.wrapper.tests.base import YtTestBase, TEST_DIR
 from yt.environment import YTEnv
+import yt.yson as yson
 import yt.wrapper as yt
 
 import inspect
@@ -141,7 +142,7 @@ class NativeModeTester(YtTestBase, YTEnv):
 
         file_path = TEST_DIR + "/file"
         yt.upload_file("", file_path)
-        self.assertEqual("", yt.download_file(file_path, "string"))
+        self.assertEqual("", yt.download_file(file_path).read())
 
         _, filename = tempfile.mkstemp()
         with open(filename, "w") as fout:
@@ -179,6 +180,8 @@ class NativeModeTester(YtTestBase, YTEnv):
 
         yt.write_table(table, ["y=1\n"])
         self.check(["y=1\n"], yt.read_table(table))
+
+        yt.write_table(table, [{"y": "1"}], raw=False)
         assert [{"y": "1"}] == list(yt.read_table(table, raw=False))
 
     def test_empty_table(self):
@@ -238,9 +241,16 @@ class NativeModeTester(YtTestBase, YTEnv):
 
         yt.mkdir(dir)
         yt.run_merge([tableX, tableY], res_table)
-        self.check(["x=1\n"], yt.read_table(tableX))
-        self.check(["y=2\n"], yt.read_table(tableY))
         self.check(["x=1\n", "y=2\n"], yt.read_table(res_table))
+
+        yt.run_merge(tableX, res_table)
+        self.assertFalse(parse_bool(yt.get_attribute(res_table, "sorted")))
+        self.check(["x=1\n"], yt.read_table(res_table))
+
+        yt.run_sort(tableX, sort_by="x")
+        yt.run_merge(tableX, res_table)
+        self.assertTrue(parse_bool(yt.get_attribute(res_table, "sorted")))
+        self.check(["x=1\n"], yt.read_table(res_table))
 
     def test_run_operation(self):
         table = TEST_DIR + "/table"
@@ -296,7 +306,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         table = TEST_DIR + "/table"
 
         yt.write_table(table, ["x=1\n", "y=2\n"])
-        yt.run_map(change_x, table, table, format=yt.YsonFormat())
+        yt.run_map(change_x, table, table, format=None)
         self.assertItemsEqual(["x=2\n", "y=2\n"], yt.read_table(table))
 
         yt.write_table(table, ["x=1\n", "y=2\n"])
@@ -450,22 +460,22 @@ class NativeModeTester(YtTestBase, YTEnv):
 
         yt.write_table(yt.TablePath(table, sorted_by=["a"]), ["a=b\n", "a=c\n", "a=d\n"])
 
-        rsp = yt.read_table(table).response
+        rsp = yt.read_table(table)._get_response()
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
             {"start_row_index": 0})
 
-        rsp = yt.read_table(yt.TablePath(table, start_index=1)).response
+        rsp = yt.read_table(yt.TablePath(table, start_index=1))._get_response()
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
             {"start_row_index": 1})
 
-        rsp = yt.read_table(yt.TablePath(table, lower_key=["d"])).response
+        rsp = yt.read_table(yt.TablePath(table, lower_key=["d"]))._get_response()
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
             {"start_row_index": 2})
 
-        rsp = yt.read_table(yt.TablePath(table, lower_key=["x"])).response
+        rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]))._get_response()
         assert json.loads(rsp.headers["X-YT-Response-Parameters"]) == {}
 
     def test_read_with_retries(self):
@@ -482,8 +492,12 @@ class NativeModeTester(YtTestBase, YTEnv):
             yt.write_table(table, ["x=1\n", "y=2\n"])
             self.check(["x=1\n", "y=2\n"], list(yt.read_table(table)))
 
-            self.check("x=1\n", yt.read_table(table).next())
+            rsp = yt.read_table(table)
+            self.check("x=1\n", rsp.next())
             self.assertRaises(lambda: yt.write_table(table, ["x=1\n", "y=2\n"]))
+            rsp.close()
+
+            self.assertEqual([{"x": "1"}, {"y": "2"}], list(yt.read_table(table, raw=False)))
 
         finally:
             yt.config.RETRY_READ = old_value
@@ -509,16 +523,16 @@ class NativeModeTester(YtTestBase, YTEnv):
                    output_format=yt.YamrFormat(has_subkey=False, lenval=False))
         self.check(["key=2\tvalue=x=1\n"], sorted(list(yt.read_table(table))))
 
-    def test_schemed_dsv(self):
+    def test_schememaful_dsv(self):
         def foo(rec):
             yield rec
 
         table = TEST_DIR + "/table"
         yt.write_table(table, ["x=1\ty=2\n", "x=\\n\tz=3\n"])
         self.check(["1\n", "\\n\n"],
-                   sorted(list(yt.read_table(table, format=yt.SchemedDsvFormat(columns=["x"])))))
+                   sorted(list(yt.read_table(table, format=yt.SchemafulDsvFormat(columns=["x"])))))
 
-        yt.run_map(foo, table, table, format=yt.SchemedDsvFormat(columns=["x"]))
+        yt.run_map(foo, table, table, format=yt.SchemafulDsvFormat(columns=["x"]))
         self.check(["x=1\n", "x=\\n\n"], sorted(list(yt.read_table(table))))
 
     def test_mount_unmount(self):

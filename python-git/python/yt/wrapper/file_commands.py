@@ -4,7 +4,7 @@ import config
 import yt.logger as logger
 from common import require, chunk_iter, bool_to_string, parse_bool
 from errors import YtError, YtResponseError
-from driver import read_content, get_host_for_heavy_operation
+from driver import ResponseStream
 from heavy_commands import make_heavy_request
 from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create, link, get_attribute
 from transaction_commands import _make_transactional_request
@@ -33,7 +33,8 @@ def download_file(path, response_type=None, file_reader=None, offset=None, lengt
     :param length: (int) length in bytes of desired part of input file, all file without offset by default
     :return: some stream over downloaded file, string generator by default
     """
-    if response_type is None: response_type = "iter_lines"
+    if response_type is not None:
+        logger.info("Option response_type is deprecated and ignored")
 
     params = {"path": prepare_path(path, client=client)}
     if file_reader is not None:
@@ -47,9 +48,9 @@ def download_file(path, response_type=None, file_reader=None, offset=None, lengt
         "download",
         params,
         return_content=False,
-        proxy=get_host_for_heavy_operation(client=client),
+        use_heavy_proxy=True,
         client=client)
-    return read_content(response, raw=True, format=None, response_type=response_type)
+    return ResponseStream.from_response(response)
 
 def upload_file(stream, destination, file_writer=None, client=None):
     """Upload file to destination path from stream on local machine.

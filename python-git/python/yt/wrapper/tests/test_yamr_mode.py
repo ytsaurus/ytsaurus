@@ -69,13 +69,13 @@ class YamrModeTester(YtTestBase, YTEnv):
 
     def run_capitilize_b(self, src, dst):
         yt.run_map("ls -la 1>&2; PYTHONPATH=. ./capitilize_b.py", src, dst,
-                   files=map(_module_file_path, ["config.py", "common.py", "record.py", "format.py"]) + [_test_file_path("capitilize_b.py")],
+                   files=[_test_file_path("capitilize_b.py")],
                    format=yt.DsvFormat())
 
     def run_accumulate_c(self, src, dst):
         yt.run_reduce("PYTHONPATH=. ./accumulate_c.py", src, dst,
                       reduce_by="c",
-                      files=map(_module_file_path, ["config.py", "common.py", "record.py", "format.py"]) + [_test_file_path("accumulate_c.py")],
+                      files=[_test_file_path("accumulate_c.py")],
                       format=yt.DsvFormat())
 
     def random_string(self, length):

@@ -2,6 +2,7 @@
 
 from yt.transfer_manager.flask_helpers import process_gzip
 from yt.transfer_manager.logger import TaskIdLogger
+from yt.transfer_manager.pattern_matching import match_copy_pattern
 
 from yt.tools.logging_server import LogRecordSocketReceiver
 from yt.tools.yamr import Yamr
@@ -22,6 +23,7 @@ import yt.wrapper as yt
 from flask import Flask, request, jsonify, Response, make_response
 
 import os
+import sys
 import json
 import time
 import prctl
@@ -141,10 +143,10 @@ class Task(object):
     def dict(self, hide_token=False, fields=None):
         result = deepcopy(self.__dict__)
         if hide_token:
-            for key in ["token", "source_cluster_token", "destination_cluster_token"] or key.startswith("_"):
+            for key in ["token", "source_cluster_token", "destination_cluster_token"]:
                 del result[key]
         for key in result.keys():
-            if result[key] is None or (fields is not None and key not in fields):
+            if result[key] is None or (fields is not None and key not in fields) or key.startswith("_"):
                 del result[key]
         return result
 
@@ -202,6 +204,7 @@ class Application(object):
         self._add_rule("/tasks/<id>/restart/", 'restart', methods=["POST"])
         self._add_rule("/config/", 'config', methods=["GET"])
         self._add_rule("/ping/", 'ping', methods=["GET"])
+        self._add_rule("/match/", 'match', methods=["GET"])
 
     def terminate(self):
         self._terminating = True
@@ -305,8 +308,6 @@ class Application(object):
                 self._clusters[name]._pools = cluster_description.get("pools", {})
                 self._clusters[name]._version = cluster_description.get("version", 0)
             elif type == "yamr":
-                if "viewer" in options:
-                    del options["viewer"]
                 self._clusters[name] = Yamr(**options)
             elif type == "kiwi":
                 self._clusters[name] = Kiwi(**options)
@@ -814,12 +815,7 @@ class Application(object):
     def main(self):
         return "This is YT transfer manager"
 
-    def add(self):
-        try:
-            params = json.loads(request.data)
-        except ValueError as error:
-            raise RequestFailed("Cannot parse JSON from body '{}'".format(request.data), inner_errors=[yt.YtError(error.message)])
-
+    def _create_task(self, params, token, user, dry_run, make_precheck):
         id = generate_uuid()
         logger.info("Adding task %s with id %s", json.dumps(params), id)
 
@@ -830,10 +826,10 @@ class Application(object):
         if "destination_table" not in params:
             params["destination_table"] = None
 
-        token, user = self._get_token_and_user(request.headers.get("Authorization", ""))
-
         if "mr_user" not in params:
             params["mr_user"] = self._config.get("default_mr_user")
+        if "backend_tag" not in params:
+            params["backend_tag"] = self._config.get("backend_tag")
 
         try:
             task = Task(id=id, creation_time=now(), user=user, token=token, state="pending", **params)
@@ -846,12 +842,13 @@ class Application(object):
         if self._pending_tasks_per_user[task.user] > self._config["pending_tasks_limit_per_user"]:
             raise RequestFailed("Too many pending tasks per user (>{0})".format(self._pending_tasks_per_user[task.user]))
 
-        try:
-            self._precheck(task, ignore_timeout=True, yamr_timeout=5.0, custom_logger=TaskIdLogger(task.id))
-        except yt.YtError as error:
-            raise RequestFailed("Precheck of task {} failed".format(task.id), inner_errors=[error])
+        if make_precheck:
+            try:
+                self._precheck(task, ignore_timeout=True, yamr_timeout=5.0, custom_logger=TaskIdLogger(task.id))
+            except yt.YtError as error:
+                raise RequestFailed("Precheck of task {} failed".format(task.id), inner_errors=[error]), None, sys.exc_info()[2]
 
-        if not request.args.get("dry_run", False):
+        if not dry_run:
             self._initialize_pool(task)
             self._yt.set(os.path.join(self._tasks_path, task.id), task.dict())
             with self._mutex:
@@ -860,6 +857,23 @@ class Application(object):
             logger.info("Task %s added", task.id)
 
         return task.id
+
+    def add(self):
+        try:
+            params = json.loads(request.data)
+        except ValueError as error:
+            raise RequestFailed("Cannot parse JSON from body '{}'".format(request.data), inner_errors=[yt.YtError(error.message)])
+
+        token, user = self._get_token_and_user(request.headers.get("Authorization", ""))
+        dry_run = request.args.get("dry_run", False)
+
+        if isinstance(params, list):
+            ids = []
+            for task_params in params:
+                ids.append(self._create_task(params=task_params, token=token, user=user, dry_run=dry_run, make_precheck=False))
+            return ids
+        else:
+            return self._create_task(params=params, token=token, user=user, dry_run=dry_run, make_precheck=True)
 
     def abort(self, id):
         if id not in self._tasks:
@@ -949,7 +963,9 @@ class Application(object):
             pending_tasks = deepcopy(self._pending_tasks)
 
         user = request.args.get("user")
-        fields = request.args.get("fields")
+        fields = request.args.getlist("fields[]")
+        if not fields:
+            fields = None
         if user is not None:
             tasks = [task.user == user for task in tasks]
 
@@ -974,6 +990,20 @@ class Application(object):
 
     def ping(self):
         return "OK", 200
+
+    def match(self):
+        params = json.loads(request.data)
+        source_pattern = params["source_pattern"]
+        destination_pattern = params["destination_pattern"]
+        source_cluster = params["source_cluster"]
+
+        if source_cluster not in self._clusters:
+            raise yt.YtError("Unknown cluster " + source_cluster)
+        client = deepcopy(self._clusters[source_cluster])
+
+        matchings = match_copy_pattern(client, source_pattern, destination_pattern)
+        return Response(json.dumps(matchings), mimetype='application/json')
+
 
 DEFAULT_CONFIG = {
     "clusters": {
@@ -1009,9 +1039,9 @@ DEFAULT_CONFIG = {
                 "opts": "MR_NET_TABLE=ipv6",
                 "binary": "/Berkanavt/bin/mapreduce-dev",
                 "server_port": 8013,
-                "http_port": 13013,
-                "viewer": "https://specto.yandex.ru/cedar-viewer/"
+                "http_port": 13013
             },
+            "table_url_pattern": "https://specto.yandex.ru/cedar-viewer/table/?table=%table%",
             "fastbone": True
         },
         "redwood": {
@@ -1021,9 +1051,9 @@ DEFAULT_CONFIG = {
                 "binary": "/Berkanavt/bin/mapreduce-dev",
                 "server_port": 8013,
                 "http_port": 13013,
-                "viewer": "https://specto.yandex.ru/redwood-viewer/",
                 "timeout": 300
             },
+            "table_url_pattern": "https://specto.yandex.ru/redwood-viewer/table/?table=%table%",
             "fastbone": True
         },
         "flux": {
@@ -1050,6 +1080,7 @@ DEFAULT_CONFIG = {
         "cedar": ["redwood", "smith", "plato"],
         "redwood": ["cedar", "smith", "plato"]
     },
+    "backend_tag": "testing",
     "default_mr_user": "userdata",
     "scheduling_backoff": 5,
     "error_details_length_limit": 50000,

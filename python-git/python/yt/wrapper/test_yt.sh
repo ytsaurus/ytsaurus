@@ -2,6 +2,12 @@
 
 cd $(dirname "${BASH_SOURCE[0]}")
 
+PIDS=""
+
+add_pid_to_kill() {
+    PIDS="$PIDS $1"
+}
+
 set_up() {
     ./yt create map_node //home/wrapper_test --ignore-existing
 }
@@ -9,9 +15,11 @@ set_up() {
 tear_down() {
     ./yt remove //home/wrapper_test --force --recursive
 
-    for pid in `jobs -p`; do
+    for pid in $PIDS; do
         if ps ax | awk '{print $1}' | grep $pid; then
+            set +e
             kill $pid
+            set -e
         fi
     done
 
@@ -151,7 +159,9 @@ test_concurrent_upload_in_operation()
     echo "x=y" | ./yt write //home/wrapper_test/table --format dsv
 
     ./yt map "cat" --src "//home/wrapper_test/table" --dst "//home/wrapper_test/out1" --format dsv --local-file script.sh &
+    add_pid_to_kill "$!"
     ./yt map "cat" --src "//home/wrapper_test/table" --dst "//home/wrapper_test/out2" --format dsv --local-file script.sh &
+    add_pid_to_kill "$!"
 
     ok=0
     for i in {1..10}; do

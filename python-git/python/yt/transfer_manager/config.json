@@ -20,7 +20,8 @@
             "options": {
                 "proxy": "aristotle.yt.yandex.net"
             },
-            "fastbone": true
+            "fastbone": true,
+            "dc_name": "sas"
         },
         "marx": {
             "type": "yt",
@@ -36,9 +37,9 @@
                 "opts": "MR_NET_TABLE=ipv6",
                 "binary": "/Berkanavt/bin/mapreduce-dev",
                 "server_port": 8013,
-                "http_port": 13013,
-                "viewer": "https://specto.yandex.ru/cedar-viewer/"
+                "http_port": 13013
             },
+            "table_url_pattern": "https://specto.yandex.ru/cedar-viewer/table/?table=%table%",
             "fastbone": true
         },
         "redwood": {
@@ -48,9 +49,9 @@
                 "binary": "/Berkanavt/bin/mapreduce",
                 "server_port": 8013,
                 "http_port": 13013,
-                "viewer": "https://specto.yandex.ru/redwood-viewer/",
                 "timeout": 300
             },
+            "table_url_pattern": "https://specto.yandex.ru/redwood-viewer/table/?table=%table%",
             "fastbone": true
         },
         "betula": {
@@ -59,9 +60,9 @@
                 "server": "betula00.yandex.ru",
                 "binary": "/Berkanavt/bin/mapreduce-dev",
                 "server_port": 8013,
-                "http_port": 13013,
-                "viewer": "https://specto.yandex.ru/betula-viewer/"
+                "http_port": 13013
             },
+            "table_url_pattern": "https://betula.viewer.yandex-team.ru/mrec/#/dir/%table%",
             "fastbone": true
         },
         "flux": {
@@ -75,7 +76,7 @@
             "type": "kiwi",
             "options": {
                 "url": "fb-kiwi1500.search.yandex.net",
-                "kwworm": "/home/monster/kwworm"
+                "kwworm": "/home/monster/kwworm -c {kiwi_url} -6 -u {kiwi_user} -r 12000 -f 60000 --balance fast --spread 16 --tcp-cork write -f protobin -n --fm-retry fixed:10 --fm-dline :300 --fm-shut --fm-infly 60000:200000000"
             },
             "fastbone": true
         },
@@ -83,7 +84,7 @@
             "type": "kiwi",
             "options": {
                 "url": "fb-kiwi000.search.yandex.net",
-                "kwworm": "/home/monster/kwworm"
+                "kwworm": "/home/monster/kwworm -c {kiwi_url} -6 -u {kiwi_user} -r 12000 -f 60000 --balance fast --spread 16 --tcp-cork write -f protobin -n --fm-retry fixed:10 --fm-dline :300 --fm-shut --fm-infly 60000:200000000"
             },
             "fastbone": true
         },
@@ -96,6 +97,7 @@
                 "server_port": 8013,
                 "http_port": 13013
             },
+            "table_url_pattern": "http://bsmr-server.yandex.ru:13013/debug?info=table&table=%table%",
             "fastbone": false
         }
     },
@@ -110,6 +112,7 @@
         "bsmr": ["plato"],
         "aristotle": ["plato", "kiwi_apteryx", "kiwi_main"]
     },
+    "backend_tag": "testing",
     "scheduling_backoff": 5,
     "error_details_length_limit": 50000,
     "pending_tasks_limit": 5000,

@@ -50,10 +50,10 @@ Operation run under self-pinged transaction, if `yt.wrapper.config.DETACHED` is 
 
 import config
 import py_wrapper
-from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, \
-                   is_prefix, get_value, compose, bool_to_string, chunk_iter_lines, get_version, MB
+from common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
+                   compose, bool_to_string, chunk_iter_lines, get_version, MB, EMPTY_GENERATOR
 from errors import YtIncorrectResponse, YtError, format_error
-from driver import read_content, get_host_for_heavy_operation, make_request, ResponseStream
+from driver import make_request, ResponseStream
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
@@ -61,7 +61,7 @@ from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute,
                           _make_formatted_transactional_request, has_attribute
 from file_commands import smart_upload_file
 from transaction_commands import _make_transactional_request, abort_transaction
-from transaction import PingableTransaction, Transaction
+from transaction import PingableTransaction, Transaction, Abort
 from format import create_format, YsonFormat
 from lock import lock
 from heavy_commands import make_heavy_request
@@ -75,6 +75,8 @@ import sys
 import types
 import exceptions
 import tempfile
+import socket
+import getpass
 import simplejson as json
 from cStringIO import StringIO
 
@@ -84,6 +86,8 @@ DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_yamr_table", simplify=False)
 
 def _prepare_source_tables(tables, replace_unexisting_by_empty=True, client=None):
     result = [to_table(table, client=client) for table in flatten(tables)]
+    if not result:
+        raise YtError("You must specify non-empty list of source tables")
     if config.TREAT_UNEXISTING_AS_EMPTY:
         if not replace_unexisting_by_empty:
             return [table for table in result if exists(table.name, client=client)]
@@ -134,9 +138,14 @@ def _reliably_upload_files(files, client=None):
             file_paths.append(smart_upload_file(file, client=client))
     return file_paths
 
-def _prepare_formats(format, input_format, output_format):
+def _is_python_function(binary):
+    return isinstance(binary, types.FunctionType) or hasattr(binary, "__call__")
+
+def _prepare_formats(format, input_format, output_format, binary):
     if format is None:
         format = config.format.TABULAR_DATA_FORMAT
+    if format is None and _is_python_function(binary):
+        format = YsonFormat()
     if isinstance(format, str):
         format = create_format(format)
     if isinstance(input_format, str):
@@ -156,9 +165,11 @@ def _prepare_formats(format, input_format, output_format):
 
     return input_format, output_format
 
-def _prepare_format(format):
+def _prepare_format(format, raw):
     if format is None:
         format = config.format.TABULAR_DATA_FORMAT
+    if not raw and format is None:
+        format = YsonFormat()
     if isinstance(format, str):
         format = create_format(format)
 
@@ -187,7 +198,7 @@ class TempfilesManager(object):
 
 def _prepare_binary(binary, operation_type, input_format=None, output_format=None,
                     reduce_by=None, client=None):
-    if isinstance(binary, types.FunctionType) or hasattr(binary, "__call__"):
+    if _is_python_function(binary):
         with TempfilesManager() as tempfiles_manager:
             binary, binary_file, files = py_wrapper.wrap(binary, operation_type, tempfiles_manager,
                                                          input_format, output_format, reduce_by)
@@ -246,7 +257,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
         file_paths = yt_files
 
     files = _reliably_upload_files(files, client=client)
-    input_format, output_format = _prepare_formats(format, input_format, output_format)
+    input_format, output_format = _prepare_formats(format, input_format, output_format, binary=binary)
     binary, additional_files = _prepare_binary(binary, op_type, input_format, output_format,
                                                reduce_by, client=client)
     spec = update(
@@ -271,7 +282,13 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
     return spec, files + additional_files
 
 def _configure_spec(spec):
-    spec = update({"wrapper_version": get_version()}, spec)
+    started_by = {
+        "hostname": socket.getfqdn(),
+        "pid": os.getpid(),
+        "user": getpass.getuser(),
+        "command": sys.argv,
+        "wrapper_version": get_version()}
+    spec = update({"started_by": started_by}, spec)
     if config.POOL is not None:
         spec = update({"pool": config.POOL}, spec)
     if config.INTERMEDIATE_DATA_ACCOUNT is not None:
@@ -421,7 +438,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
     Writing is executed under self-pinged transaction.
     """
     table = to_table(table, client=client)
-    format = _prepare_format(format)
+    format = _prepare_format(format, raw)
 
     params = {}
     params["input_format"] = format.json()
@@ -495,10 +512,13 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
     If :py:data:`yt.wrapper.config.RETRY_READ` is specified,
     command is executed under self-pinged transaction with retries and snapshot lock on the table.
     """
+    if response_type is not None:
+        logger.info("Option response_type is deprecated and ignored")
+
     table = to_table(table, client=client)
-    format = _prepare_format(format)
+    format = _prepare_format(format, raw)
     if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name, client=client):
-        return EMPTY_GENERATOR
+        return StringIO() if raw else EMPTY_GENERATOR
 
     params = {
         "path": table.get_json(),
@@ -507,36 +527,29 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
     if table_reader is not None:
         params["table_reader"] = table_reader
 
+
+    def read_content(response_stream):
+        if raw:
+            return response_stream
+        else:
+            return format.load_rows(response_stream)
+
     if not config.RETRY_READ:
         response = _make_transactional_request(
             "read",
             params,
             return_content=False,
-            proxy=get_host_for_heavy_operation(client=client),
+            use_heavy_proxy=True,
             client=client)
-
-        return read_content(response, raw, format, get_value(response_type, "iter_lines"))
+        return read_content(ResponseStream.from_response(response))
     else:
-        if response_type is not None:
-            logger.info("read_table with retries ignore response_type option")
-
         title = "Python wrapper: read {0}".format(to_name(table, client=client))
         tx = PingableTransaction(timeout=config.http.get_timeout(),
                                  attributes={"title": title},
                                  client=client)
         tx.__enter__()
 
-        class Index(object):
-            def __init__(self, index):
-                self.index = index
-
-            def get(self):
-                return self.index
-
-            def increment(self):
-                self.index += 1
-
-        def run_with_retries(func):
+        def execute_with_retries(func):
             for attempt in xrange(config.http.REQUEST_RETRY_COUNT):
                 try:
                     return func()
@@ -570,37 +583,52 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 "read",
                 params,
                 return_content=False,
-                proxy=get_host_for_heavy_operation(client=client),
+                use_heavy_proxy=True,
                 client=client)
-            if "X-YT-Response-Parameters" not in response.headers():
+            if "X-YT-Response-Parameters" not in response.headers:
                 raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)")
-            rsp_params = json.loads(response.headers()["X-YT-Response-Parameters"])
+            rsp_params = json.loads(response.headers["X-YT-Response-Parameters"])
             return rsp_params.get("start_row_index", None)
 
+        class Iterator(object):
+            def __init__(self, index):
+                self.index = index
+                self.iterator = iter_with_retries(self.execute_read)
+                self.response = None
 
-        def read_iter(index):
-            table.name.attributes["lower_limit"] = {"row_index": index.get()}
-            params["path"] = table.get_json()
-            response = _make_transactional_request(
-                "read",
-                params,
-                return_content=False,
-                proxy=get_host_for_heavy_operation(client=client))
-            response_stream = ResponseStream(response, None)
-            while True:
-                row = format.load_row(response_stream, raw=raw)
-                if row is None or row == "":
-                    break
-                yield row
-                index.increment()
+            def execute_read(self):
+                table.name.attributes["lower_limit"] = {"row_index": self.index}
+                params["path"] = table.get_json()
+                self.response = _make_transactional_request(
+                    "read",
+                    params,
+                    return_content=False,
+                    use_heavy_proxy=True,
+                    client=client)
+                response_stream = ResponseStream.from_response(self.response)
+                for row in format.load_rows(response_stream, raw=True):
+                    yield row
+                    self.index += 1
+
+            def next(self):
+                return self.iterator.next()
+
+            def __iter__(self):
+                return self
+
+            def finish(self):
+                if self.response is not None:
+                    self.response.close()
+                tx.__exit__(Abort, None, None)
 
         try:
             lock(table, mode="snapshot", client=client)
-            index = Index(run_with_retries(get_start_row_index))
-            if index.get() is None:
+            index = execute_with_retries(get_start_row_index)
+            if index is None:
                 tx.__exit__(None, None, None)
                 return (_ for _ in [])
-            return iter_with_retries(lambda: read_iter(index))
+            iterator = Iterator(index)
+            return read_content(ResponseStream(lambda: iterator.response, iterator, close=iterator.finish))
         except:
             tx.__exit__(*sys.exc_info())
             raise
@@ -731,6 +759,7 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=N
     if last_tablet_index is not None:
         params["last_tablet_index"] = last_tablet_index
     if cell_id is not None:
+
         params["cell_id"] = cell_id
 
     make_request("mount_table", params, client=client)
@@ -793,7 +822,10 @@ def select(query, timestamp=None, format=None, response_type=None, raw=True, cli
                           "raw", "string"]
     :param raw: (bool) don't parse response to rows
     """
-    format = _prepare_format(format)
+    if response_type is not None:
+        logger.info("Option response_type is deprecated and ignored")
+
+    format = _prepare_format(format, raw)
     params = {
         "query": query,
         "output_format": format.json()}
@@ -804,10 +836,14 @@ def select(query, timestamp=None, format=None, response_type=None, raw=True, cli
         "select",
         params,
         return_content=False,
-        proxy=get_host_for_heavy_operation(),
+        use_heavy_proxy=True,
         client=client)
 
-    return read_content(response, raw, format, get_value(response_type, "iter_lines"))
+    response_stream = ResponseStream.from_response(response)
+    if raw:
+        return response_stream
+    else:
+        return format.load_rows(response_stream)
 
 # Operations.
 
@@ -838,8 +874,9 @@ def run_merge(source_table, destination_table, mode=None,
 
     :param source_table: list of string or `TablePath`, list tables names to merge
     :param destination_table: string or `TablePath`, path to result table
-    :param mode: ['unordered' (default), 'ordered', or 'sorted']. Mode `sorted` keeps sortedness \
+    :param mode: ['auto' (default), 'unordered', 'ordered', or 'sorted']. Mode `sorted` keeps sortedness \
                  of output tables, mode `ordered` is about chunk magic, not for ordinary users.
+                 In 'auto' mode system chooses proper mode depending on the table sortedness.
     :param strategy: standard operation parameter
     :param table_writer: standard operation parameter
     :param replication_factor: (int) number of destination table replicas.
@@ -858,12 +895,16 @@ def run_merge(source_table, destination_table, mode=None,
         _remove_tables([destination_table], client=client)
         return
 
+    mode = get_value(mode, "auto")
+    if mode == "auto":
+        mode = "sorted" if all(map(is_sorted, source_table)) else "unordered"
+
     spec = compose(
         _configure_spec,
         lambda _: _add_table_writer_spec("job_io", table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
-        lambda _: update({"mode": get_value(mode, "unordered")}, _),
+        lambda _: update({"mode": mode}, _),
         lambda _: get_value(_, {})
     )(spec)
 
@@ -899,10 +940,8 @@ def run_sort(source_table, destination_table=None, sort_by=None,
         return
 
     if all(is_prefix(sort_by, get_sorted_by(table.name, [], client=client)) for table in source_table):
-        #(TODO) Hack detected: make something with it
-        if len(source_table) > 0:
-            run_merge(source_table, destination_table, "sorted",
-                      strategy=strategy, table_writer=table_writer, spec=spec, client=client)
+        run_merge(source_table, destination_table, "sorted",
+                  strategy=strategy, table_writer=table_writer, spec=spec, client=client)
         return
 
     spec = compose(
@@ -1090,6 +1129,7 @@ def _run_operation(binary, source_table, destination_table,
                   memory_limit=None,
                   spec=None,
                   op_name=None,
+                  sort_by=None,
                   reduce_by=None,
                   client=None):
     """Run script operation.
@@ -1120,7 +1160,10 @@ def _run_operation(binary, source_table, destination_table,
     finalize = None
 
     if op_name == "reduce":
-        sort_by = _prepare_sort_by(reduce_by)
+        if sort_by is None:
+            sort_by = _prepare_sort_by(reduce_by)
+        else:
+            sort_by = _prepare_sort_by(sort_by)
         reduce_by = _prepare_reduce_by(reduce_by)
 
         if config.RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED:
@@ -1178,6 +1221,7 @@ def _run_operation(binary, source_table, destination_table,
             lambda _: _add_table_writer_spec("job_io", table_writer, _),
             lambda _: _add_input_output_spec(source_table, destination_table, _),
             lambda _: update({"reduce_by": reduce_by}, _) if op_name == "reduce" else _,
+            lambda _: update({"sort_by": sort_by}, _) if op_name == "reduce" and sort_by is not None else _,
             lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
             lambda _: memorize_files(*_add_user_command_spec(op_type, binary,
                 format, input_format, output_format,

@@ -5,10 +5,10 @@ import os
 import sys
 import traceback
 
-def writelines_silently(lines):
+def write_silently(strings):
     try:
-        for line in lines:
-            sys.stdout.write(line)
+        for str in strings:
+            sys.stdout.write(str)
     except IOError as err:
         # Trying to detect case of broken pipe
         if err.errno == 32:
