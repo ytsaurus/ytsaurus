@@ -162,13 +162,13 @@ protected:
     i64 TotalEstimatedInputValueCount;
 
     // These totals are exact.
-    NChunkClient::NProto::TDataStatistics TotalExactInput;
+    NChunkClient::NProto::TDataStatistics TotalExactInputDataStatistics;
 
     // These totals are exact.
-    NChunkClient::NProto::TDataStatistics TotalIntermeidate;
+    NChunkClient::NProto::TDataStatistics TotalIntermediateDataStatistics;
 
     // These totals are exact.
-    std::vector<NChunkClient::NProto::TDataStatistics> TotalOutputs;
+    std::vector<NChunkClient::NProto::TDataStatistics> TotalOutputsDataStatistics;
 
     int UnavailableInputChunkCount;
 

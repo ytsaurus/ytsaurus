@@ -1923,7 +1923,7 @@ private:
                     const auto& statistics = jobStatus->result().statistics();
                     LOG_INFO("Job completed, removal scheduled (Input: {%v}, Output: {%v}, Time: %v)",
                         statistics.input(),
-                        GetTotalOutput(statistics),
+                        GetTotalOutputDataStatistics(statistics),
                         statistics.time());
                 } else {
                     LOG_INFO("Job completed, removal scheduled");

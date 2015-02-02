@@ -1277,7 +1277,7 @@ protected:
                 totalInputRowCount += partition->ChunkPoolOutput->GetTotalRowCount();
             }
             i64 totalOutputRowCount = 0;
-            for (const auto& statistics : TotalOutputs) {
+            for (const auto& statistics : TotalOutputsDataStatistics) {
                 totalOutputRowCount += statistics.row_count();
             }
             if (totalInputRowCount != totalOutputRowCount) {
