@@ -1467,7 +1467,7 @@ void TCGContext::CodegenGroupOp(
     auto collectArgs = collect->arg_begin();
     Value* collectClosure = collectArgs; collectClosure->setName("closure");
     Value* groupedRows = ++collectArgs; groupedRows->setName("groupedRows");
-    Value* rows = ++collectArgs; rows->setName("rows");
+    Value* lookup = ++collectArgs; lookup->setName("lookup");
     YCHECK(++collectArgs == collect->arg_end());
 
     TCGIRBuilder collectBuilder(
@@ -1481,7 +1481,7 @@ void TCGContext::CodegenGroupOp(
     Value* newRowPtr = collectBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
     collectBuilder.CreateCall3(
-        Module_->GetRoutine("AllocatePersistentRow"),
+        Module_->GetRoutine("AllocatePermanentRow"),
         GetExecutionContextPtr(collectBuilder),
         builder.getInt32(keySize + aggregateItemCount),
         newRowPtr);
@@ -1489,7 +1489,7 @@ void TCGContext::CodegenGroupOp(
     codegenSource(collectBuilder, [&] (TCGIRBuilder& builder, Value* row) {
         Value* executionContextPtrRef = GetExecutionContextPtr(builder);
         Value* groupedRowsRef = builder.ViaClosure(groupedRows);
-        Value* rowsRef = builder.ViaClosure(rows);
+        Value* lookupRef = builder.ViaClosure(lookup);
         Value* newRowPtrRef = builder.ViaClosure(newRowPtr);
         Value* newRowRef = builder.CreateLoad(newRowPtrRef);
 
@@ -1514,7 +1514,7 @@ void TCGContext::CodegenGroupOp(
         Value* foundRowPtr = builder.CreateCall5(
             Module_->GetRoutine("InsertGroupRow"),
             executionContextPtrRef,
-            rowsRef,
+            lookupRef,
             groupedRowsRef,
             newRowPtrRef,
             builder.getInt32(keySize + aggregateItemCount));

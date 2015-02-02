@@ -89,9 +89,9 @@ class TSchemafulRowsetWriter
     , public ISchemafulWriter
 {
 public:
-    TPromise<IRowsetPtr> GetResult() const
+    TFuture<IRowsetPtr> GetResult() const
     {
-        return Result_;
+        return Result_.ToFuture();
     }
 
     // ISchemafulWriter implementation.
@@ -130,7 +130,7 @@ private:
 
 };
 
-std::tuple<ISchemafulWriterPtr, TPromise<IRowsetPtr>> CreateSchemafulRowsetWriter()
+std::tuple<ISchemafulWriterPtr, TFuture<IRowsetPtr>> CreateSchemafulRowsetWriter()
 {
     auto writer = New<TSchemafulRowsetWriter>();
     return std::make_tuple(writer, writer->GetResult());

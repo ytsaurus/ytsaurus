@@ -168,9 +168,19 @@ private:
             [&] (const TDataSplits& prunedSplits) {
                 auto splits = Split(prunedSplits, nodeDirectory, Logger);
 
-                for (const auto& split : splits) {
-                    groupedSplits.emplace_back(1, split);
-                }
+                int splitsCount = splits.size();
+                int splitOffset = 0;
+
+                YCHECK(Config_->MaxSubqueries > 0);
+
+                int nextQueryIndex = 1;
+                do {
+                    int nextSplitOffset = nextQueryIndex * splitsCount / Config_->MaxSubqueries;
+                    if (splitOffset != nextSplitOffset) {
+                        groupedSplits.emplace_back(splits.begin() + splitOffset, splits.begin() + nextSplitOffset);
+                        splitOffset = nextSplitOffset;
+                    }
+                } while (nextQueryIndex++ < Config_->MaxSubqueries);
 
                 return GetRanges(groupedSplits);
             },
