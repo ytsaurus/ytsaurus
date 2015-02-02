@@ -47,7 +47,7 @@ public:
 
         TotalRowCount_ = GetCumulativeRowCount(chunkSpecs);
 
-        auto keyColumns = FromProto<TKeyColumns>(PartitionJobSpecExt_.key_columns());
+        auto keyColumns = FromProto<TKeyColumns>(PartitionJobSpecExt_.sort_key_columns());
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
         Reader_ = CreateSchemalessParallelMultiChunkReader(
@@ -71,7 +71,9 @@ public:
             }
             partitioner = CreateOrderedPartitioner(&PartitionKeys_);
         } else {
-            partitioner = CreateHashPartitioner(PartitionJobSpecExt_.partition_count());
+            partitioner = CreateHashPartitioner(
+                PartitionJobSpecExt_.partition_count(), 
+                PartitionJobSpecExt_.reduce_key_column_count());
         }
 
         YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);

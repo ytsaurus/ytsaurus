@@ -512,11 +512,11 @@ size_t GetHash(const TUnversionedValue& value)
     }
 }
 
-size_t GetHash(TUnversionedRow row)
+size_t GetHash(TUnversionedRow row, int keyColumnCount)
 {
     size_t result = 0xdeadc0de;
-    int partCount = row.GetCount();
-    for (int i = 0; i < row.GetCount(); ++i) {
+    int partCount = std::min(row.GetCount(), keyColumnCount);
+    for (int i = 0; i < partCount; ++i) {
         result = (result * 1000003) ^ GetHash(row[i]);
     }
     return result ^ partCount;

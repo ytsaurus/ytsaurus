@@ -239,7 +239,11 @@ message TPartitionJobSpecExt
 
     repeated string partition_keys = 5;
 
-    required NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 6;
+    // Sort key columns (may be wider than reduce key).
+    required NVersionedTableClient.NProto.TKeyColumnsExt sort_key_columns = 6;
+
+    // Size of key prefix used for bucket decision.
+    required int32 reduce_key_column_count = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

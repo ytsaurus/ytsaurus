@@ -17,11 +17,11 @@ struct IPartitioner
     { }
 
     virtual int GetPartitionCount() = 0;
-    virtual int GetPartitionIndex(const TKey& key) = 0;
+    virtual int GetPartitionIndex(const TUnversionedRow& row) = 0;
 };
 
 std::unique_ptr<IPartitioner> CreateOrderedPartitioner(const std::vector<TOwningKey>* keys);
-std::unique_ptr<IPartitioner> CreateHashPartitioner(int partitionCount);
+std::unique_ptr<IPartitioner> CreateHashPartitioner(int partitionCount, int keyColumnCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

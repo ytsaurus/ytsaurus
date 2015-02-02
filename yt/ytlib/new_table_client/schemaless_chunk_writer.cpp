@@ -429,6 +429,12 @@ private:
     TSchemalessRowReorderer RowReorderer_;
     ISchemalessMultiChunkWriterPtr UnderlyingWriter_;
 
+    TOwningKey LastKey_;
+    int KeyColumnCount_;
+    TError Error_;
+
+
+    bool CheckSortOrder(TUnversionedRow lhs, TUnversionedRow rhs);
 
     virtual TFuture<void> Open() override;
     virtual TFuture<void> GetReadyEvent() override;
@@ -450,7 +456,34 @@ TReorderingSchemalessMultiChunkWriter::TReorderingSchemalessMultiChunkWriter(
     : MemoryPool_(TReorderingSchemalessWriterPoolTag())
     , RowReorderer_(nameTable, keyColumns)
     , UnderlyingWriter_(underlyingWriter)
-{ }
+    , KeyColumnCount_(keyColumns.size())
+{ 
+    if (IsSorted()) {
+        std::vector<TUnversionedValue> key(
+            KeyColumnCount_,
+            MakeUnversionedSentinelValue(EValueType::Min, 0));
+        LastKey_ = TOwningKey(key.data(), key.data() + KeyColumnCount_);
+    }
+}
+
+bool TReorderingSchemalessMultiChunkWriter::CheckSortOrder(TUnversionedRow lhs, TUnversionedRow rhs)
+{
+    if (CompareRows(lhs, rhs, KeyColumnCount_) <= 0) {
+        return true;
+    }
+    TUnversionedOwningRowBuilder leftBuilder, rightBuilder;
+    for (int i = 0; i < KeyColumnCount_; ++i) {
+        leftBuilder.AddValue(lhs[i]);
+        rightBuilder.AddValue(rhs[i]);
+    }
+
+    Error_ = TError(
+        EErrorCode::SortOrderViolation,
+        "Sort order violation: %v >= %v", 
+        leftBuilder.FinishRow().Get(), 
+        rightBuilder.FinishRow().Get());
+    return false;
+}
 
 bool TReorderingSchemalessMultiChunkWriter::Write(const std::vector<TUnversionedRow>& rows)
 {
@@ -459,6 +492,25 @@ bool TReorderingSchemalessMultiChunkWriter::Write(const std::vector<TUnversioned
 
     for (const auto& row : rows) {
         reorderedRows.push_back(RowReorderer_.ReorderRow(row, &MemoryPool_));
+    }
+
+    if (IsSorted() && !reorderedRows.empty()) {
+        if (!CheckSortOrder(LastKey_.Get(), reorderedRows.front())) {
+            return false;
+        }
+
+        for (int i = 1; i < reorderedRows.size(); ++i) {
+            if (!CheckSortOrder(reorderedRows[i-1], reorderedRows[i])) {
+              return false;
+            }
+        }
+
+        const auto& lastKey = reorderedRows.back();
+        TUnversionedOwningRowBuilder keyBuilder;
+        for (int i = 0; i < KeyColumnCount_; ++i) {
+            keyBuilder.AddValue(lastKey[i]);
+        }
+        LastKey_ = keyBuilder.FinishRow();
     }
 
     auto result = UnderlyingWriter_->Write(reorderedRows);
@@ -474,7 +526,11 @@ TFuture<void> TReorderingSchemalessMultiChunkWriter::Open()
 
 TFuture<void> TReorderingSchemalessMultiChunkWriter::GetReadyEvent()
 {
-    return UnderlyingWriter_->GetReadyEvent();
+    if (Error_.IsOK()) {
+        return UnderlyingWriter_->GetReadyEvent();
+    } else {
+        return MakeFuture(Error_);
+    }
 }
 
 TFuture<void> TReorderingSchemalessMultiChunkWriter::Close()
