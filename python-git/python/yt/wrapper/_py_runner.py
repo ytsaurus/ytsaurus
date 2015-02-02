@@ -40,7 +40,7 @@ def main():
     for key, value in config_dict.iteritems():
         format_config.__dict__[key] = value
 
-    from yt.wrapper.record import extract_key
+    from yt.wrapper.format import extract_key
 
     if __attributes.get("is_raw_io", False):
         __operation()
@@ -49,7 +49,8 @@ def main():
     raw = __attributes.get("is_raw", False)
 
     if isinstance(__input_format, YsonFormat) and yt.yson.TYPE != "BINARY":
-        sys.stderr.write("YSON bindings not found. Using python version of YSON is deprecated.")
+        sys.stderr.write("YSON bindings not found. To resolve the problem "
+                         "try to use JsonFormat format or install yandex-yt-python-yson package.")
         sys.exit(1)
 
     __rows = __input_format.load_rows(sys.stdin, raw=raw)

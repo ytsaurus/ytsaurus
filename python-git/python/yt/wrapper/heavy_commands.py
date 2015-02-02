@@ -7,7 +7,6 @@ from errors import format_error
 from table import to_table
 from transaction import PingableTransaction
 from transaction_commands import _make_transactional_request
-from driver import get_host_for_heavy_operation
 from http import RETRIABLE_ERRORS
 
 import time
@@ -40,7 +39,7 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                                 command_name,
                                 params,
                                 data=chunk,
-                                proxy=get_host_for_heavy_operation(client=client),
+                                use_heavy_proxy=True,
                                 retry_unavailable_proxy=False,
                                 client=client)
                         break
@@ -58,5 +57,5 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                 command_name,
                 params,
                 data=stream,
-                proxy=get_host_for_heavy_operation(client=client),
+                use_heavy_proxy=True,
                 client=client)

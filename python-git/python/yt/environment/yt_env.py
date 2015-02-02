@@ -115,8 +115,7 @@ class YTEnv(object):
         self.config_paths = defaultdict(lambda: [])
         self.log_paths = defaultdict(lambda: [])
 
-        short_hostname = socket.gethostname()
-        self._hostname = socket.gethostbyname_ex(short_hostname)[0]
+        self._hostname = socket.getfqdn()
         self._master_addresses = defaultdict(lambda: [])
         self._node_addresses = defaultdict(lambda: [])
         self._process_to_kill = defaultdict(lambda: [])
@@ -363,10 +362,15 @@ class YTEnv(object):
             current = os.path.join(self.path_to_run, node_name, str(i))
             os.mkdir(current)
 
+            config["addresses"] = {
+                "default": self._hostname + "-default",
+                "interconnect": self._hostname}
+
             config['rpc_port'] = self._ports[node_name][2 * i]
             config['monitoring_port'] = self._ports[node_name][2 * i + 1]
 
             config['cluster_connection']['master']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
+            config['cluster_connection']['master_cache']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
             config['cluster_connection']['timestamp_provider']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
 
             config['data_node']['multiplexed_changelog']['path'] = os.path.join(current, 'multiplexed')

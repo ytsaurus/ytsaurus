@@ -84,6 +84,11 @@ class YtFormatError(YtError):
     pass
 
 def format_error(error, indent=0):
+    if isinstance(error, YtError):
+        error = error.simplify()
+    elif isinstance(error, Exception):
+        error = {"code": 1, "message": str(error)}
+
     if errors_config.ERROR_FORMAT == "json":
         return json.dumps(error)
     elif errors_config.ERROR_FORMAT == "json_pretty":
@@ -97,9 +102,6 @@ def pretty_format(error, indent=0):
     def format_attribute(name, value):
         return (" " * (indent + 4)) + "%-15s %s" % (name, value)
 
-    if isinstance(error, YtError):
-        error = error.simplify()
-
     lines = []
     if "message" in error:
         lines.append(error["message"])
@@ -109,16 +111,17 @@ def pretty_format(error, indent=0):
 
     attributes = error.get("attributes", {})
 
-    origin_keys = ["host", "datetime", "pid", "tid"]
+    origin_keys = ["host", "datetime", "pid", "tid", "fid"]
     if all(key in attributes for key in origin_keys):
         lines.append(
             format_attribute(
                 "origin",
-                "%s in %s (pid %d, tid %x)" % (
+                "%s in %s (pid %d, tid %x, fid %x)" % (
                     attributes["host"],
                     attributes["datetime"],
                     attributes["pid"],
-                    attributes["tid"])))
+                    attributes["tid"],
+                    attributes["fid"])))
 
     location_keys = ["file", "line"]
     if all(key in attributes for key in location_keys):

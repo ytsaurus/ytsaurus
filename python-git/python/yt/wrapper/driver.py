@@ -32,13 +32,16 @@ def escape_utf8(obj):
 
 class ResponseStream(object):
     """Iterator over response"""
-    def __init__(self, response, iter_type):
-        self.request_headers = response.request_headers
-        self.response = response.raw_response
-        self.iter_type = iter_type
+    def __init__(self, get_response, iter_content, close):
         self._buffer = ""
         self._pos = 0
-        self._iter_content = self.response.iter_content(config.READ_BUFFER_SIZE)
+        self._get_response = get_response
+        self._iter_content = iter_content
+        self._close = close
+
+    @staticmethod
+    def from_response(response):
+        return ResponseStream(lambda: response, response.iter_content(config.READ_BUFFER_SIZE), lambda: response.close())
 
     def read(self, length=None):
         if length is None:
@@ -75,10 +78,11 @@ class ResponseStream(object):
 
     def _fetch(self):
         def process_trailers():
-            trailers = self.response.trailers()
+            response = self._get_response()
+            trailers = response.trailers()
             error = parse_error_from_headers(trailers)
             if error is not None:
-                raise YtResponseError(self.response.url, self.request_headers, error)
+                raise YtResponseError(response.url, response.headers, error)
 
         try:
             self._buffer = self._iter_content.next()
@@ -95,31 +99,19 @@ class ResponseStream(object):
         return self
 
     def next(self):
-        if self.iter_type == "iter_lines":
-            line = self.readline()
-            if not line:
-                raise StopIteration()
-            return line
-        elif self.iter_type == "iter_content":
-            if self._pos == len(self._buffer) and not self._fetch():
-                raise StopIteration()
-            result = self._buffer[self._pos:]
-            self._pos = len(self._buffer)
-            return result
-        else:
-            raise YtError("Incorrect iter type: " + str(self.iter_type))
+        line = self.readline()
+        if not line:
+            raise StopIteration()
+        return line
 
+    def close(self):
+        self._close()
 
-def read_content(response, raw, format, response_type):
+def read_content(get_response, iter_content, raw, format=None):
     if raw:
-        if response_type == "string":
-            return response.raw_response.text
-        elif response_type == "raw":
-            return response.raw_response
-        else:
-            return ResponseStream(response, response_type)
+        return ResponseStream(get_response, iter_content)
     else:
-        return format.load_rows(ResponseStream(response, response_type))
+        return format.load_rows(ResponseStream(get_response, iter_content))
 
 
 def get_hosts(client=None):
@@ -132,7 +124,7 @@ def get_hosts(client=None):
 
     return make_get_request_with_retries("http://{0}/{1}".format(proxy, hosts))
 
-def get_host_for_heavy_operation(client=None):
+def get_heavy_proxy(client=None):
     client = get_value(client, config.CLIENT)
     if config.USE_HOSTS:
         hosts = get_hosts(client=client)
@@ -147,8 +139,10 @@ def get_host_for_heavy_operation(client=None):
 def make_request(command_name, params,
                  data=None, proxy=None,
                  return_content=True, verbose=False,
-                 retry_unavailable_proxy=True, client=None,
-                 response_should_be_json=False):
+                 retry_unavailable_proxy=True,
+                 response_should_be_json=False,
+                 use_heavy_proxy=False,
+                 client=None):
     """
     Makes request to yt proxy. Command name is the name of command in YT API.
     """
@@ -161,7 +155,10 @@ def make_request(command_name, params,
         logger.debug(msg, *args, **kwargs)
 
     # Prepare request url.
-    proxy = get_proxy_url(proxy, client)
+    if use_heavy_proxy:
+        proxy = get_heavy_proxy(client)
+    else:
+        proxy = get_proxy_url(proxy, client)
 
     version, commands = get_api(client)
     api_path = "api/" + version
@@ -235,11 +232,11 @@ def make_request(command_name, params,
         stream=stream,
         response_should_be_json=response_should_be_json)
 
-    print_info("Response headers %r", response.headers())
+    print_info("Response headers %r", response.headers)
 
     # Determine type of response data and return it
     if return_content:
-        return response.content()
+        return response.content
     else:
         return response
 

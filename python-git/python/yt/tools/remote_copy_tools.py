@@ -1,5 +1,5 @@
 from yt.wrapper.common import generate_uuid
-from yt.tools.convertion_tools import convert_to_erasure
+from yt.tools.conversion_tools import convert_to_erasure
 import yt.logger as logger
 import yt.wrapper as yt
 
@@ -59,16 +59,17 @@ def _split_rows_yt(yt_client, table, split_size):
 
 def _get_read_ranges_command(prepare_command, read_command):
     return """\
-set -ux
+set -uxe
 
 {0}
 
 while true; do
-    read -r start end;
-    if [ "$?" != "0" ]; then break; fi;
-    set -e
-    {1}
     set +e
+    read -r start end;
+    result="$?"
+    set -e
+    if [ "$result" != "0" ]; then break; fi;
+    {1}
 done;""".format(prepare_command, read_command)
 
 def _get_read_from_yt_command(yt_client, src, format, fastbone):
@@ -93,8 +94,10 @@ def _get_read_from_yt_command(yt_client, src, format, fastbone):
 def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pack=False):
     files = []
     prepare_command = "export YT_TOKEN=$(cat yt_token)\n"
+    if hasattr(yt_client, "token"):
+        files.append(_pack_string("yt_token", yt_client.token, tmp_dir))
     if pack:
-        files = [_pack_module("simplejson", tmp_dir), _pack_module("dateutil", tmp_dir), _pack_module("yt", tmp_dir), _which("yt2")]
+        files += [_pack_module("simplejson", tmp_dir), _pack_module("dateutil", tmp_dir), _pack_module("yt", tmp_dir), _which("yt2")]
         prepare_command += """
 set -e
 tar xvf yt.tar >/dev/null
@@ -136,7 +139,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
         spec_template = {}
 
     tmp_dir = tempfile.mkdtemp()
-    files = _prepare_read_from_yt_command(source_client, src, "yson", tmp_dir, fastbone)
+    files = _prepare_read_from_yt_command(source_client, src, "json", tmp_dir, fastbone)
 
     try:
         with source_client.PingableTransaction():
@@ -182,7 +185,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
         shutil.rmtree(tmp_dir)
 
 
-def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_template=None, message_queue=None):
+def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_template=None, sort_spec_template=None, message_queue=None):
     proxies = yamr_client.proxies
     if not proxies:
         proxies = [yamr_client.server]
@@ -203,9 +206,18 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_templa
     temp_table = yt_client.create_temp_table(prefix=os.path.basename(src))
     yt_client.write_table(temp_table, read_commands, format=yt.SchemafulDsvFormat(columns=["command"]))
 
+    if spec_template is None:
+        spec_template = {}
     spec = deepcopy(spec_template)
     spec["data_size_per_job"] = 1
     spec["job_io"] = {"table_writer": {"max_row_weight": 128 * 1024 * 1024}}
+
+    if sort_spec_template is None:
+        sort_spec = deepcopy(spec)
+        del sort_spec["pool"]
+    else:
+        sort_spec_template = sort_spec
+
 
     command = """\
 set -ux
@@ -342,7 +354,7 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, spec_templa
         logger.error(error)
         raise yt.IncorrectRowCount(error)
 
-def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, kiwi_user=None, spec_template=None, write_to_table=False, protobin=True, message_queue=None):
+def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, files=None, kiwi_user=None, spec_template=None, write_to_table=False, protobin=True, message_queue=None):
     extract_value_script_to_table = """\
 import sys
 import struct
@@ -395,7 +407,8 @@ while True:
     spec = deepcopy(spec_template)
     spec["data_size_per_job"] = 1
     spec["locality_timeout"] = 0
-    spec["max_failed_job_count"] = 16384
+    if "max_failed_job_count" not in spec:
+        spec["max_failed_job_count"] = 1000
 
     if write_to_table:
         extract_value_script = extract_value_script_to_table
@@ -403,15 +416,14 @@ while True:
         output_format = yt.YamrFormat(lenval=True,has_subkey=False)
     else:
         extract_value_script = extract_value_script_to_worm
-        write_command = "| {0} -c {1} -6 -u {2} -r 10000 -f 60000 --balance fast --spread 16 --tcp-cork write -f {3} -n "\
-                        "--fm-retry fixed:10 --fm-dline :300 --fm-shut --fm-infly 60000:200000000 2>&1"\
-                        .format(kiwi_client.kwworm, kiwi_client.url, kiwi_user, "protobin" if protobin else "prototext")
+        kiwi_command = kiwi_client.kwworm.format(kiwi_url=kiwi_client.url, kiwi_user=kiwi_user)
+        write_command = "| {0} >output 2>&1; RESULT=$?; cat output; tail -n 100 output >&2; exit $RESULT".format(kiwi_command)
         output_format = yt.SchemafulDsvFormat(columns=["error"])
 
     tmp_dir = tempfile.mkdtemp()
-    files = []
-    command_script = _get_read_ranges_command(
-        "set -o pipefail", "{0} | python extract_value.py {1}".format(read_command, write_command))
+    if files is None:
+        files = []
+    command_script = "set -o pipefail; {0} | python extract_value.py {1}".format(read_command, write_command)
     files.append(_pack_string("command.sh", command_script, tmp_dir))
     files.append(_pack_string("extract_value.py", extract_value_script, tmp_dir))
 
@@ -438,8 +450,13 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
     fastbone = kwargs.get("fastbone", True)
     if "fastbone" in kwargs:
         del kwargs["fastbone"]
-    read_command = _get_read_from_yt_command(yt_client, src, "<lenval=true>yamr", fastbone)
-    _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command=read_command, ranges=ranges, **kwargs)
+
+    tmp_dir = tempfile.mkdtemp()
+    try:
+        files = _prepare_read_from_yt_command(yt_client, src, "<lenval=true>yamr", tmp_dir, fastbone, pack=True)
+        _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command="bash read_from_yt.sh", ranges=ranges, files=files, **kwargs)
+    finally:
+        shutil.rmtree(tmp_dir)
 
 def copy_yamr_to_kiwi():
     pass

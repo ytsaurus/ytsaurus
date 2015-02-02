@@ -69,9 +69,9 @@ def test_yson_table_switcher():
 
     yson_rows = format.load_rows(StringIO(input))
     parsed_rows = [dict(yson) for yson in yson_rows]
-    true_input_rows = [{'a': 1, 'input_table_index': 0}, {'a': 1, 'input_table_index': 1}]
+    true_input_rows = [{'a': 1, 'input_table_index': 0, '@table_index': 0}, {'a': 1, '@table_index': 1, 'input_table_index': 1}]
     assert true_input_rows == parsed_rows
-    output_rows = [{'a': 1}, {'a': 1, 'output_table_index': 1}]
+    output_rows = [{'a': 1}, {'a': 1, '@table_index': 1}]
     stream = StringIO()
     format.dump_rows(output_rows, stream)
     dumped_output = stream.getvalue()
@@ -116,11 +116,11 @@ def test_json_format_table_index():
     format = yt.JsonFormat(process_table_index=True)
 
     stream = StringIO()
-    format.dump_rows([{"a": 1, "table_index": 1}], stream)
+    format.dump_rows([{"a": 1, "@table_index": 1}], stream)
     assert stream.getvalue() == '{"$value": null, "$attributes": {"table_index": 1}}\n'\
                                 '{"a": 1}\n'
 
-    assert [{"table_index": 1, "a": 1}] == \
+    assert [{"@table_index": 1, "a": 1}] == \
         list(format.load_rows(StringIO('{"$value": null, "$attributes": {"table_index": 1}}\n'
                                        '{"a": 1}')))
 
