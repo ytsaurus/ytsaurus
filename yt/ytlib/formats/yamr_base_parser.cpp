@@ -24,7 +24,7 @@ TYamrConsumerBase::TYamrConsumerBase(NYson::IYsonConsumer* consumer)
 
 void TYamrConsumerBase::SwitchTable(i64 tableIndex)
 {
-    static const Stroka Key = FormatEnum(EControlAttribute(EControlAttribute::TableIndex));
+    static const Stroka Key = FormatEnum(EControlAttribute::TableIndex);
     Consumer->OnListItem();
     Consumer->OnBeginAttributes();
     Consumer->OnKeyedItem(Key);
@@ -44,6 +44,7 @@ TYamrDelimitedBaseParser::TYamrDelimitedBaseParser(
     bool enableValueEscaping,
     char escapingSymbol)
     : Consumer(consumer)
+    , State(EState::InsideKey)
     , FieldSeparator(fieldSeparator)
     , RecordSeparator(recordSeparator)
     , EscapingSymbol(escapingSymbol)

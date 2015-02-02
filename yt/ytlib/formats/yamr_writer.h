@@ -15,6 +15,23 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EYamrConsumerState,
+    (None)
+    (ExpectColumnName)
+    (ExpectValue)
+    (ExpectAttributeName)
+    (ExpectAttributeValue)
+    (ExpectEndAttributes)
+    (ExpectEntity)
+);
+
+DEFINE_ENUM(EYamrConsumerValueType,
+    (ExpectKey)
+    (ExpectSubkey)
+    (ExpectValue)
+    (ExpectUnknown)
+);
+
 //! Note: only tabular format is supported.
 class TYamrConsumer
     : public virtual TFormatsConsumerBase
@@ -43,22 +60,8 @@ public:
     virtual void OnEndAttributes() override;
 
 private:
-    DECLARE_ENUM(EState,
-        (None)
-        (ExpectColumnName)
-        (ExpectValue)
-        (ExpectAttributeName)
-        (ExpectAttributeValue)
-        (ExpectEndAttributes)
-        (ExpectEntity)
-    );
-
-    DECLARE_ENUM(EValueType,
-        (ExpectKey)
-        (ExpectSubkey)
-        (ExpectValue)
-        (ExpectUnknown)
-    );
+    using EState = EYamrConsumerState;
+    using EValueType = EYamrConsumerValueType;
 
     TOutputStream* Stream;
     TYamrFormatConfigPtr Config;

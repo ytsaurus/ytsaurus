@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/misc/lazy_ptr.h>
+#include <core/misc/shutdownable.h>
 
-#include <core/concurrency/action_queue.h>
+#include <core/actions/public.h>
 
 namespace NYT {
 namespace NDriver {
@@ -12,31 +12,32 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDispatcher
+    : public IShutdownable
 {
 public:
     TDispatcher();
 
+    ~TDispatcher();
+
     static TDispatcher* Get();
 
-    void Configure(int heavyPoolSize);
+    void Configure(int lightPoolSize, int heavyPoolSize);
 
+    virtual void Shutdown() override;
+
+    /*!
+     * This invoker is used by TDriver for light commands.
+     */
     IInvokerPtr GetLightInvoker();
+
+    /*!
+     * This invoker is used by TDriver for light commands.
+     */
     IInvokerPtr GetHeavyInvoker();
 
-    void Shutdown();
-
 private:
-    int HeavyPoolSize;
-
-    /*!
-     * This thread is used by TDriver for light commands.
-     */
-    TLazyIntrusivePtr<NConcurrency::TActionQueue> DriverThread;
-
-    /*!
-     * This thread pool is used by TDriver for heavy commands.
-     */
-    TLazyIntrusivePtr<NConcurrency::TThreadPool> HeavyThreadPool;
+    class TImpl;
+    std::unique_ptr<TImpl> Impl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

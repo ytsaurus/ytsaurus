@@ -38,7 +38,7 @@ using namespace NChunkClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;
-static auto NullRowFuture = MakeFuture<TErrorOr<TVersionedRow>>(TVersionedRow());
+static auto NullRowFuture = MakeFuture(TVersionedRow());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -380,7 +380,7 @@ protected:
             versionedRow.BeginDeleteTimestamps(),
             versionedRow.EndDeleteTimestamps());
 
-        // Fixed values (sorted by |(id,timestamp)| pairs in ascending order).
+        // Fixed values (sorted by |id| in ascending order and then by |timestamp| in descending order).
         auto copyFixedValues = [] (const TValueListSnapshot& snapshot, TVersionedValue* beginValues) -> TVersionedValue* {
             auto currentList = snapshot.List;
             auto* currentValue = beginValues;
@@ -391,7 +391,6 @@ protected:
                 }
                 currentList = currentList.GetSuccessor();
             }
-            std::reverse(beginValues, currentValue);
             return currentValue;
         };
         {
@@ -453,10 +452,10 @@ public:
         , UpperKey_(std::move(upperKey))
     { }
 
-    virtual TAsyncError Open() override
+    virtual TFuture<void> Open() override
     {
         Iterator_ = Store_->Rows_->FindGreaterThanOrEqualTo(TKeyWrapper{LowerKey_.Get()});
-        return OKFuture;
+        return VoidFuture;
     }
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
@@ -469,7 +468,7 @@ public:
         rows->clear();
         Pool_.Clear();
 
-        auto keyComparer = Store_->GetTablet()->GetDynamicRowKeyComparer();
+        auto keyComparer = Store_->GetTablet()->GetRowKeyComparer();
 
         while (Iterator_.IsValid() && rows->size() < rows->capacity()) {
             if (keyComparer(Iterator_.GetCurrent(), TKeyWrapper{UpperKey_.Get()}) >= 0)
@@ -491,9 +490,9 @@ public:
         return true;
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
-        return OKFuture;
+        return VoidFuture;
     }
 
 private:
@@ -533,7 +532,7 @@ public:
             columnFilter)
     { }
 
-    virtual TFuture<TErrorOr<TVersionedRow>> Lookup(TKey key) override
+    virtual TFutureHolder<TVersionedRow> Lookup(TKey key) override
     {
         auto iterator = Store_->Rows_->FindEqualTo(TRowWrapper{key});
         if (!iterator.IsValid()) {
@@ -542,7 +541,7 @@ public:
 
         auto dynamicRow = iterator.GetCurrent();
         auto versionedRow = ProduceSingleRowVersion(dynamicRow);
-        return MakeFuture<TErrorOr<TVersionedRow>>(versionedRow);
+        return MakeFuture(versionedRow);
     }
 
 };
@@ -563,7 +562,7 @@ TDynamicMemoryStore::TDynamicMemoryStore(
         Config_->MaxPoolSmallBlockRatio)
     , Rows_(new TSkipList<TDynamicRow, TDynamicRowKeyComparer>(
         RowBuffer_.GetAlignedPool(),
-        tablet->GetDynamicRowKeyComparer()))
+        tablet->GetRowKeyComparer()))
 {
     State_ = EStoreState::ActiveDynamic;
 
@@ -639,6 +638,8 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
     bool prelock,
     ui32 lockMask)
 {
+    YASSERT(lockMask != 0);
+
     TDynamicRow result;
 
     auto addValues = [&] (TDynamicRow dynamicRow) {
@@ -1158,8 +1159,7 @@ EStoreType TDynamicMemoryStore::GetType() const
 
 i64 TDynamicMemoryStore::GetUncompressedDataSize() const
 {
-    // Ignore memory stores when deciding to compact.
-    return 0;
+    return GetUnalignedPoolCapacity() + GetAlignedPoolCapacity();
 }
 
 i64 TDynamicMemoryStore::GetRowCount() const

@@ -57,10 +57,10 @@ public:
         int partitionTag,
         NCompression::ECodec codecId);
 
-    TAsyncError AsyncOpen();
+    TFuture<void> AsyncOpen();
 
     bool FetchNext();
-    TAsyncError GetReadyEvent();
+    TFuture<void> GetReadyEvent();
 
     const TFacade* GetFacade() const;
 
@@ -95,8 +95,8 @@ private:
 
     NLog::TLogger Logger;
 
-    void OnGotMeta(NChunkClient::IChunkReader::TGetMetaResult result);
-    void OnNextBlock(TError error);
+    void OnGotMeta(const TErrorOr<NChunkClient::NProto::TChunkMeta>& metaOrError);
+    void OnNextBlock(const TError& error);
 
     bool NextRow();
 

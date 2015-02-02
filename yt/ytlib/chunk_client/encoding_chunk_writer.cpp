@@ -22,7 +22,7 @@ TEncodingChunkWriter::TEncodingChunkWriter(
     : ChunkWriter_(asyncWriter)
     , EncodingWriter_(New<TEncodingWriter>(config, options, asyncWriter))
 {
-    MiscExt_.set_compression_codec(options->CompressionCodec);
+    MiscExt_.set_compression_codec(static_cast<int>(options->CompressionCodec));
     MiscExt_.set_eden(options->ChunksEden);
 }
 
@@ -36,12 +36,10 @@ void TEncodingChunkWriter::WriteBlock(std::vector<TSharedRef>&& data)
     EncodingWriter_->WriteBlock(std::move(data));
 }
 
-TError TEncodingChunkWriter::Close()
+void TEncodingChunkWriter::Close()
 {
-    auto error = WaitFor(EncodingWriter_->Flush());
-    if (!error.IsOK()) {
-        return error;
-    }
+    WaitFor(EncodingWriter_->Flush())
+        .ThrowOnError();
 
     MiscExt_.set_uncompressed_data_size(EncodingWriter_->GetUncompressedSize());
     MiscExt_.set_compressed_data_size(EncodingWriter_->GetCompressedSize());
@@ -49,10 +47,11 @@ TError TEncodingChunkWriter::Close()
     MiscExt_.set_meta_size(Meta_.ByteSize());
     SetProtoExtension(Meta_.mutable_extensions(), MiscExt_);
 
-    return WaitFor(ChunkWriter_->Close(Meta_));
+    WaitFor(ChunkWriter_->Close(Meta_))
+        .ThrowOnError();
 }
 
-TAsyncError TEncodingChunkWriter::GetReadyEvent() const
+TFuture<void> TEncodingChunkWriter::GetReadyEvent() const
 {
     return EncodingWriter_->GetReadyEvent();
 }

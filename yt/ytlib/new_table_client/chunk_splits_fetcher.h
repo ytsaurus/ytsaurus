@@ -27,7 +27,7 @@ public:
         NLog::TLogger& logger);
 
 
-    virtual TAsyncError Fetch() override;
+    virtual TFuture<void> Fetch() override;
     const std::vector<NChunkClient::TRefCountedChunkSpecPtr>& GetChunkSplits() const;
 
 private:

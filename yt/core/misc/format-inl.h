@@ -10,6 +10,8 @@
 #include "guid.h"
 #include "assert.h"
 
+#include <cctype>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,10 +61,42 @@ inline void FormatValue(TStringBuilder* builder, const TStringBuf& value, const 
         padRight = alignLeft;
     }
 
+    bool singleQuotes = false;
+    bool doubleQuotes = false;
+    while (current < format.end()) {
+        if (*current == 'q') {
+            singleQuotes = true;
+        } else if (*current == 'Q') {
+            doubleQuotes = true;
+        }
+        ++current;
+    }
+
     if (padLeft) {
         builder->AppendChar(' ', padding);
     }
-    builder->AppendString(value);
+
+    if (singleQuotes || doubleQuotes) {
+        auto int2hex = [] (unsigned char x)->char {
+            YASSERT(x < 16);
+            return x < 10 ? ('0' + x) : ('A' + x - 10);
+        };
+        for (const char* current = value.begin(); current < value.end(); ++current) {
+            if (!std::isprint(*current) && !std::isspace(*current)) {
+                builder->AppendString("\\x");
+                builder->AppendChar(int2hex(static_cast<unsigned char>(*current) >> 4));
+                builder->AppendChar(int2hex(static_cast<unsigned char>(*current) & 0xF));
+            } else if ((singleQuotes && *current == '\'') || (doubleQuotes && *current == '\"')) {
+                builder->AppendChar('\\');
+                builder->AppendChar(*current);
+            } else {
+                builder->AppendChar(*current);
+            }
+        }
+    } else {
+        builder->AppendString(value);
+    }
+
     if (padRight) {
         builder->AppendChar(' ', padding);
     }
@@ -80,6 +114,12 @@ inline void FormatValue(TStringBuilder* builder, const char* value, const TStrin
     FormatValue(builder, TStringBuf(value), format);
 }
 
+// char
+inline void FormatValue(TStringBuilder* builder, char value, const TStringBuf& format)
+{
+    FormatValue(builder, TStringBuf(&value, 1), format);
+}
+
 // bool
 inline void FormatValue(TStringBuilder* builder, bool value, const TStringBuf& format)
 {
@@ -90,6 +130,8 @@ inline void FormatValue(TStringBuilder* builder, bool value, const TStringBuf& f
         if (*current == 'l') {
             ++current;
             lowercase = true;
+        } else if (*current == 'q' || *current == 'Q') {
+            ++current;
         } else
             break;
     }
@@ -114,19 +156,16 @@ struct TValueFormatter
 
 // Enums
 template <class TEnum>
-struct TValueFormatter<
-    TEnum,
-    typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<TEnum&, TEnumBase<TEnum>&>
-    >::TType>
+struct TValueFormatter<TEnum, typename std::enable_if<TEnumTraits<TEnum>::IsEnum>::type>
 {
     static void Do(TStringBuilder* builder, TEnum value, const TStringBuf& format)
     {
         // Obtain literal.
-        int rawValue = static_cast<int>(value);
-        auto* literal = TEnum::GetLiteralByValue(rawValue);
+        auto* literal = TEnumTraits<TEnum>::FindLiteralByValue(value);
         if (!literal) {
-            builder->AppendFormat("%v(%v)", TEnum::GetTypeName(), rawValue);
+            builder->AppendFormat("%v(%v)",
+                TEnumTraits<TEnum>::GetTypeName(),
+                static_cast<typename TEnumTraits<TEnum>::TUnderlying>(value));
             return;
         }
 
@@ -137,6 +176,8 @@ struct TValueFormatter<
             if (*current == 'l') {
                 ++current;
                 lowercase = true;
+            } else if (*current == 'q' || *current == 'Q') {
+                ++current;
             } else
                 break;
         }
@@ -222,7 +263,6 @@ void FormatValueStd(TStringBuilder* builder, TValue value, const TStringBuf& for
         FormatValueStd(builder, static_cast<castType>(value), format, genericSpec); \
     }
 
-IMPLEMENT_FORMAT_VALUE_STD(char,            char,               STRINGBUF("c"))
 IMPLEMENT_FORMAT_VALUE_STD(i8,              int,                STRINGBUF("d"))
 IMPLEMENT_FORMAT_VALUE_STD(ui8,             unsigned int,       STRINGBUF("u"))
 IMPLEMENT_FORMAT_VALUE_STD(i16,             int,                STRINGBUF("d"))
@@ -280,6 +320,9 @@ void FormatImpl(
             // Scan format part until stop symbol.
             const char* argFormatBegin = current;
             const char* argFormatEnd = argFormatBegin;
+            bool singleQuotes = false;
+            bool doubleQuotes = false;
+
             while (
                 *argFormatEnd != '\0' &&                  // end of format string
                 *argFormatEnd != GenericSpecSymbol &&     // value in generic format
@@ -302,6 +345,11 @@ void FormatImpl(
                 *argFormatEnd != 'p' &&
                 *argFormatEnd != 'n')
             {
+                if (*argFormatEnd == 'q') {
+                    singleQuotes = true;
+                } else if (*argFormatEnd == 'Q') {
+                    doubleQuotes = true;
+                }
                 ++argFormatEnd;
             }
 
@@ -312,20 +360,6 @@ void FormatImpl(
 
             // 'n' means 'nothing'; skip the argument.
             if (*argFormatBegin != 'n') {
-                // Parse custom flags.
-                bool singleQuotes = false;
-                bool doubleQuotes = false;
-                while (argFormatBegin != argFormatEnd) {
-                    if (*argFormatBegin == 'q') {
-                        ++argFormatBegin;
-                        singleQuotes = true;
-                    } else if (*argFormatBegin == 'Q') {
-                        ++argFormatBegin;
-                        doubleQuotes = true;
-                    } else
-                        break;
-                }
-
                 // Format argument.
                 TStringBuf argFormat(argFormatBegin, argFormatEnd);
                 if (singleQuotes) {

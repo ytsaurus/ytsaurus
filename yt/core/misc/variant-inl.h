@@ -132,6 +132,18 @@ void TVariant<Ts...>::AssignValue(T&& value)
 }
 
 template <class... Ts>
+template <class T, class... TArgs>
+void TVariant<Ts...>::EmplaceValue(TArgs&&... args)
+{
+    static_assert(
+        ::NYT::NDetail::NVariant::TTagTraits<T, Ts...>::Tag != -1,
+        "Type not in TVariant.");
+
+    Tag_ = ::NYT::NDetail::NVariant::TTagTraits<T, Ts...>::Tag;
+    new (&Storage_) T(std::forward<TArgs>(args)...);
+}
+
+template <class... Ts>
 void TVariant<Ts...>::AssignVariant(const TVariant& other)
 {
     Tag_ = other.Tag_;
@@ -171,6 +183,13 @@ template <class T, class>
 TVariant<Ts...>::TVariant(T&& value)
 {
     AssignValue(std::move(value));
+}
+
+template <class... Ts>
+template<class T, class... TArgs, class>
+TVariant<Ts...>::TVariant(TVariantTypeTag<T>, TArgs&&... args)
+{
+    EmplaceValue<T>(std::forward<TArgs>(args)...);
 }
 
 template <class... Ts>

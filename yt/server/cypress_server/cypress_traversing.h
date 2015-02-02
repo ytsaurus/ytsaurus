@@ -18,6 +18,8 @@ struct ICypressNodeVisitor
     virtual void OnCompleted() = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(ICypressNodeVisitor)
+
 void TraverseCypress(
     NCellMaster::TBootstrap* bootstrap,
     ICypressNodeProxyPtr rootNode,

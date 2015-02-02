@@ -29,17 +29,17 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NYson::ETokenType::EDomain BeginColumnSelectorToken = NYson::ETokenType::LeftBrace;
-const NYson::ETokenType::EDomain EndColumnSelectorToken = NYson::ETokenType::RightBrace;
-const NYson::ETokenType::EDomain ColumnSeparatorToken = NYson::ETokenType::Comma;
-const NYson::ETokenType::EDomain BeginRowSelectorToken = NYson::ETokenType::LeftBracket;
-const NYson::ETokenType::EDomain EndRowSelectorToken = NYson::ETokenType::RightBracket;
-const NYson::ETokenType::EDomain RowIndexMarkerToken = NYson::ETokenType::Hash;
-const NYson::ETokenType::EDomain BeginTupleToken = NYson::ETokenType::LeftParenthesis;
-const NYson::ETokenType::EDomain EndTupleToken = NYson::ETokenType::RightParenthesis;
-const NYson::ETokenType::EDomain KeySeparatorToken = NYson::ETokenType::Comma;
-const NYson::ETokenType::EDomain RangeToken = NYson::ETokenType::Colon;
-const NYson::ETokenType::EDomain RangeSeparatorToken = NYson::ETokenType::Comma;
+const NYson::ETokenType BeginColumnSelectorToken = NYson::ETokenType::LeftBrace;
+const NYson::ETokenType EndColumnSelectorToken = NYson::ETokenType::RightBrace;
+const NYson::ETokenType ColumnSeparatorToken = NYson::ETokenType::Comma;
+const NYson::ETokenType BeginRowSelectorToken = NYson::ETokenType::LeftBracket;
+const NYson::ETokenType EndRowSelectorToken = NYson::ETokenType::RightBracket;
+const NYson::ETokenType RowIndexMarkerToken = NYson::ETokenType::Hash;
+const NYson::ETokenType BeginTupleToken = NYson::ETokenType::LeftParenthesis;
+const NYson::ETokenType EndTupleToken = NYson::ETokenType::RightParenthesis;
+const NYson::ETokenType KeySeparatorToken = NYson::ETokenType::Comma;
+const NYson::ETokenType RangeToken = NYson::ETokenType::Colon;
+const NYson::ETokenType RangeSeparatorToken = NYson::ETokenType::Comma;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -19,6 +19,7 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
+// ToDo(psushin): rename to TDiagnosticStream(?)
 class TErrorOutput
     : public TOutputStream
 {

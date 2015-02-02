@@ -21,6 +21,17 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EMasterConnectorState,
+    // Not registered.
+    (Offline)
+    // Register request is in progress.
+    (Registering)
+    // Registered but did not report the full heartbeat yet.
+    (Registered)
+    // Registered and reported the full heartbeat.
+    (Online)
+);
+
 //! Mediates connection between a node and its master.
 /*!
  *  This class is responsible for registering the node and sending
@@ -58,22 +69,13 @@ public:
     void RegisterAlert(const Stroka& alert);
 
 private:
-    TDataNodeConfigPtr Config_;
-    NCellNode::TBootstrap* Bootstrap_;
+    using EState = EMasterConnectorState;
+
+    const TDataNodeConfigPtr Config_;
+    const NCellNode::TBootstrap* Bootstrap_;
 
     bool Started_;
     IInvokerPtr ControlInvoker_;
-
-    DECLARE_ENUM(EState,
-        // Not registered.
-        (Offline)
-        // Register request is in progress.
-        (Registering)
-        // Registered but did not report the full heartbeat yet.
-        (Registered)
-        // Registered and reported the full heartbeat.
-        (Online)
-    );
 
     //! Guards the current heartbeat session.
     TCancelableContextPtr HeartbeatContext_;
@@ -127,7 +129,7 @@ private:
     NNodeTrackerClient::NProto::TNodeStatistics ComputeStatistics();
 
     //! Handles registration response.
-    void OnRegisterResponse(NNodeTrackerClient::TNodeTrackerServiceProxy::TRspRegisterNodePtr rsp);
+    void OnRegisterResponse(const NNodeTrackerClient::TNodeTrackerServiceProxy::TErrorOrRspRegisterNodePtr& rspOrError);
 
     //! Sends out a full heartbeat.
     void SendFullNodeHeartbeat();
@@ -148,13 +150,13 @@ private:
     static NNodeTrackerClient::NProto::TChunkRemoveInfo BuildRemoveChunkInfo(IChunkPtr chunk);
 
     //! Handles full heartbeat response from Node Tracker.
-    void OnFullNodeHeartbeatResponse(NNodeTrackerClient::TNodeTrackerServiceProxy::TRspFullHeartbeatPtr rsp);
+    void OnFullNodeHeartbeatResponse(const NNodeTrackerClient::TNodeTrackerServiceProxy::TErrorOrRspFullHeartbeatPtr& rspOrError);
 
     //! Handles incremental heartbeat response from Node Tracker.
-    void OnIncrementalNodeHeartbeatResponse(NNodeTrackerClient::TNodeTrackerServiceProxy::TRspIncrementalHeartbeatPtr rsp);
+    void OnIncrementalNodeHeartbeatResponse(const NNodeTrackerClient::TNodeTrackerServiceProxy::TErrorOrRspIncrementalHeartbeatPtr& rspOrError);
 
     //! Handles heartbeat response from Job Tracker.
-    void OnJobHeartbeatResponse(NJobTrackerClient::TJobTrackerServiceProxy::TRspHeartbeatPtr rsp);
+    void OnJobHeartbeatResponse(const NJobTrackerClient::TJobTrackerServiceProxy::TErrorOrRspHeartbeatPtr& rspOrError);
 
     //! Resets connection state.
     void Reset();

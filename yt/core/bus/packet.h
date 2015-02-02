@@ -10,12 +10,12 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EPacketType,
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(EPacketType, i16,
     ((Message)(0))
     ((Ack)    (1))
 );
 
-DECLARE_FLAGGED_ENUM(EPacketFlags,
+DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EPacketFlags, ui16,
     ((None)      (0x0000))
     ((RequestAck)(0x0001))
 );
@@ -29,9 +29,9 @@ const int TypicalPacketPartCount = 64;
 
 struct TPacketHeader
 {
-    ui32 Signature;     // == PacketSignature
-    ui16 Type;          // EPacketType
-    ui16 Flags;         // EPacketFlags
+    ui32 Signature; // == PacketSignature
+    EPacketType Type;
+    EPacketFlags Flags;
     TPacketId PacketId;
 };
 
@@ -39,7 +39,7 @@ struct TPacketHeader
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EPacketPhase,
+DEFINE_ENUM(EPacketPhase,
     (Unstarted)
     (Header)
     (PartCount)

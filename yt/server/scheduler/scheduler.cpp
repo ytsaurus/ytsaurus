@@ -22,7 +22,6 @@
 #include <core/actions/invoker_util.h>
 
 #include <core/concurrency/action_queue.h>
-#include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/scheduler.h>
 
 #include <core/rpc/dispatcher.h>
@@ -105,6 +104,7 @@ public:
         TSchedulerConfigPtr config,
         TBootstrap* bootstrap)
         : Config_(config)
+        , ConfigAtStart_(ConvertToNode(Config_))
         , Bootstrap_(bootstrap)
         , BackgroundQueue_(New<TActionQueue>("Background"))
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
@@ -114,7 +114,6 @@ public:
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
         , TotalFailedJobTimeCounter_("/total_failed_job_time")
         , TotalAbortedJobTimeCounter_("/total_aborted_job_time")
-        , JobTypeCounters_(static_cast<int>(EJobType::SchedulerLast))
         , TotalResourceLimits_(ZeroNodeResources())
         , TotalResourceUsage_(ZeroNodeResources())
     {
@@ -178,11 +177,11 @@ public:
         EventLogWriter_ = CreateBufferedTableWriter(
             Config_->EventLog,
             // TODO(ignat): pass Client instead of Channel and TransactionManager
-            Bootstrap_->GetMasterClient()->GetMasterChannel(),
+            Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader),
             Bootstrap_->GetMasterClient()->GetTransactionManager(),
             Config_->EventLog->Path);
         EventLogWriter_->Open();
-        EventLogConsumer_.reset(new TTableConsumer(EventLogWriter_));
+        EventLogConsumer_.reset(new TLegacyTableConsumer(EventLogWriter_));
 
         LogEventFluently(ELogEventType::SchedulerStarted)
             .Item("address").Value(ServiceAddress_);
@@ -282,7 +281,7 @@ public:
     }
 
 
-    TFuture<TOperationStartResult> StartOperation(
+    TFuture<TOperationPtr> StartOperation(
         EOperationType type,
         const TTransactionId& transactionId,
         const TMutationId& mutationId,
@@ -377,7 +376,7 @@ public:
         return operation->GetFinished();
     }
 
-    TAsyncError SuspendOperation(TOperationPtr operation)
+    TFuture<void> SuspendOperation(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -394,10 +393,10 @@ public:
             operation->GetId());
 
 
-        return OKFuture;
+        return VoidFuture;
     }
 
-    TAsyncError ResumeOperation(TOperationPtr operation)
+    TFuture<void> ResumeOperation(TOperationPtr operation)
     {
         if (!operation->GetSuspended()) {
             return MakeFuture(TError(
@@ -411,7 +410,7 @@ public:
         LOG_INFO("Operation resumed (OperationId: %v)",
             operation->GetId());
 
-        return OKFuture;
+        return VoidFuture;
     }
 
 
@@ -502,27 +501,25 @@ public:
                 ToProto(response->add_jobs_to_abort(), job->GetId());
             }
 
-            auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
-            auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetPoolInvoker();
+            std::vector<TFuture<void>> asyncResults;
+            auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetInvoker();
             for (auto job : schedulingContext->StartedJobs()) {
                 auto* startInfo = response->add_jobs_to_start();
                 ToProto(startInfo->mutable_job_id(), job->GetId());
                 *startInfo->mutable_resource_limits() = job->ResourceUsage();
 
                 // Build spec asynchronously.
-                awaiter->Await(
+                asyncResults.push_back(
                     BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
-                    .AsyncVia(specBuilderInvoker)
-                    .Run());
+                        .AsyncVia(specBuilderInvoker)
+                        .Run());
 
                 // Release to avoid circular references.
                 job->SetSpecBuilder(TJobSpecBuilder());
                 operationsToLog.insert(job->GetOperation());
             }
 
-            awaiter->Complete(BIND([=] () {
-                context->Reply();
-            }));
+            context->ReplyFrom(Combine(asyncResults));
 
             for (auto operation : operationsToLog) {
                 LogOperationProgress(operation);
@@ -662,6 +659,7 @@ private:
     friend class TSchedulingContext;
 
     TSchedulerConfigPtr Config_;
+    INodePtr ConfigAtStart_;
     TBootstrap* Bootstrap_;
 
     TActionQueuePtr BackgroundQueue_;
@@ -687,7 +685,7 @@ private:
     NProfiling::TAggregateCounter TotalFailedJobTimeCounter_;
     NProfiling::TAggregateCounter TotalAbortedJobTimeCounter_;
 
-    std::vector<int> JobTypeCounters_;
+    TEnumIndexedVector<int, EJobType> JobTypeCounters_;
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TNodeResources TotalResourceLimits_;
@@ -709,7 +707,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        for (auto jobType : EJobType::GetDomainValues()) {
+        for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
             if (jobType > EJobType::SchedulerFirst && jobType < EJobType::SchedulerLast) {
                 Profiler.Enqueue("/job_count/" + FormatEnum(jobType), JobTypeCounters_[jobType]);
             }
@@ -824,13 +822,14 @@ private:
 
     void HandlePools(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pools");
-        if (!rsp->IsOK()) {
-            LOG_ERROR(*rsp, "Error getting pools configuration");
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pools");
+        if (!rspOrError.IsOK()) {
+            LOG_ERROR(rspOrError, "Error getting pools configuration");
             return;
         }
 
         try {
+            const auto& rsp = rspOrError.Value();
             auto poolsNode = ConvertToNode(TYsonString(rsp->value()));
             PoolsUpdated_.Fire(poolsNode);
         } catch (const std::exception& ex) {
@@ -850,13 +849,14 @@ private:
 
     void HandleNodesAttributes(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_nodes");
-        if (!rsp->IsOK()) {
-            LOG_ERROR(*rsp, "Error updating nodes information");
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_nodes");
+        if (!rspOrError.IsOK()) {
+            LOG_ERROR(rspOrError, "Error updating nodes information");
             return;
         }
 
         try {
+            const auto& rsp = rspOrError.Value();
             auto nodesMap = ConvertToNode(TYsonString(rsp->value()))->AsMap();
             for (const auto& child : nodesMap->GetChildren()) {
                 auto address = child.first;
@@ -915,12 +915,13 @@ private:
         TOperationPtr operation,
         TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
-        if (!rsp->IsOK()) {
-            LOG_ERROR(*rsp, "Error updating operation runtime parameters");
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
+        if (!rspOrError.IsOK()) {
+            LOG_ERROR(rspOrError, "Error updating operation runtime parameters");
             return;
         }
 
+        const auto& rsp = rspOrError.Value();
         auto operationNode = ConvertToNode(TYsonString(rsp->value()));
         auto attributesNode = ConvertToNode(operationNode->Attributes());
 
@@ -937,28 +938,42 @@ private:
 
     void HandleConfig(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
-        if (rsp->GetError().FindMatching(NYTree::EErrorCode::ResolveError)) {
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
+        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             // No config in Cypress, just ignore.
             return;
         }
-        if (!rsp->IsOK()) {
-            LOG_ERROR(*rsp, "Error getting scheduler configuration");
+        if (!rspOrError.IsOK()) {
+            LOG_ERROR(rspOrError, "Error getting scheduler configuration");
             return;
         }
 
+        INodePtr oldConfig = ConvertToNode(Config_);
+
         try {
-            if (!ReconfigureYsonSerializable(Config_, TYsonString(rsp->value())))
-                return;
+            const auto& rsp = rspOrError.Value();
+            auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
+
+            try {
+                Config_->Load(ConfigAtStart_, /* validate */ true, /* setDefaults */ true);
+                Config_->Load(configFromCypress, /* validate */ true, /* setDefaults */ false);
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Error updating cell scheduler configuration");
+                Config_->Load(oldConfig, /* validate */ true, /* setDefaults */ true);
+            }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error parsing updated scheduler configuration");
         }
 
-        LOG_INFO("Scheduler configuration updated");
+        INodePtr newConfig = ConvertToNode(Config_);
+
+        if (!NYTree::AreNodesEqual(oldConfig, newConfig)) {
+            LOG_INFO("Scheduler configuration updated");
+        }
     }
 
 
-    TError DoStartOperation(TOperationPtr operation)
+    void DoStartOperation(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -989,7 +1004,7 @@ private:
                 OnOperationFailed(operation, wrappedError);
             }
             operation->SetStarted(wrappedError);
-            return wrappedError;
+            THROW_ERROR(wrappedError);
         }
 
         LogEventFluently(ELogEventType::OperationStarted)
@@ -1006,7 +1021,6 @@ private:
             operation));
 
         operation->SetStarted(TError());
-        return TError();
     }
 
     void DoPrepareOperation(TOperationPtr operation)
@@ -1530,10 +1544,12 @@ private:
 
     void ReleaseStderrChunk(TJobPtr job, const TChunkId& chunkId)
     {
-        TObjectServiceProxy proxy(GetMasterClient()->GetMasterChannel());
         auto transaction = job->GetOperation()->GetAsyncSchedulerTransaction();
         if (!transaction)
             return;
+
+        auto channel = GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
 
         auto req = TMasterYPathProxy::UnstageObject();
         ToProto(req->mutable_object_id(), chunkId);
@@ -1545,10 +1561,10 @@ private:
             BIND(&TImpl::OnStderrChunkReleased, MakeStrong(this)));
     }
 
-    void OnStderrChunkReleased(TMasterYPathProxy::TRspUnstageObjectPtr rsp)
+    void OnStderrChunkReleased(const TMasterYPathProxy::TErrorOrRspUnstageObjectPtr& rspOrError)
     {
-        if (!rsp->IsOK()) {
-            LOG_WARNING(*rsp, "Error releasing stderr chunk");
+        if (!rspOrError.IsOK()) {
+            LOG_WARNING(rspOrError, "Error releasing stderr chunk");
         }
     }
 
@@ -1763,6 +1779,7 @@ private:
                 .Item("clusters").DoMapFor(GetClusterDirectory()->GetClusterNames(), [=] (TFluentMap fluent, const Stroka& clusterName) {
                     BuildClusterYson(clusterName, fluent);
                 })
+                .Item("config").Value(Config_)
                 .DoIf(Strategy_ != nullptr, BIND(&ISchedulerStrategy::BuildOrchid, Strategy_.get()))
             .EndMap();
     }
@@ -2135,7 +2152,7 @@ TExecNodePtr TScheduler::GetOrRegisterNode(const TNodeDescriptor& descriptor)
     return Impl_->GetOrRegisterNode(descriptor);
 }
 
-TFuture<TOperationStartResult> TScheduler::StartOperation(
+TFuture<TOperationPtr> TScheduler::StartOperation(
     EOperationType type,
     const TTransactionId& transactionId,
     const TMutationId& mutationId,
@@ -2157,12 +2174,12 @@ TFuture<void> TScheduler::AbortOperation(
     return Impl_->AbortOperation(operation, error);
 }
 
-TAsyncError TScheduler::SuspendOperation(TOperationPtr operation)
+TFuture<void> TScheduler::SuspendOperation(TOperationPtr operation)
 {
     return Impl_->SuspendOperation(operation);
 }
 
-TAsyncError TScheduler::ResumeOperation(TOperationPtr operation)
+TFuture<void> TScheduler::ResumeOperation(TOperationPtr operation)
 {
     return Impl_->ResumeOperation(operation);
 }

@@ -45,8 +45,8 @@ struct TUnversionedValue
 {
     //! Column id obtained from a name table.
     ui16 Id;
-    //! Column type from EValueType.
-    ui16 Type;
+    //! Column type.
+    EValueType Type;
     //! Length of a variable-sized value (only meaningful for |String| and |Any| types).
     ui32 Length;
 

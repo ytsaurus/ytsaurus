@@ -212,12 +212,12 @@ private:
 
 };
 
-TJobPtr CreateOrderedMergeJob(IJobHost* host)
+IJobPtr CreateOrderedMergeJob(IJobHost* host)
 {
     return New< TMergeJob<TOldMultiChunkSequentialReader> >(host);
 }
 
-TJobPtr CreateUnorderedMergeJob(IJobHost* host)
+IJobPtr CreateUnorderedMergeJob(IJobHost* host)
 {
     return New< TMergeJob<TOldMultiChunkSequentialReader> >(host);
 }

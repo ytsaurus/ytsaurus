@@ -93,3 +93,6 @@ class TestJournals(YTEnvSetup):
         create("journal", "//tmp/j1")
         with pytest.raises(YtError): copy("//tmp/j1", "//tmp/j2")
 
+    def test_move(self):
+        create("journal", "//tmp/j1")
+        move('//tmp/j1', '//tmp/j2')

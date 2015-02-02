@@ -55,12 +55,13 @@ public:
         YCHECK(Executor_);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
+            .SetCancelable(true)
             .SetEnableReorder(true));
     }
 
 private:
-    TQueryAgentConfigPtr Config_;
-    IExecutorPtr Executor_;
+    const TQueryAgentConfigPtr Config_;
+    const IExecutorPtr Executor_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
@@ -77,14 +78,14 @@ private:
                 TWireProtocolWriter protocolWriter;
                 auto rowsetWriter = protocolWriter.CreateSchemafulRowsetWriter();
 
-                auto result = WaitFor(Executor_->Execute(planFragment, rowsetWriter));
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                auto result = WaitFor(Executor_->Execute(planFragment, rowsetWriter))
+                    .ValueOrThrow();
 
                 auto responseCodec = request->has_response_codec()
                     ? ECodec(request->response_codec())
-                    : ECodec(ECodec::None);
+                    : ECodec::None;
                 response->Attachments() = CompressWithEnvelope(protocolWriter.Flush(), responseCodec);
-                ToProto(response->mutable_query_statistics(), result.Value());
+                ToProto(response->mutable_query_statistics(), result);
                 context->Reply();
             });
     }

@@ -8,7 +8,7 @@
 
 #include <core/concurrency/thread_affinity.h>
 
-#include <core/actions/invoker.h>
+#include <core/actions/future.h>
 
 #include <core/rpc/public.h>
 
@@ -45,11 +45,60 @@ struct TEpochContext
     TLeaderCommitterPtr LeaderCommitter;
     TFollowerCommitterPtr FollowerCommitter;
     TFollowerTrackerPtr FollowerTracker;
-    bool LeaderActive = false;
     std::atomic_flag Restarted;
 };
 
 DEFINE_REFCOUNTED_TYPE(TEpochContext)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSystemLockGuard
+    : private TNonCopyable
+{
+public:
+    TSystemLockGuard();
+    TSystemLockGuard(TSystemLockGuard&& other);
+    ~TSystemLockGuard();
+
+    TSystemLockGuard& operator = (TSystemLockGuard&& other);
+
+    void Release();
+
+    explicit operator bool() const;
+
+    static TSystemLockGuard Acquire(TDecoratedAutomatonPtr automaton);
+
+private:
+    explicit TSystemLockGuard(TDecoratedAutomatonPtr automaton);
+
+    TDecoratedAutomatonPtr Automaton_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUserLockGuard
+    : private TNonCopyable
+{
+public:
+    TUserLockGuard();
+    TUserLockGuard(TUserLockGuard&& other);
+    ~TUserLockGuard();
+
+    TUserLockGuard& operator = (TUserLockGuard&& other);
+
+    void Release();
+
+    explicit operator bool() const;
+
+    static TUserLockGuard TryAcquire(TDecoratedAutomatonPtr automaton);
+
+private:
+    explicit TUserLockGuard(TDecoratedAutomatonPtr automaton);
+
+    TDecoratedAutomatonPtr Automaton_;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,31 +149,26 @@ public:
     void LogLeaderMutation(
         const TMutationRequest& request,
         TSharedRef* recordData,
-        TFuture<TError>* localFlushResult,
-        TFuture<TErrorOr<TMutationResponse>>* commitResult);
+        TFuture<void>* localFlushResult,
+        TFuture<TMutationResponse>* commitResult);
 
     void CancelPendingLeaderMutations(const TError& error);
 
     void LogFollowerMutation(
         const TSharedRef& recordData,
-        TAsyncError* localFlushResult);
+        TFuture<void>* localFlushResult);
 
-    TFuture<TErrorOr<TRemoteSnapshotParams>> BuildSnapshot();
+    TFuture<TRemoteSnapshotParams> BuildSnapshot();
 
-    TAsyncError RotateChangelog(TEpochContextPtr epochContext);
+    TFuture<void> RotateChangelog(TEpochContextPtr epochContext);
 
     void CommitMutations(TVersion version);
-
-    void RegisterKeptResponse(
-        const TMutationId& mutationId,
-        const TMutationResponse& response);
-    TNullable<TMutationResponse> FindKeptResponse(const TMutationId& mutationId);
 
     TMutationContext* GetMutationContext();
 
 private:
-    class TUserLockGuard;
-    class TSystemLockGuard;
+    friend class TUserLockGuard;
+    friend class TSystemLockGuard;
     class TGuardedUserInvoker;
     class TSystemInvoker;
     class TSnapshotBuilder;
@@ -147,12 +191,11 @@ private:
     TMutationContext* MutationContext_ = nullptr;
     IChangelogPtr Changelog_;
 
-    TSpinLock VersionSpinLock_;
-    TVersion LoggedVersion_;
-    TVersion AutomatonVersion_;
+    std::atomic<TVersion> LoggedVersion_;
+    std::atomic<TVersion> AutomatonVersion_;
 
     TVersion SnapshotVersion_;
-    TPromise<TErrorOr<TRemoteSnapshotParams>> SnapshotParamsPromise_;
+    TPromise<TRemoteSnapshotParams> SnapshotParamsPromise_;
     std::atomic_flag BuildingSnapshot_;
     TInstant LastSnapshotTime_;
 
@@ -162,7 +205,7 @@ private:
         TMutationRequest Request;
         TInstant Timestamp;
         ui64 RandomSeed;
-        TPromise<TErrorOr<TMutationResponse>> CommitPromise;
+        TPromise<TMutationResponse> CommitPromise;
     };
 
     NProto::TMutationHeader MutationHeader_; // pooled instance

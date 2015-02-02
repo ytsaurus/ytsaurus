@@ -94,7 +94,7 @@ void TPtrWithIndex<T>::Save(C& context) const
 {
     using NYT::Save;
     Save(context, GetPtr());
-    Save(context, GetIndex());
+    Save<i8>(context, GetIndex());
 }
 
 template <class T>
@@ -103,7 +103,13 @@ void TPtrWithIndex<T>::Load(C& context)
 {
     using NYT::Load;
     auto* ptr = Load<T*>(context);
-    int index = Load<int>(context);
+    int index;
+    // COMPAT(babenko)
+    if (context.GetVersion() < 109) {
+        index = Load<int>(context);
+    } else{
+        index = Load<i8>(context);
+    }
     *this = TPtrWithIndex<T>(ptr, index);
 }
 

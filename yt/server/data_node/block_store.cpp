@@ -115,7 +115,7 @@ public:
         }
     }
 
-    TAsyncGetBlockResult FindBlock(
+    TFuture<TSharedRef> FindBlock(
         const TChunkId& chunkId,
         int blockIndex,
         i64 priority,
@@ -129,7 +129,7 @@ public:
         auto cachedBlock = FindBlock(blockId);
         if (cachedBlock) {
             LogCacheHit(cachedBlock);
-            return MakeFuture<TGetBlockResult>(cachedBlock->GetData());
+            return MakeFuture(cachedBlock->GetData());
         }
         
         TInsertCookie cookie(blockId);
@@ -145,12 +145,12 @@ public:
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
         if (!chunk) {
-            return MakeFuture<TGetBlockResult>(TSharedRef());
+            return MakeFuture(TSharedRef());
         }
 
         auto readGuard = TChunkReadGuard::TryAcquire(chunk);
         if (!readGuard) {
-            return MakeFuture<TGetBlockResult>(TSharedRef());
+            return MakeFuture(TSharedRef());
         }
 
         return chunk
@@ -163,7 +163,7 @@ public:
                 Passed(std::move(readGuard))));
     }
 
-    TAsyncGetBlocksResult FindBlocks(
+    TFuture<std::vector<TSharedRef>> FindBlocks(
         const TChunkId& chunkId,
         int firstBlockIndex,
         int blockCount,
@@ -174,12 +174,12 @@ public:
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
         if (!chunk) {
-            return MakeFuture<TGetBlocksResult>(std::vector<TSharedRef>());
+            return MakeFuture(std::vector<TSharedRef>());
         }
 
         auto readGuard = TChunkReadGuard::TryAcquire(chunk);
         if (!readGuard) {
-            return MakeFuture<TGetBlocksResult>(TError(
+            return MakeFuture<std::vector<TSharedRef>>(TError(
                 NChunkClient::EErrorCode::NoSuchChunk,
                 "Cannot read chunk %v since it is scheduled for removal",
                 chunkId));
@@ -245,33 +245,24 @@ private:
             delta);
     }
 
-    TGetBlockResult OnCachedBlockReady(TErrorOr<TCachedBlockPtr> result)
+    TSharedRef OnCachedBlockReady(TCachedBlockPtr cachedBlock)
     {
-        if (!result.IsOK()) {
-            return TError(result);
-        }
-
-        const auto& cachedBlock = result.Value();
         LogCacheHit(cachedBlock);
         return cachedBlock->GetData();
     }
 
-    static TGetBlockResult OnBlockRead(
+    static TSharedRef OnBlockRead(
         IChunkPtr chunk,
         int blockIndex,
         TInsertCookie cookie,
         TChunkReadGuard /*readGuard*/,
-        IChunk::TReadBlocksResult result)
+        const std::vector<TSharedRef>& blocks)
     {
+        YASSERT(blocks.size() <= 1);
+
         TBlockId blockId(chunk->GetId(), blockIndex);
-
-        if (!result.IsOK()) {
-            return TError(result);
-        }
-
-        const auto& blocks = result.Value();
         if (blocks.empty()) {
-            return TError(
+            THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::NoSuchBlock,
                 "No such block %v",
                 blockId);
@@ -284,11 +275,11 @@ private:
         return block;
     }
 
-    static TGetBlocksResult OnBlocksRead(
+    static std::vector<TSharedRef> OnBlocksRead(
         TChunkReadGuard /*readGuard*/,
-        IChunk::TReadBlocksResult result)
+        const std::vector<TSharedRef>& blocks)
     {
-        return result;
+        return blocks;
     }
 
 };
@@ -339,7 +330,7 @@ void TBlockStore::Initialize()
 TBlockStore::~TBlockStore()
 { }
 
-TFuture<TBlockStore::TGetBlockResult> TBlockStore::FindBlock(
+TFuture<TSharedRef> TBlockStore::FindBlock(
     const TChunkId& chunkId,
     int blockIndex,
     i64 priority,
@@ -352,7 +343,7 @@ TFuture<TBlockStore::TGetBlockResult> TBlockStore::FindBlock(
         enableCaching);
 }
 
-TFuture<TBlockStore::TGetBlocksResult> TBlockStore::FindBlocks(
+TFuture<std::vector<TSharedRef>> TBlockStore::FindBlocks(
     const TChunkId& chunkId,
     int firstBlockIndex,
     int blockCount,

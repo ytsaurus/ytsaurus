@@ -34,6 +34,7 @@
 
 #include <server/tablet_node/tablet_slot_manager.h>
 #include <server/tablet_node/tablet_slot.h>
+#include <server/tablet_node/tablet.h>
 
 #include <server/data_node/journal_dispatcher.h>
 
@@ -190,7 +191,9 @@ void TMasterConnector::SendRegister()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TNodeTrackerServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
+    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
+    TNodeTrackerServiceProxy proxy(channel);
+
     auto req = proxy.RegisterNode();
     *req->mutable_statistics() = ComputeStatistics();
     ToProto(req->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
@@ -252,27 +255,28 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     result.set_available_tablet_slots(tabletSlotManager->GetAvailableTabletSlotCount());
     result.set_used_tablet_slots(tabletSlotManager->GetUsedTableSlotCount());
     
-    result.add_accepted_chunk_types(EObjectType::Chunk);
-    result.add_accepted_chunk_types(EObjectType::ErasureChunk);
+    result.add_accepted_chunk_types(static_cast<int>(EObjectType::Chunk));
+    result.add_accepted_chunk_types(static_cast<int>(EObjectType::ErasureChunk));
     
     auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
     if (journalDispatcher->AcceptsChunks()) {
-        result.add_accepted_chunk_types(EObjectType::JournalChunk);
+        result.add_accepted_chunk_types(static_cast<int>(EObjectType::JournalChunk));
     }
 
     return result;
 }
 
-void TMasterConnector::OnRegisterResponse(TNodeTrackerServiceProxy::TRspRegisterNodePtr rsp)
+void TMasterConnector::OnRegisterResponse(const TNodeTrackerServiceProxy::TErrorOrRspRegisterNodePtr& rspOrError)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (!rsp->IsOK()) {
-        LOG_WARNING(*rsp, "Error registering node");
+    if (!rspOrError.IsOK()) {
+        LOG_WARNING(rspOrError, "Error registering node");
         ResetAndScheduleRegister();
         return;
     }
 
+    const auto& rsp = rspOrError.Value();
     NodeId_ = rsp->node_id();
     YCHECK(State_ == EState::Registering);
     State_ = EState::Registered;
@@ -285,7 +289,9 @@ void TMasterConnector::OnRegisterResponse(TNodeTrackerServiceProxy::TRspRegister
 
 void TMasterConnector::SendFullNodeHeartbeat()
 {
-    TNodeTrackerServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
+    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
+    TNodeTrackerServiceProxy proxy(channel);
+
     auto request = proxy.FullHeartbeat()
         ->SetCodec(NCompression::ECodec::Lz4)
         ->SetTimeout(Config_->FullHeartbeatTimeout);
@@ -316,7 +322,9 @@ void TMasterConnector::SendFullNodeHeartbeat()
 
 void TMasterConnector::SendIncrementalNodeHeartbeat()
 {
-    TNodeTrackerServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
+    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
+    TNodeTrackerServiceProxy proxy(channel);
+
     auto request = proxy.IncrementalHeartbeat()
         ->SetCodec(NCompression::ECodec::Lz4);
 
@@ -347,12 +355,22 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         auto* info = request->add_tablet_slots();
         if (slot) {
             ToProto(info->mutable_cell_id(), slot->GetCellId());
-            info->set_peer_state(slot->GetControlState());
+            info->set_peer_state(static_cast<int>(slot->GetControlState()));
             info->set_peer_id(slot->GetPeerId());
             info->set_config_version(slot->GetCellConfigVersion());
+            ToProto(info->mutable_prerequisite_transaction_id(), slot->GetPrerequisiteTransactionId());
         } else {
-            info->set_peer_state(NHydra::EPeerState::None);
+            info->set_peer_state(static_cast<int>(NHydra::EPeerState::None));
         }
+    }
+
+    auto tabletSnapshots = tabletSlotManager->GetTabletSnapshots();
+    for (auto snapshot : tabletSnapshots) {
+        auto* info = request->add_tablets();
+        ToProto(info->mutable_tablet_id(), snapshot->TabletId);
+        auto* statistics = info->mutable_statistics();
+        statistics->set_partition_count(snapshot->Partitions.size());
+        statistics->set_store_count(snapshot->StoreCount);
     }
 
     auto cellDirectory = Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory();
@@ -391,14 +409,13 @@ TChunkRemoveInfo TMasterConnector::BuildRemoveChunkInfo(IChunkPtr chunk)
     return result;
 }
 
-void TMasterConnector::OnFullNodeHeartbeatResponse(TNodeTrackerServiceProxy::TRspFullHeartbeatPtr rsp)
+void TMasterConnector::OnFullNodeHeartbeatResponse(const TNodeTrackerServiceProxy::TErrorOrRspFullHeartbeatPtr& rspOrError)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (!rsp->IsOK()) {
-        auto error = rsp->GetError();
-        LOG_WARNING(error, "Error reporting full node heartbeat to master");
-        if (IsRetriableError(error)) {
+    if (!rspOrError.IsOK()) {
+        LOG_WARNING(rspOrError, "Error reporting full node heartbeat to master");
+        if (IsRetriableError(rspOrError)) {
             ScheduleNodeHeartbeat();
         } else {
             ResetAndScheduleRegister();
@@ -422,14 +439,13 @@ void TMasterConnector::OnFullNodeHeartbeatResponse(TNodeTrackerServiceProxy::TRs
     ScheduleNodeHeartbeat();
 }
 
-void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServiceProxy::TRspIncrementalHeartbeatPtr rsp)
+void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServiceProxy::TErrorOrRspIncrementalHeartbeatPtr& rspOrError)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (!rsp->IsOK()) {
-        auto error = rsp->GetError();
-        LOG_WARNING(error, "Error reporting incremental node heartbeat to master");
-        if (IsRetriableError(error)) {
+    if (!rspOrError.IsOK()) {
+        LOG_WARNING(rspOrError, "Error reporting incremental node heartbeat to master");
+        if (IsRetriableError(rspOrError)) {
             ScheduleNodeHeartbeat();
         } else {
             ResetAndScheduleRegister();
@@ -465,8 +481,8 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
         ReportedRemoved_.clear();
     }
 
+    const auto& rsp = rspOrError.Value();
     auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-    
     for (const auto& info : rsp->tablet_slots_to_remove()) {
         auto cellId = FromProto<TCellId>(info.cell_id());
         YCHECK(cellId != NullCellId);
@@ -543,7 +559,9 @@ void TMasterConnector::SendJobHeartbeat()
     YCHECK(NodeId_ != InvalidNodeId);
     YCHECK(State_ == EState::Online);
 
-    TJobTrackerServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
+    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
+    TJobTrackerServiceProxy proxy(channel);
+
     auto req = proxy.Heartbeat();
 
     auto jobController = Bootstrap_->GetJobController();
@@ -557,14 +575,13 @@ void TMasterConnector::SendJobHeartbeat()
         FormatResourceUsage(req->resource_usage(), req->resource_limits()));
 }
 
-void TMasterConnector::OnJobHeartbeatResponse(TJobTrackerServiceProxy::TRspHeartbeatPtr rsp)
+void TMasterConnector::OnJobHeartbeatResponse(const TJobTrackerServiceProxy::TErrorOrRspHeartbeatPtr& rspOrError)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (!rsp->IsOK()) {
-        auto error = rsp->GetError();
-        LOG_WARNING(error, "Error reporting job heartbeat to master");
-        if (IsRetriableError(error)) {
+    if (!rspOrError.IsOK()) {
+        LOG_WARNING(rspOrError, "Error reporting job heartbeat to master");
+        if (IsRetriableError(rspOrError)) {
             ScheduleJobHeartbeat();
         } else {
             ResetAndScheduleRegister();
@@ -573,7 +590,8 @@ void TMasterConnector::OnJobHeartbeatResponse(TJobTrackerServiceProxy::TRspHeart
     }
 
     LOG_DEBUG("Successfully reported job heartbeat to master");
-    
+
+    const auto& rsp = rspOrError.Value();
     auto jobController = Bootstrap_->GetJobController();
     jobController->ProcessHeartbeat(rsp.Get());
 

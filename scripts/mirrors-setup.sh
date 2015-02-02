@@ -93,3 +93,4 @@ configure_github_mirror lloyd-yajl
 configure_github_mirror joyent-libuv
 configure_github_mirror twitter-zipkin
 configure_github_mirror pyinstaller-pyinstaller
+configure_github_mirror google-benchmark

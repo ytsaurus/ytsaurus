@@ -36,9 +36,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::SetDefaultAttributes(
     }
 
     if (!attributes->Contains("erasure_codec")) {
-        attributes->SetYson(
-            "erasure_codec",
-            NYTree::ConvertToYsonString(NErasure::ECodec(NErasure::ECodec::None)));
+        attributes->Set("erasure_codec", NErasure::ECodec::None);
     }
 }
 
@@ -220,7 +218,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::MergeChunkLists(
     } else {
         // Set proper originating mode.
         originatingNode->SetUpdateMode(
-            originatingMode == NChunkClient::EUpdateMode::Overwrite || branchedMode == NChunkClient::EUpdateMode::Overwrite
+            originatingMode == NChunkClient::EUpdateMode::Overwrite ||
+            branchedMode == NChunkClient::EUpdateMode::Overwrite
             ? NChunkClient::EUpdateMode::Overwrite
             : NChunkClient::EUpdateMode::Append);
     }
@@ -230,9 +229,10 @@ template <class TChunkOwner>
 void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     TChunkOwner* sourceNode,
     TChunkOwner* clonedNode,
-    NCypressServer::ICypressNodeFactoryPtr factory)
+    NCypressServer::ICypressNodeFactoryPtr factory,
+    NCypressServer::ENodeCloneMode mode)
 {
-    TBase::DoClone(sourceNode, clonedNode, factory);
+    TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
     auto objectManager = TBase::Bootstrap->GetObjectManager();
 

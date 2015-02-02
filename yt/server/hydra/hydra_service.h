@@ -24,6 +24,7 @@ protected:
     IInvokerPtr EpochAutomatonInvoker_;
 
     void ValidateActiveLeader();
+    void ValidateActivePeer();
 
 private:
     // Avoid name clash when inheriting from both THydraServiceBase and TCompositeAutomatonPart.
@@ -32,7 +33,7 @@ private:
     void OnLeaderActive();
     void OnStopLeading();
 
-    virtual bool IsUp() const override;
+    virtual bool IsUp(TCtxDiscoverPtr context) const override;
 
 };
 

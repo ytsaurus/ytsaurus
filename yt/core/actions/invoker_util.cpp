@@ -4,12 +4,13 @@
 #include <stack>
 
 #include <core/misc/singleton.h>
+#include <core/misc/lazy_ptr.h>
 
 #include <core/actions/bind.h>
 #include <core/actions/callback.h>
-#include <core/actions/invoker.h>
 
 #include <core/concurrency/fls.h>
+#include <core/concurrency/action_queue.h>
 
 namespace NYT {
 
@@ -73,6 +74,25 @@ IInvokerPtr GetNullInvoker()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static TLazyIntrusivePtr<TActionQueue> FinalizerThread(
+    TActionQueue::CreateFactory("Finalizer", false, false));
+static std::atomic<bool> FinalizerThreadShutdown;
+
+IInvokerPtr GetFinalizerInvoker()
+{
+    return FinalizerThreadShutdown ? GetNullInvoker() : FinalizerThread->GetInvoker();
+}
+
+void ShutdownFinalizerThread()
+{
+    if (FinalizerThread.HasValue()) {
+        FinalizerThread->Shutdown();
+    }
+    FinalizerThreadShutdown = true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void GuardedInvoke(
     IInvokerPtr invoker,
     TClosure onSuccess,
@@ -89,9 +109,7 @@ void GuardedInvoke(
             : OnCancel_(std::move(onCancel))
         { }
 
-        TGuard(TGuard&& other)
-            : OnCancel_(std::move(other.OnCancel_))
-        { }
+        TGuard(TGuard&& other) = default;
 
         ~TGuard()
         {

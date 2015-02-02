@@ -4,6 +4,8 @@
 
 #include <core/rpc/public.h>
 
+#include <core/actions/callback.h>
+
 #include <ytlib/chunk_client/public.h>
 
 #include <ytlib/transaction_client/public.h>
@@ -21,6 +23,9 @@ namespace NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAdminOptions
+{ };
+
 struct TClientOptions
 {
     Stroka User = NSecurityClient::GuestUserName;
@@ -29,6 +34,12 @@ struct TClientOptions
 TClientOptions GetRootClientOptions();
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EMasterChannelKind,
+    (Leader)
+    (LeaderOrFollower)
+    (Cache)
+);
 
 //! Represents an established connection with a YT cluster.
 /*
@@ -41,8 +52,7 @@ struct IConnection
     : public virtual TRefCounted
 {
     virtual TConnectionConfigPtr GetConfig() = 0;
-    virtual NRpc::IChannelPtr GetMasterChannel() = 0;
-    virtual NRpc::IChannelPtr GetMasterCacheChannel() = 0;
+    virtual NRpc::IChannelPtr GetMasterChannel(EMasterChannelKind kind) = 0;
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual NRpc::IChannelFactoryPtr GetNodeChannelFactory() = 0;
     virtual NChunkClient::IBlockCachePtr GetCompressedBlockCache() = 0;
@@ -50,8 +60,9 @@ struct IConnection
     virtual NTabletClient::TTableMountCachePtr GetTableMountCache() = 0;
     virtual NTransactionClient::ITimestampProviderPtr GetTimestampProvider() = 0;
     virtual NHive::TCellDirectoryPtr GetCellDirectory() = 0;
-    virtual NQueryClient::IPrepareCallbacks* GetQueryPrepareCallbacks() = 0;
-    virtual NQueryClient::IExecutorPtr GetQueryExecutor() = 0;
+    virtual NQueryClient::TEvaluatorPtr GetQueryEvaluator() = 0;
+
+    virtual IAdminPtr CreateAdmin(const TAdminOptions& options = TAdminOptions()) = 0;
 
     virtual IClientPtr CreateClient(const TClientOptions& options = TClientOptions()) = 0;
 

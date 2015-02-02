@@ -23,9 +23,9 @@ struct IWriter
 
     virtual bool EndRow() = 0;
 
-    virtual TAsyncError GetReadyEvent() = 0;
+    virtual TFuture<void> GetReadyEvent() = 0;
 
-    virtual TAsyncError Close() = 0;
+    virtual TFuture<void> Close() = 0;
 
     virtual i64 GetRowIndex() const = 0;
 

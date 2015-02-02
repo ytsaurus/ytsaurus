@@ -5,12 +5,7 @@
 
 #include <core/concurrency/scheduler.h>
 
-#include <core/rpc/helpers.h>
-
 #include <core/ytree/fluent.h>
-#include <core/ytree/ypath_proxy.h>
-
-#include <ytlib/scheduler/config.h>
 
 namespace NYT {
 namespace NDriver {
@@ -19,22 +14,25 @@ using namespace NScheduler;
 using namespace NYTree;
 using namespace NHydra;
 using namespace NConcurrency;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TSchedulerCommandBase::StartOperation(EOperationType type)
 {
-    auto req = SchedulerProxy->StartOperation();
-    req->set_type(type);
-    ToProto(req->mutable_transaction_id(), GetTransactionId(EAllowNullTransaction::Yes));
-    GenerateMutationId(req);
-    req->set_spec(ConvertToYsonString(Request_->Spec).Data());
+    TStartOperationOptions options;
+    SetTransactionalOptions(&options);
+    SetMutatingOptions(&options);
+    auto asyncOperationId = Context_->GetClient()->StartOperation(
+        type,
+        ConvertToYsonString(Request_->Spec),
+        options);
 
-    auto rsp = WaitFor(req->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    auto operationId = WaitFor(asyncOperationId)
+        .ValueOrThrow();
 
-    auto operationId = FromProto<TOperationId>(rsp->operation_id());
-    Reply(BuildYsonStringFluently().Value(operationId));
+    Reply(BuildYsonStringFluently()
+        .Value(operationId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,36 +88,24 @@ void TRemoteCopyCommand::DoExecute()
 
 void TAbortOperationCommand::DoExecute()
 {
-    TSchedulerServiceProxy proxy(Context_->GetClient()->GetSchedulerChannel());
-    auto req = proxy.AbortOperation();
-    ToProto(req->mutable_operation_id(), Request_->OperationId);
-
-    auto rsp = WaitFor(req->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    WaitFor(Context_->GetClient()->AbortOperation(Request_->OperationId))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TSuspendOperationCommand::DoExecute()
 {
-    TSchedulerServiceProxy proxy(Context_->GetClient()->GetSchedulerChannel());
-    auto req = proxy.SuspendOperation();
-    ToProto(req->mutable_operation_id(), Request_->OperationId);
-
-    auto rsp = WaitFor(req->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    WaitFor(Context_->GetClient()->SuspendOperation(Request_->OperationId))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TResumeOperationCommand::DoExecute()
 {
-    TSchedulerServiceProxy proxy(Context_->GetClient()->GetSchedulerChannel());
-    auto req = proxy.ResumeOperation();
-    ToProto(req->mutable_operation_id(), Request_->OperationId);
-
-    auto rsp = WaitFor(req->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    WaitFor(Context_->GetClient()->ResumeOperation(Request_->OperationId))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

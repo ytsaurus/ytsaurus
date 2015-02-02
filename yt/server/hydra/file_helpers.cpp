@@ -1,5 +1,8 @@
 #include "stdafx.h"
 #include "file_helpers.h"
+#include "private.h"
+
+#include <core/misc/fs.h>
 
 namespace NYT {
 namespace NHydra {
@@ -92,6 +95,19 @@ void TLengthMeasureOutputStream::DoFlush()
 void TLengthMeasureOutputStream::DoFinish()
 {
     Output->Finish();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void RemoveChangelogFiles(const Stroka& path)
+{
+    auto dataFileName = path;
+    NFS::Remove(dataFileName);
+
+    auto indexFileName = path + ChangelogIndexSuffix;
+    if (NFS::Exists(indexFileName)) {
+        NFS::Remove(indexFileName);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

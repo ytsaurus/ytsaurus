@@ -139,7 +139,7 @@ void TExecutor::Execute(const std::vector<std::string>& args)
     NLog::TLogManager::Get()->Configure(Config->Logging);
     TAddressResolver::Get()->Configure(Config->AddressResolver);
 
-    TDispatcher::Get()->Configure(Config->Driver->HeavyPoolSize);
+    TDispatcher::Get()->Configure(Config->Driver->LightPoolSize, Config->Driver->HeavyPoolSize);
     Driver = CreateDriver(Config->Driver);
 
     DoExecute();
@@ -198,7 +198,7 @@ void TRequestExecutor::DoExecute()
         request.AuthenticatedUser = AuthenticatedUserArg.getValue();
     }
 
-    request.InputStream = CreateAsyncInputStream(GetInputStream());
+    request.InputStream = CreateAsyncAdapter(GetInputStream());
     try {
         request.Parameters->AddChild(
             ConvertToNode(GetFormat(descriptor.InputType, inputFormat)),
@@ -207,7 +207,7 @@ void TRequestExecutor::DoExecute()
         THROW_ERROR_EXCEPTION("Error parsing input format") << ex;
     }
 
-    request.OutputStream = CreateAsyncOutputStream(OutputStream_.get());
+    request.OutputStream = CreateAsyncAdapter(OutputStream_.get());
     try {
         request.Parameters->AddChild(
             ConvertToNode(GetFormat(descriptor.OutputType, outputFormat)),
@@ -226,8 +226,9 @@ void TRequestExecutor::DoExecute()
 
 void TRequestExecutor::DoExecute(const TDriverRequest& request)
 {
-    auto response = Driver->Execute(request).Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(response.Error);
+    Driver->Execute(request)
+        .Get()
+        .ThrowOnError();
 }
 
 IMapNodePtr TRequestExecutor::GetParameters()

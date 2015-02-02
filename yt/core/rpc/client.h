@@ -5,8 +5,7 @@
 
 #include <core/misc/property.h>
 #include <core/misc/protobuf_helpers.h>
-
-#include <core/concurrency/delayed_executor.h>
+#include <core/misc/nullable.h>
 
 #include <core/compression/public.h>
 
@@ -16,8 +15,6 @@
 #include <core/rpc/rpc.pb.h>
 
 #include <core/actions/future.h>
-
-#include <core/logging/log.h>
 
 #include <core/tracing/trace_context.h>
 
@@ -39,7 +36,7 @@ struct IClientRequest
     virtual bool IsResponseHeavy() const = 0;
 
     virtual TRequestId GetRequestId() const = 0;
-
+    virtual TRealmId GetRealmId() const = 0;
     virtual const Stroka& GetService() const = 0;
     virtual const Stroka& GetMethod() const = 0;
 
@@ -94,7 +91,7 @@ public:
     virtual bool IsOneWay() const override;
     
     virtual TRequestId GetRequestId() const override;
-
+    virtual TRealmId GetRealmId() const override;
     virtual const Stroka& GetService() const override;
     virtual const Stroka& GetMethod() const override;
 
@@ -102,9 +99,10 @@ public:
     virtual void SetStartTime(TInstant value) override;
 
 protected:
-    IChannelPtr Channel_;
+    const IChannelPtr Channel_;
 
     TSharedRef SerializedBody_;
+
 
     TClientRequest(
         IChannelPtr channel,
@@ -115,18 +113,19 @@ protected:
 
     virtual bool IsRequestHeavy() const;
     virtual bool IsResponseHeavy() const;
-    virtual TSharedRef SerializeBody() const = 0;
+
+    virtual TSharedRef SerializeBody() = 0;
 
     TClientContextPtr CreateClientContext();
 
-    void DoInvoke(IClientResponseHandlerPtr responseHandler);
+    IClientRequestControlPtr Send(IClientResponseHandlerPtr responseHandler);
+
+private:
+    void TraceRequest(const NTracing::TTraceContext& traceContext);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// We need this logger here but including the whole private.h looks weird.
-extern const NLog::TLogger RpcClientLogger;
 
 template <class TRequestMessage, class TResponse>
 class TTypedClientRequest
@@ -134,6 +133,8 @@ class TTypedClientRequest
     , public TRequestMessage
 {
 public:
+    typedef TIntrusivePtr<TTypedClientRequest> TThisPtr;
+
     TTypedClientRequest(
         IChannelPtr channel,
         const Stroka& path,
@@ -146,53 +147,56 @@ public:
             method,
             oneWay,
             protocolVersion)
-        , Codec_(NCompression::ECodec::None)
     { }
 
-    TFuture< TIntrusivePtr<TResponse> > Invoke()
+    TFuture<typename TResponse::TResult> Invoke()
     {
-        auto clientContext = CreateClientContext();
-        auto response = NYT::New<TResponse>(std::move(clientContext));
-        auto promise = response->GetAsyncResult();
-        DoInvoke(response);
-        return promise;
+        auto context = CreateClientContext();
+        auto response = NYT::New<TResponse>(std::move(context));
+        auto promise = response->GetPromise();
+        auto requestControl = Send(std::move(response));
+        promise.OnCanceled(BIND([=] () {
+            requestControl->Cancel();
+        }));
+        return promise.ToFuture();
     }
 
     // Override base methods for fluent use.
-    TIntrusivePtr<TTypedClientRequest> SetTimeout(TNullable<TDuration> timeout)
+    TThisPtr SetTimeout(TNullable<TDuration> timeout)
     {
         TClientRequest::SetTimeout(timeout);
         return this;
     }
 
-    TIntrusivePtr<TTypedClientRequest> SetRequestAck(bool value)
+    TThisPtr SetRequestAck(bool value)
     {
         TClientRequest::SetRequestAck(value);
         return this;
     }
 
-    TIntrusivePtr<TTypedClientRequest> SetCodec(NCompression::ECodec codec)
+    TThisPtr SetCodec(NCompression::ECodec codec)
     {
         Codec_ = codec;
         return this;
     }
 
-    TIntrusivePtr<TTypedClientRequest> SetRequestHeavy(bool value)
+    TThisPtr SetRequestHeavy(bool value)
     {
         TClientRequest::SetRequestHeavy(value);
         return this;
     }
 
-    TIntrusivePtr<TTypedClientRequest> SetResponseHeavy(bool value)
+    TThisPtr SetResponseHeavy(bool value)
     {
         TClientRequest::SetResponseHeavy(value);
         return this;
     }
 
 private:
-    NCompression::ECodec Codec_;
+    NCompression::ECodec Codec_ = NCompression::ECodec::None;
 
-    virtual TSharedRef SerializeBody() const override
+
+    virtual TSharedRef SerializeBody() override
     {
         TSharedRef data;
         YCHECK(SerializeToProtoWithEnvelope(*this, &data, Codec_));
@@ -203,65 +207,65 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Handles response for an RPC request.
+//! Handles the outcome of a single RPC request.
 struct IClientResponseHandler
     : public virtual TRefCounted
 {
     //! Called when request delivery is acknowledged.
-    virtual void OnAcknowledgement() = 0;
+    virtual void HandleAcknowledgement() = 0;
 
     //! Called if the request is replied with #EErrorCode::OK.
     /*!
      *  \param message A message containing the response.
      */
-    virtual void OnResponse(TSharedRefArray message) = 0;
+    virtual void HandleResponse(TSharedRefArray message) = 0;
 
     //! Called if the request fails.
     /*!
      *  \param error An error that has occurred.
      */
-    virtual void OnError(const TError& error) = 0;
-
+    virtual void HandleError(const TError& error) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClientResponseHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-///////////////////////////////////////////////////////////////////////////////
+DEFINE_ENUM(EClientResponseState,
+    (Sent)
+    (Ack)
+    (Done)
+);
 
 //! Provides a common base for both one-way and two-way responses.
 class TClientResponseBase
     : public IClientResponseHandler
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(TError, Error);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
 
-public:
-    bool IsOK() const;
-    operator TError() const;
-
 protected:
-    DECLARE_ENUM(EState,
-        (Sent)
-        (Ack)
-        (Done)
-    );
+    using EState = EClientResponseState;
 
-    TSpinLock SpinLock_; // Protects state.
-    EState State_;
+    const TClientContextPtr ClientContext_;
 
-    TClientContextPtr ClientContext_;
+    //! Protects State_ and some members in the derived classes.
+    TSpinLock SpinLock_;
+    EState State_ = EState::Sent;
+
 
     explicit TClientResponseBase(TClientContextPtr clientContext);
 
-    virtual void FireCompleted() = 0;
-
     // IClientResponseHandler implementation.
-    virtual void OnError(const TError& error) override;
+    virtual void HandleError(const TError& error) override;
 
-    void BeforeCompleted();
+    void Finish(const TError& error);
+
+    virtual void SetPromise(const TError& error) = 0;
+
+private:
+    void TraceResponse();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -282,15 +286,15 @@ protected:
     virtual void DeserializeBody(const TRef& data) = 0;
 
 private:
-    // Protected by #SpinLock.
+    //! Protected by #SpinLock.
     TSharedRefArray ResponseMessage_;
 
+
     // IClientResponseHandler implementation.
-    virtual void OnAcknowledgement() override;
-    virtual void OnResponse(TSharedRefArray message) override;
+    virtual void HandleAcknowledgement() override;
+    virtual void HandleResponse(TSharedRefArray message) override;
 
     void Deserialize(TSharedRefArray responseMessage);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -301,25 +305,28 @@ class TTypedClientResponse
     , public TResponseMessage
 {
 public:
-    typedef TIntrusivePtr<TTypedClientResponse> TThisPtr;
+    typedef TIntrusivePtr<TTypedClientResponse> TResult;
 
     explicit TTypedClientResponse(TClientContextPtr clientContext)
         : TClientResponse(std::move(clientContext))
-        , Promise_(NewPromise<TThisPtr>())
     { }
 
-    TFuture<TThisPtr> GetAsyncResult()
+    TPromise<TResult> GetPromise()
     {
         return Promise_;
     }
 
 private:
-    TPromise<TThisPtr> Promise_;
+    TPromise<TResult> Promise_ = NewPromise<TResult>();
 
-    virtual void FireCompleted()
+
+    virtual void SetPromise(const TError& error) override
     {
-        BeforeCompleted();
-        Promise_.Set(this);
+        if (error.IsOK()) {
+            Promise_.Set(this);
+        } else {
+            Promise_.Set(error);
+        }
         Promise_.Reset();
     }
 
@@ -336,20 +343,21 @@ class TOneWayClientResponse
     : public TClientResponseBase
 {
 public:
-    typedef TIntrusivePtr<TOneWayClientResponse> TThisPtr;
+    typedef void TResult;
 
     explicit TOneWayClientResponse(TClientContextPtr clientContext);
 
-    TFuture<TThisPtr> GetAsyncResult();
+    TPromise<TResult> GetPromise();
 
 private:
-    TPromise<TThisPtr> Promise_;
+    TPromise<TResult> Promise_ = NewPromise<TResult>();
+
 
     // IClientResponseHandler implementation.
-    virtual void OnAcknowledgement() override;
-    virtual void OnResponse(TSharedRefArray message) override;
+    virtual void HandleAcknowledgement() override;
+    virtual void HandleResponse(TSharedRefArray message) override;
 
-    virtual void FireCompleted();
+    virtual void SetPromise(const TError& error) override;
 
 };
 
@@ -360,11 +368,9 @@ DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
 #define DEFINE_RPC_PROXY_METHOD(ns, method) \
     typedef ::NYT::NRpc::TTypedClientResponse<ns::TRsp##method> TRsp##method; \
     typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, TRsp##method> TReq##method; \
-    \
     typedef ::NYT::TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
     typedef ::NYT::TIntrusivePtr<TReq##method> TReq##method##Ptr; \
-    \
-    typedef ::NYT::TFuture< TRsp##method##Ptr > TInv##method; \
+    typedef ::NYT::TErrorOr<TRsp##method##Ptr> TErrorOrRsp##method##Ptr; \
     \
     TReq##method##Ptr method() \
     { \
@@ -377,13 +383,8 @@ DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DEFINE_ONE_WAY_RPC_PROXY_METHOD(ns, method) \
-    typedef ::NYT::NRpc::TOneWayClientResponse TRsp##method; \
-    typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, TRsp##method> TReq##method; \
-    \
-    typedef ::NYT::TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
+    typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, ::NYT::NRpc::TOneWayClientResponse> TReq##method; \
     typedef ::NYT::TIntrusivePtr<TReq##method> TReq##method##Ptr; \
-    \
-    typedef ::NYT::TFuture< TRsp##method##Ptr > TInv##method; \
     \
     TReq##method##Ptr method() \
     { \
@@ -403,17 +404,17 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NProto, Discover);
 
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
+    DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck);
+
 protected:
     TProxyBase(
         IChannelPtr channel,
         const Stroka& serviceName,
         int protocolVersion = DefaultProtocolVersion);
 
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
-    DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck);
-
-    Stroka ServiceName_;
     IChannelPtr Channel_;
+    Stroka ServiceName_;
     int ProtocolVersion_;
 
 };

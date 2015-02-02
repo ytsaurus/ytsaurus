@@ -53,6 +53,10 @@ struct IScheduler
     //! Transfers control back to the scheduler and puts currently executing fiber
     //! into sleep until occurrence of an external event.
     virtual void WaitFor(TFuture<void> future, IInvokerPtr invoker) = 0;
+
+    //! Same as #WaitFor but is not allowed to throw on fiber cancelation.
+    virtual void UninterruptableWaitFor(TFuture<void> future, IInvokerPtr invoker) = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,20 +105,25 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WaitFor(
-    TFuture<void> future,
-    IInvokerPtr invoker = GetCurrentInvoker());
+void UninterruptableWaitFor(TFuture<void> future);
+
+void UninterruptableWaitFor(TFuture<void> future, IInvokerPtr invoker);
 
 template <class T>
-T WaitFor(
-    TFuture<T> future,
-    IInvokerPtr invoker = GetCurrentInvoker());
+TErrorOr<T> WaitFor(TFuture<T> future);
+
+template <class T>
+TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Thrown when a fiber is being terminated by an external event.
 class TFiberCanceledException
 { };
+
+//! Delegates to TFiber::GetCanceler for the current fiber.
+//! Used to avoid dependencies on |fiber.h|.
+TClosure GetCurrentFiberCanceler();
 
 ////////////////////////////////////////////////////////////////////////////////
 

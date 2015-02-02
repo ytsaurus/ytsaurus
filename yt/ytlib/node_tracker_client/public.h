@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 
 #include <ytlib/object_client/public.h>
 
@@ -39,8 +39,9 @@ class TNodeDirectoryBuilder;
 DECLARE_REFCOUNTED_CLASS(TNodeDirectory)
 
 extern const Stroka DefaultNetworkName;
+extern const Stroka InterconnectNetworkName;
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((NoSuchNode)    (300))
     ((InvalidState)  (301))
     ((NoSuchNetwork) (302))

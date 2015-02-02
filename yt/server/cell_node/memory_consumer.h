@@ -1,6 +1,5 @@
 #pragma once
 
-#include <core/misc/common.h>
 #include <core/misc/enum.h>
 
 namespace NYT {
@@ -8,7 +7,7 @@ namespace NCellNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EMemoryConsumer,
+DEFINE_ENUM(EMemoryConsumer,
     (Footprint)
     (BlockCache)
     (ChunkMeta)

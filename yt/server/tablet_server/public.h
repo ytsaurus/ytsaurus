@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 #include <core/misc/enum.h>
 
 #include <ytlib/hydra/public.h>
@@ -12,7 +12,7 @@ namespace NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETabletCellHealth,
+DEFINE_ENUM(ETabletCellHealth,
     ((Initializing)(0))
     ((Good)        (1))
     ((Degraded)    (2))

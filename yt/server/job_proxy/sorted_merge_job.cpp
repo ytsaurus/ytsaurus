@@ -176,7 +176,7 @@ private:
 
 };
 
-TJobPtr CreateSortedMergeJob(IJobHost* host)
+IJobPtr CreateSortedMergeJob(IJobHost* host)
 {
     return New<TSortedMergeJob>(host);
 }

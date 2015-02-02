@@ -10,7 +10,7 @@ namespace NLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EWriterType,
+DEFINE_ENUM(EWriterType,
     (File)
     (Stdout)
     (Stderr)

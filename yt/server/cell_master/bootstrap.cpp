@@ -238,7 +238,6 @@ void TBootstrap::Run()
     ControlQueue = New<TActionQueue>("Control");
 
     auto result = BIND(&TBootstrap::DoRun, this)
-        .Guarded()
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get();
@@ -260,6 +259,8 @@ void TBootstrap::DoRun()
     if (GetCellTag() == 0) {
         LOG_ERROR("No custom cell tag is set, cluster can only be used for testing purposes");
     }
+
+    Config->Master->ValidateAllPeersPresent();
 
     HttpServer.reset(new NHttp::TServer(Config->MonitoringPort));
 

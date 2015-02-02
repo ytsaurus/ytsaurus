@@ -41,14 +41,11 @@ TUnversionedRowBuilder* TLoadContext::GetRowBuilder() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletAutomaton::TTabletAutomaton(
-    NCellNode::TBootstrap* bootstrap,
-    TTabletSlot* slot)
-    : Slot_(slot)
+TTabletAutomaton::TTabletAutomaton(TTabletSlotPtr slot)
 {
-    Logger.AddTag("CellId: %v", Slot_->GetCellId());
+    Logger.AddTag("CellId: %v", slot->GetCellId());
 
-    LoadContext_.SetSlot(Slot_);
+    LoadContext_.SetSlot(slot.Get());
 }
 
 TSaveContext& TTabletAutomaton::SaveContext()
@@ -64,7 +61,7 @@ TLoadContext& TTabletAutomaton::LoadContext()
 ////////////////////////////////////////////////////////////////////////////////
 
 TTabletAutomatonPart::TTabletAutomatonPart(
-    TTabletSlot* slot,
+    TTabletSlotPtr slot,
     TBootstrap* bootstrap)
     : TCompositeAutomatonPart(
         slot->GetHydraManager(),
@@ -84,7 +81,7 @@ int TTabletAutomatonPart::GetCurrentSnapshotVersion()
 }
 
 void TTabletAutomatonPart::RegisterSaver(
-    int priority,
+    ESerializationPriority priority,
     const Stroka& name,
     TCallback<void(TSaveContext&)> saver)
 {

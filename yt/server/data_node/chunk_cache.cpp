@@ -65,8 +65,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Chunk cache scan started");
-
         Location_ = New<TLocation>(
             ELocationType::Cache,
             "cache",
@@ -86,7 +84,7 @@ public:
             Put(chunk);
         }
 
-        LOG_INFO("Chunk cache scan completed, %v chunks found",
+        LOG_INFO("Chunk cache initialized, %v chunks total",
             GetSize());
     }
 
@@ -118,7 +116,7 @@ public:
         Register(chunk);
     }
 
-    TAsyncDownloadResult Download(
+    TFuture<IChunkPtr> Download(
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
         const TChunkReplicaList& seedReplicas)
@@ -211,7 +209,7 @@ private:
         // Register an alert and
         // schedule an out-of-order heartbeat to notify the master about the disaster.
         auto masterConnector = Bootstrap_->GetMasterConnector();
-        masterConnector->RegisterAlert(Format("Chunk cache at %Qv is disabled\n%v",
+        masterConnector->RegisterAlert(Format("Chunk cache at %v is disabled\n%v",
             Location_->GetPath(),
             reason));
         masterConnector->ForceRegister();
@@ -231,22 +229,22 @@ private:
             auto chunkReader = CreateReplicationReader(
                 Config_->CacheRemoteReader,
                 Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
-                Bootstrap_->GetMasterClient()->GetMasterChannel(),
+                Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
                 Bootstrap_->GetLocalDescriptor(),
                 chunkId,
                 seedReplicas);
 
-            auto fileName = Location_->GetChunkFileName(chunkId);
+            auto fileName = Location_->GetChunkPath(chunkId);
             auto chunkWriter = New<TFileWriter>(fileName);
 
             try {
                 NFS::ForcePath(NFS::GetDirectoryName(fileName));
-                auto asyncError = chunkWriter->Open();
+                auto result = chunkWriter->Open();
 
                 // File writer opens synchronously.
-                YCHECK(asyncError.IsSet());
-                YCHECK(asyncError.Get().IsOK());
+                YCHECK(result.IsSet());
+                YCHECK(result.Get().IsOK());
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Error opening cached chunk for writing");
             }
@@ -317,15 +315,10 @@ private:
         }
     }
 
-    TDownloadResult OnChunkDownloaded(TErrorOr<TCachedBlobChunkPtr> result)
+    IChunkPtr OnChunkDownloaded(TCachedBlobChunkPtr chunk)
     {
-        if (!result.IsOK()) {
-            return TError(result);
-        }
-
-        auto chunk = result.Value();
         Register(chunk);
-        return TDownloadResult(chunk);
+        return chunk;
     }
 
 };
@@ -365,7 +358,7 @@ int TChunkCache::GetChunkCount()
     return Impl_->GetSize();
 }
 
-TChunkCache::TAsyncDownloadResult TChunkCache::DownloadChunk(
+TFuture<IChunkPtr> TChunkCache::DownloadChunk(
     const TChunkId& chunkId,
     TNodeDirectoryPtr nodeDirectory,
     const TChunkReplicaList& seedReplicas)

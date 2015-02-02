@@ -144,7 +144,7 @@ std::unique_ptr<TChunk> CreateChunk(
     std::unique_ptr<TChunk> chunk(new TChunk(GenerateId(EObjectType::Chunk)));
 
     TChunkMeta chunkMeta;
-    chunkMeta.set_type(EChunkType::Table); // this makes chunk confirmed
+    chunkMeta.set_type(static_cast<int>(EChunkType::Table)); // this makes chunk confirmed
 
     TMiscExt miscExt;
     miscExt.set_row_count(rowCount);

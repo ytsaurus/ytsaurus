@@ -41,7 +41,7 @@ public:
     { }
 
     TNullable(const T& value)
-#ifdef DEBUG
+#ifndef NDEBUG
         : HasValue_(false)
 #endif
     {
@@ -49,7 +49,7 @@ public:
     }
 
     TNullable(T&& value)
-#ifdef DEBUG
+#ifndef NDEBUG
         : HasValue_(false)
 #endif
     {

@@ -26,6 +26,7 @@
 
 #include <core/ytree/convert.h>
 
+#include <core/logging/log.h>
 #include <core/logging/log_manager.h>
 
 #include <core/bus/tcp_client.h>
@@ -42,6 +43,7 @@
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/chunk_reader.h>
+#include <ytlib/chunk_client/data_statistics.h>
 
 #include <ytlib/job_tracker_client/statistics.h>
 
@@ -84,8 +86,8 @@ TJobProxy::TJobProxy(
     : Config_(config)
     , JobId_(jobId)
     , Logger(JobProxyLogger)
-    , JobThread_(New<TActionQueue>("JobMain"))
     , JobProxyMemoryLimit_(InitialJobProxyMemoryLimit)
+    , JobThread_(New<TActionQueue>("JobMain"))
 {
     Logger.AddTag("JobId: %v", JobId_);
 }
@@ -94,24 +96,23 @@ void TJobProxy::SendHeartbeat()
 {
     auto req = SupervisorProxy_->OnJobProgress();
     ToProto(req->mutable_job_id(), JobId_);
-    req->set_progress(Job->GetProgress());
-    ToProto(req->mutable_job_statistics(), Job->GetStatistics());
+    req->set_progress(Job_->GetProgress());
+    ToProto(req->mutable_job_statistics(), Job_->GetStatistics());
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 
     LOG_DEBUG("Supervisor heartbeat sent");
 }
 
-void TJobProxy::OnHeartbeatResponse(TSupervisorServiceProxy::TRspOnJobProgressPtr rsp)
+void TJobProxy::OnHeartbeatResponse(const TError& error)
 {
-    if (!rsp->IsOK()) {
+    if (!error.IsOK()) {
         // NB: user process is not killed here.
         // Good user processes are supposed to die themselves
         // when io pipes are closed.
         // Bad processes will die at container shutdown.
-        LOG_ERROR(*rsp, "Error sending heartbeat to supervisor");
-        NLog::TLogManager::Get()->Shutdown();
-        _exit(EJobProxyExitCode::HeartbeatFailed);
+        LOG_ERROR(error, "Error sending heartbeat to supervisor");
+        Exit(EJobProxyExitCode::HeartbeatFailed);
     }
 
     LOG_DEBUG("Successfully reported heartbeat to supervisor");
@@ -124,18 +125,17 @@ void TJobProxy::RetrieveJobSpec()
     auto req = SupervisorProxy_->GetJobSpec();
     ToProto(req->mutable_job_id(), JobId_);
 
-    auto asyncRsp = req->Invoke();
-    auto rsp = asyncRsp.Get();
-    if (!rsp->IsOK()) {
-        LOG_ERROR(*rsp, "Failed to get job spec");
-        NLog::TLogManager::Get()->Shutdown();
-        _exit(EJobProxyExitCode::HeartbeatFailed);
+    auto rspOrError = req->Invoke().Get();
+    if (!rspOrError.IsOK()) {
+        LOG_ERROR(rspOrError, "Failed to get job spec");
+        Exit(EJobProxyExitCode::HeartbeatFailed);
     }
 
+    const auto& rsp = rspOrError.Value();
     JobSpec_ = rsp->job_spec();
     ResourceUsage_ = rsp->resource_usage();
 
-    LOG_INFO("Job spec received (JobType: %v, ResourceLimits: {%v})\n%v",
+    LOG_INFO("Job_ spec received (JobType: %v, ResourceLimits: {%v})\n%v",
         NScheduler::EJobType(rsp->job_spec().type()),
         FormatResources(ResourceUsage_),
         rsp->job_spec().DebugString());
@@ -147,7 +147,9 @@ void TJobProxy::Run()
 {
     auto result = BIND(&TJobProxy::DoRun, Unretained(this))
         .AsyncVia(JobThread_->GetInvoker())
-        .Run().Get();
+        .Run()
+        .Get()
+        .ValueOrThrow();
 
     if (HeartbeatExecutor_) {
         HeartbeatExecutor_->Stop();
@@ -157,8 +159,8 @@ void TJobProxy::Run()
         MemoryWatchdogExecutor_->Stop();
     }
 
-    if (Job) {
-        auto failedChunkIds = Job->GetFailedChunkIds();
+    if (Job_) {
+        auto failedChunkIds = Job_->GetFailedChunkIds();
         LOG_INFO("Found %v failed chunks", static_cast<int>(failedChunkIds.size()));
 
         // For erasure chunks, replace part id with whole chunk id.
@@ -170,7 +172,7 @@ void TJobProxy::Run()
             ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
         }
 
-        auto jobStatistics = Job->GetStatistics();
+        auto jobStatistics = Job_->GetStatistics();
         TStatistics customStatistics;
         if (jobStatistics.has_statistics()) {
             customStatistics = NYTree::ConvertTo<TStatistics>(NYTree::TYsonString(jobStatistics.statistics()));
@@ -179,15 +181,15 @@ void TJobProxy::Run()
         if (Config_->ForceEnableAccounting) {
             TCpuAccounting cpuAccounting("");
             auto cpuStatistics = cpuAccounting.GetStatistics();
-            AddStatistic(customStatistics, "/job_proxy/cpu", cpuStatistics);
+            customStatistics.Add("/job_proxy/cpu", cpuStatistics);
 
             TBlockIO blockIO("");
             auto blockIOStatistics = blockIO.GetStatistics();
-            AddStatistic(customStatistics, "/job_proxy/block_io", blockIOStatistics);
+            customStatistics.Add("/job_proxy/block_io", blockIOStatistics);
         }
 
-        AddStatistic(customStatistics, "/job_proxy/input", jobStatistics.input());
-        AddStatistic(customStatistics, "/job_proxy/output", jobStatistics.output());
+        customStatistics.Add("/job_proxy/input", jobStatistics.input());
+        customStatistics.Add("/job_proxy/output", jobStatistics.output());
 
         ToProto(jobStatistics.mutable_statistics(), NYTree::ConvertToYsonString(customStatistics).Data());
         ToProto(result.mutable_statistics(), jobStatistics);
@@ -198,30 +200,31 @@ void TJobProxy::Run()
     ReportResult(result);
 }
 
-std::unique_ptr<TUserJobIO> TJobProxy::CreateUserJobIO()
+std::unique_ptr<IUserJobIO> TJobProxy::CreateUserJobIO()
 {
     auto jobType = NScheduler::EJobType(JobSpec_.type());
 
     switch (jobType) {
         case NScheduler::EJobType::Map:
-            return CreateMapJobIO(Config_->JobIO, this);
+            return CreateMapJobIO(this);
 
-        case NScheduler::EJobType::SortedReduce:
-            return CreateSortedReduceJobIO(Config_->JobIO, this);
+        case NScheduler::EJobType::SortedReduce: 
+            return CreateSortedReduceJobIO(this);
 
-        case NScheduler::EJobType::PartitionMap:
-            return CreatePartitionMapJobIO(Config_->JobIO, this);
+        case NScheduler::EJobType::PartitionMap: 
+            return CreatePartitionMapJobIO(this);
 
-        case NScheduler::EJobType::ReduceCombiner:
-        case NScheduler::EJobType::PartitionReduce:
-            return CreatePartitionReduceJobIO(Config_->JobIO, this);
+        // ToDo(psushin): handle separately to form job result differently.
+        case NScheduler::EJobType::ReduceCombiner: 
+        case NScheduler::EJobType::PartitionReduce: 
+            return CreatePartitionReduceJobIO(this);
 
         default:
             YUNREACHABLE();
     }
 }
 
-TJobPtr TJobProxy::CreateBuiltinJob()
+IJobPtr TJobProxy::CreateBuiltinJob()
 {
     auto jobType = NScheduler::EJobType(JobSpec_.type());
     switch (jobType) {
@@ -289,9 +292,10 @@ TJobResult TJobProxy::DoRun()
             auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             JobProxyMemoryLimit_ -= userJobSpec.memory_reserve();
             auto jobIO = CreateUserJobIO();
-            Job = CreateUserJob(this, userJobSpec, std::move(jobIO), JobId_);
+            jobIO->Init();
+            Job_ = CreateUserJob(this, userJobSpec, std::move(jobIO), JobId_);
         } else {
-            Job = CreateBuiltinJob();
+            Job_ = CreateBuiltinJob();
         }
 
 
@@ -300,7 +304,7 @@ TJobResult TJobProxy::DoRun()
         }
         HeartbeatExecutor_->Start();
 
-        return Job->Run();
+        return Job_->Run();
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Job failed");
 
@@ -316,12 +320,10 @@ void TJobProxy::ReportResult(const TJobResult& result)
     ToProto(req->mutable_job_id(), JobId_);
     *req->mutable_result() = result;
 
-    auto asyncRsp = req->Invoke();
-    auto rsp = asyncRsp.Get();
-    if (!rsp->IsOK()) {
-        LOG_ERROR(*rsp, "Failed to report job result");
-        NLog::TLogManager::Get()->Shutdown();
-        _exit(EJobProxyExitCode::ResultReportFailed);
+    auto rspOrError = req->Invoke().Get();
+    if (!rspOrError.IsOK()) {
+        LOG_ERROR(rspOrError, "Failed to report job result");
+        Exit(EJobProxyExitCode::ResultReportFailed);
     }
 }
 
@@ -351,12 +353,11 @@ void TJobProxy::SetResourceUsage(const TNodeResources& usage)
     req->Invoke().Subscribe(BIND(&TJobProxy::OnResourcesUpdated, MakeWeak(this)));
 }
 
-void TJobProxy::OnResourcesUpdated(TSupervisorServiceProxy::TRspUpdateResourceUsagePtr rsp)
+void TJobProxy::OnResourcesUpdated(const TError& error)
 {
-    if (!rsp->IsOK()) {
-        LOG_ERROR(*rsp, "Failed to update resource usage");
-        NLog::TLogManager::Get()->Shutdown();
-        _exit(EJobProxyExitCode::ResourcesUpdateFailed);
+    if (!error.IsOK()) {
+        LOG_ERROR(error, "Failed to update resource usage");
+        Exit(EJobProxyExitCode::ResourcesUpdateFailed);
     }
 
     LOG_DEBUG("Successfully updated resource usage");
@@ -410,6 +411,17 @@ void TJobProxy::CheckMemoryUsage()
             JobProxyMemoryLimit_,
             TRefCountedTracker::Get()->GetDebugInfo(2));
     }
+}
+
+void TJobProxy::Exit(EJobProxyExitCode exitCode)
+{
+    NLog::TLogManager::Get()->Shutdown();
+    _exit(static_cast<int>(exitCode));
+}
+
+NLog::TLogger TJobProxy::GetLogger() const
+{
+    return Logger;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

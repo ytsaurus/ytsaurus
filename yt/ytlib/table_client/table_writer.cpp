@@ -57,7 +57,7 @@ public:
 
     virtual bool IsReady() override;
 
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
     virtual void Close() override;
 
@@ -68,18 +68,15 @@ public:
 private:
     typedef TAsyncTableWriter TThis;
 
-    TFuture<TErrorOr<TTransactionPtr>> CreateUploadTransaction();
-    void OnTransactionCreated(TTransactionPtr transactionOrError);
-
     TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> FetchTableInfo();
     TChunkListId OnInfoFetched(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
-    TAsyncError OpenChunkWriter(TChunkListId chunkListId);
+    TFuture<void> OpenChunkWriter(TChunkListId chunkListId);
     void OnChunkWriterOpened();
 
-    TAsyncError CloseChunkWriter();
-    TAsyncError SetIsSorted();
-    TAsyncError CommitUploadTransaction();
+    TFuture<void> CloseChunkWriter();
+    TFuture<void> SetIsSorted();
+    TFuture<void> CommitUploadTransaction();
 
     TTableWriterConfigPtr Config;
     TTableWriterOptionsPtr Options;
@@ -100,7 +97,7 @@ private:
     TIntrusivePtr<TTableMultiChunkWriter> Writer;
     TTableChunkWriterFacade* CurrentWriterFacade;
 
-    TAsyncError WriteFuture_;
+    TFuture<void> WriteFuture_;
 };
 
 
@@ -149,7 +146,7 @@ void TAsyncTableWriter::Open()
     options.EnableUncommittedAccounting = false;
     auto attributes = CreateEphemeralAttributes();
     attributes->Set("title", Format("Table upload to %s", RichPath.GetPath()));
-    options.Attributes = attributes.get();
+    options.Attributes = std::move(attributes);
     auto transactionOrError = WaitFor(TransactionManager->Start(
         ETransactionType::Master,
         options));
@@ -162,7 +159,10 @@ void TAsyncTableWriter::Open()
     LOG_INFO("Upload transaction created (TransactionId: %v)",
         UploadTransaction->GetId());
 
-    auto batchRsp = WaitFor(FetchTableInfo());
+    auto batchRspOrError = WaitFor(FetchTableInfo());
+    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error requesting table info");
+    const auto& batchRsp = batchRspOrError.Value();
+
     auto chunkListId = OnInfoFetched(batchRsp);
 
     auto provider = New<TTableChunkWriterProvider>(
@@ -225,7 +225,8 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TAsyncTableWriter::FetchTableI
         auto req = TTableYPathProxy::PrepareForUpdate(path);
         SetTransactionId(req, uploadTransactionId);
         GenerateMutationId(req);
-        req->set_mode(clear ? EUpdateMode::Overwrite : EUpdateMode::Append);
+        auto mode = clear ? EUpdateMode::Overwrite : EUpdateMode::Append;
+        req->set_mode(static_cast<int>(mode));
         batchReq->AddRequest(req, "prepare_for_update");
     }
 
@@ -234,11 +235,10 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TAsyncTableWriter::FetchTableI
 
 TChunkListId TAsyncTableWriter::OnInfoFetched(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
-    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error requesting table info");
-
     {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table attributes");
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting table attributes");
+        const auto& rsp = rspOrError.Value();
 
         auto node = ConvertToNode(TYsonString(rsp->value()));
         const auto& attributes = node->Attributes();
@@ -247,7 +247,7 @@ TChunkListId TAsyncTableWriter::OnInfoFetched(TObjectServiceProxy::TRspExecuteBa
         if (type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                 RichPath.GetPath(),
-                EObjectType(EObjectType::Table),
+                EObjectType::Table,
                 type);
         }
 
@@ -268,8 +268,9 @@ TChunkListId TAsyncTableWriter::OnInfoFetched(TObjectServiceProxy::TRspExecuteBa
 
     TChunkListId  chunkListId;
     {
-        auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing table for update");
+        auto rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error preparing table for update");
+        const auto& rsp = rspOrError.Value();
         chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
     }
     LOG_INFO("Table info received (ChunkListId: %v)", chunkListId);
@@ -297,7 +298,7 @@ bool TAsyncTableWriter::IsReady()
         return true;
     } else {
         auto this_ = MakeStrong(this);
-        auto readyEvent = NewPromise<TError>();
+        auto readyEvent = NewPromise<void>();
         WriteFuture_ = readyEvent;
         Writer->GetReadyEvent().Subscribe(BIND([this, this_, readyEvent] (const TError& error) mutable {
             if (error.IsOK()) {
@@ -310,7 +311,7 @@ bool TAsyncTableWriter::IsReady()
     }
 }
 
-TAsyncError TAsyncTableWriter::GetReadyEvent()
+TFuture<void> TAsyncTableWriter::GetReadyEvent()
 {
     return WriteFuture_;
 }
@@ -348,9 +349,9 @@ void TAsyncTableWriter::Close()
         GenerateMutationId(req);
         ToProto(req->mutable_key_columns(), keyColumns);
 
-        auto rsp = WaitFor(ObjectProxy.Execute(req));
+        auto rspOrError = WaitFor(ObjectProxy.Execute(req));
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error marking table as sorted");
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error marking table as sorted");
     }
 
     LOG_INFO("Committing upload transaction");

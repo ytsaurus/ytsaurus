@@ -21,6 +21,7 @@
 #include <iterator>
 #include <memory>
 
+#include "public.h"
 #include "mpl.h"
 #include "align_of.h"
 

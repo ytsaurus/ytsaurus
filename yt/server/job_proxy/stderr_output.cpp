@@ -53,6 +53,7 @@ TErrorOutput::~TErrorOutput() throw()
 void TErrorOutput::DoWrite(const void* buf, size_t len)
 {
     if (!FileWriter) {
+        // ToDo(psushin): fix message.
         LOG_DEBUG("Opening stderr stream");
 
         auto options = New<TMultiChunkWriterOptions>();

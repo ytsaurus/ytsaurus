@@ -47,10 +47,10 @@ private:
     void AllocateMore();
 
     void OnChunkListsCreated(
-        NObjectClient::TMasterYPathProxy::TRspCreateObjectsPtr rsp);
+        const NObjectClient::TMasterYPathProxy::TErrorOrRspCreateObjectsPtr& rspOrError);
 
     void OnChunkListsReleased(
-        NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+        const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

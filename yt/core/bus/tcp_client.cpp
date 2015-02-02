@@ -93,7 +93,7 @@ public:
         return Connection_->GetEndpointDescription();
     }
 
-    virtual TAsyncError Send(TSharedRefArray message, EDeliveryTrackingLevel level) override
+    virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel level) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection_->Send(std::move(message), level);
@@ -105,13 +105,13 @@ public:
         Connection_->Terminate(error);
     }
 
-    virtual void SubscribeTerminated(const TCallback<void(TError)>& callback) override
+    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         Connection_->SubscribeTerminated(callback);
     }
 
-    virtual void UnsubscribeTerminated(const TCallback<void(TError)>& callback) override
+    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         Connection_->UnsubscribeTerminated(callback);

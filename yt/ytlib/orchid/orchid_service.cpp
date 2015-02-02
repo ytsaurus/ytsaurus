@@ -56,7 +56,13 @@ private:
             method);
 
         ExecuteVerb(RootService_, requestMessage)
-            .Subscribe(BIND([=] (const TSharedRefArray& responseMessage) {
+            .Subscribe(BIND([=] (const TErrorOr<TSharedRefArray>& responseMessageOrError) {
+                if (!responseMessageOrError.IsOK()) {
+                    context->Reply(responseMessageOrError);
+                    return;
+                }
+
+                const auto& responseMessage = responseMessageOrError.Value();
                 TResponseHeader responseHeader;
                 YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
 

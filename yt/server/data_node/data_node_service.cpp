@@ -92,29 +92,40 @@ public:
         YCHECK(Config_);
         YCHECK(Bootstrap_);
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CancelChunk));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlocks));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlocks)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)
+            .SetCancelable(true)
             .SetEnableReorder(true)
             .SetMaxQueueSize(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange)
+            .SetCancelable(true)
             .SetEnableReorder(true)
             .SetMaxQueueSize(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
+            .SetCancelable(true)
             .SetEnableReorder(true)
             .SetMaxQueueSize(5000));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
             .SetOneWay(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
+            .SetCancelable(true)
             .SetResponseCodec(NCompression::ECodec::Lz4)
             .SetResponseHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSplits)
+            .SetCancelable(true)
             .SetResponseCodec(NCompression::ECodec::Lz4)
             .SetResponseHeavy(true));
 
@@ -256,10 +267,7 @@ private:
         
         // Flush blocks if needed.
         if (flushBlocks) {
-            result = result.Apply(BIND([=] (const TError& error) -> TAsyncError {
-                if (!error.IsOK()) {
-                    return MakeFuture(error);
-                }
+            result = result.Apply(BIND([=] () {
                 return session->FlushBlocks(lastBlockIndex);
             }));
         }
@@ -424,16 +432,16 @@ private:
         std::atomic<i64> BlocksSize_;
 
 
-        void OnBlockFound(int index, TBlockStore::TGetBlockResult result)
+        void OnBlockFound(int index, const TErrorOr<TSharedRef>& blockOrError)
         {
-            if (!result.IsOK()) {
+            if (!blockOrError.IsOK()) {
                 // Something went wrong while fetching the blocks.
                 Awaiter_->Cancel();
-                Context_->Reply(result);
+                Context_->Reply(blockOrError);
                 return;
             }
 
-            const auto& block = result.Value();
+            const auto& block = blockOrError.Value();
             if (block) {
                 auto& response = Context_->Response();
                 response.Attachments()[index] = block;
@@ -469,9 +477,7 @@ private:
             // Throttle response.
             auto sessionType = EReadSessionType(request.session_type());
             auto throttler = Owner_->Bootstrap_->GetOutThrottler(sessionType);
-            throttler->Throttle(BlocksSize_).Subscribe(BIND([=] () {
-                Context_->Reply();
-            }));
+            Context_->ReplyFrom(throttler->Throttle(BlocksSize_));
         }
 
     };
@@ -541,16 +547,16 @@ private:
         i64 BlocksSize_;
 
 
-        void OnGotBlocks(TBlockStore::TGetBlocksResult result)
+        void OnGotBlocks(const TErrorOr<std::vector<TSharedRef>>& blocksOrError)
         {
-            if (!result.IsOK()) {
+            if (!blocksOrError.IsOK()) {
                 // Something went wrong while fetching the blocks.
-                Context_->Reply(result);
+                Context_->Reply(blocksOrError);
                 return;
             }
 
+            const auto& blocks = blocksOrError.Value();
             auto& response = Context_->Response();
-            const auto& blocks = result.Value();
             for (const auto& block : blocks) {
                 response.Attachments().push_back(block);
                 BlocksWithData_ += 1;
@@ -574,9 +580,7 @@ private:
             // Throttle response.
             auto sessionType = EReadSessionType(request.session_type());
             auto throttler = Owner_->Bootstrap_->GetOutThrottler(sessionType);
-            throttler->Throttle(BlocksSize_).Subscribe(BIND([=] () {
-                Context_->Reply();
-            }));
+            Context_->ReplyFrom(throttler->Throttle(BlocksSize_));
         }
 
     };
@@ -609,17 +613,16 @@ private:
             context->GetPriority(),
             request->all_extension_tags() ? nullptr : &extensionTags);
 
-        asyncChunkMeta.Subscribe(BIND([=] (IChunk::TGetMetaResult result) {
-            if (!result.IsOK()) {
-                context->Reply(result);
+        asyncChunkMeta.Subscribe(BIND([=] (const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError) {
+            if (!metaOrError.IsOK()) {
+                context->Reply(metaOrError);
                 return;
             }
 
-            const auto& chunkMeta = *result.Value();
-
+            const auto& meta = *metaOrError.Value();
             *context->Response().mutable_chunk_meta() = partitionTag
-                ? FilterChunkMetaByPartitionTag(chunkMeta, *partitionTag)
-                : TChunkMeta(chunkMeta);
+                ? FilterChunkMetaByPartitionTag(meta, *partitionTag)
+                : TChunkMeta(meta);
 
             context->Reply();
         }).Via(WorkerThread_->GetInvoker()));
@@ -634,9 +637,8 @@ private:
 
         ValidateConnected();
 
-        auto awaiter = New<TParallelAwaiter>(WorkerThread_->GetInvoker());
+        std::vector<TFuture<void>> asyncResults;
         auto keyColumns = NYT::FromProto<Stroka>(request->key_columns());
-
         for (const auto& chunkSpec : request->chunk_specs()) {
             auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
             auto* splittedChunk = response->add_splitted_chunks();
@@ -649,22 +651,22 @@ private:
                     chunkId);
                 LOG_WARNING(error);
                 ToProto(splittedChunk->mutable_error(), error);
-            } else {
-                awaiter->Await(
-                    chunk->GetMeta(context->GetPriority()),
-                    BIND(
-                        &TDataNodeService::MakeChunkSplits,
-                        MakeStrong(this),
-                        &chunkSpec,
-                        splittedChunk,
-                        request->min_split_size(),
-                        keyColumns));
+                continue;
             }
+
+            auto asyncResult = chunk->GetMeta(context->GetPriority());
+            asyncResults.push_back(asyncResult.Apply(
+                BIND(
+                    &TDataNodeService::MakeChunkSplits,
+                    MakeStrong(this),
+                    &chunkSpec,
+                    splittedChunk,
+                    request->min_split_size(),
+                    keyColumns)
+                .AsyncVia(WorkerThread_->GetInvoker())));
         }
 
-        awaiter->Complete(BIND([=] () {
-            context->Reply();
-        }));
+        context->ReplyFrom(Combine(asyncResults));
     }
 
     void MakeChunkSplits(
@@ -672,217 +674,202 @@ private:
         NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splittedChunk,
         i64 minSplitSize,
         const NTableClient::TKeyColumns& keyColumns,
-        IChunk::TGetMetaResult result)
+        const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
-
-        if (!result.IsOK()) {
-            auto error = TError("Error getting meta of chunk %v",
-                chunkId)
-                << result;
-            LOG_WARNING(error);
-            ToProto(splittedChunk->mutable_error(), error);
-            return;
-        }
-
-        const auto& chunkMeta = *result.Value();
-
-        if (chunkMeta.type() != EChunkType::Table) {
-            auto error =  TError("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
-                chunkId,
-                EChunkType(EChunkType::Table),
-                EChunkType(chunkMeta.type()));
-            LOG_ERROR(error);
-            ToProto(splittedChunk->mutable_error(), error);
-            return;
-        }
-
-        // XXX(psushin): implement splitting for new chunks.
-        if (chunkMeta.version() != 1) {
-            // Only old chunks support splitting now.
-            auto error = TError("Invalid version of chunk %v: expected: 1, actual %v",
-                chunkId,
-                chunkMeta.version());
-            LOG_ERROR(error);
-            ToProto(splittedChunk->mutable_error(), error);
-            return;
-        }
-
-        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
-        if (!miscExt.sorted()) {
-            auto error =  TError("Chunk %v is not sorted",
+        try {
+            THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta of chunk %v",
                 chunkId);
-            LOG_ERROR(error);
-            ToProto(splittedChunk->mutable_error(), error);
-            return;
-        }
+            const auto& meta = *metaOrError.Value();
 
-        auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
-        if (keyColumnsExt.names_size() < keyColumns.size()) {
-            auto error = TError("Not enough key columns in chunk %v: expected %v, actual %v",
-                chunkId,
-                keyColumns.size(),
-                keyColumnsExt.names_size());
-            LOG_ERROR(error);
-            ToProto(splittedChunk->mutable_error(), error);
-            return;
-        }
-
-        for (int i = 0; i < keyColumns.size(); ++i) {
-            const auto& value = keyColumnsExt.names(i);
-            if (keyColumns[i] != value) {
-                auto error = TError("Invalid key column in chunk %v: expected %Qv, actual %Qv",
+            auto type = EChunkType(meta.type());
+            if (type != EChunkType::Table) {
+                THROW_ERROR_EXCEPTION("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
                     chunkId,
-                    keyColumns[i],
-                    value);
-                LOG_ERROR(error);
-                ToProto(splittedChunk->mutable_error(), error);
+                    EChunkType::Table,
+                    type);
+            }
+
+            // XXX(psushin): implement splitting for new chunks.
+            // TODO(babenko): replace "1" with some mnemonic name
+            if (meta.version() != 1) {
+                // Only old chunks support splitting now.
+                THROW_ERROR_EXCEPTION("Invalid version of chunk %v: expected: 1, actual %v",
+                    chunkId,
+                    meta.version());
+            }
+
+            auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
+            if (!miscExt.sorted()) {
+                THROW_ERROR_EXCEPTION("Chunk %v is not sorted",
+                    chunkId);
+            }
+
+            auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(meta.extensions());
+            if (keyColumnsExt.names_size() < keyColumns.size()) {
+                THROW_ERROR_EXCEPTION("Not enough key columns in chunk %v: expected %v, actual %v",
+                    chunkId,
+                    keyColumns.size(),
+                    keyColumnsExt.names_size());
+            }
+
+            for (int i = 0; i < keyColumns.size(); ++i) {
+                const auto& value = keyColumnsExt.names(i);
+                if (keyColumns[i] != value) {
+                    THROW_ERROR_EXCEPTION("Invalid key column in chunk %v: expected %Qv, actual %Qv",
+                        chunkId,
+                        keyColumns[i],
+                        value);
+                }
+            }
+
+            auto indexExt = GetProtoExtension<TIndexExt>(meta.extensions());
+            if (indexExt.items_size() == 1) {
+                // Only one index entry available - no need to split.
+                splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
                 return;
             }
+
+            auto backIt = --indexExt.items().end();
+            auto dataSizeBetweenSamples = static_cast<i64>(std::ceil(
+                static_cast<double>(backIt->row_index()) /
+                miscExt.row_count() *
+                miscExt.uncompressed_data_size() /
+                indexExt.items_size()));
+            YCHECK(dataSizeBetweenSamples > 0);
+
+            using NChunkClient::TReadLimit;
+            auto comparer = [&] (
+                const TReadLimit& limit,
+                const TIndexRow& indexRow,
+                bool isStartLimit) -> int
+            {
+                if (!limit.HasRowIndex() && !limit.HasKey()) {
+                    return isStartLimit ? -1 : 1;
+                }
+
+                auto result = 0;
+                if (limit.HasRowIndex()) {
+                    auto diff = limit.GetRowIndex() - indexRow.row_index();
+                    // Sign function.
+                    result += (diff > 0) - (diff < 0);
+                }
+
+                if (limit.HasKey()) {
+                    TOwningKey indexKey;
+                    FromProto(&indexKey, indexRow.key());
+                    result += CompareRows(limit.GetKey(), indexKey, keyColumns.size());
+                }
+
+                if (result == 0) {
+                    return isStartLimit ? -1 : 1;
+                }
+
+                return (result > 0) - (result < 0);
+            };
+
+            auto beginIt = std::lower_bound(
+                indexExt.items().begin(),
+                indexExt.items().end(),
+                TReadLimit(chunkSpec->lower_limit()),
+                [&] (const TIndexRow& indexRow, const TReadLimit& limit) {
+                    return comparer(limit, indexRow, true) > 0;
+                });
+
+            auto endIt = std::upper_bound(
+                beginIt,
+                indexExt.items().end(),
+                TReadLimit(chunkSpec->upper_limit()),
+                [&] (const TReadLimit& limit, const TIndexRow& indexRow) {
+                    return comparer(limit, indexRow, false) < 0;
+                });
+
+            if (std::distance(beginIt, endIt) < 2) {
+                // Too small distance between given read limits.
+                splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
+                return;
+            }
+
+            TChunkSpec* currentSplit;
+            TOldBoundaryKeysExt boundaryKeysExt;
+            i64 endRowIndex = beginIt->row_index();
+            i64 startRowIndex;
+            i64 dataSize;
+
+            auto createNewSplit = [&] () {
+                currentSplit = splittedChunk->add_chunk_specs();
+                currentSplit->CopyFrom(*chunkSpec);
+                boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(chunkSpec->chunk_meta().extensions());
+                startRowIndex = endRowIndex;
+                dataSize = 0;
+            };
+            createNewSplit();
+
+            auto samplesLeft = std::distance(beginIt, endIt) - 1;
+            YCHECK(samplesLeft > 0);
+
+            while (samplesLeft > 0) {
+                ++beginIt;
+                --samplesLeft;
+                dataSize += dataSizeBetweenSamples;
+
+                auto nextIter = beginIt + 1;
+                if (nextIter == endIt) {
+                    break;
+                }
+
+                if (samplesLeft * dataSizeBetweenSamples < minSplitSize) {
+                    break;
+                }
+
+                if (CompareKeys(nextIter->key(), beginIt->key(), keyColumns.size()) == 0) {
+                    continue;
+                }
+
+                if (dataSize > minSplitSize) {
+                    auto key = beginIt->key();
+
+                    *boundaryKeysExt.mutable_end() = key;
+
+                    // Sanity check.
+                    YCHECK(CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end()) <= 0);
+                    SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), boundaryKeysExt);
+
+                    endRowIndex = beginIt->row_index();
+
+                    TSizeOverrideExt sizeOverride;
+                    sizeOverride.set_row_count(endRowIndex - startRowIndex);
+                    sizeOverride.set_uncompressed_data_size(dataSize);
+                    SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), sizeOverride);
+
+                    key = GetKeySuccessor(key);
+                    TOwningKey limitKey;
+                    FromProto(&limitKey, key);
+
+                    ToProto(currentSplit->mutable_upper_limit()->mutable_key(), limitKey);
+
+                    createNewSplit();
+                    *boundaryKeysExt.mutable_start() = key;
+                    ToProto(currentSplit->mutable_lower_limit()->mutable_key(), limitKey);
+                }
+            }
+
+            // Sanity check.
+            YCHECK(CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end()) <= 0);
+            SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), boundaryKeysExt);
+            endRowIndex = (--endIt)->row_index();
+
+            TSizeOverrideExt sizeOverride;
+            sizeOverride.set_row_count(endRowIndex - startRowIndex);
+            sizeOverride.set_uncompressed_data_size(
+                dataSize +
+                (std::distance(beginIt, endIt)) * dataSizeBetweenSamples);
+            SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), sizeOverride);
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            LOG_WARNING(error);
+            ToProto(splittedChunk->mutable_error(), error);
         }
-
-        auto indexExt = GetProtoExtension<TIndexExt>(chunkMeta.extensions());
-        if (indexExt.items_size() == 1) {
-            // Only one index entry available - no need to split.
-            splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
-            return;
-        }
-
-        auto backIt = --indexExt.items().end();
-        auto dataSizeBetweenSamples = static_cast<i64>(std::ceil(
-            static_cast<double>(backIt->row_index()) /
-            miscExt.row_count() *
-            miscExt.uncompressed_data_size() /
-            indexExt.items_size()));
-        YCHECK(dataSizeBetweenSamples > 0);
-
-        using NChunkClient::TReadLimit;
-        auto comparer = [&] (
-            const TReadLimit& limit,
-            const TIndexRow& indexRow,
-            bool isStartLimit) -> int
-        {
-            if (!limit.HasRowIndex() && !limit.HasKey()) {
-                return isStartLimit ? -1 : 1;
-            }
-
-            auto result = 0;
-            if (limit.HasRowIndex()) {
-                auto diff = limit.GetRowIndex() - indexRow.row_index();
-                // Sign function.
-                result += (diff > 0) - (diff < 0);
-            }
-
-            if (limit.HasKey()) {
-                TOwningKey indexKey;
-                FromProto(&indexKey, indexRow.key());
-                result += CompareRows(limit.GetKey(), indexKey, keyColumns.size());
-            }
-
-            if (result == 0) {
-                return isStartLimit ? -1 : 1;
-            }
-
-            return (result > 0) - (result < 0);
-        };
-
-        auto beginIt = std::lower_bound(
-            indexExt.items().begin(),
-            indexExt.items().end(),
-            TReadLimit(chunkSpec->lower_limit()),
-            [&] (const TIndexRow& indexRow, const TReadLimit& limit) {
-                return comparer(limit, indexRow, true) > 0;
-            });
-
-        auto endIt = std::upper_bound(
-            beginIt,
-            indexExt.items().end(),
-            TReadLimit(chunkSpec->upper_limit()),
-            [&] (const TReadLimit& limit, const TIndexRow& indexRow) {
-                return comparer(limit, indexRow, false) < 0;
-            });
-
-        if (std::distance(beginIt, endIt) < 2) {
-            // Too small distance between given read limits.
-            splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
-            return;
-        }
-
-        TChunkSpec* currentSplit;
-        TOldBoundaryKeysExt boundaryKeysExt;
-        i64 endRowIndex = beginIt->row_index();
-        i64 startRowIndex;
-        i64 dataSize;
-
-        auto createNewSplit = [&] () {
-            currentSplit = splittedChunk->add_chunk_specs();
-            currentSplit->CopyFrom(*chunkSpec);
-            boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(chunkSpec->chunk_meta().extensions());
-            startRowIndex = endRowIndex;
-            dataSize = 0;
-        };
-        createNewSplit();
-
-        auto samplesLeft = std::distance(beginIt, endIt) - 1;
-        YCHECK(samplesLeft > 0);
-
-        while (samplesLeft > 0) {
-            ++beginIt;
-            --samplesLeft;
-            dataSize += dataSizeBetweenSamples;
-
-            auto nextIter = beginIt + 1;
-            if (nextIter == endIt) {
-                break;
-            }
-
-            if (samplesLeft * dataSizeBetweenSamples < minSplitSize) {
-                break;
-            }
-
-            if (CompareKeys(nextIter->key(), beginIt->key(), keyColumns.size()) == 0) {
-                continue;
-            }
-
-            if (dataSize > minSplitSize) {
-                auto key = beginIt->key();
-
-                *boundaryKeysExt.mutable_end() = key;
-
-                // Sanity check.
-                YCHECK(CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end()) <= 0);
-                SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), boundaryKeysExt);
-
-                endRowIndex = beginIt->row_index();
-
-                TSizeOverrideExt sizeOverride;
-                sizeOverride.set_row_count(endRowIndex - startRowIndex);
-                sizeOverride.set_uncompressed_data_size(dataSize);
-                SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), sizeOverride);
-
-                key = GetKeySuccessor(key);
-                TOwningKey limitKey;
-                FromProto(&limitKey, key);
-
-                ToProto(currentSplit->mutable_upper_limit()->mutable_key(), limitKey);
-
-                createNewSplit();
-                *boundaryKeysExt.mutable_start() = key;
-                ToProto(currentSplit->mutable_lower_limit()->mutable_key(), limitKey);
-            }
-        }
-
-        // Sanity check.
-        YCHECK(CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end()) <= 0);
-        SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), boundaryKeysExt);
-        endRowIndex = (--endIt)->row_index();
-
-        TSizeOverrideExt sizeOverride;
-        sizeOverride.set_row_count(endRowIndex - startRowIndex);
-        sizeOverride.set_uncompressed_data_size(
-            dataSize +
-            (std::distance(beginIt, endIt)) * dataSizeBetweenSamples);
-        SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), sizeOverride);
     }
 
 
@@ -894,9 +881,8 @@ private:
 
         ValidateConnected();
 
-        auto awaiter = New<TParallelAwaiter>(WorkerThread_->GetInvoker());
+        std::vector<TFuture<void>> asyncResults;
         auto keyColumns = FromProto<Stroka>(request->key_columns());
-
         for (const auto& sampleRequest : request->sample_requests()) {
             auto* sampleResponse = response->add_sample_responses();
             auto chunkId = FromProto<TChunkId>(sampleRequest.chunk_id());
@@ -912,65 +898,59 @@ private:
                 continue;
             }
 
-            awaiter->Await(
-                chunk->GetMeta(context->GetPriority()),
+            auto asyncResult = chunk->GetMeta(context->GetPriority());
+            asyncResults.push_back(asyncResult.Apply(
                 BIND(
                     &TDataNodeService::ProcessSample,
                     MakeStrong(this),
                     &sampleRequest,
                     sampleResponse,
-                    keyColumns));
+                    keyColumns)
+                .AsyncVia(WorkerThread_->GetInvoker())));
         }
 
-        awaiter->Complete(BIND([=] () {
-            context->Reply();
-        }));
+        context->ReplyFrom(Combine(asyncResults));
     }
 
     void ProcessSample(
         const NChunkClient::NProto::TReqGetTableSamples::TSampleRequest* sampleRequest,
         NChunkClient::NProto::TRspGetTableSamples::TChunkSamples* sampleResponse,
         const NTableClient::TKeyColumns& keyColumns,
-        IChunk::TGetMetaResult result)
+        const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
+        try {
+            THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta of chunk %v",
+                chunkId);
+            const auto& meta = *metaOrError.Value();
 
-        if (!result.IsOK()) {
-            auto error = TError("Error getting meta of chunk %v",
-                chunkId)
-                << result;
+            auto type = EChunkType(meta.type());
+            if (type != EChunkType::Table) {
+                THROW_ERROR_EXCEPTION("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
+                    chunkId,
+                    EChunkType::Table,
+                    type);
+            }
+
+            auto formatVersion = ETableChunkFormat(meta.version());
+            switch (formatVersion) {
+                case ETableChunkFormat::Old:
+                    ProcessOldChunkSamples(sampleRequest, sampleResponse, keyColumns, meta);
+                    break;
+
+                case ETableChunkFormat::VersionedSimple:
+                    ProcessVersionedChunkSamples(sampleRequest, sampleResponse, keyColumns, meta);
+                    break;
+
+                default:
+                    THROW_ERROR_EXCEPTION("Invalid version %v of chunk %v",
+                        meta.version(),
+                        chunkId);
+            }
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
             LOG_WARNING(error);
             ToProto(sampleResponse->mutable_error(), error);
-            return;
-        }
-
-        const auto& chunkMeta = *result.Value();
-        if (chunkMeta.type() != EChunkType::Table) {
-            auto error = TError("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
-                chunkId,
-                EChunkType(EChunkType::Table),
-                EChunkType(chunkMeta.type()));
-            LOG_WARNING(error);
-            ToProto(sampleResponse->mutable_error(), error);
-            return;
-        }
-
-        switch (chunkMeta.version()) {
-            case ETableChunkFormat::Old:
-                ProcessOldChunkSamples(sampleRequest, sampleResponse, keyColumns, chunkMeta);
-                break;
-
-            case ETableChunkFormat::VersionedSimple:
-                ProcessVersionedChunkSamples(sampleRequest, sampleResponse, keyColumns, chunkMeta);
-                break;
-
-            default:
-                auto error = TError("Invalid version %v of chunk %v",
-                    chunkMeta.version(),
-                    chunkId);
-                LOG_WARNING(error);
-                ToProto(sampleResponse->mutable_error(), error);
-                break;
         }
     }
 
@@ -1004,10 +984,10 @@ private:
                         return part.column() < column;
                     });
 
-                TUnversionedValue keyPart = MakeUnversionedSentinelValue(EValueType::Null);
+                auto keyPart = MakeUnversionedSentinelValue(EValueType::Null);
                 size += sizeof(keyPart); // part type
                 if (it != sample.parts().end() && it->column() == column) {
-                    switch (it->key_part().type()) {
+                    switch (EKeyPartType(it->key_part().type())) {
                         case EKeyPartType::Composite:
                             keyPart = MakeUnversionedAnyValue(TStringBuf());
                             break;
@@ -1082,20 +1062,12 @@ private:
 
         ValidateConnected();
 
-        Bootstrap_
-            ->GetChunkCache()
-            ->DownloadChunk(chunkId)
-            .Subscribe(BIND([=] (TChunkCache::TDownloadResult result) {
-                if (result.IsOK()) {
-                    context->Reply();
-                } else {
-                    context->Reply(TError(
-                        NChunkClient::EErrorCode::ChunkPrecachingFailed,
-                        "Error precaching chunk %v",
-                        chunkId)
-                        << result);
-                }
-            }));
+        auto chunkCache = Bootstrap_->GetChunkCache();
+        auto chunkOrError = WaitFor(chunkCache->DownloadChunk(chunkId));
+        THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError, "Error precaching chunk %v",
+            chunkId);
+
+        context->Reply();
     }
 
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
@@ -1192,7 +1164,7 @@ private:
         Profiler.Enqueue("/pending_in_size", GetPendingInSize());
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        for (auto type : EWriteSessionType::GetDomainValues()) {
+        for (auto type : TEnumTraits<EWriteSessionType>::GetDomainValues()) {
             Profiler.Enqueue("/session_count/" + FormatEnum(type), sessionManager->GetSessionCount(type));
         }
     }

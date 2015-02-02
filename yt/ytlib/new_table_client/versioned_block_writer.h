@@ -41,7 +41,7 @@ public:
     static int GetKeySize(int keyColumnCount, int schemaColumnCount);
     static int GetPaddedKeySize(int keyColumnCount, int schemaColumnCount);
 
-    static const int FormatVersion = ETableChunkFormat::VersionedSimple;
+    static const ETableChunkFormat FormatVersion = ETableChunkFormat::VersionedSimple;
     static const int ValueSize = 16;
     static const int TimestampSize = 8;
 

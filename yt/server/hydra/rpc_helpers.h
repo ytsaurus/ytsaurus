@@ -4,6 +4,8 @@
 
 #include <core/misc/error.h>
 
+#include <core/actions/callback.h>
+
 namespace NYT {
 namespace NHydra {
 

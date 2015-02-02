@@ -18,43 +18,34 @@ public:
     explicit TParallelAwaiter(IInvokerPtr invoker);
 
     template <class T>
-    void Await(TFuture<T> result, TCallback<void(T)> onResult);
-
+    void Await(TFuture<T> future, TCallback<void(const TErrorOr<T>&)> onResult);
     template <class T>
-    void Await(TFuture<T> result, TCallback<void(const T&)> onResult);
-
-    void Await(TFuture<void> result, TClosure onResult);
-
-    template <class T>
-    void Await(TFuture<T> result);
-
-    void Await(TFuture<void> result);
+    void Await(TFuture<T> future);
 
     TFuture<void> Complete(TClosure onComplete = TClosure());
     
-    void Cancel();
-
     int GetRequestCount() const;
     int GetResponseCount() const;
 
     bool IsCompleted() const;
     TFuture<void> GetAsyncCompleted() const;
 
+    void Cancel();
     bool IsCanceled() const;
 
 private:
     TSpinLock SpinLock_;
 
-    bool Canceled_;
+    bool Canceled_ = false;
 
-    bool Completed_;
-    TPromise<void> CompletedPromise_;
+    bool Completed_ = false;
+    TPromise<void> CompletedPromise_ = NewPromise<void>();
     TClosure OnComplete_;
 
-    bool Terminated_;
+    bool Terminated_ = false;
 
-    int RequestCount_;
-    int ResponseCount_;
+    volatile int RequestCount_ = 0;
+    volatile int ResponseCount_ = 0;
 
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableInvoker_;
@@ -62,21 +53,10 @@ private:
 
     bool TryAwait();
 
-    void Terminate();
-
-    template <class TResult, class THandler>
-    void DoAwait(TResult result, THandler onResultHandler);
-
     template <class T>
-    void HandleResult(TCallback<void(T)> onResult, T result);
+    void HandleResult(TCallback<void(const TErrorOr<T>&)> onResult, const TErrorOr<T>& result);
 
-    void HandleVoidResult(TClosure onResult);
-
-    void HandleCancel();
-
-    void HandleResponse();
-
-    void DoFireCompleted(TClosure onComplete);
+    void FireCompleted(TClosure onComplete);
 
 };
 

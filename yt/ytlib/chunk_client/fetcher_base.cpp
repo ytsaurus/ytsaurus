@@ -1,15 +1,11 @@
 #include "stdafx.h"
-
 #include "fetcher_base.h"
-
 #include "chunk_replica.h"
 #include "chunk_spec.h"
 #include "config.h"
 #include "private.h"
 
 #include <ytlib/node_tracker_client/node_directory.h>
-
-#include <core/concurrency/parallel_awaiter.h>
 
 #include <core/misc/protobuf_helpers.h>
 #include <core/misc/string.h>
@@ -34,7 +30,6 @@ TFetcherBase::TFetcherBase(
     , NodeDirectory_(nodeDirectory)
     , Invoker_(invoker)
     , Logger(logger)
-    , FetchingResult_(NewPromise<TError>())
 { }
 
 void TFetcherBase::AddChunk(TRefCountedChunkSpecPtr chunk)
@@ -43,10 +38,10 @@ void TFetcherBase::AddChunk(TRefCountedChunkSpecPtr chunk)
     Chunks_.push_back(chunk);
 }
 
-TAsyncError TFetcherBase::Fetch()
+TFuture<void> TFetcherBase::Fetch()
 {
     StartFetchingRound();
-    return FetchingResult_;
+    return Promise_;
 }
 
 void TFetcherBase::StartFetchingRound()
@@ -73,7 +68,7 @@ void TFetcherBase::StartFetchingRound()
             }
         }
         if (!chunkAvailable) {
-            FetchingResult_.Set(TError(
+            Promise_.Set(TError(
                 "Unable to fetch info for chunk %v from any of nodes [%v]",
                 chunkId,
                 JoinToString(replicas, TChunkReplicaAddressFormatter(NodeDirectory_))));
@@ -95,7 +90,7 @@ void TFetcherBase::StartFetchingRound()
         });
 
     // Pick nodes greedily.
-    auto awaiter = New<TParallelAwaiter>(Invoker_);
+    std::vector<TFuture<void>> asyncResults;
     yhash_set<int> requestedChunkIndexes;
     for (const auto& it : nodeIts) {
         std::vector<int> chunkIndexes;
@@ -108,26 +103,25 @@ void TFetcherBase::StartFetchingRound()
 
         // Send the request, if not empty.
         if (!chunkIndexes.empty()) {
-            awaiter->Await(FetchFromNode(it->first, std::move(chunkIndexes)));
+            asyncResults.push_back(FetchFromNode(it->first, std::move(chunkIndexes)));
         }
     }
 
-    awaiter->Complete(BIND(
-        &TFetcherBase::OnFetchingRoundCompleted,
-        MakeWeak(this)));
-
+    Combine(asyncResults).Subscribe(
+        BIND(&TFetcherBase::OnFetchingRoundCompleted, MakeWeak(this))
+            .Via(Invoker_));
 }
 
 IChannelPtr TFetcherBase::GetNodeChannel(TNodeId nodeId)
 {
     const auto& descriptor = NodeDirectory_->GetDescriptor(nodeId);
-    auto channel = LightNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress());
+    auto channel = LightNodeChannelFactory->CreateChannel(descriptor.GetInterconnectAddress());
     return CreateRetryingChannel(Config_->NodeChannel, channel);
 }
 
 void TFetcherBase::OnChunkFailed(TNodeId nodeId, int chunkIndex)
 {
-    auto& chunk = Chunks_[chunkIndex];
+    const auto& chunk = Chunks_[chunkIndex];
     auto chunkId = NYT::FromProto<TChunkId>(chunk->chunk_id());
 
     YCHECK(DeadChunks_.insert(std::make_pair(nodeId, chunkId)).second);
@@ -140,14 +134,21 @@ void TFetcherBase::OnNodeFailed(TNodeId nodeId, const std::vector<int>& chunkInd
     UnfetchedChunkIndexes_.insert(chunkIndexes.begin(), chunkIndexes.end());
 }
 
-void TFetcherBase::OnFetchingRoundCompleted()
+void TFetcherBase::OnFetchingRoundCompleted(const TError& error)
 {
+    if (!error.IsOK()) {
+        LOG_ERROR(error, "Fetching failed");
+        Promise_.Set(error);
+        return;
+    }
+
     if (UnfetchedChunkIndexes_.empty()) {
         LOG_DEBUG("Fetching complete");
-        FetchingResult_.Set(TError());
-    } else {
-        StartFetchingRound();
+        Promise_.Set(TError());
+        return;
     }
+
+    StartFetchingRound();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

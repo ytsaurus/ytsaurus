@@ -55,7 +55,7 @@ void TSamplesFetcher::AddChunk(TRefCountedChunkSpecPtr chunk)
     TFetcherBase::AddChunk(chunk);
 }
 
-TAsyncError TSamplesFetcher::Fetch()
+TFuture<void> TSamplesFetcher::Fetch()
 {
     LOG_DEBUG("Started fetching chunk samples (ChunkCount: %v, DesiredSampleCount: %v)",
         Chunks_.size(),
@@ -118,9 +118,9 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
     if (req->sample_requests_size() == 0)
         return;
 
-    auto rsp = WaitFor(req->Invoke());
+    auto rspOrError = WaitFor(req->Invoke());
 
-    if (!rsp->IsOK()) {
+    if (!rspOrError.IsOK()) {
         LOG_WARNING("Failed to get samples from node (Address: %v, NodeId: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
             nodeId);
@@ -128,6 +128,7 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
         return;
     }
 
+    const auto& rsp = rspOrError.Value();
     for (int index = 0; index < requestedChunkIndexes.size(); ++index) {
         const auto& sampleResponse = rsp->sample_responses(index);
         if (sampleResponse.has_error()) {

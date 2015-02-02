@@ -37,6 +37,7 @@ class TStreamLogWriter
 {
 public:
     explicit TStreamLogWriter(TOutputStream* stream = nullptr);
+    ~TStreamLogWriter();
 
     virtual void Write(const TLogEvent& event) override;
     virtual void Flush() override;
@@ -47,7 +48,10 @@ protected:
     TOutputStream* Stream_;
 
 private:
+    class TDateFormatter;
+
     std::unique_ptr<TMessageBuffer> Buffer_;
+    std::unique_ptr<TDateFormatter> DateFormatter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

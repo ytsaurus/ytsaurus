@@ -47,7 +47,7 @@ TChunk::TChunk(const TChunkId& id)
 {
     Zero(Flags_);
 
-    ChunkMeta_.set_type(EChunkType::Unknown);
+    ChunkMeta_.set_type(static_cast<int>(EChunkType::Unknown));
     ChunkMeta_.set_version(-1);
     ChunkMeta_.mutable_extensions();
 }
@@ -107,6 +107,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkInfo_);
     Load(context, ChunkMeta_);
 
+    // COMPAT(babenko)
     if (context.GetVersion() < 100) {
         SetReplicationFactor(Load<i16>(context));
     } else {
@@ -114,7 +115,12 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         SetReadQuorum(Load<i8>(context));
         SetWriteQuorum(Load<i8>(context));
     }
-    SetErasureCodec(Load<NErasure::ECodec>(context));
+    // COMPAT(babenko)
+    if (context.GetVersion() < 111) {
+        SetErasureCodec(NErasure::ECodec(Load<int>(context)));
+    } else {
+        SetErasureCodec(Load<NErasure::ECodec>(context));
+    }
 
     SetMovable(Load<bool>(context));
     SetVital(Load<bool>(context));
@@ -205,7 +211,7 @@ void TChunk::Confirm(
 
 bool TChunk::IsConfirmed() const
 {
-    return ChunkMeta_.type() != EChunkType::Unknown;
+    return EChunkType(ChunkMeta_.type()) != EChunkType::Unknown;
 }
 
 void TChunk::ValidateConfirmed()
@@ -298,12 +304,12 @@ void TChunk::SetWriteQuorum(int value)
 
 NErasure::ECodec TChunk::GetErasureCodec() const
 {
-    return NErasure::ECodec(ErasureCodec_);
+    return ErasureCodec_;
 }
 
 void TChunk::SetErasureCodec(NErasure::ECodec value)
 {
-    ErasureCodec_ = static_cast<i16>(value);
+    ErasureCodec_ = value;
 }
 
 bool TChunk::IsErasure() const
@@ -338,7 +344,7 @@ bool TChunk::IsAvailable() const
             return true;
         }
         for (auto replica : StoredReplicas_) {
-            if (replica.GetIndex() == EJournalReplicaType::Sealed) {
+            if (replica.GetIndex() == SealedChunkReplicaIndex) {
                 return true;
             }
         }

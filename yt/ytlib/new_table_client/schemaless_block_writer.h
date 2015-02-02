@@ -18,7 +18,7 @@ class THorizontalSchemalessBlockWriter
 {
 public:
     THorizontalSchemalessBlockWriter();
-    THorizontalSchemalessBlockWriter(int keyColumnCount);
+    explicit THorizontalSchemalessBlockWriter(int keyColumnCount);
 
     void WriteRow(TUnversionedRow row);
 
@@ -27,7 +27,7 @@ public:
     virtual i64 GetBlockSize() const override;
     virtual i64 GetRowCount() const override;
 
-    static int FormatVersion;
+    static const ETableChunkFormat FormatVersion = ETableChunkFormat::SchemalessHorizontal;
 
 private:
     i64 RowCount_;

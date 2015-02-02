@@ -55,7 +55,7 @@ bool TEvent::Fired()
         if (errno == EWOULDBLOCK || errno == EAGAIN) {
             return false;
         }
-        THROW_ERROR_EXCEPTION() << TError::FromSystem();
+        THROW_ERROR TError::FromSystem();
     }
     YCHECK(bytesRead == sizeof(LastValue_));
     Fired_ = true;

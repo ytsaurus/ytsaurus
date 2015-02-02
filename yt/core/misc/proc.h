@@ -30,11 +30,14 @@ void SafeDup2(int oldFd, int newFd);
 
 bool TryExecve(const char* path, char* const argv[], char* const env[]);
 
+void SafePipe(int fd[2]);
+void SafeMakeNonblocking(int fd);
+
 void SetPermissions(int fd, int permissions);
 
-void CloseAllDescriptors();
+void CloseAllDescriptors(const std::vector<int>& exceptFor = std::vector<int>());
 
-DECLARE_ENUM(EExitStatus,
+DEFINE_ENUM(EExitStatus,
     ((ExitCodeBase)         (10000))
 
     ((SignalBase)           (11000))

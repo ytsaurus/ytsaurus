@@ -14,7 +14,6 @@
 
 #include <core/concurrency/async_semaphore.h>
 #include <core/concurrency/scheduler.h>
-#include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>
 
@@ -55,8 +54,8 @@ struct TNode
     TNode(int index, const TNodeDescriptor& descriptor)
         : Index(index)
         , Descriptor(descriptor)
-        , LightProxy(LightNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress()))
-        , HeavyProxy(HeavyNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress()))
+        , LightProxy(LightNodeChannelFactory->CreateChannel(descriptor.GetInterconnectAddress()))
+        , HeavyProxy(HeavyNodeChannelFactory->CreateChannel(descriptor.GetInterconnectAddress()))
     {
         Canceled.clear();
     }
@@ -135,13 +134,13 @@ public:
 
     ~TReplicationWriter();
 
-    virtual TAsyncError Open() override;
+    virtual TFuture<void> Open() override;
 
     virtual bool WriteBlock(const TSharedRef& block) override;
     virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override;
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
-    virtual TAsyncError Close(const TChunkMeta& chunkMeta) override;
+    virtual TFuture<void> Close(const TChunkMeta& chunkMeta) override;
 
     virtual const TChunkInfo& GetChunkInfo() const override;
     virtual TChunkReplicaList GetWrittenChunkReplicas() const override;
@@ -149,24 +148,22 @@ public:
 private:
     friend class TGroup;
 
-    TReplicationWriterConfigPtr Config_;
-    TChunkId ChunkId_;
-    TChunkReplicaList InitialTargets_;
-    IChannelPtr MasterChannel_;
-
-    //! Thread affinity: WriterThread.
-    TNodeDirectoryPtr NodeDirectory_;
-    EWriteSessionType SessionType_;
-    IThroughputThrottlerPtr Throttler_;
+    const TReplicationWriterConfigPtr Config_;
+    const TChunkId ChunkId_;
+    const TChunkReplicaList InitialTargets_;
+    const IChannelPtr MasterChannel_;
+    const TNodeDirectoryPtr NodeDirectory_;
+    const EWriteSessionType SessionType_;
+    const IThroughputThrottlerPtr Throttler_;
 
     TAsyncStreamState State_;
 
-    bool IsOpen_;
-    bool IsClosing_;
+    bool IsOpen_ = false;
+    bool IsClosing_ = false;
 
     //! This flag is raised whenever #Close is invoked.
     //! All access to this flag happens from #WriterThread.
-    bool IsCloseRequested_;
+    bool IsCloseRequested_ = false;
     TChunkMeta ChunkMeta_;
 
     TWindow Window_;
@@ -184,12 +181,13 @@ private:
     TGroupPtr CurrentGroup_;
 
     //! Number of blocks that are already added via #AddBlocks.
-    int BlockCount_;
+    int BlockCount_ = 0;
 
     //! Returned from node on Finish.
     TChunkInfo ChunkInfo_;
 
-    NLog::TLogger Logger;
+    NLog::TLogger Logger = ChunkClientLogger;
+
 
     void DoOpen();
     void DoClose();
@@ -203,18 +201,15 @@ private:
     void OnNodeFailed(TNodePtr node, const TError& error);
 
     void ShiftWindow();
-
-    void OnWindowShifted(int blockIndex);
+    void OnWindowShifted(int blockIndex, const TError& error);
 
     void FlushBlocks(TNodePtr node, int blockIndex);
 
     void StartChunk(TChunkReplica target);
 
-    void CloseSession();
+    void CloseSessions();
 
     void FinishChunk(TNodePtr node);
-
-    void OnSessionFinished();
 
     void SendPing(TNodeWeakPtr node);
 
@@ -304,9 +299,9 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
         GetEndBlockIndex(),
         node->Descriptor.GetDefaultAddress());
 
-    auto rsp = WaitFor(req->Invoke());
+    auto rspOrError = WaitFor(req->Invoke());
 
-    if (rsp->IsOK()) {
+    if (rspOrError.IsOK()) {
         SentTo_[node->Index] = true;
 
         LOG_DEBUG("Blocks are put (Blocks: %v-%v, Address: %v)",
@@ -314,7 +309,7 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
             GetEndBlockIndex(),
             node->Descriptor.GetDefaultAddress());
     } else {
-        writer->OnNodeFailed(node, rsp->GetError());
+        writer->OnNodeFailed(node, rspOrError);
     }
 
     ScheduleProcess();
@@ -342,9 +337,9 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
             req->set_block_count(Blocks_.size());
             ToProto(req->mutable_target(), dstNode->Descriptor);
 
-            auto rsp = WaitFor(req->Invoke());
+            auto rspOrError = WaitFor(req->Invoke());
 
-            if (rsp->IsOK()) {
+            if (rspOrError.IsOK()) {
                 LOG_DEBUG("Blocks are sent (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
                     FirstBlockIndex_,
                     GetEndBlockIndex(),
@@ -353,12 +348,9 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
 
                 SentTo_[dstNode->Index] = true;
             } else {
-                auto error = rsp->GetError();
-                if (error.GetCode() == EErrorCode::PipelineFailed) {
-                    writer->OnNodeFailed(dstNode, error);
-                } else {
-                    writer->OnNodeFailed(srcNode, error);
-                }
+                writer->OnNodeFailed(
+                    rspOrError.GetCode() == EErrorCode::PipelineFailed ? dstNode : srcNode,
+                    rspOrError);
             }
 
             break;
@@ -446,13 +438,8 @@ TReplicationWriter::TReplicationWriter(
     , NodeDirectory_(nodeDirectory)
     , SessionType_(sessionType)
     , Throttler_(throttler)
-    , IsOpen_(false)
-    , IsClosing_(false)
-    , IsCloseRequested_(false)
     , WindowSlots_(config->SendWindowSize)
     , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
-    , BlockCount_(0)
-    , Logger(ChunkClientLogger)
 {
     Logger.AddTag("ChunkId: %v", ChunkId_);
 }
@@ -495,13 +482,14 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
     
     ToProto(req->mutable_chunk_id(), ChunkId_);
 
-    auto rsp = WaitFor(req->Invoke());
+    auto rspOrError = WaitFor(req->Invoke());
 
     THROW_ERROR_EXCEPTION_IF_FAILED(
-        *rsp, 
+        rspOrError,
         EErrorCode::MasterCommunicationFailed, 
         "Failed to allocate targets for chunk %v", 
         ChunkId_);
+    const auto& rsp = rspOrError.Value();
 
     NodeDirectory_->MergeFrom(rsp->node_directory());
 
@@ -513,15 +501,16 @@ void TReplicationWriter::StartSessions(const TChunkReplicaList& targets)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
+    std::vector<TFuture<void>> asyncResults;
     for (auto target : targets) {
-        awaiter->Await(
+        asyncResults.push_back(
             BIND(&TReplicationWriter::StartChunk, MakeWeak(this), target)
                 .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
                 .Run());
     }
 
-    WaitFor(awaiter->Complete());
+    WaitFor(Combine(asyncResults))
+        .ThrowOnError();
 }
 
 void TReplicationWriter::StartChunk(TChunkReplica target)
@@ -532,17 +521,17 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     auto address = nodeDescriptor.GetDefaultAddress();
     LOG_DEBUG("Starting write session (Address: %v)", address);
 
-    TDataNodeServiceProxy proxy(LightNodeChannelFactory->CreateChannel(address));
+    TDataNodeServiceProxy proxy(LightNodeChannelFactory->CreateChannel(nodeDescriptor.GetInterconnectAddress()));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
     auto req = proxy.StartChunk();
     ToProto(req->mutable_chunk_id(), ChunkId_);
-    req->set_session_type(SessionType_);
+    req->set_session_type(static_cast<int>(SessionType_));
     req->set_sync_on_close(Config_->SyncOnClose);
 
-    auto rsp = WaitFor(req->Invoke());
-    if (!rsp->IsOK()) {
-        LOG_WARNING(*rsp, "Failed to start write session on node %v", address);
+    auto rspOrError = WaitFor(req->Invoke());
+    if (!rspOrError.IsOK()) {
+        LOG_WARNING(rspOrError, "Failed to start write session on node %v", address);
         return;
     }
 
@@ -562,10 +551,9 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     ++AliveNodeCount_;
 }
 
-TAsyncError TReplicationWriter::Open()
+TFuture<void> TReplicationWriter::Open()
 {
     return BIND(&TReplicationWriter::DoOpen, MakeStrong(this))
-        .Guarded()
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 }
@@ -587,7 +575,9 @@ void TReplicationWriter::DoOpen()
         IsOpen_ = true;
     } catch (const std::exception& ex) {
         CancelWriter(true);
-        THROW_ERROR_EXCEPTION("Not enough target nodes to start writing session for chunk %v", ChunkId_) << ex;
+        THROW_ERROR_EXCEPTION("Not enough target nodes to start writing session for chunk %v",
+            ChunkId_)
+            << ex;
     }
 }
 
@@ -616,53 +606,36 @@ void TReplicationWriter::ShiftWindow()
     if (lastFlushableBlock < 0)
         return;
 
-    auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
+    std::vector<TFuture<void>> asyncResults;
     for (auto node : Nodes_) {
-        awaiter->Await(
+        asyncResults.push_back(
             BIND(&TReplicationWriter::FlushBlocks, MakeWeak(this), node,lastFlushableBlock)
                 .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
                 .Run());
     }
-    awaiter->Complete(BIND(
-        &TReplicationWriter::OnWindowShifted, 
-        MakeWeak(this), 
-        lastFlushableBlock));
+    Combine(asyncResults).Subscribe(
+        BIND(
+            &TReplicationWriter::OnWindowShifted,
+            MakeWeak(this),
+            lastFlushableBlock)
+        .Via(TDispatcher::Get()->GetWriterInvoker()));
 }
 
-void TReplicationWriter::FlushBlocks(TNodePtr node, int blockIndex)
+void TReplicationWriter::OnWindowShifted(int lastFlushedBlock, const TError& error)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    if (!node->IsAlive())
+    if (!error.IsOK()) {
+        LOG_WARNING(error, "Chunk writer failed");
+        CancelWriter(true);
+        State_.Fail(error);
         return;
-
-    LOG_DEBUG("Flushing block (Block: %v, Address: %v)",
-        blockIndex,
-        node->Descriptor.GetDefaultAddress());
-
-    auto req = node->LightProxy.FlushBlocks();
-    ToProto(req->mutable_chunk_id(), ChunkId_);
-    req->set_block_index(blockIndex);
-
-    auto rsp = WaitFor(req->Invoke());
-
-    if (rsp->IsOK()) {
-        LOG_DEBUG("Block flushed (Block: %v, Address: %v)",
-            blockIndex,
-            node->Descriptor.GetDefaultAddress());
-    } else {
-        OnNodeFailed(node, rsp->GetError());
     }
-}
-
-void TReplicationWriter::OnWindowShifted(int lastFlushedBlock)
-{
-    VERIFY_THREAD_AFFINITY(WriterThread);
 
     if (Window_.empty()) {
         // This happens when FlushBlocks responses are reordered
         // (i.e. a larger BlockIndex is flushed before a smaller one)
-        // We should prevent repeated calls to CloseSession.
+        // We should prevent repeated calls to CloseSessions.
         return;
     }
 
@@ -681,7 +654,33 @@ void TReplicationWriter::OnWindowShifted(int lastFlushedBlock)
     }
 
     if (State_.IsActive() && IsCloseRequested_) {
-        CloseSession();
+        CloseSessions();
+    }
+}
+
+void TReplicationWriter::FlushBlocks(TNodePtr node, int blockIndex)
+{
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
+    if (!node->IsAlive())
+        return;
+
+    LOG_DEBUG("Flushing block (Block: %v, Address: %v)",
+        blockIndex,
+        node->Descriptor.GetDefaultAddress());
+
+    auto req = node->LightProxy.FlushBlocks();
+    ToProto(req->mutable_chunk_id(), ChunkId_);
+    req->set_block_index(blockIndex);
+
+    auto rspOrError = WaitFor(req->Invoke());
+
+    if (rspOrError.IsOK()) {
+        LOG_DEBUG("Block flushed (Block: %v, Address: %v)",
+            blockIndex,
+            node->Descriptor.GetDefaultAddress());
+    } else {
+        OnNodeFailed(node, rspOrError);
     }
 }
 
@@ -717,7 +716,9 @@ void TReplicationWriter::OnNodeFailed(TNodePtr node, const TError& error)
     if (!node->IsAlive())
         return;
 
-    auto wrappedError = TError("Node %v failed", node->Descriptor.GetDefaultAddress()) << error;
+    auto wrappedError = TError("Node %v failed",
+        node->Descriptor.GetDefaultAddress())
+        << error;
     LOG_ERROR(wrappedError);
 
     node->Error = wrappedError;
@@ -738,23 +739,35 @@ void TReplicationWriter::OnNodeFailed(TNodePtr node, const TError& error)
     }
 }
 
-void TReplicationWriter::CloseSession()
+void TReplicationWriter::CloseSessions()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
-
     YCHECK(IsCloseRequested_);
 
     LOG_INFO("Closing writer");
 
-    auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
+    std::vector<TFuture<void>> asyncResults;
     for (auto node : Nodes_) {
-        awaiter->Await(
+        asyncResults.push_back(
             BIND(&TReplicationWriter::FinishChunk, MakeWeak(this), node)
                 .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
                 .Run());
     }
-    awaiter->Complete(
-        BIND(&TReplicationWriter::OnSessionFinished, MakeWeak(this)));
+
+    WaitFor(Combine(asyncResults))
+        .ThrowOnError();
+
+    YCHECK(Window_.empty());
+
+    if (State_.IsActive()) {
+        State_.Close();
+    }
+
+    CancelWriter(false);
+
+    LOG_INFO("Writer closed");
+
+    State_.FinishOperation();
 }
 
 void TReplicationWriter::FinishChunk(TNodePtr node)
@@ -772,36 +785,20 @@ void TReplicationWriter::FinishChunk(TNodePtr node)
     *req->mutable_chunk_meta() = ChunkMeta_;
     req->set_block_count(BlockCount_);
 
-    auto rsp = WaitFor(req->Invoke());
+    auto rspOrError = WaitFor(req->Invoke());
 
-    if (!rsp->IsOK()) {
-        OnNodeFailed(node, rsp->GetError());
+    if (!rspOrError.IsOK()) {
+        OnNodeFailed(node, rspOrError);
         return;
     }
 
-    auto& chunkInfo = rsp->chunk_info();
+    const auto& rsp = rspOrError.Value();
+    const auto& chunkInfo = rsp->chunk_info();
     LOG_DEBUG("Chunk finished (Address: %v, DiskSpace: %v)",
         node->Descriptor.GetDefaultAddress(),
         chunkInfo.disk_space());
 
     ChunkInfo_ = chunkInfo;
-}
-
-void TReplicationWriter::OnSessionFinished()
-{
-    VERIFY_THREAD_AFFINITY(WriterThread);
-
-    YCHECK(Window_.empty());
-
-    if (State_.IsActive()) {
-        State_.Close();
-    }
-
-    CancelWriter(false);
-
-    LOG_INFO("Writer closed");
-
-    State_.FinishOperation();
 }
 
 void TReplicationWriter::SendPing(TNodeWeakPtr node)
@@ -866,7 +863,7 @@ bool TReplicationWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
     return WindowSlots_.IsReady();
 }
 
-TAsyncError TReplicationWriter::GetReadyEvent()
+TFuture<void> TReplicationWriter::GetReadyEvent()
 {
     YCHECK(IsOpen_);
     YCHECK(!IsClosing_);
@@ -878,9 +875,11 @@ TAsyncError TReplicationWriter::GetReadyEvent()
 
         // No need to capture #this by strong reference, because
         // WindowSlots are always released when Writer is alive,
-        // and callcack is called synchronously.
-        WindowSlots_.GetReadyEvent().Subscribe(BIND([ = ] () {
-            State_.FinishOperation(TError());
+        // and callback is called synchronously.
+        WindowSlots_.GetReadyEvent().Subscribe(BIND([=] (const TError& error) {
+            if (error.IsOK()) {
+                State_.FinishOperation(TError());
+            }
         }));
     }
 
@@ -935,11 +934,11 @@ void TReplicationWriter::DoClose()
     IsCloseRequested_ = true;
 
     if (Window_.empty()) {
-        CloseSession();
+        CloseSessions();
     }
 }
 
-TAsyncError TReplicationWriter::Close(const TChunkMeta& chunkMeta)
+TFuture<void> TReplicationWriter::Close(const TChunkMeta& chunkMeta)
 {
     YCHECK(IsOpen_);
     YCHECK(!IsClosing_);

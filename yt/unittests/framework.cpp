@@ -71,21 +71,23 @@ Matcher<Stroka>::Matcher(const char* s)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TrackedVia(TClosure closure)
+void RunAndTrackFiber(TClosure closure)
 {
     auto queue = New<TActionQueue>("Main");
     auto invoker = queue->GetInvoker();
 
     auto promise = NewPromise<TFiberPtr>();
 
-    BIND([promise, closure] () mutable {
+    BIND([invoker, promise, closure] () mutable {
+        // NB: Make sure TActionQueue does not keep a strong reference to this fiber by forcing a yield.
+        SwitchTo(invoker);
         promise.Set(GetCurrentScheduler()->GetCurrentFiber());
         closure.Run();
     })
     .Via(invoker)
     .Run();
 
-    auto strongFiber = promise.Get();
+    auto strongFiber = promise.Get().ValueOrThrow();
     auto weakFiber = MakeWeak(strongFiber);
 
     promise.Reset();

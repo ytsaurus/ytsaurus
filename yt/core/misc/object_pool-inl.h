@@ -53,9 +53,19 @@ void TObjectPool<T>::Reclaim(T* obj)
     }
 
     TPooledObjectTraits<T>::Clean(obj);
-    PooledObjects_.Enqueue(obj);
 
-    if (++PoolSize_ > TPooledObjectTraits<T>::GetMaxPoolSize()) {
+    while (true) {
+        auto poolSize = PoolSize_.load();
+        if (poolSize >= TPooledObjectTraits<T>::GetMaxPoolSize()) {
+            FreeInstance(obj);
+            break;
+        } else if (PoolSize_.compare_exchange_strong(poolSize, poolSize + 1)){
+            PooledObjects_.Enqueue(obj);
+            break;
+        }
+    }
+
+    if (PoolSize_ > TPooledObjectTraits<T>::GetMaxPoolSize()) {
         T* objToDestroy;
         if (PooledObjects_.Dequeue(&objToDestroy)) {
             --PoolSize_;

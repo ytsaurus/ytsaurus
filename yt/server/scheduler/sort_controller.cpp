@@ -400,6 +400,7 @@ protected:
 
             auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
 
+            RegisterInput(joblet);
             RegisterIntermediate(
                 joblet,
                 stripe,
@@ -1215,7 +1216,7 @@ protected:
             const auto& address = node->Node->GetAddress();
 
             partition->AssignedAddress = address;
-            auto task = partition->Maniac 
+            auto task = partition->Maniac
                 ? static_cast<TTaskPtr>(partition->UnorderedMergeTask)
                 : static_cast<TTaskPtr>(partition->SortTask);
 
@@ -1433,7 +1434,7 @@ protected:
     // Should get rid of this "value count" stuff completely.
     i64 GetValueCountEstimate(i64 dataSize) const
     {
-        return static_cast<i64>((double) TotalInputValueCount * dataSize / TotalInputDataSize);
+        return static_cast<i64>((double) TotalEstimateInputValueCount * dataSize / TotalEstimateInputDataSize);
     }
 
     int GetEmpiricalParitionCount(i64 dataSize) const
@@ -1454,8 +1455,8 @@ protected:
 
     int SuggestPartitionCount() const
     {
-        YCHECK(TotalInputDataSize > 0);
-        i64 dataSizeAfterPartition = 1 + static_cast<i64>(TotalInputDataSize * Spec->MapSelectivityFactor);
+        YCHECK(TotalEstimateInputDataSize > 0);
+        i64 dataSizeAfterPartition = 1 + static_cast<i64>(TotalEstimateInputDataSize * Spec->MapSelectivityFactor);
 
         i64 result;
         if (Spec->PartitionDataSize || Spec->PartitionCount) {
@@ -1475,13 +1476,13 @@ protected:
     {
         if (Spec->DataSizePerPartitionJob || Spec->PartitionJobCount) {
             return SuggestJobCount(
-                TotalInputDataSize,
-                Spec->DataSizePerPartitionJob.Get(TotalInputDataSize),
+                TotalEstimateInputDataSize,
+                Spec->DataSizePerPartitionJob.Get(TotalEstimateInputDataSize),
                 Spec->PartitionJobCount);
         } else {
             // Experiments show that this number is suitable as default
             // both for partition count and for partition job count.
-            int partitionCount = GetEmpiricalParitionCount(TotalInputDataSize);
+            int partitionCount = GetEmpiricalParitionCount(TotalEstimateInputDataSize);
             return static_cast<int>(Clamp(
                 partitionCount,
                 1,
@@ -1686,12 +1687,12 @@ private:
 
         OutputTables[0].Options->KeyColumns = Spec->SortBy;
 
-        if (TotalInputDataSize == 0)
+        if (TotalEstimateInputDataSize == 0)
             return;
 
         TSamplesFetcherPtr samplesFetcher;
 
-        TAsyncError asyncSamplesResult;
+        TFuture<void> asyncSamplesResult;
         PROFILE_TIMING ("/input_processing_time") {
             auto chunks = CollectInputChunks();
             int sampleCount = SuggestPartitionCount() * Spec->SamplesPerPartition;
@@ -1772,7 +1773,7 @@ private:
         // Choose sort job count and initialize the pool.
         int sortJobCount = static_cast<int>(
             Clamp(
-                1 + TotalInputDataSize / Spec->DataSizePerSortJob,
+                1 + TotalEstimateInputDataSize / Spec->DataSizePerSortJob,
                 1,
                 Config->MaxJobCount));
         auto stripes = SliceInputChunks(Config->SortJobMaxSliceDataSize, sortJobCount);
@@ -1788,7 +1789,7 @@ private:
 
         // Initialize counters.
         PartitionJobCounter.Set(0);
-        // NB: Cannot use TotalInputDataSize due to slicing and rounding issues.
+        // NB: Cannot use TotalEstimateInputDataSize due to slicing and rounding issues.
         SortDataSizeCounter.Set(SimpleSortPool->GetTotalDataSize());
 
         LOG_INFO("Sorting without partitioning (SortJobCount: %v)",
@@ -1912,7 +1913,7 @@ private:
     void InitJobSpecTemplates()
     {
         {
-            PartitionJobSpecTemplate.set_type(EJobType::Partition);
+            PartitionJobSpecTemplate.set_type(static_cast<int>(EJobType::Partition));
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -1928,7 +1929,7 @@ private:
         }
 
         TJobSpec sortJobSpecTemplate;
-        sortJobSpecTemplate.set_type(SimpleSort ? EJobType::SimpleSort : EJobType::PartitionSort);
+        sortJobSpecTemplate.set_type(static_cast<int>(SimpleSort ? EJobType::SimpleSort : EJobType::PartitionSort));
         {
             auto* schedulerJobSpecExt = sortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -1951,7 +1952,7 @@ private:
         }
 
         {
-            SortedMergeJobSpecTemplate.set_type(EJobType::SortedMerge);
+            SortedMergeJobSpecTemplate.set_type(static_cast<int>(EJobType::SortedMerge));
             auto* schedulerJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             auto* mergeJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
@@ -1963,7 +1964,7 @@ private:
         }
 
         {
-            UnorderedMergeJobSpecTemplate.set_type(EJobType::UnorderedMerge);
+            UnorderedMergeJobSpecTemplate.set_type(static_cast<int>(EJobType::UnorderedMerge));
             auto* schedulerJobSpecExt = UnorderedMergeJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             auto* mergeJobSpecExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
@@ -2276,7 +2277,7 @@ private:
     {
         TSortControllerBase::CustomPrepare();
 
-        if (TotalInputDataSize == 0)
+        if (TotalEstimateInputDataSize == 0)
             return;
 
         for (const auto& file : RegularFiles) {
@@ -2401,7 +2402,7 @@ private:
     void InitJobSpecTemplates()
     {
         {
-            PartitionJobSpecTemplate.set_type(Spec->Mapper ? EJobType::PartitionMap : EJobType::Partition);
+            PartitionJobSpecTemplate.set_type(static_cast<int>(Spec->Mapper ? EJobType::PartitionMap : EJobType::Partition));
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
 
@@ -2428,7 +2429,7 @@ private:
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
 
             if (Spec->ReduceCombiner) {
-                IntermediateSortJobSpecTemplate.set_type(EJobType::ReduceCombiner);
+                IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::ReduceCombiner));
                 auto* reduceJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
 
@@ -2438,14 +2439,14 @@ private:
                     ReduceCombinerFiles,
                     ReduceCombinerTableFiles);
             } else {
-                IntermediateSortJobSpecTemplate.set_type(EJobType::PartitionSort);
+                IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::PartitionSort));
                 auto* sortJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
                 ToProto(sortJobSpecExt->mutable_key_columns(), Spec->SortBy);
             }
         }
 
         {
-            FinalSortJobSpecTemplate.set_type(EJobType::PartitionReduce);
+            FinalSortJobSpecTemplate.set_type(static_cast<int>(EJobType::PartitionReduce));
             auto* schedulerJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             auto* reduceJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
@@ -2463,7 +2464,7 @@ private:
         }
 
         {
-            SortedMergeJobSpecTemplate.set_type(EJobType::SortedReduce);
+            SortedMergeJobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
             auto* schedulerJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             auto* reduceJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
@@ -2503,7 +2504,7 @@ private:
     virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
     {
         auto getUserJobSpec = [=] () -> TUserJobSpecPtr {
-            switch (jobSpec->type()) {
+            switch (EJobType(jobSpec->type())) {
                 case EJobType::PartitionMap:
                     return Spec->Mapper;
 

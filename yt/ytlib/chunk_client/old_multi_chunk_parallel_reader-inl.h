@@ -38,7 +38,7 @@ TOldMultiChunkParallelReader<TChunkReader>::TOldMultiChunkParallelReader(
 }
 
 template <class TChunkReader>
-TAsyncError TOldMultiChunkParallelReader<TChunkReader>::AsyncOpen()
+TFuture<void> TOldMultiChunkParallelReader<TChunkReader>::AsyncOpen()
 {
     YASSERT(!State.HasRunningOperation());
 
@@ -57,7 +57,7 @@ TAsyncError TOldMultiChunkParallelReader<TChunkReader>::AsyncOpen()
 template <class TChunkReader>
 void TOldMultiChunkParallelReader<TChunkReader>::OnReaderOpened(
     const typename TBase::TSession& session,
-    TError error)
+    const TError& error)
 {
     VERIFY_THREAD_AFFINITY(TBase::ReaderThread);
     if (!error.IsOK()) {
@@ -122,7 +122,7 @@ void TOldMultiChunkParallelReader<TChunkReader>::FinishReader(
 template <class TChunkReader>
 void TOldMultiChunkParallelReader<TChunkReader>::OnReaderReady(
     const typename TBase::TSession& session,
-    TError error)
+    const TError& error)
 {
     VERIFY_THREAD_AFFINITY(TBase::ReaderThread);
     if (!error.IsOK()) {

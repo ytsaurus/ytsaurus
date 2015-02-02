@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/actions/future.h>
+
 #include <core/concurrency/async_stream.h>
 
 namespace NYT {
@@ -17,9 +19,13 @@ public:
     //! Takes ownership of #fd.
     explicit TAsyncWriter(int fd);
 
-    virtual TAsyncError Write(const void* data, size_t size) override;
-    
-    TAsyncError Close();
+    virtual ~TAsyncWriter();
+
+    int GetHandle() const;
+
+    virtual TFuture<void> Write(const void* data, size_t size) override;
+
+    TFuture<void> Close();
 
     //! Thread-safe, can be called multiple times.
     TFuture<void> Abort();

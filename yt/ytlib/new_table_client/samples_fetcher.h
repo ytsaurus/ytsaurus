@@ -30,7 +30,7 @@ public:
         const NLog::TLogger& logger);
 
     virtual void AddChunk(NChunkClient::TRefCountedChunkSpecPtr chunk) override;
-    virtual TAsyncError Fetch() override;
+    virtual TFuture<void> Fetch() override;
 
     const std::vector<TOwningKey>& GetSamples() const;
 

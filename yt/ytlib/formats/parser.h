@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <core/yson/public.h>
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 
 namespace NYT {
 namespace NFormats {

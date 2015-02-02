@@ -89,29 +89,25 @@ class TSchemafulRowsetWriter
     , public ISchemafulWriter
 {
 public:
-    TSchemafulRowsetWriter()
-        : Result_(NewPromise<TErrorOr<IRowsetPtr>>())
-    { }
-
-    TPromise<TErrorOr<IRowsetPtr>> GetResult() const
+    TPromise<IRowsetPtr> GetResult() const
     {
         return Result_;
     }
 
     // ISchemafulWriter implementation.
-    virtual TAsyncError Open(
+    virtual TFuture<void> Open(
         const TTableSchema& schema,
         const TNullable<TKeyColumns>& /*keyColumns*/) override
     {
         Schema_ = schema;
-        return OKFuture;
+        return VoidFuture;
     }
 
-    virtual TAsyncError Close() override
+    virtual TFuture<void> Close() override
     {
         Result_.Set(IRowsetPtr(this));
         Result_.Reset();
-        return OKFuture;
+        return VoidFuture;
     }
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override
@@ -122,19 +118,19 @@ public:
         return true;
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
-        return OKFuture;
+        return VoidFuture;
     }
 
 private:
-    TPromise<TErrorOr<IRowsetPtr>> Result_;
+    TPromise<IRowsetPtr> Result_ = NewPromise<IRowsetPtr>();
 
     TRowBuffer RowBuffer_;
 
 };
 
-std::tuple<ISchemafulWriterPtr, TPromise<TErrorOr<IRowsetPtr>>> CreateSchemafulRowsetWriter()
+std::tuple<ISchemafulWriterPtr, TPromise<IRowsetPtr>> CreateSchemafulRowsetWriter()
 {
     auto writer = New<TSchemafulRowsetWriter>();
     return std::make_tuple(writer, writer->GetResult());

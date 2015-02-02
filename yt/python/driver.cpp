@@ -20,6 +20,7 @@
 #include <ytlib/formats/format.h>
 
 #include <ytlib/api/connection.h>
+#include <ytlib/api/admin.h>
 
 #include <ytlib/driver/config.h>
 #include <ytlib/driver/driver.h>
@@ -95,7 +96,7 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptor, GetCommandDescriptor, "Describes the command");
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptors, GetCommandDescriptors, "Describes all commands");
         PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Force master to build a snapshot");
-        PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GcCollect, "Run garbage collection");
+        PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Run garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clear metadata caches");
 
         behaviors().readyType();
@@ -108,8 +109,8 @@ public:
             throw Py::RuntimeError("Incorrect arguments");
         }
 
-        Py::Callable class_type(TDriverResponse::type());
-        Py::PythonClassObject<TDriverResponse> pythonResponse(class_type.apply(Py::Tuple(), Py::Dict()));
+        Py::Callable classType(TDriverResponse::type());
+        Py::PythonClassObject<TDriverResponse> pythonResponse(classType.apply(Py::Tuple(), Py::Dict()));
         auto* response = pythonResponse.getCxxObject();
 
         TDriverRequest request;
@@ -124,7 +125,7 @@ public:
         auto inputStreamObj = GetAttr(pyRequest, "input_stream");
         if (!inputStreamObj.isNone()) {
             std::unique_ptr<TInputStreamWrap> inputStream(new TInputStreamWrap(inputStreamObj));
-            request.InputStream = CreateAsyncInputStream(inputStream.get());
+            request.InputStream = CreateAsyncAdapter(inputStream.get());
             response->OwnInputStream(inputStream);
         }
 
@@ -136,7 +137,7 @@ public:
                 request.OutputStream = pythonStream->GetStream();
             } else {
                 std::unique_ptr<TOutputStreamWrap> outputStream(new TOutputStreamWrap(outputStreamObj));
-                request.OutputStream = CreateAsyncOutputStream(outputStream.get());
+                request.OutputStream = CreateAsyncAdapter(outputStream.get());
                 response->OwnOutputStream(outputStream);
             }
         }
@@ -193,33 +194,32 @@ public:
 
     Py::Object ConfigureDispatcher(Py::Tuple& args, Py::Dict& kwargs)
     {
-        auto heavyPoolSize = Py::Int(ExtractArgument(args, kwargs, "command_name")).asLongLong();
+        auto lightPoolSize = Py::Int(ExtractArgument(args, kwargs, "light_pool_size"));
+        auto heavyPoolSize = Py::Int(ExtractArgument(args, kwargs, "heavy_pool_size"));
         if (args.length() > 0 || kwargs.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments");
         }
 
-        NDriver::TDispatcher::Get()->Configure(heavyPoolSize);
+        NDriver::TDispatcher::Get()->Configure(lightPoolSize, heavyPoolSize);
 
         return Py::None();
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, ConfigureDispatcher)
 
-    Py::Object GcCollect(Py::Tuple& args, Py::Dict& kwargs)
+    Py::Object GCCollect(Py::Tuple& args, Py::Dict& kwargs)
     {
         try {
-            NObjectClient::TObjectServiceProxy proxy(DriverInstance_->GetConnection()->GetMasterChannel());
-            proxy.SetDefaultTimeout(Null); // infinity
-            auto req = proxy.GCCollect();
-            auto rsp = req->Invoke().Get();
-            if (!rsp->IsOK()) {
-                return ConvertTo<Py::Object>(TError(*rsp));
-            }
-        } catch (const std::exception& error) {
-            throw CreateYtError(error.what());
+            auto admin = DriverInstance_->GetConnection()->CreateAdmin();
+            WaitFor(admin->GCCollect())
+                .ThrowOnError();
+        } catch (const TErrorException& ex) {
+            return ConvertTo<Py::Object>(ex.Error());
+        } catch (const std::exception& ex) {
+            throw CreateYtError(ex.what());
         }
         return Py::None();
     }
-    PYCXX_KEYWORDS_METHOD_DECL(TDriver, GcCollect)
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, GCCollect)
 
     Py::Object BuildSnapshot(Py::Tuple& args, Py::Dict& kwargs)
     {
@@ -232,22 +232,17 @@ public:
         }
 
         try {
-            NObjectClient::TObjectServiceProxy proxy(DriverInstance_->GetConnection()->GetMasterChannel());
-            proxy.SetDefaultTimeout(Null); // infinity
-            auto req = proxy.BuildSnapshot();
-            req->set_set_read_only(setReadOnly);
-
-            auto rsp = req->Invoke().Get();
-            if (!rsp->IsOK()) {
-                return ConvertTo<Py::Object>(TError(*rsp));
-            }
-
-            int snapshotId = rsp->snapshot_id();
+            auto admin = DriverInstance_->GetConnection()->CreateAdmin();
+            auto options = NApi::TBuildSnapshotOptions();
+            options.SetReadOnly = setReadOnly;
+            int snapshotId = WaitFor(admin->BuildSnapshot(options))
+                .ValueOrThrow();
             printf("Snapshot %d is built\n", snapshotId);
-        } catch (const std::exception& error) {
-            throw CreateYtError(error.what());
+        } catch (const TErrorException& ex) {
+            return ConvertTo<Py::Object>(ex.Error());
+        } catch (const std::exception& ex) {
+            throw CreateYtError(ex.what());
         }
-
         return Py::None();
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, BuildSnapshot)

@@ -10,7 +10,7 @@ namespace NQueryClient {
 typedef std::pair<int, int> TSourceLocation;
 static const TSourceLocation NullSourceLocation(0, 0);
 
-DECLARE_ENUM(EBinaryOp,
+DEFINE_ENUM(EBinaryOp,
     // Arithmetical operations.
     (Plus)
     (Minus)

@@ -23,13 +23,13 @@ struct IHydraManager
     /*!
      *  \note Thread affinity: ControlThread
      */
-    virtual void Start() = 0;
+    virtual void Initialize() = 0;
 
     //! Deactivates the instance.
     /*!
      *  \note Thread affinity: ControlThread
      */
-    virtual void Stop() = 0;
+    virtual void Finalize() = 0;
 
     //! Returns the state as seen in the control thread.
     /*!
@@ -55,6 +55,12 @@ struct IHydraManager
      */
     virtual bool IsActiveLeader() const = 0;
 
+    //! Returns |true| if the peer is a follower ready to serve reads.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual bool IsActiveFollower() const = 0;
+
     //! Returns the current epoch context, as viewed by the Control Thread.
     /*!
      *  \note Thread affinity: ControlThread
@@ -67,27 +73,35 @@ struct IHydraManager
      */
     virtual NElection::TEpochContextPtr GetAutomatonEpochContext() const = 0;
 
+    //! When called at the leader returns a preset future.
+    //! When called at a follower at instant T returns a future that gets set
+    //! when the committed version at this follower is equal to or larger than
+    //! the committed version at the leader at T.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
+    virtual TFuture<void> SyncWithLeader() = 0;
+
     //! Commits a mutation.
     /*!
-     *  If the peer is not the leader then #EErrorCode::InvalidState is returned.
-     *  If the peer is the leader but has no active quorum, then #EErrorCode::NoQuorum is returned.
-     *  If the automaton is in read-only state, then #EErrorCode::ReadOnly is returned.
+     *  If the automaton is in read-only state then #EErrorCode::ReadOnly is returned.
+     *  If the peer is not an active leader then #EErrorCode::InvalidState is returned.
      *
      *  \note Thread affinity: AutomatonThread
      */
-    virtual TFuture<TErrorOr<TMutationResponse>> CommitMutation(const TMutationRequest& request) = 0;
+    virtual TFuture<TMutationResponse> CommitMutation(const TMutationRequest& request) = 0;
 
     //! Returns the current mutation context or |nullptr| if no mutation is currently being applied.
     /*!
-     *  Checking the return value for NULL can be useful to prevent recursive commits and only log "top-level"
-     *  mutations that trigger the whole transformation chain.
-     *
      *  \note Thread affinity: AutomatonThread
      */
     virtual TMutationContext* GetMutationContext() = 0;
 
     //! Returns |true| if a mutation is currently being applied.
     /*!
+     *  The method could be useful to prevent recursive commits and only log "top-level"
+     *  mutations that trigger the whole transformation chain.
+     *
      *  \note Thread affinity: AutomatonThread
      */
     virtual bool IsMutating() = 0;
@@ -109,7 +123,7 @@ struct IHydraManager
     /*!
      *  \note Thread affinity: AutomatonThread
      */
-    virtual TFuture<TErrorOr<int>> BuildSnapshotDistributed() = 0;
+    virtual TFuture<int> BuildSnapshotDistributed() = 0;
 
     //! Produces monitoring info.
     /*!

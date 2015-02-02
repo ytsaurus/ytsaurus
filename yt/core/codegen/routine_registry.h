@@ -10,6 +10,21 @@ namespace NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template<typename TSignature, bool Cross>
+class FunctionTypeBuilder;
+
+template<typename R, typename... Args, bool Cross>
+class FunctionTypeBuilder<R(Args...), Cross> {
+public:
+    static llvm::FunctionType *get(llvm::LLVMContext &Context) {
+        llvm::Type *params[] = {
+            llvm::TypeBuilder<Args, Cross>::get(Context)...
+        };
+        return llvm::FunctionType::get(llvm::TypeBuilder<R, Cross>::get(Context),
+            params, false);
+    }
+};
+
 class TRoutineRegistry
 {
 public:
@@ -24,7 +39,7 @@ public:
         RegisterRoutineImpl(
             symbol,
             reinterpret_cast<uint64_t>(fp),
-            std::bind(&llvm::TypeBuilder<TResult(TArgs...), false>::get, _1));
+            std::bind(&FunctionTypeBuilder<TResult(TArgs...), false>::get, _1));
     }
 
     uint64_t GetAddress(const Stroka& symbol) const;

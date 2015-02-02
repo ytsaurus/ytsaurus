@@ -73,6 +73,12 @@ class TestQuery(YTEnvSetup):
         actual = select("k, sum(b) as s from [//tmp/g2] group by a % 2 as k")
         self.assertItemsEqual(expected, actual)
 
+    def test_limit(self):
+        self._sample_data(path="//tmp/l1")
+        expected = [{"a": 1, "b": 10}]
+        actual = select("* from [//tmp/l1] limit 1")
+        assert expected == actual
+
     def test_types(self):
         create("table", "//tmp/t")
 

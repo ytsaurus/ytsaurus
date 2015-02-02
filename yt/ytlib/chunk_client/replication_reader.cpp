@@ -34,12 +34,12 @@
 namespace NYT {
 namespace NChunkClient {
 
+using namespace NConcurrency;
 using namespace NRpc;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NNodeTrackerClient;
-using namespace NChunkClient;
-using namespace NConcurrency;
+using namespace NChunkClient::NProto;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -51,10 +51,6 @@ class TReplicationReader
     : public IChunkReader
 {
 public:
-    typedef TErrorOr<TChunkReplicaList> TGetSeedsResult;
-    typedef TFuture<TGetSeedsResult> TAsyncGetSeedsResult;
-    typedef TPromise<TGetSeedsResult> TAsyncGetSeedsPromise;
-
     TReplicationReader(
         TReplicationReaderConfigPtr config,
         IBlockCachePtr compressedBlockCache,
@@ -92,7 +88,7 @@ public:
         }
 
         if (!InitialSeedReplicas_.empty()) {
-            GetSeedsPromise_ = MakePromise(TGetSeedsResult(InitialSeedReplicas_));
+            GetSeedsPromise_ = MakePromise(InitialSeedReplicas_);
         }
 
         LOG_INFO("Reader initialized (InitialSeedReplicas: [%v], FetchPromPeers: %v, LocalDescriptor: %v, EnableCaching: %v, Network: %v)",
@@ -103,11 +99,11 @@ public:
             NetworkName_);
     }
 
-    virtual TAsyncReadBlocksResult ReadBlocks(const std::vector<int>& blockIndexes) override;
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override;
 
-    virtual TAsyncReadBlocksResult ReadBlocks(int firstBlockIndex, int blockCount) override;
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override;
 
-    virtual TAsyncGetMetaResult GetMeta(
+    virtual TFuture<TChunkMeta> GetMeta(
         const TNullable<int>& partitionTag,
         const std::vector<i32>* extensionTags = nullptr) override;
 
@@ -138,17 +134,17 @@ private:
     TSpinLock SpinLock_;
     TChunkReplicaList InitialSeedReplicas_;
     TInstant SeedsTimestamp_;
-    TAsyncGetSeedsPromise GetSeedsPromise_;
+    TPromise<TChunkReplicaList> GetSeedsPromise_;
 
 
-    TAsyncGetSeedsResult AsyncGetSeeds()
+    TFuture<TChunkReplicaList> AsyncGetSeeds()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(SpinLock_);
         if (!GetSeedsPromise_) {
             LOG_INFO("Need fresh chunk seeds");
-            GetSeedsPromise_ = NewPromise<TGetSeedsResult>();
+            GetSeedsPromise_ = NewPromise<TChunkReplicaList>();
             // Don't ask master for fresh seeds too often.
             TDelayedExecutor::Submit(
                 BIND(&TReplicationReader::LocateChunk, MakeStrong(this))
@@ -159,7 +155,7 @@ private:
         return GetSeedsPromise_;
     }
 
-    void DiscardSeeds(TAsyncGetSeedsResult result)
+    void DiscardSeeds(TFuture<TChunkReplicaList> result)
     {
         YCHECK(result);
         YCHECK(result.IsSet());
@@ -193,7 +189,7 @@ private:
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
 
-    void OnLocateChunkResponse(TChunkServiceProxy::TRspLocateChunksPtr rsp)
+    void OnLocateChunkResponse(const TChunkServiceProxy::TErrorOrRspLocateChunksPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(GetSeedsPromise_);
@@ -203,12 +199,13 @@ private:
             SeedsTimestamp_ = TInstant::Now();
         }
 
-        if (!rsp->IsOK()) {
+        if (!rspOrError.IsOK()) {
             YCHECK(!GetSeedsPromise_.IsSet());
-            GetSeedsPromise_.Set(rsp->GetError());
+            GetSeedsPromise_.Set(TError(rspOrError));
             return;
         }
 
+        const auto& rsp = rspOrError.Value();
         YCHECK(rsp->chunks_size() <= 1);
         if (rsp->chunks_size() == 0) {
             YCHECK(!GetSeedsPromise_.IsSet());
@@ -469,7 +466,7 @@ protected:
         InnerErrors.push_back(error);
     }
 
-    TError BuildCombinedError(TError error)
+    TError BuildCombinedError(const TError& error)
     {
         return error << InnerErrors;
     }
@@ -480,10 +477,10 @@ private:
     //! Errors collected by the session.
     std::vector<TError> InnerErrors;
 
-    TReplicationReader::TAsyncGetSeedsResult GetSeedsResult;
+    TFuture<TChunkReplicaList> GetSeedsResult;
 
 
-    void OnGotSeeds(TReplicationReader::TGetSeedsResult result)
+    void OnGotSeeds(const TErrorOr<TChunkReplicaList>& result)
     {
         auto reader = Reader_.Lock();
         if (!reader)
@@ -545,7 +542,7 @@ class TReplicationReader::TReadBlockSetSession
 public:
     TReadBlockSetSession(TReplicationReader* reader, const std::vector<int>& blockIndexes)
         : TSessionBase(reader)
-        , Promise_(NewPromise<TReadBlocksResult>())
+        , Promise_(NewPromise<std::vector<TSharedRef>>())
         , BlockIndexes_(blockIndexes)
     {
         Logger.AddTag("Session: %v", this);
@@ -556,7 +553,7 @@ public:
         Promise_.TrySet(TError("Reader terminated"));
     }
 
-    TAsyncReadBlocksResult Run()
+    TFuture<std::vector<TSharedRef>> Run()
     {
         FetchBlocksFromCache();
 
@@ -572,7 +569,7 @@ public:
 
 private:
     //! Promise representing the session.
-    TPromise<TReadBlocksResult> Promise_;
+    TPromise<std::vector<TSharedRef>> Promise_;
 
     //! Block indexes to read during the session.
     std::vector<int> BlockIndexes_;
@@ -692,7 +689,7 @@ private:
                 ToProto(req->mutable_chunk_id(), reader->ChunkId_);
                 ToProto(req->mutable_block_indexes(), unfetchedBlockIndexes);
                 req->set_enable_caching(reader->Config_->EnableCaching);
-                req->set_session_type(reader->SessionType_);
+                req->set_session_type(static_cast<int>(reader->SessionType_));
                 if (reader->LocalDescriptor_) {
                     auto expirationTime = TInstant::Now() + reader->Config_->PeerExpirationTimeout;
                     ToProto(req->mutable_peer_descriptor(), reader->LocalDescriptor_.Get());
@@ -717,13 +714,13 @@ private:
     void OnGotBlocks(
         const Stroka& address,
         TDataNodeServiceProxy::TReqGetBlockSetPtr req,
-        TDataNodeServiceProxy::TRspGetBlockSetPtr rsp)
+        const TDataNodeServiceProxy::TErrorOrRspGetBlockSetPtr& rspOrError)
     {
-        if (!rsp->IsOK()) {
+        if (!rspOrError.IsOK()) {
             RegisterError(TError("Error fetching blocks from node %v",
                 address)
-                << *rsp);
-            if (rsp->GetError().GetCode() != NRpc::EErrorCode::Unavailable) {
+                << rspOrError);
+            if (rspOrError.GetCode() != NRpc::EErrorCode::Unavailable) {
                 // Do not ban node if it says "Unavailable".
                 BanPeer(address);
             }
@@ -731,8 +728,9 @@ private:
             return;
         }
 
+        const auto& rsp = rspOrError.Value();
         ProcessResponse(address, req, rsp)
-            .Subscribe(BIND(&TReadBlockSetSession::RequestBlocks, MakeStrong(this))
+            .Subscribe(BIND(&TReadBlockSetSession::OnResponseProcessed, MakeStrong(this))
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
 
@@ -813,6 +811,16 @@ private:
         return reader->Throttler_->Throttle(bytesReceived);
     }
 
+    void OnResponseProcessed(const TError& error)
+    {
+        if (!error.IsOK()) {
+            RegisterError(error);
+            OnPassCompleted();
+            return;
+        }
+        RequestBlocks();
+    }
+
 
     void OnSessionSucceeded()
     {
@@ -825,7 +833,7 @@ private:
             YCHECK(block);
             blocks.push_back(block);
         }
-        Promise_.TrySet(TReadBlocksResult(blocks));
+        Promise_.TrySet(std::vector<TSharedRef>(blocks));
     }
 
     virtual void OnSessionFailed() override
@@ -841,7 +849,7 @@ private:
     }
 };
 
-IChunkReader::TAsyncReadBlocksResult TReplicationReader::ReadBlocks(const std::vector<int>& blockIndexes)
+TFuture<std::vector<TSharedRef>> TReplicationReader::ReadBlocks(const std::vector<int>& blockIndexes)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -862,22 +870,17 @@ public:
         int firstBlockIndex,
         int blockCount)
         : TSessionBase(reader)
-        , Promise_(NewPromise<TReadBlocksResult>())
+        , Promise_(NewPromise<std::vector<TSharedRef>>())
         , FirstBlockIndex_(firstBlockIndex)
         , BlockCount_(blockCount)
     {
         Logger.AddTag("Session: %v", this);
     }
 
-    ~TReadBlockRangeSession()
-    {
-        Promise_.TrySet(TError("Reader terminated"));
-    }
-
-    TAsyncReadBlocksResult Run()
+    TFuture<std::vector<TSharedRef>> Run()
     {
         if (BlockCount_ == 0) {
-            return MakeFuture(TReadBlocksResult());
+            return MakeFuture(std::vector<TSharedRef>());
         }
 
         NextRetry();
@@ -886,7 +889,7 @@ public:
 
 private:
     //! Promise representing the session.
-    TPromise<TReadBlocksResult> Promise_;
+    TPromise<std::vector<TSharedRef>> Promise_;
 
     //! First block index to fetch.
     int FirstBlockIndex_;
@@ -946,7 +949,7 @@ private:
                 ToProto(req->mutable_chunk_id(), reader->ChunkId_);
                 req->set_first_block_index(FirstBlockIndex_);
                 req->set_block_count(BlockCount_);
-                req->set_session_type(reader->SessionType_);
+                req->set_session_type(static_cast<int>(reader->SessionType_));
 
                 req->Invoke().Subscribe(
                     BIND(
@@ -966,13 +969,13 @@ private:
     void OnGotBlocks(
         const Stroka& address,
         TDataNodeServiceProxy::TReqGetBlockRangePtr req,
-        TDataNodeServiceProxy::TRspGetBlockRangePtr rsp)
+        const TDataNodeServiceProxy::TErrorOrRspGetBlockRangePtr& rspOrError)
     {
-        if (!rsp->IsOK()) {
+        if (!rspOrError.IsOK()) {
             RegisterError(TError("Error fetching blocks from node %v",
                 address)
-                << *rsp);
-            if (rsp->GetError().GetCode() != NRpc::EErrorCode::Unavailable) {
+                << rspOrError);
+            if (rspOrError.GetCode() != NRpc::EErrorCode::Unavailable) {
                 // Do not ban node if it says "Unavailable".
                 BanPeer(address);
             }
@@ -980,8 +983,9 @@ private:
             return;
         }
 
+        const auto& rsp = rspOrError.Value();
         ProcessResponse(address, req, rsp)
-            .Subscribe(BIND(&TReadBlockRangeSession::RequestBlocks, MakeStrong(this))
+            .Subscribe(BIND(&TReadBlockRangeSession::OnResponseProcessed, MakeStrong(this))
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
 
@@ -1035,6 +1039,16 @@ private:
         return reader->Throttler_->Throttle(bytesReceived);
     }
 
+    void OnResponseProcessed(const TError& error)
+    {
+        if (!error.IsOK()) {
+            RegisterError(error);
+            OnPassCompleted();
+            return;
+        }
+        RequestBlocks();
+    }
+
 
     void OnSessionSucceeded()
     {
@@ -1042,7 +1056,7 @@ private:
             FirstBlockIndex_,
             FirstBlockIndex_ + static_cast<int>(FetchedBlocks_.size()) - 1);
 
-        Promise_.TrySet(TReadBlocksResult(FetchedBlocks_));
+        Promise_.TrySet(std::vector<TSharedRef>(FetchedBlocks_));
     }
 
     virtual void OnSessionFailed() override
@@ -1059,7 +1073,7 @@ private:
 
 };
 
-IChunkReader::TAsyncReadBlocksResult TReplicationReader::ReadBlocks(
+TFuture<std::vector<TSharedRef>> TReplicationReader::ReadBlocks(
     int firstBlockIndex,
     int blockCount)
 {
@@ -1082,7 +1096,7 @@ public:
         const TNullable<int> partitionTag,
         const std::vector<int>* extensionTags)
         : TSessionBase(reader)
-        , Promise_(NewPromise<TGetMetaResult>())
+        , Promise_(NewPromise<TChunkMeta>())
         , PartitionTag_(partitionTag)
     {
         if (extensionTags) {
@@ -1100,7 +1114,7 @@ public:
         Promise_.TrySet(TError("Reader terminated"));
     }
 
-    TAsyncGetMetaResult Run()
+    TFuture<TChunkMeta> Run()
     {
         NextRetry();
         return Promise_;
@@ -1108,7 +1122,7 @@ public:
 
 private:
     //! Promise representing the session.
-    TPromise<TGetMetaResult> Promise_;
+    TPromise<TChunkMeta> Promise_;
 
     std::vector<int> ExtensionTags_;
     TNullable<int> PartitionTag_;
@@ -1164,13 +1178,14 @@ private:
 
     void OnGetChunkMeta(
         const Stroka& address,
-        TDataNodeServiceProxy::TRspGetChunkMetaPtr rsp)
+        const TDataNodeServiceProxy::TErrorOrRspGetChunkMetaPtr& rspOrError)
     {
-        if (!rsp->IsOK()) {
-            OnGetChunkMetaFailed(address, *rsp);
+        if (!rspOrError.IsOK()) {
+            OnGetChunkMetaFailed(address, rspOrError);
             return;
         }
 
+        const auto& rsp = rspOrError.Value();
         OnSessionSucceeded(rsp->chunk_meta());
     }
 
@@ -1194,7 +1209,7 @@ private:
     void OnSessionSucceeded(const NProto::TChunkMeta& chunkMeta)
     {
         LOG_INFO("Chunk meta obtained");
-        Promise_.TrySet(TGetMetaResult(chunkMeta));
+        Promise_.TrySet(chunkMeta);
     }
 
     virtual void OnSessionFailed() override
@@ -1211,7 +1226,7 @@ private:
 
 };
 
-TReplicationReader::TAsyncGetMetaResult TReplicationReader::GetMeta(
+TFuture<TChunkMeta> TReplicationReader::GetMeta(
     const TNullable<int>& partitionTag,
     const std::vector<i32>* extensionTags)
 {

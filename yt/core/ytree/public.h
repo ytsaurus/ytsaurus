@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 
 #include <core/ypath/public.h>
 
@@ -82,7 +82,7 @@ using NYPath::TYPath;
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A static node type.
-DECLARE_ENUM(ENodeType,
+DEFINE_ENUM(ENodeType,
     // Node contains a string (Stroka).
     (String)
     // Node contains an int64 number (i64).
@@ -103,7 +103,7 @@ DECLARE_ENUM(ENodeType,
     (Composite)
 );
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((ResolveError)    (500))
     ((AlreadyExists)   (501))
 );

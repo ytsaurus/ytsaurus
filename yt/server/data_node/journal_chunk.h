@@ -19,17 +19,17 @@ public:
         TLocationPtr location,
         const TChunkDescriptor& descriptor);
 
-    virtual void SyncRemove() override;
+    virtual void SyncRemove(bool force) override;
 
     void SetActive(bool value);
     virtual bool IsActive() const override;
 
     virtual NChunkClient::NProto::TChunkInfo GetInfo() const override;
-    virtual TAsyncGetMetaResult GetMeta(
+    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         i64 priority,
         const std::vector<int>* tags = nullptr) override;
 
-    virtual TAsyncReadBlocksResult ReadBlocks(
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
         int firstBlockIndex,
         int blockCount,
         i64 priority) override;
@@ -58,7 +58,10 @@ private:
     void DoReadBlocks(
         int firstBlockIndex,
         int blockCount,
-        TPromise<TReadBlocksResult> promise);
+        TPromise<std::vector<TSharedRef>> promise);
+
+    void DoRemove();
+    void DoMoveToTrash();
 
 };
 

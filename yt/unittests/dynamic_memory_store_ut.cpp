@@ -119,10 +119,7 @@ public:
         int keyColumnCount = GetKeyColumns().size();
         auto schema = GetSchema();
 
-        StaticComparer_ = TDynamicRowKeyComparer(
-            keyColumnCount,
-            schema,
-            TNoCodegenDynamicRowKeyCompare());
+        StaticComparer_ = TDynamicRowKeyComparer(keyColumnCount, schema, false);
         LlvmComparer_ = TDynamicRowKeyComparer(keyColumnCount, schema);
     }
 

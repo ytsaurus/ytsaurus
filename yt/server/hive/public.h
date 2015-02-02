@@ -1,6 +1,5 @@
 #pragma once
 
-#include <core/misc/common.h>
 #include <core/misc/enum.h>
 
 #include <ytlib/hive/public.h>
@@ -23,7 +22,7 @@ DECLARE_REFCOUNTED_CLASS(TTransactionSupervisorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETransactionState,
+DEFINE_ENUM(ETransactionState,
     ((Active)                     (0))
     ((TransientCommitPrepared)    (1))
     ((PersistentCommitPrepared)   (2))

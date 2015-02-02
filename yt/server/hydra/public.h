@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 
 #include <ytlib/hydra/public.h>
 
@@ -33,6 +33,7 @@ DECLARE_REFCOUNTED_CLASS(TCompositeAutomatonPart)
 
 DECLARE_REFCOUNTED_CLASS(TMutation)
 
+class TEntityBase;
 class TSaveContext;
 class TLoadContext;
 

@@ -80,12 +80,9 @@ public:
         , SlotIndex_(slotIndex)
         , Config_(config)
         , Bootstrap_(bootstrap)
-        , State_(EPeerState::None)
-        , PeerId_(InvalidPeerId)
         , AutomatonQueue_(New<TFairShareActionQueue>(
             Format("TabletSlot:%v", SlotIndex_),
-            EAutomatonThreadQueue::GetDomainNames()))
-        , Logger(TabletNodeLogger)
+            TEnumTraits<EAutomatonThreadQueue>::GetDomainNames()))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
 
@@ -122,7 +119,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return HydraManager_ ? HydraManager_->GetAutomatonState() : EPeerState(EPeerState::None);
+        return HydraManager_ ? HydraManager_->GetAutomatonState() : EPeerState::None;
     }
 
     TPeerId GetPeerId() const
@@ -170,7 +167,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return AutomatonQueue_->GetInvoker(queue);
+        return AutomatonQueue_->GetInvoker(static_cast<int>(queue));
     }
 
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
@@ -178,7 +175,6 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(InvokersSpinLock_);
-        YCHECK(!EpochAutomatonInvokers_.empty());
         return EpochAutomatonInvokers_[queue];
     }
 
@@ -225,12 +221,9 @@ public:
 
         auto random = mutationContext->RandomGenerator().Generate<ui64>();
 
-        int typeValue = static_cast<int>(type);
-        YASSERT(typeValue >= 0 && typeValue <= MaxObjectType);
-
         return TObjectId(
             random ^ CellId_.Parts32[0],
-            (CellId_.Parts32[1] & 0xffff0000) + typeValue,
+            (CellId_.Parts32[1] & 0xffff0000) + static_cast<int>(type),
             version.RecordId,
             version.SegmentId);
     }
@@ -245,10 +238,11 @@ public:
         SetCellId(cellId);
 
         Options_ = ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options()));
-
+        PrerequisiteTransactionId_ = FromProto<TTransactionId>(createInfo.prerequisite_transaction_id());
         State_ = EPeerState::Stopped;
 
-        LOG_INFO("Slot initialized");
+        LOG_INFO("Slot initialized (PrerequisiteTransactionId: %v)",
+            PrerequisiteTransactionId_);
     }
 
     void Configure(const TConfigureTabletSlotInfo& configureInfo)
@@ -258,16 +252,12 @@ public:
 
         CellConfigVersion_ = configureInfo.config_version();
         CellConfig_ = ConvertTo<TTabletCellConfigPtr>(TYsonString(configureInfo.config()));
-        auto prerequisiteTransactionId = FromProto<TTransactionId>(configureInfo.prerequisite_transaction_id());
-
+        
         if (HydraManager_) {
-            YCHECK(PrerequisiteTransactionId_ == prerequisiteTransactionId);
             CellManager_->Reconfigure(CellConfig_->ToElection(CellId_));
-
             LOG_INFO("Slot reconfigured (ConfigVersion: %v)",
                 CellConfigVersion_);
         } else {
-            PrerequisiteTransactionId_ = prerequisiteTransactionId;
             PeerId_ = configureInfo.peer_id();
             State_ = EPeerState::Elections;
 
@@ -276,9 +266,7 @@ public:
                 Bootstrap_->GetTabletChannelFactory(),
                 configureInfo.peer_id());
 
-            Automaton_ = New<TTabletAutomaton>(Bootstrap_, Owner_);
-
-            auto rpcServer = Bootstrap_->GetRpcServer();
+            Automaton_ = New<TTabletAutomaton>(Owner_);
 
             std::vector<TTransactionId> prerequisiteTransactionIds;
             prerequisiteTransactionIds.push_back(PrerequisiteTransactionId_);
@@ -296,6 +284,8 @@ public:
                 Format("//sys/tablet_cells/%v/changelogs", CellId_),
                 Bootstrap_->GetMasterClient(),
                 prerequisiteTransactionIds);
+
+            auto rpcServer = Bootstrap_->GetRpcServer();
 
             HydraManager_ = CreateDistributedHydraManager(
                 Config_->HydraManager,
@@ -315,10 +305,9 @@ public:
 
             {
                 TGuard<TSpinLock> guard(InvokersSpinLock_);
-                GuardedAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
-                for (auto queue : EAutomatonThreadQueue::GetDomainValues()) {
-                    GuardedAutomatonInvokers_[queue] = HydraManager_->CreateGuardedAutomatonInvoker(
-                        GetAutomatonInvoker(queue));
+                for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
+                    auto unguardedInvoker = GetAutomatonInvoker(queue);
+                    GuardedAutomatonInvokers_[queue] = HydraManager_->CreateGuardedAutomatonInvoker(unguardedInvoker);
                 }
             }
 
@@ -364,15 +353,14 @@ public:
 
             TabletManager_->Initialize();
 
-            HydraManager_->Start();
+            HydraManager_->Initialize();
 
             rpcServer->RegisterService(TransactionSupervisor_->GetRpcService());
             rpcServer->RegisterService(HiveManager_->GetRpcService());
             rpcServer->RegisterService(TabletService_);
 
-            LOG_INFO("Slot configured (ConfigVersion: %v, PrerequisiteTransactionId: %v)",
-                CellConfigVersion_,
-                prerequisiteTransactionId);
+            LOG_INFO("Slot configured (ConfigVersion: %v)",
+                CellConfigVersion_);
         }
     }
 
@@ -381,44 +369,26 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ != EPeerState::None);
 
+        LOG_INFO("Finalizing slot");
+
         auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
         tabletSlotManager->UnregisterTabletSnapshots(Owner_);
 
-        if (HydraManager_) {
-            HydraManager_->Stop();
-        }
-
-        // NB: Many subsystems (e.g. Transaction Manager) hold TTabletSlot instance by raw pointer.
-        // The above call to Stop cancels the current epoch and thus ensures that no new callbacks can be
-        // queued via control or automaton invokers. However, some background activities could still be
-        // running in the context of the automaton invoker. To save them from crashing we submit
-        // a callback whose sole purpose is to hold |this| a bit longer.
-        auto this_ = MakeStrong(this);
-        GetAutomatonInvoker()->Invoke(BIND([this_] () { }));
-
-        auto rpcServer = Bootstrap_->GetRpcServer();
-        if (TransactionSupervisor_) {
-            rpcServer->UnregisterService(TransactionSupervisor_->GetRpcService());
-        }
-        if (HiveManager_) {
-            rpcServer->UnregisterService(HiveManager_->GetRpcService());
-        }
-        if (TabletService_) {
-            rpcServer->UnregisterService(TabletService_);
-        }
+        State_ = EPeerState::None;
 
         ResetEpochInvokers();
         ResetGuardedInvokers();
-        
-        State_ = EPeerState::None;
 
-        LOG_INFO("Slot finalized");
+        Bootstrap_->GetControlInvoker()->Invoke(BIND(&TImpl::DoFinalize, MakeStrong(this)));
     }
 
 
     void BuildOrchidYson(IYsonConsumer* consumer)
     {
         BuildYsonFluently(consumer)
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
             .BeginMap()
                 .Do(BIND(&TImpl::BuildOrchidYsonControl, Unretained(this)))
                 .Do(BIND(&TImpl::BuildOrchidYsonAutomaton, Unretained(this)))
@@ -426,14 +396,14 @@ public:
     }
 
 private:
-    TTabletSlot* Owner_;
-    int SlotIndex_;
-    TTabletNodeConfigPtr Config_;
-    NCellNode::TBootstrap* Bootstrap_;
+    TTabletSlot* const Owner_;
+    const int SlotIndex_;
+    const TTabletNodeConfigPtr Config_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
     TCellId CellId_;
-    mutable EPeerState State_;
-    TPeerId PeerId_;
+    mutable EPeerState State_ = EPeerState::None;
+    TPeerId PeerId_ = InvalidPeerId;
     int CellConfigVersion_ = 0;
     TTabletCellConfigPtr CellConfig_;
     TTabletCellOptionsPtr Options_;
@@ -458,10 +428,10 @@ private:
     TFairShareActionQueuePtr AutomatonQueue_;
 
     TSpinLock InvokersSpinLock_;
-    std::vector<IInvokerPtr> EpochAutomatonInvokers_;
-    std::vector<IInvokerPtr> GuardedAutomatonInvokers_;
+    TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
+    TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> GuardedAutomatonInvokers_;
 
-    NLog::TLogger Logger;
+    NLog::TLogger Logger = TabletNodeLogger;
 
 
     void SetCellId(const TCellId& cellId)
@@ -483,27 +453,20 @@ private:
     void ResetEpochInvokers()
     {
         TGuard<TSpinLock> guard(InvokersSpinLock_);
-        EpochAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
-        for (auto& invoker : EpochAutomatonInvokers_) {
-            invoker = GetNullInvoker();
-        }
+        std::fill(EpochAutomatonInvokers_.begin(), EpochAutomatonInvokers_.end(), GetNullInvoker());
     }
 
     void ResetGuardedInvokers()
     {
         TGuard<TSpinLock> guard(InvokersSpinLock_);
-        GuardedAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
-        for (auto& invoker : GuardedAutomatonInvokers_) {
-            invoker = GetNullInvoker();
-        }
+        std::fill(GuardedAutomatonInvokers_.begin(), GuardedAutomatonInvokers_.end(), GetNullInvoker());
     }
 
 
     void OnStartEpoch()
     {
         TGuard<TSpinLock> guard(InvokersSpinLock_);
-        EpochAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
-        for (auto queue : EAutomatonThreadQueue::GetDomainValues()) {
+        for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
             EpochAutomatonInvokers_[queue] = HydraManager_
                 ->GetAutomatonEpochContext()
                 ->CancelableContext
@@ -517,14 +480,65 @@ private:
     }
 
 
+    void DoFinalize()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // Wait for all pending activities in automaton thread to stop.
+        LOG_INFO("Flushing automaton thread");
+
+        SwitchTo(GetAutomatonInvoker());
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        // NB: Epoch invokers are already canceled so we don't expect any more callbacks.
+        LOG_INFO("Automaton thread flushed");
+
+        SwitchTo(Bootstrap_->GetControlInvoker());
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // Stop everything and release the references to break cycles.
+        CellManager_.Reset();
+
+        Automaton_.Reset();
+
+        if (HydraManager_) {
+            HydraManager_->Finalize();
+        }
+        HydraManager_.Reset();
+
+        ResponseKeeper_.Reset();
+
+        TabletManager_.Reset();
+
+        TransactionManager_.Reset();
+
+        auto rpcServer = Bootstrap_->GetRpcServer();
+
+        if (TransactionSupervisor_) {
+            rpcServer->UnregisterService(TransactionSupervisor_->GetRpcService());
+        }
+        TransactionSupervisor_.Reset();
+
+        if (HiveManager_) {
+            rpcServer->UnregisterService(HiveManager_->GetRpcService());
+        }
+        HiveManager_.Reset();
+
+        if (TabletService_) {
+            rpcServer->UnregisterService(TabletService_);
+        }
+        TabletService_.Reset();
+
+        TabletManager_.Reset();
+    }
+
+
     void BuildOrchidYsonControl(IYsonConsumer* consumer)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         BuildYsonMapFluently(consumer)
-            .Item("index").Value(SlotIndex_)
             .Item("state").Value(GetControlState())
-            .Item("cell_id").Value(CellId_)
             .Item("prerequisite_transaction_id").Value(PrerequisiteTransactionId_)
             .Item("options").Value(*Options_);
     }
@@ -541,11 +555,9 @@ private:
             return;
 
         auto cancelableContext = epochContext->CancelableContext;
-        auto done = BIND(&TImpl::DoBuildOrchidYsonAutomaton, MakeStrong(this))
+        WaitFor(BIND(&TImpl::DoBuildOrchidYsonAutomaton, MakeStrong(this))
             .AsyncVia(GetGuardedAutomatonInvoker())
-            .Run(cancelableContext, consumer)
-            .Finally();
-        WaitFor(done);
+            .Run(cancelableContext, consumer));
     }
 
     void DoBuildOrchidYsonAutomaton(TCancelableContextPtr context, IYsonConsumer* consumer)

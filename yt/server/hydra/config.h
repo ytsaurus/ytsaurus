@@ -93,17 +93,11 @@ class TRemoteSnapshotStoreConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! A temporary path where snapshots are written before being uploaded.
-    Stroka TempPath;
-
     NApi::TFileReaderConfigPtr Reader;
     NApi::TFileWriterConfigPtr Writer;
 
     TRemoteSnapshotStoreConfig()
     {
-        RegisterParameter("temp_path", TempPath)
-            .NonEmpty()
-            .Default("/tmp/yt/hydra/snapshots");
         RegisterParameter("reader", Reader)
             .DefaultNew();
         RegisterParameter("writer", Writer)

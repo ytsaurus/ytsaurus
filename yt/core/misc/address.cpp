@@ -34,9 +34,11 @@ using namespace NConcurrency;
 static NLog::TLogger Logger("Network");
 static NProfiling::TProfiler Profiler("/network");
 
+static const auto WarningDuration = TDuration::MilliSeconds(100);
+static const char* FailedLocalHostName = "<unknown>";
+
 // TOOD(babenko): get rid of this, write truly asynchronous address resolver.
-static TLazyIntrusivePtr<NConcurrency::TActionQueue> AddressResolverQueue(
-    NConcurrency::TActionQueue::CreateFactory("AddressResolver"));
+static TLazyIntrusivePtr<TActionQueue> AddressResolverQueue(TActionQueue::CreateFactory("AddressResolver"));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,7 +150,7 @@ socklen_t TNetworkAddress::GetLength() const
 TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& address)
 {
     int closingBracketIndex = address.find(']');
-    if (closingBracketIndex == Stroka::npos || address[0] != '[') {
+    if (closingBracketIndex == Stroka::npos || address.empty() || address[0] != '[') {
         return TError("Address %Qv is malformed, expected [<addr>]:<port> or [<addr>] format",
             address);
     }
@@ -164,11 +166,11 @@ TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& address)
         }
     }
 
-    Stroka ipAddress = Stroka(address.substr(1, closingBracketIndex - 1));
+    auto ipAddress = Stroka(address.substr(1, closingBracketIndex - 1));
     {
         // Try to parse as ipv4.
         struct sockaddr_in sa;
-        if (inet_pton(AF_INET, ~ipAddress, &sa.sin_addr) == 1) {
+        if (inet_pton(AF_INET, ipAddress.c_str(), &sa.sin_addr) == 1) {
             if (port) {
                 sa.sin_port = htons(*port);
             }
@@ -194,9 +196,7 @@ TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& address)
 
 TNetworkAddress TNetworkAddress::Parse(const TStringBuf& address)
 {
-    auto result = TryParse(address);
-    THROW_ERROR_EXCEPTION_IF_FAILED(result);
-    return result.Value();
+    return TryParse(address).ValueOrThrow();
 }
 
 Stroka ToString(const TNetworkAddress& address, bool withPort)
@@ -209,22 +209,21 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
     switch (sockAddr->sa_family) {
 #ifdef _linux_
         case AF_UNIX: {
-            auto* typedAddr = reinterpret_cast<const sockaddr_un*>(sockAddr);
-            return
-                typedAddr->sun_path[0] == 0
+            const auto* typedAddr = reinterpret_cast<const sockaddr_un*>(sockAddr);
+            return typedAddr->sun_path[0] == 0
                 ? Format("unix://[%v]", typedAddr->sun_path + 1)
                 : Format("unix://%v", typedAddr->sun_path);
         }
 #endif
         case AF_INET: {
-            auto* typedAddr = reinterpret_cast<const sockaddr_in*>(sockAddr);
+            const auto* typedAddr = reinterpret_cast<const sockaddr_in*>(sockAddr);
             ipAddr = &typedAddr->sin_addr;
             port = typedAddr->sin_port;
             ipv6 = false;
             break;
         }
         case AF_INET6: {
-            auto* typedAddr = reinterpret_cast<const sockaddr_in6*>(sockAddr);
+            const auto* typedAddr = reinterpret_cast<const sockaddr_in6*>(sockAddr);
             ipAddr = &typedAddr->sin6_addr;
             port = typedAddr->sin6_port;
             ipv6 = true;
@@ -267,8 +266,7 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
 ////////////////////////////////////////////////////////////////////////////////
 
 TAddressResolver::TAddressResolver()
-    : Config(New<TAddressResolverConfig>())
-    , GetLocalHostNameFailed(false)
+    : Config_(New<TAddressResolverConfig>())
 { }
 
 TAddressResolver* TAddressResolver::Get()
@@ -283,7 +281,7 @@ void TAddressResolver::Shutdown()
     }
 }
 
-TFuture< TErrorOr<TNetworkAddress> > TAddressResolver::Resolve(const Stroka& address)
+TFuture<TNetworkAddress> TAddressResolver::Resolve(const Stroka& address)
 {
     // Check if |address| parses into a valid IPv4 or IPv6 address.
     {
@@ -295,120 +293,129 @@ TFuture< TErrorOr<TNetworkAddress> > TAddressResolver::Resolve(const Stroka& add
 
     // Lookup cache.
     {
-        TGuard<TSpinLock> guard(CacheLock);
-        auto it = Cache.find(address);
-        if (it != Cache.end()) {
+        TGuard<TSpinLock> guard(CacheLock_);
+        auto it = Cache_.find(address);
+        if (it != Cache_.end()) {
             auto result = it->second;
             guard.Release();
             LOG_DEBUG("Address cache hit: %v -> %v",
                 address,
                 result);
-            return MakeFuture(TErrorOr<TNetworkAddress>(result));
+            return MakeFuture(result);
         }
     }
 
     // Run async resolution.
-    return
-        BIND(&TAddressResolver::DoResolve, this, address)
+    return BIND(&TAddressResolver::DoResolve, this, address)
         .AsyncVia(AddressResolverQueue->GetInvoker())
         .Run();
 }
 
-TErrorOr<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostName)
+TNetworkAddress TAddressResolver::DoResolve(const Stroka& hostName)
 {
-    static const auto WarningDuration = TDuration::MilliSeconds(100);
+    try {
+        addrinfo hints;
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_UNSPEC;    // Allow both IPv4 and IPv6 addresses.
+        hints.ai_socktype = SOCK_STREAM;
 
-    addrinfo hints;
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;    // Allow both IPv4 and IPv6 addresses.
-    hints.ai_socktype = SOCK_STREAM;
+        addrinfo* addrInfo = nullptr;
 
-    addrinfo* addrInfo = nullptr;
+        LOG_DEBUG("Started resolving host %v", hostName);
 
-    LOG_DEBUG("Started resolving host %v", hostName);
+        NProfiling::TScopedTimer timer;
 
-    NProfiling::TScopedTimer timer;
-
-    int gaiResult;
-    PROFILE_TIMING("/dns_resolve_time") {
-        gaiResult = getaddrinfo(
-            ~hostName,
-            nullptr,
-            &hints,
-            &addrInfo);
-    }
-
-    auto duration = timer.GetElapsed();
-
-    if (gaiResult != 0) {
-        auto gaiError = TError(Stroka(gai_strerror(gaiResult)))
-            << TErrorAttribute("errno", gaiResult);
-        auto error = TError("Failed to resolve host %v", hostName)
-            << gaiError;
-        LOG_WARNING(error);
-        return error;
-    } else if (duration > WarningDuration) {
-        LOG_WARNING("DNS resolve took too long (Host: %v, Duration: %v)",
-            hostName,
-            duration);
-    }
-
-    TNullable<TNetworkAddress> result;
-
-    for (auto* currentInfo = addrInfo; currentInfo; currentInfo = currentInfo->ai_next) {
-        if ((currentInfo->ai_family == AF_INET && Config->EnableIPv4) ||
-            (currentInfo->ai_family == AF_INET6 && Config->EnableIPv6))
-        {
-            result = TNetworkAddress(*currentInfo->ai_addr);
-            break;
+        int gaiResult;
+        PROFILE_TIMING("/dns_resolve_time") {
+            gaiResult = getaddrinfo(
+                hostName.c_str(),
+                nullptr,
+                &hints,
+                &addrInfo);
         }
-    }
 
-    freeaddrinfo(addrInfo);
+        auto duration = timer.GetElapsed();
 
-    if (result) {
-        // Put result into the cache.
-        {
-            TGuard<TSpinLock> guard(CacheLock);
-            Cache[hostName] = result.Get();
+        if (gaiResult != 0) {
+            auto gaiError = TError(Stroka(gai_strerror(gaiResult)))
+                << TErrorAttribute("errno", gaiResult);
+            THROW_ERROR_EXCEPTION("Failed to resolve host %v", hostName)
+                 << gaiError;
+        } else if (duration > WarningDuration) {
+            LOG_WARNING("DNS resolve took too long (Host: %v, Duration: %v)",
+                hostName,
+                duration);
         }
-        LOG_DEBUG("Host resolved: %v -> %v",
-            hostName,
-            result.Get());
-        return result.Get();
-    }
 
-    {
-        TError error("No IPv4 or IPv6 address can be found for %v", hostName);
-        LOG_WARNING(error);
-        return error;
+        TNullable<TNetworkAddress> result;
+
+        for (const auto* currentInfo = addrInfo; currentInfo; currentInfo = currentInfo->ai_next) {
+            if ((currentInfo->ai_family == AF_INET && Config_->EnableIPv4) ||
+                (currentInfo->ai_family == AF_INET6 && Config_->EnableIPv6))
+            {
+                result = TNetworkAddress(*currentInfo->ai_addr);
+                break;
+            }
+        }
+
+        freeaddrinfo(addrInfo);
+
+        if (result) {
+            // Put result into the cache.
+            {
+                TGuard<TSpinLock> guard(CacheLock_);
+                Cache_[hostName] = *result;
+            }
+            LOG_DEBUG("Host resolved: %v -> %v",
+                hostName,
+                *result);
+            return *result;
+        }
+
+        THROW_ERROR_EXCEPTION("No IPv4 or IPv6 address can be found for %v", hostName);
+    } catch (const std::exception& ex) {
+        LOG_WARNING(TError(ex));
+        throw;
     }
 }
 
 Stroka TAddressResolver::GetLocalHostName()
 {
+    static PER_THREAD int ReenteranceLock = 0;
+
+    if (GetLocalHostNameFailed_ || ReenteranceLock > 0) {
+        return FailedLocalHostName;
+    }
+
     {
-        TGuard<TSpinLock> guard(LocalHostLock);
-        if (GetLocalHostNameFailed) {
-            return "<unknown>";
-        }
-        if (!CachedLocalHostName.empty()) {
-            return CachedLocalHostName;
+        TGuard<TSpinLock> guard(CachedLocalHostNameLock_);
+        if (!CachedLocalHostName_.empty()) {
+            return CachedLocalHostName_;
         }
     }
 
-    auto result = DoGetLocalHostName();
+    Stroka result;
+    try {
+        ++ReenteranceLock;
+        result = DoGetLocalHostName();
+        --ReenteranceLock;
+    } catch (const std::exception& ex) {
+        GetLocalHostNameFailed_ = true;
+        --ReenteranceLock;
+        LOG_ERROR(ex, "Unable to determine localhost FQDN");
+        return FailedLocalHostName;
+    }
 
     {
-        TGuard<TSpinLock> guard(LocalHostLock);
-        if (CachedLocalHostName.empty()) {
-            CachedLocalHostName = result;
+        TGuard<TSpinLock> guard(CachedLocalHostNameLock_);
+        if (CachedLocalHostName_.empty()) {
+            CachedLocalHostName_ = result;
         }
         // Sometimes the local DNS resolver crashes when the program is still running.
         // This can prevent our services from working properly (e.g. all spawned jobs will fail).
         // To avoid this, we run periodic checks to see if localhost can still be resolved.
-        if (!LocalHostChecker) {
-            LocalHostChecker = New<TPeriodicExecutor>(
+        if (!LocalHostChecker_) {
+            LocalHostChecker_ = New<TPeriodicExecutor>(
                 AddressResolverQueue->GetInvoker(),
                 BIND(&TAddressResolver::CheckLocalHostResolution, this),
                 TDuration::Minutes(1),
@@ -426,8 +433,7 @@ Stroka TAddressResolver::DoGetLocalHostName()
     memset(hostName, 0, sizeof (hostName));
 
     if (gethostname(hostName, sizeof (hostName) - 1) == -1) {
-        GetLocalHostNameFailed = true;
-        THROW_ERROR_EXCEPTION("Unable to determine localhost FQDN: gethostname failed")
+        THROW_ERROR_EXCEPTION("gethostname failed")
             << TError::FromSystem();
     }
 
@@ -448,35 +454,31 @@ Stroka TAddressResolver::DoGetLocalHostName()
         &addrInfo);
 
     if (gaiResult != 0) {
-        GetLocalHostNameFailed = true;
+        GetLocalHostNameFailed_ = true;
         auto gaiError = TError(Stroka(gai_strerror(gaiResult)))
             << TErrorAttribute("errno", gaiResult);
-        THROW_ERROR_EXCEPTION("Unable to determine localhost FQDN: getaddrinfo failed")
+        THROW_ERROR_EXCEPTION("getaddrinfo failed")
             << gaiError;
     }
 
-    char* canonname = 0;
+    char* canonname = nullptr;
     if (addrInfo) {
         canonname = addrInfo->ai_canonname;
     }
 
     for (auto* currentInfo = addrInfo; currentInfo; currentInfo = currentInfo->ai_next) {
-        if ((currentInfo->ai_family == AF_INET && Config->EnableIPv4) ||
-            (currentInfo->ai_family == AF_INET6 && Config->EnableIPv6))
+        if ((currentInfo->ai_family == AF_INET && Config_->EnableIPv4) ||
+            (currentInfo->ai_family == AF_INET6 && Config_->EnableIPv6))
         {
-            LOG_INFO("Localhost FQDN reported by getaddrinfo: %v", canonname);
-            return Stroka(canonname);
+            Stroka fqdn(canonname);
+            LOG_INFO("Localhost FQDN reported by getaddrinfo: %v", fqdn);
+            return fqdn;
         }
     }
 
     freeaddrinfo(addrInfo);
 
-    {
-        TGuard<TSpinLock> guard(LocalHostLock);
-        GetLocalHostNameFailed = true;
-    }
-
-    THROW_ERROR_EXCEPTION("Unable to determine localhost FQDN: no matching addrinfo entry found");
+    THROW_ERROR_EXCEPTION("No matching addrinfo entry found");
 }
 
 void TAddressResolver::CheckLocalHostResolution()
@@ -491,20 +493,20 @@ void TAddressResolver::CheckLocalHostResolution()
 void TAddressResolver::PurgeCache()
 {
     {
-        TGuard<TSpinLock> guard(CacheLock);
-        Cache.clear();
+        TGuard<TSpinLock> guard(CacheLock_);
+        Cache_.clear();
     }
     LOG_INFO("Address cache purged");
 }
 
 void TAddressResolver::Configure(TAddressResolverConfigPtr config)
 {
-    Config = config;
+    Config_ = config;
 
     if (config->LocalHostFqdn) {
-        TGuard<TSpinLock> guard(LocalHostLock);
-        CachedLocalHostName = *config->LocalHostFqdn;
-        LOG_INFO("LocalHost FQDN configured: %v", CachedLocalHostName);
+        TGuard<TSpinLock> guard(CachedLocalHostNameLock_);
+        CachedLocalHostName_ = *config->LocalHostFqdn;
+        LOG_INFO("LocalHost FQDN configured: %v", CachedLocalHostName_);
     }
 }
 

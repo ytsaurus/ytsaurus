@@ -9,7 +9,7 @@
 #include <core/misc/id_generator.h>
 #include <core/misc/hash.h>
 
-#include <core/concurrency/action_queue_detail.h>
+#include <core/concurrency/scheduler_thread.h>
 
 #include <core/ytree/node.h>
 #include <core/ytree/ephemeral_node_factory.h>
@@ -82,7 +82,7 @@ public:
         }
 
         SampleQueue.Enqueue(sample);
-        EventCount.Notify();
+        EventCount.NotifyOne();
     }
 
 
@@ -380,6 +380,9 @@ private:
 
 TProfileManager::TProfileManager()
     : Impl_(new TImpl())
+{ }
+
+TProfileManager::~TProfileManager()
 { }
 
 TProfileManager* TProfileManager::Get()

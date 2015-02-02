@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 #include <core/misc/small_vector.h>
 
 #include <ytlib/object_client/public.h>
@@ -56,14 +56,14 @@ typedef i64 TBlockOffset;
 //! A |(chunkId, blockIndex)| pair.
 struct TBlockId;
 
-DECLARE_ENUM(EChunkType,
+DEFINE_ENUM(EChunkType,
     ((Unknown) (0))
     ((File)    (1))
     ((Table)   (2))
     ((Journal) (3))
 );
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((AllTargetNodesFailed)     (700))
     ((PipelineFailed)           (701))
     ((NoSuchSession)            (702))
@@ -73,7 +73,6 @@ DECLARE_ENUM(EErrorCode,
     ((BlockContentMismatch)     (706))
     ((NoSuchBlock)              (707))
     ((NoSuchChunk)              (708))
-    ((ChunkPrecachingFailed)    (709))
     ((OutOfSpace)               (710))
     ((IOError)                  (711))
     ((MasterCommunicationFailed)(712))
@@ -81,13 +80,13 @@ DECLARE_ENUM(EErrorCode,
 );
 
 //! Values must be contiguous.
-DECLARE_ENUM(EWriteSessionType,
+DEFINE_ENUM(EWriteSessionType,
     ((User)                     (0))
     ((Replication)              (1))
     ((Repair)                   (2))
 );
 
-DECLARE_ENUM(EReadSessionType,
+DEFINE_ENUM(EReadSessionType,
     ((User)                     (0))
     ((Replication)              (1))
     ((Repair)                   (2))
@@ -131,7 +130,7 @@ template <class TChunkWriter>
 class TOldMultiChunkSequentialWriter;
 
 template <class TChunkReader>
-class TOldMultiChunkSequentialReader;
+class TOldMultiChunkParallelReader;
 
 DECLARE_REFCOUNTED_CLASS(TRefCountedChunkSpec)
 DECLARE_REFCOUNTED_CLASS(TChunkSlice)

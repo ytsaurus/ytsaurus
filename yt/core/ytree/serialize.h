@@ -94,12 +94,11 @@ void Serialize(const TGuid& value, NYson::IYsonConsumer* consumer);
 // TInputStream
 void Serialize(TInputStream& input, NYson::IYsonConsumer* consumer);
 
-// TEnumBase
+// Enums
 template <class T>
-void Serialize(
+typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type Serialize(
     T value,
-    NYson::IYsonConsumer* consumer,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TEnumBase<T>&>, int>::TType = 0);
+    NYson::IYsonConsumer* consumer);
 
 // TNullable
 template <class T>
@@ -162,12 +161,11 @@ void Deserialize(TInstant& value, INodePtr node);
 // TGuid
 void Deserialize(TGuid& value, INodePtr node);
 
-// TEnumBase
+// Enums
 template <class T>
-void Deserialize(
+typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type Deserialize(
     T& value,
-    INodePtr node,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TEnumBase<T>&>, int>::TType = 0);
+    INodePtr node);
 
 // TNullable
 template <class T>

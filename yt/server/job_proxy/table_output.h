@@ -10,6 +10,7 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
+// ToDo(psushin): rename to ParsingOutputStream for example.
 class TTableOutput
     : public TOutputStream
 {

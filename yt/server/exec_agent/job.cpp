@@ -13,6 +13,8 @@
 
 #include <core/concurrency/scheduler.h>
 
+#include <core/actions/invoker_util.h>
+
 #include <core/ytree/serialize.h>
 
 #include <core/logging/log.h>
@@ -91,6 +93,7 @@ using NScheduler::NProto::TUserJobSpec;
 class TJob
     : public NJobAgent::IJob
 {
+public:
     DEFINE_SIGNAL(void(), ResourcesReleased);
 
 public:
@@ -103,14 +106,6 @@ public:
         , ResourceLimits(resourceLimits)
         , Bootstrap(bootstrap)
         , ResourceUsage(resourceLimits)
-        , Logger(ExecAgentLogger)
-        , JobState(EJobState::Waiting)
-        , JobPhase(EJobPhase::Created)
-        , FinalJobState(EJobState::Completed)
-        , Progress_(0.0)
-        , JobStatistics(ZeroJobStatistics())
-        , StartTime(Null)
-        , NodeDirectory(New<TNodeDirectory>())
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -124,13 +119,14 @@ public:
     virtual void Start() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(!Slot);
 
         if (JobState != EJobState::Waiting)
             return;
+
         StartTime = TInstant::Now();
         JobState = EJobState::Running;
 
+        YCHECK(!Slot);
         auto slotManager = Bootstrap->GetSlotManager();
         Slot = slotManager->AcquireSlot();
 
@@ -138,21 +134,21 @@ public:
 
         VERIFY_INVOKER_THREAD_AFFINITY(invoker, JobThread);
 
-        invoker->Invoke(BIND(&TJob::DoRun, MakeWeak(this)));
+        RunFuture = BIND(&TJob::DoRun, MakeWeak(this))
+            .AsyncVia(invoker)
+            .Run();
     }
 
     virtual void Abort(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (JobState == EJobState::Waiting) {
-            YCHECK(!Slot);
-            SetResult(error);
-            JobPhase = EJobPhase::Finished;
-            FinalizeJob();
-        } else {
-            Slot->GetInvoker()->Invoke(BIND(&TJob::DoAbort, MakeStrong(this), error));
+        if (RunFuture) {
+            RunFuture.Cancel();
         }
+
+        auto invoker = Slot ? Slot->GetInvoker() : GetSyncInvoker();
+        invoker->Invoke(BIND(&TJob::DoAbort, MakeStrong(this), error));
     }
 
     virtual const TJobId& GetId() const override
@@ -205,28 +201,31 @@ public:
             return;
         }
 
-        if (JobResult && JobResult->error().code() != NYT::EErrorCode::OK) {
-            return;
+        if (JobResult) {
+            auto error = FromProto<TError>(JobResult->error());
+            if (!error.IsOK()) {
+                return;
+            }
         }
 
         JobResult = jobResult;
-        auto resultError = FromProto<TError>(jobResult.error());
+        auto error = FromProto<TError>(jobResult.error());
 
-        if (resultError.IsOK()) {
+        if (error.IsOK()) {
             return;
         } 
 
-        if (IsFatalError(resultError)) {
-            resultError.Attributes().Set("fatal", IsFatalError(resultError));
-            ToProto(JobResult->mutable_error(), resultError);
+        if (IsFatalError(error)) {
+            error.Attributes().Set("fatal", IsFatalError(error));
+            ToProto(JobResult->mutable_error(), error);
             FinalJobState = EJobState::Failed;
             return;
         }
 
         auto abortReason = GetAbortReason(jobResult);
         if (abortReason) {
-            resultError.Attributes().Set("abort_reason", abortReason);
-            ToProto(JobResult->mutable_error(), resultError);
+            error.Attributes().Set("abort_reason", abortReason);
+            ToProto(JobResult->mutable_error(), error);
             FinalJobState = EJobState::Aborted;
             return;
         }
@@ -283,30 +282,33 @@ private:
     TNodeResources ResourceLimits;
     NCellNode::TBootstrap* Bootstrap;
 
+    //! Protects #ResourceUsage.
     TSpinLock ResourcesLock;
     TNodeResources ResourceUsage;
 
-    NLog::TLogger Logger;
+    NLog::TLogger Logger = ExecAgentLogger;
 
     TSlotPtr Slot;
 
-    EJobState JobState;
-    EJobPhase JobPhase;
+    TFuture<void> RunFuture;
 
-    EJobState FinalJobState;
+    EJobState JobState = EJobState::Waiting;
+    EJobPhase JobPhase = EJobPhase::Created;
 
-    double Progress_;
-    TJobStatistics JobStatistics;
+    EJobState FinalJobState = EJobState::Completed;
+
+    double Progress_ = 0.0;
+    TJobStatistics JobStatistics = ZeroJobStatistics();
 
     TNullable<TInstant> StartTime;
 
     std::vector<NDataNode::IChunkPtr> CachedChunks;
 
-    TNodeDirectoryPtr NodeDirectory;
+    TNodeDirectoryPtr NodeDirectory = New<TNodeDirectory>();
 
     IProxyControllerPtr ProxyController;
 
-    // Protects #JobResult and #JobState.
+    // Protects #JobResult, #JobState, and #JobStatistics.
     TSpinLock ResultLock;
     TNullable<TJobResult> JobResult;
 
@@ -320,8 +322,6 @@ private:
     void DoRun()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-
-        ThrowIfFinished();
 
         try {
             YCHECK(JobPhase == EJobPhase::Created);
@@ -429,13 +429,12 @@ private:
 
     void RunJobProxy()
     {
-        auto asyncError = ProxyController->Run();
+        auto runError = WaitFor(ProxyController->Run());
 
-        auto exitResult = CheckedWaitFor(asyncError);
-        // NB: we should explicitly call Kill() to clean up possible child processes.
+        // NB: We should explicitly call Kill() to clean up possible child processes.
         ProxyController->Kill(Slot->GetProcessGroup(), TError());
-        
-        THROW_ERROR_EXCEPTION_IF_FAILED(exitResult);
+
+        runError.ThrowOnError();
 
         if (!IsResultSet()) {
             THROW_ERROR_EXCEPTION("Job proxy exited successfully but job result has not been set");
@@ -471,22 +470,25 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        if (JobPhase == EJobPhase::Finished) {
+        if (JobPhase == EJobPhase::Finished)
             return;
-        }
-        JobState = EJobState::Aborting;
 
-        const auto jobPhase = JobPhase;
+        {
+            TGuard<TSpinLock> guard(ResultLock);
+            JobState = EJobState::Aborting;
+        }
+
+        auto prevJobPhase = JobPhase;
         JobPhase = EJobPhase::Cleanup;
 
         LOG_INFO(error, "Aborting job");
 
-        if (jobPhase >= EJobPhase::Running) {
+        if (prevJobPhase >= EJobPhase::Running) {
             // NB: Kill() never throws.
             ProxyController->Kill(Slot->GetProcessGroup(), error);
         }
 
-        if (jobPhase >= EJobPhase::PreparingSandbox) {
+        if (prevJobPhase >= EJobPhase::PreparingSandbox) {
             LOG_INFO("Cleaning slot");
             Slot->Clean();
         }
@@ -513,49 +515,36 @@ private:
         return JobResult.HasValue();
     }
 
-    TFuture<void> DownloadChunks(
-        const google::protobuf::RepeatedPtrField<NYT::NChunkClient::NProto::TChunkSpec>& chunks)
+    void DownloadChunks(const google::protobuf::RepeatedPtrField<TChunkSpec>& chunks)
     {
-        auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
         auto chunkCache = Bootstrap->GetChunkCache();
         auto this_ = MakeStrong(this);
 
+        std::vector<TFuture<IChunkPtr>> asyncResults;
         for (const auto chunk : chunks) {
             auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
             auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunk.replicas());
 
             if (IsErasureChunkId(chunkId)) {
-                DoAbort(TError("Cannot download erasure chunk %v", chunkId));
-                break;
+                THROW_ERROR_EXCEPTION("Some files and/or tables required by job contain erasure chunks");
             }
 
-            auto asyncChunkOrError = chunkCache->DownloadChunk(
+            asyncResults.push_back(chunkCache->DownloadChunk(
                 chunkId,
                 NodeDirectory,
-                seedReplicas);
-
-            awaiter->Await(
-                std::move(asyncChunkOrError),
-                BIND([=] (NDataNode::TChunkCache::TDownloadResult result) {
-                    if (!result.IsOK()) {
-                        auto wrappedError = TError(
-                            "Failed to download chunk %v",
-                            chunkId)
-                            << result;
-                        this_->DoAbort(wrappedError);
-                        return;
-                    }
-                    this_->CachedChunks.push_back(result.Value());
-                }));
+                seedReplicas));
         }
 
-        return awaiter->Complete();
+        auto resultsOrError = WaitFor(Combine(asyncResults));
+        THROW_ERROR_EXCEPTION_IF_FAILED(resultsOrError, "Error downloading chunks required by job");
+
+        const auto& results = resultsOrError.Value();
+        CachedChunks.insert(CachedChunks.end(), results.begin(), results.end());
     }
 
-    std::vector<TChunkSpec> PatchCachedChunkReplicas(
-        const google::protobuf::RepeatedPtrField<NYT::NChunkClient::NProto::TChunkSpec>& chunks)
+    std::vector<TChunkSpec> PatchCachedChunkReplicas(const google::protobuf::RepeatedPtrField<TChunkSpec>& chunks)
     {
-        std::vector<NChunkClient::NProto::TChunkSpec> result;
+        std::vector<TChunkSpec> result;
         result.insert(result.end(), chunks.begin(), chunks.end());
         for (auto& chunk : result) {
             chunk.clear_replicas();
@@ -580,7 +569,7 @@ private:
         }
 
         const auto& chunk = descriptor.chunks(0);
-        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk.chunk_meta().extensions());
+        auto miscExt = GetProtoExtension<TMiscExt>(chunk.chunk_meta().extensions());
         auto compressionCodecId = NCompression::ECodec(miscExt.compression_codec());
         auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
         return !IsErasureChunkId(chunkId) && (compressionCodecId == NCompression::ECodec::None);
@@ -588,9 +577,9 @@ private:
 
     void PrepareRegularFileViaSymlink(const TRegularFileDescriptor& descriptor)
     {
-        const auto& chunk = descriptor.chunks(0);
-        auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
-        auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunk.replicas());
+        const auto& chunkSpec = descriptor.chunks(0);
+        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+        auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
         const auto& fileName = descriptor.file_name();
 
         LOG_INFO("Preparing regular user file via symlink (FileName: %v, ChunkId: %v)",
@@ -598,7 +587,7 @@ private:
             chunkId);
 
         auto chunkCache = Bootstrap->GetChunkCache();
-        auto chunkOrError = CheckedWaitFor(chunkCache->DownloadChunk(
+        auto chunkOrError = WaitFor(chunkCache->DownloadChunk(
             chunkId,
             NodeDirectory,
             seedReplicas));
@@ -606,12 +595,12 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError, "Failed to download user file %Qv",
             fileName);
 
-        auto result = chunkOrError.Value();
-        CachedChunks.push_back(result);
+        const auto& chunk = chunkOrError.Value();
+        CachedChunks.push_back(chunk);
 
         try {
             Slot->MakeLink(
-                result->GetFileName(),
+                chunk->GetFileName(),
                 fileName,
                 descriptor.executable());
         } catch (const std::exception& ex) {
@@ -633,7 +622,7 @@ private:
             fileName,
             descriptor.chunks_size());
 
-        CheckedWaitFor(DownloadChunks(descriptor.chunks()));
+        DownloadChunks(descriptor.chunks());
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
 
         auto chunks = PatchCachedChunkReplicas(descriptor.chunks());
@@ -647,17 +636,15 @@ private:
 
         auto reader = New<TReader>(
             config,
-            Bootstrap->GetMasterClient()->GetMasterChannel(),
+            Bootstrap->GetMasterClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
             Bootstrap->GetBlockStore()->GetCompressedBlockCache(),
             NodeDirectory,
             std::move(chunks),
             provider);
 
         try {
-            {
-                auto result = CheckedWaitFor(reader->AsyncOpen());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
+            WaitFor(reader->AsyncOpen())
+                .ThrowOnError();
 
             auto producer = [&] (TOutputStream* output) {
                 auto* facade = reader->GetFacade();
@@ -666,8 +653,8 @@ private:
                     output->Write(block.Begin(),block.Size());
 
                     if (!reader->FetchNext()) {
-                        auto result = CheckedWaitFor(reader->GetReadyEvent());
-                        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                        WaitFor(reader->GetReadyEvent())
+                            .ThrowOnError();
                     }
                     facade = reader->GetFacade();
                 }
@@ -694,8 +681,7 @@ private:
             descriptor.file_name(),
             descriptor.chunks_size());
 
-        CheckedWaitFor(DownloadChunks(descriptor.chunks()));
-
+        DownloadChunks(descriptor.chunks());
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
 
         auto chunks = PatchCachedChunkReplicas(descriptor.chunks());
@@ -709,7 +695,7 @@ private:
 
         auto asyncReader = New<TTableChunkSequenceReader>(
             config,
-            Bootstrap->GetMasterClient()->GetMasterChannel(),
+            Bootstrap->GetMasterClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
             Bootstrap->GetBlockStore()->GetCompressedBlockCache(),
             NodeDirectory,
             std::move(chunks),
@@ -748,7 +734,7 @@ private:
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) || 
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
             resultError.FindMatching(EErrorCode::ConfigCreationFailed) || 
-            resultError.FindMatching(EExitStatus::ExitCodeBase + EJobProxyExitCode::HeartbeatFailed))
+            resultError.FindMatching(static_cast<int>(EExitStatus::ExitCodeBase) + static_cast<int>(EJobProxyExitCode::HeartbeatFailed)))
         {
             return MakeNullable(EAbortReason::Other);
         } else if (resultError.FindMatching(NExecAgent::EErrorCode::ResourceOverdraft)) {
@@ -775,27 +761,6 @@ private:
             error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) ||
             error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork);
-    }
-
-    void ThrowIfFinished()
-    {
-        if (JobPhase == EJobPhase::Finished) {
-            throw TFiberCanceledException();
-        }
-    }
-
-    template <class T>
-    T CheckedWaitFor(TFuture<T> future)
-    {
-        auto result = WaitFor(future);
-        ThrowIfFinished();
-        return result;
-    }
-
-    void CheckedWaitFor(TFuture<void> future)
-    {
-        WaitFor(future);
-        ThrowIfFinished();
     }
 
 };

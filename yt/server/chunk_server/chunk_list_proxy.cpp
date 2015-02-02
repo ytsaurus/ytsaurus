@@ -83,8 +83,8 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
-        auto chunkManager = Bootstrap->GetChunkManager();
-        auto cypressManager = Bootstrap->GetCypressManager();
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto cypressManager = Bootstrap_->GetCypressManager();
 
         const auto* chunkList = GetThisTypedImpl();
 
@@ -144,8 +144,8 @@ private:
 
         context->SetRequestInfo("Children: [%v]", JoinToString(childrenIds));
 
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto chunkManager = Bootstrap->GetChunkManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto chunkManager = Bootstrap_->GetChunkManager();
 
         std::vector<TChunkTree*> children;
         children.reserve(childrenIds.size());

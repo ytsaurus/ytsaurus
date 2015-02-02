@@ -8,6 +8,8 @@
 
 #include <core/profiling/profiler.h>
 
+#include <ytlib/object_client/object_ypath_proxy.h>
+
 #include <server/hydra/mutation.h>
 #include <server/hydra/entity_map.h>
 
@@ -20,8 +22,6 @@
 #include <server/security_server/public.h>
 
 #include <server/cypress_server/public.h>
-
-#include <array>
 
 namespace NYT {
 namespace NObjectServer {
@@ -80,8 +80,8 @@ public:
     //! Returns the handler for a given object.
     IObjectTypeHandlerPtr GetHandler(TObjectBase* object) const;
 
-    //! Returns the list of registered object types, excluding schemas.
-    const std::vector<EObjectType> GetRegisteredTypes() const;
+    //! Returns the set of registered object types, excluding schemas.
+    const std::set<EObjectType>& GetRegisteredTypes() const;
 
     //! Creates a new unique object id.
     TObjectId GenerateId(EObjectType type);
@@ -186,6 +186,13 @@ public:
     //! Advices a client to yield if it spent a lot of time already.
     bool AdviceYield(TInstant startTime) const;
 
+    //! Validates prerequisites, throws on failure.
+    void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);
+
+    NProfiling::TProfiler& GetProfiler();
+    NProfiling::TTagId GetTypeTagId(EObjectType type);
+    NProfiling::TTagId GetMethodTagId(const Stroka& method);
+
     DECLARE_ENTITY_MAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
 
 private:
@@ -203,13 +210,13 @@ private:
     struct TTypeEntry
     {
         IObjectTypeHandlerPtr Handler;
-        std::unique_ptr<TSchemaObject> SchemaObject;
+        TSchemaObject* SchemaObject = nullptr;
         IObjectProxyPtr SchemaProxy;
         NProfiling::TTagId TagId;
     };
 
-    std::vector<EObjectType> RegisteredTypes_;
-    std::array<TTypeEntry, NObjectClient::MaxObjectType> TypeToEntry_;
+    std::set<EObjectType> RegisteredTypes_;
+    TEnumIndexedVector<TTypeEntry, EObjectType, MinObjectType, MaxObjectType> TypeToEntry_;
 
     yhash_map<Stroka, NProfiling::TTagId> MethodToTag_;
 
@@ -230,18 +237,22 @@ private:
     i64 DestroyedObjectCount_ = 0;
     int LockedObjectCount_ = 0;
 
+    //! Stores schemas (for serialization mostly).
+    NHydra::TEntityMap<TObjectId, TSchemaObject> SchemaMap_;
+
     //! Stores deltas from parent transaction.
     NHydra::TEntityMap<TVersionedObjectId, TAttributeSet> AttributeMap_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
     void SaveKeys(NCellMaster::TSaveContext& context) const;
     void SaveValues(NCellMaster::TSaveContext& context) const;
-    void SaveSchemas(NCellMaster::TSaveContext& context) const;
 
     virtual void OnBeforeSnapshotLoaded() override;
     void LoadKeys(NCellMaster::TLoadContext& context);
     void LoadValues(NCellMaster::TLoadContext& context);
+    // COMPAT(babenko)
     void LoadSchemas(NCellMaster::TLoadContext& context);
 
     virtual void OnRecoveryStarted() override;
@@ -253,24 +264,15 @@ private:
     virtual void OnLeaderActive() override;
     virtual void OnStopLeading() override;
 
-    void InterceptProxyInvocation(
-        TObjectProxyBase* proxy,
-        NRpc::IServiceContextPtr context);
-    void ExecuteMutatingRequest(
+    void HydraExecuteLeader(
         const NSecurityServer::TUserId& userId,
         const NRpc::TMutationId& mutationId,
         NRpc::IServiceContextPtr context);
-
-    void HydraExecute(const NProto::TReqExecute& request);
+    void HydraExecuteFollower(const NProto::TReqExecute& request);
     void HydraDestroyObjects(const NProto::TReqDestroyObjects& request);
-
-    NProfiling::TTagId GetTypeTagId(EObjectType type);
-    NProfiling::TTagId GetMethodTagId(const Stroka& method);
 
     void OnProfiling();
 
-
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectManager)

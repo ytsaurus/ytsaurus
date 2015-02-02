@@ -114,16 +114,17 @@ private:
 
     void OnResponse(
         TPeerId peerId,
-        THydraServiceProxy::TRspLookupChangelogPtr rsp)
+        const THydraServiceProxy::TErrorOrRspLookupChangelogPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (!rsp->IsOK()) {
-            LOG_WARNING(rsp->GetError(), "Error looking up changelog at peer %v",
+        if (!rspOrError.IsOK()) {
+            LOG_WARNING(rspOrError, "Error looking up changelog at peer %v",
                 peerId);
             return;
         }
 
+        const auto& rsp = rspOrError.Value();
         LOG_INFO("Found changelog %v on peer %v with %v record(s)",
             ChangelogInfo.ChangelogId,
             peerId,

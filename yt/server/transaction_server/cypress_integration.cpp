@@ -35,7 +35,7 @@ INodeTypeHandlerPtr CreateTransactionMapTypeHandler(TBootstrap* bootstrap)
         bootstrap,
         EObjectType::TransactionMap,
         service,
-        EVirtualNodeOptions(EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf));
+        EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,7 +93,7 @@ INodeTypeHandlerPtr CreateTopmostTransactionMapTypeHandler(TBootstrap* bootstrap
         bootstrap,
         EObjectType::TopmostTransactionMap,
         service,
-        EVirtualNodeOptions(EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf));
+        EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

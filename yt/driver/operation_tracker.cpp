@@ -104,7 +104,7 @@ void TOperationTracker::DumpProgress()
 {
     auto operationPath = GetOperationPath(OperationId);
 
-    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel(NApi::EMasterChannelKind::Leader));
     auto batchReq = proxy.ExecuteBatch();
 
     {
@@ -117,20 +117,23 @@ void TOperationTracker::DumpProgress()
         batchReq->AddRequest(req, "get_progress");
     }
 
-    auto batchRsp = batchReq->Invoke().Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting operation progress");
+    auto batchRspOrError = batchReq->Invoke().Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting operation progress");
+    const auto& batchRsp = batchRspOrError.Value();
 
     EOperationState state;
     {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_state");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation state");
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_state");
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting operation state");
+        const auto& rsp = rspOrError.Value();
         state = ConvertTo<EOperationState>(TYsonString(rsp->value()));
     }
 
     TYsonString progress;
     {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_progress");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation progress");
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_progress");
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting operation progress");
+        const auto& rsp = rspOrError.Value();
         progress = TYsonString(rsp->value());
     }
 
@@ -151,7 +154,7 @@ void TOperationTracker::DumpResult()
     auto operationPath = GetOperationPath(OperationId);
     auto jobsPath = GetJobsPath(OperationId);
 
-    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel(NApi::EMasterChannelKind::Leader));
     auto batchReq = proxy.ExecuteBatch();
 
     {
@@ -171,7 +174,7 @@ void TOperationTracker::DumpResult()
     {
         auto req = TYPathProxy::Get(jobsPath);
         auto* attributeFilter = req->mutable_attribute_filter();
-        attributeFilter->set_mode(EAttributeFilterMode::MatchingOnly);
+        attributeFilter->set_mode(static_cast<int>(EAttributeFilterMode::MatchingOnly));
         attributeFilter->add_keys("job_type");
         attributeFilter->add_keys("state");
         attributeFilter->add_keys("address");
@@ -179,25 +182,32 @@ void TOperationTracker::DumpResult()
         batchReq->AddRequest(req, "get_jobs");
     }
 
-    auto batchRsp = batchReq->Invoke().Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting operation result");
+    auto batchRspOrError = batchReq->Invoke().Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting operation result");
+    const auto& batchRsp = batchRspOrError.Value();
     {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_result");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation result");
-        auto resultNode = ConvertToNode(TYsonString(rsp->value()));
-        auto error = ConvertTo<TError>(GetNodeByYPath(resultNode, "/error"));
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        {
+            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_result");
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting operation result");
+            const auto& rsp = rspOrError.Value();
+            auto resultNode = ConvertToNode(TYsonString(rsp->value()));
+            auto error = ConvertTo<TError>(GetNodeByYPath(resultNode, "/error"));
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        }
+
         TInstant startTime;
         {
-            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_start_time");
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation start time");
+            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_start_time");
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting operation start time");
+            const auto& rsp = rspOrError.Value();
             startTime = ConvertTo<TInstant>(TYsonString(rsp->value()));
         }
 
         TInstant endTime;
         {
-            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_finish_time");
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation finish time");
+            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_finish_time");
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting operation finish time");
+            const auto& rsp = rspOrError.Value();
             endTime = ConvertTo<TInstant>(TYsonString(rsp->value()));
         }
         TDuration duration = endTime - startTime;
@@ -206,14 +216,14 @@ void TOperationTracker::DumpResult()
     }
 
     {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_jobs");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation jobs info");
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_jobs");
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting operation jobs info");
+        const auto& rsp = rspOrError.Value();
 
-        size_t jobTypeCount = EJobType::GetDomainSize();
-        std::vector<int> totalJobCount(jobTypeCount);
-        std::vector<int> completedJobCount(jobTypeCount);
-        std::vector<int> failedJobCount(jobTypeCount);
-        std::vector<int> abortedJobCount(jobTypeCount);
+        TEnumIndexedVector<int, EJobType> totalJobCount;
+        TEnumIndexedVector<int, EJobType> completedJobCount;
+        TEnumIndexedVector<int, EJobType> failedJobCount;
+        TEnumIndexedVector<int, EJobType> abortedJobCount;
 
         auto jobs = ConvertToNode(TYsonString(rsp->value()))->AsMap();
         if (jobs->GetChildCount() == 0) {
@@ -226,9 +236,7 @@ void TOperationTracker::DumpResult()
             auto jobId = TJobId::FromString(pair.first);
             auto job = pair.second->AsMap();
 
-            auto jobType = static_cast<int>(job->Attributes().Get<EJobType>("job_type"));
-            YCHECK(jobType >= 0 && jobType < jobTypeCount);
-
+            auto jobType = job->Attributes().Get<EJobType>("job_type");
             auto jobState = job->Attributes().Get<EJobState>("state");
             ++totalJobCount[jobType];
             switch (jobState) {
@@ -253,7 +261,7 @@ void TOperationTracker::DumpResult()
 
         printf("\n");
         printf("%-16s %10s %10s %10s %10s\n", "Job type", "Total", "Completed", "Failed", "Aborted");
-        for (int jobType = 0; jobType < jobTypeCount; ++jobType) {
+        for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
             if (totalJobCount[jobType] > 0) {
                 printf("%-16s %10d %10d %10d %10d\n",
                     ~ToString(EJobType(jobType)),
@@ -293,26 +301,29 @@ void TOperationTracker::DumpResult()
 EOperationType TOperationTracker::GetOperationType(const TOperationId& operationId)
 {
     auto operationPath = GetOperationPath(OperationId);
-    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel(NApi::EMasterChannelKind::Leader));
     auto req = TYPathProxy::Get(operationPath + "/@operation_type");
-    auto rsp = proxy.Execute(req).Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation type");
+    auto rspOrError = proxy.Execute(req).Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting operation type");
+    const auto& rsp = rspOrError.Value();
     return ConvertTo<EOperationType>(TYsonString(rsp->value()));
 }
 
 bool TOperationTracker::CheckFinished()
 {
-    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel(NApi::EMasterChannelKind::Leader));
     auto operationPath = GetOperationPath(OperationId);
     auto req = TYPathProxy::Get(operationPath + "/@state");
-    auto rsp = proxy.Execute(req).Get();
-    if (rsp->IsOK()) {
-        auto state = ConvertTo<EOperationState>(TYsonString(rsp->value()));
-        if (IsOperationFinished(state)) {
-            return true;
-        }
+    auto rspOrError = proxy.Execute(req).Get();
+    if (!rspOrError.IsOK()) {
+        return false;
     }
-    return false;
+    const auto& rsp = rspOrError.Value();
+    auto state = ConvertTo<EOperationState>(TYsonString(rsp->value()));
+    if (!IsOperationFinished(state)) {
+        return false;
+    }
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

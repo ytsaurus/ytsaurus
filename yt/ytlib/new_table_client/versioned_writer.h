@@ -22,8 +22,8 @@ struct IVersionedWriter
     //! Enqueues more rows into the writer.
     /*!
      *  Value ids must correspond to column indexes in schema.
-     *  Values must be sorted in ascending order by ids, and then in descending order by timestamps.
-     *  
+     *  The rows must be canonically sorted (see TVersionedRow).
+     *
      *  If |false| is returned then the writer is overflowed (but the data is nevertheless accepted)
      *  The caller must wait for asynchronous flag provided by #GetReadyEvent to become set.
      *  The latter may indicate an error occurred while fetching more data.

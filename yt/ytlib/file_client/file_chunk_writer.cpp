@@ -43,12 +43,12 @@ TFileChunkWriterFacade* TFileChunkWriter::GetFacade()
     return nullptr;
 }
 
-TAsyncError TFileChunkWriter::GetReadyEvent()
+TFuture<void> TFileChunkWriter::GetReadyEvent()
 {
     State.StartOperation();
 
     auto this_ = MakeStrong(this);
-    EncodingWriter->GetReadyEvent().Subscribe(BIND([=](TError error){
+    EncodingWriter->GetReadyEvent().Subscribe(BIND([=](const TError& error){
         this_->State.FinishOperation(error);
     }));
 
@@ -70,7 +70,7 @@ void TFileChunkWriter::FlushBlock()
     ++BlockCount;
 }
 
-TAsyncError TFileChunkWriter::Close()
+TFuture<void> TFileChunkWriter::Close()
 {
     YCHECK(!State.IsClosed());
 
@@ -85,14 +85,14 @@ TAsyncError TFileChunkWriter::Close()
     return State.GetOperationError();
 }
 
-void TFileChunkWriter::OnFinalBlocksWritten(TError error)
+void TFileChunkWriter::OnFinalBlocksWritten(const TError& error)
 {
     if (!error.IsOK()) {
         State.FinishOperation(error);
         return;
     }
 
-    Meta.set_type(EChunkType::File);
+    Meta.set_type(static_cast<int>(EChunkType::File));
     Meta.set_version(FormatVersion);
 
     SetProtoExtension(Meta.mutable_extensions(), BlocksExt);
@@ -100,14 +100,15 @@ void TFileChunkWriter::OnFinalBlocksWritten(TError error)
     MiscExt.set_uncompressed_data_size(EncodingWriter->GetUncompressedSize());
     MiscExt.set_compressed_data_size(EncodingWriter->GetCompressedSize());
     MiscExt.set_meta_size(Meta.ByteSize());
-    MiscExt.set_compression_codec(Options->CompressionCodec);
+    MiscExt.set_compression_codec(static_cast<int>(Options->CompressionCodec));
 
     SetProtoExtension(Meta.mutable_extensions(), MiscExt);
 
     auto this_ = MakeStrong(this);
     ChunkWriter->Close(Meta).Subscribe(BIND([=] (const TError& error) {
         // ToDo(psushin): more verbose diagnostic.
-        this_->State.Finish(error);
+        UNUSED(this_);
+        State.Finish(error);
     }));
 }
 

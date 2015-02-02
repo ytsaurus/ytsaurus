@@ -19,6 +19,8 @@ from tornado import ioloop
 from tornado import gen
 from tornado import tcpclient
 from tornado import options
+from tornado import httputil
+
 
 try:
     from raven.handlers.logging import SentryHandler
@@ -38,6 +40,7 @@ import sys
 import gzip
 import StringIO
 import collections
+import random
 
 
 DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
@@ -95,6 +98,9 @@ class EventLog(object):
             row_count = self.yt.get(self._row_count_attr)
             return row_count + first_row
 
+    def get_archive_row_count(self):
+        return self.yt.get(self._number_of_first_row_attr)
+
     def get_data(self, begin, count):
         with self.yt.Transaction():
             rows_removed = self.yt.get(self._number_of_first_row_attr)
@@ -123,20 +129,19 @@ class EventLog(object):
             raise EventLog.NotEnoughDataError("Not enough data. Got only {0} rows".format(len(result)))
         return result
 
-    def archive(self, count=None):
-        try:
-            self.log.debug("Archive table has %d rows", self.yt.get(self._archive_row_count_attr))
-        except Exception:
-            pass
-
-        self.log.info("%s rows has been requested to archive", count)
+    def archive(self, count):
+        self._check_invariant()
 
         desired_chunk_size = 2 * 1024 ** 3
         approximate_gzip_compression_ratio = 0.137
         data_size_per_job = max(1, int(desired_chunk_size / approximate_gzip_compression_ratio))
 
-        count = count or self.yt.get(self._row_count_attr)
         self.log.info("Archive %s rows from event log", count)
+        if count == 0:
+            self.log.warning("Do not archive 0 rows. Exit")
+            return
+
+        assert count > 0
 
         partition = table.TablePath(
             self._table_name,
@@ -158,7 +163,7 @@ class EventLog(object):
         while not finished:
             try:
                 with self.yt.Transaction():
-                    self.log.info("Run merge...")
+                    self.log.info("Run merge; source table: %s", partition.get_json())
                     self.yt.run_merge(
                         source_table=partition,
                         destination_table=table.TablePath(self._archive_table_name, append=True),
@@ -188,14 +193,13 @@ class EventLog(object):
                 tries += 1
                 backoff_time = min(backoff_time * 2, 600)
 
-        self.log.info("Truncate event log...")
-
         tries = 0
         finished = False
         backoff_time = 5
         while not finished:
             try:
                 with self.yt.Transaction():
+                    self.log.info("Truncate %d rows from event log...", count)
                     first_row = self.yt.get(self._number_of_first_row_attr)
                     first_row += count
                     self.yt.run_erase(partition)
@@ -213,10 +217,22 @@ class EventLog(object):
                 tries += 1
                 backoff_time = min(backoff_time * 2, 600)
 
+        self._check_invariant()
+
+
+    def _check_invariant(self):
         try:
-            self.log.debug("Archive table has %d rows", self.yt.get(self._archive_row_count_attr))
+            archive_row_count = self.yt.get(self._archive_row_count_attr)
+            self.log.debug("Archive table has %d rows", archive_row_count)
+        except Exception:
+            archive_row_count = 0
+
+        try:
+            number_of_first_row = self.yt.get(self._number_of_first_row_attr)
+            self.log.debug("Number of first row: %d", number_of_first_row)
         except Exception:
             pass
+        assert number_of_first_row == archive_row_count
 
     def initialize(self):
         with self.yt.Transaction():
@@ -520,6 +536,7 @@ class SessionStream(object):
     def __init__(self, service_id, source_id, logtype=None, io_loop=None, connection_factory=None):
         self._id = None
         self._attributes = None
+        self._session_response = None
         self._iostream = None
 
         self._logtype = logtype
@@ -536,7 +553,9 @@ class SessionStream(object):
         if timeout is None:
             timeout = self.SESSION_TIMEOUT
 
-        while True:
+        tries = 0
+        backoff_time = 1.0
+        while tries < 10:
             try:
                 self.log.info("Create a session. Endpoint: %s. Service id: %s. Source id: %s", endpoint, self._service_id, self._source_id)
 
@@ -568,7 +587,10 @@ class SessionStream(object):
                     )
 
                 self.log.debug("Parse response %s", metadata_raw)
-                self.parse_metadata(metadata_raw[:-4])
+                self._parse_response(metadata_raw[:-4])
+
+                if self._session_response.code != 200:
+                    raise RuntimeError("Bad response. Reponse: %r", self._session_response)
 
                 if not "seqno" in self._attributes:
                     self.log.error("There is no seqno header in session response")
@@ -580,27 +602,36 @@ class SessionStream(object):
                 self._id = self._attributes["session"]
 
                 raise gen.Return(self._id)
-            except (IOError, BadProtocolError, gen.TimeoutError):
+            except (RuntimeError, BadProtocolError, gen.TimeoutError):
                 self.log.error("Error occured. Try reconnect...", exc_info=True)
-                yield sleep_future(1.0, self._io_loop)
+                self.stop()
+
+                yield sleep_future(backoff_time + random.random() * 2, self._io_loop)
+                tries += 1
+                backoff_time = max(backoff_time * 2, 300)
             except gen.Return:
                 raise
             except:
                 self.log.error("Unhandled exception", exc_info=True)
                 self.stop()
                 raise
+        raise RuntimeError("Unable to create session; %d tries", tries)
 
     def stop(self):
         if self._iostream is not None:
             self._iostream.close()
             self._iostream = None
 
-    def parse_metadata(self, data):
+    def _parse_response(self, data):
         attributes = {}
+        session_response = None
         for index, line in enumerate(data.split("\n")):
             if index > 0:
                 key, value = line.split(":", 1)
                 attributes[key.strip().lower()] = value.strip()
+            else:
+                session_response = httputil.parse_response_start_line(line)
+        self._session_response = session_response
         self._attributes = attributes
 
     def get_attribute(self, name):
@@ -752,9 +783,10 @@ class Application(object):
 
     def __init__(self, proxy_path, logbroker_url, table_name,
                  service_id, source_id,
-                 cluster_name, log_name):
+                 cluster_name, log_name,
+                 chunk_size):
         self._last_acked_seqno = None
-        self._chunk_size = 4000
+        self._chunk_size = chunk_size
         self._logbroker_url = logbroker_url
 
         self._service_id = service_id
@@ -863,10 +895,12 @@ def get_last_seqno(**kwargs):
 
 def main(proxy_path, table_name, logbroker_url,
          service_id, source_id,
-         cluster_name, log_name, **kwargs):
+         cluster_name, log_name,
+         chunk_size, **kwargs):
     app = Application(proxy_path, logbroker_url, table_name,
                       service_id, source_id,
-                      cluster_name, log_name)
+                      cluster_name, log_name,
+                      chunk_size)
     app.start()
 
 
@@ -902,12 +936,18 @@ def init(table_name, proxy_path, **kwargs):
     event_log.initialize()
 
 
-def archive(table_name, proxy_path, **kwargs):
+def archive(table_name, proxy_path, logbroker_url, service_id, source_id, **kwargs):
     set_proxy(proxy_path)
+    last_seqno = get_last_seqno(logbroker_url=logbroker_url, service_id=service_id, source_id=source_id)
     event_log = EventLog(client.Yt(proxy_path), table_name=table_name)
-    count = kwargs.get("count", None)
-    if count is not None:
-        count = int(count)
+    archive_row_count = event_log.get_archive_row_count()
+
+    max_count = last_seqno - archive_row_count
+
+    count = int(kwargs.get("count", max_count))
+    if count > max_count:
+        count = max_count
+
     event_log.archive(count)
 
 

@@ -46,6 +46,7 @@ public:
         const NVersionedTableClient::TOwningKey& minKey,
         const NVersionedTableClient::TOwningKey& maxKey);
 
+    bool IsDynamic() const;
     bool HasMountedTablets() const;
 
 };

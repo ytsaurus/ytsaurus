@@ -127,8 +127,8 @@ struct TSnapshotHeader
     ui64 CompressedLength = 0;
     ui64 UncompressedLength = 0;
     ui64 Checksum = 0;
-    i32 Codec = NCompression::ECodec::None;
-    i32 MetaSize;
+    NCompression::ECodec Codec = NCompression::ECodec::None;
+    i32 MetaSize = 0;
 };
 
 static_assert(sizeof(TSnapshotHeader) == 44, "Binary size of TSnapshotHeader has changed.");

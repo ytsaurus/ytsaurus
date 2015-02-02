@@ -9,7 +9,7 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static PER_THREAD IScheduler* CurrentScheduler = nullptr;
+PER_THREAD IScheduler* CurrentScheduler = nullptr;
 
 IScheduler* GetCurrentScheduler()
 {
@@ -59,27 +59,6 @@ void SwitchTo(IInvokerPtr invoker)
     GetCurrentScheduler()->SwitchTo(std::move(invoker));
 }
 
-void WaitFor(TFuture<void> future, IInvokerPtr invoker)
-{
-    YASSERT(future);
-    YASSERT(invoker);
-
-    if (future.IsCanceled()) {
-        throw TFiberCanceledException();
-    }
-
-    auto* scheduler = TryGetCurrentScheduler();
-    if (scheduler) {
-        scheduler->WaitFor(std::move(future), std::move(invoker));
-    } else {
-        // If we call WaitFor from a fiber-unfriendly thread, we fallback to blocking wait.
-        YCHECK(invoker == GetCurrentInvoker());
-        YCHECK(invoker == GetSyncInvoker());
-        future.Get();
-    }
-}
-
-
 void SubscribeContextSwitched(TClosure callback)
 {
     GetCurrentScheduler()->SubscribeContextSwitched(std::move(callback));
@@ -105,6 +84,31 @@ TContextSwitchedGuard::~TContextSwitchedGuard()
     if (Callback_) {
         UnsubscribeContextSwitched(Callback_);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void UninterruptableWaitFor(TFuture<void> future)
+{
+    UninterruptableWaitFor(std::move(future), GetCurrentInvoker());
+}
+
+void UninterruptableWaitFor(TFuture<void> future, IInvokerPtr invoker)
+{
+    YASSERT(future);
+    YASSERT(invoker);
+
+    auto* scheduler = TryGetCurrentScheduler();
+    if (scheduler) {
+        scheduler->UninterruptableWaitFor(future, std::move(invoker));
+    } else {
+        // When called from a fiber-unfriendly context, we fallback to blocking wait.
+        YCHECK(invoker == GetCurrentInvoker());
+        YCHECK(invoker == GetSyncInvoker());
+        future.Get();
+    }
+
+    YASSERT(future.IsSet());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

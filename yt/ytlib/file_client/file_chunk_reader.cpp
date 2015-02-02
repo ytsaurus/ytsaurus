@@ -14,6 +14,7 @@ namespace NYT {
 namespace NFileClient {
 
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 
 static const auto& Logger = FileClientLogger;
 
@@ -36,7 +37,7 @@ TFileChunkReader::TFileChunkReader(
     , Logger(FileClientLogger)
 { }
 
-TAsyncError TFileChunkReader::AsyncOpen()
+TFuture<void> TFileChunkReader::AsyncOpen()
 {
     State.StartOperation();
 
@@ -50,10 +51,10 @@ TAsyncError TFileChunkReader::AsyncOpen()
     return State.GetOperationError();
 }
 
-void TFileChunkReader::OnGotMeta(NChunkClient::IChunkReader::TGetMetaResult result)
+void TFileChunkReader::OnGotMeta(const TErrorOr<TChunkMeta>& metaOrError)
 {
-    if (!result.IsOK()) {
-        auto error = TError("Failed to get file chunk meta") << result;
+    if (!metaOrError.IsOK()) {
+        auto error = TError("Failed to get file chunk meta") << metaOrError;
         LOG_WARNING(error);
         State.Fail(error);
         return;
@@ -61,21 +62,22 @@ void TFileChunkReader::OnGotMeta(NChunkClient::IChunkReader::TGetMetaResult resu
 
     LOG_INFO("Chunk meta received");
 
-    const auto& chunkMeta = result.Value();
-
-    if (chunkMeta.type() != EChunkType::File) {
+    const auto& meta = metaOrError.Value();
+    
+    auto type = EChunkType(meta.type());
+    if (type != EChunkType::File) {
         auto error = TError("Invalid chunk type: expected %Qlv, actual %Qlv",
-            EChunkType(EChunkType::File),
-            EChunkType(chunkMeta.type()));
+            EChunkType::File,
+            type);
         LOG_WARNING(error);
         State.Fail(error);
         return;
     }
 
-    if (chunkMeta.version() != FormatVersion) {
+    if (meta.version() != FormatVersion) {
         auto error = TError("Invalid file chunk format version: expected %v, actual %v",
             FormatVersion,
-            chunkMeta.version());
+            meta.version());
         LOG_WARNING(error);
         State.Fail(error);
         return;
@@ -84,7 +86,7 @@ void TFileChunkReader::OnGotMeta(NChunkClient::IChunkReader::TGetMetaResult resu
     std::vector<TSequentialReader::TBlockInfo> blockSequence;
 
     // COMPAT(psushin): new file chunk meta!
-    auto fileBlocksExt = FindProtoExtension<NFileClient::NProto::TBlocksExt>(chunkMeta.extensions());
+    auto fileBlocksExt = FindProtoExtension<NFileClient::NProto::TBlocksExt>(meta.extensions());
 
     i64 selectedSize = 0;
     int blockIndex = 0;
@@ -115,7 +117,7 @@ void TFileChunkReader::OnGotMeta(NChunkClient::IChunkReader::TGetMetaResult resu
         }
     } else {
         // Old chunk.
-        auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkMeta.extensions());
+        auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta.extensions());
         blockCount = blocksExt.blocks_size();
 
         blockSequence.reserve(blockCount);
@@ -152,7 +154,7 @@ void TFileChunkReader::OnGotMeta(NChunkClient::IChunkReader::TGetMetaResult resu
 
 }
 
-void TFileChunkReader::OnNextBlock(TError error)
+void TFileChunkReader::OnNextBlock(const TError& error)
 {
     if (!error.IsOK()) {
         auto wrappedError = TError("Failed to fetch file block") << error;
@@ -183,7 +185,7 @@ bool TFileChunkReader::FetchNext()
     }
 }
 
-TAsyncError TFileChunkReader::GetReadyEvent()
+TFuture<void> TFileChunkReader::GetReadyEvent()
 {
     return State.GetOperationError();
 }

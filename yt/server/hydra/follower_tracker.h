@@ -40,14 +40,14 @@ private:
 
     std::vector<EPeerState> PeerStates_;
     int ActivePeerCount_ = 0;
-    TPromise<void> ActiveQuorumPromise_ = NewPromise();
+    TPromise<void> ActiveQuorumPromise_ = NewPromise<void>();
 
     NLog::TLogger Logger;
 
 
     void SendPing(TPeerId followerId);
     void SchedulePing(TPeerId followerId);
-    void OnPingResponse(TPeerId followerId, THydraServiceProxy::TRspPingFollowerPtr rsp);
+    void OnPingResponse(TPeerId followerId, const THydraServiceProxy::TErrorOrRspPingFollowerPtr& rspOrError);
     
     void SetFollowerState(TPeerId followerId, EPeerState state);
     void OnPeerActivated();

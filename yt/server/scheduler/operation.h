@@ -99,7 +99,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TSharedRef, Snapshot);
 
     //! Gets set when the operation is started.
-    TFuture<TOperationStartResult> GetStarted();
+    TFuture<TOperationPtr> GetStarted();
 
     //! Set operation start result.
     void SetStarted(const TError& error);
@@ -132,8 +132,8 @@ public:
         bool suspended = false);
 
 private:
-    std::array<TStatistics, 3> Statistics;
-    TPromise<TError> StartedPromise;
+    TEnumIndexedVector<TStatistics, EJobFinalState> Statistics;
+    TPromise<void> StartedPromise;
     TPromise<void> FinishedPromise;
 
 };

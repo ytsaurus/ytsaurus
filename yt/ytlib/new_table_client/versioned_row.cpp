@@ -6,6 +6,8 @@
 
 #include <numeric>
 
+#include <core/logging/log.h> // FIXME(babenko): remove this
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -168,6 +170,54 @@ bool operator != (TVersionedRow lhs, TVersionedRow rhs)
     return !(lhs == rhs);
 }
 
+Stroka ToString(TVersionedRow row)
+{
+    if (!row) {
+        return "<Null>";
+    }
+
+    TStringBuilder builder;
+    builder.AppendChar('[');
+    for (int index = 0; index < row.GetKeyCount(); ++index) {
+        if (index > 0) {
+            builder.AppendString(STRINGBUF(", "));
+        }
+        const auto& value = row.BeginKeys()[index];
+        builder.AppendString(ToString(value));
+    }
+    builder.AppendChar('|');
+    for (int index = 0; index < row.GetValueCount(); ++index) {
+        if (index > 0) {
+            builder.AppendString(STRINGBUF(", "));
+        }
+        const auto& value = row.BeginValues()[index];
+        builder.AppendFormat("%v#%v",
+            value.Id,
+            value);
+    }
+    builder.AppendChar('|');
+    for (int index = 0; index < row.GetWriteTimestampCount(); ++index) {
+        if (index > 0) {
+            builder.AppendString(STRINGBUF(", "));
+        }
+        builder.AppendFormat("%v", row.BeginWriteTimestamps()[index]);
+    }
+    builder.AppendChar('|');
+    for (int index = 0; index < row.GetDeleteTimestampCount(); ++index) {
+        if (index > 0) {
+            builder.AppendString(STRINGBUF(", "));
+        }
+        builder.AppendFormat("%v", row.BeginDeleteTimestamps()[index]);
+    }
+    builder.AppendChar(']');
+    return builder.Flush();
+}
+
+Stroka ToString(const TVersionedOwningRow& row)
+{
+    return ToString(row.Get());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TVersionedRowBuilder::TVersionedRowBuilder(TRowBuffer* buffer)
@@ -203,10 +253,10 @@ TVersionedRow TVersionedRowBuilder::FinishRow()
                 return false;
             }
             if (lhs.Timestamp < rhs.Timestamp) {
-                return true;
+                return false;
             }
             if (lhs.Timestamp > rhs.Timestamp) {
-                return false;
+                return true;
             }
             return false;
         });
@@ -296,6 +346,15 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+static NLog::TLogger Logger("MAGIC");
+
+void Magic(const TStringBuf& what, TVersionedRow row)
+{
+    if (row && row.GetKeyCount() >= 2 && row.BeginKeys()[1].Type == EValueType::Int64 && row.BeginKeys()[1].Data.Int64 % 256 == 3) {
+        LOG_DEBUG("%v %v", what, row);
+    }
+}
 
 } // namespace NVersionedTableClient
 } // namespace NYT

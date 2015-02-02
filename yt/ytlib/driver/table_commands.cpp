@@ -76,7 +76,7 @@ void TReadTableCommand::DoExecute()
 
     auto reader = New<TAsyncTableReader>(
         config,
-        Context_->GetClient()->GetMasterChannel(),
+        Context_->GetClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
         Context_->GetClient()->GetConnection()->GetCompressedBlockCache(),
         Context_->GetClient()->GetConnection()->GetUncompressedBlockCache(),
@@ -144,7 +144,7 @@ void TWriteTableCommand::DoExecute()
 
     auto writer = CreateAsyncTableWriter(
         config,
-        Context_->GetClient()->GetMasterChannel(),
+        Context_->GetClient()->GetMasterChannel(EMasterChannelKind::Leader),
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
         Context_->GetClient()->GetTransactionManager(),
         Request_->Path,
@@ -152,7 +152,7 @@ void TWriteTableCommand::DoExecute()
 
     writer->Open();
 
-    TTableConsumer consumer(writer);
+    TLegacyTableConsumer consumer(writer);
 
     auto format = Context_->GetInputFormat();
     auto parser = CreateParserForFormat(format, EDataType::Tabular, &consumer);
@@ -274,9 +274,8 @@ void TInsertCommand::DoExecute()
         Request_->GetOptions());
 
     auto tableMountCache = Context_->GetClient()->GetConnection()->GetTableMountCache();
-    auto tableInfoOrError = WaitFor(tableMountCache->GetTableInfo(Request_->Path.GetPath()));
-    THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
-    const auto& tableInfo = tableInfoOrError.Value();
+    auto tableInfo = WaitFor(tableMountCache->GetTableInfo(Request_->Path.GetPath()))
+        .ValueOrThrow();
 
     // Parse input data.
     TBuildingTableConsumer consumer(
@@ -348,11 +347,14 @@ void TSelectCommand::DoExecute()
     const auto& statistics = queryStatisticsOrError.Value();
     
     LOG_INFO(
-        "Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
+        "Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, ExecuteTime: %v, ReadTime: %v, WriteTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
         statistics.RowsRead,
         statistics.RowsWritten,
         statistics.AsyncTime.MilliSeconds(),
         statistics.SyncTime.MilliSeconds(),
+        statistics.ExecuteTime.MilliSeconds(),
+        statistics.ReadTime.MilliSeconds(),
+        statistics.WriteTime.MilliSeconds(),
         statistics.IncompleteInput,
         statistics.IncompleteOutput);
 
@@ -361,6 +363,9 @@ void TSelectCommand::DoExecute()
         .Item("rows_written").Value(statistics.RowsWritten)
         .Item("async_time").Value(statistics.AsyncTime)
         .Item("sync_time").Value(statistics.SyncTime)
+        .Item("execute_time").Value(statistics.ExecuteTime)
+        .Item("read_time").Value(statistics.ReadTime)
+        .Item("write_time").Value(statistics.WriteTime)
         .Item("incomplete_input").Value(statistics.IncompleteInput)
         .Item("incomplete_output").Value(statistics.IncompleteOutput);
 }

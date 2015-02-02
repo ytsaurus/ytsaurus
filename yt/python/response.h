@@ -17,7 +17,7 @@ class TDriverResponse
 public:
     TDriverResponse(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs);
 
-    void SetResponse(TFuture<NDriver::TDriverResponse> response);
+    void SetResponse(TFuture<void> response);
 
     void OwnInputStream(std::unique_ptr<TInputStreamWrap>& inputStream);
     
@@ -40,7 +40,7 @@ public:
     static void InitType();
 
 private:
-    TFuture<NDriver::TDriverResponse> Response_;
+    TFuture<void> Response_;
 
     std::unique_ptr<TInputStreamWrap> InputStream_;
     std::unique_ptr<TOutputStreamWrap> OutputStream_;

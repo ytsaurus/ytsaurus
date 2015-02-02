@@ -90,7 +90,7 @@ void Deserialize(TColumnSchema& schema, INodePtr node)
 void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
 {
     protoSchema->set_name(schema.Name);
-    protoSchema->set_type(schema.Type);
+    protoSchema->set_type(static_cast<int>(schema.Type));
     if (schema.Lock) {
         protoSchema->set_lock(*schema.Lock);
     }

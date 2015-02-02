@@ -17,7 +17,7 @@ public:
     T Generate();
 
 private:
-    ui64 X;
+    ui64 Current_;
 
     ui64 GenerateInteger();
     double GenerateDouble();

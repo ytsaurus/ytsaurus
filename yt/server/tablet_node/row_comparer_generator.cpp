@@ -56,6 +56,7 @@ public:
 
     void BuildDDComparer(Stroka& functionName);
     void BuildDUComparer(Stroka& functionName);
+    void BuildUUComparer(Stroka& functionName);
 
 private:
     class IValueBuilder;
@@ -177,8 +178,8 @@ public:
         auto* nullKeyBit = Builder_.CreateAnd(
             Builder_.getInt32(1U << index),
             NullKeyMask_);
-        auto* nullType = Builder_.getInt16(EValueType::Null);
-        auto* schemaType = Builder_.getInt16(Builder_.Schema_.Columns()[index].Type);
+        auto* nullType = Builder_.getInt16(static_cast<ui16>(EValueType::Null));
+        auto* schemaType = Builder_.getInt16(static_cast<ui16>(Builder_.Schema_.Columns()[index].Type));
         return Builder_.CreateSelect(
             Builder_.CreateICmpNE(nullKeyBit, Builder_.getInt32(0)),
             nullType,
@@ -365,6 +366,24 @@ void TComparerBuilder::BuildDUComparer(Stroka& functionName)
     CreateRet(lengthDifference);
 }
 
+void TComparerBuilder::BuildUUComparer(Stroka& functionName)
+{
+    Function_ = Function::Create(
+        TypeBuilder<TUUComparerSignature, false>::get(Context_),
+        Function::ExternalLinkage,
+        functionName.c_str(),
+        Module_->GetModule());
+    SetInsertPoint(CreateBB("entry"));
+    auto args = Function_->arg_begin();
+    Value* lhsKeys = args;
+    Value* rhsKeys = ++args;
+    YCHECK(++args == Function_->arg_end());
+    auto lhsBuilder = TUnversionedValueBuilder(*this, lhsKeys);
+    auto rhsBuilder = TUnversionedValueBuilder(*this, rhsKeys);
+    BuildMainLoop(lhsBuilder, rhsBuilder);
+    CreateRet(getInt32(0));
+}
+
 BasicBlock* TComparerBuilder::CreateBB(const Twine& name)
 {
     return BasicBlock::Create(Context_, name, Function_);
@@ -448,7 +467,7 @@ void TComparerBuilder::BuildNullTypeCheck(Value* type)
 {
     auto* falseBB = CreateBB("type.is.not.null");
     CreateCondBr(
-        CreateICmpEQ(type, ConstantInt::get(type->getType(), EValueType(EValueType::Null))),
+        CreateICmpEQ(type, ConstantInt::get(type->getType(), static_cast<int>(EValueType::Null))),
         NextBB_,
         falseBB);
     SetInsertPoint(falseBB);
@@ -492,20 +511,24 @@ void TComparerBuilder::BuildMainLoop(
 
 std::tuple<
     NCodegen::TCGFunction<TDDComparerSignature>,
-    NCodegen::TCGFunction<TDUComparerSignature>>
+    NCodegen::TCGFunction<TDUComparerSignature>,
+    NCodegen::TCGFunction<TUUComparerSignature>>
 GenerateComparers(int keyColumnCount, const TTableSchema& schema)
 {
     auto module = TCGModule::Create(GetComparerRoutineRegistry());
     auto builder = TComparerBuilder(module, keyColumnCount, schema);
     auto ddComparerName = Stroka("DDCompare");
     auto duComparerName = Stroka("DUCompare");
+    auto uuComparerName = Stroka("UUCompare");
 
     builder.BuildDDComparer(ddComparerName);
     builder.BuildDUComparer(duComparerName);
+    builder.BuildUUComparer(uuComparerName);
 
     auto ddComparer = module->GetCompiledFunction<TDDComparerSignature>(ddComparerName);
     auto duComparer = module->GetCompiledFunction<TDUComparerSignature>(duComparerName);
-    return std::tie(ddComparer, duComparer);
+    auto uuComparer = module->GetCompiledFunction<TUUComparerSignature>(uuComparerName);
+    return std::tie(ddComparer, duComparer, uuComparer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,6 +35,7 @@
 #include <server/cell_master/hydra_facade.h>
 
 #include <server/security_server/account.h>
+#include <server/security_server/user.h>
 #include <server/security_server/security_manager.h>
 
 #include <server/hive/transaction_supervisor.h>
@@ -331,6 +332,9 @@ public:
             ->GetHydraManager()
             ->GetMutationContext();
         transaction->SetStartTime(mutationContext->GetTimestamp());
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        transaction->Acd().SetOwner(securityManager->GetRootUser());
 
         if (IsLeader()) {
             CreateLease(transaction);

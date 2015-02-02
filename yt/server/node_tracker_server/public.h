@@ -1,6 +1,5 @@
 #pragma once
 
-#include <core/misc/common.h>
 #include <core/misc/small_vector.h>
 
 #include <ytlib/node_tracker_client/public.h>

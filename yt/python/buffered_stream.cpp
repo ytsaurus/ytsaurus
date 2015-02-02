@@ -13,8 +13,8 @@ TBufferedStream::TBufferedStream(size_t bufferSize)
     , Begin_(Data_.Begin())
     , End_(Data_.Begin())
     , State_(EState::Normal)
-    , AllowWrite_(NewPromise<TError>())
-    , AllowRead_(NewPromise())
+    , AllowWrite_(NewPromise<void>())
+    , AllowRead_(NewPromise<void>())
 { }
 
 TSharedRef TBufferedStream::Read(size_t size)
@@ -37,7 +37,7 @@ TSharedRef TBufferedStream::Read(size_t size)
         {
             wait = true;
             State_ = EState::WaitingData;
-            AllowRead_ = NewPromise();
+            AllowRead_ = NewPromise<void>();
         }
     }
 
@@ -53,8 +53,7 @@ bool TBufferedStream::Empty() const
     return Size_ == 0;
 }
 
-
-void TBufferedStream::Finish(NDriver::TDriverResponse)
+void TBufferedStream::Finish()
 {
     TGuard<TMutex> guard(Mutex_);
 
@@ -70,7 +69,7 @@ void TBufferedStream::Finish(NDriver::TDriverResponse)
     State_ = EState::Finished;
 }
 
-TAsyncError TBufferedStream::Write(const void* buf, size_t len)
+TFuture<void> TBufferedStream::Write(const void* buf, size_t len)
 {
     YCHECK(State_ != EState::Full);
 
@@ -100,12 +99,12 @@ TAsyncError TBufferedStream::Write(const void* buf, size_t len)
             AllowRead_.Set();
         }
 
-        AllowWrite_ = NewPromise<TError>();
+        AllowWrite_ = NewPromise<void>();
         State_ = EState::Full;
 
         return AllowWrite_;
     } else {
-        return OKFuture;
+        return VoidFuture;
     }
 }
 
@@ -129,7 +128,7 @@ TSharedRef TBufferedStream::ExtractChunk(size_t size)
 
     size = std::min(size, static_cast<size_t>(End_ - Begin_));
 
-    TSharedRef result = Data_.Slice(TRef(Begin_, size));
+    auto result = Data_.Slice(TRef(Begin_, size));
     Begin_ += size;
 
     Size_ -= size;

@@ -17,7 +17,7 @@ struct IVersionedLookuper
      *  The result remains valid as long as the lookuper instance lives and
      *  no more #Lookup calls are made.
      */
-    virtual TFuture<TErrorOr<TVersionedRow>> Lookup(TKey key) = 0;
+    virtual TFutureHolder<TVersionedRow> Lookup(TKey key) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IVersionedLookuper)

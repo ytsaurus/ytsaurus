@@ -150,7 +150,7 @@ struct IScalarNode
             /* if-false */ type \
         >::TType TConsumerType; \
         \
-        static const ENodeType::EDomain NodeType; \
+        static const ENodeType NodeType; \
         \
         static NMpl::TCallTraits<type>::TType GetValue(const IConstNodePtr& node) \
         { \

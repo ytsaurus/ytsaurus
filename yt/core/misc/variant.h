@@ -25,6 +25,9 @@ struct TTypeTraits;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template<class T>
+struct TVariantTypeTag {};
+
 //! |boost::variant|-like discriminated union with C++ 11 features.
 template <class... Ts>
 class TVariant
@@ -60,6 +63,17 @@ public:
         >::type
     >
     TVariant(T&& value);
+
+    //! Constructs an instance in-place.
+    template<
+        class T,
+        class... TArgs,
+        class = typename std::enable_if<
+            !std::is_reference<T>::value &&
+            !std::is_same<typename std::decay<T>::type, TVariant<Ts...>>::value
+        >::type
+    >
+    TVariant(TVariantTypeTag<T>, TArgs&&... args);
 
     //! Destroys the instance.
     ~TVariant();
@@ -126,6 +140,9 @@ private:
 
     template <class T>
     void AssignValue(T&& value);
+
+    template <class T, class... TArgs>
+    void EmplaceValue(TArgs&&... args);
 
     void AssignVariant(const TVariant& other);
 

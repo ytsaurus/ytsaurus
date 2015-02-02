@@ -12,10 +12,14 @@
 
 #include <core/concurrency/thread_affinity.h>
 
+#include <ytlib/hydra/hydra_manager.pb.h>
+
 #include <mutex>
 
 namespace NYT {
 namespace NHydra {
+
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,16 +28,6 @@ static const auto& Logger = HydraLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-
-//! Removes #destination if it exists. Then renames #destination into #source.
-void ReplaceFile(const Stroka& source, const Stroka& destination)
-{
-    if (NFS::Exists(destination)) {
-        NFS::Remove(destination);
-    }
-
-    NFS::Rename(source, destination);
-}
 
 template <class T>
 void ValidateSignature(const T& header)
@@ -74,6 +68,7 @@ TNullable<TRecordInfo> ReadRecord(TInput& input)
     TChangelogRecordHeader header;
     readSize += ReadPodPadded(input, header);
     if (!input.Success() || header.DataSize <= 0) {
+        return Null;
     }
 
     struct TSyncChangelogRecordTag { };
@@ -202,7 +197,7 @@ public:
         const Stroka& fileName,
         TFileChangelogConfigPtr config)
         : FileName_(fileName)
-        , IndexFileName_(fileName + "." + ChangelogIndexExtension)
+        , IndexFileName_(fileName + ChangelogIndexSuffix)
         , Config_(config)
         , Logger(HydraLogger)
     {
@@ -243,8 +238,9 @@ public:
         ValidateSignature(header);
 
         // Read meta.
-        Meta_ = TSharedRef::Allocate(header.MetaSize);
-        ReadPadded(*DataFile_, Meta_);
+        SerializedMeta_ = TSharedRef::Allocate(header.MetaSize);
+        ReadPadded(*DataFile_, SerializedMeta_);
+        YCHECK(DeserializeFromProto(&Meta_, SerializedMeta_));
 
         Open_ = true;
         SealedRecordCount_ = header.SealedRecordCount;
@@ -285,7 +281,7 @@ public:
         Open_ = false;
     }
 
-    void Create(const TSharedRef& meta)
+    void Create(const TChangelogMeta& meta)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -296,6 +292,7 @@ public:
         YCHECK(!Open_);
 
         Meta_ = meta;
+        YCHECK(SerializeToProto(Meta_, &SerializedMeta_));
         RecordCount_ = 0;
         Open_ = true;
 
@@ -306,11 +303,11 @@ public:
             TFileWrapper tempFile(tempFileName, WrOnly|CreateAlways);
 
             TChangelogHeader header(
-                Meta_.Size(),
+                SerializedMeta_.Size(),
                 TChangelogHeader::UnsealedRecordCount);
             WritePod(tempFile, header);
 
-            WritePadded(tempFile, Meta_);
+            WritePadded(tempFile, SerializedMeta_);
 
             currentFilePosition = tempFile.GetPosition();
             YCHECK(currentFilePosition == header.HeaderSize);
@@ -318,7 +315,7 @@ public:
             tempFile.Flush();
             tempFile.Close();
 
-            ReplaceFile(tempFileName, FileName_);
+            NFS::Replace(tempFileName, FileName_);
 
             DataFile_ = std::make_unique<TFileWrapper>(FileName_, RdWr);
             DataFile_->Flock(LOCK_EX | LOCK_NB);
@@ -335,7 +332,7 @@ public:
     }
 
 
-    TSharedRef GetMeta() const
+    const TChangelogMeta& GetMeta() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -458,16 +455,16 @@ public:
         }
 
         maxRecords = std::min(maxRecords, RecordCount_ - firstRecordId);
-        int lastRecordId = firstRecordId + maxRecords;
+        int lastRecordId = firstRecordId + maxRecords; // non-inclusive
 
         // Read envelope piece of changelog.
         auto envelope = ReadEnvelope(firstRecordId, lastRecordId, std::min(Index_.back().FilePosition, maxBytes));
 
         // Read records from envelope data and save them to the records.
-        i64 readSize = 0;
+        i64 readBytes = 0;
         TMemoryInput inputStream(envelope.Blob.Begin(), envelope.GetLength());
         for (int recordId = envelope.GetStartRecordId();
-             recordId < envelope.GetEndRecordId();
+             recordId < envelope.GetEndRecordId() && recordId < lastRecordId && readBytes < maxBytes;
              ++recordId)
         {
             // Read and check header.
@@ -480,9 +477,9 @@ public:
             inputStream.Skip(AlignUp(header.DataSize));
 
             // Add data to the records.
-            if (recordId >= firstRecordId && recordId < lastRecordId) {
+            if (recordId >= firstRecordId) {
                 records.push_back(data);
-                readSize += data.Size();
+                readBytes += data.Size();
             }
         }
 
@@ -608,7 +605,7 @@ private:
         tempFile.Flush();
         tempFile.Close();
 
-        ReplaceFile(tempFileName, IndexFileName_);
+        NFS::Replace(tempFileName, IndexFileName_);
 
         IndexFile_ = std::make_unique<TFile>(IndexFileName_, RdWr);
         IndexFile_->Flock(LOCK_EX | LOCK_NB);
@@ -648,7 +645,7 @@ private:
         DataFile_->Flush();
         i64 oldPosition = DataFile_->GetPosition();
         DataFile_->Seek(0, sSet);
-        TChangelogHeader header(Meta_.Size(), SealedRecordCount_);
+        TChangelogHeader header(SerializedMeta_.Size(), SealedRecordCount_);
         WritePod(*DataFile_, header);
         DataFile_->Seek(oldPosition, sSet);
     }
@@ -804,7 +801,8 @@ private:
     i64 CurrentFilePosition_ = -1;
     TInstant LastFlushed_;
 
-    TSharedRef Meta_;
+    TChangelogMeta Meta_;
+    TSharedRef SerializedMeta_;
 
     std::vector<TChangelogIndexRecord> Index_;
 
@@ -851,7 +849,7 @@ void TSyncFileChangelog::Close()
     Impl_->Close();
 }
 
-void TSyncFileChangelog::Create(const TSharedRef& meta)
+void TSyncFileChangelog::Create(const TChangelogMeta& meta)
 {
     Impl_->Create(meta);
 }
@@ -866,7 +864,7 @@ i64 TSyncFileChangelog::GetDataSize() const
     return Impl_->GetDataSize();
 }
 
-TSharedRef TSyncFileChangelog::GetMeta() const
+const TChangelogMeta& TSyncFileChangelog::GetMeta() const
 {
     return Impl_->GetMeta();
 }
@@ -909,18 +907,6 @@ void TSyncFileChangelog::Seal(int recordCount)
 void TSyncFileChangelog::Unseal()
 {
     Impl_->Unseal();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void RemoveChangelogFiles(const Stroka& dataFileName)
-{
-    NFS::Remove(dataFileName);
-
-    auto indexFileName = dataFileName + "." + ChangelogIndexExtension;
-    if (NFS::Exists(indexFileName)) {
-        NFS::Remove(indexFileName);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

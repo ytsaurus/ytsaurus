@@ -6,11 +6,9 @@
 
 #include <core/actions/future.h>
 
-#include <ytlib/hydra/public.h>
-
 #include <ytlib/transaction_client/public.h>
 
-#include <server/hydra/public.h>
+#include <server/hydra/entity_map.h>
 
 namespace NYT {
 namespace NHive {
@@ -18,6 +16,7 @@ namespace NHive {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCommit
+    : public NHydra::TEntityBase
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TTransactionId, TransactionId);

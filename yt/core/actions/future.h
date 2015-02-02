@@ -1,8 +1,9 @@
 #pragma once
 
 #include "public.h"
+#include "callback.h"
+#include "invoker.h"
 
-#include <core/misc/public.h>
 #include <core/misc/nullable.h>
 #include <core/misc/error.h>
 
@@ -10,17 +11,46 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*
+ *  Futures and Promises come in pairs and provide means for one party
+ *  to wait for the result of the computation performed by the other party.
+ *
+ *  TPromise<T> encapsulates the value-returning mechanism while
+ *  TFuture<T> enables the clients to wait for this value.
+ *  The value type is always TErrorOr<T> (which reduces to just TError for |T = void|).
+ *
+ *  TPromise<T> is implicitly convertible to TFuture<T> while the reverse conversion
+ *  is not allowed. This prevents a "malicious" client from setting the value
+ *  by itself.
+ *
+ *  TPromise<T> and TFuture<T> are lightweight refcounted handles pointing to the internal
+ *  shared state. TFuture<T> acts as a weak reference while TPromise<T> acts as
+ *  a strong reference. When no outstanding strong references (i.e. futures) to
+ *  the shared state remain, the state automatically becomes failed
+ *  with NYT::EErrorCode::Canceled error code.
+ *
+ *  Futures and Promises are thread-safe.
+ */
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NDetail {
 
-//! Internal state holding the value.
 template <class T>
 class TPromiseState;
 
-//! Internal state holding the value.
-template <>
-class TPromiseState<void>;
-void Ref(TPromiseState<void>* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
-void Unref(TPromiseState<void>* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
+template <class T>
+void Ref(TPromiseState<T>* state);
+template <class T>
+void Unref(TPromiseState<T>* state);
+
+template <class T>
+class TFutureState;
+
+template <class T>
+void Ref(TFutureState<T>* state);
+template <class T>
+void Unref(TFutureState<T>* state);
 
 } // namespace NDetail
 
@@ -30,77 +60,76 @@ void Unref(TPromiseState<void>* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
 template <class T>
 TPromise<T> NewPromise();
 
-//! Creates an empty (unset) void promise.
-template <>
-TPromise<void> NewPromise<>();
-
-//! Creates an empty (unset) void promise.
-TPromise<void> NewPromise();
-
-//! Constructs a pre-set future.
-template <class T>
-TFuture<typename NMpl::TDecay<T>::TType> MakeFuture(T&& value);
-
-//! Constructs a pre-set void future.
-TFuture<void> MakeFuture();
-
 //! Constructs a pre-set promise.
+// FIXME(babenko): pass by const-ref, pass by rvalue-ref
 template <class T>
-TPromise<typename NMpl::TDecay<T>::TType> MakePromise(T&& value);
+TPromise<T> MakePromise(TErrorOr<T> value);
+template <class T>
+TPromise<T> MakePromise(T value);
 
-//! Constructs a pre-set void promise.
-TPromise<void> MakePromise();
-
-//! Constructs a future that gets set when a given #delay elapses.
-TFuture<void> MakeDelayed(TDuration delay);
-
-// A bunch of widely-used preset futures.
- 
-//! A pre-set |void| future.
-extern TFuture<void> VoidFuture;
-
-//! A pre-set |bool| future with |true| value.
-extern TFuture<bool> TrueFuture;
-
-//! A pre-set |bool| future with |false| value.
-extern TFuture<bool> FalseFuture;
+//! Constructs a successful pre-set future.
+template <class T>
+TFuture<T> MakeFuture(TErrorOr<T> value);
+template <class T>
+TFuture<T> MakeFuture(T value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Represents a read-only view of an asynchronous computation.
-/*
- *  Futures and Promises come in pairs and provide means for one party
- *  to wait for the result of the computation performed by the other party.
- *
- *  TPromise encapsulates the value-returning mechanism while
- *  TFuture enables the clients to wait for this value.
- *
- *  TPromise is implicitly convertible to TFuture while the reverse conversion
- *  is not allowed. This prevents a "malicious" client from setting the value
- *  by itself.
- *
- *  Futures and Promises are thread-safe.
- */
 template <class T>
-class TFuture
+bool operator==(const TFuture<T>& lhs, const TFuture<T>& rhs);
+
+template <class T>
+bool operator!=(const TFuture<T>& lhs, const TFuture<T>& rhs);
+
+template <class T>
+void swap(TFuture<T>& lhs, TFuture<T>& rhs);
+
+template <class T>
+bool operator==(const TPromise<T>& lhs, const TPromise<T>& rhs);
+
+template <class T>
+bool operator!=(const TPromise<T>& lhs, const TPromise<T>& rhs);
+
+template <class T>
+void swap(TPromise<T>& lhs, TPromise<T>& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+// A bunch of widely-used preset futures.
+ 
+//! A pre-set successful |void| future.
+extern const TFuture<void> VoidFuture;
+
+//! A pre-set successful |bool| future with |true| value.
+extern const TFuture<bool> TrueFuture;
+
+//! A pre-set successful |bool| future with |false| value.
+extern const TFuture<bool> FalseFuture;
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+class TFutureBase;
+
+template <class T>
+class TPromiseBase;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A base class for both TFuture<T> and its specialization TFuture<void>.
+template <class T>
+class TFutureBase
 {
 public:
-    typedef T TValueType;
+    using TValueType = T;
 
-    //! Empty constructor.
-    TFuture();
+    //! Creates a null future.
+    TFutureBase() = default;
 
-    //! Empty constructor.
-    TFuture(TNull);
-
-    //! Checks if the future is associated with a state.
+    //! Checks if the future is null.
     explicit operator bool() const;
 
-    //! Drops underlying associated state.
+    //! Drops underlying associated state resetting the future to null.
     void Reset();
-
-    //! Swaps underlying associated state.
-    void Swap(TFuture& other);
 
     //! Checks if the value is set.
     bool IsSet() const;
@@ -112,13 +141,13 @@ public:
     /*!
      *  This call will block until the value is set.
      */
-    const T& Get() const;
+    const TErrorOr<T>& Get() const;
 
     //! Gets the value if set.
     /*!
-     *  This call will not block until the value is set.
+     *  This call does not block.
      */
-    TNullable<T> TryGet() const;
+    TNullable<TErrorOr<T>> TryGet() const;
 
     //! Attaches a result handler.
     /*!
@@ -129,190 +158,119 @@ public:
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.
      */
-    void Subscribe(TCallback<void(const T&)> handler);
-
-    //! Does exactly same thing as its TPromise counterpart.
-    //! Gives the consumer a chance to handle cancelation.
-    void OnCanceled(TClosure handler);
+    void Subscribe(TCallback<void(const TErrorOr<T>&)> handler);
 
     //! Notifies the producer that the promised value is no longer needed.
     //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
     bool Cancel();
-
-    //! Chains the asynchronous computation with another synchronous function.
-    TFuture<void> Apply(TCallback<void(const T&)> mutator);
-    TFuture<void> Apply(TCallback<void(T)> mutator);
-
-    //! Chains the asynchronous computation with another asynchronous function.
-    TFuture<void> Apply(TCallback<TFuture<void>(const T&)> mutator);
-    TFuture<void> Apply(TCallback<TFuture<void>(T)> mutator);
-
-    //! Chains the asynchronous computation with another synchronous function.
-    template <class R>
-    TFuture<R> Apply(TCallback<R(const T&)> mutator);
-    template <class R>
-    TFuture<R> Apply(TCallback<R(T)> mutator);
-
-    //! Chains the asynchronous computation with another asynchronous function.
-    template <class R>
-    TFuture<R> Apply(TCallback<TFuture<R>(const T&)> mutator);
-    template <class R>
-    TFuture<R> Apply(TCallback<TFuture<R>(T)> mutator);
-
-    //! Converts into a void future by effectively discarding the value.
-    TFuture<void> IgnoreResult();
-
-    //! Returns a void future that is set when the original future
-    //! is either set or canceled.
-    TFuture<void> Finally();
 
     //! Returns a future that is either set to an actual value (if the original one is set in timely manner)
     //! or to |EErrorCode::Timeout| (in case of timeout).
-    TFuture<typename TErrorTraits<T>::TWrapped> WithTimeout(TDuration timeout);
+    TFuture<T> WithTimeout(TDuration timeout);
 
-private:
-    explicit TFuture(TIntrusivePtr<NYT::NDetail::TPromiseState<T>> impl);
+    //! Chains the asynchronous computation with another synchronous function.
+    template <class R>
+    TFuture<R> Apply(TCallback<R(const TErrorOr<T>&)> callback);
 
-    TIntrusivePtr<NYT::NDetail::TPromiseState<T>> Impl_;
+    //! Chains the asynchronous computation with another asynchronous function.
+    template <class R>
+    TFuture<R> Apply(TCallback<TFuture<R>(const TErrorOr<T>&)> callback);
 
-private:
-    friend class TPromise<T>;
-
+    //! Converts (successful) result to |U|; propagates errors as is.
     template <class U>
-    friend TFuture<typename NMpl::TDecay<U>::TType> MakeFuture(U&& value);
+    TFuture<U> As();
+
+protected:
+    explicit TFutureBase(TIntrusivePtr<NYT::NDetail::TFutureState<T>> impl);
+
+    TIntrusivePtr<NYT::NDetail::TFutureState<T>> Impl_;
 
     template <class U>
     friend bool operator==(const TFuture<U>& lhs, const TFuture<U>& rhs);
     template <class U>
     friend bool operator!=(const TFuture<U>& lhs, const TFuture<U>& rhs);
+    template <class U>
+    friend void swap(TFuture<U>& lhs, TFuture<U>& rhs);
+    template <class U>
+    friend struct ::hash;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! #TFuture<> specialized for |void| type.
-template <>
-class TFuture<void>
+template <class T>
+class TFuture
+    : public TFutureBase<T>
 {
 public:
-    typedef void TValueType;
-
-    //! Empty constructor.
-    TFuture();
-
-    //! Empty constructor.
+    TFuture() = default;
     TFuture(TNull);
 
-    //! Checks if the future is associated with a state.
-    explicit operator bool() const;
-
-    //! Drops underlying associated state.
-    void Reset();
-
-    //! Swaps underlying associated state.
-    void Swap(TFuture& other);
-
-    //! Checks if the value is set.
-    bool IsSet() const;
-
-    //! Checks if the future is canceled.
-    bool IsCanceled() const;
-
-    //! Synchronously waits until #Set is called.
-    void Get() const;
-
-    //! Attaches a result handler.
-    /*!
-     *  \param handler A callback to call when the value gets set
-     *  (passing the value as a parameter).
-     *
-     *  \note
-     *  If the value is set before the call to #Subscribe, then
-     *  #callback gets called synchronously.
-     */
-    void Subscribe(TClosure handler);
-
-    //! Does exactly same thing as its TPromise counterpart.
-    //! Gives the consumer a chance to handle cancelation.
-    void OnCanceled(TClosure handler);
-
-    //! Notifies the producer that the promised value is no longer needed.
-    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
-    bool Cancel();
-
-    //! Chains the asynchronous computation with another synchronous function.
-    TFuture<void> Apply(TCallback<void()> mutator);
-
-    //! Chains the asynchronous computation with another asynchronous function.
-    TFuture<void> Apply(TCallback<TFuture<void>()> mutator);
-
-    //! Chains the asynchronous computation with another synchronous function.
     template <class R>
-    TFuture<R> Apply(TCallback<R()> mutator);
-
-    //! Chains the asynchronous computation with another asynchronous function.
+    TFuture<R> Apply(TCallback<R(const T&)> callback);
     template <class R>
-    TFuture<R> Apply(TCallback<TFuture<R>()> mutator);
-
-    //! Returns a void future that is set when the original future
-    //! is either set or canceled.
-    TFuture<void> Finally();
-
-    //! Returns a future that is either set to OK (if the original one is set in timely manner)
-    //! or to |EErrorCode::Timeout| (in case of timeout).
-    TFuture<TError> WithTimeout(TDuration timeout);
+    TFuture<R> Apply(TCallback<R(T)> callback);
+    template <class R>
+    TFuture<R> Apply(TCallback<TFuture<R>(const T&)> callback);
+    template <class R>
+    TFuture<R> Apply(TCallback<TFuture<R>(T)> callback);
+    using TFutureBase<T>::Apply;
 
 private:
-    explicit TFuture(const TIntrusivePtr<NYT::NDetail::TPromiseState<void>>& state);
-    explicit TFuture(TIntrusivePtr<NYT::NDetail::TPromiseState<void>>&& state);
-
-    TIntrusivePtr<NYT::NDetail::TPromiseState<void>> Impl_;
-
-private:
-    friend class TPromise<void>;
-
-    friend TFuture<void> MakeFuture();
+    explicit TFuture(TIntrusivePtr<NYT::NDetail::TFutureState<T>> impl);
 
     template <class U>
-    friend bool operator==(const TFuture<U>& lhs, const TFuture<U>& rhs);
+    friend TFuture<U> MakeFuture(TErrorOr<U> value);
     template <class U>
-    friend bool operator!=(const TFuture<U>& lhs, const TFuture<U>& rhs);
+    friend TFuture<U> MakeFuture(U value);
+    template <class U>
+    friend class TPromiseBase;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! #TFuture<> equality operator.
-template <class T>
-bool operator==(const TFuture<T>& lhs, const TFuture<T>& rhs);
+template <>
+class TFuture<void>
+    : public TFutureBase<void>
+{
+public:
+    TFuture() = default;
+    TFuture(TNull);
 
-//! #TFuture<> inequality operator.
-template <class T>
-bool operator!=(const TFuture<T>& lhs, const TFuture<T>& rhs);
+    template <class R>
+    TFuture<R> Apply(TCallback<R()> callback);
+    template <class R>
+    TFuture<R> Apply(TCallback<TFuture<R>()> callback);
+    using TFutureBase<void>::Apply;
+
+private:
+    explicit TFuture(const TIntrusivePtr<NYT::NDetail::TFutureState<void>> impl);
+
+    template <class U>
+    friend TFuture<U> MakeFuture(TErrorOr<U> value);
+    template <class U>
+    friend class TPromiseBase;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Encapsulates the value-returning mechanism.
+//! A base class for both TPromise<T> and its specialization TPromise<void>.
 template <class T>
-class TPromise
+class TPromiseBase
 {
 public:
-    typedef T TValueType;
+    using TValueType = T;
 
-    //! Empty constructor.
-    TPromise();
+    //! Creates a null promise.
+    TPromiseBase() = default;
 
-    //! Empty constructor.
-    TPromise(TNull);
-
-    //! Checks if the promise is associated with a state.
+    //! Checks if the promise is null.
     explicit operator bool() const;
 
-    //! Drops underlying associated state.
+    //! Drops underlying associated state resetting the promise to null.
     void Reset();
-
-    //! Swaps underlying associated state.
-    void Swap(TPromise& other);
 
     //! Checks if the value is set.
     bool IsSet() const;
@@ -321,8 +279,8 @@ public:
     /*!
      *  Calling this method also invokes all the subscribers.
      */
-    void Set(const T& value);
-    void Set(T&& value);
+    void Set(const TErrorOr<T>& value);
+    void Set(TErrorOr<T>&& value);
 
     //! Sets the value when #another future is set.
     template <class U>
@@ -330,8 +288,8 @@ public:
 
     //! Atomically invokes |Set|, if not already set or canceled.
     //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
-    bool TrySet(const T& value);
-    bool TrySet(T&& value);
+    bool TrySet(const TErrorOr<T>& value);
+    bool TrySet(TErrorOr<T>&& value);
 
     //! Similar to #SetFrom but calls #TrySet instead of #Set.
     template <class U>
@@ -341,28 +299,20 @@ public:
     /*!
      *  This call will block until the value is set.
      */
-    const T& Get() const;
+    const TErrorOr<T>& Get() const;
 
     //! Gets the value if set.
     /*!
-     *  This call will not block until the value is set.
+     *  This call does not block.
      */
-    TNullable<T> TryGet() const;
+    TNullable<TErrorOr<T>> TryGet() const;
 
-    //! Attaches a result handler.
-    /*!
-     *  \param handler A callback to call when the value gets set
-     *  (passing the value as a parameter).
-     *
-     *  \note
-     *  If the value is set before the call to #Subscribe, then
-     *  #callback gets called synchronously.
-     */
-    void Subscribe(TCallback<void(const T&)> handler);
+    //! Checks if the promise is canceled.
+    bool IsCanceled() const;
 
     //! Attaches a cancellation handler.
     /*!
-     *  \param handler A callback to call when #TFuture<T>::Cancel is triggered
+     *  \param handler A callback to call when TFuture<T>::Cancel is triggered
      *  by the client.
      *
      *  \note
@@ -371,182 +321,171 @@ public:
      */
     void OnCanceled(TClosure handler);
 
-    //! Notifies the producer that the promised value is no longer needed.
-    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
-    bool Cancel();
-
-    TFuture<T> ToFuture() const;
+    //! Converts promise into future.
     operator TFuture<T>() const;
+    TFuture<T> ToFuture() const;
 
-private:
-    explicit TPromise(const TIntrusivePtr<NYT::NDetail::TPromiseState<T>> impl);
+protected:
+    explicit TPromiseBase(const TIntrusivePtr<NYT::NDetail::TPromiseState<T>> impl);
 
     TIntrusivePtr<NYT::NDetail::TPromiseState<T>> Impl_;
 
-private:
-    friend class TFuture<T>;
-
-    template <class U>
-    friend TPromise<U> NewPromise();
-    template <class U>
-    friend TPromise<typename NMpl::TDecay<U>::TType> MakePromise(U&& value);
-
     template <class U>
     friend bool operator==(const TPromise<U>& lhs, const TPromise<U>& rhs);
     template <class U>
     friend bool operator!=(const TPromise<U>& lhs, const TPromise<U>& rhs);
+    template <class U>
+    friend void swap(TPromise<U>& lhs, TPromise<U>& rhs);
+    template <class U>
+    friend struct ::hash;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! #TPromise<> specialized for |void| type.
-
-//! Encapsulates the value-returning mechanism.
-template <>
-class TPromise<void>
+template <class T>
+class TPromise
+    : public TPromiseBase<T>
 {
 public:
-    typedef void TValueType;
-
-    //! Empty constructor.
-    TPromise();
-
-    //! Empty constructor.
+    TPromise() = default;
     TPromise(TNull);
 
-    //! Checks if the promise is associated with a state.
-    explicit operator bool() const;
+    void Set(const T& value);
+    void Set(T&& value);
+    void Set(const TError& error);
+    void Set(TError&& error);
+    using TPromiseBase<T>::Set;
 
-    //! Drops underlying associated state.
-    void Reset();
-
-    //! Swaps underlying associated state.
-    void Swap(TPromise& other);
-
-    //! Checks if the value is set.
-    bool IsSet() const;
-
-    //! Sets the value.
-    /*!
-     *  Calling this method also invokes all the subscribers.
-     */
-    void Set();
-
-    //! Sets the value from #another future when the latter is set.
-    template <class U>
-    void SetFrom(TFuture<U> another);
-
-    //! Sets the value from #another future when the latter is set.
-    void SetFrom(TFuture<void> another);
-
-    //! Atomically sets the promise, if not already set or canceled.
-    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
-    /*!
-     *  Calling this method also invokes all the subscribers.
-     */
-    bool TrySet();
-
-    //! Similar to #SetFrom but calls #TrySet instead of #Set.
-    template <class U>
-    void TrySetFrom(TFuture<U> another);
-
-    //! Similar to #SetFrom but calls #TrySet instead of #Set.
-    void TrySetFrom(TFuture<void> another);
-
-    //! Gets the value.
-    /*!
-     *  This call will block until the value is set.
-     */
-    void Get() const;
-
-    //! Attaches a result handler.
-    /*!
-     *  \param handler A callback to call when the value gets set
-     *  (passing the value as a parameter).
-     *
-     *  \note
-     *  If the value is set before the call to #Subscribe, then
-     *  #handler gets called synchronously.
-     */
-    void Subscribe(TClosure handler);
-
-    //! Attaches a cancellation handler.
-    /*!
-     *  \param handler A callback to call when #TFuture<void>::Cancel is triggered
-     *  by the client.
-     *
-     *  \note
-     *  If the value is set before the call to #handlered, then
-     *  #handler is discarded.
-     */
-    void OnCanceled(TClosure handler);
-
-    //! Notifies the producer that the promised value is no longer needed.
-    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
-    bool Cancel();
-
-    TFuture<void> ToFuture() const;
-    operator TFuture<void>() const;
+    bool TrySet(const T& value);
+    bool TrySet(T&& value);
+    bool TrySet(const TError& error);
+    bool TrySet(TError&& error);
+    using TPromiseBase<T>::TrySet;
 
 private:
-    explicit TPromise(const TIntrusivePtr<NYT::NDetail::TPromiseState<void>>& state);
-    explicit TPromise(TIntrusivePtr<NYT::NDetail::TPromiseState<void>>&& state);
-
-    TIntrusivePtr<NYT::NDetail::TPromiseState<void>> Impl_;
-
-private:
-    friend class TFuture<void>;
+    explicit TPromise(TIntrusivePtr<NYT::NDetail::TPromiseState<T>> impl);
 
     template <class U>
     friend TPromise<U> NewPromise();
-    friend TPromise<void> MakePromise();
-
     template <class U>
-    friend bool operator==(const TPromise<U>& lhs, const TPromise<U>& rhs);
+    friend TPromise<U> MakePromise(TErrorOr<U> value);
     template <class U>
-    friend bool operator!=(const TPromise<U>& lhs, const TPromise<U>& rhs);
+    friend TPromise<U> MakePromise(U value);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! #TPromise<> equality operator.
-template <class T>
-bool operator==(const TPromise<T>& lhs, const TPromise<T>& rhs);
+template <>
+class TPromise<void>
+    : public TPromiseBase<void>
+{
+public:
+    TPromise() = default;
+    TPromise(TNull);
 
-//! #TPromise<> inequality operator.
-template <class T>
-bool operator!=(const TPromise<T>& lhs, const TPromise<T>& rhs);
+    void Set();
+    using TPromiseBase<void>::Set;
+
+    bool TrySet();
+    using TPromiseBase<void>::TrySet;
+
+private:
+    explicit TPromise(const TIntrusivePtr<NYT::NDetail::TPromiseState<void>> state);
+
+    template <class U>
+    friend TPromise<U> NewPromise();
+    template <class U>
+    friend TPromise<U> MakePromise(TErrorOr<U> value);
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Cancels a given future at the end of the scope.
+//! Provides a noncopyable but movable wrapper around TFuture<T> whose
+//! destructor blocks until the underlying future is set.
 /*!
- *  \note
- *  Cancelation has no effect if the future is already set.
+ *  Use TFutureHolder when returning the result of an asynchronous computation that
+ *  relies on the existence of a certain unsafe context provided by the caller.
+ *
+ *  E.g. here
+ *  @code
+ *  TFutureHolder<void> FillArray(std::vector<int>* array);
+ *  @endcode
+ *  the caller must provide a pointer to the array, which will be asynchronously
+ *  filled by the callee. One must ensure that this pointer remains valid as long as
+ *  the computation is not finished.
  */
 template <class T>
-class TFutureCancelationGuard
+class TFutureHolder
 {
 public:
-    explicit TFutureCancelationGuard(TFuture<T> future);
-    TFutureCancelationGuard(TFutureCancelationGuard<T>&& other);
-    ~TFutureCancelationGuard();
+    //! Constructs an empty holder.
+    TFutureHolder();
 
-    TFutureCancelationGuard<T>& operator=(TFutureCancelationGuard<T>&& other);
+    //! Constructs an empty holder.
+    TFutureHolder(TNull);
 
-    template <class U>
-    friend void swap(TFutureCancelationGuard<U>& lhs, TFutureCancelationGuard<U>& rhs);
+    //! Wraps #future into a holder.
+    TFutureHolder(TFuture<T> future);
 
-    void Release();
+    //! Cancels the underlying future (if any) and blocks until it is set.
+    ~TFutureHolder();
 
+    TFutureHolder(const TFutureHolder<T>& other) = delete;
+    TFutureHolder(TFutureHolder<T>&& other) = default;
+
+    TFutureHolder& operator = (const TFutureHolder<T>& other) = delete;
+    TFutureHolder& operator = (TFutureHolder<T>&& other) = default;
+
+    //! Returns |true| if the holder has an underlying future.
     explicit operator bool() const;
+
+    //! Returns the underlying future.
+    const TFuture<T>& Get() const;
+
+    //! Returns the underlying future.
+    TFuture<T>& Get();
 
 private:
     TFuture<T> Future_;
 
 };
+
+//! Wraps a given #future into a holder.
+template <class T>
+TFutureHolder<T> MakeHolder(TFuture<T> future);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+struct TFutureCombineTraits
+{
+    using TCombined = std::vector<T>;
+};
+
+template <>
+struct TFutureCombineTraits<void>
+{
+    using TCombined = void;
+};
+
+//! Combines a number of same-typed asynchronous computations into a single one.
+/*!
+ *  If |T| is |void|, then the asynchronous return type is |void|, otherwise
+ *  it is |std::vector<T>|.
+ *
+ *  If any of #futures fails, the others are canceled and the error is propagated immediately.
+ */
+template <class T>
+TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
+    const std::vector<TFuture<T>>& futures);
+
+//! A variant of |Combine| that accepts future holders instead of futures.
+template <class T>
+TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
+    const std::vector<TFutureHolder<T>>& holders);
 
 ////////////////////////////////////////////////////////////////////////////////
 

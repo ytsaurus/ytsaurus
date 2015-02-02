@@ -3,8 +3,8 @@
 #include "assert.h"
 #include "mpl.h"
 
-// For DoSwap
 #include <util/generic/utility.h>
+#include <util/generic/hash.h>
 
 // For std::move
 #include <utility>
@@ -294,7 +294,7 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
  *  are subsequently defined afterwards.
  */
 
-#ifdef __linux__
+#ifdef __GNUC__
     // Prevent GCC from throwing out our precious Ref/Unref functions in
     // release builds.
     #define REF_UNREF_DECLARATION_ATTRIBUTES __attribute__((used))
@@ -347,3 +347,13 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 } //namespace NYT
+
+//! A hasher for TIntrusivePtr.
+template <class T>
+struct hash<NYT::TIntrusivePtr<T>>
+{
+    size_t operator () (const NYT::TIntrusivePtr<T>& ptr) const
+    {
+        return THash<T*>()(ptr.Get());
+    }
+};

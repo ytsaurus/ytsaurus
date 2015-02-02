@@ -1,6 +1,19 @@
 package NYT.NHydra.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/core/rpc/rpc.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPeerKindExt
+{
+    extend NRpc.NProto.TReqDiscover
+    {
+        optional TPeerKindExt peer_kind_ext = 100;
+    }
+
+    required int32 peer_kind = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

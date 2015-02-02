@@ -65,10 +65,10 @@ static auto& Profiler = ChunkServerProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReplicator::TChunkStatistics::TChunkStatistics()
-{
-    Zero(ReplicaCount);
-    Zero(DecommissionedReplicaCount);
-}
+    : Status(EChunkStatus::None)
+    , ReplicaCount{}
+    , DecommissionedReplicaCount{}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -223,7 +223,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         result.Status |= EChunkStatus::UnsafelyPlaced;
     }
 
-    if (result.Status & EChunkStatus(EChunkStatus::Underreplicated | EChunkStatus::UnsafelyPlaced) &&
+    if (Any(result.Status & (EChunkStatus::Underreplicated | EChunkStatus::UnsafelyPlaced)) &&
         replicaCount + decommissionedReplicaCount > 0)
     {
         result.ReplicationIndexes.push_back(GenericChunkReplicaIndex);
@@ -328,7 +328,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
     bool hasUnsafelyPlacedReplicas = false;
 
     for (auto replica : chunk->StoredReplicas()) {
-        if (replica.GetIndex() == EJournalReplicaType::Sealed) {
+        if (replica.GetIndex() == SealedChunkReplicaIndex) {
             ++sealedReplicaCount;
         } else {
             ++unsealedReplicaCount;
@@ -352,8 +352,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
         }
     }
 
-    result.ReplicaCount[EJournalReplicaType::Generic] = replicaCount;
-    result.DecommissionedReplicaCount[EJournalReplicaType::Generic] = decommissionedReplicaCount;
+    result.ReplicaCount[GenericChunkReplicaIndex] = replicaCount;
+    result.DecommissionedReplicaCount[GenericChunkReplicaIndex] = decommissionedReplicaCount;
 
     if (replicaCount + decommissionedReplicaCount == 0) {
         result.Status |= EChunkStatus::Lost;
@@ -386,7 +386,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
         result.Status |= EChunkStatus::UnsafelyPlaced;
     }
 
-    if (result.Status & EChunkStatus(EChunkStatus::Underreplicated | EChunkStatus::UnsafelyPlaced) &&
+    if (Any(result.Status & (EChunkStatus::Underreplicated | EChunkStatus::UnsafelyPlaced)) &&
         sealedReplicaCount > 0)
     {
         result.ReplicationIndexes.push_back(GenericChunkReplicaIndex);
@@ -577,9 +577,9 @@ bool TChunkReplicator::CreateReplicationJob(
     }
 
     int replicasNeeded;
-    if (statistics.Status & EChunkStatus::Underreplicated) {
+    if (Any(statistics.Status & EChunkStatus::Underreplicated)) {
         replicasNeeded = replicationFactor - replicaCount;
-    } else if (statistics.Status & EChunkStatus::UnsafelyPlaced) {
+    } else if (Any(statistics.Status & EChunkStatus::UnsafelyPlaced)) {
         replicasNeeded = 1;
     } else {
         return true;
@@ -951,41 +951,41 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
 
     auto statistics = ComputeChunkStatistics(chunk);
 
-    if (statistics.Status & EChunkStatus::Lost) {
+    if (Any(statistics.Status & EChunkStatus::Lost)) {
         YCHECK(LostChunks_.insert(chunk).second);
         if (chunk->GetVital() && (chunk->IsErasure() || chunk->GetReplicationFactor() > 1)) {
             YCHECK(LostVitalChunks_.insert(chunk).second);
         }
     }
 
-    if (statistics.Status & EChunkStatus::Overreplicated) {
+    if (Any(statistics.Status & EChunkStatus::Overreplicated)) {
         YCHECK(OverreplicatedChunks_.insert(chunk).second);
     }
 
-    if (statistics.Status & EChunkStatus::Underreplicated) {
+    if (Any(statistics.Status & EChunkStatus::Underreplicated)) {
         YCHECK(UnderreplicatedChunks_.insert(chunk).second);
     }
 
-    if (statistics.Status & EChunkStatus::DataMissing) {
+    if (Any(statistics.Status & EChunkStatus::DataMissing)) {
         YCHECK(DataMissingChunks_.insert(chunk).second);
     }
 
-    if (statistics.Status & EChunkStatus::ParityMissing) {
+    if (Any(statistics.Status & EChunkStatus::ParityMissing)) {
         YCHECK(ParityMissingChunks_.insert(chunk).second);
     }
 
-    if (statistics.Status & EChunkStatus::QuorumMissing) {
+    if (Any(statistics.Status & EChunkStatus::QuorumMissing)) {
         YCHECK(QuorumMissingChunks_.insert(chunk).second);
     }
 
-    if (statistics.Status & EChunkStatus::UnsafelyPlaced) {
+    if (Any(statistics.Status & EChunkStatus::UnsafelyPlaced)) {
         YCHECK(UnsafelyPlacedChunks_.insert(chunk).second);
     }
 
     if (!HasRunningJobs(chunk)) {
         RemoveChunkFromQueues(chunk, true);
 
-        if (statistics.Status & EChunkStatus::Overreplicated) {
+        if (Any(statistics.Status & EChunkStatus::Overreplicated)) {
             for (auto nodeWithIndex : statistics.DecommissionedRemovalReplicas) {
                 int index = nodeWithIndex.GetIndex();
                 TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), index);
@@ -1002,7 +1002,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
             }
         }
 
-        if (statistics.Status & (EChunkStatus::Underreplicated | EChunkStatus::UnsafelyPlaced)) {
+        if (Any(statistics.Status & (EChunkStatus::Underreplicated | EChunkStatus::UnsafelyPlaced))) {
             for (int index : statistics.ReplicationIndexes) {
                 TChunkPtrWithIndex chunkWithIndex(chunk, index);
                 TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), index);
@@ -1014,7 +1014,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
                 for (auto replica : chunk->StoredReplicas()) {
                     if (chunk->IsRegular() ||
                         chunk->IsErasure() && replica.GetIndex() == index ||
-                        chunk->IsJournal() && replica.GetIndex() == EJournalReplicaType::Sealed)
+                        chunk->IsJournal() && replica.GetIndex() == SealedChunkReplicaIndex)
                     {
                         replica.GetPtr()->AddToChunkReplicationQueue(chunkWithIndex, priority);
                     }
@@ -1022,17 +1022,17 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
             }
         }
 
-        if (statistics.Status & EChunkStatus::Sealed) {
+        if (Any(statistics.Status & EChunkStatus::Sealed)) {
             YASSERT(chunk->IsJournal());
             for (auto replica : chunk->StoredReplicas()) {
-                if (replica.GetIndex() == EJournalReplicaType::Unsealed) {
+                if (replica.GetIndex() == UnsealedChunkReplicaIndex) {
                     replica.GetPtr()->AddToChunkSealQueue(chunk);
                 }
             }
         }
 
-        if ((statistics.Status & EChunkStatus(EChunkStatus::DataMissing | EChunkStatus::ParityMissing)) &&
-            !(statistics.Status & EChunkStatus::Lost))
+        if (Any(statistics.Status & (EChunkStatus::DataMissing | EChunkStatus::ParityMissing)) &&
+            None(statistics.Status & EChunkStatus::Lost))
         {
             AddToChunkRepairQueue(chunk);
         }
@@ -1522,12 +1522,12 @@ void TChunkReplicator::UnregisterJob(TJobPtr job, EJobUnregisterFlags flags)
 
     YCHECK(JobMap_.erase(job->GetJobId()) == 1);
 
-    if (flags & EJobUnregisterFlags::UnregisterFromNode) {
+    if (Any(flags & EJobUnregisterFlags::UnregisterFromNode)) {
         YCHECK(job->GetNode()->Jobs().erase(job) == 1);
     }
 
     if (chunk) {
-        if (flags & EJobUnregisterFlags::UnregisterFromChunk) {
+        if (Any(flags & EJobUnregisterFlags::UnregisterFromChunk)) {
             auto jobList = FindJobList(chunk);
             YCHECK(jobList);
             YCHECK(jobList->Jobs().erase(job) == 1);
@@ -1536,7 +1536,7 @@ void TChunkReplicator::UnregisterJob(TJobPtr job, EJobUnregisterFlags flags)
             }
         }
 
-        if (flags & EJobUnregisterFlags::ScheduleChunkRefresh) {
+        if (Any(flags & EJobUnregisterFlags::ScheduleChunkRefresh)) {
             ScheduleChunkRefresh(chunk);
         }
     }

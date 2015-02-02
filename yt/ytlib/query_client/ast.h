@@ -5,8 +5,10 @@
 #include "plan_fragment_common.h"
 
 #include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/new_table_client/row_buffer.h>
 
 #include <core/misc/array_ref.h>
+#include <core/misc/variant.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -160,8 +162,9 @@ struct TQuery
     TExpressionPtr WherePredicate;
     TNullableNamedExprs GroupExprs;
     i64 Limit = 0;
-
 };
+
+typedef TVariant<TQuery, TNamedExpression> TAstHead;
 
 ////////////////////////////////////////////////////////////////////////////////
 

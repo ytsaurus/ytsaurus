@@ -9,10 +9,7 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EPermissionSet AllPermissions(0xffff);
-EPermissionSet NonePermissions(0x0000);
-
-static Stroka AllPermissionsName("all");
+static const Stroka AllPermissionsName("all");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,8 +23,8 @@ EPermissionSet ParsePermissions(
             return supportedPermissions;
         } else {
             auto permission = ParseEnum<EPermission>(item);
-            if (!(supportedPermissions & permission)) {
-                THROW_ERROR_EXCEPTION("Permission is not supported: %v", item);
+            if ((supportedPermissions & permission) == NonePermissions) {
+                THROW_ERROR_EXCEPTION("Permission %Qv is not supported", item);
             }
             result |= permission;
         }
@@ -35,12 +32,11 @@ EPermissionSet ParsePermissions(
     return result;
 }
 
-std::vector<Stroka> FormatPermissions(
-    EPermissionSet permissions)
+std::vector<Stroka> FormatPermissions(EPermissionSet permissions)
 {
     std::vector<Stroka> result;
-    for (auto value : EPermission::GetDomainValues()) {
-        if (permissions & value) {
+    for (auto value : TEnumTraits<EPermission>::GetDomainValues()) {
+        if ((permissions & value) != NonePermissions) {
             result.push_back(FormatEnum(value));
         }
     }

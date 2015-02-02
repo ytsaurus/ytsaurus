@@ -1,4 +1,4 @@
-#pragma once    
+#pragma once
 
 #include "public.h"
 
@@ -52,7 +52,7 @@ public:
     TExecNodePtr GetNode(const Stroka& address);
     TExecNodePtr GetOrRegisterNode(const NNodeTrackerClient::TNodeDescriptor& descriptor);
 
-    TFuture<TOperationStartResult> StartOperation(
+    TFuture<TOperationPtr> StartOperation(
         EOperationType type,
         const NTransactionClient::TTransactionId& transactionId,
         const NHydra::TMutationId& mutationId,
@@ -63,8 +63,8 @@ public:
         TOperationPtr operation,
         const TError& error);
 
-    TAsyncError SuspendOperation(TOperationPtr operation);
-    TAsyncError ResumeOperation(TOperationPtr operation);
+    TFuture<void> SuspendOperation(TOperationPtr operation);
+    TFuture<void> ResumeOperation(TOperationPtr operation);
 
     typedef
         NRpc::TTypedServiceContext<

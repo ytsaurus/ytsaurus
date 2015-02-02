@@ -1151,7 +1151,7 @@ private:
 
     static bool CheckPermissionMatch(EPermissionSet permissions, EPermission requestedPermission)
     {
-        return permissions & requestedPermission;
+        return (permissions & requestedPermission) != NonePermissions;
     }
 
 
@@ -1314,17 +1314,17 @@ private:
                     acd->AddEntry(TAccessControlEntry(
                         ESecurityAction::Allow,
                         GetUsersGroup(),
-                        EPermissionSet(EPermission::Write)));
+                        EPermission::Write));
                     acd->AddEntry(TAccessControlEntry(
                         ESecurityAction::Allow,
                         GetEveryoneGroup(),
-                        EPermissionSet(EPermission::Read)));
+                        EPermission::Read));
                 }
                 if (IsUserType(type)) {
                     acd->AddEntry(TAccessControlEntry(
                         ESecurityAction::Allow,
                         GetUsersGroup(),
-                        EPermissionSet(EPermission::Create)));
+                        EPermission::Create));
                 }
             }
         }

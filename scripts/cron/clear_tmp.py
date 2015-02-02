@@ -75,7 +75,11 @@ def main():
             info = "(size=%s) (access_time=%s)" % (obj.attributes["resource_usage"]["disk_space"], get_time(obj))
         logger.info("Removing %s %s", obj, info)
         dir_sizes[os.path.dirname(obj)] -= 1
-        yt.remove(obj, force=True)
+        try:
+            yt.remove(obj, force=True)
+        except yt.YtResponseError as error:
+            if not error.is_concurrent_transaction_lock_conflict():
+                raise
 
     # check broken links
     for obj in yt.search("//tmp", node_type=["link"], attributes=["broken"]):
@@ -90,7 +94,11 @@ def main():
                 dir_sizes[os.path.dirname(dir)] -= 1
                 # To avoid removing twice
                 dir_sizes[str(dir)] = -1 
-                yt.remove(dir, force=True)
+                try:
+                    yt.remove(dir, force=True)
+                except yt.YtResponseError as error:
+                    if not error.is_concurrent_transaction_lock_conflict():
+                        raise
 
 if __name__ == "__main__":
     main()

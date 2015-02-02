@@ -8,29 +8,29 @@ namespace NYson {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Indicates the beginning of a list.
-const ETokenType::EDomain BeginListToken = ETokenType::LeftBracket;
+const ETokenType BeginListToken = ETokenType::LeftBracket;
 //! Indicates the end of a list.
-const ETokenType::EDomain EndListToken = ETokenType::RightBracket;
+const ETokenType EndListToken = ETokenType::RightBracket;
 
 //! Indicates the beginning of a map.
-const ETokenType::EDomain BeginMapToken = ETokenType::LeftBrace;
+const ETokenType BeginMapToken = ETokenType::LeftBrace;
 //! Indicates the end of a map.
-const ETokenType::EDomain EndMapToken = ETokenType::RightBrace;
+const ETokenType EndMapToken = ETokenType::RightBrace;
 
 //! Indicates the beginning of an attribute map.
-const ETokenType::EDomain BeginAttributesToken = ETokenType::LeftAngle;
+const ETokenType BeginAttributesToken = ETokenType::LeftAngle;
 //! Indicates the end of an attribute map.
-const ETokenType::EDomain EndAttributesToken = ETokenType::RightAngle;
+const ETokenType EndAttributesToken = ETokenType::RightAngle;
 
 //! Separates items in lists.
-const ETokenType::EDomain ListItemSeparatorToken = ETokenType::Semicolon;
+const ETokenType ListItemSeparatorToken = ETokenType::Semicolon;
 //! Separates items in maps, attributes.
-const ETokenType::EDomain KeyedItemSeparatorToken = ETokenType::Semicolon;
+const ETokenType KeyedItemSeparatorToken = ETokenType::Semicolon;
 //! Separates keys from values in maps.
-const ETokenType::EDomain KeyValueSeparatorToken = ETokenType::Equals;
+const ETokenType KeyValueSeparatorToken = ETokenType::Equals;
 
 //! Indicates an entity.
-const ETokenType::EDomain EntityToken = ETokenType::Hash;
+const ETokenType EntityToken = ETokenType::Hash;
 
 ////////////////////////////////////////////////////////////////////////////////
 

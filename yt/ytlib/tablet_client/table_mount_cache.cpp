@@ -94,7 +94,7 @@ public:
         , CellDirectory_(cellDirectory)
     { }
 
-    TFuture<TErrorOr<TTableMountInfoPtr>> GetTableInfo(const TYPath& path)
+    TFuture<TTableMountInfoPtr> GetTableInfo(const TYPath& path)
     {
         auto now = TInstant::Now();
 
@@ -117,7 +117,7 @@ public:
             if (it == PathToEntry_.end()) {
                 TTableEntry entry;
                 entry.Deadline = TInstant::Max();
-                auto promise = entry.Promise = NewPromise<TErrorOr<TTableMountInfoPtr>>();
+                auto promise = entry.Promise = NewPromise<TTableMountInfoPtr>();
                 YCHECK(PathToEntry_.insert(std::make_pair(path, entry)).second);
                 guard.Release();
                 RequestTableMountInfo(path);
@@ -160,7 +160,7 @@ private:
         //! When this entry must be evicted.
         TInstant Deadline;
         //! Some latest known info (possibly not yet set).
-        TPromise<TErrorOr<TTableMountInfoPtr>> Promise;
+        TPromise<TTableMountInfoPtr> Promise;
         //! Corresponds to a future probation request.
         TDelayedExecutorCookie ProbationCookie;
     };
@@ -183,7 +183,7 @@ private:
             BIND(&TImpl::OnTableMountInfoResponse, MakeWeak(this), path));
     }
 
-    void OnTableMountInfoResponse(const TYPath& path, TTableYPathProxy::TRspGetMountInfoPtr rsp)
+    void OnTableMountInfoResponse(const TYPath& path, const TTableYPathProxy::TErrorOrRspGetMountInfoPtr& rspOrError)
     {
         TWriterGuard guard(SpinLock_);
         auto it = PathToEntry_.find(path);
@@ -202,15 +202,16 @@ private:
             }
         };
 
-        if (!rsp->IsOK()) {
-            auto error = TError("Error getting mount info for %v",
+        if (!rspOrError.IsOK()) {
+            auto wrappedError = TError("Error getting mount info for %v",
                 path)
-                << *rsp;
-            setResult(error);
-            LOG_WARNING(error);
+                << rspOrError;
+            setResult(wrappedError);
+            LOG_WARNING(wrappedError);
             return;
         }
 
+        const auto& rsp = rspOrError.Value();
         auto tableInfo = New<TTableMountInfo>();
         tableInfo->Path = path;
         tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
@@ -275,7 +276,7 @@ TTableMountCache::TTableMountCache(
 TTableMountCache::~TTableMountCache()
 { }
 
-TFuture<TErrorOr<TTableMountInfoPtr>> TTableMountCache::GetTableInfo(const TYPath& path)
+TFuture<TTableMountInfoPtr> TTableMountCache::GetTableInfo(const TYPath& path)
 {
     return Impl_->GetTableInfo(path);
 }

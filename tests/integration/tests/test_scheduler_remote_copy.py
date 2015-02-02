@@ -147,7 +147,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         op_id = remote_copy(dont_track=True, in_="//tmp/t1", out="//tmp/t2",
                             spec={"cluster_name": "remote",
                                   "unavailable_chunk_strategy": "wait",
-                                  "network_name": "default"})
+                                  "network_name": "interconnect"})
 
         time.sleep(1)
         set_banned_flag(False)

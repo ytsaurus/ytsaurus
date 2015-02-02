@@ -48,6 +48,24 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
+//! Describes which part of the operation needs a particular file.
+DEFINE_ENUM(EOperationStage,
+    (Map)
+    (ReduceCombiner)
+    (Reduce)
+);
+
+DEFINE_ENUM(EInputChunkState,
+    (Active)
+    (Skipped)
+    (Waiting)
+);
+
+DEFINE_ENUM(EJobReinstallReason,
+    (Failed)
+    (Aborted)
+);
+
 class TOperationControllerBase
     : public IOperationController
     , public NPhoenix::IPersistent
@@ -62,10 +80,10 @@ public:
 
     virtual void Initialize() override;
     virtual void Essentiate() override;
-    virtual TFuture<TError> Prepare() override;
+    virtual TFuture<void> Prepare() override;
     virtual void SaveSnapshot(TOutputStream* output) override;
-    virtual TFuture<TError> Revive() override;
-    virtual TFuture<TError> Commit() override;
+    virtual TFuture<void> Revive() override;
+    virtual TFuture<void> Commit() override;
 
     virtual void OnJobRunning(TJobPtr job, const NJobTrackerClient::NProto::TJobStatus& status) override;
     virtual void OnJobCompleted(TJobPtr job) override;
@@ -138,10 +156,16 @@ protected:
 
 
     // These totals are approximate.
-    int TotalInputChunkCount;
-    i64 TotalInputDataSize;
-    i64 TotalInputRowCount;
-    i64 TotalInputValueCount;
+    int TotalEstimateInputChunkCount;
+    i64 TotalEstimateInputDataSize;
+    i64 TotalEstimateInputRowCount;
+    i64 TotalEstimateInputValueCount;
+
+    // These totals are exact
+    int TotalActualInputChunkCount;
+    i64 TotalActualInputDataSize;
+    i64 TotalActualInputRowCount;
+    i64 TotalActualInputValueCount;
 
     // These totals are exact.
     int TotalIntermeidateChunkCount;
@@ -253,14 +277,6 @@ protected:
 
     TIntermediateTable IntermediateTable;
 
-
-    //! Describes which part of the operation needs a particular file.
-    //! Values must be contiguous.
-    DECLARE_ENUM(EOperationStage,
-        (Map)
-        (ReduceCombiner)
-        (Reduce)
-    );
 
     struct TUserFileBase
     {
@@ -484,11 +500,6 @@ protected:
         void AddPendingHint();
         void AddLocalityHint(const Stroka& address);
 
-        DECLARE_ENUM(EJobReinstallReason,
-            (Failed)
-            (Aborted)
-        );
-
         void ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason);
 
         void AddSequentialInputSpec(
@@ -519,6 +530,7 @@ protected:
         static TChunkStripePtr BuildIntermediateChunkStripe(
             google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
 
+        void RegisterInput(TJobletPtr joblet);
         void RegisterOutput(TJobletPtr joblet, int key);
 
     };
@@ -599,7 +611,7 @@ protected:
 
 
     // Preparation.
-    TError DoPrepare();
+    void DoPrepare();
     void GetInputObjectIds();
     void GetOutputObjectIds();
     void ValidateFileTypes();
@@ -625,7 +637,7 @@ protected:
     virtual void StartOutputTransaction(NObjectClient::TTransactionId parentTransactionId);
 
     // Completion.
-    TError DoCommit();
+    void DoCommit();
     void CommitResults();
 
 
@@ -662,12 +674,6 @@ protected:
      */
     void OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
 
-
-    DECLARE_ENUM(EInputChunkState,
-        (Active)
-        (Skipped)
-        (Waiting)
-    );
 
     struct TStripeDescriptor
     {
@@ -754,6 +760,8 @@ protected:
         int key,
         TOutputTable* outputTable);
 
+    void RegisterInput(TJobletPtr joblet);
+
     void RegisterOutput(
         NChunkClient::TRefCountedChunkSpecPtr chunkSpec,
         int key,
@@ -784,7 +792,7 @@ protected:
     //! processing. Each stripe receives exactly one chunk (as suitable for most
     //! jobs except merge). The resulting stripes are of approximately equal
     //! size. The size per stripe is either |maxSliceDataSize| or
-    //! |TotalInputDataSize / jobCount|, whichever is smaller. If the resulting
+    //! |TotalEstimateInputDataSize / jobCount|, whichever is smaller. If the resulting
     //! list contains less than |jobCount| stripes then |jobCount| is decreased
     //! appropriately.
     std::vector<TChunkStripePtr> SliceInputChunks(i64 maxSliceDataSize, int jobCount);
@@ -843,7 +851,7 @@ private:
 
     private:
         void LocateChunks();
-        void OnLocateChunksResponse(NChunkClient::TChunkServiceProxy::TRspLocateChunksPtr rsp);
+        void OnLocateChunksResponse(const NChunkClient::TChunkServiceProxy::TErrorOrRspLocateChunksPtr& rspOrError);
 
         TOperationControllerBase* Controller;
         NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;

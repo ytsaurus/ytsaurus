@@ -12,6 +12,7 @@
 #include <core/misc/address.h>
 
 #include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/delayed_executor.h>
 
 #include <core/bus/bus.h>
 
@@ -90,13 +91,21 @@ public:
         YASSERT(RequestMessage_);
         YASSERT(ReplyBus_);
         YASSERT(Service_);
+
+        Register();
     }
 
     ~TServiceContext()
     {
-        if (!IsOneWay() && !Replied_) {
-            Reply(TError(NRpc::EErrorCode::Unavailable, "Request canceled"));
+        if (!IsOneWay() && !Replied_ && !Canceled_) {
+            if (Started_) {
+                Reply(TError(NYT::EErrorCode::Canceled, "Request abandoned"));
+            } else {
+                Reply(TError(NRpc::EErrorCode::Unavailable, "Service is currently unavailable"));
+            }
         }
+
+        Unregister();
     }
 
     const TRuntimeMethodInfoPtr& GetRuntimeInfo() const
@@ -104,63 +113,23 @@ public:
         return RuntimeInfo_;
     }
 
-    void Run(TLiteHandler handler)
+    const IBusPtr& GetReplyBus() const
     {
+        return ReplyBus_;
+    }
+
+    void Run(const TErrorOr<TLiteHandler>& handlerOrError)
+    {
+        if (!handlerOrError.IsOK()) {
+            Reply(TError(handlerOrError));
+            return;
+        }
+
+        const auto& handler = handlerOrError.Value();
         if (!handler)
             return;
 
-        auto this_ = MakeStrong(this);
-        auto wrappedHandler = BIND([this, this_, handler] () {
-            const auto& descriptor = RuntimeInfo_->Descriptor;
-
-            // No need for a lock here.
-            RunningSync_ = true;
-            SyncStartTime_ = GetCpuInstant();
-
-            if (Profiler.GetEnabled()) {
-                auto value = CpuDurationToValue(SyncStartTime_ - ArrivalTime_);
-                Profiler.Aggregate(RuntimeInfo_->LocalWaitTimeCounter, value);
-            }
-
-            try {
-                NTracing::TTraceContextGuard guard(TraceContext_);
-
-                if (!descriptor.System) {
-                    Service_->BeforeInvoke();
-                }
-
-                if (IsTimedOut()) {
-                    LOG_DEBUG("Request dropped due to timeout (RequestId: %v)",
-                        RequestId_);
-                } else {
-                    handler.Run(this, descriptor.Options);
-                }
-            } catch (const std::exception& ex) {
-                if (!descriptor.OneWay) {
-                    Reply(ex);
-                }
-            }
-
-            {
-                TGuard<TSpinLock> guard(SpinLock_);
-
-                YASSERT(RunningSync_);
-                RunningSync_ = false;
-
-                if (Profiler.GetEnabled()) {
-                    if (!Completed_) {
-                        SyncStopTime_ = GetCpuInstant();
-                        auto value = CpuDurationToValue(SyncStopTime_ - SyncStartTime_);
-                        Profiler.Aggregate(RuntimeInfo_->SyncTimeCounter, value);
-                    }
-
-                    if (descriptor.OneWay) {
-                        auto value = CpuDurationToValue(SyncStopTime_ - ArrivalTime_);
-                        Profiler.Aggregate(RuntimeInfo_->TotalTimeCounter, value);
-                    }
-                }
-            }
-        });
+        auto wrappedHandler = BIND(&TServiceContext::DoRun, MakeStrong(this), handler);
 
         const auto& descriptor = RuntimeInfo_->Descriptor;
         auto invoker = descriptor.Invoker ? descriptor.Invoker : Service_->DefaultInvoker_;
@@ -168,6 +137,16 @@ public:
             invoker->Invoke(std::move(wrappedHandler), GetPriority());
         } else {
             invoker->Invoke(std::move(wrappedHandler));
+        }
+    }
+
+    void Cancel()
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        Canceled_ = true;
+        if (Canceler_) {
+            guard.Release();
+            Canceler_.Run();
         }
     }
 
@@ -179,72 +158,204 @@ private:
     TRuntimeMethodInfoPtr RuntimeInfo_;
     NTracing::TTraceContext TraceContext_;
 
+    bool Registered_ = false;
+    TDelayedExecutorCookie TimeoutCookie_;
+
     TSpinLock SpinLock_;
+    bool Started_ = false;
     bool RunningSync_ = false;
     bool Completed_ = false;
+    bool Canceled_ = false;
+    TClosure Canceler_;
     NProfiling::TCpuInstant ArrivalTime_;
     NProfiling::TCpuInstant SyncStartTime_ = -1;
     NProfiling::TCpuInstant SyncStopTime_ = -1;
 
 
-    bool IsTimedOut() const
+    void Register()
     {
-        if (!RequestHeader_->has_timeout()) {
-            return false;
+        if (RuntimeInfo_->Descriptor.Cancelable) {
+            Service_->RegisterCancelableRequest(this);
+            YASSERT(!Registered_);
+            Registered_ = true;
         }
-
-        auto timeout = TDuration(RequestHeader_->timeout());
-        return SyncStartTime_ > ArrivalTime_ + DurationToCpuDuration(timeout);
     }
 
-    virtual void DoReply() override
+    void Unregister()
+    {
+        if (Registered_) {
+            Service_->UnregisterCancelableRequest(this);
+            Registered_ = false;
+        }
+    }
+
+
+    void DoRun(const TLiteHandler& handler)
+    {
+        DoBeforeRun();
+
+        try {
+            NTracing::TTraceContextGuard guard(TraceContext_);
+            DoGuardedRun(handler);
+        } catch (const std::exception& ex) {
+            if (!RuntimeInfo_->Descriptor.OneWay) {
+                Reply(ex);
+            }
+        } catch (const TFiberCanceledException&) {
+            // Request canceled; cleanup and rethrow.
+            DoAfterRun();
+            throw;
+        }
+
+        DoAfterRun();
+    }
+
+    void DoBeforeRun()
+    {
+        // No need for a lock here.
+        RunningSync_ = true;
+        Started_ = true;
+        SyncStartTime_ = GetCpuInstant();
+
+        if (Profiler.GetEnabled()) {
+            auto value = CpuDurationToValue(SyncStartTime_ - ArrivalTime_);
+            Profiler.Aggregate(RuntimeInfo_->LocalWaitTimeCounter, value);
+        }
+    }
+
+    void DoGuardedRun(const TLiteHandler& handler)
+    {
+        const auto& descriptor = RuntimeInfo_->Descriptor;
+
+        if (!descriptor.System) {
+            Service_->BeforeInvoke();
+        }
+
+        auto timeout = GetTimeout();
+        if (timeout == TDuration::Zero()) {
+            LOG_DEBUG("Request dropped due to timeout before being run (RequestId: %v)",
+                RequestId_);
+            return;
+        }
+
+        if (descriptor.Cancelable) {
+            TGuard<TSpinLock> guard(SpinLock_);
+
+            if (Canceled_) {
+                LOG_DEBUG("Request was canceled before being run (RequestId: %v)",
+                    RequestId_);
+                return;
+            }
+
+            Canceler_ = GetCurrentFiberCanceler();
+
+            if (timeout != TDuration::Max()) {
+                LOG_DEBUG("Setting up server-side request timeout (RequestId: %v, Timeout: %v)",
+                    RequestId_,
+                    timeout);
+                TimeoutCookie_ = TDelayedExecutor::Submit(
+                BIND(&TServiceBase::OnRequestTimeout, Service_, RequestId_),
+                    timeout);
+            }
+        }
+
+        handler.Run(this, descriptor.Options);
+    }
+
+    void DoAfterRun()
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
-        TRACE_ANNOTATION(
-            TraceContext_,
-            Service_->ServiceId_.ServiceName,
-            RuntimeInfo_->Descriptor.Method,
-            NTracing::ServerSendAnnotation);
+        TDelayedExecutor::CancelAndClear(TimeoutCookie_);
 
-        YASSERT(!Completed_);
-        Completed_ = true;
-
-        auto responseMessage = GetResponseMessage();
-
-        if (MutationId_ != NullMutationId) {
-            Service_->ResponseKeeper_->EndRequest(MutationId_, responseMessage);
-        }
-
-        ReplyBus_->Send(std::move(responseMessage), EDeliveryTrackingLevel::None);
-
-        // NB: This counter is also used to track queue size limit so
-        // it must be maintained even if the profiler is OFF.
-        Profiler.Increment(RuntimeInfo_->QueueSizeCounter, -1);
-
-        auto now = GetCpuInstant();
+        YASSERT(RunningSync_);
+        RunningSync_ = false;
 
         if (Profiler.GetEnabled()) {
-            if (RunningSync_) {
-                SyncStopTime_ = now;
+            if (!Completed_) {
+                SyncStopTime_ = GetCpuInstant();
                 auto value = CpuDurationToValue(SyncStopTime_ - SyncStartTime_);
                 Profiler.Aggregate(RuntimeInfo_->SyncTimeCounter, value);
             }
 
-            {
-                auto value = CpuDurationToValue(now - SyncStopTime_);
-                Profiler.Aggregate(RuntimeInfo_->AsyncTimeCounter, value);
-            }
-
-            {
-                auto value = CpuDurationToValue(now - ArrivalTime_);
+            if (RuntimeInfo_->Descriptor.OneWay) {
+                auto value = CpuDurationToValue(SyncStopTime_ - ArrivalTime_);
                 Profiler.Aggregate(RuntimeInfo_->TotalTimeCounter, value);
             }
         }
+    }
 
+
+    //! Returns TDuration::Zero() if the request has already timed out.
+    //! Returns TDuration::Max() if the request has no associated timeout.
+    TDuration GetTimeout() const
+    {
+        if (!RequestHeader_->has_timeout()) {
+            return TDuration::Max();
+        }
+
+        auto timeout = TDuration(RequestHeader_->timeout());
+        auto deadlineTime = ArrivalTime_ + DurationToCpuDuration(timeout);
+        if (deadlineTime < SyncStartTime_) {
+            return TDuration::Zero();
+        }
+
+        return CpuDurationToDuration(deadlineTime - SyncStartTime_);
+    }
+
+
+    virtual void DoReply() override
+    {
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+
+            TRACE_ANNOTATION(
+                TraceContext_,
+                Service_->ServiceId_.ServiceName,
+                RuntimeInfo_->Descriptor.Method,
+                NTracing::ServerSendAnnotation);
+
+            YASSERT(!Completed_);
+            Completed_ = true;
+
+            auto responseMessage = GetResponseMessage();
+
+            if (MutationId_ != NullMutationId) {
+                Service_->ResponseKeeper_->EndRequest(MutationId_, responseMessage);
+            }
+
+            ReplyBus_->Send(std::move(responseMessage), EDeliveryTrackingLevel::None);
+
+            // NB: This counter is also used to track queue size limit so
+            // it must be maintained even if the profiler is OFF.
+            Profiler.Increment(RuntimeInfo_->QueueSizeCounter, -1);
+
+            auto now = GetCpuInstant();
+
+            if (Profiler.GetEnabled()) {
+                if (RunningSync_) {
+                    SyncStopTime_ = now;
+                    auto value = CpuDurationToValue(SyncStopTime_ - SyncStartTime_);
+                    Profiler.Aggregate(RuntimeInfo_->SyncTimeCounter, value);
+                }
+
+                {
+                    auto value = CpuDurationToValue(now - SyncStopTime_);
+                    Profiler.Aggregate(RuntimeInfo_->AsyncTimeCounter, value);
+                }
+
+                {
+                    auto value = CpuDurationToValue(now - ArrivalTime_);
+                    Profiler.Aggregate(RuntimeInfo_->TotalTimeCounter, value);
+                }
+            }
+        }
+
+        Unregister();
         TServiceBase::ReleaseRequestSemaphore(RuntimeInfo_);
         TServiceBase::ScheduleRequests(RuntimeInfo_);
     }
+
 
     virtual void LogRequest() override
     {
@@ -351,7 +462,7 @@ void TServiceBase::Init(
     }
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
-        .SetInvoker(TDispatcher::Get()->GetPoolInvoker())
+        .SetInvoker(TDispatcher::Get()->GetInvoker())
         .SetSystem(true));
 }
 
@@ -360,7 +471,7 @@ TServiceId TServiceBase::GetServiceId() const
     return ServiceId_;
 }
 
-void TServiceBase::OnRequest(
+void TServiceBase::HandleRequest(
     std::unique_ptr<NProto::TRequestHeader> header,
     TSharedRefArray message,
     IBusPtr replyBus)
@@ -493,6 +604,55 @@ void TServiceBase::OnRequest(
     ScheduleRequests(runtimeInfo);
 }
 
+void TServiceBase::HandleRequestCancelation(const TRequestId& requestId)
+{
+    auto context = FindCancelableRequest(requestId);
+    if (!context) {
+        LOG_DEBUG("Received cancelation for an unknown request, ignored (RequestId: %v)",
+            requestId);
+        return;
+    }
+
+    context->Cancel();
+}
+
+void TServiceBase::OnRequestTimeout(const TRequestId& requestId)
+{
+    auto context = FindCancelableRequest(requestId);
+    if (context) {
+        LOG_DEBUG("Server-side timeout occurred, canceling request (RequestId: %v)",
+            requestId);
+        context->Cancel();
+    }
+}
+
+void TServiceBase::OnReplyBusTerminated(IBusPtr bus, const TError& error)
+{
+    std::vector<TServiceContextPtr> contexts;
+    {
+        TGuard<TSpinLock> guard(CancelableRequestLock_);
+        auto it = ReplyBusToContexts_.find(bus);
+        if (it == ReplyBusToContexts_.end())
+            return;
+
+        for (auto* rawContext : it->second) {
+            auto context = TServiceContext::DangerousGetPtr(rawContext);
+            if (context) {
+                contexts.push_back(context);
+            }
+        }
+
+        ReplyBusToContexts_.erase(it);
+    }
+
+    for (auto context : contexts) {
+        LOG_DEBUG(error, "Reply bus terminated, canceling request (RequestId: %v, ReplyBus: %p)",
+            context->GetRequestId(),
+            bus.Get());
+        context->Cancel();
+    }
+}
+
 bool TServiceBase::TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
     if (++runtimeInfo->RunningRequestSemaphore <= runtimeInfo->Descriptor.MaxConcurrency) {
@@ -523,18 +683,86 @@ void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
     }
 }
 
-void TServiceBase::RunRequest(TServiceContextPtr context)
+void TServiceBase::RunRequest(const TServiceContextPtr& context)
 {
     const auto& runtimeInfo = context->GetRuntimeInfo();
     const auto& options = runtimeInfo->Descriptor.Options;
     if (options.HeavyRequest) {
         runtimeInfo->Descriptor.HeavyHandler
-            .AsyncVia(TDispatcher::Get()->GetPoolInvoker())
+            .AsyncVia(TDispatcher::Get()->GetInvoker())
             .Run(context, options)
             .Subscribe(BIND(&TServiceContext::Run, context));
     } else {
         context->Run(runtimeInfo->Descriptor.LiteHandler);
     }
+}
+
+void TServiceBase::RegisterCancelableRequest(TServiceContext* context)
+{
+    const auto& requestId = context->GetRequestId();
+    const auto& replyBus = context->GetReplyBus();
+
+    bool subscribe = false;
+    int requestsPerBus;
+    {
+        TGuard<TSpinLock> guard(CancelableRequestLock_);
+        // NB: We're OK with duplicate request ids.
+        IdToContext_.insert(std::make_pair(requestId, context));
+        auto it = ReplyBusToContexts_.find(context->GetReplyBus());
+        if (it == ReplyBusToContexts_.end()) {
+            subscribe = true;
+            it = ReplyBusToContexts_.insert(std::make_pair(
+                context->GetReplyBus(),
+                yhash_set<TServiceContext*>())).first;
+        }
+        auto& contexts = it->second;
+        contexts.insert(context);
+        requestsPerBus = contexts.size();
+    }
+
+    if (subscribe) {
+        replyBus->SubscribeTerminated(BIND(&TServiceBase::OnReplyBusTerminated, MakeWeak(this), replyBus));
+    }
+
+    LOG_DEBUG("Cancelable request registered (RequestId: %v, ReplyBus: %p, Subscribe: %v, RequestsPerBus: %v)",
+        requestId,
+        replyBus.Get(),
+        subscribe,
+        requestsPerBus);
+}
+
+void TServiceBase::UnregisterCancelableRequest(TServiceContext* context)
+{
+    const auto& requestId = context->GetRequestId();
+    const auto& replyBus = context->GetReplyBus();
+
+    int requestsPerBus;
+    {
+        TGuard<TSpinLock> guard(CancelableRequestLock_);
+        // NB: We're OK with duplicate request ids.
+        IdToContext_.erase(requestId);
+        auto it = ReplyBusToContexts_.find(replyBus);
+        if (it == ReplyBusToContexts_.end()) {
+            // This is OK as well; see OnReplyBusTerminated.
+            requestsPerBus = 0;
+        } else {
+            auto& contexts = it->second;
+            contexts.erase(context);
+            requestsPerBus = contexts.size();
+        }
+    }
+
+    LOG_DEBUG("Cancelable request unregistered (RequestId: %v, ReplyBus: %p, RequestsPerBus: %v)",
+        requestId,
+        replyBus.Get(),
+        requestsPerBus);
+}
+
+TServiceBase::TServiceContextPtr TServiceBase::FindCancelableRequest(const TRequestId& requestId)
+{
+    TGuard<TSpinLock> guard(CancelableRequestLock_);
+    auto it = IdToContext_.find(requestId);
+    return it == IdToContext_.end()  ? nullptr : TServiceContext::DangerousGetPtr(it->second);
 }
 
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
@@ -581,6 +809,9 @@ void TServiceBase::Configure(INodePtr configNode)
             if (methodConfig->MaxConcurrency) {
                 descriptor.SetMaxConcurrency(*methodConfig->MaxConcurrency);
             }
+            if (methodConfig->LogLevel) {
+                descriptor.SetLogLevel(*methodConfig->LogLevel);
+            }
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error configuring RPC service %v",
@@ -612,7 +843,7 @@ IPrioritizedInvokerPtr TServiceBase::GetDefaultInvoker()
 void TServiceBase::BeforeInvoke()
 { }
 
-bool TServiceBase::IsUp() const
+bool TServiceBase::IsUp(TCtxDiscoverPtr /*context*/) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -630,7 +861,7 @@ DEFINE_RPC_SERVICE_METHOD(TServiceBase, Discover)
 {
     context->SetRequestInfo();
 
-    response->set_up(IsUp());
+    response->set_up(IsUp(context));
     ToProto(response->mutable_suggested_addresses(), SuggestAddresses());
 
     context->SetResponseInfo("Up: %v, SuggestedAddresses: [%v]",

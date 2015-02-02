@@ -10,9 +10,48 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TEntitySerializationKey
+{
+    TEntitySerializationKey()
+        : Index(-1)
+    { }
+
+    explicit TEntitySerializationKey(int index)
+        : Index(index)
+    { }
+
+#define DEFINE_OPERATOR(op) \
+    bool operator op (TEntitySerializationKey other) const \
+    { \
+        return Index op other.Index; \
+    }
+
+    DEFINE_OPERATOR(==)
+    DEFINE_OPERATOR(!=)
+    DEFINE_OPERATOR(<)
+    DEFINE_OPERATOR(<=)
+    DEFINE_OPERATOR(>)
+    DEFINE_OPERATOR(>=)
+#undef DEFINE_OPERATOR
+
+    void Save(TSaveContext& context) const;
+    void Load(TLoadContext& context);
+
+    int Index;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSaveContext
     : public NYT::TStreamSaveContext
-{ };
+{
+public:
+    TEntitySerializationKey GenerateSerializationKey();
+
+private:
+    int SerializationKeyIndex_ = 0;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,9 +64,24 @@ public:
 public:
     TLoadContext();
 
+    void Reset();
+
+    void RegisterEntity(TEntityBase* entity);
+
+    template <class T>
+    T* GetEntity(TEntitySerializationKey key) const;
+
+private:
+    std::vector<TEntityBase*> Entities_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ESerializationPriority,
+    (Keys)
+    (Values)
+);
 
 class TCompositeAutomatonPart
     : public virtual TRefCounted
@@ -42,7 +96,7 @@ protected:
     TCompositeAutomaton* Automaton;
 
     void RegisterSaver(
-        int priority,
+        ESerializationPriority priority,
         const Stroka& name,
         TClosure saver);
 
@@ -51,7 +105,7 @@ protected:
         TClosure loader);
 
     void RegisterSaver(
-        int priority,
+        ESerializationPriority priority,
         const Stroka& name,
         TCallback<void(TSaveContext&)> saver);
 
@@ -99,11 +153,6 @@ DEFINE_REFCOUNTED_TYPE(TCompositeAutomatonPart)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ESerializationPriority,
-    (Keys)
-    (Values)
-);
-
 class TCompositeAutomaton
     : public IAutomaton
 {
@@ -124,13 +173,13 @@ private:
 
     struct TSaverInfo
     {
-        int Priority;
+        ESerializationPriority Priority;
         Stroka Name;
         TClosure Saver;
         TCompositeAutomatonPart* Part;
 
         TSaverInfo(
-            int priority,
+            ESerializationPriority priority,
             const Stroka& name,
             TClosure saver,
             TCompositeAutomatonPart* part);

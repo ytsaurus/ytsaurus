@@ -2,7 +2,9 @@
 
 #include "public.h"
 
-#include <core/concurrency/action_queue.h>
+#include <core/misc/shutdownable.h>
+
+#include <core/actions/public.h>
 
 namespace NYT {
 namespace NRpc {
@@ -10,19 +12,27 @@ namespace NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDispatcher
+    : public IShutdownable
 {
 public:
     TDispatcher();
 
+    ~TDispatcher();
+
     static TDispatcher* Get();
 
-    IInvokerPtr GetPoolInvoker();
+    void Configure(int poolSize);
 
-    void Shutdown();
+    virtual void Shutdown() override;
+
+    /*!
+     * This invoker is used by RPC to dispatch callbacks.
+     */
+    IInvokerPtr GetInvoker();
 
 private:
-    NConcurrency::TThreadPoolPtr ThreadPool;
-
+    class TImpl;
+    std::unique_ptr<TImpl> Impl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

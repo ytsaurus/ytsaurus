@@ -14,6 +14,9 @@ TQueryStatistics& TQueryStatistics::operator+=(const TQueryStatistics& other)
     RowsWritten += other.RowsWritten;
     SyncTime += other.SyncTime;
     AsyncTime += other.AsyncTime;
+    ExecuteTime += other.ExecuteTime;
+    ReadTime += other.ReadTime;
+    WriteTime += other.WriteTime;
     IncompleteInput |= other.IncompleteInput;
     IncompleteOutput |= other.IncompleteOutput;
     return *this;
@@ -27,6 +30,9 @@ void ToProto(NProto::TQueryStatistics* serialized, const TQueryStatistics& query
     serialized->set_rows_written(queryResult.RowsWritten);
     serialized->set_sync_time(queryResult.SyncTime.GetValue());
     serialized->set_async_time(queryResult.AsyncTime.GetValue());
+    serialized->set_execute_time(queryResult.ExecuteTime.GetValue());
+    serialized->set_read_time(queryResult.ReadTime.GetValue());
+    serialized->set_write_time(queryResult.WriteTime.GetValue());
     serialized->set_incomplete_input(queryResult.IncompleteInput);
     serialized->set_incomplete_output(queryResult.IncompleteOutput);
 }
@@ -39,6 +45,9 @@ TQueryStatistics FromProto(const NProto::TQueryStatistics& serialized)
     result.RowsWritten = serialized.rows_written();
     result.SyncTime = TDuration(serialized.sync_time());
     result.AsyncTime = TDuration(serialized.async_time());
+    result.ExecuteTime = TDuration(serialized.execute_time());
+    result.ReadTime = TDuration(serialized.read_time());
+    result.WriteTime = TDuration(serialized.write_time());
     result.IncompleteInput = serialized.incomplete_input();
     result.IncompleteOutput = serialized.incomplete_output();
 

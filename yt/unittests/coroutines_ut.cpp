@@ -1,9 +1,10 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 
 #include <core/concurrency/coroutine.h>
+#include <core/concurrency/delayed_executor.h>
 
 namespace NYT {
 namespace NConcurrency {
@@ -134,7 +135,7 @@ TEST_F(TCoroutineTest, Binary)
 void Coroutine3(TCoroutine<void()>& self)
 {
     for (int i = 0; i < 10; ++i) {
-        WaitFor(MakeDelayed(TDuration::MilliSeconds(1)));
+        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(1)));
         self.Yield();
     }
 }

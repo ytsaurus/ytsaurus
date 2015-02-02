@@ -25,15 +25,15 @@ public:
         NConcurrency::IAsyncOutputStreamPtr stream,
         TYsonFormatConfigPtr config = New<TYsonFormatConfig>());
 
-    virtual TAsyncError Open(
+    virtual TFuture<void> Open(
         const NVersionedTableClient::TTableSchema& schema,
         const TNullable<NVersionedTableClient::TKeyColumns>& keyColumns) override;
 
-    virtual TAsyncError Close() override;
+    virtual TFuture<void> Close() override;
 
     virtual bool Write(const std::vector<NVersionedTableClient::TUnversionedRow>& rows) override;
 
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
 private:
     NConcurrency::IAsyncOutputStreamPtr Stream_;
@@ -43,7 +43,7 @@ private:
 
     NVersionedTableClient::TTableSchema Schema_;
 
-    TAsyncError Result_;
+    TFuture<void> Result_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

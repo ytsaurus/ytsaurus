@@ -15,8 +15,6 @@
 
 #include <core/ytree/ypath.pb.h>
 
-#include <core/concurrency/parallel_collector.h>
-
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/security_client/public.h>
@@ -44,9 +42,10 @@ public:
         IChannelPtr masterChannel,
         const TRealmId& masterCellId)
         : TServiceBase(
-            NRpc::TDispatcher::Get()->GetPoolInvoker(),
+            NRpc::TDispatcher::Get()->GetInvoker(),
             TServiceId(TObjectServiceProxy::GetServiceName(), masterCellId),
-            ObjectServerLogger)
+            ObjectServerLogger,
+            TObjectServiceProxy::GetProtocolVersion())
         , Config_(config)
         , MasterChannel_(CreateThrottlingChannel(
             config,
@@ -134,7 +133,7 @@ private:
             , Logger(ObjectServerLogger)
         { }
 
-        TFuture<TErrorOr<TSharedRefArray>> Lookup(
+        TFuture<TSharedRefArray> Lookup(
             const TKey& key,
             TSharedRefArray requestMessage,
             TDuration successExpirationTime,
@@ -182,11 +181,8 @@ private:
                     Passed(std::move(cookie))));
             }
 
-            return result.Apply(BIND([] (const TErrorOr<TEntryPtr>& entryOrError) -> TErrorOr<TSharedRefArray> {
-        	    if (!entryOrError.IsOK()) {
-    	            return TError(entryOrError);
-            	}
-	            return entryOrError.Value()->GetResponseMessage();
+            return result.Apply(BIND([] (TEntryPtr entry) -> TSharedRefArray {
+	            return entry->GetResponseMessage();
             }));
         }
 
@@ -235,14 +231,15 @@ private:
 
         void OnResponse(
             std::unique_ptr<TInsertCookie> cookie,
-            TObjectServiceProxy::TRspExecutePtr rsp)
+            const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError)
         {
-            if (!rsp->IsOK()) {
-                LOG_WARNING(*rsp, "Cache population request failed");
-                cookie->Cancel(*rsp);
+            if (!rspOrError.IsOK()) {
+                LOG_WARNING(rspOrError, "Cache population request failed");
+                cookie->Cancel(rspOrError);
                 return;
             }
 
+            const auto& rsp = rspOrError.Value();
             const auto& key = cookie->GetKey();
 
             YCHECK(rsp->part_counts_size() == 1);
@@ -280,12 +277,10 @@ private:
             , Logger(ObjectServerLogger)
         {
             Request_ = Proxy_.Execute();
-            Request_->mutable_prerequisite_transactions()->MergeFrom(Context_->Request().prerequisite_transactions());
-            Request_->mutable_prerequisite_revisions()->MergeFrom(Context_->Request().prerequisite_revisions());
             MergeRequestHeaderExtensions(&Request_->Header(), Context_->RequestHeader());
         }
 
-        TFuture<TErrorOr<TSharedRefArray>> Add(TSharedRefArray subrequestMessage)
+        TFuture<TSharedRefArray> Add(TSharedRefArray subrequestMessage)
         {
             Request_->add_part_counts(subrequestMessage.Size());
             Request_->Attachments().insert(
@@ -293,7 +288,7 @@ private:
                 subrequestMessage.Begin(),
                 subrequestMessage.End());
 
-            auto promise = NewPromise<TErrorOr<TSharedRefArray>>();
+            auto promise = NewPromise<TSharedRefArray>();
             Promises_.push_back(promise);
             return promise;
         }
@@ -310,17 +305,18 @@ private:
         TCtxExecutePtr Context_;
         TObjectServiceProxy Proxy_;
         TObjectServiceProxy::TReqExecutePtr Request_;
-        std::vector<TPromise<TErrorOr<TSharedRefArray>>> Promises_;
+        std::vector<TPromise<TSharedRefArray>> Promises_;
 
         const NLog::TLogger& Logger;
 
-        void OnResponse(TObjectServiceProxy::TRspExecutePtr rsp)
+
+        void OnResponse(const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError)
         {
-            if (!rsp->IsOK()) {
+            if (!rspOrError.IsOK()) {
                 LOG_DEBUG("Cache bypass request failed (RequestId: %v)",
                     Context_->GetRequestId());
                 for (auto& promise : Promises_) {
-                    promise.Set(rsp->GetError());
+                    promise.Set(rspOrError);
                 }
                 return;
             }
@@ -328,6 +324,7 @@ private:
             LOG_DEBUG("Cache bypass request succeded (RequestId: %v)",
                 Context_->GetRequestId());
 
+            const auto& rsp = rspOrError.Value();
             YCHECK(rsp->part_counts_size() == Promises_.size());
 
             int attachmentIndex = 0;
@@ -344,7 +341,6 @@ private:
 
     };
 
-
 };
 
 DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
@@ -359,7 +355,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
     int attachmentIndex = 0;
     const auto& attachments = request->Attachments();
 
-    auto responseCollector = New<TParallelCollector<TSharedRefArray>>();
+    std::vector<TFuture<TSharedRefArray>> asyncMasterResponseMessages;
     TIntrusivePtr<TMasterRequest> masterRequest;
 
     for (int subrequestIndex = 0; subrequestIndex < request->part_counts_size(); ++subrequestIndex) {
@@ -373,18 +369,18 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
         TRequestHeader subrequestHeader;
         YCHECK(ParseRequestHeader(subrequestMessage, &subrequestHeader));
 
-        const auto& ypathRequestHeaderExt = subrequestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
+        const auto& ypathExt = subrequestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
 
         TKey key;
         key.User = user;
-        key.Path = ypathRequestHeaderExt.path();
+        key.Path = ypathExt.path();
         key.Service = subrequestHeader.service();
         key.Method = subrequestHeader.method();
 
         if (subrequestHeader.HasExtension(TCachingHeaderExt::caching_header_ext)) {
             const auto& cachingRequestHeaderExt = subrequestHeader.GetExtension(TCachingHeaderExt::caching_header_ext);
 
-            if (ypathRequestHeaderExt.mutating()) {
+            if (ypathExt.mutating()) {
                 THROW_ERROR_EXCEPTION("Cannot cache responses for mutating requests");
             }
 
@@ -393,7 +389,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 subrequestIndex,
                 key);
 
-            responseCollector->Collect(Cache_->Lookup(
+            asyncMasterResponseMessages.push_back(Cache_->Lookup(
                 key,
                 std::move(subrequestMessage),
                 TDuration::MilliSeconds(cachingRequestHeaderExt.success_expiration_time()),
@@ -408,7 +404,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 masterRequest = New<TMasterRequest>(MasterChannel_, context);
             }
 
-            responseCollector->Collect(masterRequest->Add(subrequestMessage));
+            asyncMasterResponseMessages.push_back(masterRequest->Add(subrequestMessage));
         }
     }
 
@@ -416,24 +412,19 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
         masterRequest->Invoke();
     }
 
-    responseCollector->Complete().Subscribe(BIND([=] (const TErrorOr<std::vector<TSharedRefArray>>& subresponseMessagesOrError) {
-        if (!subresponseMessagesOrError.IsOK()) {
-            context->Reply(subresponseMessagesOrError);
-            return;
-        }
+    auto masterResponseMessages = WaitFor(Combine(asyncMasterResponseMessages))
+        .ValueOrThrow();
 
-        const auto& responseMessages = subresponseMessagesOrError.Value();
-        auto& responseAttachments = response->Attachments();
-        for (const auto& subresponseMessage : responseMessages) {
-            response->add_part_counts(subresponseMessage.Size());
-            responseAttachments.insert(
-                responseAttachments.end(),
-                subresponseMessage.Begin(),
-                subresponseMessage.End());
-        }
+    auto& responseAttachments = response->Attachments();
+    for (const auto& masterResponseMessage : masterResponseMessages) {
+        response->add_part_counts(masterResponseMessage.Size());
+        responseAttachments.insert(
+            responseAttachments.end(),
+            masterResponseMessage.Begin(),
+            masterResponseMessage.End());
+    }
 
-        context->Reply();
-    }));
+    context->Reply();
 }
 
 IServicePtr CreateMasterCacheService(

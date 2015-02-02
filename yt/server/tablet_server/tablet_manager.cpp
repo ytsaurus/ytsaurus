@@ -86,6 +86,7 @@ using namespace NCypressServer;
 using namespace NCellMaster;
 
 using NTabletNode::TTableMountConfigPtr;
+using NNodeTrackerServer::NProto::TReqIncrementalHeartbeat;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -198,7 +199,7 @@ public:
             BIND(&TImpl::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND(&TImpl::HydraAssignPeers, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraRevokePeer, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraRevokePeers, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletMounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletStores, Unretained(this)));
@@ -285,17 +286,17 @@ public:
         auto cellMapNodeProxy = GetCellMapNode();
         cellMapNodeProxy->RemoveChild(ToString(cell->GetId()));
 
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        hiveManager->RemoveMailbox(cell->GetId());
+
         for (const auto& peer : cell->Peers()) {
-            if (peer.Address) {
-                RemoveFromAddressToCellMap(*peer.Address, cell);
-            }
             if (peer.Node) {
                 peer.Node->DetachTabletCell(cell);
             }
+            if (peer.Address) {
+                RemoveFromAddressToCellMap(*peer.Address, cell);
+            }
         }
-
-        auto hiveManager = Bootstrap_->GetHiveManager();
-        hiveManager->RemoveMailbox(cell->GetId());
 
         AbortPrerequisiteTransaction(cell);
     }
@@ -347,13 +348,18 @@ public:
         return tableProxy->Attributes().Get<TTableSchema>("schema", TTableSchema());
     }
 
-    TTabletStatistics GetTabletStatistics(TTablet* tablet)
+    TTabletStatistics GetTabletStatistics(const TTablet* tablet)
     {
         const auto* table = tablet->GetTable();
         const auto* rootChunkList = table->GetChunkList();
         const auto* tabletChunkList = rootChunkList->Children()[tablet->GetIndex()]->AsChunkList();
         const auto& treeStatistics = tabletChunkList->Statistics();
         TTabletStatistics tabletStatistics;
+        if (tablet->GetState() == ETabletState::Mounted) {
+            const auto& nodeStatistics = tablet->NodeStatistics();
+            tabletStatistics.PartitionCount = nodeStatistics.partition_count();
+            tabletStatistics.StoreCount = nodeStatistics.store_count();
+        }
         tabletStatistics.UnmergedRowCount = treeStatistics.RowCount;
         tabletStatistics.UncompressedDataSize = treeStatistics.UncompressedDataSize;
         tabletStatistics.CompressedDataSize = treeStatistics.CompressedDataSize;
@@ -431,13 +437,15 @@ public:
         const auto& chunkLists = table->GetChunkList()->Children();
         YCHECK(tablets.size() == chunkLists.size());
 
+        auto cells = AllocateCells(hintedCell, lastTabletIndex - firstTabletIndex + 1);
+
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = tablets[index];
             auto* nextTablet = index + 1 == static_cast<int>(tablets.size()) ? nullptr : tablets[index + 1];
             if (tablet->GetCell())
                 continue;
 
-            auto* cell = hintedCell ? hintedCell : AllocateCell();
+            auto* cell = cells[index - firstTabletIndex];
             tablet->SetCell(cell);
             YCHECK(cell->Tablets().insert(tablet).second);
             objectManager->RefObject(cell);
@@ -718,7 +726,6 @@ private:
 
     TPeriodicExecutorPtr CleanupExecutor_;
 
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     
@@ -815,7 +822,7 @@ private:
 
     void OnIncrementalHeartbeat(
         TNode* node,
-        const NNodeTrackerServer::NProto::TReqIncrementalHeartbeat& request,
+        const TReqIncrementalHeartbeat& request,
         TRspIncrementalHeartbeat* response)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -830,10 +837,12 @@ private:
             const auto& cellId = cell->GetId();
             ToProto(protoInfo->mutable_cell_id(), cell->GetId());
             protoInfo->set_options(ConvertToYsonString(cell->GetOptions()).Data());
+            ToProto(protoInfo->mutable_prerequisite_transaction_id(), cell->GetPrerequisiteTransaction()->GetId());
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v)",
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v, PrerequisiteTransactionId: %v)",
                 node->GetAddress(),
-                cellId);
+                cellId,
+                cell->GetPrerequisiteTransaction()->GetId());
         };
 
         auto requestConfigureSlot = [&] (TTabletCell* cell) {
@@ -847,8 +856,7 @@ private:
             protoInfo->set_config_version(cell->GetConfigVersion());
             protoInfo->set_config(ConvertToYsonString(cell->GetConfig()).Data());
             protoInfo->set_peer_id(cell->GetPeerId(node));
-            ToProto(protoInfo->mutable_prerequisite_transaction_id(), GetObjectId(cell->GetPrerequisiteTransaction()));
-
+            
             LOG_INFO_UNLESS(IsRecovery(), "Tablet slot configuration update requested (Address: %v, CellId: %v, Version: %v)",
                 node->GetAddress(),
                 cellId,
@@ -874,9 +882,10 @@ private:
 
         // Our expectations.
         yhash_set<TTabletCell*> expectedCells;
-        for (auto& slot : node->TabletSlots()) {
-            if (IsObjectAlive(slot.Cell)) {
-                YCHECK(expectedCells.insert(slot.Cell).second);
+        for (const auto& slot : node->TabletSlots()) {
+            auto* cell = slot.Cell;
+            if (IsObjectAlive(cell)) {
+                YCHECK(expectedCells.insert(cell).second);
             }
         }
 
@@ -922,9 +931,20 @@ private:
                 continue;
             }
 
+            auto prerequisiteTransactionId = FromProto<TTransactionId>(slotInfo.prerequisite_transaction_id());
+            if (cell->GetPrerequisiteTransaction() && prerequisiteTransactionId != cell->GetPrerequisiteTransaction()->GetId())  {
+                LOG_INFO_UNLESS(IsRecovery(), "Invalid prerequisite transaction id for tablet cell: %v instead of %v (Address: %v, CellId: %v)",
+                    prerequisiteTransactionId,
+                    cell->GetPrerequisiteTransaction()->GetId(),
+                    address,
+                    cellId);
+                requestRemoveSlot(cellId);
+                continue;
+            }
+
             auto expectedIt = expectedCells.find(cell);
             if (expectedIt == expectedCells.end()) {
-                cell->AttachPeer(node, peerId, slotIndex);
+                cell->AttachPeer(node, peerId);
                 LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer online (Address: %v, CellId: %v, PeerId: %v)",
                     address,
                     cellId,
@@ -968,11 +988,20 @@ private:
             auto range = AddressToCell_.equal_range(address);
             for (auto it = range.first; it != range.second; ++it) {
                 auto* cell = it->second;
-                if (actualCells.find(cell) == actualCells.end()) {
+                if (IsObjectAlive(cell) && actualCells.find(cell) == actualCells.end()) {
                     requestCreateSlot(cell);
                     --availableSlots;
                 }
             }
+        }
+
+        // Copy tablet statistics.
+        for (auto& tabletInfo : request.tablets()) {
+            auto tabletId = FromProto<TTabletId>(tabletInfo.tablet_id());
+            auto* tablet = FindTablet(tabletId);
+            if (!tablet || tablet->GetState() != ETabletState::Mounted)
+                continue;
+            tablet->NodeStatistics() = tabletInfo.statistics();
         }
 
         // Request to remove orphaned Hive cells.
@@ -997,7 +1026,10 @@ private:
 
         yhash_set<TTabletCell*> missingCells;
         for (const auto& pair : TabletCellMap_) {
-            YCHECK(missingCells.insert(pair.second).second);
+            auto* cell = pair.second;
+            if (IsObjectAlive(cell)) {
+               YCHECK(missingCells.insert(pair.second).second);
+            }
         }
             
         for (const auto& cellInfo : request.hive_cells()) {
@@ -1006,7 +1038,7 @@ private:
                 continue;
 
             auto* cell = FindTabletCell(cellId);
-            if (cell) {
+            if (IsObjectAlive(cell)) {
                 YCHECK(missingCells.erase(cell) == 1);
                 if (cellInfo.config_version() < cell->GetConfigVersion()) {
                     requestReconfigureCell(cell);
@@ -1039,7 +1071,6 @@ private:
     }
 
 
-
     void HydraAssignPeers(const TReqAssignPeers& request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1053,6 +1084,8 @@ private:
         auto hydraManager = hydraFacade->GetHydraManager();
         auto* mutationContext = hydraManager->GetMutationContext();
         auto nodeTracker = Bootstrap_->GetNodeTracker();
+
+        AbortPrerequisiteTransaction(cell);
 
         YCHECK(request.node_ids_size() == cell->Peers().size());
         for (TPeerId peerId = 0; peerId < request.node_ids_size(); ++peerId) {
@@ -1082,7 +1115,7 @@ private:
         ReconfigureCell(cell);
     }
 
-    void HydraRevokePeer(const TReqRevokePeer& request)
+    void HydraRevokePeers(const TReqRevokePeers& request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1091,22 +1124,11 @@ private:
         if (!IsObjectAlive(cell))
             return;
 
-        auto peerId = request.peer_id();
-        const auto& peer = cell->Peers()[peerId];
-        if (!peer.Address || peer.Node)
-            return;
+        for (auto peerId : request.peer_ids()) {
+            DoRevokePeer(cell, peerId);
+        }
 
-        const auto& address = *peer.Address;
-
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
-            cell->GetId(),
-            address,
-            peerId);
-
-        RemoveFromAddressToCellMap(address, cell);
-        cell->RevokePeer(peerId);
         AbortPrerequisiteTransaction(cell);
-        ReconfigureCell(cell);
     }
 
     void HydraOnTabletMounted(const TRspMountTablet& response)
@@ -1304,9 +1326,14 @@ private:
         
         auto config = cell->GetConfig();
         config->Addresses.clear();
-        for (int index = 0; index < static_cast<int>(cell->Peers().size()); ++index) {
-            const auto& peer = cell->Peers()[index];
-            config->Addresses.push_back(peer.Address ? *peer.Address : "");
+        for (const auto& peer : cell->Peers()) {
+            auto nodeTracker = Bootstrap_->GetNodeTracker();
+            if (peer.Address) {
+                auto node = nodeTracker->GetNodeByAddress(*peer.Address);
+                config->Addresses.push_back(node->GetDescriptor().GetInterconnectAddress());
+            } else {
+                config->Addresses.push_back(Null);
+            }
         }
 
         UpdateCellDirectory(cell);
@@ -1335,39 +1362,49 @@ private:
         THROW_ERROR_EXCEPTION("No healthy tablet cells");
     }
 
-    TTabletCell* AllocateCell()
+    std::vector<TTabletCell*> AllocateCells(TTabletCell* hintedCell, int count)
     {
         // TODO(babenko): do something smarter?
-        auto cells = GetValues(TabletCellMap_);
+        if (hintedCell) {
+            return std::vector<TTabletCell*>(count, hintedCell);
+        }
 
-        cells.erase(
+        auto allCells = GetValues(TabletCellMap_);
+
+        allCells.erase(
             std::remove_if(
-                cells.begin(),
-                cells.end(),
+                allCells.begin(),
+                allCells.end(),
                 [] (const TTabletCell* cell) {
                     return cell->IsAlive() && cell->GetHealth() != ETabletCellHealth::Good;
                 }),
-            cells.end());
+            allCells.end());
         
-        YCHECK(!cells.empty());
+        YCHECK(!allCells.empty());
 
         std::sort(
-            cells.begin(),
-            cells.end(),
+            allCells.begin(),
+            allCells.end(),
             [] (TTabletCell* lhs, TTabletCell* rhs) {
                 return lhs->GetId() < rhs->GetId();
             });
 
-        auto* mutationContext = Bootstrap_->GetHydraFacade()->GetHydraManager()->GetMutationContext();
-        int index = mutationContext->RandomGenerator().Generate<size_t>() % cells.size();
-        return cells[index];
+        auto* mutationContext = Bootstrap_
+            ->GetHydraFacade()
+            ->GetHydraManager()
+            ->GetMutationContext();
+
+        std::vector<TTabletCell*> cells;
+        for (int index = 0; index < count; ++index) {
+            cells.push_back(allCells[mutationContext->RandomGenerator().Generate<size_t>() % allCells.size()]);
+        }
+
+        return cells;
     }
 
 
     void StartPrerequisiteTransaction(TTabletCell* cell)
     {
-        AbortPrerequisiteTransaction(cell);
-
         auto transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->StartTransaction(nullptr, Null);
 
@@ -1376,6 +1413,7 @@ private:
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->FillAttributes(transaction, *attributes);
 
+        YCHECK(!cell->GetPrerequisiteTransaction());
         cell->SetPrerequisiteTransaction(transaction);
         YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
 
@@ -1411,8 +1449,29 @@ private:
         LOG_INFO_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
             cell->GetId(),
             transaction->GetId());
+
+        for (auto peerId = 0; peerId < cell->Peers().size(); ++peerId) {
+            DoRevokePeer(cell, peerId);
+        }
     }
 
+
+    void DoRevokePeer(TTabletCell* cell, TPeerId peerId)
+    {
+        const auto& peer = cell->Peers()[peerId];
+        if (!peer.Address || peer.Node)
+            return;
+
+        const auto& address = *peer.Address;
+
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
+            cell->GetId(),
+            address,
+            peerId);
+
+        RemoveFromAddressToCellMap(address, cell);
+        cell->RevokePeer(peerId);
+    }
 
     void DoUnmountTable(
         TTableNode* table,
@@ -1432,6 +1491,7 @@ private:
                     force);
 
                 tablet->SetState(ETabletState::Unmounting);
+                tablet->NodeStatistics().Clear();
 
                 auto hiveManager = Bootstrap_->GetHiveManager();
 
@@ -1568,13 +1628,13 @@ private:
                             snapshotId,
                             cellId);
                         auto req = TYPathProxy::Remove(snapshotsPath + "/" + key);
-                        ExecuteVerb(rootService, req).Subscribe(BIND([=] (TYPathProxy::TRspRemovePtr rsp) {
-                            if (rsp->IsOK()) {
+                        ExecuteVerb(rootService, req).Subscribe(BIND([=] (const TYPathProxy::TErrorOrRspRemovePtr& rspOrError) {
+                            if (rspOrError.IsOK()) {
                                 LOG_INFO("Tablet cell snapshot %v removed successfully (CellId: %v)",
                                     snapshotId,
                                     cellId);
                             } else {
-                                LOG_INFO(*rsp, "Error removing tablet cell snapshot %v (CellId: %v)",
+                                LOG_INFO(rspOrError, "Error removing tablet cell snapshot %v (CellId: %v)",
                                     snapshotId,
                                     cellId);
                             }
@@ -1606,13 +1666,13 @@ private:
                         changelogId,
                         cellId);
                     auto req = TYPathProxy::Remove(changelogsPath + "/" + key);
-                    ExecuteVerb(rootService, req).Subscribe(BIND([=] (TYPathProxy::TRspRemovePtr rsp) {
-                        if (rsp->IsOK()) {
+                    ExecuteVerb(rootService, req).Subscribe(BIND([=] (const TYPathProxy::TErrorOrRspRemovePtr& rspOrError) {
+                        if (rspOrError.IsOK()) {
                             LOG_INFO("Tablet cell changelog %v removed successfully (CellId: %v)",
                                 changelogId,
                                 cellId);
                         } else {
-                            LOG_INFO(*rsp, "Error removing tablet cell changelog %v (CellId: %v)",
+                            LOG_INFO(rspOrError, "Error removing tablet cell changelog %v (CellId: %v)",
                                 changelogId,
                                 cellId);
                         }
@@ -1689,7 +1749,7 @@ TTableSchema TTabletManager::GetTableSchema(TTableNode* table)
     return Impl_->GetTableSchema(table);
 }
 
-TTabletStatistics TTabletManager::GetTabletStatistics(TTablet* tablet)
+TTabletStatistics TTabletManager::GetTabletStatistics(const TTablet* tablet)
 {
     return Impl_->GetTabletStatistics(tablet);
 }

@@ -1,7 +1,9 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
+
 #include <core/logging/log.h>
+
 #include <core/profiling/profiler.h>
 
 namespace NYT {

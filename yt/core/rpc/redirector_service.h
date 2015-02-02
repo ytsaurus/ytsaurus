@@ -7,7 +7,7 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RedirectServiceRequest(
+IClientRequestControlPtr RedirectServiceRequest(
     IServiceContextPtr context,
     IChannelPtr channel);
 

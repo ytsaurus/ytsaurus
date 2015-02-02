@@ -64,7 +64,7 @@ void ProduceRow(IYsonConsumer* consumer, const TRow& row)
 
 void ProduceTableSwitch(IYsonConsumer* consumer, int tableIndex)
 {
-    static Stroka tableIndexKey = FormatEnum(EControlAttribute(EControlAttribute::TableIndex));
+    static Stroka tableIndexKey = FormatEnum(EControlAttribute::TableIndex);
 
     consumer->OnListItem();
     consumer->OnBeginAttributes();

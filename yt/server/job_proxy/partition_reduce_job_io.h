@@ -1,15 +1,13 @@
 ﻿#pragma once
 
-#include "private.h"
+#include "public.h"
 
 namespace NYT {
 namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<TUserJobIO> CreatePartitionReduceJobIO(
-    NScheduler::TJobIOConfigPtr config,
-    IJobHost* host);
+std::unique_ptr<IUserJobIO> CreatePartitionReduceJobIO(IJobHost* host);
 
 ////////////////////////////////////////////////////////////////////
 

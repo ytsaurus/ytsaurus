@@ -114,7 +114,7 @@ public:
         return this;
     }
 
-    TAsyncError CommitTransaction(
+    TFuture<void> CommitTransaction(
         const TTransactionId& transactionId,
         const std::vector<TCellId>& participantCellIds)
     {
@@ -124,7 +124,7 @@ public:
             NullMutationId));
     }
 
-    TAsyncError AbortTransaction(
+    TFuture<void> AbortTransaction(
         const TTransactionId& transactionId,
         bool force)
     {
@@ -289,6 +289,9 @@ private:
         }
 
         try {
+            if (FindCommit(transactionId)) {
+                THROW_ERROR_EXCEPTION("Transaction %v is being committed");
+            }
             // Any exception thrown here is caught below.
             TransactionManager_->PrepareTransactionAbort(transactionId, force);
         } catch (const std::exception& ex) {
@@ -317,12 +320,14 @@ private:
             }));
     }
 
-    static TAsyncError MessageToError(TFuture<TSharedRefArray> asyncMessage)
+    static TFuture<void> MessageToError(TFuture<TSharedRefArray> asyncMessage)
     {
-        return asyncMessage.Apply(BIND([] (const TSharedRefArray& message) -> TError {
+        return asyncMessage.Apply(BIND([] (const TSharedRefArray& message) -> TFuture<void> {
             TResponseHeader header;
             YCHECK(ParseResponseHeader(message, &header));
-            return FromProto<TError>(header.error());
+            return header.has_error()
+                ? MakeFuture<void>(FromProto<TError>(header.error()))
+                : VoidFuture;
         }));
     }
 
@@ -399,11 +404,13 @@ private:
                 transactionId);
             SetCommitFailed(commit, ex);
             PersistentCommitMap_.Remove(transactionId);
-            // Best effort, fire-and-forget.
-            auto this_ = MakeStrong(this);
-            EpochAutomatonInvoker_->Invoke(BIND([this, this_, transactionId] () {
-                AbortTransaction(transactionId, false);
-            }));
+            if (IsLeader()) {
+                // Best effort, fire-and-forget.
+                auto this_ = MakeStrong(this);
+                EpochAutomatonInvoker_->Invoke(BIND([this, this_, transactionId] () {
+                    AbortTransaction(transactionId, false);
+                }));
+            }
             return;
         }
 
@@ -819,7 +826,7 @@ IServicePtr TTransactionSupervisor::GetRpcService()
     return Impl_->GetRpcService();
 }
 
-TAsyncError TTransactionSupervisor::CommitTransaction(
+TFuture<void> TTransactionSupervisor::CommitTransaction(
     const TTransactionId& transactionId,
     const std::vector<TCellId>& participantCellIds)
 {
@@ -828,7 +835,7 @@ TAsyncError TTransactionSupervisor::CommitTransaction(
         participantCellIds);
 }
 
-TAsyncError TTransactionSupervisor::AbortTransaction(
+TFuture<void> TTransactionSupervisor::AbortTransaction(
     const TTransactionId& transactionId,
     bool force)
 {

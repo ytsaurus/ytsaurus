@@ -28,14 +28,14 @@ class TVirtualObjectMap
 public:
     explicit TVirtualObjectMap(
         NCellMaster::TBootstrap* bootstrap,
-        const NHydra::IReadOnlyEntityMap<NObjectServer::TObjectId, TValue>* map)
+        const NHydra::TReadOnlyEntityMap<NObjectServer::TObjectId, TValue>* map)
         : Bootstrap(bootstrap)
         , Map(map)
     { }
 
 protected:
     NCellMaster::TBootstrap* Bootstrap;
-    const NHydra::IReadOnlyEntityMap<NObjectServer::TObjectId, TValue>* Map;
+    const NHydra::TReadOnlyEntityMap<NObjectServer::TObjectId, TValue>* Map;
 
     virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
@@ -66,7 +66,7 @@ template <
 >
 NYTree::IYPathServicePtr CreateVirtualObjectMap(
     NCellMaster::TBootstrap* bootstrap,
-    const NHydra::IReadOnlyEntityMap<TId, TValue>& map)
+    const NHydra::TReadOnlyEntityMap<TId, TValue>& map)
 {
     return New<TVirtualObjectMap<TId, TValue>>(
         bootstrap,

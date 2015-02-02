@@ -27,6 +27,8 @@ struct TChunkDescriptor
     bool Sealed = false;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 //! A base for any IChunk implementation.
 class TChunkBase
     : public IChunk
@@ -59,6 +61,7 @@ protected:
     TPromise<void> RemovedPromise_; // if not null then remove is scheduled
     int ReadLockCounter_ = 0;
     bool Removing_ = false;
+
 
     TChunkBase(
         NCellNode::TBootstrap* bootstrap,

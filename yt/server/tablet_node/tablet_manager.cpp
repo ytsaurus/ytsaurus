@@ -84,7 +84,7 @@ class TTabletManager::TImpl
 public:
     explicit TImpl(
         TTabletManagerConfigPtr config,
-        TTabletSlot* slot,
+        TTabletSlotPtr slot,
         TBootstrap* bootstrap)
         : TTabletAutomatonPart(
             slot,
@@ -244,7 +244,7 @@ public:
             TReqExecuteWrite hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
             ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
-            hydraRequest.set_codec(ChangelogCodec_->GetId());
+            hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
             hydraRequest.set_compressed_data(ToString(compressedRequestData));
             CreateMutation(Slot_->GetHydraManager(), hydraRequest)
                 ->SetAction(BIND(&TImpl::HydraLeaderExecuteWrite, MakeStrong(this), prelockedCountDelta))
@@ -589,6 +589,8 @@ private:
             storeManager->AddStore(store);
         }
 
+        SchedulePartitionsSampling(tablet);
+
         {
             TRspMountTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
@@ -676,9 +678,7 @@ private:
         tablet->SetConfig(mountConfig);
         tablet->SetWriterOptions(writerOptions);
 
-        for (const auto& partition : tablet->Partitions()) {
-            partition->SetSamplingNeeded(true);
-        }
+        SchedulePartitionsSampling(tablet);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %v)",
             tabletId);
@@ -821,7 +821,7 @@ private:
             JoinToString(storeIdsToAdd),
             JoinToString(storeIdsToRemove));
 
-        auto* slot = tablet->GetSlot();
+        auto slot = tablet->GetSlot();
         auto hiveManager = slot->GetHiveManager();
 
         {
@@ -877,6 +877,7 @@ private:
                     &descriptor.chunk_meta(),
                     Bootstrap_);
                 storeManager->AddStore(store);
+                SchedulePartitionSampling(store->GetPartition());
                 TStoreId backingStoreId;
                 if (!IsRecovery() && descriptor.has_backing_store_id()) {
                     backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
@@ -895,6 +896,7 @@ private:
                 removedStoreIds.push_back(storeId);
                 auto store = tablet->GetStore(storeId);
                 storeManager->RemoveStore(store);
+                SchedulePartitionSampling(store->GetPartition());
                 LOG_DEBUG_UNLESS(IsRecovery(), "Store removed (TabletId: %v, StoreId: %v)",
                     tabletId,
                     storeId);
@@ -919,8 +921,9 @@ private:
         if (!tablet)
             return;
 
+        auto partitionId = FromProto<TPartitionId>(request.partition_id());
+        auto* partition = tablet->GetPartitionById(partitionId);
         auto pivotKeys = FromProto<TOwningKey>(request.pivot_keys());
-        auto* partition = tablet->GetPartitionByPivotKey(pivotKeys[0]);
 
         // NB: Set the state back to normal; otherwise if some of the below checks fail, we might get
         // a partition stuck in splitting state forever.
@@ -931,13 +934,15 @@ private:
 
         int partitionIndex = partition->GetIndex();
 
-        LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, PartitionIndex: %v, DataSize: %v, Keys: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, PartitionId: %v, DataSize: %v, Keys: %v)",
             tablet->GetId(),
-            partitionIndex,
+            partitionId,
             partition->GetUncompressedDataSize(),
             JoinToString(pivotKeys, Stroka(" .. ")));
 
         tablet->SplitPartition(partitionIndex, pivotKeys);
+        // NB: Initial partition is split into new ones with indexes |[partitionIndex, partitionIndex + pivotKeys.size())|.
+        SchedulePartitionsSampling(tablet, partitionIndex, partitionIndex + pivotKeys.size());
         UpdateTabletSnapshot(tablet);
     }
 
@@ -948,8 +953,9 @@ private:
         if (!tablet)
             return;
 
-        auto pivotKey = FromProto<TOwningKey>(request.pivot_key());
-        auto* firstPartition = tablet->GetPartitionByPivotKey(pivotKey);
+        auto firstPartitionId = FromProto<TPartitionId>(request.partition_id());
+        auto* firstPartition = tablet->GetPartitionById(firstPartitionId);
+
         int firstPartitionIndex = firstPartition->GetIndex();
         int lastPartitionIndex = firstPartitionIndex + request.partition_count() - 1;
 
@@ -960,14 +966,18 @@ private:
             tablet->Partitions()[index]->SetState(EPartitionState::Normal);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, PartitionIndexes: %v .. %v, Keys: %v .. %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, PartitionIds: [%v])",
             tablet->GetId(),
-            firstPartitionIndex,
-            lastPartitionIndex,
-            tablet->Partitions()[firstPartitionIndex]->GetPivotKey(),
-            tablet->Partitions()[lastPartitionIndex]->GetNextPivotKey());
+            JoinToString(ConvertToStrings(
+                tablet->Partitions().begin() + firstPartitionIndex,
+                tablet->Partitions().begin() + lastPartitionIndex + 1,
+                [] (const std::unique_ptr<TPartition>& partition) {
+                     return ToString(partition->GetId());
+                })));
 
         tablet->MergePartitions(firstPartitionIndex, lastPartitionIndex);
+        // NB: Initial partitions are merged into a single one with index |firstPartitionIndex|.
+        SchedulePartitionsSampling(tablet, firstPartitionIndex, firstPartitionIndex + 1);
         UpdateTabletSnapshot(tablet);
     }
 
@@ -978,23 +988,25 @@ private:
         if (!tablet)
             return;
 
-        auto pivotKey = FromProto<TOwningKey>(request.pivot_key());
-        auto* partition = tablet->FindPartitionByPivotKey(pivotKey);
+        auto partitionId = FromProto<TPartitionId>(request.partition_id());
+        auto* partition = tablet->FindPartitionById(partitionId);
         if (!partition)
             return;
+
 
         auto sampleKeys = New<TKeyList>();
         sampleKeys->Keys = FromProto<TOwningKey>(request.sample_keys());
         partition->SetSampleKeys(sampleKeys);
         YCHECK(sampleKeys->Keys.empty() || sampleKeys->Keys[0] > partition->GetPivotKey());
-        partition->SetSamplingNeeded(false);
         UpdateTabletSnapshot(tablet);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Partition sample keys updated (TabletId: %v, PartitionIndex: %v, Keys: %v .. %v, SampleKeyCount: %v)",
+        auto hydraManager = Slot_->GetHydraManager();
+        const auto* mutationContext = hydraManager->GetMutationContext();
+        partition->SetSamplingTime(mutationContext->GetTimestamp());
+
+        LOG_INFO_UNLESS(IsRecovery(), "Partition sample keys updated (TabletId: %v, PartitionId: %v, SampleKeyCount: %v)",
             tabletId,
-            partition->GetIndex(),
-            partition->GetPivotKey(),
-            partition->GetNextPivotKey(),
+            partition->GetId(),
             sampleKeys->Keys.size());
     }
 
@@ -1208,7 +1220,7 @@ private:
 
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
-        request.set_state(ETabletState::Flushing);
+        request.set_state(static_cast<int>(ETabletState::Flushing));
         CommitTabletMutation(request);
     }
 
@@ -1227,7 +1239,7 @@ private:
 
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
-        request.set_state(ETabletState::Unmounted);
+        request.set_state(static_cast<int>(ETabletState::Unmounted));
         CommitTabletMutation(request);
     }
 
@@ -1279,10 +1291,10 @@ private:
     void StopTabletEpoch(TTablet* tablet)
     {
         tablet->SetState(tablet->GetPersistentState());
-        
+
+        tablet->GetEden()->SetState(EPartitionState::Normal);
         for (const auto& partition : tablet->Partitions()) {
             partition->SetState(EPartitionState::Normal);
-            partition->SetSamplingNeeded(false);
         }
 
         for (const auto& pair : tablet->Stores()) {
@@ -1306,7 +1318,8 @@ private:
             backingStore->GetId());
 
         auto this_ = MakeStrong(this);
-        auto callback = BIND([this, this_, store] () {
+        auto callback = BIND([=] () {
+            UNUSED(this_);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
             store->SetBackingStore(nullptr);
             LOG_DEBUG("Backing store released (StoreId: %v)", store->GetId());
@@ -1342,11 +1355,13 @@ private:
     {
         BuildYsonFluently(consumer)
             .BeginMap()
+                .Item("id").Value(partition->GetId())
                 .Item("state").Value(partition->GetState())
                 .Item("pivot_key").Value(partition->GetPivotKey())
                 .Item("next_pivot_key").Value(partition->GetNextPivotKey())
                 .Item("sample_key_count").Value(partition->GetSampleKeys()->Keys.size())
-                .Item("sampling_needed").Value(partition->GetSamplingNeeded())
+                .Item("sampling_time").Value(partition->GetSamplingTime())
+                .Item("sampling_request_time").Value(partition->GetSamplingRequestTime())
                 .Item("uncompressed_data_size").Value(partition->GetUncompressedDataSize())
                 .Item("unmerged_row_count").Value(partition->GetUnmergedRowCount())
                 .Item("stores").DoMapFor(partition->Stores(), [&] (TFluentMap fluent, const IStorePtr& store) {
@@ -1403,6 +1418,30 @@ private:
         }
     }
 
+
+    void SchedulePartitionSampling(TPartition* partition)
+    {
+        if (partition->GetIndex() != TPartition::EdenIndex) {
+            auto hydraManager = Slot_->GetHydraManager();
+            const auto* mutationContext = hydraManager->GetMutationContext();
+            partition->SetSamplingRequestTime(mutationContext->GetTimestamp());
+        }
+    }
+
+    void SchedulePartitionsSampling(TTablet* tablet, int beginPartitionIndex, int endPartitionIndex)
+    {
+        auto hydraManager = Slot_->GetHydraManager();
+        const auto* mutationContext = hydraManager->GetMutationContext();
+        for (int index = beginPartitionIndex; index < endPartitionIndex; ++index) {
+            tablet->Partitions()[index]->SetSamplingRequestTime(mutationContext->GetTimestamp());
+        }
+    }
+
+    void SchedulePartitionsSampling(TTablet* tablet)
+    {
+        SchedulePartitionsSampling(tablet, 0, tablet->Partitions().size());
+    }
+
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TTabletId, TabletMap_)
@@ -1411,7 +1450,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TTabletId, T
 
 TTabletManager::TTabletManager(
     TTabletManagerConfigPtr config,
-    TTabletSlot* slot,
+    TTabletSlotPtr slot,
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         config,

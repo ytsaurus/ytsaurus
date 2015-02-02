@@ -105,7 +105,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::GetAll()
 }
 
 template <class TKey, class TValue, class THash>
-typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValuePtrOrErrorFuture
+typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValueFuture
 TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 {
     while (true) {
@@ -115,7 +115,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
         if (itemIt != ItemMap_.end()) {
             auto* item = itemIt->second;
             bool canTouch = CanTouch(item);
-            auto valueOrErrorPromise = item->ValueOrErrorPromise;
+            auto promise = item->ValuePromise;
 
             readerGuard.Release();
 
@@ -123,12 +123,12 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
                 Touch(key);
             }
 
-            return valueOrErrorPromise;
+            return promise;
         }
 
         auto valueIt = ValueMap_.find(key);
         if (valueIt == ValueMap_.end()) {
-            return TValuePtrOrErrorFuture();
+            return TValueFuture();
         }
 
         auto value = TRefCounted::DangerousGetPtr(valueIt->second);
@@ -143,7 +143,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 
             auto* item = new TItem(value);
             // This holds an extra reference to the promise state...
-            auto valueOrErrorPromise = item->ValueOrErrorPromise;
+            auto promise = item->ValuePromise;
 
             YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
             ++ItemMapSize_;
@@ -155,7 +155,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             // ...since the item can be dead at this moment.
             TrimIfNeeded();
 
-            return valueOrErrorPromise;
+            return promise;
         }
 
         // Back off.
@@ -175,7 +175,7 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie
         auto itemIt = ItemMap_.find(key);
         if (itemIt != ItemMap_.end()) {
             auto* item = itemIt->second;
-            cookie->ValueOrErrorPromise_ = item->ValueOrErrorPromise;
+            cookie->ValuePromise_ = item->ValuePromise;
             return false;
         }
 
@@ -186,7 +186,7 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie
             YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
             ++ItemMapSize_;
 
-            cookie->ValueOrErrorPromise_ = item->ValueOrErrorPromise;
+            cookie->ValuePromise_ = item->ValuePromise;
             cookie->Active_ = true;
             cookie->Cache_ = this;
 
@@ -202,7 +202,7 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie
 
             PushToYounger(item);
 
-            cookie->ValueOrErrorPromise_ = item->ValueOrErrorPromise;
+            cookie->ValuePromise_ = item->ValuePromise;
 
             guard.Release();
 
@@ -236,7 +236,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInser
 
     auto* item = it->second;
     item->Value = value;
-    auto valueOrErrorPromise = item->ValueOrErrorPromise;
+    auto promise = item->ValuePromise;
 
     YCHECK(ValueMap_.insert(std::make_pair(key, value.Get())).second);
 
@@ -244,7 +244,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInser
 
     guard.Release();
 
-    valueOrErrorPromise.Set(value);
+    promise.Set(value);
 
     OnAdded(value.Get());
 
@@ -254,7 +254,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInser
 template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TError& error)
 {
-    TValuePtrOrErrorPromise valueOrErrorPromise;
+    TValuePromise promise;
     {
         NConcurrency::TWriterGuard guard(SpinLock_);
 
@@ -262,7 +262,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, con
         YCHECK(it != ItemMap_.end());
 
         auto* item = it->second;
-        valueOrErrorPromise = item->ValueOrErrorPromise;
+        promise = item->ValuePromise;
 
         ItemMap_.erase(it);
         --ItemMapSize_;
@@ -270,7 +270,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, con
         delete item;
     }
 
-    valueOrErrorPromise.Set(error);
+    promise.Set(error);
 }
 
 template <class TKey, class TValue, class THash>
@@ -489,7 +489,7 @@ template <class TKey, class TValue, class THash>
 TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(TInsertCookie&& other)
     : Key_(std::move(other.Key_))
       , Cache_(std::move(other.Cache_))
-      , ValueOrErrorPromise_(std::move(other.ValueOrErrorPromise_))
+      , ValuePromise_(std::move(other.ValuePromise_))
       , Active_(other.Active_)
 {
     other.Active_ = false;
@@ -508,7 +508,7 @@ typename TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie& TAsyncSlruCach
         Abort();
         Key_ = std::move(other.Key_);
         Cache_ = std::move(other.Cache_);
-        ValueOrErrorPromise_ = std::move(other.ValueOrErrorPromise_);
+        ValuePromise_ = std::move(other.ValuePromise_);
         Active_ = other.Active_;
         other.Active_ = false;
     }
@@ -522,11 +522,11 @@ const TKey& TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::GetKey() co
 }
 
 template <class TKey, class TValue, class THash>
-typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValuePtrOrErrorFuture
+typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValueFuture
 TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::GetValue() const
 {
-    YASSERT(ValueOrErrorPromise_);
-    return ValueOrErrorPromise_;
+    YASSERT(ValuePromise_);
+    return ValuePromise_;
 }
 
 template <class TKey, class TValue, class THash>

@@ -327,7 +327,7 @@ private:
     }
 
 
-    virtual bool IsUp() const override
+    virtual bool IsUp(TCtxDiscoverPtr /*context*/) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

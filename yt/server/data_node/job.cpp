@@ -485,7 +485,7 @@ public:
     { }
 
 private:
-    TRepairChunkJobSpecExt RepairJobSpecExt_;
+    const TRepairChunkJobSpecExt RepairJobSpecExt_;
 
 
     virtual void DoRun() override
@@ -526,12 +526,12 @@ private:
             auto reader = CreateReplicationReader(
                 Config_->RepairReader,
                 Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
-                Bootstrap_->GetMasterClient()->GetMasterChannel(),
+                Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
                 Bootstrap_->GetLocalDescriptor(),
                 partId,
                 partReplicas,
-                DefaultNetworkName,
+                InterconnectNetworkName,
                 EReadSessionType::Repair,
                 Bootstrap_->GetRepairInThrottler());
             readers.push_back(reader);
@@ -556,17 +556,14 @@ private:
             auto onProgress = BIND(&TChunkRepairJob::SetProgress, MakeWeak(this))
                 .Via(GetCurrentInvoker());
 
-            auto asyncError = RepairErasedParts(
+            auto result = RepairErasedParts(
                 codec,
                 erasedIndexes,
                 readers,
                 writers,
                 onProgress);
 
-            // Make sure the repair is canceled when the current fiber terminates.
-            TFutureCancelationGuard<TError> repairErrorGuard(asyncError);
-
-            auto repairError = WaitFor(asyncError);
+            auto repairError = WaitFor(result);
             THROW_ERROR_EXCEPTION_IF_FAILED(repairError, "Error repairing chunk %v",
                 ChunkId_);
         }
@@ -648,12 +645,12 @@ private:
             auto reader = CreateReplicationReader(
                 Config_->SealReader,
                 Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
-                Bootstrap_->GetMasterClient()->GetMasterChannel(),
+                Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
                 Null,
                 ChunkId_,
                 replicas,
-                DefaultNetworkName,
+                InterconnectNetworkName,
                 EReadSessionType::Replication,
                 Bootstrap_->GetReplicationInThrottler());
 

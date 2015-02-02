@@ -4,6 +4,8 @@
 #include "session_manager.h"
 #include "private.h"
 
+#include <core/misc/fs.h>
+
 #include <server/cell_node/bootstrap.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -42,7 +44,7 @@ TLocationPtr TChunkBase::GetLocation() const
 
 Stroka TChunkBase::GetFileName() const
 {
-    return Location_->GetChunkFileName(Id_);
+    return Location_->GetChunkPath(Id_);
 }
 
 int TChunkBase::GetVersion() const
@@ -115,7 +117,7 @@ TFuture<void> TChunkBase::ScheduleRemove()
             return RemovedPromise_;
         }
 
-        RemovedPromise_ = NewPromise();
+        RemovedPromise_ = NewPromise<void>();
         if (ReadLockCounter_ == 0 && !Removing_) {
             removing = Removing_ = true;
         }
@@ -136,10 +138,7 @@ bool TChunkBase::IsRemoveScheduled() const
 
 void TChunkBase::StartAsyncRemove()
 {
-    auto this_ = MakeStrong(this);
-    AsyncRemove().Subscribe(BIND([=] () {
-        this_->RemovedPromise_.Set();
-    }));
+    RemovedPromise_.SetFrom(AsyncRemove());
 }
 
 TRefCountedChunkMetaPtr TChunkBase::FilterCachedMeta(const std::vector<int>* tags) const

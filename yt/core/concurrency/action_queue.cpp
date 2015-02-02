@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "action_queue.h"
-#include "action_queue_detail.h"
+#include "scheduler_thread.h"
+#include "single_queue_scheduler_thread.h"
 
-#include <core/actions/invoker_util.h>
 #include <core/actions/invoker_detail.h>
 
 #include <core/ypath/token.h>
@@ -50,15 +50,15 @@ public:
         bool enableLogging,
         bool enableProfiling)
         : Queue_(New<TInvokerQueue>(
-            &EventCount_,
-            GetThreadTagIds(threadName),
+            &CallbackEventCount_,
+            enableProfiling ? GetThreadTagIds(threadName) : NProfiling::EmptyTagIds,
             enableLogging,
             enableProfiling))
         , Thread_(New<TSingleQueueSchedulerThread>(
             Queue_,
-            &EventCount_,
+            &CallbackEventCount_,
             threadName,
-            GetThreadTagIds(threadName),
+            enableProfiling ? GetThreadTagIds(threadName) : NProfiling::EmptyTagIds,
             enableLogging,
             enableProfiling))
     {
@@ -83,7 +83,7 @@ public:
     }
 
 private:
-    TEventCount EventCount_;
+    TEventCount CallbackEventCount_;
     TInvokerQueuePtr Queue_;
     TSingleQueueSchedulerThreadPtr Thread_;
 
@@ -133,19 +133,18 @@ public:
         const Stroka& threadName,
         const std::vector<Stroka>& bucketNames)
         : TSchedulerThread(
-            &EventCount,
+            &CallbackEventCount_,
             threadName,
             GetThreadTagIds(threadName),
             true,
             true)
         , Buckets_(bucketNames.size())
-        , CurrentBucket_(nullptr)
     {
         Start();
         for (int index = 0; index < static_cast<int>(bucketNames.size()); ++index) {
             auto& queue = Buckets_[index].Queue;
             queue = New<TInvokerQueue>(
-                &EventCount,
+                &CallbackEventCount_,
                 GetBucketTagIds(threadName, bucketNames[index]),
                 true,
                 true);
@@ -173,23 +172,19 @@ public:
     }
 
 private:
-    TEventCount EventCount;
+    TEventCount CallbackEventCount_;
 
     struct TBucket
     {
-        TBucket()
-            : ExcessTime(0)
-        { }
-
         TInvokerQueuePtr Queue;
-        TCpuDuration ExcessTime;
+        TCpuDuration ExcessTime = 0;
     };
 
     std::vector<TBucket> Buckets_;
     TCpuInstant StartInstant_;
 
-    TEnqueuedAction CurrentCallback_;
-    TBucket* CurrentBucket_;
+    TEnqueuedAction CurrentAction_;
+    TBucket* CurrentBucket_ = nullptr;
 
 
     TBucket* GetStarvingBucket()
@@ -227,7 +222,7 @@ private:
 
         // Pump the starving queue.
         StartInstant_ = GetCpuInstant();
-        return CurrentBucket_->Queue->BeginExecute(&CurrentCallback_);
+        return CurrentBucket_->Queue->BeginExecute(&CurrentAction_);
     }
 
     virtual void EndExecute() override
@@ -235,7 +230,7 @@ private:
         if (!CurrentBucket_)
             return;
 
-        CurrentBucket_->Queue->EndExecute(&CurrentCallback_);
+        CurrentBucket_->Queue->EndExecute(&CurrentAction_);
         CurrentBucket_->ExcessTime += (GetCpuInstant() - StartInstant_);
         CurrentBucket_ = nullptr;
     }
@@ -269,7 +264,7 @@ class TThreadPool::TImpl
 public:
     TImpl(int threadCount, const Stroka& threadNamePrefix)
         : Queue_(New<TInvokerQueue>(
-            &EventCount_,
+            &CallbackEventCount_,
             GetThreadTagIds(threadNamePrefix),
             true,
             true))
@@ -277,7 +272,7 @@ public:
         for (int i = 0; i < threadCount; ++i) {
             auto thread = New<TSingleQueueSchedulerThread>(
                 Queue_,
-                &EventCount_,
+                &CallbackEventCount_,
                 Format("%v:%v", threadNamePrefix, i),
                 GetThreadTagIds(threadNamePrefix),
                 true,
@@ -295,7 +290,7 @@ public:
     void Shutdown()
     {
         Queue_->Shutdown();
-        for (auto thread : Threads_) {
+        for (auto& thread : Threads_) {
             thread->Shutdown();
         }
     }
@@ -306,7 +301,7 @@ public:
     }
 
 private:
-    TEventCount EventCount_;
+    TEventCount CallbackEventCount_;
     TInvokerQueuePtr Queue_;
     std::vector<TSchedulerThreadPtr> Threads_;
 
@@ -329,10 +324,10 @@ IInvokerPtr TThreadPool::GetInvoker()
     return Impl->GetInvoker();
 }
 
-TCallback<TThreadPoolPtr()> TThreadPool::CreateFactory(int queueCount, const Stroka& threadName)
+TCallback<TThreadPoolPtr()> TThreadPool::CreateFactory(int threadCount, const Stroka& threadName)
 {
     return BIND([=] () {
-        return NYT::New<NConcurrency::TThreadPool>(queueCount, threadName);
+        return NYT::New<NConcurrency::TThreadPool>(threadCount, threadName);
     });
 }
 

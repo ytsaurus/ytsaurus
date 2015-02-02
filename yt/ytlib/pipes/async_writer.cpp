@@ -21,6 +21,13 @@ static const auto& Logger = PipesLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EWriterState,
+    (Active)
+    (Closed)
+    (Failed)
+    (Aborted)
+);
+
 class TAsyncWriterImpl
     : public TRefCounted
 {
@@ -46,12 +53,17 @@ public:
         YCHECK(State_ != EWriterState::Active);
     }
 
-    TAsyncError Write(const void* buffer, int length)
+    int GetHandle() const
+    {
+        return FD_;
+    }
+
+    TFuture<void> Write(const void* buffer, int length)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(length > 0);
 
-        auto promise = NewPromise<TError>();
+        auto promise = NewPromise<void>();
         auto this_ = MakeStrong(this);
         BIND([=] () {
             UNUSED(this_);
@@ -96,7 +108,7 @@ public:
         return promise.ToFuture();
     }
 
-    TAsyncError Close()
+    TFuture<void> Close()
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(WriteResultPromise_.IsSet());
@@ -113,7 +125,6 @@ public:
             FDWatcher_.stop();
             SafeClose(FD_);
         })
-        .Guarded()
         .AsyncVia(TIODispatcher::Get()->Impl_->GetInvoker())
         .Run();
     }
@@ -142,19 +153,12 @@ public:
     }
 
 private:
-    DECLARE_ENUM(EWriterState,
-        (Active)
-        (Closed)
-        (Failed)
-        (Aborted)
-    );
-
     int FD_;
 
     //! \note Thread-unsafe. Must be accessed from ev-thread only.
     ev::io FDWatcher_;
 
-    TAsyncErrorPromise WriteResultPromise_ = MakePromise(TError());
+    TPromise<void> WriteResultPromise_ = MakePromise(TError());
 
     EWriterState State_ = EWriterState::Active;
 
@@ -226,12 +230,23 @@ TAsyncWriter::TAsyncWriter(int fd)
     : Impl_(New<NDetail::TAsyncWriterImpl>(fd))
 { }
 
-TAsyncError TAsyncWriter::Write(const void* data, size_t size)
+TAsyncWriter::~TAsyncWriter()
+{
+    // Abort does not fail.
+    Impl_->Abort();
+}
+
+int TAsyncWriter::GetHandle() const
+{
+    return Impl_->GetHandle();
+}
+
+TFuture<void> TAsyncWriter::Write(const void* data, size_t size)
 {
     return Impl_->Write(data, size);
 }
 
-TAsyncError TAsyncWriter::Close()
+TFuture<void> TAsyncWriter::Close()
 {
     return Impl_->Close();
 }

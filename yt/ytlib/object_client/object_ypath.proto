@@ -1,6 +1,34 @@
 package NYT.NObjectClient.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/core/rpc/rpc.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Describes a transaction that must be alive in order for the request to be executed.
+message TPrerequisiteTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+}
+
+// Describes node revision that must match in order for the request to be executed.
+message TPrerequisiteRevision
+{
+    required string path = 1;
+    required NYT.NProto.TGuid transaction_id = 2;
+    required int64 revision = 3;
+}
+
+message TPrerequisitesExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TPrerequisitesExt prerequisites_ext = 109;
+    }
+
+    repeated TPrerequisiteTransaction transactions = 1;
+    repeated TPrerequisiteRevision revisions = 2;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

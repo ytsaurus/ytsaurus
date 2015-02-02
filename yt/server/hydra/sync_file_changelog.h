@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include <core/misc/ref.h>
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
 
 namespace NYT {
 namespace NHydra {
@@ -42,7 +43,7 @@ public:
 
     //! Creates a new changelog.
     //! Throws an exception on failure.
-    void Create(const TSharedRef& meta);
+    void Create(const NProto::TChangelogMeta& meta);
 
     //! Returns the number of records in the changelog.
     int GetRecordCount() const;
@@ -51,7 +52,7 @@ public:
     i64 GetDataSize() const;
 
     //! Returns the meta blob.
-    TSharedRef GetMeta() const;
+    const NProto::TChangelogMeta& GetMeta() const;
 
     //! Returns |true| if the changelog is sealed, i.e.
     //! no further appends are possible.
@@ -88,10 +89,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSyncFileChangelog)
-
-////////////////////////////////////////////////////////////////////////////////
-
-void RemoveChangelogFiles(const Stroka& dataFileName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

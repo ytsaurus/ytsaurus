@@ -15,7 +15,7 @@ TRack::TRack(const TRackId& id)
 
 TRackSet TRack::GetIndexMask() const
 {
-    YASSERT(Index_ >= 0 && Index_ < MaxRackCount);
+    YASSERT(Index_ > NullRackIndex && Index_ < MaxRackCount);
     return 1ULL << Index_;
 }
 

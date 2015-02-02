@@ -54,12 +54,11 @@ public:
     TFileReader(
         IClientPtr client,
         const TYPath& path,
-        const TFileReaderOptions& options,
-        TFileReaderConfigPtr config)
+        const TFileReaderOptions& options)
         : Client_(client)
         , Path_(path)
         , Options_(options)
-        , Config_(config ? config : New<TFileReaderConfig>())
+        , Config_(options.Config ? options.Config : New<TFileReaderConfig>())
         , Logger(ApiLogger)
     {
         if (Options_.TransactionId != NullTransactionId) {
@@ -74,18 +73,16 @@ public:
             Options_.TransactionId);
     }
 
-    virtual TAsyncError Open() override
+    virtual TFuture<void> Open() override
     {
         return BIND(&TFileReader::DoOpen, MakeStrong(this))
-            .Guarded()
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
             .Run();
     }
 
-    virtual TFuture<TErrorOr<TSharedRef>> Read() override
+    virtual TFuture<TSharedRef> Read() override
     {
         return BIND(&TFileReader::DoRead, MakeStrong(this))
-            .Guarded()
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
             .Run();
     }
@@ -113,7 +110,8 @@ private:
 
         LOG_INFO("Fetching file info");
 
-        TObjectServiceProxy proxy(Client_->GetMasterChannel());
+        auto masterChannel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+        TObjectServiceProxy proxy(masterChannel);
         auto batchReq = proxy.ExecuteBatch();
 
         {
@@ -143,26 +141,29 @@ private:
             batchReq->AddRequest(req, "fetch");
         }
 
-        auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error fetching file info");
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error fetching file info");
+        const auto& batchRsp = batchRspOrError.Value();
 
         {
-            auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspGetBasicAttributes>("get_basic_attrs");
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting object attributes");
+            auto rspOrError = batchRsp->GetResponse<TFileYPathProxy::TRspGetBasicAttributes>("get_basic_attrs");
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting object attributes");
+            const auto& rsp = rspOrError.Value();
 
             auto type = EObjectType(rsp->type());
             if (type != EObjectType::File) {
                 THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                     Path_,
-                    EObjectType(EObjectType::File),
+                    EObjectType::File,
                     type);
             }
         }
 
         auto nodeDirectory = New<TNodeDirectory>();
         {
-            auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>("fetch");
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching file chunks");
+            auto rspOrError = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>("fetch");
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching file chunks");
+            const auto& rsp = rspOrError.Value();
 
             nodeDirectory->MergeFrom(rsp->node_directory());
 
@@ -172,7 +173,7 @@ private:
                 Client_->GetConnection()->GetUncompressedBlockCache());
             Reader_ = New<TReader>(
                 Config_,
-                Client_->GetMasterChannel(),
+                masterChannel,
                 Client_->GetConnection()->GetCompressedBlockCache(),
                 nodeDirectory,
                 std::move(chunks),
@@ -220,16 +221,9 @@ private:
 IFileReaderPtr CreateFileReader(
     IClientPtr client,
     const TYPath& path,
-    const TFileReaderOptions& options,
-    TFileReaderConfigPtr config)
+    const TFileReaderOptions& options)
 {
-    YCHECK(client);
-
-    return New<TFileReader>(
-        client,
-        path,
-        options,
-        config);
+    return New<TFileReader>(client, path, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

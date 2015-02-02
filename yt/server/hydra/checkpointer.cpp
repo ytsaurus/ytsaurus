@@ -53,12 +53,12 @@ public:
                 .Via(Owner_->EpochContext_->EpochUserAutomatonInvoker));
     }
 
-    TFuture<TErrorOr<TRemoteSnapshotParams>> GetSnapshotResult()
+    TFuture<TRemoteSnapshotParams> GetSnapshotResult()
     {
         return SnapshotPromise_;
     }
 
-    TFuture<TError> GetChangelogResult()
+    TFuture<void> GetChangelogResult()
     {
         return ChangelogPromise_;
     }
@@ -71,8 +71,8 @@ private:
     int RemoteRotationSuccessCount_ = 0;
 
     TVersion Version_;
-    TPromise<TErrorOr<TRemoteSnapshotParams>> SnapshotPromise_ = NewPromise<TErrorOr<TRemoteSnapshotParams>>();
-    TPromise<TError> ChangelogPromise_ = NewPromise<TError>();
+    TPromise<TRemoteSnapshotParams> SnapshotPromise_ = NewPromise<TRemoteSnapshotParams>();
+    TPromise<void> ChangelogPromise_ = NewPromise<void>();
     TParallelAwaiterPtr SnapshotAwaiter_;
     TParallelAwaiterPtr ChangelogAwaiter_;
     std::vector<TNullable<TChecksum>> SnapshotChecksums_;
@@ -80,7 +80,7 @@ private:
     NLog::TLogger& Logger;
 
 
-    void OnQuorumFlushed(TError error)
+    void OnQuorumFlushed(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
         YCHECK(Owner_->DecoratedAutomaton_->GetLoggedVersion() == Version_);
@@ -135,12 +135,12 @@ private:
             BIND(&TSession::OnSnapshotsComplete, this_));
     }
 
-    void OnRemoteSnapshotBuilt(TPeerId id, THydraServiceProxy::TRspBuildSnapshotPtr rsp)
+    void OnRemoteSnapshotBuilt(TPeerId id, const THydraServiceProxy::TErrorOrRspBuildSnapshotPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
-        if (!rsp->IsOK()) {
-            LOG_WARNING(*rsp, "Error building snapshot at follower %v",
+        if (!rspOrError.IsOK()) {
+            LOG_WARNING(rspOrError, "Error building snapshot at follower %v",
                 id);
             return;
         }
@@ -148,10 +148,11 @@ private:
         LOG_INFO("Remote snapshot built by follower %v",
             id);
 
+        const auto& rsp = rspOrError.Value();
         SnapshotChecksums_[id] = rsp->checksum();
     }
 
-    void OnLocalSnapshotBuilt(TErrorOr<TRemoteSnapshotParams> paramsOrError)
+    void OnLocalSnapshotBuilt(const TErrorOr<TRemoteSnapshotParams>& paramsOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
@@ -238,12 +239,12 @@ private:
             BIND(&TSession::OnRotationFailed, this_));
     }
 
-    void OnRemoteChangelogRotated(TPeerId id, THydraServiceProxy::TRspRotateChangelogPtr rsp)
+    void OnRemoteChangelogRotated(TPeerId id, const THydraServiceProxy::TErrorOrRspRotateChangelogPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
-        if (!rsp->IsOK()) {
-            LOG_WARNING(*rsp, "Error rotating changelog at follower %v",
+        if (!rspOrError.IsOK()) {
+            LOG_WARNING(rspOrError, "Error rotating changelog at follower %v",
                 id);
             return;
         }
@@ -255,7 +256,7 @@ private:
         CheckRotationQuorum();
     }
 
-    void OnLocalChangelogRotated(TError error)
+    void OnLocalChangelogRotated(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 

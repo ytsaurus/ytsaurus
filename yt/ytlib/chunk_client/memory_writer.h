@@ -14,11 +14,11 @@ class TMemoryWriter
     : public IChunkWriter
 {
 public:
-    virtual TAsyncError Open() override;
+    virtual TFuture<void> Open() override;
     virtual bool WriteBlock(const TSharedRef& block) override;
     virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override;
-    virtual TAsyncError GetReadyEvent() override;
-    virtual TAsyncError Close(const NProto::TChunkMeta& chunkMeta) override;
+    virtual TFuture<void> GetReadyEvent() override;
+    virtual TFuture<void> Close(const NProto::TChunkMeta& chunkMeta) override;
 
     // Unimplemented.
     virtual const NProto::TChunkInfo& GetChunkInfo() const override;

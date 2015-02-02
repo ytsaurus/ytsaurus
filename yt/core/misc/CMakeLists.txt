@@ -138,13 +138,6 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-if (YT_BUILD_ENABLE_BENCHMARKS)
-  list(APPEND YT_SOURCE_FILES
-    ${BASE}/benchmark.h
-    ${BASE}/benchmark.cpp
-  )
-endif()
-
 protoc( ${BASE}/guid.proto YT_SOURCE_FILES )
 protoc( ${BASE}/protobuf_helpers.proto YT_SOURCE_FILES )
 protoc( ${BASE}/error.proto YT_SOURCE_FILES )

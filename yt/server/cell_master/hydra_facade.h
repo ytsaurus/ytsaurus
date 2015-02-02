@@ -13,10 +13,11 @@ namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EAutomatonThreadQueue,
+DEFINE_ENUM(EAutomatonThreadQueue,
     (Default)
     (ChunkMaintenance)
     (ChunkLocator)
+    (ChunkTraverser)
     (Heartbeat)
 );
 
@@ -50,7 +51,7 @@ public:
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
 
-    //! Same as #IsActiveLeader but throws on failure.
+    //! Throws TNotALeaderException if the peer is not an active leader.
     void ValidateActiveLeader();
 
 private:

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 
 #include <core/rpc/public.h>
 
@@ -11,11 +11,18 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TSnapshotMeta;
+class TChangelogMeta;
+
+} // namespace NProto
+
 DECLARE_REFCOUNTED_CLASS(TPeerConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStoreOptions)
 DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreOptions)
 
-DECLARE_ENUM(EPeerState,
+DEFINE_ENUM(EPeerState,
     ((None)                       (0))
     ((Stopped)                    (1))
     ((Elections)                  (2))
@@ -25,17 +32,22 @@ DECLARE_ENUM(EPeerState,
     ((Leading)                    (6))
 );
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((NoSuchSnapshot)             (600))
     ((NoSuchChangelog)            (601))
     ((InvalidEpoch)               (602))
     ((InvalidVersion)             (603))
     ((InvalidState)               (604))
     ((MaybeCommitted)             (605))
-    ((NoQuorum)                   (606))
-    ((NoLeader)                   (607))
     ((ReadOnly)                   (608))
     ((OutOfOrderMutations)        (609))
+);
+
+
+DEFINE_ENUM(EPeerKind,
+    (Leader)
+    (Follower)
+    (LeaderOrFollower)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

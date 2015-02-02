@@ -28,7 +28,10 @@ def convert_to_erasure(src, dst=None, erasure_codec=None, compression_codec=None
         yt_client = yt
 
     if erasure_codec is None:
-        pass
+        return
+
+    if desired_chunk_size is None:
+        desired_chunk_size = 2 * 1024 ** 3
 
     if not yt_client.exists(src) or yt_client.get(src + "/@row_count") == 0:
         logger.info("Table is empty")

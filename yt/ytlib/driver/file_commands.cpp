@@ -31,13 +31,13 @@ void TReadFileCommand::DoExecute()
     TFileReaderOptions options;
     options.Offset = Request_->Offset;
     options.Length = Request_->Length;
+    options.Config = std::move(config);
     SetTransactionalOptions(&options);
     SetSuppressableAccessTrackingOptions(&options);
 
     auto reader = Context_->GetClient()->CreateFileReader(
         Request_->Path.GetPath(),
-        options,
-        config);
+        options);
 
     {
         auto result = WaitFor(reader->Open());
@@ -64,26 +64,30 @@ void TReadFileCommand::DoExecute()
 
 void TWriteFileCommand::DoExecute()
 {
+    // COMPAT(sandello): remove Request_->FileReader ??
     auto config = UpdateYsonSerializable(
         Context_->GetConfig()->FileWriter,
         Request_->FileWriter);
+    config = UpdateYsonSerializable(
+        config,
+        Request_->GetOptions());
 
     TFileWriterOptions options;
     options.Append = Request_->Path.GetAppend();
+    options.Config = std::move(config);
     SetTransactionalOptions(&options);
 
     auto writer = Context_->GetClient()->CreateFileWriter(
         Request_->Path.GetPath(),
-        options,
-        config);
+        options);
 
     {
         auto result = WaitFor(writer->Open());
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 
-    struct TUploadBufferTag { };
-    auto buffer = TSharedRef::Allocate<TUploadBufferTag>(config->BlockSize);
+    struct TWriteBufferTag { };
+    auto buffer = TSharedRef::Allocate<TWriteBufferTag>(Context_->GetConfig()->WriteBufferSize);
 
     auto input = Context_->Request().InputStream;
 

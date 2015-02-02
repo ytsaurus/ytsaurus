@@ -35,15 +35,13 @@ void TStartTransactionCommand::DoExecute()
 
     std::unique_ptr<IAttributeDictionary> attributes;
     if (Request_->Attributes) {
-        attributes = ConvertToAttributes(Request_->Attributes);
-        options.Attributes = attributes.get();
+        options.Attributes = ConvertToAttributes(Request_->Attributes);
     }
 
     auto transactionManager = Context_->GetClient()->GetTransactionManager();
-    auto transactionOrError = WaitFor(transactionManager->Start(
+    auto transaction = WaitFor(transactionManager->Start(
         ETransactionType::Master,
-        options));
-    auto transaction = transactionOrError.ValueOrThrow();
+        options)).ValueOrThrow();
     transaction->Detach();
 
     Reply(BuildYsonStringFluently()

@@ -15,9 +15,11 @@ set( HDRS
   ${BASE}/callback.h
   ${BASE}/callback_internal.h
   ${BASE}/cancelable_context.h
+  ${BASE}/cancelable_context-inl.h
   ${BASE}/future-inl.h
   ${BASE}/future.h
   ${BASE}/invoker.h
+  ${BASE}/invoker-inl.h
   ${BASE}/invoker_util.h
   ${BASE}/invoker_detail.h
   ${BASE}/signal.h

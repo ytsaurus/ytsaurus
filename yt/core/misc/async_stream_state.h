@@ -77,7 +77,7 @@ public:
      *  this call returns preliminary prepared future.
      *  Otherwise new future is created.
      */
-    TAsyncError GetOperationError();
+    TFuture<void> GetOperationError();
 
     //! Complete operations.
     void FinishOperation(const TError& error = TError());
@@ -92,10 +92,10 @@ private:
 
     //! Result returned from #GetOperationResult when operation is
     //! already completed, or the stream has failed.
-    TAsyncErrorPromise StaticError;
+    TPromise<void> StaticError;
 
     //! Last unset future created via #GetOperationResult
-    TAsyncErrorPromise CurrentError;
+    TPromise<void> CurrentError;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

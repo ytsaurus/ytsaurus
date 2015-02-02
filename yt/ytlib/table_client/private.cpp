@@ -95,7 +95,7 @@ NChunkClient::NProto::TKey GetKeySuccessor(const NChunkClient::NProto::TKey& key
     NChunkClient::NProto::TKey result;
     result.CopyFrom(key);
     auto* sentinelPart = result.add_parts();
-    sentinelPart->set_type(EKeyPartType::MinSentinel);
+    sentinelPart->set_type(static_cast<int>(EKeyPartType::MinSentinel));
     return result;
 }
 
@@ -123,36 +123,36 @@ void ToProto(NChunkClient::NProto::TKey* protoKey, NVersionedTableClient::TUnver
         auto* keyPart = protoKey->add_parts();
         switch (row[i].Type) {
             case NVersionedTableClient::EValueType::Null:
-                keyPart->set_type(EKeyPartType::Null);
+                keyPart->set_type(static_cast<int>(EKeyPartType::Null));
                 break;
 
             case NVersionedTableClient::EValueType::Int64:
-                keyPart->set_type(EKeyPartType::Int64);
+                keyPart->set_type(static_cast<int>(EKeyPartType::Int64));
                 keyPart->set_int64_value(row[i].Data.Int64);
                 break;
 
             case NVersionedTableClient::EValueType::Uint64:
-                keyPart->set_type(EKeyPartType::Uint64);
+                keyPart->set_type(static_cast<int>(EKeyPartType::Uint64));
                 keyPart->set_uint64_value(row[i].Data.Uint64);
                 break;
 
             case NVersionedTableClient::EValueType::Double:
-                keyPart->set_type(EKeyPartType::Double);
+                keyPart->set_type(static_cast<int>(EKeyPartType::Double));
                 keyPart->set_double_value(row[i].Data.Double);
                 break;
 
             case NVersionedTableClient::EValueType::Boolean:
-                keyPart->set_type(EKeyPartType::Boolean);
+                keyPart->set_type(static_cast<int>(EKeyPartType::Boolean));
                 keyPart->set_boolean_value(row[i].Data.Boolean);
                 break;
 
             case NVersionedTableClient::EValueType::String:
-                keyPart->set_type(EKeyPartType::String);
+                keyPart->set_type(static_cast<int>(EKeyPartType::String));
                 keyPart->set_str_value(row[i].Data.String, row[i].Length);
                 break;
 
             case NVersionedTableClient::EValueType::Any:
-                keyPart->set_type(EKeyPartType::Composite);
+                keyPart->set_type(static_cast<int>(EKeyPartType::Composite));
                 break;
 
             default:

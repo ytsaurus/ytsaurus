@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 
 #include <ytlib/hydra/public.h>
 
@@ -22,14 +22,14 @@ class TReqDeleteRow;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETabletState,
+DEFINE_ENUM(ETabletState,
     ((Mounting)        (0))
     ((Mounted)         (1))
     ((Unmounting)      (2))
     ((Unmounted)       (3))
 );
 
-DECLARE_ENUM(ELockMode,
+DEFINE_ENUM(ELockMode,
     ((Row)             (0))
     ((Column)          (1))
 );
@@ -46,6 +46,9 @@ extern const TTabletId NullTabletId;
 
 typedef NObjectClient::TObjectId TStoreId;
 extern const TStoreId NullStoreId;
+
+typedef NObjectClient::TObjectId TPartitionId;
+extern const TPartitionId NullPartitionId;
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -13,7 +13,6 @@
 #include <core/misc/heap.h>
 
 #include <core/concurrency/scheduler.h>
-#include <core/concurrency/parallel_collector.h>
 
 #include <ytlib/new_table_client/versioned_row.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
@@ -53,9 +52,6 @@ public:
         , UpperBound_(std::move(upperBound))
         , Timestamp_(timestamp)
         , Pool_(TTabletReaderPoolTag())
-        , ReadyEvent_(OKFuture)
-        , Opened_(false)
-        , Refilling_(false)
     { }
 
 protected:
@@ -84,10 +80,10 @@ protected:
     SmallVector<TSession*, TypicalStoreCount> ExhaustedSessions_;
     SmallVector<TSession*, TypicalStoreCount> RefillingSessions_;
 
-    TAsyncError ReadyEvent_;
+    TFuture<void> ReadyEvent_ = VoidFuture;
 
-    std::atomic<bool> Opened_;
-    std::atomic<bool> Refilling_;
+    std::atomic<bool> Opened_ = {false};
+    std::atomic<bool> Refilling_ = {false};
 
 
     template <class TRow, class TRowMerger>
@@ -131,7 +127,7 @@ protected:
                 auto partialRow = *session->CurrentRow;
 
                 if (currentKeyBegin) {
-                    if (CompareRows(
+                    if (TabletSnapshot_->RowKeyComparer(
                             partialRow.BeginKeys(),
                             partialRow.EndKeys(),
                             currentKeyBegin,
@@ -146,10 +142,10 @@ protected:
 
                 if (++session->CurrentRow == session->Rows.end()) {
                     ExhaustedSessions_.push_back(session);
-                    ExtractHeap(SessionHeapBegin_, SessionHeapEnd_, CompareSessions);
+                    ExtractHeap(SessionHeapBegin_, SessionHeapEnd_,  GetSessionComparer());
                     --SessionHeapEnd_;
                 } else {
-                    AdjustHeapFront(SessionHeapBegin_, SessionHeapEnd_, CompareSessions);
+                    AdjustHeapFront(SessionHeapBegin_, SessionHeapEnd_,  GetSessionComparer());
                 }
             }
 
@@ -183,23 +179,19 @@ protected:
         }
 
         // Open readers.
-        TIntrusivePtr<TParallelCollector<void>> openCollector;
+        std::vector<TFuture<void>> asyncResults;
         for (const auto& session : Sessions_) {
             auto asyncResult = session.Reader->Open();
-            if (asyncResult.IsSet()) {
-                THROW_ERROR_EXCEPTION_IF_FAILED(asyncResult.Get());
+            auto maybeResult = asyncResult.TryGet();
+            if (maybeResult) {
+                maybeResult->ThrowOnError();
             } else {
-                if (!openCollector) {
-                    openCollector = New<TParallelCollector<void>>();
-                }
-                openCollector->Collect(asyncResult);
+                asyncResults.push_back(asyncResult);
             }
         }
 
-        if (openCollector) {
-            auto result = WaitFor(openCollector->Complete());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        WaitFor(Combine(asyncResults))
+            .ThrowOnError();
 
         // Construct an empty heap.
         SessionHeap_.reserve(Sessions_.size());
@@ -214,17 +206,17 @@ protected:
     }
 
 
-    static bool CompareSessions(const TSession* lhsSession, const TSession* rhsSession)
-    {
-        auto lhsRow = *lhsSession->CurrentRow;
-        auto rhsRow = *rhsSession->CurrentRow;
-        return CompareRows(
-            lhsRow.BeginKeys(),
-            lhsRow.EndKeys(),
-            rhsRow.BeginKeys(),
-            rhsRow.EndKeys()) < 0;
+    std::function<bool(const TSession*, const TSession*)> GetSessionComparer() {
+        return [&] (const TSession* lhsSession, const TSession* rhsSession) {
+            auto lhsRow = *lhsSession->CurrentRow;
+            auto rhsRow = *rhsSession->CurrentRow;
+            return TabletSnapshot_->RowKeyComparer(
+                lhsRow.BeginKeys(),
+                lhsRow.EndKeys(),
+                rhsRow.BeginKeys(),
+                rhsRow.EndKeys()) < 0;
+        };
     }
-
 
     bool RefillSession(TSession* session)
     {
@@ -237,7 +229,7 @@ protected:
         for (int index = 0; index < static_cast<int>(session->Rows.size()) - 1; ++index) {
             auto lhs = session->Rows[index];
             auto rhs = session->Rows[index + 1];
-            YASSERT(CompareRows(
+            YASSERT(TabletSnapshot_->RowKeyComparer(
                 lhs.BeginKeys(), lhs.EndKeys(),
                 rhs.BeginKeys(), rhs.EndKeys()) < 0);
         }
@@ -245,40 +237,37 @@ protected:
 
         session->CurrentRow = session->Rows.begin();
         *SessionHeapEnd_++ = session;
-        AdjustHeapBack(SessionHeapBegin_, SessionHeapEnd_, CompareSessions);
+        AdjustHeapBack(SessionHeapBegin_, SessionHeapEnd_, GetSessionComparer());
         return true;
     }
 
     void RefillExhaustedSessions()
     {
         YCHECK(RefillingSessions_.empty());
-        
-        TIntrusivePtr<TParallelCollector<void>> refillCollector;
+
+        std::vector<TFuture<void>> asyncResults;
         for (auto* session : ExhaustedSessions_) {
             // Try to refill the session right away.
             if (!RefillSession(session)) {
                 // No data at the moment, must wait.
-                if (!refillCollector) {
-                    refillCollector = New<TParallelCollector<void>>();
-                }
-                refillCollector->Collect(session->Reader->GetReadyEvent());
+                asyncResults.push_back(session->Reader->GetReadyEvent());
                 RefillingSessions_.push_back(session);
             }
         }
         ExhaustedSessions_.clear();
 
-        if (!refillCollector) {
-            ReadyEvent_ = OKFuture;
+        if (asyncResults.empty()) {
+            ReadyEvent_ = VoidFuture;
             return;
         }
 
         auto this_ = MakeStrong(this);
         Refilling_ = true;
-        ReadyEvent_ = refillCollector->Complete()
-            .Apply(BIND([this, this_] (const TError& error) -> TError {
-                Refilling_ = false;
-                return error;
-            }));
+        ReadyEvent_ = Combine(asyncResults).Apply(BIND([=] (const TError& error) {
+            UNUSED(this_);
+            Refilling_ = false;
+            error.ThrowOnError();
+        }));
     }
 
 };
@@ -304,12 +293,11 @@ public:
             timestamp)
     { }
 
-    virtual TAsyncError Open(const TTableSchema& schema) override
+    virtual TFuture<void> Open(const TTableSchema& schema) override
     {
         return BIND(&TSchemafulTabletReader::DoOpen, MakeStrong(this))
-                .Guarded()
-                .AsyncVia(PoolInvoker_)
-                .Run(schema);
+            .AsyncVia(PoolInvoker_)
+            .Run(schema);
     }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
@@ -317,7 +305,7 @@ public:
         return TTabletReaderBase::DoRead(rows, RowMerger_.get());
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
         return ReadyEvent_;
     }
@@ -433,10 +421,9 @@ public:
             MajorTimestamp_)
     { }
 
-    virtual TAsyncError Open() override
+    virtual TFuture<void> Open() override
     {
         return BIND(&TVersionedTabletReader::DoOpen, MakeStrong(this))
-            .Guarded()
             .AsyncVia(PoolInvoker_)
             .Run();
     }
@@ -448,7 +435,7 @@ public:
         for (int index = 0; index < static_cast<int>(rows->size()) - 1; ++index) {
             auto lhs = (*rows)[index];
             auto rhs = (*rows)[index + 1];
-            YASSERT(CompareRows(
+            YASSERT(TabletSnapshot_->RowKeyComparer(
                 lhs.BeginKeys(), lhs.EndKeys(),
                 rhs.BeginKeys(), rhs.EndKeys()) < 0);
         }
@@ -456,7 +443,7 @@ public:
         return result;
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
         return ReadyEvent_;
     }

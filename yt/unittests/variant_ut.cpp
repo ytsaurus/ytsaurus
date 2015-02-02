@@ -3,6 +3,8 @@
 
 #include <core/misc/variant.h>
 
+#include <util/generic/noncopyable.h>
+
 namespace NYT {
 namespace {
 
@@ -224,6 +226,34 @@ TEST(TVariantTest, MoveCopy)
     EXPECT_EQ(1, S::CopyCtorCalls);
     EXPECT_EQ(1, S::MoveCtorCalls);
 }
+
+class TNonCopyable1
+    : private TNonCopyable
+{
+public:
+    TNonCopyable1()
+    { }
+};
+
+class TNonCopyable2
+    : private TNonCopyable
+{
+public:
+    TNonCopyable2()
+    { }
+};
+
+TEST(TVariantTest, Inplace)
+{
+    TVariant<TNonCopyable1, TNonCopyable2> v1{TVariantTypeTag<TNonCopyable1>()};
+    EXPECT_TRUE(v1.Is<TNonCopyable1>());
+    EXPECT_FALSE(v1.Is<TNonCopyable2>());
+
+    TVariant<TNonCopyable1, TNonCopyable2> v2{TVariantTypeTag<TNonCopyable2>()};
+    EXPECT_FALSE(v2.Is<TNonCopyable1>());
+    EXPECT_TRUE(v2.Is<TNonCopyable2>());
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

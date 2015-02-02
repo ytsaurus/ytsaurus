@@ -10,7 +10,6 @@
 #include <core/concurrency/rw_spinlock.h>
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/periodic_executor.h>
-#include <core/concurrency/parallel_awaiter.h>
 
 #include <core/ytree/ypath_service.h>
 #include <core/ytree/fluent.h>
@@ -59,9 +58,6 @@ public:
     void Initialize()
     {
         LOG_INFO("Initializing tablet node");
-
-        ForcePath(Config_->Snapshots->TempPath);
-        CleanTempFiles(Config_->Snapshots->TempPath);
 
         Slots_.resize(Config_->Slots);
 
@@ -150,6 +146,19 @@ public:
         --UsedSlotCount_;
     }
 
+
+    std::vector<TTabletSnapshotPtr> GetTabletSnapshots()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TReaderGuard guard(TabletSnapshotsSpinLock_);
+        std::vector<TTabletSnapshotPtr> snapshots;
+        snapshots.reserve(TabletIdToSnapshot_.size());
+        for (const auto& pair : TabletIdToSnapshot_) {
+            snapshots.push_back(pair.second);
+        }
+        return snapshots;
+    }
 
     TTabletSnapshotPtr FindTabletSnapshot(const TTabletId& tabletId)
     {
@@ -275,59 +284,15 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         BuildYsonFluently(consumer)
-            .DoListFor(Slots_, [&] (TFluentList fluent, TTabletSlotPtr slot) {
+            .DoMapFor(Slots_, [&] (TFluentMap fluent, TTabletSlotPtr slot) {
                 if (slot) {
                     fluent
-                        .Item()
+                        .Item(ToString(slot->GetCellId()))
                         .Do(BIND(&TTabletSlot::BuildOrchidYson, slot));
                 }
             });
     }
 
-
-    class TSlotScanner
-        : public TRefCounted
-    {
-    public:
-        explicit TSlotScanner(TIntrusivePtr<TImpl> owner)
-            : Owner_(owner)
-        { }
-
-        TFuture<void> Run()
-        {
-            auto awaiter = New<TParallelAwaiter>(Owner_->Bootstrap_->GetControlInvoker());
-            auto this_ = MakeStrong(this);
-
-            Owner_->BeginSlotScan_.Fire();
-
-            for (auto slot : Owner_->Slots_) {
-                if (!slot)
-                    continue;
-
-                auto invoker = slot->GetGuardedAutomatonInvoker();
-                awaiter->Await(BIND([this, this_, slot] () {
-                        Owner_->ScanSlot_.Fire(slot);
-                    })
-                    .AsyncVia(invoker)
-                    .Run()
-                    .Finally());
-            }
-
-            return awaiter
-                ->Complete()
-                .Apply(BIND(&TSlotScanner::OnComplete, this_));
-        }
-
-    private:
-        TIntrusivePtr<TImpl> Owner_;
-
-
-        void OnComplete()
-        {
-            Owner_->EndSlotScan_.Fire();
-        }
-
-    };
 
     void OnScanSlots()
     {
@@ -335,14 +300,33 @@ private:
 
         LOG_DEBUG("Slot scan started");
 
-        auto scanner = New<TSlotScanner>(this);
-
         auto this_ = MakeStrong(this);
-        scanner->Run().Subscribe(BIND([this, this_] () {
+
+        BeginSlotScan_.Fire();
+
+        std::vector<TFuture<void>> asyncResults;
+        for (auto slot : Slots_) {
+            if (!slot)
+                continue;
+
+            asyncResults.push_back(
+                BIND([=] () {
+                    UNUSED(this_);
+                    if (slot->GetHydraManager()->IsActiveLeader()) {
+                        ScanSlot_.Fire(slot);
+                    }
+                })
+                .AsyncVia(slot->GetGuardedAutomatonInvoker())
+                .Run());
+        }
+
+        Combine(asyncResults).Subscribe(BIND([=] (const TError&) {
+            UNUSED(this_);
             VERIFY_THREAD_AFFINITY(ControlThread);
+            EndSlotScan_.Fire();
             LOG_DEBUG("Slot scan completed");
             SlotScanExecutor_->ScheduleNext();
-        }));
+        }).Via(GetCurrentInvoker()));
     }
 
 
@@ -421,6 +405,11 @@ void TTabletSlotManager::ConfigureSlot(TTabletSlotPtr slot, const TConfigureTabl
 void TTabletSlotManager::RemoveSlot(TTabletSlotPtr slot)
 {
     Impl_->RemoveSlot(slot);
+}
+
+std::vector<TTabletSnapshotPtr> TTabletSlotManager::GetTabletSnapshots()
+{
+    return Impl_->GetTabletSnapshots();
 }
 
 TTabletSnapshotPtr TTabletSlotManager::FindTabletSnapshot(const TTabletId& tabletId)

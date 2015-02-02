@@ -33,31 +33,32 @@ public:
         , MasterChannel_(std::move(masterChannel))
     { }
 
-    virtual NYTree::TYsonString GetEndpointDescription() const override
+    virtual TYsonString GetEndpointDescription() const override
     {
         return ConvertToYsonString(Stroka("<scheduler>"));
     }
 
-    virtual TFuture<TErrorOr<IChannelPtr>> DiscoverChannel(IClientRequestPtr request) override
+    virtual TFuture<IChannelPtr> DiscoverChannel(IClientRequestPtr request) override
     {
         TObjectServiceProxy proxy(MasterChannel_);
-        auto req = TYPathProxy::Get("//sys/scheduler/@address");
+        auto batchReq = proxy.ExecuteBatch();
+        batchReq->AddRequest(TYPathProxy::Get("//sys/scheduler/@address"));
         auto this_ = MakeStrong(this);
-        return proxy
-            .Execute(req)
-            .Apply(BIND([this, this_] (TYPathProxy::TRspGetPtr rsp) -> TErrorOr<IChannelPtr> {
-                if (!rsp->IsOK()) {
-                    return rsp->GetError();
+        return batchReq->Invoke()
+            .Apply(BIND([this, this_] (TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) -> IChannelPtr {
+                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
+                if (rsp.FindMatching(NYT::NYTree::EErrorCode::ResolveError)) {
+                    THROW_ERROR_EXCEPTION("No scheduler is configured");
                 }
-
-                auto address = ConvertTo<Stroka>(TYsonString(rsp->value()));
+                THROW_ERROR_EXCEPTION_IF_FAILED(rsp, "Cannot determine scheduler address");
+                auto address = ConvertTo<Stroka>(TYsonString(rsp.Value()->value()));
                 return ChannelFactory_->CreateChannel(address);
             }));
     }
 
 private:
-    IChannelFactoryPtr ChannelFactory_;
-    IChannelPtr MasterChannel_;
+    const IChannelFactoryPtr ChannelFactory_;
+    const IChannelPtr MasterChannel_;
 
 };
 

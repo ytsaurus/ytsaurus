@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 
 namespace NYT {
 namespace NConcurrency {
@@ -23,7 +23,12 @@ DECLARE_REFCOUNTED_STRUCT(IThroughputThrottler)
 DECLARE_REFCOUNTED_STRUCT(IAsyncInputStream)
 DECLARE_REFCOUNTED_STRUCT(IAsyncOutputStream)
 
+DECLARE_REFCOUNTED_STRUCT(IAsyncZeroCopyInputStream)
+DECLARE_REFCOUNTED_STRUCT(IAsyncZeroCopyOutputStream)
+
 class TAsyncSemaphore;
+
+class TFiber;
 
 template <class TSignature>
 class TCoroutine;

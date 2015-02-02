@@ -3,8 +3,6 @@
 #include "chunk_owner_base.h"
 #include "helpers.h"
 
-#include <core/actions/invoker.h>
-
 #include <server/cell_master/serialize.h>
 
 namespace NYT {

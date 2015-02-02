@@ -1,10 +1,10 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 
 #include <ytlib/chunk_client/chunk_owner_ypath.pb.h>
 
-#include <ytlib/object_client/object_ypath_proxy.h>
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <core/ytree/ypath_proxy.h>
 
@@ -13,14 +13,14 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EUpdateMode,
+DEFINE_ENUM(EUpdateMode,
     (None)
     (Append)
     (Overwrite)
 );
 
 struct TChunkOwnerYPathProxy
-    : public NObjectClient::TObjectYPathProxy
+    : public NCypressClient::TCypressYPathProxy
 {
     static Stroka GetServiceName()
     {

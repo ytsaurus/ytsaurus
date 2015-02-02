@@ -60,7 +60,7 @@ private:
     NCellNode::TBootstrap* Bootstrap_;
 
     yhash_map<TChunkId, ISessionPtr> SessionMap_;
-    std::vector<int> PerTypeSessionCount_;
+    TEnumIndexedVector<int, EWriteSessionType> PerTypeSessionCount_;
     std::atomic<i64> PendingWriteSize_;
 
 

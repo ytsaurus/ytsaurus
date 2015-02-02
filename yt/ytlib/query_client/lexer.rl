@@ -41,7 +41,9 @@ typedef TParser::token_type TToken;
     int64_literal = digit+;
     uint64_literal = digit+ 'u';
     double_literal = fltdot fltexp?;
-    string_literal = '"' ( [^"\\] | /\\./ )* '"';
+    single_quoted_string = "'" ( [^'\\] | /\\./ )* "'";
+    double_quoted_string = '"' ( [^"\\] | /\\./ )* '"';
+    string_literal = single_quoted_string | double_quoted_string;
 
     quoted_identifier := |*
         '[' => {

@@ -152,7 +152,7 @@ void TEncodingWriter::ProcessCompressedBlock(const TSharedRef& block, i64 sizeTo
     }
 }
 
-void TEncodingWriter::OnReadyEvent(TError error)
+void TEncodingWriter::OnReadyEvent(const TError& error)
 {
     if (!error.IsOK()) {
         State.Fail(error);
@@ -202,32 +202,33 @@ bool TEncodingWriter::IsReady() const
     return Semaphore.IsReady() && State.IsActive();
 }
 
-TAsyncError TEncodingWriter::GetReadyEvent()
+TFuture<void> TEncodingWriter::GetReadyEvent()
 {
     if (!Semaphore.IsReady()) {
         State.StartOperation();
 
         auto this_ = MakeStrong(this);
-        Semaphore.GetReadyEvent().Subscribe(BIND([=] () {
-            this_->State.FinishOperation();
+        Semaphore.GetReadyEvent().Subscribe(BIND([=] (const TError& error) {
+            this_->State.FinishOperation(error);
         }));
     }
 
     return State.GetOperationError();
 }
 
-TAsyncError TEncodingWriter::Flush()
+TFuture<void> TEncodingWriter::Flush()
 {
     State.StartOperation();
 
     auto this_ = MakeStrong(this);
     Semaphore.GetFreeEvent().Subscribe(
-        BIND([this, this_] () {
+        BIND([=] (const TError& error) {
+            UNUSED(this_);
             if (IsWaiting) {
                 // We dumped all data to ReplicationWriter, and subscribed on ReadyEvent.
                 CloseRequested = true;
             } else {
-                State.FinishOperation();
+                State.FinishOperation(error);
             }
         }).Via(CompressionInvoker));
 

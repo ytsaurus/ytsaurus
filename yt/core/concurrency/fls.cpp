@@ -1,6 +1,7 @@
 #include "fls.h"
 #include "fiber.h"
 #include "scheduler.h"
+#include "atomic_flag_spinlock.h"
 
 namespace NYT {
 namespace NConcurrency {
@@ -68,9 +69,7 @@ static uintptr_t& TsdAt(int index)
 
 int FlsAllocateSlot(TFlsSlotCtor ctor, TFlsSlotDtor dtor)
 {
-    while (FlsLock.test_and_set(std::memory_order_acquire)) {
-        /* Spin. */
-    }
+    TGuard<std::atomic_flag> guard(FlsLock);
 
     int index = FlsSize++;
     YCHECK(index < FlsMaxSize);
@@ -82,8 +81,6 @@ int FlsAllocateSlot(TFlsSlotCtor ctor, TFlsSlotDtor dtor)
     auto& slot = FlsSlots[index];
     slot.Ctor = ctor;
     slot.Dtor = dtor;
-
-    FlsLock.clear(std::memory_order_release);
 
     return index;
 }

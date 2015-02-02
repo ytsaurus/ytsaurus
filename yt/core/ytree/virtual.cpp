@@ -148,7 +148,7 @@ bool TVirtualMapBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
     return false;
 }
 
-TAsyncError TVirtualMapBase::GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer)
+TFuture<void> TVirtualMapBase::GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer)
 {
     UNUSED(key);
     UNUSED(consumer);

@@ -23,7 +23,6 @@ struct TLockRequest
 {
     TLockRequest();
     TLockRequest(ELockMode mode);
-    TLockRequest(ELockMode::EDomain mode);
 
     static TLockRequest SharedChild(const Stroka& key);
     static TLockRequest SharedAttribute(const Stroka& key);

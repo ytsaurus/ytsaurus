@@ -96,20 +96,25 @@ ui64 CounterFromId(const TObjectId& id)
 
 bool HasSchema(EObjectType type)
 {
-    return (type & 0x8000) == 0 &&
-           type != EObjectType::Master;
+    if (type == EObjectType::Master) {
+        return false;
+    }
+    if (static_cast<int>(type) & SchemaObjectTypeMask) {
+        return false;
+    }
+    return true;
 }
 
 EObjectType SchemaTypeFromType(EObjectType type)
 {
     YASSERT(HasSchema(type));
-    return EObjectType(type | 0x8000);
+    return EObjectType(static_cast<int>(type) | SchemaObjectTypeMask);
 }
 
 EObjectType TypeFromSchemaType(EObjectType type)
 {
-    YASSERT((type & 0x8000) != 0);
-    return EObjectType(type & ~0x8000);
+    YASSERT(static_cast<int>(type) & SchemaObjectTypeMask);
+    return EObjectType(static_cast<int>(type) & ~SchemaObjectTypeMask);
 }
 
 TObjectId MakeId(
@@ -156,7 +161,7 @@ TObjectId ReplaceTypeInId(
 {
     auto result = id;
     result.Parts32[1] &= ~0xffff;
-    result.Parts32[1] |= type;
+    result.Parts32[1] |= static_cast<ui32>(type);
     return result;
 }
 

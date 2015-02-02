@@ -5,47 +5,10 @@
 
 #include <core/concurrency/thread_affinity.h>
 
+#include <core/misc/chunked_memory_pool.h>
+
 namespace NYT {
 namespace NHydra {
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <
-    class TKey,
-    class TValue,
-    class THash = ::THash<TKey>
->
-struct IReadOnlyEntityMap
-{
-    typedef yhash_map<TKey, TValue*, THash> TMap;
-    typedef std::pair<TKey, TValue*> TItem;
-    typedef typename TMap::iterator TIterator;
-    typedef typename TMap::const_iterator TConstIterator;
-
-    // STL interop.
-    typedef TKey key_type;
-    typedef std::pair<const TKey, TValue*> value_type;
-    typedef TValue* mapped_type;
-
-    virtual ~IReadOnlyEntityMap()
-    { }
-
-    virtual TValue* Find(const TKey& key) const = 0;
-    virtual TValue* Get(const TKey& key) const = 0;
-
-    virtual bool Contains(const TKey& key) const = 0;
-
-    virtual int GetSize() const = 0;
-
-    virtual TConstIterator Begin() const = 0;
-    virtual TConstIterator End() const = 0;
-
-    // STL interop.
-    TConstIterator begin() const;
-    TConstIterator end() const;
-    size_t size() const;
-
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,6 +20,84 @@ struct TDefaultEntityMapTraits
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A typical common base for all entities within a Hydra replicated state.
+class TEntityBase
+    : private TNonCopyable
+{
+public:
+    //! Return the pointer to key attached to the object during serialization.
+    TEntitySerializationKey* GetSerializationKeyPtr() const;
+
+    //! Sets the pointer to key attached to the object during serialization.
+    void SetSerializationKeyPtr(TEntitySerializationKey* ptr);
+
+private:
+    TEntitySerializationKey* SerializationKeyPtr_ = nullptr;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <
+    class TKey,
+    class TValue,
+    class THash = ::THash<TKey>
+>
+class TReadOnlyEntityMap
+{
+protected:
+    typedef yhash_map<TKey, TValue*, THash> TMap;
+
+public:
+    class TIterator
+    {
+    public:
+        std::pair<const TKey, TValue*> operator*() const;
+
+        TIterator& operator++();
+        TIterator& operator--();
+        TIterator& operator++(int);
+        TIterator& operator--(int);
+
+        bool operator==(const TIterator& other) const;
+        bool operator!=(const TIterator& other) const;
+
+    private:
+        friend class TReadOnlyEntityMap;
+
+        explicit TIterator(typename TMap::const_iterator iterator);
+
+        typename TMap::const_iterator Iterator_;
+
+    };
+
+    TValue* Find(const TKey& key) const;
+    TValue* Get(const TKey& key) const;
+
+    bool Contains(const TKey& key) const;
+
+    TIterator Begin() const;
+    TIterator End() const;
+    int GetSize() const;
+
+    // STL interop.
+    typedef TKey key_type;
+    typedef TValue* mapped_type;
+    typedef std::pair<const TKey, TValue*> value_type;
+
+    TIterator begin() const;
+    TIterator end() const;
+    size_t size() const;
+
+protected:
+    DECLARE_THREAD_AFFINITY_SLOT(UserThread);
+
+    TMap Map_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <
     class TKey,
     class TValue,
@@ -64,30 +105,11 @@ template <
     class THash = ::THash<TKey>
 >
 class TEntityMap
-    : public IReadOnlyEntityMap<TKey, TValue>
+    : public TReadOnlyEntityMap<TKey, TValue, THash>
 {
 public:
-    typedef yhash_map<TKey, TValue*, THash> TMap;
-    typedef std::pair<TKey, TValue*> TItem;
-    typedef typename TMap::iterator TIterator;
-    typedef typename TMap::const_iterator TConstIterator;
-
     explicit TEntityMap(const TTraits& traits = TTraits());
-    virtual ~TEntityMap();
-
-    // IReadOnlyEntityMap implementation (not-mutating methods).
-    // NB: Declaring these methods virtual should not cause any overhead due
-    // to GCC devirtualization capabilities.
-
-    virtual TValue* Find(const TKey& key) const override;
-
-    virtual TValue* Get(const TKey& key) const override;
-
-    virtual bool Contains(const TKey& key) const override;
-
-    virtual int GetSize() const override;
-
-    // Other (possibly mutating) methods.
+    ~TEntityMap();
 
     void Insert(const TKey& key, TValue* value);
 
@@ -98,40 +120,33 @@ public:
 
     void Clear();
 
-    virtual TConstIterator Begin() const override;
-    virtual TConstIterator End() const override;
+    template <class TContext>
+    void SaveKeys(TContext& context) const;
 
-    using IReadOnlyEntityMap<TKey, TValue>::Begin;
-    TIterator Begin();
-
-    using IReadOnlyEntityMap<TKey, TValue>::End;
-    TIterator End();
-
-    void SaveKeys(TSaveContext& context) const;
-        
     template <class TContext>
     void SaveValues(TContext& context) const;
 
-    void LoadKeys(TLoadContext& context);
+    template <class TContext>
+    void LoadKeys(TContext& context);
 
     template <class TContext>
     void LoadValues(TContext& context);
 
-    // STL interop.
-    using IReadOnlyEntityMap<TKey, TValue>::begin;
-    TIterator begin();
-
-    using IReadOnlyEntityMap<TKey, TValue>::end;
-    TIterator end();
-
 private:
-    DECLARE_THREAD_AFFINITY_SLOT(UserThread);
+    typedef typename TReadOnlyEntityMap<TKey, TValue, THash>::TMap TMap;
 
-    TMap Map_;
     TTraits Traits_;
 
+    TChunkedMemoryPool SerializationKeysPool_;
+    std::vector<TEntitySerializationKey*> SpareSerializationKeyPtrs_;
+
     std::vector<TKey> LoadKeys_;
+    std::vector<TValue*> LoadValues_;
     mutable std::vector<typename TMap::const_iterator> SaveIterators_;
+
+
+    TEntitySerializationKey* AllocateSerializationKeyPtr();
+    void FreeSerializationKeyPtr(TEntitySerializationKey* ptr);
 
 };
 
@@ -143,7 +158,7 @@ private:
 #define DECLARE_ENTITY_MAP_ACCESSORS(entityName, entityType, idType) \
     entityType* Find ## entityName(const idType& id); \
     entityType* Get ## entityName(const idType& id); \
-    const ::NYT::NHydra::IReadOnlyEntityMap<idType, entityType>& entityName ## s() const;
+    const ::NYT::NHydra::TReadOnlyEntityMap<idType, entityType>& entityName ## s() const;
 
 #define DEFINE_ENTITY_MAP_ACCESSORS(declaringType, entityName, entityType, idType, map) \
     entityType* declaringType::Find ## entityName(const idType& id) \
@@ -156,7 +171,7 @@ private:
         return (map).Get(id); \
     } \
     \
-    const ::NYT::NHydra::IReadOnlyEntityMap<idType, entityType>& declaringType::entityName ## s() const \
+    const ::NYT::NHydra::TReadOnlyEntityMap<idType, entityType>& declaringType::entityName ## s() const \
     { \
         return (map); \
     }
@@ -172,7 +187,7 @@ private:
         return (delegateTo).Get ## entityName(id); \
     } \
     \
-    const ::NYT::NHydra::IReadOnlyEntityMap<idType, entityType>& declaringType::entityName ## s() const \
+    const ::NYT::NHydra::TReadOnlyEntityMap<idType, entityType>& declaringType::entityName ## s() const \
     { \
         return (delegateTo).entityName ## s(); \
     }

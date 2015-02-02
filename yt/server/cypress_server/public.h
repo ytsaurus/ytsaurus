@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 
 #include <core/actions/callback.h>
 
@@ -13,31 +13,31 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressManagerConfig;
-typedef TIntrusivePtr<TCypressManagerConfig> TCypressManagerConfigPtr;
+DECLARE_REFCOUNTED_STRUCT(INodeTypeHandler)
+DECLARE_REFCOUNTED_STRUCT(ICypressNodeFactory)
+DECLARE_REFCOUNTED_STRUCT(ICypressNodeProxy)
+DECLARE_REFCOUNTED_STRUCT(ICypressNodeVisitor)
 
-class TAccessTracker;
-typedef TIntrusivePtr<TAccessTracker> TAccessTrackerPtr;
-
-class TCypressManager;
-typedef TIntrusivePtr<TCypressManager> TCypressManagerPtr;
-
-struct INodeTypeHandler;
-typedef TIntrusivePtr<INodeTypeHandler> INodeTypeHandlerPtr;
+DECLARE_REFCOUNTED_CLASS(TAccessTracker)
+DECLARE_REFCOUNTED_CLASS(TCypressManager)
 
 class TCypressNodeBase;
 
 struct TLockRequest;
 class TLock;
 
-struct ICypressNodeFactory;
-typedef TIntrusivePtr<ICypressNodeFactory> ICypressNodeFactoryPtr;
+DECLARE_REFCOUNTED_CLASS(TCypressManagerConfig)
 
-struct ICypressNodeProxy;
-typedef TIntrusivePtr<ICypressNodeProxy> ICypressNodeProxyPtr;
+////////////////////////////////////////////////////////////////////////////////
 
-struct ICypressNodeVisitor;
-typedef TIntrusivePtr<ICypressNodeVisitor> ICypressNodeVisitorPtr;
+//! Describes the reason for cloning a node.
+//! Some node types may allow moving but not copying.
+DEFINE_ENUM(ENodeCloneMode,
+    (Copy)
+    (Move)
+);
+
+////////////////////////////////////////////////////////////////////////////////
 
 using NCypressClient::TNodeId;
 using NCypressClient::TLockId;

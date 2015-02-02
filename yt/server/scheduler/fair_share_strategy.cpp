@@ -697,7 +697,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EOperationStatus,
+DEFINE_ENUM(EOperationStatus,
     (Normal)
     (BelowMinShare)
     (BelowFairShare)

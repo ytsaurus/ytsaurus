@@ -135,19 +135,19 @@ void InitializeError(Handle<Object> target)
 
     target->Set(
         String::NewSymbol("UnavailableYtErrorCode"),
-        Integer::New(NRpc::EErrorCode::Unavailable));
+        Integer::New(static_cast<int>(NRpc::EErrorCode::Unavailable)));
 
     target->Set(
         String::NewSymbol("UserBannedYtErrorCode"),
-        Integer::New(NSecurityClient::EErrorCode::UserBanned));
+        Integer::New(static_cast<int>(NSecurityClient::EErrorCode::UserBanned)));
 
     target->Set(
         String::NewSymbol("RequestRateLimitExceededYtErrorCode"),
-        Integer::New(NSecurityClient::EErrorCode::RequestRateLimitExceeded));
+        Integer::New(static_cast<int>(NSecurityClient::EErrorCode::RequestRateLimitExceeded)));
 
     target->Set(
         String::NewSymbol("AllTargetNodesFailedYtErrorCode"),
-        Integer::New(NChunkClient::EErrorCode::AllTargetNodesFailed));
+        Integer::New(static_cast<int>(NChunkClient::EErrorCode::AllTargetNodesFailed)));
 
     ErrorCode = NODE_PSYMBOL("code");
     ErrorMessage = NODE_PSYMBOL("message");

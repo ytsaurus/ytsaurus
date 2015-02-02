@@ -16,6 +16,8 @@
 
 #include <ytlib/chunk_client/public.h>
 
+#include <server/hydra/entity_map.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -37,6 +39,10 @@ struct TTabletSnapshot
     typedef TPartitionList::iterator TPartitionListIterator;
     TPartitionList Partitions;
 
+    int StoreCount = 0;
+
+    TDynamicRowKeyComparer RowKeyComparer;
+
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
         const TOwningKey& lowerBound,
@@ -52,11 +58,12 @@ DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTablet
-    : public TRefTracked<TTablet>
+    : public NHydra::TEntityBase
+    , public TRefTracked<TTablet>
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TTabletId, Id);
-    DEFINE_BYVAL_RO_PROPERTY(TTabletSlot*, Slot);
+    DEFINE_BYVAL_RO_PROPERTY(TTabletSlotPtr, Slot);
 
     DEFINE_BYVAL_RW_PROPERTY(TTabletSnapshotPtr, Snapshot);
 
@@ -79,7 +86,7 @@ public:
         TTableMountConfigPtr config,
         TTabletWriterOptionsPtr writerOptions,
         const TTabletId& id,
-        TTabletSlot* slot,
+        TTabletSlotPtr slot,
         const NVersionedTableClient::TTableSchema& schema,
         const NVersionedTableClient::TKeyColumns& keyColumns,
         TOwningKey pivotKey,
@@ -104,6 +111,8 @@ public:
     void CreateInitialPartition();
     TPartition* FindPartitionByPivotKey(const TOwningKey& pivotKey);
     TPartition* GetPartitionByPivotKey(const TOwningKey& pivotKey);
+    TPartition* FindPartitionById(const TPartitionId& partitionId);
+    TPartition* GetPartitionById(const TPartitionId& partitionId);
     void MergePartitions(int firstIndex, int lastIndex);
     void SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys);
 
@@ -135,7 +144,7 @@ public:
 
     TTabletSnapshotPtr BuildSnapshot() const;
 
-    TDynamicRowKeyComparer GetDynamicRowKeyComparer() const;
+    TDynamicRowKeyComparer GetRowKeyComparer() const;
 
 private:
     TTableMountConfigPtr Config_;
@@ -143,11 +152,12 @@ private:
 
     TStoreManagerPtr StoreManager_;
 
-    std::vector<IInvokerPtr> EpochAutomatonInvokers_;
+    TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
 
     std::unique_ptr<TPartition> Eden_;
 
-    TPartitionList Partitions_;
+    TPartitionList PartitionList_;
+    yhash_map<TPartitionId, TPartition*> PartitionMap_;
 
     yhash_map<TStoreId, IStorePtr> Stores_;
     TDynamicMemoryStorePtr ActiveStore_;
@@ -160,7 +170,7 @@ private:
     void Initialize();
 
     TPartition* GetContainingPartition(IStorePtr store);
-
+    NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,8 +9,6 @@
 #include <core/misc/sync.h>
 #include <core/misc/heap.h>
 
-#include <core/concurrency/parallel_awaiter.h>
-
 #include <core/ytree/yson_string.h>
 
 namespace NYT {
@@ -45,34 +43,21 @@ class TMergingReader
 public:
     explicit TMergingReader(const std::vector<TTableChunkSequenceReaderPtr>& readers)
         : Readers(readers)
-        , IsStarted_(false)
     { }
 
     virtual void Open() override
     {
         // Open all readers in parallel and wait until all of them are opened.
-        auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetReaderInvoker());
-        std::vector<TError> errors;
-
-        for (auto reader : Readers) {
-            awaiter->Await(
-                reader->AsyncOpen(),
-                BIND([&] (const TError& error) {
-                    if (!error.IsOK()) {
-                        errors.push_back(error);
-                    }
-                }));
+        std::vector<TFuture<void>> asyncResults;
+        for (const auto& reader : Readers) {
+            asyncResults.push_back(reader->AsyncOpen());
         }
 
-        awaiter->Complete().Get();
-
-        if (!errors.empty()) {
-            THROW_ERROR_EXCEPTION("Error opening merging reader")
-                << errors;
-        }
+        auto result = WaitFor(Combine(asyncResults));
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error opening merging reader");
 
         // Push all non-empty readers to the heap.
-        for (auto reader : Readers) {
+        for (const auto& reader : Readers) {
             if (reader->GetFacade()) {
                 ReaderHeap.push_back(reader.Get());
             }
@@ -154,7 +139,7 @@ public:
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
         std::vector<TChunkId> result;
-        for (auto reader : Readers) {
+        for (const auto& reader : Readers) {
             auto part = reader->GetFailedChunkIds();
             result.insert(result.end(), part.begin(), part.end());
         }
@@ -162,10 +147,11 @@ public:
     }
 
 private:
-    std::vector<TTableChunkSequenceReaderPtr> Readers;
+    const std::vector<TTableChunkSequenceReaderPtr> Readers;
+
     std::vector<TTableChunkSequenceReader*> ReaderHeap;
 
-    bool IsStarted_;
+    bool IsStarted_ = false;
 };
 
 ISyncReaderPtr CreateMergingReader(const std::vector<TTableChunkSequenceReaderPtr>& readers)

@@ -11,6 +11,12 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EDsvParserState,
+    (InsidePrefix)
+    (InsideKey)
+    (InsideValue)
+);
+
 class TDsvParser
     : public IParser
 {
@@ -46,12 +52,7 @@ private:
 
     void ValidatePrefix(const Stroka& prefix) const;
 
-    DECLARE_ENUM(EState,
-        (InsidePrefix)
-        (InsideKey)
-        (InsideValue)
-    );
-
+    using EState = EDsvParserState;
     EState State;
 
     EState GetStartState() const;

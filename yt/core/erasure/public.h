@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 #include <core/misc/small_vector.h>
 
 #include <bitset>
@@ -21,7 +21,7 @@ typedef std::bitset<MaxTotalPartCount> TPartIndexSet;
 
 struct ICodec;
 
-DECLARE_ENUM(ECodec,
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(ECodec, i8,
     ((None)           (0))
     ((ReedSolomon_6_3)(1))
     ((Lrc_12_2_2)     (2))

@@ -243,7 +243,7 @@ public:
     TNode* FindNodeByHostName(const Stroka& hostName)
     {
         auto it = HostNameToNodeMap_.find(hostName);
-        return it == AddressToNodeMap_.end() ? nullptr : it->second;
+        return it == HostNameToNodeMap_.end() ? nullptr : it->second;
     }
 
     TNode* GetNodeOrThrow(TNodeId id)
@@ -510,14 +510,13 @@ private:
     {
         auto descriptor = FromProto<NNodeTrackerClient::TNodeDescriptor>(request.node_descriptor());
         const auto& statistics = request.statistics();
-        const auto& address = descriptor.GetDefaultAddress();
 
         // Kick-out any previous incarnation.
         {
             auto* existingNode = FindNodeByAddress(descriptor.GetDefaultAddress());
             if (existingNode) {
                 LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %v, ExistingId: %v)",
-                    address,
+                    descriptor.GetDefaultAddress(),
                     existingNode->GetId());
                 DoUnregisterNode(existingNode, false);
                 DoRemoveNode(existingNode);
@@ -887,28 +886,26 @@ private:
                 // Create Cypress node.
                 {
                     auto req = TCypressYPathProxy::Create(nodePath);
-                    req->set_type(EObjectType::CellNode);
+                    req->set_type(static_cast<int>(EObjectType::CellNode));
                     req->set_ignore_existing(true);
 
                     auto defaultAttributes = ConvertToAttributes(New<TNodeConfig>());
                     ToProto(req->mutable_node_attributes(), *defaultAttributes);
 
-                    auto rsp = SyncExecuteVerb(rootService, req);
-                    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+                    SyncExecuteVerb(rootService, req);
                 }
 
                 // Create "orchid" child.
                 {
                     auto req = TCypressYPathProxy::Create(nodePath + "/orchid");
-                    req->set_type(EObjectType::Orchid);
+                    req->set_type(static_cast<int>(EObjectType::Orchid));
                     req->set_ignore_existing(true);
 
                     auto attributes = CreateEphemeralAttributes();
-                    attributes->Set("remote_address", address);
+                    attributes->Set("remote_address", descriptor.GetInterconnectAddress());
                     ToProto(req->mutable_node_attributes(), *attributes);
 
-                    auto rsp = SyncExecuteVerb(rootService, req);
-                    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+                    SyncExecuteVerb(rootService, req);
                 }
             } catch (const std::exception& ex) {
                 LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering node in Cypress");
@@ -920,16 +917,15 @@ private:
             // Lock Cypress node.
             {
                 auto req = TCypressYPathProxy::Lock(nodePath);
-                req->set_mode(ELockMode::Shared);
+                req->set_mode(static_cast<int>(ELockMode::Shared));
                 SetTransactionId(req, transaction->GetId());
 
-                auto rsp = SyncExecuteVerb(rootService, req);
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+                SyncExecuteVerb(rootService, req);
             }
 
             LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, %v)",
                 nodeId,
-                address,
+                descriptor.GetDefaultAddress(),
                 statistics);
 
             NodeRegistered_.Fire(node);

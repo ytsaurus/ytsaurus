@@ -9,13 +9,9 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<
-    TCGQueryCallback (
-        const TConstQueryPtr&,
-        const TCGBinding&)
-    > TCGFragmentCompiler;
-
-TCGFragmentCompiler CreateFragmentCompiler();
+TCGQueryCallback CodegenEvaluate(
+    const TConstQueryPtr& query,
+    const TCGBinding& binding);
 
 ////////////////////////////////////////////////////////////////////////////////
 

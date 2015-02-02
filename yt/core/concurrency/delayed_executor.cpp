@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "delayed_executor.h"
-#include "action_queue_detail.h"
+#include "ev_scheduler_thread.h"
 
 #include <core/misc/singleton.h>
 #include <core/misc/lock_free.h>
@@ -67,6 +67,21 @@ public:
         PeriodicWatcher_.start(0, TimeQuantum.SecondsFloat());
 
         Start();
+    }
+
+    TFuture<void> MakeDelayed(TDuration delay)
+    {
+        auto promise = NewPromise<void>();
+        Submit(
+            BIND([=] () mutable {
+                promise.TrySet();
+            }),
+            delay);
+        promise.OnCanceled(
+            BIND([=] () mutable {
+                promise.TrySet(TError(NYT::EErrorCode::Canceled, "Delayed promise canceled"));
+            }));
+        return promise;
     }
 
     TDelayedExecutorCookie Submit(TClosure callback, TDuration delay)
@@ -165,6 +180,11 @@ private:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+
+TFuture<void> TDelayedExecutor::MakeDelayed(TDuration delay)
+{
+    return RefCountedSingleton<TImpl>()->MakeDelayed(delay);
+}
 
 TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TDuration delay)
 {

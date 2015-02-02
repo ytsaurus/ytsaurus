@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/misc/lazy_ptr.h>
+#include <core/misc/shutdownable.h>
 
-#include <core/concurrency/action_queue.h>
+#include <core/actions/public.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -12,41 +12,39 @@ namespace NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDispatcher
+    : public IShutdownable
 {
 public:
     TDispatcher();
+
+    ~TDispatcher();
 
     static TDispatcher* Get();
 
     void Configure(TDispatcherConfigPtr config);
 
-    IInvokerPtr GetReaderInvoker();
-    IInvokerPtr GetWriterInvoker();
-    IInvokerPtr GetCompressionPoolInvoker();
-    IInvokerPtr GetErasurePoolInvoker();
-
-    void Shutdown();
-
-private:
-    int CompressionPoolSize_;
-    int ErasurePoolSize_;
+    virtual void Shutdown() override;
 
     /*!
-     * This thread is used for background operations in #TRemoteChunkReader
+     * This invoker is used for background operations in #TRemoteChunkReader
      * #TSequentialChunkReader, #TTableChunkReader and #TableReader
      */
-    TLazyIntrusivePtr<NConcurrency::TActionQueue> ReaderThread_;
+    IInvokerPtr GetReaderInvoker();
 
     /*!
-     *  This thread is used for background operations in
-     *  #TRemoteChunkWriter, #NTableClient::TChunkWriter and
-     *  #NTableClient::TChunkSetReader
+     * This invoker is used for background operations in
+     * #TRemoteChunkWriter, #NTableClient::TChunkWriter and
+     * #NTableClient::TChunkSetReader
      */
-    TLazyIntrusivePtr<NConcurrency::TActionQueue> WriterThread_;
+    IInvokerPtr GetWriterInvoker();
 
-    TLazyIntrusivePtr<NConcurrency::TThreadPool> CompressionThreadPool_;
+    IInvokerPtr GetCompressionPoolInvoker();
 
-    TLazyIntrusivePtr<NConcurrency::TThreadPool> ErasureThreadPool_;
+    IInvokerPtr GetErasurePoolInvoker();
+
+private:
+    class TImpl;
+    std::unique_ptr<TImpl> Impl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

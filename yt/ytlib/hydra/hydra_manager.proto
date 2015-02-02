@@ -11,7 +11,8 @@ message TSnapshotMeta
 
 message TChangelogMeta
 {
-    required int32 prev_record_count = 1;
+    // NB: Multiplexed changelogs ignore this field.
+    optional int32 prev_record_count = 1 [default = -1];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

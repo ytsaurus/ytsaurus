@@ -5,11 +5,14 @@
 #include <server/hydra/changelog.h>
 #include <server/hydra/local_changelog_store.h>
 
+#include <ytlib/hydra/hydra_manager.pb.h>
+
 #include <core/concurrency/action_queue.h>
 
 #include <core/misc/fs.h>
 
 #include <util/random/random.h>
+
 #include <util/system/tempfile.h>
 
 namespace NYT {
@@ -17,6 +20,7 @@ namespace NHydra {
 namespace {
 
 using namespace NConcurrency;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,11 +42,8 @@ protected:
 
         ChangelogStore = CreateLocalChangelogStore("ChangelogFlush", ChangelogStoreConfig);
 
-        TSharedRef ref;
-        auto changelogOrError = ChangelogStore->CreateChangelog(0, ref).Get();
-
+        auto changelogOrError = ChangelogStore->CreateChangelog(0, TChangelogMeta()).Get();
         ASSERT_TRUE(changelogOrError.IsOK());
-
         Changelog = changelogOrError.Value();
 
         ActionQueue = New<TActionQueue>();
@@ -63,7 +64,9 @@ static void CheckRecord(i32 data, const TSharedRef& record)
 
 void ReadRecord(IChangelog* asyncChangeLog, i32 recordIndex)
 {
-    std::vector<TSharedRef> result = asyncChangeLog->Read(recordIndex, 1, std::numeric_limits<i64>::max());
+    auto result = asyncChangeLog->Read(recordIndex, 1, std::numeric_limits<i64>::max())
+        .Get()
+        .ValueOrThrow();
     EXPECT_EQ(1, result.size());
     CheckRecord(recordIndex, result[0]);
 }
@@ -101,8 +104,10 @@ TEST_F(TFileChangelogTest, ReadWithSizeLimit)
     }
 
     auto check = [&] (int maxSize) {
-        std::vector<TSharedRef> records = Changelog->Read(0, 1000, maxSize);
-        EXPECT_EQ(records.size(), (maxSize - 1) / sizeof(i32) + 1);
+        auto records = Changelog->Read(0, 1000, maxSize)
+            .Get()
+            .ValueOrThrow();
+        EXPECT_EQ((maxSize - 1) / sizeof(i32) + 1, records.size());
         for (int recordIndex = 0; recordIndex < static_cast<int>(records.size()); ++recordIndex) {
             CheckRecord(recordIndex, records[recordIndex]);
         }

@@ -8,12 +8,12 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVersion::TVersion()
+TVersion::TVersion() noexcept
     : SegmentId(0)
     , RecordId(0)
 { }
 
-TVersion::TVersion(i32 segmentId, i32 recordId)
+TVersion::TVersion(int segmentId, int recordId) noexcept
     : SegmentId(segmentId)
     , RecordId(recordId)
 { }
@@ -60,16 +60,15 @@ TVersion TVersion::FromRevision(i64 revision)
     return TVersion(revision >> 32, revision & 0xffffffff);
 }
 
-void TVersion::Advance(int delta)
+TVersion TVersion::Advance(int delta)
 {
     YASSERT(delta >= 0);
-    RecordId += delta;
+    return TVersion(SegmentId, RecordId + delta);
 }
 
-void TVersion::Rotate()
+TVersion TVersion::Rotate()
 {
-    ++SegmentId;
-    RecordId = 0;
+    return TVersion(SegmentId + 1, 0);
 }
 
 void FormatValue(TStringBuilder* builder, TVersion version)

@@ -36,17 +36,17 @@ TChunkWriterBase::TChunkWriterBase(
     , EncodingChunkWriter_(New<TEncodingChunkWriter>(Config_, Options_, asyncWriter))
 { }
 
-TAsyncError TChunkWriterBase::Open()
+TFuture<void> TChunkWriterBase::Open()
 {
     BlockWriter_.reset(CreateBlockWriter());
-    return OKFuture;
+    return VoidFuture;
 }
 
-TAsyncError TChunkWriterBase::Close()
+TFuture<void> TChunkWriterBase::Close()
 {
     if (RowCount_ == 0) {
         // Empty chunk.
-        return OKFuture;
+        return VoidFuture;
     }
 
     return BIND(&TChunkWriterBase::DoClose, MakeStrong(this))
@@ -54,7 +54,7 @@ TAsyncError TChunkWriterBase::Close()
         .Run();
 }
 
-TAsyncError TChunkWriterBase::GetReadyEvent()
+TFuture<void> TChunkWriterBase::GetReadyEvent()
 {
     return EncodingChunkWriter_->GetReadyEvent();
 }
@@ -129,8 +129,8 @@ void TChunkWriterBase::EmitSample(const TUnversionedValue* begin, const TUnversi
 
 void TChunkWriterBase::FillCommonMeta(TChunkMeta* meta) const
 {
-    meta->set_type(EChunkType::Table);
-    meta->set_version(GetFormatVersion());
+    meta->set_type(static_cast<int>(EChunkType::Table));
+    meta->set_version(static_cast<int>(GetFormatVersion()));
 }
 
 void TChunkWriterBase::OnBlockFinish()
@@ -149,7 +149,7 @@ void TChunkWriterBase::FinishBlock()
     EncodingChunkWriter_->WriteBlock(std::move(block.Data));
 }
 
-TError TChunkWriterBase::DoClose()
+void TChunkWriterBase::DoClose()
 {
     if (BlockWriter_->GetRowCount() > 0) {
         FinishBlock();
@@ -168,7 +168,7 @@ TError TChunkWriterBase::DoClose()
     miscExt.set_row_count(RowCount_);
     miscExt.set_data_weight(DataWeight_);
 
-    return EncodingChunkWriter_->Close();
+    EncodingChunkWriter_->Close();
 }
 
 i64 TChunkWriterBase::GetUncompressedSize() const 

@@ -13,7 +13,7 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ELogEventType,
+DEFINE_ENUM(ELogEventType,
     (SchedulerStarted)
     (MasterConnected)
     (MasterDisconnected)

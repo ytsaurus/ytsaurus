@@ -16,12 +16,10 @@ message TReqStartOperation
     // EOperationType value.
     required int32 type = 1;
     
-    // User (typically top-level) transaction where the operation
-    // processing must happen.
-    required NYT.NProto.TGuid transaction_id = 2;
-    
-    // Operation spec in YSON. 
-    required bytes spec = 3;
+    // Operation spec in YSON.
+    required bytes spec = 2;
+
+    // NB: Transaction id (if any) is passed via extension, like in Cypress commands.
 }
 
 message TRspStartOperation

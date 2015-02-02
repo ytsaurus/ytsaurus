@@ -52,17 +52,17 @@ TBlobSession::TBlobSession(
         lease)
 { }
 
-TAsyncError TBlobSession::DoStart()
+TFuture<void> TBlobSession::DoStart()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     WriteInvoker_->Invoke(BIND(&TBlobSession::DoOpenWriter, MakeStrong(this)));
 
     // No need to wait for the writer to get opened.
-    return OKFuture;
+    return VoidFuture;
 }
 
-TFuture<TErrorOr<IChunkPtr>> TBlobSession::DoFinish(
+TFuture<IChunkPtr> TBlobSession::DoFinish(
     const TChunkMeta& chunkMeta,
     const TNullable<int>& blockCount)
 {
@@ -103,7 +103,7 @@ TChunkInfo TBlobSession::GetChunkInfo() const
     return Writer_->GetChunkInfo();
 }
 
-TAsyncError TBlobSession::DoPutBlocks(
+TFuture<void> TBlobSession::DoPutBlocks(
     int startBlockIndex,
     const std::vector<TSharedRef>& blocks,
     bool enableCaching)
@@ -111,7 +111,7 @@ TAsyncError TBlobSession::DoPutBlocks(
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (blocks.empty()) {
-        return OKFuture;
+        return VoidFuture;
     }
 
     auto blockStore = Bootstrap_->GetBlockStore();
@@ -185,17 +185,15 @@ TAsyncError TBlobSession::DoPutBlocks(
     }
 
     auto throttler = Bootstrap_->GetInThrottler(Options_.SessionType);
-    return throttler->Throttle(requestSize).Apply(BIND([] () {
-        return TError();
-    }));
+    return throttler->Throttle(requestSize);
 }
 
-TAsyncError TBlobSession::DoSendBlocks(
+TFuture<void> TBlobSession::DoSendBlocks(
     int firstBlockIndex,
     int blockCount,
     const TNodeDescriptor& target)
 {
-    TDataNodeServiceProxy proxy(ChannelFactory->CreateChannel(target.GetDefaultAddress()));
+    TDataNodeServiceProxy proxy(ChannelFactory->CreateChannel(target.GetInterconnectAddress()));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
     auto req = proxy.PutBlocks();
@@ -211,19 +209,15 @@ TAsyncError TBlobSession::DoSendBlocks(
 
     auto throttler = Bootstrap_->GetOutThrottler(Options_.SessionType);
     return throttler->Throttle(requestSize).Apply(BIND([=] () {
-        return req->Invoke().Apply(BIND([=] (TDataNodeServiceProxy::TRspPutBlocksPtr rsp) {
-            return rsp->GetError();
-        }));
+        return req->Invoke().As<void>();
     }));
 }
 
-TError TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
+void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    if (!Error_.IsOK()) {
-        return Error_;
-    }
+    THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 
     LOG_DEBUG("Started writing block %v (BlockSize: %v)",
         blockIndex,
@@ -256,10 +250,10 @@ TError TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
 
     DataNodeProfiler.Increment(DiskWriteThroughputCounter, block.Size());
 
-    return Error_;
+    THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 }
 
-void TBlobSession::OnBlockWritten(int blockIndex, TError error)
+void TBlobSession::OnBlockWritten(int blockIndex, const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -277,7 +271,7 @@ void TBlobSession::OnBlockWritten(int blockIndex, TError error)
     }
 }
 
-TAsyncError TBlobSession::DoFlushBlocks(int blockIndex)
+TFuture<void> TBlobSession::DoFlushBlocks(int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -298,13 +292,13 @@ TAsyncError TBlobSession::DoFlushBlocks(int blockIndex)
         BIND(&TBlobSession::OnBlockFlushed, MakeStrong(this), blockIndex));
 }
 
-TError TBlobSession::OnBlockFlushed(int blockIndex, TError error)
+void TBlobSession::OnBlockFlushed(int blockIndex, const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     ReleaseBlocks(blockIndex);
 
-    return error;
+    THROW_ERROR_EXCEPTION_IF_FAILED(error);
 }
 
 void TBlobSession::DoCancel()
@@ -324,13 +318,13 @@ void TBlobSession::DoOpenWriter()
 
     PROFILE_TIMING ("/blob_chunk_open_time") {
         try {
-            auto fileName = Location_->GetChunkFileName(ChunkId_);
+            auto fileName = Location_->GetChunkPath(ChunkId_);
             Writer_ = New<TFileWriter>(fileName, Options_.SyncOnClose);
-            auto asyncError = Writer_->Open();
+            auto result = Writer_->Open();
 
             // File writer opens synchronously.
-            YCHECK(asyncError.IsSet());
-            YCHECK(asyncError.Get().IsOK());
+            YCHECK(result.IsSet());
+            YCHECK(result.Get().IsOK());
         }
         catch (const std::exception& ex) {
             SetFailed(TError(
@@ -345,7 +339,7 @@ void TBlobSession::DoOpenWriter()
     LOG_DEBUG("Finished opening blob chunk writer");
 }
 
-TAsyncError TBlobSession::AbortWriter()
+TFuture<void> TBlobSession::AbortWriter()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -354,13 +348,11 @@ TAsyncError TBlobSession::AbortWriter()
         .Run();
 }
 
-TError TBlobSession::DoAbortWriter()
+void TBlobSession::DoAbortWriter()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    if (!Error_.IsOK()) {
-        return Error_;
-    }
+    THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 
     LOG_DEBUG("Started aborting chunk writer");
 
@@ -379,10 +371,10 @@ TError TBlobSession::DoAbortWriter()
 
     LOG_DEBUG("Finished aborting chunk writer");
 
-    return Error_;
+    THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 }
 
-TError TBlobSession::OnWriterAborted(TError error)
+void TBlobSession::OnWriterAborted(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -391,10 +383,10 @@ TError TBlobSession::OnWriterAborted(TError error)
     ReleaseSpace();
     Finished_.Fire(error);
 
-    return error;
+    THROW_ERROR_EXCEPTION_IF_FAILED(error);
 }
 
-TAsyncError TBlobSession::CloseWriter(const TChunkMeta& chunkMeta)
+TFuture<void> TBlobSession::CloseWriter(const TChunkMeta& chunkMeta)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -403,13 +395,11 @@ TAsyncError TBlobSession::CloseWriter(const TChunkMeta& chunkMeta)
         .Run();
 }
 
-TError TBlobSession::DoCloseWriter(const TChunkMeta& chunkMeta)
+void TBlobSession::DoCloseWriter(const TChunkMeta& chunkMeta)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    if (!Error_.IsOK()) {
-        return Error_;
-    }
+    THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 
     LOG_DEBUG("Started closing chunk writer (ChunkSize: %v)",
         Writer_->GetDataSize());
@@ -429,10 +419,10 @@ TError TBlobSession::DoCloseWriter(const TChunkMeta& chunkMeta)
 
     LOG_DEBUG("Finished closing chunk writer");
 
-    return Error_;
+    THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 }
 
-TErrorOr<IChunkPtr> TBlobSession::OnWriterClosed(TError error)
+IChunkPtr TBlobSession::OnWriterClosed(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -441,7 +431,7 @@ TErrorOr<IChunkPtr> TBlobSession::OnWriterClosed(TError error)
     if (!error.IsOK()) {
         LOG_WARNING(error, "Session has failed to finish");
         Finished_.Fire(error);
-        return error;
+        THROW_ERROR(error);
     }
 
     TChunkDescriptor descriptor;
@@ -458,7 +448,7 @@ TErrorOr<IChunkPtr> TBlobSession::OnWriterClosed(TError error)
 
     Finished_.Fire(TError());
 
-    return IChunkPtr(chunk);
+    return chunk;
 }
 
 void TBlobSession::ReleaseBlocks(int flushedBlockIndex)

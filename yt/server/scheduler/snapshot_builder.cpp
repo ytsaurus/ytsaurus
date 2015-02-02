@@ -6,6 +6,7 @@
 #include "serialize.h"
 
 #include <core/misc/fs.h>
+#include <core/misc/proc.h>
 
 #include <core/concurrency/scheduler.h>
 
@@ -44,8 +45,6 @@ static const size_t RemoteWriteBufferSize = (size_t) 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSnapshotBuilderTag { };
-
 TSnapshotBuilder::TSnapshotBuilder(
     TSchedulerConfigPtr config,
     TSchedulerPtr scheduler,
@@ -61,7 +60,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     Logger = SchedulerLogger;
 }
 
-TAsyncError TSnapshotBuilder::Run()
+TFuture<void> TSnapshotBuilder::Run()
 {
     LOG_INFO("Snapshot builder started");
 
@@ -97,8 +96,11 @@ TDuration TSnapshotBuilder::GetTimeout() const
     return Config->SnapshotTimeout;
 }
 
-void TSnapshotBuilder::Build()
+void TSnapshotBuilder::RunChild()
 {
+    CloseAllDescriptors({
+        2 // stderr
+    });
     for (const auto& job : Jobs) {
         Build(job);
     }
@@ -120,19 +122,13 @@ void TSnapshotBuilder::Build(const TJob& job)
     }
 }
 
-TError TSnapshotBuilder::OnBuilt(TError error)
+void TSnapshotBuilder::OnBuilt()
 {
-    if (!error.IsOK()) {
-        return error;
-    }
-
     for (const auto& job : Jobs) {
         UploadSnapshot(job);
     }
 
     LOG_INFO("Snapshot builder finished");
-
-    return TError();
 }
 
 void TSnapshotBuilder::UploadSnapshot(const TJob& job)
@@ -167,7 +163,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
             attributes->Set(
                 "title",
                 Format("Snapshot upload for operation %v", operation->GetId()));
-            options.Attributes = attributes.get();
+            options.Attributes = std::move(attributes);
             auto transactionOrError = WaitFor(MasterClient->StartTransaction(
                 NTransactionClient::ETransactionType::Master,
                 options));
@@ -190,7 +186,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
             TCreateNodeOptions options;
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("version", GetCurrentSnapshotVersion());
-            options.Attributes = attributes.get();
+            options.Attributes = std::move(attributes);
             auto result = WaitFor(transaction->CreateNode(
                 snapshotPath,
                 EObjectType::File,
@@ -201,17 +197,16 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
         // Upload new snapshot.
         {
             TFileWriterOptions options;
-            auto writer = MasterClient->CreateFileWriter(
-                snapshotPath,
-                options,
-                Config->SnapshotWriter);
+            options.Config = Config->SnapshotWriter;
+            auto writer = MasterClient->CreateFileWriter(snapshotPath, options);
 
             {
                 auto result = WaitFor(writer->Open());
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
             }
 
-            auto buffer = TBlob(TSnapshotBuilderTag(), RemoteWriteBufferSize, false);
+            struct TSnapshotBuilderBufferTag { };
+            auto buffer = TBlob(TSnapshotBuilderBufferTag(), RemoteWriteBufferSize, false);
             TFileInput fileInput(job.FileName);
             TBufferedInput bufferedInput(&fileInput, RemoteWriteBufferSize);
 
