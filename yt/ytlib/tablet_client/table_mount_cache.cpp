@@ -95,7 +95,6 @@ void TTableMountInfo::EvaluateKeys(TUnversionedRow fullRow, TRowBuffer& buffer)
                     .Set(binding)
                     .Set(Variables[index])
                     .Profile(expr);
-                // FIXME check that all references are keys
                 Evaluators[index] = CodegenExpression(expr, Schema, binding);
             }
 
