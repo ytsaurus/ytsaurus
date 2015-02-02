@@ -50,12 +50,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TFiber::TFiber(TClosure callee, EExecutionStack stack)
-    : Id_(FiberIdGenerator.Generate())
-    , State_(EFiberState::Suspended)
-    , Callee_(std::move(callee))
+    : Callee_(std::move(callee))
     , Stack_(CreateExecutionStack(stack))
     , Context_(CreateExecutionContext(Stack_.get(), &TFiber::Trampoline))
 {
+    RegenerateId();
 #ifdef DEBUG
     TGuard<std::atomic_flag> guard(FiberRegistryLock);
     Iterator_ = FiberRegistry.insert(FiberRegistry.begin(), this);
@@ -82,6 +81,11 @@ TFiberId TFiber::GetId() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return Id_;
+}
+
+void TFiber::RegenerateId()
+{
+    Id_ = FiberIdGenerator.Generate();
 }
 
 EFiberState TFiber::GetState() const
