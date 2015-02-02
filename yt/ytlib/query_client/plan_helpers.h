@@ -36,6 +36,8 @@ TConstExpressionPtr RefinePredicate(
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns);
 
+TConstExpressionPtr ExtractPredicateForColumnsSubset(const TConstExpressionPtr& expr, const TTableSchema& tableSchema);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

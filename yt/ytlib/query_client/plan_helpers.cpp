@@ -37,6 +37,10 @@ TKeyTrieNode ExtractMultipleConstraints(
     const TKeyColumns& keyColumns,
     TRowBuffer* rowBuffer)
 {
+    if (!expr) {
+        return TKeyTrieNode::Universal();
+    }
+
     if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
         auto opcode = binaryOpExpr->Opcode;
         auto lhsExpr = binaryOpExpr->Lhs;
@@ -421,6 +425,58 @@ bool IsEmpty(const TKeyRange& keyRange)
     return keyRange.first >= keyRange.second;
 }
 
+bool AllReferencesAreInSchema(const TConstExpressionPtr& expr, const TTableSchema& tableSchema)
+{
+    if (auto referenceExpr = expr->As<TReferenceExpression>()) {
+        return tableSchema.FindColumn(referenceExpr->ColumnName);
+    } else if (expr->As<TLiteralExpression>()) {
+        return true;
+    } else if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
+        return AllReferencesAreInSchema(binaryOpExpr->Lhs, tableSchema) && AllReferencesAreInSchema(binaryOpExpr->Rhs, tableSchema);
+    } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
+        bool result = true;
+        for (const auto& argument : functionExpr->Arguments) {
+            result = result && AllReferencesAreInSchema(argument, tableSchema);
+        }
+        return result;
+    } else if (auto inExpr = expr->As<TInOpExpression>()) {
+
+        bool result = true;
+        for (const auto& argument : inExpr->Arguments) {
+            result = result && AllReferencesAreInSchema(argument, tableSchema);
+        }
+        return result;
+    }
+
+    return false;
+}
+
+TConstExpressionPtr ExtractPredicateForColumnsSubset(const TConstExpressionPtr& expr, const TTableSchema& tableSchema)
+{
+    if (!expr) {
+        return nullptr;
+    }
+
+    if (AllReferencesAreInSchema(expr, tableSchema)) {
+        return expr;
+    } else if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
+        auto opcode = binaryOpExpr->Opcode;
+        if (opcode == EBinaryOp::And) {
+            return MakeAndExpression(
+                ExtractPredicateForColumnsSubset(binaryOpExpr->Lhs, tableSchema),
+                ExtractPredicateForColumnsSubset(binaryOpExpr->Rhs, tableSchema));
+        } if (opcode == EBinaryOp::Or) {
+            return MakeOrExpression(
+                ExtractPredicateForColumnsSubset(binaryOpExpr->Lhs, tableSchema),
+                ExtractPredicateForColumnsSubset(binaryOpExpr->Rhs, tableSchema));
+        }
+    }
+
+    return New<TLiteralExpression>(
+        NullSourceLocation,
+        EValueType::Boolean,
+        MakeUnversionedBooleanValue(true));
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
