@@ -192,7 +192,11 @@ private:
         llvm::FoldingSetNodeID id;
         TCGBinding binding;
 
-        TFoldingProfiler(id, binding, variables).Profile(query);
+        TFoldingProfiler()
+            .Set(id)
+            .Set(binding)
+            .Set(variables)
+            .Profile(query);
         auto Logger = BuildLogger(query);
 
         auto cgQuery = Find(id);

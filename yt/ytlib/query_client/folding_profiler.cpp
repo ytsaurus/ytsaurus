@@ -6,29 +6,45 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFoldingProfiler::TFoldingProfiler(
-    llvm::FoldingSetNodeID& id,
-    TCGBinding& binding,
-    TCGVariables& variables,
-    yhash_set<Stroka>* references)
-    : Id_(id)
-    , Binding_(binding)
-    , Variables_(variables)
-    , References_(references)
+TFoldingProfiler::TFoldingProfiler()
 { }
+
+TFoldingProfiler& TFoldingProfiler::Set(llvm::FoldingSetNodeID& id)
+{
+    Id_ = &id;
+    return *this;
+}
+
+TFoldingProfiler& TFoldingProfiler::Set(TCGBinding& binding)
+{
+    Binding_ = &binding;
+    return *this;
+}
+
+TFoldingProfiler& TFoldingProfiler::Set(TCGVariables& variables)
+{
+    Variables_ = &variables;
+    return *this;
+}
+
+TFoldingProfiler& TFoldingProfiler::Set(yhash_set<Stroka>& references)
+{
+    References_ = &references;
+    return *this;
+}
 
 void TFoldingProfiler::Profile(const TConstQueryPtr& query)
 {
-    Id_.AddInteger(static_cast<int>(EFoldingObjectType::ScanOp));
+    Fold(static_cast<int>(EFoldingObjectType::ScanOp));
     Profile(query->TableSchema);
 
     if (query->Predicate) {
-        Id_.AddInteger(static_cast<int>(EFoldingObjectType::FilterOp));
+        Fold(static_cast<int>(EFoldingObjectType::FilterOp));
         Profile(query->Predicate);
     }
 
     if (query->GroupClause) {
-        Id_.AddInteger(static_cast<int>(EFoldingObjectType::GroupOp));
+        Fold(static_cast<int>(EFoldingObjectType::GroupOp));
 
         for (const auto& groupItem : query->GroupClause->GroupItems) {
             Profile(groupItem);
@@ -40,7 +56,7 @@ void TFoldingProfiler::Profile(const TConstQueryPtr& query)
     }
 
     if (query->ProjectClause) {
-        Id_.AddInteger(static_cast<int>(EFoldingObjectType::ProjectOp));
+        Fold(static_cast<int>(EFoldingObjectType::ProjectOp));
 
         for (const auto& projection : query->ProjectClause->Projections) {
             Profile(projection);
@@ -50,43 +66,38 @@ void TFoldingProfiler::Profile(const TConstQueryPtr& query)
 
 void TFoldingProfiler::Profile(const TConstExpressionPtr& expr)
 {
-    Id_.AddInteger(static_cast<ui16>(expr->Type));
+    Fold(static_cast<ui16>(expr->Type));
     if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        Id_.AddInteger(static_cast<int>(EFoldingObjectType::LiteralExpr));
-        Id_.AddInteger(static_cast<ui16>(TValue(literalExpr->Value).Type));
+        Fold(static_cast<int>(EFoldingObjectType::LiteralExpr));
+        Fold(static_cast<ui16>(TValue(literalExpr->Value).Type));
 
-        int index = Variables_.ConstantsRowBuilder.AddValue(TValue(literalExpr->Value));
-        Binding_.NodeToConstantIndex[literalExpr] = index;
+        Bind(literalExpr);
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
-        Id_.AddInteger(static_cast<int>(EFoldingObjectType::ReferenceExpr));
-        Id_.AddString(referenceExpr->ColumnName.c_str());
-        if (References_) {
-            References_->insert(referenceExpr->ColumnName);
-        }
+        Fold(static_cast<int>(EFoldingObjectType::ReferenceExpr));
+        Fold(referenceExpr->ColumnName.c_str());
+
+        Refer(referenceExpr);
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        Id_.AddInteger(static_cast<int>(EFoldingObjectType::FunctionExpr));
-        Id_.AddString(functionExpr->FunctionName.c_str());
+        Fold(static_cast<int>(EFoldingObjectType::FunctionExpr));
+        Fold(functionExpr->FunctionName.c_str());
 
         for (const auto& argument : functionExpr->Arguments) {
             Profile(argument);
         }
     } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
-        Id_.AddInteger(static_cast<int>(EFoldingObjectType::BinaryOpExpr));
-        Id_.AddInteger(static_cast<int>(binaryOp->Opcode));
+        Fold(static_cast<int>(EFoldingObjectType::BinaryOpExpr));
+        Fold(static_cast<int>(binaryOp->Opcode));
 
         Profile(binaryOp->Lhs);
         Profile(binaryOp->Rhs);
     } else if (auto inOp = expr->As<TInOpExpression>()) {
-        Id_.AddInteger(static_cast<int>(EFoldingObjectType::InOpExpr));
+        Fold(static_cast<int>(EFoldingObjectType::InOpExpr));
 
         for (const auto& argument : inOp->Arguments) {
             Profile(argument);
         }
 
-        int index = Variables_.LiteralRows.size();
-        Variables_.LiteralRows.push_back(inOp->Values);
-        Binding_.NodeToRows[expr.Get()] = index;
-
+        Bind(inOp);
     } else {
         YUNREACHABLE();
     }
@@ -94,24 +105,66 @@ void TFoldingProfiler::Profile(const TConstExpressionPtr& expr)
 
 void TFoldingProfiler::Profile(const TTableSchema& tableSchema)
 {
-    Id_.AddInteger(static_cast<int>(EFoldingObjectType::TableSchema));
+    Fold(static_cast<int>(EFoldingObjectType::TableSchema));
 }
 
 void TFoldingProfiler::Profile(const TNamedItem& namedExpression)
 {
-    Id_.AddInteger(static_cast<int>(EFoldingObjectType::NamedExpression));
-    Id_.AddString(namedExpression.Name.c_str());
+    Fold(static_cast<int>(EFoldingObjectType::NamedExpression));
+    Fold(namedExpression.Name.c_str());
 
     Profile(namedExpression.Expression);
 }
 
 void TFoldingProfiler::Profile(const TAggregateItem& aggregateItem)
 {
-    Id_.AddInteger(static_cast<int>(EFoldingObjectType::AggregateItem));
-    Id_.AddInteger(static_cast<int>(aggregateItem.AggregateFunction));
-    Id_.AddString(aggregateItem.Name.c_str());
+    Fold(static_cast<int>(EFoldingObjectType::AggregateItem));
+    Fold(static_cast<int>(aggregateItem.AggregateFunction));
+    Fold(aggregateItem.Name.c_str());
 
     Profile(aggregateItem.Expression);
+}
+
+void TFoldingProfiler::Fold(int numeric)
+{
+    if (Id_) {
+        Id_->AddInteger(numeric);
+    }
+}
+
+void TFoldingProfiler::Fold(const char* str)
+{
+    if (Id_) {
+        Id_->AddString(str);
+    }
+}
+
+void TFoldingProfiler::Refer(const TReferenceExpression* referenceExpr)
+{
+    if (References_) {
+        References_->insert(referenceExpr->ColumnName.c_str());
+    }
+}
+
+void TFoldingProfiler::Bind(const TLiteralExpression* literalExpr)
+{
+    YCHECK(!Variables_ == !Binding_);
+
+    if (Variables_) {
+        int index = Variables_->ConstantsRowBuilder.AddValue(TValue(literalExpr->Value));
+        Binding_->NodeToConstantIndex[literalExpr] = index;
+    }
+}
+
+void TFoldingProfiler::Bind(const TInOpExpression* inOp)
+{
+    YCHECK(!Variables_ == !Binding_);
+
+    if (Variables_) {
+        int index = Variables_->LiteralRows.size();
+        Variables_->LiteralRows.push_back(inOp->Values);
+        Binding_->NodeToRows[inOp] = index;
+    }
 }
 
 size_t TFoldingHasher::operator ()(const llvm::FoldingSetNodeID& id) const

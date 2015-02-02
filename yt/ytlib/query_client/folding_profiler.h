@@ -4,6 +4,7 @@
 #include "plan_fragment.h"
 
 #include <util/generic/hash_set.h>
+#include <util/generic/noncopyable.h>
 
 #include <llvm/ADT/FoldingSet.h>
 
@@ -33,33 +34,40 @@ DEFINE_ENUM(EFoldingObjectType,
 );
 
 class TFoldingProfiler
+    : private TNonCopyable
 {
 public:
-    explicit TFoldingProfiler(
-        llvm::FoldingSetNodeID& id,
-        TCGBinding& binding,
-        TCGVariables& variables,
-        yhash_set<Stroka>* references = nullptr);
+    TFoldingProfiler();
+
     void Profile(const TConstQueryPtr& query);
     void Profile(const TConstExpressionPtr& expr);
+
+    TFoldingProfiler& Set(llvm::FoldingSetNodeID& id);
+    TFoldingProfiler& Set(TCGBinding& binding);
+    TFoldingProfiler& Set(TCGVariables& variables);
+    TFoldingProfiler& Set(yhash_set<Stroka>& references);
+
+private:
     void Profile(const TNamedItem& namedExpression);
     void Profile(const TAggregateItem& aggregateItem);
     void Profile(const TTableSchema& tableSchema);
 
-//FIXME .Set(binding).Set(references).Profile.
+    void Fold(int numeric);
+    void Fold(const char* str);
+    void Refer(const TReferenceExpression* referenceExpr);
+    void Bind(const TLiteralExpression* literalExpr);
+    void Bind(const TInOpExpression* inOp);
 
-private:
-    llvm::FoldingSetNodeID& Id_;
-    TCGBinding& Binding_;
-    TCGVariables& Variables_;
-    yhash_set<Stroka>* References_;
+    llvm::FoldingSetNodeID* Id_ = nullptr;
+    TCGBinding* Binding_ = nullptr;
+    TCGVariables* Variables_ = nullptr;
+    yhash_set<Stroka>* References_ = nullptr;
 };
 
 struct TFoldingHasher
 {
     size_t operator ()(const llvm::FoldingSetNodeID& id) const;
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
