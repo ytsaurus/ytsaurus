@@ -289,7 +289,7 @@ private:
         }
 
         try {
-            if (FindCommit(transactionId)) {
+            if (!force && FindCommit(transactionId)) {
                 THROW_ERROR_EXCEPTION("Transaction %v is being committed",
                     transactionId);
             }
