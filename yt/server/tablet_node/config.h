@@ -277,6 +277,7 @@ class TStoreCompactorConfig
 public:
     int ThreadPoolSize;
     int MaxConcurrentCompactions;
+    int MaxConcurrentPartitionings;
 
     TStoreCompactorConfig()
     {
@@ -284,6 +285,9 @@ public:
             .GreaterThan(0)
             .Default(1);
         RegisterParameter("max_concurrent_compactions", MaxConcurrentCompactions)
+            .GreaterThan(0)
+            .Default(1);
+        RegisterParameter("max_concurrent_partitionings", MaxConcurrentPartitionings)
             .GreaterThan(0)
             .Default(1);
     }
