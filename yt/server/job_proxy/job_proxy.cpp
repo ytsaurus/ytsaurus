@@ -189,7 +189,7 @@ void TJobProxy::Run()
         }
 
         customStatistics.Add("/job_proxy/input", jobStatistics.input());
-        customStatistics.Add("/job_proxy/output", GetTotalOutput(jobStatistics));
+        customStatistics.Add("/job_proxy/output", GetTotalOutputDataStatistics(jobStatistics));
 
         ToProto(jobStatistics.mutable_statistics(), NYTree::ConvertToYsonString(customStatistics).Data());
         ToProto(result.mutable_statistics(), jobStatistics);

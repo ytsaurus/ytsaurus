@@ -636,11 +636,11 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet)
 {
     if (Controller->IsRowCountPreserved()) {
         const auto& statistics = joblet->Job->Result().statistics();
-        if (statistics.input().row_count() != GetTotalOutput(statistics).row_count()) {
+        if (statistics.input().row_count() != GetTotalOutputDataStatistics(statistics).row_count()) {
             Controller->OnOperationFailed(TError(
                 "Input/output row count mismatch in completed job: %v != %v",
                 statistics.input().row_count(),
-                GetTotalOutput(statistics).row_count())
+                GetTotalOutputDataStatistics(statistics).row_count())
                 << TErrorAttribute("task", GetId()));
         }
     }
@@ -966,8 +966,8 @@ TOperationControllerBase::TOperationControllerBase(
     , TotalEstimatedInputDataSize(0)
     , TotalEstimatedInputRowCount(0)
     , TotalEstimatedInputValueCount(0)
-    , TotalExactInput(NChunkClient::NProto::ZeroDataStatistics())
-    , TotalIntermeidate(NChunkClient::NProto::ZeroDataStatistics())
+    , TotalExactInputDataStatistics(NChunkClient::NProto::ZeroDataStatistics())
+    , TotalIntermediateDataStatistics(NChunkClient::NProto::ZeroDataStatistics())
     , UnavailableInputChunkCount(0)
     , JobCounter(0)
     , CompletedJobStatistics(ZeroJobStatistics())
@@ -3124,7 +3124,7 @@ void TOperationControllerBase::CollectTotals()
         }
     }
 
-    LOG_INFO("Estimate input totals collected (ChunkCount: %v, DataSize: %v, RowCount: %v, ValueCount: %v)",
+    LOG_INFO("Estimated input totals collected (ChunkCount: %v, DataSize: %v, RowCount: %v, ValueCount: %v)",
         TotalEstimatedInputChunkCount,
         TotalEstimatedInputDataSize,
         TotalEstimatedInputRowCount,
@@ -3349,7 +3349,7 @@ void TOperationControllerBase::RegisterInput(TJobletPtr joblet)
 {
     // Update input statistics.
     const auto& jobResult = joblet->Job->Result();
-    TotalExactInput += jobResult.statistics().input();
+    TotalExactInputDataStatistics += jobResult.statistics().input();
 }
 
 void TOperationControllerBase::RegisterOutput(
@@ -3375,11 +3375,11 @@ void TOperationControllerBase::RegisterOutput(
     const auto& jobResult = joblet->Job->Result();
     const auto& statistics = jobResult.statistics();
     for (auto i = 0; i < statistics.output_size(); ++i) {
-        if (i >= TotalOutputs.size()) {
-            YCHECK(i == TotalOutputs.size());
-            TotalOutputs.push_back(NChunkClient::NProto::ZeroDataStatistics());
+        if (i >= TotalOutputsDataStatistics.size()) {
+            YCHECK(i == TotalOutputsDataStatistics.size());
+            TotalOutputsDataStatistics.push_back(NChunkClient::NProto::ZeroDataStatistics());
         }
-        TotalOutputs[i] += statistics.output(i);
+        TotalOutputsDataStatistics[i] += statistics.output(i);
     }
 
     const auto* userJobResult = FindUserJobResult(joblet);
@@ -3433,7 +3433,7 @@ void TOperationControllerBase::RegisterIntermediate(
 {
     // Update output statistics.
     const auto& jobResult = joblet->Job->Result();
-    TotalIntermeidate += GetTotalOutput(jobResult.statistics());
+    TotalIntermediateDataStatistics += GetTotalOutputDataStatistics(jobResult.statistics());
 
     for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto chunkId = FromProto<TChunkId>(chunkSlice->GetChunkSpec()->chunk_id());
@@ -3495,10 +3495,15 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
             .Item("row_count").Value(TotalEstimatedInputRowCount)
             .Item("unavailable_chunk_count").Value(UnavailableInputChunkCount)
         .EndMap()
-        .Item("exact_input_statistics").Value(TotalExactInput)
-        .Item("intermediate_statistics").Value(TotalIntermeidate)
-        .Item("output_statistics").DoListFor(
-            TotalOutputs,
+        .Item("exact_input_statistics").Value(TotalExactInputDataStatistics)
+        .Item("intermediate_statistics").Value(TotalIntermediateDataStatistics)
+        .Item("output_statistics").Value(
+            std::accumulate(
+                TotalOutputsDataStatistics.begin(),
+                TotalOutputsDataStatistics.end(),
+                NChunkClient::NProto::ZeroDataStatistics()))
+        .Item("output_statistics_detailed").DoListFor(
+            TotalOutputsDataStatistics,
             [] (TFluentList fluent, const NChunkClient::NProto::TDataStatistics& statistics) {
                 fluent.Item().Value(statistics);
             })
@@ -3775,9 +3780,9 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, TotalEstimatedInputRowCount);
     Persist(context, TotalEstimatedInputValueCount);
 
-    Persist(context, TotalExactInput);
-    Persist(context, TotalIntermeidate);
-    Persist(context, TotalOutputs);
+    Persist(context, TotalExactInputDataStatistics);
+    Persist(context, TotalIntermediateDataStatistics);
+    Persist(context, TotalOutputsDataStatistics);
 
     Persist(context, UnavailableInputChunkCount);
 

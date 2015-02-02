@@ -11,6 +11,7 @@ namespace NProto {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -64,9 +65,9 @@ TJobStatistics operator- (const TJobStatistics& lhs, const TJobStatistics& rhs)
     return result;
 }
 
-NChunkClient::NProto::TDataStatistics GetTotalOutput(const TJobStatistics& statistics)
+TDataStatistics GetTotalOutputDataStatistics(const TJobStatistics& statistics)
 {
-    auto result = NChunkClient::NProto::ZeroDataStatistics();
+    auto result = ZeroDataStatistics();
     for (auto i = 0; i < statistics.output_size(); ++i) {
         result += statistics.output(i);
     }
@@ -76,7 +77,7 @@ NChunkClient::NProto::TDataStatistics GetTotalOutput(const TJobStatistics& stati
 TJobStatistics GetZeroJobStatistics()
 {
     TJobStatistics statistics;
-    *statistics.mutable_input() = NChunkClient::NProto::ZeroDataStatistics();
+    *statistics.mutable_input() = ZeroDataStatistics();
     statistics.set_time(0);
     return statistics;
 }
@@ -89,10 +90,12 @@ const TJobStatistics& ZeroJobStatistics()
 
 void Serialize(const TJobStatistics& statistics, IYsonConsumer* consumer)
 {
+    ;
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("input").Value(statistics.input())
-            .Item("output").DoListFor(0, statistics.output_size(), [&statistics] (TFluentList list, int index) {
+            .Item("output").Value(GetTotalOutputDataStatistics(statistics))
+            .Item("output_detailed").DoListFor(0, statistics.output_size(), [&statistics] (TFluentList list, int index) {
                 list.Item().Value(statistics.output(index));
             })
             .Item("time").Value(statistics.time())
