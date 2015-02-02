@@ -10,11 +10,19 @@
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h> // TODO(babenko): remove after migration
 
+#ifdef YT_USE_LLVM
+#include <ytlib/query_client/plan_fragment.h>
+#include <ytlib/query_client/folding_profiler.h>
+#endif
+
 namespace NYT {
 namespace NVersionedTableClient {
 
 using namespace NYTree;
 using namespace NYson;
+#ifdef YT_USE_LLVM
+using namespace NQueryClient;
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -295,7 +303,37 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
         THROW_ERROR_EXCEPTION("Schema must contains at least one non-key column");;
     }
 
-    //FIXME(savrus) validate auto keys
+    // Validate computed columns.
+    for (int index = 0; index < schema.Columns().size(); ++index) {
+        const auto& columnSchema = schema.Columns()[index];
+        if (columnSchema.Expression) {
+            if (index < keyColumns.size()) {
+#ifdef YT_USE_LLVM
+                auto expr = PrepareExpression(columnSchema.Expression.Get(), schema);
+                yhash_set<Stroka> references;
+                TFoldingProfiler()
+                    .Set(references)
+                    .Profile(expr);
+                for (const auto& ref : references) {
+                    if (schema.GetColumnIndexOrThrow(ref) >= keyColumns.size()) {
+                        THROW_ERROR_EXCEPTION("Computed column %Qv depends on a non-key column %Qv",
+                            columnSchema.Name,
+                            ref);
+                    }
+                    if (schema.GetColumnOrThrow(ref).Expression) {
+                        THROW_ERROR_EXCEPTION("Computed column %Qv depends on computed column %Qv",
+                            columnSchema.Name,
+                            ref);
+                    }
+                }
+#else
+                THROW_ERROR_EXCEPTION("Computed columns require LLVM enabled in build");
+#endif
+            } else {
+                THROW_ERROR_EXCEPTION("Computed column %Qv is not a key column", columnSchema.Name);
+            }
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
