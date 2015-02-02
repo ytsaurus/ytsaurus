@@ -473,8 +473,8 @@ private:
     void CommitTransaction(const TTransactionId& transactionId)
     {
         auto transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        auto error = WaitFor(transactionSupervisor->CommitTransaction(transactionId));
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        WaitFor(transactionSupervisor->CommitTransaction(transactionId))
+            .ThrowOnError();
     }
 
     void CreateNode(

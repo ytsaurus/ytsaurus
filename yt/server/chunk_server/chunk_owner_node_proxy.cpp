@@ -129,9 +129,9 @@ private:
                             chunkId);
                     }
 
-                    auto result = WaitFor(chunkManager->GetChunkQuorumInfo(chunk));
-                    THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                    i64 quorumRowCount = result.Value().row_count();
+                    auto result = WaitFor(chunkManager->GetChunkQuorumInfo(chunk))
+                        .ValueOrThrow();
+                    i64 quorumRowCount = result.row_count();
 
                     auto lowerLimit = FromProto<TReadLimit>(chunkSpec.lower_limit());
                     if (!lowerLimit.HasRowIndex()) {
