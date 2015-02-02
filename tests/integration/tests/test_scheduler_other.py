@@ -175,13 +175,13 @@ class TestSchedulingTags(YTEnvSetup):
         time.sleep(1.2)
         op_id = map(dont_track=True, command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagB", "job_count": 20})
         track_op(op_id)
-        time.sleep(0.5)
+        time.sleep(0.8)
         assert get_job_nodes(op_id) == __builtin__.set([self.node])
 
 
         op_id = map(dont_track=True, command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"job_count": 20})
         track_op(op_id)
-        time.sleep(0.5)
+        time.sleep(0.8)
         assert len(get_job_nodes(op_id)) <= 2
 
 
