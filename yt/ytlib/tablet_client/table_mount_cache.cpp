@@ -91,11 +91,12 @@ void TTableMountInfo::EvaluateKeys(TUnversionedRow fullRow, TRowBuffer& buffer)
     for (int index = 0; index < KeyColumns.size(); ++index) {
         if (Schema.Columns()[index].Expression) {
             if (!Evaluators[index]) {
-                //FIXME folding
-                llvm::FoldingSetNodeID id;
-                TCGBinding binding;
                 auto expr = PrepareExpression(Schema.Columns()[index].Expression.Get(), Schema);
-                TFoldingProfiler(id, binding, Variables[index]).Profile(expr);
+                TCGBinding binding;
+                TFoldingProfiler()
+                    .Set(binding)
+                    .Set(Variables[index])
+                    .Profile(expr);
                 // FIXME check that all references are keys
                 Evaluators[index] = CodegenExpression(expr, Schema, binding);
             }

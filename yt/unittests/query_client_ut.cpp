@@ -1260,9 +1260,11 @@ TEST(TExpressionExecutorTest, BuildExpression)
     auto expr = PrepareExpression("a + b", schema);
 
     TCGVariables variables;
-    llvm::FoldingSetNodeID id;
     TCGBinding binding;
-    TFoldingProfiler(id, binding, variables).Profile(expr);
+    TFoldingProfiler()
+        .Set(binding)
+        .Set(variables)
+        .Profile(expr);
     auto callback = CodegenExpression(expr, schema, binding);
 
     auto expected = MakeUnversionedInt64Value(33 + 22);
