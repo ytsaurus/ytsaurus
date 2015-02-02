@@ -80,6 +80,8 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(TCancelableContextPtr, CancelableContext);
 
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastPartitioningTime);
+
 public:
     explicit TTablet(const TTabletId& id);
     TTablet(
