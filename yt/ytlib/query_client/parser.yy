@@ -66,6 +66,8 @@
 %token KwFrom "keyword `FROM`"
 %token KwWhere "keyword `WHERE`"
 %token KwLimit "keyword `LIMIT`"
+%token KwJoin "keyword `JOIN`"
+%token KwUsing "keyword `USING`"
 %token KwGroupBy "keyword `GROUP BY`"
 %token KwAs "keyword `AS`"
 
@@ -100,11 +102,11 @@
 %token OpGreaterOrEqual "`>=`"
 
 %type <TNullableNamedExprs> select-clause
-%type <TStringBuf> from-clause
 %type <TExpressionPtr> where-clause
 %type <TNamedExpressionList> group-by-clause
 %type <i64> limit-clause
 
+%type <TIdentifierList> identifier-list
 %type <TNamedExpressionList> named-expression-list
 %type <TNamedExpression> named-expression
 
@@ -139,15 +141,13 @@ head
 ;
 
 head-clause
-    : select-clause[select] from-clause[from]
+    : select-clause[select] from-clause
         {
             head->As<TQuery>().SelectExprs = $select;
-            head->As<TQuery>().FromPath = $from;
         }
-    | select-clause[select] from-clause[from] head-clause-tail
+    | select-clause[select] from-clause head-clause-tail
         {
             head->As<TQuery>().SelectExprs = $select;
-            head->As<TQuery>().FromPath = $from;
         }
 ;
 
@@ -202,7 +202,23 @@ select-clause
 from-clause
     : KwFrom Identifier[path]
         {
-            $$ = $path;
+            head->As<TQuery>().Source = New<TSimpleSource>(Stroka($path));
+        }
+    | KwFrom Identifier[left_path] KwJoin Identifier[right_path] KwUsing identifier-list[fields]
+        {
+            head->As<TQuery>().Source = New<TJoinSource>(Stroka($left_path), Stroka($right_path), $fields);
+        }
+;
+
+identifier-list
+    : identifier-list[list] Comma Identifier[value]
+        {
+            $$.swap($list);
+            $$.push_back(Stroka($value));
+        }
+    | Identifier[value]
+        {
+            $$.push_back(Stroka($value));
         }
 ;
 

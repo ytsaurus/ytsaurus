@@ -724,7 +724,15 @@ TPlanFragmentPtr PreparePlanFragment(
     ParseYqlString(&astHead, &rowBuffer, source, NAst::TParser::token::StrayWillParseQuery);
 
     auto& ast = astHead.As<NAst::TQuery>();
-    auto tablePath = ast.FromPath;
+    Stroka tablePath;
+
+    if (auto simpleSource = ast.Source->As<NAst::TSimpleSource>()) {
+        tablePath = simpleSource->Path;
+    } else if (auto joinSource = ast.Source->As<NAst::TJoinSource>()) {
+        YUNIMPLEMENTED();
+    } else {
+        YUNREACHABLE();
+    }
 
     LOG_DEBUG("Getting initial data split for %v", tablePath);
     // XXX(sandello): We have just one table at the moment.
