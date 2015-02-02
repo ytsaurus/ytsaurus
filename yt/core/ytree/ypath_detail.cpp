@@ -294,8 +294,7 @@ TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const Stroka& key)
             return MakeFuture(builtinYson);
         }
 
-        auto onAsyncAttribute = [] (TStringStream* stream, TYsonWriter* /*writer*/, const TError& error) -> TYsonString {
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        auto onAsyncAttribute = [] (TStringStream* stream, TYsonWriter* /*writer*/) {
             return TYsonString(stream->Str());
         };
 

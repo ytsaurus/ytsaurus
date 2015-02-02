@@ -88,9 +88,7 @@ public:
                 chunkId);
         }
 
-        auto resultOrError = cookie.GetValue().Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
-        return resultOrError.Value();
+        return cookie.GetValue().Get().ValueOrThrow();
     }
 
     void EvictReader(IChunk* chunk)

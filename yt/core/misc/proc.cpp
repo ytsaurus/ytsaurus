@@ -121,8 +121,7 @@ void RunCleaner(const Stroka& path)
     });
 
     process.Spawn();
-    auto error = process.Wait();
-    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    process.Wait().ThrowOnError();
 }
 
 void RemoveDirAsRoot(const Stroka& path)

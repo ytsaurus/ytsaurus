@@ -125,7 +125,7 @@ void TYPathResponse::Deserialize(TSharedRefArray message)
 
     if (header.has_error()) {
         auto error = NYT::FromProto<TError>(header.error());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        error.ThrowOnError();
     }
 
     // Deserialize body.

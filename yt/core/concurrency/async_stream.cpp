@@ -28,9 +28,8 @@ private:
 
     virtual size_t DoRead(void* buf, size_t len) override
     {
-        auto result = WaitFor(UnderlyingStream_->Read(buf, len));
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        return result.Value();
+        return WaitFor(UnderlyingStream_->Read(buf, len))
+            .ValueOrThrow();
     }
 
 };
@@ -101,8 +100,8 @@ private:
 
     virtual void DoWrite(const void* buf, size_t len) override
     {
-        auto result = WaitFor(UnderlyingStream_->Write(buf, len));
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        WaitFor(UnderlyingStream_->Write(buf, len))
+            .ThrowOnError();
     }
 
 };
