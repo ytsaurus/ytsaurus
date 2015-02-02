@@ -149,6 +149,11 @@ void TTablet::SetStoreManager(TStoreManagerPtr storeManager)
     StoreManager_ = storeManager;
 }
 
+const TTabletStatisticsPtr& TTablet::GetStatistics() const
+{
+    return Statistics_;
+}
+
 void TTablet::Save(TSaveContext& context) const
 {
     using NYT::Save;
@@ -519,17 +524,20 @@ TTabletSnapshotPtr TTablet::BuildSnapshot() const
     tabletSnapshot->KeyColumns = KeyColumns_;
     tabletSnapshot->Eden = Eden_->BuildSnapshot();
     tabletSnapshot->Partitions.reserve(PartitionList_.size());
-    tabletSnapshot->RowKeyComparer = GetRowKeyComparer();
     for (const auto& partition : PartitionList_) {
         auto partitionSnapshot = partition->BuildSnapshot();
         tabletSnapshot->Partitions.push_back(partitionSnapshot);
         tabletSnapshot->StoreCount += partitionSnapshot->Stores.size();
     }
+    tabletSnapshot->RowKeyComparer = GetRowKeyComparer();
+    tabletSnapshot->Statistics = Statistics_;
     return tabletSnapshot;
 }
 
 void TTablet::Initialize()
 {
+    Statistics_ = New<TTabletStatistics>();
+
     Comparer_ = TDynamicRowKeyComparer(
         GetKeyColumnCount(),
         Schema_,

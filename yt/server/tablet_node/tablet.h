@@ -43,6 +43,8 @@ struct TTabletSnapshot
 
     TDynamicRowKeyComparer RowKeyComparer;
 
+    TTabletStatisticsPtr Statistics;
+
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
         const TOwningKey& lowerBound,
@@ -54,6 +56,14 @@ struct TTabletSnapshot
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTabletStatistics
+    : public TIntrinsicRefCounted
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TTabletStatistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,6 +117,8 @@ public:
     const TStoreManagerPtr& GetStoreManager() const;
     void SetStoreManager(TStoreManagerPtr storeManager);
 
+    const TTabletStatisticsPtr& GetStatistics() const;
+
     typedef std::vector<std::unique_ptr<TPartition>> TPartitionList;
     const TPartitionList& Partitions() const;
     TPartition* GetEden() const;
@@ -149,10 +161,12 @@ public:
     TDynamicRowKeyComparer GetRowKeyComparer() const;
 
 private:
-    TTableMountConfigPtr Config_;
-    TTabletWriterOptionsPtr WriterOptions_;
+    const TTableMountConfigPtr Config_;
+    const TTabletWriterOptionsPtr WriterOptions_;
 
     TStoreManagerPtr StoreManager_;
+
+    TTabletStatisticsPtr Statistics_;
 
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
 
