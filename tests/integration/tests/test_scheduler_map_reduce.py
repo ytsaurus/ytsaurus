@@ -188,6 +188,57 @@ for key, rows in groupby(read(), lambda row: row["word"]):
                    reducer_command="cat",
                    spec={"reducer": {"format": "dsv"}})
 
+    @only_linux
+    def test_reduce_with_sort(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write("//tmp/t_in", [ {"x": 1, "y" : 2},
+                              {"x": 1, "y" : 1},
+                              {"x": 1, "y" : 3} ])
+
+        write("<append=true>//tmp/t_in", 
+                            [ {"x": 2, "y" : 3},
+                              {"x": 2, "y" : 2},
+                              {"x": 2, "y" : 4} ])
+
+
+        reducer = """
+import sys
+y = 0
+for l in sys.stdin:
+  l = l.strip('\\n')
+  pairs = l.split('\\t')
+  pairs = [a.split("=") for a in pairs]
+  d = dict([(a[0], int(a[1])) for a in pairs])
+  x = d['x']
+  y += d['y']
+  print l
+print "x={0}\ty={1}".format(x, y)
+"""
+
+        create("file", "//tmp/reducer.py")
+        upload("//tmp/reducer.py", reducer)
+
+        map_reduce(in_="//tmp/t_in",
+                   out="<sorted_by=[x; y]>//tmp/t_out",
+                   reduce_by="x",
+                   sort_by=["x", "y"],
+                   reducer_file=["//tmp/reducer.py"],
+                   reducer_command="python reducer.py",
+                   spec={
+                     "partition_count": 2, 
+                     "reducer": {"format": "dsv"}})
+
+        assert read("//tmp/t_out") == [{"x": "1", "y" : "1"},
+                                       {"x": "1", "y" : "2"},
+                                       {"x": "1", "y" : "3"},
+                                       {"x": "1", "y" : "6"},
+                                       {"x": "2", "y" : "2"},
+                                       {"x": "2", "y" : "3"},
+                                       {"x": "2", "y" : "4"},
+                                       {"x": "2", "y" : "9"}]
+
     def test_intermediate_live_preview(self):
         create_user("u")
         acl = [{"action": "allow", "subjects": ["u"], "permissions": ["write"]}]

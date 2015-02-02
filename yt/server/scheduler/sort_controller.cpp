@@ -1927,7 +1927,8 @@ private:
             for (const auto& key : PartitionKeys) {
                 ToProto(partitionJobSpecExt->add_partition_keys(), key);
             }
-            ToProto(partitionJobSpecExt->mutable_key_columns(), Spec->SortBy);
+            partitionJobSpecExt->set_reduce_key_column_count(Spec->SortBy.size());
+            ToProto(partitionJobSpecExt->mutable_sort_key_columns(), Spec->SortBy);
         }
 
         TJobSpec sortJobSpecTemplate;
@@ -2241,6 +2242,10 @@ private:
                 ConvertToYsonString(Spec->ReduceBy, EYsonFormat::Text).Data(),
                 ConvertToYsonString(Spec->SortBy, EYsonFormat::Text).Data());
         }
+
+        LOG_DEBUG("Reduce columns: %v; sort columns: %v",
+            ConvertToYsonString(Spec->ReduceBy, EYsonFormat::Text).Data(),
+            ConvertToYsonString(Spec->SortBy, EYsonFormat::Text).Data());
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -2413,7 +2418,8 @@ private:
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).Data());
 
             partitionJobSpecExt->set_partition_count(Partitions.size());
-            ToProto(partitionJobSpecExt->mutable_key_columns(), Spec->SortBy);
+            partitionJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
+            ToProto(partitionJobSpecExt->mutable_sort_key_columns(), Spec->SortBy);
 
             if (Spec->Mapper) {
                 InitUserJobSpecTemplate(

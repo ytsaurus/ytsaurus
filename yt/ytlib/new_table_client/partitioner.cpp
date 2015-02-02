@@ -22,14 +22,14 @@ public:
         return Keys->size() + 1;
     }
 
-    virtual int GetPartitionIndex(const TKey& key) override
+    virtual int GetPartitionIndex(const TUnversionedRow& row) override
     {
         auto it = std::upper_bound(
             Keys->begin(),
             Keys->end(),
-            key,
-            [] (const TKey& value, const TOwningKey& element) {
-                return value < element.Get();
+            row,
+            [] (const TUnversionedRow& row, const TOwningKey& element) {
+                return row < element.Get();
             });
         return std::distance(Keys->begin(), it);
     }
@@ -50,8 +50,9 @@ class THashPartitioner
     : public IPartitioner
 {
 public:
-    explicit THashPartitioner(int partitionCount)
+    THashPartitioner(int partitionCount, int keyColumnCount)
         : PartitionCount(partitionCount)
+        , KeyColumnCount(keyColumnCount)
     { }
 
     virtual int GetPartitionCount() override
@@ -59,19 +60,20 @@ public:
         return PartitionCount;
     }
 
-    virtual int GetPartitionIndex(const TKey& key) override
+    virtual int GetPartitionIndex(const TUnversionedRow& row) override
     {
-        return GetHash(key) % PartitionCount;
+        return GetHash(row, KeyColumnCount) % PartitionCount;
     }
 
 private:
     int PartitionCount;
+    int KeyColumnCount;
 
 };
 
-std::unique_ptr<IPartitioner> CreateHashPartitioner(int partitionCount)
+std::unique_ptr<IPartitioner> CreateHashPartitioner(int partitionCount, int keyColumnCount)
 {
-    return std::unique_ptr<IPartitioner>(new THashPartitioner(partitionCount));
+    return std::unique_ptr<IPartitioner>(new THashPartitioner(partitionCount, keyColumnCount));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

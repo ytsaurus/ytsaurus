@@ -744,7 +744,7 @@ private:
     static bool IsFatalError(const TError& error)
     {
         return
-            error.FindMatching(NTableClient::EErrorCode::SortOrderViolation) ||
+            error.FindMatching(NVersionedTableClient::EErrorCode::SortOrderViolation) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) ||

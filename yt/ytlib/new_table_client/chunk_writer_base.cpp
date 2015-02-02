@@ -261,6 +261,7 @@ i64 TSortedChunkWriterBase::GetMetaSize() const
 
 void TSortedChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
+    // ToDo(psushin): save newKey only for last key in the block.
     YCHECK(std::distance(begin, end) >= KeyColumns_.size());
     auto newKey = TOwningKey(begin, begin + KeyColumns_.size());
     if (RowCount_ == 0) {

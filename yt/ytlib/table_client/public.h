@@ -12,11 +12,6 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EErrorCode,
-    ((MasterCommunicationFailed)  (300))
-    ((SortOrderViolation)         (301))
-);
-
 DEFINE_ENUM(EControlAttribute,
     (TableIndex)
 );
