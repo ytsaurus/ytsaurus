@@ -228,6 +228,7 @@ private:
         virtual void OnJobCompleted(TJobletPtr joblet) override
         {
             TTask::OnJobCompleted(joblet);
+            RegisterInput(joblet);
             RegisterOutput(joblet, joblet->JobIndex);
         }
 
@@ -318,7 +319,7 @@ private:
         }
 
         auto jobCount = SuggestJobCount(
-            TotalInputDataSize,
+            TotalEstimateInputDataSize,
             Spec_->DataSizePerJob,
             Spec_->JobCount);
         jobCount = std::min(jobCount, static_cast<int>(stripes.size()));
@@ -393,7 +394,7 @@ private:
 
     void InitJobSpecTemplate()
     {
-        JobSpecTemplate_.set_type(EJobType::RemoteCopy);
+        JobSpecTemplate_.set_type(static_cast<int>(EJobType::RemoteCopy));
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(
             TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
@@ -408,7 +409,7 @@ private:
         remoteCopyJobSpecExt->set_connection_config(
             ConvertToYsonString(clusterDirectory->GetConnectionConfigOrThrow(Spec_->ClusterName)).Data());
 
-        auto networkName = NNodeTrackerClient::DefaultNetworkName;
+        auto networkName = NNodeTrackerClient::InterconnectNetworkName;
         if (Spec_->NetworkName) {
             networkName = *Spec_->NetworkName;
         } else {

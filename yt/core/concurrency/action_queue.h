@@ -2,8 +2,9 @@
 
 #include "public.h"
 
-#include <core/actions/invoker.h>
 #include <core/actions/callback.h>
+
+#include <core/misc/shutdownable.h>
 
 namespace NYT {
 namespace NConcurrency {
@@ -12,15 +13,17 @@ namespace NConcurrency {
 
 class TActionQueue
     : public TRefCounted
+    , public IShutdownable
 {
 public:
     explicit TActionQueue(
         const Stroka& threadName = "<ActionQueue>",
         bool enableLogging = true,
         bool enableProfiling = true);
+
     virtual ~TActionQueue();
 
-    void Shutdown();
+    virtual void Shutdown() override;
 
     IInvokerPtr GetInvoker();
 
@@ -32,7 +35,6 @@ public:
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TActionQueue)
@@ -41,21 +43,22 @@ DEFINE_REFCOUNTED_TYPE(TActionQueue)
 
 class TFairShareActionQueue
     : public TRefCounted
+    , public IShutdownable
 {
 public:
     explicit TFairShareActionQueue(
         const Stroka& threadName,
         const std::vector<Stroka>& bucketNames);
+
     virtual ~TFairShareActionQueue();
 
-    void Shutdown();
+    virtual void Shutdown() override;
 
     IInvokerPtr GetInvoker(int index);
 
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareActionQueue)
@@ -64,6 +67,7 @@ DEFINE_REFCOUNTED_TYPE(TFairShareActionQueue)
 
 class TThreadPool
     : public TRefCounted
+    , public IShutdownable
 {
 public:
     TThreadPool(
@@ -71,18 +75,17 @@ public:
         const Stroka& threadNamePrefix);
     virtual ~TThreadPool();
 
-    void Shutdown();
+    virtual void Shutdown() override;
 
     IInvokerPtr GetInvoker();
 
     static TCallback<TThreadPoolPtr()> CreateFactory(
-        int queueCount,
+        int threadCount,
         const Stroka& threadName);
 
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TThreadPool)

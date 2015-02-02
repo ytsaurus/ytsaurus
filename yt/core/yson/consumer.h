@@ -110,7 +110,8 @@ class TYsonConsumerBase
     : public virtual IYsonConsumer
 {
 public:
-    virtual void OnRaw(const TStringBuf& ysonNode, EYsonType type);
+    virtual void OnRaw(const TStringBuf& ysonNode, EYsonType type) override;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

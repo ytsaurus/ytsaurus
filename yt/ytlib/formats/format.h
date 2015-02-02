@@ -19,7 +19,7 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Type of data that can be read or written by a driver command.
-DECLARE_ENUM(EDataType,
+DEFINE_ENUM(EDataType,
     (Null)
     (Binary)
     (Structured)
@@ -28,7 +28,7 @@ DECLARE_ENUM(EDataType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EFormatType,
+DEFINE_ENUM(EFormatType,
     (Null)
     (Yson)
     (Json)

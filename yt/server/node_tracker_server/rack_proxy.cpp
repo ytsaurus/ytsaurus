@@ -41,7 +41,7 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
-        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
         const auto* rack = GetThisTypedImpl();
 
         if (key == "name") {
@@ -68,7 +68,7 @@ private:
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
         auto* rack = GetThisTypedImpl();
-        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
 
         if (key == "name") {
             auto newName = ConvertTo<Stroka>(value);

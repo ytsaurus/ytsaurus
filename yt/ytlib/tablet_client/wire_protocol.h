@@ -14,7 +14,7 @@ namespace NTabletClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EWireProtocolCommand,
+DEFINE_ENUM(EWireProtocolCommand,
     // Read commands:
     
     ((LookupRows)(1))
@@ -58,6 +58,7 @@ DECLARE_ENUM(EWireProtocolCommand,
 ////////////////////////////////////////////////////////////////////////////////
 
 class TWireProtocolWriter
+    : private TNonCopyable
 {
 public:
     TWireProtocolWriter();
@@ -84,15 +85,18 @@ public:
 
 private:
     class TImpl;
+    using TImplPtr = TIntrusivePtr<TImpl>;
+
     class TSchemafulRowsetWriter;
 
-    std::unique_ptr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
 class TWireProtocolReader
+    : private TNonCopyable
 {
 public:
     explicit TWireProtocolReader(const TSharedRef& data);
@@ -117,9 +121,11 @@ public:
 
 private:
     class TImpl;
+    using TImplPtr = TIntrusivePtr<TImpl>;
+
     class TSchemafulRowsetReader;
 
-    std::unique_ptr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

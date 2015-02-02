@@ -165,10 +165,10 @@ public:
     explicit TResourceUsageVisitor(NCellMaster::TBootstrap* bootstrap, IYsonConsumer* consumer)
         : Bootstrap(bootstrap)
         , Consumer(consumer)
-        , Result(NewPromise<TError>())
+        , Result(NewPromise<void>())
     { }
 
-    TAsyncError Run(ICypressNodeProxyPtr rootNode)
+    TFuture<void> Run(ICypressNodeProxyPtr rootNode)
     {
         TraverseCypress(Bootstrap, rootNode, this);
         return Result;
@@ -178,7 +178,7 @@ private:
     NCellMaster::TBootstrap* Bootstrap;
     IYsonConsumer* Consumer;
 
-    TPromise<TError> Result;
+    TPromise<void> Result;
     TClusterResources ResourceUsage;
 
     virtual void OnNode(ICypressNodeProxyPtr node) override
@@ -213,8 +213,6 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     , Bootstrap(bootstrap)
     , Transaction(transaction)
     , TrunkNode(trunkNode)
-    , CachedNode(nullptr)
-    , AccessTrackingSuppressed(false)
 {
     YASSERT(typeHandler);
     YASSERT(bootstrap);
@@ -285,7 +283,7 @@ IAttributeDictionary* TNontemplateCypressNodeProxyBase::MutableAttributes()
     return TObjectProxyBase::MutableAttributes();
 }
 
-TAsyncError TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(
+TFuture<void> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(
     const Stroka& key,
     IYsonConsumer* consumer)
 {
@@ -322,7 +320,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
 
 TVersionedObjectId TNontemplateCypressNodeProxyBase::GetVersionedId() const
 {
-    return TVersionedObjectId(Object->GetId(), GetObjectId(Transaction));
+    return TVersionedObjectId(Object_->GetId(), GetObjectId(Transaction));
 }
 
 void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
@@ -471,6 +469,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 void TNontemplateCypressNodeProxyBase::BeforeInvoke(IServiceContextPtr context)
 {
     AccessTrackingSuppressed = GetSuppressAccessTracking(context->RequestHeader());
+    ModificationTrackingSuppressed = GetSuppressModificationTracking(context->RequestHeader());
 
     TObjectProxyBase::BeforeInvoke(std::move(context));
 }
@@ -625,15 +624,15 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     EPermissionCheckScope scope,
     EPermission permission)
 {
-    if (scope & EPermissionCheckScope::This) {
+    if ((scope & EPermissionCheckScope::This) != EPermissionCheckScope::None) {
         ValidatePermission(node, permission);
     }
 
-    if (scope & EPermissionCheckScope::Parent) {
+    if ((scope & EPermissionCheckScope::Parent) != EPermissionCheckScope::None) {
         ValidatePermission(node->GetParent(), permission);
     }
 
-    if (scope & EPermissionCheckScope::Descendants) {
+    if ((scope & EPermissionCheckScope::Descendants) != EPermissionCheckScope::None) {
         auto cypressManager = Bootstrap->GetCypressManager();
         auto* trunkNode = node->GetTrunkNode();
         auto descendants = cypressManager->ListSubtreeNodes(trunkNode, Transaction, false);
@@ -645,10 +644,15 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
 
 void TNontemplateCypressNodeProxyBase::SetModified()
 {
-    if (TrunkNode->IsAlive()) {
+    if (TrunkNode->IsAlive() && !ModificationTrackingSuppressed) {
         auto cypressManager = Bootstrap->GetCypressManager();
         cypressManager->SetModified(TrunkNode, Transaction);
     }
+}
+
+void TNontemplateCypressNodeProxyBase::SuppressModificationTracking()
+{
+    ModificationTrackingSuppressed = true;
 }
 
 void TNontemplateCypressNodeProxyBase::SetAccessed()
@@ -732,15 +736,17 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     DeclareMutating();
 
     auto type = EObjectType(request->type());
+    auto ignoreExisting = request->ignore_existing();
+    auto recursive = request->recursive();
     const auto& path = GetRequestYPath(context);
 
     context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v",
         type,
-        request->ignore_existing(),
-        request->recursive());
+        ignoreExisting,
+        recursive);
 
     if (path.Empty()) {
-        if (request->ignore_existing() && GetThisImpl()->GetType() == type) {
+        if (ignoreExisting && GetThisImpl()->GetType() == type) {
             ToProto(response->mutable_node_id(), GetId());
             context->Reply();
             return;
@@ -786,12 +792,14 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto sourcePath = request->source_path();
     bool preserveAccount = request->preserve_account();
     bool removeSource = request->remove_source();
+    auto recursive = request->recursive();
     auto targetPath = GetRequestYPath(context);
 
-    context->SetRequestInfo("SourcePath: %v, PreserveAccount: %v, RemoveSource: %v",
+    context->SetRequestInfo("SourcePath: %v, PreserveAccount: %v, RemoveSource: %v, Recursive: %v",
         sourcePath,
         preserveAccount,
-        removeSource);
+        removeSource,
+        recursive);
 
     auto ytreeSourceProxy = GetResolver()->ResolvePath(sourcePath);
     auto* sourceProxy = dynamic_cast<ICypressNodeProxy*>(ytreeSourceProxy.Get());
@@ -818,8 +826,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 
     ValidatePermission(
         trunkSourceImpl,
-        EPermissionCheckScope(EPermissionCheckScope::This | EPermissionCheckScope::Descendants),
-        removeSource ? EPermission(EPermission::Read) : EPermission(EPermission::Read | EPermission::Write));
+        EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
+        removeSource ? EPermission::Read : EPermission::Read | EPermission::Write);
 
     auto sourceParent = sourceProxy->GetParent();
     if (removeSource) {
@@ -835,11 +843,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 
     auto factory = CreateCypressFactory(preserveAccount);
 
-    auto* clonedImpl = factory->CloneNode(sourceImpl);
+    auto* clonedImpl = factory->CloneNode(
+        sourceImpl,
+        removeSource ? ENodeCloneMode::Move : ENodeCloneMode::Copy);
     auto* clonedTrunkImpl = clonedImpl->GetTrunkNode();
     auto clonedProxy = GetProxy(clonedTrunkImpl);
 
-    SetChild(factory, targetPath, clonedProxy, false);
+    SetChild(factory, targetPath, clonedProxy, recursive);
 
     factory->Commit();
 
@@ -959,7 +969,7 @@ int TMapNodeProxy::GetChildCount() const
 
     int result = 0;
     for (const auto* currentTransaction : transactions) {
-        TVersionedNodeId versionedId(Object->GetId(), GetObjectId(currentTransaction));
+        TVersionedNodeId versionedId(Object_->GetId(), GetObjectId(currentTransaction));
         const auto* node = cypressManager->FindNode(versionedId);
         if (node) {
             const auto* mapNode = static_cast<const TMapNode*>(node);
@@ -1090,7 +1100,7 @@ Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
     auto* trunkChildImpl = ToProxy(child)->GetTrunkNode();
 
     for (const auto* currentTransaction : transactions) {
-        TVersionedNodeId versionedId(Object->GetId(), GetObjectId(currentTransaction));
+        TVersionedNodeId versionedId(Object_->GetId(), GetObjectId(currentTransaction));
         const auto* node = cypressManager->FindNode(versionedId);
         if (node) {
             const auto* mapNode = static_cast<const TMapNode*>(node);
@@ -1591,13 +1601,14 @@ void DelegateInvocation(
     auto clientRequest = New<TClientRequest>(context->RequestHeader());
     clientRequest->MergeFrom(*serverRequest);
 
-    auto clientResponse = ExecuteVerb(service, clientRequest).Get();
+    auto clientResponseOrError = ExecuteVerb(service, clientRequest).Get();
 
-    if (clientResponse->IsOK()) {
+    if (clientResponseOrError.IsOK()) {
+        const auto& clientResponse = clientResponseOrError.Value();
         serverResponse->MergeFrom(*clientResponse);
         context->Reply();
     } else {
-        context->Reply(clientResponse->GetError());
+        context->Reply(clientResponseOrError);
     }
 }
 

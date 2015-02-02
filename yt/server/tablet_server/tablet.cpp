@@ -21,6 +21,12 @@ void Serialize(const TTabletStatistics& statistics, NYson::IYsonConsumer* consum
 {
     BuildYsonFluently(consumer)
         .BeginMap()
+            .DoIf(static_cast<bool>(statistics.PartitionCount), [&] (TFluentMap fluent) {
+                fluent.Item("partition_count").Value(*statistics.PartitionCount);
+            })
+            .DoIf(static_cast<bool>(statistics.StoreCount), [&] (TFluentMap fluent) {
+                fluent.Item("store_count").Value(*statistics.StoreCount);
+            })
             .Item("unmerged_row_count").Value(statistics.UnmergedRowCount)
             .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
             .Item("compressed_data_size").Value(statistics.CompressedDataSize)
@@ -49,6 +55,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, Table_);
     Save(context, Cell_);
     Save(context, PivotKey_);
+    Save(context, NodeStatistics_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -61,6 +68,10 @@ void TTablet::Load(TLoadContext& context)
     Load(context, Table_);
     Load(context, Cell_);
     Load(context, PivotKey_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 111) {
+        Load(context, NodeStatistics_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

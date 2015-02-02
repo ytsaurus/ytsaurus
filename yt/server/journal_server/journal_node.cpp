@@ -237,11 +237,28 @@ protected:
     }
 
     virtual void DoClone(
-        TJournalNode* /*sourceNode*/,
-        TJournalNode* /*clonedNode*/,
-        ICypressNodeFactoryPtr /*factory*/) override
+        TJournalNode* sourceNode,
+        TJournalNode* clonedNode,
+        ICypressNodeFactoryPtr factory,
+        ENodeCloneMode mode) override
     {
-        THROW_ERROR_EXCEPTION("Journals cannot be cloned");
+        switch (mode) {
+            case ENodeCloneMode::Copy:
+                THROW_ERROR_EXCEPTION("Journals cannot be copied");
+                break;
+
+            case ENodeCloneMode::Move:
+                // Moving a journal is OK.
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+
+        clonedNode->SetReadQuorum(sourceNode->GetReadQuorum());
+        clonedNode->SetWriteQuorum(sourceNode->GetWriteQuorum());
+
+        TBase::DoClone(sourceNode, clonedNode, factory, mode);
     }
 
 
@@ -251,7 +268,7 @@ protected:
             return;
 
         auto chunkManager = Bootstrap->GetChunkManager();
-        chunkManager->ScheduleChunkSeal(journal->GetTrailingChunk());
+        chunkManager->MaybeScheduleChunkSeal(journal->GetTrailingChunk());
     }
 
 };

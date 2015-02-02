@@ -70,7 +70,7 @@ TLocationPtr TSessionBase::GetLocation() const
     return Location_;
 }
 
-TAsyncError TSessionBase::Start()
+TFuture<void> TSessionBase::Start()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -106,7 +106,7 @@ void TSessionBase::Cancel(const TError& error)
     DoCancel();
 }
 
-TFuture<TErrorOr<IChunkPtr>> TSessionBase::Finish(const TChunkMeta& chunkMeta, const TNullable<int>& blockCount)
+TFuture<IChunkPtr> TSessionBase::Finish(const TChunkMeta& chunkMeta, const TNullable<int>& blockCount)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -120,11 +120,11 @@ TFuture<TErrorOr<IChunkPtr>> TSessionBase::Finish(const TChunkMeta& chunkMeta, c
 
         return DoFinish(chunkMeta, blockCount);
     } catch (const std::exception& ex) {
-        return MakeFuture<TErrorOr<IChunkPtr>>(ex);
+        return MakeFuture<IChunkPtr>(ex);
     }
 }
 
-TAsyncError TSessionBase::PutBlocks(
+TFuture<void> TSessionBase::PutBlocks(
     int startBlockIndex,
     const std::vector<TSharedRef>& blocks,
     bool enableCaching)
@@ -137,11 +137,11 @@ TAsyncError TSessionBase::PutBlocks(
 
         return DoPutBlocks(startBlockIndex, blocks, enableCaching);
     } catch (const std::exception& ex) {
-        return MakeFuture<TError>(ex);
+        return MakeFuture<void>(ex);
     }
 }
 
-TAsyncError TSessionBase::SendBlocks(
+TFuture<void> TSessionBase::SendBlocks(
     int startBlockIndex,
     int blockCount,
     const TNodeDescriptor& target)
@@ -154,11 +154,11 @@ TAsyncError TSessionBase::SendBlocks(
 
         return DoSendBlocks(startBlockIndex, blockCount, target);
     } catch (const std::exception& ex) {
-        return MakeFuture<TError>(ex);
+        return MakeFuture<void>(ex);
     }
 }
 
-TAsyncError TSessionBase::FlushBlocks(int blockIndex)
+TFuture<void> TSessionBase::FlushBlocks(int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -168,7 +168,7 @@ TAsyncError TSessionBase::FlushBlocks(int blockIndex)
 
         return DoFlushBlocks(blockIndex);
     } catch (const std::exception& ex) {
-        return MakeFuture<TError>(ex);
+        return MakeFuture<void>(ex);
     }
 }
 

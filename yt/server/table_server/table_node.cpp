@@ -106,6 +106,11 @@ bool TTableNode::HasMountedTablets() const
     return false;
 }
 
+bool TTableNode::IsDynamic() const
+{
+    return !GetTrunkNode()->Tablets().empty();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNodeTypeHandler
@@ -133,9 +138,7 @@ public:
         }
 
         if (!attributes->Contains("compression_codec")) {
-            attributes->SetYson(
-                "compression_codec",
-                ConvertToYsonString(NCompression::ECodec(NCompression::ECodec::Lz4)));
+            attributes->Set("compression_codec", NCompression::ECodec::Lz4);
         }
     }
 
@@ -194,13 +197,27 @@ protected:
     virtual void DoClone(
         TTableNode* sourceNode,
         TTableNode* clonedNode,
-        NCypressServer::ICypressNodeFactoryPtr factory) override
+        NCypressServer::ICypressNodeFactoryPtr factory,
+        ENodeCloneMode mode) override
     {
-        if (!sourceNode->Tablets().empty()) {
-            THROW_ERROR_EXCEPTION("Dynamic tables cannot be cloned");
+        switch (mode) {
+            case ENodeCloneMode::Copy:
+                if (sourceNode->IsDynamic()) {
+                    THROW_ERROR_EXCEPTION("Dynamic tables cannot be copied");
+                }
+                break;
+
+            case ENodeCloneMode::Move:
+                if (sourceNode->HasMountedTablets()) {
+                    THROW_ERROR_EXCEPTION("Dynamic tables with mounted tablets cannot be moved");
+                }
+                break;
+
+            default:
+                YUNREACHABLE();
         }
 
-        TBase::DoClone(sourceNode, clonedNode, factory);
+        TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
         clonedNode->SetSorted(sourceNode->GetSorted());
         clonedNode->KeyColumns() = sourceNode->KeyColumns();

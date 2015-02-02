@@ -102,7 +102,7 @@ TEST(TSchemafulDsvWriterTest, FailMode)
     auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns = std::vector<Stroka>();
     config->Columns->push_back("a");
-    config->MissingValueMode = TSchemafulDsvFormatConfig::EMissingValueMode::Fail;
+    config->MissingValueMode = EMissingSchemafulDsvValueMode::Fail;
     TSchemafulDsvConsumer consumer(&outputStream, config);
 
     consumer.OnListItem();
@@ -129,7 +129,7 @@ TEST(TSchemafulDsvWriterTest, PrintSentinelMode)
     auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns = std::vector<Stroka>();
     config->Columns->push_back("a");
-    config->MissingValueMode = TSchemafulDsvFormatConfig::EMissingValueMode::PrintSentinel;
+    config->MissingValueMode = EMissingSchemafulDsvValueMode::PrintSentinel;
     config->MissingValueSentinel = "null";
     TSchemafulDsvConsumer consumer(&outputStream, config);
 

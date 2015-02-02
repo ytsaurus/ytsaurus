@@ -1,9 +1,12 @@
 #pragma once
 
 #include "public.h"
+#include "connection.h"
 
 #include <core/misc/error.h>
 #include <core/misc/nullable.h>
+
+#include <core/actions/future.h>
 
 #include <core/ytree/yson_string.h>
 #include <core/ytree/attribute_provider.h>
@@ -29,6 +32,8 @@
 
 #include <ytlib/security_client/public.h>
 
+#include <ytlib/scheduler/public.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -50,11 +55,17 @@ struct TTransactionalOptions
 struct TSuppressableAccessTrackingOptions
 {
     bool SuppressAccessTracking = false;
+    bool SuppressModificationTracking = false;
 };
 
 struct TMutatingOptions
 {
     NHydra::TMutationId MutationId;
+};
+
+struct TReadOnlyOptions
+{
+    EMasterChannelKind ReadFrom = EMasterChannelKind::LeaderOrFollower;
 };
 
 struct TPrerequisiteOptions
@@ -94,7 +105,8 @@ struct TRemoveMemberOptions
 { };
 
 struct TCheckPermissionOptions
-    : public TTransactionalOptions
+    : public TReadOnlyOptions
+    , public TTransactionalOptions
 { };
 
 struct TCheckPermissionResult
@@ -113,7 +125,7 @@ struct TTransactionStartOptions
     bool AutoAbort = true;
     bool Ping = true;
     bool PingAncestors = true;
-    NYTree::IAttributeDictionary* Attributes = nullptr;
+    std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
 };
 
 struct TTransactionCommitOptions
@@ -144,13 +156,17 @@ struct TSelectRowsOptions
     TNullable<i64> InputRowLimit;
     //! If null then connection defaults are used.
     TNullable<i64> OutputRowLimit;
+    //! If |true| then incomplete result would lead to a failure.
+    bool FailOnIncompleteResult = true;
 };
 
 struct TGetNodeOptions
     : public TTransactionalOptions
+    , public TReadOnlyOptions
     , public TSuppressableAccessTrackingOptions
 {
-    NYTree::IAttributeDictionary* Options = nullptr;
+    // XXX(sandello): This one is used only in ProfileManager to pass `from_time`.
+    std::shared_ptr<const NYTree::IAttributeDictionary> Options;
     NYTree::TAttributeFilter AttributeFilter;
     TNullable<i64> MaxSize;
     bool IgnoreOpaque = false;
@@ -171,8 +187,9 @@ struct TRemoveNodeOptions
     bool Force = false;
 };
 
-struct TListNodesOptions
+struct TListNodeOptions
     : public TTransactionalOptions
+    , public TReadOnlyOptions
     , public TSuppressableAccessTrackingOptions
 {
     NYTree::TAttributeFilter AttributeFilter;
@@ -184,7 +201,7 @@ struct TCreateNodeOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
-    NYTree::IAttributeDictionary* Attributes = nullptr;
+    std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
     bool Recursive = false;
     bool IgnoreExisting = false;
 };
@@ -202,6 +219,7 @@ struct TCopyNodeOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
+    bool Recursive = false;
     bool PreserveAccount = false;
 };
 
@@ -210,6 +228,7 @@ struct TMoveNodeOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
+    bool Recursive = false;
     bool PreserveAccount = true;
 };
 
@@ -218,13 +237,15 @@ struct TLinkNodeOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
-    NYTree::IAttributeDictionary* Attributes = nullptr;
+    //! Attributes of a newly created link node.
+    std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
     bool Recursive = false;
     bool IgnoreExisting = false;
 };
 
 struct TNodeExistsOptions
-    : public TTransactionalOptions
+    : public TReadOnlyOptions
+    , public TTransactionalOptions
 { };
 
 struct TCreateObjectOptions
@@ -232,7 +253,7 @@ struct TCreateObjectOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
-    NYTree::IAttributeDictionary* Attributes = nullptr;
+    std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
 };
 
 struct TFileReaderOptions
@@ -241,6 +262,7 @@ struct TFileReaderOptions
 {
     TNullable<i64> Offset;
     TNullable<i64> Length;
+    TFileReaderConfigPtr Config;
 };
 
 struct TFileWriterOptions
@@ -248,6 +270,7 @@ struct TFileWriterOptions
     , public TPrerequisiteOptions
 {
     bool Append = true;
+    TFileWriterConfigPtr Config;
 };
 
 struct TJournalReaderOptions
@@ -256,11 +279,19 @@ struct TJournalReaderOptions
 {
     TNullable<i64> FirstRowIndex;
     TNullable<i64> RowCount;
+    TJournalReaderConfigPtr Config;
 };
 
 struct TJournalWriterOptions
     : public TTransactionalOptions
     , public TPrerequisiteOptions
+{
+    TJournalWriterConfigPtr Config;
+};
+
+struct TStartOperationOptions
+    : public TTransactionalOptions
+    , public TMutatingOptions
 { };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -277,86 +308,87 @@ struct IClientBase
 {
     virtual IConnectionPtr GetConnection() = 0;
 
+
     // Transactions
-    virtual TFuture<TErrorOr<ITransactionPtr>> StartTransaction(
+    virtual TFuture<ITransactionPtr> StartTransaction(
         NTransactionClient::ETransactionType type,
         const TTransactionStartOptions& options = TTransactionStartOptions()) = 0;
 
 
     // Tables
-    virtual TFuture<TErrorOr<IRowsetPtr>> LookupRow(
+    virtual TFuture<IRowsetPtr> LookupRow(
         const NYPath::TYPath& path,
         NVersionedTableClient::TNameTablePtr nameTable,
         NVersionedTableClient::TKey key,
         const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
 
-    virtual TFuture<TErrorOr<IRowsetPtr>> LookupRows(
+    virtual TFuture<IRowsetPtr> LookupRows(
         const NYPath::TYPath& path,
         NVersionedTableClient::TNameTablePtr nameTable,
         const std::vector<NVersionedTableClient::TKey>& keys,
         const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
 
-    virtual TFuture<TErrorOr<NQueryClient::TQueryStatistics>> SelectRows(
+    virtual TFuture<NQueryClient::TQueryStatistics> SelectRows(
         const Stroka& query,
         NVersionedTableClient::ISchemafulWriterPtr writer,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
-    virtual TFuture<TErrorOr<std::pair<IRowsetPtr, NQueryClient::TQueryStatistics>>> SelectRows(
+    virtual TFuture<std::pair<IRowsetPtr, NQueryClient::TQueryStatistics>> SelectRows(
         const Stroka& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
     // TODO(babenko): batch read and batch write
 
     // Cypress
-    virtual TFuture<TErrorOr<NYTree::TYsonString>> GetNode(
+    virtual TFuture<NYTree::TYsonString> GetNode(
         const NYPath::TYPath& path,
         const TGetNodeOptions& options = TGetNodeOptions()) = 0;
 
-    virtual TFuture<TError> SetNode(
+    virtual TFuture<void> SetNode(
         const NYPath::TYPath& path,
         const NYTree::TYsonString& value,
         const TSetNodeOptions& options = TSetNodeOptions()) = 0;
 
-    virtual TFuture<TError> RemoveNode(
+    virtual TFuture<void> RemoveNode(
         const NYPath::TYPath& path,
         const TRemoveNodeOptions& options = TRemoveNodeOptions()) = 0;
 
-    virtual TFuture<TErrorOr<NYTree::TYsonString>> ListNodes(
+    virtual TFuture<NYTree::TYsonString> ListNode(
         const NYPath::TYPath& path,
-        const TListNodesOptions& options = TListNodesOptions()) = 0;
+        const TListNodeOptions& options = TListNodeOptions()) = 0;
 
-    virtual TFuture<TErrorOr<NCypressClient::TNodeId>> CreateNode(
+    virtual TFuture<NCypressClient::TNodeId> CreateNode(
         const NYPath::TYPath& path,
         NObjectClient::EObjectType type,
         const TCreateNodeOptions& options = TCreateNodeOptions()) = 0;
 
-    virtual TFuture<TErrorOr<NCypressClient::TLockId>> LockNode(
+    virtual TFuture<NCypressClient::TLockId> LockNode(
         const NYPath::TYPath& path,
         NCypressClient::ELockMode mode,
         const TLockNodeOptions& options = TLockNodeOptions()) = 0;
 
-    virtual TFuture<TErrorOr<NCypressClient::TNodeId>> CopyNode(
+    virtual TFuture<NCypressClient::TNodeId> CopyNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
         const TCopyNodeOptions& options = TCopyNodeOptions()) = 0;
 
-    virtual TFuture<TErrorOr<NCypressClient::TNodeId>> MoveNode(
+    virtual TFuture<NCypressClient::TNodeId> MoveNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
         const TMoveNodeOptions& options = TMoveNodeOptions()) = 0;
 
-    virtual TFuture<TErrorOr<NCypressClient::TNodeId>> LinkNode(
+    virtual TFuture<NCypressClient::TNodeId> LinkNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
         const TLinkNodeOptions& options = TLinkNodeOptions()) = 0;
 
-    virtual TFuture<TErrorOr<bool>> NodeExists(
+    virtual TFuture<bool> NodeExists(
         const NYPath::TYPath& path,
         const TNodeExistsOptions& options = TNodeExistsOptions()) = 0;
 
 
     // Objects
-    virtual TFuture<TErrorOr<NObjectClient::TObjectId>> CreateObject(
+    virtual TFuture<NObjectClient::TObjectId> CreateObject(
         NObjectClient::EObjectType type,
         const TCreateObjectOptions& options = TCreateObjectOptions()) = 0;
 
@@ -364,27 +396,21 @@ struct IClientBase
     // Files
     virtual IFileReaderPtr CreateFileReader(
         const NYPath::TYPath& path,
-        const TFileReaderOptions& options = TFileReaderOptions(),
-        TFileReaderConfigPtr config = TFileReaderConfigPtr()) = 0;
+        const TFileReaderOptions& options = TFileReaderOptions()) = 0;
 
     virtual IFileWriterPtr CreateFileWriter(
         const NYPath::TYPath& path,
-        const TFileWriterOptions& options = TFileWriterOptions(),
-        TFileWriterConfigPtr config = TFileWriterConfigPtr()) = 0;
+        const TFileWriterOptions& options = TFileWriterOptions()) = 0;
 
 
     // Journals
     virtual IJournalReaderPtr CreateJournalReader(
         const NYPath::TYPath& path,
-        const TJournalReaderOptions& options = TJournalReaderOptions(),
-        TJournalReaderConfigPtr config = TJournalReaderConfigPtr()) = 0;
+        const TJournalReaderOptions& options = TJournalReaderOptions()) = 0;
 
     virtual IJournalWriterPtr CreateJournalWriter(
         const NYPath::TYPath& path,
-        const TJournalWriterOptions& options = TJournalWriterOptions(),
-        TJournalWriterConfigPtr config = TJournalWriterConfigPtr()) = 0;
-
-    // TODO(babenko): scheduler commands
+        const TJournalWriterOptions& options = TJournalWriterOptions()) = 0;
 
 };
 
@@ -406,8 +432,10 @@ DEFINE_REFCOUNTED_TYPE(IClientBase)
 struct IClient
     : public IClientBase
 {
-    virtual NRpc::IChannelPtr GetMasterChannel() = 0;
+    // TODO(babenko): consider hiding these guys
+    virtual NRpc::IChannelPtr GetMasterChannel(EMasterChannelKind kind) = 0;
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
+    virtual NRpc::IChannelFactoryPtr GetNodeChannelFactory() = 0;
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
 
     //! Terminates all channels.
@@ -417,40 +445,54 @@ struct IClient
 
 
     // Tables
-    virtual TAsyncError MountTable(
+    virtual TFuture<void> MountTable(
         const NYPath::TYPath& path,
         const TMountTableOptions& options = TMountTableOptions()) = 0;
 
-    virtual TAsyncError UnmountTable(
+    virtual TFuture<void> UnmountTable(
         const NYPath::TYPath& path,
         const TUnmountTableOptions& options = TUnmountTableOptions()) = 0;
 
-    virtual TAsyncError RemountTable(
+    virtual TFuture<void> RemountTable(
         const NYPath::TYPath& path,
         const TRemountTableOptions& options = TRemountTableOptions()) = 0;
 
-    virtual TAsyncError ReshardTable(
+    virtual TFuture<void> ReshardTable(
         const NYPath::TYPath& path,
         const std::vector<NVersionedTableClient::TKey>& pivotKeys,
         const TReshardTableOptions& options = TReshardTableOptions()) = 0;
 
 
     // Security
-    virtual TAsyncError AddMember(
+    virtual TFuture<void> AddMember(
         const Stroka& group,
         const Stroka& member,
         const TAddMemberOptions& options = TAddMemberOptions()) = 0;
 
-    virtual TAsyncError RemoveMember(
+    virtual TFuture<void> RemoveMember(
         const Stroka& group,
         const Stroka& member,
         const TRemoveMemberOptions& options = TRemoveMemberOptions()) = 0;
 
-    virtual TFuture<TErrorOr<TCheckPermissionResult>> CheckPermission(
+    virtual TFuture<TCheckPermissionResult> CheckPermission(
         const Stroka& user,
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
         const TCheckPermissionOptions& options = TCheckPermissionOptions()) = 0;
+
+
+    // Scheduler
+    virtual TFuture<NScheduler::TOperationId> StartOperation(
+        NScheduler::EOperationType type,
+        const NYTree::TYsonString& spec,
+        const TStartOperationOptions& options = TStartOperationOptions()) = 0;
+
+    virtual TFuture<void> AbortOperation(const NScheduler::TOperationId& operationId) = 0;
+
+    virtual TFuture<void> SuspendOperation(const NScheduler::TOperationId& operationId) = 0;
+
+    virtual TFuture<void> ResumeOperation(const NScheduler::TOperationId& operationId) = 0;
+
 
 };
 

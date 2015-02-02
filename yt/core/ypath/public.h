@@ -1,13 +1,13 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 
 namespace NYT {
 namespace NYPath {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class ETokenType;
+enum class ETokenType;
 class TTokenizer;
 class TRichYPath;
 

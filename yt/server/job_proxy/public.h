@@ -9,34 +9,29 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobProxyConfig;
-typedef TIntrusivePtr<TJobProxyConfig> TJobProxyConfigPtr;
-
-class TUserJobIO;
-
-struct IJob;
-typedef TIntrusivePtr<IJob> TJobPtr;
-
-struct IJobHost;
-typedef TIntrusivePtr<IJobHost> IJobHostPtr;
-
-struct IDataPipe;
-typedef TIntrusivePtr<IDataPipe> IDataPipePtr;
+struct IUserJobIO;
 
 class TErrorOutput;
 
-DECLARE_ENUM(EJobProxyExitCode,
-    ((HeartbeatFailed)       (20))
-    ((ResultReportFailed)    (21))
-    ((ResourcesUpdateFailed) (22))
-    ((SetRLimitFailed)       (23))
-    ((ExecFailed)            (24))
-    ((UncaughtException)     (25))
-    ((RetreiveJobSpecFailed) (26))
-    ((StartingGunFireMissing) (27))
+DECLARE_REFCOUNTED_CLASS(TJobProxyConfig)
+
+DECLARE_REFCOUNTED_STRUCT(IJob)
+
+DECLARE_REFCOUNTED_STRUCT(IJobHost)
+
+DECLARE_REFCOUNTED_CLASS(TContextPreservingInput);
+
+DEFINE_ENUM(EJobProxyExitCode,
+    ((HeartbeatFailed)        (20))
+    ((ResultReportFailed)     (21))
+    ((ResourcesUpdateFailed)  (22))
+    ((SetRLimitFailed)        (23))
+    ((ExecFailed)             (24))
+    ((UncaughtException)      (25))
+    ((RetreiveJobSpecFailed)  (26))
 );
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((MemoryLimitExceeded)  (1200))
 );
 

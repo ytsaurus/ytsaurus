@@ -4,6 +4,8 @@
 
 #include <core/rpc/public.h>
 
+#include <core/actions/public.h>
+
 #include <server/hydra/public.h>
 
 namespace NYT {
@@ -29,11 +31,11 @@ public:
 
     NRpc::IServicePtr GetRpcService();
 
-    TAsyncError CommitTransaction(
+    TFuture<void> CommitTransaction(
         const TTransactionId& transactionId,
         const std::vector<NHydra::TCellId>& participantCellIds = std::vector<NHydra::TCellId>());
 
-    TAsyncError AbortTransaction(
+    TFuture<void> AbortTransaction(
         const TTransactionId& transactionId,
         bool force = false);
 

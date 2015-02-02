@@ -21,6 +21,13 @@ static const auto& Logger = PipesLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EReaderState,
+    (Active)
+    (EndOfStream)
+    (Failed)
+    (Aborted)
+);
+
 class TAsyncReaderImpl
     : public TRefCounted
 {
@@ -46,12 +53,17 @@ public:
         YCHECK(State_ != EReaderState::Active);
     }
 
-    TFuture<TErrorOr<size_t>> Read(void* buffer, int length)
+    int GetHandle() const
+    {
+        return FD_;
+    }
+
+    TFuture<size_t> Read(void* buffer, int length)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(length > 0);
 
-        auto promise = NewPromise<TErrorOr<size_t>>();
+        auto promise = NewPromise<size_t>();
 
         auto this_ = MakeStrong(this);
         BIND([=] () {
@@ -118,19 +130,12 @@ public:
     }
 
 private:
-    DECLARE_ENUM(EReaderState,
-        (Active)
-        (EndOfStream)
-        (Failed)
-        (Aborted)
-    );
-
     int FD_;
 
     //! \note Thread-unsafe. Must be accessed from ev-thread only.
     ev::io FDWatcher_;
 
-    TPromise<TErrorOr<size_t>> ReadResultPromise_ = MakePromise<TErrorOr<size_t>>(0);
+    TPromise<size_t> ReadResultPromise_ = MakePromise<size_t>(0);
 
     EReaderState State_ = EReaderState::Active;
 
@@ -205,7 +210,18 @@ TAsyncReader::TAsyncReader(int fd)
     : Impl_(New<NDetail::TAsyncReaderImpl>(fd))
 { }
 
-TFuture<TErrorOr<size_t>> TAsyncReader::Read(void* buf, size_t len)
+TAsyncReader::~TAsyncReader()
+{
+    // Abort does not fail.
+    Impl_->Abort();
+}
+
+int TAsyncReader::GetHandle() const
+{
+    return Impl_->GetHandle();
+}
+
+TFuture<size_t> TAsyncReader::Read(void* buf, size_t len)
 {
     return Impl_->Read(buf, len);
 }

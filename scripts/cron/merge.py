@@ -14,7 +14,8 @@ def is_enough_account_disk_space(table):
     disk_space = yt.get_attribute(os.path.join("//sys/accounts", account), "resource_usage/disk_space")
     disk_limit = yt.get_attribute(os.path.join("//sys/accounts", account), "resource_limits/disk_space")
 
-    free = disk_limit - disk_space - table_disk_space
+    table_multiplier = 3
+    free = disk_limit - disk_space - table_multiplier * table_disk_space
     return free > 0.1 * disk_limit or free > 10 * 1024 ** 4
 
 def merge(table):

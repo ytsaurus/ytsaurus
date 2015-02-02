@@ -66,7 +66,7 @@ public:
      *  It is not allowed to ask for the next block until the previous one is retrieved.
      *  If an error occurs during fetching then the whole session is failed.
      */
-    TAsyncError FetchNextBlock();
+    TFuture<void> FetchNextBlock();
 
     //! Returns the current block.
     /*!
@@ -84,12 +84,13 @@ private:
     void RequestBlocks(
         const std::vector<int>& windowIndexes,
         const std::vector<int>& blockIndexes,
-        i64 uncompressedSize);
+        i64 uncompressedSize,
+        const TError& error);
 
     void OnGotBlocks(
         const std::vector<int>& windowIndexes,
         const std::vector<int>& blockIndexes,
-        IChunkReader::TReadBlocksResult readResult);
+        const TErrorOr<std::vector<TSharedRef>>& blocksOrError);
 
     void DecompressBlocks(
         const std::vector<int>& windowIndexes,

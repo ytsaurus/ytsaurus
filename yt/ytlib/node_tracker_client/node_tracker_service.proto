@@ -60,12 +60,25 @@ message TTabletSlotInfo
     optional NYT.NProto.TGuid cell_id = 2;
     optional int32 peer_id = 3;
     optional int32 config_version = 4;
+    optional NYT.NProto.TGuid prerequisite_transaction_id = 5;
 }
 
 message THiveCellInfo
 {
     required NYT.NProto.TGuid cell_id = 1;
     required int32 config_version = 2;
+}
+
+message TTabletStatistics
+{
+    required int32 partition_count = 1;
+    required int32 store_count = 2;
+}
+
+message TTabletInfo
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required TTabletStatistics statistics = 2;
 }
 
 message TReqIncrementalHeartbeat
@@ -82,6 +95,7 @@ message TReqIncrementalHeartbeat
 
     // Tablet Manager stuff.
     repeated TTabletSlotInfo tablet_slots = 6;
+    repeated TTabletInfo tablets = 8;
 
     // Hive Manager stuff.
     repeated THiveCellInfo hive_cells = 7;
@@ -91,6 +105,7 @@ message TCreateTabletSlotInfo
 {
     required NYT.NProto.TGuid cell_id = 1;
     required bytes options = 2; // NTabletClient::TTabletCellOptions
+    required NYT.NProto.TGuid prerequisite_transaction_id = 3;
 }
 
 message TConfigureTabletSlotInfo
@@ -99,7 +114,6 @@ message TConfigureTabletSlotInfo
     required int32 config_version = 2;
     required bytes config = 3; // NTabletClient::TTabletCellConfig
     required int32 peer_id = 4;
-    required NYT.NProto.TGuid prerequisite_transaction_id = 5;
 }
 
 message TRemoveTabletSlotInfo

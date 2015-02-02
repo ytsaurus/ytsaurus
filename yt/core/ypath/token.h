@@ -7,18 +7,17 @@ namespace NYPath {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern TStringBuf WildcardToken;
-extern TStringBuf SuppressRedirectToken;
-extern TStringBuf ListBeginToken;
-extern TStringBuf ListEndToken;
-extern TStringBuf ListBeforeToken;
-extern TStringBuf ListAfterToken;
+extern const TStringBuf ListBeginToken;
+extern const TStringBuf ListEndToken;
+extern const TStringBuf ListBeforeToken;
+extern const TStringBuf ListAfterToken;
 
-DECLARE_ENUM(ETokenType,
+DEFINE_ENUM(ETokenType,
     (Literal)
     (Slash)
     (Ampersand)
     (At)
+    (Asterisk)
     (StartOfStream)
     (EndOfStream)
     (Range)

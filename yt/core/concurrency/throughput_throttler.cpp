@@ -67,7 +67,7 @@ public:
         LOG_DEBUG("Started waiting for throttler (Count: %v)", count);
         TRequest request;
         request.Count = count;
-        request.Promise = NewPromise();
+        request.Promise = NewPromise<void>();
         Requests_.push(request);
         return request.Promise;
     }

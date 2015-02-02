@@ -44,7 +44,7 @@ class TTabletService
 {
 public:
     TTabletService(
-        TTabletSlot* slot,
+        TTabletSlotPtr slot,
         NCellNode::TBootstrap* bootstrap)
         : THydraServiceBase(
             slot->GetHydraManager(),
@@ -60,13 +60,14 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Read)
+            .SetCancelable(true)
             .SetInvoker(Bootstrap_->GetQueryPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Write)
             .SetInvoker(Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Write)));
     }
 
 private:
-    TTabletSlot* Slot_;
+    TTabletSlotPtr Slot_;
     NCellNode::TBootstrap* Bootstrap_;
 
 
@@ -162,7 +163,7 @@ private:
 
 };
 
-IServicePtr CreateTabletService(TTabletSlot* slot, NCellNode::TBootstrap* bootstrap)
+IServicePtr CreateTabletService(TTabletSlotPtr slot, NCellNode::TBootstrap* bootstrap)
 {
     return New<TTabletService>(slot, bootstrap);
 }

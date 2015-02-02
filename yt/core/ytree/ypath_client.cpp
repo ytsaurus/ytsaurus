@@ -43,9 +43,9 @@ TYPathRequest::TYPathRequest(
     Header_.set_service(service);
     Header_.set_method(method);
 
-    auto* headerExt = Header_.MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    headerExt->set_mutating(mutating);
-    headerExt->set_path(path);
+    auto* ypathExt = Header_.MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    ypathExt->set_mutating(mutating);
+    ypathExt->set_path(path);
 }
 
 bool TYPathRequest::IsOneWay() const
@@ -68,6 +68,11 @@ TRequestId TYPathRequest::GetRequestId() const
     return NullRequestId;
 }
 
+TRealmId TYPathRequest::GetRealmId() const
+{
+    return NullRealmId;
+}
+
 const Stroka& TYPathRequest::GetMethod() const
 {
     return Header_.method();
@@ -76,12 +81,6 @@ const Stroka& TYPathRequest::GetMethod() const
 const Stroka& TYPathRequest::GetService() const
 {
     return Header_.service();
-}
-
-const Stroka& TYPathRequest::GetPath() const
-{
-    const auto& headerExt = Header_.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    return headerExt.path();
 }
 
 TInstant TYPathRequest::GetStartTime() const
@@ -121,30 +120,20 @@ void TYPathResponse::Deserialize(TSharedRefArray message)
 
     NRpc::NProto::TResponseHeader header;
     if (!ParseResponseHeader(message, &header)) {
-        Error_ = TError("Error parsing response header");
-        return;
+        THROW_ERROR_EXCEPTION("Error parsing response header");
     }
 
-    Error_ = NYT::FromProto<TError>(header.error());
-
-    if (Error_.IsOK()) {
-        // Deserialize body.
-        YASSERT(message.Size() >= 2);
-        DeserializeBody(message[1]);
-
-        // Load attachments.
-        Attachments_ = std::vector<TSharedRef>(message.Begin() + 2, message.End());
+    if (header.has_error()) {
+        auto error = NYT::FromProto<TError>(header.error());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
-}
 
-bool TYPathResponse::IsOK() const
-{
-    return Error_.IsOK();
-}
+    // Deserialize body.
+    YASSERT(message.Size() >= 2);
+    DeserializeBody(message[1]);
 
-TYPathResponse::operator TError() const
-{
-    return Error_;
+    // Load attachments.
+    Attachments_ = std::vector<TSharedRef>(message.Begin() + 2, message.End());
 }
 
 void TYPathResponse::DeserializeBody(const TRef& data)
@@ -161,14 +150,14 @@ const TYPath& GetRequestYPath(IServiceContextPtr context)
 
 const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header)
 {
-    const auto& headerExt = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    return headerExt.path();
+    const auto& ext = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    return ext.path();
 }
 
 void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path)
 {
-    auto* headerExt = header->MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    headerExt->set_path(path);
+    auto* ext = header->MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    ext->set_path(path);
 }
 
 TYPath ComputeResolvedYPath(const TYPath& wholePath, const TYPath& unresolvedPath)
@@ -265,7 +254,7 @@ void ExecuteVerb(IYPathServicePtr service, IServiceContextPtr context)
     context->ReplyFrom(asyncResponseMessage);
 }
 
-TFuture< TErrorOr<TYsonString> > AsyncYPathGet(
+TFuture<TYsonString> AsyncYPathGet(
     IYPathServicePtr service,
     const TYPath& path,
     const TAttributeFilter& attributeFilter,
@@ -274,20 +263,18 @@ TFuture< TErrorOr<TYsonString> > AsyncYPathGet(
     auto request = TYPathProxy::Get(path);
     ToProto(request->mutable_attribute_filter(), attributeFilter);
     request->set_ignore_opaque(ignoreOpaque);
-    return
-        ExecuteVerb(service, request)
-            .Apply(BIND([] (TYPathProxy::TRspGetPtr response) {
-                return
-                    response->IsOK()
-                    ? TErrorOr<TYsonString>(TYsonString(response->value()))
-                    : TErrorOr<TYsonString>(response->GetError());
-            }));
+    return ExecuteVerb(service, request)
+        .Apply(BIND([] (TYPathProxy::TRspGetPtr response) {
+            return TYsonString(response->value());
+        }));
 }
 
 Stroka SyncYPathGetKey(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::GetKey(path);
-    return ExecuteVerb(service, request).Get()->value();
+    return ExecuteVerb(service, request)
+        .Get()
+        .ValueOrThrow()->value();
 }
 
 TYsonString SyncYPathGet(
@@ -306,27 +293,20 @@ TYsonString SyncYPathGet(
         .ValueOrThrow();
 }
 
-TFuture< TErrorOr<bool> > AsyncYPathExists(
+TFuture<bool> AsyncYPathExists(
     IYPathServicePtr service,
     const TYPath& path)
 {
     auto request = TYPathProxy::Exists(path);
-    return
-        ExecuteVerb(service, request)
-            .Apply(BIND([] (TYPathProxy::TRspExistsPtr response) {
-                return
-                    response->IsOK()
-                    ? TErrorOr<bool>(response->value())
-                    : TErrorOr<bool>(response->GetError());
-            }));
+    return ExecuteVerb(service, request)
+        .Apply(BIND([] (TYPathProxy::TRspExistsPtr response) {
+            return response->value();
+        }));
 }
 
 bool SyncYPathExists(IYPathServicePtr service, const TYPath& path)
 {
-    return
-        AsyncYPathExists(
-            service,
-            path)
+    return AsyncYPathExists(service, path)
         .Get()
         .ValueOrThrow();
 }
@@ -335,8 +315,7 @@ void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonStrin
 {
     auto request = TYPathProxy::Set(path);
     request->set_value(value.Data());
-    auto response = ExecuteVerb(service, request).Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(*response);
+    ExecuteVerb(service, request).Get().ThrowOnError();
 }
 
 void SyncYPathRemove(
@@ -348,16 +327,16 @@ void SyncYPathRemove(
     auto request = TYPathProxy::Remove(path);
     request->set_recursive(recursive);
     request->set_force(force);
-    auto response = ExecuteVerb(service, request).Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(*response);
+    ExecuteVerb(service, request).Get().ThrowOnError();
 }
 
 std::vector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::List(path);
-    auto response = ExecuteVerb(service, request).Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(*response);
-    return ConvertTo<std::vector<Stroka> >(TYsonString(response->keys()));
+    auto response = ExecuteVerb(service, request)
+        .Get()
+        .ValueOrThrow();
+    return ConvertTo<std::vector<Stroka>>(TYsonString(response->keys()));
 }
 
 void ApplyYPathOverride(INodePtr root, const TStringBuf& overrideString)

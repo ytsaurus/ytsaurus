@@ -9,6 +9,10 @@
 
 #include <core/yson/tokenizer.h>
 
+#include <core/tracing/trace_context.h>
+
+#include <core/concurrency/scheduler.h>
+
 #include <util/system/error.h>
 
 namespace NYT {
@@ -54,7 +58,7 @@ TError::TErrorOr(const Stroka& message)
     CaptureOriginAttributes();
 }
 
-TError::TErrorOr(int code, const Stroka& message)
+TError::TErrorOr(TErrorCode code, const Stroka& message)
     : Code_(code)
     , Message_(message)
 {
@@ -94,12 +98,12 @@ TError TError::FromSystem(int error)
         TErrorAttribute("errno", error);
 }
 
-int TError::GetCode() const
+TErrorCode TError::GetCode() const
 {
     return Code_;
 }
 
-TError& TError::SetCode(int code)
+TError& TError::SetCode(TErrorCode code)
 {
     Code_ = code;
     return *this;
@@ -144,16 +148,33 @@ bool TError::IsOK() const
     return Code_ == NYT::EErrorCode::OK;
 }
 
-void TError::CaptureOriginAttributes()
+void TError::ThrowOnError() const
 {
-    // Use ad-hoc YSON conversions for performance reasons.
-    Attributes().SetYson("host", ConvertToYsonString(TAddressResolver::Get()->GetLocalHostName()));
-    Attributes().SetYson("datetime", ConvertToYsonString(ToString(TInstant::Now())));
-    Attributes().SetYson("pid", ConvertToYsonString(getpid()));
-    Attributes().SetYson("tid", ConvertToYsonString(NConcurrency::GetCurrentThreadId()));
+    if (!IsOK()) {
+        THROW_ERROR *this;
+    }
 }
 
-TNullable<TError> TError::FindMatching(int code) const
+TError TError::Wrap() const
+{
+    return *this;
+}
+
+void TError::CaptureOriginAttributes()
+{
+    Attributes().Set("host", TAddressResolver::Get()->GetLocalHostName());
+    Attributes().Set("datetime", TInstant::Now());
+    Attributes().Set("pid", ::getpid());
+    Attributes().Set("tid", NConcurrency::GetCurrentThreadId());
+    Attributes().Set("fid", NConcurrency::GetCurrentFiberId());
+    auto traceContext = NTracing::GetCurrentTraceContext();
+    if (traceContext.IsEnabled()) {
+        Attributes().SetYson("trace_id", ConvertToYsonString(traceContext.GetTraceId()));
+        Attributes().SetYson("span_id", ConvertToYsonString(traceContext.GetSpanId()));
+    }
+}
+
+TNullable<TError> TError::FindMatching(TErrorCode code) const
 {
     if (Code_ == code) {
         return *this;
@@ -197,36 +218,25 @@ void AppendError(TStringBuilder* builder, const TError& error, int indent)
     builder->AppendChar('\n');
 
     if (error.GetCode() != NYT::EErrorCode::Generic) {
-        AppendAttribute(builder, "code", ToString(error.GetCode()), indent);
+        AppendAttribute(builder, "code", ToString(static_cast<int>(error.GetCode())), indent);
     }
 
     // Pretty-print origin.
     auto host = error.Attributes().Find<Stroka>("host");
     auto datetime = error.Attributes().Find<Stroka>("datetime");
-    auto pid = error.Attributes().Find<i64>("pid");
-    auto tid = error.Attributes().Find<i64>("tid");
-    if (host && datetime && pid && tid) {
+    auto pid = error.Attributes().Find<pid_t>("pid");
+    auto tid = error.Attributes().Find<NConcurrency::TThreadId>("tid");
+    auto fid = error.Attributes().Find<NConcurrency::TFiberId>("fid");
+    if (host && datetime && pid && tid && fid) {
         AppendAttribute(
             builder,
             "origin",
-            Format("%v on %v (pid %v, tid %v)",
+            Format("%v on %v (pid %v, tid %x, fid %x)",
                 *host,
                 *datetime,
                 *pid,
-                *tid),
-            indent);
-    }
-
-    // Pretty-print location.
-    auto file = error.Attributes().Find<Stroka>("file");
-    auto line = error.Attributes().Find<i64>("line");
-    if (file && line) {
-        AppendAttribute(
-            builder,
-            "location",
-            Format("%v:%v",
-                *file,
-                *line),
+                *tid,
+                *fid),
             indent);
     }
 
@@ -236,8 +246,7 @@ void AppendError(TStringBuilder* builder, const TError& error, int indent)
             key == "datetime" ||
             key == "pid" ||
             key == "tid" ||
-            key == "file" ||
-            key == "line")
+            key == "fid")
             continue;
 
         auto value = error.Attributes().GetYson(key);
@@ -390,11 +399,6 @@ TError operator << (TError error, std::unique_ptr<NYTree::IAttributeDictionary> 
     return error;
 }
 
-TError operator >>= (const TErrorAttribute& attribute, TError error)
-{
-    return error << attribute;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 const char* TErrorException::what() const throw()
@@ -404,10 +408,6 @@ const char* TErrorException::what() const throw()
     }
     return ~CachedWhat_;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<TError> OKFuture = MakeFuture(TError());
 
 ////////////////////////////////////////////////////////////////////////////////
 

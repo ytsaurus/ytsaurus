@@ -44,7 +44,7 @@ int TMasterAutomatonPart::GetCurrentSnapshotVersion()
 }
 
 void TMasterAutomatonPart::RegisterSaver(
-    int priority,
+    NHydra::ESerializationPriority priority,
     const Stroka& name,
     TCallback<void(TSaveContext&)> saver)
 {

@@ -29,6 +29,8 @@ struct IBusClient
     virtual IBusPtr CreateBus(IMessageHandlerPtr handler) = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IBusClient)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NBus

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <core/misc/common.h>
 #include <core/misc/enum.h>
 
 #include <ytlib/chunk_client/public.h>
@@ -65,7 +64,7 @@ DECLARE_REFCOUNTED_CLASS(TPeerBlockTableConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((LocalChunkReaderFailed)(1300))
 );
 

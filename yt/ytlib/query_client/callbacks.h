@@ -4,19 +4,17 @@
 
 #include <core/rpc/public.h>
 
-#include <core/misc/common.h>
-#include <core/misc/error.h>
+#include <core/actions/future.h>
 
 namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Execution context.
 struct IExecutor
     : public virtual TRefCounted
 {
-    virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
+    virtual TFuture<TQueryStatistics> Execute(
         const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer) = 0;
 
@@ -26,21 +24,19 @@ DEFINE_REFCOUNTED_TYPE(IExecutor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Preparation context.
 struct IPrepareCallbacks
 {
     virtual ~IPrepareCallbacks()
     { }
 
     //! Returns an initial split for a given path.
-    virtual TFuture<TErrorOr<TDataSplit>> GetInitialSplit(
+    virtual TFuture<TDataSplit> GetInitialSplit(
         const NYPath::TYPath& path,
         TTimestamp timestamp) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Evaluation context.
 struct IEvaluateCallbacks
 {
     virtual ~IEvaluateCallbacks()

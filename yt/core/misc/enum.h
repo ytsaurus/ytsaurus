@@ -1,361 +1,154 @@
 #pragma once
 
-/*!
- * \file enum.h
- * \brief Smart enumerations
- */
-
 #include "preprocessor.h"
 
-#include <util/stream/output.h>
-
 #include <stdexcept>
+#include <type_traits>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*!
- * \defgroup yt_enum Smart enumerations
- * \ingroup yt_commons
+/*
+ * Smart enumerations augment C++ enum classes with a bunch of reflection
+ * capabilities accessible via TEnumTraits class specialization.
  *
- * \{
- *
- * A string literal could be associated with an instance of polymorphic
- * enumeration and this literal is preserved during casts.
- *
- * \page yt_enum_examples Examples
  * Please refer to the unit test for an actual example of usage
  * (unittests/enum_ut.cpp).
- *
  */
 
-//! Base class tag for strongly-typed enumerations.
+template <
+    class T,
+    bool = std::is_enum<T>::value && !std::is_convertible<T, int>::value
+>
+struct TEnumTraits
+{
+    static constexpr bool IsEnum = false;
+    static constexpr bool IsBitEnum = false;
+};
+
 template <class T>
-class TEnumBase
-{ };
+struct TEnumTraits<T, true>
+{
+    using TImpl = decltype(GetEnumTraitsImpl(T()));
+    using TType = T;
+    using TUnderlying = typename TImpl::TUnderlying;
 
-/*! \} */
+    static constexpr bool IsEnum = true;
+    static constexpr bool IsBitEnum = TImpl::IsBitEnum;
+
+    static const TStringBuf& GetTypeName();
+
+    static const TStringBuf* FindLiteralByValue(TType value);
+    static bool FindValueByLiteral(const TStringBuf& literal, TType* result);
+
+    static constexpr int GetDomainSize();
+
+    static const std::vector<Stroka>& GetDomainNames();
+    static const std::vector<TType>& GetDomainValues();
+
+    static TType FromString(const TStringBuf& str);
+    static Stroka ToString(TType value);
+
+    // For non-bit enums only.
+    static constexpr TType GetMinValue();
+    static constexpr TType GetMaxValue();
+
+	// For bit enums only.
+    static std::vector<TType> Decompose(TType value);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! \internal
-//! \defgroup yt_enum_mixins Mix-ins for the internals of enumerations.
-//! \{
-
-//! Declaration of an enumeration class.
+//! Defines a smart enumeration with a specific underlying type.
 /*!
- * \param name Name of the enumeration.
- * \param base Base class; either ##TEnumBase<T> or ##TPolymorphicEnumBase<T>.
+ * \param name Enumeration name.
  * \param seq Enumeration domain encoded as a <em>sequence</em>.
+ * \param underlyingType Underlying type.
  */
-#define ENUM__CLASS(name, seq) \
-    class name \
-        : public ::NYT::TEnumBase<name> \
-    { \
-    public: \
-        typedef name TThis; \
-        \
-        enum EDomain \
-        { \
-            PP_FOR_EACH(ENUM__DOMAIN_ITEM, seq) \
-        }; \
-        \
-        name() \
-            : Value(static_cast<EDomain>(0)) \
-        { } \
-        \
-        name(EDomain e) \
-            : Value(e) \
-        { } \
-        \
-        explicit name(int value) \
-            : Value(static_cast<EDomain>(value)) \
-        { } \
-        \
-        name& operator=(EDomain e) \
-        { \
-            Value = e; \
-            return *this; \
-        } \
-        \
-        operator EDomain() const \
-        { \
-            return Value; \
-        } \
-        \
-        static const TStringBuf& GetTypeName() \
-        { \
-            static TStringBuf typeName = STRINGBUF(PP_STRINGIZE(name)); \
-            return typeName; \
-        } \
-        \
-        friend TOutputStream& operator << (TOutputStream& stream, name value) \
-        { \
-            const auto* literal = GetLiteralByValue(value.Value); \
-            if (literal) { \
-                stream << *literal; \
-            } else { \
-                stream << GetTypeName() << "(" << static_cast<int>(value.Value) << ")"; \
-            } \
-            return stream; \
-        } \
-        \
-        static const TStringBuf* GetLiteralByValue(int value) \
-        { \
-            switch (value) \
-            { \
-                PP_FOR_EACH(ENUM__LITERAL_BY_VALUE_ITEM, seq) \
-                default: \
-                    return nullptr; \
-            } \
-        } \
-        \
-        static bool GetValueByLiteral(const TStringBuf& literal, int* result) \
-        { \
-            PP_FOR_EACH(ENUM__VALUE_BY_LITERAL_ITEM, seq); \
-            return false; \
-        } \
-        \
-        static int GetDomainSize() \
-        { \
-            return PP_COUNT(seq); \
-        } \
-        \
-        static int GetMaxValue() \
-        { \
-            return ::NYT::NDetail::GenericMax(PP_FOR_EACH(ENUM__GET_DOMAIN_VALUES_ITEM, seq) 0); \
-        } \
-        \
-        static const std::vector<name>& GetDomainValues() \
-        { \
-            static name values[] = { \
-                PP_FOR_EACH(ENUM__GET_DOMAIN_VALUES_ITEM, seq) \
-            }; \
-            static std::vector<name> result(values, values + GetDomainSize()); \
-            return result; \
-        } \
-        \
-        static const std::vector<Stroka>& GetDomainNames() \
-        { \
-            static Stroka values[] = { \
-                PP_FOR_EACH(ENUM__GET_DOMAIN_NAMES_ITEM, seq) \
-            }; \
-            static std::vector<Stroka> result(values, values + GetDomainSize()); \
-            return result; \
-        } \
-        \
-        static name FromString(const TStringBuf& str) \
-        { \
-            int value; \
-            if (!GetValueByLiteral(str, &value)) { \
-                throw std::runtime_error(Sprintf("Error parsing %s value %s", \
-                    PP_STRINGIZE(name), \
-                    ~Stroka(str).Quote())); \
-            } \
-            return name(value); \
-        } \
-        \
-        static bool FromString(const TStringBuf& str, name* result) \
-        { \
-            int value; \
-            if (!GetValueByLiteral(str, &value)) { \
-                return false; \
-            } else { \
-                *result = name(value); \
-                return true; \
-            } \
-        } \
-        \
-    private: \
-        EDomain Value;
+#define DEFINE_ENUM_WITH_UNDERLYING_TYPE(name, underlyingType, seq) \
+    ENUM__CLASS(name, underlyingType, seq) \
+    ENUM__BEGIN_TRAITS(name, underlyingType, false, seq) \
+    ENUM__MINMAX(name, seq) \
+    ENUM__END_TRAITS(name)
 
-//! EDomain declaration helper.
-//! \{
-#define ENUM__DOMAIN_ITEM(item) \
-    PP_IF( \
-        PP_IS_SEQUENCE(item), \
-        ENUM__DOMAIN_ITEM_SEQ, \
-        ENUM__DOMAIN_ITEM_ATOMIC \
-    )(item)()
+//! Defines a smart enumeration with the default |int| underlying type.
+#define DEFINE_ENUM(name, seq) \
+    DEFINE_ENUM_WITH_UNDERLYING_TYPE(name, int, seq)
 
-#define ENUM__DOMAIN_ITEM_ATOMIC(item) \
-    item PP_COMMA
+//! Defines a smart enumeration with a specific underlying type.
+/*!
+ * \param name Enumeration name.
+ * \param seq Enumeration domain encoded as a <em>sequence</em>.
+ * \param underlyingType Underlying type.
+ */
+#define DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(name, underlyingType, seq) \
+    ENUM__CLASS(name, underlyingType, seq) \
+    ENUM__BEGIN_TRAITS(name, underlyingType, true, seq) \
+    ENUM__DECOMPOSE(name, seq) \
+    ENUM__END_TRAITS(name)
 
-#define ENUM__DOMAIN_ITEM_SEQ(seq) \
-    PP_ELEMENT(seq, 0) = PP_ELEMENT(seq, 1) PP_COMMA
-//! \}
-
-//! #GetLiteralByValue() helper.
-//! \{
-#define ENUM__LITERAL_BY_VALUE_ITEM(item) \
-    PP_IF( \
-        PP_IS_SEQUENCE(item), \
-        ENUM__LITERAL_BY_VALUE_ITEM_SEQ, \
-        ENUM__LITERAL_BY_VALUE_ITEM_ATOMIC \
-    )(item)
-
-#define ENUM__LITERAL_BY_VALUE_ITEM_SEQ(seq) \
-    ENUM__LITERAL_BY_VALUE_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
-
-#define ENUM__LITERAL_BY_VALUE_ITEM_ATOMIC(item) \
-    case static_cast<int>(item): { \
-        static const TStringBuf literal = STRINGBUF(PP_STRINGIZE(item)); \
-        return &literal; \
-    } \
-//! \}
-
-//! #GetValueByLiteral() helper.
-//! \{
-#define ENUM__VALUE_BY_LITERAL_ITEM(item) \
-    PP_IF( \
-        PP_IS_SEQUENCE(item), \
-        ENUM__VALUE_BY_LITERAL_ITEM_SEQ, \
-        ENUM__VALUE_BY_LITERAL_ITEM_ATOMIC \
-    )(item)
-
-#define ENUM__VALUE_BY_LITERAL_ITEM_SEQ(seq) \
-    ENUM__VALUE_BY_LITERAL_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
-
-#define ENUM__VALUE_BY_LITERAL_ITEM_ATOMIC(item) \
-    if (literal == PP_STRINGIZE(item)) { \
-        *result = static_cast<int>(item); \
-        return true; \
-    }
-//! \}
-
-//! #GetDomainValues() helper.
-//! \{
-#define ENUM__GET_DOMAIN_VALUES_ITEM(item) \
-    PP_IF( \
-        PP_IS_SEQUENCE(item), \
-        ENUM__GET_DOMAIN_VALUES_ITEM_SEQ, \
-        ENUM__GET_DOMAIN_VALUES_ITEM_ATOMIC \
-    )(item)
-
-#define ENUM__GET_DOMAIN_VALUES_ITEM_SEQ(seq) \
-    ENUM__GET_DOMAIN_VALUES_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
-
-#define ENUM__GET_DOMAIN_VALUES_ITEM_ATOMIC(item) \
-    TThis(item),
-//! \}
-
-//! #GetDomainNames() helper.
-//! {
-#define ENUM__GET_DOMAIN_NAMES_ITEM(item) \
-    PP_IF( \
-        PP_IS_SEQUENCE(item), \
-        ENUM__GET_DOMAIN_NAMES_ITEM_SEQ, \
-        ENUM__GET_DOMAIN_NAMES_ITEM_ATOMIC \
-    )(item)
-
-#define ENUM__GET_DOMAIN_NAMES_ITEM_SEQ(seq) \
-    ENUM__GET_DOMAIN_NAMES_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
-
-#define ENUM__GET_DOMAIN_NAMES_ITEM_ATOMIC(item) \
-    Stroka(PP_STRINGIZE(item)),
-//! \}
-
-//! Declaration of relational operators; all at once.
-#define ENUM__RELATIONAL_OPERATORS(name) \
-    public: \
-        ENUM__RELATIONAL_OPERATOR(name, < ) \
-        ENUM__RELATIONAL_OPERATOR(name, > ) \
-        ENUM__RELATIONAL_OPERATOR(name, <=) \
-        ENUM__RELATIONAL_OPERATOR(name, >=) \
-
-//! Declaration of equality operators; all at once.
-#define ENUM__EQUALITY_OPERATORS(name) \
-    public: \
-        ENUM__RELATIONAL_OPERATOR(name, ==) \
-        ENUM__RELATIONAL_OPERATOR(name, !=)
-
-//! Declaration of a single relational operator.
-#define ENUM__RELATIONAL_OPERATOR(name, op) \
-    bool operator op(EDomain other) const \
-    { \
-        return static_cast<int>(Value) op static_cast<int>(other); \
-    }
-
-//! Declaration of bitwise operators; all at once.
-#define ENUM__BITWISE_OPERATORS(name) \
-    public: \
-        ENUM__BITWISE_OPERATOR(name, &=, & ) \
-        ENUM__BITWISE_OPERATOR(name, |=, | ) \
-        ENUM__BITWISE_OPERATOR(name, ^=, ^ ) \
-
-//! Declaration of a single bitwise operator (together with its assignment version).
-#define ENUM__BITWISE_OPERATOR(name, assignOp, op) \
-    name operator op (EDomain other) const \
-    { \
-        return name(static_cast<int>(Value) op static_cast<int>(other)); \
-    } \
-    \
-    name& operator assignOp (EDomain other) \
-    { \
-        Value = EDomain(static_cast<int>(Value) op static_cast<int>(other)); \
-        return *this; \
-    }
-
-//! #Decompose() helper.
-//! \{
-#define ENUM__DECOMPOSE(name, seq) \
-    public: \
-        std::vector<name> Decompose() const \
-        { \
-            std::vector<name> result; \
-            PP_FOR_EACH(ENUM__DECOMPOSE_ITEM, seq) \
-            return result; \
-        }
-
-#define ENUM__DECOMPOSE_ITEM(item) \
-    ENUM__DECOMPOSE_ITEM_SEQ(PP_ELEMENT(item, 0))
-
-#define ENUM__DECOMPOSE_ITEM_SEQ(itemName) \
-    if (Value & itemName) { \
-        result.push_back(itemName); \
-    }
-//! \}
-
-#define BEGIN_DECLARE_ENUM(name, seq) \
-    ENUM__CLASS(name, seq)
-
-#define END_DECLARE_ENUM() \
-    }
-
-//! \}
-//! \endinternal
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Declares a strongly-typed enumeration.
+//! Defines a smart enumeration with the default |unsigned| underlying type.
 /*!
  * \param name Enumeration name.
  * \param seq Enumeration domain encoded as a <em>sequence</em>.
  */
-#define DECLARE_ENUM(name, seq) \
-    BEGIN_DECLARE_ENUM(name, seq) \
-        ENUM__EQUALITY_OPERATORS(name) \
-        ENUM__RELATIONAL_OPERATORS(name) \
-    END_DECLARE_ENUM()
+#define DEFINE_BIT_ENUM(name, seq) \
+    DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(name, unsigned, seq)
 
-//! Declares a strongly-typed flagged enumeration.
+////////////////////////////////////////////////////////////////////////////////
+
+//! A statically sized vector with elements of type |T| indexed by
+//! the items of enumeration type |E|.
 /*!
- * \param name Enumeration name.
- * \param seq Enumeration domain encoded as a <em>sequence</em>.
+ *  Items are value-initialized on construction.
  */
-#define DECLARE_FLAGGED_ENUM(name, seq) \
-    BEGIN_DECLARE_ENUM(name, seq) \
-        ENUM__EQUALITY_OPERATORS(name) \
-        ENUM__BITWISE_OPERATORS(name) \
-        ENUM__DECOMPOSE(name, seq) \
-    END_DECLARE_ENUM()
+template <
+    class T,
+    class E,
+    E Min = TEnumTraits<E>::GetMinValue(),
+    E Max = TEnumTraits<E>::GetMaxValue()
+>
+class TEnumIndexedVector
+{
+public:
+    TEnumIndexedVector();
 
-/*! \} */
+    T& operator[] (E index);
+    const T& operator[] (E index) const;
+
+    // STL interop.
+    T* begin();
+    const T* begin() const;
+    T* end();
+    const T* end() const;
+
+private:
+    using TUnderlying = typename TEnumTraits<E>::TUnderlying;
+    static constexpr int N = static_cast<TUnderlying>(Max) - static_cast<TUnderlying>(Min) + 1;
+    // TODO(babenko): change this to std::array after migrating to GCC 4.9
+    // Cf. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=59659
+    std::vector<T> Items_;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns |true| iff the enumeration value is not bitwise zero.
+template <class E>
+typename std::enable_if<NYT::TEnumTraits<E>::IsBitEnum, bool>::type
+Any(E value);
+
+//! Returns |true| iff the enumeration value is bitwise zero.
+template <class E>
+typename std::enable_if<NYT::TEnumTraits<E>::IsBitEnum, bool>::type
+None(E value);
+
+////////////////////////////////////////////////////////////////////////////////
 
 #define ENUM_INL_H_
 #include "enum-inl.h"

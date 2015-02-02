@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/actions/future.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -16,7 +18,7 @@ namespace NHydra {
  *  The underlying changelog must be constructed empty, non-sealed.
  *  This is assumed while answering the relevant requests.
  */
-IChangelogPtr CreateLazyChangelog(TFuture<TErrorOr<IChangelogPtr>> futureChangelogOrError);
+IChangelogPtr CreateLazyChangelog(TFuture<IChangelogPtr> futureChangelog);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -24,17 +24,30 @@ struct TNonversionedObjectRefSerializer
     template <class T, class C>
     static void Save(C& context, T object)
     {
-        typedef typename std::remove_reference<decltype(object->GetId())>::type TId;
-        NYT::Save(context, object ? object->GetId() : TId());
+        if (object) {
+            auto key = *object->GetSerializationKeyPtr();
+            YASSERT(key != NHydra::TEntitySerializationKey());
+            NYT::Save(context, key);
+        } else {
+            NYT::Save(context, NHydra::TEntitySerializationKey());
+        }
     }
 
     template <class T, class C>
     static void Load(C& context, T& object)
     {
-        typedef typename std::remove_reference<decltype(object->GetId())>::type TId;
         typedef typename std::remove_pointer<T>::type TObject;
-        auto id = NYT::Load<TId>(context);
-        object = id == TId() ? nullptr : context.template Get<TObject>(id);
+        // COMPAT(babenko)
+        if (context.GetVersion() >= 109) {
+            auto key = NYT::Load<NHydra::TEntitySerializationKey>(context);
+            object  = (key == NHydra::TEntitySerializationKey())
+                ? nullptr
+                : context.template GetEntity<TObject>(key);
+        } else {
+            typedef typename std::remove_reference<decltype(object->GetId())>::type TId;
+            auto id = NYT::Load<TId>(context);
+            object = (id == TId()) ? nullptr : context.template Get<TObject>(id);
+        }
     }
 };
 
@@ -54,17 +67,27 @@ struct TVersionedObjectRefSerializer
     template <class T, class C>
     static void Save(C& context, T object)
     {
-        typedef typename std::remove_reference<decltype(object->GetVersionedId())>::type TId;
-        NYT::Save(context, object ? object->GetVersionedId() : TId());
+        auto key = object
+            ? *object->GetSerializationKeyPtr()
+            : NHydra::TEntitySerializationKey();
+        NYT::Save(context, key);
     }
 
     template <class T, class C>
     static void Load(C& context, T& object)
     {
-        typedef typename std::remove_reference<decltype(object->GetVersionedId())>::type TId;
         typedef typename std::remove_pointer<T>::type TObject;
-        auto id = NYT::Load<TId>(context);
-        object = id == TId() ? nullptr : context.template Get<TObject>(id);
+        // COMPAT(babenko)
+        if (context.GetVersion() >= 109) {
+            auto key = NYT::Load<NHydra::TEntitySerializationKey>(context);
+            object  = (key == NHydra::TEntitySerializationKey())
+                ? nullptr
+                : context.template GetEntity<TObject>(key);
+        } else {
+            typedef typename std::remove_reference<decltype(object->GetVersionedId())>::type TId;
+            auto id = NYT::Load<TId>(context);
+            object = id == TId() ? nullptr : context.template Get<TObject>(id);
+        }
     }
 };
 

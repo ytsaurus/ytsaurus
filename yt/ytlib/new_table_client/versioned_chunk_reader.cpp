@@ -47,9 +47,9 @@ public:
         const TColumnFilter& columnFilter,
         TTimestamp timestamp);
 
-    virtual TAsyncError Open() override;
+    virtual TFuture<void> Open() override;
     virtual bool Read(std::vector<TVersionedRow>* rows) override;
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
 private:
     const TChunkReaderConfigPtr Config_;
@@ -75,7 +75,7 @@ private:
 
     i64 RowCount_ = 0;
 
-    TAsyncErrorPromise ReadyEvent_ = MakePromise(TError());
+    TPromise<void> ReadyEvent_ = MakePromise(TError());
 
 
     int GetBeginBlockIndex() const;
@@ -109,8 +109,8 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     , MemoryPool_(TVersionedChunkReaderPoolTag())
 {
     YCHECK(CachedChunkMeta_->Misc().sorted());
-    YCHECK(CachedChunkMeta_->ChunkMeta().type() == EChunkType::Table);
-    YCHECK(CachedChunkMeta_->ChunkMeta().version() == TBlockReader::FormatVersion);
+    YCHECK(EChunkType(CachedChunkMeta_->ChunkMeta().type()) == EChunkType::Table);
+    YCHECK(ETableChunkFormat(CachedChunkMeta_->ChunkMeta().version()) == TBlockReader::FormatVersion);
     YCHECK(Timestamp_ != AsyncAllCommittedTimestamp || columnFilter.All);
 
     if (columnFilter.All) {
@@ -128,10 +128,9 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
 }
 
 template <class TBlockReader>
-TAsyncError TVersionedChunkReader<TBlockReader>::Open()
+TFuture<void> TVersionedChunkReader<TBlockReader>::Open()
 {
     return BIND(&TVersionedChunkReader<TBlockReader>::DoOpen, MakeStrong(this))
-        .Guarded()
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
 }
@@ -182,7 +181,7 @@ bool TVersionedChunkReader<TBlockReader>::Read(std::vector<TVersionedRow>* rows)
         if (!BlockReader_->NextRow()) {
             PreviousBlockReader_.swap(BlockReader_);
             if (SequentialReader_->HasMoreBlocks()) {
-                ReadyEvent_ = NewPromise<TError>();
+                ReadyEvent_ = NewPromise<void>();
                 BIND(&TVersionedChunkReader<TBlockReader>::DoSwitchBlock, MakeWeak(this))
                     .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
                     .Run();
@@ -197,7 +196,7 @@ bool TVersionedChunkReader<TBlockReader>::Read(std::vector<TVersionedRow>* rows)
 }
 
 template <class TBlockReader>
-TAsyncError TVersionedChunkReader<TBlockReader>::GetReadyEvent()
+TFuture<void> TVersionedChunkReader<TBlockReader>::GetReadyEvent()
 {
     return ReadyEvent_.ToFuture();
 }
@@ -332,10 +331,8 @@ void TVersionedChunkReader<TBlockReader>::DoOpen()
         UncompressedBlockCache_,
         NCompression::ECodec(CachedChunkMeta_->Misc().compression_codec()));
 
-    {
-        auto error = WaitFor(SequentialReader_->FetchNextBlock());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
-    }
+    WaitFor(SequentialReader_->FetchNextBlock())
+        .ThrowOnError();
 
     BlockReader_.reset(NewBlockReader());
 
@@ -384,7 +381,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TColumnFilter& columnFilter,
     TTimestamp timestamp)
 {
-    switch (chunkMeta->ChunkMeta().version()) {
+    auto formatVersion = ETableChunkFormat(chunkMeta->ChunkMeta().version());
+    switch (formatVersion) {
         case ETableChunkFormat::VersionedSimple:
             return New<TVersionedChunkReader<TSimpleVersionedBlockReader>>(
                 std::move(config),

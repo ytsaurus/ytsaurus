@@ -19,16 +19,16 @@ public:
 
     virtual bool IsActive() const override;
 
-    virtual TAsyncGetMetaResult GetMeta(
+    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         i64 priority,
         const std::vector<int>* tags = nullptr) override;
 
-    virtual TAsyncReadBlocksResult ReadBlocks(
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
         int firstBlockIndex,
         int blockCount,
         i64 priority) override;
 
-    virtual void SyncRemove() override;
+    virtual void SyncRemove(bool force) override;
 
 protected:
     TBlobChunkBase(
@@ -45,12 +45,10 @@ private:
     NChunkClient::NProto::TBlocksExt BlocksExt_;
 
 
-    void DoSyncRemove(const Stroka& dataFileName);
-
-    TAsyncError ReadMeta(i64 priority);
+    TFuture<void> ReadMeta(i64 priority);
     void DoReadMeta(
         TChunkReadGuard readGuard,
-        TPromise<TError> promise);
+        TPromise<void> promise);
     void InitializeCachedMeta(const NChunkClient::NProto::TChunkMeta& meta);
 
     void AdjustReadRange(
@@ -62,7 +60,7 @@ private:
         int firstBlockIndex,
         int blockCount,
         TPendingReadSizeGuard pendingReadSizeGuard,
-        TPromise<TErrorOr<std::vector<TSharedRef>>> promise);
+        TPromise<std::vector<TSharedRef>> promise);
 
 
 };

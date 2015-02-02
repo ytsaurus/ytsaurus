@@ -26,6 +26,17 @@ TKeyRange GetRange(const TDataSplits& splits);
 
 std::vector<TKeyRange> GetRanges(const TGroupedDataSplits& groupedSplits);
 
+typedef std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> TEvaluateResult;
+
+TQueryStatistics CoordinateAndExecute(
+    const TPlanFragmentPtr& fragment,
+    ISchemafulWriterPtr writer,
+    bool isOrdered,
+    std::function<std::vector<TKeyRange>(const TDataSplits&)> splitAndRegroup,
+    std::function<TEvaluateResult(const TConstQueryPtr&, size_t)> evaluateSubquery,
+    std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
+    bool pushdownGroupOp = true);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

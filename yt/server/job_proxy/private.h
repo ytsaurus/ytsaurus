@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <core/misc/common.h>
 #include <core/misc/error.h>
 
 #include <core/logging/log.h>

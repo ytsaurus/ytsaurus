@@ -379,7 +379,7 @@ private:
 
 };
 
-TJobPtr CreatePartitionSortJob(IJobHost* host)
+IJobPtr CreatePartitionSortJob(IJobHost* host)
 {
     return New<TPartitionSortJob>(host);
 }

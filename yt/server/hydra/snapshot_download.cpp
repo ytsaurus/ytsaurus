@@ -35,13 +35,17 @@ void DoDownloadSnapshot(
     int snapshotId)
 {
     try {
-        auto params = WaitFor(DiscoverSnapshot(config, cellManager, snapshotId));
+        auto params = WaitFor(DiscoverSnapshot(config, cellManager, snapshotId))
+            .ValueOrThrow();
         if (params.SnapshotId == NonexistingSegmentId) {
             THROW_ERROR_EXCEPTION("Unable to find a download source for snapshot %v",
                 snapshotId);
         }
 
         auto writer = fileStore->CreateRawWriter(snapshotId);
+
+        WaitFor(writer->Open())
+            .ThrowOnError();
 
         LOG_INFO("Downloading %v bytes from peer %v",
             params.CompressedLength,
@@ -55,38 +59,31 @@ void DoDownloadSnapshot(
             auto req = proxy.ReadSnapshot();
             req->set_snapshot_id(snapshotId);
             req->set_offset(downloadedLength);
-            i64 blockSize = std::min(
+            i64 desiredBlockSize = std::min(
                 config->SnapshotDownloadBlockSize,
                 params.CompressedLength - downloadedLength);
-            req->set_length(blockSize);
+            req->set_length(desiredBlockSize);
 
-            auto rsp = WaitFor(req->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error downloading snapshot");
+            auto rspOrError = WaitFor(req->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error downloading snapshot");
+            const auto& rsp = rspOrError.Value();
 
             const auto& attachments = rsp->Attachments();
             YCHECK(attachments.size() == 1);
 
             const auto& block = attachments[0];
-            if (block.Size() != blockSize) {
-                LOG_WARNING("Snapshot block of wrong size received (Offset: %v, Size: %v, ExpectedSize: %v)",
-                    downloadedLength,
-                    block.Size(),
-                    blockSize);
-                // Continue anyway.
-            } else {
-                LOG_DEBUG("Snapshot block received (Offset: %v, Size: %v)",
-                    downloadedLength,
-                    blockSize);
-            }
+            LOG_DEBUG("Snapshot block received (Offset: %v, Size: %v)",
+                downloadedLength,
+                block.Size());
 
-            writer->GetStream()->Write(block.Begin(), block.Size());
+            WaitFor(writer->Write(block.Begin(), block.Size()))
+                .ThrowOnError();
 
-            downloadedLength += blockSize;
+            downloadedLength += block.Size();
         }
 
-        writer->Close();
-
-        fileStore->ConfirmSnapshot(snapshotId);
+        WaitFor(writer->Close())
+            .ThrowOnError();
 
         LOG_INFO("Snapshot downloaded successfully");
     } catch (const std::exception& ex) {
@@ -97,14 +94,13 @@ void DoDownloadSnapshot(
 
 } // namespace
 
-TAsyncError DownloadSnapshot(
+TFuture<void> DownloadSnapshot(
     TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     TFileSnapshotStorePtr fileStore,
     int snapshotId)
 {
     return BIND(DoDownloadSnapshot)
-        .Guarded()
         .AsyncVia(GetHydraIOInvoker())
         .Run(config, cellManager, fileStore, snapshotId);
 }

@@ -4,12 +4,44 @@
 #include "property.h"
 #include "nullable.h"
 
-#include <core/actions/callback.h>
-
 #include <core/ytree/yson_string.h>
 #include <core/ytree/attributes.h>
 
+#include <type_traits>
+
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! An opaque wrapper around |int| value capable of conversions from |int|s and
+//! arbitrary enum types.
+class TErrorCode
+{
+public:
+    TErrorCode();
+    TErrorCode(int value);
+    template <class E>
+    TErrorCode(E value, typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type* = nullptr);
+
+    operator int() const;
+
+private:
+    int Value_;
+
+};
+
+template <class E>
+typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator == (E lhs, TErrorCode rhs);
+template <class E>
+typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator != (E lhs, TErrorCode rhs);
+
+template <class E>
+typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator == (TErrorCode lhs, E rhs);
+template <class E>
+typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator != (TErrorCode lhs, E rhs);
+
+inline bool operator == (TErrorCode lhs, TErrorCode rhs);
+inline bool operator != (TErrorCode lhs, TErrorCode rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,9 +60,9 @@ public:
     template <class... TArgs>
     explicit TErrorOr(const char* format, const TArgs&... args);
 
-    TErrorOr(int code, const Stroka& message);
+    TErrorOr(TErrorCode code, const Stroka& message);
     template <class... TArgs>
-    TErrorOr(int code, const char* format, const TArgs&... args);
+    TErrorOr(TErrorCode code, const char* format, const TArgs&... args);
 
     TError& operator = (const TError& other);
     TError& operator = (TError&& other) noexcept;
@@ -38,8 +70,8 @@ public:
     static TError FromSystem();
     static TError FromSystem(int error);
 
-    int GetCode() const;
-    TError& SetCode(int code);
+    TErrorCode GetCode() const;
+    TError& SetCode(TErrorCode code);
 
     const Stroka& GetMessage() const;
     TError& SetMessage(const Stroka& message);
@@ -52,10 +84,16 @@ public:
 
     bool IsOK() const;
 
-    TNullable<TError> FindMatching(int code) const;
+	void ThrowOnError() const;
+
+    TNullable<TError> FindMatching(TErrorCode code) const;
+
+    template <class... TArgs>
+    TError Wrap(TArgs&&... args) const;
+    TError Wrap() const;
 
 private:
-    int Code_;
+    TErrorCode Code_;
     Stroka Message_;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
     std::vector<TError> InnerErrors_;
@@ -78,6 +116,7 @@ template <class T>
 struct TErrorTraits
 {
     typedef TErrorOr<T> TWrapped;
+    typedef T TUnwrapped;
 };
 
 template <class T>
@@ -85,6 +124,7 @@ struct TErrorTraits<TErrorOr<T>>
 {
     typedef T TUnderlying;
     typedef TErrorOr<T> TWrapped;
+    typedef T TUnwrapped;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,8 +162,6 @@ TError operator << (TError error, const TError& innerError);
 TError operator << (TError error, const std::vector<TError>& innerErrors);
 TError operator << (TError error, std::unique_ptr<NYTree::IAttributeDictionary> attributes);
 
-TError operator >>= (const TErrorAttribute& attribute, TError error);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TErrorException
@@ -154,46 +192,17 @@ TException&& operator <<= (TException&& ex, const TError& error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define ERROR_SOURCE_LOCATION() \
-    ::NYT::TErrorAttribute("file", ::NYT::NYTree::ConvertToYsonString(__FILE__)) >>= \
-    ::NYT::TErrorAttribute("line", ::NYT::NYTree::ConvertToYsonString(__LINE__))
-
 #define THROW_ERROR \
-    throw \
-        ::NYT::TErrorException() <<= \
-        ERROR_SOURCE_LOCATION() >>= \
+    throw ::NYT::TErrorException() <<=
 
 #define THROW_ERROR_EXCEPTION(...) \
     THROW_ERROR ::NYT::TError(__VA_ARGS__)
 
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
-
-template <class TInner, class... TArgs>
-bool IsOK(const TInner& inner, TArgs&&... args);
-
-template <class TInner, class... TArgs>
-TError WrapError(const TInner& inner, TArgs&&... args);
-
-template <class TInner>
-TError WrapError(const TInner& inner);
-
-} // namespace NDetail
-
-#define THROW_ERROR_EXCEPTION_IF_FAILED(...) \
-    if (::NYT::NDetail::IsOK(__VA_ARGS__)) {\
+#define THROW_ERROR_EXCEPTION_IF_FAILED(error, ...) \
+    if ((error).IsOK()) {\
     } else { \
-        THROW_ERROR ::NYT::NDetail::WrapError(__VA_ARGS__); \
+        THROW_ERROR (error).Wrap(__VA_ARGS__); \
     }\
-
-////////////////////////////////////////////////////////////////////////////////
-
-typedef TFuture<TError>  TAsyncError;
-typedef TPromise<TError> TAsyncErrorPromise;
-
-//! A pre-set |TError| future with OK value.
-extern TFuture<TError> OKFuture;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -228,9 +237,6 @@ public:
 
     const T& ValueOrThrow() const;
     T& ValueOrThrow();
-
-    template <class U>
-    TErrorOr<U> As() const;
 
 private:
     TNullable<T> Value_;

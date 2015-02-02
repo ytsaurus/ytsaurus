@@ -18,91 +18,112 @@ class TRawFormatter
 {
 public:
     TRawFormatter()
-        : Begin(Buffer.data())
-        , Cursor(Buffer.data())
-        , End(Buffer.data() + N)
+        : Begin_(Buffer_.data())
+        , Cursor_(Buffer_.data())
+        , End_(Buffer_.data() + N)
     { }
 
     TRawFormatter(char* buffer, int length)
-        : Begin(buffer)
-        , Cursor(buffer)
-        , End(buffer + length)
+        : Begin_(buffer)
+        , Cursor_(buffer)
+        , End_(buffer + length)
     { }
 
     //! Returns an underlying cursor.
     char* GetCursor()
     {
-        return Cursor;
+        return Cursor_;
     }
 
     //! Returns an pointer to the underlying buffer.
     const char* GetData() const
     {
-        return Begin;
+        return Begin_;
     }
 
     //! Returns the number of bytes written in the buffer.
     int GetBytesWritten() const
     {
-        return Cursor - Begin;
+        return Cursor_ - Begin_;
     }
 
     //! Returns the number of bytes available in the buffer.
     int GetBytesRemaining() const
     {
-        return End - Cursor;
+        return End_ - Cursor_;
     }
 
     //! Advances the internal cursor (assuming the data is already present).
     void Advance(int offset)
     {
-        Cursor += offset;
+        Cursor_ += offset;
 
-        if (Cursor > End) {
-            Cursor = End;
+        if (Cursor_ > End_) {
+            Cursor_ = End_;
         }
     }
 
     //! Appends the string and updates the internal cursor.
     void AppendString(const char* string)
     {
-        while (*string != '\0' && Cursor < End) {
-            *Cursor++ = *string++;
+        while (*string != '\0' && Cursor_ < End_) {
+            *Cursor_++ = *string++;
         }
     }
 
     //! Appends a single character and updates the internal cursor.
     void AppendChar(char ch)
     {
-        if (Cursor < End) {
-            *Cursor++ = ch;
+        if (Cursor_ < End_) {
+            *Cursor_++ = ch;
         }
     }
 
     //! Formats |number| in base |radix| and updates the internal cursor.
     void AppendNumber(uintptr_t number, int radix = 10, int width = 0)
     {
-        int i = 0;
-        while (Cursor + i < End) {
-            const int modulus = number % radix;
-            number /= radix;
-            Cursor[i] = (modulus < 10 ? '0' + modulus : 'a' + modulus - 10);
-            ++i;
-            if (number == 0) {
-                break;
+        int digits = 0;
+
+        if (radix == 16) {
+            // Optimize output of hex numbers.
+
+            uintptr_t reverse = 0;
+            int length = 0;
+            do {
+                reverse <<= 4;
+                reverse |= number & 0xf;
+                number >>= 4;
+                ++length;
+            } while (number > 0);
+
+            for (int index = 0; index < length && Cursor_ + digits < End_; ++index) {
+                unsigned int modulus = reverse & 0xf;
+                Cursor_[digits] = (modulus < 10 ? '0' + modulus : 'a' + modulus - 10);
+                ++digits;
+                reverse >>= 4;
             }
+        } else {
+            while (Cursor_ + digits < End_) {
+                const int modulus = number % radix;
+                number /= radix;
+                Cursor_[digits] = (modulus < 10 ? '0' + modulus : 'a' + modulus - 10);
+                ++digits;
+                if (number == 0) {
+                    break;
+                }
+            }
+
+            // Reverse the bytes written.
+            std::reverse(Cursor_, Cursor_ + digits);
         }
 
-        // Reverse the bytes written.
-        std::reverse(Cursor, Cursor + i);
-
-        if (i < width) {
-            auto delta = width - i;
-            std::copy(Cursor, Cursor + i, Cursor + delta);
-            std::fill(Cursor, Cursor + delta, ' ');
-            Cursor += width;
+        if (digits < width) {
+            auto delta = width - digits;
+            std::copy(Cursor_, Cursor_ + digits, Cursor_ + delta);
+            std::fill(Cursor_, Cursor_ + delta, ' ');
+            Cursor_ += width;
         } else {
-            Cursor += i;
+            Cursor_ += digits;
         }
     }
 
@@ -110,29 +131,29 @@ public:
     //! Padding will be added in front if needed.
     void AppendNumberAsHexWithPadding(uintptr_t number, int width)
     {
-        char* begin = Cursor;
+        char* begin = Cursor_;
         AppendString("0x");
         AppendNumber(number, 16);
         // Move to right and add padding in front if needed.
-        if (Cursor < begin + width) {
-            auto delta = begin + width - Cursor;
-            std::copy(begin, Cursor, begin + delta);
+        if (Cursor_ < begin + width) {
+            auto delta = begin + width - Cursor_;
+            std::copy(begin, Cursor_, begin + delta);
             std::fill(begin, begin + delta, ' ');
-            Cursor = begin + width;
+            Cursor_ = begin + width;
         }
     }
 
     //! Resets the underlying cursor.
     void Reset()
     {
-        Cursor = Begin;
+        Cursor_ = Begin_;
     }
 
 private:
-    std::array<char, N> Buffer;
-    char* const Begin;
-    char* Cursor;
-    char* const End;
+    std::array<char, N> Buffer_;
+    char* const Begin_;
+    char* Cursor_;
+    char* const End_;
 
 };
 

@@ -7,6 +7,7 @@
 #include "changelog_download.h"
 
 #include <core/concurrency/scheduler.h>
+#include <core/concurrency/async_stream.h>
 
 #include <ytlib/election/cell_manager.h>
 
@@ -19,6 +20,39 @@ namespace NHydra {
 using namespace NElection;
 using namespace NConcurrency;
 using namespace NHydra::NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto SnapshotReadBlockSize = 16 * 1024 * 1024;
+static const auto SnapshotPrefetchWindowSize = 64 * 1024 * 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Identical to the one returned by CreateSyncAdapter but uses |Get| rather
+//! than |WaitFor|.
+class TSnapshotInputStream
+    : public TInputStream
+{
+public:
+    explicit TSnapshotInputStream(IAsyncInputStreamPtr underlyingStream)
+        : UnderlyingStream_(underlyingStream)
+    { }
+
+    virtual ~TSnapshotInputStream() throw()
+    { }
+
+private:
+    const IAsyncInputStreamPtr UnderlyingStream_;
+
+
+    virtual size_t DoRead(void* buf, size_t len) override
+    {
+        return UnderlyingStream_->Read(buf, len)
+            .Get()
+            .ValueOrThrow();
+    }
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,18 +102,20 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
     int initialChangelogId;
     if (snapshotId != NonexistingSegmentId && snapshotId > currentVersion.SegmentId) {
         // Load the snapshot.
-        LOG_DEBUG("Using snapshot %v for recovery", snapshotId);
+        LOG_INFO("Using snapshot %v for recovery", snapshotId);
 
-        auto readerOrError = WaitFor(SnapshotStore_->CreateReader(snapshotId));
-        THROW_ERROR_EXCEPTION_IF_FAILED(readerOrError, "Error creating snapshot reader");
-        auto reader = readerOrError.Value();
+        auto reader = SnapshotStore_->CreateReader(snapshotId);
 
-        TSnapshotMeta meta;
-        YCHECK(DeserializeFromProto(&meta, reader->GetParams().Meta));
+        WaitFor(reader->Open())
+            .ThrowOnError();
 
+        auto meta = reader->GetParams().Meta;
         auto snapshotVersion = TVersion(snapshotId - 1, meta.prev_record_count());
-        auto* input = reader->GetStream();
-        DecoratedAutomaton_->LoadSnapshot(snapshotVersion, input);
+        auto zeroCopyReader = CreateZeroCopyAdapter(reader, SnapshotReadBlockSize);
+        auto zeroCopyPrefetchingReader = CreatePrefetchingAdapter(zeroCopyReader, SnapshotPrefetchWindowSize);
+        auto prefetchingReader = CreateCopyingAdapter(zeroCopyPrefetchingReader);
+        TSnapshotInputStream input(prefetchingReader);
+        DecoratedAutomaton_->LoadSnapshot(snapshotVersion, &input);
         initialChangelogId = snapshotId;
     } else {
         // Recover using changelogs only.
@@ -94,9 +130,8 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 
     for (int changelogId = initialChangelogId; changelogId <= targetVersion.SegmentId; ++changelogId) {
         bool isLastChangelog = (changelogId == targetVersion.SegmentId);
-        auto changelogOrError = WaitFor(ChangelogStore_->TryOpenChangelog(changelogId));
-        THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
-        auto changelog = changelogOrError.Value();
+        auto changelog = WaitFor(ChangelogStore_->TryOpenChangelog(changelogId))
+            .ValueOrThrow();
         if (!changelog) {
             auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
 
@@ -107,12 +142,8 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             NProto::TChangelogMeta meta;
             meta.set_prev_record_count(currentVersion.RecordId);
             
-            TSharedRef metaBlob;
-            YCHECK(SerializeToProto(meta, &metaBlob));
-
-            auto changelogOrError = WaitFor(ChangelogStore_->CreateChangelog(changelogId, metaBlob));
-            THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
-            changelog = changelogOrError.Value();
+            changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId, meta))
+                .ValueOrThrow();
 
             TVersion newLoggedVersion(changelogId, 0);
             // NB: Equality is only possible when segmentId == 0.
@@ -151,15 +182,15 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
     auto req = proxy.LookupChangelog();
     req->set_changelog_id(changelogId);
 
-    auto rsp = WaitFor(req->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting changelog %v info from leader",
+    auto rspOrError = WaitFor(req->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting changelog %v info from leader",
         changelogId);
+    const auto& rsp = rspOrError.Value();
 
     int remoteRecordCount = rsp->record_count();
     int localRecordCount = changelog->GetRecordCount();
     // NB: Don't download records past the sync point since they are expected to be postponed.
-    int syncRecordCount =
-        changelogId == SyncVersion_.SegmentId
+    int syncRecordCount = changelogId == SyncVersion_.SegmentId
         ? SyncVersion_.RecordId
         : remoteRecordCount;
 
@@ -211,9 +242,7 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
     if (currentVersion.SegmentId != changelogId) {
         YCHECK(currentVersion.SegmentId == changelogId - 1);
 
-        NProto::TChangelogMeta meta;
-        YCHECK(DeserializeFromProto(&meta, changelog->GetMeta()));
-
+        const auto& meta = changelog->GetMeta();
         YCHECK(meta.prev_record_count() == currentVersion.RecordId);
 
         // Prepare to apply mutations at the rotated version.
@@ -239,10 +268,12 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
             targetRecordId - 1,
             changelogId);
 
-        auto recordsData = changelog->Read(
+        auto asyncRecordsData = changelog->Read(
             startRecordId,
             recordsNeeded,
-            Config_->MaxChangelogRecordsPerRequest);
+            Config_->MaxChangelogBytesPerRequest);
+        auto recordsData = WaitFor(asyncRecordsData)
+            .ValueOrThrow();
         int recordsRead = static_cast<int>(recordsData.size());
 
         LOG_INFO("Finished reading records %v-%v from changelog %v",
@@ -279,13 +310,12 @@ TLeaderRecovery::TLeaderRecovery(
         epochContext)
 { }
 
-TAsyncError TLeaderRecovery::Run(TVersion targetVersion)
+TFuture<void> TLeaderRecovery::Run(TVersion targetVersion)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     
     SyncVersion_ = targetVersion;
     return BIND(&TLeaderRecovery::DoRun, MakeStrong(this))
-        .Guarded()
         .AsyncVia(EpochContext_->EpochSystemAutomatonInvoker)
         .Run(targetVersion);
 }
@@ -325,12 +355,11 @@ TFollowerRecovery::TFollowerRecovery(
     SyncVersion_ = PostponedVersion_ = syncVersion;
 }
 
-TAsyncError TFollowerRecovery::Run()
+TFuture<void> TFollowerRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return BIND(&TFollowerRecovery::DoRun, MakeStrong(this))
-        .Guarded()
         .AsyncVia(EpochContext_->EpochSystemAutomatonInvoker)
         .Run();
 }
@@ -363,8 +392,8 @@ void TFollowerRecovery::DoRun()
                     break;
 
                 case TPostponedMutation::EType::ChangelogRotation: {
-                    auto result = WaitFor(DecoratedAutomaton_->RotateChangelog(EpochContext_));
-                    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                    WaitFor(DecoratedAutomaton_->RotateChangelog(EpochContext_))
+                        .ThrowOnError();
                     break;
                 }
 
@@ -398,10 +427,10 @@ void TFollowerRecovery::PostponeChangelogRotation(TVersion version)
 
     PostponedMutations_.push_back(TPostponedMutation::CreateChangelogRotation());
 
-    LOG_DEBUG("Postponing changelog rotation at version %v",
+    LOG_INFO("Postponing changelog rotation at version %v",
         PostponedVersion_);
 
-    PostponedVersion_.Rotate();
+    PostponedVersion_ = PostponedVersion_.Rotate();
 }
 
 void TFollowerRecovery::PostponeMutations(
@@ -433,7 +462,7 @@ void TFollowerRecovery::PostponeMutations(
         PostponedMutations_.push_back(TPostponedMutation::CreateMutation(data));
     }
 
-    PostponedVersion_.Advance(recordsData.size());
+    PostponedVersion_ = PostponedVersion_.Advance(recordsData.size());
 }
 
 bool TFollowerRecovery::IsLeader() const

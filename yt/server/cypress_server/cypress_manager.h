@@ -74,7 +74,8 @@ public:
     //! Clones a node and registers its clone.
     TCypressNodeBase* CloneNode(
         TCypressNodeBase* sourceNode,
-        ICypressNodeFactoryPtr factory);
+        ICypressNodeFactoryPtr factory,
+        ENodeCloneMode mode);
 
     //! Returns the root node.
     TCypressNodeBase* GetRootNode() const;
@@ -151,7 +152,7 @@ private:
     NHydra::TEntityMap<TVersionedNodeId, TCypressNodeBase, TNodeMapTraits> NodeMap;
     NHydra::TEntityMap<TLockId, TLock> LockMap;
 
-    std::vector<INodeTypeHandlerPtr> TypeToHandler;
+    TEnumIndexedVector<INodeTypeHandlerPtr, NObjectClient::EObjectType> TypeToHandler;
 
     TNodeId RootNodeId;
     TCypressNodeBase* RootNode;
@@ -246,6 +247,8 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TCypressManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

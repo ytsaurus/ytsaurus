@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "fs.h"
-
-#include <core/misc/error.h>
+#include "error.h"
 
 #include <core/logging/log.h>
 
@@ -72,63 +71,69 @@ void Remove(const Stroka& path)
     }   
 }
 
+void Replace(const Stroka& source, const Stroka& destination)
+{
+    if (NFS::Exists(destination)) {
+        NFS::Remove(destination);
+    }
+    NFS::Rename(source, destination);
+}
+
 void RemoveRecursive(const Stroka& path)
 {
     RemoveDirWithContents(path);
 }
 
-void Rename(const Stroka& oldPath, const Stroka& newPath)
+void Rename(const Stroka& source, const Stroka& destination)
 {
     bool ok;
 #if defined(_win_)
-    ok = MoveFileEx(~oldPath, ~newPath, MOVEFILE_REPLACE_EXISTING) != 0;
+    ok = MoveFileEx(~source, ~destination, MOVEFILE_REPLACE_EXISTING) != 0;
 #else
-    ok = rename(~oldPath, ~newPath) == 0;
+    ok = rename(~source, ~destination) == 0;
 #endif
     if (!ok) {
         THROW_ERROR_EXCEPTION("Cannot rename %v to %v",
-            oldPath,
-            newPath)
+            source,
+            destination)
             << TError::FromSystem();
     }
 }
 
 Stroka GetFileName(const Stroka& path)
 {
-    size_t delimPos = path.rfind('/');
-#ifdef _win32_
-    if (delimPos == Stroka::npos) {
-        // There's a possibility of Windows-style path
-        delimPos = path.rfind('\\');
+    size_t slashPosition = path.find_last_of(LOCSLASH_C);
+    if (slashPosition == Stroka::npos) {
+        return path;
     }
-#endif
-    return (delimPos == Stroka::npos) ? path : path.substr(delimPos+1);
+    return path.substr(slashPosition + 1);
 }
 
 Stroka GetDirectoryName(const Stroka& path)
 {
     auto absPath = CombinePaths(GetCwd(), path);
-#ifdef _win_
-    // May be mixed style of filename ('/' and '\')
-    correctpath(absPath);
-#endif
-    return absPath.substr(0, absPath.find_last_of(LOCSLASH_C));
+    size_t slashPosition = absPath.find_last_of(LOCSLASH_C);
+    return absPath.substr(0, slashPosition);
 }
 
 Stroka GetFileExtension(const Stroka& path)
 {
-    i32 dotPosition = path.find_last_of('.');
-    if (dotPosition < 0) {
+    size_t dotPosition = path.find_last_of('.');
+    if (dotPosition == Stroka::npos) {
         return "";
     }
-    return path.substr(dotPosition + 1, path.size() - dotPosition - 1);
+    size_t slashPosition = path.find_last_of(LOCSLASH_C);
+    if (slashPosition != Stroka::npos && dotPosition < slashPosition) {
+        return "";
+    }
+    return path.substr(dotPosition + 1);
 }
 
 Stroka GetFileNameWithoutExtension(const Stroka& path)
 {
-    Stroka fileName = GetFileName(path);
-    i32 dotPosition = fileName.find_last_of('.');
-    if (dotPosition < 0) {
+    auto fileName = GetFileName(path);
+    size_t dotPosition = fileName.find_last_of('.');
+    if (dotPosition == Stroka::npos) {
         return fileName;
     }
     return fileName.substr(0, dotPosition);
@@ -208,36 +213,53 @@ void ForcePath(const Stroka& path, int mode)
     MakePathIfNotExist(~path, mode);
 }
 
-i64 GetFileSize(const Stroka& path)
+TFileStatistics GetFileStatistics(const Stroka& path)
 {
-#if !defined(_win_)
+    TFileStatistics statistics;
+#ifdef _unix_
     struct stat fileStat;
-    int result = stat(~path, &fileStat);
+    int result = ::stat(~path, &fileStat);
 #else
     WIN32_FIND_DATA findData;
-    HANDLE handle = FindFirstFileA(~path, &findData);
+    HANDLE handle = ::FindFirstFileA(~path, &findData);
 #endif
 
-#if !defined(_win_)
+#ifdef _unix_
     if (result == -1) {
 #else
     if (handle == INVALID_HANDLE_VALUE) {
 #endif
-        THROW_ERROR_EXCEPTION("Failed to get the size of %v",
+        THROW_ERROR_EXCEPTION("Failed to get statistics for %v",
             path)
             << TError::FromSystem();
     }
 
-#if !defined(_win_)
-    i64 fileSize = static_cast<i64>(fileStat.st_size);
+#ifdef _unix_
+    statistics.Size = static_cast<i64>(fileStat.st_size);
+    statistics.ModificationTime = TInstant::Seconds(fileStat.st_mtime);
+    statistics.AccessTime = TInstant::Seconds(fileStat.st_atime);
 #else
-    FindClose(handle);
-    i64 fileSize =
-        (static_cast<i64>(findData.nFileSizeHigh) << 32) +
-        static_cast<i64>(findData.nFileSizeLow);
+    ::FindClose(handle);
+    statistics.Size = (static_cast<i64>(findData.nFileSizeHigh) << 32) + static_cast<i64>(findData.nFileSizeLow);
+    statistics.ModificationTime = TInstant::MicroSeconds(ToMicroSeconds(findData.ftLastWriteTime));
+    statistics.AccessTime = TInstant::MicroSeconds(ToMicroSeconds(findData.ftLastAccessTime));
 #endif
 
-    return fileSize;
+    return statistics;
+}
+
+void Touch(const Stroka& path)
+{
+#ifdef _unix_
+    int result = ::utimes(~path, nullptr);
+    if (result != 0) {
+        THROW_ERROR_EXCEPTION("Failed to touch %v",
+            path)
+            << TError::FromSystem();
+    }
+#else
+    // TODO(babenko): implement when first needed
+#endif
 }
 
 static bool IsAbsolutePath(const Stroka& path)
@@ -262,7 +284,7 @@ static Stroka JoinPaths(const Stroka& path1, const Stroka& path2)
     if (path2.empty())
         return path1;
 
-    Stroka path = path1;
+    auto path = path1;
     int delim = 0;
     if (path1.back() == PATH_DELIM || path1.back() == PATH_DELIM2)
         ++delim;
@@ -276,9 +298,20 @@ static Stroka JoinPaths(const Stroka& path1, const Stroka& path2)
 
 Stroka CombinePaths(const Stroka& path1, const Stroka& path2)
 {
-    if (IsAbsolutePath(path2))
-        return path2;
-    return JoinPaths(path1, path2);
+    return IsAbsolutePath(path2) ? path2 : JoinPaths(path1, path2);
+}
+
+Stroka CombinePaths(const std::vector<Stroka>& paths)
+{
+    YCHECK(!paths.empty());
+    if (paths.size() == 1) {
+        return paths[0];
+    }
+    auto result = CombinePaths(paths[0], paths[1]);
+    for (int index = 2; index < paths.size(); ++ index) {
+        result = CombinePaths(result, paths[index]);
+    }
+    return result;
 }
 
 Stroka NormalizePathSeparators(const Stroka& path)
@@ -339,8 +372,8 @@ void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath)
 
 bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath)
 {
-#ifdef _linux_
-    auto guardedStat = [] (const Stroka& path, struct stat* buffer) {
+#ifdef _unix_
+    auto checkedStat = [] (const Stroka& path, struct stat* buffer) {
         auto result = stat(~path, buffer);
         if (result) {
             THROW_ERROR_EXCEPTION(
@@ -351,8 +384,8 @@ bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath)
     };
 
     struct stat lhsBuffer, rhsBuffer;
-    guardedStat(lhsPath, &lhsBuffer);
-    guardedStat(rhsPath, &rhsBuffer);
+    checkedStat(lhsPath, &lhsBuffer);
+    checkedStat(rhsPath, &rhsBuffer);
 
     return
         lhsBuffer.st_dev == rhsBuffer.st_dev &&

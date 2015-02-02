@@ -1,6 +1,7 @@
 package NYT.NHydra.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/ytlib/hydra/hydra_manager.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,7 +17,7 @@ message TRspLookupSnapshot
     required int64 compressed_length = 2;
     required int64 uncompressed_length = 3;
     required uint64 checksum = 4;
-    required bytes meta = 5;
+    required TSnapshotMeta meta = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

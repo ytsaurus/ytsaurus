@@ -207,14 +207,16 @@ public:
         return node;
     }
 
-    virtual TCypressNodeBase* CloneNode(TCypressNodeBase* sourceNode) override
+    virtual TCypressNodeBase* CloneNode(
+        TCypressNodeBase* sourceNode,
+        ENodeCloneMode mode) override
     {
         ValidateCreatedNodeType(sourceNode->GetType());
 
         GetClonedNodeAccount(sourceNode)->ValidateResourceUsageIncrease(sourceNode->GetResourceUsage());
 
         auto cypressManager = Bootstrap_->GetCypressManager();
-        auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this);
+        auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this, mode);
 
         RegisterCreatedNode(clonedTrunkNode);
 
@@ -438,7 +440,6 @@ TCypressManager::TCypressManager(
     : TMasterAutomatonPart(bootstrap)
     , Config(config)
     , NodeMap(TNodeMapTraits(this))
-    , TypeToHandler(MaxObjectType + 1)
     , RootNode(nullptr)
     , AccessTracker(New<TAccessTracker>(config, bootstrap))
     , RecomputeKeyColumns(false)
@@ -498,10 +499,8 @@ void TCypressManager::RegisterHandler(INodeTypeHandlerPtr handler)
     YCHECK(handler);
 
     auto type = handler->GetObjectType();
-    int typeValue = static_cast<int>(type);
-    YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
-    YCHECK(!TypeToHandler[typeValue]);
-    TypeToHandler[typeValue] = handler;
+    YCHECK(!TypeToHandler[type]);
+    TypeToHandler[type] = handler;
 
     auto objectManager = Bootstrap_->GetObjectManager();
     objectManager->RegisterHandler(New<TNodeTypeHandler>(Bootstrap_, type));
@@ -511,12 +510,11 @@ INodeTypeHandlerPtr TCypressManager::FindHandler(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int typeValue = static_cast<int>(type);
-    if (typeValue < 0 || typeValue > MaxObjectType) {
+    if (type < TEnumTraits<EObjectType>::GetMinValue() || type > TEnumTraits<EObjectType>::GetMaxValue()) {
         return nullptr;
     }
 
-    return TypeToHandler[typeValue];
+    return TypeToHandler[type];
 }
 
 INodeTypeHandlerPtr TCypressManager::GetHandler(EObjectType type)
@@ -597,7 +595,8 @@ TCypressNodeBase* TCypressManager::CreateNode(const TNodeId& id)
 
 TCypressNodeBase* TCypressManager::CloneNode(
     TCypressNodeBase* sourceNode,
-    ICypressNodeFactoryPtr factory)
+    ICypressNodeFactoryPtr factory,
+    ENodeCloneMode mode)
 {
     YCHECK(sourceNode);
     YCHECK(factory);
@@ -608,7 +607,7 @@ TCypressNodeBase* TCypressManager::CloneNode(
     securityManager->ValidatePermission(account, EPermission::Use);
 
     auto handler = GetHandler(sourceNode);
-    auto* clonedNode = handler->Clone(sourceNode, factory);
+    auto* clonedNode = handler->Clone(sourceNode, factory, mode);
 
     // Set account.
     securityManager->SetAccount(clonedNode, account);

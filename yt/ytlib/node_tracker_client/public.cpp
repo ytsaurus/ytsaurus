@@ -8,6 +8,7 @@ namespace NNodeTrackerClient {
 
 const TRackId NullRackId;
 const Stroka DefaultNetworkName = "default";
+const Stroka InterconnectNetworkName = "interconnect";
 
 ////////////////////////////////////////////////////////////////////////////////
 

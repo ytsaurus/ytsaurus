@@ -45,9 +45,6 @@ public:
 
     bool IsEnabled() const;
 
-    typedef TErrorOr<IChunkPtr> TDownloadResult;
-    typedef TFuture<TDownloadResult> TAsyncDownloadResult;
-
     //! Downloads a chunk into the cache.
     /*!
      *  The download process is asynchronous.
@@ -55,7 +52,7 @@ public:
      *
      *  Thread affinity: any
      */
-    TAsyncDownloadResult DownloadChunk(
+    TFuture<IChunkPtr> DownloadChunk(
         const TChunkId& chunkId,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory = nullptr,
         const NChunkClient::TChunkReplicaList& seedReplicas = NChunkClient::TChunkReplicaList());

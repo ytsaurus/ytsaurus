@@ -289,6 +289,14 @@ class TestCypress(YTEnvSetup):
         link("//tmp/a", "//tmp/b")
         copy("//tmp/b/t", "//tmp/t")
 
+    def test_copy_recursive_success(self):
+        create("map_node", "//tmp/a")
+        copy("//tmp/a", "//tmp/b/c", recursive=True)
+
+    def test_copy_recursive_fail(self):
+        create("map_node", "//tmp/a")
+        with pytest.raises(YtError): copy("//tmp/a", "//tmp/b/c", recursive=False)
+
     def test_copy_tx1(self):
         tx = start_transaction()
 
@@ -424,6 +432,14 @@ class TestCypress(YTEnvSetup):
         move("//tmp/t1", "//tmp/t2") # preserve is ON
         assert get("//tmp/t2/@account") == "max"
 
+    def test_move_recursive_success(self):
+        create("map_node", "//tmp/a")
+        move("//tmp/a", "//tmp/b/c", recursive=True)
+
+    def test_move_recursive_fail(self):
+        create("map_node", "//tmp/a")
+        with pytest.raises(YtError): move("//tmp/a", "//tmp/b/c", recursive=False)
+
     def test_embedded_attributes(self):
         set("//tmp/a", {})
         set("//tmp/a/@attr", {"key": "value"})
@@ -486,16 +502,25 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/@id") == get("//tmp/a/@parent_id")
 
     def test_create(self):
-        remove("//tmp/*")
         create("map_node", "//tmp/some_node")
 
+    def test_create_recursive_fail(self):
+        create("map_node", "//tmp/some_node")
         with pytest.raises(YtError): create("map_node", "//tmp/a/b")
+
+    def test_create_recursive_success(self):
         create("map_node", "//tmp/a/b", recursive=True)
 
+    def test_create_ignore_existing_fail(self):
         with pytest.raises(YtError): create("map_node", "//tmp/a/b")
+    
+    def test_create_ignore_existing_success(self):
+        create("map_node", "//tmp/a/b", recursive=True)
         create("map_node", "//tmp/a/b", ignore_existing=True)
 
-        with pytest.raises(YtError): create("table", "//tmp/a/b", ignore_existing=True)
+    def test_create_ignore_existing_fail(self):
+        create("map_node", "//tmp/a/b", recursive=True)
+        with pytest.raises(YtError): create("table", "//tmp/a/b", ignore_existing=False)
 
     def test_link1(self):
         with pytest.raises(YtError): link("//tmp/a", "//tmp/b")

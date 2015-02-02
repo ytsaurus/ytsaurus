@@ -20,7 +20,7 @@ struct IProxyController
      *  Runs job proxy.
      *  May throw exception.
      */
-    virtual TAsyncError Run() = 0;
+    virtual TFuture<void> Run() = 0;
 
     /*!
      *  Is safe to be called anytime.
@@ -29,12 +29,6 @@ struct IProxyController
      *  Must be called from the same thread as #Run.
      */
     virtual void Kill(const NCGroup::TNonOwningCGroup& group, const TError& error) throw() = 0;
-
-    // virtual void SubscribeOnMemoryLimit(IParamAction<i64>* callback) = 0;
-    // virtual bool IsRunning() const = 0;
-    // virtual TError GetError() const = 0;
-    // virtual void SetMemoryLimit() = 0;
-    // virtual TJobStatistics GetStatistics() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

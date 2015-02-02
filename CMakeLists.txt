@@ -36,7 +36,6 @@ include(DumpCMakeVariables)
 
 include(LocalFunctions)
 include(LocalConfiguration)
-include(LocalXCode)
 
 include(Version)
 include(PCH)
@@ -125,13 +124,6 @@ if(YT_BUILD_HAVE_RAGEL)
   if(NOT RAGEL_EXECUTABLE)
     message(FATAL_ERROR "Could not find Ragel")
   endif()
-  execute_process(
-    COMMAND ${RAGEL_EXECUTABLE} --version
-    OUTPUT_VARIABLE RAGEL_VERSION
-  )
-  if(NOT RAGEL_VERSION MATCHES "6.8")
-    message(FATAL_ERROR "Ragel 6.8 is required")
-  endif()
   message(STATUS "Found Ragel: ${RAGEL_EXECUTABLE}")
 endif()
 
@@ -141,13 +133,6 @@ if(YT_BUILD_HAVE_BISON)
   mark_as_advanced(BISON_EXECUTABLE)
   if(NOT BISON_EXECUTABLE)
     message(FATAL_ERROR "Could not find Bison")
-  endif()
-  execute_process(
-    COMMAND ${BISON_EXECUTABLE} --version
-    OUTPUT_VARIABLE BISON_VERSION
-  )
-  if(NOT BISON_VERSION MATCHES "3.0")
-    message(FATAL_ERROR "Bison 3.0 is required")
   endif()
   message(STATUS "Found Bison: ${BISON_EXECUTABLE}")
 endif()
@@ -159,16 +144,16 @@ exec_program(
   ${CMAKE_BINARY_DIR}/debian
 )
 
+add_subdirectory(cmake/deps-protobuf)
 add_subdirectory(cmake/deps-arcadia-util)
 add_subdirectory(cmake/deps-arcadia-library-blockcodecs)
 add_subdirectory(cmake/deps-arcadia-library-lwtrace)
 add_subdirectory(cmake/deps-arcadia-library-messagebus)
-add_subdirectory(cmake/deps-protobuf)
 add_subdirectory(cmake/deps-ev)
 add_subdirectory(cmake/deps-z-lz-lzo)
 add_subdirectory(cmake/deps-jerasure)
 add_subdirectory(cmake/deps-yajl)
-
+add_subdirectory(cmake/deps-contrib-benchmark)
 add_subdirectory(library/json)
 add_subdirectory(library/httpserver)
 add_subdirectory(library/lfalloc)
@@ -276,6 +261,7 @@ set_target_properties(ytext-lfalloc-fake PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-lfalloc-fake-impl PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-yajl PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-json PROPERTIES FOLDER "Contrib")
+set_target_properties(yt-contrib-benchmark PROPERTIES FOLDER "Contrib")
 
 set_target_properties(install-debian-yandex-yt PROPERTIES FOLDER "Misc")
 set_target_properties(install-debian-yandex-yt-http-proxy PROPERTIES FOLDER "Misc")

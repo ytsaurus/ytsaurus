@@ -18,21 +18,21 @@ TRefCountedBase::~TRefCountedBase()
 
 void TRefCountedBase::InitializeTracking(TRefCountedTypeCookie typeCookie, size_t instanceSize)
 {
-    YASSERT(TypeCookie == NullRefCountedTypeCookie);
-    TypeCookie = typeCookie;
+    YASSERT(TypeCookie_ == NullRefCountedTypeCookie);
+    TypeCookie_ = typeCookie;
 
-    YASSERT(InstanceSize == 0);
+    YASSERT(InstanceSize_ == 0);
     YASSERT(instanceSize != 0);
-    InstanceSize = instanceSize;
+    InstanceSize_ = instanceSize;
 
     TRefCountedTracker::Get()->Allocate(typeCookie, instanceSize);
 }
 
 void TRefCountedBase::FinalizeTracking()
 {
-    YASSERT(TypeCookie != NullRefCountedTypeCookie);
-    YASSERT(InstanceSize != 0);
-    TRefCountedTracker::Get()->Free(TypeCookie, InstanceSize);
+    YASSERT(TypeCookie_ != NullRefCountedTypeCookie);
+    YASSERT(InstanceSize_ != 0);
+    TRefCountedTracker::Get()->Free(TypeCookie_, InstanceSize_);
 }
 
 #endif
@@ -70,7 +70,7 @@ TIntrinsicRefCounted::~TIntrinsicRefCounted()
 
 void NDetail::TRefCounter::Dispose()
 {
-    delete that_;
+    delete That_;
 }
 
 void NDetail::TRefCounter::Destroy()

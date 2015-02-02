@@ -13,11 +13,11 @@ namespace NHydra {
 
 struct TVersion
 {
-    i32 SegmentId;
-    i32 RecordId;
+    int SegmentId;
+    int RecordId;
 
-    TVersion();
-    TVersion(i32 segmentId, i32 recordId);
+    TVersion() noexcept;
+    TVersion(int segmentId, int recordId) noexcept;
 
     bool operator < (TVersion other) const;
     bool operator == (TVersion other) const;
@@ -29,8 +29,8 @@ struct TVersion
     i64 ToRevision() const;
     static TVersion FromRevision(i64 revision);
 
-    void Advance(int delta = 1);
-    void Rotate();
+    TVersion Advance(int delta = 1);
+    TVersion Rotate();
 
 };
 

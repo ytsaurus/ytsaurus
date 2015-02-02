@@ -9,8 +9,8 @@ ui64 TRandomGenerator::GenerateInteger()
 {
     // Parameters are taken from http://en.wikipedia.org/wiki/Linear_congruential_generator
     // Taking modulo 2^64 is implemented via overflow in ui64
-    X = 6364136223846793005ll * X + 1442695040888963407ll;
-    return X;
+    Current_ = 6364136223846793005ll * Current_ + 1442695040888963407ll;
+    return Current_;
 }
 
 double TRandomGenerator::GenerateDouble()

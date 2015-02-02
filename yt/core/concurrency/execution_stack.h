@@ -7,7 +7,7 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EExecutionStack,
+DEFINE_ENUM(EExecutionStack,
     (Small) // 256 Kb (default)
     (Large) //   8 Mb
 );

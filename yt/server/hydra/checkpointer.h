@@ -33,12 +33,12 @@ public:
         TEpochContext* epochContext);
 
     //! A changelog rotation result.
-    typedef TFuture<TError> TRotateChangelogResult;
+    typedef TFuture<void> TRotateChangelogResult;
 
     //! A pair consisting of a changelog rotation result and a snapshot construction result.
     typedef std::tuple<
-        TFuture<TError>,
-        TFuture<TErrorOr<TRemoteSnapshotParams>>
+        TFuture<void>,
+        TFuture<TRemoteSnapshotParams>
     > TBuildSnapshotResult;
 
     //! Starts a distributed changelog rotation.

@@ -16,8 +16,8 @@ message TRspModifyAttachments { }
 message TReqModifyAttributes { }
 message TRspModifyAttributes { }
 
-message TReqDoNothing{ }
-message TRspDoNothing{ }
+message TReqDoNothing { }
+message TRspDoNothing { }
 
 message TReqCustomMessageError { }
 message TRspCustomMessageError { }
@@ -25,19 +25,15 @@ message TRspCustomMessageError { }
 message TReqNotRegistered { }
 message TRspNotRegistered { }
 
-message TReqLongReply { }
-message TRspLongReply { }
+message TReqSlowCall { }
+message TRspSlowCall { }
+
+message TReqSlowCanceledCall { }
+message TRspSlowCanceledCall { }
 
 message TReqOneWay { }
 message TReqNotRegistredOneWay { }
 
 message TReqNoReply { }
 message TRspNoReply { }
-
-message TReqCheckAll
-{
-    required int32 value = 1;
-    required bool ok = 2;
-    required bytes message = 3;
-}
 

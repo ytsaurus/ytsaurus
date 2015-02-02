@@ -7,7 +7,6 @@
 #include <core/misc/error.h>
 #include <core/misc/mpl.h>
 
-#include <core/ytree/public.h>
 #include <core/ytree/yson_serializable.h>
 #include <core/ytree/convert.h>
 
@@ -24,9 +23,6 @@
 
 #include <ytlib/security_client/public.h>
 
-#include <ytlib/scheduler/scheduler_service_proxy.h>
-
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <ytlib/api/connection.h>
@@ -85,14 +81,33 @@ typedef TIntrusivePtr<TMutatingRequest> TMutatingRequestPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TReadOnlyRequest
+    : public virtual TRequest
+{
+    NApi::EMasterChannelKind ReadFrom;
+
+    TReadOnlyRequest()
+    {
+        RegisterParameter("read_from", ReadFrom)
+            .Default(NApi::EMasterChannelKind::LeaderOrFollower);
+    }
+};
+
+typedef TIntrusivePtr<TReadOnlyRequest> TReadOnlyRequestPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSuppressableAccessTrackingRequest
     : public virtual TRequest
 {
     bool SuppressAccessTracking;
+    bool SuppressModificationTracking;
 
     TSuppressableAccessTrackingRequest()
     {
         RegisterParameter("suppress_access_tracking", SuppressAccessTracking)
+            .Default(false);
+        RegisterParameter("suppress_modification_tracking", SuppressModificationTracking)
             .Default(false);
     }
 };
@@ -109,14 +124,13 @@ struct ICommandContext
 
     virtual const TDriverRequest& Request() const = 0;
 
-    virtual const TDriverResponse& Response() const = 0;
-    virtual TDriverResponse& Response() = 0;
-
     virtual const NFormats::TFormat& GetInputFormat() = 0;
     virtual const NFormats::TFormat& GetOutputFormat() = 0;
 
     virtual NYTree::TYsonProducer CreateInputProducer() = 0;
     virtual std::unique_ptr<NYson::IYsonConsumer> CreateOutputConsumer() = 0;
+
+    virtual void Reply(const TError& error) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICommandContext)
@@ -137,19 +151,16 @@ class TCommandBase
     : public ICommand
 {
 protected:
-    ICommandContextPtr Context_;
-    bool Replied_;
+    ICommandContextPtr Context_ = nullptr;
+    bool Replied_ = false;
 
-    // TODO(babenko): deprecate
-    std::unique_ptr<NScheduler::TSchedulerServiceProxy> SchedulerProxy;
-
-    TCommandBase();
 
     virtual void Prepare();
 
     void Reply(const TError& error);
     void Reply(const NYTree::TYsonString& yson);
     void Reply();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,7 +175,7 @@ public:
         Context_ = context;
         try {
             ParseRequest();
-            
+
             Prepare();
 
             DoExecute();
@@ -202,12 +213,12 @@ template <class TRequest, class = void>
 class TTransactionalCommandBase
 { };
 
-DECLARE_ENUM(EAllowNullTransaction,
+DEFINE_ENUM(EAllowNullTransaction,
     (Yes)
     (No)
 );
 
-DECLARE_ENUM(EPingTransaction,
+DEFINE_ENUM(EPingTransaction,
     (Yes)
     (No)
 );
@@ -215,7 +226,7 @@ DECLARE_ENUM(EPingTransaction,
 template <class TRequest>
 class TTransactionalCommandBase<
     TRequest,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TTransactionalRequest&> >::TType
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TTransactionalRequest&>>::TType
 >
     : public virtual TTypedCommandBase<TRequest>
 {
@@ -248,11 +259,6 @@ protected:
         return transactionManager->Attach(options);
     }
 
-    void SetTransactionId(NRpc::IClientRequestPtr request, EAllowNullTransaction allowNullTransaction)
-    {
-        NCypressClient::SetTransactionId(request, this->GetTransactionId(allowNullTransaction));
-    }
-
     void SetTransactionalOptions(NApi::TTransactionalOptions* options)
     {
         options->TransactionId = this->Request_->TransactionId;
@@ -270,7 +276,7 @@ class TMutatingCommandBase
 template <class TRequest>
 class TMutatingCommandBase <
     TRequest,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TMutatingRequest&> >::TType
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TMutatingRequest&>>::TType
 >
     : public virtual TTypedCommandBase<TRequest>
 {
@@ -301,10 +307,30 @@ private:
     {
         TTypedCommandBase<TRequest>::Prepare();
 
-        this->CurrentMutationId =
-            this->Request_->MutationId == NRpc::NullMutationId
+        this->CurrentMutationId = this->Request_->MutationId == NRpc::NullMutationId
             ? NRpc::GenerateMutationId()
             : this->Request_->MutationId;
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRequest, class = void>
+class TReadOnlyCommandBase
+{ };
+
+template <class TRequest>
+class TReadOnlyCommandBase <
+    TRequest,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TReadOnlyRequest&>>::TType
+>
+    : public virtual TTypedCommandBase<TRequest>
+{
+protected:
+    void SetReadOnlyOptions(NApi::TReadOnlyOptions* options)
+    {
+        options->ReadFrom = this->Request_->ReadFrom;
     }
 
 };
@@ -318,7 +344,7 @@ class TSuppressableAccessTrackingCommmandBase
 template <class TRequest>
 class TSuppressableAccessTrackingCommmandBase <
     TRequest,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TSuppressableAccessTrackingRequest&> >::TType
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TSuppressableAccessTrackingRequest&>>::TType
 >
     : public virtual TTypedCommandBase<TRequest>
 {
@@ -326,6 +352,7 @@ protected:
     void SetSuppressableAccessTrackingOptions(NApi::TSuppressableAccessTrackingOptions* options)
     {
         options->SuppressAccessTracking = this->Request_->SuppressAccessTracking;
+        options->SuppressModificationTracking = this->Request_->SuppressModificationTracking;
     }
 
 };
@@ -337,6 +364,7 @@ class TTypedCommand
     : public virtual TTypedCommandBase<TRequest>
     , public TTransactionalCommandBase<TRequest>
     , public TMutatingCommandBase<TRequest>
+    , public TReadOnlyCommandBase<TRequest>
     , public TSuppressableAccessTrackingCommmandBase<TRequest>
 { };
 

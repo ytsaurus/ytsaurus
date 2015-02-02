@@ -18,14 +18,17 @@ const char* const TempFileSuffix = "~";
 //! Returns |true| if a given path points to an existing file or directory.
 bool Exists(const Stroka& path);
 
-//! Removes a given file or directory. Throws on failure.
+//! Removes a given file or directory.
 void Remove(const Stroka& path);
 
-//! Removes a given directory recursively. Throws on failure.
+//! Removes #destination if it exists. Then renames #destination into #source.
+void Replace(const Stroka& source, const Stroka& destination);
+
+//! Removes a given directory recursively.
 void RemoveRecursive(const Stroka& path);
 
-//! Renames a given file or directory. Throws on failure.
-void Rename(const Stroka& oldPath, const Stroka& newPath);
+//! Renames a given file or directory.
+void Rename(const Stroka& source, const Stroka& destination);
 
 //! Returns name of file.
 Stroka GetFileName(const Stroka& path);
@@ -41,6 +44,9 @@ Stroka GetDirectoryName(const Stroka& path);
 
 //! Combines two strings into a path.
 Stroka CombinePaths(const Stroka& path1, const Stroka& path2);
+
+//! Combines a bunch of strings into a path.
+Stroka CombinePaths(const std::vector<Stroka>& paths);
 
 //! Deletes all files with extension #TempFileSuffix in a given directory.
 void CleanTempFiles(const Stroka& path);
@@ -60,19 +66,23 @@ struct TDiskSpaceStatistics
 };
 
 //! Computes the space statistics for disk drive containing #path.
-//! Throws an exception if something went wrong.
 TDiskSpaceStatistics GetDiskSpaceStatistics(const Stroka& path);
 
 //! Creates the #path and parent directories if they don't exists.
-//! Throws an exception if something went wrong.
-/*!
- *  Calls the same named function from util/folder/dirut.
- */
 void ForcePath(const Stroka& path, int mode = 0777);
 
-//! Returns size of a file.
-//! Throws an exception if something went wrong.
-i64 GetFileSize(const Stroka& path);
+struct TFileStatistics
+{
+    i64 Size = -1;
+    TInstant ModificationTime;
+    TInstant AccessTime;
+};
+
+//! Returns the file statistics.
+TFileStatistics GetFileStatistics(const Stroka& path);
+
+//! Sets the access and modification times to now.
+void Touch(const Stroka& path);
 
 //! Converts all back slashes to forward slashes.
 Stroka NormalizePathSeparators(const Stroka& path);

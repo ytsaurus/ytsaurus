@@ -11,7 +11,6 @@
 #include <core/ytree/fluent.h>
 
 #include <core/rpc/service_detail.h>
-#include <core/rpc/server.h>
 
 #include <core/logging/log.h>
 
@@ -27,13 +26,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEpochContext::TEpochContext()
-    : LeaderId(InvalidPeerId)
-    , CancelableContext(New<TCancelableContext>())
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TElectionManager::TImpl
     : public NRpc::TServiceBase
 {
@@ -42,14 +34,12 @@ public:
         TElectionManagerConfigPtr config,
         TCellManagerPtr cellManager,
         IInvokerPtr controlInvoker,
-        IElectionCallbacksPtr electionCallbacks,
-        NRpc::IServerPtr rpcServer);
-
-    void Initialize();
-    void Finalize();
+        IElectionCallbacksPtr electionCallbacks);
 
     void Start();
     void Stop();
+
+    NRpc::IServicePtr GetRpcService();
 
     TYsonProducer GetMonitoringProducer();
 
@@ -69,7 +59,6 @@ private:
     TCellManagerPtr CellManager;
     IInvokerPtr ControlInvoker;
     IElectionCallbacksPtr ElectionCallbacks;
-    NRpc::IServerPtr RpcServer;
 
     EPeerState State;
 
@@ -96,9 +85,9 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NElection::NProto, GetStatus);
 
     void Reset();
+
     void OnFollowerPingTimeout();
 
-    void DoFinalize();
     void DoStart();
     void DoStop();
 
@@ -156,7 +145,7 @@ private:
     
     TParallelAwaiterPtr Awaiter;
 
-    NLog::TLogger& Logger;
+    NLog::TLogger Logger;
 
 
     void SendPing(TPeerId peerId)
@@ -177,12 +166,12 @@ private:
         TElectionServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(Owner->Config->ControlRpcTimeout);
 
-        auto request = proxy.PingFollower();
-        request->set_leader_id(Owner->CellManager->GetSelfPeerId());
-        ToProto(request->mutable_epoch_id(), Owner->EpochContext->EpochId);
+        auto req = proxy.PingFollower();
+        req->set_leader_id(Owner->CellManager->GetSelfPeerId());
+        ToProto(req->mutable_epoch_id(), Owner->EpochContext->EpochId);
 
         Awaiter->Await(
-            request->Invoke(),
+            req->Invoke(),
             BIND(&TFollowerPinger::OnPingResponse, MakeStrong(this), peerId)
                 .Via(Owner->ControlEpochInvoker));
     }
@@ -197,19 +186,19 @@ private:
             Owner->Config->FollowerPingPeriod);
     }
 
-    void OnPingResponse(TPeerId id, TElectionServiceProxy::TRspPingFollowerPtr response)
+    void OnPingResponse(TPeerId id, const TElectionServiceProxy::TErrorOrRspPingFollowerPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
         YCHECK(Owner->State == EPeerState::Leading);
 
-        if (response->IsOK()) {
-            OnPingResponseSuccess(id, response);
+        if (rspOrError.IsOK()) {
+            OnPingResponseSuccess(id, rspOrError.Value());
         } else {
-            OnPingResponseFailure(id, response);
+            OnPingResponseFailure(id, rspOrError);
         }
     }
 
-    void OnPingResponseSuccess(TPeerId id, TElectionServiceProxy::TRspPingFollowerPtr response)
+    void OnPingResponseSuccess(TPeerId id, TElectionServiceProxy::TRspPingFollowerPtr rsp)
     {
         LOG_DEBUG("Ping reply from follower %v", id);
 
@@ -224,11 +213,9 @@ private:
         SchedulePing(id);
     }
 
-    void OnPingResponseFailure(TPeerId id, TElectionServiceProxy::TRspPingFollowerPtr response)
+    void OnPingResponseFailure(TPeerId id, const TError& error)
     {
-        auto error = response->GetError();
         auto code = error.GetCode();
-
         if (code == NElection::EErrorCode::InvalidState ||
             code == NElection::EErrorCode::InvalidLeader ||
             code == NElection::EErrorCode::InvalidEpoch)
@@ -261,7 +248,7 @@ private:
         if (!Owner->CheckQuorum())
             return;
 
-        if (code == NRpc::EErrorCode::Timeout) {
+        if (code == NYT::EErrorCode::Timeout) {
             SendPing(id);
         } else {
             SchedulePing(id);
@@ -319,9 +306,9 @@ public:
             TElectionServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Owner->Config->ControlRpcTimeout);
 
-            auto request = proxy.GetStatus();
+            auto req = proxy.GetStatus();
             Awaiter->Await(
-                request->Invoke(),
+                req->Invoke(),
                 BIND(&TVotingRound::OnResponse, MakeStrong(this), id));
         }
 
@@ -370,20 +357,21 @@ private:
         }
     }
 
-    void OnResponse(TPeerId id, TElectionServiceProxy::TRspGetStatusPtr response)
+    void OnResponse(TPeerId id, const TElectionServiceProxy::TErrorOrRspGetStatusPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
-        if (!response->IsOK()) {
-            LOG_INFO(response->GetError(), "Error requesting status from peer %v",
+        if (!rspOrError.IsOK()) {
+            LOG_INFO(rspOrError, "Error requesting status from peer %v",
                 id);
             return;
         }
 
-        auto state = EPeerState(response->state());
-        auto vote = response->vote_id();
-        auto priority = response->priority();
-        auto epochId = FromProto<TEpochId>(response->vote_epoch_id());
+        const auto& rsp = rspOrError.Value();
+        auto state = EPeerState(rsp->state());
+        auto vote = rsp->vote_id();
+        auto priority = rsp->priority();
+        auto epochId = FromProto<TEpochId>(rsp->vote_epoch_id());
 
         LOG_DEBUG("Received status from peer %v (State: %v, VoteId: %v, Priority: %v)",
             id,
@@ -515,8 +503,7 @@ TElectionManager::TImpl::TImpl(
     TElectionManagerConfigPtr config,
     TCellManagerPtr cellManager,
     IInvokerPtr controlInvoker,
-    IElectionCallbacksPtr electionCallbacks,
-    NRpc::IServerPtr rpcServer)
+    IElectionCallbacksPtr electionCallbacks)
     : TServiceBase(
         controlInvoker,
         NRpc::TServiceId(TElectionServiceProxy::GetServiceName(), cellManager->GetCellId()),
@@ -525,7 +512,6 @@ TElectionManager::TImpl::TImpl(
     , CellManager(cellManager)
     , ControlInvoker(controlInvoker)
     , ElectionCallbacks(electionCallbacks)
-    , RpcServer(rpcServer)
     , State(EPeerState::Stopped)
     , VoteId(InvalidPeerId)
 {
@@ -533,7 +519,6 @@ TElectionManager::TImpl::TImpl(
     YCHECK(CellManager);
     YCHECK(ControlInvoker);
     YCHECK(ElectionCallbacks);
-    YCHECK(RpcServer);
     VERIFY_INVOKER_THREAD_AFFINITY(controlInvoker, ControlThread);
 
     Logger.AddTag("CellId: %v, SelfPeerId: %v",
@@ -546,34 +531,23 @@ TElectionManager::TImpl::TImpl(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
 
     CellManager->SubscribePeerReconfigured(
-        BIND(&TImpl::OnPeerReconfigured, Unretained(this))
+        BIND(&TImpl::OnPeerReconfigured, MakeWeak(this))
             .Via(ControlInvoker));
-}
-
-void TElectionManager::TImpl::Initialize()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    RpcServer->RegisterService(this);
-}
-
-void TElectionManager::TImpl::Finalize()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    ControlInvoker->Invoke(BIND(&TImpl::DoFinalize, MakeStrong(this)));
-
-    RpcServer->UnregisterService(this);
 }
 
 void TElectionManager::TImpl::Start()
 {
-    ControlInvoker->Invoke(BIND(&TImpl::DoStart, MakeStrong(this)));
+    ControlInvoker->Invoke(BIND(&TImpl::DoStart, MakeWeak(this)));
 }
 
 void TElectionManager::TImpl::Stop()
 {
-    ControlInvoker->Invoke(BIND(&TImpl::DoStop, MakeStrong(this)));
+    ControlInvoker->Invoke(BIND(&TImpl::DoStop, MakeWeak(this)));
+}
+
+NRpc::IServicePtr TElectionManager::TImpl::GetRpcService()
+{
+    return this;
 }
 
 TYsonProducer TElectionManager::TImpl::GetMonitoringProducer()
@@ -616,8 +590,8 @@ void TElectionManager::TImpl::Reset()
 
     if (EpochContext) {
         EpochContext->CancelableContext->Cancel();
-        EpochContext.Reset();
     }
+    EpochContext.Reset();
 
     AliveFollowers.clear();
     PotentialFollowers.clear();
@@ -632,13 +606,6 @@ void TElectionManager::TImpl::OnFollowerPingTimeout()
     LOG_INFO("No recurrent ping from leader within timeout");
 
     StopFollowing();
-}
-
-void TElectionManager::TImpl::DoFinalize()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    DoStop();
 }
 
 void TElectionManager::TImpl::DoStart()
@@ -895,7 +862,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
         THROW_ERROR_EXCEPTION(
             NElection::EErrorCode::InvalidState,
             "Received ping in invalid state: expected %Qlv, actual %Qlv",
-            EPeerState(EPeerState::Following),
+            EPeerState::Following,
             State);
     }
 
@@ -933,7 +900,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, GetStatus)
 
     auto priority = ElectionCallbacks->GetPriority();
 
-    response->set_state(State);
+    response->set_state(static_cast<int>(State));
     response->set_vote_id(VoteId);
     response->set_priority(priority);
     ToProto(response->mutable_vote_epoch_id(), VoteEpochId);
@@ -954,22 +921,16 @@ TElectionManager::TElectionManager(
     TElectionManagerConfigPtr config,
     TCellManagerPtr cellManager,
     IInvokerPtr controlInvoker,
-    IElectionCallbacksPtr electionCallbacks,
-    NRpc::IServerPtr rpcServer)
+    IElectionCallbacksPtr electionCallbacks)
     : Impl(New<TImpl>(
         config,
         cellManager,
         controlInvoker,
-        electionCallbacks,
-        rpcServer))
-{
-    Impl->Initialize();
-}
+        electionCallbacks))
+{ }
 
 TElectionManager::~TElectionManager()
-{
-    Impl->Finalize();
-}
+{ }
 
 void TElectionManager::Start()
 {
@@ -979,6 +940,11 @@ void TElectionManager::Start()
 void TElectionManager::Stop()
 {
     Impl->Stop();
+}
+
+NRpc::IServicePtr TElectionManager::GetRpcService()
+{
+    return Impl->GetRpcService();
 }
 
 TYsonProducer TElectionManager::GetMonitoringProducer()

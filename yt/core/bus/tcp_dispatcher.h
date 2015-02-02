@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/shutdownable.h>
+
 namespace NYT {
 namespace NBus {
 
@@ -9,16 +11,14 @@ namespace NBus {
 
 struct TTcpDispatcherStatistics
 {
-    TTcpDispatcherStatistics();
+    int PendingInCount = 0;
+    i64 PendingInSize = 0;
 
-    int PendingInCount;
-    i64 PendingInSize;
+    int PendingOutCount = 0;
+    i64 PendingOutSize = 0;
 
-    int PendingOutCount;
-    i64 PendingOutSize;
-
-    int ClientConnectionCount;
-    int ServerConnectionCount;
+    int ClientConnectionCount = 0;
+    int ServerConnectionCount = 0;
 };
 
 TTcpDispatcherStatistics operator + (
@@ -31,12 +31,24 @@ TTcpDispatcherStatistics& operator += (
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Local means UNIX domain sockets.
+//! Remove means standard TCP sockets.
+DEFINE_ENUM(ETcpInterfaceType,
+    (Local)
+    (Remote)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTcpDispatcher
+    : public IShutdownable
 {
 public:
+    ~TTcpDispatcher();
+
     static TTcpDispatcher* Get();
 
-    void Shutdown();
+    virtual void Shutdown() override;
 
     TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType);
 
@@ -51,7 +63,7 @@ private:
     friend class TTcpBusServerProxy;
 
     class TImpl;
-    std::unique_ptr<TImpl> Impl;
+    std::unique_ptr<TImpl> Impl_;
 
 };
 

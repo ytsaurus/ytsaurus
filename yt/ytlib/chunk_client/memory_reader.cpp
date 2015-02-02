@@ -20,36 +20,35 @@ public:
         , Blocks_(std::move(blocks))
     { }
 
-    virtual TAsyncReadBlocksResult ReadBlocks(const std::vector<int>& blockIndexes) override
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
     {
         std::vector<TSharedRef> blocks;
         for (auto index : blockIndexes) {
             YCHECK(index < Blocks_.size());
             blocks.push_back(Blocks_[index]);
         }
-        return MakeFuture(TReadBlocksResult(std::move(blocks)));
+        return MakeFuture(std::move(blocks));
     }
 
-    virtual TAsyncReadBlocksResult ReadBlocks(int firstBlockIndex, int blockCount) override
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override
     {
         if (firstBlockIndex >= Blocks_.size()) {
-            return MakeFuture(TReadBlocksResult());
+            return MakeFuture(std::vector<TSharedRef>());
         }
 
-        return MakeFuture(TReadBlocksResult(std::vector<TSharedRef>(
+        return MakeFuture(std::vector<TSharedRef>(
             Blocks_.begin() + firstBlockIndex,
-            Blocks_.begin() + std::min(static_cast<size_t>(blockCount), Blocks_.size() - firstBlockIndex))));
+            Blocks_.begin() + std::min(static_cast<size_t>(blockCount), Blocks_.size() - firstBlockIndex)));
     }
 
-    virtual TAsyncGetMetaResult GetMeta(
+    virtual TFuture<TChunkMeta> GetMeta(
         const TNullable<int>& partitionTag = Null,
         const std::vector<int>* extensionTags = nullptr) override
     {
         YCHECK(!partitionTag);
-        return MakeFuture(TGetMetaResult(
-            extensionTags
+        return MakeFuture(extensionTags
             ? FilterChunkMetaByExtensionTags(Meta_, *extensionTags)
-            : Meta_));
+            : Meta_);
     }
 
     virtual TChunkId GetChunkId() const override

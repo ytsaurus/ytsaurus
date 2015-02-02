@@ -34,27 +34,27 @@ public:
     virtual EWriteSessionType GetType() const override;
     TLocationPtr GetLocation() const override;
 
-    virtual TAsyncError Start() override;
+    virtual TFuture<void> Start() override;
 
     virtual void Ping() override;
 
     virtual void Cancel(const TError& error) override;
 
-    virtual TFuture<TErrorOr<IChunkPtr>> Finish(
+    virtual TFuture<IChunkPtr> Finish(
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
         const TNullable<int>& blockCount) override;
 
-    virtual TAsyncError PutBlocks(
+    virtual TFuture<void> PutBlocks(
         int startBlockIndex,
         const std::vector<TSharedRef>& blocks,
         bool enableCaching) override;
 
-    virtual TAsyncError SendBlocks(
+    virtual TFuture<void> SendBlocks(
         int startBlockIndex,
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& target) override;
 
-    virtual TAsyncError FlushBlocks(int blockIndex) override;
+    virtual TFuture<void> FlushBlocks(int blockIndex) override;
 
     DEFINE_SIGNAL(void(const TError& error), Finished);
 
@@ -74,20 +74,20 @@ protected:
     NProfiling::TProfiler Profiler;
 
 
-    virtual TAsyncError DoStart() = 0;
+    virtual TFuture<void> DoStart() = 0;
     virtual void DoCancel() = 0;
-    virtual TFuture<TErrorOr<IChunkPtr>> DoFinish(
+    virtual TFuture<IChunkPtr> DoFinish(
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
         const TNullable<int>& blockCount) = 0;
-    virtual TAsyncError DoPutBlocks(
+    virtual TFuture<void> DoPutBlocks(
         int startBlockIndex,
         const std::vector<TSharedRef>& blocks,
         bool enableCaching) = 0;
-    virtual TAsyncError DoSendBlocks(
+    virtual TFuture<void> DoSendBlocks(
         int startBlockIndex,
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;
-    virtual TAsyncError DoFlushBlocks(int blockIndex) = 0;
+    virtual TFuture<void> DoFlushBlocks(int blockIndex) = 0;
 
     void ValidateActive();
 

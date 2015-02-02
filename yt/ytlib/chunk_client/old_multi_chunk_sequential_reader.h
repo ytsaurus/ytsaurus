@@ -22,7 +22,7 @@ public:
         std::vector<NChunkClient::NProto::TChunkSpec>&& chunkSpecs,
         typename TBase::TProviderPtr readerProvider);
 
-    virtual TAsyncError AsyncOpen() override;
+    virtual TFuture<void> AsyncOpen() override;
     virtual bool FetchNext() override;
 
 private:
@@ -33,13 +33,15 @@ private:
     using TBase::CurrentSession;
     using TBase::ReaderProvider;
 
-    std::vector< TPromise<typename TBase::TSession> > Sessions;
+    std::vector<TPromise<typename TBase::TSession>> Sessions;
     int CurrentReaderIndex;
 
-    virtual void OnReaderOpened(const typename TBase::TSession& session, TError error) override;
-    void SwitchCurrentChunk(typename TBase::TSession nextSession);
+    virtual void OnReaderOpened(
+        const typename TBase::TSession& session,
+        const TError& error) override;
+    void SwitchCurrentChunk(const TErrorOr<typename TBase::TSession>& nextSessionOrError);
     bool ValidateReader();
-    void OnItemFetched(TError error);
+    void OnItemFetched(const TError& error);
 
 };
 

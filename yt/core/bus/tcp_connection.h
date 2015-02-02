@@ -28,6 +28,13 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ETcpConnectionState,
+    (Resolving)
+    (Opening)
+    (Open)
+    (Closed)
+);
+
 class TTcpConnection
     : public IBus
     , public IEventLoopObject
@@ -55,10 +62,10 @@ public:
 
     // IBus implementation.
     virtual NYTree::TYsonString GetEndpointDescription() const override;
-    virtual TAsyncError Send(TSharedRefArray message, EDeliveryTrackingLevel level) override;
+    virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel level) override;
     virtual void Terminate(const TError& error) override;
 
-    DECLARE_SIGNAL(void(TError), Terminated);
+    DECLARE_SIGNAL(void(const TError&), Terminated);
 
 private:
     struct TQueuedMessage
@@ -67,13 +74,13 @@ private:
         { }
 
         TQueuedMessage(TSharedRefArray message, EDeliveryTrackingLevel level)
-            : Promise(level != EDeliveryTrackingLevel::None ? NewPromise<TError>() : Null)
+            : Promise(level != EDeliveryTrackingLevel::None ? NewPromise<void>() : Null)
             , Message(std::move(message))
             , Level(level)
             , PacketId(TPacketId::Create())
         { }
 
-        TAsyncErrorPromise Promise;
+        TPromise<void> Promise;
         TSharedRefArray Message;
         EDeliveryTrackingLevel Level;
         TPacketId PacketId;
@@ -106,21 +113,14 @@ private:
         TUnackedMessage()
         { }
 
-        TUnackedMessage(const TPacketId& packetId, TAsyncErrorPromise promise)
+        TUnackedMessage(const TPacketId& packetId, TPromise<void> promise)
             : PacketId(packetId)
             , Promise(std::move(promise))
         { }
 
         TPacketId PacketId;
-        TAsyncErrorPromise Promise;
+        TPromise<void> Promise;
     };
-
-    DECLARE_ENUM(EState,
-        (Resolving)
-        (Opening)
-        (Open)
-        (Closed)
-    );
 
     TTcpBusConfigPtr Config_;
     TTcpDispatcherThreadPtr DispatcherThread_;
@@ -141,21 +141,21 @@ private:
     // Only used by client sockets.
     int Port_ = 0;
 
-    std::atomic<int> State_; // EState actually
+    // ETcpConnectionState actually, managed by GetState and SetState.
+    std::atomic<ETcpConnectionState> State_;
 
     TClosure MessageEnqueuedCallback_;
     std::atomic<bool> MessageEnqueuedCallbackPending_;
     TMultipleProducerSingleConsumerLockFreeStack<TQueuedMessage> QueuedMessages_;
 
-    TSpinLock TerminationSpinLock_;
-    TError TerminationError_;
+    TSpinLock TerminateSpinLock_;
+    TError TerminateError_;
+    TCallbackList<void(const TError&)> Terminated_;
 
     std::unique_ptr<ev::io> SocketWatcher_;
 
     TPacketDecoder Decoder_;
     TBlob ReadBuffer_;
-
-    TPromise<TError> TerminatedPromise_ = NewPromise<TError>();
 
     TRingQueue<TPacket*> QueuedPackets_;
     TRingQueue<TPacket*> EncodedPackets_;
@@ -225,7 +225,7 @@ private:
     void DiscardUnackedMessages(const TError& error);
     void UpdateSocketWatcher();
 
-    void OnTerminated();
+    void OnTerminated(const TError& error);
 
     TTcpDispatcherStatistics& Statistics();
     void UpdateConnectionCount(int delta);

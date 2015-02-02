@@ -353,6 +353,12 @@ public:
     }
 };
 
+DEFINE_ENUM(ENumericResult,
+    ((Int64)                 (0))
+    ((Uint64)                (1))
+    ((Double)                (2))
+);
+
 template <class TBlockStream, bool EnableLinePositionInfo>
 class TLexerBase
     : public TCodedStream<TCharStream<TBlockStream, TPositionInfo<EnableLinePositionInfo> > >
@@ -380,12 +386,6 @@ public:
 
 protected:
     /// Lexer routines
-
-    DECLARE_ENUM(ENumericResult,
-        ((Int64)                 (0))
-        ((Uint64)                (1))
-        ((Double)                (2))
-    );
 
     template <bool AllowFinish>
     ENumericResult ReadNumeric(TStringBuf* value)
@@ -595,16 +595,6 @@ protected:
             needToRead -= chunkSize;
             TBaseStream::Advance(chunkSize);
         }
-    }
-
-    void ReadBinaryBoolean(bool* value)
-    {
-        TBaseStream::Advance(1);
-        if (TBaseStream::IsEmpty()) {
-            TBaseStream::Refresh();
-        }
-        *value = *TBaseStream::Begin();
-        TBaseStream::Advance(1);
     }
 
     /// Helpers

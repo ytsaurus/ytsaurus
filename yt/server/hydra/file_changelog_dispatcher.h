@@ -2,6 +2,10 @@
 
 #include "public.h"
 
+#include <core/misc/shutdownable.h>
+
+#include <core/actions/public.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -12,12 +16,14 @@ namespace NHydra {
 //! issues flush requests periodically.
 class TFileChangelogDispatcher
     : public TRefCounted
+    , public IShutdownable
 {
 public:
     explicit TFileChangelogDispatcher(const Stroka& threadName);
+
     ~TFileChangelogDispatcher();
 
-    void Shutdown();
+    virtual void Shutdown() override;
 
     //! Returns the invoker managed by the dispatcher.
     IInvokerPtr GetInvoker();
@@ -25,7 +31,7 @@ public:
     //! Synchronously creates a new changelog.
     IChangelogPtr CreateChangelog(
         const Stroka& path,
-        const TSharedRef& meta,
+        const NProto::TChangelogMeta& meta,
         TFileChangelogConfigPtr config);
 
     //! Synchronously opens an existing changelog.
@@ -35,15 +41,12 @@ public:
 
 private:
     class TImpl;
-    typedef TIntrusivePtr<TImpl> TImplPtr;
-
-    class TChangelogQueue;
-    typedef TIntrusivePtr<TChangelogQueue> TChangelogQueuePtr;
+    using TImplPtr = TIntrusivePtr<TImpl>;
 
     friend class TFileChangelog;
+    friend class TFileChangelogQueue;
 
     TImplPtr Impl_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileChangelogDispatcher)

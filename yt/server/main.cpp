@@ -68,7 +68,7 @@ static NLog::TLogger Logger("Server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EExitCode,
+DEFINE_ENUM(EExitCode,
     ((OK)(0))
     ((OptionsError)(1))
     ((BootstrapError)(2))
@@ -231,6 +231,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
 #ifdef _linux_
     if (isCleaner) {
+        NConcurrency::SetCurrentThreadName("CleanerMain");
+
         Stroka path = parser.DirToRemove.getValue();
         if (path.empty() || path[0] != '/') {
             THROW_ERROR_EXCEPTION("A path should be absolute. Path: %v", ~path);
@@ -252,6 +254,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isKiller) {
+        NConcurrency::SetCurrentThreadName("KillerMain");
+
         YCHECK(setuid(0) == 0);
         auto path = parser.ProcessGroupPath.getValue();
         NCGroup::TNonOwningCGroup group(path);
@@ -317,6 +321,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isExecutor) {
+        NConcurrency::SetCurrentThreadName("ExecutorMain");
+
         const int permissions = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
         for (auto fd : parser.PreparePipes.getValue()) {
             SetPermissions(fd, permissions);
@@ -462,7 +468,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     return EExitCode::OK;
 }
 
-int Main(int argc, const char* argv[])
+EExitCode Main(int argc, const char* argv[])
 {
     InstallCrashSignalHandler();
 
@@ -488,7 +494,7 @@ int Main(int argc, const char* argv[])
 #endif /* ! _darwin_ */
 #endif /* _unix_ */
 
-    int exitCode;
+    EExitCode exitCode;
     try {
         exitCode = GuardedMain(argc, argv);
     } catch (const std::exception& ex) {
@@ -507,5 +513,5 @@ int Main(int argc, const char* argv[])
 
 int main(int argc, const char* argv[])
 {
-    return NYT::Main(argc, argv);
+    return static_cast<int>(NYT::Main(argc, argv));
 }

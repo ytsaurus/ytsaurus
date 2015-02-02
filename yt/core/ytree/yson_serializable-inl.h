@@ -67,9 +67,13 @@ struct TLoadHelper<TNullable<T>, void>
 {
     static void Load(TNullable<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
     {
-        T value;
-        TLoadHelper<T>::Load(value, node, path);
-        parameter = value;
+        if (node->GetType() == NYTree::ENodeType::Entity) {
+            parameter = Null;
+        } else {
+            T value;
+            TLoadHelper<T>::Load(value, node, path);
+            parameter = value;
+        }
     }
 };
 

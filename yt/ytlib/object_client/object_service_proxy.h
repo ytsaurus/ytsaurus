@@ -39,53 +39,13 @@ public:
     //! Mimics the types introduced by |DEFINE_RPC_PROXY_METHOD|.
     typedef TIntrusivePtr<TReqExecuteBatch> TReqExecuteBatchPtr;
     typedef TIntrusivePtr<TRspExecuteBatch> TRspExecuteBatchPtr;
-    typedef TFuture<TRspExecuteBatchPtr> TInvExecuteBatch;
-
-    struct TPrerequisiteTransaction
-    {
-        TPrerequisiteTransaction()
-        { }
-
-        TPrerequisiteTransaction(const NTransactionClient::TTransactionId& transactionId)
-            : TransactionId(transactionId)
-        { }
-
-        NTransactionClient::TTransactionId TransactionId;
-    };
-
-    struct TPrerequisiteRevision
-    {
-        TPrerequisiteRevision()
-            : Revision(0)
-        { }
-
-        TPrerequisiteRevision(const NYPath::TYPath& path, i64 revision)
-            : Path(path)
-            , Revision(revision)
-        { }
-
-        TPrerequisiteRevision(const NYPath::TYPath& path, const NTransactionClient::TTransactionId& transactionId, i64 revision)
-            : Path(path)
-            , TransactionId(transactionId)
-            , Revision(revision)
-        { }
-
-        NYPath::TYPath Path;
-        NTransactionClient::TTransactionId TransactionId;
-        i64 Revision;
-    };
+    typedef TErrorOr<TRspExecuteBatchPtr> TErrorOrRspExecuteBatchPtr;
 
     //! A batched request to Cypress that holds a vector of individual requests that
     //! are transferred within a single RPC envelope.
     class TReqExecuteBatch
         : public NRpc::TClientRequest
     {
-        //! Describes transactions that must be alive in order for the request to be executed.
-        DEFINE_BYREF_RW_PROPERTY(std::vector<TPrerequisiteTransaction>, PrerequisiteTransactions);
-
-        //! Describes node revisions that must match in order for the request to be executed.
-        DEFINE_BYREF_RW_PROPERTY(std::vector<TPrerequisiteRevision>, PrerequisiteRevisions);
-
     public:
         TReqExecuteBatch(
             NRpc::IChannelPtr channel,
@@ -122,14 +82,12 @@ public:
         int GetSize() const;
 
     private:
-        typedef std::multimap<Stroka, int> TKeyToIndexes;
+        typedef std::multimap<Stroka, int> TKeyToIndexMultimap;
 
-        TNullable<Stroka> AuthenticatedUser_;
-        std::vector<int> PartCounts;
-        TKeyToIndexes KeyToIndexes;
-        std::vector<TError> RetryErrors;
+        std::vector<TSharedRefArray> InnerRequestMessages;
+        TKeyToIndexMultimap KeyToIndexes;
 
-        virtual TSharedRef SerializeBody() const override;
+        virtual TSharedRef SerializeBody() override;
 
         void OnResponse(
             TNullable<TInstant> deadline,
@@ -166,46 +124,37 @@ public:
         //! Returns the number of individual responses in the batch.
         int GetSize() const;
 
-        //! Returns the cumulative error for the whole batch.
-        /*!
-         *  If the envelope request has fails then the corresponding error is returned.
-         *  Otherwise, individual responses are examined and a cumulative error
-         *  is constructed (with individual errors attached as inner).
-         *  If all individual responses were successful then OK is returned.
-         */
-        TError GetCumulativeError();
-
         //! Returns the individual response with a given index.
         template <class TTypedResponse>
-        TIntrusivePtr<TTypedResponse> GetResponse(int index) const;
+        TErrorOr<TIntrusivePtr<TTypedResponse>> GetResponse(int index) const;
 
         //! Returns the individual generic response with a given index.
-        NYTree::TYPathResponsePtr GetResponse(int index) const;
+        TErrorOr<NYTree::TYPathResponsePtr> GetResponse(int index) const;
 
         //! Returns the individual generic response with a given key or NULL if no request with
         //! this key is known. At most one such response must exist.
-        NYTree::TYPathResponsePtr FindResponse(const Stroka& key) const;
+        TNullable<TErrorOr<NYTree::TYPathResponsePtr>> FindResponse(const Stroka& key) const;
 
         //! Returns the individual generic response with a given key.
         //! Such a response must be unique.
-        NYTree::TYPathResponsePtr GetResponse(const Stroka& key) const;
+        TErrorOr<NYTree::TYPathResponsePtr> GetResponse(const Stroka& key) const;
 
         //! Returns the individual response with a given key or NULL if no request with
         //! this key is known. At most one such response must exist.
         template <class TTypedResponse>
-        TIntrusivePtr<TTypedResponse> FindResponse(const Stroka& key) const;
+        TNullable<TErrorOr<TIntrusivePtr<TTypedResponse>>> FindResponse(const Stroka& key) const;
 
         //! Returns the individual response with a given key.
         //! Such a response must be unique.
         template <class TTypedResponse>
-        TIntrusivePtr<TTypedResponse> GetResponse(const Stroka& key) const;
+        TErrorOr<TIntrusivePtr<TTypedResponse>> GetResponse(const Stroka& key) const;
 
         //! Returns all responses with a given key (all if no key is specified).
         template <class TTypedResponse>
-        std::vector< TIntrusivePtr<TTypedResponse> > GetResponses(const Stroka& key = "") const;
+        std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> GetResponses(const Stroka& key = "") const;
 
         //! Returns all responses with a given key (all if no key is specified).
-        std::vector<NYTree::TYPathResponsePtr> GetResponses(const Stroka& key = "") const;
+        std::vector<TErrorOr<NYTree::TYPathResponsePtr>> GetResponses(const Stroka& key = "") const;
 
         //! Similar to #GetResponse, but returns the response message without deserializing it.
         TSharedRefArray GetResponseMessage(int index) const;
@@ -216,7 +165,7 @@ public:
         NProto::TRspExecute Body;
         std::vector<int> BeginPartIndexes;
 
-        virtual void FireCompleted() override;
+        virtual void SetPromise(const TError& error) override;
         virtual void DeserializeBody(const TRef& data) override;
 
     };
@@ -225,6 +174,17 @@ public:
     TReqExecuteBatchPtr ExecuteBatch();
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns the cumulative error for the whole batch.
+/*!
+ *  If the envelope request has fails then the corresponding error is returned.
+ *  Otherwise, individual responses are examined and a cumulative error
+ *  is constructed (with individual errors attached as inner).
+ *  If all individual responses were successful then OK is returned.
+ */
+TError GetCumulativeError(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
 
 ////////////////////////////////////////////////////////////////////////////////
 

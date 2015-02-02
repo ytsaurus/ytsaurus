@@ -15,16 +15,53 @@ using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#pragma pack(push, 1)
+
+struct TFixedMessageHeader
+{
+    EMessageType Type;
+};
+
+#pragma pack(pop)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef SerializeToProtoWithHeader(
+    const TFixedMessageHeader& fixedHeader,
+    const google::protobuf::MessageLite& message)
+{
+    size_t messageSize = message.ByteSize();
+    size_t totalSize = sizeof(fixedHeader) + messageSize;
+    struct TSerializedMessageTag { };
+    auto data = TSharedRef::Allocate<TSerializedMessageTag>(totalSize, false);
+    ::memcpy(data.Begin(), &fixedHeader, sizeof(fixedHeader));
+    YCHECK(message.SerializePartialToArray(data.Begin() + sizeof(fixedHeader), messageSize));
+    return data;
+}
+
+bool DeserializeFromProtoWithHeader(
+    google::protobuf::MessageLite* message,
+    const TRef& data)
+{
+    if (data.Size() < sizeof(TFixedMessageHeader)) {
+        return false;
+    }
+    return message->ParsePartialFromArray(
+        data.Begin() + sizeof(TFixedMessageHeader),
+        data.Size() - sizeof(TFixedMessageHeader));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSharedRefArray CreateRequestMessage(
-    const NProto::TRequestHeader& header,
+    const TRequestHeader& header,
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
 {
     std::vector<TSharedRef> parts;
+    parts.reserve(2 + attachments.size());
 
-    TSharedRef headerData;
-    YCHECK(SerializeToProto(header, &headerData));
-    parts.push_back(headerData);
+    parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Request}, header));
 
     parts.push_back(body);
 
@@ -35,16 +72,22 @@ TSharedRefArray CreateRequestMessage(
     return TSharedRefArray(std::move(parts));
 }
 
+TSharedRefArray CreateRequestCancelationMessage(
+    const TRequestCancelationHeader& header)
+{
+    auto headerData = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::RequestCancelation}, header);
+    return TSharedRefArray(std::move(headerData));
+}
+
 TSharedRefArray CreateResponseMessage(
-    const NProto::TResponseHeader& header,
+    const TResponseHeader& header,
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
 {
     std::vector<TSharedRef> parts;
+    parts.reserve(2 + attachments.size());
 
-    TSharedRef headerData;
-    YCHECK(SerializeToProto(header, &headerData));
-    parts.push_back(headerData);
+    parts.push_back(SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Response}, header));
 
     parts.push_back(body);
 
@@ -59,23 +102,19 @@ TSharedRefArray CreateResponseMessage(
     const ::google::protobuf::MessageLite& body,
     const std::vector<TSharedRef>& attachments)
 {
-    NProto::TResponseHeader header;
-    ToProto(header.mutable_error(), TError());
-
     TSharedRef serializedBody;
     YCHECK(SerializeToProtoWithEnvelope(body, &serializedBody));
 
     return CreateResponseMessage(
-        header,
+        TResponseHeader(),
         serializedBody,
         attachments);
 }
 
 TSharedRefArray CreateErrorResponseMessage(
-    const NProto::TResponseHeader& header)
+    const TResponseHeader& header)
 {
-    TSharedRef headerData;
-    YCHECK(SerializeToProto(header, &headerData));
+    auto headerData = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Response}, header);
     return TSharedRefArray(std::move(headerData));
 }
 
@@ -83,67 +122,86 @@ TSharedRefArray CreateErrorResponseMessage(
     const TRequestId& requestId,
     const TError& error)
 {
-    NProto::TResponseHeader header;
+    TResponseHeader header;
     ToProto(header.mutable_request_id(), requestId);
-    ToProto(header.mutable_error(), error);
+    if (!error.IsOK()) {
+        ToProto(header.mutable_error(), error);
+    }
     return CreateErrorResponseMessage(header);
 }
 
 TSharedRefArray CreateErrorResponseMessage(
     const TError& error)
 {
-    NProto::TResponseHeader header;
-    ToProto(header.mutable_error(), error);
+    TResponseHeader header;
+    if (!error.IsOK()) {
+        ToProto(header.mutable_error(), error);
+    }
     return CreateErrorResponseMessage(header);
 }
 
-bool ParseRequestHeader(
-    TSharedRefArray message,
-    NProto::TRequestHeader* header)
+////////////////////////////////////////////////////////////////////////////////
+
+EMessageType GetMessageType(const TSharedRefArray& message)
 {
     if (message.Size() < 1) {
-        return false;
+        return EMessageType::Unknown;
     }
-    return DeserializeFromProto(header, message[0]);
+
+    const auto& headerPart = message[0];
+    if (headerPart.Size() < sizeof(TFixedMessageHeader)) {
+        return EMessageType::Unknown;
+    }
+
+    const auto* header = reinterpret_cast<const TFixedMessageHeader*>(headerPart.Begin());
+    return header->Type;
 }
 
-TSharedRefArray SetRequestHeader(TSharedRefArray message, const NProto::TRequestHeader& header)
+bool ParseRequestHeader(
+    const TSharedRefArray& message,
+    TRequestHeader* header)
 {
-    TSharedRef headerData;
-    YCHECK(SerializeToProto(header, &headerData));
+    if (GetMessageType(message) != EMessageType::Request) {
+        return false;
+    }
 
+    return DeserializeFromProtoWithHeader(header, message[0]);
+}
+
+TSharedRefArray SetRequestHeader(
+    const TSharedRefArray& message,
+    const TRequestHeader& header)
+{
+    YASSERT(GetMessageType(message) == EMessageType::Request);
     auto parts = message.ToVector();
-    YASSERT(parts.size() >= 1);
-    parts[0] = headerData;
-
+    parts[0] = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Request}, header);
     return TSharedRefArray(parts);
 }
 
 bool ParseResponseHeader(
-    TSharedRefArray message,
-    NProto::TResponseHeader* header)
+    const TSharedRefArray& message,
+    TResponseHeader* header)
 {
-    if (message.Size() < 1) {
+    if (GetMessageType(message) != EMessageType::Response) {
         return false;
     }
-    return DeserializeFromProto(header, message[0]);
+
+    return DeserializeFromProtoWithHeader(header, message[0]);
 }
 
-TSharedRefArray SetResponseHeader(TSharedRefArray message, const NProto::TResponseHeader& header)
+TSharedRefArray SetResponseHeader(
+    const TSharedRefArray& message,
+    const TResponseHeader& header)
 {
-    TSharedRef headerData;
-    YCHECK(SerializeToProto(header, &headerData));
-
+    YASSERT(GetMessageType(message) == EMessageType::Response);
     auto parts = message.ToVector();
-    YASSERT(parts.size() >= 1);
-    parts[0] = headerData;
-
+    parts[0] = SerializeToProtoWithHeader(TFixedMessageHeader{EMessageType::Response}, header);
     return TSharedRefArray(parts);
 }
 
 void MergeRequestHeaderExtensions(
-    NProto::TRequestHeader* to,
-    const NProto::TRequestHeader& from)
+    TRequestHeader* to,
+    const TRequestHeader& from)
 {
 #define X(name) \
     if (from.HasExtension(name)) { \
@@ -154,6 +212,17 @@ void MergeRequestHeaderExtensions(
     X(TTracingExt::tracing_ext)
 
 #undef X
+}
+
+bool ParseRequestCancelationHeader(
+    const TSharedRefArray& message,
+    TRequestCancelationHeader* header)
+{
+    if (GetMessageType(message) != EMessageType::RequestCancelation) {
+        return false;
+    }
+
+    return DeserializeFromProtoWithHeader(header, message[0]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

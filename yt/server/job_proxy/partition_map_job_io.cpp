@@ -1,14 +1,13 @@
 #include "stdafx.h"
-#include "partition_map_job_io.h"
-#include "config.h"
-#include "user_job_io.h"
-#include "job.h"
 
-#include <core/misc/protobuf_helpers.h>
+#include "partition_map_job_io.h"
+#include "job.h"
+#include "user_job_io_detail.h"
 
 #include <ytlib/table_client/partitioner.h>
 #include <ytlib/table_client/partition_chunk_writer.h>
 #include <ytlib/table_client/sync_writer.h>
+#include <ytlib/table_client/sync_reader.h>
 
 #include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
@@ -18,115 +17,84 @@
 #include <ytlib/scheduler/config.h>
 #include <ytlib/scheduler/job.pb.h>
 
-#include <server/transaction_server/public.h>
-
-#include <server/chunk_server/public.h>
-
 namespace NYT {
 namespace NJobProxy {
 
 using namespace NTableClient;
-using namespace NTransactionServer;
+using namespace NTransactionClient;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
-using namespace NChunkServer;
-using namespace NYTree;
-using namespace NYson;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
-using namespace NJobTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-typedef NChunkClient::TOldMultiChunkSequentialWriter<TPartitionChunkWriterProvider> TWriter;
+typedef TOldMultiChunkSequentialWriter<TPartitionChunkWriterProvider> TWriter;
 
 ////////////////////////////////////////////////////////////////////
 
 class TPartitionMapJobIO
-    : public TUserJobIO
+    : public TUserJobIOBase
 {
 public:
-    TPartitionMapJobIO(
-        TJobIOConfigPtr config,
-        IJobHost* host)
-        : TUserJobIO(config, host)
-    {
-        const auto& jobSpec = host->GetJobSpec();
+    TPartitionMapJobIO(IJobHost* host)
+        : TUserJobIOBase(host)
+    { 
+        const auto& jobSpec = Host_->GetJobSpec();
         const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-        Partitioner = CreateHashPartitioner(jobSpecExt.partition_count());
-        KeyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
+        Partitioner_ = CreateHashPartitioner(jobSpecExt.partition_count());
+        KeyColumns_ = FromProto<Stroka>(jobSpecExt.key_columns());
     }
 
-    virtual int GetOutputCount() const override
+    virtual ISyncWriterUnsafePtr DoCreateWriter(
+        TTableWriterOptionsPtr options,
+        const TChunkListId& chunkListId,
+        const TTransactionId& transactionId) override
     {
-        return 1;
-    }
+        
+        options->KeyColumns = KeyColumns_;
 
-    virtual std::unique_ptr<TTableProducer> CreateTableInput(int index, IYsonConsumer* consumer) override
-    {
-        return DoCreateTableInput<TOldMultiChunkSequentialReader>(index, consumer);
-    }
-
-    virtual ISyncWriterPtr CreateTableOutput(int index) override
-    {
-        YCHECK(index == 0);
-
-        LOG_DEBUG("Opening partitioned output");
-
-        const auto& jobSpec = Host->GetJobSpec();
-        const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-
-        auto transactionId = FromProto<TTransactionId>(schedulerJobSpecExt.output_transaction_id());
-        const auto& outputSpec = schedulerJobSpecExt.output_specs(0);
-        auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
-
-        auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
-        options->KeyColumns = KeyColumns;
-
-        WriterProvider = New<TPartitionChunkWriterProvider>(
-            IOConfig->TableWriter,
+        auto provider = New<TPartitionChunkWriterProvider>(
+            JobIOConfig_->TableWriter,
             options,
-            Partitioner.get());
+            Partitioner_.get());
 
-        Writer = CreateSyncWriter<TPartitionChunkWriterProvider>(New<TWriter>(
-            IOConfig->TableWriter,
+        return CreateSyncWriter<TPartitionChunkWriterProvider>(New<TWriter>(
+            JobIOConfig_->TableWriter,
             options,
-            WriterProvider,
-            Host->GetMasterChannel(),
+            provider,
+            Host_->GetMasterChannel(),
             transactionId,
             chunkListId));
-
-        return Writer;
     }
 
-    virtual void PopulateResult(TSchedulerJobResultExt* resultExt) override
+    virtual std::vector<ISyncReaderPtr> DoCreateReaders() override
     {
-        Writer->GetNodeDirectory()->DumpTo(resultExt->mutable_node_directory());
-        ToProto(resultExt->mutable_chunks(), Writer->GetWrittenChunks());
+        // ToDo(psushin): don't use parallel readers here to minimize nondetermenistics
+        // behaviour in mapper, that may lead to huge problems in presence of lost jobs.
+        return CreateRegularReaders(false);
     }
 
-    virtual TDataStatistics GetOutputDataStatistics() const override
+    virtual void PopulateResult(TSchedulerJobResultExt* schedulerJobResult) override
     {
-        if (WriterProvider) {
-            return WriterProvider->GetDataStatistics();
-        } else {
-            return ZeroDataStatistics();
-        }
+        // Don't call base class method, no need to fill boundary keys.
+
+        YCHECK(Writers_.size() == 1);
+        auto& writer = Writers_.front();
+        writer->GetNodeDirectory()->DumpTo(schedulerJobResult->mutable_node_directory());
+        ToProto(schedulerJobResult->mutable_chunks(), writer->GetWrittenChunks());
     }
 
 private:
-    std::unique_ptr<IPartitioner> Partitioner;
-    TPartitionChunkWriterProviderPtr WriterProvider;
-    TKeyColumns KeyColumns;
-    ISyncWriterUnsafePtr Writer;
+    std::unique_ptr<IPartitioner> Partitioner_;
+    TKeyColumns KeyColumns_;
 
 };
 
-std::unique_ptr<TUserJobIO> CreatePartitionMapJobIO(
-    TJobIOConfigPtr ioConfig,
-    IJobHost* host)
+////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IUserJobIO> CreatePartitionMapJobIO(IJobHost* host)
 {
-    return std::unique_ptr<TUserJobIO>(new TPartitionMapJobIO(ioConfig, host));
+    return std::unique_ptr<IUserJobIO>(new TPartitionMapJobIO(host));
 }
 
 ////////////////////////////////////////////////////////////////////

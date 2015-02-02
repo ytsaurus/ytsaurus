@@ -13,6 +13,7 @@ namespace NDriver {
 
 struct TGetRequest
     : public TTransactionalRequest
+    , public TReadOnlyRequest
     , public TSuppressableAccessTrackingRequest
 {
     NYPath::TRichYPath Path;
@@ -102,6 +103,7 @@ private:
 
 struct TListRequest
     : public TTransactionalRequest
+    , public TReadOnlyRequest
     , public TSuppressableAccessTrackingRequest
 {
     NYPath::TRichYPath Path;
@@ -202,12 +204,15 @@ struct TCopyRequest
 {
     NYPath::TRichYPath SourcePath;
     NYPath::TRichYPath DestinationPath;
+    bool Recursive;
     bool PreserveAccount;
 
     TCopyRequest()
     {
         RegisterParameter("source_path", SourcePath);
         RegisterParameter("destination_path", DestinationPath);
+        RegisterParameter("recursive", Recursive)
+            .Default(false);
         RegisterParameter("preserve_account", PreserveAccount)
             .Default(false);
     }
@@ -231,12 +236,15 @@ struct TMoveRequest
 {
     NYPath::TRichYPath SourcePath;
     NYPath::TRichYPath DestinationPath;
+    bool Recursive;
     bool PreserveAccount;
 
     TMoveRequest()
     {
         RegisterParameter("source_path", SourcePath);
         RegisterParameter("destination_path", DestinationPath);
+        RegisterParameter("recursive", Recursive)
+            .Default(false);
         RegisterParameter("preserve_account", PreserveAccount)
             .Default(true);
     }
@@ -256,6 +264,7 @@ private:
 
 struct TExistsRequest
     : public TTransactionalRequest
+    , public TReadOnlyRequest
 {
     NYPath::TRichYPath Path;
 

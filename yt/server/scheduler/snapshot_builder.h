@@ -22,7 +22,7 @@ public:
         TSchedulerPtr scheduler,
         NApi::IClientPtr masterClient);
 
-    TAsyncError Run();
+    TFuture<void> Run();
 
 private:
     TSchedulerConfigPtr Config;
@@ -39,11 +39,10 @@ private:
     std::vector<TJob> Jobs;
 
     virtual TDuration GetTimeout() const override;
-    virtual void Build() override;
+    virtual void RunChild() override;
     
     void Build(const TJob& job);
-
-    TError OnBuilt(TError error);
+    void OnBuilt();
 
     void UploadSnapshot(const TJob& job);
 

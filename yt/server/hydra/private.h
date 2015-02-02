@@ -35,7 +35,7 @@ const int NonexistingSegmentId = -1;
 
 extern const Stroka SnapshotExtension;
 extern const Stroka ChangelogExtension;
-extern const Stroka ChangelogIndexExtension;
+extern const Stroka ChangelogIndexSuffix;
 
 IInvokerPtr GetHydraIOInvoker();
 

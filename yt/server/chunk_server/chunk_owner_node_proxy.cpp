@@ -233,7 +233,7 @@ private:
         }
 
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
-        chunkSpec->set_erasure_codec(erasureCodecId);
+        chunkSpec->set_erasure_codec(static_cast<int>(erasureCodecId));
 
         chunkSpec->mutable_chunk_meta()->set_type(chunk->ChunkMeta().type());
         chunkSpec->mutable_chunk_meta()->set_version(chunk->ChunkMeta().version());
@@ -294,7 +294,7 @@ class TChunkVisitorBase
     : public IChunkVisitor
 {
 public:
-    TAsyncError Run()
+    TFuture<void> Run()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -310,7 +310,7 @@ protected:
     NCellMaster::TBootstrap* Bootstrap;
     IYsonConsumer* Consumer;
     TChunkList* ChunkList;
-    TPromise<TError> Promise;
+    TPromise<void> Promise;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -321,7 +321,7 @@ protected:
         : Bootstrap(bootstrap)
         , Consumer(consumer)
         , ChunkList(chunkList)
-        , Promise(NewPromise<TError>())
+        , Promise(NewPromise<void>())
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
     }
@@ -373,7 +373,7 @@ private:
     }
 };
 
-TAsyncError GetChunkIdsAttribute(
+TFuture<void> GetChunkIdsAttribute(
     NCellMaster::TBootstrap* bootstrap,
     TChunkList* chunkList,
     IYsonConsumer* consumer)
@@ -439,7 +439,7 @@ private:
 };
 
 template <class TVisitor>
-TAsyncError ComputeCodecStatistics(
+TFuture<void> ComputeCodecStatistics(
     NCellMaster::TBootstrap* bootstrap,
     TChunkList* chunkList,
     IYsonConsumer* consumer)
@@ -565,7 +565,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
     return TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(key, consumer);
 }
 
-TAsyncError TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
+TFuture<void> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
     const Stroka& key,
     IYsonConsumer* consumer)
 {

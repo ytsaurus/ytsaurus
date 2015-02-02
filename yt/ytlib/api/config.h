@@ -66,21 +66,21 @@ public:
     TSlruCacheConfigPtr UncompressedBlockCache;
     NTabletClient::TTableMountCacheConfigPtr TableMountCache;
 
-    NQueryClient::TExecutorConfigPtr QueryExecutor;
+    NQueryClient::TExecutorConfigPtr QueryEvaluator;
     TDuration QueryTimeout;
-    
-    NCompression::ECodec WriteRequestCodec;
-    NCompression::ECodec LookupRequestCodec;
-    NCompression::ECodec LookupResponseCodec;
-    NCompression::ECodec SelectResponseCodec;
-
-    int MaxRowsPerReadRequest;
-    int MaxRowsPerWriteRequest;
-
-    int MaxRowsPerTransaction;
-
+    NCompression::ECodec QueryResponseCodec;
     int DefaultInputRowLimit;
     int DefaultOutputRowLimit;
+
+    TDuration WriteTimeout;
+    NCompression::ECodec WriteRequestCodec;
+    int MaxRowsPerWriteRequest;
+    int MaxRowsPerTransaction;
+
+    TDuration LookupTimeout;
+    NCompression::ECodec LookupRequestCodec;
+    NCompression::ECodec LookupResponseCodec;
+    int MaxRowsPerReadRequest;
 
     TConnectionConfig();
 

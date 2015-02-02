@@ -65,13 +65,14 @@ public:
         for (const auto& pair : chunkManager->Chunks()) {
             auto* chunk = pair.second;
             if (chunk->IsAlive() && chunk->IsJournal()) {
-                ScheduleSeal(chunk);
+                MaybeScheduleSeal(chunk);
             }
         }
     }
 
     void Start()
     {
+        YCHECK(!RefreshExecutor_);
         auto hydraFacade = Bootstrap_->GetHydraFacade();
         RefreshExecutor_ = New<TPeriodicExecutor>(
             hydraFacade->GetEpochAutomatonInvoker(),
@@ -80,7 +81,14 @@ public:
         RefreshExecutor_->Start();
     }
 
-    void ScheduleSeal(TChunk* chunk)
+    void Stop()
+    {
+        if (RefreshExecutor_) {
+            RefreshExecutor_->Stop();
+        }
+    }
+
+    void MaybeScheduleSeal(TChunk* chunk)
     {
         YASSERT(chunk->IsAlive());
         YASSERT(chunk->IsJournal());
@@ -132,7 +140,7 @@ private:
         return chunk->StoredReplicas().size() >= chunk->GetReadQuorum();
     }
 
-    static bool CanSeal(TChunk* chunk)
+    static bool CanBeSealed(TChunk* chunk)
     {
         return
             IsSealNeeded(chunk) &&
@@ -160,6 +168,9 @@ private:
 
         SealQueue_.push_back(chunk);
         chunk->SetSealScheduled(true);
+
+        LOG_DEBUG("Chunk added to seal queue (ChunkId: %v)",
+            chunk->GetId());
     }
 
     TChunk* BeginDequeueChunk()
@@ -170,6 +181,8 @@ private:
         auto* chunk = SealQueue_.front();
         SealQueue_.pop_front();
         chunk->SetSealScheduled(false);
+        LOG_DEBUG("Chunk extracted from seal queue (ChunkId: %v)",
+            chunk->GetId());
         return chunk;
     }
 
@@ -198,7 +211,7 @@ private:
 
                 ++chunksDequeued;
 
-                if (!CanSeal(chunk)) {
+                if (!CanBeSealed(chunk)) {
                     EndDequeueChunk(chunk);
                     continue;
                 }
@@ -230,7 +243,7 @@ private:
 
     void GuardedSealChunk(TChunk* chunk)
     {
-        if (!CanSeal(chunk))
+        if (!CanBeSealed(chunk))
             return;
 
         LOG_INFO("Sealing journal chunk (ChunkId: %v)", chunk->GetId());
@@ -242,24 +255,26 @@ private:
         }
 
         {
-            auto result = WaitFor(AbortSessionsQuorum(
+            auto asyncResult = AbortSessionsQuorum(
                 chunk->GetId(),
                 replicas,
                 Config_->JournalRpcTimeout,
-                chunk->GetReadQuorum()));
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                chunk->GetReadQuorum());
+            WaitFor(asyncResult)
+                .ThrowOnError();
         }
 
         auto req = TChunkYPathProxy::Seal(FromObjectId(chunk->GetId()));
         {
-            auto result = WaitFor(ComputeQuorumInfo(
+            auto asyncMiscExt = ComputeQuorumInfo(
                 chunk->GetId(),
                 replicas,
                 Config_->JournalRpcTimeout,
-                chunk->GetReadQuorum()));
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                chunk->GetReadQuorum());
+            auto miscExt = WaitFor(asyncMiscExt)
+                .ValueOrThrow();
             auto* info = req->mutable_info();
-            *info = result.Value();
+            *info = miscExt;
             info->set_sealed(true);
         }
 
@@ -270,8 +285,8 @@ private:
         auto objectManager = Bootstrap_->GetObjectManager();
         auto rootService = objectManager->GetRootService();
         auto chunkProxy = objectManager->GetProxy(chunk);
-        auto rsp = WaitFor(ExecuteVerb(rootService, req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        WaitFor(ExecuteVerb(rootService, req))
+            .ThrowOnError();
 
         LOG_INFO("Journal chunk sealed (ChunkId: %v)", chunk->GetId());
     }
@@ -295,9 +310,15 @@ void TChunkSealer::Start()
     Impl_->Start();
 }
 
-void TChunkSealer::ScheduleSeal(TChunk* chunk)
+
+void TChunkSealer::Stop()
 {
-    Impl_->ScheduleSeal(chunk);
+    Impl_->Stop();
+}
+
+void TChunkSealer::MaybeScheduleSeal(TChunk* chunk)
+{
+    Impl_->MaybeScheduleSeal(chunk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

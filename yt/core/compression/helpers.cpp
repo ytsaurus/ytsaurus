@@ -26,7 +26,7 @@ std::vector<TSharedRef> CompressWithEnvelope(
 {
     NProto::TCompressedEnvelope envelope;
     if (codecId != ECodec::None) {
-        envelope.set_codec(codecId);
+        envelope.set_codec(static_cast<int>(codecId));
     }
 
     std::vector<TSharedRef> compressedData(2);

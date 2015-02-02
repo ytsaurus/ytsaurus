@@ -44,10 +44,6 @@ void TReadJournalCommand::DoExecute()
         }
     };
 
-    auto config = UpdateYsonSerializable(
-        Context_->GetConfig()->JournalReader,
-        Request_->GetOptions());
-
     auto path = Request_->Path.Normalize();
 
     if (path.GetRanges().size() > 1) {
@@ -57,6 +53,7 @@ void TReadJournalCommand::DoExecute()
     TJournalReaderOptions options;
     if (path.GetRanges().size() == 1) {
         auto range = path.GetRanges()[0];
+
         checkLimit(range.LowerLimit());
         checkLimit(range.UpperLimit());
 
@@ -71,13 +68,14 @@ void TReadJournalCommand::DoExecute()
             options.FirstRowIndex = range.LowerLimit().GetRowIndex();
         }
     }
-
+    options.Config = UpdateYsonSerializable(
+        Context_->GetConfig()->JournalReader,
+        Request_->GetOptions());
     SetTransactionalOptions(&options);
 
     auto reader = Context_->GetClient()->CreateJournalReader(
         Request_->Path.GetPath(),
-        options,
-        config);
+        options);
 
     {
         auto error = WaitFor(reader->Open());
@@ -99,8 +97,7 @@ void TReadJournalCommand::DoExecute()
 
     while (true) {
         auto rowsOrError = WaitFor(reader->Read());
-        THROW_ERROR_EXCEPTION_IF_FAILED(rowsOrError);
-        const auto& rows = rowsOrError.Value();
+        const auto& rows = rowsOrError.ValueOrThrow();
 
         if (rows.empty())
             break;
@@ -124,6 +121,13 @@ void TReadJournalCommand::DoExecute()
 
 //////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EJournalConsumerState,
+    (Root)
+    (AtItem)
+    (InsideMap)
+    (AtData)
+);
+
 class TJournalConsumer
     : public TYsonConsumerBase
 {
@@ -135,29 +139,22 @@ public:
 private:
     IJournalWriterPtr Writer_;
 
-    DECLARE_ENUM(EState,
-        (Root)
-        (AtItem)
-        (InsideMap)
-        (AtData)
-    );
-
-    EState State_ = EState::Root;
+    EJournalConsumerState State_ = EJournalConsumerState::Root;
 
 
     virtual void OnStringScalar(const TStringBuf& value) override
     {
-        if (State_ != EState::AtData) {
+        if (State_ != EJournalConsumerState::AtData) {
             ThrowMalformedData();
         }
 
         std::vector<TSharedRef> rows;
         rows.push_back(TSharedRef::FromString(Stroka(value)));
 
-        auto error = Writer_->Write(rows).Get(); //WaitFor(Writer_->Write(rows));
+        auto error = WaitFor(Writer_->Write(rows));
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
 
-        State_ = EState::InsideMap;
+        State_ = EJournalConsumerState::InsideMap;
     }
 
     virtual void OnInt64Scalar(i64 /*value*/) override
@@ -192,10 +189,10 @@ private:
 
     virtual void OnListItem() override
     {
-        if (State_ != EState::Root) {
+        if (State_ != EJournalConsumerState::Root) {
             ThrowMalformedData();
         }
-        State_ = EState::AtItem;
+        State_ = EJournalConsumerState::AtItem;
     }
 
     virtual void OnEndList() override
@@ -205,29 +202,29 @@ private:
 
     virtual void OnBeginMap() override
     {
-        if (State_ != EState::AtItem) {
+        if (State_ != EJournalConsumerState::AtItem) {
             ThrowMalformedData();
         }
-        State_ = EState::InsideMap;
+        State_ = EJournalConsumerState::InsideMap;
     }
 
     virtual void OnKeyedItem(const TStringBuf& key) override
     {
-        if (State_ != EState::InsideMap) {
+        if (State_ != EJournalConsumerState::InsideMap) {
             ThrowMalformedData();
         }
         if (key != STRINGBUF("data")) {
             ThrowMalformedData();
         }
-        State_ = EState::AtData;
+        State_ = EJournalConsumerState::AtData;
     }
 
     virtual void OnEndMap() override
     {
-        if (State_ != EState::InsideMap) {
+        if (State_ != EJournalConsumerState::InsideMap) {
             ThrowMalformedData();
         }
-        State_ = EState::Root;
+        State_ = EJournalConsumerState::Root;
     }
 
     virtual void OnBeginAttributes() override
@@ -250,17 +247,15 @@ private:
 
 void TWriteJournalCommand::DoExecute()
 {
-    auto config = UpdateYsonSerializable(
+    TJournalWriterOptions options;
+    options.Config = UpdateYsonSerializable(
         Context_->GetConfig()->JournalWriter,
         Request_->GetOptions());
-
-    TJournalWriterOptions options;
     SetTransactionalOptions(&options);
 
     auto writer = Context_->GetClient()->CreateJournalWriter(
         Request_->Path.GetPath(),
-        options,
-        config);
+        options);
 
     {
         auto error = WaitFor(writer->Open());

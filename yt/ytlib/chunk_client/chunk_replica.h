@@ -56,17 +56,23 @@ struct TChunkIdWithIndex
 
 ///////////////////////////////////////////////////////////////////////////////
 
-const int GenericChunkReplicaIndex = 0;
-const int AllChunkReplicasIndex = 255;
+const int GenericChunkReplicaIndex = 0;    // no specific replica; the default one for regular chunks
+const int AllChunkReplicasIndex    = 255;  // passed to various APIs to indicate that any replica is OK
 
-//! Valid indexes are in range |[0, MaxChunkReplicaIndex)|.
+// Journal chunks only:
+const int ActiveChunkReplicaIndex   = 1; // the replica is currently being written
+const int UnsealedChunkReplicaIndex = 2; // the replica is finished but not sealed yet
+const int SealedChunkReplicaIndex   = 3; // the replica is finished and sealed
+
+//! Valid indexes (excluding AllChunkReplicasIndex) are in range |[0, ChunkReplicaIndexBound)|.
 const int ChunkReplicaIndexBound = 16;
 
-DECLARE_ENUM(EJournalReplicaType,
-   ((Generic)   (GenericChunkReplicaIndex))
-    (Active)    // the replica is currently being written
-    (Unsealed)  // the replica is finished but not sealed
-    (Sealed)    // the replica is finished and is sealed
+//! For pretty-printing only.
+DEFINE_ENUM(EJournalReplicaType,
+    ((Generic)   (GenericChunkReplicaIndex))
+    ((Active)    (ActiveChunkReplicaIndex))
+    ((Unsealed)  (UnsealedChunkReplicaIndex))
+    ((Sealed)    (SealedChunkReplicaIndex))
 );
 
 ///////////////////////////////////////////////////////////////////////////////

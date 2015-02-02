@@ -65,8 +65,8 @@ private:
         ValidateActiveLeader();
 
         auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
-        const auto& statistics = request->statistics();
         const auto& address = descriptor.GetDefaultAddress();
+        const auto& statistics = request->statistics();
 
         context->SetRequestInfo("Address: %v, %v",
             address,

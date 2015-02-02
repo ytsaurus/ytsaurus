@@ -9,11 +9,12 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Creates a channel that takes care of choosing the leader among Hydra peers.
-// TODO(babenko): channels to followers
-NRpc::IChannelPtr CreateLeaderChannel(
+//! Creates a channel that takes care of choosing a peer of the suitable kind
+//! among Hydra peers.
+NRpc::IChannelPtr CreatePeerChannel(
     TPeerConnectionConfigPtr config,
-    NRpc::IChannelFactoryPtr channelFactory);
+    NRpc::IChannelFactoryPtr channelFactory,
+    EPeerKind kind);
 
 ////////////////////////////////////////////////////////////////////////////////
 

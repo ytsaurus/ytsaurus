@@ -22,7 +22,6 @@ void TTabletCell::TPeer::Persist(NCellMaster::TPersistenceContext& context)
     using NYT::Persist;
     Persist(context, Address);
     Persist(context, Node);
-    Persist(context, SlotIndex);
     Persist(context, LastSeenTime);
 }
 
@@ -117,7 +116,7 @@ void TTabletCell::RevokePeer(TPeerId peerId)
     peer.Address = Null;
 }
 
-void TTabletCell::AttachPeer(TNode* node, TPeerId peerId, int slotIndex)
+void TTabletCell::AttachPeer(TNode* node, TPeerId peerId)
 {
     auto& peer = Peers_[peerId];
     YCHECK(peer.Address);
@@ -125,9 +124,6 @@ void TTabletCell::AttachPeer(TNode* node, TPeerId peerId, int slotIndex)
 
     YCHECK(!peer.Node);
     peer.Node = node;
-
-    YCHECK(peer.SlotIndex == -1);
-    peer.SlotIndex = slotIndex;
 }
 
 void TTabletCell::DetachPeer(TNode* node)
@@ -135,7 +131,6 @@ void TTabletCell::DetachPeer(TNode* node)
     auto peerId = FindPeerId(node);
     if (peerId != InvalidPeerId) {
         Peers_[peerId].Node = nullptr;
-        Peers_[peerId].SlotIndex = -1;
     }
 }
 
@@ -161,18 +156,19 @@ ETabletCellHealth TTabletCell::GetHealth() const
     int leaderCount = 0;
     int followerCount = 0;
     for (const auto& peer : Peers_) {
-        if (peer.Node) {
-            const auto& slot = peer.Node->TabletSlots()[peer.SlotIndex];
-            switch (slot.PeerState) {
-                case EPeerState::Leading:
-                    ++leaderCount;
-                    break;
-                case EPeerState::Following:
-                    ++followerCount;
-                    break;
-                default:
-                    break;
-            }
+        auto* node = peer.Node;
+        if (!node)
+            continue;
+        const auto* slot = node->GetTabletSlot(this);
+        switch (slot->PeerState) {
+            case EPeerState::Leading:
+                ++leaderCount;
+                break;
+            case EPeerState::Following:
+                ++followerCount;
+                break;
+            default:
+                break;
         }
     }
 

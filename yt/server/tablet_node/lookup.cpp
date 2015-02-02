@@ -9,7 +9,6 @@
 #include <core/misc/object_pool.h>
 #include <core/misc/protobuf_helpers.h>
 
-#include <core/concurrency/parallel_collector.h>
 #include <core/concurrency/scheduler.h>
 
 #include <core/logging/log.h>
@@ -42,7 +41,7 @@ class TLookupSession
 public:
     TLookupSession()
         : MemoryPool_(TLookupPoolTag())
-        , RunCallback_(BIND(&TLookupSession::DoRun, this).Guarded())
+        , RunCallback_(BIND(&TLookupSession::DoRun, this))
     { }
 
     void Prepare(
@@ -72,14 +71,19 @@ public:
         reader->ReadUnversionedRowset(&LookupKeys_);
     }
 
-    TAsyncError Run(
+    TFutureHolder<void> Run(
         IInvokerPtr invoker,
         TWireProtocolWriter* writer)
     {
         if (invoker) {
             return RunCallback_.AsyncVia(invoker).Run(writer);
         } else {
-            return MakeFuture(RunCallback_.Run(writer));
+            try {
+                RunCallback_.Run(writer);
+                return VoidFuture;
+            } catch (const std::exception& ex) {
+                return MakeFuture(TError(ex));
+            }
         }
     }
 
@@ -109,7 +113,7 @@ private:
     int SchemaColumnCount_;
     TColumnFilter ColumnFilter_;
 
-    TCallback<TError(TWireProtocolWriter* writer)> RunCallback_;
+    TCallback<void(TWireProtocolWriter* writer)> RunCallback_;
 
 
     void CreateLookupers(
@@ -128,20 +132,16 @@ private:
     void InvokeLookupers(
         const std::vector<IVersionedLookuperPtr>& lookupers,
         TUnversionedRowMerger* merger,
-        TIntrusivePtr<TParallelCollector<TVersionedRow>>* collector,
+        std::vector<TFutureHolder<TVersionedRow>>* rowHolders,
         TKey key)
     {
         for (const auto& lookuper : lookupers) {
-            auto futureRowOrError = lookuper->Lookup(key);
-            auto maybeRowOrError = futureRowOrError.TryGet();
+            auto rowHolder = lookuper->Lookup(key);
+            auto maybeRowOrError = rowHolder.Get().TryGet();
             if (maybeRowOrError) {
-                THROW_ERROR_EXCEPTION_IF_FAILED(*maybeRowOrError);
-                merger->AddPartialRow(maybeRowOrError->Value());
+                merger->AddPartialRow(maybeRowOrError->ValueOrThrow());
             } else {
-                if (!(*collector)) {
-                    *collector = New<TParallelCollector<TVersionedRow>>();
-                }
-                (*collector)->Collect(futureRowOrError);
+                rowHolders->push_back(std::move(rowHolder));
             }
         }
     }
@@ -169,17 +169,16 @@ private:
                 CreateLookupers(&PartitionLookupers_, currentPartitionSnapshot);
             }
 
-            TIntrusivePtr<TParallelCollector<TVersionedRow>> collector;
-
             // Send requests, collect sync responses.
-            InvokeLookupers(EdenLookupers_, &merger, &collector, key);
-            InvokeLookupers(PartitionLookupers_, &merger, &collector, key);
+            std::vector<TFutureHolder<TVersionedRow>> rowHolders;
+            InvokeLookupers(EdenLookupers_, &merger, &rowHolders, key);
+            InvokeLookupers(PartitionLookupers_, &merger, &rowHolders, key);
 
             // Wait for async responses.
-            if (collector) {
-                auto result = WaitFor(collector->Complete());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                for (auto row : result.Value()) {
+            if (!rowHolders.empty()) {
+                auto rows = WaitFor(Combine(rowHolders))
+                    .ValueOrThrow();
+                for (auto row : rows) {
                     merger.AddPartialRow(row);
                 }
             }
@@ -221,15 +220,17 @@ void LookupRows(
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {
-    auto executor = ObjectPool<TLookupSession>().Allocate();
-    executor->Prepare(tabletSnapshot, timestamp, reader);
-    LOG_DEBUG("Looking up %v keys (TabletId: %v, CellId: %v)",
-        executor->GetLookupKeys().size(),
+    auto session = ObjectPool<TLookupSession>().Allocate();
+    session->Prepare(tabletSnapshot, timestamp, reader);
+    LOG_DEBUG("Looking up %v keys (TabletId: %v, CellId: %v, Session: %v)",
+        session->GetLookupKeys().size(),
         tabletSnapshot->TabletId,
-        tabletSnapshot->Slot->GetCellId());
+        tabletSnapshot->Slot ? tabletSnapshot->Slot->GetCellId() : NullCellId,
+        session.get());
 
-    auto result = WaitFor(executor->Run(poolInvoker, writer));
-    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    auto resultHolder = session->Run(std::move(poolInvoker), writer);
+    return WaitFor(resultHolder.Get())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

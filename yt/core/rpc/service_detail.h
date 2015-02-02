@@ -199,7 +199,7 @@ public:
         }
 
         if (this->Options_.HeavyResponse) {
-            TDispatcher::Get()->GetPoolInvoker()->Invoke(BIND(
+            TDispatcher::Get()->GetInvoker()->Invoke(BIND(
                 &TThis::SerializeResponseAndReply,
                 MakeStrong(this)));
         } else {
@@ -399,6 +399,11 @@ protected:
         //! Log level for events emitted via |Set(Request|Response)Info|-like functions.
         NLog::ELogLevel LogLevel = NLog::ELogLevel::Debug;
 
+        //! Cancelable requests can be canceled by clients.
+        //! This, however, requires additional book-keeping at server-side so one is advised
+        //! to only mark cancelable those methods taking a considerable time to complete.
+        bool Cancelable = false;
+
 
         TMethodDescriptor& SetInvoker(IPrioritizedInvokerPtr value)
         {
@@ -465,6 +470,12 @@ protected:
             LogLevel = value;
             return *this;
         }
+
+        TMethodDescriptor& SetCancelable(bool value)
+        {
+            Cancelable = value;
+            return *this;
+        }
     };
 
     //! Describes a service method and its runtime statistics.
@@ -503,6 +514,8 @@ protected:
     };
 
     typedef TIntrusivePtr<TRuntimeMethodInfo> TRuntimeMethodInfoPtr;
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, Discover);
 
     //! Initializes the instance.
     /*!
@@ -556,7 +569,7 @@ protected:
      *  \note
      *  Thread affinity: any
      */ 
-    virtual bool IsUp() const;
+    virtual bool IsUp(TCtxDiscoverPtr context) const;
 
     //! Used by peer discovery.
     //! Returns addresses of neighboring peers to be suggested to the client.
@@ -581,6 +594,9 @@ private:
     NConcurrency::TReaderWriterSpinLock MethodMapLock_;
     yhash_map<Stroka, TRuntimeMethodInfoPtr> MethodMap_;
 
+    TSpinLock CancelableRequestLock_;
+    yhash_map<TRequestId, TServiceContext*> IdToContext_;
+    yhash_map<NBus::IBusPtr, yhash_set<TServiceContext*>> ReplyBusToContexts_;
 
     void Init(
         IPrioritizedInvokerPtr defaultInvoker,
@@ -591,17 +607,24 @@ private:
 
     virtual TServiceId GetServiceId() const override;
 
-    virtual void OnRequest(
+    virtual void HandleRequest(
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray message,
         NBus::IBusPtr replyBus) override;
 
+    virtual void HandleRequestCancelation(const TRequestId& requestId) override;
+
+    void OnRequestTimeout(const TRequestId& requestId);
+    void OnReplyBusTerminated(NBus::IBusPtr bus, const TError& error);
+
     static bool TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo);
     static void ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo);
     static void ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo);
-    static void RunRequest(TServiceContextPtr context);
+    static void RunRequest(const TServiceContextPtr& context);
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, Discover);
+    void RegisterCancelableRequest(TServiceContext* context);
+    void UnregisterCancelableRequest(TServiceContext* context);
+    TServiceContextPtr FindCancelableRequest(const TRequestId& requestId);
 
 };
 

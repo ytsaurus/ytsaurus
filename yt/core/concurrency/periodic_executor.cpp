@@ -24,10 +24,7 @@ TPeriodicExecutor::TPeriodicExecutor(
     , Period(period)
     , Mode(mode)
     , Splay(splay)
-    , Started(false)
-    , Busy(false)
-    , OutOfBandRequested(false)
-    , IdlePromise(MakePromise())
+    , IdlePromise(MakePromise<void>(TError()))
 { }
 
 void TPeriodicExecutor::Start()
@@ -110,7 +107,7 @@ void TPeriodicExecutor::OnCallbackSuccess()
             return;
         Busy = true;
         TDelayedExecutor::CancelAndClear(Cookie);
-        IdlePromise = NewPromise();
+        IdlePromise = NewPromise<void>();
     }
 
     Callback.Run();

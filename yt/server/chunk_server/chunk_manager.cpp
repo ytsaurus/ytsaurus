@@ -87,9 +87,9 @@ using namespace NJournalClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ChunkServerLogger;
-static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
+static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
 // NB: Changing this value will invalidate all changelogs!
-static TDuration UnapprovedReplicaGracePeriod = TDuration::Seconds(15);
+static const auto UnapprovedReplicaGracePeriod = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -303,6 +303,20 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EAddReplicaReason,
+    (IncrementalHeartbeat)
+    (FullHeartbeat)
+    (Confirmation)
+);
+
+DEFINE_ENUM(ERemoveReplicaReason,
+    (None)
+    (IncrementalHeartbeat)
+    (FailedToApprove)
+    (ChunkIsDead)
+    (NodeRemoved)
+);
 
 class TChunkManager::TImpl
     : public TMasterAutomatonPart
@@ -528,7 +542,7 @@ public:
             }
 
             auto chunkWithIndex = chunk->IsJournal()
-                ? TChunkPtrWithIndex(chunk, EJournalReplicaType::Active)
+                ? TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex)
                 : TChunkPtrWithIndex(chunk, replica.GetIndex());
 
             if (node->GetState() != ENodeState::Online) {
@@ -722,9 +736,9 @@ public:
         ChunkReplicator_->SchedulePropertiesUpdate(chunkTree);
     }
 
-    void ScheduleChunkSeal(TChunk* chunk)
+    void MaybeScheduleChunkSeal(TChunk* chunk)
     {
-        ChunkSealer_->ScheduleSeal(chunk);
+        ChunkSealer_->MaybeScheduleSeal(chunk);
     }
 
 
@@ -833,10 +847,10 @@ public:
             info.compressed_data_size());
     }
 
-    TFuture<TErrorOr<TMiscExt>> GetChunkQuorumInfo(TChunk* chunk)
+    TFuture<TMiscExt> GetChunkQuorumInfo(TChunk* chunk)
     {
         if (chunk->IsSealed()) {
-            return MakeFuture<TErrorOr<TMiscExt>>(chunk->MiscExt());
+            return MakeFuture(chunk->MiscExt());
         }
 
         std::vector<NNodeTrackerClient::TNodeDescriptor> replicas;
@@ -1010,7 +1024,7 @@ private:
         TRspIncrementalHeartbeat* /*response*/)
     {
         // Shrink hashtables.
-        // NB: Skip StoredReplicas, these are typically huge.
+        ShrinkHashTable(&node->StoredReplicas());
         ShrinkHashTable(&node->CachedReplicas());
         ShrinkHashTable(&node->UnapprovedReplicas());
         ShrinkHashTable(&node->Jobs());
@@ -1202,7 +1216,7 @@ private:
         auto mark = TChunkList::GenerateVisitMark();
 
         // Force all statistics to be recalculated.
-        for (auto& pair : ChunkListMap_) {
+        for (const auto& pair : ChunkListMap_) {
             auto* chunkList = pair.second;
             ComputeStatisticsFor(chunkList, mark);
         }
@@ -1265,18 +1279,20 @@ private:
     {
         if (ChunkPlacement_) {
             ChunkPlacement_->Stop();
+            ChunkPlacement_.Reset();
         }
+
         if (ChunkReplicator_) {
             ChunkReplicator_->Stop();
+            ChunkReplicator_.Reset();
+        }
+
+        if (ChunkSealer_) {
+            ChunkSealer_->Stop();
+            ChunkSealer_.Reset();
         }
     }
 
-
-    DECLARE_ENUM(EAddReplicaReason,
-        (IncrementalHeartbeat)
-        (FullHeartbeat)
-        (Confirmation)
-    );
 
     void AddChunkReplica(TNode* node, TChunkPtrWithIndex chunkWithIndex, bool cached, EAddReplicaReason reason)
     {
@@ -1305,22 +1321,13 @@ private:
         }
 
         if (ChunkSealer_ && !cached && chunk->IsJournal()) {
-            ChunkSealer_->ScheduleSeal(chunk);
+            ChunkSealer_->MaybeScheduleSeal(chunk);
         }
 
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
             Profiler.Increment(AddChunkReplicaCounter_);
         }
     }
-
-
-    DECLARE_ENUM(ERemoveReplicaReason,
-        (None)
-        (IncrementalHeartbeat)
-        (FailedToApprove)
-        (ChunkIsDead)
-        (NodeRemoved)
-    );
 
     void RemoveChunkReplica(TNode* node, TChunkPtrWithIndex chunkWithIndex, bool cached, ERemoveReplicaReason reason)
     {
@@ -1408,11 +1415,11 @@ private:
         int replicaIndex;
         if (chunk->IsJournal()) {
             if (chunkAddInfo.active()) {
-                replicaIndex = EJournalReplicaType::Active;
+                replicaIndex = ActiveChunkReplicaIndex;
             } else if (chunkAddInfo.chunk_info().sealed()) {
-                replicaIndex = EJournalReplicaType::Sealed;
+                replicaIndex = SealedChunkReplicaIndex;
             } else {
-                replicaIndex = EJournalReplicaType::Unsealed;
+                replicaIndex = UnsealedChunkReplicaIndex;
             }
         } else {
             replicaIndex = chunkIdWithIndex.Index;
@@ -1519,7 +1526,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     bool isJournal = (chunkType == EObjectType::JournalChunk);
 
     const auto& requestExt = request->GetExtension(TReqCreateChunkExt::create_chunk_ext);
-    auto erasureCodecId = isErasure ? NErasure::ECodec(requestExt.erasure_codec()) : NErasure::ECodec(NErasure::ECodec::None);
+    auto erasureCodecId = isErasure ? NErasure::ECodec(requestExt.erasure_codec()) : NErasure::ECodec::None;
     int replicationFactor = isErasure ? 1 : requestExt.replication_factor();
     int readQuorum = isJournal ? requestExt.read_quorum() : 0;
     int writeQuorum = isJournal ? requestExt.write_quorum() : 0;
@@ -1794,9 +1801,9 @@ void TChunkManager::ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree)
     Impl_->ScheduleChunkPropertiesUpdate(chunkTree);
 }
 
-void TChunkManager::ScheduleChunkSeal(TChunk* chunk)
+void TChunkManager::MaybeScheduleChunkSeal(TChunk* chunk)
 {
-    Impl_->ScheduleChunkSeal(chunk);
+    Impl_->MaybeScheduleChunkSeal(chunk);
 }
 
 int TChunkManager::GetTotalReplicaCount()
@@ -1814,7 +1821,7 @@ void TChunkManager::SealChunk(TChunk* chunk, const TMiscExt& info)
     Impl_->SealChunk(chunk, info);
 }
 
-TFuture<TErrorOr<TMiscExt>> TChunkManager::GetChunkQuorumInfo(TChunk* chunk)
+TFuture<TMiscExt> TChunkManager::GetChunkQuorumInfo(TChunk* chunk)
 {
     return Impl_->GetChunkQuorumInfo(chunk);
 }

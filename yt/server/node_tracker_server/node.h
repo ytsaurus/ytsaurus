@@ -8,7 +8,7 @@
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
-#include <ytlib/hydra/public.h>
+#include <server/hydra/entity_map.h>
 
 #include <server/chunk_server/public.h>
 #include <server/chunk_server/chunk_replica.h>
@@ -24,7 +24,7 @@ namespace NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ENodeState,
+DEFINE_ENUM(ENodeState,
     // Not registered.
     (Offline)
     // Registered but did not report the first heartbeat yet.
@@ -36,6 +36,7 @@ DECLARE_ENUM(ENodeState,
 );
 
 class TNode
+    : public NHydra::TEntityBase
 {
 public:
     // Import third-party types into the scope.
@@ -91,10 +92,9 @@ public:
     {
         NTabletServer::TTabletCell* Cell = nullptr;
         NHydra::EPeerState PeerState = NHydra::EPeerState::None;
-        int PeerId = -1;
+        int PeerId = NHydra::InvalidPeerId;
 
         void Persist(NCellMaster::TPersistenceContext& context);
-
     };
 
     typedef SmallVector<TTabletSlot, NTabletClient::TypicalCellSize> TTabletSlotList;
@@ -146,10 +146,10 @@ public:
 
     int GetTotalTabletSlots() const;
 
-    TTabletSlot* FindTabletSlot(NTabletServer::TTabletCell* cell);
-    TTabletSlot* GetTabletSlot(NTabletServer::TTabletCell* cell);
+    TTabletSlot* FindTabletSlot(const NTabletServer::TTabletCell* cell);
+    TTabletSlot* GetTabletSlot(const NTabletServer::TTabletCell* cell);
 
-    void DetachTabletCell(NTabletServer::TTabletCell* cell);
+    void DetachTabletCell(const NTabletServer::TTabletCell* cell);
 
     static ui64 GenerateVisitMark();
 

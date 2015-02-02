@@ -8,6 +8,15 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TReqDiscover;
+class TRspDiscover;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TClientRequest;
 
 template <class TRequestMessage, class TResponse>
@@ -21,6 +30,7 @@ class TTypedClientResponse;
 struct TServiceId;
 
 DECLARE_REFCOUNTED_STRUCT(IClientRequest)
+DECLARE_REFCOUNTED_STRUCT(IClientRequestControl)
 DECLARE_REFCOUNTED_STRUCT(IClientResponseHandler)
 DECLARE_REFCOUNTED_STRUCT(IServer)
 DECLARE_REFCOUNTED_STRUCT(IService)
@@ -31,9 +41,10 @@ DECLARE_REFCOUNTED_STRUCT(IRoamingChannelProvider)
 
 DECLARE_REFCOUNTED_CLASS(TClientContext)
 DECLARE_REFCOUNTED_CLASS(TServiceBase)
+DECLARE_REFCOUNTED_CLASS(TChannelWrapper)
 DECLARE_REFCOUNTED_CLASS(TOneWayClientResponse)
 DECLARE_REFCOUNTED_CLASS(TStaticChannelFactory)
-
+DECLARE_REFCOUNTED_CLASS(TClientRequestControlThunk)
 
 DECLARE_REFCOUNTED_STRUCT(IResponseKeeper)
 
@@ -60,12 +71,11 @@ extern const TMutationId NullMutationId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((TransportError)  (100))
     ((ProtocolError)   (101))
     ((NoSuchService)   (102))
     ((NoSuchMethod)    (103))
-    ((Timeout)         (NYT::EErrorCode::Timeout))
     ((Unavailable)     (105))
     ((PoisonPill)      (106))
 );

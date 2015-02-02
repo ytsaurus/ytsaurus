@@ -257,7 +257,7 @@ struct TExecuteRequest
     TResponseParametersConsumer ResponseParametersConsumer;
 
     TDriverRequest DriverRequest;
-    TDriverResponse DriverResponse;
+    TError DriverResponse;
 
     NTracing::TTraceContext TraceContext;
 
@@ -339,8 +339,8 @@ struct TExecuteRequest
     {
         Request.data = this;
 
-        DriverRequest.InputStream = CreateAsyncInputStream(&InputStack);
-        DriverRequest.OutputStream = CreateAsyncOutputStream(&OutputStack);
+        DriverRequest.InputStream = CreateAsyncAdapter(&InputStack);
+        DriverRequest.OutputStream = CreateAsyncAdapter(&OutputStack);
         DriverRequest.ResponseParametersConsumer = &ResponseParametersConsumer;
     }
 
@@ -396,13 +396,13 @@ void ExportEnumeration(
     const Handle<Object>& target,
     const char* name)
 {
-    auto values = E::GetDomainValues();
+    auto values = TEnumTraits<E>::GetDomainValues();
     Local<Array> mapping = Array::New();
 
     for (auto value : values) {
-        auto key = Stroka::Join(name, "_", E::GetLiteralByValue(value)->data());
+        auto key = Stroka::Join(name, "_", TEnumTraits<E>::FindLiteralByValue(value)->data());
         auto keyHandle = String::NewSymbol(key.c_str());
-        auto valueHandle = Integer::New(value);
+        auto valueHandle = Integer::New(static_cast<int>(value));
         target->Set(
             keyHandle,
             valueHandle,
@@ -441,7 +441,7 @@ TDriverWrap::TDriverWrap(bool echo, Handle<Object> configObject)
     }
 
     try {
-        NDriver::TDispatcher::Get()->Configure(config->Driver->HeavyPoolSize);
+        NDriver::TDispatcher::Get()->Configure(config->Driver->LightPoolSize, config->Driver->HeavyPoolSize);
         Driver = CreateDriver(config->Driver);
     } catch (const std::exception& ex) {
         Message = Format("Error initializing driver instance\n%v", ex.what());
@@ -696,14 +696,14 @@ void TDriverWrap::ExecuteWork(uv_work_t* workRequest)
         request->Await();
     } else {
         TTempBuf buffer;
-        auto inputStream = CreateSyncInputStream(request->DriverRequest.InputStream);
-        auto outputStream = CreateSyncOutputStream(request->DriverRequest.OutputStream);
+        auto inputStream = CreateSyncAdapter(request->DriverRequest.InputStream);
+        auto outputStream = CreateSyncAdapter(request->DriverRequest.OutputStream);
 
         while (size_t length = inputStream->Load(buffer.Data(), buffer.Size())) {
             outputStream->Write(buffer.Data(), length);
         }
 
-        request->DriverResponse = TDriverResponse();
+        request->DriverResponse = TError();
     }
 }
 
@@ -736,7 +736,7 @@ void TDriverWrap::ExecuteAfter(uv_work_t* workRequest)
 
     Invoke(
         request->ExecuteCallback,
-        ConvertErrorToV8(request->DriverResponse.Error),
+        ConvertErrorToV8(request->DriverResponse),
         Number::New(bytesIn),
         Number::New(bytesOut));
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 
 #include <ytlib/job_tracker_client/public.h>
 
@@ -14,7 +14,7 @@ using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
 using NJobTrackerClient::EJobPhase;
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((ConfigCreationFailed)  (1100))
     ((AbortByScheduler)      (1101))
     ((ResourceOverdraft)     (1102))

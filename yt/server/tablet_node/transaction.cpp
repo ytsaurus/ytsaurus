@@ -27,7 +27,7 @@ TTransaction::TTransaction(const TTransactionId& id)
     , StartTimestamp_(NullTimestamp)
     , PrepareTimestamp_(NullTimestamp)
     , CommitTimestamp_(NullTimestamp)
-    , Finished_(NewPromise())
+    , Finished_(NewPromise<void>())
 { }
 
 void TTransaction::Save(TSaveContext& context) const
@@ -130,8 +130,8 @@ void TTransaction::Load(TLoadContext& context)
         }
 
         // Misc
-        bool deleteLockFlag = Load<bool>(context);
         ui32 lockMask = Load<ui32>(context);
+        bool deleteLockFlag = Load<bool>(context);
 
         TDynamicRow dynamicRow;
         auto row = rowBuilder->GetRow();
@@ -161,7 +161,7 @@ void TTransaction::SetFinished()
 void TTransaction::ResetFinished()
 {
     Finished_.Set();
-    Finished_ = NewPromise();
+    Finished_ = NewPromise<void>();
 }
 
 ETransactionState TTransaction::GetPersistentState() const

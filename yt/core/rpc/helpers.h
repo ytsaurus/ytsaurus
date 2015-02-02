@@ -34,6 +34,12 @@ IChannelPtr CreateAuthenticatedChannel(
     IChannelPtr underlyingChannel,
     const Stroka& user);
 
+//! Returns a wrapper that sets "authenticated_user" attribute in every request
+//! for every created channel.
+IChannelFactoryPtr CreateAuthenticatedChannelFactory(
+    IChannelFactoryPtr underlyingFactory,
+    const Stroka& user);
+
 //! Returns a wrapper that sets realm id in every request.
 IChannelPtr CreateRealmChannel(
     IChannelPtr underlyingChannel,

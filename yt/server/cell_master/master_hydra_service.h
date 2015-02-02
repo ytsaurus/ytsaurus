@@ -18,7 +18,8 @@ protected:
     TMasterHydraServiceBase(
         TBootstrap* bootstrap,
         const Stroka& serviceName,
-        const NLog::TLogger& logger);
+        const NLog::TLogger& logger,
+        int protocolVersion = NRpc::TProxyBase::DefaultProtocolVersion);
 
 private:
     virtual void BeforeInvoke() override;

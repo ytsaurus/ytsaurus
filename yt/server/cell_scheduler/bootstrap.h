@@ -24,7 +24,7 @@ namespace NCellScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EControlQueue,
+DEFINE_ENUM(EControlQueue,
     (Default)
     (Heartbeat)
 );

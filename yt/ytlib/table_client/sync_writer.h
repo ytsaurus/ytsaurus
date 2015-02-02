@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "async_writer.h"
+#include "chunk_meta_extensions.h"
 
 #include <ytlib/node_tracker_client/public.h>
 
@@ -37,6 +38,8 @@ struct ISyncWriterUnsafe
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const= 0;
 
     virtual void SetProgress(double progress) = 0;
+
+    virtual const NTableClient::NProto::TOldBoundaryKeysExt& GetOldBoundaryKeys() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,9 +108,14 @@ public:
         return Writer->GetNodeDirectory();
     }
 
-     virtual void SetProgress(double progress)
+     virtual void SetProgress(double progress) override
      {
         Writer->SetProgress(progress);
+     }
+
+     virtual const NTableClient::NProto::TOldBoundaryKeysExt& GetOldBoundaryKeys() const override
+     {
+        return Writer->GetProvider()->GetOldBoundaryKeys();
      }
 
 private:

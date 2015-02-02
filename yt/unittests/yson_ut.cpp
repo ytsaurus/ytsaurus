@@ -55,14 +55,14 @@ TEST(TYsonTest, ConvertToNode)
     NYT::NYTree::INodePtr child;
 
     child = node->AsMap()->FindChild("key");
-    for (auto format : EYsonFormat::GetDomainValues()) {
+    for (auto format : TEnumTraits<EYsonFormat>::GetDomainValues()) {
         EXPECT_EQ("value", ConvertTo<Stroka>(child));
         EXPECT_EQ("value", ConvertTo<Stroka>(ConvertToYsonString(child, format)));
     }
     EXPECT_EQ(ConvertTo<Stroka>(ConvertToYsonString(child)), "value");
 
     child = node->AsMap()->FindChild("other_key");
-    for (auto format : EYsonFormat::GetDomainValues()) {
+    for (auto format : TEnumTraits<EYsonFormat>::GetDomainValues()) {
         EXPECT_EQ(10, ConvertTo<i32>(child));
         EXPECT_EQ(10, ConvertTo<i32>(ConvertToYsonString(child, format)));
     }

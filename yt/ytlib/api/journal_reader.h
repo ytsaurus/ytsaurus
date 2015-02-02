@@ -4,7 +4,8 @@
 #include "client.h"
 
 #include <core/misc/ref.h>
-#include <core/misc/error.h>
+
+#include <core/actions/future.h>
 
 #include <core/ypath/public.h>
 
@@ -18,12 +19,12 @@ struct IJournalReader
 {
     //! Opens the reader.
     //! No other method can be called prior to the success of this one.
-    virtual TAsyncError Open() = 0;
+    virtual TFuture<void> Open() = 0;
 
     //! Reads another portion of the journal.
     //! Each row is passed in its own TSharedRef.
     //! When no more rows remain, an empty vector is returned.
-    virtual TFuture<TErrorOr<std::vector<TSharedRef>>> Read() = 0;
+    virtual TFuture<std::vector<TSharedRef>> Read() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJournalReader)
@@ -31,8 +32,7 @@ DEFINE_REFCOUNTED_TYPE(IJournalReader)
 IJournalReaderPtr CreateJournalReader(
     IClientPtr client,
     const NYPath::TYPath& path,
-    const TJournalReaderOptions& options = TJournalReaderOptions(),
-    TJournalReaderConfigPtr config = TJournalReaderConfigPtr());
+    const TJournalReaderOptions& options = TJournalReaderOptions());
 
 ///////////////////////////////////////////////////////////////////////////////
 

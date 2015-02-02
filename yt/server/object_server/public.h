@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 
 #include <ytlib/object_client/public.h>
 
@@ -13,6 +13,8 @@ using NObjectClient::TObjectId;
 using NObjectClient::TTransactionId;
 using NObjectClient::TVersionedObjectId;
 using NObjectClient::EObjectType;
+using NObjectClient::MinObjectType;
+using NObjectClient::MaxObjectType;
 using NObjectClient::TCellTag;
 using NObjectClient::NullObjectId;
 using NObjectClient::NullTransactionId;

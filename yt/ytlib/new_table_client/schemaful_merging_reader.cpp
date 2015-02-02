@@ -1,8 +1,9 @@
 #include "stdafx.h"
 #include "schemaful_merging_reader.h"
 #include "schemaful_reader.h"
+#include "unversioned_row.h"
 
-#include <core/actions/future.h>
+#include <core/actions/cancelable_context.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -22,17 +23,24 @@ public:
         }
     }
 
-    virtual TAsyncError Open(const TTableSchema& schema) override
+    ~TSchemafulMergingReader()
+    {
+        CancelableContext_->Cancel();
+    }
+
+    virtual TFuture<void> Open(const TTableSchema& schema) override
     {
         for (auto& session : Sessions_) {
             session.ReadyEvent = session.Reader->Open(schema);
+            CancelableContext_->PropagateTo(session.ReadyEvent);
         }
-        return OKFuture;
+        return VoidFuture;
     }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
         bool pending = false;
+        rows->clear();
 
         for (auto& session : Sessions_) {
             if (session.Exhausted) {
@@ -47,7 +55,7 @@ public:
 
                 const auto& error = session.ReadyEvent.Get();
                 if (!error.IsOK()) {
-                    ReadyEvent_ = session.ReadyEvent;
+                    ReadyEvent_ = MakePromise(error);
                     return true;
                 }
 
@@ -65,6 +73,7 @@ public:
 
             YASSERT(!session.ReadyEvent);
             session.ReadyEvent = session.Reader->GetReadyEvent();
+            CancelableContext_->PropagateTo(session.ReadyEvent);
             pending = true;
         }
 
@@ -72,32 +81,42 @@ public:
             return false;
         }
 
-        auto readyEvent = NewPromise<TError>();
+        auto readyEvent = NewPromise<void>();
         for (auto& session : Sessions_) {
             if (session.ReadyEvent) {
                 readyEvent.TrySetFrom(session.ReadyEvent);
             }
         }
+        readyEvent.OnCanceled(BIND(&TSchemafulMergingReader::OnCanceled, MakeWeak(this)));
         ReadyEvent_ = readyEvent;
 
         return true;
     }
 
-    virtual TAsyncError GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() override
     {
         return ReadyEvent_;
     }
 
 private:
+    const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
+
     struct TSession
     {
         ISchemafulReaderPtr Reader;
-        TAsyncError ReadyEvent;
+        TFuture<void> ReadyEvent;
         bool Exhausted = false;
     };
 
     std::vector<TSession> Sessions_;
-    TAsyncError ReadyEvent_;
+    TPromise<void> ReadyEvent_;
+
+
+    void OnCanceled()
+    {
+        ReadyEvent_.TrySet(TError(NYT::EErrorCode::Canceled, "Reader canceled"));
+        CancelableContext_->Cancel();
+    }
 
 };
 

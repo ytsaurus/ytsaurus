@@ -18,17 +18,17 @@ struct IFileWriter
 {
     //! Opens the writer.
     //! No other method can be called prior to the success of this one.
-    virtual TAsyncError Open() = 0;
+    virtual TFuture<void> Open() = 0;
 
     //! Writes the next portion of file data.
     /*!
      *  #data must remain alive until this asynchronous operation completes.
      */
-    virtual TAsyncError Write(const TRef& data) = 0;
+    virtual TFuture<void> Write(const TRef& data) = 0;
 
     //! Closes the writer.
     //! No other method can be called after this one.
-    virtual TAsyncError Close() = 0;
+    virtual TFuture<void> Close() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFileWriter)
@@ -36,8 +36,7 @@ DEFINE_REFCOUNTED_TYPE(IFileWriter)
 IFileWriterPtr CreateFileWriter(
     IClientPtr client,
     const NYPath::TYPath& path,
-    const TFileWriterOptions& options = TFileWriterOptions(),
-    TFileWriterConfigPtr config = TFileWriterConfigPtr());
+    const TFileWriterOptions& options = TFileWriterOptions());
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 #include <core/misc/enum.h>
 #include <core/misc/small_vector.h>
 
@@ -61,7 +61,7 @@ const i64 MaxStringValueLength = (i64) 1024 * 1024; // 1 MB
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETableChunkFormat,
+DEFINE_ENUM(ETableChunkFormat,
     ((Old)                  (1))
     ((VersionedSimple)      (2))
     ((Schemaful)            (3))
@@ -78,7 +78,7 @@ typedef SmallVector<int, TypicalColumnCount> TNameTableToSchemaIdMapping;
 
 union TUnversionedValueData;
 
-class EValueType;
+enum class EValueType : ui16;
 
 struct TColumnFilter;
 

@@ -12,50 +12,50 @@ namespace NDetail {
 /*! \internal */
 ////////////////////////////////////////////////////////////////////////////////
 
+// EReadStartCase tree representation:
+// Root                                =     xb
+//     BinaryStringOrOtherSpecialToken =    x0b
+//         BinaryString                =    00b
+//         OtherSpecialToken           =    10b
+//     Other                           =    x1b
+//         BinaryScalar                =  xx01b
+//             BinaryInt64             =  0001b
+//             BinaryDouble            =  0101b
+//             BinaryFalse             =  1001b
+//             BinaryTrue              =  1101b
+//         Other                       = xxx11b
+//             Quote                   = 00011b
+//             DigitOrMinus            = 00111b
+//             String                  = 01011b
+//             Space                   = 01111b
+//             Plus                    = 10011b
+//             None                    = 10111b
+//             Percent                 = 11011b
+DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EReadStartCase, ui8,
+    ((BinaryString)                 (0))    // =    00b
+    ((OtherSpecialToken)            (2))    // =    10b
+
+    ((BinaryInt64)                  (1))    // =   001b
+    ((BinaryDouble)                 (5))    // =   101b
+    ((BinaryFalse)                  (9))    // =  1001b
+    ((BinaryTrue)                   (13))   // =  1101b
+    ((BinaryUint64)                 (17))   // = 10001b
+
+    ((Quote)                        (3))    // = 00011b
+    ((DigitOrMinus)                 (7))    // = 00111b
+    ((String)                       (11))   // = 01011b
+    ((Space)                        (15))   // = 01111b
+    ((Plus)                         (19))   // = 10011b
+    ((None)                         (23))   // = 10111b
+    ((Percent)                      (27))   // = 11011b
+);
+
 template <class TBlockStream, bool EnableLinePositionInfo>
 class TLexer
     : public TLexerBase<TBlockStream, EnableLinePositionInfo>
 {
 private:
     typedef TLexerBase<TBlockStream, EnableLinePositionInfo> TBase;
-
-    // EReadStartCase tree representation:
-    // Root                                =     xb
-    //     BinaryStringOrOtherSpecialToken =    x0b
-    //         BinaryString                =    00b
-    //         OtherSpecialToken           =    10b
-    //     Other                           =    x1b
-    //         BinaryScalar                =  xx01b
-    //             BinaryInt64             =  0001b
-    //             BinaryDouble            =  0101b
-    //             BinaryFalse             =  1001b
-    //             BinaryTrue              =  1101b
-    //         Other                       = xxx11b
-    //             Quote                   = 00011b
-    //             DigitOrMinus            = 00111b
-    //             String                  = 01011b
-    //             Space                   = 01111b
-    //             Plus                    = 10011b
-    //             None                    = 10111b
-    //             Percent                 = 11011b
-    DECLARE_ENUM(EReadStartCase,
-        ((BinaryString)                 (0))    // =    00b
-        ((OtherSpecialToken)            (2))    // =    10b
-
-        ((BinaryInt64)                  (1))    // =   001b
-        ((BinaryDouble)                 (5))    // =   101b
-        ((BinaryFalse)                  (9))    // =  1001b
-        ((BinaryTrue)                   (13))   // =  1101b
-        ((BinaryUint64)                 (17))   // = 10001b
-
-        ((Quote)                        (3))    // = 00011b
-        ((DigitOrMinus)                 (7))    // = 00111b
-        ((String)                       (11))   // = 01011b
-        ((Space)                        (15))   // = 01111b
-        ((Plus)                         (19))   // = 10011b
-        ((None)                         (23))   // = 10111b
-        ((Percent)                      (27))   // = 11011b
-    );
 
     static EReadStartCase GetStartState(char ch)
     {
@@ -66,15 +66,15 @@ private:
 #define BF EReadStartCase::BinaryFalse
 #define BT EReadStartCase::BinaryTrue
 #define BU EReadStartCase::BinaryUint64
-        //EReadStartCase::Space
-#define SP NN
+#define SP NN // EReadStartCase::Space
 #define DM EReadStartCase::DigitOrMinus
 #define ST EReadStartCase::String
 #define PL EReadStartCase::Plus
 #define QU EReadStartCase::Quote
 #define PC EReadStartCase::Percent
-
-        static const ui8 lookupTable[] =
+#define TT(name) (EReadStartCase(static_cast<ui8>(ETokenType::name) << 2) | EReadStartCase::OtherSpecialToken)
+        
+        static const EReadStartCase lookupTable[] =
         {
             NN,BS,BI,BD,BF,BT,BU,NN,NN,SP,SP,SP,SP,SP,NN,NN,
             NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,
@@ -83,36 +83,36 @@ private:
             SP, // ' '
             NN, // '!'
             QU, // '"'
-            ETokenType::Hash << 2 | EReadStartCase::OtherSpecialToken, // '#'
+            TT(Hash), // '#'
             NN, // '$'
             PC, // '%'
             NN, // '&'
             NN, // "'"
-            ETokenType::LeftParenthesis << 2 | EReadStartCase::OtherSpecialToken, // '('
-            ETokenType::RightParenthesis << 2 | EReadStartCase::OtherSpecialToken, // ')'
+            TT(LeftParenthesis), // '('
+            TT(RightParenthesis), // ')'
             NN, // '*'
             PL, // '+'
-            ETokenType::Comma << 2 | EReadStartCase::OtherSpecialToken, // ','
+            TT(Comma), // ','
             DM, // '-'
             NN, // '.'
             NN, // '/'
 
             // 48
             DM,DM,DM,DM,DM,DM,DM,DM,DM,DM, // '0' - '9'
-            ETokenType::Colon << 2 | EReadStartCase::OtherSpecialToken, // ':'
-            ETokenType::Semicolon << 2 | EReadStartCase::OtherSpecialToken, // ';'
-            ETokenType::LeftAngle << 2 | EReadStartCase::OtherSpecialToken, // '<'
-            ETokenType::Equals << 2 | EReadStartCase::OtherSpecialToken, // '='
-            ETokenType::RightAngle << 2 | EReadStartCase::OtherSpecialToken, // '>'
+            TT(Colon), // ':'
+            TT(Semicolon), // ';'
+            TT(LeftAngle), // '<'
+            TT(Equals), // '='
+            TT(RightAngle), // '>'
             NN, // '?'
 
             // 64
             NN, // '@'
             ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST, // 'A' - 'M'
             ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST, // 'N' - 'Z'
-            ETokenType::LeftBracket << 2 | EReadStartCase::OtherSpecialToken, // '['
+            TT(LeftBracket), // '['
             NN, // '\'
-            ETokenType::RightBracket << 2 | EReadStartCase::OtherSpecialToken, // ']'
+            TT(RightBracket), // ']'
             NN, // '^'
             ST, // '_'
 
@@ -121,9 +121,9 @@ private:
             
             ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST, // 'a' - 'm'
             ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST, // 'n' - 'z'
-            ETokenType::LeftBrace << 2 | EReadStartCase::OtherSpecialToken, // '{'
+            TT(LeftBrace), // '{'
             NN, // '|'
-            ETokenType::RightBrace << 2 | EReadStartCase::OtherSpecialToken, // '}'
+            TT(RightBrace), // '}'
             NN, // '~'
             NN, // '^?' non-printable
             // 128
@@ -147,7 +147,8 @@ private:
 #undef ST
 #undef PL
 #undef QU
-        return EReadStartCase(lookupTable[static_cast<ui8>(ch)]);
+#undef TT
+        return lookupTable[static_cast<ui8>(ch)];
     }
 
 public:
@@ -159,14 +160,15 @@ public:
     {
         char ch = TBase::SkipSpaceAndGetChar();
         auto state = GetStartState(ch);
+        auto stateBits = static_cast<unsigned>(state);
 
         if (ch == '\0') {
             *token = TToken::EndOfStream;
             return;
         }
 
-        if (state & 1) { // Other = x1b
-            if (state & 1 << 1) { // Other = xxx11b
+        if (stateBits & 1) { // Other = x1b
+            if (stateBits & 1 << 1) { // Other = xxx11b
                 if (state == EReadStartCase::Quote) {
                     TStringBuf value;
                     TBase::Advance(1);
@@ -180,7 +182,7 @@ public:
                     char ch = TBase::template GetChar<true>();
 
                     if (!isdigit(ch)) {
-                        *token = TToken(ETokenType(ETokenType::Plus));
+                        *token = TToken(ETokenType::Plus);
                     } else {
                         ReadNumeric<true>(token);
                     }
@@ -220,19 +222,17 @@ public:
             }
         } else { // BinaryStringOrOtherSpecialToken = x0b
             TBase::Advance(1);
-            if (state & 1 << 1) { // OtherSpecialToken = 10b
-                YASSERT((state & 3) == EReadStartCase::OtherSpecialToken);
-                *token = TToken(ETokenType(state >> 2));
+            if (stateBits & 1 << 1) { // OtherSpecialToken = 10b
+                YASSERT((stateBits & 3) == static_cast<unsigned>(EReadStartCase::OtherSpecialToken));
+                *token = TToken(ETokenType(stateBits >> 2));
             } else { // BinaryString = 00b
-                YASSERT((state & 3) == EReadStartCase::BinaryString);
+                YASSERT((stateBits & 3) == static_cast<unsigned>(EReadStartCase::BinaryString));
                 TStringBuf value;
                 TBase::ReadBinaryString(&value);
                 *token = TToken(value);
             }
         }
     }
-
-    typedef typename TBase::ENumericResult ENumericResult;
 
     template <bool AllowFinish>
     void ReadNumeric(TToken* token)

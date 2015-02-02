@@ -51,12 +51,14 @@ ETokenType TTokenizer::Advance()
             case '/':
             case '@':
             case '&':
+            case '*':
                 if (current == Input_.begin()) {
                     Token_ = TStringBuf(current, current + 1);
                     switch (*current) {
                         case '/': Type_ = ETokenType::Slash;     break;
                         case '@': Type_ = ETokenType::At;        break;
                         case '&': Type_ = ETokenType::Ampersand; break;
+                        case '*': Type_ = ETokenType::Asterisk;  break;
                         default:  YUNREACHABLE();
                     }
                     return Type_;
@@ -99,6 +101,7 @@ const char* TTokenizer::AdvanceEscaped(const char* current)
         case '/':
         case '@':
         case '&':
+        case '*':
         case '[':
         case '{':
             LiteralValue_.append(*current);

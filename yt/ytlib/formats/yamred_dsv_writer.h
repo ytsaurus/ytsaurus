@@ -15,6 +15,16 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EYamredDsvConsumerState,
+    (None)
+    (ExpectColumnName)
+    (ExpectValue)
+    (ExpectAttributeName)
+    (ExpectAttributeValue)
+    (ExpectEndAttributes)
+    (ExpectEntity)
+);
+
 //! Note: TYamrWriter only supports tabular data.
 class TYamredDsvConsumer
     : public TFormatsConsumerBase
@@ -43,28 +53,16 @@ public:
     virtual void OnEndAttributes() override;
 
 private:
-    DECLARE_ENUM(EState,
-        (None)
-        (ExpectColumnName)
-        (ExpectValue)
-        (ExpectAttributeName)
-        (ExpectAttributeValue)
-        (ExpectEndAttributes)
-        (ExpectEntity)
-    );
+    using EState = EYamredDsvConsumerState;
 
     struct TColumnValue
     {
-        i64 RowIndex;
+        i64 RowIndex = -1;
         TStringBuf Value;
-
-        TColumnValue()
-            : RowIndex(-1)
-        { }
     };
 
     // For small data sizes, set and map are faster than hash set and hash map.
-    typedef std::map<TStringBuf, TColumnValue> TDictionary;
+    using TDictionary = std::map<TStringBuf, TColumnValue>;
 
     TOutputStream* Stream;
     TYamredDsvFormatConfigPtr Config;

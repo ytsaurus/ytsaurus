@@ -61,10 +61,12 @@ protected:
     NTransactionServer::TTransaction* Transaction;
     TCypressNodeBase* TrunkNode;
 
-    mutable TCypressNodeBase* CachedNode;
+    mutable TCypressNodeBase* CachedNode = nullptr;
     mutable NYTree::INodeResolverPtr CachedResolver;
 
-    bool AccessTrackingSuppressed;
+    bool AccessTrackingSuppressed = false;
+    bool ModificationTrackingSuppressed = false;
+
 
     virtual NLog::TLogger CreateLogger() const override;
 
@@ -73,7 +75,7 @@ protected:
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TAsyncError GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual TFuture<void> GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     virtual void BeforeInvoke(NRpc::IServiceContextPtr context) override;
@@ -163,6 +165,7 @@ protected:
     using TObjectProxyBase::ValidatePermission;
 
     void SetModified();
+    void SuppressModificationTracking();
 
     void SetAccessed();
     void SuppressAccessTracking();

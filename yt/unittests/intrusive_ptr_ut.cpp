@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 #include <core/misc/ref_counted.h>
 #include <core/misc/new.h>
 #include <core/misc/format.h>

@@ -28,26 +28,26 @@ public:
 
 private:
     TJournalChunkPtr Chunk_;
-    TAsyncError LastAppendResult_;
+    TFuture<void> LastAppendResult_;
 
 
-    virtual TAsyncError DoStart() override;
+    virtual TFuture<void> DoStart() override;
 
-    virtual TAsyncError DoPutBlocks(
+    virtual TFuture<void> DoPutBlocks(
         int startBlockIndex,
         const std::vector<TSharedRef>& blocks,
         bool enableCaching) override;
 
-    virtual TAsyncError DoSendBlocks(
+    virtual TFuture<void> DoSendBlocks(
         int startBlockIndex,
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& target) override;
 
-    virtual TAsyncError DoFlushBlocks(int blockIndex) override;
+    virtual TFuture<void> DoFlushBlocks(int blockIndex) override;
 
     virtual void DoCancel() override;
 
-    virtual TFuture<TErrorOr<IChunkPtr>> DoFinish(
+    virtual TFuture<IChunkPtr> DoFinish(
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
         const TNullable<int>& blockCount) override;
 

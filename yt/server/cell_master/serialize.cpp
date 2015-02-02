@@ -44,7 +44,7 @@ using namespace NTableServer;
 
 int GetCurrentSnapshotVersion()
 {
-    return 108;
+    return 112;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -59,7 +59,11 @@ bool ValidateSnapshotVersion(int version)
         version == 105 ||
         version == 106 ||
         version == 107 ||
-        version == 108;
+        version == 108 ||
+        version == 109 ||
+        version == 110 ||
+        version == 111 ||
+        version == 112;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,6 +72,7 @@ TLoadContext::TLoadContext(TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
 { }
 
+// COMPAT(babenko)
 template <>
 TObjectBase* TLoadContext::Get(const TObjectId& id) const
 {

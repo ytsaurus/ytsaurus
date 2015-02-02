@@ -40,13 +40,13 @@ public:
         std::vector<NChunkClient::NProto::TChunkSpec>&& chunkSpecs,
         const TProviderPtr& readerProvider);
 
-    virtual TAsyncError AsyncOpen() = 0;
+    virtual TFuture<void> AsyncOpen() = 0;
 
     virtual bool FetchNext() = 0;
 
     // If nullptr is returned - reader is finished.
     const TFacade* GetFacade() const;
-    TAsyncError GetReadyEvent();
+    TFuture<void> GetReadyEvent();
 
     std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const;
 
@@ -98,7 +98,7 @@ protected:
 
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
 
-    virtual void OnReaderOpened(const TSession& session, TError error) = 0;
+    virtual void OnReaderOpened(const TSession& session, const TError& error) = 0;
 
     void PrepareNextChunk();
     void ProcessOpenedReader(const TSession& session);

@@ -538,7 +538,7 @@ struct TBindState<TRunnable_, R(TArgs...), void(S...)>
     template<class... P>
     TBindState(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
-        const TSourceLocation& location,
+        const NYT::TSourceLocation& location,
 #endif
         const TRunnable& runnable,
         P&&... p)

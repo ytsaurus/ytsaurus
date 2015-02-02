@@ -2,14 +2,11 @@
 
 #include <core/misc/property.h>
 
+#include <core/actions/callback.h>
+
 #include <core/yson/consumer.h>
 
-// should be removed
-// TODO(babenko): so let's remove it
 #include <core/ytree/tree_builder.h>
-#include <core/ytree/public.h>
-
-#include <core/actions/bind.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -29,7 +26,6 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(i64, Min);
     DEFINE_BYVAL_RO_PROPERTY(i64, Max);
 
-    // TODO(babenko): below we also declare Serialize to be a friend; is it really needed?
     friend void Deserialize(TSummary& value, NYTree::INodePtr node);
 };
 
@@ -42,6 +38,10 @@ class TStatistics
 {
 public:
     void Add(const NYPath::TYPath& name, const TSummary& summary);
+
+    template <class T>
+    void Add(const NYPath::TYPath& path, const T& statistics);
+
     void Merge(const TStatistics& other);
     void Clear();
     bool IsEmpty() const;
@@ -49,7 +49,6 @@ public:
     TSummary Get(const NYPath::TYPath& name) const;
 
 private:
-    // TODO(babenko): PathToSummary_?
     yhash_map<NYPath::TYPath, TSummary> PathToSummary_;
 
     friend void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer);
@@ -87,7 +86,7 @@ public:
     virtual void OnEndAttributes() override;
 
 private:
-    int Depth_;
+    int Depth_ = 0;
     NYPath::TYPath Path_;
     std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;
     TParsedStatisticsConsumer Consumer_;
@@ -97,20 +96,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): move to inl
-// why isn't it a member?
-template <typename T>
-void AddStatistic(TStatistics& customStatistics, const NYPath::TYPath& path, const T& statistics)
-{
-    auto consume = [&customStatistics] (const TStatistics& other) {
-        customStatistics.Merge(other);
-    };
-
-    TStatisticsConsumer consumer(BIND(consume), path);
-    Serialize(statistics, &consumer);
-}
-
-// TODO(babenko): need a separator here
-
 } // namespace NScheduler
 } // namespace NYT
+
+#define STATISTICS_INL_H_
+#include "statistics-inl.h"
+#undef STATISTICS_INL_H_

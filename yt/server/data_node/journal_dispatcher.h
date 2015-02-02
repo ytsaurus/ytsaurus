@@ -30,18 +30,18 @@ public:
 
     //! Asynchronously opens (or returns a cached) changelog corresponding
     //! to a given journal chunk.
-    TFuture<TErrorOr<NHydra::IChangelogPtr>> OpenChangelog(
+    TFuture<NHydra::IChangelogPtr> OpenChangelog(
         TLocationPtr location,
         const TChunkId& chunkId,
         bool enableMultiplexing);
 
     //! Asynchronously creates a new changelog corresponding to a given journal chunk.
-    TFuture<TErrorOr<NHydra::IChangelogPtr>> CreateChangelog(
+    TFuture<NHydra::IChangelogPtr> CreateChangelog(
         TJournalChunkPtr chunk,
         bool enableMultiplexing);
 
     //! Asynchronously removes files of a given journal chunk.
-    TAsyncError RemoveChangelog(TJournalChunkPtr chunk);
+    TFuture<void> RemoveChangelog(TJournalChunkPtr chunk);
 
 private:
     class TCachedChangelog;
@@ -52,7 +52,7 @@ private:
 
     class TMultiplexedReplay;
 
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

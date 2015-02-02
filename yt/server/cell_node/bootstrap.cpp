@@ -133,7 +133,6 @@ void TBootstrap::Run()
     ControlQueue = New<TActionQueue>("Control");
 
     auto result = BIND(&TBootstrap::DoRun, this)
-        .Guarded()
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get();
@@ -194,7 +193,7 @@ void TBootstrap::DoRun()
 
     auto throttlingMasterChannel = CreateThrottlingChannel(
         Config->MasterCacheService,
-        MasterClient->GetMasterChannel());
+        MasterClient->GetMasterChannel(EMasterChannelKind::Leader));
     RpcServer->RegisterService(CreateRedirectorService(
         TServiceId(NChunkClient::TChunkServiceProxy::GetServiceName(), GetCellId()),
         throttlingMasterChannel));
@@ -256,7 +255,7 @@ void TBootstrap::DoRun()
     JobProxyConfig->SandboxName = SandboxDirectoryName;
     JobProxyConfig->AddressResolver = Config->AddressResolver;
     JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
-    JobProxyConfig->SupervisorConnection->Address = LocalDescriptor.GetDefaultAddress();
+    JobProxyConfig->SupervisorConnection->Address = LocalDescriptor.GetInterconnectAddress();
     JobProxyConfig->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
     // TODO(babenko): consider making this priority configurable
     JobProxyConfig->SupervisorConnection->Priority = 6;
@@ -330,9 +329,8 @@ void TBootstrap::DoRun()
 
     RpcServer->RegisterService(CreateMasterCacheService(
         Config->MasterCacheService,
-        clusterConnection->GetMasterChannel(),
-        GetCellId()
-    ));
+        MasterClient->GetMasterChannel(EMasterChannelKind::Leader),
+        GetCellId()));
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SetNodeByYPath(
@@ -359,7 +357,7 @@ void TBootstrap::DoRun()
             ->Via(GetControlInvoker())));
     SetNodeByYPath(
         OrchidRoot,
-        "/tablet_slots",
+        "/tablet_cells",
         CreateVirtualNode(
             TabletSlotManager->GetOrchidService()
             ->Via(GetControlInvoker())

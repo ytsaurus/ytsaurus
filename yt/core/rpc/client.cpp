@@ -16,8 +16,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto ClientHostAnnotation = Stroka("client_host");
-static auto RequestIdAnnotation = Stroka("request_id");
+static const auto ClientHostAnnotation = Stroka("client_host");
+static const auto RequestIdAnnotation = Stroka("request_id");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,9 +30,9 @@ TClientRequest::TClientRequest(
     : RequestAck_(true)
     , RequestHeavy_(false)
     , ResponseHeavy_(false)
-    , Channel_(channel)
+    , Channel_(std::move(channel))
 {
-    YCHECK(channel);
+    YASSERT(Channel_);
 
     Header_.set_service(service);
     Header_.set_method(method);
@@ -65,23 +65,13 @@ TSharedRefArray TClientRequest::Serialize()
         Attachments_);
 }
 
-void TClientRequest::DoInvoke(IClientResponseHandlerPtr responseHandler)
+IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr responseHandler)
 {
-    Channel_->Send(
+    return Channel_->Send(
         this,
-        responseHandler,
+        std::move(responseHandler),
         Timeout_,
         RequestAck_);
-}
-
-const Stroka& TClientRequest::GetService() const
-{
-    return Header_.service();
-}
-
-const Stroka& TClientRequest::GetMethod() const
-{
-    return Header_.method();
 }
 
 bool TClientRequest::IsOneWay() const
@@ -104,6 +94,21 @@ TRequestId TClientRequest::GetRequestId() const
     return FromProto<TRequestId>(Header_.request_id());
 }
 
+TRealmId TClientRequest::GetRealmId() const
+{
+    return FromProto<TRealmId>(Header_.realm_id());
+}
+
+const Stroka& TClientRequest::GetService() const
+{
+    return Header_.service();
+}
+
+const Stroka& TClientRequest::GetMethod() const
+{
+    return Header_.method();
+}
+
 TInstant TClientRequest::GetStartTime() const
 {
     return TInstant(Header_.request_start_time());
@@ -119,22 +124,7 @@ TClientContextPtr TClientRequest::CreateClientContext()
     auto traceContext = NTracing::CreateChildTraceContext();
     if (traceContext.IsEnabled()) {
         SetTraceContext(&Header(), traceContext);
-
-        TRACE_ANNOTATION(
-            traceContext,
-            GetService(),
-            GetMethod(),
-            NTracing::ClientSendAnnotation);
-
-        TRACE_ANNOTATION(
-            traceContext,
-            RequestIdAnnotation,
-            GetRequestId());
-
-        TRACE_ANNOTATION(
-            traceContext,
-            ClientHostAnnotation,
-            TAddressResolver::Get()->GetLocalHostName());
+        TraceRequest(traceContext);
     }
 
     return New<TClientContext>(
@@ -144,25 +134,33 @@ TClientContextPtr TClientRequest::CreateClientContext()
         GetMethod());
 }
 
+void TClientRequest::TraceRequest(const NTracing::TTraceContext& traceContext)
+{
+    NTracing::TraceEvent(
+        traceContext,
+        GetService(),
+        GetMethod(),
+        NTracing::ClientSendAnnotation);
+
+    NTracing::TraceEvent(
+        traceContext,
+        RequestIdAnnotation,
+        GetRequestId());
+
+    NTracing::TraceEvent(
+        traceContext,
+        ClientHostAnnotation,
+        TAddressResolver::Get()->GetLocalHostName());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TClientResponseBase::TClientResponseBase(TClientContextPtr clientContext)
     : StartTime_(TInstant::Now())
-    , State_(EState::Sent)
     , ClientContext_(std::move(clientContext))
 { }
 
-bool TClientResponseBase::IsOK() const
-{
-    return Error_.IsOK();
-}
-
-TClientResponseBase::operator TError() const
-{
-    return Error_;
-}
-
-void TClientResponseBase::OnError(const TError& error)
+void TClientResponseBase::HandleError(const TError& error)
 {
     {
         TGuard<TSpinLock> guard(SpinLock_);
@@ -172,14 +170,19 @@ void TClientResponseBase::OnError(const TError& error)
             return;
         }
         State_ = EState::Done;
-        Error_  = error;
     }
 
-    NTracing::TTraceContextGuard guard(ClientContext_->GetTraceContext());
-    FireCompleted();
+    Finish(error);
 }
 
-void TClientResponseBase::BeforeCompleted()
+void TClientResponseBase::Finish(const TError& error)
+{
+    NTracing::TTraceContextGuard guard(ClientContext_->GetTraceContext());
+    TraceResponse();
+    SetPromise(error);
+}
+
+void TClientResponseBase::TraceResponse()
 {
     NTracing::TraceEvent(
         ClientContext_->GetTraceContext(),
@@ -218,7 +221,7 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
         ResponseMessage_.End());
 }
 
-void TClientResponse::OnAcknowledgement()
+void TClientResponse::HandleAcknowledgement()
 {
     TGuard<TSpinLock> guard(SpinLock_);
     if (State_ == EState::Sent) {
@@ -226,7 +229,7 @@ void TClientResponse::OnAcknowledgement()
     }
 }
 
-void TClientResponse::OnResponse(TSharedRefArray message)
+void TClientResponse::HandleResponse(TSharedRefArray message)
 {
     {
         TGuard<TSpinLock> guard(SpinLock_);
@@ -234,19 +237,17 @@ void TClientResponse::OnResponse(TSharedRefArray message)
         State_ = EState::Done;
     }
 
-    NTracing::TTraceContextGuard guard(ClientContext_->GetTraceContext());
-    Deserialize(message);
-    FireCompleted();
+    Deserialize(std::move(message));
+    Finish(TError());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TOneWayClientResponse::TOneWayClientResponse(TClientContextPtr clientContext)
     : TClientResponseBase(std::move(clientContext))
-    , Promise_(NewPromise<TThisPtr>())
 { }
 
-void TOneWayClientResponse::OnAcknowledgement()
+void TOneWayClientResponse::HandleAcknowledgement()
 {
     {
         TGuard<TSpinLock> guard(SpinLock_);
@@ -257,24 +258,22 @@ void TOneWayClientResponse::OnAcknowledgement()
         State_ = EState::Done;
     }
 
-    NTracing::TTraceContextGuard guard(ClientContext_->GetTraceContext());
-    FireCompleted();
+    Finish(TError());
 }
 
-void TOneWayClientResponse::OnResponse(TSharedRefArray /*message*/)
+void TOneWayClientResponse::HandleResponse(TSharedRefArray /*message*/)
 {
     YUNREACHABLE();
 }
 
-TFuture<TOneWayClientResponsePtr> TOneWayClientResponse::GetAsyncResult()
+auto TOneWayClientResponse::GetPromise() -> TPromise<TResult>
 {
     return Promise_;
 }
 
-void TOneWayClientResponse::FireCompleted()
+void TOneWayClientResponse::SetPromise(const TError& error)
 {
-    BeforeCompleted();
-    Promise_.Set(this);
+    Promise_.Set(error);
     Promise_.Reset();
 }
 
@@ -286,8 +285,8 @@ TProxyBase::TProxyBase(
     int protocolVersion)
     : DefaultTimeout_(channel->GetDefaultTimeout())
     , DefaultRequestAck_(true)
-    , ServiceName_(serviceName)
     , Channel_(std::move(channel))
+    , ServiceName_(serviceName)
     , ProtocolVersion_(protocolVersion)
 {
     YASSERT(Channel_);

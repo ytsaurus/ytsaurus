@@ -51,7 +51,7 @@ TJournalChunk::TJournalChunk(
     CachedDataSize_ = descriptor.DiskSpace;
 
     Meta_ = New<TRefCountedChunkMeta>();
-    Meta_->set_type(EChunkType::Journal);
+    Meta_->set_type(static_cast<int>(EChunkType::Journal));
     Meta_->set_version(0);
 }
 
@@ -75,7 +75,7 @@ TChunkInfo TJournalChunk::GetInfo() const
     return info;
 }
 
-IChunk::TAsyncGetMetaResult TJournalChunk::GetMeta(
+TFuture<TRefCountedChunkMetaPtr> TJournalChunk::GetMeta(
     i64 /*priority*/,
     const std::vector<int>* tags /*= nullptr*/)
 {
@@ -88,10 +88,10 @@ IChunk::TAsyncGetMetaResult TJournalChunk::GetMeta(
     miscExt.set_sealed(CachedSealed_);
     SetProtoExtension(Meta_->mutable_extensions(), miscExt);
 
-    return MakeFuture<TGetMetaResult>(FilterCachedMeta(tags));
+    return MakeFuture(FilterCachedMeta(tags));
 }
 
-IChunk::TAsyncReadBlocksResult TJournalChunk::ReadBlocks(
+TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlocks(
     int firstBlockIndex,
     int blockCount,
     i64 priority)
@@ -99,7 +99,7 @@ IChunk::TAsyncReadBlocksResult TJournalChunk::ReadBlocks(
     YCHECK(firstBlockIndex >= 0);
     YCHECK(blockCount >= 0);
 
-    auto promise = NewPromise<TReadBlocksResult>();
+    auto promise = NewPromise<std::vector<TSharedRef>>();
 
     auto callback = BIND(
         &TJournalChunk::DoReadBlocks,
@@ -118,16 +118,15 @@ IChunk::TAsyncReadBlocksResult TJournalChunk::ReadBlocks(
 void TJournalChunk::DoReadBlocks(
     int firstBlockIndex,
     int blockCount,
-    TPromise<TReadBlocksResult> promise)
+    TPromise<std::vector<TSharedRef>> promise)
 {
     auto config = Bootstrap_->GetConfig()->DataNode;
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
 
     try {
-        auto changelogOrError = WaitFor(dispatcher->OpenChangelog(Location_, Id_, false));
-        THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
-        auto changelog = changelogOrError.Value();
-    
+        auto changelog = WaitFor(dispatcher->OpenChangelog(Location_, Id_, false))
+            .ValueOrThrow();
+
         LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
             Id_,
             firstBlockIndex,
@@ -136,23 +135,23 @@ void TJournalChunk::DoReadBlocks(
 
         NProfiling::TScopedTimer timer;
 
-        std::vector<TSharedRef> blocks;
-        try {
-            blocks = changelog->Read(
-                firstBlockIndex,
-                std::min(blockCount, config->MaxBlocksPerRead),
-                config->MaxBytesPerRead);
-        } catch (const std::exception& ex) {
+        auto asyncBlocks = changelog->Read(
+            firstBlockIndex,
+            std::min(blockCount, config->MaxBlocksPerRead),
+            config->MaxBytesPerRead);
+        auto blocksOrError = WaitFor(asyncBlocks);
+        if (!blocksOrError.IsOK()) {
             auto error = TError(
                 NChunkClient::EErrorCode::IOError,
                 "Error reading journal chunk %v",
                 Id_)
-                << ex;
+                << blocksOrError;
             Location_->Disable(error);
             THROW_ERROR error;
         }
 
         auto readTime = timer.GetElapsed();
+        const auto& blocks = blocksOrError.Value();
         int blocksRead = static_cast<int>(blocks.size());
         i64 bytesRead = GetTotalSize(blocks);
 
@@ -172,7 +171,7 @@ void TJournalChunk::DoReadBlocks(
 
         promise.Set(blocks);
     } catch (const std::exception& ex) {
-        promise.Set(ex);
+        promise.Set(TError(ex));
     }
 }
 
@@ -185,24 +184,20 @@ void TJournalChunk::UpdateCachedParams() const
     }
 }
 
-void TJournalChunk::SyncRemove()
+void TJournalChunk::SyncRemove(bool force)
 {
     if (Changelog_) {
-        LOG_DEBUG("Started closing journal chunk files (ChunkId: %v)",
-            Id_);
-        auto error = WaitFor(Changelog_->Close());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
-        LOG_DEBUG("Finished closing journal chunk files (ChunkId: %v)",
-            Id_);
+        LOG_DEBUG("Started closing journal chunk files (ChunkId: %v)", Id_);
+        WaitFor(Changelog_->Close())
+            .ThrowOnError();
+        LOG_DEBUG("Finished closing journal chunk files (ChunkId: %v)", Id_);
         Changelog_.Reset();
     }
 
-    {
-        LOG_DEBUG("Started removing journal chunk files (ChunkId: %v)",
-            Id_);
-        RemoveChangelogFiles(GetFileName());
-        LOG_DEBUG("Finished removing journal chunk files (ChunkId: %v)",
-            Id_);
+    if (force) {
+        Location_->RemoveChunkFiles(Id_);
+    } else {
+        Location_->MoveChunkFilesToTrash(Id_);
     }
 }
 

@@ -11,8 +11,6 @@
 #include "scheduler_commands.h"
 #include "journal_commands.h"
 
-#include <core/actions/invoker_util.h>
-
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/scheduler.h>
 
@@ -148,20 +146,18 @@ public:
         REGISTER(TRemoveMemberCommand,      "remove_member",     Null,       Null,       true,  false);
         REGISTER(TCheckPermissionCommand,   "check_permission",  Null,       Structured, false, false);
 
-        REGISTER(TWriteJournalCommand,      "write_journal",       Tabular,    Null,       true,  true );
-        REGISTER(TReadJournalCommand,       "read_journal",        Null,       Tabular,    false, true );
+        REGISTER(TWriteJournalCommand,      "write_journal",     Tabular,    Null,       true,  true );
+        REGISTER(TReadJournalCommand,       "read_journal",      Null,       Tabular,    false, true );
 #undef REGISTER
     }
 
-    virtual TFuture<TDriverResponse> Execute(const TDriverRequest& request) override
+    virtual TFuture<void> Execute(const TDriverRequest& request) override
     {
-        TDriverResponse response;
-
         auto it = Commands.find(request.CommandName);
         if (it == Commands.end()) {
-            return MakePromise(TDriverResponse(TError(
+            return MakeFuture(TError(
                 "Unknown command %Qv",
-                request.CommandName)));
+                request.CommandName));
         }
 
         LOG_INFO("Command started (Command: %v, User: %v)",
@@ -243,24 +239,24 @@ private:
         YCHECK(Commands.insert(std::make_pair(descriptor.CommandName, entry)).second);
     }
 
-    static TDriverResponse DoExecute(ICommandPtr command, TCommandContextPtr context)
+    static void DoExecute(ICommandPtr command, TCommandContextPtr context)
     {
         const auto& request = context->Request();
-        const auto& response = context->Response();
 
         TRACE_CHILD("Driver", request.CommandName) {
             command->Execute(context);
         }
 
-        if (response.Error.IsOK()) {
+        const auto& error = context->GetError();
+        if (error.IsOK()) {
             LOG_INFO("Command completed (Command: %v)", request.CommandName);
         } else {
-            LOG_INFO(response.Error, "Command failed (Command: %v)", request.CommandName);
+            LOG_INFO(error, "Command failed (Command: %v)", request.CommandName);
         }
 
         WaitFor(context->Terminate());
 
-        return response;
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
     class TCommandContext
@@ -274,8 +270,8 @@ private:
             : Driver_(driver)
             , Descriptor_(descriptor)
             , Request_(request)
-            , SyncInputStream_(CreateSyncInputStream(request.InputStream))
-            , SyncOutputStream_(CreateSyncOutputStream(request.OutputStream))
+            , SyncInputStream_(request.InputStream ? CreateSyncAdapter(request.InputStream) : nullptr)
+            , SyncOutputStream_(request.OutputStream ? CreateSyncAdapter(request.OutputStream) : nullptr)
         {
             TClientOptions options;
             options.User = Request_.AuthenticatedUser;
@@ -301,16 +297,6 @@ private:
         virtual const TDriverRequest& Request() const override
         {
             return Request_;
-        }
-
-        virtual const TDriverResponse& Response() const
-        {
-            return Response_;
-        }
-
-        virtual TDriverResponse& Response()
-        {
-            return Response_;
         }
 
         virtual TYsonProducer CreateInputProducer() override
@@ -345,12 +331,25 @@ private:
             return *OutputFormat_;
         }
 
+        virtual void Reply(const TError& error) override
+        {
+            YCHECK(!Replied_);
+            Error_ = error;
+            Replied_ = true;
+        }
+
+        const TError& GetError() const
+        {
+            return Error_;
+        }
+
     private:
         const TDriverPtr Driver_;
         const TCommandDescriptor Descriptor_;
         const TDriverRequest Request_;
 
-        TDriverResponse Response_;
+        bool Replied_ = false;
+        TError Error_;
 
         TNullable<TFormat> InputFormat_;
         TNullable<TFormat> OutputFormat_;

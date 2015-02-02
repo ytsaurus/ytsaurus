@@ -21,14 +21,8 @@ TMemoryUsageTracker<EMemoryConsumer>::TMemoryUsageTracker(
     , FreeMemoryCounter("/free", EmptyTagIds, EAggregateMode::Min)
     , Logger("MemoryUsage")
 {
-    for (auto value : EMemoryConsumer::GetDomainValues()) {
-        // EMemoryConsumer enum must be contiguous, without gaps.
-        YCHECK(value < EMemoryConsumer::GetDomainSize());
-    }
-
-    UsedMemory.resize(EMemoryConsumer::GetDomainSize(), 0);
-    for (int value = 0; value < EMemoryConsumer::GetDomainSize(); ++value) {
-        ConsumerCounters.push_back(TAggregateCounter("/" + FormatEnum(EMemoryConsumer(value))));
+    for (auto value : TEnumTraits<EMemoryConsumer>::GetDomainValues()) {
+        ConsumerCounters[value] = TAggregateCounter("/" + FormatEnum(value));
     }
 }
 
@@ -47,7 +41,7 @@ i64 TMemoryUsageTracker<EMemoryConsumer>::GetUsed() const
 template <class EMemoryConsumer>
 i64 TMemoryUsageTracker<EMemoryConsumer>::GetUsed(EMemoryConsumer consumer) const
 {
-    return UsedMemory[static_cast<int>(consumer)];
+    return UsedMemory[consumer];
 }
 
 template <class EMemoryConsumer>
@@ -76,10 +70,10 @@ template <class EMemoryConsumer>
 void TMemoryUsageTracker<EMemoryConsumer>::DoAcquire(EMemoryConsumer consumer, i64 size)
 {
     FreeMemory -= size;
-    auto& usedMemory = UsedMemory[static_cast<int>(consumer)];
+    auto& usedMemory = UsedMemory[consumer];
     usedMemory += size;
     Profiler.Aggregate(FreeMemoryCounter, FreeMemory);
-    Profiler.Aggregate(ConsumerCounters[static_cast<int>(consumer)], usedMemory);
+    Profiler.Aggregate(ConsumerCounters[consumer], usedMemory);
 }
 
 template <class EMemoryConsumer>
@@ -105,14 +99,14 @@ template <class EMemoryConsumer>
 void TMemoryUsageTracker<EMemoryConsumer>::Release(EMemoryConsumer consumer, i64 size)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    auto& usedMemory = UsedMemory[static_cast<int>(consumer)];
+    auto& usedMemory = UsedMemory[consumer];
     YCHECK(usedMemory >= size);
     usedMemory -= size;
     FreeMemory += size;
     YCHECK(FreeMemory <= TotalMemory);
 
     Profiler.Aggregate(FreeMemoryCounter, FreeMemory);
-    Profiler.Aggregate(ConsumerCounters[static_cast<int>(consumer)], usedMemory);
+    Profiler.Aggregate(ConsumerCounters[consumer], usedMemory);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

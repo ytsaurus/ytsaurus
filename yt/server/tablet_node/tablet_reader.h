@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/actions/public.h>
+
 #include <ytlib/new_table_client/public.h>
 
 namespace NYT {

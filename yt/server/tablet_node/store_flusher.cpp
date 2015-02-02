@@ -75,9 +75,6 @@ static const size_t MaxRowsPerRead = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreFlusher;
-typedef TIntrusivePtr<TStoreFlusher> TStoreFlusherPtr;
-
 class TStoreFlusher
     : public TRefCounted
 {
@@ -255,7 +252,7 @@ private:
     {
         // Capture everything needed below.
         // NB: Avoid accessing tablet from pool invoker.
-        auto* slot = tablet->GetSlot();
+        auto slot = tablet->GetSlot();
         auto hydraManager = slot->GetHydraManager();
         auto tabletManager = slot->GetTabletManager();
         auto tabletId = tablet->GetId();
@@ -274,7 +271,8 @@ private:
         auto automatonInvoker = tablet->GetEpochAutomatonInvoker();
         auto poolInvoker = ThreadPool_->GetInvoker();
 
-        TObjectServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
+        auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
 
         try {
             LOG_INFO("Store flush started");
@@ -299,7 +297,7 @@ private:
                 attributes->Set("title", Format("Flushing store %v, tablet %v",
                     store->GetId(),
                     tabletId));
-                options.Attributes = attributes.get();
+                options.Attributes = std::move(attributes);
 
                 auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
@@ -324,7 +322,7 @@ private:
                 writerOptions,
                 schema,
                 keyColumns,
-                Bootstrap_->GetMasterClient()->GetMasterChannel(),
+                Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
                 transaction->GetId());
 
             {
@@ -338,6 +336,9 @@ private:
             while (true) {
                 // NB: Memory store reader is always synchronous.
                 reader->Read(&rows);
+                for (auto row : rows) {
+                    Magic(STRINGBUF("TStoreFlusher::FlushStore"), row);
+                }
                 if (rows.empty())
                     break;
                 if (!writer->Write(rows)) {
@@ -351,7 +352,9 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
             }
 
+            std::vector<TChunkId> chunkIds;
             for (const auto& chunkSpec : writer->GetWrittenChunks()) {
+                chunkIds.push_back(FromProto<TChunkId>(chunkSpec.chunk_id()));
                 auto* descriptor = hydraRequest.add_stores_to_add();
                 descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
@@ -363,7 +366,8 @@ private:
             CreateMutation(slot->GetHydraManager(), hydraRequest)
                 ->Commit();
 
-            LOG_INFO("Store flush completed");
+            LOG_INFO("Store flush completed (ChunkIds: [%v])",
+                JoinToString(chunkIds));
 
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {

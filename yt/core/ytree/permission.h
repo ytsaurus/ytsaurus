@@ -13,21 +13,21 @@ namespace NYTree {
 /*!
  *  Each permission corresponds to a unique bit of the mask.
  */
-DECLARE_FLAGGED_ENUM(EPermission,
+DEFINE_BIT_ENUM(EPermission,
     // Applies to: all objects
-    ((Read)(0x0001))
+    ((Read)       (0x0001))
 
     // Applies to: all objects
-    ((Write)(0x0002))
+    ((Write)      (0x0002))
 
     // Applies to: accounts
-    ((Use)(0x0004))
+    ((Use)        (0x0004))
 
     // Applies to: all objects
-    ((Administer)(0x0008))
+    ((Administer) (0x0008))
 
     //! Applies to: schemas
-    ((Create)(0x0100))
+    ((Create)     (0x0100))
 );
 
 //! An alias for EPermission denoting bitwise-or of atomic EPermission values.
@@ -35,21 +35,22 @@ DECLARE_FLAGGED_ENUM(EPermission,
  *  No strong type safety is provided.
  *  Use wherever it suits to distinguish permission sets from individual atomic permissions.
  */
-typedef EPermission EPermissionSet;
+using EPermissionSet = EPermission;
 
-extern EPermissionSet AllPermissions;
-extern EPermissionSet NonePermissions;
+const EPermissionSet AllPermissions = EPermissionSet(0xffff);
+const EPermissionSet NonePermissions = EPermissionSet(0x0000);
 
 EPermissionSet ParsePermissions(
     const std::vector<Stroka>& items,
     EPermissionSet supportedPermissions);
-std::vector<Stroka> FormatPermissions(
-    EPermissionSet permissions);
+
+std::vector<Stroka> FormatPermissions(EPermissionSet permissions);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Describes the set of objects for which permissions must be checked.
-DECLARE_ENUM(EPermissionCheckScope,
+DEFINE_BIT_ENUM(EPermissionCheckScope,
+    ((None)            (0x0000))
     ((This)            (0x0001))
     ((Parent)          (0x0002))
     ((Descendants)     (0x0004))

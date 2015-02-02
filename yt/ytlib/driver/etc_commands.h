@@ -65,6 +65,7 @@ private:
 
 struct TCheckPermissionRequest
     : public TTransactionalRequest
+    , public TReadOnlyRequest
 {
     Stroka User;
     NYPath::TRichYPath Path;

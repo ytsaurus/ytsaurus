@@ -289,7 +289,7 @@ private:
         // Capture everything needed below.
         // NB: Avoid accessing tablet from pool invoker.
         auto* tablet = eden->GetTablet();
-        auto* slot = tablet->GetSlot();
+        auto slot = tablet->GetSlot();
         auto tabletManager = slot->GetTabletManager();
         auto tabletId = tablet->GetId();
         auto writerOptions = tablet->GetWriterOptions();
@@ -306,19 +306,29 @@ private:
         auto automatonInvoker = GetCurrentInvoker();
         auto poolInvoker = ThreadPool_->GetInvoker();
 
+        auto backOff = [&] () {
+            automatonInvoker->Invoke(BIND([=] () {
+                for (auto store : stores) {
+                    YCHECK(store->GetState() == EStoreState::Compacting);
+                    tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
+                }
+            }));
+        };
+
+        auto reset = [&] () {
+            YCHECK(eden->GetState() == EPartitionState::Compacting);
+            eden->SetState(EPartitionState::Normal);
+        };
+
         try {
             i64 dataSize = 0;
             for (auto store : stores) {
                 dataSize += store->GetUncompressedDataSize();
             }
 
-            TTimestamp currentTimestamp;
-            {
-                auto timestampProvider = Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider();
-                auto currentTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
-                THROW_ERROR_EXCEPTION_IF_FAILED(currentTimestampOrError);
-                currentTimestamp = currentTimestampOrError.Value();
-            }
+            auto timestampProvider = Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider();
+            auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
+                .ValueOrThrow();
 
             LOG_INFO("Eden partitioning started (PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v)",
                 pivotKeys.size(),
@@ -345,14 +355,14 @@ private:
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Format("Eden partitioning, tablet %v",
                     tabletId));
-                options.Attributes = attributes.get();
+                options.Attributes = std::move(attributes);
 
-                auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
+                auto asyncTransaction = Bootstrap_->GetMasterClient()->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
-                    options));
-                THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
+                    options);
+                transaction = WaitFor(asyncTransaction)
+                    .ValueOrThrow();
 
-                transaction = transactionOrError.Value();
                 LOG_INFO("Eden partitioning transaction created (TransactionId: %v)",
                     transaction->GetId());
             }
@@ -391,13 +401,11 @@ private:
                     writerOptions,
                     schema,
                     keyColumns,
-                    Bootstrap_->GetMasterClient()->GetMasterChannel(),
+                    Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
                     transaction->GetId());
 
-                {
-                    auto result = WaitFor(currentWriter->Open());
-                    THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                }
+                WaitFor(currentWriter->Open())
+                    .ThrowOnError();
             };
 
             auto flushOutputRows = [&] () {
@@ -408,8 +416,8 @@ private:
 
                 ensurePartitionStarted();
                 if (!currentWriter->Write(writeRows)) {
-                    auto result = WaitFor(currentWriter->GetReadyEvent());
-                    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                    WaitFor(currentWriter->GetReadyEvent())
+                        .ThrowOnError();
                 }
 
                 writeRows.clear();
@@ -427,10 +435,8 @@ private:
                 flushOutputRows();
 
                 if (currentWriter) {
-                    {
-                        auto result = WaitFor(currentWriter->Close());
-                        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                    }
+                    WaitFor(currentWriter->Close())
+                        .ThrowOnError();
 
                     LOG_INFO("Finished writing partition (PartitionIndex: %v, RowCount: %v)",
                         currentPartitionIndex,
@@ -465,8 +471,8 @@ private:
                         readRowCount += readRows.size();
                         if (!readRows.empty())
                             break;
-                        auto result = WaitFor(reader->GetReadyEvent());
-                        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                        WaitFor(reader->GetReadyEvent())
+                            .ThrowOnError();
                     }
                 }
                 return readRows[currentRowIndex];
@@ -476,10 +482,10 @@ private:
                 ++currentRowIndex;
             };
 
-            {
-                auto result = WaitFor(reader->Open());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
+            WaitFor(reader->Open())
+                .ThrowOnError();
+
+            const auto& rowComparer = tablet->GetRowKeyComparer();
 
             for (auto it = pivotKeys.begin(); it != pivotKeys.end(); ++it) {
                 currentPivotKey = *it;
@@ -490,9 +496,9 @@ private:
                     if (!row)
                         break;
 
-                    YCHECK(CompareRows(currentPivotKey.Begin(), currentPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0);
+                    YCHECK(rowComparer(currentPivotKey.Begin(), currentPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0);
 
-                    if (CompareRows(nextPivotKey.Begin(), nextPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0)
+                    if (rowComparer(nextPivotKey.Begin(), nextPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0)
                         break;
 
                     skipInputRow();
@@ -501,7 +507,7 @@ private:
 
                 flushPartition();
             }
-            
+
             SwitchTo(automatonInvoker);
 
             YCHECK(readRowCount == writeRowCount);
@@ -514,17 +520,14 @@ private:
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error partitioning Eden, backing off");
-
-            SwitchTo(automatonInvoker);
-
-            for (auto store : stores) {
-                YCHECK(store->GetState() == EStoreState::Compacting);
-                tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
-            }
+            backOff();
+        } catch (...) {
+            backOff();
+            reset();
+            throw;
         }
 
-        YCHECK(eden->GetState() == EPartitionState::Compacting);
-        eden->SetState(EPartitionState::Normal);
+        reset();
     }
 
     void CompactPartition(
@@ -536,7 +539,7 @@ private:
         // Capture everything needed below.
         // NB: Avoid accessing tablet from pool invoker.
         auto* tablet = partition->GetTablet();
-        auto* slot = tablet->GetSlot();
+        auto slot = tablet->GetSlot();
         auto tabletManager = slot->GetTabletManager();
         auto tabletId = tablet->GetId();
         auto writerOptions = tablet->GetWriterOptions();
@@ -554,19 +557,29 @@ private:
         auto automatonInvoker = GetCurrentInvoker();
         auto poolInvoker = ThreadPool_->GetInvoker();
 
+        auto backOff = [&] () {
+            automatonInvoker->Invoke(BIND([=] () {
+                for (auto store : stores) {
+                    YCHECK(store->GetState() == EStoreState::Compacting);
+                    tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
+                }
+            }));
+        };
+
+        auto reset = [&] () {
+            YCHECK(partition->GetState() == EPartitionState::Compacting);
+            partition->SetState(EPartitionState::Normal);
+        };
+
         try {
             i64 dataSize = 0;
             for (auto store : stores) {
                 dataSize += store->GetUncompressedDataSize();
             }
 
-            TTimestamp currentTimestamp;
-            {
-                auto timestampProvider = Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider();
-                auto currentTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
-                THROW_ERROR_EXCEPTION_IF_FAILED(currentTimestampOrError);
-                currentTimestamp = currentTimestampOrError.Value();
-            }
+            auto timestampProvider = Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider();
+            auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
+                .ValueOrThrow();
 
             LOG_INFO("Partition compaction started (DataSize: %v, ChunkCount: %v, CurentTimestamp: %v, MajorTimestamp: %v)",
                 dataSize,
@@ -595,14 +608,14 @@ private:
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Format("Partition compaction, tablet %v",
                     tabletId));
-                options.Attributes = attributes.get();
+                options.Attributes = std::move(attributes);
 
-                auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
+                auto asyncTransaction = Bootstrap_->GetMasterClient()->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
-                    options));
-                THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
+                    options);
+                transaction = WaitFor(asyncTransaction)
+                    .ValueOrThrow();
 
-                transaction = transactionOrError.Value();
                 LOG_INFO("Partition compaction transaction created (TransactionId: %v)",
                     transaction->GetId());
             }
@@ -620,18 +633,14 @@ private:
                 writerOptions,
                 schema,
                 keyColumns,
-                Bootstrap_->GetMasterClient()->GetMasterChannel(),
+                Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
                 transaction->GetId());
 
-            {
-                auto result = WaitFor(reader->Open());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
+            WaitFor(reader->Open())
+                .ThrowOnError();
 
-            {
-                auto result = WaitFor(writer->Open());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
+            WaitFor(writer->Open())
+                .ThrowOnError();
 
             std::vector<TVersionedRow> rows;
 
@@ -642,22 +651,20 @@ private:
                 readRowCount += rows.size();
 
                 if (rows.empty()) {
-                    auto result = WaitFor(reader->GetReadyEvent());
-                    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                    WaitFor(reader->GetReadyEvent())
+                        .ThrowOnError();
                     continue;
                 }
 
                 writeRowCount += rows.size();
                 if (!writer->Write(rows)) {
-                    auto result = WaitFor(writer->GetReadyEvent());
-                    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                    WaitFor(writer->GetReadyEvent())
+                        .ThrowOnError();
                 }
             }
 
-            {
-                auto result = WaitFor(writer->Close());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
+            WaitFor(writer->Close())
+                .ThrowOnError();
 
             for (const auto& chunkSpec : writer->GetWrittenChunks()) {
                 auto* descriptor = hydraRequest.add_stores_to_add();
@@ -677,17 +684,14 @@ private:
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error compacting partition, backing off");
-
-            SwitchTo(automatonInvoker);
-
-            for (auto store : stores) {
-                YCHECK(store->GetState() == EStoreState::Compacting);
-                tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
-            }
+            backOff();
+        } catch (...) {
+            backOff();
+            reset();
+            throw;
         }
 
-        YCHECK(partition->GetState() == EPartitionState::Compacting);
-        partition->SetState(EPartitionState::Normal);
+        reset();
     }
 
 };

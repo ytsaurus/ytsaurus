@@ -16,6 +16,70 @@ namespace NHydra {
 
 using namespace NElection;
 using namespace NConcurrency;
+using namespace NHydra::NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLocalSnapshotReader
+    : public ISnapshotReader
+{
+public:
+    TLocalSnapshotReader(
+        TDistributedHydraManagerConfigPtr config,
+        TCellManagerPtr cellManager,
+        TFileSnapshotStorePtr fileStore,
+        int snapshotId)
+        : Config_(config)
+        , CellManager_(cellManager)
+        , FileStore_(fileStore)
+        , SnapshotId_(snapshotId)
+    { }
+
+    virtual TFuture<void> Open() override
+    {
+        return BIND(&TLocalSnapshotReader::DoOpen, MakeStrong(this))
+            .AsyncVia(GetHydraIOInvoker())
+            .Run();
+    }
+
+    virtual TFuture<size_t> Read(void* buf, size_t len) override
+    {
+        return UnderlyingReader_->Read(buf, len);
+    }
+
+    virtual TSnapshotParams GetParams() const override
+    {
+        return UnderlyingReader_->GetParams();
+    }
+
+private:
+    const TDistributedHydraManagerConfigPtr Config_;
+    const TCellManagerPtr CellManager_;
+    const TFileSnapshotStorePtr FileStore_;
+    const int SnapshotId_;
+
+    ISnapshotReaderPtr UnderlyingReader_;
+
+
+    void DoOpen()
+    {
+        if (!FileStore_->CheckSnapshotExists(SnapshotId_)) {
+            auto asyncResult = DownloadSnapshot(
+                Config_,
+                CellManager_,
+                FileStore_,
+                SnapshotId_);
+            WaitFor(asyncResult)
+                .ThrowOnError();
+        }
+
+        UnderlyingReader_ = FileStore_->CreateReader(SnapshotId_);
+
+        WaitFor(UnderlyingReader_->Open())
+            .ThrowOnError();
+    }
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,67 +96,41 @@ public:
         , FileStore_(fileStore)
     { }
 
-    virtual TFuture<TErrorOr<ISnapshotReaderPtr>> CreateReader(int snapshotId) override
+    virtual ISnapshotReaderPtr CreateReader(int snapshotId) override
     {
-        return BIND(&TLocalSnapshotStore::DoCreateReader, MakeStrong(this))
-            .Guarded()
-            .AsyncVia(GetHydraIOInvoker())
-            .Run(snapshotId);
+        return New<TLocalSnapshotReader>(
+            Config_,
+            CellManager_,
+            FileStore_,
+            snapshotId);
     }
 
-    virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const TSharedRef& meta) override
+    virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotMeta& meta) override
     {
         return FileStore_->CreateWriter(snapshotId, meta);
     }
 
-    virtual TFuture<TErrorOr<int>> GetLatestSnapshotId(int maxSnapshotId) override
+    virtual TFuture<int> GetLatestSnapshotId(int maxSnapshotId) override
     {
         return BIND(&TLocalSnapshotStore::DoGetLatestSnapshotId, MakeStrong(this))
-            .Guarded()
             .AsyncVia(GetHydraIOInvoker())
             .Run(maxSnapshotId);
     }
 
-    virtual TFuture<TErrorOr<TSnapshotParams>> ConfirmSnapshot(int snapshotId) override
-    {
-        return BIND(&TLocalSnapshotStore::DoConfirmSnapshot, MakeStrong(this))
-            .Guarded()
-            .AsyncVia(GetHydraIOInvoker())
-            .Run(snapshotId);
-    }
-
 private:
-    TDistributedHydraManagerConfigPtr Config_;
-    TCellManagerPtr CellManager_;
-    TFileSnapshotStorePtr FileStore_;
+    const TDistributedHydraManagerConfigPtr Config_;
+    const TCellManagerPtr CellManager_;
+    const TFileSnapshotStorePtr FileStore_;
 
-
-    ISnapshotReaderPtr DoCreateReader(int snapshotId)
-    {
-        if (!FileStore_->CheckSnapshotExists(snapshotId)) {
-            auto downloadResult = WaitFor(DownloadSnapshot(
-                Config_,
-                CellManager_,
-                FileStore_,
-                snapshotId));
-            THROW_ERROR_EXCEPTION_IF_FAILED(downloadResult);
-        }
-        return FileStore_->CreateReader(snapshotId);
-    }
 
     int DoGetLatestSnapshotId(int maxSnapshotId)
     {
-        auto remoteSnapshotInfo = WaitFor(DiscoverLatestSnapshot(Config_, CellManager_, maxSnapshotId));
-        int localSnnapshotId = FileStore_->GetLatestSnapshotId(maxSnapshotId);
-        return std::max(localSnnapshotId, remoteSnapshotInfo.SnapshotId);
-    }
-
-    TSnapshotParams DoConfirmSnapshot(int snapshotId)
-    {
-        FileStore_->ConfirmSnapshot(snapshotId);
-        
-        auto reader = FileStore_->CreateReader(snapshotId);
-        return reader->GetParams();
+        auto remoteSnapshotInfo = WaitFor(DiscoverLatestSnapshot(
+            Config_,
+            CellManager_,
+            maxSnapshotId)).ValueOrThrow();
+        int localSnapshotId = FileStore_->GetLatestSnapshotId(maxSnapshotId);
+        return std::max(localSnapshotId, remoteSnapshotInfo.SnapshotId);
     }
 
 };

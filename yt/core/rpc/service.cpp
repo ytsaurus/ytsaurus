@@ -19,12 +19,16 @@ void IServiceContext::SetResponseInfo()
 void IServiceContext::ReplyFrom(TFuture<TSharedRefArray> message)
 {
     auto this_ = MakeStrong(this);
-    message.Subscribe(BIND([this, this_] (const TSharedRefArray& message) {
-        Reply(message);
+    message.Subscribe(BIND([this, this_] (const TErrorOr<TSharedRefArray>& result) {
+        if (result.IsOK()) {
+            Reply(result.Value());
+        } else {
+            Reply(TError(result));
+        }
     }));
 }
 
-void IServiceContext::ReplyFrom(TFuture<TError> error)
+void IServiceContext::ReplyFrom(TFuture<void> error)
 {
     auto this_ = MakeStrong(this);
     error.Subscribe(BIND([this, this_] (const TError& error) {

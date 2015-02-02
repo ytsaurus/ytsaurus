@@ -33,7 +33,6 @@ public:
     {
         TNullable<Stroka> Address;
         NNodeTrackerServer::TNode* Node = nullptr;
-        int SlotIndex = -1;
         TInstant LastSeenTime;
 
         void Persist(NCellMaster::TPersistenceContext& context);
@@ -67,7 +66,7 @@ public:
     void AssignPeer(const Stroka& address, TPeerId peerId);
     void RevokePeer(TPeerId peerId);
 
-    void AttachPeer(NNodeTrackerServer::TNode* node, TPeerId peerId, int slotIndex);
+    void AttachPeer(NNodeTrackerServer::TNode* node, TPeerId peerId);
     void DetachPeer(NNodeTrackerServer::TNode* node);
     void UpdatePeerSeenTime(TPeerId peerId, TInstant when);
 

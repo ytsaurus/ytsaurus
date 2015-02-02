@@ -15,7 +15,7 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EDeliveryTrackingLevel,
+DEFINE_ENUM(EDeliveryTrackingLevel,
     (None)
     (ErrorOnly)
     (Full)
@@ -37,7 +37,7 @@ struct IBus
      *
      *  \note Thread affinity: any
      */
-    virtual TAsyncError Send(TSharedRefArray message, EDeliveryTrackingLevel level) = 0;
+    virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel level) = 0;
 
     //! Terminates the bus.
     /*!
@@ -51,8 +51,10 @@ struct IBus
 
     //! Invoked upon bus termination
     //! (either due to call to #Terminate or other party's failure).
-    DECLARE_INTERFACE_SIGNAL(void(TError), Terminated);
+    DECLARE_INTERFACE_SIGNAL(void(const TError&), Terminated);
 };
+
+DEFINE_REFCOUNTED_TYPE(IBus)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,12 +67,15 @@ struct IMessageHandler
      *  \param message The just arrived message.
      *  \param replyBus A bus that can be used for replying back.
      *
-     *  \note Thread affinity: the method is called from an unspecified thread
+     *  \note
+     *  Thread affinity: the method is called from an unspecified thread
      *  and must return ASAP.
      *
      */
-    virtual void OnMessage(TSharedRefArray message, IBusPtr replyBus) = 0;
+    virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IMessageHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 

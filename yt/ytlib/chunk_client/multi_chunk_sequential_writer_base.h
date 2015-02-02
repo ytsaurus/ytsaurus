@@ -32,10 +32,10 @@ public:
         const NTransactionClient::TTransactionId& transactionId,
         const TChunkListId& parentChunkListId);
 
-    virtual TAsyncError Open() override;
-    virtual TAsyncError Close() override;
+    virtual TFuture<void> Open() override;
+    virtual TFuture<void> Close() override;
 
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
     void SetProgress(double progress);
 
@@ -94,9 +94,9 @@ protected:
     bool Closing_;
 
     TFuture<void> NextSessionReady_;
-    TAsyncError ReadyEvent_;
+    TFuture<void> ReadyEvent_;
 
-    TAsyncErrorPromise CompletionError_;
+    TPromise<void> CompletionError_;
 
     NConcurrency::TParallelAwaiterPtr CloseChunksAwaiter_;
 
@@ -106,17 +106,17 @@ protected:
     NLog::TLogger Logger;
 
 
-    TError DoOpen();
+    void DoOpen();
     void DoClose();
 
     void CreateNextSession();
-    TError InitCurrentSession();
+    void InitCurrentSession();
 
     bool VerifyActive();
 
     bool TrySwitchSession();
     void SwitchSession();
-    TError DoSwitchSession(const TSession& session);
+    void DoSwitchSession(const TSession& session);
 
     TFuture<void> FinishSession(const TSession& session);
     void DoFinishSession(const TSession& session);

@@ -62,13 +62,27 @@ message TMutatingExt
 message TResponseHeader
 {
     optional NYT.NProto.TGuid request_id = 1;
-    required NYT.NProto.TError error = 2;
+    
+    // If omitted then OK is assumed.
+    optional NYT.NProto.TError error = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TRequestCancelationHeader
+{
+    required NYT.NProto.TGuid request_id = 1;
+    required string service = 2;
+    required string method = 3;
+    optional NYT.NProto.TGuid realm_id = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqDiscover
-{ }
+{
+    extensions 100 to max;
+}
 
 message TRspDiscover
 {

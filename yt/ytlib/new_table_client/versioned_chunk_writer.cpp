@@ -39,13 +39,13 @@ public:
         const TKeyColumns& keyColumns,
         const IChunkWriterPtr& asyncWriter);
 
-    virtual TAsyncError Open() override;
+    virtual TFuture<void> Open() override;
 
     virtual bool Write(const std::vector<TVersionedRow>& rows) override;
 
-    virtual TAsyncError Close() override;
+    virtual TFuture<void> Close() override;
 
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
     virtual i64 GetMetaSize() const override;
     virtual i64 GetDataSize() const override;
@@ -94,7 +94,7 @@ private:
     void FinishBlockIfLarge(TVersionedRow row);
     void FinishBlock();
 
-    TError DoClose();
+    void DoClose();
     void FillCommonMeta(TChunkMeta* meta) const;
 
     i64 GetUncompressedSize() const;
@@ -119,14 +119,14 @@ TVersionedChunkWriter::TVersionedChunkWriter(
     , MaxTimestamp_(MinTimestamp)
 { }
 
-TAsyncError TVersionedChunkWriter::Open()
+TFuture<void> TVersionedChunkWriter::Open()
 {
     try {
         ValidateTableSchemaAndKeyColumns(Schema_, KeyColumns_);
     } catch (const std::exception& ex) {
-        return MakeFuture<TError>(ex);
+        return MakeFuture<void>(ex);
     }
-    return OKFuture;
+    return VoidFuture;
 }
 
 bool TVersionedChunkWriter::Write(const std::vector<TVersionedRow>& rows)
@@ -152,11 +152,11 @@ bool TVersionedChunkWriter::Write(const std::vector<TVersionedRow>& rows)
     return EncodingChunkWriter_->IsReady();
 }
 
-TAsyncError TVersionedChunkWriter::Close()
+TFuture<void> TVersionedChunkWriter::Close()
 {
     if (RowCount_ == 0) {
         // Empty chunk.
-        return OKFuture;
+        return VoidFuture;
     }
 
     return BIND(&TVersionedChunkWriter::DoClose, MakeStrong(this))
@@ -164,7 +164,7 @@ TAsyncError TVersionedChunkWriter::Close()
         .Run();
 }
 
-TAsyncError TVersionedChunkWriter::GetReadyEvent()
+TFuture<void> TVersionedChunkWriter::GetReadyEvent()
 {
     return EncodingChunkWriter_->GetReadyEvent();
 }
@@ -252,7 +252,7 @@ void TVersionedChunkWriter::FinishBlock()
     MinTimestamp_ = std::min(MinTimestamp_, BlockWriter_->GetMinTimestamp());
 }
 
-TError TVersionedChunkWriter::DoClose()
+void TVersionedChunkWriter::DoClose()
 {
     using NYT::ToProto;
 
@@ -268,7 +268,7 @@ TError TVersionedChunkWriter::DoClose()
     SetProtoExtension(meta.mutable_extensions(), ToProto<TTableSchemaExt>(Schema_));
 
     TKeyColumnsExt keyColumnsExt;
-    for (auto name : KeyColumns_) {
+    for (const auto& name : KeyColumns_) {
         keyColumnsExt.add_names(name);
     }
     SetProtoExtension(meta.mutable_extensions(), keyColumnsExt);
@@ -284,13 +284,13 @@ TError TVersionedChunkWriter::DoClose()
     miscExt.set_min_timestamp(MinTimestamp_);
     miscExt.set_max_timestamp(MaxTimestamp_);
 
-    return EncodingChunkWriter_->Close();
+    EncodingChunkWriter_->Close();
 }
 
 void TVersionedChunkWriter::FillCommonMeta(TChunkMeta* meta) const
 {
-    meta->set_type(EChunkType::Table);
-    meta->set_version(TSimpleVersionedBlockWriter::FormatVersion);
+    meta->set_type(static_cast<int>(EChunkType::Table));
+    meta->set_version(static_cast<int>(TSimpleVersionedBlockWriter::FormatVersion));
 
     SetProtoExtension(meta->mutable_extensions(), BoundaryKeysExt_);
 }

@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "private.h"
-#include "pipes.h"
 #include "job.h"
 
 #include <core/concurrency/public.h>
@@ -15,10 +14,6 @@
 
 namespace NYT {
 namespace NJobProxy {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TUserJobIO;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,27 +40,27 @@ private:
 
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 
-    TJobPtr Job;
-    NConcurrency::TActionQueuePtr JobThread_;
-
     i64 JobProxyMemoryLimit_;
 
     NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
     NConcurrency::TPeriodicExecutorPtr MemoryWatchdogExecutor_;
 
+    IJobPtr Job_;
+    NConcurrency::TActionQueuePtr JobThread_;
+
     NJobTrackerClient::NProto::TJobSpec JobSpec_;
     NNodeTrackerClient::NProto::TNodeResources ResourceUsage_;
 
-    
+
     NJobTrackerClient::NProto::TJobResult DoRun();
     void SendHeartbeat();
-    void OnHeartbeatResponse(NExecAgent::TSupervisorServiceProxy::TRspOnJobProgressPtr rsp);
+    void OnHeartbeatResponse(const TError& error);
 
     void RetrieveJobSpec();
     void ReportResult(const NJobTrackerClient::NProto::TJobResult& result);
 
-    std::unique_ptr<TUserJobIO> CreateUserJobIO();
-    TJobPtr CreateBuiltinJob();
+    std::unique_ptr<IUserJobIO> CreateUserJobIO();
+    IJobPtr CreateBuiltinJob();
 
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() override;
@@ -73,7 +68,7 @@ private:
 
     virtual const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const override;
     virtual void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& usage) override;
-    void OnResourcesUpdated(NExecAgent::TSupervisorServiceProxy::TRspUpdateResourceUsagePtr rsp);
+    void OnResourcesUpdated(const TError& error);
 
     virtual void ReleaseNetwork() override;
 
@@ -84,7 +79,11 @@ private:
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const override;
 
+    virtual NLog::TLogger GetLogger() const override;
+
     void CheckMemoryUsage();
+
+    static void Exit(EJobProxyExitCode exitCode);
 
 };
 

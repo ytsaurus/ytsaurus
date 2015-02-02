@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 #include <core/misc/enum.h>
 #include <core/misc/guid.h>
 
@@ -11,7 +11,7 @@ namespace NJobTrackerClient {
 
 typedef TGuid TJobId;
 
-DECLARE_ENUM(EJobType,
+DEFINE_ENUM(EJobType,
     // Scheduler jobs
     ((SchedulerFirst)   (  0)) // sentinel
     ((Map)              (  1))
@@ -38,7 +38,7 @@ DECLARE_ENUM(EJobType,
     ((MasterLast)       (199)) // sentinel
 );
 
-DECLARE_ENUM(EJobState,
+DEFINE_ENUM(EJobState,
     ((Waiting)  (0))
     ((Running)  (1))
     ((Aborting) (2))
@@ -47,7 +47,7 @@ DECLARE_ENUM(EJobState,
     ((Aborted)  (5))
 );
 
-DECLARE_ENUM(EJobPhase,
+DEFINE_ENUM(EJobPhase,
     ((Created)         (  0))
     ((PreparingConfig) (  1))
     ((PreparingProxy)  (  2))

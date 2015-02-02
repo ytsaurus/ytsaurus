@@ -1,44 +1,50 @@
 #include "stdafx.h"
-#include "map_job_io.h"
-#include "config.h"
-#include "user_job_io.h"
-#include "job.h"
 
-#include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
+#include "map_job_io.h"
+#include "user_job_io_detail.h"
+
+#include <ytlib/table_client/sync_writer.h>
+#include <ytlib/table_client/sync_reader.h>
 
 #include <ytlib/scheduler/config.h>
 
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NScheduler;
-using namespace NScheduler::NProto;
-using namespace NJobTrackerClient::NProto;
+using namespace NTableClient;
+using namespace NChunkClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////
 
 class TMapJobIO
-    : public TUserJobIO
+    : public TUserJobIOBase
 {
 public:
-    TMapJobIO(
-        TJobIOConfigPtr config,
-        IJobHost* host)
-        : TUserJobIO(config, host)
+    TMapJobIO(IJobHost* host)
+        : TUserJobIOBase(host)
     { }
 
-    virtual void PopulateResult(TSchedulerJobResultExt* resultExt) override
+
+private:
+    virtual ISyncWriterUnsafePtr DoCreateWriter(
+        TTableWriterOptionsPtr options,
+        const TChunkListId& chunkListId,
+        const TTransactionId& transactionId) override
     {
-        PopulateUserJobResult(resultExt->mutable_user_job_result());
+        return CreateTableWriter(options, chunkListId, transactionId);
+    }
+
+    virtual std::vector<ISyncReaderPtr> DoCreateReaders() override
+    {
+        return CreateRegularReaders(true);
     }
 
 };
 
-std::unique_ptr<TUserJobIO> CreateMapJobIO(
-    TJobIOConfigPtr ioConfig,
-    IJobHost* host)
+std::unique_ptr<IUserJobIO> CreateMapJobIO(IJobHost* host)
 {
-    return std::unique_ptr<TUserJobIO>(new TMapJobIO(ioConfig, host));
+    return std::unique_ptr<IUserJobIO>(new TMapJobIO(host));
 }
 
 ////////////////////////////////////////////////////////////////////

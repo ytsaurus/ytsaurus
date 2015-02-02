@@ -3,6 +3,8 @@
 #include "mpl.h"
 #include "ref_counted.h"
 
+#include <util/generic/hash.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -213,6 +215,8 @@ public:
 private:
     template <class U>
     friend class TWeakPtr;
+    template <class U>
+    friend struct ::hash;
 
     T* T_;
     NYT::NDetail::TRefCounter* RefCounter;
@@ -272,3 +276,14 @@ bool operator!=(const TWeakPtr<T>& lhs, const TWeakPtr<U>& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+
+//! A hasher for TWeakPtr.
+template <class T>
+struct hash<NYT::TWeakPtr<T>>
+{
+    size_t operator () (const NYT::TWeakPtr<T>& ptr) const
+    {
+        return THash<T*>()(ptr.T_);
+    }
+};

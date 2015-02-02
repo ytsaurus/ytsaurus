@@ -19,38 +19,42 @@ class TSnapshotBuilderBase
     : public TRefCounted
 {
 public:
-    TSnapshotBuilderBase();
-    ~TSnapshotBuilderBase();
-
-    TAsyncError Run();
+    TFuture<void> Run();
 
 protected:
+    ~TSnapshotBuilderBase();
+
     //! Must be initialized in the deriving class.
     NLog::TLogger Logger;
 
     //! Returns the timeout for building a snapshot.
     virtual TDuration GetTimeout() const = 0;
 
-    //! Called from the forked process to build the snapshot.
-    virtual void Build() = 0;
+    //! Called from the child process after fork.
+    virtual void RunChild() = 0;
+
+    //! Called from the parent process after fork.
+    virtual void RunParent();
+
+    //! Returns the invoker used for watching the child process.
+    IInvokerPtr GetWatchdogInvoker();
 
 private:
-    std::atomic<pid_t> ChildPid_;
-    TPromise<TError> Result_ = NewPromise<TError>();
+    pid_t ChildPid_ = -1;
+    TPromise<void> Result_ = NewPromise<void>();
     TInstant StartTime_;
     NConcurrency::TPeriodicExecutorPtr WatchdogExecutor_;
 
 
-    void RunParent();
-    void RunChild();
+    void DoRunParent();
+    void DoRunChild();
 
     void OnWatchdogCheck();
-    void OnCanceled();
 
     void Cleanup();
 
-    void MaybeKillChild();
-    static void DoKillChild(pid_t childPid);
+    void OnCanceled();
+    void DoCancel();
 
 };
 

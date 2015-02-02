@@ -9,6 +9,8 @@
 #include <core/ytree/public.h>
 #include <core/ytree/yson_string.h>
 
+#include <server/hydra/entity_map.h>
+
 #include <server/cell_master/public.h>
 
 namespace NYT {
@@ -17,14 +19,16 @@ namespace NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAttributeSet
-    : public TRefTracked<TAttributeSet>
+    : public NHydra::TEntityBase
+    , public TRefTracked<TAttributeSet>
 {
+public:
     typedef yhash_map<Stroka, TNullable<NYTree::TYsonString> > TAttributeMap;
     DEFINE_BYREF_RW_PROPERTY(TAttributeMap, Attributes);
 
 public:
     TAttributeSet();
-    explicit TAttributeSet(const TVersionedObjectId& id); // Just for meta map
+    explicit TAttributeSet(const TVersionedObjectId& id); // for serialization only
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

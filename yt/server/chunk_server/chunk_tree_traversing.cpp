@@ -24,7 +24,7 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int MaxChunksPerAction = 1000;
+static const int MaxChunksPerStep = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -132,7 +132,7 @@ protected:
     void DoTraverse()
     {
         int visitedChunkCount = 0;
-        while (visitedChunkCount < MaxChunksPerAction || !Callbacks_->IsPreemptable()) {
+        while (visitedChunkCount < MaxChunksPerStep || !Callbacks_->IsPreemptable()) {
             if (IsStackEmpty()) {
                 Shutdown();
                 Visitor_->OnFinish();
@@ -438,8 +438,8 @@ protected:
         Stack_.clear();
     }
 
-    IChunkTraverserCallbacksPtr Callbacks_;
-    IChunkVisitorPtr Visitor_;
+    const IChunkTraverserCallbacksPtr Callbacks_;
+    const IChunkVisitorPtr Visitor_;
 
     std::vector<TStackEntry> Stack_;
 
@@ -500,7 +500,7 @@ public:
 
     virtual IInvokerPtr GetInvoker() const override
     {
-        return Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker();
+        return Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkTraverser);
     }
 
     virtual void OnPop(TChunkTree* node) override
@@ -524,7 +524,7 @@ public:
     }
 
 private:
-    NCellMaster::TBootstrap* Bootstrap_;
+    NCellMaster::TBootstrap* const Bootstrap_;
 
 };
 
@@ -595,7 +595,7 @@ public:
     { }
 
 private:
-    std::vector<TChunk*>* Chunks_;
+    std::vector<TChunk*>* const Chunks_;
 
 };
 

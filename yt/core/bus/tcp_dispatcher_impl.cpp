@@ -63,7 +63,6 @@ bool IsLocalServiceAddress(const Stroka& address)
 
 TTcpDispatcherThread::TTcpDispatcherThread(const Stroka& threadName)
     : TEVSchedulerThread(threadName, false)
-    , Statistics_(ETcpInterfaceType::GetDomainSize())
 { }
 
 const ev::loop_ref& TTcpDispatcherThread::GetEventLoop() const
@@ -71,29 +70,27 @@ const ev::loop_ref& TTcpDispatcherThread::GetEventLoop() const
     return EventLoop;
 }
 
-TAsyncError TTcpDispatcherThread::AsyncRegister(IEventLoopObjectPtr object)
+TFuture<void> TTcpDispatcherThread::AsyncRegister(IEventLoopObjectPtr object)
 {
     LOG_DEBUG("Object registration enqueued (%v)", object->GetLoggingId());
 
     return BIND(&TTcpDispatcherThread::DoRegister, MakeStrong(this), object)
-        .Guarded()
         .AsyncVia(GetInvoker())
         .Run();
 }
 
-TAsyncError TTcpDispatcherThread::AsyncUnregister(IEventLoopObjectPtr object)
+TFuture<void> TTcpDispatcherThread::AsyncUnregister(IEventLoopObjectPtr object)
 {
     LOG_DEBUG("Object unregistration enqueued (%v)", object->GetLoggingId());
 
     return BIND(&TTcpDispatcherThread::DoUnregister, MakeStrong(this), object)
-        .Guarded()
         .AsyncVia(GetInvoker())
         .Run();
 }
 
 TTcpDispatcherStatistics& TTcpDispatcherThread::Statistics(ETcpInterfaceType interfaceType)
 {
-    return Statistics_[static_cast<int>(interfaceType)];
+    return Statistics_[interfaceType];
 }
 
 void TTcpDispatcherThread::DoRegister(IEventLoopObjectPtr object)
@@ -126,12 +123,12 @@ TTcpDispatcher::TImpl::TImpl()
 
 TTcpDispatcher::TImpl* TTcpDispatcher::TImpl::Get()
 {
-    return TTcpDispatcher::Get()->Impl.get();
+    return TTcpDispatcher::Get()->Impl_.get();
 }
 
 void TTcpDispatcher::TImpl::Shutdown()
 {
-    for (auto thread : Threads_) {
+    for (auto& thread : Threads_) {
         thread->Shutdown();
     }
 }
@@ -140,7 +137,7 @@ TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType 
 {
     // This is racy but should be OK as an approximation.
     TTcpDispatcherStatistics result;
-    for (auto thread : Threads_) {
+    for (auto& thread : Threads_) {
         result += thread->Statistics(interfaceType);
     }
     return result;

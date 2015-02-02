@@ -46,7 +46,7 @@ public:
         return ConvertToYsonString(Stroka("<local>"));
     }
 
-    virtual void Send(
+    virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
@@ -54,9 +54,7 @@ public:
     {
         auto actualTimeout = timeout ? timeout : DefaultTimeout_;
 
-        const auto& header = request->Header();
-        TServiceId serviceId(header.service(), FromProto<TRealmId>(header.realm_id()));
-
+        TServiceId serviceId(request->GetService(), request->GetRealmId());
         auto service = Server_->FindService(serviceId);
         if (!service) {
             auto error = TError(
@@ -64,8 +62,8 @@ public:
                 "Service is not registered (Service: %v, RealmId: %v)",
                 serviceId.ServiceName,
                 serviceId.RealmId);
-            responseHandler->OnError(error);
-            return;
+            responseHandler->HandleError(error);
+            return nullptr;
         }
 
         auto serializedRequest = request->Serialize();
@@ -74,10 +72,12 @@ public:
             std::move(responseHandler),
             actualTimeout);
 
-        service->OnRequest(
-            std::unique_ptr<NProto::TRequestHeader>(new NProto::TRequestHeader(header)),
+        service->HandleRequest(
+            std::make_unique<NProto::TRequestHeader>(request->Header()),
             std::move(serializedRequest),
             std::move(session));
+
+        return New<TClientRequestControl>(std::move(service), request->GetRequestId());
     }
 
     virtual TFuture<void> Terminate(const TError& error) override
@@ -86,7 +86,13 @@ public:
     }
 
 private:
-    IServerPtr Server_;
+    class TSession;
+    typedef TIntrusivePtr<TSession> TSessionPtr;
+
+    class TClientRequestControl;
+    typedef TIntrusivePtr<TClientRequestControl> TClientRequestControlPtr;
+
+    const IServerPtr Server_;
 
     TNullable<TDuration> DefaultTimeout_;
 
@@ -111,29 +117,36 @@ private:
             return ConvertToYsonString(Stroka("<local>"));
         }
 
-        virtual TAsyncError Send(TSharedRefArray message, EDeliveryTrackingLevel /*level*/) override
+        virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel /*level*/) override
         {
             NProto::TResponseHeader header;
             YCHECK(ParseResponseHeader(message, &header));
             if (AcquireLock()) {
-                auto error = FromProto<TError>(header.error());
+                TError error;
+                if (header.has_error()) {
+                    error = FromProto<TError>(header.error());
+                }
                 if (error.IsOK()) {
-                    Handler_->OnResponse(std::move(message));
+                    Handler_->HandleResponse(std::move(message));
                 } else {
-                    Handler_->OnError(error);
+                    Handler_->HandleError(error);
                 }
             }
-            return OKFuture;
+            return VoidFuture;
         }
 
         virtual void Terminate(const TError& /*error*/) override
         { }
 
-        DEFINE_SIGNAL(void(TError), Terminated);
+        virtual void SubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
+        { }
+
+        virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
+        { }
 
     private:
-        IClientResponseHandlerPtr Handler_;
-        
+        const IClientResponseHandlerPtr Handler_;
+
         std::atomic<bool> Replied_;
 
 
@@ -146,7 +159,7 @@ private:
         void OnTimeout()
         {
             if (AcquireLock()) {
-                ReportError(TError(NRpc::EErrorCode::Timeout, "Request timed out"));
+                ReportError(TError(NYT::EErrorCode::Timeout, "Request timed out"));
             }
         }
 
@@ -154,11 +167,30 @@ private:
         {
             auto detailedError = error
                 << TErrorAttribute("endpoint", GetEndpointDescription());
-            Handler_->OnError(detailedError);
+            Handler_->HandleError(detailedError);
         }
 
     };
 
+    class TClientRequestControl
+        : public IClientRequestControl
+    {
+    public:
+        TClientRequestControl(IServicePtr service, const TRequestId& requestId)
+            : Service_(std::move(service))
+            , RequestId_(requestId)
+        { }
+
+        virtual void Cancel() override
+        {
+            Service_->HandleRequestCancelation(RequestId_);
+        }
+
+    private:
+        const IServicePtr Service_;
+        const TRequestId RequestId_;
+
+    };
 };
 
 IChannelPtr CreateLocalChannel(IServerPtr server)

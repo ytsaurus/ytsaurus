@@ -199,10 +199,7 @@ protected:
     TUnversionedOwningRow LookupRow(IStorePtr store, const TOwningKey& key, TTimestamp timestamp)
     {
         auto lookuper = store->CreateLookuper(timestamp, TColumnFilter());
-        auto rowOrError = lookuper->Lookup(key.Get()).Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(rowOrError);
-
-        auto row = rowOrError.Value();
+        auto row = lookuper->Lookup(key.Get()).Get().Get().ValueOrThrow();
         if (!row) {
             return TUnversionedOwningRow();
         }

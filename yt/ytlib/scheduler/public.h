@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 #include <core/misc/guid.h>
 
 #include <ytlib/job_tracker_client/public.h>
@@ -16,7 +16,7 @@ using NJobTrackerClient::EJobState;
 
 typedef TGuid TOperationId;
 
-DECLARE_ENUM(EOperationType,
+DEFINE_ENUM(EOperationType,
     (Map)
     (Merge)
     (Erase)
@@ -26,7 +26,7 @@ DECLARE_ENUM(EOperationType,
     (RemoteCopy)
 );
 
-DECLARE_ENUM(EOperationState,
+DEFINE_ENUM(EOperationState,
     (Initializing)
     (Preparing)
     (Reviving)
@@ -39,25 +39,25 @@ DECLARE_ENUM(EOperationState,
     (Failed)
 );
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((NoSuchOperation)      (200))
     ((InvalidOperationState)(201))
 );
 
-DECLARE_ENUM(EUnavailableChunkAction,
+DEFINE_ENUM(EUnavailableChunkAction,
     (Fail)
     (Skip)
     (Wait)
 );
 
-DECLARE_ENUM(EAbortReason,
+DEFINE_ENUM(EAbortReason,
     (Scheduler)
     (FailedChunks)
     (ResourceOverdraft)
     (Other)
 );
 
-DECLARE_ENUM(EJobFinalState,
+DEFINE_ENUM(EJobFinalState,
     (Failed)
     (Aborted)
     (Completed)

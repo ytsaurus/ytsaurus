@@ -38,6 +38,7 @@ public:
 
     template <class T>
     T* Get(NChunkServer::TNodeId id) const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,7 +74,7 @@ protected:
     virtual int GetCurrentSnapshotVersion() override;
 
     void RegisterSaver(
-        int priority,
+        NHydra::ESerializationPriority priority,
         const Stroka& name,
         TCallback<void(TSaveContext&)> saver);
 

@@ -8,7 +8,7 @@
 #include <core/bus/tcp_server.h>
 #include <core/bus/tcp_client.h>
 
-#include <core/misc/singleton.h>
+#include <core/concurrency/event_count.h>
 
 namespace NYT {
 namespace NBus {
@@ -54,7 +54,7 @@ class TEmptyBusHandler
     : public IMessageHandler
 {
 public:
-    virtual void OnMessage(
+    virtual void HandleMessage(
         TSharedRefArray message,
         IBusPtr replyBus)
     {
@@ -71,7 +71,7 @@ public:
         : NumPartsExpecting(numParts)
     { }
 
-    virtual void OnMessage(
+    virtual void HandleMessage(
         TSharedRefArray message,
         IBusPtr replyBus)
     {
@@ -87,32 +87,33 @@ class TChecking42BusHandler
     : public IMessageHandler
 {
 public:
-    TChecking42BusHandler(int numRepliesWaiting)
+    explicit TChecking42BusHandler(int numRepliesWaiting)
         : NumRepliesWaiting(numRepliesWaiting)
     { }
 
-    Event Event_;
-
-    virtual void OnMessage(
-        TSharedRefArray message,
-        IBusPtr replyBus)
+    void WaitUntilDone()
     {
-        UNUSED(replyBus);
-
-        Stroka value = Deserialize(message);
-        EXPECT_EQ("42", value);
-
-        --NumRepliesWaiting;
-        if (NumRepliesWaiting == 0) {
-            Event_.Signal();
-        }
+        Event_.Wait();
     }
 
 private:
-    int NumRepliesWaiting;
+    std::atomic<int> NumRepliesWaiting;
+    NConcurrency::TEvent Event_;
+
+
+    virtual void HandleMessage(TSharedRefArray message, IBusPtr /*replyBus*/)
+    {
+        auto value = Deserialize(message);
+        EXPECT_EQ("42", value);
+
+        if (--NumRepliesWaiting == 0) {
+            Event_.NotifyAll();
+        }
+    }
+
 };
 
-void TestReplies(int numRequests, int numParts)
+void TestReplies(int numRequests, int numParts, EDeliveryTrackingLevel level = EDeliveryTrackingLevel::Full)
 {
     auto server = StartBusServer(New<TReplying42BusHandler>(numParts));
     auto client = CreateTcpBusClient(New<TTcpBusClientConfig>("localhost:2000"));
@@ -120,15 +121,20 @@ void TestReplies(int numRequests, int numParts)
     auto bus = client->CreateBus(handler);
     auto message = CreateMessage(numParts);
 
-    TAsyncError result;
+    std::vector<TFuture<void>> results;
     for (int i = 0; i < numRequests; ++i) {
-        result = bus->Send(message, EDeliveryTrackingLevel::Full);
+        auto result = bus->Send(message, level);
+        if (result) {
+            results.push_back(result);
+        }
     }
 
-    result.Get();
-    if (!handler->Event_.WaitT(TDuration::Seconds(2))) {
-        EXPECT_TRUE(false); // timeout occurred
+    for (const auto& result : results) {
+        auto error = result.Get();
+        EXPECT_TRUE(error.IsOK());
     }
+
+    handler->WaitUntilDone();
 
     server->Stop();
 }
@@ -155,9 +161,19 @@ TEST(TBusTest, Failed)
     EXPECT_FALSE(result.IsOK());
 }
 
-TEST(TBusTest, OneReply)
+TEST(TBusTest, OneReplyNoTracking)
 {
-    TestReplies(1, 1);
+    TestReplies(1, 1, EDeliveryTrackingLevel::None);
+}
+
+TEST(TBusTest, OneReplyFullTracking)
+{
+    TestReplies(1, 1, EDeliveryTrackingLevel::Full);
+}
+
+TEST(TBusTest, OneReplyErrorOnlyTracking)
+{
+    TestReplies(1, 1, EDeliveryTrackingLevel::ErrorOnly);
 }
 
 TEST(TBusTest, ManyReplies)

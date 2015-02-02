@@ -2,6 +2,12 @@
 #include "pattern.h"
 
 #include <core/misc/fs.h>
+#include <core/misc/common.h>
+
+#ifdef YT_USE_SSE42
+#include <emmintrin.h>
+#include <pmmintrin.h>
+#endif
 
 namespace NYT {
 namespace NLog {
@@ -66,7 +72,9 @@ void FormatLevel(TMessageBuffer* out, ELogLevel level)
 
 void FormatMessage(TMessageBuffer* out, const Stroka& message)
 {
-    for (auto current = message.begin(); current != message.end(); ++current) {
+    auto current = message.begin();
+
+    auto FormatChar = [&] () {
         char ch = *current;
         if (ch == '\n') {
             out->AppendString("\\n");
@@ -75,6 +83,39 @@ void FormatMessage(TMessageBuffer* out, const Stroka& message)
         } else {
             out->AppendChar(ch);
         }
+        ++current;
+    };
+
+#ifdef YT_USE_SSE42
+    auto vectorN = _mm_set1_epi8('\n');
+    auto vectorT = _mm_set1_epi8('\t');
+#endif
+
+    while (current < message.end()) {
+#ifdef YT_USE_SSE42
+        // Use SSE for optimization.
+
+        if (current + 16 >= message.end() || out->GetBytesRemaining() < 16) {
+            FormatChar();
+        } else {
+            const void* inPtr = &(*current);
+            void* outPtr = out->GetCursor();
+            auto value = _mm_lddqu_si128(static_cast<const __m128i*>(inPtr));
+            if (_mm_movemask_epi8(_mm_cmpeq_epi8(value, vectorN)) ||
+                _mm_movemask_epi8(_mm_cmpeq_epi8(value, vectorT))) {
+                for (int index = 0; index < 16; ++index) {
+                    FormatChar();
+                }
+            } else {
+                _mm_storeu_si128(static_cast<__m128i*>(outPtr), value);
+                out->Advance(16);
+                current += 16;
+            }
+        }
+#else
+        // Unoptimized version.
+        FormatChar();
+#endif
     }
 }
 

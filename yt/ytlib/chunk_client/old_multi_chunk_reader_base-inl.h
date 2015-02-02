@@ -228,7 +228,7 @@ std::vector<NChunkClient::TChunkId> TOldMultiChunkReaderBase<TChunkReader>::GetF
 }
 
 template <class TChunkReader>
-TAsyncError TOldMultiChunkReaderBase<TChunkReader>::GetReadyEvent()
+TFuture<void> TOldMultiChunkReaderBase<TChunkReader>::GetReadyEvent()
 {
     return State.GetOperationError();
 }

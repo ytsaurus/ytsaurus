@@ -60,9 +60,9 @@ public:
             .GreaterThanOrEqual(0)
             .Default(1);
         RegisterParameter("min_data_ttl", MinDataTtl)
-            .Default(TDuration::Minutes(1));
+            .Default(TDuration::Minutes(5));
         RegisterParameter("max_data_ttl", MaxDataTtl)
-            .Default(TDuration::Minutes(1));
+            .Default(TDuration::Minutes(5));
     }
 };
 
@@ -74,7 +74,7 @@ class TTableMountConfig
     : public TRetentionConfig
 {
 public:
-    bool EnableCodeGeneration;
+    bool EnableCodegen;
 
     int MaxMemoryStoreKeyCount;
     int MaxMemoryStoreValueCount;
@@ -105,7 +105,7 @@ public:
 
     TTableMountConfig()
     {
-        RegisterParameter("enable_code_generation", EnableCodeGeneration)
+        RegisterParameter("enable_codegen", EnableCodegen)
             .Default(true);
 
         RegisterParameter("max_memory_store_key_count", MaxMemoryStoreKeyCount)
@@ -303,6 +303,9 @@ public:
     //! Maximum number of samples to request for partitioning.
     int MaxPartitioningSampleCount;
 
+    //! Maximum number of concurrent partition samplings.
+    int MaxConcurrentSamplings;
+
     //! Mininmum intervals between resampling.
     TDuration ResamplingPeriod;
 
@@ -316,6 +319,9 @@ public:
         RegisterParameter("max_partitioning_sample_count", MaxPartitioningSampleCount)
             .Default(1000)
             .GreaterThanOrEqual(10);
+        RegisterParameter("max_concurrent_samplings", MaxConcurrentSamplings)
+            .GreaterThan(0)
+            .Default(8);
         RegisterParameter("resampling_period", ResamplingPeriod)
             .Default(TDuration::Minutes(1));
     }

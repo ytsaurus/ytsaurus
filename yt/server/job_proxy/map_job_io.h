@@ -1,15 +1,13 @@
 #pragma once
 
-#include "private.h"
+#include "public.h"
 
 namespace NYT {
 namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<TUserJobIO> CreateMapJobIO(
-    NScheduler::TJobIOConfigPtr ioConfig,
-    IJobHost* host);
+std::unique_ptr<IUserJobIO> CreateMapJobIO(IJobHost* host);
 
 ////////////////////////////////////////////////////////////////////
 

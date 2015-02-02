@@ -26,7 +26,7 @@ DECLARE_REFCOUNTED_CLASS(TTcpDispatcherThread)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EConnectionType,
+DEFINE_ENUM(EConnectionType,
     (Client)
     (Server)
 );

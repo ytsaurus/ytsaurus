@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 #include <core/misc/small_vector.h>
 
 #include <ytlib/table_client/public.h>
@@ -12,12 +12,12 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EErrorCode,
+DEFINE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)  (300))
     ((SortOrderViolation)         (301))
 );
 
-DECLARE_ENUM(EControlAttribute,
+DEFINE_ENUM(EControlAttribute,
     (TableIndex)
 );
 
@@ -115,7 +115,7 @@ class TAsyncWriter;
 typedef TIntrusivePtr<TAsyncWriter> TAsyncWriterPtr;
 
 class TTableProducer;
-class TTableConsumer;
+class TLegacyTableConsumer;
 
 class TTableConsumerConfig;
 typedef TIntrusivePtr<TTableConsumerConfig> TTableConsumerConfigPtr;
@@ -124,6 +124,9 @@ typedef SmallVector< std::pair<TStringBuf, TStringBuf>, 32 > TRow;
 typedef std::vector<Stroka> TKeyColumns;
 
 struct IPartitioner;
+
+typedef NChunkClient::TOldMultiChunkParallelReader<TTableChunkReader> TTableChunkParallelReader;
+typedef TIntrusivePtr<TTableChunkParallelReader> TTableChunkParallelReaderPtr;
 
 typedef NChunkClient::TOldMultiChunkSequentialReader<TTableChunkReader> TTableChunkSequenceReader;
 typedef TIntrusivePtr<TTableChunkSequenceReader> TTableChunkSequenceReaderPtr;

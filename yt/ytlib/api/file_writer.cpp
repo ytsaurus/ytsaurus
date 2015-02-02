@@ -35,6 +35,7 @@ using namespace NYTree;
 using namespace NYPath;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NObjectClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTransactionClient;
@@ -50,12 +51,11 @@ public:
     TFileWriter(
         IClientPtr client,
         const TYPath& path,
-        const TFileWriterOptions& options,
-        TFileWriterConfigPtr config)
+        const TFileWriterOptions& options)
         : Client_(client)
         , Path_(path)
         , Options_(options)
-        , Config_(config ? config : New<TFileWriterConfig>())
+        , Config_(options.Config ? options.Config : New<TFileWriterConfig>())
     {
         if (Options_.TransactionId != NullTransactionId) {
             auto transactionManager = Client_->GetTransactionManager();
@@ -70,26 +70,23 @@ public:
             Options_.TransactionId);
     }
 
-    virtual TAsyncError Open() override
+    virtual TFuture<void> Open() override
     {
         return BIND(&TFileWriter::DoOpen, MakeStrong(this))
-            .Guarded()
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
             .Run();
     }
 
-    virtual TAsyncError Write(const TRef& data) override
+    virtual TFuture<void> Write(const TRef& data) override
     {
         return BIND(&TFileWriter::DoWrite, MakeStrong(this))
-            .Guarded()
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
             .Run(data);
     }
 
-    virtual TAsyncError Close() override
+    virtual TFuture<void> Close() override
     {
         return BIND(&TFileWriter::DoClose, MakeStrong(this))
-            .Guarded()
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
             .Run();
     }
@@ -121,7 +118,7 @@ private:
             options.EnableUncommittedAccounting = false;
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Format("File upload to %v", Path_));
-            options.Attributes = attributes.get();
+            options.Attributes = std::move(attributes);
             options.PrerequisiteTransactionIds = Options_.PrerequisiteTransactionIds;
 
             auto transactionManager = Client_->GetTransactionManager();
@@ -139,10 +136,17 @@ private:
 
         LOG_INFO("Opening file");
 
-        TObjectServiceProxy proxy(Client_->GetMasterChannel());
+        auto masterChannel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(masterChannel);
+
         auto batchReq = proxy.ExecuteBatch();
-        for (const auto& id : Options_.PrerequisiteTransactionIds) {
-            batchReq->PrerequisiteTransactions().push_back(TObjectServiceProxy::TPrerequisiteTransaction(id));
+
+        {
+            auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
+            for (const auto& id : Options_.PrerequisiteTransactionIds) {
+                auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
+                ToProto(prerequisiteTransaction->mutable_transaction_id(), id);
+            }
         }
 
         {
@@ -160,19 +164,21 @@ private:
 
         {
             auto req = TFileYPathProxy::PrepareForUpdate(Path_);
-            req->set_mode(Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite);
+            req->set_mode(static_cast<int>(Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
             GenerateMutationId(req);
             SetTransactionId(req, UploadTransaction_);
             batchReq->AddRequest(req, "prepare_for_update");
         }
 
-        auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error opening file");
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error opening file");
+        const auto& batchRsp = batchRspOrError.Value();
 
         auto writerOptions = New<TMultiChunkWriterOptions>();
         {
-            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting file attributes");
+            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting file attributes");
+            const auto& rsp = rspOrError.Value();
 
             auto node = ConvertToNode(TYsonString(rsp->value()));
             const auto& attributes = node->Attributes();
@@ -180,8 +186,8 @@ private:
             auto type = attributes.Get<EObjectType>("type");
             if (type != EObjectType::File) {
                 THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                    ~Path_,
-                    EObjectType(EObjectType::File),
+                    Path_,
+                    EObjectType::File,
                     type);
             }
 
@@ -193,8 +199,9 @@ private:
 
         TChunkListId chunkListId;
         {
-            auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing file for update");
+            auto rspOrError = batchRsp->GetResponse<TFileYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error preparing file for update");
+            const auto& rsp = rspOrError.Value();
             chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
         }
 
@@ -210,7 +217,7 @@ private:
             Config_,
             writerOptions,
             provider,
-            Client_->GetMasterChannel(),
+            masterChannel,
             UploadTransaction_->GetId(),
             chunkListId);
 
@@ -256,14 +263,9 @@ private:
 IFileWriterPtr CreateFileWriter(
     IClientPtr client,
     const TYPath& path,
-    const TFileWriterOptions& options,
-    TFileWriterConfigPtr config)
+    const TFileWriterOptions& options)
 {
-    return New<TFileWriter>(
-        client,
-        path,
-        options,
-        config);
+    return New<TFileWriter>(client, path, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

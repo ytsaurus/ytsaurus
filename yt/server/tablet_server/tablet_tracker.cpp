@@ -175,16 +175,18 @@ void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
     const auto& cellId = cell->GetId();
 
     // Look for timed out peers.
-    for (TPeerId peerId = 0; peerId < static_cast<int>(cell->Peers().size()); ++peerId) {
+    TReqRevokePeers request;
+    ToProto(request.mutable_cell_id(), cellId);
+    for (auto peerId = 0; peerId < cell->Peers().size(); ++peerId) {
         if (IsFailoverNeeded(cell, peerId)) {
-            TReqRevokePeer request;
-            ToProto(request.mutable_cell_id(), cellId);
-            request.set_peer_id(peerId);
-
-            auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            CreateMutation(hydraManager, request)
-                ->Commit();
+            request.add_peer_ids(peerId);
         }
+    }
+
+    if (request.peer_ids_size() > 0) {
+        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        CreateMutation(hydraManager, request)
+            ->Commit();
     }
 }
 

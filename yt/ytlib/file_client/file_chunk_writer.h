@@ -42,11 +42,11 @@ public:
 
     ~TFileChunkWriter();
 
-    // Is retuns nullptr, take GetReadyEvent and wait.
+    // If |nullptr| is returned, invoke #GetReadyEvent and wait.
     TFileChunkWriterFacade* GetFacade();
-    TAsyncError GetReadyEvent();
+    TFuture<void> GetReadyEvent();
 
-    TAsyncError Close();
+    TFuture<void> Close();
 
     i64 GetDataSize() const;
     i64 GetMetaSize() const;
@@ -77,7 +77,7 @@ private:
 
     NLog::TLogger Logger;
 
-    void OnFinalBlocksWritten(TError error);
+    void OnFinalBlocksWritten(const TError& error);
     void FlushBlock();
 
 };

@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <core/concurrency/action_queue.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/actions/signal.h>
 
@@ -15,13 +16,14 @@
 #include <server/cell_node/public.h>
 
 #include <atomic>
+#include <map>
 
 namespace NYT {
 namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ELocationType,
+DEFINE_ENUM(ELocationType,
     (Store)
     (Cache)
 );
@@ -75,8 +77,11 @@ public:
     //! are allowed to use.
     i64 GetQuota() const;
 
-    //! Returns the path of the location.
+    //! Returns the root path of the location.
     Stroka GetPath() const;
+
+    //! Returns the root trash path of the location.
+    Stroka GetTrashPath() const;
 
     //! Returns the load factor.
     double GetLoadFactor() const;
@@ -93,8 +98,11 @@ public:
     //! Returns the number of chunks.
     int GetChunkCount() const;
 
-    //! Returns a full path to a chunk file.
-    Stroka GetChunkFileName(const TChunkId& chunkId) const;
+    //! Returns a full path for a primary chunk file.
+    Stroka GetChunkPath(const TChunkId& chunkId) const;
+
+    //! Returns a full path for a removed primary chunk file.
+    Stroka GetTrashChunkPath(const TChunkId& chunkId) const;
 
     //! Checks whether the location is full.
     bool IsFull() const;
@@ -116,6 +124,12 @@ public:
 
     //! Marks the location as disabled.
     void Disable(const TError& reason);
+
+    //! Permantenly removes the files comprising a given chunk.
+    void RemoveChunkFiles(const TChunkId& chunkId);
+
+    //! Moves the files comprising a given chunk into trash directory.
+    void MoveChunkFilesToTrash(const TChunkId& chunkId);
 
     //! Raised when the location gets disabled.
     /*!
@@ -148,16 +162,35 @@ private:
 
     TDiskHealthCheckerPtr HealthChecker_;
 
+    struct TTrashChunkEntry
+    {
+        TChunkId ChunkId;
+        i64 DiskSpace;
+    };
+
+    TSpinLock TrashMapSpinLock_;
+    std::multimap<TInstant, TTrashChunkEntry> TrashMap_;
+    NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;
+
     mutable NLog::TLogger Logger;
 
 
     std::vector<TChunkDescriptor> DoInitialize();
-    TNullable<TChunkDescriptor> TryGetBlobDescriptor(const TChunkId& chunkId);
-    TNullable<TChunkDescriptor> TryGetJournalDescriptor(const TChunkId& chunkId);
+    TNullable<TChunkDescriptor> RepairBlobChunk(const TChunkId& chunkId);
+    TNullable<TChunkDescriptor> RepairJournalChunk(const TChunkId& chunkId);
 
     void OnHealthCheckFailed(const TError& error);
     void ScheduleDisable(const TError& reason);
     void DoDisable(const TError& reason);
+
+    static Stroka GetRelativeChunkPath(const TChunkId& chunkId);
+    std::vector<Stroka> GetChunkPartNames(const TChunkId& chunkId) const;
+
+    void RegisterTrashChunk(const TChunkId& chunkId);
+    void OnCheckTrash();
+    void CheckTrashTtl();
+    void CheckTrashWatermark();
+    void RemoveTrashFiles(const TTrashChunkEntry& entry);
 
 };
 

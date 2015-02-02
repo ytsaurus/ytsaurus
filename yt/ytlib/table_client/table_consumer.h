@@ -17,17 +17,25 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ELegacyTableConsumerControlState,
+    (None)
+    (ExpectControlAttributeName)
+    (ExpectControlAttributeValue)
+    (ExpectEndControlAttributes)
+    (ExpectEntity)
+);
+
 // TODO(babenko): deprecate
 /*!
  *  For performance reasons we don't use TForwardingYsonConsumer.
  */
-class TTableConsumer
+class TLegacyTableConsumer
     : public NYson::IYsonConsumer
 {
 public:
     template <class TWriter>
-    explicit TTableConsumer(TWriter writer)
-        : ControlState(EControlState::None)
+    explicit TLegacyTableConsumer(TWriter writer)
+        : ControlState(ELegacyTableConsumerControlState::None)
         , CurrentTableIndex(0)
         , Writer(writer)
         , Depth(0)
@@ -37,8 +45,8 @@ public:
     }
 
     template <class TWriter>
-    TTableConsumer(const std::vector<TWriter>& writers, int tableIndex)
-        : ControlState(EControlState::None)
+    TLegacyTableConsumer(const std::vector<TWriter>& writers, int tableIndex)
+        : ControlState(ELegacyTableConsumerControlState::None)
         , CurrentTableIndex(tableIndex)
         , Writers(writers.begin(), writers.end())
         , Writer(Writers[CurrentTableIndex])
@@ -68,15 +76,7 @@ private:
     void ThrowEntityExpected() const;
     void ThrowInvalidControlAttribute(const Stroka& whatsWrong) const;
 
-    DECLARE_ENUM(EControlState,
-        (None)
-        (ExpectControlAttributeName)
-        (ExpectControlAttributeValue)
-        (ExpectEndControlAttributes)
-        (ExpectEntity)
-    );
-
-    EControlState ControlState;
+    ELegacyTableConsumerControlState ControlState;
     EControlAttribute ControlAttribute;
 
     int CurrentTableIndex;
@@ -96,6 +96,14 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ETableConsumerControlState,
+    (None)
+    (ExpectName)
+    (ExpectValue)
+    (ExpectEndAttributes)
+    (ExpectEntity)
+);
 
 class TTableConsumerBase
     : public NYson::IYsonConsumer
@@ -146,14 +154,6 @@ protected:
 
     void WriteValue(const NVersionedTableClient::TUnversionedValue& value);
 
-    DECLARE_ENUM(EControlState,
-        (None)
-        (ExpectName)
-        (ExpectValue)
-        (ExpectEndAttributes)
-        (ExpectEntity)
-    );
-
 
     bool TreatMissingAsNull_;
     bool AllowNonSchemaColumns_;
@@ -161,7 +161,7 @@ protected:
     int KeyColumnCount_;
     NVersionedTableClient::TNameTablePtr NameTable_;
 
-    EControlState ControlState_;
+    ETableConsumerControlState ControlState_;
     EControlAttribute ControlAttribute_;
 
     int Depth_;

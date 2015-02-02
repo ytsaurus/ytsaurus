@@ -11,6 +11,7 @@
 #include "private.h"
 
 #include <core/concurrency/scheduler.h>
+#include <core/concurrency/async_semaphore.h>
 
 #include <core/logging/log.h>
 
@@ -54,6 +55,7 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
+        , Semaphore_(Config_->MaxConcurrentSamplings)
     { }
 
     void Start()
@@ -65,6 +67,7 @@ public:
 private:
     TPartitionBalancerConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
+    TAsyncSemaphore Semaphore_;
 
 
     void OnScanSlot(TTabletSlotPtr slot)
@@ -88,35 +91,44 @@ private:
 
     void ScanPartition(TTabletSlotPtr slot, TPartition* partition)
     {
-        i64 dataSize = partition->GetUncompressedDataSize();
-        
         auto* tablet = partition->GetTablet();
-        int partitionCount = static_cast<int>(tablet->Partitions().size());
 
         const auto& config = tablet->GetConfig();
 
-        if (dataSize >  config->MaxPartitionDataSize) {
-            int splitFactor = static_cast<int>(std::min(
-                dataSize / config->DesiredPartitionDataSize + 1,
-                static_cast<i64>(config->MaxPartitionCount - partitionCount)));
+        int partitionCount = tablet->Partitions().size();
+
+        i64 actualDataSize = partition->GetUncompressedDataSize();
+
+        // Maximum data size the partition might have if all chunk stores from Eden go here.
+        i64 maxPotentialDataSize = actualDataSize;
+        for (auto store : tablet->GetEden()->Stores()) {
+            if (store->GetType() == EStoreType::Chunk) {
+                maxPotentialDataSize += store->GetUncompressedDataSize();
+            }
+        }
+
+        if (actualDataSize >  config->MaxPartitionDataSize) {
+            int splitFactor = std::min(
+                actualDataSize / config->DesiredPartitionDataSize + 1,
+                static_cast<i64>(config->MaxPartitionCount - partitionCount));
             if (splitFactor > 1) {
                 RunSplit(partition, splitFactor);
             }
         }
         
-        if (dataSize + tablet->GetEden()->GetUncompressedDataSize() < config->MinPartitionDataSize && partitionCount > 1) {
+        if (maxPotentialDataSize < config->MinPartitionDataSize && partitionCount > 1) {
             int firstPartitionIndex = partition->GetIndex();
             int lastPartitionIndex = firstPartitionIndex + 1;
-
             if (lastPartitionIndex == partitionCount) {
                 --firstPartitionIndex;
                 --lastPartitionIndex;
             }
-
             RunMerge(partition, firstPartitionIndex, lastPartitionIndex);
         }
 
-        if (partition->GetSamplingNeeded()) {
+        if (partition->GetSamplingRequestTime() > partition->GetSamplingTime() &&
+            partition->GetSamplingTime() < TInstant::Now() - Config_->ResamplingPeriod)
+        {
             RunSample(partition);
         }
     }
@@ -176,6 +188,7 @@ private:
 
             TReqSplitPartition request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
+            ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_pivot_keys(), pivotKeys);
             CreateMutation(hydraManager, request)
                 ->Commit();
@@ -202,7 +215,15 @@ private:
             tablet->Partitions()[index]->SetState(EPartitionState::Merging);
         }
 
-        auto Logger = BuildLogger(partition);
+        auto Logger = TabletNodeLogger;
+        Logger.AddTag("TabletId: %v, PartitionIds: [%v]",
+            partition->GetTablet()->GetId(),
+            JoinToString(ConvertToStrings(
+                tablet->Partitions().begin() + firstPartitionIndex,
+                tablet->Partitions().begin() + lastPartitionIndex,
+                [] (const std::unique_ptr<TPartition>& partition) {
+                     return ToString(partition->GetId());
+                })));
 
         LOG_INFO("Partition is eligible for merge");
 
@@ -211,7 +232,7 @@ private:
 
         TReqMergePartitions request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
-        ToProto(request.mutable_pivot_key(), tablet->Partitions()[firstPartitionIndex]->GetPivotKey());
+        ToProto(request.mutable_partition_id(), tablet->Partitions()[firstPartitionIndex]->GetId());
         request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
         CreateMutation(hydraManager, request)
             ->Commit();
@@ -223,17 +244,19 @@ private:
     {
         if (partition->GetState() != EPartitionState::Normal)
             return;
-        if (partition->GetLastSamplingTime() > TInstant::Now() - Config_->ResamplingPeriod)
+
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
+        if (!guard)
             return;
 
         partition->SetState(EPartitionState::Sampling);
 
-        BIND(&TPartitionBalancer::DoRunSample, MakeStrong(this))
+        BIND(&TPartitionBalancer::DoRunSample, MakeStrong(this), Passed(std::move(guard)))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
             .Run(partition);
     }
 
-    void DoRunSample(TPartition* partition)
+    void DoRunSample(TAsyncSemaphoreGuard /* guard */, TPartition* partition)
     {
         auto Logger = BuildLogger(partition);
 
@@ -254,7 +277,7 @@ private:
 
             TReqUpdatePartitionSampleKeys request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
-            ToProto(request.mutable_pivot_key(), partition->GetPivotKey());
+            ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_sample_keys(), samples);
             CreateMutation(hydraManager, request)
                 ->Commit();
@@ -265,7 +288,7 @@ private:
         partition->SetState(EPartitionState::Normal);
         // NB: Update the timestamp even in case of failure to prevent
         // repeating unsuccessful samplings too rapidly.
-        partition->SetLastSamplingTime(TInstant::Now());
+        partition->SetSamplingTime(TInstant::Now());
     }
 
 
@@ -294,7 +317,9 @@ private:
             Logger);
 
         {
-            TChunkServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
+            auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower);
+            TChunkServiceProxy proxy(channel);
+
             auto req = proxy.LocateChunks();
 
             yhash_map<TChunkId, TChunkStorePtr> storeMap;
@@ -324,8 +349,8 @@ private:
             LOG_INFO("Locating partition chunks (ChunkCount: %v)",
                 storeMap.size());
 
-            auto rsp = WaitFor(req->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+            auto rsp = WaitFor(req->Invoke())
+                .ValueOrThrow();
 
             LOG_INFO("Partition chunks located");
 
@@ -366,14 +391,12 @@ private:
 
     static NLog::TLogger BuildLogger(TPartition* partition)
     {
-        NLog::TLogger logger(TabletNodeLogger);
-        logger.AddTag("TabletId: %v, PartitionKeys: %v .. %v",
+        auto logger = TabletNodeLogger;
+        logger.AddTag("TabletId: %v, PartitionId: %v",
             partition->GetTablet()->GetId(),
-            partition->GetPivotKey(),
-            partition->GetNextPivotKey());
+            partition->GetId());
         return logger;
     }
-
 };
 
 void StartPartitionBalancer(

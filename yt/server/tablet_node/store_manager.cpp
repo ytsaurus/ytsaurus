@@ -368,8 +368,8 @@ void TStoreManager::AddStore(IStorePtr store)
 {
     YCHECK(store->GetType() == EStoreType::Chunk);
 
-    Tablet_->AddStore(store);
     MaxTimestampToStore_.insert(std::make_pair(store->GetMaxTimestamp(), store));
+    return Tablet_->AddStore(store);
 }
 
 void TStoreManager::RemoveStore(IStorePtr store)

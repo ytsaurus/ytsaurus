@@ -47,30 +47,30 @@ struct ISession
      *  For blob chunks this happens immediately (and the actualy opening happens in backgound).
      *  For journal chunks this happens when append record is flushed into the multiplexed changelog.
      */
-    virtual TAsyncError Start() = 0;
+    virtual TFuture<void> Start() = 0;
 
     //! Cancels the session.
     virtual void Cancel(const TError& error) = 0;
 
     //! Finishes the session.
-    virtual TFuture<TErrorOr<IChunkPtr>> Finish(
+    virtual TFuture<IChunkPtr> Finish(
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
         const TNullable<int>& blockCount) = 0;
 
     //! Puts a contiguous range of blocks into the window.
-    virtual TAsyncError PutBlocks(
+    virtual TFuture<void> PutBlocks(
         int startBlockIndex,
         const std::vector<TSharedRef>& blocks,
         bool enableCaching) = 0;
 
     //! Sends a range of blocks (from the current window) to another data node.
-    virtual TAsyncError SendBlocks(
+    virtual TFuture<void> SendBlocks(
         int startBlockIndex,
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;
 
     //! Flushes blocks up to a given one.
-    virtual TAsyncError FlushBlocks(int blockIndex) = 0;
+    virtual TFuture<void> FlushBlocks(int blockIndex) = 0;
 
     //! Renews the lease.
     virtual void Ping() = 0;

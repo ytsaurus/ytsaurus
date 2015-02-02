@@ -42,15 +42,15 @@ public:
         TChunkWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter);
 
-    virtual TAsyncError Open(
+    virtual TFuture<void> Open(
         const TTableSchema& schema,
         const TNullable<TKeyColumns>& keyColumns) final override;
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) final override;
 
-    virtual TAsyncError GetReadyEvent() final override;
+    virtual TFuture<void> GetReadyEvent() final override;
 
-    virtual TAsyncError Close() final override;
+    virtual TFuture<void> Close() final override;
 
 private:
     struct TColumnDescriptor
@@ -122,7 +122,7 @@ private:
     // ToDo(psushin): refactor.
     bool EndRow();
 
-    void DoClose(TAsyncErrorPromise result);
+    void DoClose(TPromise<void> result);
     void FlushPreviousBlock();
 
 };
@@ -143,7 +143,7 @@ TChunkWriter::TChunkWriter(
     , LargestBlockSize(0)
 { }
 
-TAsyncError TChunkWriter::Open(
+TFuture<void> TChunkWriter::Open(
    const TTableSchema& schema,
    const TNullable<TKeyColumns>& keyColumns)
 {
@@ -152,7 +152,7 @@ TAsyncError TChunkWriter::Open(
         YCHECK(i == nameTable->RegisterName(schema.Columns()[i].Name));
     }
     Open(nameTable, schema, *keyColumns);
-    return OKFuture;
+    return VoidFuture;
 }
 
 void TChunkWriter::Open(
@@ -364,14 +364,14 @@ bool TChunkWriter::EndRow()
     return EncodingWriter->IsReady();
 }
 
-TAsyncError TChunkWriter::GetReadyEvent()
+TFuture<void> TChunkWriter::GetReadyEvent()
 {
     return EncodingWriter->GetReadyEvent();
 }
 
-TAsyncError TChunkWriter::Close()
+TFuture<void> TChunkWriter::Close()
 {
-    auto result = NewPromise<TError>();
+    auto result = NewPromise<void>();
 
     TDispatcher::Get()->GetWriterInvoker()->Invoke(BIND(
         &TChunkWriter::DoClose,
@@ -381,7 +381,7 @@ TAsyncError TChunkWriter::Close()
     return result;
 }
 
-void TChunkWriter::DoClose(TAsyncErrorPromise result)
+void TChunkWriter::DoClose(TPromise<void> result)
 {
     if (CurrentBlock->GetSize() > 0) {
         YCHECK(PreviousBlock == nullptr);
@@ -400,8 +400,8 @@ void TChunkWriter::DoClose(TAsyncErrorPromise result)
         }
     }
 
-    Meta.set_type(EChunkType::Table);
-    Meta.set_version(ETableChunkFormat::Schemaful);
+    Meta.set_type(static_cast<int>(EChunkType::Table));
+    Meta.set_version(static_cast<int>(ETableChunkFormat::Schemaful));
 
     SetProtoExtension(Meta.mutable_extensions(), BlockMetaExt);
     SetProtoExtension(Meta.mutable_extensions(), NYT::ToProto<NProto::TTableSchemaExt>(Schema));
@@ -427,7 +427,7 @@ void TChunkWriter::DoClose(TAsyncErrorPromise result)
     miscExt.set_uncompressed_data_size(EncodingWriter->GetUncompressedSize());
     miscExt.set_compressed_data_size(EncodingWriter->GetCompressedSize());
     miscExt.set_meta_size(Meta.ByteSize());
-    miscExt.set_compression_codec(Options->CompressionCodec);
+    miscExt.set_compression_codec(static_cast<int>(Options->CompressionCodec));
     miscExt.set_row_count(RowIndex);
     miscExt.set_max_block_size(LargestBlockSize);
     SetProtoExtension(Meta.mutable_extensions(), miscExt);

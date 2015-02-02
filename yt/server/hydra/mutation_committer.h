@@ -60,7 +60,6 @@ class TLeaderCommitter
     : public TCommitterBase
 {
 public:
-    //! Creates an instance.
     TLeaderCommitter(
         TDistributedHydraManagerConfigPtr config,
         NElection::TCellManagerPtr cellManager,
@@ -69,6 +68,8 @@ public:
         TEpochContext* epochContext,
         const NProfiling::TProfiler& profiler);
 
+    void Finalize();
+
     ~TLeaderCommitter();
 
     //! Initiates a new distributed commit.
@@ -76,14 +77,14 @@ public:
      *  A distributed commit is completed when the mutation is received, applied,
      *  and flushed to the changelog by a quorum of replicas.
      */
-    TFuture<TErrorOr<TMutationResponse>> Commit(const TMutationRequest& request);
+    TFuture<TMutationResponse> Commit(const TMutationRequest& request);
 
     //! Sends out the current batch of mutations.
     void Flush();
 
     //! Returns a future that is set when all mutations submitted to #Commit are
     //! flushed by a quorum of changelogs.
-    TAsyncError GetQuorumFlushResult();
+    TFuture<void> GetQuorumFlushResult();
 
     //! Temporarily suspends writing mutations to the changelog and keeps them in memory.
     void SuspendLogging();
@@ -104,12 +105,12 @@ private:
     typedef TIntrusivePtr<TBatch> TBatchPtr;
 
     void OnBatchTimeout(TBatchPtr batch);
-    void OnBatchCommitted(TBatchPtr batch, TError error);
+    void OnBatchCommitted(TBatchPtr batch, const TError& error);
     TIntrusivePtr<TBatch> GetOrCreateBatch(TVersion version);
     void AddToBatch(
         TVersion version,
         const TSharedRef& recordData,
-        TAsyncError localFlushResult);
+        TFuture<void> localFlushResult);
     void FlushCurrentBatch();
 
     void OnAutoCheckpointCheck();
@@ -123,7 +124,7 @@ private:
     struct TPendingMutation
     {
         TMutationRequest Request;
-        TPromise<TErrorOr<TMutationResponse>> Promise;
+        TPromise<TMutationResponse> Promise;
     };
     
     bool LoggingSuspended_ = false;
@@ -131,7 +132,7 @@ private:
 
     TSpinLock BatchSpinLock_;
     TBatchPtr CurrentBatch_;
-    TAsyncError PrevBatchQuorumFlushResult_ = OKFuture;
+    TFuture<void> PrevBatchQuorumFlushResult_ = VoidFuture;
     NConcurrency::TDelayedExecutorCookie BatchTimeoutCookie_;
 
     NConcurrency::TPeriodicExecutorPtr AutoCheckpointCheckExecutor_;
@@ -150,7 +151,6 @@ class TFollowerCommitter
     : public TCommitterBase
 {
 public:
-    //! Creates an instance.
     TFollowerCommitter(
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
@@ -160,7 +160,7 @@ public:
     ~TFollowerCommitter();
 
     //! Logs a batch of mutations at the follower.
-    TAsyncError LogMutations(
+    TFuture<void> LogMutations(
         TVersion expectedVersion,
         const std::vector<TSharedRef>& recordsData);
 
@@ -174,7 +174,7 @@ public:
     void ResumeLogging();
 
 private:
-    TAsyncError DoLogMutations(
+    TFuture<void> DoLogMutations(
         TVersion expectedVersion,
         const std::vector<TSharedRef>& recordsData);
 
@@ -182,7 +182,7 @@ private:
     {
         std::vector<TSharedRef> RecordsData;
         TVersion ExpectedVersion;
-        TPromise<TError> Promise;
+        TPromise<void> Promise;
     };
 
     bool LoggingSuspended_ = false;

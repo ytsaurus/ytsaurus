@@ -6,13 +6,13 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TErrorOr<IChangelogPtr>> IChangelogStore::TryOpenChangelog(int id)
+TFuture<IChangelogPtr> IChangelogStore::TryOpenChangelog(int id)
 {
-    return OpenChangelog(id).Apply(BIND([] (const TErrorOr<IChangelogPtr>& result) -> TErrorOr<IChangelogPtr> {
-        if (!result.IsOK() && result.GetCode() == NHydra::EErrorCode::NoSuchChangelog) {
+    return OpenChangelog(id).Apply(BIND([] (const TErrorOr<IChangelogPtr>& result) -> IChangelogPtr {
+        if (!result.IsOK() && result.FindMatching(NHydra::EErrorCode::NoSuchChangelog)) {
             return IChangelogPtr(nullptr);
         }
-        return result;
+        return result.ValueOrThrow();
     }));
 }
 

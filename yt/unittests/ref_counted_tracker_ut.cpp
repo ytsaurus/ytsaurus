@@ -3,7 +3,7 @@
 
 #define YT_ENABLE_REF_COUNTED_TRACKING
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 #include <core/misc/ref_counted_tracker.h>
 #include <core/misc/ref_counted.h>
 #include <core/misc/new.h>

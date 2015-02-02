@@ -14,7 +14,7 @@ TDriverResponse::TDriverResponse(Py::PythonClassInstance *self, Py::Tuple& args,
     : Py::PythonClass<TDriverResponse>::PythonClass(self, args, kwargs)
 { }
 
-void TDriverResponse::SetResponse(TFuture<NDriver::TDriverResponse> response)
+void TDriverResponse::SetResponse(TFuture<void> response)
 {
     Response_ = response;
 }
@@ -28,7 +28,6 @@ void TDriverResponse::OwnOutputStream(std::unique_ptr<TOutputStreamWrap>& output
 {
     OutputStream_.swap(outputStream);
 }
-
 
 Py::Object TDriverResponse::Wait(Py::Tuple& args, Py::Dict& kwargs)
 {
@@ -49,7 +48,7 @@ Py::Object TDriverResponse::IsOk(Py::Tuple& args, Py::Dict& kwargs)
     if (!Response_.IsSet()) {
         THROW_ERROR_EXCEPTION("Response is not set");
     }
-    return Py::Boolean(Response_.Get().Error.IsOK());
+    return Py::Boolean(Response_.Get().IsOK());
 }
 
 Py::Object TDriverResponse::Error(Py::Tuple& args, Py::Dict& kwargs)
@@ -57,12 +56,12 @@ Py::Object TDriverResponse::Error(Py::Tuple& args, Py::Dict& kwargs)
     if (!Response_.IsSet()) {
         THROW_ERROR_EXCEPTION("Response is not set");
     }
-    return NYTree::ConvertTo<Py::Object>(Response_.Get().Error);
+    return NYTree::ConvertTo<Py::Object>(Response_.Get());
 }
 
 TDriverResponse::~TDriverResponse()
 { }
-    
+
 void TDriverResponse::InitType()
 {
     behaviors().name("Response");

@@ -33,7 +33,7 @@ public:
     int GetQuorumCount() const;
     int GetPeerCount() const;
 
-    const Stroka& GetPeerAddress(TPeerId id) const;
+    const TNullable<Stroka>& GetPeerAddress(TPeerId id) const;
     NRpc::IChannelPtr GetPeerChannel(TPeerId id) const;
 
     const NProfiling::TTagIdList& GetPeerTags(TPeerId id) const;

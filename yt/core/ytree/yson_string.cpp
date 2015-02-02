@@ -9,14 +9,15 @@
 namespace NYT {
 namespace NYTree {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TYsonString::TYsonString()
+    : Type_(EYsonType::Node)
 { }
 
-TYsonString::TYsonString(
-    const Stroka& data,
-    NYson::EYsonType type /*= NYson::EYsonType::Node*/ )
+TYsonString::TYsonString(const Stroka& data, EYsonType type)
     : Data_(data)
     , Type_(type)
 { }
@@ -29,7 +30,7 @@ void TYsonString::Validate() const
 
 void TYsonString::Save(TStreamSaveContext& context) const
 {
-    YCHECK(GetType() == NYson::EYsonType::Node);
+    YCHECK(GetType() == EYsonType::Node);
     NYT::Save(context, Data_);
 }
 
@@ -40,7 +41,7 @@ void TYsonString::Load(TStreamLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TYsonString& yson, NYson::IYsonConsumer* consumer)
+void Serialize(const TYsonString& yson, IYsonConsumer* consumer)
 {
     consumer->OnRaw(yson.Data(), yson.GetType());
 }

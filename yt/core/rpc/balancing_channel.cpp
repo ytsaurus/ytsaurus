@@ -32,9 +32,11 @@ class TBalancingChannelProvider
 public:
     explicit TBalancingChannelProvider(
         TBalancingChannelConfigPtr config,
-        IChannelFactoryPtr channelFactory)
+        IChannelFactoryPtr channelFactory,
+        TDiscoverRequestHook discoverRequestHook)
         : Config_(config)
         , ChannelFactory_(channelFactory)
+        , DiscoverRequestHook_(discoverRequestHook)
         , Logger(RpcClientLogger)
     {
         Logger.AddTag("Channel: %v", this);
@@ -47,14 +49,15 @@ public:
         return ConvertToYsonString(GetAllAddresses());
     }
 
-    virtual TFuture<TErrorOr<IChannelPtr>> DiscoverChannel(IClientRequestPtr request) override
+    virtual TFuture<IChannelPtr> DiscoverChannel(IClientRequestPtr request) override
     {
         return New<TSession>(this, request)->Run();
     }
 
 private:
-    TBalancingChannelConfigPtr Config_;
-    IChannelFactoryPtr ChannelFactory_;
+    const TBalancingChannelConfigPtr Config_;
+    const IChannelFactoryPtr ChannelFactory_;
+    const TDiscoverRequestHook DiscoverRequestHook_;
 
     mutable TSpinLock SpinLock_;
     yhash_set<Stroka> ActiveAddresses_;
@@ -72,13 +75,13 @@ private:
             IClientRequestPtr request)
             : Owner_(owner)
             , Request_(request)
-            , Promise_(NewPromise<TErrorOr<IChannelPtr>>())
+            , Promise_(NewPromise<IChannelPtr>())
             , Logger(Owner_->Logger)
         {
             Logger.AddTag("Service: %v", Request_->GetService());
         }
 
-        TFuture<TErrorOr<IChannelPtr>> Run()
+        TFuture<IChannelPtr> Run()
         {
             LOG_DEBUG("Starting peer discovery");
             DoRun();
@@ -90,7 +93,7 @@ private:
         IClientRequestPtr Request_;
 
         TSpinLock SpinLock_;
-        TPromise<TErrorOr<IChannelPtr>> Promise_;
+        TPromise<IChannelPtr> Promise_;
         yhash_set<Stroka> RequestedAddresses_;
 
         NLog::TLogger Logger;
@@ -123,6 +126,10 @@ private:
                 proxy.SetDefaultTimeout(Owner_->Config_->DiscoverTimeout);
 
                 auto req = proxy.Discover();
+                if (Owner_->DiscoverRequestHook_) {
+                    Owner_->DiscoverRequestHook_.Run(req.Get());
+                }
+                
                 req->Invoke().Subscribe(BIND(
                     &TSession::OnResponse,
                     MakeStrong(this),
@@ -134,9 +141,10 @@ private:
         void OnResponse(
             const Stroka& address,
             IChannelPtr channel,
-            TProxyBase::TRspDiscoverPtr rsp)
+            const TGenericProxy::TErrorOrRspDiscoverPtr& rspOrError)
         {
-            if (rsp->IsOK()) {
+            if (rspOrError.IsOK()) {
+                const auto& rsp = rspOrError.Value();
                 bool up = rsp->up();
                 auto suggestedAddresses = FromProto<Stroka>(rsp->suggested_addresses());
 
@@ -153,7 +161,7 @@ private:
                     BanPeer(address, Owner_->Config_->SoftBackoffTime);
                 }
             } else {
-                LOG_WARNING(*rsp, "Peer %v has failed to respond", address);
+                LOG_WARNING(rspOrError, "Peer %v has failed to respond", address);
                 BanPeer(address, Owner_->Config_->HardBackoffTime);
             }
 
@@ -202,7 +210,7 @@ private:
         }
 
        void BanPeer(const Stroka& address, TDuration backoffTime)
-        {
+       {
             {
                 TGuard<TSpinLock> thisGuard(SpinLock_);
                 TGuard<TSpinLock> ownerGuard(Owner_->SpinLock_);
@@ -264,12 +272,16 @@ DEFINE_REFCOUNTED_TYPE(TBalancingChannelProvider)
 
 IChannelPtr CreateBalancingChannel(
     TBalancingChannelConfigPtr config,
-    IChannelFactoryPtr channelFactory)
+    IChannelFactoryPtr channelFactory,
+    TDiscoverRequestHook discoverRequestHook)
 {
     YCHECK(config);
     YCHECK(channelFactory);
 
-    auto channelProvider = New<TBalancingChannelProvider>(config, channelFactory);
+    auto channelProvider = New<TBalancingChannelProvider>(
+        config,
+        channelFactory,
+        discoverRequestHook);
     return CreateRoamingChannel(channelProvider);
 }
 

@@ -7,7 +7,7 @@
 #include <core/misc/address.h>
 #include <core/misc/random.h>
 
-#include <core/concurrency/action_queue_detail.h>
+#include <core/concurrency/ev_scheduler_thread.h>
 #include <core/concurrency/event_count.h>
 
 #include <util/thread/lfqueue.h>
@@ -46,15 +46,15 @@ public:
 
     const ev::loop_ref& GetEventLoop() const;
 
-    TAsyncError AsyncRegister(IEventLoopObjectPtr object);
-    TAsyncError AsyncUnregister(IEventLoopObjectPtr object);
+    TFuture<void> AsyncRegister(IEventLoopObjectPtr object);
+    TFuture<void> AsyncUnregister(IEventLoopObjectPtr object);
 
     TTcpDispatcherStatistics& Statistics(ETcpInterfaceType interfaceType);
 
 private:
     friend class TTcpDispatcherInvokerQueue;
 
-    std::vector<TTcpDispatcherStatistics> Statistics_;
+    TEnumIndexedVector<TTcpDispatcherStatistics, ETcpInterfaceType> Statistics_;
     yhash_set<IEventLoopObjectPtr> Objects_;
 
 

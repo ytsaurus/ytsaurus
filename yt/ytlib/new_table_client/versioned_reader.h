@@ -23,7 +23,7 @@ struct IVersionedReader
 {
     //! Initializes the reader. Must be called (and its result must be waited for)
     //! before making any other calls.
-    virtual TAsyncError Open() = 0;
+    virtual TFuture<void> Open() = 0;
 
     //! Tries to read more rows from the reader.
     /*!
@@ -35,7 +35,7 @@ struct IVersionedReader
      *      (for compactions).
      *
      *  Value ids correspond to column indexes in schema.
-     *  Values are sorted in ascending order by ids, and then in ascending order by timestamps.
+     *  The returned rows are canonically sorted (see TVersionedRow).
      *
      *  If |false| is returned then the end of the rowset is reached.
      *  If |true| is returned but |rows| is empty then no more data is available at the moment.
@@ -52,7 +52,7 @@ struct IVersionedReader
 
     //! Returns an asynchronous flag enabling to wait for more data to come.
     //! \see #Read.
-    virtual TAsyncError GetReadyEvent() = 0;
+    virtual TFuture<void> GetReadyEvent() = 0;
 
 };
 

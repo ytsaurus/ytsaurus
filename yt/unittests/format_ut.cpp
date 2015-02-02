@@ -74,18 +74,18 @@ TEST(TFormatTest, Floats)
     EXPECT_EQ("3.14", Format("%.2v", 3.1415));
 }
 
-DECLARE_ENUM(EColor,
+DEFINE_ENUM(EColor,
     (Red)
     (BlackAndWhite)
 );
 
 TEST(TFormatTest, Enum)
 {
-    EXPECT_EQ("Red", Format("%v", EColor(EColor::Red)));
-    EXPECT_EQ("red", Format("%lv", EColor(EColor::Red)));
+    EXPECT_EQ("Red", Format("%v", EColor::Red));
+    EXPECT_EQ("red", Format("%lv", EColor::Red));
 
-    EXPECT_EQ("BlackAndWhite", Format("%v", EColor(EColor::BlackAndWhite)));
-    EXPECT_EQ("black_and_white", Format("%lv", EColor(EColor::BlackAndWhite)));
+    EXPECT_EQ("BlackAndWhite", Format("%v", EColor::BlackAndWhite));
+    EXPECT_EQ("black_and_white", Format("%lv", EColor::BlackAndWhite));
 
     EXPECT_EQ("EColor(100)", Format("%v", EColor(100)));
 }
@@ -102,6 +102,9 @@ TEST(TFormatTest, Quotes)
 {
     EXPECT_EQ("\"True\"", Format("%Qv", true));
     EXPECT_EQ("'False'", Format("%qv", false));
+    EXPECT_EQ("'\\\'\"'", Format("%qv", "\'\""));
+    EXPECT_EQ("\"\\x01\"", Format("%Qv", "\x1"));
+    EXPECT_EQ("'\\x1B'", Format("%qv", '\x1b'));
 }
 
 TEST(TFormatTest, Nullable)

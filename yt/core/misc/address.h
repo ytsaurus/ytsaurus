@@ -108,7 +108,7 @@ public:
      *  Calls |getaddrinfo| and returns the first entry belonging to |AF_INET| or |AF_INET6| family.
      *  Caches successful resolutions.
      */
-    TFuture< TErrorOr<TNetworkAddress> > Resolve(const Stroka& address);
+    TFuture<TNetworkAddress> Resolve(const Stroka& address);
 
     //! Returns the FQDN of the local host.
     Stroka GetLocalHostName();
@@ -120,17 +120,19 @@ public:
     void Configure(TAddressResolverConfigPtr config);
 
 private:
-    TAddressResolverConfigPtr Config;
+    TAddressResolverConfigPtr Config_;
 
-    TSpinLock CacheLock;
-    yhash_map<Stroka, TNetworkAddress> Cache;
+    TSpinLock CacheLock_;
+    yhash_map<Stroka, TNetworkAddress> Cache_;
 
-    TSpinLock LocalHostLock;
-    NConcurrency::TPeriodicExecutorPtr LocalHostChecker;
-    bool GetLocalHostNameFailed;
-    Stroka CachedLocalHostName;
+    NConcurrency::TPeriodicExecutorPtr LocalHostChecker_;
 
-    TErrorOr<TNetworkAddress> DoResolve(const Stroka& hostName);
+    bool GetLocalHostNameFailed_ = false;
+    TSpinLock CachedLocalHostNameLock_;
+    Stroka CachedLocalHostName_;
+
+
+    TNetworkAddress DoResolve(const Stroka& hostName);
     Stroka DoGetLocalHostName();
     void CheckLocalHostResolution();
 

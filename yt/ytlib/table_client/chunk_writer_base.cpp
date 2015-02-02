@@ -10,7 +10,7 @@
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/misc/protobuf_helpers.h>
 
@@ -73,7 +73,7 @@ void TChunkWriterBase::CheckBufferCapacity()
 
 void TChunkWriterBase::FinalizeWriter()
 {
-    Meta.set_type(EChunkType::Table);
+    Meta.set_type(static_cast<int>(EChunkType::Table));
     Meta.set_version(FormatVersion);
 
     SetProtoExtension(Meta.mutable_extensions(), ChannelsExt);
@@ -82,7 +82,7 @@ void TChunkWriterBase::FinalizeWriter()
         MiscExt.set_uncompressed_data_size(EncodingWriter->GetUncompressedSize());
         MiscExt.set_compressed_data_size(EncodingWriter->GetCompressedSize());
         MiscExt.set_meta_size(Meta.ByteSize());
-        MiscExt.set_compression_codec(Options->CompressionCodec);
+        MiscExt.set_compression_codec(static_cast<int>(Options->CompressionCodec));
         MiscExt.set_data_weight(DataWeight);
         MiscExt.set_row_count(RowCount);
         MiscExt.set_value_count(ValueCount);
@@ -91,18 +91,19 @@ void TChunkWriterBase::FinalizeWriter()
     }
 
     auto this_ = MakeStrong(this);
-    ChunkWriter->Close(Meta).Subscribe(BIND([this, this_] (const TError& error) {
+    ChunkWriter->Close(Meta).Subscribe(BIND([=] (const TError& error) {
+        UNUSED(this_);
         // ToDo(psushin): more verbose diagnostic.
         State.Finish(error);
     }));
 }
 
-TAsyncError TChunkWriterBase::GetReadyEvent()
+TFuture<void> TChunkWriterBase::GetReadyEvent()
 {
     State.StartOperation();
 
     auto this_ = MakeStrong(this);
-    EncodingWriter->GetReadyEvent().Subscribe(BIND([=](TError error){
+    EncodingWriter->GetReadyEvent().Subscribe(BIND([=] (const TError& error){
         this_->State.FinishOperation(error);
     }));
 
@@ -186,25 +187,21 @@ NChunkClient::NProto::TDataStatistics TChunkWriterBase::GetDataStatistics() cons
     return result;
 }
 
-TError TChunkWriterBase::FlushBlocks()
+void TChunkWriterBase::FlushBlocks()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    try {
-        while (BuffersHeap.front()->GetDataSize() > 0) {
-            PrepareBlock();
-            if (EncodingWriter->IsReady()) {
-                continue;
-            }
-
-            auto error = WaitFor(EncodingWriter->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    while (BuffersHeap.front()->GetDataSize() > 0) {
+        PrepareBlock();
+        if (EncodingWriter->IsReady()) {
+            continue;
         }
-
-        return WaitFor(EncodingWriter->Flush());
-    } catch (const std::exception& ex) {
-        return ex;
+        WaitFor(EncodingWriter->GetReadyEvent())
+            .ThrowOnError();
     }
+
+    WaitFor(EncodingWriter->Flush())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -26,7 +26,7 @@ public:
         const NLog::TLogger& logger);
 
     virtual void AddChunk(TRefCountedChunkSpecPtr chunk);
-    virtual TAsyncError Fetch();
+    virtual TFuture<void> Fetch();
 
 protected:
     TFetcherConfigPtr Config_;
@@ -64,9 +64,10 @@ private:
     //! |(nodeId, chunkId)| pairs for which an error was returned from the node.
     std::set< std::pair<NNodeTrackerClient::TNodeId, TChunkId> > DeadChunks_;
 
-    TAsyncErrorPromise FetchingResult_;
+    TPromise<void> Promise_ = NewPromise<void>();
 
-    void OnFetchingRoundCompleted();
+
+    void OnFetchingRoundCompleted(const TError& error);
 
 };
 

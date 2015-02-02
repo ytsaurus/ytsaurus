@@ -39,10 +39,10 @@ class TestTablets(YTEnvSetup):
         return leader_peer["address"]
  
     def _find_tablet_orchid(self, address, tablet_id):
-        slots = get("//sys/nodes/" + address + "/orchid/tablet_slots")
-        for slot in slots:
-            if slot["state"] == "leading":
-                tablets = slot["tablets"]
+        cells = get("//sys/nodes/" + address + "/orchid/tablet_cells", ignore_opaque=True)
+        for (cell_id, cell_data) in cells.iteritems():
+            if cell_data["state"] == "leading":
+                tablets = cell_data["tablets"]
                 if tablet_id in tablets:
                     return tablets[tablet_id]
         return None
@@ -53,6 +53,12 @@ class TestTablets(YTEnvSetup):
         print "Waiting for tablets to become mounted..."
         self._wait(lambda: all(x["state"] == "mounted" for x in get(path + "/@tablets")))
                 
+    def _sync_unmount_table(self, path):
+        unmount_table(path)
+
+        print "Waiting for tablets to become unmounted..."
+        self._wait(lambda: all(x["state"] == "unmounted" for x in get(path + "/@tablets")))
+ 
     def _get_pivot_keys(self, path):
         tablets = get(path + "/@tablets")
         return [tablet["pivot_key"] for tablet in tablets]
@@ -151,3 +157,17 @@ class TestTablets(YTEnvSetup):
 
         with pytest.raises(YtError): copy("//tmp/t1", "//tmp/t2")
 
+    def test_no_move_mounted(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t1")
+        self._sync_mount_table("//tmp/t1")
+
+        with pytest.raises(YtError): move("//tmp/t1", "//tmp/t2")
+
+    def test_move_unmounted(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t1")
+        self._sync_mount_table("//tmp/t1")
+        self._sync_unmount_table("//tmp/t1")
+
+        move("//tmp/t1", "//tmp/t2")

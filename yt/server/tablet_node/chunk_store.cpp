@@ -77,35 +77,35 @@ public:
         , Owner_(std::move(owner))
     { }
 
-    virtual TAsyncReadBlocksResult ReadBlocks(const std::vector<int>& blockIndexes) override
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
     {
         auto this_ = MakeStrong(this);
         return UnderlyingReader_->ReadBlocks(blockIndexes).Apply(
-            BIND([this, this_] (TReadBlocksResult result) -> TReadBlocksResult {
-                CheckResult(result);
-                return result;
+            BIND([=] (const TErrorOr<std::vector<TSharedRef>>& result) -> std::vector<TSharedRef> {
+                UNUSED(this_);
+                return CheckResult(result);
             }));
     }
 
-    virtual TAsyncReadBlocksResult ReadBlocks(int firstBlockIndex, int blockCount) override
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override
     {
         auto this_ = MakeStrong(this);
         return UnderlyingReader_->ReadBlocks(firstBlockIndex, blockCount).Apply(
-            BIND([this, this_] (TReadBlocksResult result) -> TReadBlocksResult {
-                CheckResult(result);
-                return result;
+            BIND([=] (const TErrorOr<std::vector<TSharedRef>>& result) -> std::vector<TSharedRef> {
+                UNUSED(this_);
+                return CheckResult(result);
             }));
     }
 
-    virtual TAsyncGetMetaResult GetMeta(
+    virtual TFuture<TChunkMeta> GetMeta(
         const TNullable<int>& partitionTag = Null,
         const std::vector<int>* extensionTags = nullptr) override
     {
         auto this_ = MakeStrong(this);
         return UnderlyingReader_->GetMeta(partitionTag, extensionTags).Apply(
-            BIND([this, this_] (TGetMetaResult result) -> TGetMetaResult {
-                CheckResult(result);
-                return result;
+            BIND([=] (const TErrorOr<TChunkMeta>& result) -> TChunkMeta {
+                UNUSED(this_);
+                return CheckResult(result);
             }));
     }
 
@@ -119,11 +119,14 @@ private:
     TChunkStorePtr Owner_;
 
 
-    void CheckResult(const TError& result)
+    template <class T>
+    T CheckResult(const TErrorOr<T>& result)
     {
         if (!result.IsOK()) {
             Owner_->OnLocalReaderFailed();
+            THROW_ERROR(result);
         }
+        return result.Value();
     }
 
 };
@@ -348,7 +351,11 @@ IChunkPtr TChunkStore::PrepareChunk()
     auto asyncChunk = BIND(&TChunkStore::DoFindChunk, MakeStrong(this))
         .AsyncVia(Bootstrap_->GetControlInvoker())
         .Run();
-    auto chunk = WaitFor(asyncChunk);
+    auto chunkOrError = WaitFor(asyncChunk);
+    if (!chunkOrError.IsOK()) {
+        return nullptr;
+    }
+    const auto& chunk = chunkOrError.Value();
 
     {
         TWriterGuard guard(ChunkLock_);
@@ -358,7 +365,8 @@ IChunkPtr TChunkStore::PrepareChunk()
 
     auto this_ = MakeStrong(this);
     TDelayedExecutor::Submit(
-        BIND([this, this_] () {
+        BIND([=] () {
+            UNUSED(this_);
             TWriterGuard guard(ChunkLock_);
             ChunkInitialized_ = false;
             Chunk_.Reset();
@@ -406,7 +414,7 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
         chunkReader = CreateReplicationReader(
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
             Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
-            Bootstrap_->GetMasterClient()->GetMasterChannel(),
+            Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
             New<TNodeDirectory>(),
             Bootstrap_->GetLocalDescriptor(),
             StoreId_);

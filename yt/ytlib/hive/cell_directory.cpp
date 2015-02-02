@@ -4,8 +4,6 @@
 
 #include <core/concurrency/rw_spinlock.h>
 
-#include <core/rpc/channel.h>
-
 #include <ytlib/hydra/peer_channel.h>
 #include <ytlib/hydra/config.h>
 
@@ -31,19 +29,19 @@ public:
         , ChannelFactory_(channelFactory)
     { }
 
-    IChannelPtr FindChannel(const TCellId& cellId)
+    IChannelPtr FindChannel(const TCellId& cellId, EPeerKind peerKind)
     {
         TReaderGuard guard(SpinLock_);
         auto it = CellMap_.find(cellId);
         if (it == CellMap_.end()) {
             return nullptr;
         }
-        return it->second.Channel;
+        return it->second.Channels[peerKind];
     }
 
-    IChannelPtr GetChannelOrThrow(const TCellId& cellId)
+    IChannelPtr GetChannelOrThrow(const TCellId& cellId, EPeerKind peerKind)
     {
-        auto channel = FindChannel(cellId);
+        auto channel = FindChannel(cellId, peerKind);
         if (!channel) {
             THROW_ERROR_EXCEPTION("Unknown cell %v",
                 cellId);
@@ -103,7 +101,9 @@ public:
     {
         auto cellConfig = New<TCellConfig>();
         cellConfig->CellId = config->CellId;
-        cellConfig->Addresses = config->Addresses;
+        for (const auto& address : config->Addresses) {
+            cellConfig->Addresses.push_back(address);
+        }
         return RegisterCell(cellConfig, version);
     }
 
@@ -126,13 +126,13 @@ public:
     }
 
 private:
-    TCellDirectoryConfigPtr Config_;
-    IChannelFactoryPtr ChannelFactory_;
+    const TCellDirectoryConfigPtr Config_;
+    const IChannelFactoryPtr ChannelFactory_;
 
     struct TEntry
     {
         TCellDescriptor Descriptor;
-        IChannelPtr Channel;
+        TEnumIndexedVector<IChannelPtr, EPeerKind> Channels;
     };
 
     TReaderWriterSpinLock SpinLock_;
@@ -143,14 +143,20 @@ private:
     {
         auto peerConfig = New<TPeerConnectionConfig>();
         peerConfig->CellId = entry->Descriptor.Config->CellId;
-        peerConfig->Addresses = entry->Descriptor.Config->Addresses;
+        for (const auto& maybeAddress : entry->Descriptor.Config->Addresses) {
+            if (maybeAddress) {
+                peerConfig->Addresses.push_back(*maybeAddress);
+            }
+        }
         peerConfig->DiscoverTimeout = Config_->DiscoverTimeout;
         peerConfig->SoftBackoffTime = Config_->SoftBackoffTime;
         peerConfig->HardBackoffTime = Config_->HardBackoffTime;
 
-        auto leaderChannel = CreateLeaderChannel(peerConfig, ChannelFactory_);
-        leaderChannel->SetDefaultTimeout(Config_->RpcTimeout);
-        entry->Channel = leaderChannel;
+        for (auto kind : TEnumTraits<EPeerKind>::GetDomainValues()) {
+            auto channel = CreatePeerChannel(peerConfig, ChannelFactory_, kind);
+            channel->SetDefaultTimeout(Config_->RpcTimeout);
+            entry->Channels[kind] = channel;
+        }
     }
     
 };
@@ -168,14 +174,14 @@ TCellDirectory::TCellDirectory(
 TCellDirectory::~TCellDirectory()
 { }
 
-IChannelPtr TCellDirectory::FindChannel(const TCellId& cellId)
+IChannelPtr TCellDirectory::FindChannel(const TCellId& cellId, EPeerKind peerKind)
 {
-    return Impl_->FindChannel(cellId);
+    return Impl_->FindChannel(cellId, peerKind);
 }
 
-IChannelPtr TCellDirectory::GetChannelOrThrow(const TCellId& cellId)
+IChannelPtr TCellDirectory::GetChannelOrThrow(const TCellId& cellId, EPeerKind peerKind)
 {
-    return Impl_->GetChannelOrThrow(cellId);
+    return Impl_->GetChannelOrThrow(cellId, peerKind);
 }
 
 TCellConfigPtr TCellDirectory::FindCellConfig(const TCellId& cellId)

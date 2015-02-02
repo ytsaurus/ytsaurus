@@ -38,12 +38,12 @@ private:
     i64 TotalMemory;
     i64 FreeMemory;
 
-    std::vector<i64> UsedMemory;
+    TEnumIndexedVector<i64, EMemoryConsumer> UsedMemory;
 
     NProfiling::TProfiler Profiler;
     NProfiling::TAggregateCounter FreeMemoryCounter;
 
-    std::vector<NProfiling::TAggregateCounter> ConsumerCounters;
+    TEnumIndexedVector<NProfiling::TAggregateCounter, EMemoryConsumer> ConsumerCounters;
 
     NLog::TLogger Logger;
 

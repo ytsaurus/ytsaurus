@@ -7,6 +7,14 @@
 
 #include <mutex>
 
+#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ < 9
+namespace std
+{
+    void __throw_out_of_range_fmt(char const*, ...)
+    { }
+}
+#endif
+
 namespace NYT {
 namespace NCodegen {
 

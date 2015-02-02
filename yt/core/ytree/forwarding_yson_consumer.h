@@ -14,29 +14,27 @@ class TForwardingYsonConsumer
 {
 public:
     // IYsonConsumer methods
-    virtual void OnStringScalar(const TStringBuf& value);
-    virtual void OnInt64Scalar(i64 value);
-    virtual void OnUint64Scalar(ui64 value);
-    virtual void OnDoubleScalar(double value);
-    virtual void OnBooleanScalar(bool value);
+    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnInt64Scalar(i64 value) override;
+    virtual void OnUint64Scalar(ui64 value) override;
+    virtual void OnDoubleScalar(double value) override;
+    virtual void OnBooleanScalar(bool value) override;
     virtual void OnEntity();
 
-    virtual void OnBeginList();
-    virtual void OnListItem();
-    virtual void OnEndList();
+    virtual void OnBeginList() override;
+    virtual void OnListItem() override;
+    virtual void OnEndList() override;
 
-    virtual void OnBeginMap();
-    virtual void OnKeyedItem(const TStringBuf& key);
-    virtual void OnEndMap();
+    virtual void OnBeginMap() override;
+    virtual void OnKeyedItem(const TStringBuf& key) override;
+    virtual void OnEndMap() override;
 
-    virtual void OnBeginAttributes();
-    virtual void OnEndAttributes();
+    virtual void OnBeginAttributes() override;
+    virtual void OnEndAttributes() override;
 
-    virtual void OnRaw(const TStringBuf& yson, NYson::EYsonType type);
+    virtual void OnRaw(const TStringBuf& yson, NYson::EYsonType type) override;
 
 protected:
-    TForwardingYsonConsumer();
-
     void Forward(
         NYson::IYsonConsumer* consumer,
         const TClosure& onFinished = TClosure(),
@@ -63,10 +61,10 @@ protected:
     virtual void OnMyRaw(const TStringBuf& yson, NYson::EYsonType type);
 
 private:
-    NYson::IYsonConsumer* ForwardingConsumer;
-    int ForwardingDepth;
-    NYson::EYsonType ForwardingType;
-    TClosure OnFinished;
+    NYson::IYsonConsumer* ForwardingConsumer_ = nullptr;
+    int ForwardingDepth_ = 0;
+    NYson::EYsonType ForwardingType_;
+    TClosure OnFinished_;
 
     bool CheckForwarding(int depthDelta = 0);
     void UpdateDepth(int depthDelta, bool checkFinish = true);

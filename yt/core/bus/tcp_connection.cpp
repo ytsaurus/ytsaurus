@@ -92,12 +92,12 @@ TTcpConnection::TTcpConnection(
     switch (ConnectionType_) {
         case EConnectionType::Client:
             YCHECK(Socket_ == INVALID_SOCKET);
-            State_.store(EState::Resolving);
+            State_ = ETcpConnectionState::Resolving;
             break;
 
         case EConnectionType::Server:
             YCHECK(Socket_ != INVALID_SOCKET);
-            State_.store(EState::Opening);
+            State_ = ETcpConnectionState::Opening;
             break;
 
         default:
@@ -219,7 +219,7 @@ const TConnectionId& TTcpConnection::GetId() const
 
 void TTcpConnection::SyncOpen()
 {
-    State_.store(EState::Open);
+    State_ = ETcpConnectionState::Open;
 
     LOG_DEBUG("Connection established");
 
@@ -280,7 +280,7 @@ void TTcpConnection::OnAddressResolved(const TNetworkAddress& netAddress)
 
     InitSocketWatcher();
 
-    State_.store(EState::Opening);
+    State_ = ETcpConnectionState::Opening;
 }
 
 void TTcpConnection::SyncClose(const TError& error)
@@ -289,11 +289,11 @@ void TTcpConnection::SyncClose(const TError& error)
     YCHECK(!error.IsOK());
 
     // Check for second close attempt.
-    if (State_.load() == EState::Closed) {
+    if (State_ == ETcpConnectionState::Closed) {
         return;
     }
 
-    State_.store(EState::Closed);
+    State_ = ETcpConnectionState::Closed;
 
     // Stop all watchers.
     SocketWatcher_.reset();
@@ -317,9 +317,14 @@ void TTcpConnection::SyncClose(const TError& error)
 
     LOG_DEBUG(detailedError, "Connection closed");
 
-    // Invoke user callback.
+    {
+        TGuard<TSpinLock> guard(TerminateSpinLock_);
+        TerminateError_ = detailedError;
+    }
+
+    // Invoke user callbacks.
     PROFILE_TIMING ("/terminate_handler_time") {
-        TerminatedPromise_.Set(detailedError);
+        Terminated_.FireAndClear(detailedError);
     }
 
     UpdateConnectionCount(-1);
@@ -439,7 +444,7 @@ TYsonString TTcpConnection::GetEndpointDescription() const
     return ConvertToYsonString(Address_);
 }
 
-TAsyncError TTcpConnection::Send(TSharedRefArray message, EDeliveryTrackingLevel level)
+TFuture<void> TTcpConnection::Send(TSharedRefArray message, EDeliveryTrackingLevel level)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -466,36 +471,39 @@ void TTcpConnection::Terminate(const TError& error)
     VERIFY_THREAD_AFFINITY_ANY();
     YCHECK(!error.IsOK());
 
-    {
-        // Check if another termination request is already in progress.
-        TGuard<TSpinLock> guard(TerminationSpinLock_);
-        if (!TerminationError_.IsOK()) {
-            return;
-        }
-        TerminationError_ = error;
-    }
-
-    LOG_DEBUG("Bus termination requested");
-
     DispatcherThread_->GetInvoker()->Invoke(BIND(
         &TTcpConnection::OnTerminated,
-        MakeStrong(this)));
+        MakeStrong(this),
+        error));
 }
 
-void TTcpConnection::SubscribeTerminated(const TCallback<void(TError)>& callback)
+void TTcpConnection::OnTerminated(const TError& error)
 {
-    TerminatedPromise_.Subscribe(callback);
+    VERIFY_THREAD_AFFINITY(EventLoop);
+
+    SyncClose(error);
 }
 
-void TTcpConnection::UnsubscribeTerminated(const TCallback<void(TError)>& callback)
+void TTcpConnection::SubscribeTerminated(const TCallback<void(const TError&)>& callback)
 {
-    YUNREACHABLE();
+    TGuard<TSpinLock> guard(TerminateSpinLock_);
+    if (TerminateError_.IsOK()) {
+        Terminated_.Subscribe(callback);
+    } else {
+        guard.Release();
+        callback.Run(TerminateError_);
+    }
+}
+
+void TTcpConnection::UnsubscribeTerminated(const TCallback<void(const TError&)>& callback)
+{
+    Terminated_.Unsubscribe(callback);
 }
 
 void TTcpConnection::OnSocket(ev::io&, int revents)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
-    YASSERT(State_.load() != EState::Closed);
+    YASSERT(State_ != ETcpConnectionState::Closed);
 
     if (revents & ev::ERROR) {
         SyncClose(TError(NRpc::EErrorCode::TransportError, "Socket failed"));
@@ -518,7 +526,7 @@ void TTcpConnection::OnSocket(ev::io&, int revents)
 
 void TTcpConnection::OnSocketRead()
 {
-    if (State_.load() == EState::Closed) {
+    if (State_ == ETcpConnectionState::Closed) {
         return;
     }
 
@@ -701,13 +709,13 @@ bool TTcpConnection::OnMessagePacketReceived()
         Decoder_.GetPacketId(),
         Decoder_.GetPacketSize());
 
-    if (Decoder_.GetPacketFlags() & EPacketFlags::RequestAck) {
+    if (Any(Decoder_.GetPacketFlags() & EPacketFlags::RequestAck)) {
         EnqueuePacket(EPacketType::Ack, EPacketFlags::None, Decoder_.GetPacketId());
     }
 
     auto message = Decoder_.GetMessage();
     PROFILE_AGGREGATED_TIMING (InHandlerTime) {
-        Handler_->OnMessage(std::move(message), this);
+        Handler_->HandleMessage(std::move(message), this);
     }
 
     return true;
@@ -726,13 +734,13 @@ void TTcpConnection::EnqueuePacket(
 
 void TTcpConnection::OnSocketWrite()
 {
-    if (State_.load() == EState::Closed) {
+    if (State_ == ETcpConnectionState::Closed) {
         return;
     }
 
     // For client sockets the first write notification means that
     // connection was established (either successfully or not).
-    if (ConnectionType_ == EConnectionType::Client && State_.load() == EState::Opening) {
+    if (ConnectionType_ == EConnectionType::Client && State_ == ETcpConnectionState::Opening) {
         // Check if connection was established successfully.
         int error = GetSocketError();
         if (error != 0) {
@@ -1033,17 +1041,17 @@ void TTcpConnection::OnMessageEnqueued()
     MessageEnqueuedCallbackPending_.store(false);
 
     switch (State_.load()) {
-        case EState::Resolving:
-        case EState::Opening:
+        case ETcpConnectionState::Resolving:
+        case ETcpConnectionState::Opening:
             // Do nothing.
             break;
 
-        case EState::Open:
+        case ETcpConnectionState::Open:
             ProcessOutcomingMessages();
             UpdateSocketWatcher();
             break;
 
-        case EState::Closed:
+        case ETcpConnectionState::Closed:
             DiscardOutcomingMessages(TError(
                 NRpc::EErrorCode::TransportError,
                 "Connection closed"));
@@ -1059,13 +1067,15 @@ void TTcpConnection::ProcessOutcomingMessages()
     auto messages = QueuedMessages_.DequeueAll();
 
     for (auto it = messages.rbegin(); it != messages.rend(); ++it) {
-        const auto& queuedMessage = *it;
-        LOG_DEBUG("Outcoming message dequeued (PacketId: %v)",
-            queuedMessage.PacketId);
+        auto& queuedMessage = *it;
 
-        EPacketFlags flags = queuedMessage.Level == EDeliveryTrackingLevel::Full
+        auto flags = queuedMessage.Level == EDeliveryTrackingLevel::Full
             ? EPacketFlags::RequestAck
             : EPacketFlags::None;
+
+        LOG_DEBUG("Outcoming message dequeued (PacketId: %v, Flags: %v)",
+            queuedMessage.PacketId,
+            flags);
 
         EnqueuePacket(
             EPacketType::Message,
@@ -1073,9 +1083,11 @@ void TTcpConnection::ProcessOutcomingMessages()
             queuedMessage.PacketId,
             queuedMessage.Message);
 
-        if (flags & EPacketFlags::RequestAck) {
+        if (Any(flags & EPacketFlags::RequestAck)) {
             TUnackedMessage unackedMessage(queuedMessage.PacketId, std::move(queuedMessage.Promise));
             UnackedMessages_.push(unackedMessage);            
+        } else if (queuedMessage.Promise) {
+            queuedMessage.Promise.Set();
         }
     }
 }
@@ -1105,26 +1117,9 @@ void TTcpConnection::DiscardUnackedMessages(const TError& error)
 
 void TTcpConnection::UpdateSocketWatcher()
 {
-    if (State_.load() == EState::Open) {
+    if (State_ == ETcpConnectionState::Open) {
         SocketWatcher_->set(HasUnsentData() ? ev::READ|ev::WRITE : ev::READ);
     }
-}
-
-void TTcpConnection::OnTerminated()
-{
-    VERIFY_THREAD_AFFINITY(EventLoop);
-    
-    if (State_.load() == EState::Closed) {
-        return;
-    }
-
-    TError error;
-    {
-        TGuard<TSpinLock> guard(TerminationSpinLock_);
-        error = TerminationError_;
-    }
-
-    SyncClose(error);
 }
 
 int TTcpConnection::GetSocketError() const
@@ -1140,7 +1135,8 @@ bool TTcpConnection::IsSocketError(ssize_t result)
 #ifdef _win_
     return
         result != WSAEWOULDBLOCK &&
-        result != WSAEINPROGRESS;
+        result != WSAEINPROGRESS &&
+        result != 0;
 #else
     return
         result != EWOULDBLOCK &&

@@ -19,8 +19,9 @@ public:
     ~TChunkSealer();
 
     void Start();
+    void Stop();
 
-    void ScheduleSeal(TChunk* chunk);
+    void MaybeScheduleSeal(TChunk* chunk);
 
 private:
     class TImpl;

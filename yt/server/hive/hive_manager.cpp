@@ -419,20 +419,21 @@ private:
                 .Via(EpochAutomatonInvoker_));
     }
 
-    void OnPingResponse(const TCellId& cellId, THiveServiceProxy::TRspPingPtr rsp)
+    void OnPingResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspPingPtr& rspOrError)
     {
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox)
             return;
 
-        if (!rsp->IsOK()) {
-            LOG_DEBUG(*rsp, "Ping failed (SrcCellId: %v, DstCellId: %v)",
+        if (!rspOrError.IsOK()) {
+            LOG_DEBUG(rspOrError, "Ping failed (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId());
             SchedulePing(mailbox);
             return;
         }
 
+        const auto& rsp = rspOrError.Value();
         int lastIncomingMessageId = rsp->last_incoming_message_id();
         LOG_DEBUG("Ping succeeded (SrcCellId: %v, DstCellId: %v, LastReceivedMessageId: %v)",
             SelfCellId_,
@@ -489,20 +490,21 @@ private:
                 .Via(EpochAutomatonInvoker_));
     }
 
-    void OnPostMessagesResponse(const TCellId& cellId, THiveServiceProxy::TRspPostMessagesPtr rsp)
+    void OnPostMessagesResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
     {
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox)
             return;
 
-        if (!rsp->IsOK()) {
-            LOG_DEBUG(*rsp, "Failed to post outcoming messages (SrcCellId: %v, DstCellId: %v)",
+        if (!rspOrError.IsOK()) {
+            LOG_DEBUG(rspOrError, "Failed to post outcoming messages (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId());
             SetMailboxDisconnected(mailbox);
             return;
         }
 
+        const auto& rsp = rspOrError.Value();
         int lastIncomingMessageId = rsp->last_incoming_message_id();
         LOG_DEBUG("Outcoming messages posted successfully (SrcCellId: %v, DstCellId: %v, LastIncomingMessageId: %v)",
             SelfCellId_,

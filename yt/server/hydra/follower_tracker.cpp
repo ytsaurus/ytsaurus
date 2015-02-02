@@ -111,18 +111,21 @@ void TFollowerTracker::SchedulePing(TPeerId followerId)
         Config_->FollowerPingPeriod);
 }
 
-void TFollowerTracker::OnPingResponse(TPeerId followerId, THydraServiceProxy::TRspPingFollowerPtr rsp)
+void TFollowerTracker::OnPingResponse(
+    TPeerId followerId,
+    const THydraServiceProxy::TErrorOrRspPingFollowerPtr& rspOrError)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     SchedulePing(followerId);
 
-    if (!rsp->IsOK()) {
-        LOG_WARNING(rsp->GetError(), "Error pinging follower %v",
+    if (!rspOrError.IsOK()) {
+        LOG_WARNING(rspOrError, "Error pinging follower %v",
             followerId);
         return;
     }
 
+    const auto& rsp = rspOrError.Value();
     auto state = EPeerState(rsp->state());
     LOG_DEBUG("Ping reply received from follower %v (State: %v)",
         followerId,

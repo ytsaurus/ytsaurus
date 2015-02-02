@@ -62,36 +62,6 @@ size_t TBlobOutput::Size() const
     return Blob_.Size();
 }
 
-TBlobOutput::TStoredType TBlobOutput::PutData(const TStringBuf& value)
-{
-    size_t offset = Blob_.Size();
-    Write(value);
-    return TStoredType(&Blob_, offset, value.size());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFakeStringBufStore::TFakeStringBufStore()
-{ }
-
-TFakeStringBufStore::TFakeStringBufStore(size_t capacity)
-{
-    UNUSED(capacity);
-}
-
-TFakeStringBufStore::TStoredType TFakeStringBufStore::PutData(const TStringBuf& value)
-{
-    return value;
-}
-
-void TFakeStringBufStore::Clear()
-{ }
-
-void TFakeStringBufStore::Reserve(size_t capacity)
-{
-    UNUSED(capacity);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

@@ -8,7 +8,6 @@
 #include <core/misc/checkpointable_stream.h>
 
 #include <util/stream/buffered.h>
-#include <contrib/libs/protobuf/wire_format_lite.h>
 
 namespace NYT {
 namespace NHydra {
@@ -17,14 +16,19 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t LoadBufferSize = 16384;
-static const size_t SaveBufferSize = 16384;
+static const size_t LoadBufferSize = 64 * 1024;
+static const size_t SaveBufferSize = 64 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TLoadContext::TLoadContext()
     : Version_(-1)
 { }
+
+void TLoadContext::Reset()
+{
+    Entities_.clear();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,7 +58,7 @@ TCompositeAutomatonPart::TCompositeAutomatonPart(
 }
 
 void TCompositeAutomatonPart::RegisterSaver(
-    int priority,
+    ESerializationPriority priority,
     const Stroka& name,
     TClosure saver)
 {
@@ -71,7 +75,7 @@ void TCompositeAutomatonPart::RegisterLoader(
 }
 
 void TCompositeAutomatonPart::RegisterSaver(
-    int priority,
+    ESerializationPriority priority,
     const Stroka& name,
     TCallback<void(TSaveContext&)> saver)
 {
@@ -160,7 +164,7 @@ void TCompositeAutomatonPart::OnRecoveryComplete()
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompositeAutomaton::TSaverInfo::TSaverInfo(
-    int priority,
+    ESerializationPriority priority,
     const Stroka& name,
     TClosure saver,
     TCompositeAutomatonPart* part)
@@ -236,6 +240,7 @@ void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
     auto checkpointableInput = CreateCheckpointableInputStream(&bufferedInput);
 
     auto& context = LoadContext();
+    context.Reset();
     context.SetInput(checkpointableInput.get());
 
     LOG_INFO("Started loading composite automaton");

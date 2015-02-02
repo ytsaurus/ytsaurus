@@ -3,7 +3,7 @@
 
 #include <iterator>
 
-namespace NYT {
+namespace std {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,14 +14,14 @@ Stroka ReadAll(std::istringstream& input)
     return result;
 }
 
-std::istringstream& operator >> (std::istringstream& input, TGuid& guid)
+std::istringstream& operator >> (std::istringstream& input, NYT::TGuid& guid)
 {
     auto str = ReadAll(input);
-    guid = TGuid::FromString(str);
+    guid = NYT::TGuid::FromString(str);
     return input;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace std
 

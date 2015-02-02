@@ -81,14 +81,14 @@ private:
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         const auto* table = GetThisTypedImpl();
-        bool hasTablets = !table->Tablets().empty();
 
-        attributes->push_back(TAttributeInfo("row_count", !hasTablets));
-        attributes->push_back(TAttributeInfo("unmerged_row_count", hasTablets));
+        attributes->push_back(TAttributeInfo("row_count", !table->IsDynamic()));
+        attributes->push_back(TAttributeInfo("unmerged_row_count", table->IsDynamic()));
         attributes->push_back("sorted");
         attributes->push_back("key_columns");
         attributes->push_back(TAttributeInfo("sorted_by", table->GetSorted()));
-        attributes->push_back(TAttributeInfo("tablets", hasTablets, true));
+        attributes->push_back("dynamic");
+        attributes->push_back(TAttributeInfo("tablets", table->IsDynamic(), true));
         attributes->push_back(TAttributeInfo("channels", true, false, true));
         attributes->push_back(TAttributeInfo("schema", true, false, true));
         TBase::ListSystemAttributes(attributes);
@@ -97,19 +97,18 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* table = GetThisTypedImpl();
-        bool hasTablets = !table->Tablets().empty();
         auto tabletManager = Bootstrap->GetTabletManager();
 
         const auto* chunkList = table->GetChunkList();
         const auto& statistics = chunkList->Statistics();
 
-        if (key == "row_count" && !hasTablets) {
+        if (key == "row_count" && !table->IsDynamic()) {
             BuildYsonFluently(consumer)
                 .Value(statistics.RowCount);
             return true;
         }
 
-        if (key == "unmerged_row_count" && hasTablets) {
+        if (key == "unmerged_row_count" && table->IsDynamic()) {
             BuildYsonFluently(consumer)
                 .Value(statistics.RowCount);
             return true;
@@ -127,15 +126,19 @@ private:
             return true;
         }
 
-        if (table->GetSorted()) {
-            if (key == "sorted_by") {
-                BuildYsonFluently(consumer)
-                    .Value(table->KeyColumns());
-                return true;
-            }
+        if (key == "sorted_by" && table->GetSorted()) {
+            BuildYsonFluently(consumer)
+                .Value(table->KeyColumns());
+            return true;
         }
 
-        if (key == "tablets" && hasTablets) {
+        if (key == "dynamic") {
+            BuildYsonFluently(consumer)
+                .Value(table->IsDynamic());
+            return true;
+        }
+
+        if (key == "tablets" && table->IsDynamic()) {
             BuildYsonFluently(consumer)
                 .DoListFor(table->Tablets(), [&] (TFluentList fluent, TTablet* tablet) {
                     auto* cell = tablet->GetCell();
@@ -161,12 +164,12 @@ private:
         if (key == "key_columns") {
             ValidateNoTransaction();
 
-            auto* node = LockThisTypedImpl();
-            if (!node->Tablets().empty()) {
-                THROW_ERROR_EXCEPTION("Table has tablets");
+            auto* table = LockThisTypedImpl();
+            if (!table->Tablets().empty()) {
+                THROW_ERROR_EXCEPTION("Table already has some configured tablets");
             }
 
-            auto* chunkList = node->GetChunkList();
+            auto* chunkList = table->GetChunkList();
             if (!chunkList->Children().empty()) {
                 THROW_ERROR_EXCEPTION("Table is not empty");
             }
@@ -177,8 +180,8 @@ private:
 
             auto keyColumns = ConvertTo<TKeyColumns>(value);
             ValidateKeyColumns(keyColumns);
-            node->KeyColumns() = keyColumns;
-            node->SetSorted(!node->KeyColumns().empty());
+            table->KeyColumns() = keyColumns;
+            table->SetSorted(!table->KeyColumns().empty());
             return true;
         }
 
@@ -224,11 +227,11 @@ private:
     {
         TChunkOwnerNodeProxy::ValidateFetchParameters(channel, ranges);
 
-        const auto* node = GetThisTypedImpl();
+        const auto* table = GetThisTypedImpl();
         for (const auto& range : ranges) {
             const auto& lowerLimit = range.LowerLimit();
             const auto& upperLimit = range.UpperLimit();
-            if ((upperLimit.HasKey() || lowerLimit.HasKey()) && !node->GetSorted()) {
+            if ((upperLimit.HasKey() || lowerLimit.HasKey()) && !table->GetSorted()) {
                 THROW_ERROR_EXCEPTION("Cannot fetch a range of an unsorted table");
             }
             if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
@@ -242,9 +245,9 @@ private:
     {
         TChunkOwnerNodeProxy::Clear();
 
-        auto* node = GetThisTypedImpl();
-        node->KeyColumns().clear();
-        node->SetSorted(false);
+        auto* table = GetThisTypedImpl();
+        table->KeyColumns().clear();
+        table->SetSorted(false);
     }
 
     virtual NCypressClient::ELockMode GetLockMode(EUpdateMode updateMode) override
@@ -271,8 +274,8 @@ private:
     {
         TBase::ValidateFetch();
 
-        const auto* node = GetThisTypedImpl();
-        if (!node->Tablets().empty()) {
+        const auto* table = GetThisTypedImpl();
+        if (table->IsDynamic()) {
             THROW_ERROR_EXCEPTION("Cannot fetch a dynamic table");
         }
     }
@@ -281,8 +284,8 @@ private:
     {
         TBase::ValidatePrepareForUpdate();
 
-        const auto* trunkNode = GetThisTypedImpl()->GetTrunkNode();
-        if (!trunkNode->Tablets().empty()) {
+        const auto* table = GetThisTypedImpl();
+        if (table->IsDynamic()) {
             THROW_ERROR_EXCEPTION("Cannot write into a dynamic table");
         }
     }
@@ -297,15 +300,15 @@ private:
 
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
-        auto* node = LockThisTypedImpl();
+        auto* table = LockThisTypedImpl();
 
-        if (node->GetUpdateMode() != EUpdateMode::Overwrite) {
+        if (table->GetUpdateMode() != EUpdateMode::Overwrite) {
             THROW_ERROR_EXCEPTION("Table must be in \"overwrite\" mode");
         }
 
         ValidateKeyColumns(keyColumns);
-        node->KeyColumns() = keyColumns;
-        node->SetSorted(true);
+        table->KeyColumns() = keyColumns;
+        table->SetSorted(true);
 
         SetModified();
 
@@ -421,34 +424,35 @@ private:
 
         ValidateNoTransaction();
 
-        auto* node = GetThisTypedImpl();
+        auto* table = GetThisTypedImpl();
 
-        ToProto(response->mutable_table_id(), node->GetId());
-        ToProto(response->mutable_key_columns()->mutable_names(), node->KeyColumns());
-        response->set_sorted(node->GetSorted());
+        ToProto(response->mutable_table_id(), table->GetId());
+        ToProto(response->mutable_key_columns()->mutable_names(), table->KeyColumns());
+        response->set_sorted(table->GetSorted());
 
         auto tabletManager = Bootstrap->GetTabletManager();
-        auto schema = tabletManager->GetTableSchema(node);
+        auto schema = tabletManager->GetTableSchema(table);
         ToProto(response->mutable_schema(), schema);
 
         TNodeDirectoryBuilder builder(response->mutable_node_directory());
 
-        for (auto* tablet : node->Tablets()) {
+        for (auto* tablet : table->Tablets()) {
             auto* cell = tablet->GetCell();
             auto* protoTablet = response->add_tablets();
             ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());
-            protoTablet->set_state(tablet->GetState());
+            protoTablet->set_state(static_cast<int>(tablet->GetState()));
             ToProto(protoTablet->mutable_pivot_key(), tablet->GetPivotKey());
             if (cell) {
                 auto config = cell->GetConfig()->ToElection(cell->GetId());
                 protoTablet->set_cell_config_version(cell->GetConfigVersion());
                 protoTablet->set_cell_config(ConvertToYsonString(config).Data());
                 for (const auto& peer : cell->Peers()) {
-                    if (peer.Node) {
-                        const auto& slot = peer.Node->TabletSlots()[peer.SlotIndex];
-                        if (slot.PeerState == EPeerState::Leading) {
-                            builder.Add(peer.Node);
-                            protoTablet->add_replica_node_ids(peer.Node->GetId());
+                    auto* node = peer.Node;
+                    if (node) {
+                        const auto* slot = node->GetTabletSlot(cell);
+                        if (slot->PeerState == EPeerState::Leading) {
+                            builder.Add(node);
+                            protoTablet->add_replica_node_ids(node->GetId());
                         }
                     }
                 }

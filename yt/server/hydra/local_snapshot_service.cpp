@@ -9,11 +9,14 @@
 
 #include <core/rpc/service_detail.h>
 
+#include <core/concurrency/scheduler.h>
+
 namespace NYT {
 namespace NHydra {
 
 using namespace NRpc;
 using namespace NElection;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +30,8 @@ TLocalSnapshotService::TLocalSnapshotService(
     , FileStore_(fileStore)
 {
     RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupSnapshot));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot)
+        .SetCancelable(true));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, LookupSnapshot)
@@ -52,12 +56,18 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, LookupSnapshot)
     }
 
     auto reader = FileStore_->CreateReader(snapshotId);
+
+    {
+        auto result = WaitFor(reader->Open());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
+
     auto params = reader->GetParams();
     response->set_snapshot_id(snapshotId);
     response->set_compressed_length(params.CompressedLength);
     response->set_uncompressed_length(params.UncompressedLength);
     response->set_checksum(params.Checksum);
-    response->set_meta(ToString(params.Meta));
+    *response->mutable_meta() = params.Meta;
     
     context->SetResponseInfo("SnapshotId: %v", snapshotId);
     context->Reply();
@@ -81,12 +91,17 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, ReadSnapshot)
 
     auto reader = FileStore_->CreateRawReader(snapshotId, offset);
 
+    {
+        auto result = WaitFor(reader->Open());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
+
     struct TSnapshotBlockTag { };
     auto buffer = TSharedRef::Allocate<TSnapshotBlockTag>(length, false);
-    size_t bytesRead = reader->GetStream()->Read(buffer.Begin(), length);
-    auto data = buffer.Slice(TRef(buffer.Begin(), bytesRead));
-    context->Response().Attachments().push_back(data);
-
+    auto result = WaitFor(reader->Read(buffer.Begin(), length));
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    auto bytesRead = result.Value();
+    context->Response().Attachments().push_back(buffer.Slice(TRef(buffer.Begin(), bytesRead)));
     context->SetResponseInfo("BytesRead: %v", bytesRead);
     context->Reply();
 }

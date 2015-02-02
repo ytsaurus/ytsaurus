@@ -37,22 +37,15 @@ TOperation::TOperation(
     , StderrCount_(0)
     , MaxStderrCount_(0)
     , CleanStart_(false)
-    , StartedPromise(NewPromise<TError>())
-    , FinishedPromise(NewPromise())
-{
-    YCHECK(EJobFinalState::GetDomainSize() == EJobFinalState::GetMaxValue() + 1);
-    YCHECK(Statistics.size() == EJobFinalState::GetDomainSize());
-}
+    , StartedPromise(NewPromise<void>())
+    , FinishedPromise(NewPromise<void>())
+{ }
 
-TFuture<TOperationStartResult> TOperation::GetStarted()
+TFuture<TOperationPtr> TOperation::GetStarted()
 {
     auto this_ = MakeStrong(this);
-    return StartedPromise.ToFuture().Apply(BIND([this_] (const TError& error) -> TOperationStartResult {
-        if (error.IsOK()) {
-            return TOperationStartResult(this_);
-        } else {
-            return error;
-        }
+    return StartedPromise.ToFuture().Apply(BIND([this_] () -> TOperationPtr {
+        return this_;
     }));
 }
 
@@ -83,16 +76,16 @@ bool TOperation::IsFinishingState() const
 
 void TOperation::UpdateStatistics(const TStatistics& statistics, EJobFinalState state)
 {
-    Statistics[static_cast<int>(state)].Merge(statistics);
+    Statistics[state].Merge(statistics);
 }
 
 void TOperation::BuildStatistics(NYson::IYsonConsumer* consumer) const
 {
     NYTree::BuildYsonFluently(consumer)
-        .DoMapFor(EJobFinalState::GetDomainValues(), [&] (NYTree::TFluentMap fluent, const EJobFinalState& state) {
+        .DoMapFor(TEnumTraits<EJobFinalState>::GetDomainValues(), [&] (NYTree::TFluentMap fluent, EJobFinalState state) {
             fluent
                 .Item(Format("%lv_jobs", state))
-                .Value(Statistics[static_cast<int>(state)]);
+                .Value(Statistics[state]);
         });
 }
 

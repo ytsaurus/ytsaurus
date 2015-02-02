@@ -94,10 +94,9 @@ void TBootstrap::Run()
 {
     srand(time(nullptr));
 
-    ControlQueue_ = New<TFairShareActionQueue>("Control", EControlQueue::GetDomainNames());
+    ControlQueue_ = New<TFairShareActionQueue>("Control", TEnumTraits<EControlQueue>::GetDomainNames());
 
     auto result = BIND(&TBootstrap::DoRun, this)
-        .Guarded()
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get();
@@ -139,7 +138,7 @@ void TBootstrap::DoRun()
     ClusterDirectory_ = New<TClusterDirectory>(MasterClient_->GetConnection());
 
     Scheduler_ = New<TScheduler>(Config_->Scheduler, this);
-    
+
     ChunkLocationThrottler_ = CreateLimitedThrottler(Config_->Scheduler->ChunkLocationThrottler);
 
 
@@ -173,7 +172,7 @@ void TBootstrap::DoRun()
             ->GetOrchidService()
             ->Via(GetControlInvoker())
             ->Cached(Config_->OrchidCacheExpirationTime)));
-    
+
     SetBuildAttributes(orchidRoot, "scheduler");
 
     RpcServer_->RegisterService(CreateOrchidService(
@@ -214,7 +213,7 @@ const Stroka& TBootstrap::GetLocalAddress() const
 
 IInvokerPtr TBootstrap::GetControlInvoker(EControlQueue queue) const
 {
-    return ControlQueue_->GetInvoker(queue);
+    return ControlQueue_->GetInvoker(static_cast<int>(queue));
 }
 
 TSchedulerPtr TBootstrap::GetScheduler() const

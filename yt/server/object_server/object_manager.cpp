@@ -3,32 +3,24 @@
 #include "object.h"
 #include "config.h"
 #include "private.h"
-#include "gc.h"
+#include "garbage_collector.h"
 #include "attribute_set.h"
 #include "schema.h"
 #include "master.h"
 
-#include <core/concurrency/delayed_executor.h>
-
 #include <core/ypath/tokenizer.h>
 
-#include <core/rpc/message.h>
-#include <core/rpc/server_detail.h>
-#include <core/rpc/helpers.h>
 #include <core/rpc/response_keeper.h>
 
 #include <core/erasure/public.h>
 
 #include <core/profiling/profile_manager.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/helpers.h>
 #include <ytlib/object_client/object_ypath_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
-
-#include <server/hydra/hydra_manager.h>
 
 #include <server/cell_master/serialize.h>
 
@@ -37,7 +29,6 @@
 
 #include <server/cypress_server/cypress_manager.h>
 
-#include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
 
 #include <server/cell_master/bootstrap.h>
@@ -45,7 +36,6 @@
 
 #include <server/security_server/user.h>
 #include <server/security_server/group.h>
-#include <server/security_server/acl.h>
 #include <server/security_server/security_manager.h>
 
 namespace NYT {
@@ -81,16 +71,29 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    virtual TResolveResult Resolve(
-        const TYPath& path,
-        IServiceContextPtr context) override
+    virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
     {
         auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        const auto& headerExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        if (headerExt.mutating() && !hydraManager->IsMutating() && !hydraManager->IsRecovery()) {
-            return TResolveResult::Here(path);
+        const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+
+        if (ypathExt.mutating()) {
+            // Mutating request.
+
+            if (hydraManager->IsMutating()) {
+                // Nested call.
+                return DoResolveThere(path, std::move(context));
+            }
+
+            if (hydraManager->IsRecovery()) {
+                // Recovery.
+                return DoResolveThere(path, std::move(context));
+            }
+
+            // Commit mutation.
+            return DoResolveHere(path);
         } else {
-            return DoResolve(path, std::move(context));
+            // Read-only request.
+            return DoResolveThere(path, context);
         }
     }
 
@@ -121,17 +124,18 @@ public:
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager
             ->CreateExecuteMutation(request)
-            ->SetAction(BIND(
-                &TObjectManager::ExecuteMutatingRequest,
-                objectManager,
-                userId,
-                mutationId,
-                context))
+            ->SetAction(
+                BIND(
+                    &TObjectManager::HydraExecuteLeader,
+                    objectManager,
+                    userId,
+                    mutationId,
+                    context))
             ->Commit()
             .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
                 if (!result.IsOK()) {
                     // Reply with commit error.
-                    context->Reply(TError(result));
+                    context->Reply(result);
                 }
             }));
     }
@@ -151,12 +155,15 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
 
 
-    TResolveResult DoResolve(
-        const TYPath& path,
-        IServiceContextPtr context)
+    static TResolveResult DoResolveHere(const TYPath& path)
+    {
+        return TResolveResult::Here(path);
+    }
+
+    TResolveResult DoResolveThere(const TYPath& path, IServiceContextPtr context)
     {
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto objectManager = Bootstrap_->GetObjectManager();
@@ -318,6 +325,7 @@ TObjectManager::TObjectManager(
     RegisterLoader(
         "ObjectManager.Values",
         BIND(&TObjectManager::LoadValues, Unretained(this)));
+    // COMPAT(babenko)
     RegisterLoader(
         "ObjectManager.Schemas",
         BIND(&TObjectManager::LoadSchemas, Unretained(this)));
@@ -330,14 +338,10 @@ TObjectManager::TObjectManager(
         ESerializationPriority::Values,
         "ObjectManager.Values",
         BIND(&TObjectManager::SaveValues, Unretained(this)));
-    RegisterSaver(
-        ESerializationPriority::Values,
-        "ObjectManager.Schemas",
-        BIND(&TObjectManager::SaveSchemas, Unretained(this)));
 
     RegisterHandler(CreateMasterTypeHandler(Bootstrap_));
 
-    RegisterMethod(BIND(&TObjectManager::HydraExecute, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraExecuteFollower, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::HydraDestroyObjects, Unretained(this)));
 
     MasterObjectId_ = MakeWellKnownId(EObjectType::Master, Bootstrap_->GetCellTag());
@@ -377,12 +381,7 @@ TObjectBase* TObjectManager::FindSchema(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int typeValue = static_cast<int>(type);
-    if (typeValue < 0 || typeValue > MaxObjectType) {
-        return nullptr;
-    }
-
-    return TypeToEntry_[typeValue].SchemaObject.get();
+    return TypeToEntry_[type].SchemaObject;
 }
 
 TObjectBase* TObjectManager::GetSchema(EObjectType type)
@@ -398,10 +397,7 @@ IObjectProxyPtr TObjectManager::GetSchemaProxy(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int typeValue = static_cast<int>(type);
-    YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
-
-    const auto& entry = TypeToEntry_[typeValue];
+    const auto& entry = TypeToEntry_[type];
     YCHECK(entry.SchemaProxy);
     return entry.SchemaProxy;
 }
@@ -413,17 +409,14 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     YCHECK(handler);
 
     auto type = handler->GetType();
-    int typeValue = static_cast<int>(type);
-    YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
-    YCHECK(!TypeToEntry_[typeValue].Handler);
-
-    RegisteredTypes_.push_back(type);
-    auto& entry = TypeToEntry_[typeValue];
+    YCHECK(!TypeToEntry_[type].Handler);
+    YCHECK(RegisteredTypes_.insert(type).second);
+    auto& entry = TypeToEntry_[type];
     entry.Handler = handler;
     entry.TagId = NProfiling::TProfileManager::Get()->RegisterTag("type", type);
     if (HasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
-        auto& schemaEntry = TypeToEntry_[static_cast<int>(schemaType)];
+        auto& schemaEntry = TypeToEntry_[schemaType];
         schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap_, type);
         LOG_INFO("Type registered (Type: %v, SchemaObjectId: %v)",
             type,
@@ -438,12 +431,7 @@ IObjectTypeHandlerPtr TObjectManager::FindHandler(EObjectType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int typeValue = static_cast<int>(type);
-    if (typeValue < 0 || typeValue > MaxObjectType) {
-        return nullptr;
-    }
-
-    return TypeToEntry_[typeValue].Handler;
+    return TypeToEntry_[type].Handler;
 }
 
 IObjectTypeHandlerPtr TObjectManager::GetHandler(EObjectType type) const
@@ -460,7 +448,7 @@ IObjectTypeHandlerPtr TObjectManager::GetHandler(TObjectBase* object) const
     return GetHandler(object->GetType());
 }
 
-const std::vector<EObjectType> TObjectManager::GetRegisteredTypes() const
+const std::set<EObjectType>& TObjectManager::GetRegisteredTypes() const
 {
     return RegisteredTypes_;
 }
@@ -478,12 +466,9 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 
     auto random = mutationContext->RandomGenerator().Generate<ui64>();
 
-    int typeValue = static_cast<int>(type);
-    YASSERT(typeValue >= 0 && typeValue <= MaxObjectType);
-
     TObjectId id(
         random,
-        (Bootstrap_->GetCellTag() << 16) + typeValue,
+        (Bootstrap_->GetCellTag() << 16) + static_cast<int>(type),
         version.RecordId,
         version.SegmentId);
 
@@ -549,31 +534,15 @@ void TObjectManager::WeakUnrefObject(TObjectBase* object)
 
 void TObjectManager::SaveKeys(NCellMaster::TSaveContext& context) const
 {
+    SchemaMap_.SaveKeys(context);
     AttributeMap_.SaveKeys(context);
 }
 
 void TObjectManager::SaveValues(NCellMaster::TSaveContext& context) const
 {
+    SchemaMap_.SaveValues(context);
     AttributeMap_.SaveValues(context);
     GarbageCollector_->Save(context);
-}
-
-void TObjectManager::SaveSchemas(NCellMaster::TSaveContext& context) const
-{
-    // Make sure the ordering of RegisteredTypes does not matter.
-    auto types = RegisteredTypes_;
-    std::sort(types.begin(), types.end());
-
-    for (auto type : types) {
-        if (HasSchema(type)) {
-            Save(context, type);
-            const auto& entry = TypeToEntry_[static_cast<int>(type)];
-            entry.SchemaObject->Save(context);
-        }
-    }
-
-    // Write a sentinel.
-    Save(context, EObjectType(EObjectType::Null));
 }
 
 void TObjectManager::OnBeforeSnapshotLoaded()
@@ -587,6 +556,11 @@ void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 109) {
+        SchemaMap_.LoadKeys(context);
+    }
+
     AttributeMap_.LoadKeys(context);
 }
 
@@ -594,10 +568,24 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 109) {
+        SchemaMap_.LoadValues(context);
+        for (const auto& pair : SchemaMap_) {
+            auto type = TypeFromSchemaType(TypeFromId(pair.first));
+            YCHECK(RegisteredTypes_.find(type) != RegisteredTypes_.end());
+            auto& entry = TypeToEntry_[type];
+            entry.SchemaObject = pair.second;
+            entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
+        }
+    }
+
     AttributeMap_.LoadValues(context);
+
     GarbageCollector_->Load(context);
 }
 
+// COMPAT(babenko)
 void TObjectManager::LoadSchemas(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -608,7 +596,7 @@ void TObjectManager::LoadSchemas(NCellMaster::TLoadContext& context)
         if (type == EObjectType::Null)
             break;
 
-        const auto& entry = TypeToEntry_[static_cast<int>(type)];
+        const auto& entry = TypeToEntry_[type];
         entry.SchemaObject->Load(context);
     }
 }
@@ -620,15 +608,6 @@ void TObjectManager::DoClear()
 
     MasterProxy_ = CreateMasterProxy(Bootstrap_, MasterObject_.get());
 
-    for (auto type : RegisteredTypes_)  {
-        auto& entry = TypeToEntry_[static_cast<int>(type)];
-        if (HasSchema(type)) {
-            entry.SchemaObject.reset(new TSchemaObject(MakeSchemaObjectId(type, Bootstrap_->GetCellTag())));
-            entry.SchemaObject->RefObject();
-            entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject.get());
-        }
-    }
-
     AttributeMap_.Clear();
 
     GarbageCollector_->Clear();
@@ -636,6 +615,18 @@ void TObjectManager::DoClear()
     CreatedObjectCount_ = 0;
     DestroyedObjectCount_ = 0;
     LockedObjectCount_ = 0;
+
+    SchemaMap_.Clear();
+    for (auto type : RegisteredTypes_) {
+        auto& entry = TypeToEntry_[type];
+        if (HasSchema(type)) {
+            auto id = MakeSchemaObjectId(type, Bootstrap_->GetCellTag());
+            entry.SchemaObject = new TSchemaObject(id);
+            SchemaMap_.Insert(id, entry.SchemaObject);
+            entry.SchemaObject->RefObject();
+            entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
+        }
+    }
 }
 
 void TObjectManager::Clear()
@@ -662,14 +653,14 @@ void TObjectManager::OnLeaderActive()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    GarbageCollector_->StartSweep();
+    GarbageCollector_->Start();
 }
 
 void TObjectManager::OnStopLeading()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    GarbageCollector_->StopSweep();
+    GarbageCollector_->Stop();
 }
 
 TObjectBase* TObjectManager::FindObject(const TObjectId& id)
@@ -821,7 +812,7 @@ TMutationPtr TObjectManager::CreateExecuteMutation(const NProto::TReqExecute& re
         Bootstrap_->GetHydraFacade()->GetHydraManager(),
         request,
         this,
-        &TObjectManager::HydraExecute);
+        &TObjectManager::HydraExecuteFollower);
 }
 
 TMutationPtr TObjectManager::CreateDestroyObjectsMutation(const NProto::TReqDestroyObjects& request)
@@ -950,40 +941,70 @@ bool TObjectManager::AdviceYield(TInstant startTime) const
     return TInstant::Now() > startTime + Config_->YieldTimeout;
 }
 
-void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceContextPtr context)
+void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    auto transactionManager = Bootstrap_->GetTransactionManager();
+    auto cypressManager = Bootstrap_->GetCypressManager();
 
-    // Validate that mutating requests are only being invoked inside mutations or recovery.
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    const auto& headerExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-    YCHECK(!headerExt.mutating() ||
-           hydraManager->IsMutating() ||
-           hydraManager->IsRecovery());
+    auto getPrerequisiteTransaction = [&] (const TTransactionId& transactionId) {
+        auto* transaction = transactionManager->FindTransaction(transactionId);
+        if (!IsObjectAlive(transaction)) {
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed: transaction %v is missing",
+                transactionId);
+        }
+        if (transaction->GetState() != ETransactionState::Active) {
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed: transaction %v is not active",
+                transactionId);
+        }
+        return transaction;
+    };
 
-    auto securityManager = Bootstrap_->GetSecurityManager();
-    auto* user = securityManager->GetAuthenticatedUser();
+    for (const auto& prerequisite : prerequisites.transactions()) {
+        auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
+        getPrerequisiteTransaction(transactionId);
+    }
 
-    auto objectId = proxy->GetVersionedId();
+    for (const auto& prerequisite : prerequisites.revisions()) {
+        auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
+        const auto& path = prerequisite.path();
+        i64 revision = prerequisite.revision();
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, Mutating: %v, User: %v)",
-        context->GetService(),
-        context->GetMethod(),
-        GetRequestYPath(context),
-        objectId,
-        headerExt.mutating(),
-        user->GetName());
+        auto* transaction = transactionId == NullTransactionId
+            ? nullptr
+            : getPrerequisiteTransaction(transactionId);
 
-    NProfiling::TTagIdList tagIds;
-    tagIds.push_back(GetTypeTagId(TypeFromId(objectId.ObjectId)));
-    tagIds.push_back(GetMethodTagId(context->GetMethod()));
+        auto resolver = cypressManager->CreateResolver(transaction);
+        INodePtr nodeProxy;
+        try {
+            nodeProxy = resolver->ResolvePath(path);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed: failed to resolve path %v",
+                path)
+                << ex;
+        }
 
-    PROFILE_TIMING ("/request_time", tagIds) {
-        proxy->GuardedInvoke(std::move(context));
+        auto* cypressNodeProxy = dynamic_cast<ICypressNodeProxy*>(nodeProxy.Get());
+        YCHECK(cypressNodeProxy);
+
+        auto* node = cypressNodeProxy->GetTrunkNode();
+        if (node->GetRevision() != revision) {
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed: node %v revision mismatch: expected %v, found %v",
+                path,
+                revision,
+                node->GetRevision());
+        }
     }
 }
 
-void TObjectManager::ExecuteMutatingRequest(
+void TObjectManager::HydraExecuteLeader(
     const TUserId& userId,
     const TMutationId& mutationId,
     IServiceContextPtr context)
@@ -1001,14 +1022,16 @@ void TObjectManager::ExecuteMutatingRequest(
 
     if (mutationId != NullMutationId) {
         auto responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
-        asyncResponseMessage
-            .Subscribe(BIND([=] (const TSharedRefArray& message) {
-                responseKeeper->EndRequest(mutationId, message);
+        asyncResponseMessage.Subscribe(
+            BIND([=] (const TErrorOr<TSharedRefArray>& messageOrError) {
+                if (messageOrError.IsOK()) {
+                    responseKeeper->EndRequest(mutationId, messageOrError.Value());
+                }
             }));
     }
 }
 
-void TObjectManager::HydraExecute(const NProto::TReqExecute& request)
+void TObjectManager::HydraExecuteFollower(const NProto::TReqExecute& request)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1025,7 +1048,7 @@ void TObjectManager::HydraExecute(const NProto::TReqExecute& request)
 
     auto mutationId = GetMutationId(context);
 
-    ExecuteMutatingRequest(
+    HydraExecuteLeader(
         userId,
         mutationId,
         std::move(context));
@@ -1040,7 +1063,7 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
         auto* object = handler->GetObject(id);
 
         // NB: The order of Dequeue/Destroy/CheckEmpty calls matters.
-        // CheckEmpty will raise CollectPromise when GC queue becomes empty.
+        // CheckEmpty will raise CollectPromise_ when GC queue becomes empty.
         // To enable cascaded GC sweep we don't want this to happen
         // if some ids are added during DestroyObject.
         GarbageCollector_->Dequeue(object);
@@ -1053,6 +1076,11 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
     }
 
     GarbageCollector_->CheckEmpty();
+}
+
+NProfiling::TProfiler& TObjectManager::GetProfiler()
+{
+    return Profiler;
 }
 
 NProfiling::TTagId TObjectManager::GetTypeTagId(EObjectType type)

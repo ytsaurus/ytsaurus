@@ -65,7 +65,7 @@ public:
                     .EndMap();
             });
     }
-    
+
     // Persistence.
 
     virtual void Persist(TPersistenceContext& context) override
@@ -207,6 +207,7 @@ private:
         {
             TTask::OnJobCompleted(joblet);
 
+            RegisterInput(joblet);
             RegisterOutput(joblet, joblet->JobIndex);
         }
 
@@ -271,7 +272,7 @@ private:
             LOG_INFO("Processing inputs");
 
             auto jobCount = SuggestJobCount(
-                TotalInputDataSize,
+                TotalEstimateInputDataSize,
                 Spec->DataSizePerJob,
                 Spec->JobCount);
 
@@ -340,7 +341,7 @@ private:
 
     void InitJobSpecTemplate()
     {
-        JobSpecTemplate.set_type(EJobType::Map);
+        JobSpecTemplate.set_type(static_cast<int>(EJobType::Map));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
 

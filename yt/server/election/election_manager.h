@@ -30,15 +30,12 @@ DEFINE_REFCOUNTED_TYPE(IElectionCallbacks)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TEpochContext
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
-    TEpochContext();
-
-    TPeerId LeaderId;
+    TPeerId LeaderId = InvalidPeerId;
     TEpochId EpochId;
     TInstant StartTime;
-    TCancelableContextPtr CancelableContext;
-
+    TCancelableContextPtr CancelableContext = New<TCancelableContext>();
 };
 
 DEFINE_REFCOUNTED_TYPE(TEpochContext)
@@ -53,13 +50,13 @@ public:
         TElectionManagerConfigPtr config,
         TCellManagerPtr cellManager,
         IInvokerPtr controlInvoker,
-        IElectionCallbacksPtr electionCallbacks,
-        NRpc::IServerPtr rpcServer);
-
+        IElectionCallbacksPtr electionCallbacks);
     ~TElectionManager();
 
     void Start();
     void Stop();
+
+    NRpc::IServicePtr GetRpcService();
 
     NYTree::TYsonProducer GetMonitoringProducer();
 

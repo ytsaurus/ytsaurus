@@ -56,14 +56,14 @@ public:
         , User_(user)
     { }
 
-    virtual void Send(
+    virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
         bool requestAck) override
     {
         SetAuthenticatedUser(request, User_);
-        UnderlyingChannel_->Send(
+        return UnderlyingChannel_->Send(
             request,
             responseHandler,
             timeout,
@@ -84,6 +84,40 @@ IChannelPtr CreateAuthenticatedChannel(IChannelPtr underlyingChannel, const Stro
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAuthenticatedChannelFactory
+    : public IChannelFactory
+{
+public:
+    TAuthenticatedChannelFactory(
+        IChannelFactoryPtr underlyingFactory,
+        const Stroka& user)
+        : UnderlyingFactory_(underlyingFactory)
+        , User_(user)
+    { }
+
+    virtual IChannelPtr CreateChannel(const Stroka& address) override
+    {
+        auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
+        return CreateAuthenticatedChannel(underlyingChannel, User_);
+    }
+
+private:
+    IChannelFactoryPtr UnderlyingFactory_;
+    Stroka User_;
+
+};
+
+IChannelFactoryPtr CreateAuthenticatedChannelFactory(
+    IChannelFactoryPtr underlyingFactory,
+    const Stroka& user)
+{
+    YCHECK(underlyingFactory);
+
+    return New<TAuthenticatedChannelFactory>(underlyingFactory, user);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TRealmChannel
     : public TChannelWrapper
 {
@@ -93,14 +127,14 @@ public:
         , RealmId_(realmId)
     { }
 
-    virtual void Send(
+    virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
         bool requestAck) override
     {
         ToProto(request->Header().mutable_realm_id(), RealmId_);
-        UnderlyingChannel_->Send(
+        return UnderlyingChannel_->Send(
             request,
             responseHandler,
             timeout,

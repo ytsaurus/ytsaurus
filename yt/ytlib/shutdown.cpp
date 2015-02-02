@@ -6,6 +6,8 @@
 
 #include <core/misc/address.h>
 
+#include <core/actions/invoker_util.h>
+
 #include <core/bus/tcp_dispatcher.h>
 
 #include <core/rpc/dispatcher.h>
@@ -13,6 +15,8 @@
 #include <core/logging/log_manager.h>
 
 #include <core/tracing/trace_manager.h>
+
+#include <core/profiling/profile_manager.h>
 
 #include <ytlib/driver/dispatcher.h>
 
@@ -36,7 +40,8 @@ void Shutdown()
     TAddressResolver::Get()->Shutdown();
     NLog::TLogManager::Get()->Shutdown();
     NTracing::TTraceManager::Get()->Shutdown();
-    NConcurrency::NDetail::ShutdownUnwindThread();
+    NProfiling::TProfileManager::Get()->Shutdown();
+    ShutdownFinalizerThread();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

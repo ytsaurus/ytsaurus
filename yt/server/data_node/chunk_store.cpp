@@ -47,8 +47,6 @@ void TChunkStore::Initialize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_INFO("Chunk store scan started");
-
     for (int i = 0; i < Config_->StoreLocations.size(); ++i) {
         auto locationConfig = Config_->StoreLocations[i];
 
@@ -71,7 +69,7 @@ void TChunkStore::Initialize()
         Locations_.push_back(location);
     }
 
-    LOG_INFO("Chunk store scan complete, %v chunks found",
+    LOG_INFO("Chunk store initialized, %v chunks total",
         GetChunkCount());
 }
 
@@ -88,8 +86,8 @@ void TChunkStore::RegisterNewChunk(IChunkPtr chunk)
     if (!result.second) {
         auto oldChunk = result.first->second.Chunk;
         LOG_FATAL("Duplicate chunk: %v vs %v",
-            chunk->GetLocation()->GetChunkFileName(chunk->GetId()),
-            oldChunk->GetLocation()->GetChunkFileName(oldChunk->GetId()));
+            chunk->GetLocation()->GetChunkPath(chunk->GetId()),
+            oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId()));
     }
 
     DoRegisterChunk(entry);
@@ -100,12 +98,12 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(chunk->GetLocation()->IsEnabled());
 
-    auto entry = BuildEntry(chunk);
-    auto result = ChunkMap_.insert(std::make_pair(chunk->GetId(), entry));
-    if (!result.second) {
-        auto oldChunk = result.first->second.Chunk;
-        auto oldPath = oldChunk->GetLocation()->GetChunkFileName(oldChunk->GetId());
-        auto currentPath = chunk->GetLocation()->GetChunkFileName(chunk->GetId());
+    bool doRegister = true;
+    auto it = ChunkMap_.find(chunk->GetId());
+    if (it != ChunkMap_.end()) {
+        auto oldChunk = it->second.Chunk;
+        auto oldPath = oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId());
+        auto currentPath = chunk->GetLocation()->GetChunkPath(chunk->GetId());
 
         // Check that replicas point to the different inodes.
         LOG_FATAL_IF(
@@ -128,7 +126,8 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
                 LOG_WARNING("Removing duplicate blob chunk: %v vs %v",
                     currentPath,
                     oldPath);
-                chunk->SyncRemove();
+                chunk->SyncRemove(true);
+                doRegister = false;
                 break;
             }
 
@@ -150,7 +149,12 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
                     shorterRowCount,
                     longerChunk->GetFileName(),
                     longerRowCount);
-                shorterChunk->SyncRemove();
+                shorterChunk->SyncRemove(true);
+                if (shorterChunk == oldChunk) {
+                    UnregisterChunk(oldChunk);
+                } else {
+                    doRegister = false;
+                }
                 break;
             }
 
@@ -160,7 +164,11 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
         return;
     }
 
-    DoRegisterChunk(entry);
+    if (doRegister) {
+        auto entry = BuildEntry(chunk);
+        YCHECK(ChunkMap_.insert(std::make_pair(chunk->GetId(), entry)).second);
+        DoRegisterChunk(entry);
+    }
 }
 
 void TChunkStore::DoRegisterChunk(const TChunkEntry& entry)
@@ -381,7 +389,7 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location, const TError& reason
     // Register an alert and
     // schedule an out-of-order heartbeat to notify the master about the disaster.
     auto masterConnector = Bootstrap_->GetMasterConnector();
-    masterConnector->RegisterAlert(Format("Chunk store at %Qv is disabled\n%v",
+    masterConnector->RegisterAlert(Format("Chunk store at %v is disabled\n%v",
         location->GetPath(),
         reason));
     masterConnector->ForceRegister();

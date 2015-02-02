@@ -20,7 +20,7 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EExpressionKind,
+DEFINE_ENUM(EExpressionKind,
     (Literal)
     (Reference)
     (Function)
@@ -28,14 +28,14 @@ DECLARE_ENUM(EExpressionKind,
     (InOp)
 );
 
-DECLARE_ENUM(EOperatorKind,
+DEFINE_ENUM(EOperatorKind,
     (Scan)
     (Filter)
     (Group)
     (Project)
 );
 
-DECLARE_ENUM(EAggregateFunctions,
+DEFINE_ENUM(EAggregateFunctions,
     (Sum)
     (Min)
     (Max)
@@ -285,7 +285,7 @@ class TQuery
     : public TIntrinsicRefCounted
 {
 public:
-    explicit TQuery(
+    TQuery(
         i64 inputRowLimit,
         i64 outputRowLimit,
         const TGuid& id = TGuid::Create())
@@ -297,6 +297,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(i64, InputRowLimit);
     DEFINE_BYVAL_RO_PROPERTY(i64, OutputRowLimit);
     DEFINE_BYVAL_RO_PROPERTY(TGuid, Id);
+
+    i64 Limit = std::numeric_limits<i64>::max();
 
     // TODO: Rename to InitialTableSchema
     TTableSchema TableSchema;
@@ -321,14 +323,6 @@ public:
         return TableSchema;
     }
 
-    TKeyColumns GetKeyColumns() const
-    {
-        if (!GroupClause && !ProjectClause) {
-            return KeyColumns;
-        } else {
-            return TKeyColumns();
-        }        
-    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
@@ -362,6 +356,17 @@ TPlanFragmentPtr PreparePlanFragment(
     i64 inputRowLimit = std::numeric_limits<i64>::max(),
     i64 outputRowLimit = std::numeric_limits<i64>::max(),
     TTimestamp timestamp = NullTimestamp);
+
+TPlanFragmentPtr PrepareJobPlanFragment(
+    const Stroka& source,
+    const TTableSchema& initialTableSchema);
+
+TConstExpressionPtr PrepareExpression(
+    const Stroka& source,
+    const TTableSchema& initialTableSchema);
+
+Stroka InferName(TConstExpressionPtr expr);
+Stroka InferName(TConstQueryPtr query);
 
 ////////////////////////////////////////////////////////////////////////////////
 

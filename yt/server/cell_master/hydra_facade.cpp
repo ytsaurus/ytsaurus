@@ -34,7 +34,8 @@
 #include <server/hydra/changelog.h>
 #include <server/hydra/snapshot.h>
 #include <server/hydra/distributed_hydra_manager.h>
-#include <server/hydra/sync_file_changelog.h>
+#include <server/hydra/file_helpers.h>
+#include <server/hydra/private.h>
 
 #include <server/hive/transaction_supervisor.h>
 
@@ -88,13 +89,13 @@ public:
         YCHECK(Config_);
         YCHECK(Bootstrap_);
 
-        AutomatonQueue_ = New<TFairShareActionQueue>("Automaton", EAutomatonThreadQueue::GetDomainNames());
+        AutomatonQueue_ = New<TFairShareActionQueue>("Automaton", TEnumTraits<EAutomatonThreadQueue>::GetDomainNames());
         Automaton_ = New<TMasterAutomaton>(Bootstrap_);
 
         HydraManager_ = CreateDistributedHydraManager(
             Config_->HydraManager,
             Bootstrap_->GetControlInvoker(),
-            AutomatonQueue_->GetInvoker(EAutomatonThreadQueue::Default),
+            GetAutomatonInvoker(EAutomatonThreadQueue::Default),
             Automaton_,
             Bootstrap_->GetRpcServer(),
             Bootstrap_->GetCellManager(),
@@ -107,9 +108,9 @@ public:
         HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
         HydraManager_->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
-        for (int index = 0; index < EAutomatonThreadQueue::GetDomainSize(); ++index) {
-            auto unguardedInvoker = AutomatonQueue_->GetInvoker(index);
-            GuardedInvokers_.push_back(HydraManager_->CreateGuardedAutomatonInvoker(unguardedInvoker));
+        for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
+            auto unguardedInvoker = GetAutomatonInvoker(queue);
+            GuardedInvokers_[queue] = HydraManager_->CreateGuardedAutomatonInvoker(unguardedInvoker);
         }
 
         ResponseKeeper_ = CreateTransientResponseKeeper(
@@ -119,7 +120,7 @@ public:
 
     void Start()
     {
-        HydraManager_->Start();
+        HydraManager_->Initialize();
 
         SnapshotCleanupExecutor_ = New<TPeriodicExecutor>(
             GetHydraIOInvoker(),
@@ -145,7 +146,7 @@ public:
 
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
     {
-        return AutomatonQueue_->GetInvoker(queue);
+        return AutomatonQueue_->GetInvoker(static_cast<int>(queue));
     }
 
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
@@ -161,9 +162,8 @@ public:
     void ValidateActiveLeader()
     {
         if (!HydraManager_->IsActiveLeader()) {
-            throw TNotALeaderException()
-                <<= ERROR_SOURCE_LOCATION()
-                >>= TError(NRpc::EErrorCode::Unavailable, "Not an active leader");
+            throw TNotALeaderException() <<=
+                TError(NRpc::EErrorCode::Unavailable, "Not an active leader");
         }
     }
 
@@ -177,27 +177,27 @@ private:
 
     IResponseKeeperPtr ResponseKeeper_;
 
-    std::vector<IInvokerPtr> GuardedInvokers_;
-    std::vector<IInvokerPtr> EpochInvokers_;
+    TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> GuardedInvokers_;
+    TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochInvokers_;
 
     TPeriodicExecutorPtr SnapshotCleanupExecutor_;
 
 
     void OnStartEpoch()
     {
-        YCHECK(EpochInvokers_.empty());
-
         auto cancelableContext = HydraManager_
             ->GetAutomatonEpochContext()
             ->CancelableContext;
-        for (int index = 0; index < EAutomatonThreadQueue::GetDomainSize(); ++index) {
-            EpochInvokers_.push_back(cancelableContext->CreateInvoker(AutomatonQueue_->GetInvoker(index)));
+
+        for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
+            auto unguardedInvoker = GetAutomatonInvoker(queue);
+            EpochInvokers_[queue] = cancelableContext->CreateInvoker(unguardedInvoker);
         }
     }
 
     void OnStopEpoch()
     {
-        EpochInvokers_.clear();
+        std::fill(EpochInvokers_.begin(), EpochInvokers_.end(), nullptr);
     }
 
 
@@ -215,7 +215,7 @@ private:
             try {
                 snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
             } catch (const std::exception& ex) {
-                LOG_WARNING("Unrecognized item %Qv in snapshot store",
+                LOG_WARNING("Unrecognized item %v in snapshot store",
                     fileName);
                 continue;
             }
@@ -232,17 +232,24 @@ private:
             if (NFS::GetFileExtension(fileName) != SnapshotExtension)
                 continue;
 
+            int snapshotId;
             try {
-                int snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
-                if (snapshotId < thresholdId) {
-                    LOG_INFO("Removing snapshot %v",
-                        snapshotId);
-
-                    auto dataFile = NFS::CombinePaths(snapshotsPath, fileName);
-                    NFS::Remove(dataFile);
-                }
+                snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
             } catch (const std::exception& ex) {
                 // Ignore, cf. logging above.
+                continue;
+            }
+
+            if (snapshotId < thresholdId) {
+                LOG_INFO("Removing snapshot %v",
+                    snapshotId);
+
+                try {
+                    NFS::Remove(NFS::CombinePaths(snapshotsPath, fileName));
+                } catch (const std::exception& ex) {
+                    LOG_WARNING(ex, "Error removing %v from snapshot store",
+                        fileName);
+                }
             }
         }
 
@@ -256,17 +263,18 @@ private:
             try {
                 changelogId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
             } catch (const std::exception& ex) {
-                LOG_WARNING("Unrecognized item %Qv in changelog store",
+                LOG_WARNING("Unrecognized item %v in changelog store",
                     fileName);
                 continue;
             }
+
             if (changelogId < thresholdId) {
                 LOG_INFO("Removing changelog %v",
                     changelogId);
                 try {
                     RemoveChangelogFiles(NFS::CombinePaths(changelogsPath, fileName));
                 } catch (const std::exception& ex) {
-                    LOG_WARNING("Error removing stale changelog %Qv from changelog store",
+                    LOG_WARNING(ex, "Error removing %v from changelog store",
                         fileName);
                 }
             }

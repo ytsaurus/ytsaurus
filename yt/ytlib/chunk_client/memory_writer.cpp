@@ -11,14 +11,14 @@ using namespace NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TAsyncError TMemoryWriter::Open()
+TFuture<void> TMemoryWriter::Open()
 {
     YCHECK(!Open_);
     YCHECK(!Closed_);
 
     Open_ = true;
 
-    return OKFuture;
+    return VoidFuture;
 }
 
 bool TMemoryWriter::WriteBlock(const TSharedRef& block)
@@ -39,22 +39,22 @@ bool TMemoryWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
     return true;
 }
 
-TAsyncError TMemoryWriter::GetReadyEvent()
+TFuture<void> TMemoryWriter::GetReadyEvent()
 {
     YCHECK(Open_);
     YCHECK(!Closed_);
 
-    return OKFuture;
+    return VoidFuture;
 }
 
-TAsyncError TMemoryWriter::Close(const TChunkMeta& chunkMeta)
+TFuture<void> TMemoryWriter::Close(const TChunkMeta& chunkMeta)
 {
     YCHECK(Open_);
     YCHECK(!Closed_);
 
     ChunkMeta_ = chunkMeta;
     Closed_ = true;
-    return OKFuture;
+    return VoidFuture;
 }
 
 const TChunkInfo& TMemoryWriter::GetChunkInfo() const

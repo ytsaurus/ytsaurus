@@ -46,12 +46,11 @@ public:
     TJournalReader(
         IClientPtr client,
         const TYPath& path,
-        const TJournalReaderOptions& options,
-        TJournalReaderConfigPtr config)
+        const TJournalReaderOptions& options)
         : Client_(client)
         , Path_(path)
         , Options_(options)
-        , Config_(config ? config : New<TJournalReaderConfig>())
+        , Config_(options.Config ? options.Config : New<TJournalReaderConfig>())
         , Logger(ApiLogger)
     {
         if (Options_.TransactionId != NullTransactionId) {
@@ -66,18 +65,16 @@ public:
             Options_.TransactionId);
     }
 
-    virtual TAsyncError Open() override
+    virtual TFuture<void> Open() override
     {
         return BIND(&TJournalReader::DoOpen, MakeStrong(this))
-            .Guarded()
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
             .Run();
     }
 
-    virtual TFuture<TErrorOr<std::vector<TSharedRef>>> Read() override
+    virtual TFuture<std::vector<TSharedRef>> Read() override
     {
         return BIND(&TJournalReader::DoRead, MakeStrong(this))
-            .Guarded()
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
             .Run();
     }
@@ -111,7 +108,7 @@ private:
 
         LOG_INFO("Fetching journal info");
 
-        TObjectServiceProxy proxy(Client_->GetMasterChannel());
+        TObjectServiceProxy proxy(Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower));
         auto batchReq = proxy.ExecuteBatch();
 
         {
@@ -143,25 +140,28 @@ private:
             batchReq->AddRequest(req, "fetch");
         }
 
-        auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error fetching journal info");
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error fetching journal info");
+        const auto& batchRsp = batchRspOrError.Value();
 
         {
-            auto rsp = batchRsp->GetResponse<TJournalYPathProxy::TRspGetBasicAttributes>("get_attrs");
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting object attributes");
+            auto rspOrError = batchRsp->GetResponse<TJournalYPathProxy::TRspGetBasicAttributes>("get_attrs");
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting object attributes");
+            const auto& rsp = rspOrError.Value();
 
             auto type = EObjectType(rsp->type());
             if (type != EObjectType::Journal) {
                 THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                     Path_,
-                    EObjectType(EObjectType::Journal),
+                    EObjectType::Journal,
                     type);
             }
         }
 
         {
-            auto rsp = batchRsp->GetResponse<TJournalYPathProxy::TRspFetch>("fetch");
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching journal chunks");
+            auto rspOrError = batchRsp->GetResponse<TJournalYPathProxy::TRspFetch>("fetch");
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching journal chunks");
+            const auto& rsp = rspOrError.Value();
 
             NodeDirectory_->MergeFrom(rsp->node_directory());
 
@@ -197,7 +197,7 @@ private:
                 CurrentChunkReader_ = CreateReplicationReader(
                     Config_,
                     Client_->GetConnection()->GetCompressedBlockCache(),
-                    Client_->GetMasterChannel(),
+                    Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
                     NodeDirectory_,
                     Null,
                     chunkId,
@@ -233,14 +233,9 @@ private:
 IJournalReaderPtr CreateJournalReader(
     IClientPtr client,
     const TYPath& path,
-    const TJournalReaderOptions& options,
-    TJournalReaderConfigPtr config)
+    const TJournalReaderOptions& options)
 {
-    return New<TJournalReader>(
-        client,
-        path,
-        options,
-        config);
+    return New<TJournalReader>(client, path, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

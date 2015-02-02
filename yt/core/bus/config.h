@@ -29,6 +29,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TTcpBusConfig)
+
 class TTcpBusServerConfig
     : public TTcpBusConfig
 {
@@ -45,6 +47,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TTcpBusServerConfig)
+
 class TTcpBusClientConfig
     : public TTcpBusConfig
 {
@@ -58,6 +62,8 @@ public:
             .NonEmpty();
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TTcpBusClientConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

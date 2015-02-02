@@ -36,7 +36,7 @@ void ExecuteRequestWithRetries(
                 LOG_INFO(error, "Request failed, retrying");
                 errors.push_back(error);
                 continue;
-            } else{
+            } else {
                 throw;
             }
         }

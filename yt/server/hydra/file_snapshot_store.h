@@ -21,16 +21,13 @@ public:
     ~TFileSnapshotStore();
 
     bool CheckSnapshotExists(int snapshotId);
+    int GetLatestSnapshotId(int maxSnapshotId);
 
     ISnapshotReaderPtr CreateReader(int snapshotId);
     ISnapshotReaderPtr CreateRawReader(int snapshotId, i64 offset);
 
-    ISnapshotWriterPtr CreateWriter(int snapshotId, const TSharedRef& meta);
+    ISnapshotWriterPtr CreateWriter(int snapshotId, const NProto::TSnapshotMeta& meta);
     ISnapshotWriterPtr CreateRawWriter(int snapshotId);
-
-    int GetLatestSnapshotId(int maxSnapshotId);
-
-    void ConfirmSnapshot(int snapshotId);
 
 private:
     class TImpl;
@@ -45,15 +42,15 @@ DEFINE_REFCOUNTED_TYPE(TFileSnapshotStore)
 ISnapshotReaderPtr CreateFileSnapshotReader(
     const Stroka& fileName,
     int snapshotId,
-    bool isRaw,
+    bool raw,
     i64 offset = -1);
 
 ISnapshotWriterPtr CreateFileSnapshotWriter(
     const Stroka& fileName,
     NCompression::ECodec codec,
     int snapshotId,
-    const TSharedRef& meta,
-    bool isRaw);
+    const NProto::TSnapshotMeta& meta,
+    bool raw);
 
 ////////////////////////////////////////////////////////////////////////////////
 

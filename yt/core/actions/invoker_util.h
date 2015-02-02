@@ -3,6 +3,8 @@
 #include "public.h"
 #include "invoker.h"
 
+#include <core/actions/future.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,6 +17,13 @@ IInvokerPtr GetSyncInvoker();
 //! method does nothing.
 IInvokerPtr GetNullInvoker();
 
+//! Returns a special per-process invoker that handles all asynchronous finalization
+//! activities (fiber unwinding, abandoned promise cancelation etc).
+IInvokerPtr GetFinalizerInvoker();
+
+// TODO(babenko): remove this when Shutdown Club is finished
+void ShutdownFinalizerThread();
+
 //! Tries to invoke #onSuccess via #invoker.
 //! If the invoker discards the callback without executing it then
 //! #onCancel is run.
@@ -26,10 +35,6 @@ void GuardedInvoke(
 ////////////////////////////////////////////////////////////////////////////////
 // Provides a way to work with the current invoker (per-fiber).
 // Invoker is fiber-scoped so this is an access to FLS.
-
-namespace NConcurrency {
-class TFiber;
-} // namespace NConcurrency
 
 IInvokerPtr GetCurrentInvoker();
 void SetCurrentInvoker(IInvokerPtr invoker);

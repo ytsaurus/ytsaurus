@@ -24,11 +24,9 @@ TProgressCounter::TProgressCounter()
     , Pending_(0)
     , Failed_(0)
     , Lost_(0)
-    , Aborted_(EAbortReason::GetDomainSize(), 0)
 { }
 
 TProgressCounter::TProgressCounter(i64 total)
-    : Aborted_(EAbortReason::GetDomainSize(), 0)
 {
 
     Set(total);
@@ -96,7 +94,7 @@ i64 TProgressCounter::GetAborted() const
 
 i64 TProgressCounter::GetAborted(EAbortReason reason) const
 {
-    return Aborted_[static_cast<int>(reason)];
+    return Aborted_[reason];
 }
 
 i64 TProgressCounter::GetLost() const
@@ -134,7 +132,7 @@ void TProgressCounter::Aborted(i64 count, EAbortReason reason)
 {
     YCHECK(Running_ >= count);
     Running_ -= count;
-    Aborted_[static_cast<int>(reason)] += count;
+    Aborted_[reason] += count;
     if (TotalEnabled_) {
         Pending_ += count;
     }
@@ -207,10 +205,9 @@ void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)
             .Item("failed").Value(counter.GetFailed())
             .Item("aborted").BeginMap()
                 .Item("total").Value(counter.GetAborted())
-                .DoFor(EAbortReason::GetDomainValues(), [&] (TFluentMap fluent, EAbortReason abortReason) {
+                .DoFor(TEnumTraits<EAbortReason>::GetDomainValues(), [&] (TFluentMap fluent, EAbortReason reason) {
                     fluent
-                        .Item(FormatEnum(abortReason))
-                        .Value(counter.GetAborted(abortReason));
+                        .Item(FormatEnum(reason)).Value(counter.GetAborted(reason));
                 })
             .EndMap()
             .Item("lost").Value(counter.GetLost())

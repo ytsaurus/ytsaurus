@@ -130,7 +130,7 @@ struct IServiceContext
     void ReplyFrom(TFuture<TSharedRefArray> message);
 
     //! Replies with a given error when the latter is set.
-    void ReplyFrom(TFuture<TError> error);
+    void ReplyFrom(TFuture<void> error);
 
 };
 
@@ -158,7 +158,8 @@ Stroka ToString(const TServiceId& serviceId);
 
 //! Represents an abstract service registered within IServer.
 /*!
- *  \note All methods be be implemented as thread-safe.
+ *  \note
+ *  Implementations must be fully thread-safe.
  */
 struct IService
     : public virtual TRefCounted
@@ -170,10 +171,14 @@ struct IService
     virtual TServiceId GetServiceId() const = 0;
 
     //! Handles incoming request.
-    virtual void OnRequest(
+    virtual void HandleRequest(
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray message,
         NBus::IBusPtr replyBus) = 0;
+
+    //! Handles request cancelation.
+    virtual void HandleRequestCancelation(
+        const TRequestId& requestId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IService)
@@ -183,7 +188,7 @@ DEFINE_REFCOUNTED_TYPE(IService)
 } // namespace NRpc
 } // namespace NYT
 
-//! A hasher for TSericeId.
+//! A hasher for TServiceId.
 template <>
 struct hash<NYT::NRpc::TServiceId>
 {

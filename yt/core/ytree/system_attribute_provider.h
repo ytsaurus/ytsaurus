@@ -6,6 +6,8 @@
 
 #include <core/misc/error.h>
 
+#include <core/actions/future.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -56,7 +58,7 @@ struct ISystemAttributeProvider
     /*!
      *  \returns Null if there is no such async builtin attribute with the given key.
      */
-    virtual TAsyncError GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) = 0;
+    virtual TFuture<void> GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) = 0;
 
     //! Sets the value of a builtin attribute.
     /*!

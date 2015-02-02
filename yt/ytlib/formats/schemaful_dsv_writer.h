@@ -19,6 +19,15 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ESchemafulDsvConsumerState,
+    (None)
+    (ExpectValue)
+    (ExpectAttributeName)
+    (ExpectAttributeValue)
+    (ExpectEndAttributes)
+    (ExpectEntity)
+);
+
 //! Note: only tabular format is supported.
 class TSchemafulDsvConsumer
     : public virtual TFormatsConsumerBase
@@ -45,6 +54,8 @@ public:
     virtual void OnEndAttributes() override;
 
 private:
+    using EState = ESchemafulDsvConsumerState;
+
     TOutputStream* Stream_;
     TSchemafulDsvFormatConfigPtr Config_;
 
@@ -59,15 +70,6 @@ private:
     TStringBuf CurrentKey_;
 
     int TableIndex_ = 0;
-
-    DECLARE_ENUM(EState,
-        (None)
-        (ExpectValue)
-        (ExpectAttributeName)
-        (ExpectAttributeValue)
-        (ExpectEndAttributes)
-        (ExpectEntity)
-    );
 
     EState State_ = EState::None;
 
@@ -87,15 +89,15 @@ public:
         NConcurrency::IAsyncOutputStreamPtr stream,
         TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
 
-    virtual TAsyncError Open(
+    virtual TFuture<void> Open(
         const NVersionedTableClient::TTableSchema& schema,
         const TNullable<NVersionedTableClient::TKeyColumns>& keyColumns) override;
 
-    virtual TAsyncError Close() override;
+    virtual TFuture<void> Close() override;
 
     virtual bool Write(const std::vector<NVersionedTableClient::TUnversionedRow>& rows) override;
 
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
 private:
     void WriteValue(const NVersionedTableClient::TUnversionedValue& value);
@@ -111,7 +113,7 @@ private:
     std::vector<int> ColumnIdMapping_;
     TBlob Buffer_;
 
-    TAsyncError Result_;
+    TFuture<void> Result_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

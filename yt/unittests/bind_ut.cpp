@@ -2,7 +2,7 @@
 #include "framework.h"
 #include "probe.h"
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 
 #include <core/actions/bind.h>
 #include <core/actions/callback.h>

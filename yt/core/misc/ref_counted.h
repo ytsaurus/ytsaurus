@@ -27,24 +27,7 @@ typedef const void* TRefCountedTypeKey;
 
 namespace NDetail {
 
-static inline int AtomicallyIncrementIfNonZero(std::atomic<int>& atomicCounter)
-{
-    // Atomically performs the following:
-    // { auto v = *p; if (v != 0) ++(*p); return v; }
-    auto value = atomicCounter.load();
-
-    for (;;) {
-        if (value == 0) {
-            return value;
-        }
-
-        if (atomicCounter.compare_exchange_strong(value, value + 1)) {
-            return value;
-        } else {
-            value = atomicCounter.load();
-        }
-    }
-}
+static inline int AtomicallyIncrementIfNonZero(std::atomic<int>& atomicCounter);
 
 //! An atomic reference counter for extrinsic reference counting.
 class TRefCounter
@@ -53,7 +36,7 @@ public:
     TRefCounter(TExtrinsicRefCounted* object)
         : StrongCount_(1)
         , WeakCount_(1)
-        , that_(object)
+        , That_(object)
     { }
 
     ~TRefCounter()
@@ -143,7 +126,7 @@ private:
     //! Number of weak references plus one if there is at least one strong reference.
     std::atomic<int> WeakCount_;
     //! The object.
-    TExtrinsicRefCounted* that_;
+    TExtrinsicRefCounted* That_;
 };
 
 } // namespace NDetail
@@ -172,8 +155,8 @@ private:
     friend void InitializeTracking(TRefCountedBase* object, TRefCountedTypeCookie typeCookie, size_t instanceSize);
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTypeCookie TypeCookie = NullRefCountedTypeCookie;
-    size_t InstanceSize = 0;
+    TRefCountedTypeCookie TypeCookie_ = NullRefCountedTypeCookie;
+    size_t InstanceSize_ = 0;
 
     void InitializeTracking(TRefCountedTypeCookie typeCookie, size_t instanceSize);
 #endif
@@ -241,12 +224,11 @@ public:
 
     //! See #TIntrinsicRefCounted::DangerousGetPtr.
     template <class T>
-    static ::NYT::TIntrusivePtr<T> DangerousGetPtr(T* object)
+    static TIntrusivePtr<T> DangerousGetPtr(T* object)
     {
-        return
-            object->RefCounter_->TryRef()
-            ? ::NYT::TIntrusivePtr<T>(object, false)
-            : ::NYT::TIntrusivePtr<T>();
+        return object->RefCounter_->TryRef()
+            ? TIntrusivePtr<T>(object, false)
+            : TIntrusivePtr<T>();
     }
 
 private:
@@ -314,18 +296,42 @@ public:
      * its raw pointer from the collection there.
      */
     template <class T>
-    static ::NYT::TIntrusivePtr<T> DangerousGetPtr(T* object)
+    static TIntrusivePtr<T> DangerousGetPtr(T* object)
     {
-        return
-            NDetail::AtomicallyIncrementIfNonZero(object->RefCounter_) > 0
-            ? ::NYT::TIntrusivePtr<T>(object, false)
-            : ::NYT::TIntrusivePtr<T>();
+        return NDetail::AtomicallyIncrementIfNonZero(object->RefCounter_) > 0
+            ? TIntrusivePtr<T>(object, false)
+            : TIntrusivePtr<T>();
     }
 
 private:
     mutable std::atomic<int> RefCounter_;
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(babenko): move to inl
+
+namespace NDetail {
+
+inline int AtomicallyIncrementIfNonZero(std::atomic<int>& atomicCounter)
+{
+    // Atomically performs the following:
+    // { auto v = *p; if (v != 0) ++(*p); return v; }
+    while (true) {
+        auto value = atomicCounter.load();
+
+        if (value == 0) {
+            return value;
+        }
+
+        if (atomicCounter.compare_exchange_strong(value, value + 1)) {
+            return value;
+        }
+    }
+}
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 

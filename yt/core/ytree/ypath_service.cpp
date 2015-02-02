@@ -51,9 +51,9 @@ private:
 
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override
     {
-        if (!request->ignore_opaque() ||
-            request->attribute_filter().mode() != EAttributeFilterMode::All)
-        {
+        bool ignoreOpaque = request->ignore_opaque();
+        auto mode = EAttributeFilterMode(request->attribute_filter().mode());
+        if (!ignoreOpaque || mode != EAttributeFilterMode::All)  {
             // Execute fallback.
             auto node = BuildNodeFromProducer();
             ExecuteVerb(node, IServiceContextPtr(context));
@@ -180,11 +180,13 @@ private:
                 true)
                 .Subscribe(BIND(&TCachedYPathService::OnGotTree, MakeStrong(this), promise)
                     // Nothing to be proud of, but we do need some large pool.
-                    .Via(NRpc::TDispatcher::Get()->GetPoolInvoker()));
+                    .Via(NRpc::TDispatcher::Get()->GetInvoker()));
         }
 
-        CachedTree_.Subscribe(BIND([=] (INodePtr root) {
-            ExecuteVerb(root, context);
+        CachedTree_.Subscribe(BIND([=] (const TErrorOr<INodePtr>& rootOrError) {
+            if (rootOrError.IsOK()) {
+                ExecuteVerb(rootOrError.Value(), context);
+            }
         }));
 
         return true;

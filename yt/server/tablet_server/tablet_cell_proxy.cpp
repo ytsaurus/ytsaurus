@@ -73,7 +73,8 @@ private:
 
         attributes->push_back("health");
         attributes->push_back("peers");
-        attributes->push_back("tablet_ids");
+        attributes->push_back(TAttributeInfo("tablet_ids", true, true));
+        attributes->push_back("tablet_count");
         attributes->push_back("config_version");
         attributes->push_back(TAttributeInfo("prerequisite_transaction_id", cell->GetPrerequisiteTransaction() != nullptr));
 
@@ -94,22 +95,18 @@ private:
             BuildYsonFluently(consumer)
                 .DoListFor(cell->Peers(), [&] (TFluentList fluent, const TTabletCell::TPeer& peer) {
                     if (peer.Address) {
-                        const auto* slot = peer.Node ? &peer.Node->TabletSlots()[peer.SlotIndex] : nullptr;
-                        auto state = slot ? slot->PeerState : EPeerState(EPeerState::None);
+                        const auto* slot = peer.Node ? peer.Node->GetTabletSlot(cell) : nullptr;
+                        auto state = slot ? slot->PeerState : EPeerState::None;
                         fluent
                             .Item().BeginMap()
                                 .Item("address").Value(*peer.Address)
                                 .Item("state").Value(state)
                                 .Item("last_seen_time").Value(peer.LastSeenTime)
-                                .DoIf(peer.Node, [&] (TFluentMap fluent) {
-                                    fluent
-                                        .Item("slot_index").Value(peer.SlotIndex);
-                                })
                             .EndMap();
                     } else {
                         fluent
                             .Item().BeginMap()
-                                .Item("state").Value(EPeerState(EPeerState::None))
+                                .Item("state").Value(EPeerState::None)
                             .EndMap();
                     }
                 });
@@ -122,6 +119,12 @@ private:
                     fluent
                         .Item().Value(tablet->GetId());
                 });
+            return true;
+        }
+
+        if (key == "tablet_count") {
+            BuildYsonFluently(consumer)
+                .Value(cell->Tablets().size());
             return true;
         }
 

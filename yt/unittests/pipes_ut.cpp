@@ -4,10 +4,11 @@
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/scheduler.h>
 
+#include <core/misc/proc.h>
+
 #include <ytlib/pipes/io_dispatcher.h>
 #include <ytlib/pipes/async_reader.h>
 #include <ytlib/pipes/async_writer.h>
-#include <server/job_proxy/pipes.h>
 
 #include <random>
 
@@ -22,9 +23,9 @@ using namespace NConcurrency;
 
 void SafeMakeNonblockingPipes(int fds[2])
 {
-    NJobProxy::SafePipe(fds);
-    NJobProxy::SafeMakeNonblocking(fds[0]);
-    NJobProxy::SafeMakeNonblocking(fds[1]);
+    SafePipe(fds);
+    SafeMakeNonblocking(fds[0]);
+    SafeMakeNonblocking(fds[1]);
 }
 
 TEST(TPipeIOHolder, CanInstantiate)
@@ -199,14 +200,13 @@ TEST_P(TPipeBigReadWriteTest, RealReadWrite)
     .AsyncVia(queue->GetInvoker()).Run();
 
     auto writeError =  BIND(&WriteAll, Writer, data.data(), data.size(), blockSize)
-        .Guarded()
         .AsyncVia(queue->GetInvoker())
         .Run();
     auto readFromPipe = BIND(&ReadAll, Reader, true)
         .AsyncVia(queue->GetInvoker())
         .Run();
 
-    auto textFromPipe = readFromPipe.Get();
+    auto textFromPipe = readFromPipe.Get().ValueOrThrow();
     EXPECT_EQ(data.size(), textFromPipe.Size());
     auto result = std::mismatch(textFromPipe.Begin(), textFromPipe.End(), data.begin());
     EXPECT_TRUE(std::equal(textFromPipe.Begin(), textFromPipe.End(), data.begin())) <<

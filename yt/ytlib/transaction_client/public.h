@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <core/misc/public.h>
 #include <core/misc/enum.h>
 
 #include <ytlib/object_client/public.h>
@@ -10,7 +10,7 @@ namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETransactionType,
+DEFINE_ENUM(ETransactionType,
     (Master) // accepted by both masters and tablets
     (Tablet) // accepted by tablets only
 );

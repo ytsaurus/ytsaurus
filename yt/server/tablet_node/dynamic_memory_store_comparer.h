@@ -36,17 +36,14 @@ struct TKeyWrapper
     TUnversionedRow Row;
 };
 
-struct TNoCodegenDynamicRowKeyCompare { };
-
 //! Provides a comparer functor for dynamic row keys.
 class TDynamicRowKeyComparer
 {
 public:
-    TDynamicRowKeyComparer(int keyColumnCount, const TTableSchema& schema);
     TDynamicRowKeyComparer(
         int keyColumnCount,
         const TTableSchema& schema,
-        TNoCodegenDynamicRowKeyCompare);
+        bool enableCodegen = true);
     TDynamicRowKeyComparer(const TDynamicRowKeyComparer& other);
     TDynamicRowKeyComparer(TDynamicRowKeyComparer&& other);
     TDynamicRowKeyComparer();
@@ -59,6 +56,11 @@ public:
     int operator()(TDynamicRow lhs, TDynamicRow rhs) const;
     int operator()(TDynamicRow lhs, TRowWrapper rhs) const;
     int operator()(TDynamicRow lhs, TKeyWrapper rhs) const;
+    int operator()(
+        const TUnversionedValue* lhsBegin,
+        const TUnversionedValue* lhsEnd,
+        const TUnversionedValue* rhsBegin,
+        const TUnversionedValue* rhsEnd) const;
 
 private:
     class TImpl;

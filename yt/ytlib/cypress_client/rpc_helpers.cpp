@@ -56,6 +56,23 @@ bool GetSuppressAccessTracking(const TRequestHeader& header)
         : false;
 }
 
+void SetSuppressModificationTracking(IClientRequestPtr request, bool value)
+{
+    SetSuppressModificationTracking(&request->Header(), value);
+}
+
+void SetSuppressModificationTracking(TRequestHeader* header, bool value)
+{
+    header->SetExtension(TAccessTrackingExt::suppress_modification_tracking, value);
+}
+
+bool GetSuppressModificationTracking(const TRequestHeader& header)
+{
+    return header.HasExtension(TAccessTrackingExt::suppress_modification_tracking)
+        ? header.GetExtension(TAccessTrackingExt::suppress_modification_tracking)
+        : false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypressClient

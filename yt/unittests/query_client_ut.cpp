@@ -21,6 +21,8 @@
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
 
+#include <tuple>
+
 #define _MIN_ "<\"type\"=\"min\">#"
 #define _MAX_ "<\"type\"=\"max\">#"
 
@@ -42,6 +44,22 @@ void PrintTo(const TKey& key, ::std::ostream* os)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient
+} // namespace NYT
+
+
+namespace NYT {
+namespace NQueryClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintTo(const TConstExpressionPtr& expr, ::std::ostream* os)
+{
+    *os << InferName(expr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NQueryClient
 } // namespace NYT
 
 
@@ -72,7 +90,7 @@ class TPrepareCallbacksMock
     : public IPrepareCallbacks
 {
 public:
-    MOCK_METHOD2(GetInitialSplit, TFuture<TErrorOr<TDataSplit>>(
+    MOCK_METHOD2(GetInitialSplit, TFuture<TDataSplit>(
         const TYPath&,
         TTimestamp));
 };
@@ -201,12 +219,12 @@ TTableSchema GetSampleTableSchema()
 }
 
 template <class T>
-TFuture<TErrorOr<T>> WrapInFuture(const T& value)
+TFuture<T> WrapInFuture(const T& value)
 {
     return MakeFuture(TErrorOr<T>(value));
 }
 
-TFuture<TErrorOr<void>> WrapVoidInFuture()
+TFuture<void> WrapVoidInFuture()
 {
     return MakeFuture(TErrorOr<void>());
 }
@@ -243,7 +261,7 @@ TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns)
     return dataSplit;
 }
 
-TFuture<TErrorOr<TDataSplit>> RaiseTableNotFound(
+TFuture<TDataSplit> RaiseTableNotFound(
     const TYPath& path,
     TTimestamp)
 {
@@ -532,6 +550,25 @@ TEST(TKeyRangeTest, IsEmpty)
 ////////////////////////////////////////////////////////////////////////////////
 // Refinement tests.
 
+template <class TTypedExpression, class... TArgs>
+static TConstExpressionPtr Make(TArgs&&... args)
+{
+    return New<TTypedExpression>(
+        NullSourceLocation,
+        EValueType::TheBottom,
+        std::forward<TArgs>(args)...);
+}
+
+static TValue MakeInt64(i64 value)
+{
+    return MakeUnversionedInt64Value(value);
+}
+
+static TValue MakeString(const TStringBuf& value)
+{
+    return MakeUnversionedStringValue(value);
+}
+
 TKeyRange RefineKeyRange(
     const TKeyColumns& keyColumns,
     const TKeyRange& keyRange,
@@ -603,29 +640,72 @@ protected:
             << "Left bound: " << ::testing::PrintToString(keyRange.first) << "; "
             << "Right bound: " << ::testing::PrintToString(keyRange.second);
     }
+};
 
-    template <class TTypedExpression, class... TArgs>
-    TConstExpressionPtr Make(TArgs&&... args)
-    {
-        return New<TTypedExpression>(
-            NullSourceLocation,
-            EValueType::EDomain::TheBottom,
-            std::forward<TArgs>(args)...);
-    }
+class TPrepareExpressionTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<TConstExpressionPtr, const char*>>
+{
+protected:
+    virtual void SetUp() override
+    { }
 
-    TValue MakeInt64(i64 value)
+    bool Equal(TConstExpressionPtr lhs, TConstExpressionPtr rhs)
     {
-        return MakeUnversionedInt64Value(value);
-    }
-    TValue MakeUint64(ui64 value)
-    {
-        return MakeUnversionedUint64Value(value);
-    }
-    TValue MakeString(const TStringBuf& value)
-    {
-        return MakeUnversionedStringValue(value);
-    }
+        if (auto literalLhs = lhs->As<TLiteralExpression>()) {
+            auto literalRhs = rhs->As<TLiteralExpression>();
+            if (literalRhs == nullptr || literalLhs->Value != literalRhs->Value) {
+                return false;
+            }
+        } else if (auto referenceLhs = lhs->As<TReferenceExpression>()) {
+            auto referenceRhs = rhs->As<TReferenceExpression>();
+            if (referenceRhs == nullptr
+                || referenceLhs->ColumnName != referenceRhs->ColumnName) {
+                return false;
+            }
+        } else if (auto functionLhs = lhs->As<TFunctionExpression>()) {
+            auto functionRhs = rhs->As<TFunctionExpression>();
+            if (functionRhs == nullptr
+                || functionLhs->FunctionName != functionRhs->FunctionName
+                || functionLhs->Arguments.size() != functionRhs->Arguments.size()) {
+                return false;
+            }
+            for (int index = 0; index < functionLhs->Arguments.size(); ++index) {
+                if (!Equal(functionLhs->Arguments[index], functionRhs->Arguments[index])) {
+                    return false;
+                }
+            }
+        } else if (auto binaryLhs = lhs->As<TBinaryOpExpression>()) {
+            auto binaryRhs = rhs->As<TBinaryOpExpression>();
+            if (binaryRhs == nullptr
+                || binaryLhs->Opcode != binaryRhs->Opcode
+                || !Equal(binaryLhs->Lhs, binaryRhs->Lhs)
+                || !Equal(binaryLhs->Rhs, binaryRhs->Rhs)) {
+                return false;
+            }
+        } else if (auto inLhs = lhs->As<TInOpExpression>()) {
+            auto inRhs = rhs->As<TInOpExpression>();
+            if (inRhs == nullptr
+                || inLhs->Values.size() != inRhs->Values.size()
+                || inLhs->Arguments.size() != inRhs->Arguments.size()) {
+                return false;
+            }
+            for (int index = 0; index < inLhs->Values.size(); ++index) {
+                if (inLhs->Values[index] != inRhs->Values[index]) {
+                    return false;
+                }
+            }
+            for (int index = 0; index < inLhs->Arguments.size(); ++index) {
+                if (!Equal(inLhs->Arguments[index], inRhs->Arguments[index])) {
+                    return false;
+                }
+            }
+        } else {
+            YUNREACHABLE();
+        }
 
+        return true;
+    }
 };
 
 void PrintTo(const TRefineKeyRangeTestCase& testCase, ::std::ostream* os)
@@ -1074,16 +1154,95 @@ INSTANTIATE_TEST_CASE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TPrepareExpressionTest, Basic)
+{
+    auto schema = GetSampleTableSchema();
+
+    auto expr1 = Make<TReferenceExpression>("k");
+    auto expr2 = PrepareExpression(Stroka("k"), schema);
+
+    EXPECT_TRUE(Equal(expr1, expr2))
+        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
+        << "expr2: " << ::testing::PrintToString(expr2);
+
+    expr1 = Make<TLiteralExpression>(MakeInt64(90));
+    expr2 = PrepareExpression(Stroka("90"), schema);
+
+    EXPECT_TRUE(Equal(expr1, expr2))
+        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
+        << "expr2: " << ::testing::PrintToString(expr2);
+
+    expr1 = Make<TReferenceExpression>("a"),
+    expr2 = PrepareExpression(Stroka("k"), schema);
+
+    EXPECT_FALSE(Equal(expr1, expr2))
+        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
+        << "expr2: " << ::testing::PrintToString(expr2);
+
+    auto str1 = Stroka("k + 3 - a > 4 * l and (k <= m or k + 1 < 3* l)");
+    auto str2 = Stroka("k + 3 - a > 4 * l and (k <= m or k + 2 < 3* l)");
+
+    expr1 = PrepareExpression(str1, schema);
+    expr2 = PrepareExpression(str1, schema);
+
+    EXPECT_TRUE(Equal(expr1, expr2))
+        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
+        << "expr2: " << ::testing::PrintToString(expr2);
+
+    expr2 = PrepareExpression(str2, schema);
+
+    EXPECT_FALSE(Equal(expr1, expr2))
+        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
+        << "expr2: " << ::testing::PrintToString(expr2);
+}
+
+TEST_P(TPrepareExpressionTest, Simple)
+{
+    auto schema = GetSampleTableSchema();
+    auto& param = GetParam();
+
+    auto expr1 = std::get<0>(param);
+    auto expr2 = PrepareExpression(std::get<1>(param), schema);
+
+    EXPECT_TRUE(Equal(expr1, expr2))
+        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
+        << "expr2: " << ::testing::PrintToString(expr2);
+}
+
+INSTANTIATE_TEST_CASE_P(
+    PrepareExpressionTest,
+    TPrepareExpressionTest,
+    ::testing::Values(
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
+                Make<TReferenceExpression>("k"),
+                Make<TLiteralExpression>(MakeInt64(90))),
+            "k >= 90"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Greater,
+                Make<TReferenceExpression>("k"),
+                Make<TLiteralExpression>(MakeInt64(90))),
+            "k > 90"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Equal,
+                Make<TReferenceExpression>("k"),
+                Make<TBinaryOpExpression>(EBinaryOp::Plus,
+                    Make<TReferenceExpression>("a"),
+                    Make<TReferenceExpression>("b"))),
+            "k = a + b"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TFunctionExpression>("is_prefix",
+                std::initializer_list<TConstExpressionPtr>({
+                    Make<TLiteralExpression>(MakeString("abc")),
+                    Make<TReferenceExpression>("s")})),
+            "is_prefix(\"abc\", s)")
+    ));
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
 {
-    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(90)));
-    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Less,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(10)));
-
-    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2);
+    auto expr = PrepareExpression("k >= 90 and k < 10", GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1095,14 +1254,7 @@ TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
 
 TEST_F(TRefineKeyRangeTest, Lookup1)
 {
-    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-
-    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2);
+    auto expr = PrepareExpression("k = 50 and l = 50", GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1115,19 +1267,7 @@ TEST_F(TRefineKeyRangeTest, Lookup1)
 
 TEST_F(TRefineKeyRangeTest, Lookup2)
 {
-    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-    auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-
-    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And,
-        Make<TBinaryOpExpression>(EBinaryOp::And,
-            conj1, conj2), conj3);
+    auto expr = PrepareExpression("k = 50 and l = 50 and m = 50", GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1140,15 +1280,7 @@ TEST_F(TRefineKeyRangeTest, Lookup2)
 
 TEST_F(TRefineKeyRangeTest, Range1)
 {
-    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Greater,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(0)));
-    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Less,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(100)));
-
-    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And,
-        conj1, conj2);
+    auto expr = PrepareExpression("k > 0 and k < 100", GetSampleTableSchema());
 
     TKeyColumns keyColumns;
     keyColumns.push_back("k");
@@ -1163,14 +1295,7 @@ TEST_F(TRefineKeyRangeTest, Range1)
 
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
 {
-    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(10)));
-    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Less,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(90)));
-
-    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2);
+    auto expr = PrepareExpression("k >= 10 and k < 90", GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1183,23 +1308,10 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
 
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
 {
-    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
-        Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeInt64(10)));
-    auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Less,
-        Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeInt64(90)));
-    auto conj4 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(MakeInt64(50)));
+    auto expr = PrepareExpression(
+        "k = 50 and l >= 10 and l < 90 and m = 50",
+        GetSampleTableSchema());
 
-    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And,
-        Make<TBinaryOpExpression>(EBinaryOp::And,
-            Make<TBinaryOpExpression>(EBinaryOp::And,
-                conj1, conj2), conj3), conj4);
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
@@ -1211,14 +1323,7 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
 
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
 {
-    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-
-    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2);
+    auto expr = PrepareExpression("k = 50 and m = 50", GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1231,25 +1336,9 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
 
 TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
 {
-    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-
-    auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2);
-
-    auto conj4 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(75)));
-    auto conj5 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-
-    auto conj6 = Make<TBinaryOpExpression>(EBinaryOp::And, conj4, conj5);
-
-    auto expr = Make<TBinaryOpExpression>(EBinaryOp::Or, conj3, conj6);
+    auto expr = PrepareExpression(
+        "k = 50 and m = 50 or k = 75 and m = 50",
+        GetSampleTableSchema());
 
     TRowBuffer rowBuffer;
 
@@ -1275,25 +1364,9 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
 
 TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
 {
-    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::NotEqual,
-        Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-
-    auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Greater,
-        Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeInt64(40)));
-
-    auto conj4 = Make<TBinaryOpExpression>(EBinaryOp::Less,
-        Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeInt64(60)));
-
-    auto expr = Make<TBinaryOpExpression>(
-        EBinaryOp::And,
-        Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2),
-        Make<TBinaryOpExpression>(EBinaryOp::And, conj3, conj4));
+    auto expr = PrepareExpression(
+        "(k = 50 and l != 50) and (l > 40 and l < 60)",
+        GetSampleTableSchema());
 
     TRowBuffer rowBuffer;
 
@@ -1319,37 +1392,9 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
 
 TEST_F(TRefineKeyRangeTest, RangesProduct)
 {
-    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(40)));
-    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-    auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(60)));
-
-    auto disj1 = Make<TBinaryOpExpression>(
-        EBinaryOp::Or,
-        Make<TBinaryOpExpression>(EBinaryOp::Or, conj1, conj2),
-        conj3);
-
-    auto conj4 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeInt64(40)));
-    auto conj5 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-    auto conj6 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeInt64(60)));
-
-    auto disj2 = Make<TBinaryOpExpression>(
-        EBinaryOp::Or,
-        Make<TBinaryOpExpression>(EBinaryOp::Or, conj4, conj5),
-        conj6);
-
-    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And, disj1, disj2);
+    auto expr = PrepareExpression(
+        "(k = 40 or k = 50 or k = 60) and (l = 40 or l = 50 or l = 60)",
+        GetSampleTableSchema());
 
     TRowBuffer rowBuffer;
 
@@ -1396,19 +1441,9 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
 
 TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
 {
-    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(1)));
-    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeInt64(2)));
-    auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(MakeInt64(3)));
-
-    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And,
-        Make<TBinaryOpExpression>(EBinaryOp::And,
-            conj1, conj2), conj3);
+    auto expr = PrepareExpression(
+        "k = 1 and l = 2 and m = 3",
+        GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1421,25 +1456,9 @@ TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
 
 TEST_F(TRefineKeyRangeTest, LookupIsPrefix)
 {
-    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-    auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(MakeInt64(50)));
-
-    auto arg1 = Make<TLiteralExpression>(MakeString("abc"));
-    auto arg2 = Make<TReferenceExpression>("s");
-
-    auto conj4 = Make<TFunctionExpression>("is_prefix",
-        std::initializer_list<TConstExpressionPtr>({arg1, arg2}));
-
-    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And, conj1, 
-        Make<TBinaryOpExpression>(EBinaryOp::And, conj2, 
-            Make<TBinaryOpExpression>(EBinaryOp::And, conj3, conj4)));
+    auto expr = PrepareExpression(
+        "k = 50 and l = 50 and m = 50 and is_prefix(\"abc\", s)",
+        GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns2(),
@@ -1457,19 +1476,19 @@ class TReaderMock
     : public ISchemafulReader
 {
 public:
-    MOCK_METHOD1(Open, TAsyncError(const TTableSchema&));
+    MOCK_METHOD1(Open, TFuture<void>(const TTableSchema&));
     MOCK_METHOD1(Read, bool(std::vector<TUnversionedRow>*));
-    MOCK_METHOD0(GetReadyEvent, TAsyncError());
+    MOCK_METHOD0(GetReadyEvent, TFuture<void>());
 };
 
 class TWriterMock
     : public ISchemafulWriter
 {
 public:
-    MOCK_METHOD2(Open, TAsyncError(const TTableSchema&, const TNullable<TKeyColumns>&));
-    MOCK_METHOD0(Close, TAsyncError());
+    MOCK_METHOD2(Open, TFuture<void>(const TTableSchema&, const TNullable<TKeyColumns>&));
+    MOCK_METHOD0(Close, TFuture<void>());
     MOCK_METHOD1(Write, bool(const std::vector<TUnversionedRow>&));
-    MOCK_METHOD0(GetReadyEvent, TAsyncError());
+    MOCK_METHOD0(GetReadyEvent, TFuture<void>());
 };
 
 TOwningRow BuildRow(
@@ -1510,7 +1529,6 @@ protected:
         i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
         auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
-            .Guarded()
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,

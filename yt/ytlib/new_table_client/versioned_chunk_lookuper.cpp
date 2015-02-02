@@ -44,8 +44,8 @@ public:
         , MemoryPool_(TVersionedChunkLookuperPoolTag())
     {
         YCHECK(ChunkMeta_->Misc().sorted());
-        YCHECK(ChunkMeta_->ChunkMeta().type() == EChunkType::Table);
-        YCHECK(ChunkMeta_->ChunkMeta().version() == TBlockReader::FormatVersion);
+        YCHECK(EChunkType(ChunkMeta_->ChunkMeta().type()) == EChunkType::Table);
+        YCHECK(ETableChunkFormat(ChunkMeta_->ChunkMeta().version()) == TBlockReader::FormatVersion);
         YCHECK(Timestamp_ != AsyncAllCommittedTimestamp || columnFilter.All);
 
         if (columnFilter.All) {
@@ -62,7 +62,7 @@ public:
         }
     }
 
-    virtual TFuture<TErrorOr<TVersionedRow>> Lookup(TKey key) override
+    virtual TFutureHolder<TVersionedRow> Lookup(TKey key) override
     {
         MemoryPool_.Clear();
         UncompressedBlock_.Reset();
@@ -76,7 +76,7 @@ public:
 
         auto uncompressedBlock = UncompressedBlockCache_->Find(blockId);
         if (uncompressedBlock) {
-            return MakeFuture<TErrorOr<TVersionedRow>>(DoLookup(
+            return MakeFuture<TVersionedRow>(DoLookup(
                 uncompressedBlock,
                 key,
                 blockId));
@@ -109,7 +109,7 @@ private:
     //! Holds the block for the returned row (for string references).
     TSharedRef UncompressedBlock_;
 
-    TFuture<TErrorOr<TVersionedRow>> NullRow_ = MakeFuture<TErrorOr<TVersionedRow>>(TVersionedRow());
+    TFuture<TVersionedRow> NullRow_ = MakeFuture(TVersionedRow());
 
 
     int GetBlockIndex(TKey key)
@@ -134,16 +134,11 @@ private:
         }
     }
 
-    TErrorOr<TVersionedRow> OnBlockRead(
+    TVersionedRow OnBlockRead(
         TKey key,
         const TBlockId& blockId,
-        NChunkClient::IChunkReader::TReadBlocksResult result)
+        const std::vector<TSharedRef>& compressedBlocks)
     {
-        if (!result.IsOK()) {
-            return TError(result);
-        }
-
-        const auto& compressedBlocks = result.Value();
         YASSERT(compressedBlocks.size() == 1);
 
         const auto& compressedBlock = compressedBlocks[0];
@@ -193,7 +188,8 @@ IVersionedLookuperPtr CreateVersionedChunkLookuper(
     const TColumnFilter& columnFilter,
     TTimestamp timestamp)
 {
-    switch (chunkMeta->ChunkMeta().version()) {
+    auto formatVersion = ETableChunkFormat(chunkMeta->ChunkMeta().version());
+    switch (formatVersion) {
         case ETableChunkFormat::VersionedSimple:
             return New<TVersionedChunkLookuper<TSimpleVersionedBlockReader>>(
                 std::move(config),

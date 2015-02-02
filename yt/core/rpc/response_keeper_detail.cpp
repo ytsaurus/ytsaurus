@@ -114,10 +114,6 @@ void TResponseKeeperBase::Clear()
 {
     {
         TGuard<TSpinLock> guard(SpinLock_);
-
-        for (auto& pair : PendingResponses_) {
-            pair.second.Cancel();
-        }
         PendingResponses_.clear();
         FinishedResponses_.clear();
         ResponseEvictionQueue_.clear();

@@ -20,6 +20,8 @@
 #include <ytlib/new_table_client/writer.h>
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/new_table_client/schemaful_merging_reader.h>
+#include <ytlib/new_table_client/schemaful_ordered_reader.h>
 
 #include <ytlib/object_client/helpers.h>
 
@@ -45,14 +47,19 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         ? 0
         : 2 * query->GetInputRowLimit() / ranges.size();
 
+    auto subqueryOutputRowLimit = pushdownGroupClause
+        ? query->GetOutputRowLimit()
+        : std::numeric_limits<i64>::max();
+
     for (const auto& keyRange : ranges) {
         // Set initial schema and key columns
         auto subquery = New<TQuery>(
             subqueryInputRowLimit,
-            query->GetOutputRowLimit());
+            subqueryOutputRowLimit);
 
         subquery->TableSchema = query->TableSchema;
         subquery->KeyColumns = query->KeyColumns;
+        subquery->Limit = query->Limit;
 
         // Set predicate
         int rangeSize = std::min(keyRange.first.GetCount(), keyRange.second.GetCount());
@@ -83,6 +90,8 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     auto topQuery = New<TQuery>(
         query->GetInputRowLimit(),
         query->GetOutputRowLimit());
+
+    topQuery->Limit = query->Limit;
 
     if (query->GroupClause) {
         if (pushdownGroupClause) {
@@ -189,6 +198,79 @@ std::vector<TKeyRange> GetRanges(const TGroupedDataSplits& groupedSplits)
         ranges[splitIndex] = GetRange(groupedSplits[splitIndex]);
     }
     return ranges;
+}
+
+TQueryStatistics CoordinateAndExecute(
+    const TPlanFragmentPtr& fragment,
+    ISchemafulWriterPtr writer,
+    bool isOrdered,
+    std::function<std::vector<TKeyRange>(const TDataSplits&)> splitAndRegroup,
+    std::function<TEvaluateResult(const TConstQueryPtr&, size_t)> evaluateSubquery,
+    std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
+    bool pushdownGroupOp)
+{
+    auto nodeDirectory = fragment->NodeDirectory;
+    auto query = fragment->Query;
+    auto Logger = BuildLogger(query);
+
+    auto ranges = splitAndRegroup(GetPrunedSplits(query, fragment->DataSplits));
+
+    TConstQueryPtr topQuery;
+    std::vector<TConstQueryPtr> subqueries;
+    std::tie(topQuery, subqueries) = CoordinateQuery(query, ranges, pushdownGroupOp);
+
+    std::vector<ISchemafulReaderPtr> splitReaders;
+
+    ISchemafulReaderPtr mergingReader;
+    std::vector<TFuture<TQueryStatistics>> subqueriesStatistics;
+
+    if (isOrdered) {
+        size_t index = 0;
+
+        mergingReader = CreateSchemafulOrderedReader([&, index] () mutable -> ISchemafulReaderPtr {
+            if (index >= subqueries.size()) {
+                return nullptr;
+            }
+            auto subquery = subqueries[index];
+
+            ISchemafulReaderPtr reader;
+            TFuture<TQueryStatistics> statistics;
+
+            std::tie(reader, statistics) = evaluateSubquery(subquery, index);
+
+            subqueriesStatistics.push_back(statistics);
+
+            ++index;
+
+            return reader;
+        });
+    } else {
+        for (size_t index = 0; index < subqueries.size(); ++index) {
+            auto subquery = subqueries[index];
+            LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
+                subquery->GetId());
+
+            ISchemafulReaderPtr reader;
+            TFuture<TQueryStatistics> statistics;
+
+            std::tie(reader, statistics) = evaluateSubquery(subquery, index);
+
+            splitReaders.push_back(reader);
+            subqueriesStatistics.push_back(statistics);
+        }
+
+        mergingReader = CreateSchemafulMergingReader(splitReaders);
+    }
+
+    auto queryStatistics = evaluateTop(topQuery, std::move(mergingReader), std::move(writer));
+
+    for (auto const& subqueryStatistics : subqueriesStatistics) {
+        if (subqueryStatistics.IsSet()) {
+            queryStatistics += subqueryStatistics.Get().ValueOrThrow();
+        }
+    }
+
+    return queryStatistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

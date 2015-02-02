@@ -557,6 +557,19 @@ class TestSchedulerMapCommands(YTEnvSetup):
             except OSError:
                 pass
 
+    def test_input_row_count(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write("//tmp/t1", [{"key" : i} for i in xrange(5)])
+
+        sort(in_="//tmp/t1", out="//tmp/t1", sort_by="key")
+        op_id = map(command="cat", in_="//tmp/t1[:1]", out="//tmp/t2")
+
+        assert get("//tmp/t2/@row_count") == 1
+
+        progress = get("//sys/operations/{0}/@progress".format(op_id))
+        assert progress["actual_input_statistics"]["row_count"] == 1
+
     def test_invalid_output_record(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")

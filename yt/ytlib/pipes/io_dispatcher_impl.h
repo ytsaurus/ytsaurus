@@ -2,7 +2,7 @@
 
 #include "io_dispatcher.h"
 
-#include <core/concurrency/action_queue_detail.h>
+#include <core/concurrency/ev_scheduler_thread.h>
 
 namespace NYT {
 namespace NPipes {

@@ -38,11 +38,11 @@ std::vector<int> GetPidsByUid(int uid)
 #ifdef _linux_
     std::vector<int> result;
 
-    DIR *dp = ::opendir("/proc");
-    YCHECK(dp != nullptr);
+    DIR *dirStream = ::opendir("/proc");
+    YCHECK(dirStream != nullptr);
 
     struct dirent *ep;
-    while ((ep = ::readdir(dp)) != nullptr) {
+    while ((ep = ::readdir(dirStream)) != nullptr) {
         const char* begin = ep->d_name;
         char* end = nullptr;
         int pid = static_cast<int>(strtol(begin, &end, 10));
@@ -68,7 +68,7 @@ std::vector<int> GetPidsByUid(int uid)
         }
     }
 
-    YCHECK(::closedir(dp) == 0);
+    YCHECK(::closedir(dirStream) == 0);
     return result;
 
 #else
@@ -137,52 +137,30 @@ void RemoveDirAsRoot(const Stroka& path)
 
 TError StatusToError(int status)
 {
+    int signalBase = static_cast<int>(EExitStatus::SignalBase);
     if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)) {
         return TError();
     } else if (WIFSIGNALED(status)) {
         int signalNumber = WTERMSIG(status);
         return TError(
-            EExitStatus::SignalBase + signalNumber,
+            signalBase + signalNumber,
             "Process terminated by signal %v",
             signalNumber);
     } else if (WIFSTOPPED(status)) {
         int signalNumber = WSTOPSIG(status);
         return TError(
-            EExitStatus::SignalBase + signalNumber,
+            signalBase + signalNumber,
             "Process stopped by signal %v",
             signalNumber);
     } else if (WIFEXITED(status)) {
         int exitCode = WEXITSTATUS(status);
         return TError(
-            EExitStatus::ExitCodeBase + exitCode,
+            signalBase + exitCode,
             "Process exited with code %v",
             exitCode);
     } else {
         return TError("Unknown status %v", status);
     }
-}
-
-void CloseAllDescriptors()
-{
-#ifdef _linux_
-    DIR* dp = ::opendir("/proc/self/fd");
-    YCHECK(dp != NULL);
-
-    int dirfd = ::dirfd(dp);
-    YCHECK(dirfd >= 0);
-
-    struct dirent *ep;
-    while ((ep = ::readdir(dp)) != nullptr) {
-        char* begin = ep->d_name;
-        char* end = nullptr;
-        int fd = static_cast<int>(strtol(begin, &end, 10));
-        if (fd != dirfd && begin != end) {
-            YCHECK(::close(fd) == 0);
-        }
-    }
-
-    YCHECK(::closedir(dp) == 0);
-#endif
 }
 
 bool TryExecve(const char *path, char* const argv[], char* const env[])
@@ -196,14 +174,14 @@ bool TryDup2(int oldFd, int newFd)
 {
     while (true) {
         auto res = ::dup2(oldFd, newFd);
-        
+
         if (res != -1) {
             return true;
         }
-        
+
         if (errno == EINTR || errno == EBUSY) {
             continue;
-        } 
+        }
 
         return false;
     }
@@ -216,7 +194,7 @@ bool TryClose(int fd)
         if (res != -1) {
             return true;
         }
-         
+
         switch (errno) {
             // Please read
             // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
@@ -226,7 +204,7 @@ bool TryClose(int fd)
             // If the descriptor is no longer valid, just ignore it.
             case EBADF:
                 return true;
-            default: 
+            default:
                 return false;
         }
     }
@@ -262,57 +240,71 @@ void SetPermissions(int fd, int permissions)
     }
 }
 
+void SafePipe(int fd[2])
+{
+    auto res = pipe(fd);
+    if (res == -1) {
+        THROW_ERROR_EXCEPTION("pipe failed")
+            << TError::FromSystem();
+    }
+}
+
+void SafeMakeNonblocking(int fd)
+{
+    auto res = fcntl(fd, F_GETFL);
+
+    if (res == -1) {
+        THROW_ERROR_EXCEPTION("fcntl failed to get descriptor flags")
+            << TError::FromSystem();
+    }
+
+    res = fcntl(fd, F_SETFL, res | O_NONBLOCK);
+
+    if (res == -1) {
+        THROW_ERROR_EXCEPTION("fcntl failed to set descriptor flags")
+            << TError::FromSystem();
+    }
+}
+
 #else
 
-bool TryClose(int fd)
+bool TryClose(int /* fd */)
 {
-    UNUSED(fd);
     YUNIMPLEMENTED();
 }
 
-void SafeClose(int fd)
+void SafeClose(int /* fd */)
 {
-    UNUSED(fd);
     YUNIMPLEMENTED();
 }
 
-bool TryDup2(int oldFd, int newFd)
+bool TryDup2(int /* oldFd */, int /* newFd */)
 {
-    UNUSED(oldFd);
-    UNUSED(newFd);
     YUNIMPLEMENTED();
 }
 
-void SafeDup2(int oldFd, int newFd)
+void SafeDup2(int /* oldFd */, int /* newFd */)
 {
-    UNUSED(oldFd);
-    UNUSED(newFd);
     YUNIMPLEMENTED();
 }
 
-bool TryExecve(const char *path, const char* argv[], const char* env[])
+bool TryExecve(const char /* *path */, const char* /* argv[] */, const char* /* env[] */)
 {
-    UNUSED(path);
-    UNUSED(argv);
-    UNUSED(env);
     YUNIMPLEMENTED();
 }
 
-TError StatusToError(int status)
+TError StatusToError(int /* status */)
 {
-    UNUSED(status);
     YUNIMPLEMENTED();
 }
 
-void RemoveDirAsRoot(const Stroka& path)
+void RemoveDirAsRoot(const Stroka& /* path */)
 {
-    UNUSED(path);
     YUNIMPLEMENTED();
 }
 
-void RunCleaner(const Stroka& path)
+void RunCleaner(const Stroka& /* path */)
 {
-    UNUSED(path);
     YUNIMPLEMENTED();
 }
 
@@ -321,19 +313,49 @@ void CloseAllDescriptors()
     YUNIMPLEMENTED();
 }
 
-void SafeClose(int fd, bool ignoreInvalidFd)
+void SetPermissions(int /* fd */, int /* permissions */)
 {
     YUNIMPLEMENTED();
 }
 
-void SetPermissions(int fd, int permissions)
+void SafePipe(int /* fd */ [2])
 {
-    UNUSED(fd);
-    UNUSED(permissions);
+    YUNIMPLEMENTED();
+}
+
+void SafeMakeNonblocking(int /* fd */)
+{
     YUNIMPLEMENTED();
 }
 
 #endif
+
+void CloseAllDescriptors(const std::vector<int>& exceptFor)
+{
+#ifdef _linux_
+    auto* dirStream = ::opendir("/proc/self/fd");
+    YCHECK(dirStream != NULL);
+
+    int dirFd = ::dirfd(dirStream);
+    YCHECK(dirFd >= 0);
+
+    dirent* ep;
+    while ((ep = ::readdir(dirStream)) != nullptr) {
+        char* begin = ep->d_name;
+        char* end = nullptr;
+        int fd = static_cast<int>(strtol(begin, &end, 10));
+        if (begin == end)
+            continue;
+        if (fd == dirFd)
+            continue;
+        if (std::find(exceptFor.begin(), exceptFor.end(), fd) != exceptFor.end())
+            continue;
+        YCHECK(::close(fd) == 0);
+    }
+
+    YCHECK(::closedir(dirStream) == 0);
+#endif
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

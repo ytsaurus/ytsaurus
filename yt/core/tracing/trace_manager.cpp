@@ -4,7 +4,7 @@
 #include "trace_service_proxy.h"
 #include "private.h"
 
-#include <core/concurrency/action_queue_detail.h>
+#include <core/concurrency/scheduler_thread.h>
 #include <core/concurrency/periodic_executor.h>
 
 #include <core/misc/address.h>
@@ -45,9 +45,8 @@ public:
         Config_ = New<TTraceManagerConfig>();
         Config_->Load(node, true, true, path);
 
-        Endpoint_ = GetLocalEndpoint();
-
         if (Config_->Address) {
+            Endpoint_ = GetLocalEndpoint();
             Channel_ = NRpc::GetBusChannelFactory()->CreateChannel(*Config_->Address);
 
             SendExecutor_ = New<TPeriodicExecutor>(
@@ -244,7 +243,7 @@ private:
         }
 
         EventQueue_.Enqueue(event);
-        EventCount_.Notify();
+        EventCount_.NotifyOne();
     }
 
 
@@ -288,6 +287,14 @@ TTraceManager::TTraceManager()
     : Impl_(new TImpl())
 { }
 
+TTraceManager::~TTraceManager()
+{ }
+
+TTraceManager* TTraceManager::Get()
+{
+    return Singleton<TTraceManager>();
+}
+
 void TTraceManager::Configure(NYTree::INodePtr node, const NYPath::TYPath& path)
 {
     Impl_->Configure(node, path);
@@ -296,11 +303,6 @@ void TTraceManager::Configure(NYTree::INodePtr node, const NYPath::TYPath& path)
 void TTraceManager::Configure(const Stroka& fileName, const NYPath::TYPath& path)
 {
     Impl_->Configure(fileName, path);
-}
-
-TTraceManager* TTraceManager::Get()
-{
-    return Singleton<TTraceManager>();
 }
 
 void TTraceManager::Shutdown()

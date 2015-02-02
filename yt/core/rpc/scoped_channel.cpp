@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "scoped_channel.h"
 #include "channel_detail.h"
+#include "channel_detail.h"
 #include "client.h"
 
 #include <core/actions/future.h>
@@ -21,7 +22,7 @@ public:
         : TChannelWrapper(std::move(underlyingChannel))
     { }
 
-    virtual void Send(
+    virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
@@ -31,13 +32,13 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
             if (Terminated_) {
                 guard.Release();
-                responseHandler->OnError(TerminationError_);
-                return;
+                responseHandler->HandleError(TerminationError_);
+                return nullptr;
             }
             ++OutstandingRequestCount_;
         }
         auto scopedHandler = New<TResponseHandler>(std::move(responseHandler), this);
-        UnderlyingChannel_->Send(
+        return UnderlyingChannel_->Send(
             std::move(request),
             std::move(scopedHandler),
             timeout,
@@ -82,20 +83,20 @@ private:
             , Owner_(std::move(channel))
         { }
 
-        virtual void OnAcknowledgement() override
+        virtual void HandleAcknowledgement() override
         {
-            UnderlyingHandler_->OnAcknowledgement();
+            UnderlyingHandler_->HandleAcknowledgement();
         }
 
-        virtual void OnResponse(TSharedRefArray message) override
+        virtual void HandleResponse(TSharedRefArray message) override
         {
-            UnderlyingHandler_->OnResponse(std::move(message));
+            UnderlyingHandler_->HandleResponse(std::move(message));
             Owner_->OnRequestCompleted();
         }
 
-        virtual void OnError(const TError& error) override
+        virtual void HandleError(const TError& error) override
         {
-            UnderlyingHandler_->OnError(error);
+            UnderlyingHandler_->HandleError(error);
             Owner_->OnRequestCompleted();
         }
 
@@ -109,7 +110,7 @@ private:
     bool Terminated_ = false;
     TError TerminationError_;
     int OutstandingRequestCount_ = 0;
-    TPromise<void> OutstandingRequestsCompleted_ = NewPromise();
+    TPromise<void> OutstandingRequestsCompleted_ = NewPromise<void>();
 
 };
 
