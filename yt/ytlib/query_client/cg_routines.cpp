@@ -28,6 +28,17 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void CaptureValue(TValue* value, TChunkedMemoryPool* pool)
+{
+    if (IsStringLikeType(EValueType(value->Type))) {
+        char* dst = pool->AllocateUnaligned(value->Length);
+        memcpy(dst, value->Data.String, value->Length);
+        value->Data.String = dst;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 static const size_t InitialGroupOpHashtableCapacity = 1024;
 
 #ifndef NDEBUG
@@ -157,7 +168,7 @@ void GroupOpHelper(
     ui64 (*groupHasher)(TRow),
     char (*groupComparer)(TRow, TRow),
     void** collectRowsClosure,
-    void (*collectRows)(void** closure, std::vector<TRow>* groupedRows, TLookupRows* rows),
+    void (*collectRows)(void** closure, std::vector<TRow>* groupedRows, TLookupRows* lookupRows),
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, std::vector<TRow>* groupedRows, char* stopFlag))
 {
@@ -183,20 +194,11 @@ const TRow* FindRow(TExecutionContext* executionContext, TLookupRows* rows, TRow
     return it != rows->end()? &*it : nullptr;
 }
 
-void AllocatePersistentRow(TExecutionContext* executionContext, int valueCount, TRow* row)
+void AllocatePermanentRow(TExecutionContext* executionContext, int valueCount, TRow* row)
 {
-    CHECK_STACK()
+    CHECK_STACK();
 
     *row = TRow::Allocate(executionContext->PermanentBuffer->GetAlignedPool(), valueCount);
-}
-
-void CaptureValue(TValue* value, TChunkedMemoryPool* pool)
-{
-    if (IsStringLikeType(EValueType(value->Type))) {
-        char* dst = pool->AllocateUnaligned(value->Length);
-        memcpy(dst, value->Data.String, value->Length);
-        value->Data.String = dst;
-    }
 }
 
 const TRow* InsertGroupRow(
@@ -206,7 +208,7 @@ const TRow* InsertGroupRow(
     TRow* rowPtr,
     int valueCount)
 {
-    CHECK_STACK()
+    CHECK_STACK();
 
     TRow row = *rowPtr;
     auto inserted = lookupRows->insert(row);
@@ -227,7 +229,7 @@ const TRow* InsertGroupRow(
 
 void AllocateRow(TExecutionContext* executionContext, int valueCount, TRow* row)
 {
-    CHECK_STACK()
+    CHECK_STACK();
 
     *row = TRow::Allocate(executionContext->IntermediateBuffer->GetAlignedPool(), valueCount);
 }
@@ -343,7 +345,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(StringHash);
     REGISTER_ROUTINE(FindRow);
     REGISTER_ROUTINE(InsertGroupRow);
-    REGISTER_ROUTINE(AllocatePersistentRow);
+    REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateRow);
     REGISTER_ROUTINE(GetRowsData);
     REGISTER_ROUTINE(GetRowsSize);
