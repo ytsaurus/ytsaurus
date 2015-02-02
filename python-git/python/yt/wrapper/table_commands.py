@@ -495,7 +495,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
         config.USE_RETRIES_DURING_WRITE and can_split_input,
         client=client)
 
-    if config.TREAT_UNEXISTING_AS_EMPTY and is_empty(table):
+    if config.TREAT_UNEXISTING_AS_EMPTY and is_empty(table, client=client):
         _remove_tables([table], client=client)
 
 def read_table(table, format=None, table_reader=None, response_type=None, raw=True, client=None):
@@ -665,7 +665,7 @@ def copy_table(source_table, destination_table, replace=True, client=None):
         copy(source_tables[0].name, destination_table.name, client=client)
     else:
         source_names = [table.name for table in source_tables]
-        mode = "sorted" if (all(map(is_sorted, source_names)) and not destination_table.append) \
+        mode = "sorted" if (all(map(lambda t: is_sorted(t, client=client), source_names)) and not destination_table.append) \
                else "ordered"
         run_merge(source_tables, destination_table, mode, client=client)
 
@@ -897,7 +897,7 @@ def run_merge(source_table, destination_table, mode=None,
 
     mode = get_value(mode, "auto")
     if mode == "auto":
-        mode = "sorted" if all(map(is_sorted, source_table)) else "unordered"
+        mode = "sorted" if all(map(lambda t: is_sorted(t, client=client), source_table)) else "unordered"
 
     spec = compose(
         _configure_spec,
