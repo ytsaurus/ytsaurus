@@ -48,6 +48,7 @@ public:
         TTimestamp timestamp)
         : PoolInvoker_(std::move(poolInvoker))
         , TabletSnapshot_(std::move(tabletSnapshot))
+        , TabletStatistics_(TabletSnapshot_->Statistics)
         , LowerBound_(std::move(lowerBound))
         , UpperBound_(std::move(upperBound))
         , Timestamp_(timestamp)
@@ -55,11 +56,12 @@ public:
     { }
 
 protected:
-    IInvokerPtr PoolInvoker_;
-    TTabletSnapshotPtr TabletSnapshot_;
-    TOwningKey LowerBound_;
-    TOwningKey UpperBound_;
-    TTimestamp Timestamp_;
+    const IInvokerPtr PoolInvoker_;
+    const TTabletSnapshotPtr TabletSnapshot_;
+    const TTabletStatisticsPtr TabletStatistics_;
+    const TOwningKey LowerBound_;
+    const TOwningKey UpperBound_;
+    const TTimestamp Timestamp_;
 
     TChunkedMemoryPool Pool_;
 
@@ -155,7 +157,9 @@ protected:
                 rows->push_back(mergedRow);
             }
         }
-        
+
+        TabletStatistics_->MergedRowReadCount += rows->size();
+
         return true;
     }
 
@@ -220,22 +224,27 @@ protected:
 
     bool RefillSession(TSession* session)
     {
-        bool hasMoreRows = session->Reader->Read(&session->Rows);
-        if (session->Rows.empty()) {
+        auto& rows = session->Rows;
+
+        bool hasMoreRows = session->Reader->Read(&rows);
+        if (rows.empty()) {
             return !hasMoreRows;
         }
 
+        int rowCount = rows.size();
+        TabletStatistics_->UnmergedRowReadCount += rowCount;
+
         #ifndef NDEBUG
-        for (int index = 0; index < static_cast<int>(session->Rows.size()) - 1; ++index) {
-            auto lhs = session->Rows[index];
-            auto rhs = session->Rows[index + 1];
+        for (int index = 0; index < rowCount - 1; ++index) {
+            auto lhs = rows[index];
+            auto rhs = rows[index + 1];
             YASSERT(TabletSnapshot_->RowKeyComparer(
                 lhs.BeginKeys(), lhs.EndKeys(),
                 rhs.BeginKeys(), rhs.EndKeys()) < 0);
         }
         #endif
 
-        session->CurrentRow = session->Rows.begin();
+        session->CurrentRow = rows.begin();
         *SessionHeapEnd_++ = session;
         AdjustHeapBack(SessionHeapBegin_, SessionHeapEnd_, GetSessionComparer());
         return true;
@@ -409,7 +418,7 @@ public:
             std::move(tabletSnapshot),
             std::move(lowerBound),
             std::move(upperBound),
-        AsyncAllCommittedTimestamp)
+            AsyncAllCommittedTimestamp)
         , Stores_(std::move(stores))
         , CurrentTimestamp_(currentTimestamp)
         , MajorTimestamp_(majorTimestamp)
@@ -449,9 +458,9 @@ public:
     }
 
 private:
-    std::vector<IStorePtr> Stores_;
-    TTimestamp CurrentTimestamp_;
-    TTimestamp MajorTimestamp_;
+    const std::vector<IStorePtr> Stores_;
+    const TTimestamp CurrentTimestamp_;
+    const TTimestamp MajorTimestamp_;
 
     TVersionedRowMerger RowMerger_;
 

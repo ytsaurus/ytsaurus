@@ -30,17 +30,18 @@ public:
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
 protected:
-    TStoreId StoreId_;
-    TTablet* Tablet_;
+    const TStoreId StoreId_;
+    TTablet* const Tablet_;
 
-    TTabletId TabletId_;
-    NVersionedTableClient::TTableSchema Schema_;
-    NVersionedTableClient::TKeyColumns KeyColumns_;
-    int KeyColumnCount_;
-    int SchemaColumnCount_;
-    int ColumnLockCount_;
-    std::vector<Stroka> LockIndexToName_;
-    std::vector<int> ColumnIndexToLockIndex_;
+    const TTabletStatisticsPtr Statistics_;
+    const TTabletId TabletId_;
+    const NVersionedTableClient::TTableSchema Schema_;
+    const NVersionedTableClient::TKeyColumns KeyColumns_;
+    const int KeyColumnCount_;
+    const int SchemaColumnCount_;
+    const int ColumnLockCount_;
+    const std::vector<Stroka> LockIndexToName_;
+    const std::vector<int> ColumnIndexToLockIndex_;
 
     EStoreState State_;
     TPartition* Partition_ = nullptr;
