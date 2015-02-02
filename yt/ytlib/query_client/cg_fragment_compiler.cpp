@@ -420,6 +420,9 @@ private:
     Function* CodegenGroupHasherFunction(
         const std::vector<EValueType>& types);
 
+    Function* CodegenRowComparerFunction(
+        const std::vector<EValueType>& types);
+
     TCGValue CodegenExpr(
         TCGIRBuilder& builder,
         const TConstExpressionPtr& expr,
@@ -1086,8 +1089,6 @@ Function* TCGContext::CodegenGroupComparerFunction(
 
         builder.SetInsertPoint(thenBB);
 
-        Value* thenResult;
-
         auto* lhsData = lhsValue.GetData();
         auto* rhsData = rhsValue.GetData();
 
@@ -1106,10 +1107,10 @@ Function* TCGContext::CodegenGroupComparerFunction(
                 Value* lhsLength = lhsValue.GetLength();
                 Value* rhsLength = rhsValue.GetLength();
 
-                thenResult = builder.CreateCall4(
+                Value* isEqual = builder.CreateCall4(
                             Module_->GetRoutine("Equal"),
                             lhsData, lhsLength, rhsData, rhsLength);
-                returnIf(builder.CreateICmpEQ(thenResult, builder.getInt8(0)));
+                returnIf(builder.CreateICmpEQ(isEqual, builder.getInt8(0)));
                 break;
             }
 
@@ -1234,6 +1235,126 @@ Function* TCGContext::CodegenGroupHasherFunction(
     return function;
 }
 
+Function* TCGContext::CodegenRowComparerFunction(
+    const std::vector<EValueType>& types)
+{
+    auto module = Module_->GetModule();
+
+    Function* function = Function::Create(
+        TypeBuilder<char(TRow, TRow), false>::get(module->getContext()),
+        Function::ExternalLinkage,
+        "RowComparer",
+        module);
+
+    auto args = function->arg_begin();
+    Value* lhsRow = args; lhsRow->setName("lhsRow");
+    Value* rhsRow = ++args; rhsRow->setName("rhsRow");
+    YCHECK(++args == function->arg_end());
+
+    TCGIRBuilder builder(BasicBlock::Create(module->getContext(), "entry", function));
+
+    auto returnIf = [&] (Value* condition, const TCodegenBlock& codegenInner) {
+        auto* thenBB = builder.CreateBBHere("then");
+        auto* elseBB = builder.CreateBBHere("else");
+        builder.CreateCondBr(condition, thenBB, elseBB);
+        builder.SetInsertPoint(thenBB);
+        builder.CreateRet(builder.CreateSelect(codegenInner(builder), builder.getInt8(1), builder.getInt8(0)));
+        builder.SetInsertPoint(elseBB);
+    };
+
+    auto codegenEqualOrLessOp = [&] (size_t index) {
+        auto lhsValue = TCGValue::CreateFromRow(
+            builder,
+            lhsRow,
+            index,
+            types[index]);
+
+        auto rhsValue = TCGValue::CreateFromRow(
+            builder,
+            rhsRow,
+            index,
+            types[index]);
+
+        auto* conditionBB = builder.CreateBBHere("condition");
+        auto* thenBB = builder.CreateBBHere("then");
+        auto* elseBB = builder.CreateBBHere("else");
+        auto* endBB = builder.CreateBBHere("end");
+        builder.CreateBr(conditionBB);
+
+        builder.SetInsertPoint(conditionBB);
+        builder.CreateCondBr(builder.CreateOr(lhsValue.IsNull(), rhsValue.IsNull()), elseBB, thenBB);
+        conditionBB = builder.GetInsertBlock();
+
+        builder.SetInsertPoint(thenBB);
+
+        Value* thenResult;
+
+        auto* lhsData = lhsValue.GetData();
+        auto* rhsData = rhsValue.GetData();
+
+        switch (types[index]) {
+            case EValueType::Boolean:
+            case EValueType::Int64:
+                returnIf(builder.CreateICmpNE(lhsData, rhsData), [&] (TCGIRBuilder&) {
+                    return builder.CreateICmpSLT(lhsData, rhsData);
+                });
+                break;
+
+            case EValueType::Uint64:
+                returnIf(builder.CreateICmpNE(lhsData, rhsData), [&] (TCGIRBuilder&) {
+                    return builder.CreateICmpULT(lhsData, rhsData);
+                });
+                break;
+
+            case EValueType::Double:
+                returnIf(builder.CreateFCmpUNE(lhsData, rhsData), [&] (TCGIRBuilder&) {
+                    return builder.CreateFCmpULT(lhsData, rhsData);
+                });
+                break;
+
+            case EValueType::String: {
+                Value* lhsLength = lhsValue.GetLength();
+                Value* rhsLength = rhsValue.GetLength();
+
+                Value* isEqual = builder.CreateCall4(
+                            Module_->GetRoutine("Equal"),
+                            lhsData, lhsLength, rhsData, rhsLength);
+                returnIf(builder.CreateICmpEQ(isEqual, builder.getInt8(0)), [&] (TCGIRBuilder&) {
+                    return builder.CreateICmpEQ(
+                        builder.CreateCall4(
+                            Module_->GetRoutine("LexicographicalCompare"),
+                            lhsData, lhsLength, rhsData, rhsLength),
+                        builder.getInt8(1));
+                });
+                break;
+            }
+
+            default:
+                YUNREACHABLE();
+        }
+
+        builder.CreateBr(endBB);
+
+        builder.SetInsertPoint(elseBB);
+        returnIf(builder.CreateICmpNE(lhsValue.GetType(), rhsValue.GetType()), [&] (TCGIRBuilder&) {
+            return builder.CreateICmpULT(lhsValue.GetType(), rhsValue.GetType());
+        });
+        builder.CreateBr(endBB);
+
+        builder.SetInsertPoint(endBB);
+    };
+
+    YCHECK(types.size() >= 1);
+
+    for (size_t index = 0; index < types.size(); ++index) {
+        codegenEqualOrLessOp(index);
+    }
+
+    builder.CreateRet(builder.getInt8(0));
+
+    return function;
+}
+
 TCGValue TCGContext::DoCodegenInOpExpr(
     TCGIRBuilder& builder,
     const std::vector<TCodegenValueBlock>& codegenArgs,
@@ -1252,14 +1373,18 @@ TCGValue TCGContext::DoCodegenInOpExpr(
 
     Value* newRowRef = builder.CreateLoad(newRowPtr);
 
+    std::vector<EValueType> keyTypes;
     for (int index = 0; index < keySize; ++index) {
         auto id = index;
-        codegenArgs[index](builder).StoreToRow(newRowRef, index, id);
+        auto value = codegenArgs[index](builder);
+        keyTypes.push_back(value.GetStaticType());        
+        value.StoreToRow(newRowRef, index, id);
     }
 
-    Value* result = builder.CreateCall3(
+    Value* result = builder.CreateCall4(
         Module_->GetRoutine("IsRowInArray"),
         executionContextPtrRef,
+        CodegenRowComparerFunction(keyTypes),
         newRowRef,
         builder.getInt32(arrayIndex));
 
