@@ -154,10 +154,60 @@ Stroka InferName(const TExpression* expr);
 typedef std::pair<TExpressionPtr, Stroka> TNamedExpression;
 typedef std::vector<TNamedExpression> TNamedExpressionList;
 typedef TNullable<TNamedExpressionList> TNullableNamedExprs;
+typedef std::vector<Stroka> TIdentifierList;
+
+struct TSource
+    : public TIntrinsicRefCounted
+{
+    template <class TDerived>
+    const TDerived* As() const
+    {
+        return dynamic_cast<const TDerived*>(this);
+    }
+
+    template <class TDerived>
+    TDerived* As()
+    {
+        return dynamic_cast<TDerived*>(this);
+    }
+
+};
+
+DECLARE_REFCOUNTED_STRUCT(TSource)
+DEFINE_REFCOUNTED_TYPE(TSource)
+
+struct TSimpleSource
+    : public TSource
+{
+    explicit TSimpleSource(const Stroka& path)
+        : Path(path)
+    { }
+
+    Stroka Path;
+
+};
+
+struct TJoinSource
+    : public TSource
+{
+    TJoinSource(
+        const Stroka& leftPath,
+        const Stroka& rightPath,
+        const TIdentifierList& fields)
+        : LeftPath(leftPath)
+        , RightPath(rightPath)
+        , Fields(fields)
+    { }
+
+    Stroka LeftPath;
+    Stroka RightPath;
+    TIdentifierList Fields;
+
+};
 
 struct TQuery
 {
-    Stroka FromPath;
+    TSourcePtr Source;
     TNullableNamedExprs SelectExprs;
     TExpressionPtr WherePredicate;
     TNullableNamedExprs GroupExprs;
