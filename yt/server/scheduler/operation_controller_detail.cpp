@@ -1017,6 +1017,8 @@ void TOperationControllerBase::Initialize()
         OutputTables.push_back(table);
     }
 
+    TotalOutputsDataStatistics.resize(OutputTables.size(), NChunkClient::NProto::ZeroDataStatistics());
+
     if (InputTables.size() > Config->MaxInputTableCount) {
         THROW_ERROR_EXCEPTION(
             "Too many input tables: maximum allowed %v, actual %v",
@@ -3178,7 +3180,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
         }
     };
 
-    // TODO(ignat): we slice on two parts even id TotalEstimatedInputDataSize very small.
+    // TODO(ignat): we slice on two parts even if TotalEstimatedInputDataSize very small.
     i64 sliceDataSize = std::min(maxSliceDataSize, (i64)std::max(Config->SliceDataSizeMultiplier * TotalEstimatedInputDataSize / jobCount, 1.0));
 
     for (const auto& chunkSpec : CollectInputChunks()) {
@@ -3374,11 +3376,9 @@ void TOperationControllerBase::RegisterOutput(
     // Update output statistics.
     const auto& jobResult = joblet->Job->Result();
     const auto& statistics = jobResult.statistics();
+
+    YCHECK(statistics.output_size() == TotalOutputsDataStatistics.size());
     for (auto i = 0; i < statistics.output_size(); ++i) {
-        if (i >= TotalOutputsDataStatistics.size()) {
-            YCHECK(i == TotalOutputsDataStatistics.size());
-            TotalOutputsDataStatistics.push_back(NChunkClient::NProto::ZeroDataStatistics());
-        }
         TotalOutputsDataStatistics[i] += statistics.output(i);
     }
 
