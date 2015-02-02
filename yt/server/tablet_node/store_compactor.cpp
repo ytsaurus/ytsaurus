@@ -524,7 +524,6 @@ private:
             LOG_ERROR(ex, "Error partitioning Eden, backing off");
             backOff();
         } catch (...) {
-            backOff();
             reset();
             throw;
         }
@@ -688,7 +687,6 @@ private:
             LOG_ERROR(ex, "Error compacting partition, backing off");
             backOff();
         } catch (...) {
-            backOff();
             reset();
             throw;
         }
