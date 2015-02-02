@@ -125,7 +125,8 @@ private:
         auto* tablet = eden->GetTablet();
         auto config = tablet->GetConfig();
         if (dataSize <= config->MaxEdenDataSize &&
-            static_cast<int>(stores.size()) <= config->MaxEdenChunkCount)
+            stores.size() <= config->MaxEdenChunkCount &&
+            TInstant::Now() < tablet->GetLastPartitioningTime() + config->AutoPartitioningPeriod)
             return;
 
         auto guard = TAsyncSemaphoreGuard::TryAcquire(&PartitioningSemaphore_);
@@ -133,7 +134,7 @@ private:
             return;
 
         // Limit the number of chunks to process at once.
-        if (static_cast<int>(stores.size()) > config->MaxPartitioningFanIn) {
+        if (stores.size() > config->MaxPartitioningFanIn) {
             stores.erase(
                 stores.begin() + config->MaxPartitioningFanIn,
                 stores.end());
@@ -462,7 +463,7 @@ private:
             int currentRowIndex = 0;
 
             auto peekInputRow = [&] () -> TVersionedRow {
-                if (currentRowIndex == static_cast<int>(readRows.size())) {
+                if (currentRowIndex == readRows.size()) {
                     // readRows will be invalidated, must flush writeRows.
                     flushOutputRows();
                     currentRowIndex = 0;
@@ -515,6 +516,8 @@ private:
             YCHECK(readRowCount == writeRowCount);
             LOG_INFO("Eden partitioning completed (RowCount: %v)",
                 readRowCount);
+
+            tablet->SetLastPartitioningTime(TInstant::Now());
 
             CreateMutation(slot->GetHydraManager(), hydraRequest)
                 ->Commit();
