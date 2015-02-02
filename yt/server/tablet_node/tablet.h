@@ -161,8 +161,8 @@ public:
     TDynamicRowKeyComparer GetRowKeyComparer() const;
 
 private:
-    const TTableMountConfigPtr Config_;
-    const TTabletWriterOptionsPtr WriterOptions_;
+    TTableMountConfigPtr Config_;
+    TTabletWriterOptionsPtr WriterOptions_;
 
     TStoreManagerPtr StoreManager_;
 
