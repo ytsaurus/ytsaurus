@@ -18,7 +18,7 @@ using namespace NFormats;
 using namespace NVersionedTableClient;
 using namespace NConcurrency;
 
-static auto Logger = JobProxyLogger;
+static const auto& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
