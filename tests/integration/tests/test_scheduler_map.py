@@ -25,6 +25,14 @@ def can_perform_block_io_tests():
 block_io_mark = pytest.mark.skipif("not can_perform_block_io_tests()")
 
 
+def get_statistics(statistics, complex_key):
+    result = statistics
+    for part in complex_key.split("."):
+        if part:
+            result = result[part]
+    return result
+
+
 class TestWoodpecker(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -160,11 +168,11 @@ class TestEventLog(YTEnvSetup):
         op_id = map(in_="//tmp/t1", out="//tmp/t2", command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null')
 
         statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-        assert statistics["completed_jobs"]["user_job"]["builtin"]["cpu"]["user"]["sum"] > 0
-        assert statistics["completed_jobs"]["user_job"]["builtin"]["block_io"]["bytes_read"]["sum"] is not None
-        assert statistics["completed_jobs"]["user_job"]["builtin"]["memory"]["rss"]["count"] > 0
-        assert statistics["completed_jobs"]["job_proxy"]["cpu"]["user"]["count"] == 1
-        assert statistics["completed_jobs"]["job_proxy"]["cpu"]["user"]["count"] == 1
+        assert get_statistics(statistics, "completed_jobs.user_job.cpu.user.sum") > 0
+        assert get_statistics(statistics, "completed_jobs.user_job.block_io.bytes_read.sum") is not None
+        assert get_statistics(statistics, "completed_jobs.user_job.memory.rss.count") > 0
+        assert get_statistics(statistics, "completed_jobs.job_proxy.cpu.user.count") == 1
+        assert get_statistics(statistics, "completed_jobs.job_proxy.cpu.user.count") == 1
         assert "failed_jobs" in statistics
         assert "aborted_jobs" in statistics
 
@@ -176,7 +184,7 @@ class TestEventLog(YTEnvSetup):
             event_types.add(item["event_type"])
             if item["event_type"] == "job_completed":
                 stats = item["statistics"]
-                user_time = stats["user_job"]["builtin"]["cpu"]["user"]["max"]
+                user_time = get_statistics(stats, "user_job.cpu.user.max")
                 # our job should burn enough cpu
                 assert user_time > 0
         assert "operation_started" in event_types
@@ -219,8 +227,8 @@ class TestBlockIO(YTEnvSetup):
             if item["event_type"] == "job_completed" and item["operation_id"] == op_id:
                 job_completed_line_exist = True
                 stats = item["statistics"]
-                bytes_read = stats["user_job"]["builtin"]["block_io"]["bytes_read"]["max"]
-                io_read = stats["user_job"]["builtin"]["block_io"]["io_read"]["max"]
+                bytes_read = get_statistics(stats, "user_job.block_io.bytes_read.max")
+                io_read = get_statistics(stats, "user_job.block_io.io_read.max")
         assert job_completed_line_exist
         assert bytes_read == 160*1024*50
         assert io_read == 50
@@ -251,8 +259,8 @@ class TestUserStatistics(YTEnvSetup):
                 r'os.close(5);"'))
 
         statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-        assert statistics["completed_jobs"]["user_job"]["custom"]["cpu"]["k1"]["max"] == 4
-        assert statistics["completed_jobs"]["user_job"]["custom"]["k2"]["count"] == 2
+        assert get_statistics(statistics, "completed_jobs.custom.cpu.k1.max") == 4
+        assert get_statistics(statistics, "completed_jobs.custom.k2.count") == 2
 
     def test_multiple_job_statistics(self):
         create("table", "//tmp/t1")
@@ -261,7 +269,7 @@ class TestUserStatistics(YTEnvSetup):
 
         op_id = map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"job_count": 2})
         statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-        assert statistics["completed_jobs"]["user_job"]["builtin"]["cpu"]["user"]["count"] == 2
+        assert get_statistics(statistics, "completed_jobs.user_job.cpu.user.count") == 2
 
     def test_job_statistics_progress(self):
         create("table", "//tmp/t1")
@@ -305,13 +313,13 @@ class TestUserStatistics(YTEnvSetup):
                 if tries > 10:
                     break
 
-            assert statistics["completed_jobs"]["user_job"]["builtin"]["cpu"]["user"]["count"] == 1
+            assert get_statistics(statistics, "completed_jobs.user_job.cpu.user.count") == 1
 
             os.unlink(keeper_filename)
             track_op(op_id)
 
             statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-            assert statistics["completed_jobs"]["user_job"]["builtin"]["cpu"]["user"]["count"] == 2
+            assert get_statistics(statistics, "completed_jobs.user_job.cpu.user.count") == 2
         finally:
             to_delete.reverse()
             for filename in to_delete:
