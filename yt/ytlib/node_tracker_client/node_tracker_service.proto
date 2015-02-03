@@ -75,10 +75,23 @@ message TTabletStatistics
     required int32 store_count = 2;
 }
 
+message TTabletPerformanceCounters
+{
+    required int64 dynamic_memory_row_read_count = 1;
+    required int64 dynamic_memory_row_lookup_count = 2;
+    required int64 dynamic_memory_row_write_count = 3;
+    required int64 dynamic_memory_row_delete_count = 4;
+    required int64 static_chunk_row_read_count = 5;
+    required int64 static_chunk_row_lookup_count = 6;
+    required int64 unmerged_row_read_count = 7;
+    required int64 merged_row_read_count = 8;
+}
+
 message TTabletInfo
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required TTabletStatistics statistics = 2;
+    required TTabletPerformanceCounters performance_counters = 3;
 }
 
 message TReqIncrementalHeartbeat
