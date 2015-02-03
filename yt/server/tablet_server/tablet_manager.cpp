@@ -995,13 +995,27 @@ private:
             }
         }
 
-        // Copy tablet statistics.
+        // Copy tablet statistics, update performance counters.
+        auto now = TInstant::Now();
         for (auto& tabletInfo : request.tablets()) {
             auto tabletId = FromProto<TTabletId>(tabletInfo.tablet_id());
             auto* tablet = FindTablet(tabletId);
             if (!tablet || tablet->GetState() != ETabletState::Mounted)
                 continue;
+
             tablet->NodeStatistics() = tabletInfo.statistics();
+
+            auto timeDelta = std::max(1.0, (now - tablet->PerformanceCounters().Timestamp).SecondsFloat());
+            #define XX(name, Name) \
+                { \
+                    auto prevValue = tablet->PerformanceCounters().Name.Count; \
+                    auto curValue = tabletInfo.performance_counters().name ## _count(); \
+                    tablet->PerformanceCounters().Name.Rate = std::max(0LL, curValue - prevValue) / timeDelta; \
+                    tablet->PerformanceCounters().Name.Count = curValue; \
+                }
+            ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
+            #undef XX
+            tablet->PerformanceCounters().Timestamp = now;
         }
 
         // Request to remove orphaned Hive cells.
@@ -1479,6 +1493,8 @@ private:
         int firstTabletIndex,
         int lastTabletIndex)
     {
+        auto hiveManager = Bootstrap_->GetHiveManager();
+
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
             auto* cell = tablet->GetCell();
@@ -1492,8 +1508,7 @@ private:
 
                 tablet->SetState(ETabletState::Unmounting);
                 tablet->NodeStatistics().Clear();
-
-                auto hiveManager = Bootstrap_->GetHiveManager();
+                tablet->PerformanceCounters() = TTabletPerformanceCounters();
 
                 {
                     TReqUnmountTablet request;
