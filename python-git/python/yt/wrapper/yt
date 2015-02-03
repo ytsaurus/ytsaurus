@@ -395,7 +395,7 @@ def add_reshard_table_parser(add_parser):
     parser.add_argument("pivot_keys", action=ParseStructuredArgument, nargs="+")
 
 def select(**args):
-    write_content_silently(yt.select(**args))
+    write_silently(chunk_iter_stream(yt.select(**args), 16 * MB))
 
 def add_select_parser(add_parser):
     parser = add_parser("select", yt.select, epilog="Supported features: https://wiki.yandex-team.ru/yt/userdoc/queries")
