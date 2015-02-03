@@ -92,12 +92,12 @@ public:
         YASSERT(ReplyBus_);
         YASSERT(Service_);
 
-        Register();
+        Initialize();
     }
 
     ~TServiceContext()
     {
-        if (!IsOneWay() && !Replied_ && !Canceled_) {
+        if (!RuntimeInfo_->Descriptor.OneWay && !Replied_ && !Canceled_) {
             if (Started_) {
                 Reply(TError(NYT::EErrorCode::Canceled, "Request abandoned"));
             } else {
@@ -105,7 +105,7 @@ public:
             }
         }
 
-        Unregister();
+        Finalize();
     }
 
     const TRuntimeMethodInfoPtr& GetRuntimeInfo() const
@@ -158,7 +158,6 @@ private:
     const TRuntimeMethodInfoPtr RuntimeInfo_;
     const NTracing::TTraceContext TraceContext_;
 
-    bool Registered_ = false;
     TDelayedExecutorCookie TimeoutCookie_;
 
     TSpinLock SpinLock_;
@@ -166,27 +165,42 @@ private:
     bool RunningSync_ = false;
     bool Completed_ = false;
     bool Canceled_ = false;
+    bool Finalized_ = false;
     TClosure Canceler_;
     NProfiling::TCpuInstant ArrivalTime_;
     NProfiling::TCpuInstant SyncStartTime_ = -1;
     NProfiling::TCpuInstant SyncStopTime_ = -1;
 
 
-    void Register()
+    void Initialize()
     {
+        if (RuntimeInfo_->Descriptor.OneWay)
+            return;
+
         if (RuntimeInfo_->Descriptor.Cancelable) {
             Service_->RegisterCancelableRequest(this);
-            YASSERT(!Registered_);
-            Registered_ = true;
         }
+
+        Profiler.Increment(RuntimeInfo_->QueueSizeCounter, +1);
     }
 
-    void Unregister()
+    void Finalize()
     {
-        if (Registered_) {
+        if (RuntimeInfo_->Descriptor.OneWay || Finalized_)
+            return;
+
+        if (RuntimeInfo_->Descriptor.Cancelable) {
             Service_->UnregisterCancelableRequest(this);
-            Registered_ = false;
         }
+
+        // NB: This counter is also used to track queue size limit so
+        // it must be maintained even if the profiler is OFF.
+        Profiler.Increment(RuntimeInfo_->QueueSizeCounter, -1);
+
+        TServiceBase::ReleaseRequestSemaphore(RuntimeInfo_);
+        TServiceBase::ScheduleRequests(RuntimeInfo_);
+
+        Finalized_ = true;
     }
 
 
@@ -326,13 +340,9 @@ private:
 
             ReplyBus_->Send(std::move(responseMessage), EDeliveryTrackingLevel::None);
 
-            // NB: This counter is also used to track queue size limit so
-            // it must be maintained even if the profiler is OFF.
-            Profiler.Increment(RuntimeInfo_->QueueSizeCounter, -1);
-
-            auto now = GetCpuInstant();
-
             if (Profiler.GetEnabled()) {
+                auto now = GetCpuInstant();
+
                 if (RunningSync_) {
                     SyncStopTime_ = now;
                     auto value = CpuDurationToValue(SyncStopTime_ - SyncStartTime_);
@@ -351,9 +361,7 @@ private:
             }
         }
 
-        Unregister();
-        TServiceBase::ReleaseRequestSemaphore(RuntimeInfo_);
-        TServiceBase::ScheduleRequests(RuntimeInfo_);
+        Finalize();
     }
 
 
@@ -476,8 +484,6 @@ void TServiceBase::HandleRequest(
     TSharedRefArray message,
     IBusPtr replyBus)
 {
-    Profiler.Increment(RequestCounter_);
-
     const auto& method = header->method();
     bool oneWay = header->one_way();
     auto requestId = FromProto<TRequestId>(header->request_id());
@@ -540,6 +546,7 @@ void TServiceBase::HandleRequest(
         return;
     }
 
+    Profiler.Increment(RequestCounter_);
     Profiler.Increment(runtimeInfo->RequestCounter, +1);
 
     if (header->has_request_start_time() && header->has_retry_start_time()) {
@@ -592,8 +599,6 @@ void TServiceBase::HandleRequest(
         RunRequest(std::move(context));
         return;
     }
-
-    Profiler.Increment(runtimeInfo->QueueSizeCounter, +1);
 
     if (keptResponseMessage) {
         context->ReplyFrom(std::move(keptResponseMessage));
