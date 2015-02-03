@@ -510,13 +510,16 @@ private:
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error partitioning Eden, backing off");
-            automatonInvoker->Invoke(BIND([=] () {
-                for (auto store : stores) {
-                    YCHECK(store->GetState() == EStoreState::Compacting);
-                    tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
-                }
-            }));
+
+            SwitchTo(automatonInvoker);
+
+            for (auto store : stores) {
+                YCHECK(store->GetState() == EStoreState::Compacting);
+                tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
+            }
         }
+
+        SwitchTo(automatonInvoker);
 
         YCHECK(eden->GetState() == EPartitionState::Compacting);
         eden->SetState(EPartitionState::Normal);
@@ -662,13 +665,16 @@ private:
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error compacting partition, backing off");
-            automatonInvoker->Invoke(BIND([=] () {
-                for (auto store : stores) {
-                    YCHECK(store->GetState() == EStoreState::Compacting);
-                    tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
-                }
-            }));
+
+            SwitchTo(automatonInvoker);
+
+            for (auto store : stores) {
+                YCHECK(store->GetState() == EStoreState::Compacting);
+                tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
+            }
         }
+
+        SwitchTo(automatonInvoker);
 
         YCHECK(partition->GetState() == EPartitionState::Compacting);
         partition->SetState(EPartitionState::Normal);
