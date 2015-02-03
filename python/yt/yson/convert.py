@@ -38,6 +38,8 @@ def json_to_yson(json_tree):
         result = YsonBoolean(value)
     elif isinstance(value, int):
         result = YsonInt64(value)
+    elif isinstance(value, long):
+        result = YsonUint64(value)
     elif isinstance(value, float):
         result = YsonDouble(value)
     elif isinstance(value, list):
