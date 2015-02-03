@@ -45,7 +45,7 @@ struct TTabletSnapshot
 
     TDynamicRowKeyComparer RowKeyComparer;
 
-    TTabletStatisticsPtr Statistics;
+    TTabletPerformanceCountersPtr PerformanceCounters;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
@@ -61,18 +61,20 @@ DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTabletStatistics
+struct TTabletPerformanceCounters
     : public TIntrinsicRefCounted
 {
     std::atomic<i64> DynamicMemoryRowReadCount = {0};
     std::atomic<i64> DynamicMemoryRowLookupCount = {0};
     std::atomic<i64> DynamicMemoryRowWriteCount = {0};
     std::atomic<i64> DynamicMemoryRowDeleteCount = {0};
+    std::atomic<i64> StaticChunkRowReadCount = {0};
+    std::atomic<i64> StaticChunkRowLookupCount = {0};
     std::atomic<i64> UnmergedRowReadCount = {0};
     std::atomic<i64> MergedRowReadCount = {0};
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletStatistics)
+DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,7 +128,7 @@ public:
     const TStoreManagerPtr& GetStoreManager() const;
     void SetStoreManager(TStoreManagerPtr storeManager);
 
-    const TTabletStatisticsPtr& GetStatistics() const;
+    const TTabletPerformanceCountersPtr& GetPerformanceCounters() const;
 
     typedef std::vector<std::unique_ptr<TPartition>> TPartitionList;
     const TPartitionList& Partitions() const;
@@ -175,7 +177,7 @@ private:
 
     TStoreManagerPtr StoreManager_;
 
-    TTabletStatisticsPtr Statistics_;
+    TTabletPerformanceCountersPtr PerformanceCounters_;
 
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
 

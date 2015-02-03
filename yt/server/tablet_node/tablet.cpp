@@ -149,9 +149,9 @@ void TTablet::SetStoreManager(TStoreManagerPtr storeManager)
     StoreManager_ = storeManager;
 }
 
-const TTabletStatisticsPtr& TTablet::GetStatistics() const
+const TTabletPerformanceCountersPtr& TTablet::GetPerformanceCounters() const
 {
-    return Statistics_;
+    return PerformanceCounters_;
 }
 
 void TTablet::Save(TSaveContext& context) const
@@ -530,13 +530,13 @@ TTabletSnapshotPtr TTablet::BuildSnapshot() const
         tabletSnapshot->StoreCount += partitionSnapshot->Stores.size();
     }
     tabletSnapshot->RowKeyComparer = GetRowKeyComparer();
-    tabletSnapshot->Statistics = Statistics_;
+    tabletSnapshot->PerformanceCounters = PerformanceCounters_;
     return tabletSnapshot;
 }
 
 void TTablet::Initialize()
 {
-    Statistics_ = New<TTabletStatistics>();
+    PerformanceCounters_ = New<TTabletPerformanceCounters>();
 
     Comparer_ = TDynamicRowKeyComparer(
         GetKeyColumnCount(),
