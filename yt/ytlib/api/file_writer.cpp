@@ -210,15 +210,12 @@ private:
         Writer_ = CreateFileMultiChunkWriter(
             Config_,
             writerOptions,
-            provider,
             masterChannel,
             UploadTransaction_->GetId(),
             chunkListId);
 
-        {
-            auto result = WaitFor(Writer_->Open());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        WaitFor(Writer_->Open())
+            .ThrowOnError();
     }
 
     void DoWrite(const TRef& data)

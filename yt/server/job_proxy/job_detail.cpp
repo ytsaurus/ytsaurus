@@ -115,7 +115,7 @@ TJobStatistics TSimpleJobBase::GetStatistics() const
     TJobStatistics result;
     result.set_time(GetElapsedTime().MilliSeconds());
     ToProto(result.mutable_input(), Reader_->GetDataStatistics());
-    ToProto(result.mutable_output(), Writer_->GetDataStatistics());
+    ToProto(result.add_output(), Writer_->GetDataStatistics());
     return result;
 }
 

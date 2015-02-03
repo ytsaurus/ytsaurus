@@ -631,7 +631,7 @@ private:
         auto reader = CreateFileMultiChunkReader(
             New<TFileReaderConfig>(),
             New<TMultiChunkReaderOptions>(),
-            Bootstrap->GetMasterClient()->GetMasterChannel(),
+            Bootstrap->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader),
             Bootstrap->GetBlockStore()->GetCompressedBlockCache(),
             Bootstrap->GetUncompressedBlockCache(),
             NodeDirectory,
@@ -685,7 +685,7 @@ private:
         auto reader = CreateSchemalessSequentialMultiChunkReader(
             config,
             options,
-            Bootstrap->GetMasterClient()->GetMasterChannel(),
+            Bootstrap->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader),
             Bootstrap->GetBlockStore()->GetCompressedBlockCache(),
             Bootstrap->GetUncompressedBlockCache(),
             NodeDirectory,
