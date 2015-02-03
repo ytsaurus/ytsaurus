@@ -54,8 +54,6 @@ public:
         : Readers_(readers)
         , PartInfos_(partInfos)
         , BlockIndexes_(blockIndexes)
-        , Result_(BlockIndexes_.size())
-        , ResultPromise_(NewPromise<std::vector<TSharedRef>>())
     { }
 
 
@@ -66,7 +64,7 @@ public:
             std::pair<
                 std::vector<int>, // indices of blocks in the part
                 TPartIndexList    // indices of blocks in the requested blockIndexes
-            > > BlockLocations_(Readers_.size());
+            > > blockLocations(Readers_.size());
 
         // Fill BlockLocations_ using information about blocks in parts
         int initialPosition = 0;
@@ -87,48 +85,31 @@ public:
             int blockInPartIndex = blockIndex - it->first_block_index();
 
             YCHECK(blockInPartIndex < it->block_sizes().size());
-            BlockLocations_[readerIndex].first.push_back(blockInPartIndex);
-            BlockLocations_[readerIndex].second.push_back(initialPosition++);
+            blockLocations[readerIndex].first.push_back(blockInPartIndex);
+            blockLocations[readerIndex].second.push_back(initialPosition++);
         }
 
+        std::vector<TFuture<std::vector<TSharedRef>>> readBlocksFutures;
         auto this_ = MakeStrong(this);
         auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetReaderInvoker());
         for (int readerIndex = 0; readerIndex < Readers_.size(); ++readerIndex) {
             auto reader = Readers_[readerIndex];
-            awaiter->Await(
-                reader->ReadBlocks(BlockLocations_[readerIndex].first),
-                BIND(
-                    &TNonReparingReaderSession::OnBlocksRead,
-                    this_,
-                    BlockLocations_[readerIndex].second));
+            readBlocksFutures.push_back(reader->ReadBlocks(blockLocations[readerIndex].first));
         }
 
-        awaiter->Complete(BIND(&TThis::OnComplete, this_));
-
-        return ResultPromise_;
-    }
-
-    void OnBlocksRead(const TPartIndexList& indicesInPart, const TErrorOr<std::vector<TSharedRef>>& readResult)
-    {
-        if (readResult.IsOK()) {
-            auto dataRefs = readResult.Value();
-            for (int i = 0; i < dataRefs.size(); ++i) {
-                Result_[indicesInPart[i]] = dataRefs[i];
-            }
-        } else {
-            TGuard<TSpinLock> guard(AddReadErrorLock_);
-            ReadErrors_.push_back(readResult);
-        }
-    }
-
-    void OnComplete()
-    {
-        if (ReadErrors_.empty()) {
-            ResultPromise_.Set(Result_);
-        } else {
-            ResultPromise_.Set(TError("Error reading erasure chunk")
-                << ReadErrors_);
-        }
+        return Combine(readBlocksFutures).Apply(
+            BIND([this, this_, blockLocations] (std::vector<std::vector<TSharedRef>> readBlocks) //Error) 
+                    -> std::vector<TSharedRef>
+                {
+                    std::vector<TSharedRef> resultBlocks(BlockIndexes_.size());
+                    for (int readerIndex = 0; readerIndex < readBlocks.size(); ++readerIndex) {
+                        for (int index = 0; index < readBlocks[readerIndex].size(); ++index) {
+                            resultBlocks[blockLocations[readerIndex].second[index]] = readBlocks[readerIndex][index];
+                        }
+                    }
+                    return resultBlocks;
+                })
+            );
     }
 
 private:
@@ -146,9 +127,6 @@ private:
     std::vector<TPartInfo> PartInfos_;
 
     std::vector<int> BlockIndexes_;
-
-    std::vector<TSharedRef> Result_;
-    TPromise<std::vector<TSharedRef>> ResultPromise_;
 
     TSpinLock AddReadErrorLock_;
     std::vector<TError> ReadErrors_;
