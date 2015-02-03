@@ -80,8 +80,10 @@ public:
 
 private:
     class TLocalChunkReaderWrapper;
+    class TVersionedReaderWrapper;
+    class TVersionedLookuperWrapper;
 
-    NCellNode::TBootstrap* Bootstrap_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
     // Cached for fast retrieval from ChunkMeta_.
     TOwningKey MinKey_;

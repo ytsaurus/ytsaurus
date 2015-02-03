@@ -115,8 +115,8 @@ public:
     }
 
 private:
-    IChunkReaderPtr UnderlyingReader_;
-    TChunkStorePtr Owner_;
+    const IChunkReaderPtr UnderlyingReader_;
+    const TChunkStorePtr Owner_;
 
 
     template <class T>
@@ -128,6 +128,69 @@ private:
         }
         return result.Value();
     }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkStore::TVersionedReaderWrapper
+    : public IVersionedReader
+{
+public:
+    TVersionedReaderWrapper(
+        IVersionedReaderPtr underlyingReader,
+        TTabletPerformanceCountersPtr performanceCounters)
+        : UnderlyingReader_(std::move(underlyingReader))
+        , PerformanceCounters_(std::move(performanceCounters))
+    { }
+
+    virtual TFuture<void> Open() override
+    {
+        return UnderlyingReader_->Open();
+    }
+
+    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    {
+        auto result = UnderlyingReader_->Read(rows);
+        if (result) {
+            PerformanceCounters_->StaticChunkRowReadCount += rows->size();
+        }
+        return result;
+    }
+
+    virtual TFuture <void> GetReadyEvent() override
+    {
+        return UnderlyingReader_->GetReadyEvent();
+    }
+
+private:
+    const IVersionedReaderPtr UnderlyingReader_;
+    const TTabletPerformanceCountersPtr PerformanceCounters_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkStore::TVersionedLookuperWrapper
+    : public IVersionedLookuper
+{
+public:
+    TVersionedLookuperWrapper(
+        IVersionedLookuperPtr underlyingReader,
+        TTabletPerformanceCountersPtr performanceCounters)
+        : UnderlyingLookuper_(std::move(underlyingReader))
+        , PerformanceCounters_(std::move(performanceCounters))
+    { }
+
+    virtual TFutureHolder<TVersionedRow> Lookup(TKey key) override
+    {
+        ++PerformanceCounters_->StaticChunkRowLookupCount;
+        return UnderlyingLookuper_->Lookup(key);
+    }
+
+private:
+    const IVersionedLookuperPtr UnderlyingLookuper_;
+    const TTabletPerformanceCountersPtr PerformanceCounters_;
 
 };
 
@@ -241,7 +304,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     TReadLimit upperLimit;
     upperLimit.SetKey(std::move(upperKey));
 
-    return CreateVersionedChunkReader(
+    auto versionedReader = CreateVersionedChunkReader(
         Bootstrap_->GetConfig()->TabletNode->ChunkReader,
         std::move(chunkReader),
         Bootstrap_->GetUncompressedBlockCache(),
@@ -250,6 +313,8 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         upperLimit,
         columnFilter,
         timestamp);
+
+    return New<TVersionedReaderWrapper>(std::move(versionedReader), PerformanceCounters_);
 }
 
 IVersionedLookuperPtr TChunkStore::CreateLookuper(
@@ -267,13 +332,15 @@ IVersionedLookuperPtr TChunkStore::CreateLookuper(
     auto chunkReader = PrepareChunkReader(chunk);
     auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
 
-    return CreateVersionedChunkLookuper(
+    auto versionedLookuper = CreateVersionedChunkLookuper(
         Bootstrap_->GetConfig()->TabletNode->ChunkReader,
         std::move(chunkReader),
         Bootstrap_->GetUncompressedBlockCache(),
         std::move(cachedVersionedChunkMeta),
         columnFilter,
         timestamp);
+
+    return New<TVersionedLookuperWrapper>(std::move(versionedLookuper), PerformanceCounters_);
 }
 
 void TChunkStore::CheckRowLocks(
