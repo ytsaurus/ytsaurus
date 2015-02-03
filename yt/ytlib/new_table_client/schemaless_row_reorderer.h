@@ -28,7 +28,10 @@ public:
 private:
     TKeyColumns KeyColumns_;
     TNameTablePtr NameTable_;
+    i64 RowCount_ = 0;
 
+    // Keeps row index when each key component was last seen.
+    std::vector<i64> LastSeen_;
     std::vector<int> IdMapping_;
     std::vector<TUnversionedValue> EmptyKey_;
 
