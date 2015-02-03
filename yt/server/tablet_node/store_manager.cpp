@@ -104,7 +104,8 @@ bool TStoreManager::HasUnflushedStores() const
 void TStoreManager::StartEpoch(TTabletSlotPtr slot)
 {
     Tablet_->StartEpoch(slot);
-    LastRotated_ = TInstant::Now();
+    const auto& config = Tablet_->GetConfig();
+    LastRotated_ = TInstant::Now() - RandomDuration(config->AutoPartitioningPeriod);
     RotationScheduled_ = false;
 }
 
