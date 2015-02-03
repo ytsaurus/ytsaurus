@@ -314,11 +314,11 @@ void TPartitionChunkWriter::FlushBlock(int partitionIndex)
 void TPartitionChunkWriter::InitLargestPartition()
 {
     LargestPartitionIndex_ = 0;
-    LargestPartitionSize_ = BlockWriters_.front()->GetCapacity();
+    LargestPartitionSize_ = BlockWriters_.front()->GetBlockSize();
     for (int partitionIndex = 1; partitionIndex < BlockWriters_.size(); ++partitionIndex) {
         auto& blockWriter = BlockWriters_[partitionIndex];
-        if (blockWriter->GetCapacity() > LargestPartitionSize_) {
-            LargestPartitionSize_ = blockWriter->GetCapacity();
+        if (blockWriter->GetBlockSize() > LargestPartitionSize_) {
+            LargestPartitionSize_ = blockWriter->GetBlockSize();
             LargestPartitionIndex_ = partitionIndex;
         }
     }
@@ -491,9 +491,9 @@ bool TReorderingSchemalessMultiChunkWriter::Write(const std::vector<TUnversioned
     reorderedRows.reserve(rows.size());
 
     for (const auto& row : rows) {
-        LOG_DEBUG("BEFORE %v", row);
+        //LOG_DEBUG("BEFORE %v", row);
         reorderedRows.push_back(RowReorderer_.ReorderRow(row, &MemoryPool_));
-        LOG_DEBUG("AFTER %v", reorderedRows.back());
+        //LOG_DEBUG("AFTER %v", reorderedRows.back());
     }
 
     if (IsSorted() && !reorderedRows.empty()) {
