@@ -13,6 +13,8 @@
 #include <core/misc/preprocessor.h>
 #include <core/misc/enum.h>
 
+#include <core/misc/lifecycle.h>
+
 #include <core/actions/public.h>
 
 namespace NYT {
@@ -21,6 +23,22 @@ namespace NYT {
 
 //! A tiny helper function to generate random file names.
 Stroka GenerateRandomFileName(const char* prefix);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TShadowingLifecycle
+    : public TLifecycle
+{
+public:
+    TShadowingLifecycle();
+
+    ~TShadowingLifecycle();
+
+    using TLifecycle::FireAtExit;
+    using TLifecycle::FireAtForkPrepare;
+    using TLifecycle::FireAtForkParent;
+    using TLifecycle::FireAtForkChild;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
