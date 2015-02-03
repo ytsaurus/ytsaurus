@@ -98,14 +98,17 @@ std::vector<TBound> IntersectBounds(
     std::vector<TBound> result;
     bool resultIsOpen = false;
 
-    MergeBounds(lhs, rhs, [&] (TBound bound, bool isOpen) {
-        if (isOpen? ++cover == 2 : --cover == 1) {
-            if (result.empty() || !(result.back() == bound && isOpen == resultIsOpen)) {
-                result.push_back(bound);
-                resultIsOpen = !resultIsOpen;
+    MergeBounds(
+        lhs,
+        rhs,
+        [&] (TBound bound, bool isOpen) {
+            if (isOpen ? ++cover == 2 : --cover == 1) {
+                if (result.empty() || !(result.back() == bound && isOpen == resultIsOpen)) {
+                    result.push_back(bound);
+                    resultIsOpen = !resultIsOpen;
+                }
             }
-        }
-    });
+        });
 
     return result;
 }
@@ -162,15 +165,40 @@ TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
             next.second = IntersectKeyTrie(next.second, rhs);
         }
         return result;
-    } else if (lhs.Offset > rhs.Offset) {
+    }
+
+    if (lhs.Offset > rhs.Offset) {
         TKeyTrieNode result = rhs;
         for (auto& next : result.Next) {
             next.second = IntersectKeyTrie(next.second, lhs);
         }
         return result;
     }
+
     TKeyTrieNode result(lhs.Offset);
     result.Bounds = IntersectBounds(lhs.Bounds, rhs.Bounds);
+
+    // Iterate through resulting bounds and convert singleton ranges into
+    // new edges in the trie. This enables futher range limiting.
+    auto it = result.Bounds.begin();
+    auto jt = result.Bounds.begin();
+    auto kt = result.Bounds.end();
+    while (it < kt) {
+        const auto& lhs = *it++;
+        const auto& rhs = *it++;
+        if (lhs == rhs) {
+            result.Next.emplace(lhs.Value, TKeyTrieNode::Universal());
+        } else {
+            if (std::distance(jt, it) > 2) {
+                *jt++ = lhs;
+                *jt++ = rhs;
+            } else {
+                ++jt; ++jt;
+            }
+        }
+    }
+
+    result.Bounds.erase(jt, kt);
 
     auto covers = [&] (const std::vector<TBound>& bounds, const TUnversionedValue& point) {
         auto found = std::lower_bound(
@@ -207,6 +235,7 @@ TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
             result.Next.emplace(next.first, IntersectKeyTrie(found->second, next.second));
         } 
     }
+
     return result;
 }
 
@@ -286,11 +315,10 @@ void GetRangesFromTrieWithinRangeImpl(
     YCHECK(!(resultBounds.size() & 1));
 
     for (size_t i = 0; i + 1 < resultBounds.size(); i += 2) {
-
         auto lower = resultBounds[i];
         auto upper = resultBounds[i + 1];
 
-        YCHECK(lower.Value < upper.Value);
+        YCHECK(CompareBound(lower, upper, true, false) < 0);
 
         auto keyRangeLowerBound = TBound(keyRange.first[offset], true);
         auto keyRangeUpperBound = TBound(keyRange.second[offset], offset + 1 < upperBoundSize);
