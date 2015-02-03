@@ -67,8 +67,8 @@ public:
     }
 
 private:
-    TTabletSlotPtr Slot_;
-    NCellNode::TBootstrap* Bootstrap_;
+    const TTabletSlotPtr Slot_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, StartTransaction)
