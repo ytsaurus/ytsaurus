@@ -40,6 +40,7 @@ set( SRCS
   ${BASE}/string.cpp
   ${BASE}/url.cpp
   ${BASE}/varint.cpp
+  ${BASE}/lifecycle.cpp
 )
 set( HDRS
   ${BASE}/new.h
@@ -131,6 +132,7 @@ set( HDRS
   ${BASE}/any-inl.h
   ${BASE}/format.h
   ${BASE}/format-inl.h
+  ${BASE}/lifecycle.h
 )
 
 list(APPEND YT_SOURCE_FILES
