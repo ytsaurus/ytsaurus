@@ -151,12 +151,12 @@ public:
     }
 
 private:
-    TServiceBasePtr Service_;
-    TRequestId RequestId_;
-    TMutationId MutationId_;
-    IBusPtr ReplyBus_;
-    TRuntimeMethodInfoPtr RuntimeInfo_;
-    NTracing::TTraceContext TraceContext_;
+    const TServiceBasePtr Service_;
+    const TRequestId RequestId_;
+    const TMutationId MutationId_;
+    const IBusPtr ReplyBus_;
+    const TRuntimeMethodInfoPtr RuntimeInfo_;
+    const NTracing::TTraceContext TraceContext_;
 
     bool Registered_ = false;
     TDelayedExecutorCookie TimeoutCookie_;
