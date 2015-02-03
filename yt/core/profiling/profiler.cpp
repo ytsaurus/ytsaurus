@@ -248,6 +248,7 @@ TValue TProfiler::Increment(TRateCounter& counter, TValue delta /*= 1*/)
     YASSERT(delta >= 0);
 
     if (!Enabled_ || counter.Path.empty()) {
+        TGuard<TSpinLock> guard(counter.SpinLock);
         return counter.Value += delta;
     }
 
@@ -291,6 +292,7 @@ void TProfiler::Aggregate(TAggregateCounter& counter, TValue value)
 TValue TProfiler::Increment(TAggregateCounter& counter, TValue delta /* = 1*/)
 {
     if (!Enabled_ || counter.Path.empty()) {
+        TGuard<TSpinLock> guard(counter.SpinLock);
         return counter.Current += delta;
     }
 
