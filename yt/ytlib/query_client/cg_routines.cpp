@@ -297,27 +297,34 @@ char* ToLower(
     return result;
 }
 
-struct TRowCompare
+struct TRowComparer
 {
+    typedef char (*TComparerFunc)(TRow, TRow);
+    TComparerFunc Ptr_;
+    TRowComparer(TComparerFunc ptr)
+        : Ptr_(ptr)
+    { }
+
     bool operator () (const TRow& key, const TOwningRow& current) const
     {
-        return key < current.Get();
+        return Ptr_(key, current.Get());
     }
 
     bool operator () (const TOwningRow& current, const TRow& key) const
     {
-        return current.Get() < key;
+        return Ptr_(current.Get(), key);
     }
 };
 
 char IsRowInArray(
     TExecutionContext* executionContext,
+    char (*comparer)(TRow, TRow),
     TRow row,
     int index)
 {
     // TODO(lukyan): check null
     auto rows = executionContext->LiteralRows->at(index);
-    return std::binary_search(rows.begin(), rows.end(), row, TRowCompare());
+    return std::binary_search(rows.begin(), rows.end(), row, TRowComparer(comparer));
 }
 
 size_t StringHash(
