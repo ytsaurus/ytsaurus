@@ -578,8 +578,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         op_id = map(command="cat; echo {hello=world} >&4", in_="//tmp/t1", out=["//tmp/t2", "//tmp/t3"])
         progress = get("//sys/operations/{0}/@progress".format(op_id))
-        assert progress["output_statistics"][0]["row_count"] == 5
-        assert progress["output_statistics"][1]["row_count"] == 1
+        assert progress["output_statistics_detailed"][0]["row_count"] == 5
+        assert progress["output_statistics_detailed"][1]["row_count"] == 1
 
 
     def test_invalid_output_record(self):
