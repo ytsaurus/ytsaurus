@@ -84,6 +84,7 @@ set( SRCS
   ${BASE}/variant_ut.cpp
   ${BASE}/any_ut.cpp
   ${BASE}/format_ut.cpp
+  ${BASE}/lifecycle_ut.cpp
   ${BASE}/framework.h
   ${BASE}/framework.cpp
 )
