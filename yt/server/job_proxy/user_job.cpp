@@ -147,7 +147,7 @@ public:
         LOG_INFO(jobExitError, "Job process completed");
 
         AddStatistic(
-            "/user_job/builtin/time",
+            "/user_job/time",
             TSummary(static_cast<i64>(GetElapsedTime().MilliSeconds())));
 
         WaitFor(BlockIOWatchdogExecutor_->Stop());
@@ -298,10 +298,10 @@ private:
         }
 
         auto cpuAccountingStats = CpuAccounting_.GetStatistics();
-        AddStatistic("/user_job/builtin/cpu", cpuAccountingStats);
+        AddStatistic("/user_job/cpu", cpuAccountingStats);
 
         auto blockIOStats = BlockIO_.GetStatistics();
-        AddStatistic("/user_job/builtin/block_io", blockIOStats);
+        AddStatistic("/user_job/block_io", blockIOStats);
 
         Freezer_.Destroy();
         CpuAccounting_.Destroy();
@@ -317,7 +317,7 @@ private:
     {
         auto consumer = std::make_unique<TStatisticsConsumer>(
             BIND(&TUserJob::ConsumeStatistics, Unretained(this)),
-            "/user_job/custom");
+            "/custom");
         auto parser = CreateParserForFormat(TFormat(EFormatType::Yson), EDataType::Tabular, consumer.get());
         StatisticsOutput_.reset(new TTableOutput(std::move(parser), std::move(consumer)));
         return StatisticsOutput_.get();
@@ -745,7 +745,7 @@ private:
 
         if (Memory_.IsCreated()) {
             auto statistics = Memory_.GetStatistics();
-            AddStatistic("/user_job/builtin/memory", statistics);
+            AddStatistic("/user_job/memory", statistics);
 
             i64 uidRss = rss;
             rss = statistics.Rss + statistics.MappedFile;
