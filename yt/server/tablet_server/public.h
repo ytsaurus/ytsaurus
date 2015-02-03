@@ -29,6 +29,8 @@ class TTabletCell;
 class TTablet;
 
 struct TTabletStatistics;
+struct TTabletPerformanceCounter;
+struct TTabletPerformanceCounters;
 
 ////////////////////////////////////////////////////////////////////////////////
 
