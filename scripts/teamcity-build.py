@@ -284,7 +284,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
 
 def kill_by_name(name):
     # Cannot use check_output because of python2.6 on Lucid
-    pids = run_captured(["pgrep", "-f", name], ignore_return_code=True)
+    pids = run_captured(["pgrep", "-f", name, "-u", "teamcity"], ignore_return_code=True)
     for pid in pids.split("\n"):
         if not pid:
             continue
