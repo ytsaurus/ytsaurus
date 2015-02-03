@@ -270,6 +270,7 @@ echo {v = 2} >&7
         assert read(output_tables[1]) == [{'v': 1}]
         assert read(output_tables[2]) == [{'v': 2}]
 
+    @pytest.mark.xfail(run = True, reason = "Temporaroly disabled")
     def test_job_count(self):
         create('table', '//tmp/in', attributes={"compression_codec": "none"})
         create('table', '//tmp/out')
