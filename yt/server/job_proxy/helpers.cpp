@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include "helpers.h"
+#include "private.h"
 
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_writer.h>
@@ -16,6 +17,8 @@ namespace NJobProxy {
 using namespace NFormats;
 using namespace NVersionedTableClient;
 using namespace NConcurrency;
+
+static auto Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,8 +82,10 @@ void TContextPreservingInput::WriteRows(const std::vector<TUnversionedRow>& rows
 {
     std::vector<TUnversionedRow> oneRow(1, TUnversionedRow());
     for (auto row : rows) {
+        LOG_DEBUG("Input row: %v", row);
         oneRow[0] = row;
         if (!Writer_->Write(oneRow)) {
+            YUNREACHABLE();
             WaitFor(Writer_->GetReadyEvent())
                 .ThrowOnError();
         }
