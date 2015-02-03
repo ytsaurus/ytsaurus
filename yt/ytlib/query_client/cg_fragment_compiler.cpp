@@ -1287,8 +1287,6 @@ Function* TCGContext::CodegenRowComparerFunction(
 
         builder.SetInsertPoint(thenBB);
 
-        Value* thenResult;
-
         auto* lhsData = lhsValue.GetData();
         auto* rhsData = rhsValue.GetData();
 
