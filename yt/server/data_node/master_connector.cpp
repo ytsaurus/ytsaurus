@@ -352,33 +352,45 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
 
     auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
     for (auto slot : tabletSlotManager->Slots()) {
-        auto* info = request->add_tablet_slots();
+        auto* protoSlotInfo = request->add_tablet_slots();
         if (slot) {
-            ToProto(info->mutable_cell_id(), slot->GetCellId());
-            info->set_peer_state(static_cast<int>(slot->GetControlState()));
-            info->set_peer_id(slot->GetPeerId());
-            info->set_config_version(slot->GetCellConfigVersion());
-            ToProto(info->mutable_prerequisite_transaction_id(), slot->GetPrerequisiteTransactionId());
+            ToProto(protoSlotInfo->mutable_cell_id(), slot->GetCellId());
+            protoSlotInfo->set_peer_state(static_cast<int>(slot->GetControlState()));
+            protoSlotInfo->set_peer_id(slot->GetPeerId());
+            protoSlotInfo->set_config_version(slot->GetCellConfigVersion());
+            ToProto(protoSlotInfo->mutable_prerequisite_transaction_id(), slot->GetPrerequisiteTransactionId());
         } else {
-            info->set_peer_state(static_cast<int>(NHydra::EPeerState::None));
+            protoSlotInfo->set_peer_state(static_cast<int>(NHydra::EPeerState::None));
         }
     }
 
     auto tabletSnapshots = tabletSlotManager->GetTabletSnapshots();
     for (auto snapshot : tabletSnapshots) {
-        auto* info = request->add_tablets();
-        ToProto(info->mutable_tablet_id(), snapshot->TabletId);
-        auto* statistics = info->mutable_statistics();
-        statistics->set_partition_count(snapshot->Partitions.size());
-        statistics->set_store_count(snapshot->StoreCount);
+        auto* protoTabletInfo = request->add_tablets();
+        ToProto(protoTabletInfo->mutable_tablet_id(), snapshot->TabletId);
+
+        auto* protoStatistics = protoTabletInfo->mutable_statistics();
+        protoStatistics->set_partition_count(snapshot->Partitions.size());
+        protoStatistics->set_store_count(snapshot->StoreCount);
+
+        auto* protoPerformanceCounters = protoTabletInfo->mutable_performance_counters();
+        auto performanceCounters = snapshot->PerformanceCounters;
+        protoPerformanceCounters->set_dynamic_memory_row_read_count(performanceCounters->DynamicMemoryRowReadCount);
+        protoPerformanceCounters->set_dynamic_memory_row_lookup_count(performanceCounters->DynamicMemoryRowLookupCount);
+        protoPerformanceCounters->set_dynamic_memory_row_write_count(performanceCounters->DynamicMemoryRowWriteCount);
+        protoPerformanceCounters->set_dynamic_memory_row_delete_count(performanceCounters->DynamicMemoryRowDeleteCount);
+        protoPerformanceCounters->set_static_chunk_row_read_count(performanceCounters->StaticChunkRowReadCount);
+        protoPerformanceCounters->set_static_chunk_row_lookup_count(performanceCounters->StaticChunkRowLookupCount);
+        protoPerformanceCounters->set_unmerged_row_read_count(performanceCounters->UnmergedRowReadCount);
+        protoPerformanceCounters->set_merged_row_read_count(performanceCounters->MergedRowReadCount);
     }
 
     auto cellDirectory = Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory();
     auto cellDescriptors = cellDirectory->GetRegisteredCells();
     for (const auto& descriptor : cellDescriptors) {
-        auto* info = request->add_hive_cells();
-        ToProto(info->mutable_cell_id(), descriptor.Config->CellId);
-        info->set_config_version(descriptor.Version);
+        auto* protoCellInfo = request->add_hive_cells();
+        ToProto(protoCellInfo->mutable_cell_id(), descriptor.Config->CellId);
+        protoCellInfo->set_config_version(descriptor.Version);
     }
 
     request->Invoke().Subscribe(
