@@ -559,7 +559,7 @@ private:
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
 
-            LOG_INFO("Partition compaction started (DataSize: %v, ChunkCount: %v, CurentTimestamp: %v, MajorTimestamp: %v)",
+            LOG_INFO("Partition compaction started (DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v, MajorTimestamp: %v)",
                 dataSize,
                 stores.size(),
                 currentTimestamp,
