@@ -208,7 +208,7 @@ private:
 
     std::vector<std::unique_ptr<THorizontalSchemalessBlockWriter>> BlockWriters_;
 
-    i64 CurrentBufferSize_ = 0;
+    i64 CurrentBufferCapacity_ = 0;
 
     int LargestPartitionIndex_ = 0;
     i64 LargestPartitionSize_ = 0;
@@ -241,9 +241,6 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , Partitioner_(partitioner)
-    , CurrentBufferSize_(0)
-    , LargestPartitionIndex_(0)
-    , LargestPartitionSize_(0)
 {
     int partitionCount = Partitioner_->GetPartitionCount();
     BlockWriters_.reserve(partitionCount);
@@ -252,6 +249,7 @@ TPartitionChunkWriter::TPartitionChunkWriter(
 
     for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
         BlockWriters_.emplace_back(new THorizontalSchemalessBlockWriter(BlockReserveSize_));
+        CurrentBufferCapacity_ += BlockWriters_.back()->GetCapacity();
 
         auto* partitionAttributes = PartitionsExt_.add_partitions();
         partitionAttributes->set_row_count(0);
@@ -276,28 +274,30 @@ void TPartitionChunkWriter::WriteRow(TUnversionedRow row)
     auto partitionIndex = Partitioner_->GetPartitionIndex(row);
     auto& blockWriter = BlockWriters_[partitionIndex];
 
-    i64 oldSize = blockWriter->GetCapacity();
+    CurrentBufferCapacity_ -= blockWriter->GetCapacity();
+    i64 oldSize = blockWriter->GetBlockSize();
+
     blockWriter->WriteRow(row);
 
-    i64 newSize = blockWriter->GetCapacity();
-
-    i64 sizeDelta = newSize - oldSize;
-    CurrentBufferSize_ += sizeDelta;
+    CurrentBufferCapacity_ += blockWriter->GetCapacity();
+    i64 newSize = blockWriter->GetBlockSize();
 
     auto* partitionAttributes = PartitionsExt_.mutable_partitions(partitionIndex);
     partitionAttributes->set_row_count(partitionAttributes->row_count() + 1);
-    partitionAttributes->set_uncompressed_data_size(partitionAttributes->uncompressed_data_size() + sizeDelta);
+    partitionAttributes->set_uncompressed_data_size(partitionAttributes->uncompressed_data_size() + newSize - oldSize);
 
     if (newSize > LargestPartitionSize_) {
         LargestPartitionIndex_ = partitionIndex;
         LargestPartitionSize_ = newSize;
     }
 
-    if (LargestPartitionSize_ >= Config_->BlockSize || CurrentBufferSize_ >= Config_->MaxBufferSize) {
+    if (LargestPartitionSize_ >= Config_->BlockSize || CurrentBufferCapacity_ >= Config_->MaxBufferSize) {
+        CurrentBufferCapacity_ -= BlockWriters_[LargestPartitionIndex_]->GetCapacity();
+
         FlushBlock(LargestPartitionIndex_);
         BlockWriters_[LargestPartitionIndex_].reset(new THorizontalSchemalessBlockWriter(BlockReserveSize_));
+        CurrentBufferCapacity_ += BlockWriters_[LargestPartitionIndex_]->GetCapacity();
 
-        CurrentBufferSize_ -= LargestPartitionSize_;
         InitLargestPartition();
     }
 }
@@ -326,7 +326,7 @@ void TPartitionChunkWriter::InitLargestPartition()
 
 i64 TPartitionChunkWriter::GetDataSize() const
 {
-    return TChunkWriterBase::GetDataSize() + CurrentBufferSize_;
+    return TChunkWriterBase::GetDataSize() + CurrentBufferCapacity_;
 }
 
 TChunkMeta TPartitionChunkWriter::GetSchedulerMeta() const
@@ -491,7 +491,9 @@ bool TReorderingSchemalessMultiChunkWriter::Write(const std::vector<TUnversioned
     reorderedRows.reserve(rows.size());
 
     for (const auto& row : rows) {
+        LOG_DEBUG("BEFORE %v", row);
         reorderedRows.push_back(RowReorderer_.ReorderRow(row, &MemoryPool_));
+        LOG_DEBUG("AFTER %v", reorderedRows.back());
     }
 
     if (IsSorted() && !reorderedRows.empty()) {
