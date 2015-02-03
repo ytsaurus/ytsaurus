@@ -1454,7 +1454,7 @@ TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
     EXPECT_EQ(BuildKey("1;2;3;" _MAX_), result.second);
 }
 
-TEST_F(TRefineKeyRangeTest, LookupIsPrefix)
+TEST_F(TRefineKeyRangeTest, PrefixQuery)
 {
     auto expr = PrepareExpression(
         "k = 50 and l = 50 and m = 50 and is_prefix(\"abc\", s)",
@@ -1462,12 +1462,43 @@ TEST_F(TRefineKeyRangeTest, LookupIsPrefix)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns2(),
-        std::make_pair(BuildKey("1;1;1;aaaa"), BuildKey("100;100;100;bbbbb")),
+        std::make_pair(BuildKey("1;1;1;aaa"), BuildKey("100;100;100;bbb")),
         expr);
 
     EXPECT_EQ(BuildKey("50;50;50;abc"), result.first);
     EXPECT_EQ(BuildKey("50;50;50;abd"), result.second);
 }
+
+TEST_F(TRefineKeyRangeTest, EmptyRange)
+{
+    auto expr = PrepareExpression(
+        "k between 1 and 1",
+        GetSampleTableSchema());
+
+    auto result = RefineKeyRange(
+        GetSampleKeyColumns(),
+        std::make_pair(BuildKey("0;0;0"), BuildKey("2;2;2")),
+        expr);
+
+    EXPECT_EQ(BuildKey("1"), result.first);
+    EXPECT_EQ(BuildKey("1;" _MAX_), result.second);
+}
+
+TEST_F(TRefineKeyRangeTest, RangeToPointCollapsing)
+{
+    auto expr = PrepareExpression(
+        "k >= 1 and k <= 1 and l = 1",
+        GetSampleTableSchema());
+
+    auto result = RefineKeyRange(
+        GetSampleKeyColumns(),
+        std::make_pair(BuildKey("0;0;0"), BuildKey("2;2;2")),
+        expr);
+
+    EXPECT_EQ(BuildKey("1;1"), result.first);
+    EXPECT_EQ(BuildKey("1;1;" _MAX_), result.second);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef YT_USE_LLVM
