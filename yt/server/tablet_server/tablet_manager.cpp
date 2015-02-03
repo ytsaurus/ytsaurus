@@ -1005,14 +1005,16 @@ private:
 
             tablet->NodeStatistics() = tabletInfo.statistics();
 
-            auto timeDelta = std::max(1.0, (now - tablet->PerformanceCounters().Timestamp).SecondsFloat());
-            #define XX(name, Name) \
-                { \
-                    auto prevValue = tablet->PerformanceCounters().Name.Count; \
-                    auto curValue = tabletInfo.performance_counters().name ## _count(); \
-                    tablet->PerformanceCounters().Name.Rate = std::max(0LL, curValue - prevValue) / timeDelta; \
-                    tablet->PerformanceCounters().Name.Count = curValue; \
-                }
+            auto updatePerformanceCounter = [&] (TTabletPerformanceCounter* counter, i64 curValue) {
+                i64 prevValue = counter->Count;
+                auto timeDelta = std::max(1.0, (now - tablet->PerformanceCounters().Timestamp).SecondsFloat());
+                counter->Rate = (std::max(curValue, prevValue) - prevValue) / timeDelta;
+                counter->Count = curValue;
+            };
+
+            #define XX(name, Name) updatePerformanceCounter( \
+                &tablet->PerformanceCounters().Name, \
+                tabletInfo.performance_counters().name ## _count());
             ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
             #undef XX
             tablet->PerformanceCounters().Timestamp = now;
