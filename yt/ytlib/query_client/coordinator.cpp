@@ -221,13 +221,13 @@ TQueryStatistics CoordinateAndExecute(
 
     std::vector<ISchemafulReaderPtr> splitReaders;
 
-    ISchemafulReaderPtr mergingReader;
+    ISchemafulReaderPtr topReader;
     std::vector<TFuture<TQueryStatistics>> subqueriesStatistics;
 
     if (isOrdered) {
         size_t index = 0;
 
-        mergingReader = CreateSchemafulOrderedReader([&, index] () mutable -> ISchemafulReaderPtr {
+        topReader = CreateSchemafulOrderedReader([&, index] () mutable -> ISchemafulReaderPtr {
             if (index >= subqueries.size()) {
                 return nullptr;
             }
@@ -259,10 +259,10 @@ TQueryStatistics CoordinateAndExecute(
             subqueriesStatistics.push_back(statistics);
         }
 
-        mergingReader = CreateSchemafulMergingReader(splitReaders);
+        topReader = CreateSchemafulMergingReader(splitReaders);
     }
 
-    auto queryStatistics = evaluateTop(topQuery, std::move(mergingReader), std::move(writer));
+    auto queryStatistics = evaluateTop(topQuery, std::move(topReader), std::move(writer));
 
     for (auto const& subqueryStatistics : subqueriesStatistics) {
         if (subqueryStatistics.IsSet()) {

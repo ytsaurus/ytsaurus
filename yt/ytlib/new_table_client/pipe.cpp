@@ -16,34 +16,23 @@ namespace NVersionedTableClient {
 struct TSchemafulPipe::TData
     : public TIntrinsicRefCounted
 {
-    TData()
-        : WriterOpened(NewPromise<void>())
-        , ReaderReadyEvent(NewPromise<void>())
-        , WriterReadyEvent(NewPromise<void>())
-        , RowsWritten(0)
-        , RowsRead(0)
-        , ReaderOpened(false)
-        , WriterClosed(false)
-        , Failed(false)
-    { }
-
     TSpinLock SpinLock;
     
-    TPromise<void> WriterOpened;
+    TPromise<void> WriterOpened = NewPromise<void>();
 
     TTableSchema Schema;
 
     TRowBuffer RowBuffer;
     TRingQueue<TUnversionedRow> RowQueue;
     
-    TPromise<void> ReaderReadyEvent;
-    TPromise<void> WriterReadyEvent;
+    TPromise<void> ReaderReadyEvent = NewPromise<void>();
+    TPromise<void> WriterReadyEvent = NewPromise<void>();
 
-    int RowsWritten;
-    int RowsRead;
-    bool ReaderOpened;
-    bool WriterClosed;
-    bool Failed;
+    int RowsWritten = 0;
+    int RowsRead = 0;
+    bool ReaderOpened = false;
+    bool WriterClosed = false;
+    bool Failed = false;
 
 };
 
@@ -55,7 +44,6 @@ class TSchemafulPipe::TReader
 public:
     explicit TReader(TDataPtr data)
         : Data_(std::move(data))
-        , ReadyEvent_(VoidFuture)
     { }
 
     virtual TFuture<void> Open(const TTableSchema& schema) override
@@ -103,8 +91,9 @@ public:
     }
 
 private:
-    TDataPtr Data_;
-    TFuture<void> ReadyEvent_;
+    const TDataPtr Data_;
+
+    TFuture<void> ReadyEvent_ = VoidFuture;
 
 
     void OnOpened(const TTableSchema& readerSchema)
@@ -213,7 +202,7 @@ public:
     }
 
 private:
-    TDataPtr Data_;
+    const TDataPtr Data_;
 
 };
 
