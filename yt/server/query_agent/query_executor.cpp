@@ -193,17 +193,17 @@ private:
 
                 auto pipe = New<TSchemafulPipe>();
 
-                auto statistics = BIND(&TEvaluator::Run, Evaluator_)
+                auto asyncStatistics = BIND(&TEvaluator::Run, Evaluator_)
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
                     .Run(subquery, mergingReader, pipe->GetWriter());
 
-                statistics.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& result) {
+                asyncStatistics.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& result) {
                     if (!result.IsOK()) {
                         pipe->Fail(result);
                     }
                 }));
 
-                return std::make_pair(pipe->GetReader(), statistics);
+                return std::make_pair(pipe->GetReader(), asyncStatistics);
             },
             [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 auto asyncQueryStatisticsOrError = BIND(&TEvaluator::Run, Evaluator_)

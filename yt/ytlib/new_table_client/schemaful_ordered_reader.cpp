@@ -54,7 +54,8 @@ public:
     }
 
 private:
-    std::function<ISchemafulReaderPtr()> GetNextReader_;
+    const std::function<ISchemafulReaderPtr()> GetNextReader_;
+
     ISchemafulReaderPtr CurrentReader_;
     TFuture<void> ReadyEvent_;
     TTableSchema Schema_;
