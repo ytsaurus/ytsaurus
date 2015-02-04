@@ -185,7 +185,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
         shutil.rmtree(tmp_dir)
 
 
-def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_template=None, sort_spec_template=None, message_queue=None):
+def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_template=None, sort_spec_template=None, compression_codec=None, erasure_codec=None, force_sort=False, message_queue=None):
     proxies = yamr_client.proxies
     if not proxies:
         proxies = [yamr_client.server]
@@ -196,6 +196,10 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_templa
     logger.info("Importing table '%s' (row count: %d, sorted: %d)", src, record_count, sorted)
 
     yt_client.mkdir(os.path.dirname(dst), recursive=True)
+    if compression_codec is not None:
+        if not yt_client.exists(dst):
+            yt_client.create_table(dst, attributes={"compression_codec": compression_codec})
+        yt_client.set(dst + "/@compression_codec", compression_codec)
 
     temp_yamr_table = "tmp/yt/" + generate_uuid()
     yamr_client.copy(src, temp_yamr_table)
@@ -216,8 +220,7 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_templa
         sort_spec = deepcopy(spec)
         del sort_spec["pool"]
     else:
-        sort_spec_template = sort_spec
-
+        sort_spec = sort_spec_template
 
     command = """\
 set -ux
@@ -255,12 +258,14 @@ done"""
                 logger.error(error)
                 raise yt.IncorrectRowCount(error)
 
-            if sorted:
+            if sorted or force_sort:
                 logger.info("Sorting '%s'", dst)
                 run_operation_and_notify(
                     message_queue,
                     yt_client,
-                    lambda client, strategy: client.run_sort(dst, sort_by=["key", "subkey"], strategy=strategy, spec=deepcopy(spec_template)))
+                    lambda client, strategy: client.run_sort(dst, sort_by=["key", "subkey"], strategy=strategy, spec=sort_spec))
+
+            convert_to_erasure(dst, erasure_codec=erasure_codec, yt_client=yt_client)
 
     finally:
         yamr_client.drop(temp_yamr_table)
