@@ -18,6 +18,8 @@
 
 #include <server/hydra/entity_map.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -43,6 +45,8 @@ struct TTabletSnapshot
 
     TDynamicRowKeyComparer RowKeyComparer;
 
+    TTabletStatisticsPtr Statistics;
+
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
         const TOwningKey& lowerBound,
@@ -54,6 +58,21 @@ struct TTabletSnapshot
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTabletStatistics
+    : public TIntrinsicRefCounted
+{
+    std::atomic<i64> DynamicMemoryRowReadCount = {0};
+    std::atomic<i64> DynamicMemoryRowLookupCount = {0};
+    std::atomic<i64> DynamicMemoryRowWriteCount = {0};
+    std::atomic<i64> DynamicMemoryRowDeleteCount = {0};
+    std::atomic<i64> UnmergedRowReadCount = {0};
+    std::atomic<i64> MergedRowReadCount = {0};
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletStatistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,6 +99,8 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(TCancelableContextPtr, CancelableContext);
 
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastPartitioningTime);
+
 public:
     explicit TTablet(const TTabletId& id);
     TTablet(
@@ -104,6 +125,8 @@ public:
 
     const TStoreManagerPtr& GetStoreManager() const;
     void SetStoreManager(TStoreManagerPtr storeManager);
+
+    const TTabletStatisticsPtr& GetStatistics() const;
 
     typedef std::vector<std::unique_ptr<TPartition>> TPartitionList;
     const TPartitionList& Partitions() const;
@@ -151,6 +174,8 @@ private:
     TTabletWriterOptionsPtr WriterOptions_;
 
     TStoreManagerPtr StoreManager_;
+
+    TTabletStatisticsPtr Statistics_;
 
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
 

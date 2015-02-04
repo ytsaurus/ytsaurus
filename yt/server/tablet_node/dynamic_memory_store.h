@@ -150,7 +150,7 @@ private:
     class TReader;
     class TLookuper;
 
-    TTabletManagerConfigPtr Config_;
+    const TTabletManagerConfigPtr Config_;
 
     int StoreLockCount_ = 0;
     int StoreValueCount_ = 0;

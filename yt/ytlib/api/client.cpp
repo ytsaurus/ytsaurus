@@ -1831,7 +1831,7 @@ public:
         } \
     }
 
-#define DELEGATE_TIMESTAMPTED_METHOD(returnType, method, signature, args) \
+#define DELEGATE_TIMESTAMPED_METHOD(returnType, method, signature, args) \
     virtual returnType method signature override \
     { \
         auto& originalOptions = options; \
@@ -1842,13 +1842,13 @@ public:
         } \
     }
 
-    DELEGATE_TIMESTAMPTED_METHOD(TFuture<IRowsetPtr>, LookupRow, (
+    DELEGATE_TIMESTAMPED_METHOD(TFuture<IRowsetPtr>, LookupRow, (
         const TYPath& path,
         TNameTablePtr nameTable,
         NVersionedTableClient::TKey key,
         const TLookupRowsOptions& options),
         (path, nameTable, key, options))
-    DELEGATE_TIMESTAMPTED_METHOD(TFuture<IRowsetPtr>, LookupRows, (
+    DELEGATE_TIMESTAMPED_METHOD(TFuture<IRowsetPtr>, LookupRows, (
         const TYPath& path,
         TNameTablePtr nameTable,
         const std::vector<NVersionedTableClient::TKey>& keys,
@@ -1856,13 +1856,13 @@ public:
         (path, nameTable, keys, options))
 
 
-    DELEGATE_TIMESTAMPTED_METHOD(TFuture<NQueryClient::TQueryStatistics>, SelectRows, (
+    DELEGATE_TIMESTAMPED_METHOD(TFuture<NQueryClient::TQueryStatistics>, SelectRows, (
         const Stroka& query,
         ISchemafulWriterPtr writer,
         const TSelectRowsOptions& options),
         (query, writer, options))
     typedef std::pair<IRowsetPtr, NQueryClient::TQueryStatistics> TSelectRowsResult;
-    DELEGATE_TIMESTAMPTED_METHOD(TFuture<TSelectRowsResult>, SelectRows, (
+    DELEGATE_TIMESTAMPED_METHOD(TFuture<TSelectRowsResult>, SelectRows, (
         const Stroka& query,
         const TSelectRowsOptions& options),
         (query, options))
@@ -1942,7 +1942,7 @@ public:
         (path, options))
 
 #undef DELEGATE_TRANSACTIONAL_METHOD
-#undef DELEGATE_TIMESTAMPTED_METHOD
+#undef DELEGATE_TIMESTAMPED_METHOD
 
 private:
     TClientPtr Client_;

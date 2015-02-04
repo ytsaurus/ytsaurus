@@ -171,9 +171,9 @@ public:
     }
 
 protected:
-    TDynamicMemoryStorePtr Store_;
-    TTimestamp Timestamp_;
-    TColumnFilter ColumnFilter_;
+    const TDynamicMemoryStorePtr Store_;
+    const TTimestamp Timestamp_;
+    const TColumnFilter ColumnFilter_;
 
     int KeyColumnCount_;
     int SchemaColumnCount_;
@@ -487,6 +487,8 @@ public:
             return false;
         }
 
+        Store_->Statistics_->DynamicMemoryRowReadCount += rows->size();
+
         return true;
     }
 
@@ -496,8 +498,8 @@ public:
     }
 
 private:
-    TOwningKey LowerKey_;
-    TOwningKey UpperKey_;
+    const TOwningKey LowerKey_;
+    const TOwningKey UpperKey_;
 
     TSkipList<TDynamicRow, TDynamicRowKeyComparer>::TIterator Iterator_;
 
@@ -534,6 +536,8 @@ public:
 
     virtual TFutureHolder<TVersionedRow> Lookup(TKey key) override
     {
+        ++Store_->Statistics_->DynamicMemoryRowLookupCount;
+
         auto iterator = Store_->Rows_->FindEqualTo(TRowWrapper{key});
         if (!iterator.IsValid()) {
             return NullRowFuture;
@@ -685,6 +689,8 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
 
     OnMemoryUsageUpdated();
 
+    ++Statistics_->DynamicMemoryRowWriteCount;
+
     return result;
 }
 
@@ -724,6 +730,8 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     Rows_->Insert(TRowWrapper{key}, newKeyProvider, existingKeyConsumer);
 
     OnMemoryUsageUpdated();
+
+    ++Statistics_->DynamicMemoryRowDeleteCount;
 
     return result;
 }

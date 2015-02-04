@@ -91,6 +91,7 @@ public:
     i64 MaxEdenDataSize;
     int MaxEdenChunkCount;
     int MaxPartitioningFanIn;
+    TDuration AutoPartitioningPeriod;
 
     int MinCompactionChunkCount;
     i64 CompactionDataSizeBase;
@@ -146,6 +147,8 @@ public:
         RegisterParameter("max_partitioning_fan_in", MaxPartitioningFanIn)
             .Default(10)
             .GreaterThan(0);
+        RegisterParameter("auto_partitioning_period", AutoPartitioningPeriod)
+            .Default(TDuration::Minutes(5));
 
         RegisterParameter("min_compaction_chunk_count", MinCompactionChunkCount)
             .Default(3)
@@ -277,6 +280,7 @@ class TStoreCompactorConfig
 public:
     int ThreadPoolSize;
     int MaxConcurrentCompactions;
+    int MaxConcurrentPartitionings;
 
     TStoreCompactorConfig()
     {
@@ -284,6 +288,9 @@ public:
             .GreaterThan(0)
             .Default(1);
         RegisterParameter("max_concurrent_compactions", MaxConcurrentCompactions)
+            .GreaterThan(0)
+            .Default(1);
+        RegisterParameter("max_concurrent_partitionings", MaxConcurrentPartitionings)
             .GreaterThan(0)
             .Default(1);
     }
