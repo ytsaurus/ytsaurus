@@ -69,6 +69,8 @@ public:
     //! What to do during operation progress when some chunks get unavailable.
     EUnavailableChunkAction UnavailableChunkTactics;
 
+    i64 MaxDataSizePerJob;
+
     TNullable<int> MaxFailedJobCount;
     TNullable<int> MaxStderrCount;
 
@@ -104,6 +106,10 @@ public:
             .Default(EUnavailableChunkAction::Wait);
         RegisterParameter("unavailable_chunk_tactics", UnavailableChunkTactics)
             .Default(EUnavailableChunkAction::Wait);
+
+        RegisterParameter("max_data_size_per_job", MaxDataSizePerJob)
+            .Default((i64) 200 * 1024 * 1024 * 1024)
+            .GreaterThan(0);
 
         RegisterParameter("max_failed_job_count", MaxFailedJobCount)
             .Default(Null);
@@ -754,7 +760,7 @@ public:
 
         RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();
-        
+
         RegisterParameter("scheduling_tag", SchedulingTag)
             .Default(Null);
     }
