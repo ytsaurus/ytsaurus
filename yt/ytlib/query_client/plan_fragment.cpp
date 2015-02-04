@@ -385,10 +385,6 @@ static std::vector<TConstExpressionPtr> BuildTypedExpression(
             result.Assign(EAggregateFunctions::Min);
         } else if (name == "max") {
             result.Assign(EAggregateFunctions::Max);
-        } else if (name == "avg") {
-            result.Assign(EAggregateFunctions::Average);
-        } else if (name == "count") {
-            result.Assign(EAggregateFunctions::Count);
         }
 
         return result;
