@@ -64,7 +64,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         // Set predicate
         int rangeSize = std::min(keyRange.first.GetCount(), keyRange.second.GetCount());
 
-        size_t commonPrefixSize = 0;
+        int commonPrefixSize = 0;
         while (commonPrefixSize < rangeSize) {
             commonPrefixSize++;
             if (keyRange.first[commonPrefixSize - 1] != keyRange.second[commonPrefixSize - 1]) {
@@ -177,25 +177,22 @@ TDataSplits GetPrunedSplits(
 
 TKeyRange GetRange(const TDataSplits& splits)
 {
-    if (!splits.empty()) {
-        TKeyRange keyRange = GetBothBoundsFromDataSplit(splits[0]);
-        auto keyColumns = GetKeyColumnsFromDataSplit(splits[0]);
-
-        for (size_t i = 1; i < splits.size(); ++i) {
-            keyRange = Unite(keyRange, GetBothBoundsFromDataSplit(splits[i]));
-        }
-
-        return keyRange;
-    } else {
+    if (splits.empty()) {
         return TKeyRange();
     }
+
+    auto keyRange = GetBothBoundsFromDataSplit(splits[0]);
+    for (int index = 1; index < splits.size(); ++index) {
+        keyRange = Unite(keyRange, GetBothBoundsFromDataSplit(splits[index]));
+    }
+    return keyRange;
 }
 
 std::vector<TKeyRange> GetRanges(const TGroupedDataSplits& groupedSplits)
 {
     std::vector<TKeyRange> ranges(groupedSplits.size());
-    for (size_t splitIndex = 0; splitIndex < groupedSplits.size(); ++splitIndex) {
-        ranges[splitIndex] = GetRange(groupedSplits[splitIndex]);
+    for (int index = 0; index < groupedSplits.size(); ++index) {
+        ranges[index] = GetRange(groupedSplits[index]);
     }
     return ranges;
 }
@@ -205,7 +202,7 @@ TQueryStatistics CoordinateAndExecute(
     ISchemafulWriterPtr writer,
     bool isOrdered,
     std::function<std::vector<TKeyRange>(const TDataSplits&)> splitAndRegroup,
-    std::function<TEvaluateResult(const TConstQueryPtr&, size_t)> evaluateSubquery,
+    std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
     std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
     bool pushdownGroupOp)
 {
@@ -222,31 +219,34 @@ TQueryStatistics CoordinateAndExecute(
     std::vector<ISchemafulReaderPtr> splitReaders;
 
     ISchemafulReaderPtr topReader;
-    std::vector<TFuture<TQueryStatistics>> subqueriesStatistics;
+    // Use TFutureHolder to prevent leaking subqueries.
+    std::vector<TFutureHolder<TQueryStatistics>> subqueryHolders;
 
     if (isOrdered) {
-        size_t index = 0;
+        int index = 0;
 
         topReader = CreateSchemafulOrderedReader([&, index] () mutable -> ISchemafulReaderPtr {
             if (index >= subqueries.size()) {
                 return nullptr;
             }
-            auto subquery = subqueries[index];
+
+            const auto& subquery = subqueries[index];
+            LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
+                subquery->GetId());
 
             ISchemafulReaderPtr reader;
-            TFuture<TQueryStatistics> statistics;
+            TFuture<TQueryStatistics> asyncStatistics;
+            std::tie(reader, asyncStatistics) = evaluateSubquery(subquery, index);
 
-            std::tie(reader, statistics) = evaluateSubquery(subquery, index);
-
-            subqueriesStatistics.push_back(statistics);
+            subqueryHolders.push_back(MakeHolder(asyncStatistics, false));
 
             ++index;
 
             return reader;
         });
     } else {
-        for (size_t index = 0; index < subqueries.size(); ++index) {
-            auto subquery = subqueries[index];
+        for (int index = 0; index < subqueries.size(); ++index) {
+            const auto& subquery = subqueries[index];
             LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
                 subquery->GetId());
 
@@ -256,7 +256,7 @@ TQueryStatistics CoordinateAndExecute(
             std::tie(reader, statistics) = evaluateSubquery(subquery, index);
 
             splitReaders.push_back(reader);
-            subqueriesStatistics.push_back(statistics);
+            subqueryHolders.push_back(statistics);
         }
 
         topReader = CreateSchemafulMergingReader(splitReaders);
@@ -264,9 +264,10 @@ TQueryStatistics CoordinateAndExecute(
 
     auto queryStatistics = evaluateTop(topQuery, std::move(topReader), std::move(writer));
 
-    for (auto const& subqueryStatistics : subqueriesStatistics) {
-        if (subqueryStatistics.IsSet()) {
-            queryStatistics += subqueryStatistics.Get().ValueOrThrow();
+    for (auto const& holder : subqueryHolders) {
+        auto maybeStatisticsOrError = holder.Get().TryGet();
+        if (maybeStatisticsOrError) {
+            queryStatistics += maybeStatisticsOrError->ValueOrThrow();
         }
     }
 
