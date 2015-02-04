@@ -27,7 +27,7 @@ def convert_to_erasure(src, dst=None, erasure_codec=None, compression_codec=None
     if yt_client is None:
         yt_client = yt
 
-    if erasure_codec is None:
+    if erasure_codec is None or erasure_codec == "none":
         return
 
     if desired_chunk_size is None:
