@@ -16,7 +16,6 @@ TSchemalessRowReorderer::TSchemalessRowReorderer(
     : KeyColumns_(keyColumns)
     , NameTable_(nameTable)
 {
-    LastSeen_.resize(KeyColumns_.size(), -1);
     EmptyKey_.resize(KeyColumns_.size(), MakeUnversionedSentinelValue(EValueType::Null));
     for (int i = 0; i < KeyColumns_.size(); ++i) {
         auto id = NameTable_->GetId(KeyColumns_[i]);
@@ -43,8 +42,6 @@ TUnversionedRow TSchemalessRowReorderer::ReorderRow(TUnversionedRow row, TChunke
         if (value.Id < IdMapping_.size()) {
             int keyIndex = IdMapping_[value.Id];
             if (keyIndex >= 0) {
-                YCHECK(LastSeen_[keyIndex] < RowCount_);
-                LastSeen_[keyIndex] = RowCount_;
                 result.Begin()[keyIndex] = value;
                 --valueCount;
                 continue;
