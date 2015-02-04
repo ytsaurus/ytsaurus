@@ -1660,6 +1660,58 @@ TEST_F(TQueryEvaluateTest, Simple)
     Evaluate("a, b FROM [//t]", simpleSplit, source, result);
 }
 
+TEST_F(TQueryEvaluateTest, SimpleCmpInt)
+{
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::Int64);
+    columns.emplace_back("b", EValueType::Int64);
+    auto simpleSplit = MakeSplit(columns);
+
+    std::vector<TOwningRow> source;
+    source.push_back(BuildRow("a=4;b=5", simpleSplit, false));
+    source.push_back(BuildRow("a=6;b=6", simpleSplit, false));
+
+    std::vector<TColumnSchema> resultColumns;
+    resultColumns.emplace_back("r1", EValueType::Boolean);
+    resultColumns.emplace_back("r2", EValueType::Boolean);
+    resultColumns.emplace_back("r3", EValueType::Boolean);
+    resultColumns.emplace_back("r4", EValueType::Boolean);
+    resultColumns.emplace_back("r5", EValueType::Boolean);
+    auto resultSplit = MakeSplit(resultColumns);
+
+    std::vector<TOwningRow> result;
+    result.push_back(BuildRow("r1=%true;r2=%false;r3=%true;r4=%false;r5=%false", resultSplit, false));
+    result.push_back(BuildRow("r1=%false;r2=%false;r3=%true;r4=%true;r5=%true", resultSplit, false));
+
+    Evaluate("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]", simpleSplit, source, result);
+}
+
+TEST_F(TQueryEvaluateTest, SimpleCmpString)
+{
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::String);
+    columns.emplace_back("b", EValueType::String);
+    auto simpleSplit = MakeSplit(columns);
+
+    std::vector<TOwningRow> source;
+    source.push_back(BuildRow("a=\"a\";b=\"aa\"", simpleSplit, false));
+    source.push_back(BuildRow("a=\"aa\";b=\"aa\"", simpleSplit, false));
+
+    std::vector<TColumnSchema> resultColumns;
+    resultColumns.emplace_back("r1", EValueType::Boolean);
+    resultColumns.emplace_back("r2", EValueType::Boolean);
+    resultColumns.emplace_back("r3", EValueType::Boolean);
+    resultColumns.emplace_back("r4", EValueType::Boolean);
+    resultColumns.emplace_back("r5", EValueType::Boolean);
+    auto resultSplit = MakeSplit(resultColumns);
+
+    std::vector<TOwningRow> result;
+    result.push_back(BuildRow("r1=%true;r2=%false;r3=%true;r4=%false;r5=%false", resultSplit, false));
+    result.push_back(BuildRow("r1=%false;r2=%false;r3=%true;r4=%true;r5=%true", resultSplit, false));
+
+    Evaluate("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]", simpleSplit, source, result);
+}
+
 TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
 {
     std::vector<TColumnSchema> columns;
