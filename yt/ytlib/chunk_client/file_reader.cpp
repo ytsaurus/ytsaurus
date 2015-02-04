@@ -36,7 +36,7 @@ void TFileReader::Open()
     TChunkMetaHeader metaHeader;
     ReadPod(metaInput, metaHeader);
     if (metaHeader.Signature != TChunkMetaHeader::ExpectedSignature) {
-        THROW_ERROR_EXCEPTION("Incorrect header signature in chunk meta file %Qv: expected %v, actual %v",
+        THROW_ERROR_EXCEPTION("Incorrect header signature in chunk meta file %Qv: expected %" PRIx64 ", actual %" PRIx64,
             FileName_,
             TChunkMetaHeader::ExpectedSignature,
             metaHeader.Signature);
@@ -47,7 +47,7 @@ void TFileReader::Open()
 
     auto checksum = GetChecksum(metaBlobRef);
     if (checksum != metaHeader.Checksum) {
-        THROW_ERROR_EXCEPTION("Incorrect checksum in chunk meta file %Qv: expected %v, actual %v",
+        THROW_ERROR_EXCEPTION("Incorrect checksum in chunk meta file %Qv: expected %" PRIx64 ", actual %" PRIx64,
             FileName_,
             metaHeader.Checksum,
             checksum);
@@ -126,7 +126,7 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
 
     auto checksum = GetChecksum(data);
     if (checksum != blockInfo.checksum()) {
-        THROW_ERROR_EXCEPTION("Incorrect checksum of block %v in chunk data file %Qv: expected %v, actual %v",
+        THROW_ERROR_EXCEPTION("Incorrect checksum of block %v in chunk data file %Qv: expected %" PRIx64 ", actual %" PRIx64,
             blockIndex,
             FileName_,
             blockInfo.checksum(),
@@ -173,7 +173,7 @@ TFuture<NProto::TChunkMeta> TFileReader::GetMeta(
     return MakeFuture(GetMeta(extensionTags));
 }
 
-TChunkId TFileReader::GetChunkId() const 
+TChunkId TFileReader::GetChunkId() const
 {
     YUNREACHABLE();
 }
