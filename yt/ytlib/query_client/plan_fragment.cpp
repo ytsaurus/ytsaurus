@@ -235,13 +235,11 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
         case EBinaryOp::NotEqual:
         case EBinaryOp::Less:
         case EBinaryOp::Greater:
-            return EValueType::Boolean;
-
         case EBinaryOp::LessOrEqual:
         case EBinaryOp::GreaterOrEqual:
-            if (!IsArithmeticType(operandType)) {
+            if (!IsComparableType(operandType)) {
                 THROW_ERROR_EXCEPTION(
-                    "Expression %Qv requires either integral or floating-point operands",
+                    "Expression %Qv requires either integral, floating-point or string operands",
                     source)
                     << TErrorAttribute("lhs_type", ToString(operandType));
             }
