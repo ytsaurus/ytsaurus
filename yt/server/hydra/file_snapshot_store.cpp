@@ -115,7 +115,7 @@ private:
 
                 if (Header_.SnapshotId != SnapshotId_) {
                     THROW_ERROR_EXCEPTION(
-                        "Invalid snapshot id in header of %v: expected %v, got %v",
+                        "Invalid snapshot id in header of %v: expected %" PRIx64 ", got %" PRIx64,
                         FileName_,
                         SnapshotId_,
                         Header_.SnapshotId);
@@ -463,14 +463,14 @@ public:
     void Initialize()
     {
         auto path = Config_->Path;
-        
+
         LOG_DEBUG("Preparing snapshot directory");
-        
+
         NFS::ForcePath(path);
         NFS::CleanTempFiles(path);
-        
+
         LOG_DEBUG("Looking for snapshots");
-        
+
         auto fileNames = EnumerateFiles(path);
         for (const auto& fileName : fileNames) {
             auto extension = NFS::GetFileExtension(fileName);
@@ -484,7 +484,7 @@ public:
                 }
             }
         }
-        
+
         LOG_DEBUG("Snapshot scan complete");
     }
 

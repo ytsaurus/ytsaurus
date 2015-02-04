@@ -66,7 +66,7 @@ public:
 private:
     TCheckpointerPtr Owner_;
     bool BuildSnapshot_;
-    
+
     bool LocalRotationSuccessFlag_ = false;
     int RemoteRotationSuccessCount_ = 0;
 
@@ -185,15 +185,15 @@ private:
                     // TODO(babenko): consider killing followers
                     LOG_FATAL(
                         "Snapshot %v checksum mismatch: "
-                        "peer %v reported %v, "
-                        "peer %v reported %v",
+                        "peer %v reported %" PRIx64 ", "
+                        "peer %v reported %" PRIx64,
                         Version_.SegmentId + 1,
                         id1, *checksum1,
                         id2, *checksum2);
                 }
             }
         }
-        
+
         LOG_INFO("Distributed snapshot creation finished, %v peers succeeded",
             successCount);
 

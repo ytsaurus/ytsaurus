@@ -33,7 +33,7 @@ template <class T>
 void ValidateSignature(const T& header)
 {
     LOG_FATAL_UNLESS(header.Signature == T::ExpectedSignature,
-        "Invalid signature: expected %v, got %v",
+        "Invalid signature: expected %" PRIx64 ", got %" PRIx64,
         T::ExpectedSignature,
         header.Signature);
 }
@@ -83,7 +83,7 @@ TNullable<TRecordInfo> ReadRecord(TInput& input)
 
     auto checksum = GetChecksum(data);
     LOG_FATAL_UNLESS(header.Checksum == checksum,
-        "Incorrect checksum of record %v", header.RecordId);
+        "Incorrect checksum of record %" PRIx64, header.RecordId);
     return TRecordInfo(header.RecordId, readSize);
 }
 
