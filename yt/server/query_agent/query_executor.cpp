@@ -184,7 +184,7 @@ private:
 
                 return GetRanges(groupedSplits);
             },
-            [&] (const TConstQueryPtr& subquery, size_t index) {
+            [&] (const TConstQueryPtr& subquery, int index) {
                 std::vector<ISchemafulReaderPtr> bottomSplitReaders;
                 for (const auto& dataSplit : groupedSplits[index]) {
                     bottomSplitReaders.push_back(GetReader(dataSplit, nodeDirectory));
