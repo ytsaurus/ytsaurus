@@ -29,7 +29,6 @@ TSchemalessRowReorderer::TSchemalessRowReorderer(
 
 TUnversionedRow TSchemalessRowReorderer::ReorderRow(TUnversionedRow row, TChunkedMemoryPool* memoryPool)
 {
-    ++RowCount_;
     int valueCount = KeyColumns_.size() + row.GetCount();
     TUnversionedRow result = TUnversionedRow::Allocate(memoryPool, valueCount);
 
