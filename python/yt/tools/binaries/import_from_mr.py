@@ -47,9 +47,6 @@ def import_table(object, args):
             logger.info("Source table '%s' is empty", src)
             return CANCEL
 
-        record_count = yamr.records_count(src, allow_cache=True)
-        sorted = yamr.is_sorted(src, allow_cache=True)
-
         if not params.force and yt_client.exists(dst) and (yt_client.get_type(dst) != "table" or not yt_client.is_empty(dst)):
             logger.warning("Destination table '%s' is not empty", dst)
             return CANCEL
@@ -58,30 +55,11 @@ def import_table(object, args):
 
         logger.info("Destination table '%s' created", dst)
 
-        copy_yamr_to_yt_pull(yamr, yt_client, src, dst, fastbone=params.fastbone, spec_template={"pool": params.yt_pool})
-
-        if params.erasure_codec is not None and params.erasure_codec == "none":
-            params.erasure_codec = None
-
-        if params.compression_codec is not None or params.erasure_codec is not None:
-            mode = "sorted" if sorted else "unordered"
-            spec = {"combine_chunks": "true",
-                    "force_transform": "true"}
-
-            if params.compression_codec is not None:
-                yt_client.set_attribute(dst, "compression_codec", params.compression_codec)
-            if params.erasure_codec is not None:
-                yt_client.set_attribute(dst, "erasure_codec", params.erasure_codec)
-                spec["job_io"] = {"table_writer": {"desired_chunk_size": 2 * 1024 ** 3}}
-                spec["data_size_per_job"] = max(1, int(4 * (1024 ** 3) / yt_client.get(dst + "/@compression_ratio")))
-
-            logger.info("Merging '%s' with spec '%s'", dst, repr(spec))
-            yt_client.run_merge(dst, dst, mode=mode, spec=spec)
-
-        # Additional final check
-        if yt_client.records_count(dst) != record_count:
-            logger.error("Incorrect record count (expected: %d, actual: %d)", record_count, yt_client.records_count(dst))
-            return REPEAT
+        copy_yamr_to_yt_pull(yamr, yt_client, src, dst,
+                             fastbone=params.fastbone,
+                             erasure_codec=params.erasure_codec,
+                             compression_codec=params.compression_codec,
+                             spec_template={"pool": params.yt_pool})
 
     except (CalledProcessError, TimeoutExpired, IncorrectRowCount) as error:
         logger.exception(error.message)
