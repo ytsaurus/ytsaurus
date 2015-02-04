@@ -530,6 +530,13 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
                 schedulerJobSpecExt->input_row_count() *
                 ApproximateSizesBoostFactor));
         }
+
+        if (schedulerJobSpecExt->input_uncompressed_data_size() > Controller->Spec->MaxDataSizePerJob) {
+            Controller->OnOperationFailed(TError(
+                "Max allowed data size per job violated: %v > %v",
+                schedulerJobSpecExt->input_uncompressed_data_size(),
+                Controller->Spec->MaxDataSizePerJob));
+        }
     });
 
     joblet->Job = context->StartJob(
