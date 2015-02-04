@@ -996,6 +996,20 @@ TCGValue TCGContext::DoCodegenBinaryOpExpr(
                                     Module_->GetRoutine("LexicographicalCompare"),
                                     rhsData, rhsLength, lhsData, lhsLength);
                                 break;
+                            case EBinaryOp::LessOrEqual:
+                                evalData =  builder.CreateXor(
+                                    builder.CreateCall4(
+                                        Module_->GetRoutine("LexicographicalCompare"),
+                                        rhsData, rhsLength, lhsData, lhsLength),
+                                    builder.getInt8(1));
+                                break;
+                            case EBinaryOp::GreaterOrEqual:
+                                evalData = builder.CreateXor(
+                                    builder.CreateCall4(
+                                        Module_->GetRoutine("LexicographicalCompare"),
+                                        lhsData, lhsLength, rhsData, rhsLength),
+                                    builder.getInt8(1));
+                                break;
                             default:
                                 YUNREACHABLE();
                         }

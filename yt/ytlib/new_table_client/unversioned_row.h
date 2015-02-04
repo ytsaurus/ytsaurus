@@ -146,6 +146,11 @@ inline bool IsStringLikeType(EValueType type)
     return type == EValueType::String || type == EValueType::Any;
 }
 
+inline bool IsComparableType(EValueType type)
+{
+    return IsArithmeticType(type) || type == EValueType::String;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TUnversionedValue MakeUnversionedSentinelValue(EValueType type, int id = 0)
