@@ -193,8 +193,8 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
         THROW_ERROR_EXCEPTION(
             "Type mismatch in expression %Qv",
             source)
-            << TErrorAttribute("lhs_type", ToString(lhsType))
-            << TErrorAttribute("rhs_type", ToString(rhsType));
+            << TErrorAttribute("lhs_type", lhsType)
+            << TErrorAttribute("rhs_type", rhsType);
     }
 
     EValueType operandType = lhsType;
@@ -208,7 +208,7 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires either integral or floating-point operands",
                     source)
-                    << TErrorAttribute("operand_type", ToString(operandType));
+                    << TErrorAttribute("operand_type", operandType);
             }
             return operandType;
 
@@ -217,7 +217,7 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires integral operands",
                     source)
-                    << TErrorAttribute("operand_type", ToString(operandType));
+                    << TErrorAttribute("operand_type", operandType);
             }
             return operandType;
 
@@ -227,7 +227,7 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires boolean operands",
                     source)
-                    << TErrorAttribute("operand_type", ToString(operandType));
+                    << TErrorAttribute("operand_type", operandType);
             }
             return EValueType::Boolean;
 
@@ -243,7 +243,7 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires either integral or floating-point operands",
                     source)
-                    << TErrorAttribute("lhs_type", ToString(operandType));
+                    << TErrorAttribute("lhs_type", operandType);
             }
             return EValueType::Boolean;
 
@@ -273,8 +273,8 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
 
         if (argType != EValueType::Int64 && argType != EValueType::Uint64 && argType != EValueType::Double) {
             THROW_ERROR_EXCEPTION("Conversion %Qv is not supported for this types", source)
-                << TErrorAttribute("src_type", ToString(argType))
-                << TErrorAttribute("dst_type", ToString(dstType));
+                << TErrorAttribute("src_type", argType)
+                << TErrorAttribute("dst_type", dstType);
         }
 
         return dstType;
@@ -289,15 +289,15 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
 
         if (conditionType != EValueType::Boolean) {
             THROW_ERROR_EXCEPTION("Expected condition %Qv to be boolean", source)
-                << TErrorAttribute("condition_type", ToString(conditionType));
+                << TErrorAttribute("condition_type", conditionType);
         }
 
         if (thenType != elseType) {
             THROW_ERROR_EXCEPTION(
                 "Type mismatch in expression %Qv",
                 source)
-                << TErrorAttribute("then_type", ToString(thenType))
-                << TErrorAttribute("else_type", ToString(elseType));
+                << TErrorAttribute("then_type", thenType)
+                << TErrorAttribute("else_type", elseType);
         }
 
         return thenType;
@@ -311,8 +311,8 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
             THROW_ERROR_EXCEPTION(
                 "Expression %Qv supports only string arguments",
                 source)
-                << TErrorAttribute("lhs_type", ToString(lhsType))
-                << TErrorAttribute("rhs_type", ToString(rhsType));
+                << TErrorAttribute("lhs_type", lhsType)
+                << TErrorAttribute("rhs_type", rhsType);
         }
 
         return EValueType::Boolean;
@@ -324,7 +324,7 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
             THROW_ERROR_EXCEPTION(
                 "Expression %Qv supports only string argument",
                 source)
-                << TErrorAttribute("arg_type", ToString(argType));
+                << TErrorAttribute("arg_type", argType);
         }
 
         return EValueType::String;
