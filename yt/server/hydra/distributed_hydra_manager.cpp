@@ -831,8 +831,8 @@ private:
     bool Restart(TEpochContextPtr epochContext)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-
-        if (epochContext->Restarted.test_and_set()) {
+        bool expected = false;
+        if (epochContext->Restarted.compare_exchange_strong(expected, true)) {
             return false;
         }
 

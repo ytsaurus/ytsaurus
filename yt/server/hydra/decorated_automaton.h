@@ -42,7 +42,7 @@ struct TEpochContext
     TFollowerCommitterPtr FollowerCommitter;
     TFollowerTrackerPtr FollowerTracker;
 
-    std::atomic_flag Restarted = ATOMIC_FLAG_INIT;
+    std::atomic<bool> Restarted = {false};
 
     TNullable<TVersion> ActiveLeaderSyncVersion;
     TPromise<void> ActiveLeaderSyncPromise;
