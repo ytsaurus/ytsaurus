@@ -67,7 +67,8 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ThreadPool_(New<TThreadPool>(Config_->StoreCompactor->ThreadPoolSize, "StoreCompact"))
-        , Semaphore_(Config_->StoreCompactor->MaxConcurrentCompactions)
+        , CompactionSemaphore_(Config_->StoreCompactor->MaxConcurrentCompactions)
+        , PartitioningSemaphore_(Config_->StoreCompactor->MaxConcurrentPartitionings)
     { }
 
     void Start()
@@ -77,11 +78,12 @@ public:
     }
 
 private:
-    TTabletNodeConfigPtr Config_;
-    NCellNode::TBootstrap* Bootstrap_;
+    const TTabletNodeConfigPtr Config_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
     TThreadPoolPtr ThreadPool_;
-    TAsyncSemaphore Semaphore_;
+    TAsyncSemaphore CompactionSemaphore_;
+    TAsyncSemaphore PartitioningSemaphore_;
 
 
     void ScanSlot(TTabletSlotPtr slot)
@@ -123,15 +125,16 @@ private:
         auto* tablet = eden->GetTablet();
         auto config = tablet->GetConfig();
         if (dataSize <= config->MaxEdenDataSize &&
-            static_cast<int>(stores.size()) <= config->MaxEdenChunkCount)
+            stores.size() <= config->MaxEdenChunkCount &&
+            TInstant::Now() < tablet->GetLastPartitioningTime() + config->AutoPartitioningPeriod)
             return;
 
-        auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(&PartitioningSemaphore_);
         if (!guard)
             return;
 
         // Limit the number of chunks to process at once.
-        if (static_cast<int>(stores.size()) > config->MaxPartitioningFanIn) {
+        if (stores.size() > config->MaxPartitioningFanIn) {
             stores.erase(
                 stores.begin() + config->MaxPartitioningFanIn,
                 stores.end());
@@ -173,7 +176,7 @@ private:
         if (stores.empty())
             return;
 
-        auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(&CompactionSemaphore_);
         if (!guard)
             return;
 
@@ -305,20 +308,6 @@ private:
 
         auto automatonInvoker = GetCurrentInvoker();
         auto poolInvoker = ThreadPool_->GetInvoker();
-
-        auto backOff = [&] () {
-            automatonInvoker->Invoke(BIND([=] () {
-                for (auto store : stores) {
-                    YCHECK(store->GetState() == EStoreState::Compacting);
-                    tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
-                }
-            }));
-        };
-
-        auto reset = [&] () {
-            YCHECK(eden->GetState() == EPartitionState::Compacting);
-            eden->SetState(EPartitionState::Normal);
-        };
 
         try {
             i64 dataSize = 0;
@@ -460,7 +449,7 @@ private:
             int currentRowIndex = 0;
 
             auto peekInputRow = [&] () -> TVersionedRow {
-                if (currentRowIndex == static_cast<int>(readRows.size())) {
+                if (currentRowIndex == readRows.size()) {
                     // readRows will be invalidated, must flush writeRows.
                     flushOutputRows();
                     currentRowIndex = 0;
@@ -513,20 +502,24 @@ private:
             LOG_INFO("Eden partitioning completed (RowCount: %v)",
                 readRowCount);
 
+            tablet->SetLastPartitioningTime(TInstant::Now());
+
             CreateMutation(slot->GetHydraManager(), hydraRequest)
                 ->Commit();
 
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error partitioning Eden, backing off");
-            backOff();
-        } catch (...) {
-            backOff();
-            reset();
-            throw;
+            automatonInvoker->Invoke(BIND([=] () {
+                for (auto store : stores) {
+                    YCHECK(store->GetState() == EStoreState::Compacting);
+                    tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
+                }
+            }));
         }
 
-        reset();
+        YCHECK(eden->GetState() == EPartitionState::Compacting);
+        eden->SetState(EPartitionState::Normal);
     }
 
     void CompactPartition(
@@ -555,20 +548,6 @@ private:
 
         auto automatonInvoker = GetCurrentInvoker();
         auto poolInvoker = ThreadPool_->GetInvoker();
-
-        auto backOff = [&] () {
-            automatonInvoker->Invoke(BIND([=] () {
-                for (auto store : stores) {
-                    YCHECK(store->GetState() == EStoreState::Compacting);
-                    tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
-                }
-            }));
-        };
-
-        auto reset = [&] () {
-            YCHECK(partition->GetState() == EPartitionState::Compacting);
-            partition->SetState(EPartitionState::Normal);
-        };
 
         try {
             i64 dataSize = 0;
@@ -683,14 +662,16 @@ private:
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error compacting partition, backing off");
-            backOff();
-        } catch (...) {
-            backOff();
-            reset();
-            throw;
+            automatonInvoker->Invoke(BIND([=] () {
+                for (auto store : stores) {
+                    YCHECK(store->GetState() == EStoreState::Compacting);
+                    tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
+                }
+            }));
         }
 
-        reset();
+        YCHECK(partition->GetState() == EPartitionState::Compacting);
+        partition->SetState(EPartitionState::Normal);
     }
 
 };

@@ -1281,6 +1281,8 @@ private:
 
     void StartTabletEpoch(TTablet* tablet)
     {
+        tablet->SetLastPartitioningTime(TInstant::Now());
+
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->StartEpoch(Slot_);
 
