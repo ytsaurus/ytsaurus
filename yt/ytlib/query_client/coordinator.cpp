@@ -265,9 +265,7 @@ TQueryStatistics CoordinateAndExecute(
     auto queryStatistics = evaluateTop(topQuery, std::move(mergingReader), std::move(writer));
 
     for (auto const& subqueryStatistics : subqueriesStatistics) {
-        if (subqueryStatistics.IsSet()) {
-            queryStatistics += subqueryStatistics.Get().ValueOrThrow();
-        }
+        queryStatistics += WaitFor(subqueryStatistics).ValueOrThrow();
     }
 
     return queryStatistics;
