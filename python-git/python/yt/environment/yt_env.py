@@ -344,7 +344,6 @@ class YTEnv(object):
         self._prepare_masters(masters_count, master_name, cell_tag)
         self.start_masters(master_name)
 
-
     def _prepare_nodes(self, nodes_count, node_name):
         if nodes_count == 0:
             return
