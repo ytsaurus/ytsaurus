@@ -265,10 +265,7 @@ TQueryStatistics CoordinateAndExecute(
     auto queryStatistics = evaluateTop(topQuery, std::move(topReader), std::move(writer));
 
     for (auto const& holder : subqueryHolders) {
-        auto maybeStatisticsOrError = holder.Get().TryGet();
-        if (maybeStatisticsOrError) {
-            queryStatistics += maybeStatisticsOrError->ValueOrThrow();
-        }
+        queryStatistics += WaitFor(holder.Get()).ValueOrThrow();
     }
 
     return queryStatistics;
