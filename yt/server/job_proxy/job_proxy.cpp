@@ -196,15 +196,15 @@ void TJobProxy::Run()
         if (Config_->ForceEnableAccounting) {
             TCpuAccounting cpuAccounting("");
             auto cpuStatistics = cpuAccounting.GetStatistics();
-            customStatistics.Add("/job_proxy/cpu", cpuStatistics);
+            customStatistics.AddComplex("/job_proxy/cpu", cpuStatistics);
 
             TBlockIO blockIO("");
             auto blockIOStatistics = blockIO.GetStatistics();
-            customStatistics.Add("/job_proxy/block_io", blockIOStatistics);
+            customStatistics.AddComplex("/job_proxy/block_io", blockIOStatistics);
         }
 
-        customStatistics.Add("/job_proxy/input", jobStatistics.input());
-        customStatistics.Add("/job_proxy/output", GetTotalOutputDataStatistics(jobStatistics));
+        customStatistics.AddComplex("/job_proxy/input", jobStatistics.input());
+        customStatistics.AddComplex("/job_proxy/output", GetTotalOutputDataStatistics(jobStatistics));
 
         ToProto(jobStatistics.mutable_statistics(), NYTree::ConvertToYsonString(customStatistics).Data());
         ToProto(result.mutable_statistics(), jobStatistics);

@@ -130,7 +130,7 @@ public:
         bool suspended = false);
 
 private:
-    TEnumIndexedVector<TStatistics, EJobFinalState> Statistics;
+    TEnumIndexedVector<TAggregatedStatistics, EJobFinalState> Statistics;
     TPromise<void> StartedPromise;
     TPromise<void> FinishedPromise;
 

@@ -134,9 +134,12 @@ public:
 
         DoJobIO();
 
-        AddStatistic(
-            "/user_job/time",
-            TSummary(static_cast<i64>(GetElapsedTime().MilliSeconds())));
+        {
+            TGuard<TSpinLock> guard(StatisticsLock_);
+            Statistics_.Add(
+                "/user_job/time",
+                static_cast<i64>(GetElapsedTime().MilliSeconds()));
+        }
 
         WaitFor(BlockIOWatchdogExecutor_->Stop());
         WaitFor(MemoryWatchdogExecutor_->Stop());
@@ -700,7 +703,7 @@ private:
     void AddStatistic(const TYPath& path, const T& statistic)
     {
         TGuard<TSpinLock> guard(StatisticsLock_);
-        Statistics_.Add(path, statistic);
+        Statistics_.AddComplex(path, statistic);
     }
 
     template <class T>
