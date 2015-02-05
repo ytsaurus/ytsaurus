@@ -225,26 +225,25 @@ TQueryStatistics CoordinateAndExecute(
     if (isOrdered) {
         int index = 0;
 
-        topReader = CreateOrderedSchemafulReader(
-            [ &, index ]() mutable -> ISchemafulReaderPtr {
-                if (index >= subqueries.size()) {
-                    return nullptr;
-                }
+        topReader = CreateOrderedSchemafulReader([&, index ] () mutable -> ISchemafulReaderPtr {
+            if (index >= subqueries.size()) {
+                return nullptr;
+            }
 
-                const auto& subquery = subqueries[index];
-                LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
-                    subquery->GetId());
+            const auto& subquery = subqueries[index];
+            LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
+                subquery->GetId());
 
-                ISchemafulReaderPtr reader;
-                TFuture <TQueryStatistics> asyncStatistics;
-                std::tie(reader, asyncStatistics) = evaluateSubquery(subquery, index);
+            ISchemafulReaderPtr reader;
+            TFuture <TQueryStatistics> asyncStatistics;
+            std::tie(reader, asyncStatistics) = evaluateSubquery(subquery, index);
 
-                subqueryHolders.push_back(MakeHolder(asyncStatistics, false));
+            subqueryHolders.push_back(MakeHolder(asyncStatistics, false));
 
-                ++index;
+            ++index;
 
-                return reader;
-            });
+            return reader;
+        });
     } else {
         for (int index = 0; index < subqueries.size(); ++index) {
             const auto& subquery = subqueries[index];
