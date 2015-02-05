@@ -20,14 +20,17 @@ TMasterHydraServiceBase::TMasterHydraServiceBase(
         NRpc::TServiceId(serviceName, bootstrap->GetCellId()),
         logger,
         version)
-    , Bootstrap(bootstrap)
+    , Bootstrap_(bootstrap)
 {
-    YCHECK(Bootstrap);
+    YCHECK(Bootstrap_);
 }
 
 void TMasterHydraServiceBase::BeforeInvoke()
 {
-    Bootstrap->GetWorldInitializer()->ValidateInitialized();
+    auto worldInitializer = Bootstrap_->GetWorldInitializer();
+    if (!worldInitializer->CheckInitialized()) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Cluster is not initialized");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

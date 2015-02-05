@@ -44,6 +44,8 @@ def get_master_config():
     return yson.loads(
 """
 {
+    enable_provision_lock = false;
+
     master = {
         addresses = [ ];
         cell_tag = 0;

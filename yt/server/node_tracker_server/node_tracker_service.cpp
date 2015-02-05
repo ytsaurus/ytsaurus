@@ -16,6 +16,7 @@
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/master_hydra_service.h>
+#include <server/cell_master/world_initializer.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {
@@ -64,6 +65,14 @@ private:
 
         ValidateActiveLeader();
 
+        auto worldInitializer = Bootstrap_->GetWorldInitializer();
+        if (worldInitializer->CheckProvisionLock()) {
+            THROW_ERROR_EXCEPTION(
+                "Provision lock is found, which indicates a fresh instance of masters being run. "
+                "If this is not intended then please check snapshot/changelog directories location. "
+                "Ignoring this warning and removing the lock may cause UNRECOVERABLE DATA LOSS!");
+        }
+
         auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
         const auto& address = descriptor.GetDefaultAddress();
         const auto& statistics = request->statistics();
@@ -72,7 +81,7 @@ private:
             address,
             statistics);
 
-        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
         int fullHeartbeatQueueSize = FullHeartbeatMethodInfo->QueueSizeCounter.Current;
         int registeredNodeCount = nodeTracker->GetRegisteredNodeCount();
         if (fullHeartbeatQueueSize + registeredNodeCount > Config->MaxFullHeartbeatQueueSize) {
@@ -104,7 +113,7 @@ private:
         auto nodeId = request->node_id();
         const auto& statistics = request->statistics();
 
-        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
         context->SetRequestInfo("NodeId: %v, Address: %v, %v",
@@ -134,7 +143,7 @@ private:
         auto nodeId = request->node_id();
         const auto& statistics = request->statistics();
 
-        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
         context->SetRequestInfo("NodeId: %v, Address: %v, %v",

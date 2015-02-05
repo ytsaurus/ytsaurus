@@ -61,8 +61,8 @@ private:
             nodeId,
             ~FormatResourceUsage(resourceUsage, resourceLimits));
 
-        auto nodeTracker = Bootstrap->GetNodeTracker();
-        auto chunkManager = Bootstrap->GetChunkManager();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        auto chunkManager = Bootstrap_->GetChunkManager();
 
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
@@ -225,7 +225,7 @@ private:
     TNodePtrWithIndexList AddressesToReplicas(const std::vector<Stroka>& addresses)
     {
         TNodePtrWithIndexList replicas;
-        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
         for (const auto& address : addresses) {
             auto* node = nodeTracker->GetNodeByAddress(address);
             TNodePtrWithIndex replica(node, 0);

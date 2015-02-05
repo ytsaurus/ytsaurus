@@ -78,7 +78,7 @@ public:
     }
 
 
-    bool IsInitialized() const
+    bool CheckInitialized()
     {
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto* root = dynamic_cast<TMapNode*>(cypressManager->GetRootNode());
@@ -86,16 +86,17 @@ public:
         return !root->KeyToChild().empty();
     }
 
-    void ValidateInitialized()
+    bool CheckProvisionLock()
     {
-        if (!IsInitialized()) {
-            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Not initialized");
-        }
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        auto resolver = cypressManager->CreateResolver();
+        auto sysNode = resolver->ResolvePath("//sys");
+        return sysNode->Attributes().Get<bool>("provision_lock", false);
     }
 
 private:
-    TCellMasterConfigPtr Config_;
-    TBootstrap* Bootstrap_;
+    const TCellMasterConfigPtr Config_;
+    TBootstrap* const Bootstrap_;
 
 
     void OnLeaderActive()
@@ -108,7 +109,7 @@ private:
 
     void InitializeIfNeeded()
     {
-        if (!IsInitialized()) {
+        if (!CheckInitialized()) {
             Initialize();
         }
     }
@@ -147,6 +148,9 @@ private:
                 EObjectType::MapNode,
                 BuildYsonStringFluently()
                     .BeginMap()
+                        .DoIf(Config_->EnableProvisionLock, [&] (TFluentMap fluent) {
+                            fluent.Item("provision_lock").Value(true);
+                        })
                         .Item("cell_tag").Value(Bootstrap_->GetCellTag())
                         .Item("cell_id").Value(Bootstrap_->GetCellId())
                     .EndMap());
@@ -473,8 +477,8 @@ private:
     void CommitTransaction(const TTransactionId& transactionId)
     {
         auto transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        auto error = WaitFor(transactionSupervisor->CommitTransaction(transactionId));
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        WaitFor(transactionSupervisor->CommitTransaction(transactionId))
+            .ThrowOnError();
     }
 
     void CreateNode(
@@ -505,14 +509,14 @@ TWorldInitializer::TWorldInitializer(
 TWorldInitializer::~TWorldInitializer()
 { }
 
-bool TWorldInitializer::IsInitialized()
+bool TWorldInitializer::CheckInitialized()
 {
-    return Impl_->IsInitialized();
+    return Impl_->CheckInitialized();
 }
 
-void TWorldInitializer::ValidateInitialized()
+bool TWorldInitializer::CheckProvisionLock()
 {
-    return Impl_->ValidateInitialized();
+    return Impl_->CheckProvisionLock();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
