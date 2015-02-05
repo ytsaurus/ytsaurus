@@ -279,6 +279,7 @@ public:
                 executionContext.Statistics = &statistics;
                 executionContext.InputRowLimit = query->GetInputRowLimit();
                 executionContext.OutputRowLimit = query->GetOutputRowLimit();
+                executionContext.GroupRowLimit = query->GetOutputRowLimit();
                 executionContext.Limit = query->Limit;
 
                 LOG_DEBUG("Running evaluation");
