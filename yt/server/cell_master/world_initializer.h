@@ -22,15 +22,15 @@ public:
         TBootstrap* bootstrap);
     ~TWorldInitializer();
 
-    //! Checks if the cell is initialized.
-    bool IsInitialized();
+    //! Returns |true| if the cluster is initialized.
+    bool CheckInitialized();
 
-    //! Same as #IsInitialized but throws on failure.
-    void ValidateInitialized();
+    //! Returns |true| if provision lock is active.
+    bool CheckProvisionLock();
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

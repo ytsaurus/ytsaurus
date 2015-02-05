@@ -13,7 +13,7 @@ class TMasterHydraServiceBase
     : public NHydra::THydraServiceBase
 {
 protected:
-    TBootstrap* Bootstrap;
+    TBootstrap* const Bootstrap_;
 
     TMasterHydraServiceBase(
         TBootstrap* bootstrap,

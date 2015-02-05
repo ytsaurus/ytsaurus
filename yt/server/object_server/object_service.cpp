@@ -345,7 +345,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     ValidateActivePeer();
 
     auto session = New<TExecuteSession>(
-        Bootstrap,
+        Bootstrap_,
         std::move(context));
     session->Run();
 }
@@ -359,7 +359,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
 
     ValidateActiveLeader();
 
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
     context->ReplyFrom(objectManager->GCCollect());
 }
 
@@ -372,7 +372,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, BuildSnapshot)
 
     ValidateActiveLeader();
 
-    auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
+    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
 
     if (setReadOnly) {
         hydraManager->SetReadOnly(true);
