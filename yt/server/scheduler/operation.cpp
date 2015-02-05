@@ -73,7 +73,7 @@ bool TOperation::IsFinishingState() const
 
 void TOperation::UpdateStatistics(const TStatistics& statistics, EJobFinalState state)
 {
-    Statistics[state].Merge(statistics);
+    Statistics[state].AddSample(statistics);
 }
 
 void TOperation::BuildStatistics(NYson::IYsonConsumer* consumer) const

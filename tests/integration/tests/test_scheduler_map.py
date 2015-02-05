@@ -187,7 +187,7 @@ class TestEventLog(YTEnvSetup):
             event_types.add(item["event_type"])
             if item["event_type"] == "job_completed":
                 stats = item["statistics"]
-                user_time = get_statistics(stats, "user_job.cpu.user.max")
+                user_time = get_statistics(stats, "user_job.cpu.user")
                 # our job should burn enough cpu
                 assert user_time > 0
         assert "operation_started" in event_types
@@ -291,8 +291,8 @@ class TestBlockIO(YTEnvSetup):
             if item["event_type"] == "job_completed" and item["operation_id"] == op_id:
                 job_completed_line_exist = True
                 stats = item["statistics"]
-                bytes_read = get_statistics(stats, "user_job.block_io.bytes_read.max")
-                io_read = get_statistics(stats, "user_job.block_io.io_read.max")
+                bytes_read = get_statistics(stats, "user_job.block_io.bytes_read")
+                io_read = get_statistics(stats, "user_job.block_io.io_read")
         assert job_completed_line_exist
         assert bytes_read == 160*1024*50
         assert io_read == 50
@@ -324,7 +324,7 @@ class TestUserStatistics(YTEnvSetup):
 
         statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
         assert get_statistics(statistics, "completed_jobs.custom.cpu.k1.max") == 4
-        assert get_statistics(statistics, "completed_jobs.custom.k2.count") == 2
+        assert get_statistics(statistics, "completed_jobs.custom.k2.count") == 1
 
     def test_multiple_job_statistics(self):
         create("table", "//tmp/t1")
