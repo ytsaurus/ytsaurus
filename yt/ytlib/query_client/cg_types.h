@@ -60,6 +60,7 @@ struct TExecutionContext
     // TODO: Rename to ReadRowLimit and WriteRowLimit
     i64 InputRowLimit;
     i64 OutputRowLimit;
+    i64 GroupRowLimit;
 
     i64 Limit;
 
