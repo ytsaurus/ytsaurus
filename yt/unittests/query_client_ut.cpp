@@ -2216,6 +2216,46 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestGroupRowLimit)
+{
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::Int64);
+    columns.emplace_back("b", EValueType::Int64);
+    auto simpleSplit = MakeSplit(columns);
+
+    const char* sourceRowsData[] = {
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90"
+    };
+
+    std::vector<TOwningRow> source;
+    for (auto row : sourceRowsData) {
+        source.push_back(BuildRow(row, simpleSplit, false));
+    }
+
+    std::vector<TOwningRow> result;
+    result.push_back(BuildRow("a=1;b=250", simpleSplit, false));
+    result.push_back(BuildRow("a=0;b=200", simpleSplit, false));
+
+    Evaluate("a, sum(b) as b FROM [//t] group by a % 2 as a", simpleSplit, source, result, std::numeric_limits<i64>::max(), 3);
+
+    result.clear();
+    result.push_back(BuildRow("a=1;b=10", simpleSplit, false));
+    result.push_back(BuildRow("a=2;b=20", simpleSplit, false));
+    result.push_back(BuildRow("a=3;b=30", simpleSplit, false));
+
+    Evaluate("a, sum(b) as b FROM [//t] group by a % 5 as a", simpleSplit, source, result, std::numeric_limits<i64>::max(), 3);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestTypeInference)
 {
     std::vector<TColumnSchema> columns;
