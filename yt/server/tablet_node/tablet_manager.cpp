@@ -786,7 +786,7 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!tablet)
+        if (!tablet || tablet->GetState() != ETabletState::Mounted)
             return;
 
         RotateStores(tablet, true);
