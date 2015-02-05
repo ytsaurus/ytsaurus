@@ -281,6 +281,7 @@ public:
                 executionContext.Statistics = &statistics;
                 executionContext.InputRowLimit = query->GetInputRowLimit();
                 executionContext.OutputRowLimit = query->GetOutputRowLimit();
+                executionContext.GroupRowLimit = query->GetOutputRowLimit();
                 executionContext.Limit = query->Limit;
 
                 CallCGQueryPtr_(cgQuery, fragmentParams.ConstantsRowBuilder.GetRow(), &executionContext);
