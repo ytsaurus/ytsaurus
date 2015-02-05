@@ -98,18 +98,15 @@ public:
         }
 
         return Combine(readBlocksFutures).Apply(
-            BIND([this, this_, blockLocations] (std::vector<std::vector<TSharedRef>> readBlocks) //Error) 
-                    -> std::vector<TSharedRef>
-                {
-                    std::vector<TSharedRef> resultBlocks(BlockIndexes_.size());
-                    for (int readerIndex = 0; readerIndex < readBlocks.size(); ++readerIndex) {
-                        for (int index = 0; index < readBlocks[readerIndex].size(); ++index) {
-                            resultBlocks[blockLocations[readerIndex].second[index]] = readBlocks[readerIndex][index];
-                        }
+            BIND([this, this_, blockLocations] (std::vector<std::vector<TSharedRef>> readBlocks) {
+                std::vector<TSharedRef> resultBlocks(BlockIndexes_.size());
+                for (int readerIndex = 0; readerIndex < readBlocks.size(); ++readerIndex) {
+                    for (int blockIndex = 0; blockIndex < readBlocks[readerIndex].size(); ++blockIndex) {
+                        resultBlocks[blockLocations[readerIndex].second[blockIndex]] = readBlocks[readerIndex][blockIndex];
                     }
-                    return resultBlocks;
-                })
-            );
+                }
+                return resultBlocks;
+            }));
     }
 
 private:
