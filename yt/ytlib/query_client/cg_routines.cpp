@@ -60,6 +60,7 @@ bool CountWriteRow(TExecutionContext* executionContext)
         --executionContext->OutputRowLimit;
         return false;
     } else {
+        executionContext->stopFlag = true;
         executionContext->Statistics->IncompleteOutput = true;
         return true;
     }
