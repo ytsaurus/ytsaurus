@@ -1672,8 +1672,8 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
     int failedJobCount = JobCounter.GetFailed();
     int maxFailedJobCount = Spec->MaxFailedJobCount.Get(Config->MaxFailedJobCount);
     if (failedJobCount >= maxFailedJobCount) {
-        OnOperationFailed(TError("Failed jobs limit %v has been reached",
-            maxFailedJobCount));
+        OnOperationFailed(TError("Failed jobs limit exceeded")
+            << TErrorAttribute("max_failed_job_count", maxFailedJobCount));
         return;
     }
 }
