@@ -20,8 +20,8 @@
 #include <ytlib/new_table_client/writer.h>
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/schemaful_merging_reader.h>
-#include <ytlib/new_table_client/schemaful_ordered_reader.h>
+#include <ytlib/new_table_client/unordered_schemaful_reader.h>
+#include <ytlib/new_table_client/ordered_schemaful_reader.h>
 
 #include <ytlib/object_client/helpers.h>
 
@@ -225,25 +225,26 @@ TQueryStatistics CoordinateAndExecute(
     if (isOrdered) {
         int index = 0;
 
-        topReader = CreateSchemafulOrderedReader([&, index] () mutable -> ISchemafulReaderPtr {
-            if (index >= subqueries.size()) {
-                return nullptr;
-            }
+        topReader = CreateOrderedSchemafulReader(
+            [ &, index ]() mutable -> ISchemafulReaderPtr {
+                if (index >= subqueries.size()) {
+                    return nullptr;
+                }
 
-            const auto& subquery = subqueries[index];
-            LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
-                subquery->GetId());
+                const auto& subquery = subqueries[index];
+                LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
+                    subquery->GetId());
 
-            ISchemafulReaderPtr reader;
-            TFuture<TQueryStatistics> asyncStatistics;
-            std::tie(reader, asyncStatistics) = evaluateSubquery(subquery, index);
+                ISchemafulReaderPtr reader;
+                TFuture <TQueryStatistics> asyncStatistics;
+                std::tie(reader, asyncStatistics) = evaluateSubquery(subquery, index);
 
-            subqueryHolders.push_back(MakeHolder(asyncStatistics, false));
+                subqueryHolders.push_back(MakeHolder(asyncStatistics, false));
 
-            ++index;
+                ++index;
 
-            return reader;
-        });
+                return reader;
+            });
     } else {
         for (int index = 0; index < subqueries.size(); ++index) {
             const auto& subquery = subqueries[index];
@@ -259,7 +260,7 @@ TQueryStatistics CoordinateAndExecute(
             subqueryHolders.push_back(statistics);
         }
 
-        topReader = CreateSchemafulMergingReader(splitReaders);
+        topReader = CreateUnorderedSchemafulReader(splitReaders);
     }
 
     auto queryStatistics = evaluateTop(topQuery, std::move(topReader), std::move(writer));
