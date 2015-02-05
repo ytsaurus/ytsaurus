@@ -54,25 +54,14 @@ static const size_t InitialGroupOpHashtableCapacity = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CountWriteRow(TExecutionContext* executionContext)
-{
-    if (executionContext->OutputRowLimit > 0) {
-        --executionContext->OutputRowLimit;
-        return false;
-    } else {
-        executionContext->stopFlag = true;
-        executionContext->Statistics->IncompleteOutput = true;
-        return true;
-    }
-}
 
-bool CountOutputRow(TExecutionContext* executionContext)
+
+bool CountRow(i64* limit)
 {
-    if (executionContext->Limit > 0) {
-        --executionContext->Limit;
+    if (*limit > 0) {
+        --*limit;
         return false;
     } else {
-        executionContext->stopFlag = true;
         return true;
     }
 }
@@ -81,7 +70,12 @@ void WriteRow(TRow row, TExecutionContext* executionContext)
 {
     CHECK_STACK();
 
-    if (CountOutputRow(executionContext) | CountWriteRow(executionContext)) {
+    if (CountRow(&executionContext->Limit)) {
+        return;
+    }
+
+    if (executionContext->stopFlag = CountRow(&executionContext->OutputRowLimit)) {
+        executionContext->Statistics->IncompleteOutput = true;
         return;
     }
     
@@ -215,13 +209,16 @@ const TRow* InsertGroupRow(
     auto inserted = lookupRows->insert(row);
 
     if (inserted.second) {
-        if (!CountWriteRow(executionContext)) {
-            groupedRows->push_back(row);
-            for (int index = 0; index < valueCount; ++index) {
-                CaptureValue(&row[index], executionContext->PermanentBuffer->GetUnalignedPool());
-            }
-            *rowPtr = TRow::Allocate(executionContext->PermanentBuffer->GetAlignedPool(), valueCount);
+        if (executionContext->stopFlag = CountRow(&executionContext->GroupRowLimit)) {
+            executionContext->Statistics->IncompleteOutput = true;
+            return nullptr;
         }
+
+        groupedRows->push_back(row);
+        for (int index = 0; index < valueCount; ++index) {
+            CaptureValue(&row[index], executionContext->PermanentBuffer->GetUnalignedPool());
+        }
+        *rowPtr = TRow::Allocate(executionContext->PermanentBuffer->GetAlignedPool(), valueCount);
         return nullptr;
     } else {
         return &*inserted.first;
