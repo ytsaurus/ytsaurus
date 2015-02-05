@@ -53,6 +53,8 @@ protected:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TYPathRequest)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRequestMessage, class TResponseMessage>
@@ -104,6 +106,8 @@ protected:
     virtual void DeserializeBody(const TRef& data);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TYPathResponse)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -14,42 +14,21 @@ class TYsonSerializable;
 
 class TYsonString;
 
-struct INode;
-typedef TIntrusivePtr<INode> INodePtr;
+DECLARE_REFCOUNTED_STRUCT(INode);
 typedef TIntrusivePtr<const INode> IConstNodePtr;
-
-struct ICompositeNode;
+DECLARE_REFCOUNTED_STRUCT(ICompositeNode);
 typedef TIntrusivePtr<ICompositeNode> ICompositeNodePtr;
+DECLARE_REFCOUNTED_STRUCT(IStringNode);
+DECLARE_REFCOUNTED_STRUCT(IInt64Node);
+DECLARE_REFCOUNTED_STRUCT(IUint64Node);
+DECLARE_REFCOUNTED_STRUCT(IDoubleNode);
+DECLARE_REFCOUNTED_STRUCT(IBooleanNode);
+DECLARE_REFCOUNTED_STRUCT(IListNode);
+DECLARE_REFCOUNTED_STRUCT(IMapNode);
+DECLARE_REFCOUNTED_STRUCT(IEntityNode);
 
-struct IStringNode;
-typedef TIntrusivePtr<IStringNode> IStringNodePtr;
-
-struct IInt64Node;
-typedef TIntrusivePtr<IInt64Node> IInt64NodePtr;
-
-struct IUint64Node;
-typedef TIntrusivePtr<IUint64Node> IUint64NodePtr;
-
-struct IDoubleNode;
-typedef TIntrusivePtr<IDoubleNode> IDoubleNodePtr;
-
-struct IBooleanNode;
-typedef TIntrusivePtr<IBooleanNode> IBooleanNodePtr;
-
-struct IListNode;
-typedef TIntrusivePtr<IListNode> IListNodePtr;
-
-struct IMapNode;
-typedef TIntrusivePtr<IMapNode> IMapNodePtr;
-
-struct IEntityNode;
-typedef TIntrusivePtr<IEntityNode> IEntityNodePtr;
-
-struct INodeFactory;
-typedef TIntrusivePtr<INodeFactory> INodeFactoryPtr;
-
-struct INodeResolver;
-typedef TIntrusivePtr<INodeResolver> INodeResolverPtr;
+DECLARE_REFCOUNTED_STRUCT(INodeFactory);
+DECLARE_REFCOUNTED_STRUCT(INodeResolver);
 
 class TYsonProducer;
 
@@ -62,17 +41,13 @@ struct IAttributeOwner;
 
 struct ISystemAttributeProvider;
 
-struct IYPathService;
-typedef TIntrusivePtr<IYPathService> IYPathServicePtr;
+DECLARE_REFCOUNTED_STRUCT(IYPathService);
 
-class TYPathRequest;
-typedef TIntrusivePtr<TYPathRequest> TYPathRequestPtr;
+DECLARE_REFCOUNTED_CLASS(TYPathRequest);
+DECLARE_REFCOUNTED_CLASS(TYPathResponse);
 
 template <class TRequestMessage, class TResponseMessage>
 class TTypedYPathRequest;
-
-class TYPathResponse;
-typedef TIntrusivePtr<TYPathResponse> TYPathResponsePtr;
 
 template <class TRequestMessage, class TResponseMessage>
 class TTypedYPathResponse;
