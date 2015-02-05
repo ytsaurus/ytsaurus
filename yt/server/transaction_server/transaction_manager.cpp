@@ -39,6 +39,7 @@
 #include <server/security_server/security_manager.h>
 
 #include <server/hive/transaction_supervisor.h>
+#include <StoreKit/StoreKit.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -416,20 +417,18 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (transaction->GetState() != ETransactionState::Active) {
-            transaction->ThrowInvalidState();
-        }
-
-        // TODO(babenko): validate permissions?
-
-        DoPingTransaction(transaction);
-
-        if (pingAncestors) {
-            auto parentTransaction = transaction->GetParent();
-            while (parentTransaction) {
-                DoPingTransaction(parentTransaction);
-                parentTransaction = parentTransaction->GetParent();
+        auto* currentTransaction = transaction;
+        while (currentTransaction) {
+            if (currentTransaction->GetState() != ETransactionState::Active) {
+                currentTransaction->ThrowInvalidState();
             }
+
+            DoPingTransaction(currentTransaction);
+
+            if (!pingAncestors)
+                break;
+
+            currentTransaction = currentTransaction->GetParent();
         }
     }
 
