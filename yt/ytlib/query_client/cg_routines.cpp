@@ -9,7 +9,7 @@
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/schemaful_merging_reader.h>
+#include <ytlib/new_table_client/unordered_schemaful_reader.h>
 #include <ytlib/new_table_client/row_buffer.h>
 
 #include <ytlib/chunk_client/chunk_spec.h>

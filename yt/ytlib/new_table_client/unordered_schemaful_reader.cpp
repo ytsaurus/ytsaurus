@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "schemaful_merging_reader.h"
+#include "unordered_schemaful_reader.h"
 #include "schemaful_reader.h"
 #include "unversioned_row.h"
 
@@ -10,11 +10,11 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemafulMergingReader
+class TUnorderedSchemafulReader
     : public ISchemafulReader
 {
 public:
-    explicit TSchemafulMergingReader(const std::vector<ISchemafulReaderPtr>& readers)
+    explicit TUnorderedSchemafulReader(const std::vector<ISchemafulReaderPtr>& readers)
     {
         for (const auto& reader : readers) {
             TSession session;
@@ -23,7 +23,7 @@ public:
         }
     }
 
-    ~TSchemafulMergingReader()
+    ~TUnorderedSchemafulReader()
     {
         CancelableContext_->Cancel();
     }
@@ -87,7 +87,7 @@ public:
                 readyEvent.TrySetFrom(session.ReadyEvent);
             }
         }
-        readyEvent.OnCanceled(BIND(&TSchemafulMergingReader::OnCanceled, MakeWeak(this)));
+        readyEvent.OnCanceled(BIND(&TUnorderedSchemafulReader::OnCanceled, MakeWeak(this)));
         ReadyEvent_ = readyEvent;
 
         return true;
@@ -120,9 +120,9 @@ private:
 
 };
 
-ISchemafulReaderPtr CreateSchemafulMergingReader(const std::vector<ISchemafulReaderPtr>& readers)
+ISchemafulReaderPtr CreateUnorderedSchemafulReader(const std::vector<ISchemafulReaderPtr>& readers)
 {
-    return New<TSchemafulMergingReader>(readers);
+    return New<TUnorderedSchemafulReader>(readers);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

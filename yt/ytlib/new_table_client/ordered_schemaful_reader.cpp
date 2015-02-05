@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "schemaful_ordered_reader.h"
+#include "ordered_schemaful_reader.h"
 #include "schemaful_reader.h"
 #include "schema.h"
 #include "unversioned_row.h"
@@ -9,11 +9,11 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemafulOrderedReader
+class TOrderedSchemafulReader
     : public ISchemafulReader
 {
 public:
-    explicit TSchemafulOrderedReader(const std::function<ISchemafulReaderPtr()>& getNextReader)
+    explicit TOrderedSchemafulReader(const std::function<ISchemafulReaderPtr()>& getNextReader)
         : GetNextReader_(getNextReader)
     { }
 
@@ -62,9 +62,9 @@ private:
 
 };
 
-ISchemafulReaderPtr CreateSchemafulOrderedReader(const std::function<ISchemafulReaderPtr()>& getNextReader)
+ISchemafulReaderPtr CreateOrderedSchemafulReader(const std::function<ISchemafulReaderPtr()>& getNextReader)
 {
-    return New<TSchemafulOrderedReader>(getNextReader);
+    return New<TOrderedSchemafulReader>(getNextReader);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

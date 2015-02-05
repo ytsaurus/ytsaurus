@@ -20,7 +20,7 @@
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_chunk_reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/schemaful_merging_reader.h>
+#include <ytlib/new_table_client/unordered_schemaful_reader.h>
 #include <ytlib/new_table_client/pipe.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
@@ -189,7 +189,7 @@ private:
                 for (const auto& dataSplit : groupedSplits[index]) {
                     bottomSplitReaders.push_back(GetReader(dataSplit, nodeDirectory));
                 }
-                auto mergingReader = CreateSchemafulMergingReader(bottomSplitReaders);
+                auto mergingReader = CreateUnorderedSchemafulReader(bottomSplitReaders);
 
                 auto pipe = New<TSchemafulPipe>();
 
