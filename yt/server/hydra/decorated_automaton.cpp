@@ -292,6 +292,11 @@ private:
         OutputFile_->Close();
     }
 
+    virtual void Cleanup() override
+    {
+        Owner_->BuildingSnapshot_.clear();
+    }
+
     void TransferLoop()
     {
         LOG_INFO("Snapshot transfer loop started");
@@ -328,12 +333,8 @@ private:
              bytesTotal);
     }
 
-    TRemoteSnapshotParams OnFinished(const TError& error)
+    TRemoteSnapshotParams OnFinished()
     {
-        Owner_->BuildingSnapshot_.clear();
-
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
-
         {
             auto error = WaitFor(AsyncTransferResult_);
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
