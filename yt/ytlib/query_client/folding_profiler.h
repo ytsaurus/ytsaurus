@@ -64,13 +64,21 @@ private:
     yhash_set<Stroka>* References_ = nullptr;
 };
 
-struct TFoldingHasher
-{
-    size_t operator ()(const llvm::FoldingSetNodeID& id) const;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
 } // namespace NYT
 
+////////////////////////////////////////////////////////////////////////////////
+
+// A hasher for llvm::FoldingSetNodeID
+template<>
+struct hash<llvm::FoldingSetNodeID>
+{
+    inline size_t operator()(const llvm::FoldingSetNodeID& id) const
+    {
+        return id.ComputeHash();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
