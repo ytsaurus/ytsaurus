@@ -1,8 +1,8 @@
-import http_config
-import config
 import yt.logger as logger
+import config
+from config import get_config, get_option, set_option
 from common import require, get_backoff, get_value
-from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, build_response_error, YtRequestRateLimitExceeded
+from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, build_http_response_error, YtRequestRateLimitExceeded
 from command import parse_commands
 
 import yt.yson as yson
@@ -25,25 +25,29 @@ session_ = yt.packages.requests.Session()
 def get_session():
     return session_
 
-if http_config.FORCE_IPV4 or http_config.FORCE_IPV6:
-    import socket
-    origGetAddrInfo = socket.getaddrinfo
+def configure_ip(client):
+    force_ipv4 = get_config(client)["proxy"]["force_ipv4"]
+    force_ipv6 = get_config(client)["proxy"]["force_ipv6"]
 
-    protocol = socket.AF_INET if http_config.FORCE_IPV4 else socket.AF_INET6
+    if force_ipv4 or force_ipv6:
+        import socket
+        origGetAddrInfo = socket.getaddrinfo
 
-    def getAddrInfoWrapper(host, port, family=0, socktype=0, proto=0, flags=0):
-        return origGetAddrInfo(host, port, protocol, socktype, proto, flags)
+        protocol = socket.AF_INET if force_ipv4 else socket.AF_INET6
 
-    # replace the original socket.getaddrinfo by our version
-    socket.getaddrinfo = getAddrInfoWrapper
+        def getAddrInfoWrapper(host, port, family=0, socktype=0, proto=0, flags=0):
+            return origGetAddrInfo(host, port, protocol, socktype, proto, flags)
+
+        # replace the original socket.getaddrinfo by our version
+        socket.getaddrinfo = getAddrInfoWrapper
 
 def parse_error_from_headers(headers):
     if int(headers.get("x-yt-response-code", 0)) != 0:
         return json.loads(headers["x-yt-error"])
     return None
 
-def create_response(response, request_headers):
-    header_format = get_value(config.http.HEADER_FORMAT, "json")
+def create_response(response, request_headers, client):
+    header_format = get_value(get_config(client)["proxy"]["header_format"], "json")
     def loads(str):
         if header_format == "json":
             return yson.json_to_yson(json.loads(str))
@@ -81,33 +85,36 @@ def create_response(response, request_headers):
     response.is_ok = types.MethodType(is_ok, response)
     return response
 
-def _process_request_backoff(current_time):
-    if http_config.REQUEST_BACKOFF is not None:
+def _process_request_backoff(current_time, client):
+    backoff = get_config(client)["proxy"]["request_backoff_time"]
+    if backoff is not None:
         last_request_time = getattr(get_session(), "last_request_time", 0)
         now_seconds = (current_time - datetime(1970, 1, 1)).total_seconds()
         diff = now_seconds - last_request_time
-        if diff * 1000.0 < float(http_config.REQUEST_BACKOFF):
-            time.sleep(float(http_config.REQUEST_BACKOFF) / 1000.0 - diff)
+        if diff * 1000.0 < float(backoff):
+            time.sleep(float(backoff) / 1000.0 - diff)
         get_session().last_request_time = now_seconds
 
-def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_should_be_json=False, timeout=None, retry_action=None, **kwargs):
+def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_should_be_json=False, timeout=None, retry_action=None, client=None, **kwargs):
+    configure_ip(client)
+
     if timeout is None:
-        timeout = http_config.REQUEST_RETRY_TIMEOUT / 1000.0
+        timeout = get_config(client)["proxy"]["request_retry_timeout"] / 1000.0
 
     retriable_errors = list(RETRIABLE_ERRORS)
     if not retry_unavailable_proxy:
         retriable_errors.remove(YtProxyUnavailable)
 
-    for attempt in xrange(http_config.REQUEST_RETRY_COUNT):
+    for attempt in xrange(get_config(client)["proxy"]["request_retry_count"]):
         current_time = datetime.now()
-        _process_request_backoff(current_time)
+        _process_request_backoff(current_time, client=client)
         headers = kwargs.get("headers", {})
         try:
             try:
-                response = create_response(get_session().request(method, url, timeout=timeout, **kwargs), headers)
+                response = create_response(get_session().request(method, url, timeout=timeout, **kwargs), headers, client)
             except ConnectionError as error:
                 if hasattr(error, "response"):
-                    raise build_response_error(url, headers, create_response(error.response, headers).error())
+                    raise build_http_response_error(url, headers, create_response(error.response, headers, client).error())
                 else:
                     raise
 
@@ -121,15 +128,15 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
             if response.status_code == 503:
                 raise YtProxyUnavailable("Retrying response with code 503 and body %s" % response.content)
             if not response.is_ok():
-                raise build_response_error(url, headers, response.error())
+                raise build_http_response_error(url, headers, response.error())
 
             return response
         except tuple(retriable_errors) as error:
             message =  "HTTP %s request %s has failed with error %s, message: '%s', headers: %s" % (method, url, type(error), str(error), headers)
-            if make_retries and attempt + 1 < http_config.REQUEST_RETRY_COUNT:
+            if make_retries and attempt + 1 < get_config(client)["proxy"]["request_retry_count"]:
                 if retry_action is not None:
                     retry_action()
-                backoff = get_backoff(http_config.REQUEST_RETRY_TIMEOUT, current_time)
+                backoff = get_backoff(get_config(client)["proxy"]["request_retry_timeout"], current_time)
                 if backoff:
                     logger.warning("%s. Sleep for %.2lf seconds...", message, backoff)
                     time.sleep(backoff)
@@ -141,58 +148,77 @@ def make_get_request_with_retries(url, **kwargs):
     response = make_request_with_retries("get", url, **kwargs)
     return response.json()
 
-def get_proxy_url(proxy=None, client=None):
-    client = get_value(client, config.CLIENT)
+def get_proxy_url(proxy=None, check=True, client=None):
     if proxy is None:
-        if client is None:
-            proxy = config.http.PROXY
-        else:
-            proxy = client.proxy
-    require(proxy, YtError("You should specify proxy"))
+        proxy = get_config(client=client)["proxy"]["url"]
 
-    if "." not in proxy and "localhost" not in proxy:
-        proxy = proxy + http_config.PROXY_SUFFIX
+    if proxy is not None and "." not in proxy and "localhost" not in proxy:
+        proxy = proxy + get_config(client=client)["proxy"]["default_suffix"]
+
+    if check:
+        require(proxy, YtError("You should specify proxy"))
 
     return proxy
 
-def get_api(client=None):
-    def _request_api(proxy, version=None, client=None):
-        proxy = get_proxy_url(proxy)
-        location = "api" if version is None else "api/" + version
-        return make_get_request_with_retries("http://{0}/{1}".format(proxy, location))
-
-    proxy = get_proxy_url(client=client)
-    if client is None:
-        client_provider = config
-    else:
-        client_provider = client
-
-    if not hasattr(client_provider, "COMMANDS") or not client_provider.COMMANDS:
-        versions = _request_api(proxy)
-        if hasattr(client_provider, "VERSION"):
-            version = client_provider.VERSION
-        elif "v3" in versions:
-            version = "v3"
-        else:
-            version = "v2"
-        require(version in versions, YtError("API {0} are not supported".format(version)))
-
-        client_provider.VERSION = version
-        client_provider.COMMANDS = parse_commands(_request_api(proxy, version=version))
-
-    return client_provider.VERSION, client_provider.COMMANDS
+def _request_api(proxy, version=None, client=None):
+    proxy = get_proxy_url(proxy)
+    location = "api" if version is None else "api/" + version
+    return make_get_request_with_retries("http://{0}/{1}".format(proxy, location))
 
 def get_api_version(client=None):
-    return get_api(client=client)[0]
+    api_version_option = get_option("_version", client)
+    if api_version_option is not None:
+        return api_version_option
+
+    api_version_from_config = get_config(client)["api_version"]
+    if api_version_from_config is not None:
+        set_option("_version", api_version_from_config, client)
+        return api_version_from_config
+
+
+    # XXX(ignat): COPY-PASTE from driver.py
+    backend = config["backend"]
+    if backend is None:
+        backend = "http" if config["proxy"]["url"] is not None else "native"
+    require(backend == "http", YtError("Cannot automatically detect api version for non-proxy backend"))
+
+    api_versions = _request_api(get_config(client)["proxy"]["url"])
+    if "v3" in api_versions:
+        api_version = "v3"
+    else:
+        api_version = "v2"
+    require(api_version in api_versions, YtError("API {0} is not supported".format(api_version)))
+
+    set_option("_version", api_version, client)
+
+    return api_version
+
+def get_api_commands(client=None):
+    if get_option("_commands", client):
+        return get_option("_commands", client)
+
+    commands = parse_commands(
+        _request_api(
+            get_config(client)["proxy"]["url"],
+            version=get_api_version(client),
+            client=client))
+    set_option("_commands", commands, client)
+
+    return commands
+
+def get_command_descriptor(command_name, client):
+    commands = get_api_commands(client=client)
+    require(command_name in commands,
+            YtError("Command {0} is not supported by api/{1}".format(command_name, get_api_version(client))))
+    return commands[command_name]
 
 def get_token(client=None):
-    token = None
-    if client is not None:
-        token = client.token
+    if not get_config(client)["enable_token"]:
+        return None
+
+    token = get_config(client)["token"]
     if token is None:
-        token = http_config.TOKEN
-    if token is None:
-        token_path = http_config.TOKEN_PATH
+        token_path = get_config(client=client)["token_path"]
         if token_path is None:
             token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
         if os.path.isfile(token_path):

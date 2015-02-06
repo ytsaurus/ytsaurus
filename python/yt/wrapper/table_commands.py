@@ -22,7 +22,7 @@ Common operations parameters
 * **spec** : (dict) universal method to set operation parameters
 
 * **strategy** : (`yt.wrapper.operation_commands.WaitStrategy`) (Deprecated!) \
-strategy of waiting result, `yt.wrapper.config.DEFAULT_STRATEGY` by default
+strategy of waiting result, `yt.wrapper.get_config(client).DEFAULT_STRATEGY` by default
 
 * **replication_factor** : (integer) number of output data replicas
 
@@ -44,28 +44,30 @@ data of operation
 * **memory_limit** : (integer) memory limit in Mb in *scheduler* for every *job* (512Mb by default)
 
 
-Operation run under self-pinged transaction, if `yt.wrapper.config.DETACHED` is `False`.
+Operation run under self-pinged transaction, if `yt.wrapper.get_config(client).DETACHED` is `False`.
 """
 
 import config
+from config import get_config, get_option
 import py_wrapper
 from common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
-                   compose, bool_to_string, chunk_iter_lines, get_version, MB, EMPTY_GENERATOR
+                   compose, bool_to_string, chunk_iter_lines, chunk_iter_stream, get_version, MB, EMPTY_GENERATOR
 from errors import YtIncorrectResponse, YtError
-from driver import make_request, ResponseStream, EmptyResponseStream
+from driver import make_request, get_backend_type
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
-from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
-                          move, mkdir, find_free_subpath, create, get, get_type, set_attribute, \
-                          _make_formatted_transactional_request, has_attribute
+from cypress_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
+                             move, mkdir, find_free_subpath, create, get, get_type, set_attribute, \
+                             _make_formatted_transactional_request, has_attribute
 from file_commands import smart_upload_file
-from operation_commands import Operation
+from operation_commands import Operation, WaitStrategy
 from transaction_commands import _make_transactional_request, abort_transaction
 from transaction import PingableTransaction, Transaction, Abort
 from format import create_format, YsonFormat, YamrFormat
 from lock import lock
 from heavy_commands import make_heavy_request
 from http import RETRIABLE_ERRORS, get_api_version
+from response_stream import ResponseStream, EmptyResponseStream
 import yt.logger as logger
 
 import os
@@ -77,6 +79,7 @@ import socket
 import getpass
 import simplejson as json
 from cStringIO import StringIO
+from copy import deepcopy
 
 # Auxiliary methods
 
@@ -98,19 +101,12 @@ def _split_rows(stream, format, raw):
             else:
                 yield format.dumps_row(row)
 
-def _chunked_iter(stream):
-    while True:
-        data = stream.read(1024 * 1024)
-        if not data:
-            break
-        yield data
-
 
 def _prepare_source_tables(tables, replace_unexisting_by_empty=True, client=None):
     result = [to_table(table, client=client) for table in flatten(tables)]
     if not result:
         raise YtError("You must specify non-empty list of source tables")
-    if config.TREAT_UNEXISTING_AS_EMPTY:
+    if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"]:
         if not replace_unexisting_by_empty:
             return [table for table in result if exists(table.name, client=client)]
         def get_empty_table(table):
@@ -130,9 +126,9 @@ def _check_columns(columns, type):
                     'Did you mean to %s by a composite key?',
                     columns[0], type)
 
-def _prepare_reduce_by(reduce_by):
+def _prepare_reduce_by(reduce_by, client):
     if reduce_by is None:
-        if config.USE_YAMR_SORT_REDUCE_COLUMNS:
+        if get_config(client)["yamr_mode"]["use_yamr_sort_reduce_columns"]:
             reduce_by = ["key"]
         else:
             raise YtError("reduce_by option is required")
@@ -140,9 +136,9 @@ def _prepare_reduce_by(reduce_by):
     _check_columns(reduce_by, "reduce")
     return reduce_by
 
-def _prepare_sort_by(sort_by):
+def _prepare_sort_by(sort_by, client):
     if sort_by is None:
-        if config.USE_YAMR_SORT_REDUCE_COLUMNS:
+        if get_config(client)["yamr_mode"]["use_yamr_sort_reduce_columns"]:
             sort_by = ["key", "subkey"]
         else:
             raise YtError("sort_by option is required")
@@ -163,9 +159,9 @@ def _reliably_upload_files(files, client=None):
 def _is_python_function(binary):
     return isinstance(binary, types.FunctionType) or hasattr(binary, "__call__")
 
-def _prepare_formats(format, input_format, output_format, binary):
+def _prepare_formats(format, input_format, output_format, binary, client):
     if format is None:
-        format = config.format.TABULAR_DATA_FORMAT
+        format = get_config(client)["tabular_data_format"]
     if format is None and _is_python_function(binary):
         format = YsonFormat()
     if isinstance(format, str):
@@ -187,9 +183,9 @@ def _prepare_formats(format, input_format, output_format, binary):
 
     return input_format, output_format
 
-def _prepare_format(format, raw):
+def _prepare_format(format, raw, client):
     if format is None:
-        format = config.format.TABULAR_DATA_FORMAT
+        format = get_config(client)["tabular_data_format"]
     if not raw and format is None:
         format = YsonFormat(process_table_index=False)
     if isinstance(format, str):
@@ -200,14 +196,15 @@ def _prepare_format(format, raw):
     return format
 
 class TempfilesManager(object):
-    def __init__(self):
+    def __init__(self, client):
+        self.client = client
         self._tempfiles_pool = []
 
     def __enter__(self):
         return self
 
     def __exit__(self, type, value, traceback):
-        if config.REMOVE_TEMP_FILES:
+        if get_config(self.client)["clear_local_temp_files"]:
             for file in self._tempfiles_pool:
                 os.remove(file)
 
@@ -223,9 +220,9 @@ def _prepare_binary(binary, operation_type, input_format=None, output_format=Non
     if _is_python_function(binary):
         if isinstance(input_format, YamrFormat) and reduce_by is not None and set(reduce_by) != set(["key"]):
             raise YtError("Yamr format does not support reduce by %r", reduce_by)
-        with TempfilesManager() as tempfiles_manager:
+        with TempfilesManager(client) as tempfiles_manager:
             binary, binary_file, files = py_wrapper.wrap(binary, operation_type, tempfiles_manager,
-                                                         input_format, output_format, reduce_by)
+                                                         input_format, output_format, reduce_by, client=client)
             uploaded_files = _reliably_upload_files([binary_file] + files, client=client)
             return binary, uploaded_files
     else:
@@ -233,7 +230,7 @@ def _prepare_binary(binary, operation_type, input_format=None, output_format=Non
 
 def _prepare_destination_tables(tables, replication_factor, compression_codec, client=None):
     if tables is None:
-        if config.THROW_ON_EMPTY_DST_LIST:
+        if get_config(client)["yamr_mode"]["throw_on_missing_destination"]:
             raise YtError("Destination tables are absent")
         return []
     tables = map(lambda name: to_table(name, client=client), flatten(tables))
@@ -262,7 +259,7 @@ def _remove_locks(table, client=None):
 def _remove_tables(tables, client=None):
     for table in tables:
         if exists(table) and get_type(table) == "table" and not table.append and table != DEFAULT_EMPTY_TABLE:
-            if config.FORCE_DROP_DST:
+            if get_config(client)["yamr_mode"]["abort_transactions_with_remove"]:
                 _remove_locks(table, client=client)
             remove(table, client=client)
 
@@ -281,7 +278,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
         file_paths = yt_files
 
     files = _reliably_upload_files(files, client=client)
-    input_format, output_format = _prepare_formats(format, input_format, output_format, binary=binary)
+    input_format, output_format = _prepare_formats(format, input_format, output_format, binary=binary, client=client)
     binary, additional_files = _prepare_binary(binary, op_type, input_format, output_format,
                                                reduce_by, client=client)
     spec = update(
@@ -292,18 +289,19 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
                 "command": binary,
                 "file_paths":
                     flatten(files + additional_files + map(lambda path: prepare_path(path, client=client), get_value(file_paths, []))),
-                "use_yamr_descriptors": bool_to_string(config.USE_MAPREDUCE_STYLE_DESTINATION_FDS),
-                "check_input_fully_consumed": bool_to_string(config.CHECK_INPUT_FULLY_CONSUMED)
+                "use_yamr_descriptors": bool_to_string(get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"]),
+                "check_input_fully_consumed": bool_to_string(get_config(client)["yamr_mode"]["check_input_fully_consumed"])
             }
         },
         spec)
 
-    memory_limit = get_value(memory_limit, config.MEMORY_LIMIT)
-    if memory_limit is not None:
-        spec = update({op_type: {"memory_limit": int(memory_limit)}}, spec)
+    # NB: Configured by common rule now.
+    #memory_limit = get_value(memory_limit, get_config(client).MEMORY_LIMIT)
+    #if memory_limit is not None:
+    #    spec = update({op_type: {"memory_limit": int(memory_limit)}}, spec)
     return spec, files + additional_files
 
-def _configure_spec(spec):
+def _configure_spec(spec, client):
     started_by = {
         "hostname": socket.getfqdn(),
         "pid": os.getpid(),
@@ -311,12 +309,9 @@ def _configure_spec(spec):
         "command": sys.argv,
         "wrapper_version": get_version()}
     spec = update({"started_by": started_by}, spec)
-    if config.POOL is not None:
-        spec = update({"pool": config.POOL}, spec)
-    if config.INTERMEDIATE_DATA_ACCOUNT is not None:
-        spec = update({"intermediate_data_account": config.INTERMEDIATE_DATA_ACCOUNT}, spec)
-    if config.SPEC is not None:
-        spec = update(json.loads(config.SPEC), spec)
+    spec = update(deepcopy(get_config(client)["spec_defaults"]), spec)
+    if client is None and config.SPEC is not None:
+        spec = update(json.loads(get_option("SPEC", client)), spec)
     return spec
 
 def _add_input_output_spec(source_table, destination_table, spec):
@@ -344,7 +339,7 @@ def _make_operation_request(command_name, spec, strategy, sync,
         operation_id = _make_formatted_transactional_request(command_name, {"spec": spec}, format=None,
                                                              verbose=verbose, client=client)
         if strategy is not None:
-            get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation_id,
+            get_value(strategy, WaitStrategy()).process_operation(command_name, operation_id,
                                                                            finalizer, client=client)
         else:
             operation = Operation(command_name, operation_id, finalizer, client=client)
@@ -353,11 +348,10 @@ def _make_operation_request(command_name, spec, strategy, sync,
             return operation
 
 
-    if config.DETACHED:
+    if get_config(client)["detached"]:
         return _manage_operation(finalizer)
     else:
         transaction = PingableTransaction(
-            timeout=config.http.get_timeout(),
             attributes={"title": "Python wrapper: envelope transaction of operation"},
             client=client)
 
@@ -370,7 +364,7 @@ def _make_operation_request(command_name, spec, strategy, sync,
                 finalizer(state)
 
         transaction.__enter__()
-        with KeyboardInterruptsCatcher(finish_transaction):
+        with KeyboardInterruptsCatcher(finish_transaction, enable=get_config(client)["operation_tracker"]["abort_on_sigint"]):
             return _manage_operation(attached_mode_finalizer)
 
 def _get_format_from_tables(tables, ignore_unexisting_tables):
@@ -431,12 +425,12 @@ def create_temp_table(path=None, prefix=None, client=None):
     """Create temporary table by given path with given prefix and return name.
 
     :param path: (string or :py:class:`yt.wrapper.table.TablePath`) existing path, \
-                 by default `config.TEMP_TABLES_STORAGE`
+                 by default `client.TEMP_TABLES_STORAGE`
     :param prefix: (string) prefix of table name
     :return: (string) name of result table
     """
     if path is None:
-        path = config.TEMP_TABLES_STORAGE
+        path = get_config(client)["remote_temp_tables_directory"]
         mkdir(path, recursive=True, client=client)
     else:
         path = to_name(path, client=client)
@@ -465,13 +459,13 @@ def write_table(table, input_stream, format=None, table_writer=None,
 
     Python Wrapper try to split input stream to portions of fixed size and write its with retries.
     If splitting fails, stream is written as is through HTTP.
-    Set `yt.wrapper.config.USE_RETRIES_DURING_WRITE` to ``False`` for writing \
+    Set `yt.wrapper.client.USE_RETRIES_DURING_WRITE` to ``False`` for writing \
     without splitting and retries.
 
     Writing is executed under self-pinged transaction.
     """
     table = to_table(table, client=client)
-    format = _prepare_format(format, raw)
+    format = _prepare_format(format, raw, client)
 
     params = {}
     params["input_format"] = format.to_yson_type()
@@ -488,12 +482,12 @@ def write_table(table, input_stream, format=None, table_writer=None,
                          compression_codec=compression_codec, client=client)
 
     can_split_input = isinstance(input_stream, types.ListType) or format.is_raw_load_supported()
-    if config.USE_RETRIES_DURING_WRITE and can_split_input:
-        input_stream = chunk_iter_lines(_split_rows(input_stream, format, raw), config.CHUNK_SIZE)
+    if get_config(client)["write_retries"]["enable"] and can_split_input:
+        input_stream = chunk_iter_lines(_split_rows(input_stream, format, raw), get_config(client)["write_retries"]["chunk_size"])
     elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
-        input_stream = _chunked_iter(input_stream)
+        input_stream = chunk_iter_stream(input_stream, MB)
 
-    if config.USE_RETRIES_DURING_WRITE and not can_split_input:
+    if get_config(client)["write_retries"]["enable"] and not can_split_input:
         logger.warning("Cannot split input into rows. Write is processing by one request.")
 
     make_heavy_request(
@@ -502,10 +496,10 @@ def write_table(table, input_stream, format=None, table_writer=None,
         table,
         params,
         prepare_table,
-        config.USE_RETRIES_DURING_WRITE and can_split_input,
+        get_config(client)["write_retries"]["enable"] and can_split_input,
         client=client)
 
-    if config.TREAT_UNEXISTING_AS_EMPTY and is_empty(table, client=client):
+    if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and is_empty(table, client=client):
         _remove_tables([table], client=client)
 
 def read_table(table, format=None, table_reader=None, response_type=None, raw=True, response_parameters=None, client=None):
@@ -526,8 +520,8 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
         logger.info("Option response_type is deprecated and ignored")
 
     table = to_table(table, client=client)
-    format = _prepare_format(format, raw)
-    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name, client=client):
+    format = _prepare_format(format, raw, client)
+    if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table.name, client=client):
         return StringIO() if raw else EMPTY_GENERATOR
 
     params = {
@@ -538,6 +532,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
         params["table_reader"] = table_reader
 
     command_name = "read" if get_api_version(client=client) == "v2" else "read_table"
+    retry_count = get_config(client)["read_retries"]["retry_count"]
 
     def read_content(response_stream):
         if raw:
@@ -551,17 +546,17 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 response_parameters[key] = parameters[key]
 
     def execute_with_retries(func):
-        for attempt in xrange(config.http.REQUEST_RETRY_COUNT):
+        for attempt in xrange(config.get_request_retry_count(client)):
             try:
                 return func()
             except RETRIABLE_ERRORS as err:
-                if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
+                if attempt + 1 == config.get_request_retry_count(client):
                     raise
                 logger.warning(str(err))
                 logger.warning("New retry (%d) ...", attempt + 2)
 
 
-    if not config.RETRY_READ:
+    if not get_config(client)["read_retries"]["enable"]:
         def simple_read():
             response = _make_transactional_request(
                 command_name,
@@ -569,27 +564,26 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 return_content=False,
                 use_heavy_proxy=True,
                 client=client)
-            if "X-YT-Response-Parameters" not in response.headers:
+            if response.response_parameters is None:
                 raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)")
-            set_response_parameters(response.headers["X-YT-Response-Parameters"])
-            return read_content(ResponseStream.from_response(response))
+            set_response_parameters(response.response_parameters)
+            return read_content(response)
         return execute_with_retries(simple_read)
     else:
         title = "Python wrapper: read {0}".format(to_name(table, client=client))
-        tx = PingableTransaction(timeout=config.http.get_timeout(),
-                                 attributes={"title": title},
+        tx = PingableTransaction(attributes={"title": title},
                                  client=client)
         tx.__enter__()
 
         def iter_with_retries(iter):
             try:
-                for attempt in xrange(config.http.REQUEST_RETRY_COUNT):
+                for attempt in xrange(retry_count):
                     try:
                         for elem in iter():
                             yield elem
                         break
                     except RETRIABLE_ERRORS as err:
-                        if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
+                        if attempt + 1 == retry_count:
                             raise
                         logger.warning(str(err))
                         logger.warning("New retry (%d) ...", attempt + 2)
@@ -608,9 +602,9 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 return_content=False,
                 use_heavy_proxy=True,
                 client=client)
-            if "X-YT-Response-Parameters" not in response.headers:
+            if response.response_parameters is None:
                 raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)")
-            return response.headers["X-YT-Response-Parameters"]
+            return response.response_parameters
 
         class Iterator(object):
             def __init__(self, index):
@@ -627,8 +621,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                     return_content=False,
                     use_heavy_proxy=True,
                     client=client)
-                response_stream = ResponseStream.from_response(self.response)
-                for row in format.load_rows(response_stream, raw=True):
+                for row in format.load_rows(self.response, raw=True):
                     yield row
                     self.index += 1
 
@@ -638,7 +631,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             def __iter__(self):
                 return self
 
-            def finish(self):
+            def close(self):
                 if self.response is not None:
                     self.response.close()
                 tx.__exit__(Abort, None, None)
@@ -652,7 +645,13 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 tx.__exit__(None, None, None)
                 return read_content(EmptyResponseStream())
             iterator = Iterator(index)
-            return read_content(ResponseStream(lambda: iterator.response, iterator, close=iterator.finish))
+            return read_content(
+                ResponseStream(
+                    lambda: iterator.response,
+                    iterator,
+                    close=iterator.close,
+                    process_error=lambda request: iterator.response._process_error(request),
+                    get_response_parameters=lambda: None))
         except:
             tx.__exit__(*sys.exc_info())
             raise
@@ -673,9 +672,10 @@ def copy_table(source_table, destination_table, replace=True, client=None):
               `yt.wrapper.config.REPLACE_TABLES_WHILE_COPY_OR_MOVE`
     If `source_table` is a list of tables, tables would be merged.
     """
-    if config.REPLACE_TABLES_WHILE_COPY_OR_MOVE: replace = True
+    if get_config(client)["yamr_mode"]["replace_tables_on_copy_and_move"]:
+        replace = True
     source_tables = _prepare_source_tables(source_table, client=client)
-    if config.TREAT_UNEXISTING_AS_EMPTY and _are_default_empty_table(source_tables):
+    if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and _are_default_empty_table(source_tables):
         return
     destination_table = to_table(destination_table, client=client)
     if _are_nodes(source_tables, destination_table):
@@ -704,9 +704,11 @@ def move_table(source_table, destination_table, replace=True, client=None):
 
     If `source_table` is a list of tables, tables would be merged.
     """
-    if config.REPLACE_TABLES_WHILE_COPY_OR_MOVE: replace = True
+    if get_config(client)["yamr_mode"]["replace_tables_on_copy_and_move"]:
+        replace = True
     source_tables = _prepare_source_tables(source_table, client=client)
-    if config.TREAT_UNEXISTING_AS_EMPTY and _are_default_empty_table(source_tables):
+    if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and _are_default_empty_table(source_tables):
+        remove(to_table(destination_table).name, client=client, force=True)
         return
     destination_table = to_table(destination_table, client=client)
     if _are_nodes(source_tables, destination_table):
@@ -725,7 +727,7 @@ def move_table(source_table, destination_table, replace=True, client=None):
                 continue
             if table == DEFAULT_EMPTY_TABLE:
                 continue
-            remove(table.name, client=client)
+            remove(table.name, client=client, force=True)
 
 
 def records_count(table, client=None):
@@ -735,7 +737,7 @@ def records_count(table, client=None):
     :return: integer
     """
     table = to_name(table, client=client)
-    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table, client=client):
+    if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table, client=client):
         return 0
     return get_attribute(table, "row_count", client=client)
 
@@ -755,7 +757,7 @@ def get_sorted_by(table, default=None, client=None):
     :return: string or list of string
     """
     if default is None:
-        default = [] if config.TREAT_UNEXISTING_AS_EMPTY else None
+        default = [] if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] else None
     return get_attribute(to_name(table, client=client), "sorted_by", default=default, client=client)
 
 def is_sorted(table, client=None):
@@ -764,7 +766,7 @@ def is_sorted(table, client=None):
     :param table: string or `TablePath`
     :return: bool
     """
-    if config.USE_YAMR_SORT_REDUCE_COLUMNS:
+    if get_config(client)["yamr_mode"]["use_yamr_sort_reduce_columns"]:
         return get_sorted_by(table, [], client=client) == ["key", "subkey"]
     else:
         return parse_bool(
@@ -786,7 +788,6 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=N
     if last_tablet_index is not None:
         params["last_tablet_index"] = last_tablet_index
     if cell_id is not None:
-
         params["cell_id"] = cell_id
 
     make_request("mount_table", params, client=client)
@@ -847,7 +848,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     :param format: (string or descendant of `Format`) output format
     :param raw: (bool) don't parse response to rows
     """
-    format = _prepare_format(format, raw)
+    format = _prepare_format(format, raw, client)
     params = {
         "query": query,
         "output_format": format.to_yson_type()}
@@ -867,11 +868,10 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
         use_heavy_proxy=True,
         client=client)
 
-    response_stream = ResponseStream.from_response(response)
     if raw:
-        return response_stream
+        return response
     else:
-        return format.load_rows(response_stream)
+        return format.load_rows(response)
 
 def lookup_rows(table, input_stream, format=None, raw=False, client=None):
     """Lookup rows in dynamic table. NB! This command is not currently supported! The feature is coming with 0.17+ version!
@@ -883,7 +883,7 @@ def lookup_rows(table, input_stream, format=None, raw=False, client=None):
     """
 
     table = to_table(table, client=client)
-    format = _prepare_format(format, raw)
+    format = _prepare_format(format, raw, client)
 
     params = {}
     params["path"] = table.to_yson_type()
@@ -893,7 +893,7 @@ def lookup_rows(table, input_stream, format=None, raw=False, client=None):
     if isinstance(input_stream, types.ListType) or format.is_raw_load_supported():
         input_stream = _split_rows(input_stream, format, raw)
     elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
-        input_stream = _chunked_iter(input_stream)
+        input_stream = chunk_iter_stream(input_stream, MB)
 
     response = _make_transactional_request(
         "lookup_rows",
@@ -903,11 +903,10 @@ def lookup_rows(table, input_stream, format=None, raw=False, client=None):
         use_heavy_proxy=True,
         client=client)
 
-    response_stream = ResponseStream.from_response(response)
     if raw:
-        return response_stream
+        return response
     else:
-        return format.load_rows(response_stream)
+        return format.load_rows(response)
 
 def insert_rows(table, input_stream, format=None, raw=False, client=None):
     """Write rows from input_stream to table.
@@ -920,7 +919,7 @@ def insert_rows(table, input_stream, format=None, raw=False, client=None):
 
     """
     table = to_table(table, client=client)
-    format = _prepare_format(format, raw)
+    format = _prepare_format(format, raw, client)
 
     params = {}
     params["path"] = table.to_yson_type()
@@ -929,7 +928,7 @@ def insert_rows(table, input_stream, format=None, raw=False, client=None):
     if isinstance(input_stream, types.ListType) or format.is_raw_load_supported():
         input_stream = _split_rows(input_stream, format, raw)
     elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
-        input_stream = _chunked_iter(input_stream)
+        input_stream = chunk_iter_stream(input_stream, MB)
 
     _make_transactional_request(
         "insert_rows",
@@ -949,7 +948,7 @@ def delete_rows(table, input_stream, format=None, raw=False, client=None):
 
     """
     table = to_table(table, client=client)
-    format = _prepare_format(format, raw)
+    format = _prepare_format(format, raw, client)
 
     params = {}
     params["path"] = table.to_yson_type()
@@ -958,7 +957,7 @@ def delete_rows(table, input_stream, format=None, raw=False, client=None):
     if isinstance(input_stream, types.ListType) or format.is_raw_load_supported():
         input_stream = _split_rows(input_stream, format, raw)
     elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
-        input_stream = _chunked_iter(input_stream)
+        input_stream = chunk_iter_stream(input_stream, MB)
 
     _make_transactional_request(
         "delete_rows",
@@ -982,10 +981,10 @@ def run_erase(table, spec=None, strategy=None, sync=True, client=None):
     .. seealso::  :ref:`operation_parameters`.
     """
     table = to_table(table, client=client)
-    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name, client=client):
+    if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table.name, client=client):
         return
     spec = update({"table_path": table.to_yson_type()}, get_value(spec, {}))
-    spec = _configure_spec(spec)
+    spec = _configure_spec(spec, client)
     return _make_operation_request("erase", spec, strategy, sync, client=client)
 
 def run_merge(source_table, destination_table, mode=None,
@@ -1013,7 +1012,7 @@ def run_merge(source_table, destination_table, mode=None,
     destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor,
                                                            compression_codec, client=client))
 
-    if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
+    if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not source_table:
         _remove_tables([destination_table], client=client)
         return
 
@@ -1022,7 +1021,7 @@ def run_merge(source_table, destination_table, mode=None,
         mode = "sorted" if all(map(lambda t: is_sorted(t, client=client), source_table)) else "unordered"
 
     spec = compose(
-        _configure_spec,
+        lambda _: _configure_spec(_, client),
         lambda _: _add_table_writer_spec("job_io", table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
@@ -1042,13 +1041,13 @@ def run_sort(source_table, destination_table=None, sort_by=None,
     .. seealso::  :ref:`operation_parameters`.
     """
 
-    sort_by = _prepare_sort_by(sort_by)
+    sort_by = _prepare_sort_by(sort_by, client)
     source_table = _prepare_source_tables(source_table, replace_unexisting_by_empty=False, client=client)
     for table in source_table:
         require(exists(table.name, client=client), YtError("Table %s should exist" % table))
 
     if destination_table is None:
-        if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
+        if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not source_table:
             return
         require(len(source_table) == 1 and not source_table[0].has_delimiters(),
                 YtError("You must specify destination sort table "
@@ -1057,7 +1056,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
     destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor,
                                                            compression_codec, client=client))
 
-    if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
+    if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not source_table:
         _remove_tables([destination_table], client=client)
         return
 
@@ -1067,7 +1066,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
         return
 
     spec = compose(
-        _configure_spec,
+        lambda _: _configure_spec(_, client),
         lambda _: _add_table_writer_spec(["sort_job_io", "merge_job_io"], table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": sort_by}, _),
@@ -1089,22 +1088,19 @@ class Finalizer(object):
         if state == "completed":
             for table in map(lambda table: to_name(table, client=self.client), self.output_tables):
                 self.check_for_merge(table)
-        if config.DELETE_EMPTY_TABLES:
+        if get_config(self.client)["yamr_mode"]["delete_empty_tables"]:
             for table in map(lambda table: to_name(table, client=self.client), self.output_tables):
                 if is_empty(table, client=self.client):
                     remove_with_empty_dirs(table, client=self.client)
-        if config.REMOVE_UPLOADED_FILES:
-            for file in self.files:
-                remove(file, force=True, client=self.client)
 
     def check_for_merge(self, table):
         chunk_count = int(get_attribute(table, "chunk_count", client=self.client))
-        if  chunk_count < config.MIN_CHUNK_COUNT_FOR_MERGE_WARNING:
+        if  chunk_count < get_config(self.client)["auto_merge_output"]["min_chunk_count"]:
             return
 
         # We use uncompressed data size to simplify recommended command
         chunk_size = float(get_attribute(table, "compressed_data_size", client=self.client)) / chunk_count
-        if chunk_size > config.MAX_CHUNK_SIZE_FOR_MERGE_WARNING:
+        if chunk_size > get_config(self.client)["auto_merge_output"]["max_chunk_size"]:
             return
 
         compression_ratio = get_attribute(table, "compression_ratio", client=self.client)
@@ -1112,7 +1108,7 @@ class Finalizer(object):
 
         mode = "sorted" if is_sorted(table, client=self.client) else "unordered"
 
-        if config.MERGE_INSTEAD_WARNING:
+        if get_config(self.client)["auto_merge_output"]["enable"]:
             table = TablePath(table, append=False)
             run_merge(source_table=table, destination_table=table, mode=mode,
                       spec={"combine_chunks": bool_to_string(True), "data_size_per_job": data_size_per_job},
@@ -1125,7 +1121,7 @@ class Finalizer(object):
                         "--spec '{{"
                            "combine_chunks=true;"
                            "data_size_per_job={2}"
-                        "}}'".format(table, mode, data_size_per_job, config.http.PROXY))
+                        "}}'".format(table, mode, data_size_per_job, get_config(self.client).http.PROXY))
 
 
 def run_map_reduce(mapper, reducer, source_table, destination_table,
@@ -1201,18 +1197,18 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     destination_table = _prepare_destination_tables(destination_table, replication_factor,
                                                     compression_codec, client=client)
 
-    if config.TREAT_UNEXISTING_AS_EMPTY and _are_default_empty_table(source_table):
+    if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and _are_default_empty_table(source_table):
         _remove_tables(destination_table, client=client)
         return
 
     if sort_by is None:
         sort_by = reduce_by
 
-    reduce_by = _prepare_reduce_by(reduce_by)
-    sort_by = _prepare_sort_by(sort_by)
+    reduce_by = _prepare_reduce_by(reduce_by, client)
+    sort_by = _prepare_sort_by(sort_by, client)
 
     spec = compose(
-        _configure_spec,
+        lambda _: _configure_spec(_, client),
         lambda _: _add_table_writer_spec(["map_job_io", "reduce_job_io", "sort_job_io"],
                                          table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
@@ -1284,12 +1280,12 @@ def _run_operation(binary, source_table, destination_table,
 
     if op_name == "reduce":
         if sort_by is None:
-            sort_by = _prepare_sort_by(reduce_by)
+            sort_by = _prepare_sort_by(reduce_by, client)
         else:
-            sort_by = _prepare_sort_by(sort_by)
-        reduce_by = _prepare_reduce_by(reduce_by)
+            sort_by = _prepare_sort_by(sort_by, client)
+        reduce_by = _prepare_reduce_by(reduce_by, client)
 
-        if config.RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED:
+        if get_config(client)["yamr_mode"]["run_map_reduce_if_source_is_not_sorted"]:
             are_tables_not_sorted = False
             for table in source_table:
                 sorted_by = get_sorted_by(table.name, [], client=client)
@@ -1332,7 +1328,7 @@ def _run_operation(binary, source_table, destination_table,
                 source_table = [TablePath(temp_table)]
 
 
-    if config.TREAT_UNEXISTING_AS_EMPTY and _are_default_empty_table(source_table):
+    if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and _are_default_empty_table(source_table):
         _remove_tables(destination_table, client=client)
         return
 
@@ -1342,7 +1338,7 @@ def _run_operation(binary, source_table, destination_table,
 
     try:
         spec = compose(
-            _configure_spec,
+            lambda _: _configure_spec(_, client),
             lambda _: _add_table_writer_spec("job_io", table_writer, _),
             lambda _: _add_input_output_spec(source_table, destination_table, _),
             lambda _: update({"reduce_by": reduce_by}, _) if op_name == "reduce" else _,
@@ -1393,8 +1389,14 @@ def run_remote_copy(source_table, destination_table, cluster_name,
 
     .. seealso::  :ref:`operation_parameters`.
     """
+
+    # TODO(ignat): implement client-version of remote copy, that supports native driver
+
     def get_input_name(table):
         return to_table(table, client=client).to_yson_type()
+
+    if get_backend_type(client=client) == "driver":
+        raise YtError("Remote copy is not supported for native driver")
 
     # TODO(ignat): use base string in other places
     if isinstance(source_table, basestring):
@@ -1409,22 +1411,22 @@ def run_remote_copy(source_table, destination_table, cluster_name,
             raise YtError("Cannot copy attributes of multiple source tables")
 
         remote_proxy = get("//sys/clusters/{0}/proxy".format(cluster_name), client=client)
-        current_proxy = config.http.PROXY
-        current_token = config.http.TOKEN
+        current_proxy = get_config(client)["proxy"]["url"]
+        current_token = get_config(client)["proxy"]["token"]
 
-        config.set_proxy(remote_proxy)
-        config.http.TOKEN = get_value(remote_cluster_token, config.http.TOKEN)
+        get_config(client)["proxy"]["url"] = remote_proxy
+        get_config(client)["proxy"]["token"] = get_value(remote_cluster_token, get_config(client).http.TOKEN)
         src_attributes = get(source_table[0] + "/@")
 
-        config.set_proxy(current_proxy)
-        config.http.TOKEN = current_token
+        get_config(client)["proxy"]["url"] = current_proxy
+        get_config(client)["proxy"]["token"] = current_token
         attributes = src_attributes.get("user_attribute_keys", []) + \
                      ["compression_codec", "erasure_codec", "replication_factor"]
         for attribute in attributes:
             set_attribute(destination_table, attribute, src_attributes[attribute], client=client)
 
     spec = compose(
-        _configure_spec,
+        lambda _: _configure_spec(_, client),
         lambda _: update({"network_name": network_name}, _) if network_name is not None else _,
         lambda _: update({"input_table_paths": map(get_input_name, source_table),
                           "output_table_path": destination_table.to_yson_type(),

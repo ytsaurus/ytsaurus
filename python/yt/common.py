@@ -1,5 +1,5 @@
-import collections
 from itertools import chain
+from collections import Mapping
 import types
 import os
 
@@ -95,17 +95,22 @@ def which(name, flags=os.X_OK):
 def require(condition, exception):
     if not condition: raise exception
 
-def update(d, u):
-    for k, v in u.iteritems():
-        if isinstance(v, collections.Mapping):
-            if not isinstance(d.get(k, {}), collections.Mapping):
-                d[k] = v
+def update(object, patch):
+    if isinstance(patch, Mapping) and isinstance(object, Mapping):
+        for key, value in patch.iteritems():
+            if key in object:
+                object[key] = update(object[key], value)
             else:
-                r = update(d.get(k, {}), v)
-                d[k] = r
-        else:
-            d[k] = u[k]
-    return d
+                object[key] = value
+    elif isinstance(patch, types.ListType) and isinstance(object, types.ListType):
+        for index, value in enumerate(patch):
+            if index < len(object):
+                object[index] = update(object[index], value)
+            else:
+                object.append(value)
+    else:
+        object = patch
+    return object
 
 def flatten(obj, list_types=(list, tuple, set, types.GeneratorType)):
     """ Create flat list from all elements. """

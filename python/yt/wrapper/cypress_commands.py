@@ -1,5 +1,5 @@
-import config
 import yt.logger as logger
+from config import get_config
 from common import parse_bool, flatten, get_value, bool_to_string
 from errors import YtResponseError
 from transaction_commands import _make_transactional_request, \
@@ -171,7 +171,7 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
     :param attributes: (dict)
     .. seealso:: `create on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#create>`_
     """
-    recursive = get_value(recursive, config.CREATE_RECURSIVE)
+    recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
     params = {
         "type": type,
         "recursive": bool_to_string(recursive),
@@ -187,7 +187,7 @@ def mkdir(path, recursive=None, client=None):
     :param path: (string or `TablePath`)
     :param recursive: (bool) `config.CREATE_RECURSIVE` by default
     """
-    recursive = get_value(recursive, config.CREATE_RECURSIVE)
+    recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
     return create("map_node", path, recursive=recursive, ignore_existing=recursive, client=client)
 
 # TODO: maybe remove this methods
@@ -261,7 +261,7 @@ def search(root="", node_type=None,
     :return: (list of YsonString) result paths
     """
     # Deprecated. Default value "/" should be removed.
-    if not root and not config.PREFIX:
+    if not root and not get_config(client)["prefix"]:
         root = "/"
     root = to_name(root, client=client)
     attributes = get_value(attributes, [])

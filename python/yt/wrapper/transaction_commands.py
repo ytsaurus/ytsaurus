@@ -1,17 +1,11 @@
-import config
+from config import get_config, get_option
 from driver import make_request, make_formatted_request
 from common import update, bool_to_string, get_value
 from copy import deepcopy
 
 def transaction_params(transaction=None, ping_ancestor_transactions=None, client=None):
-    client = get_value(client, config.CLIENT)
-    if client is not None:
-        client_transaction, client_ping_ancestor_transactions = client._get_transaction()
-        transaction = get_value(transaction, client_transaction)
-        ping_ancestor_transactions = get_value(ping_ancestor_transactions, client_ping_ancestor_transactions)
-    else:
-        transaction = get_value(transaction, config.TRANSACTION)
-        ping_ancestor_transactions = get_value(ping_ancestor_transactions, config.PING_ANCESTOR_TRANSACTIONS)
+    transaction = get_value(transaction, get_option("TRANSACTION", client))
+    ping_ancestor_transactions = get_value(ping_ancestor_transactions, get_option("PING_ANCESTOR_TRANSACTIONS", client))
     return {"ping_ancestor_transactions": bool_to_string(ping_ancestor_transactions),
             "transaction_id": transaction}
 
@@ -34,7 +28,7 @@ def start_transaction(parent_transaction=None, timeout=None, attributes=None, cl
     .. seealso:: `start_tx on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#starttx>`_
     """
     params = transaction_params(parent_transaction, client=client)
-    timeout = get_value(timeout, config.TRANSACTION_TIMEOUT)
+    timeout = get_value(timeout, get_config(client)["transaction_timeout"])
     if timeout is not None:
         params["timeout"] = int(timeout)
     params["attributes"] = get_value(attributes, {})
