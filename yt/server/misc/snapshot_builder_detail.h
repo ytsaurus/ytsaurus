@@ -36,6 +36,9 @@ protected:
     //! Called from the parent process after fork.
     virtual void RunParent();
 
+    //! Called from the parent process when child process is finished.
+    virtual void Cleanup();
+
     //! Returns the invoker used for watching the child process.
     IInvokerPtr GetWatchdogInvoker();
 
@@ -51,10 +54,10 @@ private:
 
     void OnWatchdogCheck();
 
-    void Cleanup();
-
     void OnCanceled();
     void DoCancel();
+
+    void DoCleanup();
 
 };
 
