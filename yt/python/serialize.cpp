@@ -1,11 +1,12 @@
 #include "common.h"
+#include "gil.h"
 #include "serialize.h"
-
-#include <numeric>
 
 #include <core/ytree/node.h>
 
 #include <core/yson/lexer_detail.h>
+
+#include <numeric>
 
 namespace NYT {
 
@@ -31,8 +32,7 @@ Py::Callable GetYsonType(const std::string& name)
             throw Py::RuntimeError("Failed to import module yt.yson.yson_types");
         }
     }
-    Py::String nameString(name.c_str());
-    return Py::Callable(PyObject_GetAttr(ysonTypesModule, nameString.ptr()));
+    return Py::Callable(PyObject_GetAttrString(ysonTypesModule, name.c_str()));
 }
 
 Py::Object CreateYsonObject(const std::string& className, const Py::Object& object, const Py::Object& attributes)
@@ -195,7 +195,7 @@ void TPythonObjectBuilder::OnStringScalar(const TStringBuf& value)
 
 void TPythonObjectBuilder::OnInt64Scalar(i64 value)
 {
-    Py::_XDECREF(AddObject(PyInt_FromLong(value), YsonInt64));
+    Py::_XDECREF(AddObject(PyLong_FromLongLong(value), YsonInt64));
 }
 
 void TPythonObjectBuilder::OnUint64Scalar(ui64 value)
@@ -331,6 +331,97 @@ Py::Object TPythonObjectBuilder::ExtractObject()
 bool TPythonObjectBuilder::HasObject() const
 {
     return Objects_.size() > 1 || (Objects_.size() == 1 && ObjectStack_.size() == 0);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+
+TGilGuardedYsonConsumer::TGilGuardedYsonConsumer(IYsonConsumer* consumer)
+    : Consumer_(consumer)
+{ }
+
+void TGilGuardedYsonConsumer::OnStringScalar(const TStringBuf& value)
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnStringScalar(value);
+}
+
+void TGilGuardedYsonConsumer::OnInt64Scalar(i64 value)
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnInt64Scalar(value);
+}
+
+void TGilGuardedYsonConsumer::OnUint64Scalar(ui64 value)
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnUint64Scalar(value);
+}
+
+void TGilGuardedYsonConsumer::OnDoubleScalar(double value)
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnDoubleScalar(value);
+}
+
+void TGilGuardedYsonConsumer::OnBooleanScalar(bool value)
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnBooleanScalar(value);
+}
+
+void TGilGuardedYsonConsumer::OnEntity()
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnEntity();
+}
+
+void TGilGuardedYsonConsumer::OnBeginList()
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnBeginList();
+}
+
+void TGilGuardedYsonConsumer::OnListItem()
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnListItem();
+}
+
+void TGilGuardedYsonConsumer::OnEndList()
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnEndList();
+}
+
+void TGilGuardedYsonConsumer::OnBeginMap()
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnBeginMap();
+}
+
+void TGilGuardedYsonConsumer::OnKeyedItem(const TStringBuf& key)
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnKeyedItem(key);
+}
+
+void TGilGuardedYsonConsumer::OnEndMap()
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnEndMap();
+}
+
+void TGilGuardedYsonConsumer::OnBeginAttributes()
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnBeginAttributes();
+}
+
+void TGilGuardedYsonConsumer::OnEndAttributes()
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnEndAttributes();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -1,4 +1,4 @@
-import config
+from config import get_option, set_option, get_config, get_total_request_timeout, get_request_retry_count
 import yt.logger as logger
 from common import get_value
 from errors import YtResponseError
@@ -11,6 +11,30 @@ from datetime import datetime, timedelta
 
 class Abort(Exception):
     pass
+
+class TransactionStack(object):
+    def __init__(self):
+        self.stack = []
+        self.initial_transaction = "0-0-0-0"
+        self.initial_ping_ancestor_transactions = False
+
+    def init(self, initial_transaction, initial_ping_ancestor_transactions):
+        if not self.stack:
+            self.initial_transaction = initial_transaction
+            self.initial_ping_ancestor_transactions = initial_ping_ancestor_transactions
+
+    def append(self, transaction_id, ping_ancestor_transactions):
+        self.stack.append((transaction_id, ping_ancestor_transactions))
+
+    def pop(self):
+        self.stack.pop()
+
+    def get(self):
+        if self.stack:
+            return self.stack[-1]
+        else:
+            return self.initial_transaction, self.initial_ping_ancestor_transactions
+
 
 class Transaction(object):
     """
@@ -29,29 +53,24 @@ class Transaction(object):
 
     .. seealso:: `transactions on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions>`_
     """
-    stack = []
-
-    initial_transaction = "0-0-0-0"
-    initial_ping_ancestor_transactions = False
 
     def __init__(self, timeout=None, attributes=None, null=False, ping_ancestor_transactions=False, client=None):
-        self.client = get_value(client, config.CLIENT)
         self.null = null
+        self.client = client
 
-        if self.client is None:
-            if not Transaction.stack:
-                Transaction.initial_transaction = config.TRANSACTION
-                Transaction.initial_ping_ancestor_transactions = config.PING_ANCESTOR_TRANSACTIONS
+        if get_option("_transaction_stack", self.client) is None:
+            set_option("_transaction_stack", TransactionStack(), self.client)
+        self.stack = get_option("_transaction_stack", self.client)
+
+        self.stack.init(get_option("TRANSACTION", self.client), get_option("PING_ANCESTOR_TRANSACTIONS", self.client))
 
         if self.null:
             self.transaction_id = "0-0-0-0"
         else:
             self.transaction_id = start_transaction(timeout=timeout, attributes=attributes, client=client)
-        if self.client is None:
-            Transaction.stack.append((self.transaction_id, ping_ancestor_transactions))
-            self._update_global_config()
-        else:
-            self.client._add_transaction(self.transaction_id, ping_ancestor_transactions)
+        self.stack.append(self.transaction_id, ping_ancestor_transactions)
+        set_option("TRANSACTION", self.transaction_id, self.client)
+        set_option("PING_ANCESTOR_TRANSACTIONS", ping_ancestor_transactions, self.client)
 
         self.finished = False
 
@@ -81,20 +100,12 @@ class Transaction(object):
                     else:
                         raise
         finally:
-            if self.client is None:
-                Transaction.stack.pop()
-                self.finished = True
-                self._update_global_config()
-            else:
-                self.client._pop_transaction()
+            self.stack.pop()
+            transaction_id, ping_ancestor_transactions = self.stack.get()
+            set_option("TRANSACTION", transaction_id, self.client)
+            set_option("PING_ANCESTOR_TRANSACTIONS", ping_ancestor_transactions, self.client)
+            self.finished = True
 
-
-    def _update_global_config(self):
-        if Transaction.stack:
-            config.TRANSACTION, config.PING_ANCESTOR_TRANSACTIONS = Transaction.stack[-1]
-        else:
-            config.TRANSACTION, config.PING_ANCESTOR_TRANSACTIONS = \
-                Transaction.initial_transaction, Transaction.initial_ping_ancestor_transactions
 
 class PingTransaction(Thread):
     """
@@ -111,7 +122,7 @@ class PingTransaction(Thread):
         self.delay = delay
         self.is_running = True
         self.daemon = True
-        self.step = min(self.delay, config.TRANSACTION_SLEEP_PERIOD / 1000.0) # in seconds
+        self.step = min(self.delay, get_config(client)["transaction_sleep_period"] / 1000.0) # in seconds
         self.client = client
 
     def __enter__(self):
@@ -125,7 +136,7 @@ class PingTransaction(Thread):
         if not self.is_running:
             return
         self.is_running = False
-        timeout = config.http.get_timeout() / 1000.0
+        timeout = get_total_request_timeout(self.client) / 1000.0
         # timeout should be enough to execute ping
         self.join(timeout + 2 * self.step)
         if self.is_alive():
@@ -147,7 +158,7 @@ class PingTransaction(Thread):
 class PingableTransaction(object):
     """Self-pinged transaction"""
     def __init__(self, timeout=None, attributes=None, ping_ancestor_transactions=False, client=None):
-        self.timeout = get_value(timeout, config.http.get_timeout())
+        self.timeout = get_value(timeout, get_total_request_timeout(client))
         self.attributes = attributes
         self.ping_ancestor_transactions = ping_ancestor_transactions
         self.client = client
@@ -159,8 +170,8 @@ class PingableTransaction(object):
             ping_ancestor_transactions=self.ping_ancestor_transactions,
             client=self.client).__enter__()
 
-        transaction = config.TRANSACTION if self.client is None else self.client._get_transaction()[0]
-        delay = (self.timeout / 1000.0) / max(2, config.http.REQUEST_RETRY_COUNT)
+        transaction = get_option("TRANSACTION", self.client)
+        delay = (self.timeout / 1000.0) / max(2, get_request_retry_count(self.client))
         self.ping = PingTransaction(transaction, delay, client=self.client)
         self.ping.start()
         return self

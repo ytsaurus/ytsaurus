@@ -1,15 +1,14 @@
-import config
 from contextlib import contextmanager
 
 @contextmanager
-def KeyboardInterruptsCatcher(keyboard_interrupt_action, limit=10):
+def KeyboardInterruptsCatcher(keyboard_interrupt_action, enable=True, limit=10):
     """
     If caught KeyboardInterrupt(s), do keyboard_interrupt_action.
     """
-    try:
-        yield
-    except KeyboardInterrupt:
-        if config.KEYBOARD_ABORT:
+    if enable:
+        try:
+            yield
+        except KeyboardInterrupt:
             counter = 0
             while True:
                 try:
@@ -21,4 +20,5 @@ def KeyboardInterruptsCatcher(keyboard_interrupt_action, limit=10):
                     else:
                         raise
                 break
-        raise
+    else:
+        yield

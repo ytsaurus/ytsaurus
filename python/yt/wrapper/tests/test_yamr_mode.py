@@ -4,6 +4,7 @@ import pytest
 
 from yt.environment import YTEnv
 from yt.wrapper.table_commands import copy_table, move_table
+from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 import yt.wrapper as yt
 from yt.wrapper import Record, YtError, YtResponseError, dumps_row, loads_row, TablePath
 import yt.wrapper.config as config
@@ -27,9 +28,11 @@ def _module_file_path(path):
 
 class YamrModeTester(YtTestBase, YTEnv):
     @classmethod
-    def setup_class(cls):
-        super(YamrModeTester, cls).setup_class()
-        config.set_yamr_mode()
+    def setup_class(cls, conf=None):
+        if conf is None:
+            conf = {}
+        super(YamrModeTester, cls).setup_class(conf)
+        yt.set_yamr_mode()
         config.TREAT_UNEXISTING_AS_EMPTY = False
         if not yt.exists("//sys/empty_yamr_table"):
             yt.create("table", "//sys/empty_yamr_table", recursive=True)
@@ -138,6 +141,10 @@ class YamrModeTester(YtTestBase, YTEnv):
         self.assertEqual(records_count, 10 ** POWER)
 
     def test_copy_move(self):
+        move_table(TEST_DIR + "/a", TEST_DIR + "/b")
+        assert not yt.exists(TEST_DIR + "/a")
+        assert not yt.exists(TEST_DIR + "/b")
+
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"
         yt.create_table(other_table)
@@ -161,12 +168,22 @@ class YamrModeTester(YtTestBase, YTEnv):
         assert not yt.exists(table)
         assert list(yt.read_table(other_table)) == sorted(list(self.temp_records()))
 
+        move_table([table, table], other_table)
+        assert list(yt.read_table(other_table)) == []
+
+        copy_table(table, table)
+        assert not yt.exists(table)
+
+        table = self.create_temp_table()
+        assert yt.exists(table)
+        move_table([table, table], other_table)
+        assert sorted(list(self.temp_records()) * 2) == sorted(list(yt.read_table(other_table)))
+
         copy_table(table, table)
         assert not yt.exists(table)
 
         embedded_path = TEST_DIR + "dir/other_dir/table"
         copy_table(table, embedded_path)
-        assert embedded_path
 
     def test_sort(self):
         table = self.create_temp_table()
@@ -212,6 +229,12 @@ class YamrModeTester(YtTestBase, YTEnv):
         yt.run_reduce("./cpp_bin",
                       table, other_table,
                       files=_test_file_path("cpp_bin"))
+
+        with pytest.raises(yt.YtError):
+            yt.run_reduce("cat", table, [])
+
+        yt.run_map("cat", TEST_DIR + "/unexisting", other_table)
+        assert not yt.exists(other_table)
 
     def test_dsv(self):
         table = self.create_dsv_table()
@@ -346,6 +369,7 @@ class YamrModeTester(YtTestBase, YTEnv):
             sorted(list(yt.read_table(output))),
             sorted(["a\t\t2\n", "b\t\t1\n", "c\t\t6\n"]))
 
+    @add_failed_operation_stderrs_to_error_message
     def test_python_operations(self):
         @yt.raw
         def func(rec):
@@ -433,6 +457,12 @@ class YamrModeTester(YtTestBase, YTEnv):
         yt.run_reduce("cat", input_tables, output_table)
 
         config.RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED = old_config
+
+    def test_reduce_with_output_sorted(self):
+        input_table = self.create_temp_table()
+        output_table = TEST_DIR + "/output_table"
+        yt.run_reduce("cat", input_table, "<sorted_by=[key]>" + output_table)
+        self.assertEqual(list(self.temp_records()), list(yt.read_table(output_table)))
 
     def test_reduce_improperly_sorted_table(self):
         input_table = TEST_DIR + "/table_one"
@@ -527,9 +557,7 @@ class YamrModeTester(YtTestBase, YTEnv):
 class TestYamrModeV2(YamrModeTester):
     @classmethod
     def setup_class(cls):
-        super(TestYamrModeV2, cls).setup_class()
-        yt.config.VERSION = "v2"
-        yt.config.COMMANDS = None
+        super(TestYamrModeV2, cls).setup_class({"api_version": "v2"})
 
     @classmethod
     def teardown_class(cls):
@@ -538,9 +566,7 @@ class TestYamrModeV2(YamrModeTester):
 class TestYamrModeV3(YamrModeTester):
     @classmethod
     def setup_class(cls):
-        super(TestYamrModeV3, cls).setup_class()
-        yt.config.VERSION = "v3"
-        yt.config.COMMANDS = None
+        super(TestYamrModeV3, cls).setup_class({"api_version": "v3"})
 
     @classmethod
     def teardown_class(cls):

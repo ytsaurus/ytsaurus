@@ -53,7 +53,7 @@ run_test() {
 }
 
 # Directory creation, list, get and set commands
-test_tree_commands()
+test_cypress_commands()
 {
     check "" "`./yt list //home/wrapper_test`"
     check "" "`./yt find //home/wrapper_test --name "xxx"`"
@@ -138,7 +138,7 @@ test_merge_erase()
 test_map_reduce()
 {
     export YT_TABULAR_DATA_FORMAT="dsv"
-    ./yt write //home/wrapper_test/input_table < <(echo -e "value=1\nvalue=2")
+    echo -e "value=1\nvalue=2" | ./yt write //home/wrapper_test/input_table
     check "2" `./yt get //home/wrapper_test/input_table/@row_count`
 
     ./yt map-reduce --mapper cat --reducer "grep 2" --src //home/wrapper_test/input_table --dst //home/wrapper_test/input_table --reduce-by value
@@ -221,7 +221,7 @@ test_transactions()
 
 tear_down
 run_test test_table_commands
-run_test test_tree_commands
+run_test test_cypress_commands
 run_test test_file_commands
 run_test test_copy_move_link
 run_test test_map_reduce

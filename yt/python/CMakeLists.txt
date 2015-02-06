@@ -66,7 +66,7 @@ set_target_properties( yt-yson-python
 exec_program(
   ${CMAKE_COMMAND} ARGS -E create_symlink
   ${CMAKE_BINARY_DIR}/lib/libyt-driver-python.so
-  ${CMAKE_SOURCE_DIR}/python/yt/bindings/driver/driver_lib.so
+  ${CMAKE_SOURCE_DIR}/python/yt_driver_bindings/driver_lib.so
 )
 
 exec_program(

@@ -1,113 +1,260 @@
-import common
+import os
+import sys
+import types
 
-USE_HOSTS = True
-HOSTS = "hosts"
-_BANNED_HOSTS = {}
-_HOST_BAN_PERIOD = 120000
+import default_config
 
-REMOVE_TEMP_FILES = True
-REMOVE_UPLOADED_FILES = False
-FILE_PLACEMENT_STRATEGY = "hash"
+# NB: Magic!
+# To support backward compatibility we must translate uppercase fields as config values.
+# To implement this translation we replace config module with special class Config!
 
-ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE = False
-USE_MAPREDUCE_STYLE_DESTINATION_FDS = False
-TREAT_UNEXISTING_AS_EMPTY = False
-DELETE_EMPTY_TABLES = False
-USE_YAMR_SORT_REDUCE_COLUMNS = False
-REPLACE_TABLES_WHILE_COPY_OR_MOVE = False
-CREATE_RECURSIVE = False
-THROW_ON_EMPTY_DST_LIST = False
-RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED = False
-USE_NON_STRICT_UPPER_KEY = False
-CHECK_INPUT_FULLY_CONSUMED = False
+class Config(types.ModuleType):
+    def __init__(self):
+        self.shortcuts = {
+            "http.PROXY": "proxy/url",
+            "http.PROXY_SUFFIX": "proxy/default_suffix",
+            "http.TOKEN": "token",
+            "http.TOKEN_PATH": "token_path",
+            "http.USE_TOKEN": "enable_token",
+            "http.ACCEPT_ENCODING": "proxy/accept_encoding",
+            "http.CONTENT_ENCODING": "proxy/content_encoding",
+            "http.REQUEST_RETRY_TIMEOUT": "proxy/request_retry_timeout",
+            "http.REQUEST_RETRY_COUNT": "proxy/request_retry_count",
+            "http.REQUEST_BACKOFF": "proxy/request_backoff_time",
+            "http.FORCE_IPV4": "proxy/force_ipv4",
+            "http.FORCE_IPV6": "proxy/force_ipv6",
+            "http.HEADER_FORMAT": "proxy/header_format",
 
-OPERATION_STATE_UPDATE_PERIOD = 5.0
-STDERR_LOGGING_LEVEL = "INFO"
-IGNORE_STDERR_IF_DOWNLOAD_FAILED = False
-ERRORS_TO_PRINT_LIMIT = 100
-READ_BUFFER_SIZE = 8 * common.MB
-MEMORY_LIMIT = None
-FILE_STORAGE = "//tmp/yt_wrapper/file_storage"
-TEMP_TABLES_STORAGE = "//tmp/yt_wrapper/table_storage"
+            "VERSION": "api_version",
+            "OPERATION_LINK_PATTERN": "proxy/operation_link_pattern",
 
-LOCAL_TMP_DIR="/tmp"
+            "DRIVER_CONFIG": "driver_config",
+            "DRIVER_CONFIG_PATH": "driver_config_path",
 
-KEYBOARD_ABORT = True
-DETACHED = True
-MERGE_INSTEAD_WARNING = False
+            "USE_HOSTS": "proxy/enable_proxy_discovery",
+            "HOSTS": "proxy/proxy_discovery_url",
+            "HOST_BAN_PERIOD": "proxy/proxy_ban_timeout",
 
-PREFIX = ""
+            "ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE": "yamr_mode/always_set_executable_flag_on_files",
+            "USE_MAPREDUCE_STYLE_DESTINATION_FDS": "yamr_mode/use_yamr_style_destination_fds",
+            "TREAT_UNEXISTING_AS_EMPTY": "yamr_mode/treat_unexisting_as_empty",
+            "DELETE_EMPTY_TABLES": "yamr_mode/delete_empty_tables",
+            "USE_YAMR_SORT_REDUCE_COLUMNS": "yamr_mode/use_yamr_sort_reduce_columns",
+            "REPLACE_TABLES_WHILE_COPY_OR_MOVE": "yamr_mode/replace_tables_on_copy_and_move",
+            "CREATE_RECURSIVE": "yamr_mode/create_recursive",
+            "THROW_ON_EMPTY_DST_LIST": "yamr_mode/throw_on_missing_destination",
+            "RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED": "yamr_mode/run_map_reduce_if_source_is_not_sorted",
+            "USE_NON_STRICT_UPPER_KEY": "yamr_mode/use_non_strict_upper_key",
+            "CHECK_INPUT_FULLY_CONSUMED": "yamr_mode/check_input_fully_consumed",
+            "FORCE_DROP_DST": "yamr_mode/abort_transactions_with_remove",
 
-SPEC = None
-POOL = None
-INTERMEDIATE_DATA_ACCOUNT = None
+            "OPERATION_STATE_UPDATE_PERIOD": "operation_tracker/poll_period",
+            "STDERR_LOGGING_LEVEL": "operation_tracker/stderr_logging_level",
+            "IGNORE_STDERR_IF_DOWNLOAD_FAILED": "operation_tracker/ignore_stderr_if_download_failed",
+            "KEYBOARD_ABORT": "operation_tracker/abort_on_sigint",
 
-TRANSACTION = "0-0-0-0"
-PING_ANCESTOR_TRANSACTIONS = False
-TRANSACTION_TIMEOUT = 15 * 1000
-OPERATION_GET_STATE_RETRY_COUNT =  100
-TRANSACTION_SLEEP_PERIOD = 100
+            "READ_BUFFER_SIZE": "read_buffer_size",
+            "MEMORY_LIMIT": "spec_defaults/memory_limit",
 
-RETRY_READ = False
+            "FILE_STORAGE": "remote_temp_files_directory",
+            "TEMP_TABLES_STORAGE": "remote_temp_tables_directory",
+            "LOCAL_TMP_DIR": "local_temp_directory",
+            "REMOVE_TEMP_FILES": "clear_local_temp_files",
 
-FORCE_DROP_DST = False
 
-USE_RETRIES_DURING_WRITE = True
-USE_RETRIES_DURING_UPLOAD = True
-CHUNK_SIZE = 512 * common.MB
+            "MERGE_INSTEAD_WARNING": "auto_merge_output/enable",
+            "MIN_CHUNK_COUNT_FOR_MERGE_WARNING": "auto_merge_output/min_chunk_count",
+            "MAX_CHUNK_SIZE_FOR_MERGE_WARNING": "auto_merge_output/max_chunk_size",
 
-USE_SHORT_OPERATION_INFO = False
+            "PREFIX": "prefix",
 
-OPERATION_LINK_PATTERN = "http://{proxy}/#page=operation&mode=detail&id={id}&tab=details"
+            "POOL": "spec_defaults/pool",
+            "MEMORY_LIMIT": "spec_defaults/memory_limit",
+            "INTERMEDIATE_DATA_ACCOUNT": "spec_defaults/intermediate_data_account",
 
-MIN_CHUNK_COUNT_FOR_MERGE_WARNING = 1000
-MAX_CHUNK_SIZE_FOR_MERGE_WARNING = 32 * common.MB
+            "TRANSACTION_TIMEOUT": "transaction_timeout",
+            "TRANSACTION_SLEEP_PERIOD": "transaction_sleep_period",
+            "OPERATION_GET_STATE_RETRY_COUNT": "proxy/operation_state_discovery_retry_count",
 
-PYTHON_FUNCTION_SEARCH_EXTENSIONS = None
-PYTHON_FUNCTION_MODULE_FILTER = None
-PYTHON_DO_NOT_USE_PYC = False
-PYTHON_CREATE_MODULES_ARCHIVE = None
-PYTHON_USE_DILL = True
-PYTHON_USE_CLOUDPICKLE = False
+            "RETRY_READ": "read_retries/enable",
+            "USE_RETRIES_DURING_WRITE": "write_retries/enable",
 
-# for test purpose
-RETRY = None
-MUTATION_ID = None
-TRACE = None
+            "CHUNK_SIZE": "write_retries/chunk_size",
 
-VERSION = "v2"
+            "PYTHON_FUNCTION_SEARCH_EXTENSIONS": "pickling/search_extensions",
+            "PYTHON_FUNCTION_MODULE_FILTER": "pickling/module_filter",
+            "PYTHON_DO_NOT_USE_PYC": "pickling/force_using_py_instead_of_pyc",
+            "PYTHON_CREATE_MODULES_ARCHIVE": "pickling/create_modules_archive_function",
 
-common.update_from_env(globals())
+            "DETACHED": "detached",
 
-from format import YamrFormat
-import format_config as format
+            "format.TABULAR_DATA_FORMAT": "tabular_data_format"
+        }
 
-def set_yamr_mode():
-    global MAPREDUCE_MODE, ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE, USE_MAPREDUCE_STYLE_DESTINATION_FDS
-    global TREAT_UNEXISTING_AS_EMPTY, DELETE_EMPTY_TABLES, USE_YAMR_SORT_REDUCE_COLUMNS
-    global REPLACE_TABLES_WHILE_COPY_OR_MOVE, CREATE_RECURSIVE
-    global THROW_ON_EMPTY_DST_LIST, RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED
-    global USE_NON_STRICT_UPPER_KEY
-    global CHECK_INPUT_FULLY_CONSUMED
-    ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE = True
-    USE_MAPREDUCE_STYLE_DESTINATION_FDS = True
-    TREAT_UNEXISTING_AS_EMPTY = True
-    DELETE_EMPTY_TABLES = True
-    USE_YAMR_SORT_REDUCE_COLUMNS = True
-    REPLACE_TABLES_WHILE_COPY_OR_MOVE = True
-    CREATE_RECURSIVE = True
-    THROW_ON_EMPTY_DST_LIST = True
-    RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED = True
-    USE_NON_STRICT_UPPER_KEY = True
-    CHECK_INPUT_FULLY_CONSUMED = True
-    format.TABULAR_DATA_FORMAT = YamrFormat(has_subkey=True, lenval=False)
+        super(Config, self).__init__(__name__)
 
-import http_config as http
+        self.cls = Config
+        self.__file__ = os.path.abspath(__file__)
+        self.__path__ = [os.path.dirname(os.path.abspath(__file__))]
+        self.__name__ = __name__
+        if len(__name__.rsplit(".", 1)) > 1:
+            self.__package__ = __name__.rsplit(".", 1)[0]
+        else:
+            self.__package__ = None
 
-# This function is deprecated
-def set_proxy(proxy):
-    http.PROXY = proxy
+        for key in self.shortcuts:
+            obj = self
+            cls = Config
+            parts = key.split(".")
+            for part in parts[:-1]:
+                if not hasattr(cls, part):
+                    setattr(cls, part, type(part, (object,), {}))
+                    setattr(obj, part, getattr(cls, part)())
+                cls = getattr(cls, part)
+                obj = getattr(obj, part)
+            setattr(cls, parts[-1],
+                property(lambda obj_self, key=key: self._get(self.shortcuts[key]))
+                    .setter(lambda ojb_self, value, key=key: self._set(self.shortcuts[key], value)))
 
-# For debug purpose
-CLIENT = None
+        self.default_config_module = default_config
+
+        self._init()
+        self._update_from_env()
+
+    def _init(self):
+        self.config = self.default_config_module.get_default_config()
+
+        self.CLIENT = None
+        self.RETRY = None
+        self.MUTATION_ID = None
+        self.TRACE = None
+        self.SPEC = None
+        self.TRANSACTION = "0-0-0-0"
+        self.PING_ANCESTOR_TRANSACTIONS = False
+
+        self._env_configurable_options = ["TRACE", "TRANSACTION", "PING_ANCESTOR_TRANSACTIONS", "SPEC"]
+
+        self._transaction_stack = None
+        self._banned_proxies = {}
+
+        self._version = None
+        self._commands = None
+
+
+    def _update_from_env(self):
+        import os
+
+        def get_var_type(value):
+            var_type = type(value)
+            # Using int we treat "0" as false, "1" as "true"
+            if var_type == bool:
+                try:
+                    value = int(value)
+                except:
+                    pass
+            # None type is treated as str
+            if isinstance(None, var_type):
+                var_type = str
+            return var_type
+
+        old_options = sorted(list(self.shortcuts))
+        old_options_short = [value.split(".")[-1] for value in old_options]
+
+        for key, value in os.environ.iteritems():
+            prefix = "YT_"
+            if not key.startswith(prefix):
+                continue
+
+            key = key[len(prefix):]
+            if key in old_options_short:
+                name = self.shortcuts[old_options[old_options_short.index(key)]]
+                var_type = get_var_type(self._get(name))
+                self._set(name, var_type(value))
+            elif key in self._env_configurable_options:
+                var_type = get_var_type(self.__dict__[key])
+                self.__dict__[key] = var_type(value)
+
+
+    # NB: Method required for compatibility
+    def set_proxy(self, value):
+        self._set("proxy/url", value)
+
+
+    # Helpers
+    def get_backend_type(self, client):
+        config = self.get_config(client)
+        backend = config["backend"]
+        if backend is None:
+            backend = "http" if config["proxy"]["url"] is not None else "native"
+        return backend
+
+    def get_single_request_timeout(self, client):
+        config = self.get_config(client)
+        #backend = self.get_backend_type(client)
+        # TODO(ignat): support native backend.
+        return config["proxy"]["request_retry_timeout"]
+
+    def get_request_retry_count(self, client):
+        config = self.get_config(client)
+        #backend = self.get_backend_type(client)
+        # TODO(ignat): support native backend.
+        return config["proxy"]["request_retry_count"]
+
+    def get_total_request_timeout(self, client):
+        return self.get_single_request_timeout(client) * self.get_request_retry_count(client)
+
+    def __getitem__(self, key):
+        return self.config[key]
+
+    def __setitem__(self, key, value):
+        self.config[key] = value
+
+    def get_config(self, client):
+        if client is not None:
+            return client.config
+        elif self.CLIENT is not None:
+            return self.CLIENT.config
+        else:
+            return self.config
+
+    def get_option(self, option, client):
+        if client is not None:
+            return client.__dict__[option]
+        else:
+            return self.__dict__[option]
+
+    def set_option(self, option, value, client):
+        if client is not None:
+            client.__dict__[option] = value
+        else:
+            self.__dict__[option] = value
+
+    def _reload(self, ignore_env):
+        self._init()
+        if not ignore_env:
+            self._update_from_env()
+
+    def _get(self, key):
+        d = self.config
+        parts = key.split("/")
+        for k in parts:
+            d = d.get(k)
+        return d
+
+    def _set(self, key, value):
+        d = self.config
+        parts = key.split("/")
+        for k in parts[:-1]:
+            d = d[k]
+        d[parts[-1]] = value
+
+# Process reload correctly
+special_module_name = "_yt_config_" + __name__
+if special_module_name not in sys.modules:
+    sys.modules[special_module_name] = Config()
+else:
+    sys.modules[special_module_name]._reload(ignore_env=False)
+
+sys.modules[__name__] = sys.modules[special_module_name]
+
 

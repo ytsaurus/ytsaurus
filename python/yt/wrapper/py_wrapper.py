@@ -1,19 +1,14 @@
 from pickling import dump
-import config
-import format
-import format_config
+from config import get_config
 
-import yt.yson
 from yt.zip import ZipFile
 import yt.logger as logger
-from errors import YtError
 
 import imp
 import inspect
 import os
 import sys
 import shutil
-import types
 
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 
@@ -33,11 +28,12 @@ def is_running_interactively():
         else:
             return True
 
-def module_relpath(module_name, module_file):
-    if config.PYTHON_FUNCTION_SEARCH_EXTENSIONS is None:
+def module_relpath(module_name, module_file, client):
+    search_extensions = get_config(client)["pickling"]["search_extensions"]
+    if search_extensions is None:
         suffixes = [suf for suf, _, _ in imp.get_suffixes()]
     else:
-        suffixes = ["." + ext for ext in config.PYTHON_FUNCTION_SEARCH_EXTENSIONS]
+        suffixes = ["." + ext for ext in search_extensions]
 
     if module_name == "__main__":
         return module_file
@@ -46,6 +42,8 @@ def module_relpath(module_name, module_file):
             rel_path = ''.join([module_name.replace(".", "/"), init, suf])
             if module_file.endswith(rel_path):
                 return rel_path
+    if module_file.endswith(".egg"):
+        return os.path.basename(module_file)
     return None
     #!!! It is wrong solution, because modules can affect sys.path while importing
     #!!! Do not delete it to prevent wrong refactoring in the future.
@@ -63,21 +61,23 @@ def find_file(path):
             return path
         path = os.path.dirname(path)
 
-def create_modules_archive(tempfiles_manager):
-    if config.PYTHON_CREATE_MODULES_ARCHIVE is not None:
-        return config.PYTHON_CREATE_MODULES_ARCHIVE()
+def create_modules_archive(tempfiles_manager, client):
+    create_modules_archive_function = get_config(client)["pickling"]["create_modules_archive_function"]
+    if create_modules_archive_function is not None:
+        return create_modules_archive_function()
 
     for module_name in OPERATION_REQUIRED_MODULES:
         module_info = imp.find_module(module_name, [LOCATION])
         imp.load_module(module_name, *module_info)
 
     compressed_files = set()
-    zip_filename = tempfiles_manager.create_tempfile(dir=config.LOCAL_TMP_DIR,
+    zip_filename = tempfiles_manager.create_tempfile(dir=get_config(client)["local_temp_directory"],
                                                      prefix=".modules.zip")
+    module_filter = get_config(client)["pickling"]["module_filter"]
     with ZipFile(zip_filename, "w") as zip:
         for module in sys.modules.values():
-            if config.PYTHON_FUNCTION_MODULE_FILTER is not None and \
-                    not config.PYTHON_FUNCTION_MODULE_FILTER(module):
+            if module_filter is not None and \
+                    not module_filter(module):
                 continue
             if hasattr(module, "__file__"):
                 file = find_file(module.__file__)
@@ -85,10 +85,10 @@ def create_modules_archive(tempfiles_manager):
                     logger.warning("Cannot find file of module %s", module.__file__)
                     continue
 
-                if config.PYTHON_DO_NOT_USE_PYC and file.endswith(".pyc"):
+                if get_config(client)["pickling"]["force_using_py_instead_of_pyc"] and file.endswith(".pyc"):
                     file = file[:-1]
 
-                relpath = module_relpath(module.__name__, file)
+                relpath = module_relpath(module.__name__, file, client)
                 if relpath is None:
                     logger.warning("Cannot determine relative path of module " + str(module))
                     continue
@@ -98,6 +98,7 @@ def create_modules_archive(tempfiles_manager):
                 compressed_files.add(relpath)
 
                 zip.write(file, relpath)
+
     return zip_filename
 
 def get_function_name(function):
@@ -108,26 +109,19 @@ def get_function_name(function):
     else:
         return "operation"
 
-def wrap(function, operation_type, tempfiles_manager, input_format=None, output_format=None, reduce_by=None):
+def wrap(function, operation_type, tempfiles_manager, input_format=None, output_format=None, reduce_by=None, client=None):
     assert operation_type in ["mapper", "reducer", "reduce_combiner"]
-    function_filename = tempfiles_manager.create_tempfile(dir=config.LOCAL_TMP_DIR,
+    local_temp_directory = get_config(client)["local_temp_directory"]
+    function_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
                                                           prefix=get_function_name(function) + ".")
     with open(function_filename, "w") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
         dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
 
-    config_filename = tempfiles_manager.create_tempfile(dir=config.LOCAL_TMP_DIR,
+    config_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
                                                         prefix="config_dump")
-    config_dict = {}
-    for key in dir(format_config):
-        value = format_config.__dict__[key]
-        is_bad = any(isinstance(value, type)
-                     for type in [types.ModuleType, types.FileType, types.EllipsisType])
-        if is_bad or key.startswith("__"):# or key == "DEFAULT_STRATEGY":
-            continue
-        config_dict[key] = value
     with open(config_filename, "w") as fout:
-        dump(config_dict, fout)
+        dump(get_config(client), fout)
 
     if attributes.get('is_simple', False):
         return ("python _py_runner.py " + " ".join([
@@ -136,8 +130,8 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
                 os.path.join(LOCATION, "_py_runner.py"),
                 [function_filename, config_filename])
 
-    zip_filename = create_modules_archive(tempfiles_manager)
-    main_filename = tempfiles_manager.create_tempfile(dir=config.LOCAL_TMP_DIR,
+    zip_filename = create_modules_archive(tempfiles_manager, client)
+    main_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
                                                       prefix="_main_module", suffix=".py")
     main_module_type = "PY_SOURCE"
     if is_running_interactively():
