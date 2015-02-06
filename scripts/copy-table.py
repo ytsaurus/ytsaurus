@@ -1,17 +1,22 @@
 #!/usr/bin/python
+
 import yt.wrapper as yt
 import yt.yson as yson
 from yt.common import YtError
+
 import argparse
 import subprocess as sp
 import sys
 import tempfile
 import os
+from StringIO import StringIO
 
-yt.config.VERSION="v3"
+yt.config.VERSION = "v3"
 
 # Config is passed to mapper.
-config_file_name="copy-table.config"
+CONFIG_FILE_NAME = "copy-table.config"
+# File with mapper program.
+HELPER_FILE_NAME = "./copy-table-helper.py"
 
 def prepare(value, is_raw=False):
     if not is_raw:
@@ -27,60 +32,23 @@ def tablets_mapper(tablet):
     yield {"pivot_key":tablet["pivot_key"]}
     tablet_id = tablet["tablet_id"]
     cell_id = tablet["cell_id"]
-    p = sp.Popen(["yt", "get", "#" + cell_id + "/@peers/0/address", "--format <format=text>yson"], stdout=sp.PIPE)
-    node = yson.loads(p.communicate()[0])
-    p = sp.Popen(["yt", "get", "//sys/nodes/%s/orchid/tablet_cells/%s/tablets/%s/partitions" %(node, cell_id, tablet_id), "--format <format=text>yson"], stdout=sp.PIPE)
-    partitions = p.communicate()[0]
+    node = yson.loads(sp.check_output(["yt", "get", "#" + cell_id + "/@peers/0/address", "--format <format=text>yson"]))
+    partitions_path = "//sys/nodes/%s/orchid/tablet_cells/%s/tablets/%s/partitions" % (node, cell_id, tablet_id)
+    partitions = sp.check_output(["yt", "get", partitions_path, "--format <format=text>yson"])
     if partitions != None:
         for partition in yson.loads(partitions):
-            yield {"pivot_key":partition["pivot_key"]}
+            yield {"pivot_key": partition["pivot_key"]}
 
-# Map task - copy content with keys between r["left"] and r["right"].
 def regions_mapper(r):
-    f = open(config_file_name, 'r')
-    config = yson.loads(f.read())
-    
-    # Get something like ((key1, key2, key3), (bound1, bound2, bound3)) from a bound.
-    S = lambda l : ",".join(['"' + x + '"' if isinstance(x, str) else str(x) for x in l])
-    SS = lambda w : ",".join([str(x) for x in config["key_columns"][:w]])
-    SSS = lambda l : (SS(len(l)), S(l))
-    
-    # Get records from source table.
-    def query(left, right):
-        if left == None: left = None
-        if right == None: right = None
-        if left: left = " (%s) >= (%s)" % SSS(left)
-        if right: right = " (%s) < (%s)" % SSS(right)
-        query = "* from [%s]" % config["source"]
-        if left or right: query += " where"
-        if left: query += left
-        if left and right: query += " and"
-        if right: query += right
-        p = sp.Popen(["yt", "select", query, "--format <format=text>yson"], stdout=sp.PIPE)
-        data, err = p.communicate()
-        return data
-    raw_data = query(r["left"], r["right"])
-
-    # Process data.
-    #
-    #data = yson.loads("[%s]" % raw_data)
-    #new_data = []
-    #for row in data:
-    #    #
-    #    # possible data transformation here
-    #    #
-    #    new_data.append(row)
-    #raw_data = prepare(new_data)
-
-    # Write data to destination table.
-    p = sp.Popen(["yt", "insert", config["destination"], "--format <format=text>yson"], stdin=sp.PIPE)
-    p.communicate(raw_data)
+    f = open(CONFIG_FILE_NAME, 'r')
+    config = yson.load(f)
+    sp.check_output([HELPER_FILE_NAME, yson.dumps(config), yson.dumps(r)])
     yield r
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Copy and alter table.")
-    parser.add_argument("--input")
-    parser.add_argument("--output")
+    parser.add_argument("--input", required=True)
+    parser.add_argument("--output", required=True)
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--proxy")
     args = parser.parse_args()
@@ -115,7 +83,7 @@ if __name__ == "__main__":
             tablet_id = tablet["tablet_id"]
             cell_id = tablet["cell_id"]
             node = yt.get("#" + cell_id + "/@peers/0/address")
-            for partition in yt.get("//sys/nodes/%s/orchid/tablet_cells/%s/tablets/%s/partitions" %(node, cell_id, tablet_id)):
+            for partition in yt.get("//sys/nodes/%s/orchid/tablet_cells/%s/tablets/%s/partitions" % (node, cell_id, tablet_id)):
                 partition_keys.append(partition["pivot_key"])
         print ""
     else:
@@ -131,8 +99,7 @@ if __name__ == "__main__":
                 format=yt.YsonFormat(format="text"))
         except YtError as e:
             print yt.errors.format_error(e)
-        partition_keys = yt.read_table(partitions_table, format=yt.YsonFormat(format="text"))
-        partition_keys = yson.loads("[%s]" % "".join(partition_keys))
+        partition_keys = yt.read_table(partitions_table, format=yt.YsonFormat(), raw=False)
         partition_keys = [p["pivot_key"] for p in partition_keys]
         yt.remove(tablets_table)   
         yt.remove(partitions_table)
@@ -145,10 +112,14 @@ if __name__ == "__main__":
 
     # Write partition bounds into regions_table.
     regions = zip([None] + partition_keys, partition_keys + [None])
-    yt.write_table(regions_table, prepare([{"left":r[0], "right":r[1]} for r in regions]), format=yt.YsonFormat(format="text"))
+    regions = [{"left":r[0], "right":r[1]} for r in regions]
+    yt.write_table(
+        regions_table,
+        prepare(regions),
+        format=yt.YsonFormat(format="text"))
 
     config = {"key_columns" : key_columns, "source": src, "destination" : dst}
-    config_file = open(config_file_name, "w")
+    config_file = open(CONFIG_FILE_NAME, "w")
     config_file.write(yson.dumps(config))
     config_file.close()
     
@@ -167,7 +138,7 @@ if __name__ == "__main__":
 
     # FIXME: fix job count and memory limit
     #job_count=min(100, len(pivot_keys))
-    job_count=10
+    job_count=100
 
     # Copy table. Each mapper task copies a single partition.
     try:
@@ -177,12 +148,12 @@ if __name__ == "__main__":
             out_regions_table,
             spec={
                 "job_count": job_count,
-                "max_failed_job_count":10,
-                "job_proxy_memory_control":False,
-                "mapper": { "memory_limit":1024*1024*1024*8}
+                "max_failed_job_count": 10,
+                "job_proxy_memory_control": False,
+                "mapper": { "memory_limit": 1024*1024*1024*4 }
             },
             format=yt.YsonFormat(format="text"),
-            local_files=config_file_name)
+            local_files=[CONFIG_FILE_NAME, HELPER_FILE_NAME])
     except YtError as e:
         print yt.errors.format_error(e)
 
