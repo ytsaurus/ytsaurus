@@ -227,7 +227,7 @@ public:
             it->second = snapshot;
         }
 
-        LOG_INFO("Tablet snapshot updated (TabletId: %v, CellId: %v)",
+        LOG_DEBUG("Tablet snapshot updated (TabletId: %v, CellId: %v)",
             tablet->GetId(),
             tablet->GetSlot()->GetCellId());
     }
