@@ -254,7 +254,6 @@ public:
 
         RegisterInitializer([&] () {
             JobIO->NewTableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
-            JobIO->NewTableWriter->SyncChunkSwitch = true;
         });
     }
 
@@ -334,10 +333,6 @@ public:
             .Default(false);
         RegisterParameter("merge_by", MergeBy)
             .Default();
-
-        RegisterInitializer([&] () {
-            JobIO->NewTableWriter->SyncChunkSwitch = true;
-        });
     }
 
     virtual void OnLoaded() override
@@ -409,7 +404,6 @@ public:
 
         RegisterInitializer([&] () {
             DataSizePerJob = (i64) 128 * 1024 * 1024;
-            JobIO->NewTableWriter->SyncChunkSwitch = true;
         });
     }
 
@@ -549,12 +543,8 @@ public:
         RegisterInitializer([&] () {
             PartitionJobIO->NewTableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
             PartitionJobIO->NewTableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
-            PartitionJobIO->NewTableWriter->SyncChunkSwitch = true;
 
             SortJobIO->NewTableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
-            SortJobIO->NewTableWriter->SyncChunkSwitch = true;
-
-            MergeJobIO->NewTableWriter->SyncChunkSwitch = true;
 
             MapSelectivityFactor = 1.0;
         });
@@ -632,12 +622,8 @@ public:
         RegisterInitializer([&] () {
             MapJobIO->NewTableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
             MapJobIO->NewTableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GBs
-            MapJobIO->NewTableWriter->SyncChunkSwitch = true;
 
             SortJobIO->NewTableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
-            SortJobIO->NewTableWriter->SyncChunkSwitch = true;
-
-            ReduceJobIO->NewTableWriter->SyncChunkSwitch = true;
         });
     }
 
