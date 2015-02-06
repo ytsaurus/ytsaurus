@@ -456,6 +456,8 @@ TOwningKey GetKeySuccessor(TKey key);
 //! a |EValueType::Max| sentinel.
 TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength);
 
+TOwningKey GetKeyPrefix(TKey key, int prefixLength);
+
 //! Returns the key with no components.
 const TOwningKey EmptyKey();
 

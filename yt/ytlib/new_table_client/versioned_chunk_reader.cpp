@@ -137,13 +137,12 @@ bool TVersionedChunkReader::Read(std::vector<TVersionedRow>* rows)
     }
 
     while (rows->size() < rows->capacity()) {
-        ++CurrentRowIndex_;
         if (UpperLimit_.HasRowIndex() && CurrentRowIndex_ == UpperLimit_.GetRowIndex()) {
-            return false;
+            return !rows->empty();
         }
 
         if (UpperLimit_.HasKey() && CompareRows(BlockReader_->GetKey(), UpperLimit_.GetKey().Get()) >= 0) {
-            return false;
+            return !rows->empty();
         }
 
         auto row = BlockReader_->GetRow(&MemoryPool_);
@@ -157,6 +156,7 @@ bool TVersionedChunkReader::Read(std::vector<TVersionedRow>* rows)
             ++RowCount_;
         }
 
+        ++CurrentRowIndex_;
         if (!BlockReader_->NextRow()) {
             BlockEnded_ = true;
             return true;

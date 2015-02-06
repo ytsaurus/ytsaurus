@@ -3203,7 +3203,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
 
         auto codecId = NErasure::ECodec(chunkSpec->erasure_codec());
         if (hasNontrivialLimits || codecId == NErasure::ECodec::None) {
-            auto slices = CreateChunkSlice(chunkSpec)->SliceEvenly(sliceDataSize);
+            auto slices = SliceChunkByRowIndexes(chunkSpec, sliceDataSize);
             appendStripes(slices);
         } else {
             for (const auto& slice : CreateErasureChunkSlices(chunkSpec, codecId)) {

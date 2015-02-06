@@ -491,9 +491,7 @@ bool TReorderingSchemalessMultiChunkWriter::Write(const std::vector<TUnversioned
     reorderedRows.reserve(rows.size());
 
     for (const auto& row : rows) {
-        //LOG_DEBUG("BEFORE %v", row);
         reorderedRows.push_back(RowReorderer_.ReorderRow(row, &MemoryPool_));
-        //LOG_DEBUG("AFTER %v", reorderedRows.back());
     }
 
     if (IsSorted() && !reorderedRows.empty()) {

@@ -821,6 +821,13 @@ TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength)
         EValueType::Max);
 }
 
+TOwningKey GetKeyPrefix(TKey key, int prefixLength)
+{
+    return TOwningKey(
+        key.Begin(), 
+        key.Begin() + std::min(key.GetCount(), prefixLength));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static TOwningKey MakeSentinelKey(EValueType type)
