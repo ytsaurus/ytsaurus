@@ -280,7 +280,7 @@ TJobResult TJobProxy::DoRun()
         BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
         Config_->HeartbeatPeriod);
 
-    if (schedulerJobSpecExt.job_proxy_memory_control()) {
+    if (schedulerJobSpecExt.enable_job_proxy_memory_control()) {
         MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
             GetSyncInvoker(),
             BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),

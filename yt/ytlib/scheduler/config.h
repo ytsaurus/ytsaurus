@@ -79,7 +79,7 @@ public:
     TNullable<int> MaxFailedJobCount;
     TNullable<int> MaxStderrCount;
 
-    bool JobProxyMemoryControl;
+    bool EnableJobProxyMemoryControl;
 
     bool EnableSortVerification;
 
@@ -117,7 +117,7 @@ public:
         RegisterParameter("max_stderr_count", MaxStderrCount)
             .Default(Null);
 
-        RegisterParameter("job_proxy_memory_control", JobProxyMemoryControl)
+        RegisterParameter("enable_job_proxy_memory_control", EnableJobProxyMemoryControl)
             .Default(true);
 
         RegisterParameter("enable_sort_verification", EnableSortVerification)
