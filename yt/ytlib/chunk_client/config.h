@@ -298,7 +298,7 @@ public:
         RegisterParameter("chunks_movable", ChunksMovable)
             .Default(true);
         RegisterParameter("sync_chunk_switch", SyncChunkSwitch)
-            .Default(false);
+            .Default(true);
     }
 };
 
