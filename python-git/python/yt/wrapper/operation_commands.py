@@ -1,17 +1,18 @@
-import config
+from config import get_config
 from yt.common import format_error
-from common import require, prefix, get_value
+from common import require
 from errors import YtError, YtOperationFailedError, YtResponseError, YtTimeoutError
 from driver import make_request
 from http import get_proxy_url
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
-from tree_commands import get_attribute, exists, search, get
+from cypress_commands import get_attribute, exists, search, get
 from file_commands import download_file
 import yt.logger as logger
 
 import os
 import dateutil.parser
 import logging
+from decorator import decorator
 from datetime import datetime
 from time import sleep, time
 from cStringIO import StringIO
@@ -116,14 +117,16 @@ def get_operation_state(operation, client=None):
     :param operation: (string) operation id.
     Raise `YtError` if operation doesn't exists
     """
-    old_retry_count = config.http.REQUEST_RETRY_COUNT
-    config.http.REQUEST_RETRY_COUNT = config.OPERATION_GET_STATE_RETRY_COUNT
+    config = get_config(client)
+    # TODO(ignat): check that we use http backend
+    old_retry_count = config["proxy"]["request_retry_count"]
+    config["proxy"]["request_retry_count"] = config["proxy"]["operation_state_discovery_retry_count"]
 
     operation_path = os.path.join(OPERATIONS_PATH, operation)
     require(exists(operation_path, client=client), YtError("Operation %s doesn't exist" % operation))
     state = OperationState(get_attribute(operation_path, "state", client=client))
 
-    config.http.REQUEST_RETRY_COUNT = old_retry_count
+    config["proxy"]["request_retry_count"] = old_retry_count
 
     return state
 
@@ -165,15 +168,10 @@ class PrintOperationInfo(object):
         if state.is_running():
             progress = get_operation_progress(self.operation, client=self.client)
             if progress != self.progress:
-                if config.USE_SHORT_OPERATION_INFO:
-                    logger.info(
-                        "operation %s: " % self.operation +
-                        "c={completed!s}\tf={failed!s}\tr={running!s}\tp={pending!s}".format(**progress))
-                else:
-                    logger.info(
-                        "operation %s: %s",
-                        self.operation,
-                        "\t".join("{0}={1}".format(k, v) for k, v in order_progress(progress)))
+                logger.info(
+                    "operation %s: %s",
+                    self.operation,
+                    "\t".join("{0}={1}".format(k, v) for k, v in order_progress(progress)))
             self.progress = progress
         elif state != self.state:
             logger.info("operation %s %s", self.operation, state)
@@ -229,7 +227,7 @@ def get_operation_state_monitor(operation, time_watcher, action=lambda: None, cl
         time_watcher.wait()
 
 
-def get_stderrs(operation, only_failed_jobs, limit=None, client=None):
+def get_stderrs(operation, only_failed_jobs, client=None):
     jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
     if not exists(jobs_path, client=client):
         return ""
@@ -239,7 +237,7 @@ def get_stderrs(operation, only_failed_jobs, limit=None, client=None):
 
     result = []
 
-    for path in prefix(jobs_with_stderr, get_value(limit, config.ERRORS_TO_PRINT_LIMIT)):
+    for path in jobs_with_stderr:
         job_with_stderr = {}
         job_with_stderr["host"] = get_attribute(path, "address", client=client)
 
@@ -251,7 +249,7 @@ def get_stderrs(operation, only_failed_jobs, limit=None, client=None):
             if exists(stderr_path, client=client):
                 job_with_stderr["stderr"] = download_file(stderr_path, client=client).read()
         except YtResponseError:
-            if config.IGNORE_STDERR_IF_DOWNLOAD_FAILED:
+            if get_config(client)["operation_tracker"]["ignore_stderr_if_download_failed"]:
                 break
             else:
                 raise
@@ -282,16 +280,16 @@ def format_operation_stderrs(jobs_with_stderr):
 
     return output.getvalue()
 
-# TODO(ignat): make it public
+# TODO(ignat): is it convinient and generic way to get stderrs? Move to tests?
 def add_failed_operation_stderrs_to_error_message(func):
-    def decorated_func(*args, **kwargs):
+    def _add_failed_operation_stderrs_to_error_message(func, *args, **kwargs):
         try:
             func(*args, **kwargs)
         except YtOperationFailedError as error:
             if "stderrs" in error.attributes:
                 error.message = error.message + format_operation_stderrs(error.attributes["stderrs"])
             raise
-    return decorated_func
+    return decorator(_add_failed_operation_stderrs_to_error_message, func)
 
 def get_operation_error(operation, client=None):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
@@ -307,9 +305,14 @@ class Operation(object):
         self.id = id
         self.finalize = finalize
         self.client = client
-        self.url = \
-            config.OPERATION_LINK_PATTERN.format(proxy=get_proxy_url(client=self.client),
-                                                 id=self.id)
+
+        proxy_url = get_proxy_url(check=False, client=self.client)
+        if proxy_url:
+            self.url = \
+                get_config(self.client)["proxy"]["operation_link_pattern"]\
+                    .format(proxy=get_proxy_url(client=self.client), id=self.id)
+        else:
+            self.url = None
 
     def suspend(self):
         suspend_operation(self.id, client=self.client)
@@ -347,11 +350,15 @@ class Operation(object):
         :param timeout: (double) timeout of operation in sec. ``None`` means operation is endlessly waited for.
         """
 
-        logger.info("Operation started: %s", self.url)
+        if self.url:
+            logger.info("Operation started: %s", self.url)
+        else:
+            logger.info("Operation started: %s", self.id)
 
         finalize = self.finalize if self.finalize else lambda state: None
-        time_watcher = TimeWatcher(min_interval=config.OPERATION_STATE_UPDATE_PERIOD / 5.0,
-                                   max_interval=config.OPERATION_STATE_UPDATE_PERIOD,
+        operation_poll_period = get_config(self.client)["operation_tracker"]["poll_period"] / 1000.0
+        time_watcher = TimeWatcher(min_interval=operation_poll_period / 5.0,
+                                   max_interval=operation_poll_period,
                                    slowdown_coef=0.1, timeout=timeout)
         print_info = PrintOperationInfo(self.id, client=self.client) if print_progress else lambda state: None
 
@@ -360,7 +367,8 @@ class Operation(object):
                 print_info(state)
             finalize(state)
 
-        with KeyboardInterruptsCatcher(abort):
+
+        with KeyboardInterruptsCatcher(abort, enable=get_config(self.client)["operation_tracker"]["abort_on_sigint"]):
             for state in self.get_state_monitor(time_watcher):
                 print_info(state)
             timeout_occurred = time_watcher.is_time_up()
@@ -374,7 +382,7 @@ class Operation(object):
             error = get_operation_error(self.id, client=self.client)
             raise YtOperationFailedError(id=self.id, state=str(state), error=error, stderrs=stderrs, url=self.url)
 
-        stderr_level = logging._levelNames[config.STDERR_LOGGING_LEVEL]
+        stderr_level = logging._levelNames[get_config(self.client)["operation_tracker"]["stderr_logging_level"]]
         if logger.LOGGER.isEnabledFor(stderr_level):
             stderrs = get_stderrs(self.id, only_failed_jobs=False, client=self.client)
             if stderrs:
@@ -392,5 +400,3 @@ class WaitStrategy(object):
         operation = Operation(type, operation, finalize, client)
         operation.wait(self.check_result, self.print_progress, self.timeout)
 
-
-config.DEFAULT_STRATEGY = WaitStrategy()

@@ -1,13 +1,12 @@
 """downloading and uploading data to YT commands"""
 
-import config
 import yt.logger as logger
+from config import get_config
 from common import require, chunk_iter, bool_to_string, parse_bool
 from errors import YtError, YtResponseError
-from driver import ResponseStream
 from http import get_api_version
 from heavy_commands import make_heavy_request
-from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create, link, get_attribute
+from cypress_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create, link, get_attribute
 from transaction_commands import _make_transactional_request
 from table import prepare_path
 
@@ -45,13 +44,12 @@ def download_file(path, response_type=None, file_reader=None, offset=None, lengt
     if length is not None:
         params["length"] = length
 
-    response = _make_transactional_request(
+    return _make_transactional_request(
         "download" if get_api_version(client=client) == "v2" else "read_file",
         params,
         return_content=False,
         use_heavy_proxy=True,
         client=client)
-    return ResponseStream.from_response(response)
 
 def upload_file(stream, destination, file_writer=None, client=None):
     """Upload file to destination path from stream on local machine.
@@ -63,7 +61,7 @@ def upload_file(stream, destination, file_writer=None, client=None):
     # Read stream by chunks. Also it helps to correctly process StringIO from cStringIO (it has bug with default iteration)
     if hasattr(stream, 'read'):
         # read files by chunks, not by lines
-        stream = chunk_iter(stream, config.CHUNK_SIZE)
+        stream = chunk_iter(stream, get_config(client)["write_retries"]["chunk_size"])
 
     params = {}
     if file_writer is not None:
@@ -75,7 +73,7 @@ def upload_file(stream, destination, file_writer=None, client=None):
         destination,
         params,
         lambda path: create("file", path, ignore_existing=True, client=client),
-        config.USE_RETRIES_DURING_UPLOAD,
+        get_config(client)["write_retries"]["enable"],
         client=client)
 
 def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None, ignore_set_attributes_error=True, client=None):
@@ -87,7 +85,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     :param yt_filename: (string) 'file_name' attribute of file in Cypress (visible in operation name of file), \
     by default basename of `destination` (or `filename` if `destination` is not set)
     :param placement_strategy: (one of "replace", "ignore", "random", "hash"), \
-    `config.FILE_PLACEMENT_STRATEGY` by default.
+    "hash" by default.
     :param ignore_set_attributes_error: (bool) ignore `YtResponseError` during attributes setting
     :return: YSON structure with result destination path
 
@@ -111,14 +109,14 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
             YtError("Upload: %s should be file" % filename))
 
     if placement_strategy is None:
-        placement_strategy = config.FILE_PLACEMENT_STRATEGY
+        placement_strategy = "hash"
     require(placement_strategy in ["replace", "ignore", "random", "hash"],
             YtError("Incorrect file placement strategy " + placement_strategy))
 
     if destination is None:
         # create file storage dir and hash subdir
-        mkdir(os.path.join(config.FILE_STORAGE, "hash"), recursive=True, client=client)
-        prefix = os.path.join(config.FILE_STORAGE, os.path.basename(filename))
+        mkdir(os.path.join(get_config(client)["remote_temp_files_directory"], "hash"), recursive=True, client=client)
+        prefix = os.path.join(get_config(client)["remote_temp_files_directory"], os.path.basename(filename))
         destination = prefix
         if placement_strategy == "random":
             destination = find_free_subpath(prefix, client=client)
@@ -140,7 +138,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
 
     if placement_strategy == "hash":
         md5 = md5sum(filename)
-        destination = os.path.join(config.FILE_STORAGE, "hash", md5)
+        destination = os.path.join(get_config(client)["remote_temp_files_directory"], "hash", md5)
         link_exists = exists(destination + "&", client=client)
 
         # COMPAT(ignat): old versions of 0.14 have not support attribute broken
@@ -165,7 +163,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     else:
         upload_with_check(destination)
 
-    executable = os.access(filename, os.X_OK) or config.ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE
+    executable = os.access(filename, os.X_OK) or get_config(client)["yamr_mode"]["always_set_executable_flag_on_files"]
 
     try:
         set_attribute(destination, "file_name", yt_filename, client=client)

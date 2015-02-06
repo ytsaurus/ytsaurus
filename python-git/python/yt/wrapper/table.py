@@ -1,7 +1,7 @@
 from common import flatten, require, bool_to_string, parse_bool
 from errors import YtError
 from etc_commands import parse_ypath
-import config
+from config import get_config
 
 from yt.yson import YsonString
 
@@ -64,7 +64,7 @@ class TablePath(object):
             self.name = YsonString(name)
 
         if str(self.name) != "/" and not self.name.startswith("//") and not self.name.startswith("#"):
-            prefix = config.PREFIX
+            prefix = get_config(client)["prefix"]
             require(prefix,
                     YtError("Path '%s' should be absolute or you should specify a prefix" % self.name))
             require(prefix.startswith("//"),
@@ -93,7 +93,7 @@ class TablePath(object):
         if lower_key is not None:
             attributes["lower_limit"] = {"key": flatten(lower_key)}
         if upper_key is not None:
-            if config.USE_NON_STRICT_UPPER_KEY:
+            if get_config(client)["yamr_mode"]["use_non_strict_upper_key"]:
                 upper_key = upper_key + "\0"
             attributes["upper_limit"] = {"key": flatten(upper_key)}
         if start_index is not None:

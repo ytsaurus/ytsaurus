@@ -1,6 +1,6 @@
 from common import bool_to_string, get_value, YtError
 from table import prepare_path
-from tree_commands import get
+from cypress_commands import get
 from transaction_commands import _make_transactional_request
 
 from yt.yson.convert import json_to_yson

@@ -100,16 +100,17 @@ useForcedImports = True # Should I use forced imports for tracking?
 
 def error_msg(msg, loglevel=logging.WARN, exc_info = 0):
     """Print an error message to pilog if running on cloud; otherwise send to stderr"""
-    from .. import _getcloud
-    roc = _getcloud().running_on_cloud()
-    if roc:
-        pilog_module = __import__('pimployee.log', fromlist=['log'])
-        pilog_module.pilogger.log(loglevel, msg, exc_info = exc_info)
-    else:
-        print >> sys.stderr, msg
-        if exc_info:
-            ei = sys.exc_info()
-            traceback.print_exception(ei[0], ei[1], ei[2], None, sys.stderr)
+    # XXX(ignat): do not try to use _getcloud in case of error 
+    #from .. import _getcloud
+    #roc = _getcloud().running_on_cloud()
+    #if roc:
+    #    pilog_module = __import__('pimployee.log', fromlist=['log'])
+    #    pilog_module.pilogger.log(loglevel, msg, exc_info = exc_info)
+    #else:
+    print >> sys.stderr, msg
+    if exc_info:
+        ei = sys.exc_info()
+        traceback.print_exception(ei[0], ei[1], ei[2], None, sys.stderr)
 
 class CloudPickler(pickle.Pickler):
 
@@ -704,62 +705,63 @@ class CloudPickler(pickle.Pickler):
         dispatch[partial] = save_partial
 
 
-    def save_file(self, obj):
-        """Save a file"""
-        import StringIO as pystringIO #we can't use cStringIO as it lacks the name attribute
-        from ..transport.adapter import SerializingAdapter
+    # XXX(ignat): commented, because this method try to use spark transport module
+    #def save_file(self, obj):
+    #    """Save a file"""
+    #    import StringIO as pystringIO #we can't use cStringIO as it lacks the name attribute
+    #    from ..transport.adapter import SerializingAdapter
 
-        if not hasattr(obj, 'name') or  not hasattr(obj, 'mode'):
-            raise pickle.PicklingError("Cannot pickle files that do not map to an actual file")
-        if obj.name == '<stdout>':
-            return self.save_reduce(getattr, (sys,'stdout'), obj=obj)
-        if obj.name == '<stderr>':
-            return self.save_reduce(getattr, (sys,'stderr'), obj=obj)
-        if obj.name == '<stdin>':
-            raise pickle.PicklingError("Cannot pickle standard input")
-        if  hasattr(obj, 'isatty') and obj.isatty():
-            raise pickle.PicklingError("Cannot pickle files that map to tty objects")
-        if 'r' not in obj.mode:
-            raise pickle.PicklingError("Cannot pickle files that are not opened for reading")
-        name = obj.name
-        try:
-            fsize = os.stat(name).st_size
-        except OSError:
-            raise pickle.PicklingError("Cannot pickle file %s as it cannot be stat" % name)
+    #    if not hasattr(obj, 'name') or  not hasattr(obj, 'mode'):
+    #        raise pickle.PicklingError("Cannot pickle files that do not map to an actual file")
+    #    if obj.name == '<stdout>':
+    #        return self.save_reduce(getattr, (sys,'stdout'), obj=obj)
+    #    if obj.name == '<stderr>':
+    #        return self.save_reduce(getattr, (sys,'stderr'), obj=obj)
+    #    if obj.name == '<stdin>':
+    #        raise pickle.PicklingError("Cannot pickle standard input")
+    #    if  hasattr(obj, 'isatty') and obj.isatty():
+    #        raise pickle.PicklingError("Cannot pickle files that map to tty objects")
+    #    if 'r' not in obj.mode:
+    #        raise pickle.PicklingError("Cannot pickle files that are not opened for reading")
+    #    name = obj.name
+    #    try:
+    #        fsize = os.stat(name).st_size
+    #    except OSError:
+    #        raise pickle.PicklingError("Cannot pickle file %s as it cannot be stat" % name)
 
-        if obj.closed:
-            #create an empty closed string io
-            retval = pystringIO.StringIO("")
-            retval.close()
-        elif not fsize: #empty file
-            retval = pystringIO.StringIO("")
-            try:
-                tmpfile = file(name)
-                tst = tmpfile.read(1)
-            except IOError:
-                raise pickle.PicklingError("Cannot pickle file %s as it cannot be read" % name)
-            tmpfile.close()
-            if tst != '':
-                raise pickle.PicklingError("Cannot pickle file %s as it does not appear to map to a physical, real file" % name)
-        elif fsize > SerializingAdapter.max_transmit_data:
-            raise pickle.PicklingError("Cannot pickle file %s as it exceeds cloudconf.py's max_transmit_data of %d" %
-                                       (name,SerializingAdapter.max_transmit_data))
-        else:
-            try:
-                tmpfile = file(name)
-                contents = tmpfile.read(SerializingAdapter.max_transmit_data)
-                tmpfile.close()
-            except IOError:
-                raise pickle.PicklingError("Cannot pickle file %s as it cannot be read" % name)
-            retval = pystringIO.StringIO(contents)
-            curloc = obj.tell()
-            retval.seek(curloc)
+    #    if obj.closed:
+    #        #create an empty closed string io
+    #        retval = pystringIO.StringIO("")
+    #        retval.close()
+    #    elif not fsize: #empty file
+    #        retval = pystringIO.StringIO("")
+    #        try:
+    #            tmpfile = file(name)
+    #            tst = tmpfile.read(1)
+    #        except IOError:
+    #            raise pickle.PicklingError("Cannot pickle file %s as it cannot be read" % name)
+    #        tmpfile.close()
+    #        if tst != '':
+    #            raise pickle.PicklingError("Cannot pickle file %s as it does not appear to map to a physical, real file" % name)
+    #    elif fsize > SerializingAdapter.max_transmit_data:
+    #        raise pickle.PicklingError("Cannot pickle file %s as it exceeds cloudconf.py's max_transmit_data of %d" %
+    #                                   (name,SerializingAdapter.max_transmit_data))
+    #    else:
+    #        try:
+    #            tmpfile = file(name)
+    #            contents = tmpfile.read(SerializingAdapter.max_transmit_data)
+    #            tmpfile.close()
+    #        except IOError:
+    #            raise pickle.PicklingError("Cannot pickle file %s as it cannot be read" % name)
+    #        retval = pystringIO.StringIO(contents)
+    #        curloc = obj.tell()
+    #        retval.seek(curloc)
 
-        retval.name = name
-        self.save(retval)  #save stringIO
-        self.memoize(obj)
+    #    retval.name = name
+    #    self.save(retval)  #save stringIO
+    #    self.memoize(obj)
 
-    dispatch[file] = save_file
+    #dispatch[file] = save_file
     """Special functions for Add-on libraries"""
 
     def inject_numpy(self):

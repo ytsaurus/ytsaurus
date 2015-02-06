@@ -2,7 +2,7 @@
 
 from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
 
-from yt.wrapper.http import get_api
+from yt.wrapper.http import get_api_version
 from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, MB
 from yt.wrapper.cli_helpers import write_silently, run_main
 import yt.wrapper as yt
@@ -118,8 +118,12 @@ def fix_parser(parser):
     return parser
 
 def yson_dumps(data):
-    version, _ = get_api()
-    boolean_as_string = (version == "v2")
+    # TODO(ignat): fix this hack
+    if yt.config["proxy"]["url"] is not None:
+        version = get_api_version()
+        boolean_as_string = (version == "v2")
+    else:
+        boolean_as_string = False
     return yson.dumps(data, yson_format="pretty", indent=2, boolean_as_string=boolean_as_string)
 
 YT_ARGUMENTS_FORMAT = os.environ.get("YT_ARGUMENTS_FORMAT", "yson")
@@ -577,7 +581,7 @@ def add_resume_op_parser(add_parser):
     operation_id_args(parser)
 
 def track_op(args):
-    yt.config.KEYBOARD_ABORT = False
+    yt.config["operation_tracker"]["abort_on_sigint"] = False
     yt.WaitStrategy().process_operation("unknown", args["op"])
 
 def add_track_op_parser(add_parser):
