@@ -1344,8 +1344,8 @@ private:
         config->Addresses.clear();
         for (const auto& peer : cell->Peers()) {
             auto nodeTracker = Bootstrap_->GetNodeTracker();
-            if (peer.Address) {
-                auto node = nodeTracker->GetNodeByAddress(*peer.Address);
+            auto* node = peer.Address ? nodeTracker->FindNodeByAddress(*peer.Address) : nullptr;
+            if (node) {
                 config->Addresses.push_back(node->GetDescriptor().GetInterconnectAddress());
             } else {
                 config->Addresses.push_back(Null);
