@@ -153,6 +153,7 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     , ChunkMeta_(masterMeta)
 {
     Logger.AddTag("SchemalessChunkReader: %p", this);
+    LOG_DEBUG("LowerLimit: %v, UpperLimit: %v", LowerLimit_, UpperLimit_);
 }
 
 std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequence() 
@@ -334,12 +335,15 @@ bool TSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
     }
 
     while (rows->size() < rows->capacity()) {
+        // ToDo(psushin): do not check every row.
         if (UpperLimit_.HasRowIndex() && CurrentRowIndex_ >= UpperLimit_.GetRowIndex()) {
-            return false;
+            LOG_DEBUG("Upper limit row index reached %v", CurrentRowIndex_);
+            return !rows->empty();
         }
 
         if (UpperLimit_.HasKey() && CompareRows(BlockReader_->GetKey(), UpperLimit_.GetKey()) >= 0) {
-            return false;
+            LOG_DEBUG("Upper limit key reached %v", BlockReader_->GetKey());
+            return !rows->empty();
         }
 
         ++RowCount_;

@@ -135,7 +135,7 @@ void TJobProxy::RetrieveJobSpec()
     JobSpec_ = rsp->job_spec();
     ResourceUsage_ = rsp->resource_usage();
 
-    LOG_INFO("Job_ spec received (JobType: %v, ResourceLimits: {%v})\n%v",
+    LOG_INFO("Job spec received (JobType: %v, ResourceLimits: {%v})\n%v",
         NScheduler::EJobType(rsp->job_spec().type()),
         FormatResources(ResourceUsage_),
         rsp->job_spec().DebugString());

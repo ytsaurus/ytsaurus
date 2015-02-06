@@ -60,6 +60,15 @@ private:
         TRefCountedChunkSpecPtr chunkSpec,
         NErasure::ECodec codecId);
 
+    friend std::vector<TChunkSlicePtr> SliceOldChunkByKeys(
+        TRefCountedChunkSpecPtr chunkSpec, 
+        int keyColumnCount, 
+        i64 maxSliceSize);
+
+    friend std::vector<TChunkSlicePtr> SliceNewChunkByKeys(
+        TRefCountedChunkSpecPtr chunkSpec, 
+        int keyColumnCount, 
+        i64 maxSliceSize);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkSlice)
@@ -77,6 +86,14 @@ TChunkSlicePtr CreateChunkSlice(
 std::vector<TChunkSlicePtr> CreateErasureChunkSlices(
     TRefCountedChunkSpecPtr chunkSpec,
     NErasure::ECodec codecId);
+
+
+std::vector<TChunkSlicePtr> SliceChunkByKeys(
+    TRefCountedChunkSpecPtr chunkSpec, 
+    int keyColumnCount, 
+    i64 maxSliceSize);
+
+std::vector<TChunkSlicePtr> SliceChunkByRowIndexes(TRefCountedChunkSpecPtr chunkSpec, i64 maxSliceSize);
 
 void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice);
 

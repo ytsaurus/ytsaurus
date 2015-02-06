@@ -42,17 +42,6 @@ DEFINE_ENUM(EKeyPartType,
     ((MaxSentinel)(100))
 );
 
-NChunkClient::NProto::TKey GetKeySuccessor(const NChunkClient::NProto::TKey& key);
-
-int CompareKeys(
-    const NChunkClient::NProto::TKey& lhs, 
-    const NChunkClient::NProto::TKey& rhs, 
-    int prefixLength = std::numeric_limits<int>::max());
-
-void ToProto(
-    NChunkClient::NProto::TKey* protoKey,
-    NVersionedTableClient::TUnversionedRow row);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

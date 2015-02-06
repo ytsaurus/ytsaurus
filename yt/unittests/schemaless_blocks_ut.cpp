@@ -106,6 +106,12 @@ TEST_F(TSchemalessBlocksTestOneRow, SkipToKey)
     } {
         TUnversionedOwningRowBuilder builder;
         builder.AddValue(MakeUnversionedStringValue("a"));
+        builder.AddValue(MakeUnversionedInt64Value(1));
+
+        EXPECT_TRUE(blockReader.SkipToKey(builder.FinishRow()));
+    } {
+        TUnversionedOwningRowBuilder builder;
+        builder.AddValue(MakeUnversionedStringValue("a"));
         builder.AddValue(MakeUnversionedInt64Value(2));
 
         EXPECT_FALSE(blockReader.SkipToKey(builder.FinishRow()));

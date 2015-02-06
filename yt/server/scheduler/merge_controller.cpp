@@ -602,7 +602,7 @@ private:
         }
 
         // NB: During unordered merge all chunks go to a single chunk stripe.
-        for (const auto& slice : CreateChunkSlice(chunkSpec)->SliceEvenly(ChunkSliceSize)) {
+        for (const auto& slice : SliceChunkByRowIndexes(chunkSpec, ChunkSliceSize)) {
             AddPendingChunk(slice);
             EndTaskIfLarge();
         }
@@ -650,7 +650,7 @@ private:
         }
 
         // NB: During ordered merge all chunks go to a single chunk stripe.
-        for (const auto& slice : CreateChunkSlice(chunkSpec)->SliceEvenly(ChunkSliceSize)) {
+        for (const auto& slice : SliceChunkByRowIndexes(chunkSpec, ChunkSliceSize)) {
             AddPendingChunk(slice);
             EndTaskIfLarge();
         }
@@ -1025,8 +1025,10 @@ protected:
             TKeyEndpoint leftEndpoint;
             leftEndpoint.Type = EEndpointType::Left;
             leftEndpoint.ChunkSpec = chunk;
-
-            YCHECK(TryGetBoundaryKeys(chunk->chunk_meta(), &leftEndpoint.MinBoundaryKey, &leftEndpoint.MaxBoundaryKey));
+            YCHECK(chunk->lower_limit().has_key());
+            FromProto(&leftEndpoint.MinBoundaryKey, chunk->lower_limit().key());
+            YCHECK(chunk->upper_limit().has_key());
+            FromProto(&leftEndpoint.MaxBoundaryKey, chunk->upper_limit().key());
 
             leftEndpoint.IsTeleport = false;
             Endpoints.push_back(leftEndpoint);
@@ -1117,9 +1119,13 @@ private:
 
             openedSlicesCount += endpoint.Type == EEndpointType::Left ? 1 : -1;
 
+            TOwningKey minKey, maxKey;
+            YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
+
             if (currentPartitionTag != DefaultPartitionTag) {
-                if (chunkSpec->partition_tag() == currentPartitionTag) {
-                    if (endpoint.Type == EEndpointType::Right && IsTrivial(chunkSpec->upper_limit())) {
+                if (chunkSpec->partition_tag() == currentPartitionTag) {       
+                    if (endpoint.Type == EEndpointType::Right && CompareRows(maxKey, endpoint.MaxBoundaryKey, KeyColumns.size()) == 0) {
+                        // The last slice of a full chunk.
                         currentPartitionTag = DefaultPartitionTag;
                         auto completeChunk = CreateCompleteChunk(chunkSpec);
 
@@ -1143,7 +1149,8 @@ private:
             }
 
             // No current Teleport candidate.
-            if (endpoint.Type == EEndpointType::Left && IsTrivial(chunkSpec->lower_limit())) {
+            if (endpoint.Type == EEndpointType::Left && CompareRows(minKey, endpoint.MinBoundaryKey, KeyColumns.size()) == 0) {
+                // The first slice of a full chunk.
                 currentPartitionTag = chunkSpec->partition_tag();
                 startTeleportIndex = i;
             }
@@ -1486,7 +1493,6 @@ private:
             }
         }
 
-        // For update task.
         int currentPartitionTag = DefaultPartitionTag;
         int startTeleportIndex = -1;
 
@@ -1515,7 +1521,12 @@ private:
             if (currentPartitionTag != DefaultPartitionTag) {
                 auto& previousEndpoint = Endpoints[i - 1];
                 auto& chunkSpec = previousEndpoint.ChunkSpec;
-                if (previousEndpoint.Type == EEndpointType::Right && IsTrivial(chunkSpec->upper_limit())) {
+
+                TOwningKey maxKey, minKey;
+                YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
+                if (previousEndpoint.Type == EEndpointType::Right 
+                    && CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0) 
+                {
                     for (int j = startTeleportIndex; j < i; ++j) {
                         Endpoints[j].IsTeleport = true;
                     }
@@ -1527,8 +1538,10 @@ private:
 
             // No current Teleport candidate.
             auto& chunkSpec = endpoint.ChunkSpec;
+            TOwningKey maxKey, minKey;
+            YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
             if (endpoint.Type == EEndpointType::Left &&
-                IsTrivial(chunkSpec->lower_limit()) &&
+                CompareRows(minKey, endpoint.GetKey(), prefixLength) == 0 &&
                 IsTeleportInputTable(chunkSpec->table_index()) &&
                 openedSlicesCount == 1)
             {
@@ -1542,7 +1555,9 @@ private:
             auto& previousEndpoint = Endpoints.back();
             auto& chunkSpec = previousEndpoint.ChunkSpec;
             YCHECK(previousEndpoint.Type == EEndpointType::Right);
-            if (IsTrivial(chunkSpec->upper_limit())) {
+            TOwningKey maxKey, minKey;
+            YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
+            if (CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0) {
                 for (int j = startTeleportIndex; j < Endpoints.size(); ++j) {
                     Endpoints[j].IsTeleport = true;
                 }
