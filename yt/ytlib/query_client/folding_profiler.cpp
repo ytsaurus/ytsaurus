@@ -167,11 +167,6 @@ void TFoldingProfiler::Bind(const TInOpExpression* inOp)
     }
 }
 
-size_t TFoldingHasher::operator ()(const llvm::FoldingSetNodeID& id) const
-{
-    return id.ComputeHash();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
