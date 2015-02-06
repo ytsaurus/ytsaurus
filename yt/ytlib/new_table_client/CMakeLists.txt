@@ -21,8 +21,6 @@ set( SRCS
   ${BASE}/schemaful_block_writer.cpp
   ${BASE}/schemaful_chunk_reader.cpp
   ${BASE}/schemaful_chunk_writer.cpp
-  ${BASE}/schemaful_merging_reader.cpp
-  ${BASE}/schemaful_ordered_reader.cpp
   ${BASE}/schemaful_reader_adapter.cpp
   ${BASE}/schemaless_block_reader.cpp
   ${BASE}/schemaless_block_writer.cpp
@@ -33,6 +31,8 @@ set( SRCS
   ${BASE}/schemaless_row_reorderer.cpp
   ${BASE}/schemaless_sorted_merging_reader.cpp
   ${BASE}/schemaless_sorting_reader.cpp
+  ${BASE}/unordered_schemaful_reader.cpp
+  ${BASE}/ordered_schemaful_reader.cpp
   ${BASE}/table_consumer.cpp
   ${BASE}/unversioned_row.cpp
   ${BASE}/versioned_block_reader.cpp
@@ -65,9 +65,7 @@ set( HDRS
   ${BASE}/schemaful_block_reader.h
   ${BASE}/schemaful_block_writer.h
   ${BASE}/schemaful_chunk_reader.h
-  ${BASE}/schemaful_chunk_writer.h
-  ${BASE}/schemaful_merging_reader.h
-  ${BASE}/schemaful_ordered_reader.h
+  ${BASE}/schemaful_chunk_writer.helpers
   ${BASE}/schemaful_reader_adapter.h
   ${BASE}/schemaful_reader.h
   ${BASE}/schemaful_writer.h
