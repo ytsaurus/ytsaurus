@@ -1,5 +1,7 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
+from yt.wrapper.etc_commands import get_user_name
 from yt.wrapper.client import Yt
 from yt.wrapper.common import parse_bool
 from yt.wrapper.tests.base import YtTestBase, TEST_DIR
@@ -8,12 +10,13 @@ from yt.environment import YTEnv
 import yt.yson as yson
 import yt.wrapper as yt
 
-import inspect
 import os
 import time
+import inspect
 import tempfile
 import subprocess
 import shutil
+from StringIO import StringIO
 
 import pytest
 
@@ -58,10 +61,11 @@ def test_reliable_remove_tempfiles():
 
 class NativeModeTester(YtTestBase, YTEnv):
     @classmethod
-    def setup_class(cls):
-        super(NativeModeTester, cls).setup_class()
-        # TODO(ignat): remove setting default format
-        yt.config.format.TABULAR_DATA_FORMAT = yt.format.DsvFormat()
+    def setup_class(cls, config=None):
+        if config is None:
+            config = {}
+        config["tabular_data_format"] = yt.format.DsvFormat()
+        super(NativeModeTester, cls).setup_class(config)
 
     @classmethod
     def teardown_class(cls):
@@ -73,6 +77,12 @@ class NativeModeTester(YtTestBase, YTEnv):
             return map(yt.loads_row, sorted(list(records)))
         self.assertEqual(prepare(recordsA), prepare(recordsB))
 
+    def test_ypath(self):
+        path = yt.TablePath("<append=false;sort-by=[key]>//my/table")
+        assert str(path) == "//my/table"
+        assert repr(path) == "//my/table"
+        assert not path.append
+        assert path.attributes == {"append": "false", "sort_by": ["key"]}
 
     def test_get_set_exists(self):
         self.assertTrue(yt.get("/"))
@@ -87,6 +97,8 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.set(TEST_DIR + "/some_node", {})
 
         self.assertTrue(yt.exists(TEST_DIR + "/some_node"))
+        assert yt.list(TEST_DIR) ==  ["some_node"]
+        assert yt.list(TEST_DIR, absolute=True) ==  [TEST_DIR + "/some_node"]
 
 
     def test_remove(self):
@@ -184,7 +196,13 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.write_table(yt.TablePath(table, append=True), ["y=1\n"])
         self.check(["x=1\n", "y=1\n"], yt.read_table(table))
 
+        yt.write_table(yt.TablePath(table), ["x=1\n", "y=1\n"])
+        self.check(["x=1\n", "y=1\n"], yt.read_table(table))
+
         yt.write_table(table, ["y=1\n"])
+        self.check(["y=1\n"], yt.read_table(table))
+
+        yt.write_table(table, StringIO("y=1\n"), raw=True, format=yt.DsvFormat())
         self.check(["y=1\n"], yt.read_table(table))
 
         response_parameters = {}
@@ -237,6 +255,13 @@ class NativeModeTester(YtTestBase, YTEnv):
         self.assertFalse(yt.exists(table))
         self.assertTrue(yt.exists(other_table))
 
+    def test_create_temp_table(self):
+        table = yt.create_temp_table(path=TEST_DIR)
+        assert table.startswith(TEST_DIR)
+
+        table = yt.create_temp_table(path=TEST_DIR, prefix="prefix")
+        assert table.startswith(TEST_DIR + "/prefix")
+
     def test_merge(self):
         tableX = TEST_DIR + "/tableX"
         tableY = TEST_DIR + "/tableY"
@@ -270,11 +295,17 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.run_map("cat", table, table)
         self.check(["x=1\n", "x=2\n"], yt.read_table(table))
 
+        with pytest.raises(yt.YtError):
+            yt.run_map("cat", table, table, table_writer={"max_row_weight": 1})
+
         yt.run_map("grep 2", table, other_table)
         self.check(["x=2\n"], yt.read_table(other_table))
 
         with pytest.raises(yt.YtError):
             yt.run_map("cat", [table, table + "xxx"], other_table)
+
+        with pytest.raises(yt.YtError):
+            yt.run_reduce("cat", table, other_table, reduce_by=None)
 
     def test_sort(self):
         table = TEST_DIR + "/table"
@@ -290,6 +321,9 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.run_sort(table, sort_by=["x"])
         self.assertItemsEqual(["y=2\n", "x=1\n"], yt.read_table(table))
 
+        with pytest.raises(yt.YtError):
+            yt.run_sort(table, sort_by=None)
+
     def test_write_many_chunks(self):
         yt.config.WRITE_BUFFER_SIZE = 1
         table = TEST_DIR + "/table"
@@ -297,6 +331,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.write_table(table, ["x=1\n", "y=2\n", "z=3\n"])
         yt.write_table(table, ["x=1\n", "y=2\n", "z=3\n"])
 
+    @add_failed_operation_stderrs_to_error_message
     def test_python_operations(self):
         def change_x(rec):
             if "x" in rec:
@@ -513,8 +548,9 @@ class NativeModeTester(YtTestBase, YTEnv):
         self.assertRaises(lambda: yt.lock(dir, waitable=True))
         yt.config.TRANSACTION = "0-0-0-0"
 
-        with yt.Transaction():
-            self.assertRaises(lambda: yt.lock(dir, waitable=True, wait_for=1000))
+        with pytest.raises(yt.YtError):
+            with yt.Transaction():
+                yt.lock(dir, waitable=True, wait_for=1000)
 
         yt.abort_transaction(tx)
 
@@ -523,28 +559,28 @@ class NativeModeTester(YtTestBase, YTEnv):
 
         yt.write_table(yt.TablePath(table, sorted_by=["a"]), ["a=b\n", "a=c\n", "a=d\n"])
 
-        rsp = yt.read_table(table)._get_response()
+        rsp = yt.read_table(table)
         self.assertEqual(
-            rsp.headers["X-YT-Response-Parameters"],
+            rsp.response_parameters,
             {"start_row_index": 0,
              "approximate_row_count": 3})
 
-        rsp = yt.read_table(yt.TablePath(table, start_index=1))._get_response()
+        rsp = yt.read_table(yt.TablePath(table, start_index=1))
         self.assertEqual(
-            rsp.headers["X-YT-Response-Parameters"],
+            rsp.response_parameters,
             {"start_row_index": 1,
              "approximate_row_count": 2})
 
-        rsp = yt.read_table(yt.TablePath(table, lower_key=["d"]))._get_response()
+        rsp = yt.read_table(yt.TablePath(table, lower_key=["d"]))
         self.assertEqual(
-            rsp.headers["X-YT-Response-Parameters"],
+            rsp.response_parameters,
             {"start_row_index": 2,
              # When reading with key limits row count is estimated rounded up to the chunk row count.
              "approximate_row_count": 3})
 
-        rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]))._get_response()
+        rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]))
         self.assertEqual(
-            rsp.headers["X-YT-Response-Parameters"],
+            rsp.response_parameters,
             {"start_row_index": 0,
              "approximate_row_count": 0})
 
@@ -587,6 +623,7 @@ class NativeModeTester(YtTestBase, YTEnv):
                           source_table=table, destination_table=output_table)
         self.check(["x=1\n", "y=2\n"], sorted(list(yt.read_table(table))))
 
+    @add_failed_operation_stderrs_to_error_message
     def test_yamred_dsv(self):
         def foo(rec):
             yield rec
@@ -723,16 +760,25 @@ class NativeModeTester(YtTestBase, YTEnv):
     #    self.assertAlmostEqual(timeout_time, desired_timeout, delta=loading_time)
 
     def test_client(self):
-        client = Yt(yt.config.http.PROXY)
+        client = Yt(config=self.config)
+
+        other_client = Yt(config=self.config)
+        other_client.config["tabular_data_format"] = yt.JsonFormat()
+
         assert client.get("/")
         client.create("table", "//tmp/in")
         client.write_table("//tmp/in", ["a=b\n"])
+        assert "a=b\n" == client.read_table("//tmp/in", raw=True).read()
         assert client.exists("//tmp/in")
         client.run_map("cat", "//tmp/in", "//tmp/out")
         assert client.exists("//tmp/out")
         with client.Transaction():
             yt.set("//@attr", 10)
             assert yt.exists("//@attr")
+
+        assert other_client.get("/")
+        assert '{"a":"b"}\n' == other_client.read_table("//tmp/in", raw=True).read()
+
 
     def test_table_index(self):
         dsv = yt.format.DsvFormat(enable_table_index=True, table_index_column="TableIndex")
@@ -795,6 +841,110 @@ class NativeModeTester(YtTestBase, YTEnv):
         op.abort()
         self.assertEqual(op.get_state(), "aborted")
 
+    def test_suspend_resume(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, ["key=1\n"])
+        op = yt.run_map_reduce("sleep 0.5; cat", "sleep 0.5; cat", table, table, sync=False, reduce_by=["key"])
+        time.sleep(0.5)
+        op.suspend()
+        self.assertEqual(op.get_state(), "running")
+        time.sleep(1.5)
+        self.assertEqual(op.get_state(), "running")
+        op.resume()
+        time.sleep(1.5)
+        self.assertEqual(op.get_state(), "completed")
+
+    def test_utf8(self):
+        yt.create("table", TEST_DIR + "/table", attributes={"attr": u"капуста"})
+
+    def test_get_user_name(self):
+        assert get_user_name("") == None
+        #assert get_user_name("12345") == None
+
+        token = "".join(["a"] * 16)
+        yt.set("//sys/tokens/" + token, "user")
+        assert get_user_name(token) == "user"
+
+    def test_old_config_options(self):
+        yt.config.http.PROXY = yt.config.http.PROXY
+        yt.config.http.PROXY_SUFFIX = yt.config.http.PROXY_SUFFIX
+        yt.config.http.TOKEN = yt.config.http.TOKEN
+        yt.config.http.TOKEN_PATH = yt.config.http.TOKEN_PATH
+        yt.config.http.USE_TOKEN = yt.config.http.USE_TOKEN
+        yt.config.http.ACCEPT_ENCODING = yt.config.http.ACCEPT_ENCODING
+        yt.config.http.CONTENT_ENCODING = yt.config.http.CONTENT_ENCODING
+        yt.config.http.REQUEST_RETRY_TIMEOUT = yt.config.http.REQUEST_RETRY_TIMEOUT
+        yt.config.http.REQUEST_RETRY_COUNT = yt.config.http.REQUEST_RETRY_COUNT
+        yt.config.http.REQUEST_BACKOFF = yt.config.http.REQUEST_BACKOFF
+        yt.config.http.FORCE_IPV4 = yt.config.http.FORCE_IPV4
+        yt.config.http.FORCE_IPV6 = yt.config.http.FORCE_IPV6
+        yt.config.http.HEADER_FORMAT = yt.config.http.HEADER_FORMAT
+
+        yt.config.VERSION = yt.config.VERSION
+        yt.config.OPERATION_LINK_PATTERN = yt.config.OPERATION_LINK_PATTERN
+
+        yt.config.DRIVER_CONFIG = yt.config.DRIVER_CONFIG
+        yt.config.DRIVER_CONFIG_PATH = yt.config.DRIVER_CONFIG_PATH
+
+        yt.config.USE_HOSTS = yt.config.USE_HOSTS
+        yt.config.HOSTS = yt.config.HOSTS
+        yt.config.HOST_BAN_PERIOD = yt.config.HOST_BAN_PERIOD
+
+        yt.config.ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE = yt.config.ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE
+        yt.config.USE_MAPREDUCE_STYLE_DESTINATION_FDS = yt.config.USE_MAPREDUCE_STYLE_DESTINATION_FDS
+        yt.config.TREAT_UNEXISTING_AS_EMPTY = yt.config.TREAT_UNEXISTING_AS_EMPTY
+        yt.config.DELETE_EMPTY_TABLES = yt.config.DELETE_EMPTY_TABLES
+        yt.config.USE_YAMR_SORT_REDUCE_COLUMNS = yt.config.USE_YAMR_SORT_REDUCE_COLUMNS
+        yt.config.REPLACE_TABLES_WHILE_COPY_OR_MOVE = yt.config.REPLACE_TABLES_WHILE_COPY_OR_MOVE
+        yt.config.CREATE_RECURSIVE = yt.config.CREATE_RECURSIVE
+        yt.config.THROW_ON_EMPTY_DST_LIST = yt.config.THROW_ON_EMPTY_DST_LIST
+        yt.config.RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED = yt.config.RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED
+        yt.config.USE_NON_STRICT_UPPER_KEY = yt.config.USE_NON_STRICT_UPPER_KEY
+        yt.config.CHECK_INPUT_FULLY_CONSUMED = yt.config.CHECK_INPUT_FULLY_CONSUMED
+        yt.config.FORCE_DROP_DST = yt.config.FORCE_DROP_DST
+
+        yt.config.OPERATION_STATE_UPDATE_PERIOD = yt.config.OPERATION_STATE_UPDATE_PERIOD
+        yt.config.STDERR_LOGGING_LEVEL = yt.config.STDERR_LOGGING_LEVEL
+        yt.config.IGNORE_STDERR_IF_DOWNLOAD_FAILED = yt.config.IGNORE_STDERR_IF_DOWNLOAD_FAILED
+        yt.config.READ_BUFFER_SIZE = yt.config.READ_BUFFER_SIZE
+        yt.config.MEMORY_LIMIT = yt.config.MEMORY_LIMIT
+
+        yt.config.FILE_STORAGE = yt.config.FILE_STORAGE
+        yt.config.TEMP_TABLES_STORAGE = yt.config.TEMP_TABLES_STORAGE
+        yt.config.LOCAL_TMP_DIR = yt.config.LOCAL_TMP_DIR
+        yt.config.REMOVE_TEMP_FILES = yt.config.REMOVE_TEMP_FILES
+
+        yt.config.KEYBOARD_ABORT = yt.config.KEYBOARD_ABORT
+
+        yt.config.MERGE_INSTEAD_WARNING = yt.config.MERGE_INSTEAD_WARNING
+        yt.config.MIN_CHUNK_COUNT_FOR_MERGE_WARNING = yt.config.MIN_CHUNK_COUNT_FOR_MERGE_WARNING
+        yt.config.MAX_CHUNK_SIZE_FOR_MERGE_WARNING  = yt.config.MAX_CHUNK_SIZE_FOR_MERGE_WARNING
+
+        yt.config.PREFIX = yt.config.PREFIX
+
+
+        yt.config.TRANSACTION_TIMEOUT = yt.config.TRANSACTION_TIMEOUT
+        yt.config.TRANSACTION_SLEEP_PERIOD = yt.config.TRANSACTION_SLEEP_PERIOD
+        yt.config.OPERATION_GET_STATE_RETRY_COUNT = yt.config.OPERATION_GET_STATE_RETRY_COUNT
+
+        yt.config.RETRY_READ = yt.config.RETRY_READ
+        yt.config.USE_RETRIES_DURING_WRITE = yt.config.USE_RETRIES_DURING_WRITE
+
+        yt.config.CHUNK_SIZE = yt.config.CHUNK_SIZE
+
+        yt.config.PYTHON_FUNCTION_SEARCH_EXTENSIONS = yt.config.PYTHON_FUNCTION_SEARCH_EXTENSIONS
+        yt.config.PYTHON_FUNCTION_MODULE_FILTER = yt.config.PYTHON_FUNCTION_MODULE_FILTER
+        yt.config.PYTHON_DO_NOT_USE_PYC = yt.config.PYTHON_DO_NOT_USE_PYC
+        yt.config.PYTHON_CREATE_MODULES_ARCHIVE = yt.config.PYTHON_CREATE_MODULES_ARCHIVE
+
+        yt.config.DETACHED = yt.config.DETACHED
+
+        yt.config.format.TABULAR_DATA_FORMAT = yt.config.format.TABULAR_DATA_FORMAT
+
+        yt.config.MEMORY_LIMIT = 1024
+        yt.config.POOL = "pool"
+        yt.config.INTERMEDIATE_DATA_ACCOUNT = "account"
+
 
 # Map method for test operations with python entities
 class ChangeX__(object):
@@ -806,8 +956,7 @@ class ChangeX__(object):
 class TestNativeModeV2(NativeModeTester):
     @classmethod
     def setup_class(cls):
-        super(TestNativeModeV2, cls).setup_class()
-        yt.config.VERSION = "v2"
+        super(TestNativeModeV2, cls).setup_class({"api_version": "v2"})
         yt.config.COMMANDS = None
 
     @classmethod
@@ -817,12 +966,26 @@ class TestNativeModeV2(NativeModeTester):
 class TestNativeModeV3(NativeModeTester):
     @classmethod
     def setup_class(cls):
-        super(TestNativeModeV3, cls).setup_class()
-        yt.config.http.HEADER_FORMAT = "yson"
-        yt.config.VERSION = "v3"
+        super(TestNativeModeV3, cls).setup_class({"api_version": "v3", "proxy": {"header_format": "yson"}})
         yt.config.COMMANDS = None
 
     @classmethod
     def teardown_class(cls):
         super(TestNativeModeV3, cls).teardown_class()
+
+class TestNativeModeBindings(NativeModeTester):
+    @classmethod
+    def setup_class(cls):
+        super(TestNativeModeBindings, cls).setup_class({
+            "backend": "native",
+            "api_version": "v3"
+        })
+
+        # It may be missing in the python job
+        import yt_driver_bindings
+        yt_driver_bindings.configure_logging(cls.env.driver_logging_config)
+
+    @classmethod
+    def teardown_class(cls):
+        super(TestNativeModeBindings, cls).teardown_class()
 

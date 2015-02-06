@@ -1,7 +1,7 @@
 """heavy command"""
 
-import config
 import yt.logger as logger
+from config import get_option, get_total_request_timeout, get_single_request_timeout, get_request_retry_count
 from common import get_backoff
 from table import to_table
 from transaction import PingableTransaction
@@ -13,9 +13,10 @@ from datetime import datetime
 
 def make_heavy_request(command_name, stream, path, params, create_object, use_retries, client=None):
     path = to_table(path, client=client)
+    request_timeout = get_total_request_timeout(client)
 
     title = "Python wrapper: {0} {1}".format(command_name, path.name)
-    with PingableTransaction(timeout=config.http.get_timeout(),
+    with PingableTransaction(timeout=request_timeout,
                              attributes={"title": title},
                              client=client):
         create_object(path.name)
@@ -27,15 +28,15 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                 started = True
 
                 logger.debug("Processing {0} chunk (length: {1}, transaction: {2})"
-                    .format(command_name, len(chunk), config.TRANSACTION))
+                    .format(command_name, len(chunk), get_option("TRANSACTION", client)))
 
                 if isinstance(chunk, list):
                     chunk = iter(chunk)
 
-                for attempt in xrange(config.http.REQUEST_RETRY_COUNT):
+                for attempt in xrange(get_request_retry_count(client)):
                     current_time = datetime.now()
                     try:
-                        with PingableTransaction(timeout=config.http.get_timeout(), client=client):
+                        with PingableTransaction(timeout=request_timeout, client=client):
                             params["path"] = path.to_yson_type()
                             _make_transactional_request(
                                 command_name,
@@ -46,9 +47,9 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                                 client=client)
                         break
                     except RETRIABLE_ERRORS as err:
-                        if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
+                        if attempt + 1 == get_request_retry_count(client):
                             raise
-                        backoff = get_backoff(config.http.REQUEST_RETRY_TIMEOUT, current_time)
+                        backoff = get_backoff(get_single_request_timeout(client), current_time)
                         if backoff:
                             logger.warning("%s. Sleep for %.2lf seconds...", str(err), backoff)
                             time.sleep(backoff)

@@ -1,4 +1,6 @@
-from tree_commands import set, get, list, exists, remove, search, mkdir, copy, move, link, get_type, create, \
+from common import update
+from default_config import get_default_config
+from cypress_commands import set, get, list, exists, remove, search, mkdir, copy, move, link, get_type, create, \
                           has_attribute, get_attribute, set_attribute, list_attributes, find_free_subpath
 from acl_commands import check_permission, add_member, remove_member
 from table_commands import create_table, create_temp_table, write_table, read_table, \
@@ -13,28 +15,32 @@ from etc_commands import get_user_name
 from transaction import Transaction, PingableTransaction, PingTransaction
 from lock import lock
 
+# XXX(ignat): rename?
 class Yt(object):
-    def __init__(self, proxy, token=None, hosts=None):
-        self.proxy = proxy
-        self.token = token
-        self.hosts = hosts
-        self.VERSION = "v2"
-        if self.hosts is None:
-            self.hosts = "hosts"
-        self._transaction_stack = []
-        self._banned_hosts = {}
+    def __init__(self, proxy=None, token=None, config=None):
+        self.config = get_default_config()
+        if config is not None:
+            self.config = update(self.config, config)
 
-    def _add_transaction(self, transaction_id, ping_ancestor_transactions):
-        self._transaction_stack.append((transaction_id, ping_ancestor_transactions))
+        if proxy is not None:
+            self.config["proxy"]["url"] = proxy
+        if token is not None:
+            self.config["proxy"]["token"] = token
 
-    def _get_transaction(self):
-        if self._transaction_stack:
-            return self._transaction_stack[-1]
-        else:
-            return "0-0-0-0", False
-    
-    def _pop_transaction(self):
-        self._transaction_stack.pop()
+        # TODO(ignat): It is copy-paste of config option. I need avoid it in some way.
+        self.RETRY = None
+        self.SPEC = None
+        self.MUTATION_ID = None
+        self.TRACE = None
+        self.TRANSACTION = "0-0-0-0"
+        self.PING_ANCESTOR_TRANSACTIONS = False
+
+        self._transaction_stack = None
+        self._banned_proxies = {}
+        self._driver = None
+
+        self._version = None
+        self._commands = None
 
     def get_user_name(self, *args, **kwargs):
         return get_user_name(*args, client=self, **kwargs)

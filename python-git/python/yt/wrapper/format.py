@@ -4,7 +4,7 @@
 parameters, and then by kwargs options.
 """
 
-import format_config
+from config import get_config
 from common import get_value, require, filter_dict, merge_dicts, YtError
 from yamr_record import Record, SimpleRecord, SubkeyedRecord
 import yt.yson as yson
@@ -761,14 +761,14 @@ def create_format(yson_name, attributes=None, **kwargs):
     except KeyError:
         raise YtFormatError("Incorrect format " + name)
 
-def loads_row(string, format=None):
+def loads_row(string, format=None, client=None):
     """Convert string to parsed row"""
-    format = get_value(format, format_config.TABULAR_DATA_FORMAT)
+    format = get_value(format, get_config(client)["tabular_data_format"])
     return format.loads_row(string)
 
-def dumps_row(row, format=None):
+def dumps_row(row, format=None, client=None):
     """Convert parsed row to string"""
-    format = get_value(format, format_config.TABULAR_DATA_FORMAT)
+    format = get_value(format, get_config(client)["tabular_data_format"])
     return format.dumps_row(row)
 
 def extract_key(rec, fields):
@@ -776,3 +776,12 @@ def extract_key(rec, fields):
         return rec.key
     else:
         return dict((key, rec[key]) for key in fields if key in rec)
+
+def set_yamr_mode(client=None):
+    """Configure global config to be yamr compatible"""
+    config = get_config(client)
+    for option in config["yamr_mode"]:
+        if option == "abort_transactions_with_remove":
+            continue
+        config["yamr_mode"][option] = True
+    config["tabular_data_format"] = YamrFormat(has_subkey=True, lenval=False)

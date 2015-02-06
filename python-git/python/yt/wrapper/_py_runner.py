@@ -34,12 +34,9 @@ def main():
     __operation, __attributes, __operation_type, __input_format, __output_format, __keys = load(open(__operation_dump))
 
     import _py_runner_helpers
-    import yt.wrapper.format_config as format_config
     import yt.yson
     from yt.wrapper.format import YsonFormat
-    config_dict = load(open(__config_dump_filename))
-    for key, value in config_dict.iteritems():
-        format_config.__dict__[key] = value
+    yt.wrapper.config.config = load(open(__config_dump_filename))
 
     from yt.wrapper.format import extract_key
 
