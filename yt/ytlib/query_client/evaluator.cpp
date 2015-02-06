@@ -53,8 +53,7 @@ using namespace NConcurrency;
 class TCachedCGQuery
     : public TSyncCacheValueBase<
         llvm::FoldingSetNodeID,
-        TCachedCGQuery,
-        TFoldingHasher>
+        TCachedCGQuery>
 {
 public:
     TCachedCGQuery(const llvm::FoldingSetNodeID& id, TCGQueryCallback&& function)
@@ -74,7 +73,7 @@ private:
 typedef TIntrusivePtr<TCachedCGQuery> TCachedCGQueryPtr;
 
 class TEvaluator::TImpl
-    : public TSyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGQuery, TFoldingHasher>
+    : public TSyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGQuery>
 {
 public:
     explicit TImpl(TExecutorConfigPtr config)
