@@ -108,7 +108,6 @@ public:
         : TJob(host)
         , JobIO_(std::move(userJobIO))
         , UserJobSpec_(userJobSpec)
-        , JobId_(jobId)
         , Config_(host->GetConfig())
         , JobErrorPromise_(NewPromise<void>())
         , MemoryUsage_(UserJobSpec_.memory_reserve())
@@ -120,8 +119,6 @@ public:
         , Freezer_(CGroupPrefix + ToString(jobId))
         , Logger(host->GetLogger())
     {
-        Logger.AddTag("JobId: %v", jobId);
-
         MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
             PeriodicQueue_->GetInvoker(),
             BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
@@ -211,7 +208,6 @@ private:
     std::unique_ptr<IUserJobIO> JobIO_;
 
     const TUserJobSpec& UserJobSpec_;
-    TJobId JobId_;
 
     TJobProxyConfigPtr Config_;
 
@@ -458,21 +454,13 @@ private:
 
         auto asyncInput = New<TAsyncReader>(pipe.ReadFD);
 
-        OutputActions_.push_back(BIND(
-            &TUserJob::ReadFromOutputPipe,
-            MakeWeak(this),
-            pipe,
-            asyncInput,
-            output));
+        OutputActions_.push_back(BIND([=] () {
+            SafeClose(pipe.WriteFD);
+            auto input = CreateSyncAdapter(asyncInput);
+            PipeInputToOutput(input.get(), output, BufferSize);
+        }));
 
         return asyncInput;
-    }
-
-    void ReadFromOutputPipe(TPipe pipe, IAsyncInputStreamPtr asyncInput, TOutputStream* output)
-    {
-        SafeClose(pipe.WriteFD);
-        auto input = CreateSyncAdapter(asyncInput);
-        PipeInputToOutput(input.get(), output, BufferSize);
     }
 
     void PrepareInputTablePipe(TPipe pipe, int jobDescriptor, TContextPreservingInputPtr input)
@@ -707,7 +695,10 @@ private:
         
         // First, wait for job output pipes.
         // If job successfully completes or dies prematurely, they close automatically.
-        WaitFor(Combine(outputFutures));
+        // ToDo(psushin): extract into separate function (e.g. CombineAll?  )
+        for (const auto& future : outputFutures) {
+            WaitFor(future);
+        }
 
         // Then, wait for job process to finish.
         // Theoretically, process may have closed its output pipes,
@@ -724,7 +715,9 @@ private:
         }
 
         // Make sure, that input pipes are also completed.
-        WaitFor(Combine(inputFutures));
+        for (const auto& future : inputFutures) {
+            WaitFor(future);
+        }
     }
 
     void FinalizeJobIO()
@@ -875,9 +868,9 @@ private:
 
 IJobPtr CreateUserJob(
     IJobHost* host,
-    const NScheduler::NProto::TUserJobSpec& UserJobSpec_,
-    std::unique_ptr<IUserJobIO> userJobIO,
-    const TJobId& jobId)
+    const TUserJobSpec& UserJobSpec_,
+    const TJobId& jobId,
+    std::unique_ptr<IUserJobIO> userJobIO)
 {
     return New<TUserJob>(
         host,
@@ -890,9 +883,9 @@ IJobPtr CreateUserJob(
 
 IJobPtr CreateUserJob(
     IJobHost* host,
-    const NScheduler::NProto::TUserJobSpec& UserJobSpec_,
-    std::unique_ptr<IUserJobIO> userJobIO,
-    const TJobId& jobId)
+    const TUserJobSpec& UserJobSpec_,
+    const TJobId& jobId,
+    std::unique_ptr<IUserJobIO> userJobIO)
 {
     THROW_ERROR_EXCEPTION("Streaming jobs are supported only under Linux");
 }

@@ -293,7 +293,7 @@ TJobResult TJobProxy::DoRun()
             JobProxyMemoryLimit_ -= userJobSpec.memory_reserve();
             auto jobIO = CreateUserJobIO();
             jobIO->Init();
-            Job_ = CreateUserJob(this, userJobSpec, std::move(jobIO), JobId_);
+            Job_ = CreateUserJob(this, userJobSpec, JobId_, std::move(jobIO));
         } else {
             Job_ = CreateBuiltinJob();
         }
