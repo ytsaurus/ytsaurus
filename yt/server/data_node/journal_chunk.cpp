@@ -215,7 +215,7 @@ TFuture<void> TJournalChunk::AsyncRemove()
 
 void TJournalChunk::AttachChangelog(IChangelogPtr changelog)
 {
-    YCHECK(!IsRemoveScheduled());
+    YCHECK(!Removing_);
     YCHECK(!Changelog_);
     Changelog_ = changelog;
 
@@ -224,7 +224,7 @@ void TJournalChunk::AttachChangelog(IChangelogPtr changelog)
 
 void TJournalChunk::DetachChangelog()
 {
-    YCHECK(!IsRemoveScheduled());
+    YCHECK(Removing_);
 
     UpdateCachedParams();
     Changelog_.Reset();
@@ -232,7 +232,7 @@ void TJournalChunk::DetachChangelog()
 
 bool TJournalChunk::HasAttachedChangelog() const
 {
-    YCHECK(!IsRemoveScheduled());
+    YCHECK(Removing_);
 
     return Changelog_ != nullptr;
 }
