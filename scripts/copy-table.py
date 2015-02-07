@@ -7,9 +7,6 @@ from yt.common import YtError
 import argparse
 import subprocess as sp
 import sys
-import tempfile
-import os
-from StringIO import StringIO
 
 yt.config.VERSION = "v3"
 
@@ -17,6 +14,23 @@ yt.config.VERSION = "v3"
 CONFIG_FILE_NAME = "copy-table.config"
 # File with mapper program.
 HELPER_FILE_NAME = "./copy-table-helper.py"
+# Maximum number or rows passed to yt insert.
+MAX_ROWS_PER_INSERT = 20000
+# Mapper job options.
+JOB_COUNT = 20
+JOB_MEMORY_LIMIT = 1024*1024*1024*2
+
+def parse_size(size):
+    try:
+        return int(size)
+    except:
+        scale = {"kb": 2**10, "mb": 2**20, "gb": 2**30}
+        try:
+            numeric = int(size[:-2])
+            return (numeric if numeric > 0 else 1) * scale[size[-2:].lower()]
+        except:
+            raise ValueError("Invalid size: '%s'. Valid suffixes are: %s." %
+                (size, ", ".join(["'%s'" % key for key in scale.keys()])))
 
 def prepare(value, is_raw=False):
     if not is_raw:
@@ -39,6 +53,7 @@ def tablets_mapper(tablet):
         for partition in yson.loads(partitions):
             yield {"pivot_key": partition["pivot_key"]}
 
+# Map task - copy table.
 def regions_mapper(r):
     f = open(CONFIG_FILE_NAME, 'r')
     config = yson.load(f)
@@ -46,15 +61,15 @@ def regions_mapper(r):
     yield r
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Copy and alter table.")
-    parser.add_argument("--input", required=True)
-    parser.add_argument("--output", required=True)
-    parser.add_argument("--force", action="store_true")
-    parser.add_argument("--proxy")
+    parser = argparse.ArgumentParser(description="Copy table.")
+    parser.add_argument("--input", required=True, help="Source table")
+    parser.add_argument("--output", required=True, help="Destination table")
+    parser.add_argument("--force", action="store_true", help="Overwrite destination table if it exists")
+    parser.add_argument("--proxy", type=yt.config.set_proxy, help="YT proxy")
+    parser.add_argument("--job_count", type=int, default=JOB_COUNT, help="Numbser of jobs in copy task")
+    parser.add_argument("--memory_limit", type=parse_size, default=JOB_MEMORY_LIMIT, help="Memory limit for a copy task")
+    parser.add_argument("--insert_size", type=int, default=MAX_ROWS_PER_INSERT, help="Number of rows passed to 'yt insert' call")
     args = parser.parse_args()
-    
-    if args.proxy != None:
-        yt.config.set_proxy(args.proxy)
 
     src = args.input
     dst = args.output
@@ -118,7 +133,11 @@ if __name__ == "__main__":
         prepare(regions),
         format=yt.YsonFormat(format="text"))
 
-    config = {"key_columns" : key_columns, "source": src, "destination" : dst}
+    config = {
+        "key_columns": key_columns,
+        "source": src,
+        "destination": dst,
+        "rows_per_insert": args.insert_size}
     config_file = open(CONFIG_FILE_NAME, "w")
     config_file.write(yson.dumps(config))
     config_file.close()
@@ -136,10 +155,6 @@ if __name__ == "__main__":
     yt.reshard_table(dst, pivot_keys)
     yt.mount_table(dst)
 
-    # FIXME: fix job count and memory limit
-    #job_count=min(100, len(pivot_keys))
-    job_count=100
-
     # Copy table. Each mapper task copies a single partition.
     try:
         yt.run_map(
@@ -147,11 +162,10 @@ if __name__ == "__main__":
             regions_table,
             out_regions_table,
             spec={
-                "job_count": job_count,
+                "job_count": args.job_count,
                 "max_failed_job_count": 10,
                 "job_proxy_memory_control": False,
-                "mapper": { "memory_limit": 1024*1024*1024*4 }
-            },
+                "mapper": { "memory_limit": args.memory_limit }},
             format=yt.YsonFormat(format="text"),
             local_files=[CONFIG_FILE_NAME, HELPER_FILE_NAME])
     except YtError as e:

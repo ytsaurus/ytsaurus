@@ -1,14 +1,10 @@
 #!/usr/bin/python
+
 import yt.yson as yson
 
 import subprocess as sp
 import sys
-import tempfile
-import os
 from StringIO import StringIO
-
-# Maximum number or rows passed to yt insert.
-MAX_RECORDS_PER_INSERT = 1000
 
 def prepare(value, is_raw=False):
     if not is_raw:
@@ -43,7 +39,7 @@ def regions_mapper(config, r):
         p = sp.Popen(insert_cmd, stdin=sp.PIPE)
         p.communicate(prepare(new_data))
         if p.returncode != 0:
-            raise sp.CalledProcessError(p.returncode, " ".join(insert_cmd), p.stdout)
+            raise sp.CalledProcessError(p.returncode, insert_cmd, p.stdout)
         del new_data[:]
 
     # Process data.
@@ -52,7 +48,7 @@ def regions_mapper(config, r):
         # Possible data transformation here.
         #
         new_data.append(row)
-        if len(new_data) > MAX_RECORDS_PER_INSERT: dump_data()
+        if len(new_data) > config["rows_per_insert"]: dump_data()
     dump_data()
 
 if __name__ == "__main__":
