@@ -224,7 +224,7 @@ void TJournalChunk::AttachChangelog(IChangelogPtr changelog)
 
 void TJournalChunk::DetachChangelog()
 {
-    YCHECK(Removing_);
+    YCHECK(!Removing_);
 
     UpdateCachedParams();
     Changelog_.Reset();
@@ -232,7 +232,7 @@ void TJournalChunk::DetachChangelog()
 
 bool TJournalChunk::HasAttachedChangelog() const
 {
-    YCHECK(Removing_);
+    YCHECK(!Removing_);
 
     return Changelog_ != nullptr;
 }
