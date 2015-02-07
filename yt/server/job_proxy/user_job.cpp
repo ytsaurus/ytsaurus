@@ -724,8 +724,8 @@ private:
             return result;
         };
 
-        std::vector<TFuture<void>> inputFutures = runActions(InputActions_);
-        std::vector<TFuture<void>> outputFutures = runActions(OutputActions_);
+        auto inputFutures = runActions(InputActions_);
+        auto outputFutures = runActions(OutputActions_);
 
         // First, wait for job output pipes.
         // If job successfully completes or dies prematurely, they close automatically.
