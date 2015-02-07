@@ -73,7 +73,7 @@ public:
 
             switch (State_) {
                 case EWriterState::Aborted:
-                    WriteResultPromise_.Set(TError("Writer aborted")
+                    WriteResultPromise_.Set(TError(EErrorCode::Aborted, "Writer aborted")
                         << TErrorAttribute("fd", FD_));
                     return;
 
@@ -143,7 +143,7 @@ public:
 
             State_ = EWriterState::Aborted;
             FDWatcher_.stop();
-            WriteResultPromise_.TrySet(TError("Writer aborted")
+            WriteResultPromise_.TrySet(TError(EErrorCode::Aborted, "Writer aborted")
                << TErrorAttribute("fd", FD_));
 
             YCHECK(TryClose(FD_));

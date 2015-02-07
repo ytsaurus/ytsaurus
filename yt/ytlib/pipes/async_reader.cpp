@@ -74,7 +74,7 @@ public:
 
             switch (State_) {
                 case EReaderState::Aborted:
-                    ReadResultPromise_.Set(TError("Reader aborted")
+                    ReadResultPromise_.Set(TError(EErrorCode::Aborted, "Reader aborted")
                         << TErrorAttribute("fd", FD_));
                     break;
 
@@ -120,7 +120,7 @@ public:
 
             State_ = EReaderState::Aborted;
             FDWatcher_.stop();
-            ReadResultPromise_.TrySet(TError("Reader aborted")
+            ReadResultPromise_.TrySet(TError(EErrorCode::Aborted, "Reader aborted")
                 << TErrorAttribute("fd", FD_));
 
             YCHECK(TryClose(FD_));

@@ -50,8 +50,7 @@ void TContextPreservingInput::PipeReaderToOutput(TOutputStream* outputStream)
     rows.reserve(BufferRowCount);
     while (Reader_->Read(&rows)) {
         if (rows.empty()) {
-            auto error = WaitFor(Reader_->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            WaitFor(Reader_->GetReadyEvent()).ThrowOnError();
             continue;
         }
 
@@ -74,8 +73,7 @@ void TContextPreservingInput::PipeReaderToOutput(TOutputStream* outputStream)
 
     auto asyncError = Writer_->Close();
     YCHECK(asyncError.IsSet());
-
-    THROW_ERROR_EXCEPTION_IF_FAILED(asyncError.Get());
+    asyncError.Get().ThrowOnError();
 }
 
 void TContextPreservingInput::WriteRows(const std::vector<TUnversionedRow>& rows, TOutputStream* outputStream)
