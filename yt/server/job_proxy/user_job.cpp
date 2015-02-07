@@ -31,6 +31,8 @@
 #include <ytlib/pipes/async_reader.h>
 #include <ytlib/pipes/async_writer.h>
 
+#include <core/actions/callback.h>
+
 #include <core/logging/log.h>
 
 #include <core/misc/error.h>
@@ -143,9 +145,6 @@ public:
 
         DoJobIO();
 
-        auto jobExitError = Process_.Wait();
-        LOG_INFO(jobExitError, "Job process completed");
-
         AddStatistic(
             "/user_job/builtin/time", 
             TSummary(static_cast<i64>(GetElapsedTime().MilliSeconds())));
@@ -153,12 +152,13 @@ public:
         WaitFor(BlockIOWatchdogExecutor_->Stop());
         WaitFor(MemoryWatchdogExecutor_->Stop());
 
-        if (jobExitError.IsOK()) {
+        if (!JobErrorPromise_.IsSet())  {
             FinalizeJobIO();
         }
 
-        JobErrorPromise_.TrySet(jobExitError);
+        CleanupCGroups();
 
+        JobErrorPromise_.TrySet(TError());
         const auto& jobResultError = JobErrorPromise_.Get();
 
         CleanupCGroups();
@@ -232,7 +232,8 @@ private:
 
     std::vector<TContextPreservingInputPtr> ContextPreservingInputs_;
 
-    std::vector<TCallback<void()>> IOActions_;
+    std::vector<TCallback<void()>> InputActions_;
+    std::vector<TCallback<void()>> OutputActions_;
     std::vector<TCallback<void()>> FinalizeActions_;
 
     TProcess Process_;
@@ -438,7 +439,7 @@ private:
 
         auto asyncInput = New<TAsyncReader>(pipe.ReadFD);
 
-        IOActions_.push_back(BIND(
+        OutputActions_.push_back(BIND(
             &TUserJob::ReadFromOutputPipe,
             MakeWeak(this),
             pipe,
@@ -468,7 +469,7 @@ private:
         auto asyncOutput = New<TAsyncWriter>(pipe.WriteFD);
         TablePipeWriters_.push_back(asyncOutput);
 
-        IOActions_.push_back(BIND([=] () {
+        InputActions_.push_back(BIND([=] () {
             auto output = CreateSyncAdapter(asyncOutput);
             input->PipeReaderToOutput(output.get());
             auto error = WaitFor(asyncOutput->Close());
@@ -645,7 +646,7 @@ private:
     void DoJobIO()
     {
         auto onIOError = BIND([=] (const TError& error) {
-            if (error.IsOK()) {
+            if (error.IsOK() || error.FindMatching(NPipes::EErrorCode::Aborted)) {
                 return;
             }
             
@@ -666,15 +667,41 @@ private:
 
         auto queue = New<TActionQueue>("PipesIO");
 
-        auto awaiter = New<TParallelAwaiter>(queue->GetInvoker());
-        for (auto& action : IOActions_) {
-            auto asyncError = action
-                .AsyncVia(queue->GetInvoker())
-                .Run();
-            awaiter->Await(asyncError, onIOError);
+        auto runActions = [&] (std::vector<TCallback<void()>>& actions) {
+            std::vector<TFuture<void>> result;
+            for (auto& action : actions) {
+                auto asyncError = action
+                    .AsyncVia(queue->GetInvoker())
+                    .Run();
+                asyncError.Subscribe(onIOError);
+                result.emplace_back(std::move(asyncError));
+            }
+            return result;
+        };
+
+        std::vector<TFuture<void>> inputFutures = runActions(InputActions_);
+        std::vector<TFuture<void>> outputFutures = runActions(OutputActions_);
+        
+        // First, wait for job output pipes.
+        // If job successfully completes or dies prematurely, they close automatically.
+        WaitFor(Combine(outputFutures));
+
+        // Then, wait for job process to finish.
+        // Theoretically, process may have closed its output pipes,
+        // but still doing some computations.
+        auto jobExitError = Process_.Wait();
+        LOG_INFO(jobExitError, "Job process completed");
+        onIOError.Run(jobExitError);
+
+        // Abort input pipes unconditionally.
+        // If job didn't read input to the end, pipe writer could be blocked,
+        // because we didn't close the reader end.
+        for (auto& writer : TablePipeWriters_) {
+            writer->Abort();
         }
 
-        WaitFor(awaiter->Complete());
+        // Make sure, that input pipes are also completed.
+        WaitFor(Combine(inputFutures));
     }
 
     void FinalizeJobIO()
