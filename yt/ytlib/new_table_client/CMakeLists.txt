@@ -65,7 +65,7 @@ set( HDRS
   ${BASE}/schemaful_block_reader.h
   ${BASE}/schemaful_block_writer.h
   ${BASE}/schemaful_chunk_reader.h
-  ${BASE}/schemaful_chunk_writer.helpers
+  ${BASE}/schemaful_chunk_writer.h
   ${BASE}/schemaful_reader_adapter.h
   ${BASE}/schemaful_reader.h
   ${BASE}/schemaful_writer.h
