@@ -77,18 +77,16 @@ public:
 public:
     TChunkJobBase(
         const TJobId& jobId,
-        TJobSpec&& jobSpec,
+        const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
         : JobId_(jobId)
+        , JobSpec_(jobSpec)
         , ResourceLimits_(resourceLimits)
         , Config_(config)
         , Bootstrap_(bootstrap)
-        , Logger(DataNodeLogger)
     {
-        JobSpec_.Swap(&jobSpec);
-
         Logger.AddTag("JobId: %v", jobId);
     }
 
@@ -180,13 +178,13 @@ public:
     }
 
 protected:
-    TJobId JobId_;
-    TJobSpec JobSpec_;
+    const TJobId JobId_;
+    const TJobSpec JobSpec_;
     TNodeResources ResourceLimits_;
-    TDataNodeConfigPtr Config_;
-    TBootstrap* Bootstrap_;
+    const TDataNodeConfigPtr Config_;
+    TBootstrap* const Bootstrap_;
 
-    NLog::TLogger Logger;
+    NLog::TLogger Logger = DataNodeLogger;
 
     EJobState JobState_ = EJobState::Waiting;
     EJobPhase JobPhase_ = EJobPhase::Created;
@@ -243,15 +241,6 @@ protected:
         DoSetFinished(EJobState::Aborted, error);
     }
 
-    void SetFinished(const TError& error)
-    {
-        if (error.IsOK()) {
-            SetCompleted();
-        } else {
-            SetFailed(error);
-        }
-    }
-
 private:
     void DoSetFinished(EJobState finalState, const TError& error)
     {
@@ -276,7 +265,7 @@ class TLocalChunkJobBase
 public:
     TLocalChunkJobBase(
         const TJobId& jobId,
-        TJobSpec&& jobSpec,
+        const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
@@ -311,7 +300,7 @@ class TChunkRemovalJob
 public:
     TChunkRemovalJob(
         const TJobId& jobId,
-        TJobSpec&& jobSpec,
+        const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
@@ -346,7 +335,7 @@ class TChunkReplicationJob
 public:
     TChunkReplicationJob(
         const TJobId& jobId,
-        TJobSpec&& jobSpec,
+        const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
@@ -360,7 +349,7 @@ public:
     { }
 
 private:
-    TReplicateChunkJobSpecExt ReplicateChunkJobSpecExt_;
+    const TReplicateChunkJobSpecExt ReplicateChunkJobSpecExt_;
 
 
     virtual void DoRun() override
@@ -471,7 +460,7 @@ class TChunkRepairJob
 public:
     TChunkRepairJob(
         const TJobId& jobId,
-        TJobSpec&& jobSpec,
+        const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
@@ -593,7 +582,7 @@ public:
     { }
 
 private:
-    TSealChunkJobSpecExt SealJobSpecExt_;
+    const TSealChunkJobSpecExt SealJobSpecExt_;
 
 
     virtual void DoRun() override

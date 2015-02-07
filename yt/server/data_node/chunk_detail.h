@@ -49,9 +49,9 @@ public:
     virtual bool IsRemoveScheduled() const override;
 
 protected:
-    NCellNode::TBootstrap* Bootstrap_;
-    TLocationPtr Location_;
-    TChunkId Id_;
+    NCellNode::TBootstrap* const Bootstrap_;
+    const TLocationPtr Location_;
+    const TChunkId Id_;
 
     int Version_ = 0;
 
