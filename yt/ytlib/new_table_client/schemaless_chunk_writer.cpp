@@ -9,6 +9,7 @@
 #include "partitioner.h"
 #include "schemaless_block_writer.h"
 #include "schemaless_row_reorderer.h"
+#include "table_ypath_proxy.h"
 
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/chunk_writer.h>
@@ -24,8 +25,6 @@
 #include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 
-// TTableYPathProxy
-#include <ytlib/table_client/table_ypath_proxy.h>
 // TKeyColumnsExt
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
@@ -52,8 +51,6 @@ using namespace NYPath;
 using namespace NYTree;
 
 using NNodeTrackerClient::TNodeDirectoryPtr;
-
-using NTableClient::TTableYPathProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 

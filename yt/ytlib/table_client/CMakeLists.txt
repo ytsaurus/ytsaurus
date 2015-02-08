@@ -16,7 +16,6 @@ set( HDRS
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/table_chunk_reader.h
-  ${BASE}/table_ypath_proxy.h
   ${BASE}/value.h
 )
 
@@ -26,4 +25,3 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/table_chunk_meta.proto YT_SOURCE_FILES )
-protoc( ${BASE}/table_ypath.proto YT_SOURCE_FILES )

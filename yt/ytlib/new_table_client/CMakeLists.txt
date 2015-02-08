@@ -83,6 +83,7 @@ set( HDRS
   ${BASE}/unordered_schemaful_reader.h
   ${BASE}/ordered_schemaful_reader.h
   ${BASE}/table_consumer.h
+  ${BASE}/table_ypath_proxy.h
   ${BASE}/unversioned_row.h
   ${BASE}/unversioned_writer.h
   ${BASE}/versioned_block_writer.h
@@ -113,3 +114,5 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/chunk_meta.proto YT_SOURCE_FILES )
+protoc( ${BASE}/table_ypath.proto YT_SOURCE_FILES )
+

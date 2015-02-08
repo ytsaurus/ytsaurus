@@ -25,8 +25,7 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/table_client/table_ypath_proxy.h>
-
+#include <ytlib/new_table_client/table_ypath_proxy.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
@@ -76,7 +75,6 @@ using namespace NApi;
 using namespace NRpc;
 using namespace NVersionedTableClient;
 
-using NTableClient::TTableYPathProxy;
 using NVersionedTableClient::NProto::TBoundaryKeysExt;
 
 ////////////////////////////////////////////////////////////////////
