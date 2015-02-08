@@ -31,7 +31,8 @@ Py::Callable GetYsonType(const std::string& name)
             throw Py::RuntimeError("Failed to import module yt.yson.yson_types");
         }
     }
-    return Py::Callable(PyObject_GetAttr(ysonTypesModule, PyString_FromString(name.c_str())));
+    Py::String nameString(name.c_str());
+    return Py::Callable(PyObject_GetAttr(ysonTypesModule, nameString.ptr()));
 }
 
 Py::Object CreateYsonObject(const std::string& className, const Py::Object& object, const Py::Object& attributes)
