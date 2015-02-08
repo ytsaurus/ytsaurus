@@ -16,12 +16,11 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/table_client/table_ypath_proxy.h>
-
 #include <ytlib/tablet_client/public.h>
 
 #include <ytlib/hive/cell_directory.h>
 
+#include <ytlib/new_table_client/table_ypath_proxy.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
 namespace NYT {
@@ -35,7 +34,6 @@ using namespace NRpc;
 using namespace NElection;
 using namespace NObjectClient;
 using namespace NCypressClient;
-using namespace NTableClient;
 using namespace NVersionedTableClient;
 using namespace NHive;
 using namespace NNodeTrackerClient;

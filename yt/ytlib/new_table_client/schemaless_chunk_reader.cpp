@@ -8,6 +8,7 @@
 #include "private.h"
 #include "schema.h"
 #include "schemaless_block_reader.h"
+#include "table_ypath_proxy.h"
 
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/dispatcher.h>
@@ -18,8 +19,6 @@
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
-
-#include <ytlib/table_client/table_ypath_proxy.h>
 
 #include <ytlib/transaction_client/helpers.h>
 #include <ytlib/transaction_client/transaction_listener.h>
@@ -51,8 +50,6 @@ using NChunkClient::TReadLimit;
 using NChunkClient::TChannel;
 
 using NRpc::IChannelPtr;
-
-using NTableClient::TTableYPathProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 

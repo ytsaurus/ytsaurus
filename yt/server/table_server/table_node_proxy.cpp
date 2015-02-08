@@ -15,8 +15,7 @@
 
 #include <ytlib/tablet_client/config.h>
 
-#include <ytlib/table_client/table_ypath_proxy.h>
-
+#include <ytlib/new_table_client/table_ypath_proxy.h>
 #include <ytlib/new_table_client/schema.h>
 
 #include <ytlib/chunk_client/read_limit.h>
@@ -42,7 +41,6 @@ using namespace NCypressServer;
 using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
-using namespace NTableClient;
 using namespace NVersionedTableClient;
 using namespace NTransactionServer;
 using namespace NTabletServer;
@@ -290,7 +288,7 @@ private:
         }
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, SetSorted)
+    DECLARE_YPATH_SERVICE_METHOD(NVersionedTableClient::NProto, SetSorted)
     {
         DeclareMutating();
 
@@ -315,7 +313,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Mount)
+    DECLARE_YPATH_SERVICE_METHOD(NVersionedTableClient::NProto, Mount)
     {
         DeclareMutating();
 
@@ -341,7 +339,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Unmount)
+    DECLARE_YPATH_SERVICE_METHOD(NVersionedTableClient::NProto, Unmount)
     {
         DeclareMutating();
 
@@ -367,7 +365,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Remount)
+    DECLARE_YPATH_SERVICE_METHOD(NVersionedTableClient::NProto, Remount)
     {
         DeclareMutating();
 
@@ -390,7 +388,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Reshard)
+    DECLARE_YPATH_SERVICE_METHOD(NVersionedTableClient::NProto, Reshard)
     {
         DeclareMutating();
 
@@ -416,7 +414,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo)
+    DECLARE_YPATH_SERVICE_METHOD(NVersionedTableClient::NProto, GetMountInfo)
     {
         DeclareNonMutating();
 

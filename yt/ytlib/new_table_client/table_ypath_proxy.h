@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <ytlib/table_client/table_ypath.pb.h>
+#include <ytlib/new_table_client/table_ypath.pb.h>
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
 namespace NYT {
-namespace NTableClient {
+namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
