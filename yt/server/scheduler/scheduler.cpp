@@ -32,7 +32,7 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/job_probe_client/job_probe_service_proxy.h>
+#include <ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/helpers.h>
@@ -82,7 +82,7 @@ using namespace NHydra;
 using namespace NScheduler::NProto;
 using namespace NJobTrackerClient;
 using namespace NChunkClient;
-using namespace NJobProbeClient;
+using namespace NJobProberClient;
 using namespace NNodeTrackerClient;
 using namespace NVersionedTableClient;
 using namespace NNodeTrackerClient::NProto;
@@ -450,7 +450,7 @@ public:
         const auto& address = job->GetNode()->Descriptor().GetDefaultAddress();
         auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
 
-        auto probeProxy = std::make_unique<TJobProbeServiceProxy>(channel);
+        auto probeProxy = std::make_unique<TJobProberServiceProxy>(channel);
 
         auto req = probeProxy->GenerateInputContext();
         ToProto(req->mutable_job_id(), jobId);
@@ -465,7 +465,7 @@ public:
 
     TFuture<void> OnGenerateInputContextResponse(const TJobId& jobId,
         const NYPath::TYPath& path,
-        const TJobProbeServiceProxy::TRspGenerateInputContextPtr& response)
+        const TJobProberServiceProxy::TRspGenerateInputContextPtr& response)
     {
         auto chunkIds = FromProto<TGuid>(response->chunk_id());
 

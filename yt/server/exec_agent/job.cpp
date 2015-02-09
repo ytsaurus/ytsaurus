@@ -47,7 +47,7 @@
 
 #include <ytlib/job_tracker_client/statistics.h>
 
-#include <ytlib/job_probe_client/job_probe_service_proxy.h>
+#include <ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <ytlib/security_client/public.h>
 
@@ -284,12 +284,12 @@ public:
 
     std::vector<TChunkId> GetInputContexts() const override
     {
-        auto jobProbeClient = CreateTcpBusClient(Slot->GetRpcClientConfig());
-        auto jobProbeChannel = CreateBusChannel(jobProbeClient);
+        auto jobProberClient = CreateTcpBusClient(Slot->GetRpcClientConfig());
+        auto jobProberChannel = CreateBusChannel(jobProberClient);
 
-        auto jobProbeProxy = std::make_unique<NJobProbeClient::TJobProbeServiceProxy>(jobProbeChannel);
+        auto jobProberProxy = std::make_unique<NJobProberClient::TJobProberServiceProxy>(jobProberChannel);
 
-        auto req = jobProbeProxy->GenerateInputContext();
+        auto req = jobProberProxy->GenerateInputContext();
 
         ToProto(req->mutable_job_id(), JobId);
         auto response = WaitFor(req->Invoke())

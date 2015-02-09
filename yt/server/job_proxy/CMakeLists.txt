@@ -3,7 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/server/job_proxy )
 set( SRCS
   ${BASE}/job_detail.cpp
   ${BASE}/job_proxy.cpp
-  ${BASE}/job_probe_service.cpp
+  ${BASE}/job_prober_service.cpp
   ${BASE}/helpers.cpp
   ${BASE}/map_job_io.cpp
   ${BASE}/merge_job.cpp
@@ -27,7 +27,7 @@ set( HDRS
   ${BASE}/job.h
   ${BASE}/job_detail.h
   ${BASE}/job_proxy.h
-  ${BASE}/job_probe_service.h
+  ${BASE}/job_prober_service.h
   ${BASE}/helpers.h
   ${BASE}/map_job_io.h
   ${BASE}/merge_job.h

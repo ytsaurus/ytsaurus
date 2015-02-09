@@ -1,4 +1,4 @@
-package NYT.NJobProbeClient.NProto;
+package NYT.NJobProberClient.NProto;
 
 import "yt/core/misc/guid.proto";
 

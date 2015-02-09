@@ -1,18 +1,19 @@
 #pragma once
 
 #include "public.h"
-#include "job_proxy.h"
 
 #include <core/rpc/public.h>
 
+#include <server/cell_scheduler/public.h>
+
 namespace NYT {
-namespace NJobProxy {
+namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateJobProbeService(TJobProxy* jobProxy);
+NRpc::IServicePtr CreateJobProberService(NCellScheduler::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProxy
+} // namespace NScheduler
 } // namespace NYT

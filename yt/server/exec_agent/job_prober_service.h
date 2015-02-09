@@ -11,7 +11,7 @@ namespace NExecAgent {
 
 ////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateJobProbeService(NCellNode::TBootstrap* jobProxy);
+NRpc::IServicePtr CreateJobProberService(NCellNode::TBootstrap* jobProxy);
 
 ////////////////////////////////////////////////////////////////////
 

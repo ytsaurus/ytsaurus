@@ -1,11 +1,11 @@
 #include "stdafx.h"
-#include "job_probe_service.h"
+#include "job_prober_service.h"
 #include "scheduler.h"
 #include "private.h"
 
 #include <server/cell_scheduler/bootstrap.h>
 
-#include <ytlib/scheduler/job_probe_service_proxy.h>
+#include <ytlib/scheduler/job_prober_service_proxy.h>
 
 #include <core/rpc/service_detail.h>
 
@@ -18,16 +18,16 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////
 
-class TJobProbeService
+class TJobProberService
 	: public TServiceBase
 {
 public:
-	TJobProbeService(TBootstrap* bootstrap)
+	TJobProberService(TBootstrap* bootstrap)
 		: TServiceBase(
 			bootstrap->GetControlInvoker(),
-            TJobProbeServiceProxy::GetServiceName(),
+            TJobProberServiceProxy::GetServiceName(),
             SchedulerLogger,
-            TJobProbeServiceProxy::GetProtocolVersion(),
+            TJobProberServiceProxy::GetProtocolVersion(),
             bootstrap->GetResponseKeeper())
         , Bootstrap_(bootstrap)
     {
@@ -50,9 +50,9 @@ private:
     }
 };
 
-IServicePtr CreateJobProbeService(TBootstrap* bootstrap)
+IServicePtr CreateJobProberService(TBootstrap* bootstrap)
 {
-	return New<TJobProbeService>(bootstrap);
+	return New<TJobProberService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////

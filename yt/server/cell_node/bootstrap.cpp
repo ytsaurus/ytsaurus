@@ -66,7 +66,7 @@
 #include <server/exec_agent/config.h>
 #include <server/exec_agent/slot_manager.h>
 #include <server/exec_agent/supervisor_service.h>
-#include <server/exec_agent/job_probe_service.h>
+#include <server/exec_agent/job_prober_service.h>
 #include <server/exec_agent/environment.h>
 #include <server/exec_agent/environment_manager.h>
 #include <server/exec_agent/unsafe_environment.h>
@@ -309,7 +309,7 @@ void TBootstrap::DoRun()
     JobController->RegisterFactory(NJobAgent::EJobType::RepairChunk,     createChunkJob);
     JobController->RegisterFactory(NJobAgent::EJobType::SealChunk,       createChunkJob);
 
-    RpcServer->RegisterService(CreateJobProbeService(this));
+    RpcServer->RegisterService(CreateJobProberService(this));
 
     RpcServer->RegisterService(New<TSupervisorService>(this));
 

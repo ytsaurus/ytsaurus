@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/scheduler/job_probe_service.pb.h>
+#include <ytlib/scheduler/job_prober_service.pb.h>
 
 #include <core/rpc/client.h>
 
@@ -11,7 +11,7 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
-class TJobProbeServiceProxy
+class TJobProberServiceProxy
     : public NRpc::TProxyBase
 {
 public:
@@ -25,7 +25,7 @@ public:
 		return 0;
 	}
 
-	explicit TJobProbeServiceProxy(NRpc::IChannelPtr channel)
+	explicit TJobProberServiceProxy(NRpc::IChannelPtr channel)
 		: TProxyBase(channel, GetServiceName())
 	{ }
 

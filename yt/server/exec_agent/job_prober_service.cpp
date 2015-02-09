@@ -1,12 +1,12 @@
 #include "stdafx.h"
-#include "job_probe_service.h"
+#include "job_prober_service.h"
 #include "private.h"
 
 #include <server/cell_node/bootstrap.h>
 
 #include <server/job_agent/job_controller.h>
 
-#include <ytlib/job_probe_client/job_probe_service_proxy.h>
+#include <ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <core/rpc/service_detail.h>
 
@@ -14,22 +14,22 @@ namespace NYT {
 namespace NExecAgent {
 
 using namespace NRpc;
-using namespace NJobProbeClient;
+using namespace NJobProberClient;
 using namespace NConcurrency;
 using namespace NJobAgent;
 
 ////////////////////////////////////////////////////////////////////
 
-class TJobProbeService
+class TJobProberService
 	: public TServiceBase
 {
 public:
-    TJobProbeService(NCellNode::TBootstrap* bootstrap)
+    TJobProberService(NCellNode::TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetControlInvoker(),
-            TJobProbeServiceProxy::GetServiceName(),
+            TJobProberServiceProxy::GetServiceName(),
             ExecAgentLogger,
-            TJobProbeServiceProxy::GetProtocolVersion())
+            TJobProberServiceProxy::GetProtocolVersion())
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateInputContext));
@@ -38,7 +38,7 @@ public:
 private:
 	NCellNode::TBootstrap* Bootstrap_;
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProbeClient::NProto, GenerateInputContext)
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GenerateInputContext)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
@@ -52,9 +52,9 @@ private:
     }
 };
 
-IServicePtr CreateJobProbeService(NCellNode::TBootstrap* bootstrap)
+IServicePtr CreateJobProberService(NCellNode::TBootstrap* bootstrap)
 {
-    return New<TJobProbeService>(bootstrap);
+    return New<TJobProberService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////

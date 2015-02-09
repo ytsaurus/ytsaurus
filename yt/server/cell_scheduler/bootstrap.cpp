@@ -54,7 +54,7 @@
 #include <server/scheduler/scheduler.h>
 #include <server/scheduler/scheduler_service.h>
 #include <server/scheduler/job_tracker_service.h>
-#include <server/scheduler/job_probe_service.h>
+#include <server/scheduler/job_prober_service.h>
 #include <server/scheduler/config.h>
 
 namespace NYT {
@@ -186,7 +186,7 @@ void TBootstrap::DoRun()
 
     RpcServer_->RegisterService(CreateSchedulerService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
-    RpcServer_->RegisterService(CreateJobProbeService(this));
+    RpcServer_->RegisterService(CreateJobProberService(this));
 
     LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_->Start();

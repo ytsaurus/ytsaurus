@@ -13,7 +13,7 @@
 #include "sorted_reduce_job_io.h"
 #include "partition_reduce_job_io.h"
 #include "user_job_io.h"
-#include "job_probe_service.h"
+#include "job_prober_service.h"
 
 #include <core/actions/invoker_util.h>
 
@@ -276,7 +276,7 @@ IJobPtr TJobProxy::CreateBuiltinJob()
 TJobResult TJobProxy::DoRun()
 {
     RpcServer = CreateBusServer(CreateTcpBusServer(Config_->RpcServer));
-    RpcServer->RegisterService(CreateJobProbeService(this));
+    RpcServer->RegisterService(CreateJobProberService(this));
     RpcServer->Start();
 
     auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
