@@ -102,11 +102,7 @@ public:
 
     virtual EPermissionSet GetSupportedPermissions() const override
     {
-        return EPermissionSet(
-            EPermissionSet::Read |
-            EPermissionSet::Write |
-            EPermissionSet::Administer |
-            EPermission::Use);
+        return TObjectTypeHandlerWithMapBase<TAccount>::GetSupportedPermissions() | EPermissionSet::Use;
     }
 
 private:
@@ -1293,6 +1289,10 @@ private:
                 auto* schema = objectManager->GetSchema(type);
                 auto* acd = GetAcd(schema);
                 if (!IsVersionedType(type)) {
+                    acd->AddEntry(TAccessControlEntry(
+                        ESecurityAction::Allow,
+                        GetUsersGroup(),
+                        EPermission::Remove));
                     acd->AddEntry(TAccessControlEntry(
                         ESecurityAction::Allow,
                         GetUsersGroup(),

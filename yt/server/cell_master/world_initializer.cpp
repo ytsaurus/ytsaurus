@@ -264,7 +264,7 @@ private:
                             .Item().Value(TAccessControlEntry(
                                 ESecurityAction::Allow,
                                 securityManager->GetUsersGroup(),
-                                EPermissionSet(EPermission::Read | EPermission::Write)))
+                                EPermissionSet(EPermission::Read | EPermission::Write | EPermission::Remove)))
                         .EndList()
                     .EndMap());
 
@@ -424,7 +424,7 @@ private:
                             .Item().Value(TAccessControlEntry(
                                 ESecurityAction::Allow,
                                 securityManager->GetUsersGroup(),
-                                EPermissionSet(EPermission::Read | EPermission::Write)))
+                                EPermissionSet(EPermission::Read | EPermission::Write | EPermission::Remove)))
                         .EndList()
                     .EndMap());
 

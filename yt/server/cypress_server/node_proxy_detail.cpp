@@ -844,8 +844,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
             ThrowCannotRemoveRoot();
         }
 
-        ValidatePermission(sourceImpl, EPermissionCheckScope::This, EPermission::Write);
-        ValidatePermission(sourceImpl, EPermissionCheckScope::Descendants, EPermission::Write);
+        ValidatePermission(sourceImpl, EPermissionCheckScope::This, EPermission::Remove);
+        ValidatePermission(sourceImpl, EPermissionCheckScope::Descendants, EPermission::Remove);
         ValidatePermission(sourceImpl, EPermissionCheckScope::Parent, EPermission::Write);
     }
 

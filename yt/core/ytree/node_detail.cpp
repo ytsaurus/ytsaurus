@@ -112,8 +112,8 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
         ThrowCannotRemoveRoot();
     }
 
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-    ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Write);
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
+    ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Remove);
     ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write);
 
     bool isComposite = (GetType() == ENodeType::Map || GetType() == ENodeType::List);
@@ -177,7 +177,8 @@ void TCompositeNodeMixin::RemoveRecursive(
         tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-        ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Write);
+        ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Remove);
+
         Clear();
 
         context->Reply();

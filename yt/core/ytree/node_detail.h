@@ -58,7 +58,7 @@ protected:
     void DoSetSelf(TNode* node, const TYsonString& value)
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-        ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Write);
+        ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Remove);
 
         auto factory = CreateFactory();
         auto builder = CreateBuilderFromFactory(factory);

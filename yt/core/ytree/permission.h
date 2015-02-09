@@ -28,6 +28,9 @@ DEFINE_BIT_ENUM(EPermission,
 
     //! Applies to: schemas
     ((Create)     (0x0100))
+
+    //! Applies to: all objects
+    ((Remove)     (0x0200))
 );
 
 //! An alias for EPermission denoting bitwise-or of atomic EPermission values.

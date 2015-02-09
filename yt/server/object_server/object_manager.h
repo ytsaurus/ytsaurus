@@ -248,6 +248,8 @@ private:
     //! Stores deltas from parent transaction.
     NHydra::TEntityMap<TVersionedObjectId, TAttributeSet> AttributeMap_;
 
+    bool PatchSchemasWithRemovePermissions_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -255,6 +257,8 @@ private:
     void SaveValues(NCellMaster::TSaveContext& context) const;
 
     virtual void OnBeforeSnapshotLoaded() override;
+    virtual void OnAfterSnapshotLoaded() override;
+
     void LoadKeys(NCellMaster::TLoadContext& context);
     void LoadValues(NCellMaster::TLoadContext& context);
     // COMPAT(babenko)
