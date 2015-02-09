@@ -629,10 +629,14 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         set("//tmp/input_contexts", {})
 
+        tmpdir = tempfile.mkdtemp(prefix="generate_input_context_semaphore")
+
+        command="touch {0}/started; cat; until rmdir {0} 2>/dev/null; do sleep 1; done".format(tmpdir)
+
         op_id = map(dont_track=True,
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="sleep 2; cat",
+            command=command,
             spec={
                 "mapper": {
                     "input_format": "json",
@@ -640,19 +644,22 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 }
             })
 
+        pin_filename = os.path.join(tmpdir, "started")
+        while not os.access(pin_filename, os.F_OK):
+            time.sleep(0.2)
+
         probed = False
-        while not probed:
-            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
-            jobs = ls(jobs_path)
-            if not jobs:
-                time.sleep(0.2)
-                continue
-            for job_id in jobs:
-                probed = True
-                probe_job(job_id, "//tmp/input_contexts")
+        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+        jobs = ls(jobs_path)
+        for job_id in jobs:
+            probed = True
+            probe_job(job_id, "//tmp/input_contexts")
+
+        assert probed
+
+        os.unlink(pin_filename)
 
         track_op(op_id)
-        time.sleep(1)
 
         context = download("//tmp/input_contexts/0")
         assert format.JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
