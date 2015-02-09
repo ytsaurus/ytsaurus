@@ -2,22 +2,22 @@
 
 #include "public.h"
 
-#include <ytlib/job_probe_client/job_probe_service.pb.h>
+#include <ytlib/job_prober_client/job_prober_service.pb.h>
 
 #include <core/rpc/client.h>
 
 namespace NYT {
-namespace NJobProbeClient {
+namespace NJobProberClient {
 
 ////////////////////////////////////////////////////////////////////
 
-class TJobProbeServiceProxy
+class TJobProberServiceProxy
     : public NRpc::TProxyBase
 {
 public:
     static Stroka GetServiceName()
     {
-        return "JobProbeService";
+        return "JobProberService";
     }
 
     static int GetProtocolVersion()
@@ -25,14 +25,14 @@ public:
         return 0;
     }
 
-    explicit TJobProbeServiceProxy(NRpc::IChannelPtr channel)
+    explicit TJobProberServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
-    DEFINE_RPC_PROXY_METHOD(NJobProbeClient::NProto, GenerateInputContext);
+    DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, GenerateInputContext);
 };
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProbeClient
+} // namespace NJobProberClient
 } // namespace NYT

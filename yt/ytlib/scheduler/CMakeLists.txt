@@ -11,7 +11,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/scheduler_channel.h
   ${BASE}/scheduler_service_proxy.h
-  ${BASE}/job_probe_service_proxy.h
+  ${BASE}/job_prober_service_proxy.h
   ${BASE}/statistics.h
   ${BASE}/statistics-inl.h
 )
@@ -23,4 +23,4 @@ list(APPEND YT_SOURCE_FILES
 
 protoc( ${BASE}/scheduler_service.proto YT_SOURCE_FILES )
 protoc( ${BASE}/job.proto YT_SOURCE_FILES )
-protoc( ${BASE}/job_probe_service.proto YT_SOURCE_FILES )
+protoc( ${BASE}/job_prober_service.proto YT_SOURCE_FILES )

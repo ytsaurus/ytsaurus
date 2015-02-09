@@ -16,7 +16,7 @@ set( DIRS
   security_client
   node_tracker_client
   job_tracker_client
-  job_probe_client
+  job_prober_client
   transaction_client
   tablet_client
   monitoring

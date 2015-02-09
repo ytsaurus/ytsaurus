@@ -24,7 +24,7 @@ set( SRCS
   ${BASE}/snapshot_downloader.cpp
   ${BASE}/sort_controller.cpp
   ${BASE}/event_log.cpp
-  ${BASE}/job_probe_service.cpp
+  ${BASE}/job_prober_service.cpp
 )
 set( HDRS
   ${BASE}/chunk_list_pool.h
@@ -54,7 +54,7 @@ set( HDRS
   ${BASE}/snapshot_downloader.h
   ${BASE}/sort_controller.h
   ${BASE}/event_log.h
-  ${BASE}/job_probe_service.h
+  ${BASE}/job_prober_service.h
 )
 
 list(APPEND YT_SOURCE_FILES

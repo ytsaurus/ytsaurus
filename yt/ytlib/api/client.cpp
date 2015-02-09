@@ -61,7 +61,7 @@
 #include <ytlib/chunk_client/read_limit.h>
 
 #include <ytlib/scheduler/scheduler_service_proxy.h>
-#include <ytlib/scheduler/job_probe_service_proxy.h>
+#include <ytlib/scheduler/job_prober_service_proxy.h>
 
 // TODO(babenko): refactor this
 #include <ytlib/object_client/object_service_proxy.h>
@@ -589,7 +589,7 @@ public:
             ObjectProxies_[kind].reset(new TObjectServiceProxy(MasterChannels_[kind]));
         }
         SchedulerProxy_.reset(new TSchedulerServiceProxy(SchedulerChannel_));
-        JobProbeProxy_.reset(new TJobProbeServiceProxy(SchedulerChannel_));
+        JobProberProxy_.reset(new TJobProberServiceProxy(SchedulerChannel_));
 
         TransactionManager_ = New<TTransactionManager>(
             Connection_->GetConfig()->TransactionManager,
@@ -885,7 +885,7 @@ private:
     TQueryHelperPtr QueryHelper_;
     TEnumIndexedVector<std::unique_ptr<TObjectServiceProxy>, EMasterChannelKind> ObjectProxies_;
     std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;
-    std::unique_ptr<TJobProbeServiceProxy> JobProbeProxy_;
+    std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
 
     NLog::TLogger Logger = ApiLogger;
 
@@ -1705,7 +1705,7 @@ private:
 
     void DoGenerateInputContext(const TJobId& jobId, const TYPath& path)
     {
-        auto req = JobProbeProxy_->GenerateInputContext();
+        auto req = JobProberProxy_->GenerateInputContext();
         ToProto(req->mutable_job_id(), jobId);
         ToProto(req->mutable_path(), path);
 
