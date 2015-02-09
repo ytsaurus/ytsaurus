@@ -851,6 +851,8 @@ void TNontemplateNonversionedObjectProxyBase::GetSelf(TReqGet* request, TRspGet*
 {
     UNUSED(request);
 
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+
     response->set_value("#");
     context->Reply();
 }
@@ -864,6 +866,8 @@ void TNontemplateNonversionedObjectProxyBase::RemoveSelf(TReqRemove* request, TR
 {
     UNUSED(request);
     UNUSED(response);
+
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
 
     ValidateRemoval();
 
