@@ -122,7 +122,7 @@ public:
                 LOG_DEBUG("Sending mutations to follower %v", followerId);
 
                 THydraServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(Owner_->Config_->ControlRpcTimeout);
+                proxy.SetDefaultTimeout(Owner_->Config_->CommitRpcTimeout);
 
                 auto committedVersion = Owner_->DecoratedAutomaton_->GetAutomatonVersion();
 
