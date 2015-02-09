@@ -7,41 +7,35 @@ from yt.common import YtError
 import argparse
 import subprocess as sp
 import sys
+from StringIO import StringIO
 
 yt.config.VERSION = "v3"
 
 # Config is passed to mapper.
 CONFIG_FILE_NAME = "copy-table.config"
-# File with mapper program.
-HELPER_FILE_NAME = "./copy-table-helper.py"
 # Maximum number or rows passed to yt insert.
 MAX_ROWS_PER_INSERT = 20000
 # Mapper job options.
 JOB_COUNT = 20
-JOB_MEMORY_LIMIT = 1024*1024*1024*2
+JOB_MEMORY_LIMIT = "2GB"
 
+# Parse human-writable size.
 def parse_size(size):
+    scale = {"kb": 2**10, "mb": 2**20, "gb": 2**30}
     try:
-        return int(size)
+        return int(float(size[:-2]) * scale[size[-2:].lower()]) if size[-2:].lower() in scale.keys() else int(size)
     except:
-        scale = {"kb": 2**10, "mb": 2**20, "gb": 2**30}
-        try:
-            numeric = int(size[:-2])
-            return (numeric if numeric > 0 else 1) * scale[size[-2:].lower()]
-        except:
-            raise ValueError("Invalid size: '%s'. Valid suffixes are: %s." %
-                (size, ", ".join(["'%s'" % key for key in scale.keys()])))
+        raise ValueError("Invalid size: '%s'. Valid suffixes are: %s." %
+            (size, ", ".join(["'%s'" % key for key in scale.keys()])))
 
-def prepare(value, is_raw=False):
-    if not is_raw:
-        if not isinstance(value, list):
-            value = [value]
-        value = yson.dumps(value)
-        # remove surrounding [ ]
-        value = value[1:-1]
-    return value
+# Prepare rows data.
+def prepare(value):
+    if not isinstance(value, list):
+        value = [value]
+    # remove surrounding [ ]
+    return yson.dumps(value)[1:-1]
 
-# Map task - get tablet partition pivot keys.
+# Mapper - get tablet partition pivot keys.
 def tablets_mapper(tablet):
     yield {"pivot_key":tablet["pivot_key"]}
     tablet_id = tablet["tablet_id"]
@@ -53,11 +47,47 @@ def tablets_mapper(tablet):
         for partition in yson.loads(partitions):
             yield {"pivot_key": partition["pivot_key"]}
 
-# Map task - copy table.
+# Mapper - copy content with keys between r["left"] and r["right"].
 def regions_mapper(r):
+    # Read config.
     f = open(CONFIG_FILE_NAME, 'r')
     config = yson.load(f)
-    sp.check_output([HELPER_FILE_NAME, yson.dumps(config), yson.dumps(r)])
+
+    # Get something like ((key1, key2, key3), (bound1, bound2, bound3)) from a bound.
+    get_bound_value = lambda bound : ",".join(['"' + x + '"' if isinstance(x, str) else str(x) for x in bound])
+    get_bound_key = lambda width : ",".join([str(x) for x in config["key_columns"][:width]])
+    expand_bound = lambda bound : (get_bound_key(len(bound)), get_bound_value(bound))
+
+    # Get records from source table.
+    def query(left, right):
+        left = "(%s) >= (%s)" % expand_bound(left) if left != None else None
+        right = "(%s) < (%s)" % expand_bound(right) if right != None else None
+        bounds = [x for x in [left, right] if x is not None]
+        where = (" where " + " and ".join(bounds)) if len(bounds) > 0 else ""
+        query = "* from [%s]%s" % (config["source"], where)
+        return sp.check_output(["yt", "select", query, "--format <format=text>yson"])
+    raw_data = StringIO(query(r["left"], r["right"]))
+
+    # Insert data into destination table.
+    insert_cmd = ["yt", "insert", config["destination"], "--format <format=text>yson"]
+    new_data = []
+    def dump_data():
+        p = sp.Popen(insert_cmd, stdin=sp.PIPE)
+        p.communicate(prepare(new_data))
+        if p.returncode != 0:
+            raise sp.CalledProcessError(p.returncode, insert_cmd, p.stdout)
+        del new_data[:]
+
+    # Process data.
+    for row in yson.load(raw_data, yson_type="list_fragment"):
+        #
+        # Possible data transformation here.
+        #
+        new_data.append(row)
+        if len(new_data) > config["rows_per_insert"]: dump_data()
+    dump_data()
+
+    # YT Wrapper doesn't like empty output.
     yield r
 
 if __name__ == "__main__":
@@ -133,22 +163,18 @@ if __name__ == "__main__":
         prepare(regions),
         format=yt.YsonFormat(format="text"))
 
+    # Config passed to mapper.
     config = {
         "key_columns": key_columns,
         "source": src,
         "destination": dst,
         "rows_per_insert": args.insert_size}
-    config_file = open(CONFIG_FILE_NAME, "w")
-    config_file.write(yson.dumps(config))
-    config_file.close()
+    with open(CONFIG_FILE_NAME, "w") as config_file: config_file.write(yson.dumps(config))
     
     # Copy tablet pivot keys from source table.
-    pivot_keys = []
-    for tablet in tablets:
-        key = tablet["pivot_key"]
-        pivot_keys.append(key)
-    pivot_keys = sorted(pivot_keys)
+    pivot_keys = sorted([tablet["pivot_key"] for tablet in tablets])
 
+    # Create destination table.
     yt.create_table(dst)
     yt.set_attribute(dst, "schema", schema)
     yt.set_attribute(dst, "key_columns", key_columns)
@@ -167,7 +193,7 @@ if __name__ == "__main__":
                 "job_proxy_memory_control": False,
                 "mapper": { "memory_limit": args.memory_limit }},
             format=yt.YsonFormat(format="text"),
-            local_files=[CONFIG_FILE_NAME, HELPER_FILE_NAME])
+            local_files=CONFIG_FILE_NAME)
     except YtError as e:
         print yt.errors.format_error(e)
 
