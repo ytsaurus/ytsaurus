@@ -134,6 +134,7 @@ protected:
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override;
 
     virtual void ValidateRemoval();
+
     virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context) override;
 
     virtual TVersionedObjectId GetVersionedId() const override;

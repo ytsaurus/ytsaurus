@@ -95,7 +95,7 @@ void TNodeBase::GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKey
             YUNREACHABLE();
     }
 
-    context->SetResponseInfo("Key: %v", ~key);
+    context->SetResponseInfo("Key: %v", key);
     response->set_value(key);
 
     context->Reply();
@@ -397,9 +397,7 @@ void TListNodeMixin::SetChild(
         beforeIndex = 0;
     } else if (token.has_prefix(ListEndToken)) {
         beforeIndex = GetChildCount();
-    } else if (token.has_prefix(ListBeforeToken) ||
-               token.has_prefix(ListAfterToken))
-    {
+    } else if (token.has_prefix(ListBeforeToken) || token.has_prefix(ListAfterToken)) {
         auto indexToken = ExtractListIndex(token);
         int index = ParseListIndex(indexToken);
         beforeIndex = AdjustChildIndex(index);

@@ -750,6 +750,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
             tokenizer.ThrowUnexpected();
             break;
     }
+
     OnCustomAttributesUpdated();
 }
 

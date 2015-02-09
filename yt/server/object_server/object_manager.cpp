@@ -343,7 +343,7 @@ TObjectManager::TObjectManager(
     RegisterLoader(
         "ObjectManager.Values",
         BIND(&TObjectManager::LoadValues, Unretained(this)));
-    // COMPAT(babenko)
+    // COMPAT(babenko): This part exists only in 0.16.
     RegisterLoader(
         "ObjectManager.Schemas",
         BIND(&TObjectManager::LoadSchemas, Unretained(this)));
