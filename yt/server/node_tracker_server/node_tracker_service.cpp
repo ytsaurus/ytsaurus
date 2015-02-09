@@ -133,7 +133,6 @@ private:
             ->CreateFullHeartbeatMutation(context)
             ->Commit()
             .Subscribe(CreateRpcResponseHandler(context));
-        ;
     }
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, IncrementalHeartbeat)

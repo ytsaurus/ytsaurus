@@ -360,8 +360,15 @@ private:
 
             SwitchTo(automatonInvoker);
 
+            auto this_ = MakeStrong(this);
             CreateMutation(slot->GetHydraManager(), hydraRequest)
-                ->Commit();
+                ->Commit()
+                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
+                    UNUSED(this_);
+                    if (!error.IsOK()) {
+                        LOG_ERROR(error, "Error committing tablet stores update mutation");
+                    }
+                }));
 
             LOG_INFO("Store flush completed (ChunkIds: [%v])",
                 JoinToString(chunkIds));

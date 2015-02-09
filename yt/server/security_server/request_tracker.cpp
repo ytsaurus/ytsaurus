@@ -105,6 +105,8 @@ void TRequestTracker::OnFlush()
         .Subscribe(BIND([this, this_] (const TErrorOr<TMutationResponse>& error) {
             if (error.IsOK()) {
                 FlushExecutor_->ScheduleOutOfBand();
+            } else {
+                LOG_ERROR(error, "Error committing request statistics update mutation");
             }
             FlushExecutor_->ScheduleNext();
         }).Via(invoker));

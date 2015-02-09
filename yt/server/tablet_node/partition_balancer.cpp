@@ -190,8 +190,16 @@ private:
             ToProto(request.mutable_tablet_id(), tablet->GetId());
             ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_pivot_keys(), pivotKeys);
+
+            auto this_ = MakeStrong(this);
             CreateMutation(hydraManager, request)
-                ->Commit();
+                ->Commit()
+                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
+                    UNUSED(this_);
+                    if (!error.IsOK()) {
+                        LOG_ERROR(error, "Error committing partition split mutation");
+                    }
+                }));
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Partitioning aborted");
             partition->SetState(EPartitionState::Normal);
@@ -234,8 +242,16 @@ private:
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         ToProto(request.mutable_partition_id(), tablet->Partitions()[firstPartitionIndex]->GetId());
         request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
+
+        auto this_ = MakeStrong(this);
         CreateMutation(hydraManager, request)
-            ->Commit();
+            ->Commit()
+            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
+                UNUSED(this_);
+                if (!error.IsOK()) {
+                    LOG_ERROR(error, "Error committing partition merge mutation");
+                }
+            }));
     }
 
 
@@ -279,8 +295,16 @@ private:
             ToProto(request.mutable_tablet_id(), tablet->GetId());
             ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_sample_keys(), samples);
+
+            auto this_ = MakeStrong(this);
             CreateMutation(hydraManager, request)
-                ->Commit();
+                ->Commit()
+                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
+                    UNUSED(this_);
+                    if (!error.IsOK()) {
+                        LOG_ERROR(error, "Error committing sample keys update mutation");
+                    }
+                }));
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Partition sampling aborted");
         }
