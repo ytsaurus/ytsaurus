@@ -160,6 +160,7 @@ class TestTablets(YTEnvSetup):
         with pytest.raises(YtError): read("//tmp/t")
         with pytest.raises(YtError): write("//tmp/t", [{"key": 1, "value": 2}])
 
+    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
     def test_computed_column(self):
         self._sync_create_cells(1, 1)
         self._create_table_with_computed_column("//tmp/t")
