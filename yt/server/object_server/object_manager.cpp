@@ -560,6 +560,29 @@ void TObjectManager::OnBeforeSnapshotLoaded()
     DoClear();
 }
 
+void TObjectManager::OnAfterSnapshotLoaded()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    if (PatchSchemasWithRemovePermissions_) {
+        for (const auto& pair : SchemaMap_) {
+            // C.f. InitDefaultSchemasAcl
+            if (IsVersionedType(TypeFromId(pair.first))) {
+                continue;
+            }
+            auto& acd = pair.second->Acd();
+            auto aces = acd.Acl().Entries;
+            acd.ClearEntries();
+            for (auto& ace : aces) {
+                if ((ace.Permissions & EPermission::Write) != NonePermissions) {
+                    ace.Permissions |= EPermission::Remove;
+                }
+                acd.AddEntry(ace);
+            }
+        }
+    }
+}
+
 void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -567,6 +590,11 @@ void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 109) {
         SchemaMap_.LoadKeys(context);
+    }
+
+    // COMPAT(sandello)
+    if (context.GetVersion() < 113) {
+        PatchSchemasWithRemovePermissions_ = true;
     }
 
     AttributeMap_.LoadKeys(context);
@@ -586,6 +614,11 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
             entry.SchemaObject = pair.second;
             entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
         }
+    }
+
+    // COMPAT(sandello)
+    if (context.GetVersion() < 113) {
+        PatchSchemasWithRemovePermissions_ = true;
     }
 
     AttributeMap_.LoadValues(context);

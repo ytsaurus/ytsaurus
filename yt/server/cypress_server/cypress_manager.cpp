@@ -298,22 +298,8 @@ public:
             EObjectAccountMode::Forbidden);
     }
 
-    virtual EPermissionSet GetSupportedPermissions() const override
-    {
-        return EPermissionSet(
-            EPermission::Read |
-            EPermission::Write |
-            EPermission::Administer);
-    }
-
 private:
     EObjectType Type;
-
-    void DoDestroy(TCypressNodeBase* node)
-    {
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->DestroyNode(node);
-    }
 
     virtual Stroka DoGetName(TCypressNodeBase* node) override
     {

@@ -75,10 +75,11 @@ public:
 
     virtual NYTree::EPermissionSet GetSupportedPermissions() const override
     {
-        return NYTree::EPermissionSet(
-            NYTree::EPermission::Read |
-            NYTree::EPermission::Write |
-            NYTree::EPermission::Administer);
+        return
+            NYTree::EPermissionSet::Read |
+            NYTree::EPermissionSet::Write |
+            NYTree::EPermissionSet::Remove |
+            NYTree::EPermissionSet::Administer;
     }
     
 protected:
