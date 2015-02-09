@@ -45,12 +45,12 @@ class TestAcls(YTEnvSetup):
         set(rw_path, "c", user=rw_user)
         assert get(rw_path, user=rw_user) == "c"
 
-        set(acl_path + "/@acl/end", self._make_ace("deny", acl_subject, "write"))
+        set(acl_path + "/@acl/end", self._make_ace("deny", acl_subject, ["write", "remove"]))
         with pytest.raises(YtError): set(rw_path, "d", user=rw_user)
         assert get(rw_path, user=rw_user) == "c"
 
         remove(acl_path + "/@acl/-1")
-        set(acl_path + "/@acl/end", self._make_ace("deny", acl_subject, ["read", "write"]))
+        set(acl_path + "/@acl/end", self._make_ace("deny", acl_subject, ["read", "write", "remove"]))
         with pytest.raises(YtError): get(rw_path, user=rw_user)
         with pytest.raises(YtError): set(rw_path, "d", user=rw_user)
 
@@ -74,11 +74,11 @@ class TestAcls(YTEnvSetup):
 
         with pytest.raises(YtError): set(rw_path, "b", user=rw_user)
 
-        set(acl_path + "/@acl/end", self._make_ace("allow", acl_subject, "write"))
+        set(acl_path + "/@acl/end", self._make_ace("allow", acl_subject, ["write", "remove"]))
         set(rw_path, "c", user=rw_user)
 
         remove(acl_path + "/@acl/-1")
-        set(acl_path + "/@acl/end", self._make_ace("allow", acl_subject, "read"))
+        set(acl_path + "/@acl/end", self._make_ace("allow", acl_subject, ["read"]))
         with pytest.raises(YtError): set(rw_path, "d", user=rw_user)
 
     def test_allowing_acl1(self):
@@ -309,7 +309,7 @@ class TestAcls(YTEnvSetup):
         create("document", "//tmp/d")
         set("//tmp/d", {"foo":{}})
         set("//tmp/d/@inherit_acl", False)
-        set("//tmp/d/@acl/end", self._make_ace("allow", "u", ["read", "write"]))
+        set("//tmp/d/@acl/end", self._make_ace("allow", "u", ["read", "write", "remove"]))
 
         assert get("//tmp", user="u") == {"d": None}
         assert get("//tmp/d", user="u") == {"foo": {}}
@@ -366,3 +366,107 @@ class TestAcls(YTEnvSetup):
         add_member("u", "superusers")
         remove("//sys/protected", user="u")
 
+    def test_remove_self_requires_permission(self):
+        create_user("u")
+        set("//tmp/x", {})
+        set("//tmp/x/y", {})
+
+        set("//tmp/x/@inherit_acl", False)
+        with pytest.raises(YtError): remove("//tmp/x", user="u")
+        with pytest.raises(YtError): remove("//tmp/x/y", user="u")
+
+        set("//tmp/x/@acl", [self._make_ace("allow", "u", "write")])
+        set("//tmp/x/y/@acl", [self._make_ace("deny", "u", "remove")])
+        with pytest.raises(YtError): remove("//tmp/x", user="u")
+        with pytest.raises(YtError): remove("//tmp/x/y", user="u")
+
+        set("//tmp/x/y/@acl", [self._make_ace("allow", "u", "remove")])
+        with pytest.raises(YtError): remove("//tmp/x", user="u")
+        remove("//tmp/x/y", user="u")
+        with pytest.raises(YtError): remove("//tmp/x", user="u")
+
+        set("//tmp/x/@acl", [self._make_ace("allow", "u", "remove")])
+        remove("//tmp/x", user="u")
+
+    def test_remove_recursive_requires_permission(self):
+        create_user("u")
+        set("//tmp/x", {})
+        set("//tmp/x/y", {})
+
+        set("//tmp/x/@inherit_acl", False)
+        with pytest.raises(YtError): remove("//tmp/x/*", user="u")
+        set("//tmp/x/@acl", [self._make_ace("allow", "u", "write")])
+        set("//tmp/x/y/@acl", [self._make_ace("deny", "u", "remove")])
+        with pytest.raises(YtError): remove("//tmp/x/*", user="u")
+        set("//tmp/x/y/@acl", [self._make_ace("allow", "u", "remove")])
+        remove("//tmp/x/*", user="u")
+
+    def test_set_self_requires_remove_permission(self):
+        create_user("u")
+        set("//tmp/x", {})
+        set("//tmp/x/y", {})
+
+        set("//tmp/x/@inherit_acl", False)
+        with pytest.raises(YtError): set("//tmp/x", {}, user="u")
+        with pytest.raises(YtError): set("//tmp/x/y", {}, user="u")
+
+        set("//tmp/x/@acl", [self._make_ace("allow", "u", "write")])
+        set("//tmp/x/y/@acl", [self._make_ace("deny", "u", "remove")])
+        set("//tmp/x/y", {}, user="u")
+        with pytest.raises(YtError): set("//tmp/x", {}, user="u")
+
+        set("//tmp/x/@acl", [self._make_ace("allow", "u", "write")])
+        set("//tmp/x/y/@acl", [self._make_ace("allow", "u", "remove")])
+        set("//tmp/x/y", {}, user="u")
+        set("//tmp/x", {}, user="u")
+
+    def test_guest_can_remove_users_groups_accounts(self):
+        create_user("u")
+        create_group("g")
+        create_account("a")
+
+        with pytest.raises(YtError): remove("//sys/users/u", user="guest")
+        with pytest.raises(YtError): remove("//sys/groups/g", user="guest")
+        with pytest.raises(YtError): remove("//sys/accounts/a", user="guest")
+
+        set("//sys/schemas/user/@acl/end", self._make_ace("allow", "guest", "remove"))
+        set("//sys/schemas/group/@acl/end", self._make_ace("allow", "guest", "remove"))
+        set("//sys/schemas/account/@acl/end", self._make_ace("allow", "guest", "remove"))
+
+        remove("//sys/users/u", user="guest")
+        remove("//sys/groups/g", user="guest")
+        remove("//sys/accounts/a", user="guest")
+
+        remove("//sys/schemas/user/@acl/-1")
+        remove("//sys/schemas/group/@acl/-1")
+        remove("//sys/schemas/account/@acl/-1")
+
+    def test_supported_permissions(self):
+        create_user("u")
+        create_group("g")
+        create_account("a")
+        create("table", "//tmp/t")
+        create("file", "//tmp/f")
+
+        RWRA = "read write remove administer".split()
+        RWRAC = RWRA + ["create"]
+
+        def check(path, permissions):
+            self.assertItemsEqual(get(path + "/@supported_permissions"), permissions)
+
+        # cypress node
+        check("//tmp", RWRA)
+        # chunk owner node
+        check("//tmp/t", RWRA)
+        check("//tmp/f", RWRA)
+        # user, group, account
+        check("//sys/users/u", RWRA)
+        check("//sys/groups/g", RWRA)
+        check("//sys/accounts/a", RWRA + ["use"])
+        # schemas
+        check("//sys/schemas/map_node", ["create"])
+        check("//sys/schemas/table", ["create"])
+        check("//sys/schemas/file", ["create"])
+        check("//sys/schemas/user", RWRAC)
+        check("//sys/schemas/group", RWRAC)
+        check("//sys/schemas/account", RWRAC + ["use"])
