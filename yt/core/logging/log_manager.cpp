@@ -214,6 +214,8 @@ void ReloadSignalHandler(int signal)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const TDuration LoggerConfigPeriodicity = TDuration::Seconds(1);
+
 class TLogManager::TImpl
     : public TRefCounted
 {
@@ -228,6 +230,7 @@ public:
         , EnqueueCounter_("/enqueue_rate")
         , WriteCounter_("/write_rate")
         , BacklogCounter_("/backlog")
+        , LastConfigUpdateTime_(GetCpuInstant() - DurationToCpuDuration(LoggerConfigPeriodicity))
     {
         SystemWriters_.push_back(New<TStderrLogWriter>());
         DoUpdateConfig(TLogConfig::CreateDefault(), false);
@@ -414,13 +417,14 @@ private:
             return result;
         }
 
-        bool configsUpdated = UpdateConfig(true);
-
         int eventsWritten = 0;
+        bool firstEvent = true;
 
         while (LogEventQueue_.DequeueAll(true, [&] (TLogEvent& event) {
-                // To avoid starvation of config update
-                UpdateConfig(false);
+                // Update config before writing the first event to avoid race.
+                // Then update periodically to avoid config starvation.
+                UpdateConfig(firstEvent);
+                firstEvent = false;
 
                 if (ReopenRequested_) {
                     ReopenRequested_ = false;
@@ -431,6 +435,8 @@ private:
                 ++eventsWritten;
             }))
         { }
+
+        bool configsUpdated = (eventsWritten == 0) ? UpdateConfig(false) : false;
 
         int backlogSize = LoggingProfiler.Increment(BacklogCounter_, -eventsWritten);
         if (Suspended_ && backlogSize < Config_->LowBacklogWatermark) {
@@ -673,8 +679,7 @@ private:
         bool configsUpdated = false;
         auto now = GetCpuInstant();
         if (instantUpdate ||
-            now < LastConfigUpdateTime_ ||
-            CpuDurationToDuration(now - LastConfigUpdateTime_) > TDuration::Seconds(1))
+            CpuDurationToDuration(now - LastConfigUpdateTime_) > LoggerConfigPeriodicity)
         {
             while (ConfigsToUpdate_.Dequeue(&config)) {
                 DoUpdateConfig(config);
