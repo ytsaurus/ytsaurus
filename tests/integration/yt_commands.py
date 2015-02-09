@@ -96,7 +96,7 @@ def command(command_name, parameters, input_stream=None, output_stream=None, ver
 
 ###########################################################################
 
-def probe(job_id, path, **kwargs):
+def probe_job(job_id, path, **kwargs):
     kwargs["job_id"] = job_id
     kwargs["path"] = path
     return command("probe_job", kwargs)

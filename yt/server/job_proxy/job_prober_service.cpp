@@ -21,12 +21,12 @@ using namespace NJobAgent;
 ////////////////////////////////////////////////////////////////////
 
 class TJobProberService
-	: public TServiceBase
+    : public TServiceBase
 {
 public:
-	TJobProberService(TJobProxy* jobProxy)
-		: TServiceBase(
-			jobProxy->GetControlInvoker(),
+    TJobProberService(TJobProxy* jobProxy)
+        : TServiceBase(
+		    jobProxy->GetControlInvoker(),
             TJobProberServiceProxy::GetServiceName(),
             JobProxyLogger,
             TJobProberServiceProxy::GetProtocolVersion())
@@ -36,7 +36,7 @@ public:
     }
 
 private:
-	TJobProxy* JobProxy_;
+    TJobProxy* JobProxy_;
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GenerateInputContext)
     {

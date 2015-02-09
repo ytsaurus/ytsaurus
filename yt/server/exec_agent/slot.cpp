@@ -18,6 +18,7 @@ namespace NYT {
 namespace NExecAgent {
 
 using namespace NConcurrency;
+using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,16 +125,16 @@ std::vector<Stroka> TSlot::GetCGroupPaths() const
     return result;
 }
 
-NBus::TTcpBusServerConfigPtr TSlot::GetRpcServerConfig() const
+TTcpBusServerConfigPtr TSlot::GetRpcServerConfig() const
 {
     Stroka unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
-    return NBus::TTcpBusServerConfig::CreateUnixDomain(unixDomainName);
+    return TTcpBusServerConfig::CreateUnixDomain(unixDomainName);
 }
 
-NBus::TTcpBusClientConfigPtr TSlot::GetRpcClientConfig() const
+TTcpBusClientConfigPtr TSlot::GetRpcClientConfig() const
 {
     Stroka unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
-    return NBus::TTcpBusClientConfig::CreateUnixDomain(unixDomainName);
+    return TTcpBusClientConfig::CreateUnixDomain(unixDomainName);
 }
 
 void TSlot::DoCleanSandbox()

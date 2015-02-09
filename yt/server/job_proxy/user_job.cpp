@@ -365,7 +365,7 @@ private:
         }
     }
 
-    std::vector<NChunkClient::TChunkId> GenerateInputContext() override
+    virtual std::vector<TChunkId> GenerateInputContext() override
     {
         auto contexts = WaitFor(
             BIND(&TUserJob::DoGetInputContexts, MakeStrong(this))
@@ -378,9 +378,9 @@ private:
         return contextChunkIds;
     }
 
-    std::vector<NChunkClient::TChunkId> SaveInputContexts(const std::vector<TBlob>& contexts)
+    std::vector<TChunkId> SaveInputContexts(const std::vector<TBlob>& contexts)
     {
-        std::vector<NChunkClient::TChunkId> results;
+        std::vector<TChunkId> results;
 
         if (!UserJobSpec_.has_stderr_transaction_id()) {
             THROW_ERROR_EXCEPTION("There are no stderr transaction");

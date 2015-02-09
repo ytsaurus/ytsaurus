@@ -15,21 +15,21 @@ class TJobProberServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-	static Stroka GetServiceName()
-	{
-		return "JobProbeService";
-	}
+    static Stroka GetServiceName()
+    {
+        return "JobProberService";
+    }
 
-	static int GetProtocolVersion()
-	{
-		return 0;
-	}
+    static int GetProtocolVersion()
+    {
+        return 0;
+    }
 
-	explicit TJobProberServiceProxy(NRpc::IChannelPtr channel)
-		: TProxyBase(channel, GetServiceName())
-	{ }
+    explicit TJobProberServiceProxy(NRpc::IChannelPtr channel)
+        : TProxyBase(channel, GetServiceName())
+    { }
 
-	DEFINE_RPC_PROXY_METHOD(NProto, GenerateInputContext);
+    DEFINE_RPC_PROXY_METHOD(NProto, GenerateInputContext);
 };
 
 ////////////////////////////////////////////////////////////////////

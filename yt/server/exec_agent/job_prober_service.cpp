@@ -21,7 +21,7 @@ using namespace NJobAgent;
 ////////////////////////////////////////////////////////////////////
 
 class TJobProberService
-	: public TServiceBase
+    : public TServiceBase
 {
 public:
     TJobProberService(NCellNode::TBootstrap* bootstrap)
@@ -36,7 +36,7 @@ public:
     }
 
 private:
-	NCellNode::TBootstrap* Bootstrap_;
+    NCellNode::TBootstrap* Bootstrap_;
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GenerateInputContext)
     {

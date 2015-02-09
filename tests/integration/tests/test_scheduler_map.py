@@ -649,7 +649,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 continue
             for job_id in jobs:
                 probed = True
-                probe(job_id, "//tmp/input_contexts")
+                probe_job(job_id, "//tmp/input_contexts")
 
         track_op(op_id)
         time.sleep(1)
