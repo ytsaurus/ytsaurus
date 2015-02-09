@@ -359,7 +359,7 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, spec_templa
         logger.error(error)
         raise yt.IncorrectRowCount(error)
 
-def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, files=None, kiwi_user=None, spec_template=None, write_to_table=False, protobin=True, message_queue=None):
+def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, kiwi_user, files=None, spec_template=None, write_to_table=False, protobin=True, message_queue=None):
     extract_value_script_to_table = """\
 import sys
 import struct
@@ -395,9 +395,6 @@ while True:
         sys.stdout.write(sys.stdin.read(length))
     count += 1
 """
-
-    if kiwi_user is None:
-        kiwi_user = "gemini"
 
     range_table = kiwi_transmittor.create_temp_table(prefix=os.path.basename(src))
     kiwi_transmittor.write_table(range_table,

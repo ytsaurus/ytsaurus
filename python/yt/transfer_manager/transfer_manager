@@ -836,6 +836,8 @@ class Application(object):
 
         if "mr_user" not in params:
             params["mr_user"] = self._config.get("default_mr_user")
+        if "kiwi_user" not in params:
+            params["kiwi_user"] = self._config.get("default_kiwi_user")
         if "backend_tag" not in params:
             params["backend_tag"] = self._config.get("backend_tag")
 
@@ -1090,6 +1092,7 @@ DEFAULT_CONFIG = {
     },
     "backend_tag": "testing",
     "default_mr_user": "userdata",
+    "default_kiwi_user": "gemini",
     "scheduling_backoff": 5,
     "error_details_length_limit": 50000,
     "pending_tasks_limit": 5000,
