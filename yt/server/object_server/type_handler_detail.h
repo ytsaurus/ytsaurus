@@ -53,8 +53,7 @@ public:
         YUNREACHABLE();
     }
 
-    virtual NTransactionServer::TTransaction* GetStagingTransaction(
-        TObjectBase* object) override
+    virtual NTransactionServer::TTransaction* GetStagingTransaction(TObjectBase* object) override
     {
         return DoGetStagingTransaction(static_cast<TObject*>(object));
     }
@@ -85,18 +84,16 @@ public:
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
 
-
     virtual Stroka DoGetName(TObject* object) = 0;
 
     virtual IObjectProxyPtr DoGetProxy(
         TObject* object,
         NTransactionServer::TTransaction* /*transaction*/)
     {
-        return New< TNonversionedObjectProxyBase<TObject> >(Bootstrap_, object);
+        return New<TNonversionedObjectProxyBase<TObject>>(Bootstrap_, object);
     }
 
-    virtual NTransactionServer::TTransaction* DoGetStagingTransaction(
-        TObject* /*object*/)
+    virtual NTransactionServer::TTransaction* DoGetStagingTransaction(TObject* /*object*/)
     {
         return nullptr;
     }

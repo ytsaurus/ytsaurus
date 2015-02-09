@@ -1148,8 +1148,7 @@ void TMapNodeProxy::DoRemoveChild(
     if (Transaction) {
         auto it = keyToChild.find(key);
         if (it == keyToChild.end()) {
-            // TODO(babenko): remove cast when GCC supports native nullptr
-            YCHECK(keyToChild.insert(std::make_pair(key, (TCypressNodeBase*) nullptr)).second);
+            YCHECK(keyToChild.insert(std::make_pair(key, nullptr)).second);
             DetachChild(Bootstrap, TrunkNode, childImpl, false);
         } else {
             it->second = nullptr;

@@ -287,7 +287,8 @@ public:
 
     virtual void Destroy(TObjectBase* object) override
     {
-        DoDestroy(static_cast<TCypressNodeBase*>(object));
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->DestroyNode(static_cast<TCypressNodeBase*>(object));
     }
 
     virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
