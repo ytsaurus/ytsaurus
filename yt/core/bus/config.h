@@ -48,17 +48,6 @@ public:
 
         RegisterParameter("max_backlog_size", MaxBacklogSize)
             .Default(8192);
-
-        RegisterValidator([&] () {
-            if (Port) {
-                return;
-            }
-            if (UnixDomainName) {
-                return;
-            }
-
-            THROW_ERROR_EXCEPTION("Port and UnixDomainName are empty at the same time");
-        });
     }
 
     static TTcpBusServerConfigPtr CreateTcp(int port);

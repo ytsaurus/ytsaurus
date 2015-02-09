@@ -441,7 +441,7 @@ public:
             THROW_ERROR_EXCEPTION("Cannot find job %v to probe", jobId);
         }
 
-        const auto& address = job->GetNode()->Descriptor().GetDefaultAddress();
+        const auto& address = job->GetNode()->Descriptor().GetInterconnectAddress();
         auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
 
         TJobProberServiceProxy probeProxy(channel);
