@@ -108,6 +108,8 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow> *rows) override
     {
+        YCHECK(rows->capacity() > 0);
+
         MemoryPool_.Clear();
         rows->clear();
 
@@ -130,7 +132,7 @@ public:
             sortedRowCount = AtomicGet(SortedRowCount_);
         }
 
-        while (ReadRowCount_ < sortedRowCount) {
+        while (ReadRowCount_ < sortedRowCount && rows->size() < rows->capacity()) {
             auto sortedIndex = SortedIndexes_[ReadRowCount_];
             const char* rowPtr = RowPtrBuffer_[sortedIndex];
             rows->push_back(THorizontalSchemalessBlockReader::GetRow(rowPtr, &MemoryPool_));
