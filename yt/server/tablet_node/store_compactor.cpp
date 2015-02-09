@@ -504,8 +504,15 @@ private:
 
             tablet->SetLastPartitioningTime(TInstant::Now());
 
+            auto this_ = MakeStrong(this);
             CreateMutation(slot->GetHydraManager(), hydraRequest)
-                ->Commit();
+                ->Commit()
+                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
+                    UNUSED(this_);
+                    if (!error.IsOK()) {
+                        LOG_ERROR(error, "Error committing tablet stores update mutation");
+                    }
+                }));
 
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {
@@ -659,8 +666,15 @@ private:
             LOG_INFO("Partition compaction completed (RowCount: %v)",
                 readRowCount);
 
+            auto this_ = MakeStrong(this);
             CreateMutation(slot->GetHydraManager(), hydraRequest)
-                ->Commit();
+                ->Commit()
+                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
+                    UNUSED(this_);
+                    if (!error.IsOK()) {
+                        LOG_ERROR(error, "Error committing tablet stores update mutation");
+                    }
+                }));
 
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {

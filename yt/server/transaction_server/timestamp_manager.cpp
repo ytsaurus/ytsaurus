@@ -214,13 +214,11 @@ private:
         request.set_timestamp(commitTimestamp);
 
         auto mutation = CreateMutation(HydraManager_, request);
-        auto this_ = MakeStrong(this);
-        AutomatonInvoker_->Invoke(BIND([=] () {
-            mutation
-                ->Commit()
-                 .Subscribe(BIND(&TImpl::OnTimestampCommitted, this_, commitTimestamp)
-                    .Via(TimestampInvoker_));
-        }));
+        BIND(&TMutation::Commit, mutation)
+            .AsyncVia(AutomatonInvoker_)
+            .Run()
+            .Subscribe(BIND(&TImpl::OnTimestampCommitted, MakeStrong(this), commitTimestamp)
+                .Via(TimestampInvoker_));
     }
 
     void OnTimestampCommitted(TTimestamp timestamp, TErrorOr<TMutationResponse> result)

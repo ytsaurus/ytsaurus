@@ -199,6 +199,8 @@ void TGarbageCollector::OnSweep()
         .Subscribe(BIND([this, this_] (const TErrorOr<TMutationResponse>& error) {
             if (error.IsOK()) {
                 SweepExecutor_->ScheduleOutOfBand();
+            } else {
+                LOG_WARNING(error, "Error committing GC sweep mutation");
             }
             SweepExecutor_->ScheduleNext();
         }).Via(invoker));

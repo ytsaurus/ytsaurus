@@ -1405,9 +1405,12 @@ void TChunkReplicator::OnPropertiesUpdate()
     chunkManager
         ->CreateUpdateChunkPropertiesMutation(request)
         ->Commit()
-        .Subscribe(BIND([this, this_] (const TErrorOr<TMutationResponse>& error) {
+        .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
+            UNUSED(this_);
             if (error.IsOK()) {
                 PropertiesUpdateExecutor_->ScheduleOutOfBand();
+            } else {
+                LOG_ERROR(error, "Error committing properties update mutation");
             }
             PropertiesUpdateExecutor_->ScheduleNext();
         }).Via(invoker));

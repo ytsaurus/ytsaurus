@@ -130,9 +130,12 @@ void TAccessTracker::OnFlush()
         ->GetCypressManager()
         ->CreateUpdateAccessStatisticsMutation(UpdateAccessStatisticsRequest_)
         ->Commit()
-        .Subscribe(BIND([this, this_] (const TErrorOr<TMutationResponse>& error) {
+        .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
+            UNUSED(this_);
             if (error.IsOK()) {
                 FlushExecutor_->ScheduleOutOfBand();
+            } else {
+                LOG_WARNING(error, "Error committing access statistics update");
             }
             FlushExecutor_->ScheduleNext();
         }).Via(invoker));

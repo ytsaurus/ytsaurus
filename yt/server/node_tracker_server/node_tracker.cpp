@@ -673,9 +673,6 @@ private:
 
         OnlineNodeCount_ = 0;
         RegisteredNodeCount_ = 0;
-
-        NodeRemovalQueue_.clear();
-        PendingRemoveNodeMutationCount_ = 0;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -735,6 +732,9 @@ private:
             auto* node = pair.second;
             RefreshNodeConfig(node);
         }
+
+        NodeRemovalQueue_.clear();
+        PendingRemoveNodeMutationCount_ = 0;
     }
 
     virtual void OnLeaderActive() override
@@ -1000,10 +1000,14 @@ private:
         request.set_node_id(node->GetId());
 
         auto mutation = CreateUnregisterNodeMutation(request);
-        Bootstrap_
-            ->GetHydraFacade()
-            ->GetEpochAutomatonInvoker()
-            ->Invoke(BIND(IgnoreResult(&TMutation::Commit), mutation));
+        BIND(&TMutation::Commit, mutation)
+            .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker())
+            .Run()
+            .Subscribe(BIND([] (const TErrorOr<TMutationResponse>& error) {
+                if (!error.IsOK()) {
+                    LOG_ERROR(error, "Error committing node unregistration mutation");
+                }
+            }));
     }
 
     void MaybePostRemoveNodeMutations()
@@ -1021,10 +1025,14 @@ private:
             ++PendingRemoveNodeMutationCount_;
 
             auto mutation = CreateRemoveNodeMutation(request);
-            Bootstrap_
-                ->GetHydraFacade()
-                ->GetEpochAutomatonInvoker()
-                ->Invoke(BIND(IgnoreResult(&TMutation::Commit), mutation));
+            BIND(&TMutation::Commit, mutation)
+                .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker())
+                .Run()
+                .Subscribe(BIND([] (const TErrorOr<TMutationResponse>& error) {
+                    if (!error.IsOK()) {
+                        LOG_ERROR(error, "Error committing node removal mutation");
+                    }
+                }));
         }
     }
 

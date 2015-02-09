@@ -3,6 +3,7 @@
 #include "tablet_manager.h"
 #include "tablet_cell.h"
 #include "config.h"
+#include "private.h"
 
 #include <core/concurrency/periodic_executor.h>
 
@@ -21,10 +22,12 @@ using namespace NConcurrency;
 using namespace NObjectServer;
 using namespace NTabletServer::NProto;
 using namespace NNodeTrackerServer;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TDuration CellsScanPeriod = TDuration::Seconds(3);
+static const auto CellsScanPeriod = TDuration::Seconds(3);
+static const auto& Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,11 +162,17 @@ void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
         assigned = true;
     }
 
-    if (assigned) {
-        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->Commit();
-    }
+    if (!assigned)
+        return;
+
+    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    CreateMutation(hydraManager, request)
+        ->Commit()
+        .Subscribe(BIND([] (const TErrorOr<TMutationResponse>& error) {
+            if (!error.IsOK()) {
+                LOG_WARNING(error, "Error committing peer assignment mutation");
+            }
+        }));
 }
 
 void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
@@ -183,11 +192,18 @@ void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
         }
     }
 
-    if (request.peer_ids_size() > 0) {
-        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->Commit();
-    }
+    if (request.peer_ids_size() == 0)
+        return;
+
+    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    auto this_ = MakeStrong(this);
+    CreateMutation(hydraManager, request)
+        ->Commit()
+        .Subscribe(BIND([] (const TErrorOr<TMutationResponse>& error) {
+            if (!error.IsOK()) {
+                LOG_WARNING(error, "Error committing peer revocation mutation");
+            }
+        }));
 }
 
 bool TTabletTracker::IsFailoverNeeded(TTabletCell* cell, TPeerId peerId)

@@ -540,8 +540,16 @@ private:
         TReqAcknowledgeMessages req;
         ToProto(req.mutable_cell_id(), mailbox->GetCellId());
         req.set_last_incoming_message_id(lastIncomingMessageId);
+
+        auto this_ = MakeStrong(this);
         CreateAcknowledgeMessagesMutation(req)
-            ->Commit();
+            ->Commit()
+            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
+                UNUSED(this_);
+                if (!error.IsOK()) {
+                    LOG_ERROR(error, "Error committing message acknowledgment mutation");
+                }
+            }));
     }
 
     void HandleIncomingMessages(TMailbox* mailbox, const TReqPostMessages& req)

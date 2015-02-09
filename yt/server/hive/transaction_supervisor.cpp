@@ -270,8 +270,16 @@ private:
         ToProto(hydraRequest.mutable_mutation_id(), commit->GetMutationId());
         ToProto(hydraRequest.mutable_participant_cell_ids(), commit->ParticipantCellIds());
         hydraRequest.set_prepare_timestamp(prepareTimestamp);
+
+        auto this_ = MakeStrong(this);
         CreateMutation(HydraManager, hydraRequest)
-            ->Commit();
+            ->Commit()
+            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
+                UNUSED(this_);
+                if (!error.IsOK()) {
+                    LOG_WARNING(error, "Error committing distributed transaction phase one start");
+                }
+            }));
     }
 
     TFuture<TSharedRefArray> DoAbortTransaction(
@@ -313,11 +321,16 @@ private:
 
         // If the mutation succeeds then Response Keeper gets notified in HydraAbortTransaction.
         // If it fails then the current epoch ends and Response Keeper gets cleaned up anyway.
+        auto this_ = MakeStrong(this);
         return CreateMutation(HydraManager, hydraRequest)
-            ->Commit().Apply(BIND([] (const TErrorOr<TMutationResponse>& result) -> TSharedRefArray {
-                return result.IsOK()
-                    ? result.Value().Data
-                    : CreateErrorResponseMessage(result);
+            ->Commit()
+            .Apply(BIND([=] (const TErrorOr<TMutationResponse>& result) -> TSharedRefArray {
+                if (result.IsOK()) {
+                    return result.Value().Data;
+                } else {
+                    LOG_WARNING(result, "Error committing transaction abort mutation");
+                    return CreateErrorResponseMessage(result);
+                }
             }));
     }
 
@@ -709,19 +722,32 @@ private:
         }
 
         auto timestamp = timestampOrError.Value();
+        auto this_ = MakeStrong(this);
         if (commit->IsDistributed()) {
             TReqCommitDistributedTransactionPhaseTwo hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_commit_timestamp(timestamp);
             CreateMutation(HydraManager, hydraRequest)
-                ->Commit();
+                ->Commit()
+                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
+                    UNUSED(this_);
+                    if (!error.IsOK()) {
+                        LOG_ERROR(error, "Error committing distributed transaction phase two start mutation");
+                    }
+                }));
         } else {
             TReqCommitSimpleTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             ToProto(hydraRequest.mutable_mutation_id(), commit->GetMutationId());
             hydraRequest.set_commit_timestamp(timestamp);
             CreateMutation(HydraManager, hydraRequest)
-                ->Commit();
+                ->Commit()
+                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
+                    UNUSED(this_);
+                    if (!error.IsOK()) {
+                        LOG_ERROR(error, "Error committing simple transaction commit mutation");
+                    }
+                }));
         }
     }
 
