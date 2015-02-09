@@ -311,7 +311,7 @@ public:
         for (const auto& inputContext : inputContexts) {
             if (inputContext != NChunkServer::NullChunkId) {
                 auto path = Format("%v/%v", directory, index);
-                auto req = GetFileSaveRequest(path, inputContext);
+                auto req = MakeCreateFileRequest(path, inputContext);
 
                 batchReq->AddRequest(req, "create_input_context");
             }
@@ -1472,7 +1472,7 @@ private:
                     for (const auto& failContextChunkId : request.FailContextChunkIds) {
                         if (failContextChunkId != NChunkServer::NullChunkId) {
                             auto failContextPath = GetFailContextPath(operation->GetId(), job->GetId(), index);
-                            auto req = GetFileSaveRequest(failContextPath, failContextChunkId);
+                            auto req = MakeCreateFileRequest(failContextPath, failContextChunkId);
 
                             batchReq->AddRequest(req, "create_fail_context");
                         }
@@ -1810,7 +1810,7 @@ private:
         }
     }
 
-    decltype(TCypressYPathProxy::Create()) GetFileSaveRequest(const Stroka& path, const TChunkId& chunkId)
+    TCypressYPathProxy::TReqCreatePtr MakeCreateFileRequest(const Stroka& path, const TChunkId& chunkId)
     {
         auto req = TCypressYPathProxy::Create(path);
         GenerateMutationId(req);

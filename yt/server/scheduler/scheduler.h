@@ -31,8 +31,6 @@ public:
 
     ~TScheduler();
 
-    void SetLastEvent(const Stroka& value);
-
     void Initialize();
 
     ISchedulerStrategy* GetStrategy();
@@ -49,8 +47,6 @@ public:
 
     TOperationPtr FindOperation(const TOperationId& id);
     TOperationPtr GetOperationOrThrow(const TOperationId& id);
-
-    TJobPtr FindJob(const TJobId& id);
 
     TExecNodePtr FindNode(const Stroka& address);
     TExecNodePtr GetNode(const Stroka& address);
@@ -81,8 +77,6 @@ public:
     void ProcessHeartbeat(
         TExecNodePtr node,
         TCtxHeartbeatPtr context);
-
-    // save input context function
 
 private:
     class TImpl;

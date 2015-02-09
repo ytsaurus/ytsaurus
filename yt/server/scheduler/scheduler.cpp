@@ -201,12 +201,6 @@ public:
             .Item("address").Value(ServiceAddress_);
     }
 
-    void SetLastEvent(const Stroka& value)
-    {
-        LastEvent_ = value;
-    }
-
-
     ISchedulerStrategy* GetStrategy()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -443,16 +437,16 @@ public:
     {
         auto job = FindJob(jobId);
 
-        if (job == nullptr) {
-            THROW_ERROR_EXCEPTION("Unable to find %v job to probe", jobId);
+        if (!job) {
+            THROW_ERROR_EXCEPTION("Cannot find job %v to probe", jobId);
         }
 
         const auto& address = job->GetNode()->Descriptor().GetDefaultAddress();
         auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
 
-        auto probeProxy = std::make_unique<TJobProberServiceProxy>(channel);
+        TJobProberServiceProxy probeProxy(channel);
 
-        auto req = probeProxy->GenerateInputContext();
+        auto req = probeProxy.GenerateInputContext();
         ToProto(req->mutable_job_id(), jobId);
 
         return req->Invoke().Apply(
@@ -731,8 +725,6 @@ private:
 
     TActionQueuePtr BackgroundQueue_;
     TActionQueuePtr SnapshotIOQueue_;
-
-    Stroka LastEvent_;
 
     std::unique_ptr<TMasterConnector> MasterConnector_;
 
@@ -1827,7 +1819,6 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("last_event").Value(LastEvent_)
                 .Item("connected").Value(MasterConnector_->IsConnected())
                 .Item("cell").BeginMap()
                     .Item("resource_limits").Value(TotalResourceLimits_)
@@ -2155,11 +2146,6 @@ void TScheduler::Initialize()
     Impl_->Initialize();
 }
 
-void TScheduler::SetLastEvent(const Stroka& value)
-{
-    Impl_->SetLastEvent(value);
-}
-
 ISchedulerStrategy* TScheduler::GetStrategy()
 {
     return Impl_->GetStrategy();
@@ -2203,11 +2189,6 @@ TOperationPtr TScheduler::FindOperation(const TOperationId& id)
 TOperationPtr TScheduler::GetOperationOrThrow(const TOperationId& id)
 {
     return Impl_->GetOperationOrThrow(id);
-}
-
-TJobPtr TScheduler::FindJob(const TJobId& id)
-{
-    return Impl_->FindJob(id);
 }
 
 TExecNodePtr TScheduler::FindNode(const Stroka& address)

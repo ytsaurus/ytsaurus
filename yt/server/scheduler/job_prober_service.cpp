@@ -19,12 +19,12 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////
 
 class TJobProberService
-	: public TServiceBase
+    : public TServiceBase
 {
 public:
 	TJobProberService(TBootstrap* bootstrap)
-		: TServiceBase(
-			bootstrap->GetControlInvoker(),
+        : TServiceBase(
+            bootstrap->GetControlInvoker(),
             TJobProberServiceProxy::GetServiceName(),
             SchedulerLogger,
             TJobProberServiceProxy::GetProtocolVersion(),
@@ -41,7 +41,7 @@ private:
     {
         auto jobId = FromProto<TJobId>(request->job_id());
         auto path = FromProto<Stroka>(request->path());
-        context->SetRequestInfo("JobId: %v. Path: %v", jobId, path);
+        context->SetRequestInfo("JobId: %v, Path: %v", jobId, path);
 
         WaitFor(Bootstrap_->GetScheduler()->GenerateInputContext(jobId, path))
             .ThrowOnError();
@@ -52,7 +52,7 @@ private:
 
 IServicePtr CreateJobProberService(TBootstrap* bootstrap)
 {
-	return New<TJobProberService>(bootstrap);
+    return New<TJobProberService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////
