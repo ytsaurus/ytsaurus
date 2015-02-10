@@ -92,9 +92,6 @@ private:
     TFileReaderOptions Options_;
     TFileReaderConfigPtr Config_;
 
-    bool IsFirstBlock_ = true;
-    bool IsFinished_ = false;
-
     TTransactionPtr Transaction_;
 
     IFileMultiChunkReaderPtr Reader_;
