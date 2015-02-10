@@ -675,7 +675,9 @@ private:
                 .AsyncVia(WorkerThread_->GetInvoker())));
         }
 
-        context->ReplyFrom(Combine(asyncResults));
+        // ToDo(psushin): replace with ReplyFrom when it supports cancelation.
+        auto error = WaitFor(Combine(asyncResults));
+        context->Reply(error);
     }
 
     void MakeChunkSplits(
@@ -761,7 +763,9 @@ private:
                 .AsyncVia(WorkerThread_->GetInvoker())));
         }
 
-        context->ReplyFrom(Combine(asyncResults));
+        // ToDo(psushin): replace with ReplyFrom when it supports cancelation.
+        auto error = WaitFor(Combine(asyncResults));
+        context->Reply(error);
     }
 
     void ProcessSample(
