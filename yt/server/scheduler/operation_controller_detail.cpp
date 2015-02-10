@@ -3656,8 +3656,8 @@ void TOperationControllerBase::InitUserJobSpec(
     TJobletPtr joblet,
     i64 memoryReserve)
 {
-    auto stderrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
-    ToProto(jobSpec->mutable_stderr_transaction_id(), stderrTransactionId);
+    auto asyncSchedulerTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
+    ToProto(jobSpec->mutable_async_scheduler_transaction_id(), asyncSchedulerTransactionId);
 
     jobSpec->set_memory_reserve(memoryReserve);
 

@@ -174,7 +174,7 @@ public:
 
         if (jobResultError.IsOK()) {
             JobIO_->PopulateResult(schedulerResultExt);
-        } else if (UserJobSpec_.has_stderr_transaction_id()) {
+        } else {
             SaveFailContexts(schedulerResultExt);
         }
 
@@ -327,17 +327,13 @@ private:
 
     TOutputStream* CreateErrorOutput()
     {
-        if (!UserJobSpec_.has_stderr_transaction_id()) {
-            return &NullOutput;
-        }
-
         auto host = Host.Lock();
         YCHECK(host);
 
         ErrorOutput_.reset(new TErrorOutput(
             Config_->JobIO->ErrorFileWriter,
             host->GetMasterChannel(),
-            FromProto<TTransactionId>(UserJobSpec_.stderr_transaction_id()),
+            FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id()),
             UserJobSpec_.max_stderr_size()));
 
         return ErrorOutput_.get();
@@ -358,10 +354,6 @@ private:
 
     void SaveFailContexts(TSchedulerJobResultExt* schedulerResultExt)
     {
-        if (!UserJobSpec_.has_stderr_transaction_id()) {
-            return;
-        }
-
         auto contexts = DoGetInputContexts();
         auto contextChunkIds = SaveInputContexts(contexts);
 
@@ -391,14 +383,10 @@ private:
     {
         std::vector<TChunkId> results;
 
-        if (!UserJobSpec_.has_stderr_transaction_id()) {
-            THROW_ERROR_EXCEPTION("There are no stderr transaction");
-        }
-
         auto host = Host.Lock();
         YCHECK(host);
 
-        auto transactionId = FromProto<TTransactionId>(UserJobSpec_.stderr_transaction_id());
+        auto transactionId = FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id());
         for (int index = 0; index < contexts.size(); ++index) {
             TErrorOutput contextOutput(
                 Config_->JobIO->ErrorFileWriter,
