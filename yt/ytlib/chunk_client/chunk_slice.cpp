@@ -228,6 +228,12 @@ std::vector<TChunkSlicePtr> SliceNewChunkByKeys(
         return { CreateChunkSlice(chunkSpec, lowerKey, upperKey) };
     }
 
+    std::vector<TOwningKey> indexKeys(blockMetaExt.blocks_size(), TOwningKey());
+    for (int i = 0; i < blockMetaExt.blocks_size(); ++i) {
+        YCHECK(i == blockMetaExt.blocks(i).block_index());
+        FromProto(&indexKeys[i], blockMetaExt.blocks(i).last_key());
+    }
+
     using NChunkClient::TReadLimit;
     auto comparer = [&] (
         const TReadLimit& limit,
@@ -246,9 +252,10 @@ std::vector<TChunkSlicePtr> SliceNewChunkByKeys(
         }
 
         if (limit.HasKey()) {
-            TOwningKey indexKey;
-            FromProto(&indexKey, blockMeta.last_key());
-            result += CompareRows(limit.GetKey(), indexKey, keyColumnCount);
+            result += CompareRows(
+                limit.GetKey(), 
+                indexKeys[blockMeta.block_index()], 
+                keyColumnCount);
         }
 
         if (result == 0) {
@@ -291,9 +298,8 @@ std::vector<TChunkSlicePtr> SliceNewChunkByKeys(
             break;
         }
 
-        TOwningKey key, nextKey;
-        FromProto(&key, beginIt->last_key());
-        FromProto(&nextKey, nextIt->last_key());
+        TOwningKey& key = indexKeys[beginIt->block_index()];
+        const TOwningKey& nextKey = indexKeys[nextIt->block_index()];
         if (CompareRows(nextKey, key, keyColumnCount) == 0) {
             continue;
         }
