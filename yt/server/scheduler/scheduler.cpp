@@ -435,6 +435,15 @@ public:
 
     TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
     {
+        return BIND(&TImpl::DoDumpInputContext, MakeStrong(this), jobId, path)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+    }
+
+    void DoDumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto job = FindJob(jobId);
 
         if (!job) {
@@ -449,29 +458,15 @@ public:
         auto req = probeProxy.DumpInputContext();
         ToProto(req->mutable_job_id(), jobId);
 
-        return req->Invoke().Apply(
-            BIND(
-                &TImpl::OnDumpInputContextResponse,
-                MakeStrong(this),
-                jobId,
-                path));
-    }
+        auto errorOrResponse = WaitFor(req->Invoke());
 
-    TFuture<void> OnDumpInputContextResponse(const TJobId& jobId,
-        const NYPath::TYPath& path,
-        const TJobProberServiceProxy::TRspDumpInputContextPtr& response)
-    {
+        if (!errorOrResponse.IsOK()) {
+            THROW_ERROR_EXCEPTION("Error dumping input context for job: %v", jobId)
+                << errorOrResponse;
+        }
+
+        auto response = errorOrResponse.Value();
         auto chunkIds = FromProto<TGuid>(response->chunk_id());
-
-        return BIND(&TImpl::DoSaveInputContext, MakeStrong(this), path, chunkIds)
-            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
-            .Run();
-    }
-
-    TFuture<void> DoSaveInputContext(
-        const NYPath::TYPath& path,
-        const std::vector<NChunkClient::TChunkId>& chunkIds)
-    {
         return MasterConnector_->SaveInputContext(path, chunkIds);
     }
 

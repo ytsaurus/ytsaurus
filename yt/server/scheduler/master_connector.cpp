@@ -301,7 +301,7 @@ public:
         list->WatcherHandlers.push_back(handler);
     }
 
-    TFuture<void> SaveInputContext(const TYPath& directory, const std::vector<TChunkId>& inputContexts)
+    void SaveInputContext(const TYPath& directory, const std::vector<TChunkId>& inputContexts)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -317,20 +317,7 @@ public:
             }
             ++index;
         }
-        return batchReq->Invoke().Apply(
-            BIND(
-                &TImpl::OnSaveInputContext,
-                MakeStrong(this),
-                directory)
-            .AsyncVia(Bootstrap->GetControlInvoker()));
-    }
-
-    void OnSaveInputContext(
-        const TYPath& directory,
-        const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
         auto error = GetCumulativeError(batchRspOrError);
 
         if (!error.IsOK()) {
@@ -1914,7 +1901,7 @@ void TMasterConnector::AddOperationWatcherHandler(TOperationPtr operation, TWatc
     Impl->AddOperationWatcherHandler(operation, handler);
 }
 
-TFuture<void> TMasterConnector::SaveInputContext(
+void TMasterConnector::SaveInputContext(
     const TYPath& directory,
     const std::vector<NChunkClient::TChunkId>& inputContexts)
 {
