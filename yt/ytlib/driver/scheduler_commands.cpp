@@ -18,7 +18,7 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobProbeCommand::DoExecute()
+void TDumpInputContext::DoExecute()
 {
     WaitFor(Context_->GetClient()->DumpInputContext(Request_->JobId, Request_->Path))
         .ThrowOnError();
