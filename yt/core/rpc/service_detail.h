@@ -509,7 +509,7 @@ protected:
         //! Time between the request arrival and the moment when it is fully processed.
         NProfiling::TAggregateCounter TotalTimeCounter;
 
-        std::atomic<int> RunningRequestSemaphore;
+        std::atomic<int> RunningRequestSemaphore = {0};
         TLockFreeQueue<TServiceContextPtr> RequestQueue;
     };
 
