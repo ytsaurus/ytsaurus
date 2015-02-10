@@ -291,15 +291,15 @@ std::vector<TChunkSlicePtr> SliceNewChunkByKeys(
     i64 dataSize = 0;
 
     while (true) {
-        dataSize += beginIt->uncompressed_size();
+        auto currentIt = beginIt++;
+        dataSize += currentIt->uncompressed_size();
 
-        auto nextIt = beginIt + 1;
-        if (nextIt == endIt) {
+        if (beginIt == endIt) {
             break;
         }
 
-        TOwningKey& key = indexKeys[beginIt->block_index()];
-        const TOwningKey& nextKey = indexKeys[nextIt->block_index()];
+        TOwningKey& key = indexKeys[currentIt->block_index()];
+        const TOwningKey& nextKey = indexKeys[beginIt->block_index()];
         if (CompareRows(nextKey, key, keyColumnCount) == 0) {
             continue;
         }
@@ -308,7 +308,7 @@ std::vector<TChunkSlicePtr> SliceNewChunkByKeys(
             // Sanity check.
             YCHECK(CompareRows(lowerKey, key) <= 0);
     
-            i64 endRowIndex = beginIt->chunk_row_count();
+            i64 endRowIndex = currentIt->chunk_row_count();
             key = GetKeyPrefixSuccessor(key.Get(), keyColumnCount);
 
             auto slice = CreateChunkSlice(chunkSpec, lowerKey, key);
@@ -320,8 +320,6 @@ std::vector<TChunkSlicePtr> SliceNewChunkByKeys(
             startRowIndex = endRowIndex;
             dataSize = 0;
         }
-
-        ++beginIt;
     }
 
     YCHECK(CompareRows(lowerKey, upperKey) <= 0);
