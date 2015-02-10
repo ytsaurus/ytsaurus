@@ -622,7 +622,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         for job_id in ls(jobs_path):
             assert len(download(jobs_path + "/" + job_id + "/fail_contexts/0")) > 0
 
-    def test_generate_input_context(self):
+    def test_dump_input_context(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write("//tmp/t1", {"foo": "bar"})
@@ -648,14 +648,14 @@ class TestSchedulerMapCommands(YTEnvSetup):
         while not os.access(pin_filename, os.F_OK):
             time.sleep(0.2)
 
-        probed = False
+        dumped = False
         jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
         jobs = ls(jobs_path)
         for job_id in jobs:
-            probed = True
-            probe_job(job_id, "//tmp/input_contexts")
+            dump_input_context(job_id, "//tmp/input_contexts")
+            dumped = True
 
-        assert probed
+        assert dumped
 
         os.unlink(pin_filename)
 
