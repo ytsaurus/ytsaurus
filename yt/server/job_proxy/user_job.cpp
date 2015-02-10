@@ -110,6 +110,7 @@ public:
         , UserJobSpec_(userJobSpec)
         , Config_(host->GetConfig())
         , JobErrorPromise_(NewPromise<void>())
+        , Prepared_(false)
         , MemoryUsage_(UserJobSpec_.memory_reserve())
         , PipeIOQueue_(New<TActionQueue>("PipesIO"))
         , PeriodicQueue_(New<TActionQueue>("UserJobPeriodic"))
@@ -136,6 +137,8 @@ public:
         LOG_DEBUG("Starting job process");
 
         Prepare();
+
+        Prepared_ = true;
 
         Process_.Spawn();
         LOG_INFO("Job process started");
@@ -213,6 +216,8 @@ private:
     TJobProxyConfigPtr Config_;
 
     TPromise<void> JobErrorPromise_;
+
+    std::atomic<bool> Prepared_;
 
     i64 MemoryUsage_;
 
@@ -367,6 +372,10 @@ private:
 
     virtual std::vector<TChunkId> DumpInputContext() override
     {
+        if (!Prepared_) {
+            THROW_ERROR_EXCEPTION("Cannot dump input context: job pipes are not prepared");
+        }
+
         auto contexts = WaitFor(
             BIND(&TUserJob::DoGetInputContexts, MakeStrong(this))
                 .AsyncVia(PipeIOQueue_->GetInvoker())
