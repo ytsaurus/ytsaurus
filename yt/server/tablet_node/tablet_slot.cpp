@@ -215,10 +215,8 @@ public:
 
     TObjectId GenerateId(EObjectType type)
     {
-        auto* mutationContext = HydraManager_->GetMutationContext();
-
-        const auto& version = mutationContext->GetVersion();
-
+        auto* mutationContext = GetCurrentMutationContext();
+        auto version = mutationContext->GetVersion();
         auto random = mutationContext->RandomGenerator().Generate<ui64>();
 
         return TObjectId(

@@ -215,8 +215,8 @@ private:
         auto hydraFacade = Bootstrap->GetHydraFacade();
         auto hydraManager = hydraFacade->GetHydraManager();
 
-        // NB: IsMutating() check is needed to prevent leader fallback for propagated mutations.
-        if (Any(Options & EVirtualNodeOptions::RequireLeader) && !hydraManager->IsMutating()) {
+        // NB: Mutation context check is needed to prevent leader fallback for propagated mutations.
+        if (Any(Options & EVirtualNodeOptions::RequireLeader) && !NHydra::HasMutationContext()) {
             hydraFacade->ValidateActiveLeader();
         }
 

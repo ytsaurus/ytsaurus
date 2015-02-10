@@ -327,10 +327,7 @@ public:
             : Null;
         transaction->SetTimeout(actualTimeout);
 
-        auto* mutationContext = Bootstrap_
-            ->GetHydraFacade()
-            ->GetHydraManager()
-            ->GetMutationContext();
+        const auto* mutationContext = GetCurrentMutationContext();
         transaction->SetStartTime(mutationContext->GetTimestamp());
 
         auto securityManager = Bootstrap_->GetSecurityManager();

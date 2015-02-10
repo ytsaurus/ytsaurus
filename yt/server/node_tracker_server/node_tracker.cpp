@@ -788,9 +788,6 @@ private:
         if (!transaction)
             return;
 
-        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        const auto* mutationContext = hydraManager->GetMutationContext();
-
         auto timeout = GetNodeLeaseTimeout(node);
         transaction->SetTimeout(timeout);
 
@@ -798,7 +795,9 @@ private:
             auto objectManager = Bootstrap_->GetObjectManager();
             auto rootService = objectManager->GetRootService();
             auto nodePath = GetNodePath(node);
-            SyncYPathSet(rootService, nodePath + "/@last_seen_time", ConvertToYsonString(mutationContext->GetTimestamp()));
+            const auto* mutationContext = GetCurrentMutationContext();
+            auto mutationTimestamp = mutationContext->GetTimestamp();
+            SyncYPathSet(rootService, nodePath + "/@last_seen_time", ConvertToYsonString(mutationTimestamp));
         } catch (const std::exception& ex) {
             LOG_ERROR_UNLESS(IsRecovery(), ex, "Error updating node properties in Cypress");
         }
@@ -843,8 +842,7 @@ private:
             auto config = GetNodeConfigByAddress(address);
             auto nodeId = GenerateNodeId();
 
-            auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            const auto* mutationContext = hydraManager->GetMutationContext();
+            const auto* mutationContext = GetCurrentMutationContext();
 
             auto* node = new TNode(
                 nodeId,

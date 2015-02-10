@@ -154,7 +154,7 @@ public:
     void PostMessage(TMailbox* mailbox, const TEncapsulatedMessage& message)
     {
         // A typical mistake is to try sending a Hive message outside of a mutation.
-        YCHECK(HydraManager->IsMutating());
+        YCHECK(HasMutationContext());
 
         int messageId =
             mailbox->GetFirstOutcomingMessageId() +
@@ -602,11 +602,11 @@ private:
                 mailbox->SetLastIncomingMessageId(frontMessageId);
                 consumed = true;
 
-                TMutationContext context(HydraManager->GetMutationContext(), request);
-                static_cast<IAutomaton*>(Automaton)->ApplyMutation(&context);
-
-                // XXX(babenko): this is a temporary workaround
-                HydraManager->GetMutationContext()->Response().Data.Reset();
+                {
+                    TMutationContext context(GetCurrentMutationContext(), request);
+                    TMutationContextGuard contextGuard(&context);
+                    static_cast<IAutomaton*>(Automaton)->ApplyMutation(&context);
+                }
 
                 TRACE_ANNOTATION(
                     traceContext,

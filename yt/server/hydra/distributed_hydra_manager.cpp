@@ -281,13 +281,6 @@ public:
         return AutomatonEpochContext_;
     }
 
-    virtual bool IsMutating() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        return GetMutationContext() != nullptr;
-    }
-
     virtual bool GetReadOnly() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -348,7 +341,7 @@ public:
     virtual TFuture<void> SyncWithLeader() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(!DecoratedAutomaton_->GetMutationContext());
+        YCHECK(!HasMutationContext());
 
         auto epochContext = AutomatonEpochContext_;
         if (!epochContext || !ActiveLeader_ && !ActiveFollower_) {
@@ -364,7 +357,7 @@ public:
     virtual TFuture<TMutationResponse> CommitMutation(const TMutationRequest& request) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(!DecoratedAutomaton_->GetMutationContext());
+        YCHECK(!HasMutationContext());
 
         if (ReadOnly_) {
             return MakeFuture<TMutationResponse>(TError(
@@ -380,13 +373,6 @@ public:
         }
 
         return epochContext->LeaderCommitter->Commit(request);
-    }
-
-    virtual TMutationContext* GetMutationContext() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        return DecoratedAutomaton_->GetMutationContext();
     }
 
 

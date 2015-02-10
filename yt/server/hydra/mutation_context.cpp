@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "mutation_context.h"
 
+#include <core/concurrency/fls.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -73,6 +75,46 @@ TRandomGenerator& TMutationContext::RandomGenerator()
 TMutationResponse& TMutationContext::Response()
 {
     return Response_;
+}
+
+static NConcurrency::TFls<TMutationContext*> CurrentMutationContext;
+
+TMutationContext* TryGetCurrentMutationContext()
+{
+    return *CurrentMutationContext;
+}
+
+TMutationContext* GetCurrentMutationContext()
+{
+    auto* context = TryGetCurrentMutationContext();
+    YASSERT(context);
+    return context;
+}
+
+bool HasMutationContext()
+{
+    return TryGetCurrentMutationContext() != nullptr;
+}
+
+void SetCurrentMutationContext(TMutationContext* context)
+{
+    *CurrentMutationContext = context;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+TMutationContextGuard::TMutationContextGuard(TMutationContext* context)
+    : Context_(context)
+    , SavedContext_(TryGetCurrentMutationContext())
+{
+    YASSERT(Context_);
+    SetCurrentMutationContext(Context_);
+}
+
+TMutationContextGuard::~TMutationContextGuard()
+{
+    YASSERT(GetCurrentMutationContext() == Context_);
+    SetCurrentMutationContext(SavedContext_);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

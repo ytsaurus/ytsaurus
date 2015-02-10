@@ -1008,8 +1008,7 @@ private:
         YCHECK(sampleKeys->Keys.empty() || sampleKeys->Keys[0] > partition->GetPivotKey());
         UpdateTabletSnapshot(tablet);
 
-        auto hydraManager = Slot_->GetHydraManager();
-        const auto* mutationContext = hydraManager->GetMutationContext();
+        const auto* mutationContext = GetCurrentMutationContext();
         partition->SetSamplingTime(mutationContext->GetTimestamp());
 
         LOG_INFO_UNLESS(IsRecovery(), "Partition sample keys updated (TabletId: %v, PartitionId: %v, SampleKeyCount: %v)",
@@ -1449,16 +1448,14 @@ private:
     void SchedulePartitionSampling(TPartition* partition)
     {
         if (partition->GetIndex() != TPartition::EdenIndex) {
-            auto hydraManager = Slot_->GetHydraManager();
-            const auto* mutationContext = hydraManager->GetMutationContext();
+            const auto* mutationContext = GetCurrentMutationContext();
             partition->SetSamplingRequestTime(mutationContext->GetTimestamp());
         }
     }
 
     void SchedulePartitionsSampling(TTablet* tablet, int beginPartitionIndex, int endPartitionIndex)
     {
-        auto hydraManager = Slot_->GetHydraManager();
-        const auto* mutationContext = hydraManager->GetMutationContext();
+        const auto* mutationContext = GetCurrentMutationContext();
         for (int index = beginPartitionIndex; index < endPartitionIndex; ++index) {
             tablet->Partitions()[index]->SetSamplingRequestTime(mutationContext->GetTimestamp());
         }

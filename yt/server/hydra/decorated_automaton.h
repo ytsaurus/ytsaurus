@@ -164,8 +164,6 @@ public:
 
     void CommitMutations(TVersion version);
 
-    TMutationContext* GetMutationContext();
-
 private:
     friend class TUserLockGuard;
     friend class TSystemLockGuard;
@@ -188,7 +186,6 @@ private:
     IChangelogStorePtr ChangelogStore_;
 
     TEpochId Epoch_;
-    TMutationContext* MutationContext_ = nullptr;
     IChangelogPtr Changelog_;
 
     std::atomic<TVersion> LoggedVersion_;
