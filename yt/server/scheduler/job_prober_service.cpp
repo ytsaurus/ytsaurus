@@ -31,19 +31,19 @@ public:
             bootstrap->GetResponseKeeper())
         , Bootstrap_(bootstrap)
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateInputContext));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
     }
 
 private:
     TBootstrap* Bootstrap_;
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, GenerateInputContext)
+    DECLARE_RPC_SERVICE_METHOD(NProto, DumpInputContext)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
         auto path = FromProto<Stroka>(request->path());
         context->SetRequestInfo("JobId: %v, Path: %v", jobId, path);
 
-        WaitFor(Bootstrap_->GetScheduler()->GenerateInputContext(jobId, path))
+        WaitFor(Bootstrap_->GetScheduler()->DumpInputContext(jobId, path))
             .ThrowOnError();
 
         context->Reply();

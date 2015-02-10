@@ -4,12 +4,12 @@ import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGenerateInputContext
+message TReqDumpInputContext
 {
     required NYT.NProto.TGuid job_id = 1;
 }
 
-message TRspGenerateInputContext
+message TRspDumpInputContext
 {
     repeated NYT.NProto.TGuid chunk_id = 1;
 }

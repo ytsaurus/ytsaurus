@@ -40,7 +40,7 @@ struct IJobHost
 
     virtual NLog::TLogger GetLogger() const = 0;
 
-    virtual std::vector<NChunkClient::TChunkId> GenerateInputContext(const NJobTrackerClient::TJobId& jobId) = 0;
+    virtual std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId) = 0;
 
 };
 
@@ -63,7 +63,7 @@ struct IJob
 
     virtual NJobTrackerClient::NProto::TJobStatistics GetStatistics() const = 0;
 
-    virtual std::vector<NChunkClient::TChunkId> GenerateInputContext() = 0;
+    virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
 
 };
 

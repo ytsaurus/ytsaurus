@@ -4,13 +4,13 @@ import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGenerateInputContext
+message TReqDumpInputContext
 {
     required NYT.NProto.TGuid job_id = 1;
     required string path = 2;
 }
 
-message TRspGenerateInputContext
+message TRspDumpInputContext
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -433,7 +433,7 @@ public:
         return VoidFuture;
     }
 
-    TFuture<void> GenerateInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+    TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
     {
         auto job = FindJob(jobId);
 
@@ -446,20 +446,20 @@ public:
 
         TJobProberServiceProxy probeProxy(channel);
 
-        auto req = probeProxy.GenerateInputContext();
+        auto req = probeProxy.DumpInputContext();
         ToProto(req->mutable_job_id(), jobId);
 
         return req->Invoke().Apply(
             BIND(
-                &TImpl::OnGenerateInputContextResponse,
+                &TImpl::OnDumpInputContextResponse,
                 MakeStrong(this),
                 jobId,
                 path));
     }
 
-    TFuture<void> OnGenerateInputContextResponse(const TJobId& jobId,
+    TFuture<void> OnDumpInputContextResponse(const TJobId& jobId,
         const NYPath::TYPath& path,
-        const TJobProberServiceProxy::TRspGenerateInputContextPtr& response)
+        const TJobProberServiceProxy::TRspDumpInputContextPtr& response)
     {
         auto chunkIds = FromProto<TGuid>(response->chunk_id());
 
@@ -2238,9 +2238,9 @@ TFuture<void> TScheduler::ResumeOperation(TOperationPtr operation)
     return Impl_->ResumeOperation(operation);
 }
 
-TFuture<void> TScheduler::GenerateInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
 {
-    return Impl_->GenerateInputContext(jobId, path);
+    return Impl_->DumpInputContext(jobId, path);
 }
 
 void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)

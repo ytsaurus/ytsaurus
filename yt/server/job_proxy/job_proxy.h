@@ -32,7 +32,7 @@ public:
 
     IInvokerPtr GetControlInvoker() const;
 
-    virtual std::vector<NChunkClient::TChunkId> GenerateInputContext(const NJobTrackerClient::TJobId& jobId) override;
+    virtual std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId) override;
 
 private:
     TJobProxyConfigPtr Config_;

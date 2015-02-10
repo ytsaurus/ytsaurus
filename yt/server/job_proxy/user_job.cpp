@@ -365,7 +365,7 @@ private:
         }
     }
 
-    virtual std::vector<TChunkId> GenerateInputContext() override
+    virtual std::vector<TChunkId> DumpInputContext() override
     {
         auto contexts = WaitFor(
             BIND(&TUserJob::DoGetInputContexts, MakeStrong(this))

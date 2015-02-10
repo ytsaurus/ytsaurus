@@ -96,7 +96,7 @@ TJobProxy::TJobProxy(
     Logger.AddTag("JobId: %v", JobId_);
 }
 
-std::vector<NChunkClient::TChunkId> TJobProxy::GenerateInputContext(const TJobId& jobId)
+std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(const TJobId& jobId)
 {
     if (JobId_ != jobId) {
         THROW_ERROR_EXCEPTION("Job id mismatch: expected %v, got %v", JobId_, jobId);
@@ -106,7 +106,7 @@ std::vector<NChunkClient::TChunkId> TJobProxy::GenerateInputContext(const TJobId
         THROW_ERROR_EXCEPTION("Job is not started yet");
     }
 
-    return Job_->GenerateInputContext();
+    return Job_->DumpInputContext();
 }
 
 

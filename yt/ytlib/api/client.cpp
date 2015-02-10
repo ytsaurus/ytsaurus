@@ -852,7 +852,7 @@ public:
         const TOperationId& operationId),
         (operationId))
 
-    IMPLEMENT_METHOD(void, GenerateInputContext, (
+    IMPLEMENT_METHOD(void, DumpInputContext, (
         const TJobId& jobId,
         const TYPath& path),
         (jobId, path))
@@ -1703,9 +1703,9 @@ private:
     }
 
 
-    void DoGenerateInputContext(const TJobId& jobId, const TYPath& path)
+    void DoDumpInputContext(const TJobId& jobId, const TYPath& path)
     {
-        auto req = JobProberProxy_->GenerateInputContext();
+        auto req = JobProberProxy_->DumpInputContext();
         ToProto(req->mutable_job_id(), jobId);
         ToProto(req->mutable_path(), path);
 
