@@ -66,7 +66,7 @@ public:
     TFuture<void> SuspendOperation(TOperationPtr operation);
     TFuture<void> ResumeOperation(TOperationPtr operation);
 
-    TFuture<void> GenerateInputContext(const TJobId& jobId, const NYPath::TYPath& path);
+    TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path);
 
     typedef
         NRpc::TTypedServiceContext<

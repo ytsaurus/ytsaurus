@@ -32,13 +32,13 @@ public:
             TJobProberServiceProxy::GetProtocolVersion())
         , Bootstrap_(bootstrap)
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateInputContext));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
     }
 
 private:
     NCellNode::TBootstrap* Bootstrap_;
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GenerateInputContext)
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpInputContext)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);

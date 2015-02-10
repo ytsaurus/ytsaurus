@@ -32,19 +32,19 @@ public:
             TJobProberServiceProxy::GetProtocolVersion())
         , JobProxy_(jobProxy)
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateInputContext));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
     }
 
 private:
     TJobProxy* JobProxy_;
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GenerateInputContext)
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpInputContext)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
 
         context->SetRequestInfo("JobId: %v", jobId);
 
-        std::vector<NChunkClient::TChunkId> inputContexts = JobProxy_->GenerateInputContext(jobId);
+        std::vector<NChunkClient::TChunkId> inputContexts = JobProxy_->DumpInputContext(jobId);
         context->SetResponseInfo("ChunkId: %v", JoinToString(inputContexts));
 
         for (const auto& inputContext : inputContexts) {

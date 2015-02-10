@@ -289,7 +289,7 @@ public:
 
         auto jobProberProxy = std::make_unique<NJobProberClient::TJobProberServiceProxy>(jobProberChannel);
 
-        auto req = jobProberProxy->GenerateInputContext();
+        auto req = jobProberProxy->DumpInputContext();
 
         ToProto(req->mutable_job_id(), JobId);
         auto response = WaitFor(req->Invoke())

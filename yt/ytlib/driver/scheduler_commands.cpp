@@ -20,7 +20,7 @@ using namespace NApi;
 
 void TJobProbeCommand::DoExecute()
 {
-    WaitFor(Context_->GetClient()->GenerateInputContext(Request_->JobId, Request_->Path))
+    WaitFor(Context_->GetClient()->DumpInputContext(Request_->JobId, Request_->Path))
         .ThrowOnError();
 }
 

@@ -43,7 +43,7 @@ TDuration TJob::GetElapsedTime() const
     return TInstant::Now() - StartTime;
 }
 
-std::vector<NChunkClient::TChunkId> TJob::GenerateInputContext()
+std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
 {
 	THROW_ERROR_EXCEPTION("Input context dumping is not supported for built-in jobs");
 }

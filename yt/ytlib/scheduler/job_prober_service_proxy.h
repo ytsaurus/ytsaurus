@@ -29,7 +29,7 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    DEFINE_RPC_PROXY_METHOD(NProto, GenerateInputContext);
+    DEFINE_RPC_PROXY_METHOD(NProto, DumpInputContext);
 };
 
 ////////////////////////////////////////////////////////////////////

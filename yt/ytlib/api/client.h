@@ -497,7 +497,7 @@ struct IClient
     virtual TFuture<void> ResumeOperation(const NScheduler::TOperationId& operationId) = 0;
 
 
-    virtual TFuture<void> GenerateInputContext(
+    virtual TFuture<void> DumpInputContext(
         const NJobTrackerClient::TJobId& jobId,
         const NYPath::TYPath& path) = 0;
 
