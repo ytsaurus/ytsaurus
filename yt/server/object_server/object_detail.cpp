@@ -44,6 +44,8 @@
 #include <server/object_server/type_handler.h>
 #include <server/object_server/object_manager.h>
 
+#include <server/hydra/mutation_context.h>
+
 namespace NYT {
 namespace NObjectServer {
 
@@ -241,9 +243,7 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
     // Validate that mutating requests are only being invoked inside mutations or recovery.
     const auto& ypathExt = requestHeader.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
     auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    YCHECK(!ypathExt.mutating() ||
-           hydraManager->IsMutating() ||
-           hydraManager->IsRecovery());
+    YCHECK(!ypathExt.mutating() || NHydra::HasMutationContext());
 
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
@@ -758,8 +758,7 @@ TObjectBase* TObjectProxyBase::GetThisSchema()
 
 void TObjectProxyBase::DeclareMutating()
 {
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    YCHECK(hydraManager->IsMutating());
+    YCHECK(NHydra::HasMutationContext());
 }
 
 void TObjectProxyBase::DeclareNonMutating()

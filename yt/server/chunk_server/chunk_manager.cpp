@@ -529,7 +529,7 @@ public:
 
         auto nodeTracker = Bootstrap_->GetNodeTracker();
 
-        auto* mutationContext = Bootstrap_->GetHydraFacade()->GetHydraManager()->GetMutationContext();
+        const auto* mutationContext = GetCurrentMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
         for (auto replica : replicas) {
@@ -1042,7 +1042,7 @@ private:
             ProcessRemovedChunk(node, chunkInfo);
         }
 
-        auto* mutationContext = Bootstrap_->GetHydraFacade()->GetHydraManager()->GetMutationContext();
+        const auto* mutationContext = GetCurrentMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
         auto& unapprovedReplicas = node->UnapprovedReplicas();

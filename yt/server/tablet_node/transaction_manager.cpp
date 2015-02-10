@@ -347,8 +347,7 @@ private:
         auto* transaction = new TTransaction(transactionId);
         TransactionMap_.Insert(transactionId, transaction);
 
-        auto hydraManager = Slot_->GetHydraManager();
-        const auto* mutationContext = hydraManager->GetMutationContext();
+        const auto* mutationContext = GetCurrentMutationContext();
 
         transaction->SetTimeout(timeout);
         transaction->SetStartTimestamp(startTimestamp);

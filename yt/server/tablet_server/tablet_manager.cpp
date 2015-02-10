@@ -875,9 +875,9 @@ private:
                 cellId);
         };
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        auto hydraManager = hydraFacade->GetHydraManager();
-        auto* mutationContext = hydraManager->GetMutationContext();
+        const auto* mutationContext = GetCurrentMutationContext();
+        auto mutationTimestamp = mutationContext->GetTimestamp();
+
         const auto& address = node->GetAddress();
 
         // Our expectations.
@@ -951,7 +951,7 @@ private:
                     peerId);
             }
 
-            cell->UpdatePeerSeenTime(peerId, mutationContext->GetTimestamp());
+            cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
             YCHECK(actualCells.insert(cell).second);
 
             // Populate slot.
@@ -1096,9 +1096,9 @@ private:
         if (!IsObjectAlive(cell))
             return;
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        auto hydraManager = hydraFacade->GetHydraManager();
-        auto* mutationContext = hydraManager->GetMutationContext();
+        const auto* mutationContext = GetCurrentMutationContext();
+        auto mutationTimestamp = mutationContext->GetTimestamp();
+
         auto nodeTracker = Bootstrap_->GetNodeTracker();
 
         AbortPrerequisiteTransaction(cell);
@@ -1119,7 +1119,7 @@ private:
             const auto& address = node->GetAddress();
             AddToAddressToCellMap(address, cell);
             cell->AssignPeer(address, peerId);
-            cell->UpdatePeerSeenTime(peerId, mutationContext->GetTimestamp());
+            cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer assigned (CellId: %v, Address: %v, PeerId: %v)",
                 cellId,
@@ -1405,10 +1405,7 @@ private:
                 return lhs->GetId() < rhs->GetId();
             });
 
-        auto* mutationContext = Bootstrap_
-            ->GetHydraFacade()
-            ->GetHydraManager()
-            ->GetMutationContext();
+        auto* mutationContext = GetCurrentMutationContext();
 
         std::vector<TTabletCell*> cells;
         for (int index = 0; index < count; ++index) {

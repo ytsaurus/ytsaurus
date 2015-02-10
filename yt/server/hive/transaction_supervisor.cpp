@@ -203,7 +203,7 @@ private:
         const std::vector<TCellId>& participantCellIds,
         const TMutationId& mutationId)
     {
-        YASSERT(!HydraManager->IsMutating());
+        YASSERT(!HasMutationContext());
 
         if (mutationId != NullMutationId) {
             auto asyncResponseMessage = ResponseKeeper_->TryBeginRequest(mutationId);
@@ -287,7 +287,7 @@ private:
         const TMutationId& mutationId,
         bool force)
     {
-        YASSERT(!HydraManager->IsMutating());
+        YASSERT(!HasMutationContext());
 
         if (mutationId != NullMutationId) {
             auto asyncResponseMessage = ResponseKeeper_->TryBeginRequest(mutationId);
@@ -621,7 +621,7 @@ private:
             TRspAbortTransaction response;
             auto responseMessage = CreateResponseMessage(response);
 
-            auto* mutationContext = HydraManager->GetMutationContext();
+            auto* mutationContext = GetCurrentMutationContext();
             mutationContext->Response().Data = responseMessage;
 
             if (mutationId != NullMutationId) {

@@ -47,7 +47,7 @@ public:
 
     void EndRequest(const TMutationId& id, TSharedRefArray response)
     {
-        const auto* mutationContext = HydraManager->GetMutationContext();
+        const auto* mutationContext = GetCurrentMutationContext();
         TResponseKeeperBase::EndRequest(
             id,
             std::move(response),
@@ -85,7 +85,7 @@ private:
 
     void HydraEvictExpiredResponses(const NProto::TReqEvictExpiredResponses& /*request*/)
     {
-        const auto* mutationContext = HydraManager->GetMutationContext();
+        const auto* mutationContext = GetCurrentMutationContext();
         EvictExpiredResponses(mutationContext->GetTimestamp());
     }
 

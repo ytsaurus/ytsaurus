@@ -91,21 +91,6 @@ struct IHydraManager
      */
     virtual TFuture<TMutationResponse> CommitMutation(const TMutationRequest& request) = 0;
 
-    //! Returns the current mutation context or |nullptr| if no mutation is currently being applied.
-    /*!
-     *  \note Thread affinity: AutomatonThread
-     */
-    virtual TMutationContext* GetMutationContext() = 0;
-
-    //! Returns |true| if a mutation is currently being applied.
-    /*!
-     *  The method could be useful to prevent recursive commits and only log "top-level"
-     *  mutations that trigger the whole transformation chain.
-     *
-     *  \note Thread affinity: AutomatonThread
-     */
-    virtual bool IsMutating() = 0;
-
     //! Returns |true| if read-only mode is active.
     /*!
      *  \note Thread affinity: any

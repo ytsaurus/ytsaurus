@@ -68,11 +68,7 @@ void TAccessTracker::OnModify(
     auto cypressManager = Bootstrap_->GetCypressManager();
     auto* node = cypressManager->GetNode(versionedId);
 
-    auto* mutationContext = Bootstrap_
-        ->GetHydraFacade()
-        ->GetHydraManager()
-        ->GetMutationContext();
-
+    const auto* mutationContext = GetCurrentMutationContext();
     node->SetModificationTime(mutationContext->GetTimestamp());
     node->SetRevision(mutationContext->GetVersion().ToRevision());
 }

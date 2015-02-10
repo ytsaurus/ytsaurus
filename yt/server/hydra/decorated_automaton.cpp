@@ -710,15 +710,14 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context, bool recove
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    YASSERT(!MutationContext_);
-    MutationContext_ = context;
-
     const auto& request = context->Request();
     auto automatonVersion = GetAutomatonVersion();
 
     LOG_DEBUG_UNLESS(recovery, "Applying mutation (Version: %v, MutationType: %v)",
         automatonVersion,
         request.Type);
+
+    TMutationContextGuard contextGuard(context);
 
     if (request.Action) {
         request.Action.Run(context);
@@ -727,8 +726,6 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context, bool recove
     }
 
     AutomatonVersion_ = automatonVersion.Advance();
-
-    MutationContext_ = nullptr;
 }
 
 TVersion TDecoratedAutomaton::GetLoggedVersion() const
@@ -784,13 +781,6 @@ void TDecoratedAutomaton::RotateAutomatonVersion(int segmentId)
 
     LOG_INFO("Automaton version is rotated to %v",
         automatonVersion);
-}
-
-TMutationContext* TDecoratedAutomaton::GetMutationContext()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    return MutationContext_;
 }
 
 bool TDecoratedAutomaton::TryAcquireUserLock()

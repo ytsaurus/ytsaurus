@@ -73,19 +73,12 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
     {
-        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-
         if (ypathExt.mutating()) {
             // Mutating request.
 
-            if (hydraManager->IsMutating()) {
-                // Nested call.
-                return DoResolveThere(path, std::move(context));
-            }
-
-            if (hydraManager->IsRecovery()) {
-                // Recovery.
+            if (HasMutationContext()) {
+                // Nested call or recovery.
                 return DoResolveThere(path, std::move(context));
             }
 
@@ -457,13 +450,8 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto* mutationContext = Bootstrap_
-        ->GetHydraFacade()
-        ->GetHydraManager()
-        ->GetMutationContext();
-
-    const auto& version = mutationContext->GetVersion();
-
+    auto* mutationContext = GetCurrentMutationContext();
+    auto version = mutationContext->GetVersion();
     auto random = mutationContext->RandomGenerator().Generate<ui64>();
 
     TObjectId id(
