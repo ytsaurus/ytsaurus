@@ -55,7 +55,6 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     , RemoteWaitTimeCounter("/request_time/remote_wait", tagIds)
     , LocalWaitTimeCounter("/request_time/local_wait", tagIds)
     , TotalTimeCounter("/request_time/total", tagIds)
-    , RunningRequestSemaphore(0)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
