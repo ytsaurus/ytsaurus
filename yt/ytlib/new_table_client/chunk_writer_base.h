@@ -49,7 +49,7 @@ protected:
     NChunkClient::TEncodingChunkWriterPtr EncodingChunkWriter_;
 
     NProto::TBlockMetaExt BlockMetaExt_;
-    i64 BlockMetaExtSize_;
+    i64 BlockMetaExtSize_ = 0;
 
 
     void FillCommonMeta(NChunkClient::NProto::TChunkMeta* meta) const;
@@ -101,12 +101,9 @@ protected:
 private:
     std::unique_ptr<IBlockWriter> BlockWriter_;
 
-    NProto::TBlockMetaExt BlockMetaExt_;
-    i64 BlockMetaExtSize_ = 0;
-
     NProto::TSamplesExt SamplesExt_;
     i64 SamplesExtSize_ = 0;
-    double AverageSampleSize_ = 0;
+    double AverageSampleSize_ = 0.0;
 
     void DoClose();
 
