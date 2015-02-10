@@ -32,10 +32,7 @@ TChunkWriterBase::TChunkWriterBase(
     const TKeyColumns& keyColumns)
     : Config_(config)
     , Options_(options)
-    , RowCount_(0)
-    , DataWeight_(0)
     , EncodingChunkWriter_(New<TEncodingChunkWriter>(config, options, asyncWriter))
-    , BlockMetaExtSize_(0)
 { }
 
 TFuture<void> TChunkWriterBase::Open()
@@ -138,8 +135,6 @@ TSequentialChunkWriterBase::TSequentialChunkWriterBase(
     const TKeyColumns& keyColumns)
     : TChunkWriterBase(config, options, asyncWriter)
     , KeyColumns_(keyColumns)
-    , SamplesExtSize_(0)
-    , AverageSampleSize_(0.0)
 { }
 
 TFuture<void> TSequentialChunkWriterBase::Open()
