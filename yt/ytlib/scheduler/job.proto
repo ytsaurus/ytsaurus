@@ -54,9 +54,8 @@ message TUserJobSpec
     // Memory size reserved at job launch, in bytes.
     required int64 memory_reserve = 9;
 
-    // Transaction for creating stderr chunks.
-    // If not set then no stderrs are captured.
-    optional NYT.NProto.TGuid stderr_transaction_id = 8;
+    // Transaction for creating stderr chunks|input contexts.
+    required NYT.NProto.TGuid async_scheduler_transaction_id = 8;
 
     optional bool use_yamr_descriptors = 10 [default = false];
 
