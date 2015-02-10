@@ -659,11 +659,17 @@ void TServiceBase::OnReplyBusTerminated(IBusPtr bus, const TError& error)
 
 bool TServiceBase::TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
-    if (++runtimeInfo->RunningRequestSemaphore <= runtimeInfo->Descriptor.MaxConcurrency) {
-        return true;
+    auto& semaphore = runtimeInfo->RunningRequestSemaphore;
+    auto limit = runtimeInfo->Descriptor.MaxConcurrency;
+    while (true) {
+        auto current = semaphore.load();
+        if (current >= limit) {
+            return false;
+        }
+        if (semaphore.compare_exchange_weak(current, current + 1)) {
+            return true;
+        }
     }
-    ReleaseRequestSemaphore(runtimeInfo);
-    return false;
 }
 
 void TServiceBase::ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo)
@@ -674,16 +680,19 @@ void TServiceBase::ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeI
 void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
     while (true) {
+        if (runtimeInfo->RequestQueue.IsEmpty())
+            break;
+
         if (!TryAcquireRequestSemaphore(runtimeInfo))
             break;
 
         TServiceContextPtr context;
-        if (!runtimeInfo->RequestQueue.Dequeue(&context)) {
-            ReleaseRequestSemaphore(runtimeInfo);
+        if (runtimeInfo->RequestQueue.Dequeue(&context)) {
+            RunRequest(std::move(context));
             break;
         }
 
-        RunRequest(std::move(context));
+        ReleaseRequestSemaphore(runtimeInfo);
     }
 }
 
