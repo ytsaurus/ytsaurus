@@ -137,6 +137,10 @@ class ParseFormat(Action):
     def __call__(self, parser, namespace, values, option_string=None):
         setattr(namespace, self.dest, yt.create_format(values))
 
+class ParseStructuredArguments(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, map(parse_arguments, values))
+
 class ParseStructuredArgument(Action):
     def __call__(self, parser, namespace, values, option_string=None):
         setattr(namespace, self.dest, parse_arguments(values))
@@ -392,7 +396,7 @@ def add_remount_table_parser(add_parser):
 def add_reshard_table_parser(add_parser):
     parser = add_parser("reshard-table", yt.reshard_table)
     tablet_args(parser)
-    parser.add_argument("pivot_keys", action=ParseStructuredArgument, nargs="+")
+    parser.add_argument("pivot_keys", action=ParseStructuredArguments, nargs="+")
 
 def select(**args):
     write_silently(chunk_iter_stream(yt.select(**args), 16 * MB))
