@@ -83,6 +83,8 @@ std::vector<TKeyRange> GetRangesFromTrieWithinRange(
     const TKeyRange& keyRange,
     const TKeyTrieNode& trie);
 
+Stroka ToString(const TKeyTrieNode& node);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
