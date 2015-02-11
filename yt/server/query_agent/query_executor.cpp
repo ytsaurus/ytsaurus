@@ -159,32 +159,27 @@ private:
     {
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
-
+        auto splits = Split(fragment->DataSplits, nodeDirectory, Logger);
+        int splitCount = splits.size();
+        int splitOffset = 0;
         TGroupedDataSplits groupedSplits;
+
+        for (int queryIndex = 1; queryIndex <= Config_->MaxSubqueries; ++queryIndex) {
+            int nextSplitOffset = queryIndex * splitCount / Config_->MaxSubqueries;
+            if (splitOffset != nextSplitOffset) {
+                groupedSplits.emplace_back(splits.begin() + splitOffset, splits.begin() + nextSplitOffset);
+                splitOffset = nextSplitOffset;
+            }
+        }
+
+        auto ranges = GetRanges(groupedSplits);
+
         return CoordinateAndExecute(
             fragment,
             writer,
             false,
-            [&] (const TDataSplits& prunedSplits) {
-                auto splits = Split(prunedSplits, nodeDirectory, Logger);
-
-                int splitsCount = splits.size();
-                int splitOffset = 0;
-
-                YCHECK(Config_->MaxSubqueries > 0);
-
-                int nextQueryIndex = 1;
-                do {
-                    int nextSplitOffset = nextQueryIndex * splitsCount / Config_->MaxSubqueries;
-                    if (splitOffset != nextSplitOffset) {
-                        groupedSplits.emplace_back(splits.begin() + splitOffset, splits.begin() + nextSplitOffset);
-                        splitOffset = nextSplitOffset;
-                    }
-                } while (nextQueryIndex++ < Config_->MaxSubqueries);
-
-                return GetRanges(groupedSplits);
-            },
-            [&] (const TConstQueryPtr& subquery, int index) {
+            ranges,
+            [&] (const TConstQueryPtr& subquery, size_t index) {
                 std::vector<ISchemafulReaderPtr> bottomSplitReaders;
                 for (const auto& dataSplit : groupedSplits[index]) {
                     bottomSplitReaders.push_back(GetReader(dataSplit, nodeDirectory));
