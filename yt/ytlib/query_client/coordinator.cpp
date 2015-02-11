@@ -204,7 +204,7 @@ TQueryStatistics CoordinateAndExecute(
     const TPlanFragmentPtr& fragment,
     ISchemafulWriterPtr writer,
     bool isOrdered,
-    std::function<std::vector<TKeyRange>(const TDataSplits&)> splitAndRegroup,
+    std::vector<TKeyRange>& ranges,
     std::function<TEvaluateResult(const TConstQueryPtr&, size_t)> evaluateSubquery,
     std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
     bool pushdownGroupOp)
@@ -212,8 +212,6 @@ TQueryStatistics CoordinateAndExecute(
     auto nodeDirectory = fragment->NodeDirectory;
     auto query = fragment->Query;
     auto Logger = BuildLogger(query);
-
-    auto ranges = splitAndRegroup(GetPrunedSplits(query, fragment->DataSplits));
 
     TConstQueryPtr topQuery;
     std::vector<TConstQueryPtr> subqueries;
