@@ -165,7 +165,7 @@ class TestSchedulingTags(YTEnvSetup):
         def get_job_nodes(op_id):
             nodes = __builtin__.set()
             for row in read("//sys/scheduler/event_log"):
-                if row.get("event_type") == "job_started":
+                if row.get("event_type") == "job_started" and row.get("operation_id") == op_id:
                     nodes.add(row["node_address"])
             return nodes
 

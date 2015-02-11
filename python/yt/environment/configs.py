@@ -142,7 +142,6 @@ def get_scheduler_config():
         strategy = fair_share;
         max_failed_job_count = 10;
         snapshot_period = 100000000;
-        connect_retry_period = 2000;
         lock_transaction_timeout = 2000;
         transactions_refresh_period = 500;
         operations_update_period = 500;
