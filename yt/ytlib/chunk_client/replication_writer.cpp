@@ -172,7 +172,7 @@ private:
     std::vector<TNodePtr> Nodes_;
 
     //! Number of nodes that are still alive.
-    int AliveNodeCount_;
+    int AliveNodeCount_ = 0;
 
     const int MinUploadReplicationFactor_;
 
