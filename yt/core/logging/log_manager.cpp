@@ -10,6 +10,7 @@
 #include <core/misc/raw_formatter.h>
 #include <core/misc/hash.h>
 #include <core/misc/lock_free.h>
+#include <core/misc/variant.h>
 
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>
@@ -214,8 +215,6 @@ void ReloadSignalHandler(int signal)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TDuration LoggerConfigPeriodicity = TDuration::Seconds(1);
-
 class TLogManager::TImpl
     : public TRefCounted
 {
@@ -230,10 +229,9 @@ public:
         , EnqueueCounter_("/enqueue_rate")
         , WriteCounter_("/write_rate")
         , BacklogCounter_("/backlog")
-        , LastConfigUpdateTime_(GetCpuInstant() - DurationToCpuDuration(LoggerConfigPeriodicity))
     {
         SystemWriters_.push_back(New<TStderrLogWriter>());
-        DoUpdateConfig(TLogConfig::CreateDefault(), false);
+        UpdateConfig(TLogConfig::CreateDefault(), false);
         Writers_.insert(std::make_pair(DefaultStderrWriterName, New<TStderrLogWriter>()));
 
         LoggingThread_->Start();
@@ -244,7 +242,7 @@ public:
     {
         if (LoggingThread_->IsRunning()) {
             auto config = TLogConfig::CreateFromNode(node, path);
-            ConfigsToUpdate_.Enqueue(config);
+            LoggerQueue_.Enqueue(std::move(config));
             EventCount_.NotifyOne();
         }
     }
@@ -359,6 +357,8 @@ public:
     }
 
 private:
+    using TLogEventOrConfig = TVariant<TLogEvent, TLogConfigPtr>;
+
     class TThread
         : public TSchedulerThread
     {
@@ -418,25 +418,25 @@ private:
         }
 
         int eventsWritten = 0;
-        bool firstEvent = true;
+        bool configsUpdated = false;
 
-        while (LogEventQueue_.DequeueAll(true, [&] (TLogEvent& event) {
-                // Update config before writing the first event to avoid race.
-                // Then update periodically to avoid config starvation.
-                UpdateConfig(firstEvent);
-                firstEvent = false;
+        while (LoggerQueue_.DequeueAll(true, [&] (TLogEventOrConfig& eventOrConfig) {
+                if (const auto* configPtr = eventOrConfig.TryAs<TLogConfigPtr>()) {
+                    UpdateConfig(*configPtr);
+                    configsUpdated = true;
+                } else if (const auto* eventPtr = eventOrConfig.TryAs<TLogEvent>()) {
+                    if (ReopenRequested_) {
+                        ReopenRequested_ = false;
+                        ReloadWriters();
+                    }
 
-                if (ReopenRequested_) {
-                    ReopenRequested_ = false;
-                    ReloadWriters();
+                    Write(*eventPtr);
+                    ++eventsWritten;
+                } else {
+                    YUNREACHABLE();
                 }
-
-                Write(event);
-                ++eventsWritten;
             }))
         { }
-
-        bool configsUpdated = (eventsWritten == 0) ? UpdateConfig(false) : false;
 
         int backlogSize = LoggingProfiler.Increment(BacklogCounter_, -eventsWritten);
         if (Suspended_ && backlogSize < Config_->LowBacklogWatermark) {
@@ -526,7 +526,7 @@ private:
         return nullptr;
     }
 
-    void DoUpdateConfig(TLogConfigPtr config, bool verifyThreadAffinity = true)
+    void UpdateConfig(const TLogConfigPtr& config, bool verifyThreadAffinity = true)
     {
         if (verifyThreadAffinity) {
             VERIFY_THREAD_AFFINITY(LoggingThread);
@@ -673,28 +673,10 @@ private:
         }
     }
 
-    bool UpdateConfig(bool instantUpdate)
-    {
-        TLogConfigPtr config;
-        bool configsUpdated = false;
-        auto now = GetCpuInstant();
-        if (instantUpdate ||
-            CpuDurationToDuration(now - LastConfigUpdateTime_) > LoggerConfigPeriodicity)
-        {
-            while (ConfigsToUpdate_.Dequeue(&config)) {
-                DoUpdateConfig(config);
-                configsUpdated = true;
-            }
-
-            LastConfigUpdateTime_ = now;
-        }
-        return configsUpdated;
-    }
-
     void PushLogEvent(TLogEvent&& event)
     {
         EnqueuedLogEvents_++;
-        LogEventQueue_.Enqueue(std::move(event));
+        LoggerQueue_.Enqueue(std::move(event));
     }
 
     TEventCount EventCount_;
@@ -715,8 +697,7 @@ private:
     NProfiling::TRateCounter WriteCounter_;
     NProfiling::TAggregateCounter BacklogCounter_;
     bool Suspended_ = false;
-    TLockFreeQueue<TLogConfigPtr> ConfigsToUpdate_;
-    TMultipleProducerSingleConsumerLockFreeStack<TLogEvent> LogEventQueue_;
+    TMultipleProducerSingleConsumerLockFreeStack<TLogEventOrConfig> LoggerQueue_;
 
     std::atomic<ui64> EnqueuedLogEvents_ = {0};
     std::atomic<ui64> DequeuedLogEvents_ = {0};
@@ -735,8 +716,6 @@ private:
     std::unique_ptr<TNotificationHandle> NotificationHandle_;
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches_;
     yhash_map<int, TNotificationWatch*> NotificationWatchesIndex_;
-
-    TCpuInstant LastConfigUpdateTime_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
