@@ -274,6 +274,7 @@ void TNontemplateMultiChunkWriterBase::DoFinishSession(const TSession& session)
     LOG_DEBUG("Chunk closed (ChunkId: %v)", session.ChunkId);
 
     auto replicas = session.UnderlyingWriter->GetWrittenChunkReplicas();
+    YCHECK(!replicas.empty());
 
     *chunkSpec.mutable_chunk_meta() = session.TemplateWriter->GetSchedulerMeta();
     ToProto(chunkSpec.mutable_chunk_id(), session.ChunkId);

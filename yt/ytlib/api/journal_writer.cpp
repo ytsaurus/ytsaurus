@@ -519,6 +519,7 @@ private:
                 auto batchReq = CreateMasterBatchRequest();
 
                 {
+                    YCHECK(!replicas.empty());
                     auto req = TChunkYPathProxy::Confirm(FromObjectId(CurrentSession_->ChunkId));
                     req->mutable_chunk_info();
                     ToProto(req->mutable_replicas(), replicas);
