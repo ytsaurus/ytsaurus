@@ -313,6 +313,7 @@ private:
 
         // Confirm chunk.
         LOG_INFO("Confirming output chunk");
+        YCHECK(!writtenReplicas.empty());
         {
             static const yhash_set<int> masterMetaTags({
                 TProtoExtensionTag<TMiscExt>::Value,
