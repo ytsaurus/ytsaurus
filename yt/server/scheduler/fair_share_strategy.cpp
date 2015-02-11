@@ -977,12 +977,21 @@ public:
             }
         }
 
+        RootElement->BeginHeartbeat();
+
+        auto jobsBeforePreemption = context->StartedJobs().size();
+
         // Second-chance scheduling.
         // NB: Schedule at most one job.
         LOG_DEBUG("Scheduling new jobs with preemption");
-        if (context->CanStartMoreJobs()) {
+        while (context->CanStartMoreJobs()) {
             RootElement->PrescheduleJob(context->GetNode(), true);
-            RootElement->ScheduleJob(context, true);
+            if (!RootElement->ScheduleJob(context, true)) {
+                break;
+            }
+            if (context->StartedJobs().size() != jobsBeforePreemption) {
+                break;
+            }
         }
 
         // Reset discounts.
