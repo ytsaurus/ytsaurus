@@ -40,6 +40,7 @@
 #include <core/misc/proc.h>
 #include <core/misc/process.h>
 #include <core/misc/pattern_formatter.h>
+#include <core/misc/pipe.h>
 
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/action_queue.h>
@@ -85,14 +86,6 @@ static const char* CGroupPrefix = "user_jobs/yt-job-";
 static const int BufferSize = 1024 * 1024;
 
 static TNullOutput NullOutput;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPipe
-{
-    int ReadFD;
-    int WriteFD;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -440,7 +433,7 @@ private:
         return valueConsumers;
     }
 
-    void PrepareOutputTablePipes(std::function<TPipe()> createPipe)
+    void PrepareOutputTablePipes(TPipeFactory& pipeFactory)
     {
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.output_format()));
 
@@ -459,7 +452,7 @@ private:
                 ? 3 + i
                 : 3 * i + 1;
 
-            auto reader = PrepareOutputPipe(createPipe(), jobDescriptor, TableOutputs_[i].get());
+            auto reader = PrepareOutputPipe(pipeFactory.Create(), jobDescriptor, TableOutputs_[i].get());
             TablePipeReaders_.push_back(reader);
         }
 
@@ -535,7 +528,7 @@ private:
         }));
     }
 
-    void PrepareInputTablePipes(std::function<TPipe()> createPipe)
+    void PrepareInputTablePipes(TPipeFactory& pipeFactory)
     {
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
         const auto& readers = JobIO_->GetReaders();
@@ -549,7 +542,7 @@ private:
                 Config_->JobIO->EnableInputTableIndex);
 
             ContextPreservingInputs_.push_back(input);
-            PrepareInputTablePipe(createPipe(), 3 * i, input);
+            PrepareInputTablePipe(pipeFactory.Create(), 3 * i, input);
         }
     }
 
@@ -580,25 +573,12 @@ private:
         // and "standard" descriptor numbers in forked job (see comments above)
         // we ensure that enough lower descriptors are allocated before creating pipes.
 
-        std::vector<int> reservedDescriptors;
-        auto createPipe = [&] () -> TPipe {
-            while (true) {
-                int fd[2];
-                SafePipe(fd);
-                if (fd[0] < maxReservedDescriptor || fd[1] < maxReservedDescriptor) {
-                    reservedDescriptors.push_back(fd[0]);
-                    reservedDescriptors.push_back(fd[1]);
-                } else {
-                    TPipe pipe = {fd[0], fd[1]};
-                    return pipe;
-                }
-            }
-        };
+        TPipeFactory pipeFactory(maxReservedDescriptor + 1);
 
         // Configure stderr pipe.
-        PrepareOutputPipe(createPipe(), STDERR_FILENO, CreateErrorOutput());
+        PrepareOutputPipe(pipeFactory.Create(), STDERR_FILENO, CreateErrorOutput());
 
-        PrepareOutputTablePipes(createPipe);
+        PrepareOutputTablePipes(pipeFactory);
 
         if (UserJobSpec_.use_yamr_descriptors()) {
             // This hack is to work around the fact that usual output pipe accepts a
@@ -606,15 +586,13 @@ private:
             Process_.AddDup2FileAction(3, 1);
         } else {
             // Configure statistics output pipe.
-            PrepareOutputPipe(createPipe(), JobStatisticsFD, CreateStatisticsOutput());
+            PrepareOutputPipe(pipeFactory.Create(), JobStatisticsFD, CreateStatisticsOutput());
         }
 
-        PrepareInputTablePipes(createPipe);
+        PrepareInputTablePipes(pipeFactory);
 
         // Close reserved descriptors.
-        for (int fd : reservedDescriptors) {
-            SafeClose(fd);
-        }
+        pipeFactory.Clear();
 
         LOG_DEBUG("Pipes initialized");
     }

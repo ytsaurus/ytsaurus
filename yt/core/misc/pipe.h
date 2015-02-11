@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,6 +22,23 @@ struct TPipe
         : ReadFD(-1)
         , WriteFD(-1)
     { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPipeFactory
+{
+public:
+    explicit TPipeFactory(int minFD);
+    ~TPipeFactory();
+
+    TPipe Create();
+
+    void Clear();
+
+private:
+    int MinFD_;
+    std::vector<int> ReservedFDs_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
