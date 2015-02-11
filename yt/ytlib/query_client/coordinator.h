@@ -32,8 +32,8 @@ TQueryStatistics CoordinateAndExecute(
     const TPlanFragmentPtr& fragment,
     ISchemafulWriterPtr writer,
     bool isOrdered,
-    std::function<std::vector<TKeyRange>(const TDataSplits&)> splitAndRegroup,
-    std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
+    const std::vector<TKeyRange>& ranges,
+    std::function<TEvaluateResult(const TConstQueryPtr&, size_t)> evaluateSubquery,
     std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
     bool pushdownGroupOp = true);
 

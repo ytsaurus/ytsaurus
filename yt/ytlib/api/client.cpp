@@ -422,42 +422,42 @@ private:
     {
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
-        
+
+        auto prunedSplits = GetPrunedSplits(fragment->Query, fragment->DataSplits);
+        auto splits = Split(prunedSplits, nodeDirectory, Logger);
+
+        LOG_DEBUG("Regrouping %v splits", splits.size());
+
+        std::map<Stroka, TDataSplits> groups;
+        for (const auto& split : splits) {
+            auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(split.replicas());
+            if (replicas.empty()) {
+                auto objectId = GetObjectIdFromDataSplit(split);
+                THROW_ERROR_EXCEPTION("No alive replicas for split %v",
+                    objectId);
+            }
+            auto replica = replicas[RandomNumber(replicas.size())];
+            auto descriptor = nodeDirectory->GetDescriptor(replica);
+
+            groups[descriptor.GetInterconnectAddress()].push_back(split);
+        }
+
         std::vector<std::pair<TDataSplits, Stroka>> groupedSplits;
+        std::vector<TKeyRange> ranges;
+        for (const auto& group : groups) {
+            if (group.second.empty()) {
+                continue;
+            }
+
+            groupedSplits.emplace_back(group.second, group.first);
+            ranges.push_back(GetRange(group.second));
+        }
+
         return CoordinateAndExecute(
             fragment,
             writer,
             false,
-            [&] (const TDataSplits& prunedSplits) {
-                auto splits = Split(prunedSplits, nodeDirectory, Logger);
-
-                LOG_DEBUG("Regrouping %v splits", splits.size());
-
-                std::map<Stroka, TDataSplits> groupes;
-                for (const auto& split : splits) {
-                    auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(split.replicas());
-                    if (replicas.empty()) {
-                        auto objectId = GetObjectIdFromDataSplit(split);
-                        THROW_ERROR_EXCEPTION("No alive replicas for split %v",
-                            objectId);
-                    }
-                    auto replica = replicas[RandomNumber(replicas.size())];
-                    auto descriptor = nodeDirectory->GetDescriptor(replica);
-
-                    groupes[descriptor.GetInterconnectAddress()].push_back(split);
-                }
-
-                std::vector<TKeyRange> ranges;
-                for (const auto& group : groupes) {
-                    if (group.second.empty()) {
-                        continue;
-                    }
-
-                    groupedSplits.emplace_back(group.second, group.first);
-                    ranges.push_back(GetRange(group.second));
-                }
-                return ranges;
-            },
+            ranges,
             [&] (const TConstQueryPtr& subquery, size_t index) {
                 auto subfragment = New<TPlanFragment>(fragment->GetSource());
                 subfragment->NodeDirectory = nodeDirectory;
@@ -477,27 +477,26 @@ private:
     {
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
-        
-        TDataSplits splits;
+
+        auto prunedSplits = GetPrunedSplits(fragment->Query, fragment->DataSplits);
+        auto splits = Split(prunedSplits, nodeDirectory, Logger);
+
+        LOG_DEBUG("Sorting %v splits", splits.size());
+
+        std::sort(splits.begin(), splits.end(), [] (const TDataSplit& lhs, const TDataSplit& rhs) {
+            return GetLowerBoundFromDataSplit(lhs) < GetLowerBoundFromDataSplit(rhs);
+        });
+
+        std::vector<TKeyRange> ranges;
+        for (auto const& split : splits) {
+            ranges.push_back(GetBothBoundsFromDataSplit(split));
+        }
+
         return CoordinateAndExecute(
             fragment,
             writer,
             true,
-            [&] (const TDataSplits& prunedSplits) {
-                splits = Split(prunedSplits, nodeDirectory, Logger);
-
-                LOG_DEBUG("Sorting %v splits", splits.size());
-
-                std::sort(splits.begin(), splits.end(), [] (const TDataSplit& lhs, const TDataSplit& rhs) {
-                    return GetLowerBoundFromDataSplit(lhs) < GetLowerBoundFromDataSplit(rhs);
-                });
-
-                std::vector<TKeyRange> ranges;
-                for (auto const& split : splits) {
-                    ranges.push_back(GetBothBoundsFromDataSplit(split));
-                }
-                return ranges;
-            },
+            ranges,
             [&] (const TConstQueryPtr& subquery, size_t index) {
                 auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(splits[index].replicas());
                 if (replicas.empty()) {
