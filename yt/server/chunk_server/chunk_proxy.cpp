@@ -454,7 +454,6 @@ private:
         DeclareMutating();
 
         auto replicas = FromProto<NChunkClient::TChunkReplica>(request->replicas());
-        YCHECK(!replicas.empty());
 
         context->SetRequestInfo("Targets: [%v]", JoinToString(replicas));
 
