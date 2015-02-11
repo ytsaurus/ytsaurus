@@ -677,7 +677,7 @@ TSchemalessTableReader::TSchemalessTableReader(
     , Transaction_(transaction)
     , CompressedBlockCache_(compressedBlockCache)
     , UncompressedBlockCache_(uncompressedBlockCache)
-    , RichPath_(richPath)
+    , RichPath_(richPath.Normalize())
     , NameTable_(nameTable)
     , TransactionId_(transaction ? transaction->GetId() : NullTransactionId)
 {
