@@ -2593,15 +2593,8 @@ private:
     {
         TNodeResources result;
         result.set_user_slots(1);
-        if (IsSortedMergeNeeded(partition)) {
-            result.set_cpu(Spec->ReduceCombiner ? Spec->ReduceCombiner->CpuLimit : 1);
-            result.set_memory(
-                GetSortInputIOMemorySize(stat) +
-                GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig) +
-                GetSortBuffersMemorySize(stat) +
-                (Spec->ReduceCombiner ? GetMemoryReserve(memoryReserveEnabled, Spec->ReduceCombiner) : 0) +
-                GetFootprintMemorySize());
-        } else {
+
+        if (!IsSortedMergeNeeded(partition)) {
             result.set_cpu(Spec->Reducer->CpuLimit);
             result.set_memory(
                 GetSortInputIOMemorySize(stat) +
@@ -2612,7 +2605,26 @@ private:
                 4 * stat.RowCount +
                 GetMemoryReserve(memoryReserveEnabled, Spec->Reducer) +
                 GetFootprintMemorySize());
+        } else if (Spec->ReduceCombiner) {
+            result.set_cpu(Spec->ReduceCombiner->CpuLimit);
+            result.set_memory(
+                GetSortInputIOMemorySize(stat) +
+                GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig) +
+                GetSortBuffersMemorySize(stat) +
+                // Sorting reader extra memory compared to partition_sort job, because it uses
+                // separate buffer of i32 to write out sorted indexes.
+                4 * stat.RowCount +
+                GetMemoryReserve(memoryReserveEnabled, Spec->ReduceCombiner) +
+                GetFootprintMemorySize());
+        } else {
+            result.set_cpu(1);
+            result.set_memory(
+                GetSortInputIOMemorySize(stat) +
+                GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig) +
+                GetSortBuffersMemorySize(stat) +
+                GetFootprintMemorySize());
         }
+
         result.set_network(Spec->ShuffleNetworkLimit);
         return result;
     }
