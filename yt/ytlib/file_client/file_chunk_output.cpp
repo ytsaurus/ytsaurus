@@ -130,13 +130,15 @@ void TFileChunkOutput::DoFinish()
     Sync(Writer.Get(), &TFileChunkWriter::Close);
 
     LOG_INFO("Confirming chunk");
+    auto writtenReplicas = ChunkWriter->GetWrittenChunkReplicas();
+    YCHECK(!writtenReplicas.empty());
     {
         TObjectServiceProxy proxy(MasterChannel);
 
         auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
         *req->mutable_chunk_info() = ChunkWriter->GetChunkInfo();
         *req->mutable_chunk_meta() = Writer->GetMasterMeta();
-        ToProto(req->mutable_replicas(), ChunkWriter->GetWrittenChunkReplicas());
+        ToProto(req->mutable_replicas(), writtenReplicas);
         GenerateMutationId(req);
 
         auto rspOrError = proxy.Execute(req).Get();

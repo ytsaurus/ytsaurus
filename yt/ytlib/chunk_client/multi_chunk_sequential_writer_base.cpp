@@ -280,6 +280,7 @@ void TMultiChunkSequentialWriterBase::DoFinishSession(const TSession& session)
     LOG_DEBUG("Chunk closed (ChunkId: %v)", session.ChunkId);
 
     auto replicas = session.UnderlyingWriter->GetWrittenChunkReplicas();
+    YCHECK(!replicas.empty());
 
     *chunkSpec.mutable_chunk_meta() = session.FrontalWriter->GetSchedulerMeta();
     ToProto(chunkSpec.mutable_chunk_id(), session.ChunkId);
