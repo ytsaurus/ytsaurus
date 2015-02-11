@@ -462,7 +462,7 @@ Stroka ToString(const TKeyTrieNode& node) {
                 str += "(universe)";
             } else {
                 str += "(key";
-                str += ToString(node.Offset);
+                str += NYT::ToString(node.Offset);
                 str += ", [ ";
 
                 for (int i = 0; i < node.Bounds.size(); i += 2) {
