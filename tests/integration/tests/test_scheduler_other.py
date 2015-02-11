@@ -109,9 +109,10 @@ class TestSchedulingTags(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {
-        'scheduler' : {
-            'event_log' : {
-                'flush_period' : 300
+        "scheduler" : {
+            "event_log" : {
+                "flush_period" : 300,
+                "retry_backoff_time": 300
             }
         }
     }
