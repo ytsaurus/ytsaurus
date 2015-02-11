@@ -444,6 +444,54 @@ std::vector<TKeyRange> GetRangesFromTrieWithinRange(
 
     return result;
 }
+
+Stroka ToString(const TKeyTrieNode& node) {
+    auto printOffset = [](int offset) {
+        Stroka str;
+        for (int i = 0; i < offset; ++i) {
+            str += "  ";
+        }
+        return str;
+    };
+
+    std::function<Stroka(const TKeyTrieNode&, int)> printNode =
+        [&](const TKeyTrieNode& node, int offset) {
+            Stroka str;
+            str += printOffset(offset);
+            if (node.Offset == std::numeric_limits<int>::max()) {
+                str += "(universe)";
+            } else {
+                str += "(key";
+                str += ToString(node.Offset);
+                str += ", [ ";
+
+                for (int i = 0; i < node.Bounds.size(); i += 2) {
+                    str += node.Bounds[i].Included ? "[" : "(";
+                    str += ToString(node.Bounds[i].Value);
+                    str += ":";
+                    str += ToString(node.Bounds[i+1].Value);
+                    str += node.Bounds[i+1].Included ? "]" : ")";
+                    if (i + 2 < node.Bounds.size()) {
+                        str += ", ";
+                    }
+                }
+
+                str += " ])";
+
+                for (const auto& next : node.Next) {
+                    str += "\n";
+                    str += printOffset(node.Offset);
+                    str += ToString(next.first);
+                    str += ":\n";
+                    str += printNode(next.second, offset + 1);
+                }
+            }
+            return str;
+        };
+
+    return printNode(node, 0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
