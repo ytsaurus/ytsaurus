@@ -28,45 +28,13 @@ static const pid_t InvalidProcessId = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SafeAtomicCloseExecPipe(int pipefd[2])
-{
-#if defined(_linux_)
-    auto result = ::pipe2(pipefd, O_CLOEXEC);
-    if (result == -1) {
-        THROW_ERROR_EXCEPTION("Error creating pipe") << TError::FromSystem();
-    }
-#elif defined(_darwin_)
-    {
-        int result = ::pipe(pipefd);
-        if (result == -1) {
-            THROW_ERROR_EXCEPTION("Error creating pipe: pipe creation failed") << TError::FromSystem();
-        }
-    }
-    for (int index = 0; index < 2; ++index) {
-        int getResult = ::fcntl(pipefd[index], F_GETFL);
-        if (getResult == -1) {
-            THROW_ERROR_EXCEPTION("Error creating pipe: fcntl failed to get descriptor flags") << TError::FromSystem();
-        }
-
-        int setResult = ::fcntl(pipefd[index], F_SETFL, getResult | FD_CLOEXEC);
-        if (setResult == -1) {
-            THROW_ERROR_EXCEPTION("Error creating pipe: fcntl failed to set descriptor flags") << TError::FromSystem();
-        }
-    }
-#else
-    THROW_ERROR_EXCEPTION("Windows is not supported");
-#endif
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TProcess::TProcess(const Stroka& path, bool copyEnv)
     : Finished_(false)
     , Status_(0)
     , ProcessId_(InvalidProcessId)
     // Stroka is guaranteed to be zero-terminated.
     // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/StrokaAndTStringBuf#sobstvennosimvoly
-    , Path_(path) 
+    , Path_(path)
 {
     AddArgument(NFS::GetFileName(path));
 
@@ -143,7 +111,7 @@ void TProcess::Spawn()
     YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
 
     int pipe[2];
-    SafeAtomicCloseExecPipe(pipe);
+    SafePipe(pipe);
     Pipe_ = TPipe(pipe);
 
     LOG_DEBUG("Process arguments: %v", JoinToString(Args_));
@@ -190,7 +158,7 @@ void TProcess::Spawn()
 
     YCHECK(res == sizeof(data));
     YCHECK(::waitpid(pid, nullptr, 0) == pid);
-    
+
     Finished_ = true;
 
     int actionIndex = data[0];
@@ -231,6 +199,7 @@ char* TProcess::Capture(TStringBuf arg)
     return const_cast<char*>(~StringHolder_.back());
 }
 
+// TODO: Make sure no spawn action closes Pipe_.WriteFd
 void TProcess::DoSpawn()
 {
     YCHECK(Pipe_.WriteFD != TPipe::InvalidFd);
