@@ -72,7 +72,7 @@ void WriteRow(TRow row, TExecutionContext* executionContext)
         return;
     }
 
-    if (executionContext->stopFlag = CountRow(&executionContext->OutputRowLimit)) {
+    if (executionContext->StopFlag = CountRow(&executionContext->OutputRowLimit)) {
         executionContext->Statistics->IncompleteOutput = true;
         return;
     }
@@ -121,7 +121,7 @@ void ScanOpHelper(
     std::vector<TRow> rows;
     rows.reserve(MaxRowsPerRead);
 
-    executionContext->stopFlag = false;
+    executionContext->StopFlag = false;
 
     while (true) {
         executionContext->IntermediateBuffer->Clear();
@@ -142,10 +142,10 @@ void ScanOpHelper(
         executionContext->InputRowLimit -= rows.size();
         executionContext->Statistics->RowsRead += rows.size();
 
-        consumeRows(consumeRowsClosure, rows.data(), rows.size(), &executionContext->stopFlag);
+        consumeRows(consumeRowsClosure, rows.data(), rows.size(), &executionContext->StopFlag);
         rows.clear();
 
-        if (!hasMoreData || executionContext->stopFlag) {
+        if (!hasMoreData || executionContext->StopFlag) {
             break;
         }
 
@@ -216,8 +216,8 @@ void JoinOpHelper(
     executionContext->EvaluateJoin(executionContext, groupHasher, groupComparer, keys, allRows, &joinedRows);
 
     // Consume joined rows.
-    executionContext->stopFlag = false;
-    consumeRows(consumeRowsClosure, &joinedRows, &executionContext->stopFlag);
+    executionContext->StopFlag = false;
+    consumeRows(consumeRowsClosure, &joinedRows, &executionContext->StopFlag);
 }
 
 void GroupOpHelper(
@@ -239,8 +239,8 @@ void GroupOpHelper(
 
     collectRows(collectRowsClosure, &groupedRows, &lookupRows);
 
-    executionContext->stopFlag = false;
-    consumeRows(consumeRowsClosure, &groupedRows, &executionContext->stopFlag);
+    executionContext->StopFlag = false;
+    consumeRows(consumeRowsClosure, &groupedRows, &executionContext->StopFlag);
 }
 
 const TRow* FindRow(TExecutionContext* executionContext, TLookupRows* rows, TRow row)
@@ -271,7 +271,7 @@ const TRow* InsertGroupRow(
     auto inserted = lookupRows->insert(row);
 
     if (inserted.second) {
-        if (executionContext->stopFlag = CountRow(&executionContext->GroupRowLimit)) {
+        if (executionContext->StopFlag = CountRow(&executionContext->GroupRowLimit)) {
             executionContext->Statistics->IncompleteOutput = true;
             return nullptr;
         }
