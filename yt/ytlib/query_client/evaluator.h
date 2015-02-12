@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "callbacks.h"
 
 namespace NYT {
 namespace NQueryClient {
@@ -13,6 +14,12 @@ class TEvaluator
 public:
     explicit TEvaluator(TExecutorConfigPtr config);
     ~TEvaluator();
+
+    TQueryStatistics RunWithExecutor(
+        const TConstQueryPtr& fragment,
+        ISchemafulReaderPtr reader,
+        ISchemafulWriterPtr writer,
+        TExecuteQuery executeCallback);
 
     TQueryStatistics Run(
         const TConstQueryPtr& fragment,

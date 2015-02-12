@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "query_executor.h"
 #include "config.h"
 #include "private.h"
@@ -125,6 +127,25 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRemoteExecutor
+    : public IExecutor
+{
+public:
+    explicit TRemoteExecutor(TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+    { }
+
+    TFuture<TQueryStatistics> Execute(
+        const TPlanFragmentPtr& fragment,
+        ISchemafulWriterPtr writer)
+    {
+        return Bootstrap_->GetMasterClient()->GetQueryExecutor()->Execute(fragment, std::move(writer));
+    }
+
+private:
+    TBootstrap* Bootstrap_;
+};
+
 class TQueryExecutor
     : public IExecutor
 {
@@ -135,6 +156,7 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , Evaluator_(New<TEvaluator>(Config_))
+        , RemoteExecutor_(New<TRemoteExecutor>(bootstrap))
     { }
 
     // IExecutor implementation.
@@ -152,6 +174,7 @@ private:
     TBootstrap* Bootstrap_;
 
     TEvaluatorPtr Evaluator_;
+    IExecutorPtr RemoteExecutor_;
 
     TQueryStatistics DoExecute(
         const TPlanFragmentPtr& fragment,
@@ -188,9 +211,19 @@ private:
 
                 auto pipe = New<TSchemafulPipe>();
 
-                auto asyncStatistics = BIND(&TEvaluator::Run, Evaluator_)
+                auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
-                    .Run(subquery, mergingReader, pipe->GetWriter());
+                    .Run(subquery, mergingReader, pipe->GetWriter(), [&] (const TQueryPtr& subquery, ISchemafulWriterPtr writer) -> TQueryStatistics {
+                        TPlanFragmentPtr planFragment = New<TPlanFragment>();
+
+                        planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+                        planFragment->Query = subquery;
+                        planFragment->DataSplits.push_back(fragment->ForeignDataSplit);
+
+                        auto subqueryResult = RemoteExecutor_->Execute(planFragment, writer);
+
+                        return WaitFor(subqueryResult).ValueOrThrow();
+                    });
 
                 asyncStatistics.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& result) {
                     if (!result.IsOK()) {

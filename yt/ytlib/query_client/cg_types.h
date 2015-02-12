@@ -5,6 +5,8 @@
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/llvm_types.h>
 
+#include <ytlib/api/rowset.h>
+
 #include <core/misc/chunked_memory_pool.h>
 
 #include <core/actions/callback.h>
@@ -38,6 +40,21 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const size_t InitialGroupOpHashtableCapacity = 1024;
+
+typedef ui64 (*THasherFunction)(TRow);
+typedef char (*TComparerFunction)(TRow, TRow);
+
+struct TExecutionContext;
+
+typedef std::function<void(
+    TExecutionContext* executionContext,
+    THasherFunction,
+    TComparerFunction,
+    const std::vector<TRow>& keys,
+    const std::vector<TRow>& allRows,
+    std::vector<TRow>* joinedRows)> TJoinEvaluator;
+
 struct TExecutionContext
 {
 #ifndef NDEBUG
@@ -65,6 +82,8 @@ struct TExecutionContext
     i64 Limit;
 
     char stopFlag = false;
+
+    TJoinEvaluator EvaluateJoin;
 };
 
 namespace NDetail {
@@ -105,8 +124,15 @@ typedef
     <TRow, NDetail::TGroupHasher, NDetail::TGroupComparer>
     TLookupRows;
 
+typedef std::unordered_multiset<
+    TRow,
+    NDetail::TGroupHasher,
+    NDetail::TGroupComparer> TJoinLookupRows;
+
 struct TCGBinding
 {
+    TConstExpressionPtr SelfJoinPredicate;
+
     std::unordered_map<const TExpression*, int> NodeToConstantIndex;
     std::unordered_map<const TExpression*, int> NodeToRows;
     
@@ -137,6 +163,7 @@ using NYT::NQueryClient::TRowHeader;
 using NYT::NQueryClient::TValue;
 using NYT::NQueryClient::TValueData;
 using NYT::NQueryClient::TLookupRows;
+using NYT::NQueryClient::TJoinLookupRows;
 using NYT::NQueryClient::TExecutionContext;
 
 // Opaque types
@@ -147,7 +174,17 @@ class TypeBuilder<std::vector<TRow>*, Cross>
 { };
 
 template <bool Cross>
+class TypeBuilder<const std::vector<TRow>*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };
+
+template <bool Cross>
 class TypeBuilder<TLookupRows*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };
+
+template <bool Cross>
+class TypeBuilder<TJoinLookupRows*, Cross>
     : public TypeBuilder<void*, Cross>
 { };
 

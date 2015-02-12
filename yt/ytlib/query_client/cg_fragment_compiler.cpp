@@ -5,6 +5,7 @@
 #include "helpers.h"
 
 #include "plan_fragment.h"
+#include "plan_helpers.h"
 
 #include "cg_routines.h"
 #include "cg_ir_builder.h"
@@ -459,6 +460,13 @@ private:
 
     void CodegenScanOp(
         TCGIRBuilder& builder,
+        const TCodegenConsumer& codegenConsumer);
+
+    void CodegenJoinOp(
+        TCGIRBuilder& builder,
+        const TJoinClause& clause,
+        const TTableSchema& sourceTableSchema,
+        const TCodegenSource& codegenSource,
         const TCodegenConsumer& codegenConsumer);
 
     void CodegenFilterOp(
@@ -1531,6 +1539,136 @@ void TCGContext::CodegenScanOp(
         function);
 }
 
+void TCGContext::CodegenJoinOp(
+    TCGIRBuilder& builder,
+    const TJoinClause& clause,
+    const TTableSchema& sourceTableSchema,
+    const TCodegenSource& codegenSource,
+    const TCodegenConsumer& codegenConsumer)
+{
+    auto module = Module_->GetModule();
+
+    // See JoinOpHelper.
+    Function* collectRows = Function::Create(
+        TypeBuilder<void(void**, void*, void*, void*), false>::get(builder.getContext()),
+        Function::ExternalLinkage,
+        "CollectRows",
+        module);
+
+    auto collectRowsArgs = collectRows->arg_begin();
+    Value* closure = collectRowsArgs; closure->setName("closure");
+    Value* keys = ++collectRowsArgs; keys->setName("keys");
+    Value* keysLookup = ++collectRowsArgs; keysLookup->setName("keysLookup");
+    Value* allRows = ++collectRowsArgs; allRows->setName("allRows");
+    YCHECK(++collectRowsArgs == collectRows->arg_end());
+
+    TCGIRBuilder collectBuilder(
+        collectRows,
+        &builder,
+        closure);
+
+    int joinKeySize = clause.JoinColumns.size();
+
+    Value* newRowPtr = collectBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
+
+    collectBuilder.CreateCall3(
+        Module_->GetRoutine("AllocatePermanentRow"),
+        GetExecutionContextPtr(collectBuilder),
+        builder.getInt32(joinKeySize),
+        newRowPtr);
+
+    codegenSource(collectBuilder, [&] (TCGIRBuilder& builder, Value* row) {
+        Value* executionContextPtrRef = GetExecutionContextPtr(builder);
+        Value* keysRef = builder.ViaClosure(keys);
+        Value* allRowsRef = builder.ViaClosure(allRows);
+        Value* keysLookupRef = builder.ViaClosure(keysLookup);
+        Value* newRowPtrRef = builder.ViaClosure(newRowPtr);
+        Value* newRowRef = builder.CreateLoad(newRowPtrRef);
+
+        builder.CreateCall3(
+            Module_->GetRoutine("SaveJoinRow"),
+            executionContextPtrRef,
+            allRowsRef,
+            row);
+
+        for (int index = 0; index < joinKeySize; ++index) {
+            auto id = index;
+
+            auto columnName = clause.JoinColumns[index];
+            auto column = sourceTableSchema.GetColumnOrThrow(columnName);
+
+            auto columnIndex = sourceTableSchema.GetColumnIndexOrThrow(columnName);
+            TCGValue::CreateFromRow(
+                builder,
+                row,
+                columnIndex,
+                column.Type,
+                "reference." + Twine(columnName.c_str()))
+                .StoreToRow(newRowRef, index, id);                
+        }
+
+        // Add row to rows and lookup;
+
+        builder.CreateCall5(
+            Module_->GetRoutine("InsertJoinRow"),
+            executionContextPtrRef,
+            keysLookupRef,
+            keysRef,
+            newRowPtrRef,
+            builder.getInt32(joinKeySize));
+
+    });
+
+    collectBuilder.CreateRetVoid();
+
+    // See JoinOpHelper.
+    Function* consumeJoinedRows = Function::Create(
+        TypeBuilder<void(void**, void*, char*), false>::get(builder.getContext()),
+        Function::ExternalLinkage,
+        "JoinOpInner",
+        module);
+
+    auto consumeJoinedRowsArgs = consumeJoinedRows->arg_begin();
+    Value* consumeClosure = consumeJoinedRowsArgs; consumeClosure->setName("consumeClosure");
+    Value* joinedRows = ++consumeJoinedRowsArgs; joinedRows->setName("joinedRows");
+    Value* stopFlag = ++consumeJoinedRowsArgs; stopFlag->setName("stopFlag");
+    YCHECK(++consumeJoinedRowsArgs == consumeJoinedRows->arg_end());
+
+    TCGIRBuilder consumeBuilder(
+        consumeJoinedRows,
+        &builder,
+        consumeClosure);
+
+    CodegenForEachRow(
+        consumeBuilder,
+        consumeBuilder.CreateCall(Module_->GetRoutine("GetRowsData"), joinedRows),
+        consumeBuilder.CreateCall(Module_->GetRoutine("GetRowsSize"), joinedRows),
+        stopFlag,
+        codegenConsumer);
+
+    consumeBuilder.CreateRetVoid();
+ 
+    std::vector<EValueType> keyTypes;
+    for (int index = 0; index < clause.JoinColumns.size(); ++index) {
+        keyTypes.push_back(sourceTableSchema.FindColumn(clause.JoinColumns[index])->Type);
+    }
+
+    builder.CreateCallWithArgs(
+        Module_->GetRoutine("JoinOpHelper"),
+        {
+            GetExecutionContextPtr(builder),
+            CodegenGroupHasherFunction(keyTypes),
+            CodegenGroupComparerFunction(keyTypes),
+
+            collectBuilder.GetClosure(),
+            collectRows,
+
+            consumeBuilder.GetClosure(),
+            consumeJoinedRows
+        });
+
+}
+
 void TCGContext::CodegenFilterOp(
     TCGIRBuilder& builder,
     const TConstExpressionPtr& predicate,
@@ -1765,6 +1903,19 @@ TCGQueryCallback CodegenEvaluate(
     TCodegenSource codegenSource = [&] (TCGIRBuilder& builder, const TCodegenConsumer& codegenConsumer) {
         ctx.CodegenScanOp(builder, codegenConsumer);
     };
+    
+    if (auto joinClause = query->JoinClause.GetPtr()) {
+        if (binding.SelfJoinPredicate) {
+            codegenSource = [&, codegenSource, joinClause] (TCGIRBuilder& builder, const TCodegenConsumer& codegenConsumer) {
+                ctx.CodegenFilterOp(builder, binding.SelfJoinPredicate, joinClause->SelfTableSchema, codegenSource, codegenConsumer);
+            };
+        }
+
+        codegenSource = [&, codegenSource, joinClause] (TCGIRBuilder& builder, const TCodegenConsumer& codegenConsumer) {
+            ctx.CodegenJoinOp(builder, *joinClause, joinClause->SelfTableSchema, codegenSource, codegenConsumer);
+        };
+    }
+
     TTableSchema sourceSchema = query->TableSchema;
 
     if (query->Predicate) {
