@@ -21,9 +21,6 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#ifdef YT_USE_LLVM
-#include <ytlib/query_client/cg_types.h>
-#endif
 
 namespace NYT {
 namespace NTabletClient {
@@ -72,17 +69,6 @@ struct TTableMountInfo
     TTabletInfoPtr GetTablet(NVersionedTableClient::TUnversionedRow row);
 
     bool NeedKeyEvaluation = false;
-#ifdef YT_USE_LLVM
-    std::vector<NQueryClient::TCGExpressionCallback> Evaluators;
-    std::vector<NQueryClient::TCGVariables> Variables;
-#endif
-
-    void EvaluateKeys(NVersionedTableClient::TUnversionedRow fullRow, NVersionedTableClient::TRowBuffer& buffer);
-    void EvaluateKeys(
-        NVersionedTableClient::TUnversionedRow fullRow,
-        NVersionedTableClient::TRowBuffer& buffer,
-        const NVersionedTableClient::TUnversionedRow partialRow,
-        const NVersionedTableClient::TNameTableToSchemaIdMapping& idMapping);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableMountInfo)

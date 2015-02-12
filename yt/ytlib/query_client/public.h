@@ -49,6 +49,12 @@ DECLARE_REFCOUNTED_CLASS(TEvaluator)
 
 DECLARE_REFCOUNTED_CLASS(TExecutorConfig)
 
+DECLARE_REFCOUNTED_CLASS(TColumnEvaluator)
+
+DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCache)
+
+DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheConfig)
+
 // TODO(babenko): kill this when refactoring TDataSplit
 typedef NChunkClient::NProto::TChunkSpec TDataSplit;
 typedef std::vector<TDataSplit> TDataSplits;

@@ -54,6 +54,7 @@
 #include <ytlib/query_client/query_service_proxy.h>
 #include <ytlib/query_client/query_statistics.h>
 #include <ytlib/query_client/evaluator.h>
+#include <ytlib/query_client/column_evaluator.h>
 #include <ytlib/query_client/private.h> // XXX(sandello): refactor BuildLogger
 
 #include <ytlib/chunk_client/chunk_replica.h>
@@ -1154,10 +1155,13 @@ private:
         TRowBuffer buffer;
 
         if (tableInfo->NeedKeyEvaluation) {
+            auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
+            auto evaluator = evaluatorCache->Find(tableInfo->Schema, keyColumnCount);
+
             for (int keyIndex = 0; keyIndex < keys.size(); ++keyIndex) {
                 const auto& key = keys[keyIndex];
                 auto tempKey = TUnversionedRow::Allocate(buffer.GetAlignedPool(), keyColumnCount);
-                tableInfo->EvaluateKeys(tempKey, buffer, key, idMapping);
+                evaluator->EvaluateKeys(tempKey, buffer, key, idMapping);
                 sortedKeys.push_back(std::make_pair(keyIndex, tempKey));
             }
 
@@ -2015,6 +2019,8 @@ private:
             if (TableInfo_->NeedKeyEvaluation) {
                 TRowBuffer buffer;
                 auto trivialIdMapping = TNameTableToSchemaIdMapping(columnCount);
+                auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
+                auto evaluator = evaluatorCache->Find(TableInfo_->Schema, keyColumnCount);
 
                 for (int index = 0; index < columnCount; ++index) {
                     trivialIdMapping[index] = index;
@@ -2022,7 +2028,7 @@ private:
 
                 for (auto row : rows) {
                     auto tempRow = TUnversionedRow::Allocate(buffer.GetAlignedPool(), columnCount);
-                    TableInfo_->EvaluateKeys(tempRow, buffer, row, idMapping);
+                    evaluator->EvaluateKeys(tempRow, buffer, row, idMapping);
 
                     validateRow(tempRow, keyColumnCount, trivialIdMapping, TableInfo_->Schema);
                     writeRequest(tempRow, nullptr);

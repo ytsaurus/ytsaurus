@@ -58,6 +58,9 @@ TConnectionConfig::TConnectionConfig()
         .GreaterThan(0)
         .Default(1000000);
 
+    RegisterParameter("column_evaluator_cache", ColumnEvaluatorCache)
+        .DefaultNew();
+
     RegisterParameter("write_timeout", WriteTimeout)
         .Default(TDuration::Seconds(60));
     RegisterParameter("write_request_codec", WriteRequestCodec)

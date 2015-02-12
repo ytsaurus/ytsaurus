@@ -23,13 +23,6 @@
 #include <ytlib/new_table_client/table_ypath_proxy.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
-#ifdef YT_USE_LLVM
-#include <ytlib/query_client/folding_profiler.h>
-#include <ytlib/query_client/cg_types.h>
-#include <ytlib/query_client/cg_fragment_compiler.h>
-#include <ytlib/query_client/query_statistics.h>
-#endif
-
 namespace NYT {
 namespace NTabletClient {
 
@@ -44,9 +37,6 @@ using namespace NCypressClient;
 using namespace NVersionedTableClient;
 using namespace NHive;
 using namespace NNodeTrackerClient;
-#ifdef YT_USE_LLVM
-using namespace NQueryClient;
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,62 +71,6 @@ TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row)
             return CompareRows(lhs, rhs->PivotKey.Get(), KeyColumns.size()) < 0;
         });
     return *(it - 1);
-}
-
-void TTableMountInfo::EvaluateKeys(TUnversionedRow fullRow, TRowBuffer& buffer)
-{
-#ifdef YT_USE_LLVM
-    for (int index = 0; index < KeyColumns.size(); ++index) {
-        if (Schema.Columns()[index].Expression) {
-            if (!Evaluators[index]) {
-                auto expr = PrepareExpression(Schema.Columns()[index].Expression.Get(), Schema);
-                TCGBinding binding;
-                TFoldingProfiler()
-                    .Set(binding)
-                    .Set(Variables[index])
-                    .Profile(expr);
-                Evaluators[index] = CodegenExpression(expr, Schema, binding);
-            }
-
-            TQueryStatistics statistics;
-            TExecutionContext executionContext;
-            executionContext.Schema = Schema;
-            executionContext.LiteralRows = &Variables[index].LiteralRows;
-            executionContext.PermanentBuffer = &buffer;
-            executionContext.OutputBuffer = &buffer;
-            executionContext.IntermediateBuffer = &buffer;
-            executionContext.Statistics = &statistics;
-
-            Evaluators[index](&fullRow[index], fullRow, Variables[index].ConstantsRowBuilder.GetRow(), &executionContext);
-        }
-    }
-#else
-    THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
-#endif
-}
-
-void TTableMountInfo::EvaluateKeys(
-    TUnversionedRow fullRow,
-    TRowBuffer& buffer,
-    const TUnversionedRow partialRow,
-    const TNameTableToSchemaIdMapping& idMapping)
-{
-    int columnCount = fullRow.GetCount();
-
-    for (int index = 0; index < columnCount; ++index) {
-        fullRow[index].Type = EValueType::Null;
-    }
-
-    for (int index = 0; index < partialRow.GetCount(); ++index) {
-        YCHECK(idMapping[partialRow[index].Id] < columnCount);
-        fullRow[idMapping[partialRow[index].Id]] = partialRow[index];
-    }
-
-    EvaluateKeys(fullRow, buffer);
-
-    for (int index = 0; index < columnCount; ++index) {
-        fullRow[index].Id = index;
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -285,13 +219,6 @@ private:
                 break;
             }
         }
-#ifdef YT_USE_LLVM
-        if (tableInfo->NeedKeyEvaluation) {
-            auto keyColumnCount = tableInfo->KeyColumns.size();
-            tableInfo->Evaluators.resize(keyColumnCount);
-            tableInfo->Variables.resize(keyColumnCount);
-        }
-#endif
 
         auto nodeDirectory = New<TNodeDirectory>();
         nodeDirectory->MergeFrom(rsp->node_directory());
