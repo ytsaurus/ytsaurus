@@ -212,13 +212,7 @@ private:
         tableInfo->Schema = FromProto<TTableSchema>(rsp->schema());
         tableInfo->KeyColumns = FromProto<TKeyColumns>(rsp->key_columns());
         tableInfo->Sorted = rsp->sorted();
-
-        for (int index = 0; index < tableInfo->KeyColumns.size(); ++index) {
-            if (tableInfo->Schema.Columns()[index].Expression) {
-                tableInfo->NeedKeyEvaluation = true;
-                break;
-            }
-        }
+        tableInfo->NeedKeyEvaluation = tableInfo->Schema.HasComputedColumns(tableInfo->KeyColumns.size());
 
         auto nodeDirectory = New<TNodeDirectory>();
         nodeDirectory->MergeFrom(rsp->node_directory());

@@ -151,6 +151,11 @@ inline bool IsComparableType(EValueType type)
     return IsArithmeticType(type) || type == EValueType::String;
 }
 
+inline bool IsSentinelType(EValueType type)
+{
+    return type == EValueType::Min || type == EValueType::Max;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TUnversionedValue MakeUnversionedSentinelValue(EValueType type, int id = 0)

@@ -91,7 +91,9 @@ Stroka InferName(TConstExpressionPtr expr)
         return Stroka(isNewTuple ? "" : ", ");
     };
 
-    if (auto literalExpr = expr->As<TLiteralExpression>()) {
+    if (!expr) {
+        return Stroka();
+    } else if (auto literalExpr = expr->As<TLiteralExpression>()) {
         return ToString(static_cast<TUnversionedValue>(literalExpr->Value));
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
         return referenceExpr->ColumnName;
@@ -803,32 +805,35 @@ TPlanFragmentPtr PreparePlanFragment(
 
     const auto& queryTableSchema = query->TableSchema;
     auto initialTableSchema = GetTableSchemaFromDataSplit(initialDataSplit);
-    auto& columns = initialTableSchema.Columns();
-
-    columns.erase(
-        std::remove_if(
-            columns.begin(),
-            columns.end(),
-            [&queryTableSchema](const TColumnSchema& columnSchema) {
-                return queryTableSchema.FindColumn(columnSchema.Name) == nullptr;
-            }),
-        columns.end());
-
-    SetTableSchema(&initialDataSplit, initialTableSchema);
     query->KeyColumns = GetKeyColumnsFromDataSplit(initialDataSplit);
+    int keyColumnCount = query->KeyColumns.size();
+
+    std::function<bool(const TColumnSchema&)> columnFilter;
+
+    if (initialTableSchema.HasComputedColumns(keyColumnCount)) {
+        columnFilter = [&] (const TColumnSchema& columnSchema) {
+            int index = initialTableSchema.GetColumnIndexOrThrow(columnSchema.Name);
+            return index >= keyColumnCount
+                && queryTableSchema.FindColumn(columnSchema.Name) == nullptr;
+        };
+    } else {
+        columnFilter = [&] (const TColumnSchema& columnSchema) {
+            return queryTableSchema.FindColumn(columnSchema.Name) == nullptr;
+        };
+    }
+
+    auto removeUnusedColumns = [&] (std::vector<TColumnSchema>& columns) {
+        columns.erase(
+            std::remove_if(columns.begin(), columns.end(), columnFilter),
+            columns.end());
+    };
+
+    removeUnusedColumns(initialTableSchema.Columns());
+    SetTableSchema(&initialDataSplit, initialTableSchema);
 
     if (auto joinClause = query->JoinClause.GetPtr()) {
         joinClause->SelfTableSchema = initialTableSchema;
-        auto& columns = joinClause->ForeignTableSchema.Columns();
-        columns.erase(
-            std::remove_if(
-                columns.begin(),
-                columns.end(),
-                [&queryTableSchema](const TColumnSchema& columnSchema) {
-                    return queryTableSchema.FindColumn(columnSchema.Name) == nullptr;
-                }),
-            columns.end());
-        
+        removeUnusedColumns(joinClause->ForeignTableSchema.Columns());
         SetTableSchema(&planFragment->ForeignDataSplit, joinClause->ForeignTableSchema);
     }
 

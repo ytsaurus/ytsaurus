@@ -64,10 +64,14 @@ struct TKeyTrieNode
         return TKeyTrieNode(std::numeric_limits<int>::max());
     }
 
-    TKeyTrieNode& Unite(const TKeyTrieNode& rhs);
-    
-    friend TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs);
+    static TKeyTrieNode FromLowerBound(const TKey& bound);
+    static TKeyTrieNode FromUpperBound(const TKey& bound);
+    static TKeyTrieNode FromRange(const TKeyRange& range);
 
+
+    TKeyTrieNode& Unite(const TKeyTrieNode& rhs);
+
+    friend TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs);
     friend TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs);
 
 private:
@@ -76,8 +80,6 @@ private:
     { }
 
 };
-
-
 
 std::vector<TKeyRange> GetRangesFromTrieWithinRange(
     const TKeyRange& keyRange,

@@ -194,3 +194,33 @@ class TestQuery(YTEnvSetup):
         select_rows("* from [//tmp/tt] where key < 50")
 
         with pytest.raises(YtError): select_rows("* from [//tmp/tt] where key < 51")
+
+    def test_computed_column(self):
+        self._sync_create_cells(3, 1)
+
+        create("table", "//tmp/tc",
+            attributes = {
+                "schema": [
+                    {"name": "hash", "type": "int64", "expression": "key * 33"},
+                    {"name": "key", "type": "int64"},
+                    {"name": "value", "type": "int64"}],
+                "key_columns": ["hash", "key"]
+            })
+        reshard_table("//tmp/tc", [[]] + [[i] for i in xrange(1, 100 * 33, 1000)])
+        mount_table("//tmp/tc")
+        self._wait_for_tablet_state("//tmp/tc", ["mounted"])
+
+        insert_rows("//tmp/tc", [{"key": i, "value": i * 2} for i in xrange(0,100)])
+
+        expected = [{"hash": 42 * 33, "key": 42, "value": 42 * 2}]
+        actual = select_rows("* from [//tmp/tc] where key = 42")
+        self.assertItemsEqual(expected, actual)
+
+        expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in xrange(10,80)]
+        actual = sorted(select_rows("* from [//tmp/tc] where key >= 10 and key < 80"))
+        self.assertItemsEqual(expected, actual)
+
+        expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in [10, 20, 30]]
+        actual = sorted(select_rows("* from [//tmp/tc] where key in (10, 20, 30)"))
+        self.assertItemsEqual(expected, actual)
+        
