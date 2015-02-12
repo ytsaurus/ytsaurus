@@ -354,9 +354,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (transaction->GetState() != ETransactionState::Active &&
-            transaction->GetState() != ETransactionState::TransientCommitPrepared &&
-            transaction->GetState() != ETransactionState::PersistentCommitPrepared)
+        auto state = transaction->GetState();
+        
+        if (state != ETransactionState::Active &&
+            state != ETransactionState::TransientCommitPrepared &&
+            state != ETransactionState::PersistentCommitPrepared)
         {
             transaction->ThrowInvalidState();
         }
@@ -382,7 +384,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (transaction->GetState() == ETransactionState::PersistentCommitPrepared && !force) {
+        auto state = transaction->GetState();
+        if (state == ETransactionState::PersistentCommitPrepared && !force) {
             transaction->ThrowInvalidState();
         }
 
@@ -504,7 +507,12 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        if (transaction->GetState() != ETransactionState::Active) {
+        auto state = transaction->GetState();
+        
+        // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
+        if (state != ETransactionState::Active &&
+            (!persistent || state != ETransactionState::TransientCommitPrepared))
+        {
             transaction->ThrowInvalidState();
         }
 
@@ -521,9 +529,11 @@ public:
             ? ETransactionState::PersistentCommitPrepared
             : ETransactionState::TransientCommitPrepared);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v)",
-            transactionId,
-            persistent);
+        if (state == ETransactionState::Active) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v)",
+                transactionId,
+                persistent);
+        }
     }
 
     void PrepareTransactionAbort(const TTransactionId& transactionId, bool force)
@@ -531,14 +541,17 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        if (transaction->GetState() != ETransactionState::Active && !force) {
+        auto state = transaction->GetState();
+        if (state != ETransactionState::Active && !force) {
             transaction->ThrowInvalidState();
         }
 
-        transaction->SetState(ETransactionState::TransientAbortPrepared);
+        if (state == ETransactionState::Active) {
+            transaction->SetState(ETransactionState::TransientAbortPrepared);
 
-        LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
-            transactionId);
+            LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
+                transactionId);
+        }
     }
 
     void CommitTransaction(
