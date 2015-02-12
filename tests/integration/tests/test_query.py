@@ -79,11 +79,80 @@ class TestQuery(YTEnvSetup):
         actual = select("* from [//tmp/l1] limit 1")
         assert expected == actual
 
+    def test_join(self):
+
+        self._sync_create_cells(3, 1)
+
+        create("table", "//tmp/jl",
+            attributes = {
+                "schema": [
+                    {"name": "LogID", "type": "int64"},
+                    {"name": "OrderID", "type": "int64"},
+                    {"name": "UpdateTime", "type": "int64"}],
+                "key_columns": ["LogID", "OrderID"]
+            })
+
+        mount_table("//tmp/jl")
+        self._wait_for_tablet_state("//tmp/jl", ["mounted"])
+
+        create("table", "//tmp/jr",
+            attributes = {
+                "schema": [
+                    {"name": "UpdateTime", "type": "int64"},
+                    {"name": "LogID1", "type": "int64"},
+                    {"name": "OrderID1", "type": "int64"}],
+                "key_columns": ["UpdateTime"]
+            })
+
+        mount_table("//tmp/jr")
+        self._wait_for_tablet_state("//tmp/jr", ["mounted"])
+
+        data = [
+            {"LogID": 1, "OrderID": 2, "UpdateTime": 0 },
+            {"LogID": 1, "OrderID": 3, "UpdateTime": 1 },
+            {"LogID": 1, "OrderID": 4, "UpdateTime": 2 },
+            {"LogID": 2, "OrderID": 1, "UpdateTime": 3 },
+            {"LogID": 2, "OrderID": 2, "UpdateTime": 4 },
+            {"LogID": 2, "OrderID": 3, "UpdateTime": 5 },
+            {"LogID": 2, "OrderID": 4, "UpdateTime": 6 },
+            {"LogID": 3, "OrderID": 1, "UpdateTime": 7 }]
+
+        insert("//tmp/jl", data)
+
+        data = [
+            {"LogID1": 1, "OrderID1": 2, "UpdateTime": 0 },
+            {"LogID1": 1, "OrderID1": 3, "UpdateTime": 1 },
+            {"LogID1": 1, "OrderID1": 4, "UpdateTime": 2 },
+            {"LogID1": 2, "OrderID1": 1, "UpdateTime": 3 },
+            {"LogID1": 2, "OrderID1": 2, "UpdateTime": 4 },
+            {"LogID1": 2, "OrderID1": 3, "UpdateTime": 5 },
+            {"LogID1": 2, "OrderID1": 4, "UpdateTime": 6 },
+            {"LogID1": 3, "OrderID1": 1, "UpdateTime": 7 }]
+
+        insert("//tmp/jr", data)
+
+        expected = [
+            {"LogID": 1, "OrderID": 2, "UpdateTime": 0, "LogID1": 1, "OrderID1": 2},
+            {"LogID": 1, "OrderID": 3, "UpdateTime": 1, "LogID1": 1, "OrderID1": 3},
+            {"LogID": 1, "OrderID": 4, "UpdateTime": 2, "LogID1": 1, "OrderID1": 4},
+            {"LogID": 2, "OrderID": 1, "UpdateTime": 3, "LogID1": 2, "OrderID1": 1},
+            {"LogID": 2, "OrderID": 2, "UpdateTime": 4, "LogID1": 2, "OrderID1": 2},
+            {"LogID": 2, "OrderID": 3, "UpdateTime": 5, "LogID1": 2, "OrderID1": 3},
+            {"LogID": 2, "OrderID": 4, "UpdateTime": 6, "LogID1": 2, "OrderID1": 4},
+            {"LogID": 3, "OrderID": 1, "UpdateTime": 7, "LogID1": 3, "OrderID1": 1}]
+
+        actual = select("* from [//tmp/jl] join [//tmp/jr] using UpdateTime where LogID < 4")
+        assert expected == actual
+
     def test_types(self):
         create("table", "//tmp/t")
 
         format = yson.loads("<boolean_as_string=false;format=text>yson")
-        write("//tmp/t", '{a=10;b=%false;c="hello";d=32u};{a=20;b=%true;c="world";d=64u};', input_format=format, is_raw=True)
+        write(
+            "//tmp/t",
+            '{a=10;b=%false;c="hello";d=32u};{a=20;b=%true;c="world";d=64u};',
+            input_format=format,
+            is_raw=True)
 
         sort(in_="//tmp/t", out="//tmp/t", sort_by=["a", "b", "c", "d"])
         set("//tmp/t/@schema", [
