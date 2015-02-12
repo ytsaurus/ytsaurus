@@ -227,11 +227,36 @@ void SetPermissions(int fd, int permissions)
 
 void SafePipe(int fd[2])
 {
-    auto res = pipe(fd);
-    if (res == -1) {
-        THROW_ERROR_EXCEPTION("pipe failed")
+#if defined(_linux_)
+    auto result = ::pipe2(fd, O_CLOEXEC);
+    if (result == -1) {
+        THROW_ERROR_EXCEPTION("Error creating pipe")
             << TError::FromSystem();
     }
+#elif defined(_darwin_)
+    {
+        int result = ::pipe(fd);
+        if (result == -1) {
+            THROW_ERROR_EXCEPTION("Error creating pipe: pipe creation failed")
+                << TError::FromSystem();
+        }
+    }
+    for (int index = 0; index < 2; ++index) {
+        int getResult = ::fcntl(fd[index], F_GETFL);
+        if (getResult == -1) {
+            THROW_ERROR_EXCEPTION("Error creating pipe: fcntl failed to get descriptor flags")
+                << TError::FromSystem();
+        }
+
+        int setResult = ::fcntl(fd[index], F_SETFL, getResult | FD_CLOEXEC);
+        if (setResult == -1) {
+            THROW_ERROR_EXCEPTION("Error creating pipe: fcntl failed to set descriptor flags")
+                << TError::FromSystem();
+        }
+    }
+#else
+    THROW_ERROR_EXCEPTION("Windows is not supported");
+#endif
 }
 
 void SafeMakeNonblocking(int fd)

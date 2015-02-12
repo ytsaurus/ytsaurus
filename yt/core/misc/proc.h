@@ -30,6 +30,7 @@ void SafeDup2(int oldFd, int newFd);
 
 bool TryExecve(const char* path, char* const argv[], char* const env[]);
 
+// Returns a pipe with CLOSE_EXEC flag.
 void SafePipe(int fd[2]);
 void SafeMakeNonblocking(int fd);
 
