@@ -440,7 +440,6 @@ bool AllReferencesAreInSchema(const TConstExpressionPtr& expr, const TTableSchem
         }
         return result;
     } else if (auto inExpr = expr->As<TInOpExpression>()) {
-
         bool result = true;
         for (const auto& argument : inExpr->Arguments) {
             result = result && AllReferencesAreInSchema(argument, tableSchema);

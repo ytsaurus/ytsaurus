@@ -39,8 +39,6 @@ void CaptureValue(TValue* value, TChunkedMemoryPool* pool)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t InitialGroupOpHashtableCapacity = 1024;
-
 #ifndef NDEBUG
 #define CHECK_STACK() \
     { \
@@ -115,8 +113,9 @@ void ScanOpHelper(
     auto* reader = executionContext->Reader;
 
     {
-        auto error = WaitFor(reader->Open(executionContext->Schema));
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
+        WaitFor(reader->Open(executionContext->Schema))
+            .ThrowOnError();
     }
 
     std::vector<TRow> rows;
@@ -156,6 +155,69 @@ void ScanOpHelper(
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
     }
+}
+
+void InsertJoinRow(
+    TExecutionContext* executionContext,
+    TLookupRows* lookupRows,
+    std::vector<TRow>* rows,
+    TRow* rowPtr,
+    int valueCount)
+{
+    CHECK_STACK();
+
+    TRow row = *rowPtr;
+    auto inserted = lookupRows->insert(row);
+
+    if (inserted.second) {
+        rows->push_back(row);
+        for (int index = 0; index < valueCount; ++index) {
+            CaptureValue(&row[index], executionContext->PermanentBuffer->GetUnalignedPool());
+        }
+        *rowPtr = TRow::Allocate(executionContext->PermanentBuffer->GetAlignedPool(), valueCount);
+    }
+}
+
+void SaveJoinRow(
+    TExecutionContext* executionContext,
+    std::vector<TRow>* rows,
+    TRow row)
+{
+    CHECK_STACK();
+
+    rows->push_back(executionContext->PermanentBuffer->Capture(row));
+}
+
+void JoinOpHelper(
+    TExecutionContext* executionContext,
+    ui64 (*groupHasher)(TRow),
+    char (*groupComparer)(TRow, TRow),
+    void** collectRowsClosure,
+    void (*collectRows)(void** closure, std::vector<TRow>* rows, TLookupRows* lookupRows, std::vector<TRow>* allRows),
+    void** consumeRowsClosure,
+    void (*consumeRows)(void** closure, std::vector<TRow>* rows, char* stopFlag)
+    )
+{
+    std::vector<TRow> keys;
+    
+    TLookupRows keysLookup(
+        InitialGroupOpHashtableCapacity,
+        groupHasher,
+        groupComparer);
+
+    std::vector<TRow> allRows;
+
+    keysLookup.set_empty_key(TRow());
+
+    // Collect join ids.
+    collectRows(collectRowsClosure, &keys, &keysLookup, &allRows);
+
+    std::vector<TRow> joinedRows;
+    executionContext->EvaluateJoin(executionContext, groupHasher, groupComparer, keys, allRows, &joinedRows);
+
+    // Consume joined rows.
+    executionContext->stopFlag = false;
+    consumeRows(consumeRowsClosure, &joinedRows, &executionContext->stopFlag);
 }
 
 void GroupOpHelper(
@@ -346,10 +408,13 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     registry->RegisterRoutine(#routine, NRoutines::routine)
     REGISTER_ROUTINE(WriteRow);
     REGISTER_ROUTINE(ScanOpHelper);
+    REGISTER_ROUTINE(JoinOpHelper);
     REGISTER_ROUTINE(GroupOpHelper);
     REGISTER_ROUTINE(StringHash);
     REGISTER_ROUTINE(FindRow);
     REGISTER_ROUTINE(InsertGroupRow);
+    REGISTER_ROUTINE(InsertJoinRow);
+    REGISTER_ROUTINE(SaveJoinRow);
     REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateRow);
     REGISTER_ROUTINE(GetRowsData);

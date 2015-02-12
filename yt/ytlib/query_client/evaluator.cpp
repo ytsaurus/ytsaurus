@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "evaluator.h"
 
+#include "evaluation_helpers.h"
 #include "helpers.h"
 #include "private.h"
 #include "plan_fragment.h"
@@ -78,14 +79,13 @@ class TEvaluator::TImpl
 public:
     explicit TImpl(TExecutorConfigPtr config)
         : TSyncSlruCacheBase(config->CGCache)
-    {
-        CallCGQueryPtr_ = &CallCGQuery;
-    }
+    { }
 
     TQueryStatistics Run(
         const TConstQueryPtr& query,
         ISchemafulReaderPtr reader,
-        ISchemafulWriterPtr writer)
+        ISchemafulWriterPtr writer,
+        TExecuteQuery executeCallback)
     {
         TRACE_CHILD("QueryClient", "Evaluate") {
             TRACE_ANNOTATION("fragment_id", query->GetId());
@@ -119,7 +119,9 @@ public:
 
                 TExecutionContext executionContext;
                 executionContext.Reader = reader.Get();
-                executionContext.Schema = query->TableSchema;
+                executionContext.Schema = query->JoinClause
+                    ? query->JoinClause->SelfTableSchema
+                    : query->TableSchema;
 
                 executionContext.LiteralRows = &fragmentParams.LiteralRows;
                 executionContext.PermanentBuffer = &permanentBuffer;
@@ -133,7 +135,16 @@ public:
                 executionContext.GroupRowLimit = query->GetOutputRowLimit();
                 executionContext.Limit = query->Limit;
 
-                LOG_DEBUG("Running evaluation");
+                if (query->JoinClause) {
+                    auto& joinClause = query->JoinClause.Get();
+                    YCHECK(executeCallback);
+                    executionContext.EvaluateJoin = GetJoinEvaluator(
+                        joinClause,
+                        query->Predicate,
+                        executeCallback);
+                }
+
+                LOG_DEBUG("Evaluating query");
                 CallCGQueryPtr_(cgQuery, fragmentParams.ConstantsRowBuilder.GetRow(), &executionContext);
 
                 LOG_DEBUG("Flushing writer");
@@ -230,10 +241,10 @@ private:
         cgQuery(constants, executionContext);
     }
 
-    void(* volatile CallCGQueryPtr_)(
+    void(*volatile CallCGQueryPtr)(
         const TCGQueryCallback& cgQuery,
         TRow constants,
-        TExecutionContext* executionContext);
+        TExecutionContext* executionContext) = CallCGQuery;
 
 };
 
@@ -250,16 +261,25 @@ TEvaluator::TEvaluator(TExecutorConfigPtr config)
 TEvaluator::~TEvaluator()
 { }
 
+TQueryStatistics TEvaluator::RunWithExecutor(
+    const TConstQueryPtr& query,
+    ISchemafulReaderPtr reader,
+    ISchemafulWriterPtr writer,
+    TExecuteQuery executeCallback)
+{
+#ifdef YT_USE_LLVM
+    return Impl_->Run(query, std::move(reader), std::move(writer), executeCallback);
+#else
+    THROW_ERROR_EXCEPTION("Query evaluation is not supported in this build");
+#endif
+}
+
 TQueryStatistics TEvaluator::Run(
     const TConstQueryPtr& query,
     ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer)
 {
-#ifdef YT_USE_LLVM
-    return Impl_->Run(query, std::move(reader), std::move(writer));
-#else
-    THROW_ERROR_EXCEPTION("Query evaluation is not supported in this build");
-#endif
+    return RunWithExecutor(query, std::move(reader), std::move(writer), nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
