@@ -470,7 +470,6 @@ private:
 
     TAsyncReaderPtr PrepareOutputPipe(TPipe pipe, int jobDescriptor, TOutputStream* output)
     {
-        Process_.AddCloseFileAction(jobDescriptor);
         Process_.AddDup2FileAction(pipe.WriteFD, jobDescriptor);
 
         Process_.AddArguments({ "--prepare-pipe", ::ToString(jobDescriptor) });
@@ -490,7 +489,6 @@ private:
 
     void PrepareInputTablePipe(TPipe pipe, int jobDescriptor, TContextPreservingInputPtr input)
     {
-        Process_.AddCloseFileAction(jobDescriptor);
         Process_.AddDup2FileAction(pipe.ReadFD, jobDescriptor);
 
         Process_.AddArguments({ "--prepare-pipe", ::ToString(jobDescriptor) });
@@ -521,6 +519,7 @@ private:
                 THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process")
                     << TErrorAttribute("fd", jobDescriptor);
             }
+            // close pipe.ReadFd?
         }));
     }
 
