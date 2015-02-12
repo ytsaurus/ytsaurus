@@ -8,6 +8,8 @@
 
 #include <llvm/ADT/FoldingSet.h>
 
+#include <limits>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -42,6 +44,7 @@ public:
 
     void Profile(const TConstQueryPtr& query);
     void Profile(const TConstExpressionPtr& expr);
+    void Profile(const TTableSchema& tableSchema, int keySize = std::numeric_limits<int>::max());
 
     TFoldingProfiler& Set(llvm::FoldingSetNodeID& id);
     TFoldingProfiler& Set(TCGBinding& binding);
@@ -51,7 +54,6 @@ public:
 private:
     void Profile(const TNamedItem& namedExpression);
     void Profile(const TAggregateItem& aggregateItem);
-    void Profile(const TTableSchema& tableSchema);
 
     void Fold(int numeric);
     void Fold(const char* str);

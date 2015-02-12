@@ -65,6 +65,7 @@ public:
     NTabletClient::TTableMountCacheConfigPtr TableMountCache;
 
     NQueryClient::TExecutorConfigPtr QueryEvaluator;
+    NQueryClient::TColumnEvaluatorCacheConfigPtr ColumnEvaluatorCache;
     TDuration QueryTimeout;
     NCompression::ECodec QueryResponseCodec;
     int DefaultInputRowLimit;

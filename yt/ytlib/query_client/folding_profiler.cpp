@@ -122,12 +122,16 @@ void TFoldingProfiler::Profile(const TConstExpressionPtr& expr)
     }
 }
 
-void TFoldingProfiler::Profile(const TTableSchema& tableSchema)
+void TFoldingProfiler::Profile(const TTableSchema& tableSchema, int keySize)
 {
     Fold(static_cast<int>(EFoldingObjectType::TableSchema));
-    for (const auto& column : tableSchema.Columns()) {
+    for (int index = 0; index < tableSchema.Columns().size() && index < keySize; ++index) {
+        const auto& column = tableSchema.Columns()[index];
         Fold(static_cast<ui16>(column.Type));
         Fold(column.Name.c_str());
+        if (column.Expression) {
+            Fold(column.Expression.Get().c_str());
+        }
     }
 }
 

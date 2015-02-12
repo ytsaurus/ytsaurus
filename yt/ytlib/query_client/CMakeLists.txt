@@ -12,6 +12,7 @@ set( SRCS
   ${BASE}/query_statistics.cpp  
   ${BASE}/evaluator.cpp
   ${BASE}/evaluation_helpers.cpp
+  ${BASE}/column_evaluator.cpp
 )
 
 set( HDRS
@@ -34,6 +35,7 @@ set( HDRS
   ${BASE}/query_statistics.h
   ${BASE}/evaluator.h
   ${BASE}/evaluation_helpers.h
+  ${BASE}/column_evaluator.h
 )
 
 if (YT_BUILD_ENABLE_LLVM)
