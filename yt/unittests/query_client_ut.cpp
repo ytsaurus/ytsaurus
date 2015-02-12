@@ -1577,7 +1577,7 @@ public:
 
 TOwningRow BuildRow(
     const Stroka& yson,
-    TDataSplit& dataSplit,
+    const TDataSplit& dataSplit,
     bool treatMissingAsNull = true)
 {
     auto keyColumns = GetKeyColumnsFromDataSplit(dataSplit);
@@ -1587,13 +1587,64 @@ TOwningRow BuildRow(
             yson, keyColumns, tableSchema, treatMissingAsNull);
 }
 
+struct TQueryExecutor
+    : public IExecutor
+{
+    TQueryExecutor(const std::vector<TOwningRow>& owningSource, IExecutorPtr executeCallback = nullptr)
+        : OwningSource(owningSource)
+        , ExecuteCallback(std::move(executeCallback))
+    {
+        ReaderMock_ = New<StrictMock<TReaderMock>>();
+    }
+
+    std::vector<TOwningRow> OwningSource;
+    IExecutorPtr ExecuteCallback;
+    TIntrusivePtr<StrictMock<TReaderMock>> ReaderMock_;
+
+    virtual TFuture<TQueryStatistics> Execute(
+        const TPlanFragmentPtr& fragment,
+        ISchemafulWriterPtr writer)
+    {
+        std::vector<TRow> source(OwningSource.size());
+        typedef const TRow(TOwningRow::*TGetFunction)() const;
+
+        std::transform(
+            OwningSource.begin(),
+            OwningSource.end(),
+            source.begin(),
+            std::mem_fn(TGetFunction(&TOwningRow::Get)));
+
+        EXPECT_CALL(*ReaderMock_, Open(_))
+            .WillOnce(Return(WrapVoidInFuture()));
+
+        EXPECT_CALL(*ReaderMock_, Read(_))
+            .WillOnce(DoAll(SetArgPointee<0>(source), Return(false)));
+
+        auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
+        return MakeFuture(evaluator->RunWithExecutor(
+            fragment->Query,
+            ReaderMock_,
+            writer,
+            [&] (const TQueryPtr& subquery, ISchemafulWriterPtr writer) -> TQueryStatistics {
+                TPlanFragmentPtr planFragment = New<TPlanFragment>();
+
+                planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+                planFragment->Query = subquery;
+                planFragment->DataSplits.push_back(fragment->ForeignDataSplit);
+
+                auto subqueryResult = ExecuteCallback->Execute(planFragment, writer);
+
+                return WaitFor(subqueryResult).ValueOrThrow();
+            }));
+    }
+};
+
 class TQueryEvaluateTest
     : public ::testing::Test
 {
 protected:
     virtual void SetUp() override
     {
-        ReaderMock_ = New<StrictMock<TReaderMock>>();
         WriterMock_ = New<StrictMock<TWriterMock>>();
 
         ActionQueue_ = New<TActionQueue>("Test");
@@ -1612,12 +1663,16 @@ protected:
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
+        std::vector<std::vector<TOwningRow>> owningSources(1, owningSource);
+        std::map<Stroka, TDataSplit> dataSplits;
+        dataSplits["//t"] = dataSplit;
+
         auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
-                dataSplit,
-                owningSource,
+                dataSplits,
+                owningSources,
                 owningResult,
                 inputRowLimit,
                 outputRowLimit)
@@ -1625,23 +1680,37 @@ protected:
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 
+    void Evaluate(
+        const Stroka& query,
+        const std::map<Stroka, TDataSplit>& dataSplits,
+        const std::vector<std::vector<TOwningRow>>& owningSources,
+        const std::vector<TOwningRow>& owningResult,
+        i64 inputRowLimit = std::numeric_limits<i64>::max(),
+        i64 outputRowLimit = std::numeric_limits<i64>::max())
+    {
+        auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
+            .AsyncVia(ActionQueue_->GetInvoker())
+            .Run(
+            query,
+            dataSplits,
+            owningSources,
+            owningResult,
+            inputRowLimit,
+            outputRowLimit)
+            .Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
+
     void DoEvaluate(
         const Stroka& query,
-        const TDataSplit& dataSplit,
-        const std::vector<TOwningRow>& owningSource,
+        const std::map<Stroka, TDataSplit>& dataSplits,
+        const std::vector<std::vector<TOwningRow>>& owningSources,
         const std::vector<TOwningRow>& owningResult,
         i64 inputRowLimit,
         i64 outputRowLimit)
     {
-        std::vector<TRow> source(owningSource.size());
         std::vector<std::vector<TRow>> results;
         typedef const TRow(TOwningRow::*TGetFunction)() const;
-
-        std::transform(
-            owningSource.begin(),
-            owningSource.end(),
-            source.begin(),
-            std::mem_fn(TGetFunction(&TOwningRow::Get)));
 
         for (auto iter = owningResult.begin(), end = owningResult.end(); iter != end;) {
             size_t writeSize = std::min(static_cast<int>(end - iter), NQueryClient::MaxRowsPerWrite);
@@ -1658,14 +1727,10 @@ protected:
             iter += writeSize;
         }
 
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
-            .WillOnce(Return(WrapInFuture(dataSplit)));
-
-        EXPECT_CALL(*ReaderMock_, Open(_))
-            .WillOnce(Return(WrapVoidInFuture()));
-
-        EXPECT_CALL(*ReaderMock_, Read(_))
-            .WillOnce(DoAll(SetArgPointee<0>(source), Return(false)));
+        for (const auto& dataSplit : dataSplits) {
+            EXPECT_CALL(PrepareMock_, GetInitialSplit(dataSplit.first, _))
+                .WillOnce(Return(WrapInFuture(dataSplit.second)));
+        }
 
         {
             testing::InSequence s;
@@ -1681,15 +1746,19 @@ protected:
                 .WillOnce(Return(WrapVoidInFuture()));
         }
 
-        auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
-        evaluator->Run(
-            PreparePlanFragment(&PrepareMock_, query, inputRowLimit, outputRowLimit)->Query,
-            ReaderMock_,
-            WriterMock_);
+        IExecutorPtr executor;
+
+        size_t index = owningSources.size();
+        while (index > 0) {
+            const auto& owningSource = owningSources[--index];
+            auto newExecutor = New<TQueryExecutor>(owningSource, executor);
+            executor = newExecutor;
+        }
+
+        executor->Execute(PreparePlanFragment(&PrepareMock_, query, inputRowLimit, outputRowLimit), WriterMock_);
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
-    TIntrusivePtr<StrictMock<TReaderMock>> ReaderMock_; 
     TIntrusivePtr<StrictMock<TWriterMock>> WriterMock_;
     TActionQueuePtr ActionQueue_;
 
@@ -2052,7 +2121,6 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
     SUCCEED();
 }
 
-
 TEST_F(TQueryEvaluateTest, IsNull)
 {
     std::vector<TColumnSchema> columns;
@@ -2088,7 +2156,6 @@ TEST_F(TQueryEvaluateTest, IsNull)
 
     SUCCEED();
 }
-
 
 TEST_F(TQueryEvaluateTest, ComplexStrings)
 {
@@ -2298,6 +2365,278 @@ TEST_F(TQueryEvaluateTest, TestTypeInference)
     result.push_back(BuildRow("x=a;t=201.", simpleSplit, false));
     
     Evaluate("if(int64(x) = 4, \"a\", \"b\") as x, double(sum(uint64(b) * 1u)) + 1.0 as t FROM [//t] group by if(a % 2 = 0, double(4u), 5.0) as x", simpleSplit, source, result);
+
+    SUCCEED();
+}
+
+// TODO: Use BuildRows in other tests
+std::vector<TOwningRow> BuildRows(std::initializer_list<const char*> rowsData, const TDataSplit& split)
+{
+    std::vector<TOwningRow> result;
+
+    for (auto row : rowsData) {
+        result.push_back(BuildRow(row, split, false));
+    }
+
+    return result;
+}
+
+TEST_F(TQueryEvaluateTest, TestJoinEmpty)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<TOwningRow>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    splits["//left"] = leftSplit;
+    sources.push_back(BuildRows({
+        "a=1;b=10",
+        "a=3;b=30",
+        "a=5;b=50",
+        "a=7;b=70",
+        "a=9;b=90"
+    }, leftSplit));
+
+    auto rightSplit = MakeSplit({
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64}
+    });
+
+    splits["//right"] = rightSplit;
+    sources.push_back(BuildRows({
+        "c=2;b=20",
+        "c=4;b=40",
+        "c=6;b=60",
+        "c=8;b=80"
+    }, rightSplit));
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"y", EValueType::Int64},
+        {"z", EValueType::Int64}
+    });
+
+    auto result = BuildRows({ }, resultSplit);
+
+    Evaluate("sum(a) as x, sum(b) as y, z FROM [//left] join [//right] using b group by c % 2 as z", splits, sources, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestJoinSimple2)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<TOwningRow>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    splits["//left"] = leftSplit;
+    sources.push_back(BuildRows({
+        "a=1",
+        "a=2"
+    }, leftSplit));
+
+    auto rightSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    splits["//right"] = rightSplit;
+    sources.push_back(BuildRows({
+        "a=2",
+        "a=1"
+    }, rightSplit));
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=1",
+        "x=2"
+    }, resultSplit);
+
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestJoinSimple3)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<TOwningRow>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    splits["//left"] = leftSplit;
+    sources.push_back(BuildRows({
+        "a=1",
+        "a=1"
+    }, leftSplit));
+
+    auto rightSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    splits["//right"] = rightSplit;
+    sources.push_back(BuildRows({
+        "a=2",
+        "a=1"
+    }, rightSplit));
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=1",
+        "x=1"
+    }, resultSplit);
+
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestJoinSimple4)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<TOwningRow>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    splits["//left"] = leftSplit;
+    sources.push_back(BuildRows({
+        "a=1",
+        "a=2"
+    }, leftSplit));
+
+    auto rightSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    splits["//right"] = rightSplit;
+    sources.push_back(BuildRows({
+        "a=1",
+        "a=1"
+    }, rightSplit));
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=1",
+        "x=1"
+    }, resultSplit);
+
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestJoinSimple5)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<TOwningRow>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    splits["//left"] = leftSplit;
+    sources.push_back(BuildRows({
+        "a=1",
+        "a=1"
+    }, leftSplit));
+
+    auto rightSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    splits["//right"] = rightSplit;
+    sources.push_back(BuildRows({
+        "a=1",
+        "a=1"
+    }, rightSplit));
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=1",
+        "x=1",
+        "x=1",
+        "x=1"
+    }, resultSplit);
+
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestJoin)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<TOwningRow>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    splits["//left"] = leftSplit;
+    sources.push_back(BuildRows({
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90"
+    }, leftSplit));
+
+    auto rightSplit = MakeSplit({
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64}
+    });
+
+    splits["//right"] = rightSplit;
+    sources.push_back(BuildRows({
+        "c=1;b=10",
+        "c=2;b=20",
+        "c=3;b=30",
+        "c=4;b=40",
+        "c=5;b=50",
+        "c=6;b=60",
+        "c=7;b=70",
+        "c=8;b=80",
+        "c=9;b=90"
+    }, rightSplit));
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"y", EValueType::Int64},
+        {"z", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=25;y=250;z=1",
+        "x=20;y=200;z=0",
+    }, resultSplit);
+
+    Evaluate("sum(a) as x, sum(b) as y, z FROM [//left] join [//right] using b group by c % 2 as z", splits, sources, result);
 
     SUCCEED();
 }
