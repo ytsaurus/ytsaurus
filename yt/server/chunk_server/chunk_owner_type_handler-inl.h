@@ -181,7 +181,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::MergeChunkLists(
     } else {
         YCHECK(branchedMode == NChunkClient::EUpdateMode::Append);
         YCHECK(branchedChunkList->Children().size() == 2);
-        auto deltaRef = branchedChunkList->Children()[1];
+        auto deltaTree = branchedChunkList->Children()[1];
 
         auto* newOriginatingChunkList = chunkManager->CreateChunkList();
 
@@ -197,13 +197,13 @@ void TChunkOwnerTypeHandler<TChunkOwner>::MergeChunkLists(
             auto* newDeltaChunkList = chunkManager->CreateChunkList();
             chunkManager->AttachToChunkList(newOriginatingChunkList, newDeltaChunkList);
             chunkManager->AttachToChunkList(newDeltaChunkList, originatingChunkList->Children()[1]);
-            chunkManager->AttachToChunkList(newDeltaChunkList, deltaRef);
+            chunkManager->AttachToChunkList(newDeltaChunkList, deltaTree);
         } else {
             chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList);
-            chunkManager->AttachToChunkList(newOriginatingChunkList, deltaRef);
+            chunkManager->AttachToChunkList(newOriginatingChunkList, deltaTree);
 
             if (isPropertiesUpdateNeeded) {
-                chunkManager->ScheduleChunkPropertiesUpdate(deltaRef);
+                chunkManager->ScheduleChunkPropertiesUpdate(deltaTree);
             }
         }
 
