@@ -724,43 +724,112 @@ TPlanFragmentPtr PreparePlanFragment(
     ParseYqlString(&astHead, &rowBuffer, source, NAst::TParser::token::StrayWillParseQuery);
 
     auto& ast = astHead.As<NAst::TQuery>();
-    Stroka tablePath;
-
-    if (auto simpleSource = ast.Source->As<NAst::TSimpleSource>()) {
-        tablePath = simpleSource->Path;
-    } else if (auto joinSource = ast.Source->As<NAst::TJoinSource>()) {
-        YUNIMPLEMENTED();
-    } else {
-        YUNREACHABLE();
-    }
-
-    LOG_DEBUG("Getting initial data split for %v", tablePath);
-    // XXX(sandello): We have just one table at the moment.
-    // Will put TParallelAwaiter here in case of multiple tables.
-
-    auto dataSplitOrError = WaitFor(callbacks->GetInitialSplit(
-        tablePath,
-        timestamp));
-    THROW_ERROR_EXCEPTION_IF_FAILED(
-        dataSplitOrError,
-        "Failed to get initial data split for table %v",
-        tablePath);
-
-    auto initialDataSplit = dataSplitOrError.Value();
-    auto tableSchema = GetTableSchemaFromDataSplit(initialDataSplit);
-
+    
     auto planFragment = New<TPlanFragment>(source);
     planFragment->NodeDirectory = New<TNodeDirectory>();
 
-    auto query = PrepareQuery(ast, source, inputRowLimit, outputRowLimit, tableSchema);
+    TDataSplit initialDataSplit;
+    TQueryPtr query;
 
+    if (auto simpleSource = ast.Source->As<NAst::TSimpleSource>()) {
+        LOG_DEBUG("Getting initial data split for %v", simpleSource->Path);
+
+        initialDataSplit =  WaitFor(callbacks->GetInitialSplit(simpleSource->Path, timestamp)).ValueOrThrow();
+        auto tableSchema = GetTableSchemaFromDataSplit(initialDataSplit);
+
+        query = PrepareQuery(ast, source, inputRowLimit, outputRowLimit, tableSchema);
+    } else if (auto joinSource = ast.Source->As<NAst::TJoinSource>()) {
+        LOG_DEBUG("Getting initial data split for %v and %v", joinSource->LeftPath, joinSource->RightPath);
+
+        std::vector<TFuture<TDataSplit>> splitFutures({
+            callbacks->GetInitialSplit(joinSource->LeftPath, timestamp),
+            callbacks->GetInitialSplit(joinSource->RightPath, timestamp)
+        });
+
+        auto splits = WaitFor(Combine<TDataSplit>(splitFutures)).ValueOrThrow();
+
+        auto leftDataSplit = splits[0];
+        auto rightDataSplit = splits[1];
+
+        auto leftTableSchema = GetTableSchemaFromDataSplit(leftDataSplit);
+        auto rightTableSchema = GetTableSchemaFromDataSplit(rightDataSplit);
+
+        auto leftKeyColumns = GetKeyColumnsFromDataSplit(leftDataSplit);
+        auto rightKeyColumns = GetKeyColumnsFromDataSplit(rightDataSplit);
+
+        TTableSchema tableSchema = leftTableSchema;
+        
+        // Merge columns.
+        const auto& joinFields = joinSource->Fields;
+        for (const auto& column : rightTableSchema.Columns()) {
+            if (std::find(joinFields.begin(), joinFields.end(), column.Name) == joinFields.end()) {
+                if (tableSchema.FindColumn(column.Name)) {
+                    THROW_ERROR_EXCEPTION("Column %Qv collision", column.Name);
+                }
+                tableSchema.Columns().push_back(column);
+            }
+        }
+
+        query = PrepareQuery(ast, source, inputRowLimit, outputRowLimit, tableSchema);
+
+        auto leftConstraints = ExtractMultipleConstraints(query->Predicate, leftKeyColumns, &rowBuffer);
+        auto rigthConstraints = ExtractMultipleConstraints(query->Predicate, rightKeyColumns, &rowBuffer);
+
+        TJoinClause joinClause;
+        joinClause.JoinColumns = joinFields;
+
+        if (rigthConstraints.Offset == 0 && leftConstraints.Offset != 0) {
+            initialDataSplit = rightDataSplit;
+            planFragment->ForeignDataSplit = leftDataSplit;
+            joinClause.ForeignTableSchema = GetTableSchemaFromDataSplit(leftDataSplit);
+            joinClause.ForeignKeyColumns = GetKeyColumnsFromDataSplit(leftDataSplit);
+        } else {
+            initialDataSplit = leftDataSplit;
+            planFragment->ForeignDataSplit = rightDataSplit;
+            joinClause.ForeignTableSchema = GetTableSchemaFromDataSplit(rightDataSplit);
+            joinClause.ForeignKeyColumns = GetKeyColumnsFromDataSplit(rightDataSplit);
+        }
+
+        query->JoinClause = std::move(joinClause);
+    } else {
+        YUNREACHABLE();
+    }
+    
     if (ast.Limit) {
         query->Limit = ast.Limit;
         planFragment->Ordered = true;
     }
 
-    SetTableSchema(&initialDataSplit, query->TableSchema);
+    const auto& queryTableSchema = query->TableSchema;
+    auto initialTableSchema = GetTableSchemaFromDataSplit(initialDataSplit);
+    auto& columns = initialTableSchema.Columns();
+
+    columns.erase(
+        std::remove_if(
+            columns.begin(),
+            columns.end(),
+            [&queryTableSchema](const TColumnSchema& columnSchema) {
+                return queryTableSchema.FindColumn(columnSchema.Name) == nullptr;
+            }),
+        columns.end());
+
+    SetTableSchema(&initialDataSplit, initialTableSchema);
     query->KeyColumns = GetKeyColumnsFromDataSplit(initialDataSplit);
+
+    if (auto joinClause = query->JoinClause.GetPtr()) {
+        joinClause->SelfTableSchema = initialTableSchema;
+        auto& columns = joinClause->ForeignTableSchema.Columns();
+        columns.erase(
+            std::remove_if(
+                columns.begin(),
+                columns.end(),
+                [&queryTableSchema](const TColumnSchema& columnSchema) {
+                    return queryTableSchema.FindColumn(columnSchema.Name) == nullptr;
+                }),
+            columns.end());
+        
+        SetTableSchema(&planFragment->ForeignDataSplit, joinClause->ForeignTableSchema);
+    }
 
     planFragment->Query = query;
     planFragment->DataSplits.push_back(initialDataSplit);
@@ -1000,6 +1069,14 @@ void ToProto(NProto::TProjectClause* proto, const TProjectClause& original)
     ToProto(proto->mutable_projections(), original.Projections);
 }
 
+void ToProto(NProto::TJoinClause* proto, const TJoinClause& original)
+{
+    ToProto(proto->mutable_join_columns(), original.JoinColumns);
+    ToProto(proto->mutable_self_table_schema(), original.SelfTableSchema);
+    ToProto(proto->mutable_foreign_table_schema(), original.ForeignTableSchema);
+    ToProto(proto->mutable_foreign_key_columns(), original.ForeignKeyColumns);
+}
+
 void ToProto(NProto::TQuery* proto, const TConstQueryPtr& original)
 {
     proto->set_input_row_limit(original->GetInputRowLimit());
@@ -1008,9 +1085,12 @@ void ToProto(NProto::TQuery* proto, const TConstQueryPtr& original)
     ToProto(proto->mutable_id(), original->GetId());
 
     proto->set_limit(original->Limit);
-
     ToProto(proto->mutable_table_schema(), original->TableSchema);
     ToProto(proto->mutable_key_columns(), original->KeyColumns);
+
+    if (original->JoinClause) {
+        ToProto(proto->mutable_join_clause(), original->JoinClause.Get());
+    }
 
     if (original->Predicate) {
         ToProto(proto->mutable_predicate(), original->Predicate);
@@ -1067,6 +1147,22 @@ TProjectClause FromProto(const NProto::TProjectClause& serialized)
     return result;
 }
 
+TJoinClause FromProto(const NProto::TJoinClause& serialized)
+{
+    TJoinClause result;
+
+    result.JoinColumns.reserve(serialized.join_columns_size());
+    for (int i = 0; i < serialized.join_columns_size(); ++i) {
+        result.JoinColumns.push_back(serialized.join_columns(i));
+    }
+
+    FromProto(&result.SelfTableSchema, serialized.self_table_schema());
+    FromProto(&result.ForeignTableSchema, serialized.foreign_table_schema());
+    FromProto(&result.ForeignKeyColumns, serialized.foreign_key_columns());
+
+    return result;
+}
+
 TQueryPtr FromProto(const NProto::TQuery& serialized)
 {
     auto query = New<TQuery>(
@@ -1078,6 +1174,10 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
 
     FromProto(&query->TableSchema, serialized.table_schema());
     FromProto(&query->KeyColumns, serialized.key_columns());
+
+    if (serialized.has_join_clause()) {
+        query->JoinClause = FromProto(serialized.join_clause());
+    }
 
     if (serialized.has_predicate()) {
         query->Predicate = FromProto(serialized.predicate());
@@ -1100,6 +1200,7 @@ void ToProto(NProto::TPlanFragment* proto, const TConstPlanFragmentPtr& fragment
 {
     ToProto(proto->mutable_query(), fragment->Query);
     ToProto(proto->mutable_data_split(), fragment->DataSplits);
+    ToProto(proto->mutable_foreign_data_split(), fragment->ForeignDataSplit);
     proto->set_ordered(fragment->Ordered);
     
     proto->set_source(fragment->GetSource());
@@ -1120,6 +1221,8 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
         FromProto(&dataSplit, serialized.data_split(i));
         result->DataSplits.push_back(dataSplit);
     }
+
+    FromProto(&result->ForeignDataSplit, serialized.foreign_data_split());
 
     return result;
 }

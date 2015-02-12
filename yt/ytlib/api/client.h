@@ -437,6 +437,7 @@ struct IClient
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual NRpc::IChannelFactoryPtr GetNodeChannelFactory() = 0;
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
+    virtual NQueryClient::IExecutorPtr GetQueryExecutor() = 0;
 
     //! Terminates all channels.
     //! Aborts all pending uncommitted transactions.

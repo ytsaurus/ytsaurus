@@ -471,7 +471,12 @@ private:
                 auto subfragment = New<TPlanFragment>(fragment->GetSource());
                 subfragment->NodeDirectory = nodeDirectory;
                 subfragment->DataSplits = groupedSplits[index].first;
+                subfragment->ForeignDataSplit = fragment->ForeignDataSplit;
                 subfragment->Query = subquery;
+
+                LOG_DEBUG("Delegating subfragment (SubfragmentId: %v) to %v",
+                    subquery->GetId(), groupedSplits[index].second);
+
                 return Delegate(subfragment, groupedSplits[index].second);
             },
             [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
@@ -520,6 +525,7 @@ private:
                 auto subfragment = New<TPlanFragment>(fragment->GetSource());
                 subfragment->NodeDirectory = nodeDirectory;
                 subfragment->DataSplits.push_back(splits[index]);
+                subfragment->ForeignDataSplit = fragment->ForeignDataSplit;
                 subfragment->Query = subquery;
 
                 return Delegate(subfragment, descriptor.GetInterconnectAddress());
@@ -632,6 +638,10 @@ public:
         return TransactionManager_;
     }
 
+    virtual NQueryClient::IExecutorPtr GetQueryExecutor() override
+    {
+        return QueryHelper_;
+    }
 
     virtual TFuture<void> Terminate() override
     {

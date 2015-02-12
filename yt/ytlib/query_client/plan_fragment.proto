@@ -82,13 +82,22 @@ message TAggregateItem
 
 message TGroupClause
 {
-    repeated TNamedItem group_items = 4;
-    repeated TAggregateItem aggregate_items = 5;
+    repeated TNamedItem group_items = 1;
+    repeated TAggregateItem aggregate_items = 2;
 }
 
 message TProjectClause
 {
-    repeated TNamedItem projections = 6;
+    repeated TNamedItem projections = 1;
+}
+
+message TJoinClause
+{
+    repeated string join_columns = 1;
+    required NYT.NVersionedTableClient.NProto.TTableSchemaExt self_table_schema = 2;
+    required NYT.NVersionedTableClient.NProto.TTableSchemaExt foreign_table_schema = 3;
+    required NYT.NTableClient.NProto.TKeyColumnsExt foreign_key_columns = 4;
+
 }
 
 message TQuery
@@ -97,14 +106,15 @@ message TQuery
     required int64 input_row_limit = 2;
     required int64 output_row_limit = 3;
 
-    required int64 limit = 9;
+    required int64 limit = 4;
 
-    required NYT.NVersionedTableClient.NProto.TTableSchemaExt table_schema = 4;
-    required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 5;
+    required NYT.NVersionedTableClient.NProto.TTableSchemaExt table_schema = 5;
+    required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 6;
 
-    optional TExpression predicate = 6;
-    optional TGroupClause group_clause = 7;
-    optional TProjectClause project_clause = 8;
+    optional TJoinClause join_clause = 7;
+    optional TExpression predicate = 8;
+    optional TGroupClause group_clause = 9;
+    optional TProjectClause project_clause = 10;
 }
 
 message TPlanFragment
@@ -112,8 +122,10 @@ message TPlanFragment
     required string source = 1;
 
     repeated NYT.NChunkClient.NProto.TChunkSpec data_split = 2;
-    required TQuery query = 3;
-    required bool ordered = 4;
+    required NYT.NChunkClient.NProto.TChunkSpec foreign_data_split = 3;
+    required TQuery query = 4;
+    required bool ordered = 5;
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

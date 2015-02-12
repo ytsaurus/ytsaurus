@@ -281,6 +281,15 @@ struct TProjectClause
     }
 };
 
+struct TJoinClause
+{
+    TTableSchema SelfTableSchema;
+    TTableSchema ForeignTableSchema;
+    TKeyColumns ForeignKeyColumns;
+    std::vector<Stroka> JoinColumns;
+
+};
+
 class TQuery
     : public TIntrinsicRefCounted
 {
@@ -297,11 +306,14 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(i64, InputRowLimit);
     DEFINE_BYVAL_RO_PROPERTY(i64, OutputRowLimit);
     DEFINE_BYVAL_RO_PROPERTY(TGuid, Id);
+    
+    TNullable<TJoinClause> JoinClause;
 
     i64 Limit = std::numeric_limits<i64>::max();
 
     // TODO: Rename to InitialTableSchema
     TTableSchema TableSchema;
+    // TODO: Move out KeyColumns
     TKeyColumns KeyColumns;
 
     TConstExpressionPtr Predicate;
@@ -340,6 +352,7 @@ public:
 
     TNodeDirectoryPtr NodeDirectory;
     TDataSplits DataSplits;
+    TDataSplit ForeignDataSplit;
     TConstQueryPtr Query;
     bool Ordered = false;
 
