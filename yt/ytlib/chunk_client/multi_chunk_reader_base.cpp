@@ -82,13 +82,13 @@ TMultiChunkReaderBase::TMultiChunkReaderBase(
     , IsOpen_(false)
     , OpenedReaderCount_(0)
 {
-    Logger.AddTag("Reader: %p", this);
+    Logger.AddTag("Reader: %v", this);
 
     Config_ = CloneYsonSerializable(config);
 
     CurrentSession_.Reset();
 
-    LOG_DEBUG("Creating multi chunk reader for %d chunks", static_cast<int>(ChunkSpecs_.size()));
+    LOG_DEBUG("Creating multi chunk reader for %v chunks", ChunkSpecs_.size());
 
     if (ChunkSpecs_.empty()) {
         CompletionError_.Set(TError());
@@ -123,7 +123,7 @@ TMultiChunkReaderBase::TMultiChunkReaderBase(
         PrefetchWindow_ = CalculatePrefetchWindow(sortedChunkSpecs, Config_);
     }
 
-    LOG_DEBUG("Created multi chunk reader (PrefetchWindow: %d)", PrefetchWindow_);
+    LOG_DEBUG("Created multi chunk reader (PrefetchWindow: %v)", PrefetchWindow_);
 }
 
 TFuture<void> TMultiChunkReaderBase::Open()
@@ -195,7 +195,7 @@ void TMultiChunkReaderBase::DoOpenNextChunk()
     int chunkIndex = PrefetchReaderIndex_++;
     auto& chunkSpec = ChunkSpecs_[chunkIndex];
 
-    LOG_DEBUG("Opening chunk (ChunkIndex: %d)", chunkIndex);
+    LOG_DEBUG("Opening chunk (ChunkIndex: %v)", chunkIndex);
     auto remoteReader = CreateRemoteReader(chunkSpec);
 
     auto reader = CreateTemplateReader(chunkSpec, remoteReader);
@@ -223,7 +223,7 @@ IChunkReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunkSpec& chun
     auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
     auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
 
-    LOG_DEBUG("Creating remote reader (ChunkId: %s)", ~ToString(chunkId));
+    LOG_DEBUG("Creating remote reader (ChunkId: %v)", chunkId);
 
     if (!IsErasureChunkId(chunkId)) {
         return CreateReplicationReader(
@@ -295,7 +295,7 @@ bool TMultiChunkReaderBase::OnEmptyRead(bool readerFinished)
 {
     if (readerFinished) {
         OnReaderFinished();
-        return !CompletionError_.IsSet();
+        return !CompletionError_.IsSet() || !CompletionError_.Get().IsOK();
     } else {
         OnReaderBlocked();
         return true;
@@ -308,7 +308,7 @@ void TMultiChunkReaderBase::OnError()
 void TMultiChunkReaderBase::RegisterFailedChunk(int chunkIndex)
 {   
     auto chunkId = NYT::FromProto<TChunkId>(ChunkSpecs_[chunkIndex].chunk_id());
-    LOG_WARNING("Chunk reader failed (ChunkId: %s)", ~ToString(chunkId));
+    LOG_WARNING("Chunk reader failed (ChunkId: %v)", chunkId);
 
     OnError();
 

@@ -69,17 +69,16 @@ void TChunkReaderBase::DoOpen()
         ECodec(Misc_.compression_codec()));
 
     YCHECK(SequentialReader_->HasMoreBlocks());
-
-    auto error = WaitFor(SequentialReader_->FetchNextBlock());
-    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    WaitFor(SequentialReader_->FetchNextBlock())
+        .ThrowOnError();
 
     InitFirstBlock();
 }
 
 void TChunkReaderBase::DoSwitchBlock()
 {
-    auto error = WaitFor(SequentialReader_->FetchNextBlock());
-    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    WaitFor(SequentialReader_->FetchNextBlock())
+        .ThrowOnError();
     InitNextBlock();
 }
 

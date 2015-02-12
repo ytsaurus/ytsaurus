@@ -110,11 +110,7 @@ void TPartitionChunkReader::InitFirstBlock()
 void TPartitionChunkReader::InitNextBlock()
 {
     ++CurrentBlockIndex_;
-    BlockReaders_.emplace_back(new THorizontalSchemalessBlockReader(
-        SequentialReader_->GetCurrentBlock(),
-        BlockMetaExt_.blocks(CurrentBlockIndex_),
-        IdMapping_,
-        KeyColumns_.size()));
+    InitFirstBlock();
 }
 
 void TPartitionChunkReader::InitNameTable(TNameTablePtr chunkNameTable)

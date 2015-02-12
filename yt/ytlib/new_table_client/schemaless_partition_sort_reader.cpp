@@ -373,9 +373,9 @@ private:
                 if (!result)
                     break;
 
-                if (!rowCount) {
-                    auto error = WaitFor(UnderlyingReader_->GetReadyEvent());
-                    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+                if (rowCount == 0) {
+                    WaitFor(UnderlyingReader_->GetReadyEvent())
+                        .ThrowOnError();
                     continue;
                 }
 
