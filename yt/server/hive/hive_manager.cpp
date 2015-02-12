@@ -181,10 +181,11 @@ public:
 
         mailbox->OutcomingMessages().push_back(tracedMessage);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Outcoming message added (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Outcoming message added (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
             SelfCellId_,
             mailbox->GetCellId(),
-            messageId);
+            messageId,
+            message.type());
 
         MaybePostOutcomingMessages(mailbox);
     }
