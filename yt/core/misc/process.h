@@ -42,11 +42,12 @@ private:
         Stroka ErrorMessage;
     };
 
-
     bool Finished_;
     int Status_;
     int ProcessId_;
     Stroka Path_;
+
+    int MaxSpawnActionFD_;
 
     TPipe Pipe_;
     std::vector<Stroka> StringHolder_;

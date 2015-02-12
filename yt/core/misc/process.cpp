@@ -35,6 +35,7 @@ TProcess::TProcess(const Stroka& path, bool copyEnv)
     // Stroka is guaranteed to be zero-terminated.
     // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/StrokaAndTStringBuf#sobstvennosimvoly
     , Path_(path)
+    , MaxSpawnActionFD_(-1)
 {
     AddArgument(NFS::GetFileName(path));
 
@@ -90,6 +91,7 @@ void TProcess::AddCloseFileAction(int fd)
         Format("Error closing %v file descriptor in the child", fd)
     };
 
+    MaxSpawnActionFD_ = std::max(MaxSpawnActionFD_, fd);
     SpawnActions_.push_back(action);
 }
 
@@ -100,6 +102,7 @@ void TProcess::AddDup2FileAction(int oldFd, int newFd)
         Format("Error duplicating %v file descriptor to %v in the child", oldFd, newFd)
     };
 
+    MaxSpawnActionFD_ = std::max(MaxSpawnActionFD_, newFd);
     SpawnActions_.push_back(action);
 }
 
@@ -110,12 +113,12 @@ void TProcess::Spawn()
 #else
     YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
 
-    int pipe[2];
-    SafePipe(pipe);
-    Pipe_ = TPipe(pipe);
+    // Make sure no spawn action closes Pipe_.WriteFD
+    TPipeFactory pipeFactory(MaxSpawnActionFD_ + 1);
+    Pipe_ = pipeFactory.Create();
+    pipeFactory.Clear();
 
-    LOG_DEBUG("Process arguments: %v", JoinToString(Args_));
-    LOG_DEBUG("Process environment: %v", JoinToString(Env_));
+    LOG_DEBUG("Process arguments: %v, environment: %v", JoinToString(Args_), JoinToString(Env_));
 
     Env_.push_back(nullptr);
     Args_.push_back(nullptr);
@@ -199,7 +202,6 @@ char* TProcess::Capture(TStringBuf arg)
     return const_cast<char*>(~StringHolder_.back());
 }
 
-// TODO: Make sure no spawn action closes Pipe_.WriteFd
 void TProcess::DoSpawn()
 {
     YCHECK(Pipe_.WriteFD != TPipe::InvalidFd);
