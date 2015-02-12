@@ -98,7 +98,7 @@ bool TPartitionChunkReader::Read(
         ++RowCount_;
         ++(*rowCount);
 
-        auto& key = BlockReader_->GetKey();
+        const auto& key = BlockReader_->GetKey();
 
         std::copy(key.Begin(), key.End(), valueInserter);
         rowPointerInserter = BlockReader_->GetRowPointer();
