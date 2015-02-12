@@ -193,6 +193,17 @@ TTableSchema TTableSchema::TrimNonkeyColumns(const TKeyColumns& keyColumns) cons
     return result;
 }
 
+bool TTableSchema::HasComputedColumns(int keySize) const
+{
+    YCHECK(keySize <= Columns().size());
+    for (int index = 0; index < keySize; ++index) {
+        if (Columns()[index].Expression) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void TTableSchema::Save(TStreamSaveContext& context) const
 {
     NYT::Save(context, NYT::ToProto<NVersionedTableClient::NProto::TTableSchemaExt>(*this));

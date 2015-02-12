@@ -12,6 +12,7 @@
 #include <ytlib/query_client/helpers.h>
 #include <ytlib/query_client/coordinator.h>
 #include <ytlib/query_client/evaluator.h>
+#include <ytlib/query_client/column_evaluator.h>
 #include <ytlib/query_client/plan_helpers.h>
 #include <ytlib/query_client/helpers.h>
 #include <ytlib/query_client/plan_fragment.pb.h>
@@ -429,18 +430,22 @@ protected:
     {
         EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
             .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
+
+        auto config = New<TColumnEvaluatorCacheConfig>();
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
     }
 
     void Coordinate(const Stroka& source, const TDataSplits& dataSplits, size_t subqueriesCount)
     {
         auto planFragment = PreparePlanFragment(&PrepareMock_, source);
 
-        auto prunedSplits = GetPrunedSplits(planFragment->Query, dataSplits);
+        auto prunedSplits = GetPrunedSplits(planFragment->Query, dataSplits, ColumnEvaluatorCache_);
 
         EXPECT_EQ(prunedSplits.size(), subqueriesCount);
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
+    TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 };
 
 TEST_F(TQueryCoordinateTest, EmptySplit)
@@ -2636,6 +2641,234 @@ TEST(TExpressionExecutorTest, BuildExpression)
     callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext);
 
     EXPECT_EQ(expected, result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TComputedColumnTest
+    : public ::testing::Test
+{
+protected:
+    virtual void SetUp() override
+    {
+        SetUpSchema();
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+            .WillOnce(Invoke(this, &TComputedColumnTest::MakeSimpleSplit));
+
+        auto config = New<TColumnEvaluatorCacheConfig>();
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
+    }
+
+    std::vector<TKeyRange> Coordinate(const Stroka& source)
+    {
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source);
+        auto prunedSplits = GetPrunedSplits(
+            planFragment->Query,
+            planFragment->DataSplits,
+            ColumnEvaluatorCache_);
+
+        std::vector<TKeyRange> ranges;
+
+        for (const auto& split : prunedSplits) {
+            ranges.push_back(GetBothBoundsFromDataSplit(split));
+        }
+
+        std::sort(ranges.begin(), ranges.end());
+        return ranges;
+    }
+
+    void SetSchema(const TTableSchema& schema, const TKeyColumns& keyColumns)
+    {
+        Schema_ = schema;
+        KeyColumns_ = keyColumns;
+    }
+
+private:
+    void SetUpSchema()
+    {
+        TTableSchema tableSchema;
+        tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("l * 2"));
+        tableSchema.Columns().emplace_back("l", EValueType::Int64);
+        tableSchema.Columns().emplace_back("m", EValueType::Int64);
+        tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+        TKeyColumns keyColumns{"k", "l", "m"};
+
+        SetSchema(tableSchema, keyColumns);
+    }
+
+    TFuture<TDataSplit> MakeSimpleSplit(const TYPath& path, ui64 counter = 0)
+    {
+        TDataSplit dataSplit;
+
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
+
+        SetKeyColumns(&dataSplit, KeyColumns_);
+        SetTableSchema(&dataSplit, Schema_);
+
+        return WrapInFuture(dataSplit);
+    }
+
+    StrictMock<TPrepareCallbacksMock> PrepareMock_;
+    TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+    TTableSchema Schema_;
+    TKeyColumns KeyColumns_;
+};
+
+TEST_F(TComputedColumnTest, Simple)
+{
+    auto query = Stroka("a from [//t] where l = 10");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(result.size(), 1);
+
+    EXPECT_EQ(BuildKey("20;10;"), result[0].first);
+    EXPECT_EQ(BuildKey("20;10;" _MAX_), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, Inequality)
+{
+    auto query = Stroka("a from [//t] where l < 10");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(result.size(), 1);
+
+    EXPECT_EQ(BuildKey(_MIN_), result[0].first);
+    EXPECT_EQ(BuildKey(_MAX_), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, Composite)
+{
+    auto query = Stroka("a from [//t] where l = 10 and m > 0 and m < 50");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(result.size(), 1);
+
+    EXPECT_EQ(BuildKey("20;10;0;" _MAX_), result[0].first);
+    EXPECT_EQ(BuildKey("20;10;50;"), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, Vector)
+{
+    auto query = Stroka("a from [//t] where l in (1,2,3)");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(result.size(), 3);
+
+    EXPECT_EQ(BuildKey("2;1;"), result[0].first);
+    EXPECT_EQ(BuildKey("2;1;" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey("4;2;"), result[1].first);
+    EXPECT_EQ(BuildKey("4;2;" _MAX_), result[1].second);
+    EXPECT_EQ(BuildKey("6;3;"), result[2].first);
+    EXPECT_EQ(BuildKey("6;3;" _MAX_), result[2].second);
+}
+
+TEST_F(TComputedColumnTest, ComputedKeyInPredicate)
+{
+    auto query = Stroka("a from [//t] where (k,l) >= (10,20) ");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(result.size(), 2);
+
+    EXPECT_EQ(BuildKey("10;20;"), result[0].first);
+    EXPECT_EQ(BuildKey("10;" _MAX_ ";" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey("10;" _MAX_), result[1].first);
+    EXPECT_EQ(BuildKey(_MAX_), result[1].second);
+}
+
+TEST_F(TComputedColumnTest, ComputedColumnLast)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64);
+    tableSchema.Columns().emplace_back("l", EValueType::Int64, Null, Stroka("k + 3"));
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where k = 10");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(result.size(), 1);
+
+    EXPECT_EQ(BuildKey("10;13;"), result[0].first);
+    EXPECT_EQ(BuildKey("10;13;" _MAX_), result[0].second);
+}
+
+
+TEST_F(TComputedColumnTest, Complex1)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64);
+    tableSchema.Columns().emplace_back("l", EValueType::Int64, Null, Stroka("n + 1"));
+    tableSchema.Columns().emplace_back("m", EValueType::Int64, Null, Stroka("o + 2"));
+    tableSchema.Columns().emplace_back("n", EValueType::Int64);
+    tableSchema.Columns().emplace_back("o", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m", "n", "o"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where k = 10 and n = 20");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(result.size(), 1);
+
+    EXPECT_EQ(BuildKey("10;21;"), result[0].first);
+    EXPECT_EQ(BuildKey("10;21;" _MAX_), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, Complex2)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64);
+    tableSchema.Columns().emplace_back("l", EValueType::Int64, Null, Stroka("n + 1"));
+    tableSchema.Columns().emplace_back("m", EValueType::Int64, Null, Stroka("o + 2"));
+    tableSchema.Columns().emplace_back("n", EValueType::Int64);
+    tableSchema.Columns().emplace_back("o", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m", "n", "o"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where (k,n) in ((10,20),(50,60))");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(result.size(), 2);
+
+    EXPECT_EQ(BuildKey("10;21;"), result[0].first);
+    EXPECT_EQ(BuildKey("10;21;" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey("50;61;"), result[1].first);
+    EXPECT_EQ(BuildKey("50;61;" _MAX_), result[1].second);
+}
+
+TEST_F(TComputedColumnTest, Complex3)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64);
+    tableSchema.Columns().emplace_back("l", EValueType::Int64, Null, Stroka("o + 1"));
+    tableSchema.Columns().emplace_back("m", EValueType::Int64, Null, Stroka("o + 2"));
+    tableSchema.Columns().emplace_back("n", EValueType::Int64);
+    tableSchema.Columns().emplace_back("o", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m", "n", "o"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where k = 10 and n = 20");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(result.size(), 1);
+
+    EXPECT_EQ(BuildKey("10;"), result[0].first);
+    EXPECT_EQ(BuildKey("10;" _MAX_), result[0].second);
 }
 
 #endif

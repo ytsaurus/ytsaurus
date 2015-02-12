@@ -425,7 +425,10 @@ private:
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
-        auto prunedSplits = GetPrunedSplits(fragment->Query, fragment->DataSplits);
+        auto prunedSplits = GetPrunedSplits(
+            fragment->Query,
+            fragment->DataSplits,
+            Connection_->GetColumnEvaluatorCache());
         auto splits = Split(prunedSplits, nodeDirectory, Logger);
 
         LOG_DEBUG("Regrouping %v splits", splits.size());
@@ -486,7 +489,10 @@ private:
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
-        auto prunedSplits = GetPrunedSplits(fragment->Query, fragment->DataSplits);
+        auto prunedSplits = GetPrunedSplits(
+            fragment->Query,
+            fragment->DataSplits,
+            Connection_->GetColumnEvaluatorCache());
         auto splits = Split(prunedSplits, nodeDirectory, Logger);
 
         LOG_DEBUG("Sorting %v splits", splits.size());

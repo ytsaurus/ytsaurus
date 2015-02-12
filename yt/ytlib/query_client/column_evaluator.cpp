@@ -24,12 +24,13 @@ TColumnEvaluator::TColumnEvaluator(const TTableSchema& schema, int keySize)
 #ifdef YT_USE_LLVM
     , Evaluators_(keySize)
     , Variables_(keySize)
+    , References_(keySize)
 #endif
 { }
 
-void TColumnEvaluator::EvaluateKey(TRow fullRow, TRowBuffer& buffer, int index)
+void TColumnEvaluator::PrepareEvaluator(int index)
 {
-#ifdef YT_USE_LLVM
+    YCHECK(index < KeySize_);
     YCHECK(Schema_.Columns()[index].Expression);
 
     if (!Evaluators_[index]) {
@@ -38,9 +39,16 @@ void TColumnEvaluator::EvaluateKey(TRow fullRow, TRowBuffer& buffer, int index)
         TFoldingProfiler()
             .Set(binding)
             .Set(Variables_[index])
+            .Set(References_[index])
             .Profile(expr);
         Evaluators_[index] = CodegenExpression(expr, Schema_, binding);
     }
+}
+
+void TColumnEvaluator::EvaluateKey(TRow fullRow, TRowBuffer& buffer, int index)
+{
+#ifdef YT_USE_LLVM
+    PrepareEvaluator(index);
 
     TQueryStatistics statistics;
     TExecutionContext executionContext;
@@ -123,6 +131,12 @@ void TColumnEvaluator::EvaluateKeys(
     for (int index = 0; index < columnCount; ++index) {
         fullRow[index].Id = index;
     }
+}
+
+const yhash_set<Stroka>& TColumnEvaluator::GetReferences(int index)
+{
+    PrepareEvaluator(index);
+    return References_[index];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

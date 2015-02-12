@@ -63,9 +63,10 @@ public:
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
     TTableSchema TrimNonkeyColumns(const TKeyColumns& keyColumns) const;
 
+    bool HasComputedColumns(int keySize) const;
+
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
-
 };
 
 void Serialize(const TTableSchema& schema, NYson::IYsonConsumer* consumer);

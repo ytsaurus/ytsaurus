@@ -8,6 +8,8 @@
 
 #include <ytlib/new_table_client/unversioned_row.h>
 
+#include <util/generic/hash_set.h>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -22,7 +24,7 @@ public:
     void EvaluateKey(
         TRow fullRow,
         NVersionedTableClient::TRowBuffer& buffer,
-        int keyIndex);
+        int index);
 
     void EvaluateKeys(
         TRow fullRow,
@@ -34,13 +36,18 @@ public:
         const TRow partialRow,
         const NVersionedTableClient::TNameTableToSchemaIdMapping& idMapping);
 
+    const yhash_set<Stroka>& GetReferences(int index);
+
 private:
+    void PrepareEvaluator(int index);
+
     const TTableSchema Schema_;
     const int KeySize_;
 
 #ifdef YT_USE_LLVM
     std::vector<TCGExpressionCallback> Evaluators_;
     std::vector<TCGVariables> Variables_;
+    std::vector<yhash_set<Stroka>> References_;
 #endif
 };
 
