@@ -81,7 +81,7 @@ struct TExecutionContext
 
     i64 Limit;
 
-    char stopFlag = false;
+    char StopFlag = false;
 
     TJoinEvaluator EvaluateJoin;
 };
