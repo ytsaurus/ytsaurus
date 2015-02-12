@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "folding_profiler.h"
+#include "plan_helpers.h"
 
 namespace NYT {
 namespace NQueryClient {
@@ -37,6 +38,24 @@ void TFoldingProfiler::Profile(const TConstQueryPtr& query)
 {
     Fold(static_cast<int>(EFoldingObjectType::ScanOp));
     Profile(query->TableSchema);
+
+    if (auto joinClause = query->JoinClause.GetPtr()) {
+        Fold(static_cast<int>(EFoldingObjectType::JoinOp));
+
+        Profile(joinClause->SelfTableSchema);
+        Profile(joinClause->ForeignTableSchema);
+
+        for (const auto& column : joinClause->JoinColumns) {
+            Fold(column.c_str());
+        }
+
+        if (auto selfFilter = ExtractPredicateForColumnsSubset(query->Predicate, joinClause->SelfTableSchema)) {
+            if (Binding_) {
+                Binding_->SelfJoinPredicate = selfFilter;
+            }
+            Profile(selfFilter);
+        }
+    }
 
     if (query->Predicate) {
         Fold(static_cast<int>(EFoldingObjectType::FilterOp));
@@ -106,6 +125,10 @@ void TFoldingProfiler::Profile(const TConstExpressionPtr& expr)
 void TFoldingProfiler::Profile(const TTableSchema& tableSchema)
 {
     Fold(static_cast<int>(EFoldingObjectType::TableSchema));
+    for (const auto& column : tableSchema.Columns()) {
+        Fold(static_cast<ui16>(column.Type));
+        Fold(column.Name.c_str());
+    }
 }
 
 void TFoldingProfiler::Profile(const TNamedItem& namedExpression)

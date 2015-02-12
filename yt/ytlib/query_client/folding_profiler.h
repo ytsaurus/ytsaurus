@@ -17,6 +17,7 @@ namespace NQueryClient {
 
 DEFINE_ENUM(EFoldingObjectType,
     (ScanOp)
+    (JoinOp)
     (FilterOp)
     (GroupOp)
     (ProjectOp)

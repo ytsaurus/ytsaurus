@@ -20,6 +20,7 @@ namespace NProto {
 class TExpression;
 class TGroupClause;
 class TProjectClause;
+class TJoinClause;
 class TQuery;
 class TPlanFragment;
 class TQueryStatistics;

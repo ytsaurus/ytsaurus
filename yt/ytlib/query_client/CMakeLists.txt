@@ -11,6 +11,7 @@ set( SRCS
   ${BASE}/plan_fragment_common.cpp
   ${BASE}/query_statistics.cpp  
   ${BASE}/evaluator.cpp
+  ${BASE}/evaluation_helpers.cpp
 )
 
 set( HDRS
@@ -32,6 +33,7 @@ set( HDRS
   ${BASE}/plan_fragment_common.h
   ${BASE}/query_statistics.h
   ${BASE}/evaluator.h
+  ${BASE}/evaluation_helpers.h
 )
 
 if (YT_BUILD_ENABLE_LLVM)
