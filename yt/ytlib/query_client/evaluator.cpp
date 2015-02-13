@@ -145,7 +145,7 @@ public:
                 }
 
                 LOG_DEBUG("Evaluating query");
-                CallCGQueryPtr_(cgQuery, fragmentParams.ConstantsRowBuilder.GetRow(), &executionContext);
+                CallCGQueryPtr(cgQuery, fragmentParams.ConstantsRowBuilder.GetRow(), &executionContext);
 
                 LOG_DEBUG("Flushing writer");
                 if (!batch.empty()) {
