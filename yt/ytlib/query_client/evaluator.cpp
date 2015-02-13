@@ -133,6 +133,7 @@ public:
                 executionContext.InputRowLimit = query->InputRowLimit;
                 executionContext.OutputRowLimit = query->OutputRowLimit;
                 executionContext.GroupRowLimit = query->OutputRowLimit;
+                executionContext.JoinRowLimit = query->OutputRowLimit;
                 executionContext.Limit = query->Limit;
 
                 if (query->JoinClause) {
