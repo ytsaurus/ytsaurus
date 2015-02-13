@@ -323,7 +323,7 @@ char IsRowInArray(
     int index)
 {
     // TODO(lukyan): check null
-    auto rows = executionContext->LiteralRows->at(index);
+    const auto& rows = (*executionContext->LiteralRows)[index];
     return std::binary_search(rows.begin(), rows.end(), row, TRowComparer(comparer));
 }
 
