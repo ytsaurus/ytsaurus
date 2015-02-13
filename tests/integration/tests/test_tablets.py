@@ -184,6 +184,18 @@ class TestTablets(YTEnvSetup):
         actual = select("* from [//tmp/t]");
         self.assertItemsEqual(expected, actual);
 
+        with pytest.raises(YtError): insert("//tmp/t", [{"key1": 3, "key2": 3, "value": 3}])
+        with pytest.raises(YtError): lookup("//tmp/t", [2, 203])
+        with pytest.raises(YtError): delete("//tmp/t", [2, 203])
+
+        expected = []
+        actual = lookup("//tmp/t", [3])
+        self.assertItemsEqual(expected, actual)
+
+        expected = [{"key1": 2, "key2": 203, "value": 2}]
+        actual = select("* from [//tmp/t]");
+        self.assertItemsEqual(expected, actual);
+
     def test_no_copy(self):
         self._sync_create_cells(1, 1)
         self._create_table("//tmp/t1")
