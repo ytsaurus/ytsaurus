@@ -45,10 +45,10 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
     auto subqueryInputRowLimit = ranges.empty()
         ? 0
-        : 2 * std::min(query->GetInputRowLimit(), std::numeric_limits<i64>::max() / 2) / ranges.size();
+        : 2 * std::min(query->InputRowLimit, std::numeric_limits<i64>::max() / 2) / ranges.size();
 
     auto subqueryOutputRowLimit = pushdownGroupClause
-        ? query->GetOutputRowLimit()
+        ? query->OutputRowLimit
         : std::numeric_limits<i64>::max();
 
     for (const auto& keyRange : ranges) {
@@ -89,8 +89,8 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     }
 
     auto topQuery = New<TQuery>(
-        query->GetInputRowLimit(),
-        query->GetOutputRowLimit());
+        query->InputRowLimit,
+        query->OutputRowLimit);
 
     topQuery->Limit = query->Limit;
 
@@ -231,7 +231,7 @@ TQueryStatistics CoordinateAndExecute(
 
             const auto& subquery = subqueries[index];
             LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
-                subquery->GetId());
+                subquery->Id);
 
             ISchemafulReaderPtr reader;
             TFuture <TQueryStatistics> asyncStatistics;

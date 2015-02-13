@@ -425,24 +425,24 @@ bool IsEmpty(const TKeyRange& keyRange)
     return keyRange.first >= keyRange.second;
 }
 
-bool AllReferencesAreInSchema(const TConstExpressionPtr& expr, const TTableSchema& tableSchema)
+bool AreAllReferencesInSchema(const TConstExpressionPtr& expr, const TTableSchema& tableSchema)
 {
     if (auto referenceExpr = expr->As<TReferenceExpression>()) {
         return tableSchema.FindColumn(referenceExpr->ColumnName);
     } else if (expr->As<TLiteralExpression>()) {
         return true;
     } else if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
-        return AllReferencesAreInSchema(binaryOpExpr->Lhs, tableSchema) && AllReferencesAreInSchema(binaryOpExpr->Rhs, tableSchema);
+        return AreAllReferencesInSchema(binaryOpExpr->Lhs, tableSchema) && AreAllReferencesInSchema(binaryOpExpr->Rhs, tableSchema);
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
         bool result = true;
         for (const auto& argument : functionExpr->Arguments) {
-            result = result && AllReferencesAreInSchema(argument, tableSchema);
+            result = result && AreAllReferencesInSchema(argument, tableSchema);
         }
         return result;
     } else if (auto inExpr = expr->As<TInOpExpression>()) {
         bool result = true;
         for (const auto& argument : inExpr->Arguments) {
-            result = result && AllReferencesAreInSchema(argument, tableSchema);
+            result = result && AreAllReferencesInSchema(argument, tableSchema);
         }
         return result;
     }
@@ -450,24 +450,26 @@ bool AllReferencesAreInSchema(const TConstExpressionPtr& expr, const TTableSchem
     return false;
 }
 
-TConstExpressionPtr ExtractPredicateForColumnsSubset(const TConstExpressionPtr& expr, const TTableSchema& tableSchema)
+TConstExpressionPtr ExtractPredicateForColumnSubset(
+    const TConstExpressionPtr& expr,
+    const TTableSchema& tableSchema)
 {
     if (!expr) {
         return nullptr;
     }
 
-    if (AllReferencesAreInSchema(expr, tableSchema)) {
+    if (AreAllReferencesInSchema(expr, tableSchema)) {
         return expr;
     } else if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
         auto opcode = binaryOpExpr->Opcode;
         if (opcode == EBinaryOp::And) {
             return MakeAndExpression(
-                ExtractPredicateForColumnsSubset(binaryOpExpr->Lhs, tableSchema),
-                ExtractPredicateForColumnsSubset(binaryOpExpr->Rhs, tableSchema));
+                ExtractPredicateForColumnSubset(binaryOpExpr->Lhs, tableSchema),
+                ExtractPredicateForColumnSubset(binaryOpExpr->Rhs, tableSchema));
         } if (opcode == EBinaryOp::Or) {
             return MakeOrExpression(
-                ExtractPredicateForColumnsSubset(binaryOpExpr->Lhs, tableSchema),
-                ExtractPredicateForColumnsSubset(binaryOpExpr->Rhs, tableSchema));
+                ExtractPredicateForColumnSubset(binaryOpExpr->Lhs, tableSchema),
+                ExtractPredicateForColumnSubset(binaryOpExpr->Rhs, tableSchema));
         }
     }
 

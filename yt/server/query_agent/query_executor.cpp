@@ -214,7 +214,7 @@ private:
                 auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
                     .Run(subquery, mergingReader, pipe->GetWriter(), [&] (const TQueryPtr& subquery, ISchemafulWriterPtr writer) -> TQueryStatistics {
-                        TPlanFragmentPtr planFragment = New<TPlanFragment>();
+                        auto planFragment = New<TPlanFragment>();
 
                         planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
                         planFragment->Query = subquery;
@@ -222,7 +222,8 @@ private:
 
                         auto subqueryResult = RemoteExecutor_->Execute(planFragment, writer);
 
-                        return WaitFor(subqueryResult).ValueOrThrow();
+                        return WaitFor(subqueryResult)
+                            .ValueOrThrow();
                     });
 
                 asyncStatistics.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& result) {

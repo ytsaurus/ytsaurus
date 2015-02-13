@@ -36,7 +36,9 @@ TConstExpressionPtr RefinePredicate(
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns);
 
-TConstExpressionPtr ExtractPredicateForColumnsSubset(const TConstExpressionPtr& expr, const TTableSchema& tableSchema);
+TConstExpressionPtr ExtractPredicateForColumnSubset(
+    const TConstExpressionPtr& expr,
+    const TTableSchema& tableSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

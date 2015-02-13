@@ -49,7 +49,7 @@ void TFoldingProfiler::Profile(const TConstQueryPtr& query)
             Fold(column.c_str());
         }
 
-        if (auto selfFilter = ExtractPredicateForColumnsSubset(query->Predicate, joinClause->SelfTableSchema)) {
+        if (auto selfFilter = ExtractPredicateForColumnSubset(query->Predicate, joinClause->SelfTableSchema)) {
             if (Binding_) {
                 Binding_->SelfJoinPredicate = selfFilter;
             }

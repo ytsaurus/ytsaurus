@@ -32,7 +32,7 @@ class TQueryStatistics;
 DECLARE_REFCOUNTED_STRUCT(TExpression)
 typedef TIntrusivePtr<const TExpression> TConstExpressionPtr;
 
-DECLARE_REFCOUNTED_CLASS(TQuery);
+DECLARE_REFCOUNTED_STRUCT(TQuery);
 typedef TIntrusivePtr<const TQuery> TConstQueryPtr;
 
 DECLARE_REFCOUNTED_CLASS(TPlanFragment);

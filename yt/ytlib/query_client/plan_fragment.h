@@ -290,28 +290,26 @@ struct TJoinClause
 
 };
 
-class TQuery
+struct TQuery
     : public TIntrinsicRefCounted
 {
-public:
     TQuery(
         i64 inputRowLimit,
         i64 outputRowLimit,
         const TGuid& id = TGuid::Create())
-        : InputRowLimit_(inputRowLimit)
-        , OutputRowLimit_(outputRowLimit)
-        , Id_(id)
+        : InputRowLimit(inputRowLimit)
+        , OutputRowLimit(outputRowLimit)
+        , Id(id)
     { }
 
-    DEFINE_BYVAL_RO_PROPERTY(i64, InputRowLimit);
-    DEFINE_BYVAL_RO_PROPERTY(i64, OutputRowLimit);
-    DEFINE_BYVAL_RO_PROPERTY(TGuid, Id);
+    i64 InputRowLimit;
+    i64 OutputRowLimit;
+    TGuid Id;
     
     TNullable<TJoinClause> JoinClause;
 
     i64 Limit = std::numeric_limits<i64>::max();
 
-    // TODO: Rename to InitialTableSchema
     TTableSchema TableSchema;
     // TODO: Move out KeyColumns
     TKeyColumns KeyColumns;
