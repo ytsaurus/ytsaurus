@@ -24,7 +24,7 @@ TJoinEvaluator GetJoinEvaluator(
     const auto& joinColumns = joinClause.JoinColumns;
     auto& foreignTableSchema = joinClause.ForeignTableSchema;
     auto& foreignKeyColumns = joinClause.ForeignKeyColumns;
-    auto foreignPredicate = ExtractPredicateForColumnsSubset(predicate, foreignTableSchema);
+    auto foreignPredicate = ExtractPredicateForColumnSubset(predicate, foreignTableSchema);
     const auto& selfTableSchema = joinClause.SelfTableSchema;
 
     // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.

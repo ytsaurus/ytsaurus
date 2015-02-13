@@ -195,8 +195,7 @@ void JoinOpHelper(
     void** collectRowsClosure,
     void (*collectRows)(void** closure, std::vector<TRow>* rows, TLookupRows* lookupRows, std::vector<TRow>* allRows),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, std::vector<TRow>* rows, char* stopFlag)
-    )
+    void (*consumeRows)(void** closure, std::vector<TRow>* rows, char* stopFlag))
 {
     std::vector<TRow> keys;
     

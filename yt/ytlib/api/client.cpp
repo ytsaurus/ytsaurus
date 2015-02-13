@@ -467,7 +467,8 @@ private:
                 subfragment->Query = subquery;
 
                 LOG_DEBUG("Delegating subfragment (SubfragmentId: %v) to %v",
-                    subquery->GetId(), groupedSplits[index].second);
+                    subquery->Id,
+                    groupedSplits[index].second);
 
                 return Delegate(subfragment, groupedSplits[index].second);
             },
@@ -512,7 +513,7 @@ private:
                 auto replica = replicas[RandomNumber(replicas.size())];
                 auto descriptor = nodeDirectory->GetDescriptor(replica);
 
-                LOG_DEBUG("Delegating subquery (SubqueryId: %v)", subquery->GetId());
+                LOG_DEBUG("Delegating subquery (SubqueryId: %v)", subquery->Id);
 
                 auto subfragment = New<TPlanFragment>(fragment->GetSource());
                 subfragment->NodeDirectory = nodeDirectory;

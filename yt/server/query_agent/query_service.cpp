@@ -69,7 +69,7 @@ private:
         auto planFragment = FromProto(request->plan_fragment());
         planFragment->NodeDirectory->MergeFrom(request->node_directory());
 
-        context->SetRequestInfo("FragmentId: %v", planFragment->Query->GetId());
+        context->SetRequestInfo("FragmentId: %v", planFragment->Query->Id);
 
         ExecuteRequestWithRetries(
             Config_->MaxQueryRetries,

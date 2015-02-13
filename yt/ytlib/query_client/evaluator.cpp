@@ -88,7 +88,7 @@ public:
         TExecuteQuery executeCallback)
     {
         TRACE_CHILD("QueryClient", "Evaluate") {
-            TRACE_ANNOTATION("fragment_id", query->GetId());
+            TRACE_ANNOTATION("fragment_id", query->Id);
 
             auto Logger = BuildLogger(query);
 
@@ -130,9 +130,9 @@ public:
                 executionContext.Writer = writer.Get();
                 executionContext.Batch = &batch;
                 executionContext.Statistics = &statistics;
-                executionContext.InputRowLimit = query->GetInputRowLimit();
-                executionContext.OutputRowLimit = query->GetOutputRowLimit();
-                executionContext.GroupRowLimit = query->GetOutputRowLimit();
+                executionContext.InputRowLimit = query->InputRowLimit;
+                executionContext.OutputRowLimit = query->OutputRowLimit;
+                executionContext.GroupRowLimit = query->OutputRowLimit;
                 executionContext.Limit = query->Limit;
 
                 if (query->JoinClause) {

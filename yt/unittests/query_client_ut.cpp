@@ -1626,7 +1626,7 @@ struct TQueryExecutor
             ReaderMock_,
             writer,
             [&] (const TQueryPtr& subquery, ISchemafulWriterPtr writer) -> TQueryStatistics {
-                TPlanFragmentPtr planFragment = New<TPlanFragment>();
+                auto planFragment = New<TPlanFragment>();
 
                 planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
                 planFragment->Query = subquery;
@@ -1634,7 +1634,8 @@ struct TQueryExecutor
 
                 auto subqueryResult = ExecuteCallback->Execute(planFragment, writer);
 
-                return WaitFor(subqueryResult).ValueOrThrow();
+                return WaitFor(subqueryResult)
+                    .ValueOrThrow();
             }));
     }
 };

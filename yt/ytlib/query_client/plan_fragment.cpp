@@ -1080,10 +1080,10 @@ void ToProto(NProto::TJoinClause* proto, const TJoinClause& original)
 
 void ToProto(NProto::TQuery* proto, const TConstQueryPtr& original)
 {
-    proto->set_input_row_limit(original->GetInputRowLimit());
-    proto->set_output_row_limit(original->GetOutputRowLimit());
+    proto->set_input_row_limit(original->InputRowLimit);
+    proto->set_output_row_limit(original->OutputRowLimit);
 
-    ToProto(proto->mutable_id(), original->GetId());
+    ToProto(proto->mutable_id(), original->Id);
 
     proto->set_limit(original->Limit);
     ToProto(proto->mutable_table_schema(), original->TableSchema);
