@@ -96,8 +96,7 @@ message TJoinClause
     repeated string join_columns = 1;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt self_table_schema = 2;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt foreign_table_schema = 3;
-    required NYT.NTableClient.NProto.TKeyColumnsExt foreign_key_columns = 4;
-
+    required NYT.NVersionedTableClient.NProto.TKeyColumnsExt foreign_key_columns = 4;
 }
 
 message TQuery
@@ -125,7 +124,6 @@ message TPlanFragment
     required NYT.NChunkClient.NProto.TChunkSpec foreign_data_split = 3;
     required TQuery query = 4;
     required bool ordered = 5;
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
