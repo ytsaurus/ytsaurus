@@ -7,7 +7,6 @@
 #endif
 
 #include <ytlib/new_table_client/public.h>
-#include <ytlib/new_table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -21,27 +20,27 @@ public:
     TColumnEvaluator(const TTableSchema& schema, int keySize);
 
     void EvaluateKey(
-        NVersionedTableClient::TUnversionedRow fullRow,
+        TRow fullRow,
         NVersionedTableClient::TRowBuffer& buffer,
         int keyIndex);
 
     void EvaluateKeys(
-        NVersionedTableClient::TUnversionedRow fullRow,
+        TRow fullRow,
         NVersionedTableClient::TRowBuffer& buffer);
 
     void EvaluateKeys(
-        NVersionedTableClient::TUnversionedRow fullRow,
+        TRow fullRow,
         NVersionedTableClient::TRowBuffer& buffer,
-        const NVersionedTableClient::TUnversionedRow partialRow,
+        const TRow partialRow,
         const NVersionedTableClient::TNameTableToSchemaIdMapping& idMapping);
 
 private:
-    const NVersionedTableClient::TTableSchema Schema_;
+    const TTableSchema Schema_;
     const int KeySize_;
 
 #ifdef YT_USE_LLVM
-    std::vector<NQueryClient::TCGExpressionCallback> Evaluators_;
-    std::vector<NQueryClient::TCGVariables> Variables_;
+    std::vector<TCGExpressionCallback> Evaluators_;
+    std::vector<TCGVariables> Variables_;
 #endif
 };
 

@@ -27,7 +27,7 @@ TColumnEvaluator::TColumnEvaluator(const TTableSchema& schema, int keySize)
 #endif
 { }
 
-void TColumnEvaluator::EvaluateKey(TUnversionedRow fullRow, TRowBuffer& buffer, int index)
+void TColumnEvaluator::EvaluateKey(TRow fullRow, TRowBuffer& buffer, int index)
 {
 #ifdef YT_USE_LLVM
     YCHECK(Schema_.Columns()[index].Expression);
@@ -61,7 +61,7 @@ void TColumnEvaluator::EvaluateKey(TUnversionedRow fullRow, TRowBuffer& buffer, 
 #endif
 }
 
-void TColumnEvaluator::EvaluateKeys(TUnversionedRow fullRow, TRowBuffer& buffer)
+void TColumnEvaluator::EvaluateKeys(TRow fullRow, TRowBuffer& buffer)
 {
     for (int index = 0; index < KeySize_; ++index) {
         if (Schema_.Columns()[index].Expression) {
@@ -71,9 +71,9 @@ void TColumnEvaluator::EvaluateKeys(TUnversionedRow fullRow, TRowBuffer& buffer)
 }
 
 void TColumnEvaluator::EvaluateKeys(
-    TUnversionedRow fullRow,
+    TRow fullRow,
     TRowBuffer& buffer,
-    const TUnversionedRow partialRow,
+    const TRow partialRow,
     const TNameTableToSchemaIdMapping& idMapping)
 {
     int columnCount = fullRow.GetCount();
