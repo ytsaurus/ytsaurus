@@ -357,7 +357,7 @@ public:
     }
 
 private:
-    using TLogEventOrConfig = TVariant<TLogEvent, TLogConfigPtr>;
+    using TLoggerQueueItem = TVariant<TLogEvent, TLogConfigPtr>;
 
     class TThread
         : public TSchedulerThread
@@ -420,7 +420,7 @@ private:
         int eventsWritten = 0;
         bool configsUpdated = false;
 
-        while (LoggerQueue_.DequeueAll(true, [&] (TLogEventOrConfig& eventOrConfig) {
+        while (LoggerQueue_.DequeueAll(true, [&] (TLoggerQueueItem& eventOrConfig) {
                 if (const auto* configPtr = eventOrConfig.TryAs<TLogConfigPtr>()) {
                     UpdateConfig(*configPtr);
                     configsUpdated = true;
@@ -697,7 +697,7 @@ private:
     NProfiling::TRateCounter WriteCounter_;
     NProfiling::TAggregateCounter BacklogCounter_;
     bool Suspended_ = false;
-    TMultipleProducerSingleConsumerLockFreeStack<TLogEventOrConfig> LoggerQueue_;
+    TMultipleProducerSingleConsumerLockFreeStack<TLoggerQueueItem> LoggerQueue_;
 
     std::atomic<ui64> EnqueuedLogEvents_ = {0};
     std::atomic<ui64> DequeuedLogEvents_ = {0};
