@@ -29,7 +29,7 @@
 #include <ytlib/chunk_client/schema.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
-#include <ytlib/table_client/table_ypath.pb.h>
+#include <ytlib/new_table_client/table_ypath.pb.h>
 
 #include <ytlib/journal_client/helpers.h>
 
