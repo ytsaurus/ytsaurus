@@ -77,14 +77,45 @@ void TColumnEvaluator::EvaluateKeys(
     const TNameTableToSchemaIdMapping& idMapping)
 {
     int columnCount = fullRow.GetCount();
+    bool keyColumnSeen[MaxKeyColumnCount] {};
 
     for (int index = 0; index < columnCount; ++index) {
         fullRow[index].Type = EValueType::Null;
     }
 
     for (int index = 0; index < partialRow.GetCount(); ++index) {
-        YCHECK(idMapping[partialRow[index].Id] < columnCount);
-        fullRow[idMapping[partialRow[index].Id]] = partialRow[index];
+        int id = partialRow[index].Id;
+
+        if (id >= idMapping.size()) {
+            THROW_ERROR_EXCEPTION("Invalid column id %v, expected in range [0,%v]",
+                id,
+                idMapping.size() - 1);
+        }
+
+        int schemaId = idMapping[id];
+        YCHECK(schemaId < Schema_.Columns().size());
+        const auto& column = Schema_.Columns()[schemaId];
+
+        if (schemaId >= columnCount) {
+            THROW_ERROR_EXCEPTION("Unexpected column %Qv", column.Name);
+        }
+
+        if (column.Expression) {
+            THROW_ERROR_EXCEPTION(
+                "Column %Qv is computed automatically and should not be provided by user",
+                column.Name);
+        }
+
+        if (schemaId < KeySize_) {
+            if (keyColumnSeen[schemaId]) {
+                THROW_ERROR_EXCEPTION("Duplicate key component %Qv",
+                    column.Name);
+            }
+
+            keyColumnSeen[schemaId] = true;
+        }
+
+        fullRow[schemaId] = partialRow[index];
     }
 
     EvaluateKeys(fullRow, buffer);
