@@ -37,7 +37,7 @@ class TestTablets(YTEnvSetup):
             attributes = {
                 "schema": [
                     {"name": "key1", "type": "int64"},
-                    {"name": "key2", "type": "int64", "expression": "key1"},
+                    {"name": "key2", "type": "int64", "expression": "key1 * 100 + 3"},
                     {"name": "value", "type": "int64"}],
                 "key_columns": ["key1", "key2"]
             })
@@ -167,20 +167,20 @@ class TestTablets(YTEnvSetup):
         self._sync_mount_table("//tmp/t")
 
         insert("//tmp/t", [{"key1": 1, "value": 2}])
-        expected = [{"key1": 1, "key2": 1, "value": 2}]
+        expected = [{"key1": 1, "key2": 103, "value": 2}]
         actual = select("* from [//tmp/t]");
         self.assertItemsEqual(expected, actual);
 
         insert("//tmp/t", [{"key1": 2, "value": 2}])
-        expected = [{"key1": 1, "key2": 1, "value": 2}]
+        expected = [{"key1": 1, "key2": 103, "value": 2}]
         actual = lookup("//tmp/t", [1]);
         self.assertItemsEqual(expected, actual);
-        expected = [{"key1": 2, "key2": 2, "value": 2}]
+        expected = [{"key1": 2, "key2": 203, "value": 2}]
         actual = lookup("//tmp/t", [2]);
         self.assertItemsEqual(expected, actual);
 
         delete("//tmp/t", [1])
-        expected = [{"key1": 2, "key2": 2, "value": 2}]
+        expected = [{"key1": 2, "key2": 203, "value": 2}]
         actual = select("* from [//tmp/t]");
         self.assertItemsEqual(expected, actual);
 
