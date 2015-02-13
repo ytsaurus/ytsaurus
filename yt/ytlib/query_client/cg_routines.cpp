@@ -5,6 +5,7 @@
 #include "helpers.h"
 #include "callbacks.h"
 #include "query_statistics.h"
+#include "evaluation_helpers.h"
 
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
@@ -51,18 +52,6 @@ void CaptureValue(TValue* value, TChunkedMemoryPool* pool)
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
-
-
-
-bool CountRow(i64* limit)
-{
-    if (*limit > 0) {
-        --*limit;
-        return false;
-    } else {
-        return true;
-    }
-}
 
 void WriteRow(TRow row, TExecutionContext* executionContext)
 {
