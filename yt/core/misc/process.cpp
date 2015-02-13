@@ -354,6 +354,16 @@ int TProcess::GetProcessId() const
     return ProcessId_;
 }
 
+bool TProcess::Started() const
+{
+    return Started_;
+}
+
+bool TProcess::Finished() const
+{
+    return Finished_;
+}
+
 char* TProcess::Capture(TStringBuf arg)
 {
     StringHolder_.push_back(Stroka(arg));

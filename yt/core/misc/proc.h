@@ -18,8 +18,6 @@ i64 GetProcessRss(int pid = -1);
 
 TError StatusToError(int status);
 
-void RunCleaner(const Stroka& path);
-
 void RemoveDirAsRoot(const Stroka& path);
 
 bool TryClose(int fd);

@@ -15,7 +15,6 @@
 
 #include <util/system/yield.h>
 #include <util/system/info.h>
-#include <util/system/execpath.h>
 
 #ifdef _unix_
     #include <stdio.h>
@@ -93,22 +92,6 @@ i64 GetProcessRss(int pid)
 }
 
 #ifdef _unix_
-
-void RunCleaner(const Stroka& path)
-{
-    LOG_INFO("Clean %Qs", path);
-
-    TProcess process(GetExecPath());
-    process.AddArguments({
-        "--cleaner",
-        "--dir-to-remove",
-        path
-    });
-
-    process.Spawn();
-    auto error = process.Wait();
-    THROW_ERROR_EXCEPTION_IF_FAILED(error);
-}
 
 void RemoveDirAsRoot(const Stroka& path)
 {
@@ -309,11 +292,6 @@ TError StatusToError(int /* status */)
 }
 
 void RemoveDirAsRoot(const Stroka& /* path */)
-{
-    YUNIMPLEMENTED();
-}
-
-void RunCleaner(const Stroka& /* path */)
 {
     YUNIMPLEMENTED();
 }

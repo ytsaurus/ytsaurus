@@ -37,6 +37,8 @@ public:
     void Kill(int signal);
 
     int GetProcessId() const;
+    bool Started() const;
+    bool Finished() const;
 
 private:
     struct TSpawnAction
@@ -48,6 +50,8 @@ private:
     TSpinLock LifecycleChangeLock_;
     bool Started_;
     bool Finished_;
+
+    TError InternalError_;
 
     int ProcessId_;
     Stroka Path_;

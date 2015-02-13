@@ -45,6 +45,7 @@ set( SRCS
   ${BASE}/schemaful_dsv_writer_ut.cpp
   ${BASE}/serialize_ut.cpp
   ${BASE}/statistics_ut.cpp
+  ${BASE}/subprocess_ut.cpp
   ${BASE}/small_string_ut.cpp
   ${BASE}/small_vector_ut.cpp
   ${BASE}/string_ut.cpp
