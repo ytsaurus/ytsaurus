@@ -187,11 +187,17 @@ void TJournalChunk::UpdateCachedParams() const
 void TJournalChunk::SyncRemove(bool force)
 {
     if (Changelog_) {
-        LOG_DEBUG("Started closing journal chunk files (ChunkId: %v)", Id_);
-        WaitFor(Changelog_->Close())
-            .ThrowOnError();
-        LOG_DEBUG("Finished closing journal chunk files (ChunkId: %v)", Id_);
-        Changelog_.Reset();
+        try {
+            LOG_DEBUG("Started closing journal chunk files (ChunkId: %v)", Id_);
+            WaitFor(Changelog_->Close())
+                .ThrowOnError();
+            LOG_DEBUG("Finished closing journal chunk files (ChunkId: %v)", Id_);
+            Changelog_.Reset();
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            Location_->Disable(error);
+            return;
+        }
     }
 
     if (force) {
@@ -205,12 +211,7 @@ TFuture<void> TJournalChunk::AsyncRemove()
 {
     auto location = Location_;
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    return dispatcher->RemoveChangelog(this)
-        .Apply(BIND([=] (const TError& error) {
-            if (!error.IsOK()) {
-                location->Disable(error);
-            }
-        }));
+    return dispatcher->RemoveChangelog(this);
 }
 
 void TJournalChunk::AttachChangelog(IChangelogPtr changelog)
