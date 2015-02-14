@@ -4,8 +4,6 @@
 # -lock
 # -unlock
 #
-# -write -dst -dst
-#
 # -archive
 # -unarchive
 # -repair
@@ -31,6 +29,7 @@ from yt.wrapper.table import check_prefix
 from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, chunk_iter_stream
 import yt.wrapper.config as config
 import yt.yson as yson
+import yt.logger as logger
 import yt.wrapper as yt
 
 import os
@@ -88,6 +87,18 @@ class AppendAction(Action):
         value.append((option_string, values))
         setattr(namespace, self.dest, value)
 
+class MissingValue(object):
+    pass
+
+class MaybeMissingValueArgumentAction(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if values is None:
+            values = MissingValue()
+        setattr(namespace, self.dest, values)
+
+def add_maybe_missing_value_args(parser, args):
+    for arg in flatten(args):
+        parser.add_argument("-" + arg, nargs="?", action=MaybeMissingValueArgumentAction)
 def add_store_args(parser, args):
     for arg in flatten(args):
         parser.add_argument("-" + arg, action=ForbidRepeatedArgumentsAction)
@@ -182,7 +193,8 @@ Examples:
 """
     )
 
-    action_stores = ["read", "write", "writesorted", "map", "reduce", "reducews", "reducewsonly", "drop",
+    action_maybe_stores = ["write"]
+    action_stores = ["read", "writesorted", "map", "reduce", "reducews", "reducewsonly", "drop",
                      "erase", "aborttx", "committx", "renewtx", "set", "get", "upload", "download",
                      "createtable", "exists", "track", "ytlock"]
     action_flags = ["version", "copy", "move", "sort", "merge", "list", "listfiles", "starttx"]
@@ -190,13 +202,15 @@ Examples:
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx",
                                           "smartformat", "force", "executable", "waitable", "failonemptysrctable", "nocreatetmptable"])
 
+    add_maybe_missing_value_args(parser, action_maybe_stores)
+
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "format", "inputformat", "outputformat", "tx", "value",
                                             "replicationfactor", "memlimit", "timeout", "title", "fs", "rs",
                                             "mode", "tablereader", "tablewriter"])
     add_multiple_args(parser, ["src", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
     add_multiple_args_to_one_dest(parser, ["dst", "dstappend", "dstsorted"], "dst")
-    add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier", "detached", "waitfor", "stderrlevel", "maxjobfails"])
+    add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier", "detached", "waitfor", "stderrlevel", "maxjobfails", "count"])
 
     add_help_messages(parser,
         [
@@ -373,7 +387,7 @@ Examples:
 
     args = parser.parse_args()
 
-    actions_count = sum([vars(args)[arg] is not None for arg in action_stores]) + \
+    actions_count = sum([vars(args)[arg] is not None for arg in action_stores + action_maybe_stores]) + \
                     sum([vars(args)[arg] for arg in action_flags])
     mapreduce_case = args.map is not None and args.reduce is not None and actions_count == 2
     if actions_count != 1 and not mapreduce_case:
@@ -454,11 +468,13 @@ Examples:
          lambda: get_smart_format([args.src, args.read], args.smartformat, args.subkey, args.lenval,
                                   ignore_unexisting_tables=True),
          config.DEFAULT_FORMAT]))
+
+    write_tables = args.write if not isinstance(args.write, MissingValue) else None
     outputformat = first_not_none(imap(calculate_if_function,
         [args.format,
          args.outputformat,
          args.dsv,
-         lambda: get_smart_format([dst, args.write], args.smartformat, args.subkey, args.lenval),
+         lambda: get_smart_format([dst, write_tables], args.smartformat, args.subkey, args.lenval),
          config.DEFAULT_FORMAT]))
 
     if isinstance(outputformat, str):
@@ -505,11 +521,27 @@ Examples:
     if args.createtable is not None:
         yt.create_table(args.createtable, attributes=attributes)
     if args.write is not None:
-        args.write = yt.TablePath(args.write, append=args.append)
-        yt.write_table(args.write, sys.stdin, format=outputformat,
-                       table_writer=args.tablewriter,
-                       replication_factor=replication_factor,
-                       compression_codec=args.codec)
+        if isinstance(args.write, MissingValue):
+            write_tables = dst
+        else:
+            write_tables = [yt.TablePath(args.write, append=args.append)]
+        if len(write_tables) == 1:
+            yt.write_table(write_tables[0], sys.stdin, format=outputformat,
+                           table_writer=args.tablewriter,
+                           replication_factor=replication_factor,
+                           compression_codec=args.codec)
+        else:
+            logger.warning("In case of command '-write -dst A -dst B' all input records are load into memory and parsed")
+            records = [[] for _ in xrange(len(dst))]
+            for record in outputformat.load_rows(sys.stdin):
+                records[record.tableIndex].append(record)
+            with yt.PingableTransaction():
+                for index, table in enumerate(dst):
+                    yt.write_table(table, records[index], format=outputformat, raw=False,
+                                   table_writer=args.tablewriter,
+                                   replication_factor=replication_factor,
+                                   compression_codec=args.codec)
+
     if args.writesorted is not None:
         table = yt.TablePath(args.writesorted, append=args.append, sorted_by=["key", "subkey"])
         yt.write_table(table, sys.stdin, format=outputformat,

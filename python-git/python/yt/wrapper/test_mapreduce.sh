@@ -386,6 +386,13 @@ test_slow_write()
     check "`echo -e "a\tb"`" "`./mapreduce -read "ignat/some_table"`"
 }
 
+test_many_dst_write()
+{
+    echo -e "a\tb\n1\nc\td\n0\ne\tf" | ./mapreduce -write -dst "ignat/A" -dst "ignat/B"
+    check "`echo -e "a\tb\ne\tf"`" "`./mapreduce -read "ignat/A"`"
+    check "`echo -e "c\td"`" "`./mapreduce -read "ignat/B"`"
+}
+
 test_dstsorted()
 {
     echo -e "x\t10\ny\t15" | ./mapreduce -writesorted ignat/some_table
@@ -557,6 +564,7 @@ test_create_table
 test_empty_destination
 test_dsv_reduce
 test_slow_write
+test_many_dst_write
 test_dstsorted
 test_custom_fs_rs
 test_write_with_tx
