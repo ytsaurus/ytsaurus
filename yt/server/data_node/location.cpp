@@ -24,7 +24,6 @@
 
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
-#include <search.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -42,7 +41,7 @@ using namespace NHydra;
 // Others must not be able to list chunk store and chunk cache directories.
 static const int ChunkFilesPermissions = 0751;
 
-static const Stroka TrashDirectory("trash");
+static const auto TrashDirectory = Stroka("trash");
 static const auto TrashCheckPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,16 +61,16 @@ TLocation::TLocation(
     , Id_(id)
     , Config_(config)
     , Bootstrap_(bootstrap)
-    , Enabled_(false)
-    , AvailableSpace_(0)
-    , UsedSpace_(0)
     , SessionCount_(0)
-    , ChunkCount_(0)
     , ReadQueue_(New<TFairShareActionQueue>(Format("Read:%v", Id_), TEnumTraits<ELocationQueue>::GetDomainNames()))
     , DataReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(static_cast<int>(ELocationQueue::Data))))
     , MetaReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(static_cast<int>(ELocationQueue::Meta))))
-    , WriteThreadPool_(New<TThreadPool>(bootstrap->GetConfig()->DataNode->WriteThreadCount, Format("Write:%v", Id_)))
+    , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("Write:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
+    , HealthChecker_(New<TDiskHealthChecker>(
+        Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
+        GetPath(),
+        GetWritePoolInvoker()))
     , TrashCheckExecutor_(New<TPeriodicExecutor>(
         WritePoolInvoker_,
         BIND(&TLocation::OnCheckTrash, MakeWeak(this)),
@@ -114,7 +113,8 @@ i64 TLocation::GetAvailableSpace() const
 
     try {
         auto statistics = NFS::GetDiskSpaceStatistics(path);
-        AvailableSpace_ = statistics.AvailableSpace;
+        // NB: Unguarded access to TrashDiskSpace_ seems OK.
+        AvailableSpace_ = statistics.AvailableSpace + TrashDiskSpace_;
     } catch (const std::exception& ex) {
         auto error = TError("Failed to compute available space")
             << ex;
@@ -437,17 +437,12 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
         cellIdFile.Write(ToString(Bootstrap_->GetCellId()));
     }
 
-    // Initialize and start health checker.
-    HealthChecker_ = New<TDiskHealthChecker>(
-        Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
-        GetPath(),
-        GetWritePoolInvoker());
-
     // Run first health check before initialization is complete to sort out read-only drives.
     HealthChecker_->RunCheck()
         .Get()
         .ThrowOnError();
 
+    // Start health checker.
     HealthChecker_->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
     HealthChecker_->Start();
 
@@ -617,6 +612,7 @@ void TLocation::RegisterTrashChunk(const TChunkId& chunkId)
     {
         TGuard<TSpinLock> guard(TrashMapSpinLock_);
         TrashMap_.insert(std::make_pair(timestamp, TTrashChunkEntry{chunkId, diskSpace}));
+        TrashDiskSpace_ += diskSpace;
     }
 
     LOG_DEBUG("Trash chunk registered (ChunkId: %v, Timestamp: %v, DiskSpace: %v)",
@@ -655,6 +651,7 @@ void TLocation::CheckTrashTtl()
                 break;
             entry = it->second;
             TrashMap_.erase(it);
+            TrashDiskSpace_ -= entry.DiskSpace;
         }
         RemoveTrashFiles(entry);
     }
@@ -685,6 +682,7 @@ void TLocation::CheckTrashWatermark()
                 auto it = TrashMap_.begin();
                 entry = it->second;
                 TrashMap_.erase(it);
+                TrashDiskSpace_ -= entry.DiskSpace;
             }
             RemoveTrashFiles(entry);
             availableSpace += entry.DiskSpace;
