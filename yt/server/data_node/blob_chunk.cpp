@@ -301,12 +301,7 @@ void TBlobChunkBase::SyncRemove(bool force)
 
 TFuture<void> TBlobChunkBase::AsyncRemove()
 {
-    auto this_ = MakeStrong(this);
-    return
-        BIND([=] () {
-            UNUSED(this_);
-            SyncRemove(false);
-        })
+    return BIND(&TBlobChunkBase::SyncRemove, MakeStrong(this), false)
         .AsyncVia(Location_->GetWritePoolInvoker())
         .Run();
 }
