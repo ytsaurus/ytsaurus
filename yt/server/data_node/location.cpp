@@ -116,8 +116,8 @@ i64 TLocation::GetAvailableSpace() const
         auto statistics = NFS::GetDiskSpaceStatistics(path);
         AvailableSpace_ = statistics.AvailableSpace;
     } catch (const std::exception& ex) {
-        auto error = TError("Failed to compute available space") << ex;
-        LOG_ERROR(error);
+        auto error = TError("Failed to compute available space")
+            << ex;
         const_cast<TLocation*>(this)->Disable(error);
         AvailableSpace_ = 0;
         return 0;
@@ -136,8 +136,8 @@ i64 TLocation::GetTotalSpace() const
         auto statistics = NFS::GetDiskSpaceStatistics(path);
         return statistics.TotalSpace;
     } catch (const std::exception& ex) {
-        auto error = TError("Failed to compute total space") << ex;
-        LOG_ERROR(error);
+        auto error = TError("Failed to compute total space")
+            << ex;
         const_cast<TLocation*>(this)->Disable(error);
         return 0;
     }
@@ -267,6 +267,7 @@ bool TLocation::IsEnabled() const
 
 void TLocation::Disable(const TError& reason)
 {
+    LOG_ERROR(reason);
     if (Enabled_.exchange(false)) {
         ScheduleDisable(reason);
     }
@@ -565,7 +566,6 @@ void TLocation::RemoveChunkFiles(const TChunkId& chunkId)
             "Error removing chunk %v",
             chunkId)
             << ex;
-        LOG_ERROR(error);
         Disable(error);
     }
 }
@@ -595,7 +595,6 @@ void TLocation::MoveChunkFilesToTrash(const TChunkId& chunkId)
             "Error moving chunk %v to trash",
             chunkId)
             << ex;
-        LOG_ERROR(error);
         Disable(error);
     }
 }
@@ -636,8 +635,8 @@ void TLocation::OnCheckTrash()
         CheckTrashWatermark();
         TrashCheckExecutor_->ScheduleNext();
     } catch (const std::exception& ex) {
-        auto error = TError(ex);
-        LOG_ERROR(error);
+        auto error = TError("Error checking trash")
+            << ex;
         Disable(error);
     }
 }
