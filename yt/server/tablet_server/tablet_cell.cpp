@@ -114,8 +114,8 @@ void TTabletCell::RevokePeer(TPeerId peerId)
 {
     auto& peer = Peers_[peerId];
     YCHECK(peer.Descriptor);
-    YCHECK(!peer.Node);
     peer.Descriptor.Reset();
+    peer.Node = nullptr;
 }
 
 void TTabletCell::AttachPeer(TNode* node, TPeerId peerId)
