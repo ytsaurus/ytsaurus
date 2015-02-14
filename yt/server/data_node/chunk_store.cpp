@@ -21,7 +21,6 @@
 
 #include <utility>
 #include <limits>
-#include <CoreLocation/CoreLocation.h>
 
 namespace NYT {
 namespace NDataNode {
