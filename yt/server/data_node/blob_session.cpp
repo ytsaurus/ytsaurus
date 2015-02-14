@@ -553,8 +553,6 @@ void TBlobSession::SetFailed(const TError& error)
 
     Error_ = TError("Session failed") << error;
 
-    LOG_ERROR(Error_);
-
     Bootstrap_->GetControlInvoker()->Invoke(
         BIND(&TBlobSession::MarkAllSlotsWritten, MakeStrong(this), error));
 
