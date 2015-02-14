@@ -333,7 +333,8 @@ private:
         }
 
         auto chunkStore = Bootstrap_->GetChunkStore();
-        WaitFor(chunkStore->RemoveChunk(Chunk_));
+        WaitFor(chunkStore->RemoveChunk(Chunk_))
+            .ThrowOnError();
     }
 
 };
