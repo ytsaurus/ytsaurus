@@ -68,7 +68,6 @@ TTcpConnection::TTcpConnection(
     , InterfaceType_(interfaceType)
     , Id_(id)
     , Socket_(socket)
-    , Fd_(INVALID_SOCKET)
     , Address_(address)
 #ifdef _linux_
     , Priority_(priority)
@@ -103,8 +102,6 @@ TTcpConnection::TTcpConnection(
         default:
             YUNREACHABLE();
     }
-
-    MessageEnqueuedCallbackPending_.store(false);
 
     WriteBuffers_.push_back(std::make_unique<TBlob>(TTcpConnectionTag()));
     WriteBuffers_[0]->Reserve(MaxBatchWriteSize);
@@ -151,7 +148,7 @@ void TTcpConnection::SyncInitialize()
             break;
 
         case EConnectionType::Server:
-            InitFd();
+            InitFD();
             InitSocketWatcher();
             SyncOpen();
             break;
@@ -317,14 +314,9 @@ void TTcpConnection::SyncClose(const TError& error)
 
     LOG_DEBUG(detailedError, "Connection closed");
 
-    {
-        TGuard<TSpinLock> guard(TerminateSpinLock_);
-        TerminateError_ = detailedError;
-    }
-
     // Invoke user callbacks.
     PROFILE_TIMING ("/terminate_handler_time") {
-        Terminated_.FireAndClear(detailedError);
+        Terminated_.Fire(detailedError);
     }
 
     UpdateConnectionCount(-1);
@@ -332,12 +324,12 @@ void TTcpConnection::SyncClose(const TError& error)
     DispatcherThread_->AsyncUnregister(this);
 }
 
-void TTcpConnection::InitFd()
+void TTcpConnection::InitFD()
 {
 #ifdef _win_
-    Fd_ = _open_osfhandle(Socket_, 0);
+    FD_ = _open_osfhandle(Socket_, 0);
 #else
-    Fd_ = Socket_;
+    FD_ = Socket_;
 #endif
 }
 
@@ -345,15 +337,15 @@ void TTcpConnection::InitSocketWatcher()
 {
     SocketWatcher_.reset(new ev::io(DispatcherThread_->GetEventLoop()));
     SocketWatcher_->set<TTcpConnection, &TTcpConnection::OnSocket>(this);
-    SocketWatcher_->start(Fd_, ev::READ|ev::WRITE);
+    SocketWatcher_->start(FD_, ev::READ|ev::WRITE);
 }
 
 void TTcpConnection::CloseSocket()
 {
-    if (Fd_ != INVALID_SOCKET) {
-        close(Fd_);
+    if (FD_ != INVALID_SOCKET) {
+        close(FD_);
         Socket_ = INVALID_SOCKET;
-        Fd_ = INVALID_SOCKET;
+        FD_ = INVALID_SOCKET;
     }
 }
 
@@ -373,7 +365,7 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
             << TError::FromSystem();
     }
 
-    InitFd();
+    InitFD();
 
     if (family == AF_INET6) {
         int value = 0;
@@ -486,13 +478,7 @@ void TTcpConnection::OnTerminated(const TError& error)
 
 void TTcpConnection::SubscribeTerminated(const TCallback<void(const TError&)>& callback)
 {
-    TGuard<TSpinLock> guard(TerminateSpinLock_);
-    if (TerminateError_.IsOK()) {
-        Terminated_.Subscribe(callback);
-    } else {
-        guard.Release();
-        callback.Run(TerminateError_);
-    }
+    Terminated_.Subscribe(callback);
 }
 
 void TTcpConnection::UnsubscribeTerminated(const TCallback<void(const TError&)>& callback)
