@@ -2,13 +2,20 @@ package NYT.NTabletServer.NProto;
 
 import "yt/core/misc/guid.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
+import "yt/ytlib/node_tracker_client/node.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqAssignPeers
 {
+    message TPeerInfo
+    {
+        required int32 peer_id = 1;
+        required NYT.NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 2;
+    }
+
     required NYT.NProto.TGuid cell_id = 1;
-    repeated int32 node_ids = 2;
+    repeated TPeerInfo peer_infos = 2;
 }
 
 message TReqRevokePeers
