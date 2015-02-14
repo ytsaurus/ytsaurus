@@ -87,6 +87,7 @@ using namespace NCellMaster;
 
 using NTabletNode::TTableMountConfigPtr;
 using NNodeTrackerServer::NProto::TReqIncrementalHeartbeat;
+using NNodeTrackerClient::TNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -234,7 +235,9 @@ public:
         cell->SetSize(size);
         cell->SetOptions(ConvertTo<TTabletCellOptionsPtr>(attributes)); // may throw
         cell->Peers().resize(size);
-        
+
+        ReconfigureCell(cell);
+
         TabletCellMap_.Insert(id, cell_.release());
 
         // Make the fake reference.
@@ -293,8 +296,8 @@ public:
             if (peer.Node) {
                 peer.Node->DetachTabletCell(cell);
             }
-            if (peer.Address) {
-                RemoveFromAddressToCellMap(*peer.Address, cell);
+            if (peer.Descriptor) {
+                RemoveFromAddressToCellMap(*peer.Descriptor, cell);
             }
         }
 
@@ -772,8 +775,8 @@ private:
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
             for (const auto& peer : cell->Peers()) {
-                if (peer.Address) {
-                    AddToAddressToCellMap(*peer.Address, cell);
+                if (peer.Descriptor) {
+                    AddToAddressToCellMap(*peer.Descriptor, cell);
                 }
             }
             auto* transaction = cell->GetPrerequisiteTransaction();
@@ -1070,14 +1073,14 @@ private:
     }
 
 
-    void AddToAddressToCellMap(const Stroka& address, TTabletCell* cell)
+    void AddToAddressToCellMap(const TNodeDescriptor& descriptor, TTabletCell* cell)
     {
-        AddressToCell_.insert(std::make_pair(address, cell));
+        AddressToCell_.insert(std::make_pair(descriptor.GetDefaultAddress(), cell));
     }
 
-    void RemoveFromAddressToCellMap(const Stroka& address, TTabletCell* cell)
+    void RemoveFromAddressToCellMap(const TNodeDescriptor& descriptor, TTabletCell* cell)
     {
-        auto range = AddressToCell_.equal_range(address);
+        auto range = AddressToCell_.equal_range(descriptor.GetDefaultAddress());
         for (auto it = range.first; it != range.second; ++it) {
             if (it->second == cell) {
                 AddressToCell_.erase(it);
@@ -1099,31 +1102,25 @@ private:
         auto hydraFacade = Bootstrap_->GetHydraFacade();
         auto hydraManager = hydraFacade->GetHydraManager();
         auto* mutationContext = hydraManager->GetMutationContext();
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
 
         AbortPrerequisiteTransaction(cell);
 
-        YCHECK(request.node_ids_size() == cell->Peers().size());
-        for (TPeerId peerId = 0; peerId < request.node_ids_size(); ++peerId) {
-            auto nodeId = request.node_ids(peerId);
-            if (nodeId == InvalidNodeId)
-                continue;
-            
-            auto* node = nodeTracker->FindNode(nodeId);
-            if (!node)
+        YCHECK(request.peer_infos_size() == cell->Peers().size());
+        for (const auto& peerInfo : request.peer_infos()) {
+            auto peerId = peerInfo.peer_id();
+            auto descriptor = FromProto<TNodeDescriptor>(peerInfo.node_descriptor());
+
+            auto& peer = cell->Peers()[peerId];
+            if (peer.Descriptor)
                 continue;
 
-            if (cell->Peers()[peerId].Address)
-                continue;
-
-            const auto& address = node->GetAddress();
-            AddToAddressToCellMap(address, cell);
-            cell->AssignPeer(address, peerId);
+            AddToAddressToCellMap(descriptor, cell);
+            cell->AssignPeer(descriptor, peerId);
             cell->UpdatePeerSeenTime(peerId, mutationContext->GetTimestamp());
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer assigned (CellId: %v, Address: %v, PeerId: %v)",
                 cellId,
-                address,
+                descriptor.GetDefaultAddress(),
                 peerId);
         }
 
@@ -1145,6 +1142,7 @@ private:
         }
 
         AbortPrerequisiteTransaction(cell);
+        ReconfigureCell(cell);
     }
 
     void HydraOnTabletMounted(const TRspMountTablet& response)
@@ -1344,9 +1342,8 @@ private:
         config->Addresses.clear();
         for (const auto& peer : cell->Peers()) {
             auto nodeTracker = Bootstrap_->GetNodeTracker();
-            auto* node = peer.Address ? nodeTracker->FindNodeByAddress(*peer.Address) : nullptr;
-            if (node) {
-                config->Addresses.push_back(node->GetDescriptor().GetInterconnectAddress());
+            if (peer.Descriptor) {
+                config->Addresses.push_back(peer.Descriptor->GetInterconnectAddress());
             } else {
                 config->Addresses.push_back(Null);
             }
@@ -1475,17 +1472,16 @@ private:
     void DoRevokePeer(TTabletCell* cell, TPeerId peerId)
     {
         const auto& peer = cell->Peers()[peerId];
-        if (!peer.Address || peer.Node)
+        if (!peer.Descriptor)
             return;
 
-        const auto& address = *peer.Address;
-
+        const auto& descriptor = *peer.Descriptor;
         LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
             cell->GetId(),
-            address,
+            descriptor.GetDefaultAddress(),
             peerId);
 
-        RemoveFromAddressToCellMap(address, cell);
+        RemoveFromAddressToCellMap(descriptor, cell);
         cell->RevokePeer(peerId);
     }
 
