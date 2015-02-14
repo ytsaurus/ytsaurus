@@ -7,6 +7,7 @@
 #include <core/misc/small_vector.h>
 #include <core/misc/nullable.h>
 
+#include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
 #include <server/object_server/object.h>
@@ -31,7 +32,7 @@ public:
 
     struct TPeer
     {
-        TNullable<Stroka> Address;
+        TNullable<NNodeTrackerClient::TNodeDescriptor> Descriptor;
         NNodeTrackerServer::TNode* Node = nullptr;
         TInstant LastSeenTime;
 
@@ -63,7 +64,7 @@ public:
     TPeerId FindPeerId(NNodeTrackerServer::TNode* node) const;
     TPeerId GetPeerId(NNodeTrackerServer::TNode* node) const;
 
-    void AssignPeer(const Stroka& address, TPeerId peerId);
+    void AssignPeer(const NNodeTrackerClient::TNodeDescriptor& descriptor, TPeerId peerId);
     void RevokePeer(TPeerId peerId);
 
     void AttachPeer(NNodeTrackerServer::TNode* node, TPeerId peerId);

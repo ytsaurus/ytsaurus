@@ -137,27 +137,26 @@ void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
     ToProto(request.mutable_cell_id(), cell->GetId());
 
     const auto& peers = cell->Peers();
-    for (int index = 0; index < static_cast<int>(peers.size()); ++index) {
-        request.add_node_ids(InvalidNodeId);
-    }
 
     SmallSet<Stroka, TypicalCellSize> forbiddenAddresses;
-    for (const auto& peer : cell->Peers()) {
-        if (peer.Address) {
-            forbiddenAddresses.insert(*peer.Address);
+    for (const auto& peer : peers) {
+        if (peer.Descriptor) {
+            forbiddenAddresses.insert(peer.Descriptor->GetDefaultAddress());
         }
     }
 
     bool assigned = false;
-    for (int index = 0; index < static_cast<int>(peers.size()); ++index) {
-        if (cell->Peers()[index].Address)
+    for (TPeerId peerId = 0; peerId < static_cast<int>(peers.size()); ++peerId) {
+        if (peers[peerId].Descriptor)
             continue;
 
         auto* node = pool->TryAllocate(cell, forbiddenAddresses);
         if (!node)
             break;
 
-        request.set_node_ids(index, node->GetId());
+        auto* peerInfo = request.add_peer_infos();
+        peerInfo->set_peer_id(peerId);
+        ToProto(peerInfo->mutable_node_descriptor(), node->GetDescriptor());
         forbiddenAddresses.insert(node->GetAddress());
         assigned = true;
     }
@@ -186,7 +185,7 @@ void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
     // Look for timed out peers.
     TReqRevokePeers request;
     ToProto(request.mutable_cell_id(), cellId);
-    for (auto peerId = 0; peerId < cell->Peers().size(); ++peerId) {
+    for (TPeerId peerId = 0; peerId < cell->Peers().size(); ++peerId) {
         if (IsFailoverNeeded(cell, peerId)) {
             request.add_peer_ids(peerId);
         }
@@ -209,14 +208,17 @@ void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
 bool TTabletTracker::IsFailoverNeeded(TTabletCell* cell, TPeerId peerId)
 {
     const auto& peer = cell->Peers()[peerId];
-    if (!peer.Address)
+    if (!peer.Descriptor) {
         return false;
+    }
 
-    if (peer.Node)
+    if (peer.Node) {
         return false;
+    }
 
-    if (peer.LastSeenTime > TInstant::Now() - Config_->PeerFailoverTimeout)
+    if (peer.LastSeenTime > TInstant::Now() - Config_->PeerFailoverTimeout) {
         return false;
+    }
 
     return true;
 }
