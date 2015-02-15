@@ -13,8 +13,16 @@ class TTabletManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    //! Time to wait for a node to be back online before revoking it from all
+    //! tablet cells.
     TDuration PeerFailoverTimeout;
+
+    //! Maximum number of snapshots to keep for a tablet cell.
     int MaxSnapshotsToKeep;
+
+    //! When the number of online nodes drops below this margin,
+    //! tablet cell peers are no longer assigned and revoked.
+    int SafeOnlineNodeCount;
 
     TTabletManagerConfig()
     {
@@ -23,6 +31,9 @@ public:
         RegisterParameter("max_snapshots_to_keep", MaxSnapshotsToKeep)
             .GreaterThanOrEqual(0)
             .Default(3);
+        RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
+            .GreaterThanOrEqual(0)
+            .Default(0);
     }
 };
 
