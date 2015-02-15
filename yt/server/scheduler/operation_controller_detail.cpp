@@ -3848,7 +3848,7 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
         >
     >(context, InputChunkSpecs);
 
-    if (context.GetDirection() == EPersistenceDirection::Load) {
+    if (context.IsLoad()) {
         for (auto task : Tasks) {
             task->Initialize();
         }

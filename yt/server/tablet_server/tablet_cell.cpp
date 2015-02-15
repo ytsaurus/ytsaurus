@@ -23,7 +23,7 @@ void TTabletCell::TPeer::Persist(NCellMaster::TPersistenceContext& context)
     using NYT::Persist;
 
     // COMPAT(babenko)
-    if (context.GetDirection() == EPersistenceDirection::Load && context.LoadContext().GetVersion() < 113) {
+    if (context.IsLoad() && context.LoadContext().GetVersion() < 113) {
         TNullable<Stroka> address;
         Persist(context, address);
         YCHECK(!address);
