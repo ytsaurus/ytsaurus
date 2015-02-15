@@ -4,6 +4,8 @@
 
 #include <core/misc/ref.h>
 
+#include <core/actions/signal.h>
+
 #include <core/bus/public.h>
 
 #include <core/rpc/rpc.pb.h>
@@ -64,6 +66,15 @@ struct IServiceContext
 
     //! Parses the message and forwards to the client.
     virtual void Reply(TSharedRefArray message) = 0;
+
+    //! Raised when request processing is canceled.
+    DECLARE_INTERFACE_SIGNAL(void(), Canceled);
+
+    //! Cancels request processing.
+    /*!
+     *  Implementations are free to ignore this call.
+     */
+    virtual void Cancel() = 0;
 
     //! Returns a future representing the response message.
     /*!
@@ -127,10 +138,10 @@ struct IServiceContext
     void SetResponseInfo(const char* format, const TArgs&... args);
 
     //! Replies with a given message when the latter is set.
-    void ReplyFrom(TFuture<TSharedRefArray> message);
+    void ReplyFrom(TFuture<TSharedRefArray> asyncMessage);
 
     //! Replies with a given error when the latter is set.
-    void ReplyFrom(TFuture<void> error);
+    void ReplyFrom(TFuture<void> asyncError);
 
 };
 
