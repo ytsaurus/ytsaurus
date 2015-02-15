@@ -114,9 +114,39 @@ void TTabletTracker::Stop()
     }
 }
 
+bool TTabletTracker::IsEnabled()
+{
+    // This method also logs state changes.
+
+    auto nodeTracker = Bootstrap_->GetNodeTracker();
+
+    int needOnline = Config_->SafeOnlineNodeCount;
+    int gotOnline = nodeTracker->GetOnlineNodeCount();
+
+    if (gotOnline < needOnline) {
+        if (!LastEnabled_ || *LastEnabled_) {
+            LOG_INFO("Tablet tracker disabled: too few online nodes, needed >= %v but got %v",
+                needOnline,
+                gotOnline);
+            LastEnabled_ = false;
+        }
+        return false;
+    }
+
+    if (!LastEnabled_ || !*LastEnabled_) {
+        LOG_INFO("Tablet tracker enabled");
+        LastEnabled_ = true;
+    }
+
+    return true;
+}
+
 void TTabletTracker::ScanCells()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    if (!IsEnabled())
+        return;
 
     TCandidatePool pool(Bootstrap_);
 
