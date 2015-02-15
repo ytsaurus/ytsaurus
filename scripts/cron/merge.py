@@ -80,7 +80,7 @@ def merge(table):
             yt.remove(temp_table, force=True)
 
     except yt.YtError as e:
-        logger.error("Failed to merge table %s with error %s", table, repr(e))
+        logger.error("Failed to merge table %s with error %s", table, str(e))
 
 if __name__ == "__main__":
     process_tasks_from_list(sys.argv[1], merge)
