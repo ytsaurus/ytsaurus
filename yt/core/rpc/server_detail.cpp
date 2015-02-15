@@ -54,8 +54,6 @@ void TServiceContextBase::Initialize()
         ? FromProto<TRealmId>(RequestHeader_->realm_id())
         : NullRealmId;
 
-    Replied_ = false;
-
     YASSERT(RequestMessage_.Size() >= 2);
     RequestBody_ = RequestMessage_[1];
     RequestAttachments_ = std::vector<TSharedRef>(
@@ -162,6 +160,15 @@ bool TServiceContextBase::IsReplied() const
 {
     return Replied_;
 }
+
+void TServiceContextBase::SubscribeCanceled(const TClosure& /*callback*/)
+{ }
+
+void TServiceContextBase::UnsubscribeCanceled(const TClosure& /*callback*/)
+{ }
+
+void TServiceContextBase::Cancel()
+{ }
 
 const TError& TServiceContextBase::GetError() const
 {
@@ -346,6 +353,15 @@ void TServiceContextWrapper::Reply(TSharedRefArray responseMessage)
     UnderlyingContext_->Reply(responseMessage);
 }
 
+void TServiceContextWrapper::SubscribeCanceled(const TClosure& /*callback*/)
+{ }
+
+void TServiceContextWrapper::UnsubscribeCanceled(const TClosure& /*callback*/)
+{ }
+
+void TServiceContextWrapper::Cancel()
+{ }
+
 TFuture<TSharedRefArray> TServiceContextWrapper::GetAsyncResponseMessage() const
 {
     return UnderlyingContext_->GetAsyncResponseMessage();
@@ -412,11 +428,6 @@ NLog::TLogger& TServiceContextWrapper::GetLogger()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TServerBase::TServerBase()
-{
-    Started_ = false;
-}
 
 void TServerBase::RegisterService(IServicePtr service)
 {
