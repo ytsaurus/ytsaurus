@@ -21,7 +21,15 @@ using namespace NCellMaster;
 void TTabletCell::TPeer::Persist(NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, Descriptor);
+
+    // COMPAT(babenko)
+    if (context.GetDirection() == EPersistenceDirection::Load && context.LoadContext().GetVersion() < 113) {
+        TNullable<Stroka> address;
+        Persist(context, address);
+        YCHECK(!address);
+    } else {
+        Persist(context, Descriptor);
+    }
     Persist(context, Node);
     Persist(context, LastSeenTime);
 }
@@ -54,9 +62,6 @@ void TTabletCell::Save(TSaveContext& context) const
 void TTabletCell::Load(TLoadContext& context)
 {
     TNonversionedObjectBase::Load(context);
-
-    // COMPAT(babenko)
-    YCHECK(context.GetVersion() >= 113);
 
     using NYT::Load;
     Load(context, Size_);
