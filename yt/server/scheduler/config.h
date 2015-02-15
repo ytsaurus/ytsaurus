@@ -324,7 +324,8 @@ public:
             .Default(false);
 
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
-            .Default(1);
+            .GreaterThanOrEqual(0)
+            .Default(0);
 
         RegisterParameter("map_operation_spec", MapOperationSpec)
             .Default(nullptr);

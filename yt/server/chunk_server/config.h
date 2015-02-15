@@ -21,15 +21,15 @@ public:
 
     //! When the number of online nodes drops below this margin,
     //! replicator gets disabled.
-    TNullable<int> SafeOnlineNodeCount;
+    int SafeOnlineNodeCount;
 
     //! When the fraction of lost chunks grows above this margin,
     //! replicator gets disabled.
-    TNullable<double> SafeLostChunkFraction;
+    double SafeLostChunkFraction;
 
     //! When the number of lost chunks grows above this margin,
     //! replicator gets disabled.
-    TNullable<int> SafeLostChunkCount;
+    int SafeLostChunkCount;
 
     //! Minimum difference in fill coefficient (between the most and the least loaded nodes) to start balancing.
     double MinBalancingFillFactorDiff;
@@ -93,8 +93,8 @@ public:
         RegisterParameter("disable_chunk_replicator", DisableChunkReplicator)
             .Default(false);
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
-            .GreaterThan(0)
-            .Default(1);
+            .GreaterThanOrEqual(0)
+            .Default(0);
         RegisterParameter("safe_lost_chunk_fraction", SafeLostChunkFraction)
             .InRange(0.0, 1.0)
             .Default(0.5);
