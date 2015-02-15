@@ -97,7 +97,7 @@ public:
 
     ~TServiceContext()
     {
-        if (!RuntimeInfo_->Descriptor.OneWay && !Replied_ && !Canceled_) {
+        if (!RuntimeInfo_->Descriptor.OneWay && !Replied_ && !Canceled_.IsFired()) {
             if (Started_) {
                 Reply(TError(NYT::EErrorCode::Canceled, "Request abandoned"));
             } else {
@@ -140,14 +140,19 @@ public:
         }
     }
 
-    void Cancel()
+    virtual void SubscribeCanceled(const TClosure& callback) override
     {
-        TGuard<TSpinLock> guard(SpinLock_);
-        Canceled_ = true;
-        if (Canceler_) {
-            guard.Release();
-            Canceler_.Run();
-        }
+        Canceled_.Subscribe(callback);
+    }
+
+    virtual void UnsubscribeCanceled(const TClosure& callback) override
+    {
+        Canceled_.Unsubscribe(callback);
+    }
+
+    virtual void Cancel() override
+    {
+        Canceled_.Fire();
     }
 
 private:
@@ -164,7 +169,7 @@ private:
     bool Started_ = false;
     bool RunningSync_ = false;
     bool Completed_ = false;
-    bool Canceled_ = false;
+    TSingleShotCallbackList<void()> Canceled_;
     bool Finalized_ = false;
     TClosure Canceler_;
     NProfiling::TCpuInstant ArrivalTime_;
@@ -255,13 +260,13 @@ private:
         if (descriptor.Cancelable) {
             TGuard<TSpinLock> guard(SpinLock_);
 
-            if (Canceled_) {
+            if (Canceled_.IsFired()) {
                 LOG_DEBUG("Request was canceled before being run (RequestId: %v)",
                     RequestId_);
                 return;
             }
 
-            Canceler_ = GetCurrentFiberCanceler();
+            Canceled_.Subscribe(GetCurrentFiberCanceler());
 
             if (timeout != TDuration::Max()) {
                 LOG_DEBUG("Setting up server-side request timeout (RequestId: %v, Timeout: %v)",

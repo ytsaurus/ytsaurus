@@ -43,6 +43,11 @@ public:
     virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
     virtual TSharedRefArray GetResponseMessage() const override;
 
+    virtual void SubscribeCanceled(const TClosure& callback) override;
+    virtual void UnsubscribeCanceled(const TClosure& callback) override;
+
+    virtual void Cancel() override;
+
     virtual const TError& GetError() const override;
 
     virtual TSharedRef GetRequestBody() const override;
@@ -62,8 +67,11 @@ public:
     virtual NLog::TLogger& GetLogger() override;
 
 protected:
-    std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
-    TSharedRefArray RequestMessage_;
+    const std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
+    const TSharedRefArray RequestMessage_;
+
+    NLog::TLogger Logger;
+    const NLog::ELogLevel LogLevel_;
 
     TRequestId RequestId_;
     TRealmId RealmId_;
@@ -71,7 +79,7 @@ protected:
     TSharedRef RequestBody_;
     std::vector<TSharedRef> RequestAttachments_;
 
-    bool Replied_;
+    bool Replied_ = false;
     TError Error_;
 
     TSharedRef ResponseBody_;
@@ -79,10 +87,6 @@ protected:
 
     Stroka RequestInfo_;
     Stroka ResponseInfo_;
-
-    NLog::TLogger Logger;
-    NLog::ELogLevel LogLevel_;
-
 
     TServiceContextBase(
         std::unique_ptr<NProto::TRequestHeader> header,
@@ -148,6 +152,11 @@ public:
     virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
     virtual TSharedRefArray GetResponseMessage() const override;
 
+    virtual void SubscribeCanceled(const TClosure& callback) override;
+    virtual void UnsubscribeCanceled(const TClosure& callback) override;
+
+    virtual void Cancel() override;
+
     virtual const TError& GetError() const override;
 
     virtual TSharedRef GetRequestBody() const override;
@@ -167,7 +176,7 @@ public:
     virtual NLog::TLogger& GetLogger() override;
 
 protected:
-    IServiceContextPtr UnderlyingContext_;
+    const IServiceContextPtr UnderlyingContext_;
 
 };
 
@@ -177,8 +186,6 @@ class TServerBase
     : public IServer
 {
 public:
-    TServerBase();
-
     virtual void RegisterService(IServicePtr service) override;
     virtual void UnregisterService(IServicePtr service) override;
     
@@ -190,7 +197,7 @@ public:
     virtual void Stop() override;
 
 protected:
-    std::atomic<bool> Started_;
+    std::atomic<bool> Started_ = {false};
 
     NConcurrency::TReaderWriterSpinLock ServicesLock_;
     TServerConfigPtr Config_;
