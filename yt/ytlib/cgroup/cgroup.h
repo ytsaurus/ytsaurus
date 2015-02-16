@@ -164,17 +164,7 @@ public:
     TMemory(TMemory&& other);
     TStatistics GetStatistics() const;
 
-    i64 GetUsageInBytes() const;
-    i64 GetMaxUsageInBytes() const;
-
     void SetLimitInBytes(i64 bytes) const;
-
-    bool IsHierarchyEnabled() const;
-    void EnableHierarchy() const;
-
-    bool IsOomEnabled() const;
-    void DisableOom() const;
-    TEvent GetOomEvent() const;
 
     void ForceEmpty() const;
 };
