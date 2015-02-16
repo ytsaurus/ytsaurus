@@ -158,8 +158,6 @@ public:
         JobErrorPromise_.TrySet(TError());
         const auto& jobResultError = JobErrorPromise_.Get();
 
-        CleanupCGroups();
-
         TJobResult result;
         ToProto(result.mutable_error(), jobResultError.IsOK() 
             ? TError() 
