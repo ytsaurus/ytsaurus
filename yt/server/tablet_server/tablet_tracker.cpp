@@ -144,9 +144,6 @@ void TTabletTracker::ScanCells()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (!IsEnabled())
-        return;
-
     TCandidatePool pool(Bootstrap_);
 
     auto tabletManger = Bootstrap_->GetTabletManager();
@@ -161,7 +158,10 @@ void TTabletTracker::ScanCells()
 }
 
 void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
-{   
+{
+    if (!IsEnabled())
+        return;
+
     TReqAssignPeers request;
     ToProto(request.mutable_cell_id(), cell->GetId());
 
@@ -174,7 +174,6 @@ void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
         }
     }
 
-    bool assigned = false;
     for (TPeerId peerId = 0; peerId < static_cast<int>(peers.size()); ++peerId) {
         if (peers[peerId].Descriptor)
             continue;
@@ -187,10 +186,9 @@ void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
         peerInfo->set_peer_id(peerId);
         ToProto(peerInfo->mutable_node_descriptor(), node->GetDescriptor());
         forbiddenAddresses.insert(node->GetAddress());
-        assigned = true;
     }
 
-    if (assigned) {
+    if (request.peer_infos_size() > 0) {
         auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         CreateMutation(hydraManager, request)
             ->Commit();
