@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "private.h"
 #include "cgroup.h"
-#include "event.h"
 
 #include <core/ytree/fluent.h>
 #include <core/ytree/serialize.h>
@@ -22,7 +21,6 @@
 
 #ifdef _linux_
     #include <unistd.h>
-    #include <sys/eventfd.h>
     #include <sys/stat.h>
 #endif
 
@@ -613,90 +611,9 @@ TMemory::TStatistics TMemory::GetStatistics() const
     return result;
 }
 
-i64 TMemory::GetUsageInBytes() const
-{
-    return FromString<i64>(Get("memory.usage_in_bytes"));
-}
-
-i64 TMemory::GetMaxUsageInBytes() const
-{
-    return FromString<i64>(Get("memory.max_usage_in_bytes"));
-}
-
 void TMemory::SetLimitInBytes(i64 bytes) const
 {
     Set("memory.limit_in_bytes", ToString(bytes));
-}
-
-bool TMemory::IsHierarchyEnabled() const
-{
-#ifdef _linux_
-    auto isHierarchyEnabled = FromString<int>(Get("memory.use_hierarchy"));
-    YCHECK((isHierarchyEnabled == 0) || (isHierarchyEnabled == 1));
-
-    return (isHierarchyEnabled == 1);
-#else
-    return false;
-#endif
-}
-
-void TMemory::EnableHierarchy() const
-{
-    Set("memory.use_hierarchy", "1");
-}
-
-bool TMemory::IsOomEnabled() const
-{
-#ifdef _linux_
-    const auto path = NFS::CombinePaths(GetFullPath(), "memory.oom_control");
-    auto values = ReadAllValues(path);
-    if (values.size() != 4) {
-        THROW_ERROR_EXCEPTION("Unable to parse %v: expected 4 values, got %v",
-            path,
-            values.size());
-    }
-    for (int i = 0; i < 2; ++i) {
-        if (values[2 * i] == "oom_kill_disable") {
-            const auto& isDisabled = values[2 * i + 1];
-            if (isDisabled == "0") {
-                return true;
-            } else if (isDisabled == "1") {
-                return false;
-            } else {
-                THROW_ERROR_EXCEPTION("Unexpected value for oom_kill_disable: expected \"0\" or \"1\", got %Qv",
-                    isDisabled);
-            }
-        }
-    }
-    THROW_ERROR_EXCEPTION("Unable to find \"oom_kill_disable'\" in %v",
-        path);
-#else
-    return false;
-#endif
-}
-
-void TMemory::DisableOom() const
-{
-    // This parameter should be call `memory.disable_oom_control`.
-    // 1 means `disable`.
-    Set("memory.oom_control", "1");
-}
-
-TEvent TMemory::GetOomEvent() const
-{
-#ifdef _linux_
-    auto fileName = NFS::CombinePaths(GetFullPath(), "memory.oom_control");
-    auto fd = ::open(~fileName, O_WRONLY | O_CLOEXEC);
-
-    auto eventFd = ::eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-    auto data = ToString(eventFd) + ' ' + ToString(fd);
-
-    Set("cgroup.event_control", data);
-
-    return TEvent(eventFd, fd);
-#else
-    return TEvent();
-#endif
 }
 
 void TMemory::ForceEmpty() const
