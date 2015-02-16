@@ -11,6 +11,7 @@
 #include "user_job_io.h"
 
 #include <server/exec_agent/public.h>
+#include <server/exec_agent/subprocess.h>
 
 #include <ytlib/chunk_client/public.h>
 
@@ -41,6 +42,7 @@
 #include <core/misc/process.h>
 #include <core/misc/pattern_formatter.h>
 #include <core/misc/pipe.h>
+#include <core/misc/finally.h>
 
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/action_queue.h>
@@ -107,6 +109,7 @@ public:
         , MemoryUsage_(UserJobSpec_.memory_reserve())
         , PipeIOQueue_(New<TActionQueue>("PipeIO"))
         , PeriodicQueue_(New<TActionQueue>("UserJobPeriodic"))
+        , JobProberQueue_(New<TActionQueue>("JobProber"))
         , Process_(GetExecPath(), false)
         , CpuAccounting_(CGroupPrefix + ToString(jobId))
         , BlockIO_(CGroupPrefix + ToString(jobId))
@@ -212,6 +215,8 @@ private:
 
     std::atomic<bool> Prepared_;
 
+    std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
+
     i64 MemoryUsage_;
 
     TActionQueuePtr PipeIOQueue_;
@@ -235,12 +240,16 @@ private:
     std::vector<TCallback<void()>> OutputActions_;
     std::vector<TCallback<void()>> FinalizeActions_;
 
+    TActionQueuePtr JobProberQueue_;
+
     TProcess Process_;
 
     TCpuAccounting CpuAccounting_;
     TBlockIO BlockIO_;
     TMemory Memory_;
     TFreezer Freezer_;
+
+    TSpinLock FreezerLock_;
 
     std::vector<TBlockIO::TStatisticsItem> LastServicedIOs_;
 
@@ -287,7 +296,13 @@ private:
         try {
             // Kill everything for sanity reasons: main user process completed,
             // but its children may still be alive.
-            RunKiller(Freezer_.GetFullPath());
+            Stroka freezerFullPath;
+            {
+                TGuard<TSpinLock> guard(FreezerLock_);
+                freezerFullPath = Freezer_.GetFullPath();
+            }
+
+            RunKiller(freezerFullPath);
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Failed to clean up user processes");
         }
@@ -298,7 +313,11 @@ private:
         auto blockIOStats = BlockIO_.GetStatistics();
         AddStatistic("/user_job/block_io", blockIOStats);
 
-        Freezer_.Destroy();
+        {
+            TGuard<TSpinLock> guard(FreezerLock_);
+            Freezer_.Destroy();
+        }
+
         CpuAccounting_.Destroy();
         BlockIO_.Destroy();
 
@@ -408,6 +427,67 @@ private:
         }
 
         return result;
+    }
+
+    virtual TYsonString Strace() override
+    {
+        std::vector<int> pids;
+
+        {
+            TGuard<TSpinLock> guard(FreezerLock_);
+            if (!Freezer_.IsCreated()) {
+                THROW_ERROR_EXCEPTION("Cannot determine user job processes: freezer cgoup is not created");
+            }
+
+            pids = Freezer_.GetTasks();
+        }
+
+        if (Stracing_.test_and_set()) {
+            THROW_ERROR_EXCEPTION("Cannot strace while other stracing routing is active");
+        }
+
+        TFinallyGuard guard([this] () {
+            Stracing_.clear();
+        });
+
+        TYsonString spec = BuildYsonStringFluently(NYson::EYsonFormat::Text)
+            .BeginMap()
+                .Item("pids").Value(pids)
+            .EndMap();
+
+        auto stracer = NExecAgent::TSubprocess::CreateCurrentProcessSpawner();
+        stracer.AddArguments({
+            "--stracer",
+            "--spec",
+            spec.Data()
+        });
+
+        auto asyncTraces = WaitFor(BIND([&] () {
+            return stracer.Execute();
+        })
+            .AsyncVia(JobProberQueue_->GetInvoker())
+            .Run());
+
+        if (!asyncTraces.IsOK()) {
+            THROW_ERROR_EXCEPTION("Failed to strace")
+                << asyncTraces;
+        }
+
+        const auto& traces = asyncTraces.Value();
+
+        try {
+            if (!traces.Status.IsOK()) {
+                THROW_ERROR traces.Status;
+            }
+
+            LOG_DEBUG("Stracer stderr: %Qv", traces.Error);
+
+            return TYsonString(Stroka(traces.Output.Begin(), traces.Output.End()));
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to strace")
+                << ex
+                << TErrorAttribute("error", ToString(traces.Error));
+        }
     }
 
     int GetMaxReservedDescriptor() const
@@ -599,8 +679,11 @@ private:
         }
 
         try {
-            Freezer_.Create();
-            Process_.AddArguments({ "--cgroup", Freezer_.GetFullPath() });
+            {
+                TGuard<TSpinLock> guard(FreezerLock_);
+                Freezer_.Create();
+                Process_.AddArguments({ "--cgroup", Freezer_.GetFullPath() });
+            }
 
             CpuAccounting_.Create();
             Process_.AddArguments({ "--cgroup", CpuAccounting_.GetFullPath() });
@@ -819,7 +902,13 @@ private:
             YCHECK(Freezer_.IsCreated());
 
             try {
-                RunKiller(Freezer_.GetFullPath());
+                Stroka freezerFullPath;
+                {
+                    TGuard<TSpinLock> guard(FreezerLock_);
+                    freezerFullPath = Freezer_.GetFullPath();
+                }
+
+                RunKiller(freezerFullPath);
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Failed to clean up user processes");
             }

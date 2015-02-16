@@ -145,6 +145,7 @@ public:
         REGISTER(TReadJournalCommand,       "read_journal",      Null,       Tabular,    false, true );
 
         REGISTER(TDumpInputContextCommand,  "dump_input_context",Null,       Null,       true,  false);
+        REGISTER(TStrace,                    "strace",           Null,       Structured,    true,  false);
 
 #undef REGISTER
     }

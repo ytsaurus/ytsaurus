@@ -38,6 +38,33 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////
 
+struct TStraceRequest
+    : public TTransactionalRequest
+    , public TMutatingRequest
+{
+    NJobTrackerClient::TJobId JobId;
+
+    TStraceRequest()
+    {
+        RegisterParameter("job_id", JobId);
+    }
+};
+
+//////////////////////////////////////////////////////////////////////////////
+
+class TStrace
+    : public TTypedCommand<TStraceRequest>
+{
+protected:
+    typedef TStrace TThis;
+
+private:
+    virtual void DoExecute() override;
+
+};
+
+//////////////////////////////////////////////////////////////////////////////
+
 struct TStartOperationRequest
     : public TTransactionalRequest
     , public TMutatingRequest

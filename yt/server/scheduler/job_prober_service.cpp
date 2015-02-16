@@ -31,6 +31,7 @@ public:
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Strace));
     }
 
 private:
@@ -47,6 +48,20 @@ private:
         WaitFor(Bootstrap_->GetScheduler()->DumpInputContext(jobId, path))
             .ThrowOnError();
 
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, Strace)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        auto trace = WaitFor(Bootstrap_->GetScheduler()->Strace(jobId))
+            .ValueOrThrow();
+
+        context->SetResponseInfo("Trace: %Qv", trace.Data());
+
+        ToProto(response->mutable_trace(), trace.Data());
         context->Reply();
     }
 };

@@ -504,6 +504,7 @@ struct IClient
         const NJobTrackerClient::TJobId& jobId,
         const NYPath::TYPath& path) = 0;
 
+    virtual TFuture<NYTree::TYsonString> Strace(const NJobTrackerClient::TJobId& jobId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

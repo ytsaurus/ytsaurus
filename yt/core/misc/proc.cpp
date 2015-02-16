@@ -91,6 +91,29 @@ i64 GetProcessRss(int pid)
 #endif
 }
 
+Stroka GetProcessName(int pid)
+{
+#ifdef _linux_
+    Stroka path = Format("/proc/%v/comm", pid);
+    return Trim(TFileInput(path).ReadAll(), "\n");
+#else
+    return "";
+#endif
+}
+
+std::vector<Stroka> GetProcessCommandLine(int pid)
+{
+#ifdef _linux_
+    Stroka path = Format("/proc/%v/cmdline", pid);
+    auto raw = TFileInput(path).ReadAll();
+    VectorStrok result;
+    SplitStroku(&result, raw, "\0");
+    return result;
+#else
+    return std::vector<Stroka>();
+#endif
+}
+
 #ifdef _unix_
 
 void RemoveDirAsRoot(const Stroka& path)

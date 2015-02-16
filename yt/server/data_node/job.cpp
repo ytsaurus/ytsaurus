@@ -182,6 +182,11 @@ public:
         THROW_ERROR_EXCEPTION("Input context dumping is not supported");
     }
 
+    virtual NYTree::TYsonString Strace() const override
+    {
+        THROW_ERROR_EXCEPTION("Stracing is not supported");
+    }
+
 protected:
     const TJobId JobId_;
     const TJobSpec JobSpec_;

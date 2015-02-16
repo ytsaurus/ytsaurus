@@ -13,6 +13,9 @@
 #include <core/tracing/trace_manager.h>
 
 #include <core/ytree/yson_serializable.h>
+#include <core/ytree/ephemeral_node_factory.h>
+#include <core/ytree/tree_builder.h>
+#include <core/ytree/fluent.h>
 
 #include <ytlib/scheduler/config.h>
 
@@ -37,6 +40,7 @@
 
 #include <server/job_proxy/config.h>
 #include <server/job_proxy/job_proxy.h>
+#include <server/job_proxy/stracer.h>
 
 #include <tclap/CmdLine.h>
 
@@ -91,6 +95,8 @@ public:
 #ifdef _linux_
         , Cleaner("", "cleaner", "start cleaner")
         , Killer("", "killer", "start killer")
+        , Stracer("", "stracer", "start stracer")
+        , Spec("", "spec", "command spec", false, "", "SPEC")
         , CloseAllFds("", "close-all-fds", "close all file descriptors")
         , DirToRemove("", "dir-to-remove", "directory to remove (for cleaner mode)", false, "", "DIR")
         , ProcessGroupPath("", "process-group-path", "path to process group to kill (for killer mode)", false, "", "UID")
@@ -113,6 +119,8 @@ public:
 #ifdef _linux_
         CmdLine.add(Cleaner);
         CmdLine.add(Killer);
+        CmdLine.add(Stracer);
+        CmdLine.add(Spec);
         CmdLine.add(CloseAllFds);
         CmdLine.add(DirToRemove);
         CmdLine.add(ProcessGroupPath);
@@ -139,6 +147,8 @@ public:
 #ifdef _linux_
     TCLAP::SwitchArg Cleaner;
     TCLAP::SwitchArg Killer;
+    TCLAP::SwitchArg Stracer;
+    TCLAP::ValueArg<Stroka> Spec;
     TCLAP::SwitchArg CloseAllFds;
     TCLAP::ValueArg<Stroka> DirToRemove;
     TCLAP::ValueArg<Stroka> ProcessGroupPath;
@@ -173,6 +183,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 #ifdef _linux_
     bool isCleaner = parser.Cleaner.getValue();
     bool isKiller = parser.Killer.getValue();
+    bool isStracer = parser.Stracer.getValue();
     bool isExecutor = parser.Executor.getValue();
     bool doCloseAllFds = parser.CloseAllFds.getValue();
 #endif
@@ -202,6 +213,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
         ++modeCount;
     }
     if (isKiller) {
+        ++modeCount;
+    }
+    if (isStracer) {
         ++modeCount;
     }
     if (isExecutor) {
@@ -255,6 +269,44 @@ EExitCode GuardedMain(int argc, const char* argv[])
         auto path = parser.ProcessGroupPath.getValue();
         NCGroup::TNonOwningCGroup group(path);
         group.Kill();
+
+        return EExitCode::OK;
+    }
+
+    if (isStracer) {
+        NConcurrency::SetCurrentThreadName("StracerMain");
+
+        YCHECK(setuid(0) == 0);
+
+        auto builder = CreateBuilderFromFactory(NYT::NYTree::GetEphemeralNodeFactory());
+        NYT::NYTree::BuildYsonFluently(builder.get())
+            .BeginMap()
+                .Item("rules")
+                .BeginList()
+                    .Item()
+                    .BeginMap()
+                        .Item("min_level").Value("info")
+                        .Item("writers").BeginList().Item().Value("stderr").EndList()
+                        .Item("categories").List("*")
+                    .EndMap()
+                .EndList()
+                .Item("writers")
+                .BeginMap()
+                    .Item("stderr")
+                    .BeginMap()
+                        .Item("type").Value("stderr")
+                        .Item("pattern").Value("$(datetime) $(level) $(category) $(message)")
+                    .EndMap()
+                .EndMap()
+            .EndMap();
+        NYT::NLogging::TLogManager::Get()->Configure(builder->EndTree());
+
+        auto spec = ConvertToNode(NYTree::TYsonString(parser.Spec.getValue()));
+        auto pids = NYTree::ConvertTo<std::vector<int>>(spec->AsMap()->GetChild("pids"));
+
+        auto straceResult = Strace(pids);
+
+        Cout << NYTree::ConvertToYsonString(straceResult).Data();
 
         return EExitCode::OK;
     }

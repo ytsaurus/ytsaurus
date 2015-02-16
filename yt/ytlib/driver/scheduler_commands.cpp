@@ -25,6 +25,20 @@ void TDumpInputContextCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TStrace::DoExecute()
+{
+    auto asyncResult = Context_->GetClient()->Strace(Request_->JobId);
+    auto result = WaitFor(asyncResult)
+        .ValueOrThrow();
+
+    Reply(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("traces").Value(result)
+        .EndMap());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TStartOperationCommandBase::DoExecute()
 {
     TStartOperationOptions options;

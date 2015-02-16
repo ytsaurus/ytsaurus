@@ -49,6 +49,7 @@ set( SRCS
   ${BASE}/small_string_ut.cpp
   ${BASE}/small_vector_ut.cpp
   ${BASE}/string_ut.cpp
+  ${BASE}/stracer_ut.cpp
   ${BASE}/thread_affinity_ut.cpp
   ${BASE}/tree_builder_ut.cpp
   ${BASE}/url_ut.cpp

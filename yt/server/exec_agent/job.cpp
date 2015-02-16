@@ -298,6 +298,22 @@ public:
         return FromProto<TGuid>(rsp->chunk_id());
     }
 
+    virtual TYsonString Strace() const override
+    {
+        auto jobProberClient = CreateTcpBusClient(Slot->GetRpcClientConfig());
+        auto jobProberChannel = CreateBusChannel(jobProberClient);
+
+        NJobProberClient::TJobProberServiceProxy jobProberProxy(jobProberChannel);
+
+        auto req = jobProberProxy.Strace();
+
+        ToProto(req->mutable_job_id(), JobId);
+        auto res = WaitFor(req->Invoke())
+            .ValueOrThrow();
+
+        return TYsonString(FromProto<Stroka>(res->trace()));
+    }
+
 private:
     TJobId JobId;
     TJobSpec JobSpec;

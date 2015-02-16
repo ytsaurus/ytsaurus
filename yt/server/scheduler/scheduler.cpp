@@ -423,6 +423,32 @@ public:
         return VoidFuture;
     }
 
+    TFuture<TYsonString> Strace(const TJobId& jobId)
+    {
+        return BIND(&TImpl::DoStrace, MakeStrong(this), jobId)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+    }
+
+    TYsonString DoStrace(const TJobId& jobId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto probeProxy = CreateJobProber(jobId);
+
+        auto req = probeProxy.Strace();
+        ToProto(req->mutable_job_id(), jobId);
+
+        auto errorOrResponse = WaitFor(req->Invoke());
+        if (!errorOrResponse.IsOK()) {
+            THROW_ERROR_EXCEPTION("Error stracing processes of job: %v", jobId)
+                << errorOrResponse;
+        }
+        auto& res = errorOrResponse.Value();
+
+        return TYsonString(FromProto<Stroka>(res->trace()));
+    }
+
     TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
     {
         return BIND(&TImpl::DoDumpInputContext, MakeStrong(this), jobId, path)
@@ -434,15 +460,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto job = FindJob(jobId);
-        if (!job) {
-            THROW_ERROR_EXCEPTION("No such job %v", jobId);
-        }
-
-        const auto& address = job->GetNode()->Descriptor().GetInterconnectAddress();
-        auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
-
-        TJobProberServiceProxy probeProxy(channel);
+        auto probeProxy = CreateJobProber(jobId);
 
         auto req = probeProxy.DumpInputContext();
         ToProto(req->mutable_job_id(), jobId);
@@ -461,6 +479,19 @@ public:
         LOG_INFO("Input context saved (JobId: %v, Path: %v)",
             jobId,
             path);
+    }
+
+    TJobProberServiceProxy CreateJobProber(const TJobId& jobId)
+    {
+        auto job = FindJob(jobId);
+        if (!job) {
+            THROW_ERROR_EXCEPTION("No such job %v", jobId);
+        }
+
+        const auto& address = job->GetNode()->Descriptor().GetInterconnectAddress();
+        auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
+
+        return TJobProberServiceProxy(channel);
     }
 
     void ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
@@ -2248,6 +2279,11 @@ TFuture<void> TScheduler::SuspendOperation(TOperationPtr operation)
 TFuture<void> TScheduler::ResumeOperation(TOperationPtr operation)
 {
     return Impl_->ResumeOperation(operation);
+}
+
+TFuture<TYsonString> TScheduler::Strace(const TJobId& jobId)
+{
+    return Impl_->Strace(jobId);
 }
 
 TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)

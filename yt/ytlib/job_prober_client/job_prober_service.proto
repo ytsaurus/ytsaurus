@@ -14,4 +14,14 @@ message TRspDumpInputContext
     repeated NYT.NProto.TGuid chunk_id = 1;
 }
 
+message TReqStrace
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspStrace
+{
+    required string trace = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

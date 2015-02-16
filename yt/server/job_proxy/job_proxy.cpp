@@ -37,6 +37,8 @@
 #include <core/rpc/server.h>
 #include <core/rpc/helpers.h>
 
+#include <core/ytree/public.h>
+
 #include <ytlib/scheduler/public.h>
 
 #include <ytlib/cgroup/cgroup.h>
@@ -98,6 +100,18 @@ TJobProxy::TJobProxy(
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(const TJobId& jobId)
 {
+    ValidateJobId(jobId);
+    return Job_->DumpInputContext();
+}
+
+NYTree::TYsonString TJobProxy::Strace(const TJobId& jobId)
+{
+    ValidateJobId(jobId);
+    return Job_->Strace();
+}
+
+void TJobProxy::ValidateJobId(const TJobId& jobId)
+{
     if (JobId_ != jobId) {
         THROW_ERROR_EXCEPTION("Job id mismatch: expected %v, got %v",
             JobId_,
@@ -107,8 +121,6 @@ std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(const TJobId& jo
     if (!Job_) {
         THROW_ERROR_EXCEPTION("Job is not started yet");
     }
-
-    return Job_->DumpInputContext();
 }
 
 void TJobProxy::SendHeartbeat()

@@ -143,7 +143,7 @@ Stroka JoinToString(
 //! Joins a collection of given items into a string intermixing them with the delimiter.
 /*!
  *  The function assume the presence of begin()- and end()-like methods in the collection.
- *  
+ *
  *  \param collection A collection containing the items to be joined.
  *  \param delimiter A delimiter to be inserted between items. By default equals ", ".
  *  \return The resulting combined string.
@@ -222,6 +222,7 @@ void CamelCaseToUnderscoreCase(TStringBuilder* builder, const TStringBuf& str);
 Stroka CamelCaseToUnderscoreCase(const TStringBuf& str);
 
 Stroka TrimLeadingWhitespaces(const Stroka& str);
+Stroka Trim(const Stroka& str, const Stroka& whitespaces);
 
 bool ParseBool(const Stroka& value);
 TStringBuf FormatBool(bool value);
