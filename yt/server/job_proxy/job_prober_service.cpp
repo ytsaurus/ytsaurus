@@ -26,7 +26,7 @@ class TJobProberService
 public:
     TJobProberService(TJobProxy* jobProxy)
         : TServiceBase(
-		    jobProxy->GetControlInvoker(),
+            jobProxy->GetControlInvoker(),
             TJobProberServiceProxy::GetServiceName(),
             JobProxyLogger,
             TJobProberServiceProxy::GetProtocolVersion())
@@ -56,7 +56,7 @@ private:
 
 IServicePtr CreateJobProberService(TJobProxy* jobProxy)
 {
-	return New<TJobProberService>(jobProxy);
+    return New<TJobProberService>(jobProxy);
 }
 
 ////////////////////////////////////////////////////////////////////

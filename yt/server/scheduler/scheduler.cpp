@@ -267,13 +267,6 @@ public:
     }
 
 
-    TJobPtr FindJob(const TJobId& jobId)
-    {
-        auto it = IdToJob_.find(jobId);
-        return it == IdToJob_.end() ? nullptr : it->second;
-    }
-
-
     TExecNodePtr FindNode(const Stroka& address)
     {
         auto it = AddressToNode_.find(address);
@@ -1430,6 +1423,12 @@ private:
         LOG_DEBUG("Job unregistered (JobId: %v, OperationId: %v)",
             job->GetId(),
             operation->GetId());
+    }
+
+    TJobPtr FindJob(const TJobId& jobId)
+    {
+        auto it = IdToJob_.find(jobId);
+        return it == IdToJob_.end() ? nullptr : it->second;
     }
 
     void AbortJob(TJobPtr job, const TError& error)

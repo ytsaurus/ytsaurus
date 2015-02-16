@@ -175,7 +175,7 @@ public:
         if (jobResultError.IsOK()) {
             JobIO_->PopulateResult(schedulerResultExt);
         } else {
-            SaveFailContexts(schedulerResultExt);
+            DumpFailContexts(schedulerResultExt);
         }
 
         return result;
@@ -352,10 +352,10 @@ private:
         }
     }
 
-    void SaveFailContexts(TSchedulerJobResultExt* schedulerResultExt)
+    void DumpFailContexts(TSchedulerJobResultExt* schedulerResultExt)
     {
         auto contexts = DoGetInputContexts();
-        auto contextChunkIds = SaveInputContexts(contexts);
+        auto contextChunkIds = DoDumpInputContexts(contexts);
 
         for (const auto& contextChunkId : contextChunkIds) {
             ToProto(schedulerResultExt->add_fail_context_chunk_ids(), contextChunkId);
@@ -374,12 +374,12 @@ private:
                 .Run())
             .ValueOrThrow();
 
-        auto contextChunkIds = SaveInputContexts(contexts);
+        auto contextChunkIds = DoDumpInputContexts(contexts);
 
         return contextChunkIds;
     }
 
-    std::vector<TChunkId> SaveInputContexts(const std::vector<TBlob>& contexts)
+    std::vector<TChunkId> DoDumpInputContexts(const std::vector<TBlob>& contexts)
     {
         std::vector<TChunkId> results;
 
@@ -393,7 +393,7 @@ private:
                 host->GetMasterChannel(),
                 transactionId);
 
-            auto context = contexts[index];
+            const auto& context = contexts[index];
             contextOutput.Write(context.Begin(), context.Size());
             contextOutput.Finish();
 
