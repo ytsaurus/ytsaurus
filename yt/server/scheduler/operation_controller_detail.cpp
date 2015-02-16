@@ -3510,7 +3510,7 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
                 TotalOutputsDataStatistics.begin(),
                 TotalOutputsDataStatistics.end(),
                 NChunkClient::NProto::ZeroDataStatistics()))
-        .Item("output_statistics_detailed").DoListFor(
+        .Item("detailed_output_statistics").DoListFor(
             TotalOutputsDataStatistics,
             [] (TFluentList fluent, const NChunkClient::NProto::TDataStatistics& statistics) {
                 fluent.Item().Value(statistics);
