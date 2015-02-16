@@ -259,6 +259,17 @@ TEST(CGroup, Bug)
     EXPECT_TRUE(waitedpid == pid);
 }
 
+TEST(CGroup, RemoveAllSubcgroupsAfterLock)
+{
+    Stroka parentName = "remove_all_subcgroups_after_lock_" + ToString(TGuid::Create());
+    TFreezer parent = CreateCGroup<TFreezer>(parentName);
+    TNonOwningCGroup child(parent.GetFullPath() + "/child");
+
+    child.EnsureExistance();
+    parent.Lock();
+    parent.RemoveAllSubcgroups();
+}
+
 TEST(CGroup, FreezerEmpty)
 {
     auto group = CreateCGroup<TFreezer>("freezer_empty_" + ToString(TGuid::Create()));
