@@ -121,11 +121,6 @@ void RunKiller(const Stroka& processGroupPath)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNonOwningCGroup::TNonOwningCGroup()
-    : FullPath_()
-{ }
-
-
 TNonOwningCGroup::TNonOwningCGroup(const Stroka& fullPath)
     : FullPath_(fullPath)
 { }
@@ -142,17 +137,12 @@ TNonOwningCGroup::TNonOwningCGroup(TNonOwningCGroup&& other)
     : FullPath_(std::move(other.FullPath_))
 { }
 
-// This method SHOULD work fine in forked process
-// So we cannot use out logging|profiling framework
 void TNonOwningCGroup::AddTask(int pid) const
 {
     LOG_INFO("Add %v to cgroup %v", pid, FullPath_);
     Append("tasks", ToString(pid));
 }
 
-
-// This method SHOULD work fine in forked process
-// So we cannot use out logging|profiling framework
 void TNonOwningCGroup::AddCurrentTask() const
 {
     YCHECK(!IsNull());
@@ -577,11 +567,6 @@ void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* co
 TMemory::TMemory(const Stroka& name)
     : TCGroup("memory", name)
 { }
-
-TMemory::TMemory(TMemory&& other)
-    : TCGroup(std::move(other))
-{ }
-
 
 TMemory::TStatistics TMemory::GetStatistics() const
 {
