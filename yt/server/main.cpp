@@ -101,6 +101,7 @@ public:
         , PreparePipes("", "prepare-pipe", "prepare pipe descriptor  (for executor mode)", false, "FD")
         , EnableCoreDump("", "enable-core-dump", "enable core dump (for executor mode)")
         , Uid("", "uid", "set uid  (for executor mode)", false, -1, "NUM")
+        // compat
         , EnableIOPrio("", "enable-io-prio", "set low io prio (for executor mode)")
         , Command("", "command", "command (for executor mode)", false, "", "COMMAND")
 #endif
@@ -346,10 +347,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
             YCHECK(setresgid(uid, uid, uid) == 0);
             YCHECK(setuid(uid) == 0);
-
-            if (parser.EnableIOPrio.getValue()) {
-                YCHECK(ioprio_set(IOPRIO_WHO_USER, uid, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_BE, 7)) == 0);
-            }
         }
 
         auto command = parser.Command.getValue();

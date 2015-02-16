@@ -266,11 +266,6 @@ private:
 
         if (Config_->UserId) {
             Process_.AddArguments({"--uid", ::ToString(*Config_->UserId)});
-
-            // ToDo(psushin): remove, use cgroups limit instead.
-            if (UserJobSpec_.enable_io_prio()) {
-                Process_.AddArgument("--enable-io-prio");
-            }
         }
 
         // Init environment variables.
@@ -409,7 +404,7 @@ private:
     void PrepareOutputTablePipes(std::function<TPipe()> createPipe)
     {
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.output_format()));
-        
+
         const auto& writers = JobIO_->GetWriters();
 
         TableOutputs_.resize(writers.size());
@@ -510,8 +505,8 @@ private:
 
         for (int i = 0; i < readers.size(); ++i) {
             auto input = New<TContextPreservingInput>(
-                readers[i], 
-                format, 
+                readers[i],
+                format,
                 Config_->JobIO->EnableInputTableIndex);
 
             ContextPreservingInputs_.push_back(input);
@@ -692,7 +687,7 @@ private:
 
         std::vector<TFuture<void>> inputFutures = runActions(InputActions_);
         std::vector<TFuture<void>> outputFutures = runActions(OutputActions_);
-        
+
         // First, wait for job output pipes.
         // If job successfully completes or dies prematurely, they close automatically.
         // ToDo(psushin): extract into separate function (e.g. CombineAll?  )
