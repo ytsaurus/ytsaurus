@@ -93,6 +93,11 @@ void RunKiller(const Stroka& processGroupPath)
         return;
     }
 
+    if (!group.Exists()) {
+        LOG_WARNING("Cgroup %v does not exists: stop killer", processGroupPath);
+        return;
+    }
+
     group.Lock();
 
     auto children = group.GetChildren();
@@ -143,6 +148,7 @@ TNonOwningCGroup::TNonOwningCGroup(TNonOwningCGroup&& other)
 // So we cannot use out logging|profiling framework
 void TNonOwningCGroup::AddTask(int pid) const
 {
+    LOG_INFO("Add %v to cgroup %v", pid, FullPath_);
     Append("tasks", ToString(pid));
 }
 
@@ -199,6 +205,12 @@ bool TNonOwningCGroup::IsRoot() const
 bool TNonOwningCGroup::IsNull() const
 {
     return FullPath_.Empty();
+}
+
+bool TNonOwningCGroup::Exists() const
+{
+    TFsPath path(FullPath_);
+    return path.Exists();
 }
 
 std::vector<int> TNonOwningCGroup::GetTasks() const
