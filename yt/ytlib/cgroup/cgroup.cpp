@@ -296,7 +296,7 @@ void TNonOwningCGroup::DoLock() const
 {
     LOG_INFO("Locking cgroup %v", FullPath_);
 
-#ifdef _linux
+#ifdef _linux_
     if (!IsNull()) {
         int code = chmod(~FullPath_, S_IRUSR | S_IXUSR);
         YCHECK(code == 0);
@@ -451,8 +451,8 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
         }
     } catch (const std::exception& ex) {
         LOG_FATAL(
-            ex, 
-            "Failed to retreive CPU statistics from cgroup %Qv", 
+            ex,
+            "Failed to retreive CPU statistics from cgroup %Qv",
             GetFullPath());
     }
 #endif
@@ -536,8 +536,8 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
         }
     } catch (const std::exception& ex) {
         LOG_FATAL(
-            ex, 
-            "Failed to retreive block io statistics from cgroup %Qv", 
+            ex,
+            "Failed to retreive block io statistics from cgroup %Qv",
             GetFullPath());
     }
 #endif
@@ -579,7 +579,7 @@ TMemory::TStatistics TMemory::GetStatistics() const
 #ifdef _linux_
      try {
         auto values = ReadAllValues(GetPath("memory.stat"));
-        int lineNumber = 0; 
+        int lineNumber = 0;
         while (2 * lineNumber + 1 < values.size()) {
             const auto& type = values[2 * lineNumber];
             const auto value = FromString<i64>(values[2 * lineNumber + 1]);
@@ -593,8 +593,8 @@ TMemory::TStatistics TMemory::GetStatistics() const
         }
     } catch (const std::exception& ex) {
         LOG_FATAL(
-            ex, 
-            "Failed to retreive memory statistics from cgroup %Qv", 
+            ex,
+            "Failed to retreive memory statistics from cgroup %Qv",
             GetFullPath());
     }
 #endif
