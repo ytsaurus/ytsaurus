@@ -394,10 +394,6 @@ void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
         .Item("compressed_data_size").Value(miscExt.compressed_data_size())
         .Item("uncompressed_data_size").Value(miscExt.uncompressed_data_size())
         .Item("key_count").Value(miscExt.row_count())
-        .Item("min_key").Value(MinKey_)
-        .Item("max_key").Value(MaxKey_)
-        .Item("min_timestamp").Value(MinTimestamp_)
-        .Item("max_timestamp").Value(MaxTimestamp_)
         .DoIf(backingStore, [&] (TFluentMap fluent) {
             fluent.Item("backing_store_id").Value(backingStore->GetId());
         });
