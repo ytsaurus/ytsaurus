@@ -283,7 +283,9 @@ void TNonOwningCGroup::RemoveAllSubcgroups() const
 {
     auto this_ = this;
     Traverse(
-        BIND([] (const TNonOwningCGroup& group) {} ),
+        BIND([] (const TNonOwningCGroup& group) {
+            group.DoUnlock();
+        } ),
         BIND([this_] (const TNonOwningCGroup& group) {
             if (this_ != &group) {
                 group.DoRemove();
