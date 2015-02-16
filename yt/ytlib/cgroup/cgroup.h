@@ -40,6 +40,8 @@ public:
 
     bool IsRoot() const;
     bool IsNull() const;
+    bool Exists() const;
+
     std::vector<int> GetTasks() const;
     const Stroka& GetFullPath() const;
 
