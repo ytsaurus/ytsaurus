@@ -282,7 +282,7 @@ public:
         }
     }
 
-    std::vector<TChunkId> GetInputContexts() const override
+    std::vector<TChunkId> DumpInputContexts() const override
     {
         auto jobProberClient = CreateTcpBusClient(Slot->GetRpcClientConfig());
         auto jobProberChannel = CreateBusChannel(jobProberClient);

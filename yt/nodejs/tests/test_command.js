@@ -274,7 +274,6 @@ describe("YtCommand - command descriptors", function() {
             'copy',
             'create',
             'download',
-            'dump_input_context',
             'erase',
             'exists',
             'get',

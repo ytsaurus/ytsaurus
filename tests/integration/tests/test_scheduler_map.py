@@ -629,11 +629,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         set("//tmp/input_contexts", {})
 
-        tmpdir = tempfile.mkdtemp(prefix="generate_input_context_semaphore")
+        tmpdir = tempfile.mkdtemp(prefix="dump_input_context_semaphore")
 
         command="touch {0}/started; cat; until rmdir {0} 2>/dev/null; do sleep 1; done".format(tmpdir)
 
-        op_id = map(dont_track=True,
+        op_id = map(
+            dont_track=True,
             in_="//tmp/t1",
             out="//tmp/t2",
             command=command,
@@ -648,16 +649,15 @@ class TestSchedulerMapCommands(YTEnvSetup):
         while not os.access(pin_filename, os.F_OK):
             time.sleep(0.2)
 
-        dumped = False
-        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
-        jobs = ls(jobs_path)
-        for job_id in jobs:
-            dump_input_context(job_id, "//tmp/input_contexts")
-            dumped = True
+        try:
+            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+            jobs = ls(jobs_path)
+            assert jobs
+            for job_id in jobs:
+                dump_input_context(job_id, "//tmp/input_contexts")
 
-        assert dumped
-
-        os.unlink(pin_filename)
+        finally:
+            os.unlink(pin_filename)
 
         track_op(op_id)
 

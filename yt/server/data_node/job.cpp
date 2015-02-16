@@ -177,9 +177,9 @@ public:
         YUNREACHABLE();
     }
 
-    virtual std::vector<NChunkClient::TChunkId> GetInputContexts() const override
+    virtual std::vector<TChunkId> DumpInputContexts() const override
     {
-        YUNREACHABLE();
+        THROW_ERROR_EXCEPTION("Input context dumping is not supported");
     }
 
 protected:
