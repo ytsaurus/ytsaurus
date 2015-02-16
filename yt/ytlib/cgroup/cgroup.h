@@ -26,17 +26,13 @@ class TNonOwningCGroup
     : private TNonCopyable
 {
 public:
-    TNonOwningCGroup();
+    TNonOwningCGroup() = default;
     explicit TNonOwningCGroup(const Stroka& fullPath);
     TNonOwningCGroup(const Stroka& type, const Stroka& name);
     TNonOwningCGroup(TNonOwningCGroup&& other);
 
     void AddTask(int pid) const;
     void AddCurrentTask() const;
-
-    Stroka Get(const Stroka& name) const;
-    void Set(const Stroka& name, const Stroka& value) const;
-    void Append(const Stroka& name, const Stroka& value) const;
 
     bool IsRoot() const;
     bool IsNull() const;
@@ -48,6 +44,7 @@ public:
     std::vector<TNonOwningCGroup> GetChildren() const;
 
     void EnsureExistance() const;
+
     void Lock() const;
     void Unlock() const;
 
@@ -56,6 +53,10 @@ public:
     void RemoveAllSubcgroups() const;
 
 protected:
+    Stroka Get(const Stroka& name) const;
+    void Set(const Stroka& name, const Stroka& value) const;
+    void Append(const Stroka& name, const Stroka& value) const;
+
     void DoLock() const;
     void DoUnlock() const;
 
@@ -161,7 +162,7 @@ public:
     };
 
     explicit TMemory(const Stroka& name);
-    TMemory(TMemory&& other);
+
     TStatistics GetStatistics() const;
 
     void SetLimitInBytes(i64 bytes) const;
