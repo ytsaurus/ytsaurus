@@ -31,6 +31,8 @@ namespace NCGroup {
 
 static const auto& Logger = CGroupLogger;
 static const Stroka CGroupRootPath("/sys/fs/cgroup");
+static const int ReadByAll = S_IRUSR | S_IRGRP | S_IROTH;
+static const int ReadExecuteByAll = ReadByAll | S_IXUSR | S_IXGRP | S_IXOTH;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -300,10 +302,10 @@ void TNonOwningCGroup::DoLock() const
 
 #ifdef _linux_
     if (!IsNull()) {
-        int code = chmod(~FullPath_, S_IRUSR | S_IXUSR);
+        int code = chmod(~FullPath_, ReadExecuteByAll);
         YCHECK(code == 0);
 
-        code = chmod(~GetPath("tasks"), S_IRUSR);
+        code = chmod(~GetPath("tasks"), ReadByAll);
         YCHECK(code == 0);
     }
 #endif
@@ -315,10 +317,10 @@ void TNonOwningCGroup::DoUnlock() const
 
 #ifdef _linux_
     if (!IsNull()) {
-        int code = chmod(~GetPath("tasks"), S_IRUSR | S_IWUSR);
+        int code = chmod(~GetPath("tasks"), ReadByAll | S_IWUSR);
         YCHECK(code == 0);
 
-        code = chmod(~FullPath_, S_IRUSR | S_IXUSR | S_IWUSR);
+        code = chmod(~FullPath_, ReadExecuteByAll | S_IWUSR);
         YCHECK(code == 0);
     }
 #endif
