@@ -14,6 +14,8 @@
 
 #include <core/concurrency/scheduler.h>
 
+#include <core/ytree/public.h>
+
 namespace NYT {
 namespace NJobProxy {
 
@@ -23,6 +25,7 @@ using namespace NConcurrency;
 using namespace NJobTrackerClient::NProto;
 using namespace NScheduler::NProto;
 using namespace NVersionedTableClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,6 +49,11 @@ TDuration TJob::GetElapsedTime() const
 std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
 {
     THROW_ERROR_EXCEPTION("Dumping input context is not supported for built-in jobs");
+}
+
+TYsonString TJob::Strace()
+{
+    THROW_ERROR_EXCEPTION("Stracing is not supported for built-in jobs");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

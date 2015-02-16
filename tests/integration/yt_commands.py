@@ -112,6 +112,11 @@ def dump_input_context(job_id, path, **kwargs):
     kwargs["path"] = path
     return execute_command("dump_input_context", kwargs)
 
+def strace(job_id, **kwargs):
+    kwargs["job_id"] = job_id
+    result = execute_command('strace', kwargs)
+    return yson.loads(result)
+
 def lock(path, waitable=False, **kwargs):
     kwargs["path"] = path
     kwargs["waitable"] = waitable
@@ -427,7 +432,7 @@ def create_rack(name, **kwargs):
 def remove_rack(name, **kwargs):
     remove("//sys/racks/" + name, **kwargs)
     gc_collect()
-    
+
 #########################################
 # Helpers:
 

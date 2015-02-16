@@ -32,6 +32,7 @@ public:
         , JobProxy_(jobProxy)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Strace));
     }
 
 private:
@@ -49,6 +50,19 @@ private:
         for (const auto& chunkId : chunkIds) {
             ToProto(response->add_chunk_id(), chunkId);
         }
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Strace)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        auto trace = JobProxy_->Strace(jobId);
+
+        context->SetResponseInfo("Trace: %Qv", trace.Data());
+
+        ToProto(response->mutable_trace(), trace.Data());
         context->Reply();
     }
 };

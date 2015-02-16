@@ -16,6 +16,9 @@ std::vector<int> GetPidsByUid(int uid);
  */
 i64 GetProcessRss(int pid = -1);
 
+Stroka GetProcessName(int pid);
+std::vector<Stroka> GetProcessCommandLine(int pid);
+
 TError StatusToError(int status);
 
 void RemoveDirAsRoot(const Stroka& path);

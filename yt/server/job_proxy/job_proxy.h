@@ -33,6 +33,7 @@ public:
     IInvokerPtr GetControlInvoker() const;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId) override;
+    virtual NYTree::TYsonString Strace(const NJobTrackerClient::TJobId& jobId) override;
 
 private:
     TJobProxyConfigPtr Config_;
@@ -60,6 +61,7 @@ private:
     NJobTrackerClient::NProto::TJobSpec JobSpec_;
     NNodeTrackerClient::NProto::TNodeResources ResourceUsage_;
 
+    void ValidateJobId(const NJobTrackerClient::TJobId& jobId);
 
     NJobTrackerClient::NProto::TJobResult DoRun();
     void SendHeartbeat();

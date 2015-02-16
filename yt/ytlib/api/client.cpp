@@ -866,6 +866,9 @@ public:
         const TJobId& jobId,
         const TYPath& path),
         (jobId, path))
+    IMPLEMENT_METHOD(TYsonString, Strace, (
+        const TJobId& jobId),
+        (jobId))
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
@@ -1720,6 +1723,16 @@ private:
             .ThrowOnError();
     }
 
+    TYsonString DoStrace(const TJobId& jobId)
+    {
+        auto req = JobProberProxy_->Strace();
+        ToProto(req->mutable_job_id(), jobId);
+
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+
+        return TYsonString(FromProto<Stroka>(rsp->trace()));
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

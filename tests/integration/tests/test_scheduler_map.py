@@ -158,6 +158,7 @@ class TestEventLog(YTEnvSetup):
             "force_enable_accounting" : True,
             "enable_cgroup_memory_hierarchy" : True,
             "slot_manager" : {
+                'enable_cgroups' : True,
                 "enforce_job_control" : True
             }
         }
@@ -190,6 +191,67 @@ class TestEventLog(YTEnvSetup):
                 # our job should burn enough cpu
                 assert user_time > 0
         assert "operation_started" in event_types
+
+
+
+class TestJobProber(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent" : {
+            "force_enable_accounting" : True,
+            "slot_manager" : {
+                'enable_cgroups' : 'true',
+            }
+        }
+    }
+
+    def test_strace(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write("//tmp/t1", {"foo": "bar"})
+
+        tmpdir = tempfile.mkdtemp(prefix="strace")
+
+        command = "touch {0}/started || exit 1; cat; until rmdir {0} 2>/dev/null; do sleep 1; done".format(tmpdir)
+
+        op_id = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=command,
+            spec={
+                "mapper": {
+                    "format": "json"
+                }
+            })
+
+        try:
+            pin_filename = os.path.join(tmpdir, "started")
+            while not os.access(pin_filename, os.F_OK):
+                time.sleep(0.2)
+
+            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+            jobs = ls(jobs_path)
+            assert jobs
+
+            result = strace(jobs[0])
+        finally:
+            try:
+                os.unlink(pin_filename)
+            except OSError:
+                pass
+            try:
+                os.unlink(tmpdir)
+            except OSError:
+                pass
+
+        for pid, trace in result['traces'].iteritems():
+            if trace['trace'] != "attach: ptrace(PTRACE_ATTACH, ...): No such process\n":
+                assert trace['trace'].startswith("Process {0} attached - interrupt to quit".format(pid))
+        track_op(op_id)
 
 
 class TestBlockIO(YTEnvSetup):
