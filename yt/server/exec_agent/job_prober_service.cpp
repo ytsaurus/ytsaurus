@@ -36,7 +36,7 @@ public:
     }
 
 private:
-    NCellNode::TBootstrap* Bootstrap_;
+    const NCellNode::TBootstrap* Bootstrap_;
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpInputContext)
     {
