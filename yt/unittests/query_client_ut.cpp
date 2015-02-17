@@ -648,72 +648,6 @@ protected:
     }
 };
 
-class TPrepareExpressionTest
-    : public ::testing::Test
-    , public ::testing::WithParamInterface<std::tuple<TConstExpressionPtr, const char*>>
-{
-protected:
-    virtual void SetUp() override
-    { }
-
-    bool Equal(TConstExpressionPtr lhs, TConstExpressionPtr rhs)
-    {
-        if (auto literalLhs = lhs->As<TLiteralExpression>()) {
-            auto literalRhs = rhs->As<TLiteralExpression>();
-            if (literalRhs == nullptr || literalLhs->Value != literalRhs->Value) {
-                return false;
-            }
-        } else if (auto referenceLhs = lhs->As<TReferenceExpression>()) {
-            auto referenceRhs = rhs->As<TReferenceExpression>();
-            if (referenceRhs == nullptr
-                || referenceLhs->ColumnName != referenceRhs->ColumnName) {
-                return false;
-            }
-        } else if (auto functionLhs = lhs->As<TFunctionExpression>()) {
-            auto functionRhs = rhs->As<TFunctionExpression>();
-            if (functionRhs == nullptr
-                || functionLhs->FunctionName != functionRhs->FunctionName
-                || functionLhs->Arguments.size() != functionRhs->Arguments.size()) {
-                return false;
-            }
-            for (int index = 0; index < functionLhs->Arguments.size(); ++index) {
-                if (!Equal(functionLhs->Arguments[index], functionRhs->Arguments[index])) {
-                    return false;
-                }
-            }
-        } else if (auto binaryLhs = lhs->As<TBinaryOpExpression>()) {
-            auto binaryRhs = rhs->As<TBinaryOpExpression>();
-            if (binaryRhs == nullptr
-                || binaryLhs->Opcode != binaryRhs->Opcode
-                || !Equal(binaryLhs->Lhs, binaryRhs->Lhs)
-                || !Equal(binaryLhs->Rhs, binaryRhs->Rhs)) {
-                return false;
-            }
-        } else if (auto inLhs = lhs->As<TInOpExpression>()) {
-            auto inRhs = rhs->As<TInOpExpression>();
-            if (inRhs == nullptr
-                || inLhs->Values.size() != inRhs->Values.size()
-                || inLhs->Arguments.size() != inRhs->Arguments.size()) {
-                return false;
-            }
-            for (int index = 0; index < inLhs->Values.size(); ++index) {
-                if (inLhs->Values[index] != inRhs->Values[index]) {
-                    return false;
-                }
-            }
-            for (int index = 0; index < inLhs->Arguments.size(); ++index) {
-                if (!Equal(inLhs->Arguments[index], inRhs->Arguments[index])) {
-                    return false;
-                }
-            }
-        } else {
-            YUNREACHABLE();
-        }
-
-        return true;
-    }
-};
-
 void PrintTo(const TRefineKeyRangeTestCase& testCase, ::std::ostream* os)
 {
     *os
@@ -1160,139 +1094,6 @@ INSTANTIATE_TEST_CASE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TPrepareExpressionTest, Basic)
-{
-    auto schema = GetSampleTableSchema();
-
-    auto expr1 = Make<TReferenceExpression>("k");
-    auto expr2 = PrepareExpression(Stroka("k"), schema);
-
-    EXPECT_TRUE(Equal(expr1, expr2))
-        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
-        << "expr2: " << ::testing::PrintToString(expr2);
-
-    expr1 = Make<TLiteralExpression>(MakeInt64(90));
-    expr2 = PrepareExpression(Stroka("90"), schema);
-
-    EXPECT_TRUE(Equal(expr1, expr2))
-        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
-        << "expr2: " << ::testing::PrintToString(expr2);
-
-    expr1 = Make<TReferenceExpression>("a"),
-    expr2 = PrepareExpression(Stroka("k"), schema);
-
-    EXPECT_FALSE(Equal(expr1, expr2))
-        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
-        << "expr2: " << ::testing::PrintToString(expr2);
-
-    auto str1 = Stroka("k + 3 - a > 4 * l and (k <= m or k + 1 < 3* l)");
-    auto str2 = Stroka("k + 3 - a > 4 * l and (k <= m or k + 2 < 3* l)");
-
-    expr1 = PrepareExpression(str1, schema);
-    expr2 = PrepareExpression(str1, schema);
-
-    EXPECT_TRUE(Equal(expr1, expr2))
-        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
-        << "expr2: " << ::testing::PrintToString(expr2);
-
-    expr2 = PrepareExpression(str2, schema);
-
-    EXPECT_FALSE(Equal(expr1, expr2))
-        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
-        << "expr2: " << ::testing::PrintToString(expr2);
-}
-
-TEST_P(TPrepareExpressionTest, Simple)
-{
-    auto schema = GetSampleTableSchema();
-    auto& param = GetParam();
-
-    auto expr1 = std::get<0>(param);
-    auto expr2 = PrepareExpression(std::get<1>(param), schema);
-
-    EXPECT_TRUE(Equal(expr1, expr2))
-        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
-        << "expr2: " << ::testing::PrintToString(expr2);
-}
-
-INSTANTIATE_TEST_CASE_P(
-    PrepareExpressionTest,
-    TPrepareExpressionTest,
-    ::testing::Values(
-        std::tuple<TConstExpressionPtr, const char*>(
-            Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
-                Make<TReferenceExpression>("k"),
-                Make<TLiteralExpression>(MakeInt64(90))),
-            "k >= 90"),
-        std::tuple<TConstExpressionPtr, const char*>(
-            Make<TBinaryOpExpression>(EBinaryOp::Greater,
-                Make<TReferenceExpression>("k"),
-                Make<TLiteralExpression>(MakeInt64(90))),
-            "k > 90"),
-        std::tuple<TConstExpressionPtr, const char*>(
-            Make<TBinaryOpExpression>(EBinaryOp::Equal,
-                Make<TReferenceExpression>("k"),
-                Make<TBinaryOpExpression>(EBinaryOp::Plus,
-                    Make<TReferenceExpression>("a"),
-                    Make<TReferenceExpression>("b"))),
-            "k = a + b"),
-        std::tuple<TConstExpressionPtr, const char*>(
-            Make<TFunctionExpression>("is_prefix",
-                std::initializer_list<TConstExpressionPtr>({
-                    Make<TLiteralExpression>(MakeString("abc")),
-                    Make<TReferenceExpression>("s")})),
-            "is_prefix(\"abc\", s)")
-    ));
-
-////////////////////////////////////////////////////////////////////////////////
-
-#ifdef YT_USE_LLVM
-
-TEST(TExpressionExecutorTest, BuildExpression)
-{
-    TTableSchema schema;
-    schema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
-    schema.Columns().emplace_back(TColumnSchema("b", EValueType::Int64));
-    TKeyColumns keyColumns;
-    keyColumns.emplace_back("a");
-    keyColumns.emplace_back("b");
-
-    auto expr = PrepareExpression("a + b", schema);
-
-    TCGVariables variables;
-    TCGBinding binding;
-    TFoldingProfiler()
-        .Set(binding)
-        .Set(variables)
-        .Profile(expr);
-    auto callback = CodegenExpression(expr, schema, binding);
-
-    auto expected = MakeUnversionedInt64Value(33 + 22);
-    auto row = NVersionedTableClient::BuildRow("a=33;b=22", keyColumns, schema, true);
-    TUnversionedValue result;
-
-    TQueryStatistics statistics;
-    TRowBuffer permanentBuffer;
-    TRowBuffer outputBuffer;
-    TRowBuffer intermediateBuffer;
-
-    TExecutionContext executionContext;
-    executionContext.Schema = schema;
-    executionContext.LiteralRows = &variables.LiteralRows;
-    executionContext.PermanentBuffer = &permanentBuffer;
-    executionContext.OutputBuffer = &outputBuffer;
-    executionContext.IntermediateBuffer = &intermediateBuffer;
-    executionContext.Statistics = &statistics;
-
-    callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext);
-
-    EXPECT_EQ(expected, result);
-}
-
-#endif
-
-////////////////////////////////////////////////////////////////////////////////
-
 TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
 {
     auto expr = PrepareExpression("k >= 90 and k < 10", GetSampleTableSchema());
@@ -1551,6 +1352,158 @@ TEST_F(TRefineKeyRangeTest, RangeToPointCollapsing)
     EXPECT_EQ(BuildKey("1;1"), result.first);
     EXPECT_EQ(BuildKey("1;1;" _MAX_), result.second);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPrepareExpressionTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<TConstExpressionPtr, const char*>>
+{
+protected:
+    virtual void SetUp() override
+    { }
+
+    bool Equal(TConstExpressionPtr lhs, TConstExpressionPtr rhs)
+    {
+        if (auto literalLhs = lhs->As<TLiteralExpression>()) {
+            auto literalRhs = rhs->As<TLiteralExpression>();
+            if (literalRhs == nullptr || literalLhs->Value != literalRhs->Value) {
+                return false;
+            }
+        } else if (auto referenceLhs = lhs->As<TReferenceExpression>()) {
+            auto referenceRhs = rhs->As<TReferenceExpression>();
+            if (referenceRhs == nullptr
+                || referenceLhs->ColumnName != referenceRhs->ColumnName) {
+                return false;
+            }
+        } else if (auto functionLhs = lhs->As<TFunctionExpression>()) {
+            auto functionRhs = rhs->As<TFunctionExpression>();
+            if (functionRhs == nullptr
+                || functionLhs->FunctionName != functionRhs->FunctionName
+                || functionLhs->Arguments.size() != functionRhs->Arguments.size()) {
+                return false;
+            }
+            for (int index = 0; index < functionLhs->Arguments.size(); ++index) {
+                if (!Equal(functionLhs->Arguments[index], functionRhs->Arguments[index])) {
+                    return false;
+                }
+            }
+        } else if (auto binaryLhs = lhs->As<TBinaryOpExpression>()) {
+            auto binaryRhs = rhs->As<TBinaryOpExpression>();
+            if (binaryRhs == nullptr
+                || binaryLhs->Opcode != binaryRhs->Opcode
+                || !Equal(binaryLhs->Lhs, binaryRhs->Lhs)
+                || !Equal(binaryLhs->Rhs, binaryRhs->Rhs)) {
+                return false;
+            }
+        } else if (auto inLhs = lhs->As<TInOpExpression>()) {
+            auto inRhs = rhs->As<TInOpExpression>();
+            if (inRhs == nullptr
+                || inLhs->Values.size() != inRhs->Values.size()
+                || inLhs->Arguments.size() != inRhs->Arguments.size()) {
+                return false;
+            }
+            for (int index = 0; index < inLhs->Values.size(); ++index) {
+                if (inLhs->Values[index] != inRhs->Values[index]) {
+                    return false;
+                }
+            }
+            for (int index = 0; index < inLhs->Arguments.size(); ++index) {
+                if (!Equal(inLhs->Arguments[index], inRhs->Arguments[index])) {
+                    return false;
+                }
+            }
+        } else {
+            YUNREACHABLE();
+        }
+
+        return true;
+    }
+};
+
+TEST_F(TPrepareExpressionTest, Basic)
+{
+    auto schema = GetSampleTableSchema();
+
+    auto expr1 = Make<TReferenceExpression>("k");
+    auto expr2 = PrepareExpression(Stroka("k"), schema);
+
+    EXPECT_TRUE(Equal(expr1, expr2))
+        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
+        << "expr2: " << ::testing::PrintToString(expr2);
+
+    expr1 = Make<TLiteralExpression>(MakeInt64(90));
+    expr2 = PrepareExpression(Stroka("90"), schema);
+
+    EXPECT_TRUE(Equal(expr1, expr2))
+        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
+        << "expr2: " << ::testing::PrintToString(expr2);
+
+    expr1 = Make<TReferenceExpression>("a"),
+    expr2 = PrepareExpression(Stroka("k"), schema);
+
+    EXPECT_FALSE(Equal(expr1, expr2))
+        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
+        << "expr2: " << ::testing::PrintToString(expr2);
+
+    auto str1 = Stroka("k + 3 - a > 4 * l and (k <= m or k + 1 < 3* l)");
+    auto str2 = Stroka("k + 3 - a > 4 * l and (k <= m or k + 2 < 3* l)");
+
+    expr1 = PrepareExpression(str1, schema);
+    expr2 = PrepareExpression(str1, schema);
+
+    EXPECT_TRUE(Equal(expr1, expr2))
+        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
+        << "expr2: " << ::testing::PrintToString(expr2);
+
+    expr2 = PrepareExpression(str2, schema);
+
+    EXPECT_FALSE(Equal(expr1, expr2))
+        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
+        << "expr2: " << ::testing::PrintToString(expr2);
+}
+
+TEST_P(TPrepareExpressionTest, Simple)
+{
+    auto schema = GetSampleTableSchema();
+    auto& param = GetParam();
+
+    auto expr1 = std::get<0>(param);
+    auto expr2 = PrepareExpression(std::get<1>(param), schema);
+
+    EXPECT_TRUE(Equal(expr1, expr2))
+        << "expr1: " << ::testing::PrintToString(expr1) << std::endl
+        << "expr2: " << ::testing::PrintToString(expr2);
+}
+
+INSTANTIATE_TEST_CASE_P(
+    PrepareExpressionTest,
+    TPrepareExpressionTest,
+    ::testing::Values(
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
+                Make<TReferenceExpression>("k"),
+                Make<TLiteralExpression>(MakeInt64(90))),
+            "k >= 90"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Greater,
+                Make<TReferenceExpression>("k"),
+                Make<TLiteralExpression>(MakeInt64(90))),
+            "k > 90"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Equal,
+                Make<TReferenceExpression>("k"),
+                Make<TBinaryOpExpression>(EBinaryOp::Plus,
+                    Make<TReferenceExpression>("a"),
+                    Make<TReferenceExpression>("b"))),
+            "k = a + b"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TFunctionExpression>("is_prefix",
+                std::initializer_list<TConstExpressionPtr>({
+                    Make<TLiteralExpression>(MakeString("abc")),
+                    Make<TReferenceExpression>("s")})),
+            "is_prefix(\"abc\", s)")
+    ));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2640,6 +2593,49 @@ TEST_F(TQueryEvaluateTest, TestJoin)
     Evaluate("sum(a) as x, sum(b) as y, z FROM [//left] join [//right] using b group by c % 2 as z", splits, sources, result);
 
     SUCCEED();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TExpressionExecutorTest, BuildExpression)
+{
+    TTableSchema schema;
+    schema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+    schema.Columns().emplace_back(TColumnSchema("b", EValueType::Int64));
+    TKeyColumns keyColumns;
+    keyColumns.emplace_back("a");
+    keyColumns.emplace_back("b");
+
+    auto expr = PrepareExpression("a + b", schema);
+
+    TCGVariables variables;
+    TCGBinding binding;
+    TFoldingProfiler()
+        .Set(binding)
+        .Set(variables)
+        .Profile(expr);
+    auto callback = CodegenExpression(expr, schema, binding);
+
+    auto expected = MakeUnversionedInt64Value(33 + 22);
+    auto row = NVersionedTableClient::BuildRow("a=33;b=22", keyColumns, schema, true);
+    TUnversionedValue result;
+
+    TQueryStatistics statistics;
+    TRowBuffer permanentBuffer;
+    TRowBuffer outputBuffer;
+    TRowBuffer intermediateBuffer;
+
+    TExecutionContext executionContext;
+    executionContext.Schema = schema;
+    executionContext.LiteralRows = &variables.LiteralRows;
+    executionContext.PermanentBuffer = &permanentBuffer;
+    executionContext.OutputBuffer = &outputBuffer;
+    executionContext.IntermediateBuffer = &intermediateBuffer;
+    executionContext.Statistics = &statistics;
+
+    callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext);
+
+    EXPECT_EQ(expected, result);
 }
 
 #endif
