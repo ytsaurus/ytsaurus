@@ -14,7 +14,6 @@
 
 #include <util/system/fs.h>
 #include <util/string/split.h>
-#include <util/string/strip.h>
 #include <util/folder/path.h>
 #include <util/system/execpath.h>
 #include <util/system/yield.h>
@@ -54,7 +53,10 @@ Stroka GetParentFor(const Stroka& type)
 std::vector<Stroka> ReadAllValues(const Stroka& fileName)
 {
     auto raw = TFileInput(fileName).ReadAll();
-    LOG_DEBUG("File %v contains %Qv", fileName, raw);
+    LOG_DEBUG(
+        "File %v contains %Qv",
+        fileName,
+        raw);
 
     yvector<Stroka> values;
     Split(raw.data(), " \n", values);
@@ -141,7 +143,10 @@ TNonOwningCGroup::TNonOwningCGroup(TNonOwningCGroup&& other)
 
 void TNonOwningCGroup::AddTask(int pid) const
 {
-    LOG_INFO("Add %v to cgroup %v", pid, FullPath_);
+    LOG_INFO(
+        "Adding %v to cgroup %v",
+        pid,
+        FullPath_);
     Append("tasks", ToString(pid));
 }
 
@@ -199,8 +204,7 @@ bool TNonOwningCGroup::IsNull() const
 
 bool TNonOwningCGroup::Exists() const
 {
-    TFsPath path(FullPath_);
-    return path.Exists();
+    return NFS::Exists(FullPath_);
 }
 
 std::vector<int> TNonOwningCGroup::GetTasks() const
@@ -259,15 +263,15 @@ void TNonOwningCGroup::Lock() const
 {
     Traverse(
         BIND([] (const TNonOwningCGroup& group) { group.DoLock(); }),
-        BIND([] (const TNonOwningCGroup& group) {} )
+        BIND([] (const TNonOwningCGroup& group) {})
     );
 }
 
 void TNonOwningCGroup::Unlock() const
 {
     Traverse(
-        BIND([] (const TNonOwningCGroup& group) {} ),
-        BIND([] (const TNonOwningCGroup& group) { group.DoUnlock(); } )
+        BIND([] (const TNonOwningCGroup& group) {}),
+        BIND([] (const TNonOwningCGroup& group) { group.DoUnlock(); })
     );
 }
 
@@ -276,8 +280,8 @@ void TNonOwningCGroup::Kill() const
     YCHECK(!IsRoot());
 
     Traverse(
-        BIND([] (const TNonOwningCGroup& group) { group.DoKill(); } ),
-        BIND([] (const TNonOwningCGroup& group) {} )
+        BIND([] (const TNonOwningCGroup& group) { group.DoKill(); }),
+        BIND([] (const TNonOwningCGroup& group) {})
     );
 }
 
@@ -287,7 +291,7 @@ void TNonOwningCGroup::RemoveAllSubcgroups() const
     Traverse(
         BIND([] (const TNonOwningCGroup& group) {
             group.DoUnlock();
-        } ),
+        }),
         BIND([this_] (const TNonOwningCGroup& group) {
             if (this_ != &group) {
                 group.DoRemove();
@@ -412,7 +416,7 @@ void TCGroup::Destroy()
     try {
         NFS::Remove(FullPath_);
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Failed to destroy cgroup %Qv", FullPath_);
+        LOG_FATAL(ex, "Failed to destroy cgroup %v", FullPath_);
     }
 #endif
     Created_ = false;
@@ -456,7 +460,7 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
     } catch (const std::exception& ex) {
         LOG_FATAL(
             ex,
-            "Failed to retreive CPU statistics from cgroup %Qv",
+            "Failed to retreive CPU statistics from cgroup %v",
             GetFullPath());
     }
 #endif
@@ -541,7 +545,7 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
     } catch (const std::exception& ex) {
         LOG_FATAL(
             ex,
-            "Failed to retreive block io statistics from cgroup %Qv",
+            "Failed to retreive block IO statistics from cgroup %v",
             GetFullPath());
     }
 #endif
@@ -593,7 +597,7 @@ TMemory::TStatistics TMemory::GetStatistics() const
     } catch (const std::exception& ex) {
         LOG_FATAL(
             ex,
-            "Failed to retreive memory statistics from cgroup %Qv",
+            "Failed to retreive memory statistics from cgroup %v",
             GetFullPath());
     }
 #endif

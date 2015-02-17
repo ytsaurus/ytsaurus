@@ -45,7 +45,7 @@ TDuration TJob::GetElapsedTime() const
 
 std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
 {
-    THROW_ERROR_EXCEPTION("Input context dumping is not supported for built-in jobs");
+    THROW_ERROR_EXCEPTION("Dumping input context is not supported for built-in jobs");
 }
 
 

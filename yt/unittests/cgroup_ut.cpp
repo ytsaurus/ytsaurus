@@ -261,8 +261,8 @@ TEST(CGroup, Bug)
 
 TEST(CGroup, RemoveAllSubcgroupsAfterLock)
 {
-    Stroka parentName = "remove_all_subcgroups_after_lock_" + ToString(TGuid::Create());
-    TFreezer parent = CreateCGroup<TFreezer>(parentName);
+    auto parentName = "remove_all_subcgroups_after_lock_" + ToString(TGuid::Create());
+    auto parent = CreateCGroup<TFreezer>(parentName);
     TNonOwningCGroup child(parent.GetFullPath() + "/child");
 
     child.EnsureExistance();
