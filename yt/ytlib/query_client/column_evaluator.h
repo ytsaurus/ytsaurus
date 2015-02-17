@@ -6,7 +6,7 @@
 #include "cg_types.h"
 #endif
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NQueryClient {
