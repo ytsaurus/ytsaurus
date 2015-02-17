@@ -14,8 +14,6 @@
 
 #include <core/concurrency/scheduler.h>
 
-#include <core/rpc/response_keeper.h>
-
 #include <ytlib/election/cell_manager.h>
 
 #include <ytlib/hydra/hydra_service.pb.h>
@@ -159,7 +157,7 @@ public:
     }
 
 private:
-    TDecoratedAutomaton* Owner_;
+    TDecoratedAutomaton* const Owner_;
 
 };
 
@@ -199,7 +197,7 @@ public:
     }
 
 private:
-    TDecoratedAutomatonPtr Owner_;
+    const TDecoratedAutomatonPtr Owner_;
 
 };
 
@@ -258,9 +256,9 @@ public:
     }
 
 private:
-    TDecoratedAutomatonPtr Owner_;
-    TVersion SnapshotVersion_;
-    int SnapshotId_;
+    const TDecoratedAutomatonPtr Owner_;
+    const TVersion SnapshotVersion_;
+    const int SnapshotId_;
 
     TSnapshotMeta Meta_;
 
@@ -373,8 +371,6 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , Automaton_(automaton)
     , AutomatonInvoker_(automatonInvoker)
     , ControlInvoker_(controlInvoker)
-    , UserLock_(0)
-    , SystemLock_(0)
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(snapshotStore)
     , ChangelogStore_(changelogStore)
@@ -450,13 +446,6 @@ IInvokerPtr TDecoratedAutomaton::GetSystemInvoker()
     VERIFY_THREAD_AFFINITY_ANY();
 
     return SystemInvoker_;
-}
-
-IAutomatonPtr TDecoratedAutomaton::GetAutomaton()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Automaton_;
 }
 
 void TDecoratedAutomaton::Clear()
