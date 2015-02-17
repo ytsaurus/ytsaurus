@@ -215,7 +215,7 @@ public:
 
 
     void CreateJobNode(TJobPtr job,
-        const NChunkClient::TChunkId& stderrChunkId,
+        const TChunkId& stderrChunkId,
         const std::vector<TChunkId>& failContextChunkIds)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -301,7 +301,7 @@ public:
         list->WatcherHandlers.push_back(handler);
     }
 
-    void SaveInputContext(const TYPath& directory, const std::vector<TChunkId>& inputContexts)
+    void SaveInputContext(const TYPath& path, const std::vector<TChunkId>& inputContexts)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -310,8 +310,10 @@ public:
 
         for (const auto& inputContext : inputContexts) {
             if (inputContext != NChunkServer::NullChunkId) {
-                auto path = Format("%v/%v", directory, index);
-                auto req = MakeCreateFileRequest(path, inputContext);
+                auto contextPath = Format("%v/%v",
+                    path,
+                    index);
+                auto req = MakeCreateFileRequest(contextPath, inputContext);
 
                 batchReq->AddRequest(req, "create_input_context");
             }
@@ -322,14 +324,13 @@ public:
 
         if (!error.IsOK()) {
             auto wrappedError = TError("Error saving input context into %v",
-                directory)
+                path)
                 << error;
-            LOG_WARNING(wrappedError);
             THROW_ERROR(wrappedError);
         }
 
-        LOG_INFO("Input context saved (Directory: %v)",
-            directory);
+        LOG_INFO("Input context saved (Path: %v)",
+            path);
     }
 
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
@@ -1797,7 +1798,7 @@ private:
         }
     }
 
-    TCypressYPathProxy::TReqCreatePtr MakeCreateFileRequest(const Stroka& path, const TChunkId& chunkId)
+    TCypressYPathProxy::TReqCreatePtr MakeCreateFileRequest(const TYPath& path, const TChunkId& chunkId)
     {
         auto req = TCypressYPathProxy::Create(path);
         GenerateMutationId(req);
@@ -1902,10 +1903,10 @@ void TMasterConnector::AddOperationWatcherHandler(TOperationPtr operation, TWatc
 }
 
 void TMasterConnector::SaveInputContext(
-    const TYPath& directory,
-    const std::vector<NChunkClient::TChunkId>& inputContexts)
+    const TYPath& path,
+    const std::vector<TChunkId>& inputContexts)
 {
-    return Impl->SaveInputContext(directory, inputContexts);
+    return Impl->SaveInputContext(path, inputContexts);
 }
 
 DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterConnected, *Impl);

@@ -22,7 +22,7 @@ class TJobProberService
     : public TServiceBase
 {
 public:
-	TJobProberService(TBootstrap* bootstrap)
+    TJobProberService(TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetControlInvoker(),
             TJobProberServiceProxy::GetServiceName(),
@@ -35,13 +35,15 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap_;
+    const TBootstrap* Bootstrap_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, DumpInputContext)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
         auto path = FromProto<Stroka>(request->path());
-        context->SetRequestInfo("JobId: %v, Path: %v", jobId, path);
+        context->SetRequestInfo("JobId: %v, Path: %v",
+            jobId,
+            path);
 
         WaitFor(Bootstrap_->GetScheduler()->DumpInputContext(jobId, path))
             .ThrowOnError();

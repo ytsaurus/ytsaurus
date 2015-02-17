@@ -287,15 +287,15 @@ public:
         auto jobProberClient = CreateTcpBusClient(Slot->GetRpcClientConfig());
         auto jobProberChannel = CreateBusChannel(jobProberClient);
 
-        auto jobProberProxy = std::make_unique<NJobProberClient::TJobProberServiceProxy>(jobProberChannel);
+        NJobProberClient::TJobProberServiceProxy jobProberProxy(jobProberChannel);
 
-        auto req = jobProberProxy->DumpInputContext();
+        auto req = jobProberProxy.DumpInputContext();
 
         ToProto(req->mutable_job_id(), JobId);
-        auto response = WaitFor(req->Invoke())
+        auto res = WaitFor(req->Invoke())
             .ValueOrThrow();
 
-        return FromProto<TGuid>(response->chunk_id());
+        return FromProto<TGuid>(res->chunk_id());
     }
 
 private:

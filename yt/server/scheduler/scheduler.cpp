@@ -438,9 +438,8 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = FindJob(jobId);
-
         if (!job) {
-            THROW_ERROR_EXCEPTION("Cannot find job %v to probe", jobId);
+            THROW_ERROR_EXCEPTION("No such job %v", jobId);
         }
 
         const auto& address = job->GetNode()->Descriptor().GetInterconnectAddress();
