@@ -337,7 +337,8 @@ def _make_operation_request(command_name, spec, strategy,
 
         def attached_mode_finalizer(state):
             transaction.__exit__(None, None, None)
-            finalizer(state)
+            if finalizer is not None:
+                finalizer(state)
 
         transaction.__enter__()
         with KeyboardInterruptsCatcher(finish_transaction):
