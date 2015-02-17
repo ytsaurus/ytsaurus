@@ -99,7 +99,9 @@ TJobProxy::TJobProxy(
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(const TJobId& jobId)
 {
     if (JobId_ != jobId) {
-        THROW_ERROR_EXCEPTION("Job id mismatch: expected %v, got %v", JobId_, jobId);
+        THROW_ERROR_EXCEPTION("Job id mismatch: expected %v, got %v",
+            JobId_,
+            jobId);
     }
 
     if (!Job_) {

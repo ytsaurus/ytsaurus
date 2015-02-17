@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "job_prober_service.h"
 #include "private.h"
-
 #include "job_proxy.h"
 
 #include <ytlib/job_prober_client/job_prober_service_proxy.h>
