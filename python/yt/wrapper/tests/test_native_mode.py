@@ -674,6 +674,8 @@ class NativeModeTester(YtTestBase, YTEnv):
             yt.write_table(table, ["x=1\n"])
             yt.run_map("cat", table, table)
             self.assertItemsEqual(["x=1\n"], yt.read_table(table))
+            yt.run_merge(table, table)
+            self.assertItemsEqual(["x=1\n"], yt.read_table(table))
         finally:
             yt.config.DETACHED = 1
 
