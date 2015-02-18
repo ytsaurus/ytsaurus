@@ -234,12 +234,12 @@ TOperationControllerBase::TInputChunkScratcher::TInputChunkScratcher(
     NRpc::IChannelPtr masterChannel)
     : Controller(controller)
     , PeriodicExecutor(New<TPeriodicExecutor>(
-        Controller->GetCancelableControlInvoker(),
+        controller->GetCancelableControlInvoker(),
         BIND(&TInputChunkScratcher::LocateChunks, MakeWeak(this)),
-        Controller->Config->ChunkScratchPeriod))
+        controller->Config->ChunkScratchPeriod))
     , Proxy(masterChannel)
     , Started(false)
-    , Logger(Controller->Logger)
+    , Logger(controller->Logger)
 { }
 
 void TOperationControllerBase::TInputChunkScratcher::Start()
@@ -247,27 +247,37 @@ void TOperationControllerBase::TInputChunkScratcher::Start()
     if (Started)
         return;
 
+    auto controller = Controller.Lock();
+    if (!controller) {
+        return;
+    }
+
     Started = true;
 
     LOG_DEBUG("Starting input chunk scratcher");
 
-    NextChunkIterator = Controller->InputChunkMap.begin();
+    NextChunkIterator = controller->InputChunkMap.begin();
     PeriodicExecutor->Start();
 }
 
 void TOperationControllerBase::TInputChunkScratcher::LocateChunks()
 {
-    VERIFY_THREAD_AFFINITY(Controller->ControlThread);
+    auto controller = Controller.Lock();
+    if (!controller) {
+        return;
+    }
+
+    VERIFY_THREAD_AFFINITY(controller->ControlThread);
 
     auto startIterator = NextChunkIterator;
     auto req = Proxy.LocateChunks();
 
-    for (int chunkCount = 0; chunkCount < Controller->Config->MaxChunksPerScratch; ++chunkCount) {
+    for (int chunkCount = 0; chunkCount < controller->Config->MaxChunksPerScratch; ++chunkCount) {
         ToProto(req->add_chunk_ids(), NextChunkIterator->first);
 
         ++NextChunkIterator;
-        if (NextChunkIterator == Controller->InputChunkMap.end()) {
-            NextChunkIterator = Controller->InputChunkMap.begin();
+        if (NextChunkIterator == controller->InputChunkMap.end()) {
+            NextChunkIterator = controller->InputChunkMap.begin();
         }
 
         if (NextChunkIterator == startIterator) {
@@ -276,7 +286,7 @@ void TOperationControllerBase::TInputChunkScratcher::LocateChunks()
         }
     }
 
-    WaitFor(Controller->Host->GetChunkLocationThrottler()->Throttle(
+    WaitFor(controller->Host->GetChunkLocationThrottler()->Throttle(
         req->chunk_ids_size()));
 
     LOG_DEBUG("Locating input chunks (Count: %d)", req->chunk_ids_size());
@@ -285,26 +295,31 @@ void TOperationControllerBase::TInputChunkScratcher::LocateChunks()
     req->Invoke().Subscribe(BIND(
         &TInputChunkScratcher::OnLocateChunksResponse, 
         MakeWeak(this))
-        .Via(Controller->GetCancelableControlInvoker()));
+        .Via(controller->GetCancelableControlInvoker()));
 }
 
 void TOperationControllerBase::TInputChunkScratcher::OnLocateChunksResponse(TChunkServiceProxy::TRspLocateChunksPtr rsp)
 {
-    VERIFY_THREAD_AFFINITY(Controller->ControlThread);
+    auto controller = Controller.Lock();
+    if (!controller) {
+        return;
+    }
+
+    VERIFY_THREAD_AFFINITY(controller->ControlThread);
 
     if (!rsp->IsOK()) {
         LOG_WARNING(*rsp, "Failed to locate input chunks");
         return;
     }
 
-    Controller->NodeDirectory->MergeFrom(rsp->node_directory());
+    controller->NodeDirectory->MergeFrom(rsp->node_directory());
 
     int availableCount = 0;
     int unavailableCount = 0;
     for (const auto& chunkInfo : rsp->chunks()) {
         auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
-        auto it = Controller->InputChunkMap.find(chunkId);
-        YCHECK(it != Controller->InputChunkMap.end());
+        auto it = controller->InputChunkMap.find(chunkId);
+        YCHECK(it != controller->InputChunkMap.end());
 
         auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkInfo.replicas());
 
@@ -313,12 +328,12 @@ void TOperationControllerBase::TInputChunkScratcher::OnLocateChunksResponse(TChu
         auto& chunkSpec = descriptor.ChunkSpecs.front();
         auto codecId = NErasure::ECodec(chunkSpec->erasure_codec());
 
-        if (IsUnavailable(replicas, codecId, Controller->NeedsAllChunkParts())) {
+        if (IsUnavailable(replicas, codecId, controller->NeedsAllChunkParts())) {
             ++unavailableCount;
-            Controller->OnInputChunkUnavailable(chunkId, descriptor);
+            controller->OnInputChunkUnavailable(chunkId, descriptor);
         } else {
             ++availableCount;
-            Controller->OnInputChunkAvailable(chunkId, descriptor, replicas);
+            controller->OnInputChunkAvailable(chunkId, descriptor, replicas);
         }
     }
 

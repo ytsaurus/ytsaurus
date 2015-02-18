@@ -845,7 +845,7 @@ private:
         void LocateChunks();
         void OnLocateChunksResponse(NChunkClient::TChunkServiceProxy::TRspLocateChunksPtr rsp);
 
-        TOperationControllerBase* Controller;
+        TWeakPtr<TOperationControllerBase> Controller;
         NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
         NChunkClient::TChunkServiceProxy Proxy;
         TInputChunkMap::iterator NextChunkIterator;
