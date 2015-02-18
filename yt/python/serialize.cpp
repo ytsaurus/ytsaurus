@@ -299,6 +299,8 @@ void Deserialize(Py::Object& obj, INodePtr node)
         obj = CreateYsonObject("YsonMap", map, attributes);
     } else if (type == ENodeType::Entity) {
         obj = CreateYsonObject("YsonEntity", Py::None(), attributes);
+    } else if (type == ENodeType::Boolean) {
+        obj = CreateYsonObject("YsonBoolean", Py::Boolean(node->AsBoolean()->GetValue()), attributes);
     } else if (type == ENodeType::Int64) {
         obj = CreateYsonObject("YsonInt64", Py::Int(node->AsInt64()->GetValue()), attributes);
     } else if (type == ENodeType::Uint64) {
