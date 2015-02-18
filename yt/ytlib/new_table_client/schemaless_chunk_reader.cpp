@@ -683,7 +683,7 @@ TSchemalessTableReader::TSchemalessTableReader(
 {
     YCHECK(masterChannel);
 
-    Logger.AddTag("Path: %v, TransactihonId: %v", RichPath_.GetPath(), TransactionId_);
+    Logger.AddTag("Path: %v, TransactionId: %v", RichPath_.GetPath(), TransactionId_);
 }
 
 TFuture<void> TSchemalessTableReader::Open()
