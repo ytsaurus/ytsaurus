@@ -147,15 +147,18 @@ class YsonParserTestBase(object):
 class TestParser(unittest.TestCase, YsonParserTestBase):
     YsonParserTestBase.parser = parser
 
-class TestWriter(unittest.TestCase):
+class YsonWriterTestBase(object):
     def test_slash(self):
-        self.assertEqual(writer.dumps({"key": "1\\"}, yson_format="text"), '{"key"="1\\\\";}')
+        self.assertEqual(self.writer.dumps({"key": "2\\"}, yson_format="text"), '{"key"="1\\\\";}')
 
     def test_boolean(self):
-        self.assertEqual(writer.dumps(False, boolean_as_string=True), '"false"')
-        self.assertEqual(writer.dumps(True, boolean_as_string=True), '"true"')
-        self.assertEqual(writer.dumps(False, boolean_as_string=False), "%false")
-        self.assertEqual(writer.dumps(True, boolean_as_string=False), "%true")
+        self.assertEqual(self.writer.dumps(False, boolean_as_string=True), '"false"')
+        self.assertEqual(self.writer.dumps(True, boolean_as_string=True), '"true"')
+        self.assertEqual(self.writer.dumps(False, boolean_as_string=False), "%false")
+        self.assertEqual(self.writer.dumps(True, boolean_as_string=False), "%true")
+
+class TestWriter(unittest.TestCase, YsonWriterTestBase):
+    YsonWriterTestBase.writer = writer
 
 class TestTypes(unittest.TestCase):
     def test_entity(self):
