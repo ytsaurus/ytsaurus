@@ -3,7 +3,7 @@
 
 from yt.yson.yson_types import *
 from yt.yson import to_yson_type
-from yt.yson.test import YsonParserTestBase
+from yt.yson.test import YsonParserTestBase, YsonWriterTestBase
 
 import yson_lib
 from yson_lib import load, loads, dump, dumps
@@ -13,6 +13,9 @@ import unittest
 
 class TestParser(unittest.TestCase, YsonParserTestBase):
     YsonParserTestBase.parser = yson_lib
+
+class TestWriter(unittest.TestCase, YsonWriterTestBase):
+    YsonWriterTestBase.writer = yson_lib
 
 class TestYsonStream(YsonParserTestBase, unittest.TestCase):
     def load_fragment(self, str):
