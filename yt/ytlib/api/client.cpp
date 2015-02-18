@@ -1975,8 +1975,8 @@ public:
 #undef DELEGATE_TIMESTAMPED_METHOD
 
 private:
-    TClientPtr Client_;
-    NTransactionClient::TTransactionPtr Transaction_;
+    const TClientPtr Client_;
+    const NTransactionClient::TTransactionPtr Transaction_;
 
     NLog::TLogger Logger;
 
@@ -1984,9 +1984,10 @@ private:
     class TRequestBase
     {
     public:
-        virtual void Run()
+        void Run()
         {
-            TableInfo_ = Transaction_->Client_->SyncGetTableInfo(Path_);
+            DoPrepare();
+            DoRun();
         }
 
     protected:
@@ -2002,7 +2003,17 @@ private:
         TTransaction* const Transaction_;
         const TYPath Path_;
         const TNameTablePtr NameTable_;
+
         TTableMountInfoPtr TableInfo_;
+
+
+        void DoPrepare()
+        {
+            TableInfo_ = Transaction_->Client_->SyncGetTableInfo(Path_);
+        }
+
+        virtual void DoRun() = 0;
+
     };
 
     class TModifyRequest
@@ -2018,8 +2029,8 @@ private:
             : TRequestBase(transaction, path, std::move(nameTable))
         { }
 
-        void Run(
-            std::vector<TUnversionedRow>& rows,
+        void WriteRequests(
+            const std::vector<TUnversionedRow>& rows,
             const ::google::protobuf::MessageLite& req,
             EWireProtocolCommand command,
             int columnCount,
@@ -2079,23 +2090,21 @@ private:
             , Options_(options)
         { }
 
-        virtual void Run() override
+    private:
+        const std::vector<TUnversionedRow> Rows_;
+        const TWriteRowsOptions Options_;
+
+        virtual void DoRun() override
         {
             TReqWriteRow req;
             req.set_lock_mode(static_cast<int>(Options_.LockMode));
-
-            TRequestBase::Run();
-            TModifyRequest::Run(
+            WriteRequests(
                 Rows_,
                 req,
                 EWireProtocolCommand::WriteRow,
                 TableInfo_->Schema.Columns().size(),
                 ValidateClientDataRow);
         }
-
-    private:
-        std::vector<TUnversionedRow> Rows_;
-        const TWriteRowsOptions Options_;
     };
 
     class TDeleteRequest
@@ -2113,26 +2122,26 @@ private:
             , Options_(options)
         { }
 
-        virtual void Run() override
+    private:
+        const std::vector<TUnversionedRow> Keys_;
+        const TDeleteRowsOptions Options_;
+
+        virtual void DoRun() override
         {
-            TRequestBase::Run();
-            TModifyRequest::Run(
+            TReqDeleteRow req;
+            WriteRequests(
                 Keys_,
-                TReqDeleteRow(),
+                req,
                 EWireProtocolCommand::DeleteRow,
                 TableInfo_->KeyColumns.size(),
-                [] (TUnversionedRow row,
+                [ ](
+                    TUnversionedRow row,
                     int keyColumnCount,
                     const TNameTableToSchemaIdMapping& idMapping,
-                    const TTableSchema& schema)
-                {
+                    const TTableSchema& schema) {
                     ValidateClientKey(row, keyColumnCount, schema);
                 });
         }
-
-    private:
-        std::vector<TUnversionedRow> Keys_;
-        const TDeleteRowsOptions Options_;
     };
 
     std::vector<std::unique_ptr<TRequestBase>> Requests_;
