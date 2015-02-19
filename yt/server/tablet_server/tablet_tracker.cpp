@@ -199,7 +199,7 @@ void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
             if (!error.IsOK()) {
                 LOG_WARNING(error, "Error committing peer assignment mutation");
             }
-        }))
+        }));
 }
 
 void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
