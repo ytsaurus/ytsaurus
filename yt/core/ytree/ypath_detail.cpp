@@ -970,6 +970,8 @@ protected:
             AppendInfo(&builder, "MutationId: %v", mutationId);
         }
 
+        AppendInfo(&builder, "Retry: %v", IsRetry());
+
         if (!RequestInfo_.empty()) {
             AppendInfo(&builder, "%v", RequestInfo_);
         }

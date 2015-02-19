@@ -12,7 +12,7 @@
 
 #include <core/rpc/bus_channel.h>
 #include <core/rpc/server.h>
-#include <core/rpc/transient_response_keeper.h>
+#include <core/rpc/response_keeper.h>
 
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/periodic_executor.h>
@@ -92,6 +92,11 @@ public:
         AutomatonQueue_ = New<TFairShareActionQueue>("Automaton", TEnumTraits<EAutomatonThreadQueue>::GetDomainNames());
         Automaton_ = New<TMasterAutomaton>(Bootstrap_);
 
+        ResponseKeeper_ = New<TResponseKeeper>(
+            Config_->HydraManager->ResponseKeeper,
+            NObjectServer::ObjectServerLogger,
+            NObjectServer::ObjectServerProfiler);
+
         HydraManager_ = CreateDistributedHydraManager(
             Config_->HydraManager,
             Bootstrap_->GetControlInvoker(),
@@ -100,22 +105,21 @@ public:
             Bootstrap_->GetRpcServer(),
             Bootstrap_->GetCellManager(),
             Bootstrap_->GetChangelogStore(),
-            Bootstrap_->GetSnapshotStore());
+            Bootstrap_->GetSnapshotStore(),
+            ResponseKeeper_);
 
         HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
-        HydraManager_->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
-
+        HydraManager_->SubscribeLeaderRecoveryComplete(BIND(&TImpl::OnRecoveryComplete, MakeWeak(this)));
         HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+
+        HydraManager_->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+        HydraManager_->SubscribeFollowerRecoveryComplete(BIND(&TImpl::OnRecoveryComplete, MakeWeak(this)));
         HydraManager_->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
         for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
             auto unguardedInvoker = GetAutomatonInvoker(queue);
             GuardedInvokers_[queue] = HydraManager_->CreateGuardedAutomatonInvoker(unguardedInvoker);
         }
-
-        ResponseKeeper_ = CreateTransientResponseKeeper(
-            Config_->HydraManager->ResponseKeeper,
-            NHydra::HydraProfiler);
     }
 
     void Start()
@@ -139,7 +143,7 @@ public:
         return HydraManager_;
     }
 
-    IResponseKeeperPtr GetResponseKeeper() const
+    TResponseKeeperPtr GetResponseKeeper() const
     {
         return ResponseKeeper_;
     }
@@ -168,14 +172,14 @@ public:
     }
 
 private:
-    TCellMasterConfigPtr Config_;
-    TBootstrap* Bootstrap_;
+    const TCellMasterConfigPtr Config_;
+    TBootstrap* const Bootstrap_;
 
     TFairShareActionQueuePtr AutomatonQueue_;
     TMasterAutomatonPtr Automaton_;
     IHydraManagerPtr HydraManager_;
 
-    IResponseKeeperPtr ResponseKeeper_;
+    TResponseKeeperPtr ResponseKeeper_;
 
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> GuardedInvokers_;
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochInvokers_;
@@ -195,8 +199,14 @@ private:
         }
     }
 
+    void OnRecoveryComplete()
+    {
+        ResponseKeeper_->Start();
+    }
+
     void OnStopEpoch()
     {
+        ResponseKeeper_->Stop();
         std::fill(EpochInvokers_.begin(), EpochInvokers_.end(), nullptr);
     }
 
@@ -309,7 +319,7 @@ IHydraManagerPtr THydraFacade::GetHydraManager() const
     return Impl_->GetHydraManager();
 }
 
-IResponseKeeperPtr THydraFacade::GetResponseKeeper() const
+TResponseKeeperPtr THydraFacade::GetResponseKeeper() const
 {
     return Impl_->GetResponseKeeper();
 }

@@ -534,15 +534,13 @@ protected:
         IPrioritizedInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
         const NLog::TLogger& logger,
-        int protocolVersion = TProxyBase::DefaultProtocolVersion,
-        IResponseKeeperPtr responseKeeper = nullptr);
+        int protocolVersion = TProxyBase::DefaultProtocolVersion);
 
     TServiceBase(
         IInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
         const NLog::TLogger& logger,
-        int protocolVersion = TProxyBase::DefaultProtocolVersion,
-        IResponseKeeperPtr responseKeeper = nullptr);
+        int protocolVersion = TProxyBase::DefaultProtocolVersion);
 
     //! Registers a method.
     TRuntimeMethodInfoPtr RegisterMethod(const TMethodDescriptor& descriptor);
@@ -586,7 +584,6 @@ private:
     IPrioritizedInvokerPtr DefaultInvoker_;
     TServiceId ServiceId_;
     int ProtocolVersion_;
-    IResponseKeeperPtr ResponseKeeper_;
 
     NProfiling::TTagId ServiceTagId_;
     NProfiling::TRateCounter RequestCounter_;
@@ -602,8 +599,7 @@ private:
         IPrioritizedInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
         const NLog::TLogger& logger,
-        int protocolVersion,
-        IResponseKeeperPtr responseKeeper);
+        int protocolVersion);
 
     virtual TServiceId GetServiceId() const override;
 

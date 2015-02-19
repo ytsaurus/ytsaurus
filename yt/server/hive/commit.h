@@ -6,6 +6,8 @@
 
 #include <core/actions/future.h>
 
+#include <core/rpc/public.h>
+
 #include <ytlib/transaction_client/public.h>
 
 #include <server/hydra/entity_map.h>
@@ -20,7 +22,7 @@ class TCommit
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TTransactionId, TransactionId);
-    DEFINE_BYVAL_RO_PROPERTY(NHydra::TMutationId, MutationId);
+    DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, ParticipantCellIds);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TCellId>, PreparedParticipantCellIds);
     DEFINE_BYVAL_RW_PROPERTY(bool, Persistent);
@@ -29,7 +31,7 @@ public:
     explicit TCommit(const TTransactionId& transactionId);
     TCommit(
         const TTransactionId& transactionId,
-        const NHydra::TMutationId& mutationId,
+        const NRpc::TMutationId& mutationId,
         const std::vector<TCellId>& participantCellIds);
 
     TFuture<TSharedRefArray> GetAsyncResponseMessage();

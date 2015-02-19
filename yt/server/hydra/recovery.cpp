@@ -9,6 +9,8 @@
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/async_stream.h>
 
+#include <core/rpc/response_keeper.h>
+
 #include <ytlib/election/cell_manager.h>
 
 #include <ytlib/hydra/hydra_service_proxy.h>
@@ -17,6 +19,7 @@
 namespace NYT {
 namespace NHydra {
 
+using namespace NRpc;
 using namespace NElection;
 using namespace NConcurrency;
 using namespace NHydra::NProto;
@@ -62,12 +65,14 @@ TRecoveryBase::TRecoveryBase(
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
+    TResponseKeeperPtr responseKeeper,
     TEpochContext* epochContext)
     : Config_(config)
     , CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)
     , ChangelogStore_(changelogStore)
     , SnapshotStore_(snapshotStore)
+    , ResponseKeeper_(responseKeeper)
     , EpochContext_(epochContext)
     , Logger(HydraLogger)
 {
@@ -103,6 +108,10 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
     if (snapshotId != NonexistingSegmentId && snapshotId > currentVersion.SegmentId) {
         // Load the snapshot.
         LOG_INFO("Using snapshot %v for recovery", snapshotId);
+
+        if (ResponseKeeper_) {
+            ResponseKeeper_->Stop();
+        }
 
         auto reader = SnapshotStore_->CreateReader(snapshotId);
 
@@ -300,6 +309,7 @@ TLeaderRecovery::TLeaderRecovery(
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
+    TResponseKeeperPtr responseKeeper,
     TEpochContext* epochContext)
     : TRecoveryBase(
         config,
@@ -307,6 +317,7 @@ TLeaderRecovery::TLeaderRecovery(
         decoratedAutomaton,
         changelogStore,
         snapshotStore,
+        responseKeeper,
         epochContext)
 { }
 
@@ -342,6 +353,7 @@ TFollowerRecovery::TFollowerRecovery(
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
+    TResponseKeeperPtr responseKeeper,
     TEpochContext* epochContext,
     TVersion syncVersion)
     : TRecoveryBase(
@@ -350,6 +362,7 @@ TFollowerRecovery::TFollowerRecovery(
         decoratedAutomaton,
         changelogStore,
         snapshotStore,
+        responseKeeper,
         epochContext)
 {
     SyncVersion_ = PostponedVersion_ = syncVersion;

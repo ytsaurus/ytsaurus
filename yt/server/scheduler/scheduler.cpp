@@ -338,11 +338,10 @@ public:
         operation->SetCleanStart(true);
         operation->SetState(EOperationState::Initializing);
 
-        LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, MutationId: %v, User: %v)",
+        LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, User: %v)",
             type,
             operationId,
             transactionId,
-            mutationId,
             user);
 
         LOG_INFO("Total resource limits (OperationId: %v, ResourceLimits: {%v})",
@@ -778,6 +777,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto responseKeeper = Bootstrap_->GetResponseKeeper();
+        responseKeeper->Start();
+
         LogEventFluently(ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
 
@@ -788,6 +790,9 @@ private:
     void OnMasterDisconnected()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto responseKeeper = Bootstrap_->GetResponseKeeper();
+        responseKeeper->Stop();
 
         LogEventFluently(ELogEventType::MasterDisconnected)
             .Item("address").Value(ServiceAddress_);

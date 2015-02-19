@@ -16,7 +16,7 @@
 #include <core/rpc/bus_server.h>
 #include <core/rpc/retrying_channel.h>
 #include <core/rpc/bus_channel.h>
-#include <core/rpc/transient_response_keeper.h>
+#include <core/rpc/response_keeper.h>
 
 #include <core/ytree/virtual.h>
 #include <core/ytree/ypath_client.h>
@@ -56,6 +56,7 @@
 #include <server/scheduler/job_tracker_service.h>
 #include <server/scheduler/job_prober_service.h>
 #include <server/scheduler/config.h>
+#include <server/scheduler/private.h>
 
 namespace NYT {
 namespace NCellScheduler {
@@ -142,8 +143,10 @@ void TBootstrap::DoRun()
 
     ChunkLocationThrottler_ = CreateLimitedThrottler(Config_->Scheduler->ChunkLocationThrottler);
 
-
-    ResponseKeeper_ = CreateTransientResponseKeeper(Config_->ResponseKeeper);
+    ResponseKeeper_ = New<TResponseKeeper>(
+        Config_->ResponseKeeper,
+        SchedulerLogger,
+        SchedulerProfiler);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
@@ -228,7 +231,7 @@ TClusterDirectoryPtr TBootstrap::GetClusterDirectory() const
     return ClusterDirectory_;
 }
 
-IResponseKeeperPtr TBootstrap::GetResponseKeeper() const
+TResponseKeeperPtr TBootstrap::GetResponseKeeper() const
 {
     return ResponseKeeper_;
 }

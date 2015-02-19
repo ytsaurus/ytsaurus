@@ -22,7 +22,7 @@ public:
         IInvokerPtr automatonInvoker,
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton,
-        NRpc::IResponseKeeperPtr responseKeeper,
+        NRpc::TResponseKeeperPtr responseKeeper,
         THiveManagerPtr hiveManager,
         ITransactionManagerPtr transactionManager,
         NTransactionClient::ITimestampProviderPtr timestampProvider);
@@ -41,7 +41,7 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

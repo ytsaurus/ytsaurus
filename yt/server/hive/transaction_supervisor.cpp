@@ -54,7 +54,7 @@ public:
         IInvokerPtr automatonInvoker,
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton,
-        IResponseKeeperPtr responseKeeper,
+        TResponseKeeperPtr responseKeeper,
         THiveManagerPtr hiveManager,
         ITransactionManagerPtr transactionManager,
         ITimestampProviderPtr timestampProvider)
@@ -136,7 +136,7 @@ public:
 
 private:
     const TTransactionSupervisorConfigPtr Config_;
-    const IResponseKeeperPtr ResponseKeeper_;
+    const TResponseKeeperPtr ResponseKeeper_;
     const THiveManagerPtr HiveManager_;
     const ITransactionManagerPtr TransactionManager_;
     const ITimestampProviderPtr TimestampProvider_;
@@ -153,16 +153,20 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto participantCellIds = FromProto<TCellId>(request->participant_cell_ids());
-        auto mutationId = GetMutationId(context);
 
         context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: [%v]",
             transactionId,
             JoinToString(participantCellIds));
 
-        auto asyncResponseMessage = DoCommitTransaction(transactionId, participantCellIds, mutationId);
+        if (ResponseKeeper_->TryReplyFrom(context))
+            return;
+
+        auto asyncResponseMessage = DoCommitTransaction(
+            transactionId,
+            participantCellIds,
+            GetMutationId(context));
         context->ReplyFrom(asyncResponseMessage);
     }
-
 
     DECLARE_RPC_SERVICE_METHOD(NProto, AbortTransaction)
     {
@@ -170,13 +174,18 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         bool force = request->force();
-        auto mutationId = GetMutationId(context);
 
         context->SetRequestInfo("TransactionId: %v, Force: %v",
             transactionId,
             force);
 
-        auto asyncResponseMessage = DoAbortTransaction(transactionId, mutationId, force);
+        if (ResponseKeeper_->TryReplyFrom(context))
+            return;
+
+        auto asyncResponseMessage = DoAbortTransaction(
+            transactionId,
+            GetMutationId(context),
+            force);
         context->ReplyFrom(asyncResponseMessage);
     }
 
@@ -204,13 +213,6 @@ private:
         const TMutationId& mutationId)
     {
         YASSERT(!HasMutationContext());
-
-        if (mutationId != NullMutationId) {
-            auto asyncResponseMessage = ResponseKeeper_->TryBeginRequest(mutationId);
-            if (asyncResponseMessage) {
-                return asyncResponseMessage;
-            }
-        }
 
         auto* commit = FindCommit(transactionId);
         if (commit) {
@@ -310,13 +312,6 @@ private:
     {
         YASSERT(!HasMutationContext());
 
-        if (mutationId != NullMutationId) {
-            auto asyncResponseMessage = ResponseKeeper_->TryBeginRequest(mutationId);
-            if (asyncResponseMessage) {
-                return asyncResponseMessage;
-            }
-        }
-
         try {
             // Any exception thrown here is caught below..
             TransactionManager_->PrepareTransactionAbort(transactionId, force);
@@ -336,8 +331,6 @@ private:
         ToProto(hydraRequest.mutable_mutation_id(), mutationId);
         hydraRequest.set_force(force);
 
-        // If the mutation succeeds then Response Keeper gets notified in HydraAbortTransaction.
-        // If it fails then the current epoch ends and Response Keeper gets cleaned up anyway.
         auto this_ = MakeStrong(this);
         return CreateMutation(HydraManager, hydraRequest)
             ->Commit()
@@ -624,7 +617,6 @@ private:
         } catch (const std::exception& ex) {
             LOG_ERROR_UNLESS(IsRecovery(), ex, "Error aborting transaction, ignored (TransactionId: %v)",
                 transactionId);
-            return;
         }
 
         auto* commit = FindCommit(transactionId);
@@ -863,7 +855,7 @@ TTransactionSupervisor::TTransactionSupervisor(
     IInvokerPtr automatonInvoker,
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
-    IResponseKeeperPtr responseKeeper,
+    TResponseKeeperPtr responseKeeper,
     THiveManagerPtr hiveManager,
     ITransactionManagerPtr transactionManager,
     ITimestampProviderPtr timestampProvider)

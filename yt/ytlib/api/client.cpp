@@ -934,58 +934,57 @@ private:
     }
 
 
-    static void GenerateMutationId(IClientRequestPtr request, TMutatingOptions& commandOptions)
+    static void GenerateMutationId(IClientRequestPtr request, TMutatingOptions& options)
     {
-        SetMutationId(request, GenerateMutationId(commandOptions));
-    }
-
-    static TMutationId GenerateMutationId(TMutatingOptions& commandOptions)
-    {
-        if (commandOptions.MutationId == NullMutationId) {
-            commandOptions.MutationId = NRpc::GenerateMutationId();
+        if (options.MutationId == NullMutationId) {
+            options.MutationId = NRpc::GenerateMutationId();
         }
-        auto result = commandOptions.MutationId;
-        ++commandOptions.MutationId.Parts32[0];
-        return result;
+        SetMutationId(request, options.MutationId);
+        ++options.MutationId.Parts32[1];
+
+        if (options.Retry) {
+            request->SetRetry(true);
+        }
     }
 
 
-    TTransactionId GetTransactionId(const TTransactionalOptions& commandOptions, bool allowNullTransaction)
+    TTransactionId GetTransactionId(const TTransactionalOptions& options, bool allowNullTransaction)
     {
-        auto transaction = GetTransaction(commandOptions, allowNullTransaction, true);
+        auto transaction = GetTransaction(options, allowNullTransaction, true);
         return transaction ? transaction->GetId() : NullTransactionId;
     }
 
     NTransactionClient::TTransactionPtr GetTransaction(
-        const TTransactionalOptions& commandOptions,
+        const TTransactionalOptions& options,
         bool allowNullTransaction,
         bool pingTransaction)
     {
-        if (commandOptions.TransactionId == NullTransactionId) {
+        if (options.TransactionId == NullTransactionId) {
             if (!allowNullTransaction) {
                 THROW_ERROR_EXCEPTION("A valid master transaction is required");
             }
             return nullptr;
         }
 
-        if (TypeFromId(commandOptions.TransactionId) != EObjectType::Transaction) {
+        if (TypeFromId(options.TransactionId) != EObjectType::Transaction) {
             THROW_ERROR_EXCEPTION("A valid master transaction is required");
         }
 
-        TTransactionAttachOptions attachOptions(commandOptions.TransactionId);
+        TTransactionAttachOptions attachOptions(options.TransactionId);
         attachOptions.AutoAbort = false;
         attachOptions.Ping = pingTransaction;
-        attachOptions.PingAncestors = commandOptions.PingAncestors;
+        attachOptions.PingAncestors = options.PingAncestors;
         return TransactionManager_->Attach(attachOptions);
     }
 
     void SetTransactionId(
         IClientRequestPtr request,
-        const TTransactionalOptions& commandOptions,
+        const TTransactionalOptions& options,
         bool allowNullTransaction)
     {
-        NCypressClient::SetTransactionId(request, GetTransactionId(commandOptions, allowNullTransaction));
+        NCypressClient::SetTransactionId(request, GetTransactionId(options, allowNullTransaction));
     }
+
 
     void SetPrerequisites(
         IClientRequestPtr request,

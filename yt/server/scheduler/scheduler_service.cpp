@@ -3,8 +3,11 @@
 #include "scheduler.h"
 #include "private.h"
 
+#include <core/concurrency/scheduler.h>
+
 #include <core/rpc/service_detail.h>
 #include <core/rpc/helpers.h>
+#include <core/rpc/response_keeper.h>
 
 #include <ytlib/scheduler/scheduler_service_proxy.h>
 
@@ -23,6 +26,7 @@ using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NSecurityClient;
 using namespace NCypressClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -35,9 +39,9 @@ public:
             bootstrap->GetControlInvoker(),
             TSchedulerServiceProxy::GetServiceName(),
             SchedulerLogger,
-            TSchedulerServiceProxy::GetProtocolVersion(),
-            bootstrap->GetResponseKeeper())
+            TSchedulerServiceProxy::GetProtocolVersion())
         , Bootstrap_(bootstrap)
+        , ResponseKeeper_(Bootstrap_->GetResponseKeeper())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
@@ -46,7 +50,8 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
+    const TResponseKeeperPtr ResponseKeeper_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NProto, StartOperation)
@@ -72,23 +77,25 @@ private:
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
-        scheduler->StartOperation(
+
+        if (ResponseKeeper_->TryReplyFrom(context))
+            return;
+
+        auto asyncResult = scheduler->StartOperation(
             type,
             transactionId,
             mutationId,
             spec,
-            user)
-            .Subscribe(BIND([=] (const TErrorOr<TOperationPtr>& result) {
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                    return;
-                }
-                auto operation = result.Value();
-                auto id = operation->GetId();
-                ToProto(response->mutable_operation_id(), id);
-                context->SetResponseInfo("OperationId: %v", id);
-                context->Reply();
-            }));
+            user);
+
+        auto operation = WaitFor(asyncResult)
+            .ValueOrThrow();
+
+        auto id = operation->GetId();
+        ToProto(response->mutable_operation_id(), id);
+
+        context->SetResponseInfo("OperationId: %v", id);
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, AbortOperation)
@@ -100,10 +107,15 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
+        if (ResponseKeeper_->TryReplyFrom(context))
+            return;
+
         auto operation = scheduler->GetOperationOrThrow(operationId);
-        context->ReplyFrom(scheduler->AbortOperation(
+        auto asyncResult = scheduler->AbortOperation(
             operation,
-            TError("Operation aborted by user request")));
+            TError("Operation aborted by user request"));
+
+        context->ReplyFrom(asyncResult);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, SuspendOperation)
@@ -115,9 +127,13 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
+        if (ResponseKeeper_->TryReplyFrom(context))
+            return;
+
         auto operation = scheduler->GetOperationOrThrow(operationId);
-        auto result = scheduler->SuspendOperation(operation);
-        context->ReplyFrom(result);
+        auto asyncResult = scheduler->SuspendOperation(operation);
+
+        context->ReplyFrom(asyncResult);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ResumeOperation)
@@ -129,9 +145,13 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
+        if (ResponseKeeper_->TryReplyFrom(context))
+            return;
+
         auto operation = scheduler->GetOperationOrThrow(operationId);
-        auto result = scheduler->ResumeOperation(operation);
-        context->ReplyFrom(result);
+        auto asyncResult = scheduler->ResumeOperation(operation);
+
+        context->ReplyFrom(asyncResult);
     }
 
 };
