@@ -30,6 +30,8 @@
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <ytlib/transaction_client/helpers.h>
+
 #include <server/data_node/local_chunk_reader.h>
 #include <server/data_node/block_store.h>
 #include <server/data_node/chunk_registry.h>
@@ -39,6 +41,7 @@
 
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
+#include <StoreKit/StoreKit.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -53,6 +56,7 @@ using namespace NVersionedTableClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
+using namespace NTransactionClient;
 using namespace NDataNode;
 using namespace NCellNode;
 using namespace NQueryAgent;
@@ -357,6 +361,8 @@ void TChunkStore::CheckRowLocks(
         "Checking for transaction conflicts against chunk stores is not supported; "
         "consider reducing transaction duration or increasing store retention time")
         << TErrorAttribute("transaction_id", transaction->GetId())
+        << TErrorAttribute("transaction_start_time", TimestampToInstant(transaction->GetStartTimestamp()).first)
+        << TErrorAttribute("transaction_register_time", transaction->GetRegisterTime())
         << TErrorAttribute("tablet_id", TabletId_)
         << TErrorAttribute("store_id", StoreId_)
         << TErrorAttribute("key", key);
