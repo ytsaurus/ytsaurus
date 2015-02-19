@@ -8,6 +8,7 @@
 
 #include <core/misc/id_generator.h>
 #include <core/misc/hash.h>
+#include <core/misc/lock_free.h>
 
 #include <core/concurrency/scheduler_thread.h>
 
@@ -296,7 +297,7 @@ private:
     TRateCounter EnqueueCounter;
     TRateCounter DequeueCounter;
 
-    TLockFreeQueue<TQueuedSample> SampleQueue;
+    TMultipleProducerSingleConsumerLockFreeStack<TQueuedSample> SampleQueue;
     yhash_map<TYPath, TBucketPtr> PathToBucket;
     TIdGenerator SampleIdGenerator;
 
@@ -320,11 +321,11 @@ private:
 
         // Process all pending samples in a row.
         int samplesProcessed = 0;
-        TQueuedSample sample;
-        while (SampleQueue.Dequeue(&sample)) {
-            ProcessSample(sample);
-            ++samplesProcessed;
-        }
+        while (SampleQueue.DequeueAll(true, [&](TQueuedSample& sample) {
+                ProcessSample(sample);
+                ++samplesProcessed;
+            }))
+        { }
 
         ProfilingProfiler.Increment(DequeueCounter, samplesProcessed);
 
