@@ -29,7 +29,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TLease, Lease);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TDelayedExecutorCookie, TimeoutCookie);
     DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, RegisterTime);
     DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, StartTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, PrepareTimestamp);
