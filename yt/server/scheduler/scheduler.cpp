@@ -982,7 +982,7 @@ private:
 
     void RequestConfig(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        LOG_INFO("Updating configuration");
+        LOG_INFO("Updating scheduler configuration");
 
         auto req = TYPathProxy::Get("//sys/scheduler/config");
         batchReq->AddRequest(req, "get_config");
@@ -1000,7 +1000,7 @@ private:
             return;
         }
 
-        INodePtr oldConfig = ConvertToNode(Config_);
+        auto oldConfig = ConvertToNode(Config_);
 
         try {
             const auto& rsp = rspOrError.Value();
@@ -1017,7 +1017,7 @@ private:
             LOG_ERROR(ex, "Error parsing updated scheduler configuration");
         }
 
-        INodePtr newConfig = ConvertToNode(Config_);
+        auto newConfig = ConvertToNode(Config_);
 
         if (!NYTree::AreNodesEqual(oldConfig, newConfig)) {
             LOG_INFO("Scheduler configuration updated");
