@@ -140,7 +140,7 @@ public:
                         // Process doesn't exist already.
                         return;
                     default:
-                        LOG_FATAL("Failed to kill job proxy: kill failed (errno: %v)", strerror(errno));
+                        LOG_FATAL(TError::FromSystem(), "Failed to kill job proxy: kill failed");
                         break;
                 }
             }

@@ -459,7 +459,11 @@ public:
 
         auto response = errorOrResponse.Value();
         auto chunkIds = FromProto<TGuid>(response->chunk_id());
-        return MasterConnector_->SaveInputContext(path, chunkIds);
+        MasterConnector_->SaveInputContext(path, chunkIds);
+
+        LOG_INFO("Input context saved (JobId: %v, Path: %v)",
+            jobId,
+            path);
     }
 
     void ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)

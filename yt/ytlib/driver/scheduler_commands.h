@@ -27,11 +27,11 @@ struct TDumpInputContextRequest
 
 //////////////////////////////////////////////////////////////////////////////
 
-class TDumpInputContext
+class TDumpInputContextCommand
     : public TTypedCommand<TDumpInputContextRequest>
 {
 protected:
-    typedef TDumpInputContext TThis;
+    typedef TDumpInputContextCommand TThis;
 
 private:
     virtual void DoExecute() override;
