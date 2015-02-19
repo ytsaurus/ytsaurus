@@ -373,6 +373,7 @@ TEST_F(TRpcTest, ClientCancel)
     Sleep(TDuration::Seconds(0.5));
     EXPECT_FALSE(asyncRspOrError.IsSet());
     asyncRspOrError.Cancel();
+    Sleep(TDuration::Seconds(0.1));
     EXPECT_TRUE(asyncRspOrError.IsSet());
     auto rspOrError = asyncRspOrError.Get();
     EXPECT_EQ(NYT::EErrorCode::Canceled, rspOrError.GetCode());
