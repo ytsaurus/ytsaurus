@@ -846,7 +846,7 @@ private:
 
             TReqHydraAbortTransaction masterRequest;
             ToProto(masterRequest.mutable_transaction_id(), transactionId);
-            ToProto(masterRequest.mutable_mutation_id(), NullMutationId);
+            ToProto(masterRequest.mutable_mutation_id(), NRpc::NullMutationId);
 
             hiveManager->PostMessage(slot->GetMasterMailbox(), masterRequest);
         }

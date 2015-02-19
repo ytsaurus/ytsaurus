@@ -55,7 +55,7 @@ public:
     TFuture<TOperationPtr> StartOperation(
         EOperationType type,
         const NTransactionClient::TTransactionId& transactionId,
-        const NHydra::TMutationId& mutationId,
+        const NRpc::TMutationId& mutationId,
         NYTree::IMapNodePtr spec,
         const Stroka& user);
 

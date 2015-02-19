@@ -43,7 +43,7 @@ public:
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
     NScheduler::TSchedulerPtr GetScheduler() const;
     NHive::TClusterDirectoryPtr GetClusterDirectory() const;
-    NRpc::IResponseKeeperPtr GetResponseKeeper() const;
+    NRpc::TResponseKeeperPtr GetResponseKeeper() const;
     NConcurrency::IThroughputThrottlerPtr GetChunkLocationThrottler() const;
 
     void Run();
@@ -60,7 +60,7 @@ private:
     Stroka LocalAddress_;
     NScheduler::TSchedulerPtr Scheduler_;
     NHive::TClusterDirectoryPtr ClusterDirectory_;
-    NRpc::IResponseKeeperPtr ResponseKeeper_;
+    NRpc::TResponseKeeperPtr ResponseKeeper_;
     NConcurrency::IThroughputThrottlerPtr ChunkLocationThrottler_;
 
     void DoRun();

@@ -96,10 +96,10 @@ public:
         auto* user = securityManager->GetAuthenticatedUser();
         auto userId = user->GetId();
 
-        auto responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
         auto mutationId = GetMutationId(context);
         if (mutationId != NullMutationId) {
-            auto asyncResponseMessage = responseKeeper->TryBeginRequest(mutationId);
+            auto responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
+            auto asyncResponseMessage = responseKeeper->TryBeginRequest(mutationId, context->IsRetry());
             if (asyncResponseMessage) {
                 context->ReplyFrom(std::move(asyncResponseMessage));
                 return;
@@ -997,8 +997,6 @@ void TObjectManager::HydraExecuteLeader(
     const TMutationId& mutationId,
     IServiceContextPtr context)
 {
-    auto asyncResponseMessage = context->GetAsyncResponseMessage();
-
     try {
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetUserOrThrow(userId);
@@ -1010,12 +1008,8 @@ void TObjectManager::HydraExecuteLeader(
 
     if (mutationId != NullMutationId) {
         auto responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
-        asyncResponseMessage.Subscribe(
-            BIND([=] (const TErrorOr<TSharedRefArray>& messageOrError) {
-                if (messageOrError.IsOK()) {
-                    responseKeeper->EndRequest(mutationId, messageOrError.Value());
-                }
-            }));
+        // NB: Context must already be replied by now.
+        responseKeeper->EndRequest(mutationId, context->GetResponseMessage());
     }
 }
 

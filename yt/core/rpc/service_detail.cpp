@@ -66,7 +66,6 @@ public:
     TServiceContext(
         TServiceBasePtr service,
         const TRequestId& requestId,
-        const TMutationId& mutationId,
         NBus::IBusPtr replyBus,
         TRuntimeMethodInfoPtr runtimeInfo,
         const NTracing::TTraceContext& traceContext,
@@ -81,7 +80,6 @@ public:
             logLevel)
         , Service_(std::move(service))
         , RequestId_(requestId)
-        , MutationId_(mutationId)
         , ReplyBus_(std::move(replyBus))
         , RuntimeInfo_(std::move(runtimeInfo))
         , TraceContext_(traceContext)
@@ -338,10 +336,6 @@ private:
 
             auto responseMessage = GetResponseMessage();
 
-            if (MutationId_ != NullMutationId) {
-                Service_->ResponseKeeper_->EndRequest(MutationId_, responseMessage);
-            }
-
             ReplyBus_->Send(std::move(responseMessage), EDeliveryTrackingLevel::None);
 
             if (Profiler.GetEnabled()) {
@@ -374,11 +368,11 @@ private:
         TStringBuilder builder;
 
         if (RequestId_ != NullRequestId) {
-            AppendInfo(&builder, "RequestId: %v", RequestId_);
+            AppendInfo(&builder, "RequestId: %v", GetRequestId());
         }
 
         if (RealmId_ != NullRealmId) {
-            AppendInfo(&builder, "RealmId: %v", RealmId_);
+            AppendInfo(&builder, "RealmId: %v", GetRealmId());
         }
 
         auto user = FindAuthenticatedUser(*RequestHeader_);
@@ -386,11 +380,16 @@ private:
             AppendInfo(&builder, "User: %v", *user);
         }
 
-        if (MutationId_ != NullMutationId) {
-            AppendInfo(&builder, "MutationId: %v", MutationId_);
+        auto mutationId = GetMutationId(*RequestHeader_);
+        if (mutationId != NullMutationId) {
+            AppendInfo(&builder, "MutationId: %v", mutationId);
         }
 
-        AppendInfo(&builder, "%v", RequestInfo_);
+        AppendInfo(&builder, "Retry: %v", IsRetry());
+
+        if (!RequestInfo_.empty()) {
+            AppendInfo(&builder, "%v", RequestInfo_);
+        }
 
         LOG_EVENT(Logger, LogLevel_, "%v <- %v",
             GetMethod(),
@@ -424,38 +423,33 @@ TServiceBase::TServiceBase(
     IPrioritizedInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
     const NLog::TLogger& logger,
-    int protocolVersion,
-    IResponseKeeperPtr responseKeeper)
+    int protocolVersion)
 {
     Init(
         defaultInvoker,
         serviceId,
         logger,
-        protocolVersion,
-        responseKeeper);
+        protocolVersion);
 }
 
 TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
     const NLog::TLogger& logger,
-    int protocolVersion,
-    IResponseKeeperPtr responseKeeper)
+    int protocolVersion)
 {
     Init(
         CreateFakePrioritizedInvoker(defaultInvoker),
         serviceId,
         logger,
-        protocolVersion,
-        responseKeeper);
+        protocolVersion);
 }
 
 void TServiceBase::Init(
     IPrioritizedInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
     const NLog::TLogger& logger,
-    int protocolVersion,
-    IResponseKeeperPtr responseKeeper)
+    int protocolVersion)
 {
     YCHECK(defaultInvoker);
 
@@ -463,7 +457,6 @@ void TServiceBase::Init(
     ServiceId_ = serviceId;
     Logger = logger;
     ProtocolVersion_ = protocolVersion;
-    ResponseKeeper_ = responseKeeper;
 
     ServiceTagId_ = NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
     
@@ -491,7 +484,6 @@ void TServiceBase::HandleRequest(
     const auto& method = header->method();
     bool oneWay = header->one_way();
     auto requestId = FromProto<TRequestId>(header->request_id());
-    auto mutationId = ResponseKeeper_ ? GetMutationId(*header) : NullMutationId;
     auto requestProtocolVersion = header->protocol_version();
 
     TRuntimeMethodInfoPtr runtimeInfo;
@@ -526,12 +518,6 @@ void TServiceBase::HandleRequest(
                 oneWay);
         }
 
-        if (oneWay && mutationId != NullMutationId) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::ProtocolError,
-                "One-way requests cannot be marked with mutation id");
-        }
-
         // Not actually atomic but should work fine as long as some small error is OK.
         if (runtimeInfo->QueueSizeCounter.Current > runtimeInfo->Descriptor.MaxQueueSize) {
             THROW_ERROR_EXCEPTION(
@@ -563,7 +549,6 @@ void TServiceBase::HandleRequest(
         retryStart = std::min(retryStart, now);
         requestStart = std::min(requestStart, retryStart);
 
-        // TODO(babenko): make some use of retryStart
         Profiler.Aggregate(runtimeInfo->RemoteWaitTimeCounter, (now - requestStart).MicroSeconds());
     }
 
@@ -581,16 +566,9 @@ void TServiceBase::HandleRequest(
         method,
         NTracing::ServerReceiveAnnotation);
 
-    TFuture<TSharedRefArray>  keptResponseMessage;
-    if (mutationId != NullMutationId) {
-        keptResponseMessage = ResponseKeeper_->TryBeginRequest(mutationId);
-    }
-
     auto context = New<TServiceContext>(
         this,
         requestId,
-        // NB: Suppress keeping the response if we're replying with a kept one.
-        keptResponseMessage ? NullMutationId : mutationId,
         std::move(replyBus),
         runtimeInfo,
         traceContext,
@@ -601,11 +579,6 @@ void TServiceBase::HandleRequest(
 
     if (oneWay) {
         RunRequest(std::move(context));
-        return;
-    }
-
-    if (keptResponseMessage) {
-        context->ReplyFrom(std::move(keptResponseMessage));
         return;
     }
 

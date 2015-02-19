@@ -47,7 +47,7 @@ public:
     const NTransactionClient::TTransactionId& GetPrerequisiteTransactionId() const;
     
     NHydra::IHydraManagerPtr GetHydraManager() const;
-    NRpc::IResponseKeeperPtr GetResponseKeeper() const;
+    NRpc::TResponseKeeperPtr GetResponseKeeper() const;
     TTabletAutomatonPtr GetAutomaton() const;
 
     // These methods are thread-safe.

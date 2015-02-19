@@ -93,6 +93,16 @@ void TYPathRequest::SetStartTime(TInstant /*value*/)
     YUNREACHABLE();
 }
 
+bool TYPathRequest::GetRetry() const
+{
+    return Header_.retry();
+}
+
+void TYPathRequest::SetRetry(bool value)
+{
+    Header_.set_retry(value);
+}
+
 const NRpc::NProto::TRequestHeader& TYPathRequest::Header() const
 {
     return Header_;

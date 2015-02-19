@@ -16,8 +16,6 @@
 
 #include <ytlib/ypath/public.h>
 
-#include <ytlib/hydra/public.h>
-
 #include <ytlib/transaction_client/public.h>
 
 #include <ytlib/object_client/public.h>
@@ -62,7 +60,8 @@ struct TSuppressableAccessTrackingOptions
 
 struct TMutatingOptions
 {
-    NHydra::TMutationId MutationId;
+    NRpc::TMutationId MutationId;
+    bool Retry = false;
 };
 
 struct TReadOnlyOptions

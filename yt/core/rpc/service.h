@@ -43,6 +43,9 @@ struct IServiceContext
     //! Returns the instant when the current retry of request was issued by the client, if known.
     virtual TNullable<TInstant> GetRetryStartTime() const = 0;
 
+    //! Returns |true| if this is a duplicate copy of a previously sent (and possibly served) request.
+    virtual bool IsRetry() const = 0;
+
     //! Returns request priority for reordering purposes.
     virtual i64 GetPriority() const = 0;
 
@@ -128,6 +131,7 @@ struct IServiceContext
 
 
     // Extension methods.
+
     void SetRequestInfo();
     void SetResponseInfo();
 

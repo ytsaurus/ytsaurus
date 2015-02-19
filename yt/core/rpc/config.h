@@ -183,10 +183,20 @@ public:
     //! For how long responses are kept in memory.
     TDuration ExpirationTime;
 
+    //! For how long the keeper remains passive after start and merely collects all responses.
+    TDuration WarmupTime;
+
     TResponseKeeperConfig()
     {
         RegisterParameter("expiration_time", ExpirationTime)
             .Default(TDuration::Minutes(5));
+        RegisterParameter("warmup_time", WarmupTime)
+            .Default(TDuration::Minutes(6));
+        RegisterValidator([&] () {
+            if (WarmupTime < ExpirationTime) {
+                THROW_ERROR_EXCEPTION("\"warmup_time\" cannot be less than \"expiration_time\"");
+            }
+        });
     }
 };
 
