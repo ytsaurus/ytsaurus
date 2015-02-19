@@ -48,7 +48,6 @@ std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
     THROW_ERROR_EXCEPTION("Dumping input context is not supported for built-in jobs");
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleJobBase::TSimpleJobBase(IJobHost* host)

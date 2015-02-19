@@ -43,11 +43,11 @@ private:
 
         context->SetRequestInfo("JobId: %v", jobId);
 
-        std::vector<NChunkClient::TChunkId> inputContexts = JobProxy_->DumpInputContext(jobId);
-        context->SetResponseInfo("ChunkId: %v", JoinToString(inputContexts));
+        auto chunkIds = JobProxy_->DumpInputContext(jobId);
+        context->SetResponseInfo("ChunkId: [%v]", JoinToString(chunkIds));
 
-        for (const auto& inputContext : inputContexts) {
-            ToProto(response->add_chunk_id(), inputContext);
+        for (const auto& chunkId : chunkIds) {
+            ToProto(response->add_chunk_id(), chunkId);
         }
         context->Reply();
     }

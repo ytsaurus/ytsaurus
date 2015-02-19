@@ -31,7 +31,7 @@ protected:
 
     TDuration GetElapsedTime() const;
 
-    std::vector<NChunkClient::TChunkId> DumpInputContext() override;
+    virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
 
 };
 

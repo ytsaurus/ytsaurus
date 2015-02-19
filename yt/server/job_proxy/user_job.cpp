@@ -112,7 +112,7 @@ public:
         , JobErrorPromise_(NewPromise<void>())
         , Prepared_(false)
         , MemoryUsage_(UserJobSpec_.memory_reserve())
-        , PipeIOQueue_(New<TActionQueue>("PipesIO"))
+        , PipeIOQueue_(New<TActionQueue>("PipeIO"))
         , PeriodicQueue_(New<TActionQueue>("UserJobPeriodic"))
         , Process_(GetExecPath(), false)
         , CpuAccounting_(CGroupPrefix + ToString(jobId))
@@ -368,23 +368,21 @@ private:
             THROW_ERROR_EXCEPTION("Cannot dump input context: job pipes are not prepared yet");
         }
 
-        auto contexts = WaitFor(
-            BIND(&TUserJob::DoGetInputContexts, MakeStrong(this))
+        auto asyncContexts = BIND(&TUserJob::DoGetInputContexts, MakeStrong(this))
                 .AsyncVia(PipeIOQueue_->GetInvoker())
-                .Run())
+                .Run();
+        auto contexts = WaitFor(asyncContexts)
             .ValueOrThrow();
 
-        auto contextChunkIds = DoDumpInputContexts(contexts);
-
-        return contextChunkIds;
+        return DoDumpInputContexts(contexts);
     }
 
     std::vector<TChunkId> DoDumpInputContexts(const std::vector<TBlob>& contexts)
     {
-        std::vector<TChunkId> results;
-
         auto host = Host.Lock();
         YCHECK(host);
+
+        std::vector<TChunkId> result;
 
         auto transactionId = FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id());
         for (int index = 0; index < contexts.size(); ++index) {
@@ -402,21 +400,21 @@ private:
                 contextChunkId,
                 index);
 
-            results.push_back(contextChunkId);
+            result.push_back(contextChunkId);
         }
 
-        return results;
+        return result;
     }
 
     std::vector<TBlob> DoGetInputContexts()
     {
-        std::vector<TBlob> results;
+        std::vector<TBlob> result;
 
         for (const auto& input : ContextPreservingInputs_) {
-            results.push_back(input->GetContext());
+            result.push_back(input->GetContext());
         }
 
-        return results;
+        return result;
     }
 
     int GetMaxReservedDescriptor() const
