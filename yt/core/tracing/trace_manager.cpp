@@ -8,6 +8,7 @@
 #include <core/concurrency/periodic_executor.h>
 
 #include <core/misc/address.h>
+#include <core/misc/lock_free.h>
 
 #include <core/rpc/bus_channel.h>
 
@@ -147,7 +148,7 @@ private:
     TIntrusivePtr<TThread> Thread_;
     TEnqueuedAction CurrentAction_;
 
-    TLockFreeQueue<NProto::TTraceEvent> EventQueue_;
+    TMultipleProducerSingleConsumerLockFreeStack<NProto::TTraceEvent> EventQueue_;
 
     TTraceManagerConfigPtr Config_;
     NProto::TEndpoint Endpoint_;
@@ -165,15 +166,15 @@ private:
         }
 
         int eventsProcessed = 0;
-        NProto::TTraceEvent event;
-        while (EventQueue_.Dequeue(&event)) {
-            CurrentBatch_.push_back(event);
-            ++eventsProcessed;
+        while (EventQueue_.DequeueAll(true, [&](NProto::TTraceEvent& event) {
+                CurrentBatch_.push_back(event);
+                ++eventsProcessed;
 
-            if (IsPushEnabled() && CurrentBatch_.size() >= Config_->MaxBatchSize) {
-                PushBatch();
-            }
-        }
+                if (IsPushEnabled() && CurrentBatch_.size() >= Config_->MaxBatchSize) {
+                    PushBatch();
+                }
+            }))
+        { }
 
         if (eventsProcessed > 0) {
             EventCount_.CancelWait();
