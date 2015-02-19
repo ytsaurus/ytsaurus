@@ -2,6 +2,7 @@
 #include "hydra_facade.h"
 #include "automaton.h"
 #include "config.h"
+#include "private.h"
 
 #include <core/misc/fs.h>
 
@@ -70,8 +71,7 @@ using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Bootstrap");
-
+static const auto& Logger = CellMasterLogger;
 static const auto SnapshotCleanupPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,6 +3,7 @@
 #include "hydra_facade.h"
 #include "world_initializer.h"
 #include "config.h"
+#include "private.h"
 
 #include <core/misc/ref_counted_tracker.h>
 
@@ -116,7 +117,7 @@ using NElection::TCellId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Bootstrap");
+static const auto& Logger = CellMasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

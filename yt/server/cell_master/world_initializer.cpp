@@ -2,6 +2,7 @@
 #include "world_initializer.h"
 #include "hydra_facade.h"
 #include "config.h"
+#include "private.h"
 
 #include <core/misc/collection_helpers.h>
 
@@ -54,9 +55,9 @@ using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Bootstrap");
-static const TDuration InitRetryPeriod = TDuration::Seconds(3);
-static const TDuration InitTransactionTimeout = TDuration::Seconds(60);
+static const auto& Logger = CellMasterLogger;
+static const auto InitRetryPeriod = TDuration::Seconds(3);
+static const auto InitTransactionTimeout = TDuration::Seconds(60);
 
 ////////////////////////////////////////////////////////////////////////////////
 
