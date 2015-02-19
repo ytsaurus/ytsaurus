@@ -25,17 +25,23 @@ private:
     void DoFinish();
 
 
-    NYson::IYsonConsumer* Consumer_;
-    std::unique_ptr<NFormats::IParser> Parser_;
-    bool IsParserValid_;
+    const std::unique_ptr<NFormats::IParser> Parser_;
+
+    bool IsParserValid_ = true;
 
 };
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void PipeReaderToWriter(ISchemalessReaderPtr reader, ISchemalessWriterPtr writer, int bufferRowCount);
+void PipeReaderToWriter(
+    ISchemalessReaderPtr reader,
+    ISchemalessWriterPtr writer,
+    int bufferRowCount);
 
-void PipeInputToOutput(TInputStream* input, TOutputStream* output, int bufferSize);
+void PipeInputToOutput(
+    TInputStream* input,
+    TOutputStream* output,
+    i64 bufferBlockSize);
 
 //////////////////////////////////////////////////////////////////////////////////
 

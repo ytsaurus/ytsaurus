@@ -19,9 +19,7 @@ using namespace NFormats;
 //////////////////////////////////////////////////////////////////////////////////
 
 TTableOutput::TTableOutput(const TFormat& format, NYson::IYsonConsumer* consumer)
-    : Consumer_(consumer)
-    , Parser_(CreateParserForFormat(format, EDataType::Tabular, consumer))
-    , IsParserValid_(true)
+    : Parser_(CreateParserForFormat(format, EDataType::Tabular, consumer))
 { }
 
 TTableOutput::~TTableOutput() throw()
@@ -48,33 +46,37 @@ void TTableOutput::DoFinish()
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void PipeReaderToWriter(ISchemalessReaderPtr reader, ISchemalessWriterPtr writer, int bufferRowCount)
+void PipeReaderToWriter(
+    ISchemalessReaderPtr reader,
+    ISchemalessWriterPtr writer,
+    int bufferRowCount)
 {
     std::vector<TUnversionedRow> rows;
     rows.reserve(bufferRowCount);
 
     while (reader->Read(&rows)) {
         if (rows.empty()) {
-            auto error = WaitFor(reader->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            WaitFor(reader->GetReadyEvent())
+                .ThrowOnError();
             continue;
         }
 
         if (!writer->Write(rows)) {
-            auto error = WaitFor(writer->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            WaitFor(writer->GetReadyEvent())
+                .ThrowOnError();
         }
     }
+
     YCHECK(rows.empty());
 }
 
 void PipeInputToOutput(
     TInputStream* input,
     TOutputStream* output,
-    int bufferSize)
+    i64 bufferBlockSize)
 {
     struct TWriteBufferTag { };
-    TBlob buffer(TWriteBufferTag(), bufferSize);
+    TBlob buffer(TWriteBufferTag(), bufferBlockSize);
 
     while (true) {
         size_t length = input->Read(buffer.Begin(), buffer.Size());
