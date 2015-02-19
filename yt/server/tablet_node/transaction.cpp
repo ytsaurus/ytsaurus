@@ -10,6 +10,8 @@
 
 #include <ytlib/new_table_client/versioned_row.h>
 
+#include <ytlib/transaction_client/helpers.h>
+
 #include <server/hydra/composite_automaton.h>
 
 namespace NYT {
@@ -190,6 +192,11 @@ void TTransaction::ThrowInvalidState() const
     THROW_ERROR_EXCEPTION("Transaction %v is in %Qlv state",
         Id_,
         State_);
+}
+
+TInstant TTransaction::GetStartTime() const
+{
+    return TimestampToInstant(StartTimestamp_).first;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -114,7 +114,7 @@ public:
                 fluent
                     .Item(ToString(transaction->GetId())).BeginMap()
                         .Item("timeout").Value(transaction->GetTimeout())
-                        .Item("start_time").Value(transaction->GetStartTime())
+                        .Item("register_time").Value(transaction->GetRegisterTime())
                         .Item("state").Value(transaction->GetState())
                         .Item("start_timestamp").Value(transaction->GetStartTimestamp())
                         .Item("prepare_timestamp").Value(transaction->GetPrepareTimestamp())

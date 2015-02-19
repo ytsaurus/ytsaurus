@@ -52,6 +52,8 @@ public:
 
     void ThrowInvalidState() const;
 
+    TInstant GetStartTime() const;
+
 private:
     TPromise<void> Finished_;
 
