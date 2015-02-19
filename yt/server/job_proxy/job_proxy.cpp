@@ -111,7 +111,6 @@ std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(const TJobId& jo
     return Job_->DumpInputContext();
 }
 
-
 void TJobProxy::SendHeartbeat()
 {
     auto req = SupervisorProxy_->OnJobProgress();
