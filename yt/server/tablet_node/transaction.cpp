@@ -22,7 +22,7 @@ using namespace NVersionedTableClient;
 
 TTransaction::TTransaction(const TTransactionId& id)
     : Id_(id)
-    , StartTime_(TInstant::Zero())
+    , RegisterTime_(TInstant::Zero())
     , State_(ETransactionState::Active)
     , StartTimestamp_(NullTimestamp)
     , PrepareTimestamp_(NullTimestamp)
@@ -35,7 +35,7 @@ void TTransaction::Save(TSaveContext& context) const
     using NYT::Save;
 
     Save(context, Timeout_);
-    Save(context, StartTime_);
+    Save(context, RegisterTime_);
     Save(context, GetPersistentState());
     Save(context, StartTimestamp_);
     Save(context, GetPersistentPrepareTimestamp());
@@ -89,7 +89,7 @@ void TTransaction::Load(TLoadContext& context)
     using NYT::Load;
 
     Load(context, Timeout_);
-    Load(context, StartTime_);
+    Load(context, RegisterTime_);
     Load(context, State_);
     Load(context, StartTimestamp_);
     Load(context, PrepareTimestamp_);
