@@ -27,8 +27,7 @@ public:
             bootstrap->GetControlInvoker(),
             TJobProberServiceProxy::GetServiceName(),
             SchedulerLogger,
-            TJobProberServiceProxy::GetProtocolVersion(),
-            bootstrap->GetResponseKeeper())
+            TJobProberServiceProxy::GetProtocolVersion())
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
