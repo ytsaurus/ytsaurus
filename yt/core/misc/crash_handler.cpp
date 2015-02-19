@@ -246,18 +246,6 @@ void DumpStackFrameInfo(void* pc)
     WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 }
 
-//! Invoke the default signal handler.
-void InvokeDefaultSignalHandler(int signal)
-{
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sigemptyset(&sa.sa_mask);
-    sa.sa_handler = SIG_DFL;
-    YCHECK(sigaction(signal, &sa, NULL) == 0);
-
-    kill(getpid(), signal);
-}
-
 // This variable is used for protecting CrashSignalHandler() from
 // dumping stuff while another thread is doing it. Our policy is to let
 // the first thread dump stuff and let other threads wait.
@@ -285,10 +273,8 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     if (previousThreadId != NULL) {
         // We've already entered the signal handler. What should we do?
         if (pthread_equal(currentThreadId, *crashingThreadId)) {
-            // It looks the current thread is reentering the signal handler.
-            // Something must be going wrong (maybe we are reentering by another
-            // type of signal?). Kill ourself by the default signal handler.
-            InvokeDefaultSignalHandler(signal);
+            // Exit.
+            _exit(-1);
         }
         // Another thread is dumping stuff. Let's wait until that thread
         // finishes the job and kills the process.
@@ -334,8 +320,8 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     // things. The process could be terminated or hung at any time.
     NLog::TLogManager::Get()->Shutdown();
 
-    // Kill ourself by the default signal handler.
-    InvokeDefaultSignalHandler(signal);
+    // Exit.
+    _exit(-1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
