@@ -149,7 +149,7 @@ public:
         REGISTER(TWriteJournalCommand,      "write_journal",     Tabular,    Null,       true,  true );
         REGISTER(TReadJournalCommand,       "read_journal",      Null,       Tabular,    false, true );
 
-        REGISTER(TDumpInputContext,          "dump_input_context",         Null,       Null,       true,  false);
+        REGISTER(TDumpInputContextCommand,  "dump_input_context",Null,       Null,       true,  false);
 
 #undef REGISTER
     }

@@ -365,7 +365,7 @@ private:
     virtual std::vector<TChunkId> DumpInputContext() override
     {
         if (!Prepared_) {
-            THROW_ERROR_EXCEPTION("Cannot dump input context: job pipes are not prepared");
+            THROW_ERROR_EXCEPTION("Cannot dump input context: job pipes are not prepared yet");
         }
 
         auto contexts = WaitFor(

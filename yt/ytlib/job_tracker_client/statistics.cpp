@@ -95,7 +95,7 @@ void Serialize(const TJobStatistics& statistics, IYsonConsumer* consumer)
         .BeginMap()
             .Item("input").Value(statistics.input())
             .Item("output").Value(GetTotalOutputDataStatistics(statistics))
-            .Item("detailed_output").DoListFor(0, statistics.output_size(), [&statistics] (TFluentList list, int index) {
+            .Item("detailed_output").DoListFor(0, statistics.output_size(), [&] (TFluentList list, int index) {
                 list.Item().Value(statistics.output(index));
             })
             .Item("time").Value(statistics.time())

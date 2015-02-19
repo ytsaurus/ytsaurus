@@ -292,10 +292,10 @@ public:
         auto req = jobProberProxy.DumpInputContext();
 
         ToProto(req->mutable_job_id(), JobId);
-        auto res = WaitFor(req->Invoke())
+        auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
-        return FromProto<TGuid>(res->chunk_id());
+        return FromProto<TGuid>(rsp->chunk_id());
     }
 
 private:

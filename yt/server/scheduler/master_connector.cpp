@@ -312,7 +312,7 @@ public:
             if (inputContext != NChunkServer::NullChunkId) {
                 auto contextPath = Format("%v/%v",
                     path,
-                    index);
+                    ToYPathLiteral(index));
                 auto req = MakeCreateFileRequest(contextPath, inputContext);
 
                 batchReq->AddRequest(req, "create_input_context");
@@ -328,9 +328,6 @@ public:
                 << error;
             THROW_ERROR(wrappedError);
         }
-
-        LOG_INFO("Input context saved (Path: %v)",
-            path);
     }
 
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
