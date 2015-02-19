@@ -41,7 +41,6 @@
 
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
-#include <StoreKit/StoreKit.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -65,8 +64,8 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TDuration ChunkExpirationTimeout = TDuration::Seconds(15);
-static const TDuration ChunkReaderExpirationTimeout = TDuration::Seconds(15);
+static const auto ChunkExpirationTimeout = TDuration::Seconds(15);
+static const auto ChunkReaderExpirationTimeout = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -361,7 +360,7 @@ void TChunkStore::CheckRowLocks(
         "Checking for transaction conflicts against chunk stores is not supported; "
         "consider reducing transaction duration or increasing store retention time")
         << TErrorAttribute("transaction_id", transaction->GetId())
-        << TErrorAttribute("transaction_start_time", TimestampToInstant(transaction->GetStartTimestamp()).first)
+        << TErrorAttribute("transaction_start_time", transaction->GetStartTime())
         << TErrorAttribute("transaction_register_time", transaction->GetRegisterTime())
         << TErrorAttribute("tablet_id", TabletId_)
         << TErrorAttribute("store_id", StoreId_)
