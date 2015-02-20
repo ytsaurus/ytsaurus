@@ -21,6 +21,10 @@ class TCachedBlock
     : public TAsyncCacheValueBase<TBlockId, TCachedBlock>
 {
 public:
+    DEFINE_BYVAL_RO_PROPERTY(TSharedRef, Data);
+    DEFINE_BYREF_RO_PROPERTY(TNullable<NNodeTrackerClient::TNodeDescriptor>, Source);
+
+public:
     //! Constructs a new block from id and data.
     TCachedBlock(
         const TBlockId& blockId,
@@ -29,8 +33,6 @@ public:
 
     ~TCachedBlock();
 
-    DEFINE_BYVAL_RO_PROPERTY(TSharedRef, Data);
-    DEFINE_BYREF_RO_PROPERTY(TNullable<NNodeTrackerClient::TNodeDescriptor>, Source);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedBlock)
@@ -106,8 +108,8 @@ private:
 
     friend class TPendingReadSizeGuard;
 
-    TIntrusivePtr<TStoreImpl> StoreImpl_;
-    TIntrusivePtr<TCacheImpl> CacheImpl_;
+    const TIntrusivePtr<TStoreImpl> StoreImpl_;
+    const TIntrusivePtr<TCacheImpl> CacheImpl_;
 
 };
 

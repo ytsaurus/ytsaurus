@@ -33,8 +33,15 @@ NYT::TAsyncCacheValueBase<TKey, TValue, THash>::~TAsyncCacheValueBase()
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class THash>
-TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(TSlruCacheConfigPtr config)
+TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
+    TSlruCacheConfigPtr config,
+    const NProfiling::TProfiler& profiler)
     : Config_(std::move(config))
+    , Profiler(profiler)
+    , HitWeightCounter_("/hit")
+    , MissedWeightCounter_("/hit")
+    , YoungerWeightCounter_("/younger")
+    , OlderWeightCounter_("/older")
 { }
 
 template <class TKey, class TValue, class THash>
@@ -50,10 +57,13 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Clear()
         ItemMapSize_ = 0;
 
         YoungerLruList_.Swap(youngerLruList);
-        YoungerWeight_ = 0;
+        Profiler.Aggregate(YoungerWeightCounter_, 0);
 
         OlderLruList_.Swap(olderLruList);
-        OlderWeight_ = 0;
+        Profiler.Aggregate(OlderWeightCounter_, 0);
+
+        Profiler.Aggregate(HitWeightCounter_, 0);
+        Profiler.Aggregate(MissedWeightCounter_, 0);
     }
 }
 
@@ -71,6 +81,9 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
     auto* item = itemIt->second;
     bool canTouch = CanTouch(item);
     auto value = item->Value;
+
+    auto weight = GetWeight(item->Value.Get());
+    Profiler.Increment(HitWeightCounter_, weight);
 
     guard.Release();
 
@@ -117,6 +130,12 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             bool canTouch = CanTouch(item);
             auto promise = item->ValuePromise;
 
+            auto maybeValueOrError = promise.TryGet();
+            if (maybeValueOrError && maybeValueOrError->IsOK()) {
+                auto weight = GetWeight(maybeValueOrError->Value().Get());
+                Profiler.Increment(HitWeightCounter_, weight);
+            }
+
             readerGuard.Release();
 
             if (canTouch) {
@@ -148,7 +167,8 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
             ++ItemMapSize_;
 
-            PushToYounger(item);
+            auto weight = PushToYounger(item);
+            Profiler.Increment(HitWeightCounter_, weight);
 
             writerGuard.Release();
 
@@ -176,6 +196,11 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie
         if (itemIt != ItemMap_.end()) {
             auto* item = itemIt->second;
             cookie->ValuePromise_ = item->ValuePromise;
+            auto maybeValueOrError = cookie->ValuePromise_.TryGet();
+            if (maybeValueOrError && maybeValueOrError->IsOK()) {
+                auto weight = GetWeight(maybeValueOrError->Value().Get());
+                Profiler.Increment(HitWeightCounter_, weight);
+            }
             return false;
         }
 
@@ -200,7 +225,8 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie
             YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
             ++ItemMapSize_;
 
-            PushToYounger(item);
+            auto weight = PushToYounger(item);
+            Profiler.Increment(HitWeightCounter_, weight);
 
             cookie->ValuePromise_ = item->ValuePromise;
 
@@ -240,7 +266,8 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInser
 
     YCHECK(ValueMap_.insert(std::make_pair(key, value.Get())).second);
 
-    PushToYounger(item);
+    auto weight = PushToYounger(item);
+    Profiler.Increment(MissedWeightCounter_, weight);
 
     guard.Release();
 
@@ -385,12 +412,14 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::OnRemoved(TValue* /*value*/)
 { }
 
 template <class TKey, class TValue, class THash>
-void TAsyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TItem* item)
+i64 TAsyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TItem* item)
 {
     YASSERT(item->Empty());
     YoungerLruList_.PushFront(item);
-    YoungerWeight_ += GetWeight(item->Value.Get());
+    auto weight = GetWeight(item->Value.Get());
+    Profiler.Increment(YoungerWeightCounter_, +weight);
     item->Younger = true;
+    return weight;
 }
 
 template <class TKey, class TValue, class THash>
@@ -400,9 +429,9 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TItem* item)
     item->Unlink();
     YoungerLruList_.PushFront(item);
     if (!item->Younger) {
-        i64 weight = GetWeight(item->Value.Get());
-        OlderWeight_ -= weight;
-        YoungerWeight_ += weight;
+        auto weight = GetWeight(item->Value.Get());
+        Profiler.Increment(OlderWeightCounter_, -weight);
+        Profiler.Increment(YoungerWeightCounter_, +weight);
         item->Younger = true;
     }
 }
@@ -414,9 +443,9 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TItem* item)
     item->Unlink();
     OlderLruList_.PushFront(item);
     if (item->Younger) {
-        i64 weight = GetWeight(item->Value.Get());
-        YoungerWeight_ -= weight;
-        OlderWeight_ += weight;
+        auto weight = GetWeight(item->Value.Get());
+        Profiler.Increment(YoungerWeightCounter_, -weight);
+        Profiler.Increment(OlderWeightCounter_, +weight);
         item->Younger = false;
     }
 }
@@ -426,11 +455,11 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Pop(TItem* item)
 {
     if (item->Empty())
         return;
-    i64 weight = GetWeight(item->Value.Get());
+    auto weight = GetWeight(item->Value.Get());
     if (item->Younger) {
-        YoungerWeight_ -= weight;
+        Profiler.Increment(YoungerWeightCounter_, -weight);
     } else {
-        OlderWeight_ -= weight;
+        Profiler.Increment(OlderWeightCounter_, -weight);
     }
     item->Unlink();
 }
@@ -442,7 +471,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::TrimIfNeeded()
     while (true) {
         NConcurrency::TWriterGuard guard(SpinLock_);
 
-        if (OlderLruList_.Empty() || OlderWeight_ <= Config_->Capacity * (1 - Config_->YoungerSizeFraction))
+        if (OlderLruList_.Empty() || OlderWeightCounter_.Current <= Config_->Capacity * (1 - Config_->YoungerSizeFraction))
             break;
 
         auto* item = &*(--OlderLruList_.End());
@@ -453,7 +482,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::TrimIfNeeded()
     while (true) {
         NConcurrency::TWriterGuard guard(SpinLock_);
 
-        if (YoungerLruList_.Empty() || YoungerWeight_ + OlderWeight_ <= Config_->Capacity)
+        if (YoungerLruList_.Empty() || YoungerWeightCounter_.Current + OlderWeightCounter_.Current <= Config_->Capacity)
             break;
 
         auto* item = &*(--YoungerLruList_.End());
