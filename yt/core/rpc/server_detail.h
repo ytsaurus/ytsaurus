@@ -65,14 +65,14 @@ public:
     virtual void SetRawRequestInfo(const Stroka& info) override;
     virtual void SetRawResponseInfo(const Stroka& info) override;
 
-    virtual NLog::TLogger& GetLogger() override;
+    virtual NLogging::TLogger& GetLogger() override;
 
 protected:
     const std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
     const TSharedRefArray RequestMessage_;
 
-    NLog::TLogger Logger;
-    const NLog::ELogLevel LogLevel_;
+    NLogging::TLogger Logger;
+    const NLogging::ELogLevel LogLevel_;
 
     TRequestId RequestId_;
     TRealmId RealmId_;
@@ -92,13 +92,13 @@ protected:
     TServiceContextBase(
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray requestMessage,
-        const NLog::TLogger& logger,
-        NLog::ELogLevel logLevel);
+        const NLogging::TLogger& logger,
+        NLogging::ELogLevel logLevel);
 
     TServiceContextBase(
         TSharedRefArray requestMessage,
-        const NLog::TLogger& logger,
-        NLog::ELogLevel logLevel);
+        const NLogging::TLogger& logger,
+        NLogging::ELogLevel logLevel);
 
     virtual void DoReply() = 0;
 
@@ -175,7 +175,7 @@ public:
     virtual void SetRawRequestInfo(const Stroka& info) override;
     virtual void SetRawResponseInfo(const Stroka& info) override;
 
-    virtual NLog::TLogger& GetLogger() override;
+    virtual NLogging::TLogger& GetLogger() override;
 
 protected:
     const IServiceContextPtr UnderlyingContext_;

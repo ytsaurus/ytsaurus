@@ -127,7 +127,7 @@ struct IServiceContext
     virtual void SetRawResponseInfo(const Stroka& info) = 0;
 
     //! Returns the logger associated with the handler.
-    virtual NLog::TLogger& GetLogger() = 0;
+    virtual NLogging::TLogger& GetLogger() = 0;
 
 
     // Extension methods.

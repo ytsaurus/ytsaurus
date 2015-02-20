@@ -98,7 +98,7 @@ protected:
     TTcpDispatcherThreadPtr DispatcherThread;
     IMessageHandlerPtr Handler;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     std::unique_ptr<ev::io> AcceptWatcher;
 

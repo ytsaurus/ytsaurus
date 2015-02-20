@@ -17,7 +17,7 @@ protected:
         IHydraManagerPtr hydraManager,
         IInvokerPtr automatonInvoker,
         const NRpc::TServiceId& serviceId,
-        const NLog::TLogger& logger,
+        const NLogging::TLogger& logger,
         int protocolVersion = NRpc::TProxyBase::DefaultProtocolVersion);
 
     const IInvokerPtr AutomatonInvoker_;

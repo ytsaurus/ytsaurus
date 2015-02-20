@@ -181,7 +181,7 @@ private:
         TObjectServiceProxy ObjectProxy_;
         TChunkServiceProxy ChunkProxy_;
 
-        NLog::TLogger Logger = ApiLogger;
+        NLogging::TLogger Logger = ApiLogger;
 
         struct TBatch
             : public TIntrinsicRefCounted

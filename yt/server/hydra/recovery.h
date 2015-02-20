@@ -48,7 +48,7 @@ protected:
 
     TVersion SyncVersion_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

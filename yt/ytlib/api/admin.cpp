@@ -61,7 +61,7 @@ private:
 
     const IChannelPtr LeaderChannel_;
 
-    NLog::TLogger Logger = ApiLogger;
+    NLogging::TLogger Logger = ApiLogger;
 
 
     template <class T>

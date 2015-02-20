@@ -41,7 +41,7 @@
 #endif
 
 namespace NYT {
-namespace NLog {
+namespace NLogging {
 
 using namespace NYTree;
 using namespace NConcurrency;
@@ -208,7 +208,7 @@ namespace {
 
 void ReloadSignalHandler(int signal)
 {
-    NLog::TLogManager::Get()->Reopen();
+    NLogging::TLogManager::Get()->Reopen();
 }
 
 } // namespace
@@ -769,5 +769,5 @@ void TLogManager::Reopen()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLog
+} // namespace NLogging
 } // namespace NYT

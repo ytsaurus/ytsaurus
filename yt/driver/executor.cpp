@@ -136,7 +136,7 @@ void TExecutor::Execute(const std::vector<std::string>& args)
         ? NTracing::CreateRootTraceContext()
         : NTracing::NullTraceContext);
 
-    NLog::TLogManager::Get()->Configure(Config->Logging);
+    NLogging::TLogManager::Get()->Configure(Config->Logging);
     TAddressResolver::Get()->Configure(Config->AddressResolver);
 
     TDispatcher::Get()->Configure(Config->Driver->LightPoolSize, Config->Driver->HeavyPoolSize);

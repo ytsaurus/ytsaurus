@@ -36,7 +36,7 @@ public:
     virtual TFuture<void> GetFetchingCompletedEvent();
 
 protected:
-    mutable NLog::TLogger Logger;
+    mutable NLogging::TLogger Logger;
 
     TChunkReaderConfigPtr Config_;
 

@@ -126,7 +126,7 @@ private:
     Stroka NetworkName_;
     EReadSessionType SessionType_;
     IThroughputThrottlerPtr Throttler_;
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     TObjectServiceProxy ObjectServiceProxy_;
     TChunkServiceProxy ChunkServiceProxy_;
@@ -277,7 +277,7 @@ protected:
     //! The instant this session has started.
     TInstant StartTime_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     explicit TSessionBase(TReplicationReader* reader)

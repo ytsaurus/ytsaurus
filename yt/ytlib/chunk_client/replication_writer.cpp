@@ -106,7 +106,7 @@ private:
     i64 Size_ = 0;
 
     TWeakPtr<TReplicationWriter> Writer_;
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     void PutGroup(TReplicationWriterPtr writer);
     void SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode);
@@ -186,7 +186,7 @@ private:
     //! Returned from node on Finish.
     TChunkInfo ChunkInfo_;
 
-    NLog::TLogger Logger = ChunkClientLogger;
+    NLogging::TLogger Logger = ChunkClientLogger;
 
 
     void DoOpen();

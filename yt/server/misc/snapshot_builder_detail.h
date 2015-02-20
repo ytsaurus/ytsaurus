@@ -25,7 +25,7 @@ protected:
     ~TSnapshotBuilderBase();
 
     //! Must be initialized in the deriving class.
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     //! Returns the timeout for building a snapshot.
     virtual TDuration GetTimeout() const = 0;

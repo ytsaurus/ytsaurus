@@ -621,7 +621,7 @@ private:
     std::vector<i64> StartRows;
     bool HasRangeRequest;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 };
 
@@ -737,7 +737,7 @@ public:
     NChunkClient::IChunkReaderPtr ChunkReader;
     IBlockCachePtr UncompressedBlockCache;
     TWeakPtr<TTableChunkReader> TableReader;
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 };
 

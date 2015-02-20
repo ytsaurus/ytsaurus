@@ -160,7 +160,7 @@ public:
     void RegisterPart(TCompositeAutomatonPart* part);
 
 protected:
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     TCompositeAutomaton();

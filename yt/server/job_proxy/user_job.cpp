@@ -254,7 +254,7 @@ private:
     TSpinLock StatisticsLock_;
     TStatistics Statistics_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     void Prepare()

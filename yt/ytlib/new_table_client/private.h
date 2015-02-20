@@ -15,7 +15,7 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLog::TLogger TableClientLogger;
+extern const NLogging::TLogger TableClientLogger;
 
 extern NProfiling::TProfiler TableReaderProfiler;
 

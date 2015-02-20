@@ -21,8 +21,8 @@ static const auto& Logger = RpcServerLogger;
 TServiceContextBase::TServiceContextBase(
     std::unique_ptr<TRequestHeader> header,
     TSharedRefArray requestMessage,
-    const NLog::TLogger& logger,
-    NLog::ELogLevel logLevel)
+    const NLogging::TLogger& logger,
+    NLogging::ELogLevel logLevel)
     : RequestHeader_(std::move(header))
     , RequestMessage_(std::move(requestMessage))
     , Logger(logger)
@@ -33,8 +33,8 @@ TServiceContextBase::TServiceContextBase(
 
 TServiceContextBase::TServiceContextBase(
     TSharedRefArray requestMessage,
-    const NLog::TLogger& logger,
-    NLog::ELogLevel logLevel)
+    const NLogging::TLogger& logger,
+    NLogging::ELogLevel logLevel)
     : RequestHeader_(new TRequestHeader())
     , RequestMessage_(std::move(requestMessage))
     , Logger(logger)
@@ -285,7 +285,7 @@ void TServiceContextBase::SetRawResponseInfo(const Stroka& info)
     ResponseInfo_ = info;
 }
 
-NLog::TLogger& TServiceContextBase::GetLogger()
+NLogging::TLogger& TServiceContextBase::GetLogger()
 {
     return Logger;
 }
@@ -430,7 +430,7 @@ void TServiceContextWrapper::SetRawResponseInfo(const Stroka& info)
     UnderlyingContext_->SetRawResponseInfo(info);
 }
 
-NLog::TLogger& TServiceContextWrapper::GetLogger()
+NLogging::TLogger& TServiceContextWrapper::GetLogger()
 {
     return UnderlyingContext_->GetLogger();
 }

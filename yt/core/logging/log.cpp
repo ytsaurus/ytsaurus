@@ -8,7 +8,7 @@
 #include <util/folder/dirut.h>
 
 namespace NYT {
-namespace NLog {
+namespace NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,5 +91,5 @@ Stroka TLogger::GetMessageWithContext(const Stroka& originalMessage, const Strok
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLog
+} // namespace NLogging
 } // namespace NYT

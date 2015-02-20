@@ -437,11 +437,11 @@ void TJobProxy::CheckMemoryUsage()
 
 void TJobProxy::Exit(EJobProxyExitCode exitCode)
 {
-    NLog::TLogManager::Get()->Shutdown();
+    NLogging::TLogManager::Get()->Shutdown();
     _exit(static_cast<int>(exitCode));
 }
 
-NLog::TLogger TJobProxy::GetLogger() const
+NLogging::TLogger TJobProxy::GetLogger() const
 {
     return Logger;
 }

@@ -106,7 +106,7 @@ public:
         : TServiceBase(
             invoker,
             TMyProxy::GetServiceName(),
-            NLog::TLogger("Main"))
+            NLogging::TLogger("Main"))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SomeCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyAttachments));

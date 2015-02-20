@@ -70,7 +70,7 @@ private:
     TFuture<void> ReadyEvent_ = VoidFuture;
     bool BlockFetched_ = true;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     void DoOpen();
     TSharedRef GetBlock();

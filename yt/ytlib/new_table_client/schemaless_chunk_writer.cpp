@@ -716,7 +716,7 @@ public:
     virtual bool IsSorted() const override;
 
 private:
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     TTableWriterConfigPtr Config_;
     TTableWriterOptionsPtr Options_;

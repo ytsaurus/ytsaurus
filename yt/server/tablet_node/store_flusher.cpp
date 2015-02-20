@@ -263,7 +263,7 @@ private:
 
         YCHECK(store->GetState() == EStoreState::Flushing);
 
-        NLog::TLogger Logger(TabletNodeLogger);
+        NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, StoreId: %v",
             tabletId,
             store->GetId());

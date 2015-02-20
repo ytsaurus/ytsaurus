@@ -71,8 +71,8 @@ public:
         const NTracing::TTraceContext& traceContext,
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray requestMessage,
-        const NLog::TLogger& logger,
-        NLog::ELogLevel logLevel)
+        const NLogging::TLogger& logger,
+        NLogging::ELogLevel logLevel)
         : TServiceContextBase(
             std::move(header),
             std::move(requestMessage),
@@ -422,7 +422,7 @@ private:
 TServiceBase::TServiceBase(
     IPrioritizedInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
-    const NLog::TLogger& logger,
+    const NLogging::TLogger& logger,
     int protocolVersion)
 {
     Init(
@@ -435,7 +435,7 @@ TServiceBase::TServiceBase(
 TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
-    const NLog::TLogger& logger,
+    const NLogging::TLogger& logger,
     int protocolVersion)
 {
     Init(
@@ -448,7 +448,7 @@ TServiceBase::TServiceBase(
 void TServiceBase::Init(
     IPrioritizedInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
-    const NLog::TLogger& logger,
+    const NLogging::TLogger& logger,
     int protocolVersion)
 {
     YCHECK(defaultInvoker);

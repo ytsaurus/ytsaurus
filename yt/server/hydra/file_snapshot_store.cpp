@@ -84,7 +84,7 @@ private:
     const bool IsRaw_;
     const i64 Offset_;
 
-    NLog::TLogger Logger = HydraLogger;
+    NLogging::TLogger Logger = HydraLogger;
 
     std::unique_ptr<TFile> File_;
     std::unique_ptr<TFileInput> FileInput_;
@@ -319,7 +319,7 @@ private:
     std::unique_ptr<TOutputStream> CheckpointableOutput_;
     TOutputStream* FacadeOutput_ = nullptr;
 
-    NLog::TLogger Logger = HydraLogger;
+    NLogging::TLogger Logger = HydraLogger;
 
 
     void DoWrite(const void* buf, size_t len)
@@ -567,7 +567,7 @@ public:
 private:
     const TLocalSnapshotStoreConfigPtr Config_;
 
-    NLog::TLogger Logger = HydraLogger;
+    NLogging::TLogger Logger = HydraLogger;
 
     TSpinLock SpinLock_;
     std::set<int> SnapshotIds_;

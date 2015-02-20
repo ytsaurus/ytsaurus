@@ -11,7 +11,7 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLog::TLogger DataNodeLogger;
+extern const NLogging::TLogger DataNodeLogger;
 extern NProfiling::TProfiler DataNodeProfiler;
 
 extern NRpc::IChannelFactoryPtr ChannelFactory;

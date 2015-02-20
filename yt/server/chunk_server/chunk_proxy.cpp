@@ -58,7 +58,7 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TChunk> TBase;
 
-    virtual NLog::TLogger CreateLogger() const override
+    virtual NLogging::TLogger CreateLogger() const override
     {
         return ChunkServerLogger;
     }

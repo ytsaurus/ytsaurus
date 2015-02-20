@@ -64,7 +64,7 @@ using namespace NJobProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Server");
+static NLogging::TLogger Logger("Server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -287,7 +287,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         config->Load(configNode);
 
         // Configure singletons.
-        NLog::TLogManager::Get()->Configure(configFileName, "/logging");
+        NLogging::TLogManager::Get()->Configure(configFileName, "/logging");
         TAddressResolver::Get()->Configure(config->AddressResolver);
         NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
         NTracing::TTraceManager::Get()->Configure(configFileName, "/tracing");

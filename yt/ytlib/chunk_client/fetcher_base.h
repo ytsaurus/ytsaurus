@@ -23,7 +23,7 @@ public:
         TFetcherConfigPtr config,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
-        const NLog::TLogger& logger);
+        const NLogging::TLogger& logger);
 
     virtual void AddChunk(TRefCountedChunkSpecPtr chunk);
     virtual TFuture<void> Fetch();
@@ -36,7 +36,7 @@ protected:
     //! All chunks for which info is to be fetched.
     std::vector<TRefCountedChunkSpecPtr> Chunks_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     virtual TFuture<void> FetchFromNode(

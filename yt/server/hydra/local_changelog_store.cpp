@@ -139,7 +139,7 @@ private:
     TFileChangelogDispatcherPtr Dispatcher_;
     TFileChangelogStoreConfigPtr Config_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     Stroka GetChangelogPath(int id)

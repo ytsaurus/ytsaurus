@@ -687,7 +687,7 @@ TClusterResources TNontemplateCypressNodeProxyBase::GetResourceUsage() const
     return TClusterResources(0, 1, 0);
 }
 
-NLog::TLogger TNontemplateCypressNodeProxyBase::CreateLogger() const
+NLogging::TLogger TNontemplateCypressNodeProxyBase::CreateLogger() const
 {
     return CypressServerLogger;
 }

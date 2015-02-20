@@ -39,7 +39,7 @@ private:
     TOperationId OperationId;
     NTransactionClient::TTransactionId TransactionId;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
     bool RequestInProgress;
     int LastSuccessCount;
     std::vector<NChunkClient::TChunkListId> Ids;

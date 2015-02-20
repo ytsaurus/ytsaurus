@@ -247,7 +247,7 @@ private:
     TDataSplits Split(
         const TDataSplits& splits,
         TNodeDirectoryPtr nodeDirectory,
-        const NLog::TLogger& Logger)
+        const NLogging::TLogger& Logger)
     {
         std::map<TGuid, TDataSplits> splitsByTablet;
 

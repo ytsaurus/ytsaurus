@@ -1262,7 +1262,7 @@ private:
         if (!element)
             return;
 
-        NLog::TLogger Logger(SchedulerLogger);
+        NLogging::TLogger Logger(SchedulerLogger);
         Logger.AddTag("OperationId: %v", operation->GetId());
 
         try {

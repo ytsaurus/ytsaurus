@@ -1903,7 +1903,7 @@ private:
         auto state = EJobState(jobStatus->state());
         const auto& jobAddress = node->GetAddress();
 
-        NLog::TLogger Logger(SchedulerLogger);
+        NLogging::TLogger Logger(SchedulerLogger);
         Logger.AddTag("Address: %v, JobId: %v",
             jobAddress,
             jobId);

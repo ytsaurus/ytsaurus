@@ -1308,7 +1308,7 @@ private:
         if (!IsRecovery()) {
             LOG_EVENT(
                 Logger,
-                reason == EAddReplicaReason::FullHeartbeat ? NLog::ELogLevel::Trace : NLog::ELogLevel::Debug,
+                reason == EAddReplicaReason::FullHeartbeat ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
                 "Chunk replica added (ChunkId: %v, Cached: %v, NodeId: %v, Address: %v)",
                 chunkWithIndex,
                 cached,
@@ -1364,7 +1364,7 @@ private:
                 Logger,
                 reason == ERemoveReplicaReason::NodeRemoved ||
                 reason == ERemoveReplicaReason::ChunkIsDead
-                ? NLog::ELogLevel::Trace : NLog::ELogLevel::Debug,
+                ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
                 "Chunk replica removed (ChunkId: %v, Cached: %v, Reason: %v, NodeId: %v, Address: %v)",
                 chunkWithIndex,
                 cached,

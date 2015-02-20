@@ -37,7 +37,7 @@ protected:
     std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr> Readers_;
     std::vector<NVersionedTableClient::ISchemalessMultiChunkWriterPtr> Writers_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     virtual NVersionedTableClient::ISchemalessMultiChunkWriterPtr DoCreateWriter(

@@ -129,7 +129,7 @@ public:
             .Via(OrchidQueue->GetInvoker()));
     }
 
-    virtual NLog::TLogger GetLogger() const override
+    virtual NLogging::TLogger GetLogger() const override
     {
         return OrchidLogger;
     }

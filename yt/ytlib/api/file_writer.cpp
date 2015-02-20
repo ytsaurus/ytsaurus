@@ -101,7 +101,7 @@ private:
 
     IFileMultiChunkWriterPtr Writer_;
 
-    NLog::TLogger Logger = ApiLogger;
+    NLogging::TLogger Logger = ApiLogger;
 
 
     void DoOpen()

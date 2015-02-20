@@ -41,7 +41,7 @@ protected:
     NProfiling::TRateCounter CommitCounter_;
     NProfiling::TRateCounter BatchFlushCounter_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
 

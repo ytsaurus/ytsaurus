@@ -79,7 +79,7 @@ private:
     NCGroup::TNonOwningCGroup ProcessGroup_;
     NCGroup::TNonOwningCGroup NullCGroup_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
     TSlotManagerConfigPtr Config_;
 
 

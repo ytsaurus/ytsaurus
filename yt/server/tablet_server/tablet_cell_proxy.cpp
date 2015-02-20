@@ -38,7 +38,7 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TTabletCell> TBase;
 
-    virtual NLog::TLogger CreateLogger() const override
+    virtual NLogging::TLogger CreateLogger() const override
     {
         return TabletServerLogger;
     }

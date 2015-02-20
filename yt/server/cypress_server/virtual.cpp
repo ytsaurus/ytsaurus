@@ -60,9 +60,9 @@ public:
         Bootstrap->GetHydraFacade()->ValidateActiveLeader();
     }
 
-    virtual NLog::TLogger GetLogger() const override
+    virtual NLogging::TLogger GetLogger() const override
     {
-        return NLog::TLogger();
+        return NLogging::TLogger();
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
@@ -106,7 +106,7 @@ public:
         UnderlyingService->Invoke(context);
     }
 
-    virtual NLog::TLogger GetLogger() const override
+    virtual NLogging::TLogger GetLogger() const override
     {
         return UnderlyingService->GetLogger();
     }

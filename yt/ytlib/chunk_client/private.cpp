@@ -10,7 +10,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLog::TLogger ChunkClientLogger("ChunkClient");
+const NLogging::TLogger ChunkClientLogger("ChunkClient");
 
 NRpc::IChannelFactoryPtr LightNodeChannelFactory(
     NRpc::CreateCachingChannelFactory(NRpc::GetBusChannelFactory()));

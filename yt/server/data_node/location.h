@@ -173,7 +173,7 @@ private:
     i64 TrashDiskSpace_ = 0;
     const NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;
 
-    mutable NLog::TLogger Logger;
+    mutable NLogging::TLogger Logger;
 
 
     std::vector<TChunkDescriptor> DoInitialize();

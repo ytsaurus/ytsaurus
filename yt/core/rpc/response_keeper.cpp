@@ -29,7 +29,7 @@ class TResponseKeeper::TImpl
 public:
     TImpl(
         TResponseKeeperConfigPtr config,
-        const NLog::TLogger& logger,
+        const NLogging::TLogger& logger,
         const NProfiling::TProfiler& profiler)
         : Config_(std::move(config))
         , Logger(logger)
@@ -217,7 +217,7 @@ private:
 
     yhash_map<TMutationId, TPromise<TSharedRefArray>> PendingResponses_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     NProfiling::TProfiler Profiler;
     NProfiling::TAggregateCounter CountCounter_;
@@ -278,7 +278,7 @@ private:
 
 TResponseKeeper::TResponseKeeper(
     TResponseKeeperConfigPtr config,
-    const NLog::TLogger& logger,
+    const NLogging::TLogger& logger,
     const NProfiling::TProfiler& profiler)
     : Impl_(New<TImpl>(std::move(config), logger, profiler))
 { }

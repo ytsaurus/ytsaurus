@@ -56,7 +56,7 @@ protected:
         }
     };
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     TMultiChunkReaderConfigPtr Config_;
     TMultiChunkReaderOptionsPtr Options_;

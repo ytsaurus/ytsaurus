@@ -203,7 +203,7 @@ private:
     const TJobId JobId;
     const TSlot& Slot;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     TProcess Process;
     bool Waited;
@@ -268,7 +268,7 @@ private:
         OnExit.Set(TError("Jobs are not supported under Windows"));
     }
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
     TPromise<void> OnExit;
     TThread ControllerThread;
 };

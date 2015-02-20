@@ -178,7 +178,7 @@ private:
     // Only accessed in writer thread.
     int FlushedBufferCount_ = 0;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     void OnPeriodicFlush()

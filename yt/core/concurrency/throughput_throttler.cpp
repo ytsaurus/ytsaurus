@@ -23,7 +23,7 @@ class TLimitedThroughputThrottler
 public:
     TLimitedThroughputThrottler(
         TThroughputThrottlerConfigPtr config,
-        NLog::TLogger logger,
+        NLogging::TLogger logger,
         NProfiling::TProfiler profiler)
         : Config_(config)
         , Logger(logger)
@@ -80,7 +80,7 @@ private:
     };
 
     TThroughputThrottlerConfigPtr Config_;
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
     NProfiling::TAggregateCounter TotalCounter_;
     NProfiling::TRateCounter RateCounter_;
@@ -120,7 +120,7 @@ private:
 
 IThroughputThrottlerPtr CreateLimitedThrottler(
     TThroughputThrottlerConfigPtr config,
-    NLog::TLogger logger,
+    NLogging::TLogger logger,
     NProfiling::TProfiler profiler)
 {
     return New<TLimitedThroughputThrottler>(

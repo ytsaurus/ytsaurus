@@ -309,7 +309,7 @@ private:
     TSpinLock ResourcesLock;
     TNodeResources ResourceUsage;
 
-    NLog::TLogger Logger = ExecAgentLogger;
+    NLogging::TLogger Logger = ExecAgentLogger;
 
     TSlotPtr Slot;
 
@@ -407,7 +407,7 @@ private:
             proxyConfig->Save(&writer);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error saving job proxy config (Path: %Qv)", proxyConfigPath);
-            NLog::TLogManager::Get()->Shutdown();
+            NLogging::TLogManager::Get()->Shutdown();
             _exit(1);
         }
     }

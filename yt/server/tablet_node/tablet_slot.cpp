@@ -430,7 +430,7 @@ private:
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> GuardedAutomatonInvokers_;
 
-    NLog::TLogger Logger = TabletNodeLogger;
+    NLogging::TLogger Logger = TabletNodeLogger;
 
 
     void SetCellId(const TCellId& cellId)
@@ -441,7 +441,7 @@ private:
 
     void InitLogger()
     {
-        Logger = NLog::TLogger(TabletNodeLogger);
+        Logger = NLogging::TLogger(TabletNodeLogger);
         Logger.AddTag("Slot: %v", SlotIndex_);
         if (CellId_ != NullCellId) {
             Logger.AddTag("CellId: %v", CellId_);

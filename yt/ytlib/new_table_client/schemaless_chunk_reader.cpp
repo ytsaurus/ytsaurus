@@ -643,7 +643,7 @@ private:
     typedef TSchemalessMultiChunkReader<TSequentialMultiChunkReaderBase> TUnderlyingReader;
     typedef TIntrusivePtr<TUnderlyingReader> TUnderlyingReaderPtr;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     TTableReaderConfigPtr Config_;
     IChannelPtr MasterChannel_;
