@@ -130,9 +130,8 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             bool canTouch = CanTouch(item);
             auto promise = item->ValuePromise;
 
-            auto maybeValueOrError = promise.TryGet();
-            if (maybeValueOrError && maybeValueOrError->IsOK()) {
-                auto weight = GetWeight(maybeValueOrError->Value().Get());
+            if (item->Value) {
+                auto weight = GetWeight(item->Value.Get());
                 Profiler.Increment(HitWeightCounter_, weight);
             }
 
@@ -196,11 +195,12 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie
         if (itemIt != ItemMap_.end()) {
             auto* item = itemIt->second;
             cookie->ValuePromise_ = item->ValuePromise;
-            auto maybeValueOrError = cookie->ValuePromise_.TryGet();
-            if (maybeValueOrError && maybeValueOrError->IsOK()) {
-                auto weight = GetWeight(maybeValueOrError->Value().Get());
+
+            if (item->Value) {
+                auto weight = GetWeight(item->Value.Get());
                 Profiler.Increment(HitWeightCounter_, weight);
             }
+
             return false;
         }
 
