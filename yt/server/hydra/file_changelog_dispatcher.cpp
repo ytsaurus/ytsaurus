@@ -6,6 +6,7 @@
 #include "private.h"
 
 #include <core/misc/fs.h>
+#include <core/misc/finally.h>
 
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/action_queue.h>
@@ -34,7 +35,6 @@ class TFileChangelogQueue
 public:
     explicit TFileChangelogQueue(TSyncFileChangelogPtr changelog)
         : Changelog_(changelog)
-        , UseCount_(0)
         , FlushedRecordCount_(changelog->GetRecordCount())
     { }
 
@@ -231,14 +231,12 @@ public:
         int currentRecordId = firstRecordId;
         int needRecords = maxRecords;
         i64 needBytes = maxBytes;
-        i64 readBytes = 0;
 
         auto appendRecord = [&] (const TSharedRef& record) {
             records.push_back(record);
             --needRecords;
             ++currentRecordId;
             needBytes -= record.Size();
-            readBytes += record.Size();
         };
 
         auto needMore = [&] () {
@@ -280,16 +278,13 @@ public:
             }
         }
 
-        Profiler.Enqueue("/changelog_read_record_count", records.size());
-        Profiler.Enqueue("/changelog_read_size", readBytes);
-
         return records;
     }
 
 private:
-    TSyncFileChangelogPtr Changelog_;
+    const TSyncFileChangelogPtr Changelog_;
 
-    std::atomic<int> UseCount_;
+    std::atomic<int> UseCount_ = {0};
 
     TSpinLock SpinLock_;
 
@@ -339,10 +334,15 @@ private:
             FlushForced_ = false;
         }
 
+        TError error;
         if (!FlushQueue_.empty()) {
             PROFILE_TIMING("/changelog_flush_io_time") {
-                Changelog_->Append(FlushedRecordCount_, FlushQueue_);
-                Changelog_->Flush();
+                try {
+                    Changelog_->Append(FlushedRecordCount_, FlushQueue_);
+                    Changelog_->Flush();
+                } catch (const std::exception& ex) {
+                    error = ex;
+                }
             }
         }
 
@@ -352,7 +352,7 @@ private:
             FlushQueue_.clear();
         }
 
-        flushPromise.Set(TError());
+        flushPromise.Set(error);
     }
 
     void SyncFlushAll()
@@ -383,11 +383,16 @@ private:
 
         SyncFlushAll();
 
+        TError error;
         PROFILE_TIMING("/changelog_seal_io_time") {
-            Changelog_->Seal(SealRecordCount_);
+            try {
+                Changelog_->Seal(SealRecordCount_);
+            } catch (const std::exception& ex) {
+                error = ex;
+            }
         }
 
-        promise.Set(TError());
+        promise.Set(error);
     }
 
     void MaybeSyncUnseal()
@@ -403,11 +408,16 @@ private:
             Sealed_ = false;
         }
 
+        TError error;
         PROFILE_TIMING("/changelog_unseal_io_time") {
-            Changelog_->Unseal();
+            try {
+                Changelog_->Unseal();
+            } catch (const std::exception& ex) {
+                error = ex;
+            }
         }
 
-        promise.Set(TError());
+        promise.Set(error);
     }
 
     void MaybeSyncClose()
@@ -425,11 +435,16 @@ private:
 
         SyncFlushAll();
 
+        TError error;
         PROFILE_TIMING("/changelog_close_io_time") {
-            Changelog_->Close();
+            try {
+                Changelog_->Close();
+            } catch (const std::exception& ex) {
+                error = ex;
+            }
         }
 
-        promise.Set(TError());
+        promise.Set(error);
     }
 };
 
@@ -451,7 +466,6 @@ public:
         , RecordCounter_("/record_rate")
         , SizeCounter_("/record_throughput")
     {
-        ProcessQueuesCallbackPending_ = false;
         PeriodicExecutor_->Start();
     }
 
@@ -476,8 +490,12 @@ public:
         const TSharedRef& record)
     {
         auto queue = GetQueueAndLock(changelog);
+        TFinallyGuard guard([&] () {
+            queue->Unlock();
+        });
+
         auto result = queue->Append(record);
-        queue->Unlock();
+
         Wakeup();
 
         Profiler.Increment(RecordCounter_);
@@ -534,11 +552,11 @@ public:
     }
 
 private:
-    TClosure ProcessQueuesCallback_;
-    std::atomic<bool> ProcessQueuesCallbackPending_;
+    const TClosure ProcessQueuesCallback_;
+    std::atomic<bool> ProcessQueuesCallbackPending_ = {false};
 
-    TActionQueuePtr ActionQueue_;
-    TPeriodicExecutorPtr PeriodicExecutor_;
+    const TActionQueuePtr ActionQueue_;
+    const TPeriodicExecutorPtr PeriodicExecutor_;
 
     TSpinLock SpinLock_;
     yhash_map<TSyncFileChangelogPtr, TFileChangelogQueuePtr> QueueMap_;
@@ -660,16 +678,23 @@ private:
             return std::vector<TSharedRef>();
         }
 
+        std::vector<TSharedRef> records;
         auto queue = FindQueueAndLock(changelog);
         if (queue) {
-            auto records = queue->Read(recordId, maxRecords, maxBytes);
-            queue->Unlock();
-            return std::move(records);
+            TFinallyGuard guard([&] () {
+                queue->Unlock();
+            });
+            records = queue->Read(recordId, maxRecords, maxBytes);
         } else {
             PROFILE_TIMING ("/changelog_read_io_time") {
-                return changelog->Read(recordId, maxRecords, maxBytes);
+                records = changelog->Read(recordId, maxRecords, maxBytes);
             }
         }
+
+        Profiler.Enqueue("/changelog_read_record_count", records.size());
+        Profiler.Enqueue("/changelog_read_size", GetTotalSize(records));
+
+        return records;
     }
 
 };
@@ -759,9 +784,9 @@ public:
     }
 
 private:
-    TFileChangelogDispatcher::TImplPtr DispatcherImpl_;
-    TFileChangelogConfigPtr Config_;
-    TSyncFileChangelogPtr SyncChangelog_;
+    const TFileChangelogDispatcher::TImplPtr DispatcherImpl_;
+    const TFileChangelogConfigPtr Config_;
+    const TSyncFileChangelogPtr SyncChangelog_;
 
     std::atomic<int> RecordCount_;
     std::atomic<i64> DataSize_;
