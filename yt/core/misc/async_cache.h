@@ -9,6 +9,7 @@
 #include <core/concurrency/rw_spinlock.h>
 
 #include <core/profiling/timing.h>
+#include <core/profiling/profiler.h>
 
 namespace NYT {
 
@@ -94,7 +95,9 @@ public:
 protected:
     TSlruCacheConfigPtr Config_;
 
-    explicit TAsyncSlruCacheBase(TSlruCacheConfigPtr config);
+    explicit TAsyncSlruCacheBase(
+        TSlruCacheConfigPtr config,
+        const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
 
     virtual i64 GetWeight(TValue* value) const;
 
@@ -125,15 +128,18 @@ private:
     NConcurrency::TReaderWriterSpinLock SpinLock_;
 
     TIntrusiveListWithAutoDelete<TItem, TDelete> YoungerLruList_;
-    i64 YoungerWeight_ = 0;
-
     TIntrusiveListWithAutoDelete<TItem, TDelete> OlderLruList_;
-    i64 OlderWeight_ = 0;
 
     yhash_map<TKey, TValue*, THash> ValueMap_;
 
     yhash_map<TKey, TItem*, THash> ItemMap_;
     volatile int ItemMapSize_ = 0; // used by GetSize
+
+    NProfiling::TProfiler Profiler;
+    NProfiling::TAggregateCounter HitWeightCounter_;
+    NProfiling::TAggregateCounter MissedWeightCounter_;
+    NProfiling::TAggregateCounter YoungerWeightCounter_;
+    NProfiling::TAggregateCounter OlderWeightCounter_;
 
 
     void EndInsert(TValuePtr value, TInsertCookie* cookie);
@@ -141,7 +147,7 @@ private:
     static bool CanTouch(TItem* item);
     void Touch(const TKey& key);
     void Unregister(const TKey& key);
-    void PushToYounger(TItem* item);
+    i64 PushToYounger(TItem* item);
     void MoveToYounger(TItem* item);
     void MoveToOlder(TItem* item);
     void Pop(TItem* item);
