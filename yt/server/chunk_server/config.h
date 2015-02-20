@@ -80,7 +80,7 @@ public:
     TDuration JournalRpcTimeout;
 
     //! Maximum number of chunks that can be sealed concurrently.
-    int MaxChunkConcurrentSeals;
+    int MaxConcurrentChunkSeals;
 
     //! Maximum number of chunks to report per single fetch request.
     int MaxChunksPerFetch;
@@ -142,7 +142,7 @@ public:
             .Default(TDuration::Seconds(30));
         RegisterParameter("journal_rpc_timeout", JournalRpcTimeout)
             .Default(TDuration::Seconds(15));
-        RegisterParameter("max_concurrent_chunk_seals", MaxChunkConcurrentSeals)
+        RegisterParameter("max_concurrent_chunk_seals", MaxConcurrentChunkSeals)
             .GreaterThan(0)
             .Default(10);
 
