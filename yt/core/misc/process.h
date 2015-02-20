@@ -16,6 +16,7 @@ namespace NYT {
 class TProcess
 {
 public:
+    explicit TProcess();
     explicit TProcess(const Stroka& path, bool copyEnv = true);
     ~TProcess();
 
@@ -32,6 +33,7 @@ public:
 
     void Spawn();
     TError Wait();
+    void Kill(int signal);
 
     int GetProcessId() const;
 
@@ -42,8 +44,10 @@ private:
         Stroka ErrorMessage;
     };
 
+    TSpinLock LifecycleChangeLock_;
+    bool Started_;
     bool Finished_;
-    int Status_;
+
     int ProcessId_;
     Stroka Path_;
 
