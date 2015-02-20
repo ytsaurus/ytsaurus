@@ -166,34 +166,34 @@ class TestTablets(YTEnvSetup):
         self._create_table_with_computed_column("//tmp/t")
         self._sync_mount_table("//tmp/t")
 
-        insert("//tmp/t", [{"key1": 1, "value": 2}])
+        insert_rows("//tmp/t", [{"key1": 1, "value": 2}])
         expected = [{"key1": 1, "key2": 103, "value": 2}]
-        actual = select("* from [//tmp/t]");
+        actual = select_rows("* from [//tmp/t]");
         self.assertItemsEqual(expected, actual);
 
-        insert("//tmp/t", [{"key1": 2, "value": 2}])
+        insert_rows("//tmp/t", [{"key1": 2, "value": 2}])
         expected = [{"key1": 1, "key2": 103, "value": 2}]
-        actual = lookup("//tmp/t", [1]);
+        actual = lookup_rows("//tmp/t", [{"key1" : 1}]);
         self.assertItemsEqual(expected, actual);
         expected = [{"key1": 2, "key2": 203, "value": 2}]
-        actual = lookup("//tmp/t", [2]);
+        actual = lookup_rows("//tmp/t", [{"key1": 2}]);
         self.assertItemsEqual(expected, actual);
 
-        delete("//tmp/t", [1])
+        delete_rows("//tmp/t", [{"key1": 1}])
         expected = [{"key1": 2, "key2": 203, "value": 2}]
-        actual = select("* from [//tmp/t]");
+        actual = select_rows("* from [//tmp/t]");
         self.assertItemsEqual(expected, actual);
 
-        with pytest.raises(YtError): insert("//tmp/t", [{"key1": 3, "key2": 3, "value": 3}])
-        with pytest.raises(YtError): lookup("//tmp/t", [2, 203])
-        with pytest.raises(YtError): delete("//tmp/t", [2, 203])
+        with pytest.raises(YtError): insert_rows("//tmp/t", [{"key1": 3, "key2": 3, "value": 3}])
+        with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key1": 2, "key2": 203}])
+        with pytest.raises(YtError): delete_rows("//tmp/t", [{"key1": 2, "key2": 203}])
 
         expected = []
-        actual = lookup("//tmp/t", [3])
+        actual = lookup_rows("//tmp/t", [{"key1": 3}])
         self.assertItemsEqual(expected, actual)
 
         expected = [{"key1": 2, "key2": 203, "value": 2}]
-        actual = select("* from [//tmp/t]");
+        actual = select_rows("* from [//tmp/t]");
         self.assertItemsEqual(expected, actual);
 
     def test_no_copy(self):

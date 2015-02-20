@@ -29,9 +29,19 @@ TBuildingValueConsumer::TBuildingValueConsumer(
     , WrittenFlags_(NameTable_->GetSize(), false)
 { }
 
-const std::vector<TUnversionedOwningRow>& TBuildingValueConsumer::Rows() const
+const std::vector<TUnversionedOwningRow>& TBuildingValueConsumer::GetOwningRows() const
 {
     return Rows_;
+}
+
+std::vector<TUnversionedRow> TBuildingValueConsumer::GetRows() const
+{
+    std::vector<TUnversionedRow> result;
+    result.reserve(Rows_.size());
+    for (const auto& row : Rows_) {
+        result.push_back(row.Get());
+    }
+    return result;
 }
 
 void TBuildingValueConsumer::SetTreatMissingAsNull(bool value)
@@ -39,36 +49,41 @@ void TBuildingValueConsumer::SetTreatMissingAsNull(bool value)
     TreatMissingAsNull_ = value;
 }
 
-TNameTablePtr TBuildingValueConsumer::GetNameTable() const {
+TNameTablePtr TBuildingValueConsumer::GetNameTable() const
+{
     return NameTable_;
 }
 
-bool TBuildingValueConsumer::GetAllowUnknownColumns() const {
+bool TBuildingValueConsumer::GetAllowUnknownColumns() const
+{
     return false;
 }
 
-void TBuildingValueConsumer::OnBeginRow() {
-    // Do nothing
+void TBuildingValueConsumer::OnBeginRow()
+{
+    // Do nothing.
 }
 
 void TBuildingValueConsumer::OnValue(const TUnversionedValue& value)
 {
-    const auto& schemaType = Schema_.Columns()[value.Id].Type;
+    auto schemaType = Schema_.Columns()[value.Id].Type;
     if (value.Type != schemaType) {
         THROW_ERROR TError("Invalid type of schema column %Qv: expected %Qlv, actual %Qlv",
             Schema_.Columns()[value.Id].Name,
             schemaType,
-            value.Type) << TErrorAttribute("row_index", Rows_.size());
+            value.Type)
+        << TErrorAttribute("row_index", Rows_.size());
     }
     WrittenFlags_[value.Id] = true;
     Builder_.AddValue(value);
 }
 
-void TBuildingValueConsumer::OnEndRow() {
+void TBuildingValueConsumer::OnEndRow()
+{
     for (int id = 0; id < WrittenFlags_.size(); ++id) {
         if (WrittenFlags_[id]) {
             WrittenFlags_[id] = false;
-        } else if (TreatMissingAsNull_) {
+        } else if (TreatMissingAsNull_ || id < KeyColumns_.size()) {
             Builder_.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
         }
     }
@@ -298,7 +313,8 @@ void TTableConsumer::ThrowMapExpected()
     THROW_ERROR AttachLocationAttributes(TError("Invalid row format, map expected"));
 }
 
-void TTableConsumer::ThrowCompositesNotSupported() {
+void TTableConsumer::ThrowCompositesNotSupported()
+{
     THROW_ERROR AttachLocationAttributes(TError("Composite types are not supported"));
 }
 
@@ -456,7 +472,6 @@ void TTableConsumer::OnEndAttributes()
 
 TWritingValueConsumer::TWritingValueConsumer(ISchemalessWriterPtr writer, bool flushImmediately)
     : Writer_(writer)
-    , CurrentBufferSize_(0)
     , FlushImmediately_(flushImmediately)
 {
     YCHECK(Writer_);

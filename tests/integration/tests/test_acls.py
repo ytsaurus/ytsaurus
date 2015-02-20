@@ -15,9 +15,6 @@ class TestAcls(YTEnvSetup):
         with pytest.raises(YtError): create_user("")
         with pytest.raises(YtError): create_group("")
 
-    def test_missing_user_name(self):
-        with pytest.raises(YtError): command("create", {"type": "user"})
-
     def test_default_acl_sanity(self):
         create_user("u")
         with pytest.raises(YtError): set("/", {}, user="u")

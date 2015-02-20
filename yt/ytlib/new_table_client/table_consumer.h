@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-
 #include "unversioned_row.h"
 
 #include <ytlib/table_client/public.h>
@@ -11,7 +10,6 @@
 
 #include <core/yson/consumer.h>
 #include <core/yson/writer.h>
-
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -31,7 +29,7 @@ struct IValueConsumer
 
 };
 
-DEFINE_REFCOUNTED_TYPE(IValueConsumer);
+DEFINE_REFCOUNTED_TYPE(IValueConsumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +41,9 @@ public:
         const TTableSchema& schema,
         const TKeyColumns& keyColumns);
 
-    const std::vector<TUnversionedOwningRow>& Rows() const;
+    const std::vector<TUnversionedOwningRow>& GetOwningRows() const;
+    std::vector<TUnversionedRow> GetRows() const;
+
     virtual TNameTablePtr GetNameTable() const override;
 
     void SetTreatMissingAsNull(bool value);
@@ -67,13 +67,17 @@ private:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TBuildingValueConsumer)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TWritingValueConsumer
     : public IValueConsumer
 {
 public:
-    TWritingValueConsumer(ISchemalessWriterPtr writer, bool flushImmediately = false);
+    explicit TWritingValueConsumer(
+        ISchemalessWriterPtr writer,
+        bool flushImmediately = false);
 
     void Flush();
 
@@ -84,7 +88,7 @@ private:
     std::vector<TUnversionedOwningRow> OwningRows_;
     std::vector<TUnversionedRow> Rows_;
 
-    i64 CurrentBufferSize_;
+    i64 CurrentBufferSize_ = 0;
     bool FlushImmediately_;
 
     virtual TNameTablePtr GetNameTable() const override;
@@ -97,11 +101,11 @@ private:
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TWritingValueConsumer);
+DEFINE_REFCOUNTED_TYPE(TWritingValueConsumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EControlState,
+DEFINE_ENUM(ETableConsumerControlState,
     (None)
     (ExpectName)
     (ExpectValue)
@@ -114,9 +118,12 @@ class TTableConsumer
 {
 public:
     explicit TTableConsumer(IValueConsumerPtr consumer);
-    TTableConsumer(const std::vector<IValueConsumerPtr>& consumers, int tableIndex = 0);
+    explicit TTableConsumer(
+        const std::vector<IValueConsumerPtr>& consumers,
+        int tableIndex = 0);
 
 protected:
+    using EControlState = ETableConsumerControlState;
 
     TError AttachLocationAttributes(TError error);
 
@@ -144,6 +151,7 @@ protected:
 
     void OnControlInt64Scalar(i64 value);
     void OnControlStringScalar(const TStringBuf& value);
+
 
     std::vector<IValueConsumerPtr> ValueConsumers_;
     IValueConsumer* CurrentValueConsumer_;

@@ -45,7 +45,7 @@ def prepare_path(path):
     attributes = {}
     if isinstance(path, yson.YsonString):
         attributes = path.attributes
-    result = yson.loads(command("parse_ypath", parameters={"path": path}, verbose=False))
+    result = yson.loads(execute_command("parse_ypath", parameters={"path": path}, verbose=False))
     update(result.attributes, attributes)
     return result
 
@@ -58,7 +58,7 @@ def prepare_parameters(parameters):
     change(parameters, "ping_ancestor_txs", "ping_ancestor_transactions")
     return parameters
 
-def command(command_name, parameters, input_stream=None, output_stream=None, verbose=None):
+def execute_command(command_name, parameters, input_stream=None, output_stream=None, verbose=None):
     if "verbose" in parameters:
         verbose = parameters["verbose"]
         del parameters["verbose"]
@@ -94,75 +94,75 @@ def command(command_name, parameters, input_stream=None, output_stream=None, ver
         print >>sys.stderr
     return result
 
+def execute_command_with_output_format(command_name, kwargs, input_stream=None):
+    has_output_format = "output_format" in kwargs
+    if not has_output_format:
+        kwargs["output_format"] = yson.loads("<format=text>yson")
+    output = StringIO()
+    execute_command(command_name, kwargs, input_stream=input_stream, output_stream=output)
+    if not has_output_format:
+        return list(yson.loads(output.getvalue(), yson_type="list_fragment"))
+    else:
+        return output.getvalue()
+
 ###########################################################################
 
 def dump_input_context(job_id, path, **kwargs):
     kwargs["job_id"] = job_id
     kwargs["path"] = path
-    return command("dump_input_context", kwargs)
+    return execute_command("dump_input_context", kwargs)
 
 def lock(path, waitable=False, **kwargs):
     kwargs["path"] = path
     kwargs["waitable"] = waitable
-    return command('lock', kwargs).replace('"', '').strip('\n')
+    return execute_command('lock', kwargs).replace('"', '').strip('\n')
 
 def remove(path, **kwargs):
     kwargs["path"] = path
-    return command('remove', kwargs)
+    return execute_command('remove', kwargs)
 
 def get(path, is_raw=False, **kwargs):
     def has_arg(name):
         return name in kwargs and kwargs[name] is not None
 
     kwargs["path"] = path
-    result = command('get', kwargs)
+    result = execute_command('get', kwargs)
     return result if is_raw else yson.loads(result)
 
 def set(path, value, is_raw=False, **kwargs):
     if not is_raw:
         value = yson.dumps(value)
     kwargs["path"] = path
-    return command('set', kwargs, input_stream=StringIO(value))
+    return execute_command('set', kwargs, input_stream=StringIO(value))
 
 def create(object_type, path, **kwargs):
     kwargs["type"] = object_type
     kwargs["path"] = path
-    return command("create", kwargs)
+    return execute_command("create", kwargs)
 
 def copy(source_path, destination_path, **kwargs):
     kwargs["source_path"] = source_path
     kwargs["destination_path"] = destination_path
-    return command("copy", kwargs)
+    return execute_command("copy", kwargs)
 
 def move(source_path, destination_path, **kwargs):
     kwargs["source_path"] = source_path
     kwargs["destination_path"] = destination_path
-    return command("move", kwargs)
+    return execute_command("move", kwargs)
 
 def link(target_path, link_path, **kwargs):
     kwargs["target_path"] = target_path
     kwargs["link_path"] = link_path
-    return command("link", kwargs)
+    return execute_command("link", kwargs)
 
 def exists(path, **kwargs):
     kwargs["path"] = path
-    res = command("exists", kwargs)
+    res = execute_command("exists", kwargs)
     return yson.loads(res)
 
 def ls(path, **kwargs):
     kwargs["path"] = path
-    return yson.loads(command("list", kwargs))
-
-def execute_command_with_output_format(command_name, kwargs):
-    has_output_format = "output_format" in kwargs
-    if not has_output_format:
-        kwargs["output_format"] = yson.loads("<format=text>yson")
-    output = StringIO()
-    command(command_name, kwargs, output_stream=output)
-    if not has_output_format:
-        return list(yson.loads(output.getvalue(), yson_type="list_fragment"))
-    else:
-        return output.getvalue()
+    return yson.loads(execute_command("list", kwargs))
 
 def read(path, **kwargs):
     kwargs["path"] = path
@@ -180,69 +180,64 @@ def write(path, value, is_raw=False, **kwargs):
     if "sorted_by" in kwargs:
         attributes={"sorted_by": flatten(kwargs["sorted_by"])}
     kwargs["path"] = yson.to_yson_type(path, attributes=attributes)
-    return command("write_table", kwargs, input_stream=StringIO(value))
+    return execute_command("write_table", kwargs, input_stream=StringIO(value))
 
-def select(query, **kwargs):
+def select_rows(query, **kwargs):
     kwargs["query"] = query
-    return execute_command_with_output_format("select", kwargs)
+    return execute_command_with_output_format("select_rows", kwargs)
 
-def insert(path, value, is_raw=False, **kwargs):
-    if not is_raw:
-        if not isinstance(value, list):
-            value = [value]
-        value = yson.dumps(value)
-        # remove surrounding [ ]
-        value = value[1:-1]
+def _prepare_rows_stream(data):
+    # remove surrounding [ ]
+    return StringIO(yson.dumps(data)[1:-1])
 
+def insert_rows(path, data, is_raw=False, **kwargs):
     kwargs["path"] = path
-    return command("insert", kwargs, input_stream=StringIO(value))
+    return execute_command("insert_rows", kwargs, input_stream=_prepare_rows_stream(data))
 
-def delete(path, key, **kwargs):
+def delete_rows(path, data, **kwargs):
     kwargs["path"] = path
-    kwargs["key"] = key
-    return command("delete", kwargs)
+    return execute_command("delete_rows", kwargs, input_stream=_prepare_rows_stream(data))
 
-def lookup(path, key, **kwargs):
+def lookup_rows(path, data, **kwargs):
     kwargs["path"] = path
-    kwargs["key"] = key
-    return execute_command_with_output_format("lookup", kwargs)
+    return execute_command_with_output_format("lookup_rows", kwargs, input_stream=_prepare_rows_stream(data))
 
 def start_transaction(**kwargs):
-    out = command("start_tx", kwargs)
+    out = execute_command("start_tx", kwargs)
     return out.replace('"', '').strip("\n")
 
 def commit_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
-    return command("commit_tx", kwargs)
+    return execute_command("commit_tx", kwargs)
 
 def ping_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
-    return command("ping_tx", kwargs)
+    return execute_command("ping_tx", kwargs)
 
 def abort_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
-    return command("abort_tx", kwargs)
+    return execute_command("abort_tx", kwargs)
 
 def mount_table(path, **kwargs):
     kwargs["path"] = path
-    return command("mount_table", kwargs)
+    return execute_command("mount_table", kwargs)
 
 def unmount_table(path, **kwargs):
     kwargs["path"] = path
-    return command("unmount_table", kwargs)
+    return execute_command("unmount_table", kwargs)
 
 def remount_table(path, **kwargs):
     kwargs["path"] = path
-    return command("remount_table", kwargs)
+    return execute_command("remount_table", kwargs)
 
 def reshard_table(path, pivot_keys, **kwargs):
     kwargs["path"] = path
     kwargs["pivot_keys"] = pivot_keys
-    return command("reshard_table", kwargs)
+    return execute_command("reshard_table", kwargs)
 
 def upload(path, data, **kwargs):
     kwargs["path"] = path
-    return command("write_file", kwargs, input_stream=StringIO(data))
+    return execute_command("write_file", kwargs, input_stream=StringIO(data))
 
 def upload_file(path, file_name, **kwargs):
     with open(file_name, "rt") as f:
@@ -251,14 +246,14 @@ def upload_file(path, file_name, **kwargs):
 def download(path, **kwargs):
     kwargs["path"] = path
     output = StringIO()
-    command("read_file", kwargs, output_stream=output)
+    execute_command("read_file", kwargs, output_stream=output)
     return output.getvalue();
 
 def read_journal(path, **kwargs):
     kwargs["path"] = path
     kwargs["output_format"] = yson.loads("yson")
     output = StringIO()
-    command("read_journal", kwargs, output_stream=output)
+    execute_command("read_journal", kwargs, output_stream=output)
     return list(yson.loads(output.getvalue(), yson_type="list_fragment"))
 
 def write_journal(path, value, is_raw=False, **kwargs):
@@ -268,7 +263,7 @@ def write_journal(path, value, is_raw=False, **kwargs):
     # remove surrounding [ ]
     value = value[1:-1]
     kwargs["path"] = path
-    return command("write_journal", kwargs, input_stream=StringIO(value))
+    return execute_command("write_journal", kwargs, input_stream=StringIO(value))
 
 def track_op(op_id):
     counter = 0
@@ -337,7 +332,7 @@ def start_op(op_type, **kwargs):
     if "dont_track" in kwargs:
         del kwargs["dont_track"]
 
-    op_id = command(op_type, kwargs).strip().replace('"', '')
+    op_id = execute_command(op_type, kwargs).strip().replace('"', '')
 
     if track:
         track_op(op_id)
@@ -372,7 +367,7 @@ def remote_copy(**kwargs):
 
 def abort_op(op, **kwargs):
     kwargs["operation_id"] = op
-    command("abort_op", kwargs)
+    execute_command("abort_op", kwargs)
 
 def build_snapshot(*args, **kwargs):
     get_driver().build_snapshot(*args, **kwargs)
@@ -383,7 +378,7 @@ def gc_collect():
 def create_account(name, **kwargs):
     kwargs["type"] = "account"
     kwargs["attributes"] = {"name": name}
-    command("create", kwargs)
+    execute_command("create", kwargs)
 
 def remove_account(name, **kwargs):
     remove("//sys/accounts/" + name, **kwargs)
@@ -392,7 +387,7 @@ def remove_account(name, **kwargs):
 def create_user(name, **kwargs):
     kwargs["type"] = "user"
     kwargs["attributes"] = {"name": name}
-    command("create", kwargs)
+    execute_command("create", kwargs)
 
 def remove_user(name, **kwargs):
     remove("//sys/users/" + name, **kwargs)
@@ -401,7 +396,7 @@ def remove_user(name, **kwargs):
 def create_group(name, **kwargs):
     kwargs["type"] = "group"
     kwargs["attributes"] = {"name": name}
-    command("create", kwargs)
+    execute_command("create", kwargs)
 
 def remove_group(name, **kwargs):
     remove("//sys/groups/" + name, **kwargs)
@@ -410,15 +405,15 @@ def remove_group(name, **kwargs):
 def add_member(member, group, **kwargs):
     kwargs["member"] = member
     kwargs["group"] = group
-    command("add_member", kwargs)
+    execute_command("add_member", kwargs)
 
 def remove_member(member, group, **kwargs):
     kwargs["member"] = member
     kwargs["group"] = group
-    command("remove_member", kwargs)
+    execute_command("remove_member", kwargs)
 
 def create_tablet_cell(size):
-    return yson.loads(command("create", {"type": "tablet_cell", "attributes": {"size": size}}))
+    return yson.loads(execute_command("create", {"type": "tablet_cell", "attributes": {"size": size}}))
 
 def remove_tablet_cell(id):
     remove("//sys/tablet_cells/" + id)
@@ -427,12 +422,12 @@ def remove_tablet_cell(id):
 def create_rack(name, **kwargs):
     kwargs["type"] = "rack"
     kwargs["attributes"] = {"name": name}
-    command("create", kwargs)
+    execute_command("create", kwargs)
 
 def remove_rack(name, **kwargs):
     remove("//sys/racks/" + name, **kwargs)
     gc_collect()
-
+    
 #########################################
 # Helpers:
 

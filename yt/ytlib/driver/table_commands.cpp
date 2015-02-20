@@ -60,6 +60,8 @@ using namespace NApi;
 
 static const auto& Logger = DriverLogger;
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TReadTableCommand::DoExecute()
 {
     // COMPAT(babenko): remove Request_->TableReader
@@ -81,10 +83,8 @@ void TReadTableCommand::DoExecute()
         Request_->Path,
         nameTable);
 
-    {
-        auto error = WaitFor(reader->Open());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
-    }
+    WaitFor(reader->Open())
+        .ThrowOnError();
 
     if (reader->GetSessionRowCount() > 0) {
         BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
@@ -125,10 +125,8 @@ void TWriteTableCommand::DoExecute()
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
         Context_->GetClient()->GetTransactionManager());
 
-    {
-        auto error = WaitFor(writer->Open());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
-    }
+    WaitFor(writer->Open())
+        .ThrowOnError();
 
     auto writingConsumer = New<TWritingValueConsumer>(writer);
     TTableConsumer consumer(writingConsumer);
@@ -140,8 +138,8 @@ void TWriteTableCommand::DoExecute()
 
     writingConsumer->Flush();
 
-    auto error = WaitFor(writer->Close());
-    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    WaitFor(writer->Close())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,10 +155,11 @@ void TMountTableCommand::DoExecute()
     }
     options.CellId = Request_->CellId;
 
-    auto result = WaitFor(Context_->GetClient()->MountTable(
+    auto asyncResult = Context_->GetClient()->MountTable(
         Request_->Path.GetPath(),
-        options));
-    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        options);
+    WaitFor(asyncResult)
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -176,10 +175,11 @@ void TUnmountTableCommand::DoExecute()
     }
     options.Force = Request_->Force;
 
-    auto result = WaitFor(Context_->GetClient()->UnmountTable(
+    auto asyncResult = Context_->GetClient()->UnmountTable(
         Request_->Path.GetPath(),
-        options));
-    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        options);
+    WaitFor(asyncResult)
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,10 +194,11 @@ void TRemountTableCommand::DoExecute()
         options.LastTabletIndex = *Request_->LastTabletIndex;
     }
 
-    auto result = WaitFor(Context_->GetClient()->RemountTable(
+    auto asyncResult = Context_->GetClient()->RemountTable(
         Request_->Path.GetPath(),
-        options));
-    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        options);
+    WaitFor(asyncResult)
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,69 +218,17 @@ void TReshardTableCommand::DoExecute()
         pivotKeys.push_back(key.Get());
     }
     
-    auto result = WaitFor(Context_->GetClient()->ReshardTable(
+    auto asyncResult = Context_->GetClient()->ReshardTable(
         Request_->Path.GetPath(),
         pivotKeys,
-        options));
-    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        options);
+    WaitFor(asyncResult)
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TInsertCommand::DoExecute()
-{
-    // COMPAT(babenko): remove Request_->TableWriter
-    auto config = UpdateYsonSerializable(
-        Context_->GetConfig()->TableWriter,
-        Request_->TableWriter);
-    config = UpdateYsonSerializable(
-        config,
-        Request_->GetOptions());
-
-    auto tableMountCache = Context_->GetClient()->GetConnection()->GetTableMountCache();
-    auto tableInfo = WaitFor(tableMountCache->GetTableInfo(Request_->Path.GetPath()))
-        .ValueOrThrow();
-
-    // Parse input data.
-    auto valueConsumer = New<TBuildingValueConsumer>(
-        tableInfo->Schema,
-        tableInfo->KeyColumns);
-
-    valueConsumer->SetTreatMissingAsNull(!Request_->Update);
-
-    TTableConsumer consumer(valueConsumer);
-    TTableOutput output(Context_->GetInputFormat(), &consumer);
-    auto input = CreateSyncAdapter(Context_->Request().InputStream);
-
-    PipeInputToOutput(input.get(), &output, config->BlockSize);
-
-    struct TWriteBufferTag { };
-    TBlob buffer(TWriteBufferTag(), config->BlockSize);
-
-    // Write data into the tablets.
-
-    auto transactionOrError = WaitFor(Context_->GetClient()->StartTransaction(ETransactionType::Tablet));
-    THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
-    auto transaction = transactionOrError.Value();
-
-    // Convert to non-owning.
-    std::vector<TUnversionedRow> rows;
-    for (const auto& row : valueConsumer->Rows()) {
-        rows.emplace_back(row.Get());
-    }
-
-    transaction->WriteRows(
-        Request_->Path.GetPath(),
-        valueConsumer->GetNameTable(),
-        std::move(rows));
-
-    auto commitResult = WaitFor(transaction->Commit());
-    THROW_ERROR_EXCEPTION_IF_FAILED(commitResult);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TSelectCommand::DoExecute()
+void TSelectRowsCommand::DoExecute()
 {
     TSelectRowsOptions options;
     options.Timestamp = Request_->Timestamp;
@@ -290,16 +239,16 @@ void TSelectCommand::DoExecute()
     auto output = Context_->Request().OutputStream;
     auto writer = CreateSchemafulWriterForFormat(format, output);
 
-    auto queryStatisticsOrError = WaitFor(Context_->GetClient()->SelectRows(
+    auto asyncStatistics = Context_->GetClient()->SelectRows(
         Request_->Query,
         writer,
-        options));
-    THROW_ERROR_EXCEPTION_IF_FAILED(queryStatisticsOrError);
+        options);
+    auto statistics = WaitFor(asyncStatistics)
+        .ValueOrThrow();
 
-    const auto& statistics = queryStatisticsOrError.Value();
-    
     LOG_INFO(
-        "Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, ExecuteTime: %v, ReadTime: %v, WriteTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
+        "Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, ExecuteTime: %v, "
+            "ReadTime: %v, WriteTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
         statistics.RowsRead,
         statistics.RowsWritten,
         statistics.AsyncTime.MilliSeconds(),
@@ -324,14 +273,82 @@ void TSelectCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLookupCommand::DoExecute()
+namespace {
+
+std::vector<TUnversionedRow> ParseRows(
+    ICommandContextPtr context,
+    TTableWriterConfigPtr config,
+    TBuildingValueConsumerPtr valueConsumer)
 {
+    TTableConsumer tableConsumer(valueConsumer);
+    TTableOutput output(context->GetInputFormat(), &tableConsumer);
+    auto input = CreateSyncAdapter(context->Request().InputStream);
+    PipeInputToOutput(input.get(), &output, config->BlockSize);
+    return valueConsumer->GetRows();
+}
+
+} // namespace
+
+void TInsertRowsCommand::DoExecute()
+{
+    // COMPAT(babenko): remove Request_->TableWriter
+    auto config = UpdateYsonSerializable(
+        Context_->GetConfig()->TableWriter,
+        Request_->TableWriter);
+    config = UpdateYsonSerializable(
+        config,
+        Request_->GetOptions());
+
     auto tableMountCache = Context_->GetClient()->GetConnection()->GetTableMountCache();
-    auto tableInfoOrError = WaitFor(tableMountCache->GetTableInfo(Request_->Path.GetPath()));
-    THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
-    const auto& tableInfo = tableInfoOrError.Value();
+    auto tableInfo = WaitFor(tableMountCache->GetTableInfo(Request_->Path.GetPath()))
+        .ValueOrThrow();
+
+    // Parse input data.
+    auto valueConsumer = New<TBuildingValueConsumer>(
+        tableInfo->Schema,
+        tableInfo->KeyColumns);
+    valueConsumer->SetTreatMissingAsNull(!Request_->Update);
+    auto rows = ParseRows(Context_, config, valueConsumer);
+
+    // Run writes.
+    auto asyncTransaction = Context_->GetClient()->StartTransaction(ETransactionType::Tablet);
+    auto transaction = WaitFor(asyncTransaction)
+        .ValueOrThrow();
+
+    transaction->WriteRows(
+        Request_->Path.GetPath(),
+        valueConsumer->GetNameTable(),
+        std::move(rows));
+
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TLookupRowsCommand::DoExecute()
+{
+    // COMPAT(babenko): remove Request_->TableWriter
+    auto config = UpdateYsonSerializable(
+        Context_->GetConfig()->TableWriter,
+        Request_->TableWriter);
+    config = UpdateYsonSerializable(
+        config,
+        Request_->GetOptions());
+
+    auto tableMountCache = Context_->GetClient()->GetConnection()->GetTableMountCache();
+    auto asyncTableInfo = tableMountCache->GetTableInfo(Request_->Path.GetPath());
+    auto tableInfo = WaitFor(asyncTableInfo)
+        .ValueOrThrow();
     auto nameTable = TNameTable::FromSchema(tableInfo->Schema);
 
+    // Parse input data.
+    auto valueConsumer = New<TBuildingValueConsumer>(
+        tableInfo->Schema.TrimNonkeyColumns(tableInfo->KeyColumns),
+        tableInfo->KeyColumns);
+    auto keys = ParseRows(Context_, config, valueConsumer);
+
+    // Run lookup.
     TLookupRowsOptions options;
     options.Timestamp = Request_->Timestamp;
     if (Request_->ColumnNames) {
@@ -342,52 +359,63 @@ void TLookupCommand::DoExecute()
         }
     }
 
-    auto lookupResult = WaitFor(Context_->GetClient()->LookupRow(
+    auto asyncRowset = Context_->GetClient()->LookupRows(
         Request_->Path.GetPath(),
         TNameTable::FromSchema(tableInfo->Schema, true),
-        Request_->Key.Get(),
-        options));
-    THROW_ERROR_EXCEPTION_IF_FAILED(lookupResult);
-    
-    auto rowset = lookupResult.Value();
+        std::move(keys),
+        options);
+    auto rowset = WaitFor(asyncRowset)
+        .ValueOrThrow();
+
     auto format = Context_->GetOutputFormat();
     auto output = Context_->Request().OutputStream;
     auto writer = CreateSchemafulWriterForFormat(format, output);
 
-    {
-        auto result = WaitFor(writer->Open(rowset->GetSchema()));
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-    }
+    WaitFor(writer->Open(rowset->GetSchema()))
+        .ThrowOnError();
 
     writer->Write(rowset->GetRows());
 
-    {
-        auto result = WaitFor(writer->Close());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-    }
+    WaitFor(writer->Close())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDeleteCommand::DoExecute()
+void TDeleteRowsCommand::DoExecute()
 {
+    // COMPAT(babenko): remove Request_->TableWriter
+    auto config = UpdateYsonSerializable(
+        Context_->GetConfig()->TableWriter,
+        Request_->TableWriter);
+    config = UpdateYsonSerializable(
+        config,
+        Request_->GetOptions());
+
     auto tableMountCache = Context_->GetClient()->GetConnection()->GetTableMountCache();
-    auto tableInfoOrError = WaitFor(tableMountCache->GetTableInfo(Request_->Path.GetPath()));
-    THROW_ERROR_EXCEPTION_IF_FAILED(tableInfoOrError);
-    const auto& tableInfo = tableInfoOrError.Value();
+    auto asyncTableInfo = tableMountCache->GetTableInfo(Request_->Path.GetPath());
+    auto tableInfo = WaitFor(asyncTableInfo)
+        .ValueOrThrow();
     auto nameTable = TNameTable::FromKeyColumns(tableInfo->KeyColumns);
 
-    auto transactionOrError = WaitFor(Context_->GetClient()->StartTransaction(ETransactionType::Tablet));
-    THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
-    auto transaction = transactionOrError.Value();
+    // Parse input data.
+    auto valueConsumer = New<TBuildingValueConsumer>(
+        tableInfo->Schema.TrimNonkeyColumns(tableInfo->KeyColumns),
+        tableInfo->KeyColumns);
+    auto keys = ParseRows(Context_, config, valueConsumer);
 
-    transaction->DeleteRow(
+    // Run deletes.
+    auto asyncTransaction = Context_->GetClient()->StartTransaction(ETransactionType::Tablet);
+    auto transaction = WaitFor(asyncTransaction)
+        .ValueOrThrow();
+
+    transaction->DeleteRows(
         Request_->Path.GetPath(),
         nameTable,
-        Request_->Key.Get());
+        std::move(keys));
 
-    auto commitResult = WaitFor(transaction->Commit());
-    THROW_ERROR_EXCEPTION_IF_FAILED(commitResult);
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

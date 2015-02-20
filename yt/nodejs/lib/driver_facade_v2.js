@@ -43,6 +43,7 @@ function YtDriverFacadeV2(driver)
         "write": "write_table",
         "download": "read_file",
         "upload": "write_file",
+        "select": "select_rows"
     };
 
     var descriptors = {};
@@ -81,10 +82,11 @@ function YtDriverFacadeV2(driver)
     delete descriptors.remount_table;
     delete descriptors.reshard_table;
 
-    delete descriptors.delete;
-    delete descriptors.insert;
-    delete descriptors.lookup;
+    delete descriptors.delete_rows;
+    delete descriptors.insert_rows;
+    delete descriptors.lookup_rows;
     delete descriptors.select;
+    delete descriptors.select_rows;
 
     delete descriptors.dump_input_context
 
