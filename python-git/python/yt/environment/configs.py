@@ -216,7 +216,8 @@ def get_node_config():
 
     exec_agent = {
         scheduler_connector = {
-            heartbeat_period = 100;
+            retry_backoff_time = 100;
+            heartbeat_period = 200;
         };
 
         environment_manager = {
