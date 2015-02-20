@@ -79,8 +79,12 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
     }
 
     auto* item = itemIt->second;
-    bool canTouch = CanTouch(item);
     auto value = item->Value;
+    if (!value) {
+        return nullptr;
+    }
+
+    bool canTouch = CanTouch(item);
 
     auto weight = GetWeight(item->Value.Get());
     Profiler.Increment(HitWeightCounter_, weight);
