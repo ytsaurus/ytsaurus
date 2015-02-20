@@ -96,7 +96,7 @@ private:
 
     IFileMultiChunkReaderPtr Reader_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     void DoOpen()

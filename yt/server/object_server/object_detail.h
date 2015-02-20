@@ -110,7 +110,7 @@ protected:
     //    const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
 
     virtual bool IsLoggingEnabled() const override;
-    virtual NLog::TLogger CreateLogger() const override;
+    virtual NLogging::TLogger CreateLogger() const override;
 
 };
 

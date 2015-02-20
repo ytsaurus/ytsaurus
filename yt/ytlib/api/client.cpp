@@ -256,7 +256,7 @@ private:
     TDataSplits Split(
         const TDataSplits& splits,
         TNodeDirectoryPtr nodeDirectory,
-        const NLog::TLogger& Logger)
+        const NLogging::TLogger& Logger)
     {
         TDataSplits allSplits;
         for (const auto& split : splits) {
@@ -887,7 +887,7 @@ private:
     std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;
     std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
 
-    NLog::TLogger Logger = ApiLogger;
+    NLogging::TLogger Logger = ApiLogger;
 
 
     template <class T>
@@ -1977,7 +1977,7 @@ private:
     const TClientPtr Client_;
     const NTransactionClient::TTransactionPtr Transaction_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     class TRequestBase
@@ -2189,7 +2189,7 @@ private:
         const TTabletId TabletId_;
         const TConnectionConfigPtr Config_;
 
-        NLog::TLogger Logger;
+        NLogging::TLogger Logger;
 
         struct TBatch
         {

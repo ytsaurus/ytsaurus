@@ -138,7 +138,7 @@ private:
 
     int FD_ = INVALID_SOCKET;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
     // Only used by client sockets.

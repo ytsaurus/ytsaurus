@@ -18,7 +18,7 @@ using NChunkClient::TChannel;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLog::TLogger TableClientLogger("TableReader");
+const NLogging::TLogger TableClientLogger("TableReader");
 
 NProfiling::TProfiler TableReaderProfiler("/table_reader");
 

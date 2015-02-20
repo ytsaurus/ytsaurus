@@ -413,7 +413,7 @@ private:
     }
 
 
-    static NLog::TLogger BuildLogger(TPartition* partition)
+    static NLogging::TLogger BuildLogger(TPartition* partition)
     {
         auto logger = TabletNodeLogger;
         logger.AddTag("TabletId: %v, PartitionId: %v",

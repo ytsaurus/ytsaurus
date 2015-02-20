@@ -244,7 +244,7 @@ void TSlot::MakeLink(
 void TSlot::LogErrorAndExit(const TError& error)
 {
     LOG_ERROR(error);
-    NLog::TLogManager::Get()->Shutdown();
+    NLogging::TLogManager::Get()->Shutdown();
     _exit(1);
 }
 

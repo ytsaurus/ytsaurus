@@ -45,7 +45,7 @@ using namespace NConcurrency;
 
 namespace {
 
-NLog::TLogger Logger("HttpProxy");
+NLogging::TLogger Logger("HttpProxy");
 
 static Persistent<String> DescriptorName;
 static Persistent<String> DescriptorInputType;

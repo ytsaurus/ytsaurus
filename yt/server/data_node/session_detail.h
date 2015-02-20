@@ -70,7 +70,7 @@ protected:
 
     bool Active_ = false;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
 

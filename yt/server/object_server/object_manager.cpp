@@ -133,7 +133,7 @@ public:
             }));
     }
 
-    virtual NLog::TLogger GetLogger() const override
+    virtual NLogging::TLogger GetLogger() const override
     {
         return ObjectServerLogger;
     }

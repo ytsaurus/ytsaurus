@@ -863,7 +863,7 @@ bool TObjectProxyBase::IsLoggingEnabled() const
     return !IsRecovery();
 }
 
-NLog::TLogger TObjectProxyBase::CreateLogger() const
+NLogging::TLogger TObjectProxyBase::CreateLogger() const
 {
     return ObjectServerLogger;
 }

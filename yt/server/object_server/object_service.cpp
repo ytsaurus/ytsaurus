@@ -132,7 +132,7 @@ private:
     int CurrentRequestPartIndex;
     TNullable<Stroka> UserName;
 
-    const NLog::TLogger& Logger;
+    const NLogging::TLogger& Logger;
 
 
     void Continue()

@@ -22,7 +22,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Process");
+static NLogging::TLogger Logger("Process");
 
 static const pid_t InvalidProcessId = -1;
 

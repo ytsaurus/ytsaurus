@@ -38,7 +38,7 @@ private:
     TJobProxyConfigPtr Config_;
     NJobAgent::TJobId JobId_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     NRpc::IServerPtr RpcServer;
 
@@ -88,7 +88,7 @@ private:
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const override;
 
-    virtual NLog::TLogger GetLogger() const override;
+    virtual NLogging::TLogger GetLogger() const override;
 
     void CheckMemoryUsage();
 

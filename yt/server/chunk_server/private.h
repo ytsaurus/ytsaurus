@@ -10,7 +10,7 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLog::TLogger ChunkServerLogger;
+extern const NLogging::TLogger ChunkServerLogger;
 extern NProfiling::TProfiler ChunkServerProfiler;
 
 DECLARE_REFCOUNTED_STRUCT(IChunkVisitor)

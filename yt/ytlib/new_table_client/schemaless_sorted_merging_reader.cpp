@@ -64,7 +64,7 @@ private:
         int CurrentRowIndex;
     };
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     bool EnableTableIndex_;
 

@@ -27,7 +27,7 @@ public:
 private:
     typedef TSubjectProxy<TGroup> TBase;
 
-    virtual NLog::TLogger CreateLogger() const override
+    virtual NLogging::TLogger CreateLogger() const override
     {
         return SecurityServerLogger;
     }

@@ -24,7 +24,7 @@ public:
         const TKeyColumns& keyColumns,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
-        NLog::TLogger& logger);
+        NLogging::TLogger& logger);
 
 
     virtual TFuture<void> Fetch() override;

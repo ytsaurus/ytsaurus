@@ -432,7 +432,7 @@ private:
     private:
         TIntrusivePtr<TDataNodeService> Owner_;
         TCtxGetBlockSetPtr Context_;
-        NLog::TLogger Logger;
+        NLogging::TLogger Logger;
 
         TParallelAwaiterPtr Awaiter_;
 

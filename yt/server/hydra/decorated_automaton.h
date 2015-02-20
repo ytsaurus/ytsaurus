@@ -208,7 +208,7 @@ private:
 
     NProfiling::TAggregateCounter BatchCommitTimeCounter_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
 

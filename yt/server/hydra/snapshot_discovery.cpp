@@ -91,7 +91,7 @@ private:
     TSpinLock SpinLock_;
     TRemoteSnapshotParams Params_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     void OnResponse(

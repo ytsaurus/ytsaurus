@@ -99,7 +99,7 @@ struct THandlerInvocationOptions
 ////////////////////////////////////////////////////////////////////////////////
 
 // We need this logger here but including the whole private.h looks weird.
-extern const NLog::TLogger RpcServerLogger;
+extern const NLogging::TLogger RpcServerLogger;
 
 //! Provides a common base for both one-way and two-way contexts.
 template <class TRequestMessage>
@@ -143,7 +143,7 @@ public:
     }
 
 protected:
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
     THandlerInvocationOptions Options_;
 
     typename TObjectPool<TTypedRequest>::TValuePtr Request_;
@@ -153,7 +153,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 // We need this logger here but including the whole private.h looks weird.
-extern const NLog::TLogger RpcServerLogger;
+extern const NLogging::TLogger RpcServerLogger;
 
 //! Describes a two-way context.
 template <class TRequestMessage, class TResponseMessage>
@@ -397,7 +397,7 @@ protected:
         bool System = false;
 
         //! Log level for events emitted via |Set(Request|Response)Info|-like functions.
-        NLog::ELogLevel LogLevel = NLog::ELogLevel::Debug;
+        NLogging::ELogLevel LogLevel = NLogging::ELogLevel::Debug;
 
         //! Cancelable requests can be canceled by clients.
         //! This, however, requires additional book-keeping at server-side so one is advised
@@ -465,7 +465,7 @@ protected:
             return *this;
         }
 
-        TMethodDescriptor& SetLogLevel(NLog::ELogLevel value)
+        TMethodDescriptor& SetLogLevel(NLogging::ELogLevel value)
         {
             LogLevel = value;
             return *this;
@@ -533,13 +533,13 @@ protected:
     TServiceBase(
         IPrioritizedInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
-        const NLog::TLogger& logger,
+        const NLogging::TLogger& logger,
         int protocolVersion = TProxyBase::DefaultProtocolVersion);
 
     TServiceBase(
         IInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
-        const NLog::TLogger& logger,
+        const NLogging::TLogger& logger,
         int protocolVersion = TProxyBase::DefaultProtocolVersion);
 
     //! Registers a method.
@@ -578,7 +578,7 @@ protected:
     virtual std::vector<Stroka> SuggestAddresses() const;
 
 protected:
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 private:
     IPrioritizedInvokerPtr DefaultInvoker_;
@@ -598,7 +598,7 @@ private:
     void Init(
         IPrioritizedInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
-        const NLog::TLogger& logger,
+        const NLogging::TLogger& logger,
         int protocolVersion);
 
     virtual TServiceId GetServiceId() const override;

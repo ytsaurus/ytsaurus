@@ -51,7 +51,7 @@ public:
     NProto::TDataStatistics GetDataStatistics() const;
 
 protected:
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     bool VerifyActive();
     bool TrySwitchSession();

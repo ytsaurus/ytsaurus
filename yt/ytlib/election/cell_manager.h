@@ -55,7 +55,7 @@ private:
     NProfiling::TTagIdList AllPeersTags;
     NProfiling::TTagIdList PeerQuorumTags;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
          
 
     void BuildTags();

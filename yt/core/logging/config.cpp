@@ -2,7 +2,7 @@
 #include "private.h"
 
 namespace NYT {
-namespace NLog {
+namespace NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,5 +53,5 @@ TLogConfigPtr TLogConfig::CreateFromNode(NYTree::INodePtr node, const NYPath::TY
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLog
+} // namespace NLogging
 } // namespace NYT

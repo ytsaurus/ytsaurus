@@ -189,7 +189,7 @@ protected:
     const TDataNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
-    NLog::TLogger Logger = DataNodeLogger;
+    NLogging::TLogger Logger = DataNodeLogger;
 
     EJobState JobState_ = EJobState::Waiting;
     EJobPhase JobPhase_ = EJobPhase::Created;

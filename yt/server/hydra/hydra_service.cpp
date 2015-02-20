@@ -17,7 +17,7 @@ THydraServiceBase::THydraServiceBase(
     IHydraManagerPtr hydraManager,
     IInvokerPtr automatonInvoker,
     const TServiceId& serviceId,
-    const NLog::TLogger& logger,
+    const NLogging::TLogger& logger,
     int protocolVersion)
     : TServiceBase(
         hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),

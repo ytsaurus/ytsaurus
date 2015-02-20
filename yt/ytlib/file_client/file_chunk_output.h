@@ -71,7 +71,7 @@ private:
 
     NChunkClient::IChunkWriterPtr ChunkWriter;
     IFileChunkWriterPtr Writer;
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -28,7 +28,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Profiling");
+static NLogging::TLogger Logger("Profiling");
 static TProfiler ProfilingProfiler("/profiling", EmptyTagIds, true);
 // TODO(babenko): make configurable
 static const TDuration MaxKeepInterval = TDuration::Minutes(5);
@@ -206,7 +206,7 @@ private:
     private:
         std::deque<TStoredSample> Samples;
 
-        virtual NLog::TLogger CreateLogger() const override
+        virtual NLogging::TLogger CreateLogger() const override
         {
             return NProfiling::Logger;
         }

@@ -70,7 +70,7 @@ public:
 private:
     typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TTableNode> TBase;
 
-    virtual NLog::TLogger CreateLogger() const override
+    virtual NLogging::TLogger CreateLogger() const override
     {
         return TableServerLogger;
     }

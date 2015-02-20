@@ -303,7 +303,7 @@ private:
 
         YCHECK(tabletPivotKey == pivotKeys[0]);
 
-        NLog::TLogger Logger(TabletNodeLogger);
+        NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v", tabletId);
 
         auto automatonInvoker = GetCurrentInvoker();
@@ -550,7 +550,7 @@ private:
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
 
-        NLog::TLogger Logger(TabletNodeLogger);
+        NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, PartitionRange: %v .. %v",
             tabletId,
             partition->GetPivotKey(),

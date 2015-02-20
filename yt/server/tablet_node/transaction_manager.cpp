@@ -258,7 +258,7 @@ private:
 
     TEntityMap<TTransactionId, TTransaction> TransactionMap_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

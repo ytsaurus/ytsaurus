@@ -54,7 +54,7 @@ public:
     TNullable<NCompression::ECodec> ResponseCodec;
     TNullable<int> MaxQueueSize;
     TNullable<int> MaxConcurrency;
-    TNullable<NLog::ELogLevel> LogLevel;
+    TNullable<NLogging::ELogLevel> LogLevel;
 
     TMethodConfig()
     {

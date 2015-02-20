@@ -135,7 +135,7 @@ protected:
     NApi::IClientPtr AuthenticatedInputMasterClient;
     NApi::IClientPtr AuthenticatedOutputMasterClient;
 
-    mutable NLog::TLogger Logger;
+    mutable NLogging::TLogger Logger;
 
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableControlInvoker;
@@ -476,7 +476,7 @@ protected:
         yhash_map<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
 
     protected:
-        NLog::TLogger Logger;
+        NLogging::TLogger Logger;
 
         virtual NNodeTrackerClient::NProto::TNodeResources GetMinNeededResourcesHeavy() const = 0;
 
@@ -852,7 +852,7 @@ private:
         TInputChunkMap::iterator NextChunkIterator;
         bool Started;
 
-        NLog::TLogger& Logger;
+        NLogging::TLogger& Logger;
 
     };
 

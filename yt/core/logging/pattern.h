@@ -5,7 +5,7 @@
 #include <core/misc/raw_formatter.h>
 
 namespace NYT {
-namespace NLog {
+namespace NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,4 +19,4 @@ void FormatLevel(TMessageBuffer* out, ELogLevel level);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
-} // namespace NLog
+} // namespace NLogging

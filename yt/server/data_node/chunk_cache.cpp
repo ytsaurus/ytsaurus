@@ -225,7 +225,7 @@ private:
         const TChunkReplicaList& seedReplicas,
         TInsertCookie cookie)
     {
-        NLog::TLogger Logger(DataNodeLogger);
+        NLogging::TLogger Logger(DataNodeLogger);
         Logger.AddTag("ChunkId: %v", chunkId);
 
         try {

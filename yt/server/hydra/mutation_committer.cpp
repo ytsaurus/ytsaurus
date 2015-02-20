@@ -268,7 +268,7 @@ private:
     std::vector<TSharedRef> BatchedRecordsData_;
     TVersion CommittedVersion_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
     
     NProfiling::TTimer Timer_;
 

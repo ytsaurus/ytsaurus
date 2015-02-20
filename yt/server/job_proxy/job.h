@@ -38,7 +38,7 @@ struct IJobHost
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const = 0;
 
-    virtual NLog::TLogger GetLogger() const = 0;
+    virtual NLogging::TLogger GetLogger() const = 0;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId) = 0;
 

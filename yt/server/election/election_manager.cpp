@@ -145,7 +145,7 @@ private:
     
     TParallelAwaiterPtr Awaiter;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     void SendPing(TPeerId peerId)
@@ -342,7 +342,7 @@ private:
     TParallelAwaiterPtr Awaiter;
     TStatusTable StatusTable;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     void ProcessVote(TPeerId id, const TStatus& status)

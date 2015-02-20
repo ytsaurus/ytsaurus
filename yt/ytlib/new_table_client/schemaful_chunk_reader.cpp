@@ -102,7 +102,7 @@ private:
 
     TAsyncStreamState State;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     // ToDo (psushin): refactor it.
     TFuture<void> Open(

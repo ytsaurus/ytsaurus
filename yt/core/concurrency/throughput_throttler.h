@@ -63,7 +63,7 @@ DEFINE_REFCOUNTED_TYPE(IThroughputThrottler)
 //! Returns a throttler from #config.
 IThroughputThrottlerPtr CreateLimitedThrottler(
     TThroughputThrottlerConfigPtr config,
-    NLog::TLogger logger = NLog::TLogger(),
+    NLogging::TLogger logger = NLogging::TLogger(),
     NProfiling::TProfiler profiler = NProfiling::TProfiler());
 
 //! Returns a throttler that imposes no throughput limit.

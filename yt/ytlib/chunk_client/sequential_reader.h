@@ -120,7 +120,7 @@ private:
     TAsyncStreamState State_;
     NCompression::ICodec* Codec_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
 

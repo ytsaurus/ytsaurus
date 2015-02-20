@@ -47,7 +47,7 @@ private:
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
     std::atomic_flag FailedLock_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     void OnCheck();

@@ -77,7 +77,7 @@ private:
     TParallelAwaiterPtr ChangelogAwaiter_;
     std::vector<TNullable<TChecksum>> SnapshotChecksums_;
 
-    NLog::TLogger& Logger;
+    NLogging::TLogger& Logger;
 
 
     void OnQuorumFlushed(const TError& error)

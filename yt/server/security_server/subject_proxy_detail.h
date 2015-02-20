@@ -35,7 +35,7 @@ private:
     typedef NObjectServer::TNonversionedObjectProxyBase<TImpl> TBase;
 
 protected:
-    virtual NLog::TLogger CreateLogger() const override
+    virtual NLogging::TLogger CreateLogger() const override
     {
         return SecurityServerLogger;
     }

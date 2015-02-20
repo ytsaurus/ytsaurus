@@ -62,7 +62,7 @@ private:
     TBlocksExt BlocksExt_;
     i64 BlocksExtSize_ = 0;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     void FlushBlock();
 

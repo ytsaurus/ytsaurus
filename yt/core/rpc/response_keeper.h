@@ -34,7 +34,7 @@ class TResponseKeeper
 public:
     TResponseKeeper(
         TResponseKeeperConfigPtr config,
-        const NLog::TLogger& logger,
+        const NLogging::TLogger& logger,
         const NProfiling::TProfiler& profiler);
     ~TResponseKeeper();
 

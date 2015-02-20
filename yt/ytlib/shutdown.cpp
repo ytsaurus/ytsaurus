@@ -38,7 +38,7 @@ void Shutdown()
     NConcurrency::TDelayedExecutor::Shutdown();
     NProfiling::TProfileManager::Get()->Shutdown();
     TAddressResolver::Get()->Shutdown();
-    NLog::TLogManager::Get()->Shutdown();
+    NLogging::TLogManager::Get()->Shutdown();
     NTracing::TTraceManager::Get()->Shutdown();
     NProfiling::TProfileManager::Get()->Shutdown();
     ShutdownFinalizerThread();
