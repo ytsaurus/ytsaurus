@@ -60,6 +60,7 @@ from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute,
                           move, mkdir, find_free_subpath, create, get, get_type, set_attribute, \
                           _make_formatted_transactional_request, has_attribute
 from file_commands import smart_upload_file
+from operation_commands import Operation
 from transaction_commands import _make_transactional_request, abort_transaction
 from transaction import PingableTransaction, Transaction, Abort
 from format import create_format, YsonFormat
@@ -316,16 +317,23 @@ def _add_table_writer_spec(job_types, table_writer, spec):
             spec = update({job_type: {"table_writer": table_writer}}, spec)
     return spec
 
-def _make_operation_request(command_name, spec, strategy,
+def _make_operation_request(command_name, spec, strategy, sync,
                             finalizer=None, verbose=False, client=None):
     def _manage_operation(finalizer):
-        operation = _make_formatted_transactional_request(command_name, {"spec": spec}, format=None,
-                                                          verbose=verbose, client=client)
-        get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation,
-                                                                       finalizer, client=client)
+        operation_id = _make_formatted_transactional_request(command_name, {"spec": spec}, format=None,
+                                                             verbose=verbose, client=client)
+        if strategy is not None:
+            get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation_id,
+                                                                           finalizer, client=client)
+        else:
+            operation = Operation(command_name, operation_id, finalizer, client=client)
+            if sync:
+                operation.wait()
+            return operation
+
 
     if config.DETACHED:
-        _manage_operation(finalizer)
+        return _manage_operation(finalizer)
     else:
         transaction = PingableTransaction(
             timeout=config.http.get_timeout(),
@@ -342,7 +350,7 @@ def _make_operation_request(command_name, spec, strategy,
 
         transaction.__enter__()
         with KeyboardInterruptsCatcher(finish_transaction):
-            _manage_operation(attached_mode_finalizer)
+            return _manage_operation(attached_mode_finalizer)
 
 def _get_format_from_tables(tables, ignore_unexisting_tables):
     """Try to get format from tables, raise YtError if tables have different _format attribute"""
@@ -851,7 +859,7 @@ def select(query, timestamp=None, format=None, response_type=None, raw=True, cli
 
 # Operations.
 
-def run_erase(table, spec=None, strategy=None, client=None):
+def run_erase(table, spec=None, strategy=None, sync=True, client=None):
     """Erase table or part of it.
 
     Erase differs from remove command.
@@ -868,10 +876,10 @@ def run_erase(table, spec=None, strategy=None, client=None):
         return
     spec = update({"table_path": table.get_json()}, get_value(spec, {}))
     spec = _configure_spec(spec)
-    _make_operation_request("erase", spec, strategy, client=client)
+    return _make_operation_request("erase", spec, strategy, sync, client=client)
 
 def run_merge(source_table, destination_table, mode=None,
-              strategy=None, table_writer=None,
+              strategy=None, sync=True, table_writer=None,
               replication_factor=None, compression_codec=None,
               job_count=None, spec=None, client=None):
     """Merge source tables to destination table.
@@ -912,10 +920,10 @@ def run_merge(source_table, destination_table, mode=None,
         lambda _: get_value(_, {})
     )(spec)
 
-    _make_operation_request("merge", spec, strategy, finalizer=None, client=client)
+    return _make_operation_request("merge", spec, strategy, sync, finalizer=None, client=client)
 
 def run_sort(source_table, destination_table=None, sort_by=None,
-             strategy=None, table_writer=None, replication_factor=None,
+             strategy=None, sync=True, table_writer=None, replication_factor=None,
              compression_codec=None, spec=None, client=None):
     """Sort source tables to destination table.
 
@@ -956,7 +964,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
         lambda _: get_value(_, {})
     )(spec)
 
-    _make_operation_request("sort", spec, strategy, finalizer=None, client=client)
+    return _make_operation_request("sort", spec, strategy, sync, finalizer=None, client=client)
 
 class Finalizer(object):
     """Entity for operation finalizing: checking size of result chunks, deleting of \
@@ -1014,7 +1022,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    format=None,
                    map_input_format=None, map_output_format=None,
                    reduce_input_format=None, reduce_output_format=None,
-                   strategy=None, table_writer=None, spec=None,
+                   strategy=None, sync=True, table_writer=None, spec=None,
                    replication_factor=None, compression_codec=None,
                    map_files=None, map_file_paths=None,
                    map_local_files=None, map_yt_files=None,
@@ -1117,16 +1125,16 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         lambda _: get_value(_, {})
     )(spec)
 
-    _make_operation_request("map_reduce", spec, strategy,
-                            Finalizer(run_map_reduce.files_to_remove,
-                                      destination_table, client=client),
-                            client=client)
+    return _make_operation_request("map_reduce", spec, strategy, sync,
+                                   finalizer=Finalizer(run_map_reduce.files_to_remove,
+                                                       destination_table, client=client),
+                                   client=client)
 
 def _run_operation(binary, source_table, destination_table,
                   files=None, file_paths=None,
                   local_files=None, yt_files=None,
                   format=None, input_format=None, output_format=None,
-                  strategy=None,
+                  strategy=None, sync=True,
                   table_writer=None,
                   replication_factor=None,
                   compression_codec=None,
@@ -1236,9 +1244,9 @@ def _run_operation(binary, source_table, destination_table,
             lambda _: get_value(_, {})
         )(spec)
 
-        _make_operation_request(op_name, spec, strategy,
-                                Finalizer(_run_operation.files, destination_table, client=client),
-                                client=client)
+        return _make_operation_request(op_name, spec, strategy, sync,
+                                       finalizer=Finalizer(_run_operation.files, destination_table, client=client),
+                                       client=client)
     finally:
         if finalize is not None:
             finalize()
@@ -1248,17 +1256,17 @@ def run_map(binary, source_table, destination_table, **kwargs):
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
     kwargs["op_name"] = "map"
-    _run_operation(binary, source_table, destination_table, **kwargs)
+    return _run_operation(binary, source_table, destination_table, **kwargs)
 
 def run_reduce(binary, source_table, destination_table, **kwargs):
     """Run reduce operation.
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
     kwargs["op_name"] = "reduce"
-    _run_operation(binary, source_table, destination_table, **kwargs)
+    return _run_operation(binary, source_table, destination_table, **kwargs)
 
 def run_remote_copy(source_table, destination_table, cluster_name,
-                    network_name=None, spec=None, copy_attributes=False, remote_cluster_token=None, strategy=None, client=None):
+                    network_name=None, spec=None, copy_attributes=False, remote_cluster_token=None, strategy=None, sync=True, client=None):
     """Copy source table from remote cluster to destination table on current cluster.
 
     :param source_table: (list of string or `TablePath`)
@@ -1314,4 +1322,4 @@ def run_remote_copy(source_table, destination_table, cluster_name,
         lambda _: get_value(spec, {})
     )(spec)
 
-    _make_operation_request("remote_copy", spec, strategy, client=client)
+    return _make_operation_request("remote_copy", spec, strategy, sync, client=client)
