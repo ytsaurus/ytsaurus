@@ -52,7 +52,7 @@ class TestBriefSpec(YTEnvSetup):
 
     def test_reduce(self):
         create("table", "//tmp/t1")
-        write(
+        write_table(
             "//tmp/t1",
             [ {"key": 9,"value": 7}, ],
             sorted_by = ["key", "value"])

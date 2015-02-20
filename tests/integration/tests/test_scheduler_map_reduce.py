@@ -51,7 +51,7 @@ import sys
 
 from itertools import groupby
 
-def read():
+def read_table():
     for line in sys.stdin:
         row = {}
         fields = line.strip().split("\t")
@@ -60,7 +60,7 @@ def read():
             row[key] = value
         yield row
 
-for key, rows in groupby(read(), lambda row: row["word"]):
+for key, rows in groupby(read_table(), lambda row: row["word"]):
     count = sum(int(row["count"]) for row in rows)
     print "word=%s\\tcount=%s" % (key, count)
 """
@@ -73,14 +73,14 @@ for key, rows in groupby(read(), lambda row: row["word"]):
         create("table", "//tmp/t_out", tx=tx)
 
         for line in text.split("\n"):
-            write("<append=true>//tmp/t_in", {"line": line}, tx=tx)
+            write_table("<append=true>//tmp/t_in", {"line": line}, tx=tx)
 
         create("file", "//tmp/yt_streaming.py")
         create("file", "//tmp/mapper.py")
         create("file", "//tmp/reducer.py")
 
-        upload("//tmp/mapper.py", mapper, tx=tx)
-        upload("//tmp/reducer.py", reducer, tx=tx)
+        write_file("//tmp/mapper.py", mapper, tx=tx)
+        write_file("//tmp/reducer.py", reducer, tx=tx)
 
         if method == "map_sort_reduce":
             map(in_="//tmp/t_in",
@@ -156,9 +156,9 @@ for key, rows in groupby(read(), lambda row: row["word"]):
         if method != "reduce_combiner_dev_null":
             for word, count in expected.items():
                 output.append( {"word": word, "count": str(count)} )
-            self.assertItemsEqual(read("//tmp/t_out"), output)
+            self.assertItemsEqual(read_table("//tmp/t_out"), output)
         else:
-            self.assertItemsEqual(read("//tmp/t_out"), output)
+            self.assertItemsEqual(read_table("//tmp/t_out"), output)
 
     @only_linux
     def test_map_sort_reduce(self):
@@ -181,7 +181,7 @@ for key, rows in groupby(read(), lambda row: row["word"]):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out1")
         create("table", "//tmp/t_out2")
-        write("//tmp/t_in", {"line": "some_data"})
+        write_table("//tmp/t_in", {"line": "some_data"})
         map_reduce(in_="//tmp/t_in",
                    out=["//tmp/t_out1", "//tmp/t_out2"],
                    sort_by="line",
@@ -193,7 +193,7 @@ for key, rows in groupby(read(), lambda row: row["word"]):
         acl = [{"action": "allow", "subjects": ["u"], "permissions": ["write"]}]
 
         create("table", "//tmp/t1")
-        write("//tmp/t1", {"foo": "bar"})
+        write_table("//tmp/t1", {"foo": "bar"})
         create("table", "//tmp/t2")
 
         op_id = map_reduce(dont_track=True, mapper_command="cat", reducer_command="cat; sleep 1",
@@ -205,14 +205,14 @@ for key, rows in groupby(read(), lambda row: row["word"]):
         assert acl == get("//sys/operations/{0}/intermediate/@acl".format(op_id))
 
         track_op(op_id)
-        assert read("//tmp/t2") == [{"foo": "bar"}]
+        assert read_table("//tmp/t2") == [{"foo": "bar"}]
 
     def test_incorrect_intermediate_data_acl(self):
         create_user("u")
         acl = [{"action": "allow", "subjects": ["u"], "permissions": ["blabla"]}]
 
         create("table", "//tmp/t1")
-        write("//tmp/t1", {"foo": "bar"})
+        write_table("//tmp/t1", {"foo": "bar"})
         create("table", "//tmp/t2")
 
         with pytest.raises(YtError):

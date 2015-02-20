@@ -42,7 +42,7 @@ class TestSchedulerOther(YTEnvSetup):
     def _prepare_tables(self):
         create("table", "//tmp/t_in")
         set("//tmp/t_in/@replication_factor", 1)
-        write("//tmp/t_in", {"foo": "bar"})
+        write_table("//tmp/t_in", {"foo": "bar"})
 
         create("table", "//tmp/t_out")
         set("//tmp/t_out/@replication_factor", 1)
@@ -58,7 +58,7 @@ class TestSchedulerOther(YTEnvSetup):
 
         print "Skip strategy"
         map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"unavailable_chunk_strategy": "skip"})
-        assert read("//tmp/t_out") == []
+        assert read_table("//tmp/t_out") == []
 
         print "Wait strategy"
         op_id = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat",  spec={"unavailable_chunk_strategy": "wait"})
@@ -66,7 +66,7 @@ class TestSchedulerOther(YTEnvSetup):
         self._set_banned_flag(False)
         track_op(op_id)
 
-        assert read("//tmp/t_out") == [ {"foo" : "bar"} ]
+        assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
     def test_revive(self):
         self._prepare_tables()
@@ -79,7 +79,7 @@ class TestSchedulerOther(YTEnvSetup):
 
         track_op(op_id)
 
-        assert read("//tmp/t_out") == [ {"foo" : "bar"} ]
+        assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
     @pytest.mark.skipif("True")
     def test_aborting(self):
@@ -131,7 +131,7 @@ class TestSchedulingTags(YTEnvSetup):
 
     def _prepare(self):
         create("table", "//tmp/t_in")
-        write("//tmp/t_in", {"foo": "bar"})
+        write_table("//tmp/t_in", {"foo": "bar"})
         create("table", "//tmp/t_out")
 
         self.node = list(get("//sys/nodes"))[0]
@@ -145,7 +145,7 @@ class TestSchedulingTags(YTEnvSetup):
             map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagC"})
 
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
-        assert read("//tmp/t_out") == [ {"foo" : "bar"} ]
+        assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
         set("//sys/nodes/{0}/@scheduling_tags".format(self.node), [])
         time.sleep(1.0)
@@ -159,18 +159,18 @@ class TestSchedulingTags(YTEnvSetup):
         create("map_node", "//sys/pools/test_pool")
         set("//sys/pools/test_pool/@scheduling_tag", "tagA")
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "test_pool"})
-        assert read("//tmp/t_out") == [ {"foo" : "bar"} ]
+        assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
     def test_tag_correctness(self):
         def get_job_nodes(op_id):
             nodes = __builtin__.set()
-            for row in read("//sys/scheduler/event_log"):
+            for row in read_table("//sys/scheduler/event_log"):
                 if row.get("event_type") == "job_started" and row.get("operation_id") == op_id:
                     nodes.add(row["node_address"])
             return nodes
 
         self._prepare()
-        write("//tmp/t_in", [{"foo": "bar"} for _ in xrange(20)])
+        write_table("//tmp/t_in", [{"foo": "bar"} for _ in xrange(20)])
 
         set("//sys/nodes/{0}/@scheduling_tags".format(self.node), ["tagB"])
         time.sleep(1.2)

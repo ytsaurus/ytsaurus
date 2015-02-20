@@ -49,75 +49,75 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
 
-        assert read("//tmp/t2") == []
+        assert read_table("//tmp/t2") == []
 
     def test_non_empty_table(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
-        write("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
         create("table", "//tmp/t2")
 
         remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
 
-        assert read("//tmp/t2") == [{"a": "b"}]
+        assert read_table("//tmp/t2") == [{"a": "b"}]
 
     def test_multi_chunk_table(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
-        write("<append=true>//tmp/t1", {"a": "b"}, driver=self.remote_driver)
-        write("<append=true>//tmp/t1", {"c": "d"}, driver=self.remote_driver)
+        write_table("<append=true>//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+        write_table("<append=true>//tmp/t1", {"c": "d"}, driver=self.remote_driver)
 
         create("table", "//tmp/t2")
 
         remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
 
-        assert sorted(read("//tmp/t2")) == [{"a": "b"}, {"c": "d"}]
+        assert sorted(read_table("//tmp/t2")) == [{"a": "b"}, {"c": "d"}]
         assert get("//tmp/t2/@chunk_count") == 2
 
     def test_multiple_jobs(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
-        write("<append=true>//tmp/t1", {"a": "b"}, driver=self.remote_driver)
-        write("<append=true>//tmp/t1", {"c": "d"}, driver=self.remote_driver)
+        write_table("<append=true>//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+        write_table("<append=true>//tmp/t1", {"c": "d"}, driver=self.remote_driver)
 
         create("table", "//tmp/t2")
 
         remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote", "job_count": 2})
 
-        assert sorted(read("//tmp/t2")) == [{"a": "b"}, {"c": "d"}]
+        assert sorted(read_table("//tmp/t2")) == [{"a": "b"}, {"c": "d"}]
         assert get("//tmp/t2/@chunk_count") == 2
 
     def test_heterogenius_chunk_in_one_job(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
-        write("<append=true>//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+        write_table("<append=true>//tmp/t1", {"a": "b"}, driver=self.remote_driver)
         set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)
-        write("<append=true>//tmp/t1", {"c": "d"}, driver=self.remote_driver)
+        write_table("<append=true>//tmp/t1", {"c": "d"}, driver=self.remote_driver)
 
         create("table", "//tmp/t2")
 
         remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
 
-        assert read("//tmp/t2") == [{"a": "b"}, {"c": "d"}]
+        assert read_table("//tmp/t2") == [{"a": "b"}, {"c": "d"}]
 
     def test_sorted_table(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
-        write("//tmp/t1", [{"a": "b"}, {"a": "c"}], sorted_by="a", driver=self.remote_driver)
+        write_table("//tmp/t1", [{"a": "b"}, {"a": "c"}], sorted_by="a", driver=self.remote_driver)
 
         create("table", "//tmp/t2")
 
         remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
 
-        assert read("//tmp/t2") == [{"a": "b"}, {"a": "c"}]
+        assert read_table("//tmp/t2") == [{"a": "b"}, {"a": "c"}]
         assert get("//tmp/t2/@sorted_by") == ["a"]
 
     def test_erasure_table(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
         set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)
-        write("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
         create("table", "//tmp/t2")
 
         remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"})
 
-        assert read("//tmp/t2") == [{"a": "b"}]
+        assert read_table("//tmp/t2") == [{"a": "b"}]
 
     def test_chunk_scratcher(self):
         def set_banned_flag(value):
@@ -137,7 +137,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         create("table", "//tmp/t1", driver=self.remote_driver)
         set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)
-        write("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
         set_banned_flag(True)
 
@@ -154,11 +154,11 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         track_op(op_id)
 
-        assert read("//tmp/t2") == [{"a": "b"}]
+        assert read_table("//tmp/t2") == [{"a": "b"}]
 
     def test_revive(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
-        write("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
         create("table", "//tmp/t2")
 
@@ -171,11 +171,11 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         track_op(op_id)
 
-        assert read("//tmp/t2") == [{"a" : "b"}]
+        assert read_table("//tmp/t2") == [{"a" : "b"}]
 
     def test_failed_cases(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
-        write("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
         create("table", "//tmp/t2")
 
@@ -188,7 +188,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         with pytest.raises(YtError):
             remote_copy(in_="//tmp/t1", out="//tmp/unexisting", spec={"cluster_name": "remote"})
 
-        write("//tmp/t1", [{"a": "b"}, {"c": "d"}], driver=self.remote_driver)
+        write_table("//tmp/t1", [{"a": "b"}, {"c": "d"}], driver=self.remote_driver)
         with pytest.raises(YtError):
             remote_copy(in_="//tmp/t1[:#1]", out="//tmp/unexisting", spec={"cluster_name": "remote"})
 

@@ -322,7 +322,7 @@ class TestLocks(YTEnvSetup):
         tx3 = start_transaction()
 
         create("table", "//tmp/t")
-        write("//tmp/t", {"foo": "bar"}, tx = tx2)
+        write_table("//tmp/t", {"foo": "bar"}, tx = tx2)
 
         lock_id = lock("//tmp/t", tx = tx3, mode = "exclusive", waitable = True)
 

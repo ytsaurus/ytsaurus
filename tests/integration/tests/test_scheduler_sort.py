@@ -20,7 +20,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         v5 = {"key" : "zzz"}
 
         create("table", "//tmp/t_in")
-        write("//tmp/t_in", [v3, v5, v1, v2, v4]) # some random order
+        write_table("//tmp/t_in", [v3, v5, v1, v2, v4]) # some random order
 
         create("table", "//tmp/t_out")
 
@@ -28,7 +28,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
              out="//tmp/t_out",
              sort_by="key")
 
-        assert read("//tmp/t_out") == [v1, v2, v3, v4, v5]
+        assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5]
         assert get("//tmp/t_out/@sorted") ==  True
         assert get("//tmp/t_out/@sorted_by") ==  ["key"]
 
@@ -43,7 +43,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         v5 = {"key" : "zzz"}
 
         create("table", "//tmp/t_in", tx=tx)
-        write("//tmp/t_in", [v3, v5, v1, v2, v4], tx=tx) # some random order
+        write_table("//tmp/t_in", [v3, v5, v1, v2, v4], tx=tx) # some random order
 
         create("table", "//tmp/t_out", tx=tx)
 
@@ -54,7 +54,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         commit_transaction(tx)
 
-        assert read("//tmp/t_out") == [v1, v2, v3, v4, v5]
+        assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5]
         assert get("//tmp/t_out/@sorted") ==  True
         assert get("//tmp/t_out/@sorted_by") ==  ["key"]
 
@@ -62,7 +62,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
-        write("//tmp/t_in", {"foo": "bar"})
+        write_table("//tmp/t_in", {"foo": "bar"})
 
         with pytest.raises(YtError):
             sort(in_="//tmp/t_in",
@@ -77,15 +77,15 @@ class TestSchedulerSortCommands(YTEnvSetup):
              out="//tmp/t_out",
              sort_by="key")
 
-        assert read("//tmp/t_out") == []
+        assert read_table("//tmp/t_out") == []
         assert get("//tmp/t_out/@sorted")
 
     def test_non_empty_out(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
-        write("//tmp/t_in", {"foo": "bar"})
-        write("//tmp/t_out", {"hello": "world"})
+        write_table("//tmp/t_in", {"foo": "bar"})
+        write_table("//tmp/t_out", {"hello": "world"})
 
         with pytest.raises(YtError):
             sort(in_="//tmp/t_in",
@@ -101,7 +101,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         create("table", "//tmp/t_in")
         for i in xrange(0, 10):
-            write("<append=true>//tmp/t_in", [v3, v5, v1, v2, v4]) # some random order
+            write_table("<append=true>//tmp/t_in", [v3, v5, v1, v2, v4]) # some random order
 
         create("table", "//tmp/t_out")
 
@@ -112,7 +112,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                    "partition_job_count": 2,
                    "data_size_per_sort_job": 1})
 
-        assert len(read("//tmp/t_out")) == 50
+        assert len(read_table("//tmp/t_out")) == 50
 
     def test_many_merge(self):
         v1 = {"key" : "aaa"}
@@ -125,7 +125,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         for i in xrange(0, 10):
             row = [v1, v2, v3, v4, v5]
             shuffle(row)
-            write("<append=true>//tmp/t_in", row) # some random order
+            write_table("<append=true>//tmp/t_in", row) # some random order
 
         create("table", "//tmp/t_out")
 
@@ -136,7 +136,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                    "partition_job_count": 2,
                    "data_size_per_sort_job": 1})
 
-        assert len(read("//tmp/t_out")) == 50
+        assert len(read_table("//tmp/t_out")) == 50
 
     def test_composite_key(self):
         v1 = {"key": -7, "subkey": "bar", "value": "v1"}
@@ -146,7 +146,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         v5 = {"key": 500, "subkey": "foo", "value": "v5"}
 
         create("table", "//tmp/t_in")
-        write("//tmp/t_in", [v2, v5, v1, v4, v3]) # some random order
+        write_table("//tmp/t_in", [v2, v5, v1, v4, v3]) # some random order
 
         create("table", "//tmp/t_out")
 
@@ -154,14 +154,14 @@ class TestSchedulerSortCommands(YTEnvSetup):
              out="//tmp/t_out",
              sort_by=["key", "subkey"])
 
-        assert read("//tmp/t_out") == [v1, v2, v3, v4, v5]
+        assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5]
 
         create("table", "//tmp/t_another_out")
         sort(in_="//tmp/t_out",
              out="//tmp/t_another_out",
              sort_by=["subkey", "key"])
 
-        assert read("//tmp/t_another_out") == [v3, v1, v2, v5, v4]
+        assert read_table("//tmp/t_another_out") == [v3, v1, v2, v5, v4]
 
     def test_many_inputs(self):
         v1 = {"key": -7, "value": "v1"}
@@ -174,15 +174,15 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create("table", "//tmp/in1")
         create("table", "//tmp/in2")
 
-        write("//tmp/in1", [v5, v1, v4]) # some random order
-        write("//tmp/in2", [v3, v6, v2]) # some random order
+        write_table("//tmp/in1", [v5, v1, v4]) # some random order
+        write_table("//tmp/in2", [v3, v6, v2]) # some random order
 
         create("table", "//tmp/t_out")
         sort(in_=["//tmp/in1", "//tmp/in2"],
              out="//tmp/t_out",
              sort_by="key")
 
-        assert read("//tmp/t_out") == [v1, v2, v3, v4, v5, v6]
+        assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5, v6]
 
     def sort_with_options(self, **kwargs):
         input = "//tmp/in"
@@ -190,14 +190,14 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create("table", input)
         create("table", output)
         for i in xrange(20, 0, -1):
-            write("<append=true>" + input, [{"key": i}])
+            write_table("<append=true>" + input, [{"key": i}])
 
         args = {"in_": [input], "out" : output, "sort_by" : "key"}
         args.update(kwargs)
 
         sort(**args)
         assert get("//tmp/out/@sorted")
-        assert read(output) == [{"key": i} for i in xrange(1, 21)]
+        assert read_table(output) == [{"key": i} for i in xrange(1, 21)]
 
     def test_one_partition_no_merge(self):
         self.sort_with_options()
@@ -216,10 +216,10 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
     def test_inplace_sort(self):
         create("table", "//tmp/t")
-        write("//tmp/t", [{"key" : "b"}, {"key" : "a"}])
+        write_table("//tmp/t", [{"key" : "b"}, {"key" : "a"}])
 
         sort(in_="//tmp/t",
              out="//tmp/t",
              sort_by="key")
 
-        assert read("//tmp/t") == [{"key" : "a"}, {"key" : "b"}]
+        assert read_table("//tmp/t") == [{"key" : "a"}, {"key" : "b"}]

@@ -11,14 +11,14 @@ class TestFiles(YTEnvSetup):
     NUM_NODES = 5
 
     def test_invalid_type(self):
-        with pytest.raises(YtError): download("//tmp")
-        with pytest.raises(YtError): upload("//tmp", "")
+        with pytest.raises(YtError): read_file("//tmp")
+        with pytest.raises(YtError): write_file("//tmp", "")
 
     def test_simple(self):
         content = "some_data"
         create("file", "//tmp/file")
-        upload("//tmp/file", content)
-        assert download("//tmp/file") == content
+        write_file("//tmp/file", content)
+        assert read_file("//tmp/file") == content
 
         chunk_ids = get("//tmp/file/@chunk_ids")
         assert get_chunks() == chunk_ids
@@ -31,8 +31,8 @@ class TestFiles(YTEnvSetup):
     def test_empty(self):
         content = ""
         create("file", "//tmp/file")
-        upload("//tmp/file", content)
-        assert download("//tmp/file") == content
+        write_file("//tmp/file", content)
+        assert read_file("//tmp/file") == content
 
         chunk_ids = get("//tmp/file/@chunk_ids")
         assert get_chunks() == chunk_ids
@@ -45,13 +45,13 @@ class TestFiles(YTEnvSetup):
     def test_read_interval(self):
         content = "".join(["data"] * 100)
         create("file", "//tmp/file")
-        upload("//tmp/file", content, file_writer={"block_size": 8})
+        write_file("//tmp/file", content, file_writer={"block_size": 8})
 
         offset = 9
         length = 212
-        assert download("//tmp/file", offset=offset) == content[offset:]
-        assert download("//tmp/file", length=length) == content[:length]
-        assert download("//tmp/file", offset=offset, length=length) == content[offset:offset + length]
+        assert read_file("//tmp/file", offset=offset) == content[offset:]
+        assert read_file("//tmp/file", length=length) == content[:length]
+        assert read_file("//tmp/file", offset=offset, length=length) == content[offset:offset + length]
 
         chunk_ids = get("//tmp/file/@chunk_ids")
         assert get_chunks() == chunk_ids
@@ -64,17 +64,17 @@ class TestFiles(YTEnvSetup):
     def test_copy(self):
         content = "some_data"
         create("file", "//tmp/f")
-        upload("//tmp/f", content)
+        write_file("//tmp/f", content)
 
-        assert download("//tmp/f") == content
+        assert read_file("//tmp/f") == content
         copy("//tmp/f", "//tmp/f2")
-        assert download("//tmp/f2") == content
+        assert read_file("//tmp/f2") == content
 
         assert get("//tmp/f2/@resource_usage") == get("//tmp/f/@resource_usage")
         assert get("//tmp/f2/@replication_factor") == get("//tmp/f/@replication_factor")
 
         remove("//tmp/f")
-        assert download("//tmp/f2") == content
+        assert read_file("//tmp/f2") == content
 
         remove("//tmp/f2")
         assert get_chunks() == []
@@ -82,18 +82,18 @@ class TestFiles(YTEnvSetup):
     def test_copy_tx(self):
         content = "some_data"
         create("file", "//tmp/f")
-        upload("//tmp/f", content)
+        write_file("//tmp/f", content)
 
         tx = start_transaction()
-        assert download("//tmp/f", tx=tx) == content
+        assert read_file("//tmp/f", tx=tx) == content
         copy("//tmp/f", "//tmp/f2", tx=tx)
-        assert download("//tmp/f2", tx=tx) == content
+        assert read_file("//tmp/f2", tx=tx) == content
         commit_transaction(tx)
 
-        assert download("//tmp/f2") == content
+        assert read_file("//tmp/f2") == content
 
         remove("//tmp/f")
-        assert download("//tmp/f2") == content
+        assert read_file("//tmp/f2") == content
 
         remove("//tmp/f2")
         assert get_chunks() == []
@@ -101,7 +101,7 @@ class TestFiles(YTEnvSetup):
     def test_replication_factor_attr(self):
         content = "some_data"
         create("file", "//tmp/f")
-        upload("//tmp/f", content)
+        write_file("//tmp/f", content)
 
         get("//tmp/f/@replication_factor")
 
@@ -115,12 +115,12 @@ class TestFiles(YTEnvSetup):
     def test_append(self):
         content = "some_data"
         create("file", "//tmp/f")
-        upload("//tmp/f", content)
-        upload("<append=true>//tmp/f", content)
+        write_file("//tmp/f", content)
+        write_file("<append=true>//tmp/f", content)
 
         assert len(get("//tmp/f/@chunk_ids")) == 2
         assert get("//tmp/f/@uncompressed_data_size") == 18
-        assert download("//tmp/f") == content + content
+        assert read_file("//tmp/f") == content + content
 
     def test_upload_inside_tx(self):
         create("file", "//tmp/f")
@@ -128,11 +128,11 @@ class TestFiles(YTEnvSetup):
         tx = start_transaction()
 
         content = "some_data"
-        upload("//tmp/f", content, tx=tx)
+        write_file("//tmp/f", content, tx=tx)
 
-        assert download("//tmp/f") == ""
-        assert download("//tmp/f", tx=tx) == content
+        assert read_file("//tmp/f") == ""
+        assert read_file("//tmp/f", tx=tx) == content
 
         commit_transaction(tx)
 
-        assert download("//tmp/f") == content
+        assert read_file("//tmp/f") == content

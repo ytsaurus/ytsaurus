@@ -159,11 +159,11 @@ def execute_command_with_output_format(command_name, kwargs):
     else:
         return output.getvalue()
 
-def read(path, **kwargs):
+def read_table(path, **kwargs):
     kwargs["path"] = path
     return execute_command_with_output_format("read_table", kwargs)
 
-def write(path, value, is_raw=False, **kwargs):
+def write_table(path, value, is_raw=False, **kwargs):
     if not is_raw:
         if not isinstance(value, list):
             value = [value]
@@ -235,15 +235,15 @@ def reshard_table(path, pivot_keys, **kwargs):
     kwargs["pivot_keys"] = pivot_keys
     return command("reshard_table", kwargs)
 
-def upload(path, data, **kwargs):
+def write_file(path, data, **kwargs):
     kwargs["path"] = path
     return command("write_file", kwargs, input_stream=StringIO(data))
 
-def upload_file(path, file_name, **kwargs):
+def write_local_file(path, file_name, **kwargs):
     with open(file_name, "rt") as f:
-        return upload(path, f.read(), **kwargs)
+        return write_file(path, f.read(), **kwargs)
 
-def download(path, **kwargs):
+def read_file(path, **kwargs):
     kwargs["path"] = path
     output = StringIO()
     command("read_file", kwargs, output_stream=output)
@@ -279,7 +279,7 @@ def track_op(op_id):
                 if exists("//sys/operations/%s/jobs/%s/@error" % (op_id, job), verbose=False):
                     error = error + "\n\n" + get("//sys/operations/%s/jobs/%s/@error" % (op_id, job), verbose=False, is_raw=True)
                     if "stderr" in jobs[job]:
-                        error = error + "\n" + download("//sys/operations/%s/jobs/%s/stderr" % (op_id, job), verbose=False)
+                        error = error + "\n" + read_file("//sys/operations/%s/jobs/%s/stderr" % (op_id, job), verbose=False)
             raise YtError(error)
         if state == "aborted":
             raise YtError(message)

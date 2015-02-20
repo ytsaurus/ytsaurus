@@ -152,7 +152,7 @@ class TestAcls(YTEnvSetup):
         create_account("a")
 
         create("table", "//tmp/t1")
-        write("//tmp/t1", {"a" : "b"})
+        write_table("//tmp/t1", {"a" : "b"})
         
         create("table", "//tmp/t2")
 
@@ -196,13 +196,13 @@ class TestAcls(YTEnvSetup):
         create_user("u")
         tx = start_transaction()
         create("table", "//tmp/a", tx=tx, user="u")
-        assert read("//tmp/a", tx=tx, user="u") == []
+        assert read_table("//tmp/a", tx=tx, user="u") == []
 
     def test_create_in_tx2(self):
         create_user("u")
         tx = start_transaction()
         create("table", "//tmp/a/b/c", recursive=True, tx=tx, user="u")
-        assert read("//tmp/a/b/c", tx=tx, user="u") == []
+        assert read_table("//tmp/a/b/c", tx=tx, user="u") == []
 
     @pytest.mark.xfail(run = False, reason = "In progress")
     def test_snapshot_remove(self):

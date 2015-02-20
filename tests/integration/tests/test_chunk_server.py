@@ -11,7 +11,7 @@ class TestChunkServer(YTEnvSetup):
 
     def test_owning_nodes1(self):
         create("table", "//tmp/t")
-        write("//tmp/t", {"a" : "b"})
+        write_table("//tmp/t", {"a" : "b"})
         chunk_ids = get("//tmp/t/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
@@ -20,7 +20,7 @@ class TestChunkServer(YTEnvSetup):
     def test_owning_nodes2(self):
         create("table", "//tmp/t")
         tx = start_transaction()
-        write("//tmp/t", {"a" : "b"}, tx=tx)
+        write_table("//tmp/t", {"a" : "b"}, tx=tx)
         chunk_ids = get("//tmp/t/@chunk_ids", tx=tx)
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
@@ -29,7 +29,7 @@ class TestChunkServer(YTEnvSetup):
 
     def test_replication(self):
         create("table", "//tmp/t")
-        write("//tmp/t", {"a" : "b"})
+        write_table("//tmp/t", {"a" : "b"})
 
         assert get("//tmp/t/@replication_factor") == 3
 
@@ -45,7 +45,7 @@ class TestChunkServer(YTEnvSetup):
     def _test_decommission(self, erasure_codec, replica_count):
         create("table", "//tmp/t")
         set("//tmp/t/@erasure_codec", erasure_codec)
-        write("//tmp/t", {"a" : "b"})
+        write_table("//tmp/t", {"a" : "b"})
 
         sleep(2) # wait for background replication
 

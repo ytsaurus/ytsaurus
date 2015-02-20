@@ -152,13 +152,13 @@ class TestTablets(YTEnvSetup):
         sleep(1)
         assert self._find_tablet_orchid(address, tablet_id) is None
          
-    def test_read_write(self):
+    def test_read_write_table(self):
         self._sync_create_cells(1, 1)
         self._create_table("//tmp/t")
         self._sync_mount_table("//tmp/t")
 
-        with pytest.raises(YtError): read("//tmp/t")
-        with pytest.raises(YtError): write("//tmp/t", [{"key": 1, "value": 2}])
+        with pytest.raises(YtError): read_table("//tmp/t")
+        with pytest.raises(YtError): write_table("//tmp/t", [{"key": 1, "value": 2}])
 
     @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
     def test_computed_column(self):
