@@ -14,110 +14,110 @@ class TestTables(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     def test_invalid_type(self):
-        with pytest.raises(YtError): read("//tmp")
-        with pytest.raises(YtError): write("//tmp", [])
+        with pytest.raises(YtError): read_table("//tmp")
+        with pytest.raises(YtError): write_table("//tmp", [])
 
     def test_simple(self):
         create("table", "//tmp/table")
 
-        assert read("//tmp/table") == []
+        assert read_table("//tmp/table") == []
         assert get("//tmp/table/@row_count") == 0
         assert get("//tmp/table/@chunk_count") == 0
 
-        write("//tmp/table", {"b": "hello"})
-        assert read("//tmp/table") == [{"b":"hello"}]
+        write_table("//tmp/table", {"b": "hello"})
+        assert read_table("//tmp/table") == [{"b":"hello"}]
         assert get("//tmp/table/@row_count") == 1
         assert get("//tmp/table/@chunk_count") == 1
 
-        write("<append=true>//tmp/table", [{"b": "2", "a": "1"}, {"x": "10", "y": "20", "a": "30"}])
-        assert read("//tmp/table") == [{"b": "hello"}, {"a":"1", "b":"2"}, {"a":"30", "x":"10", "y":"20"}]
+        write_table("<append=true>//tmp/table", [{"b": "2", "a": "1"}, {"x": "10", "y": "20", "a": "30"}])
+        assert read_table("//tmp/table") == [{"b": "hello"}, {"a":"1", "b":"2"}, {"a":"30", "x":"10", "y":"20"}]
         assert get("//tmp/table/@row_count") == 3
         assert get("//tmp/table/@chunk_count") == 2
 
-    def test_sorted_write(self):
+    def test_sorted_write_table(self):
         create("table", "//tmp/table")
 
-        write("//tmp/table", [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}], sorted_by="key")
+        write_table("//tmp/table", [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}], sorted_by="key")
 
         assert get("//tmp/table/@sorted") ==  True
         assert get("//tmp/table/@sorted_by") ==  ["key"]
         assert get("//tmp/table/@row_count") ==  4
 
         # sorted flag is discarded when writing to sorted table
-        write("<append=true>//tmp/table", {"key": 4})
+        write_table("<append=true>//tmp/table", {"key": 4})
         assert not get("//tmp/table/@sorted")
         with pytest.raises(YtError): get("//tmp/table/@sorted_by")
 
-    def test_append_overwrite_write(self):
+    def test_append_overwrite_write_table(self):
         # Default (append).
         # COMPAT(ignat): When migrating to overwrite semantics, change this to 1.
         create("table", "//tmp/table1")
         assert get("//tmp/table1/@row_count") == 0
-        write("//tmp/table1", {"a": 0})
+        write_table("//tmp/table1", {"a": 0})
         assert get("//tmp/table1/@row_count") == 1
-        write("//tmp/table1", {"a": 1})
+        write_table("//tmp/table1", {"a": 1})
         assert get("//tmp/table1/@row_count") == 1
 
         # Append
         create("table", "//tmp/table2")
         assert get("//tmp/table2/@row_count") == 0
-        write("<append=true>//tmp/table2", {"a": 0})
+        write_table("<append=true>//tmp/table2", {"a": 0})
         assert get("//tmp/table2/@row_count") == 1
-        write("<append=true>//tmp/table2", {"a": 1})
+        write_table("<append=true>//tmp/table2", {"a": 1})
         assert get("//tmp/table2/@row_count") == 2
 
         # Overwrite
         create("table", "//tmp/table3")
         assert get("//tmp/table3/@row_count") == 0
-        write("<append=false>//tmp/table3", {"a": 0})
+        write_table("<append=false>//tmp/table3", {"a": 0})
         assert get("//tmp/table3/@row_count") == 1
-        write("<append=false>//tmp/table3", {"a": 1})
+        write_table("<append=false>//tmp/table3", {"a": 1})
         assert get("//tmp/table3/@row_count") == 1
 
     def test_invalid_cases(self):
         create("table", "//tmp/table")
 
         # we can write only list fragments
-        with pytest.raises(YtError): write("<append=true>//tmp/table", yson.loads("string"))
-        with pytest.raises(YtError): write("<append=true>//tmp/table", yson.loads("100"))
-        with pytest.raises(YtError): write("<append=true>//tmp/table", yson.loads("3.14"))
+        with pytest.raises(YtError): write_table("<append=true>//tmp/table", yson.loads("string"))
+        with pytest.raises(YtError): write_table("<append=true>//tmp/table", yson.loads("100"))
+        with pytest.raises(YtError): write_table("<append=true>//tmp/table", yson.loads("3.14"))
 
         # we can write sorted data only to empty table
-        write("<append=true>//tmp/table", {"foo": "bar"}, sorted_by="foo")
+        write_table("<append=true>//tmp/table", {"foo": "bar"}, sorted_by="foo")
         with pytest.raises(YtError):
-            write("<append=true>" + "//tmp/table", {"foo": "zzz_bar"}, sorted_by="foo")
+            write_table("<append=true>" + "//tmp/table", {"foo": "zzz_bar"}, sorted_by="foo")
 
 
         content = "some_data"
         create("file", "//tmp/file")
-        upload("//tmp/file", content)
-        with pytest.raises(YtError): read("//tmp/file")
+        write_file("//tmp/file", content)
+        with pytest.raises(YtError): read_table("//tmp/file")
 
     def test_row_index_selector(self):
         create("table", "//tmp/table")
 
-        write("//tmp/table", [{"a": 0}, {"b": 1}, {"c": 2}, {"d": 3}])
+        write_table("//tmp/table", [{"a": 0}, {"b": 1}, {"c": 2}, {"d": 3}])
 
         # closed ranges
-        assert read("//tmp/table[#0:#2]") == [{"a": 0}, {"b" : 1}] # simple
-        assert read("//tmp/table[#-1:#1]") == [{"a": 0}] # left < min
-        assert read("//tmp/table[#2:#5]") == [{"c": 2}, {"d": 3}] # right > max
-        assert read("//tmp/table[#-10:#-5]") == [] # negative indexes
+        assert read_table("//tmp/table[#0:#2]") == [{"a": 0}, {"b" : 1}] # simple
+        assert read_table("//tmp/table[#-1:#1]") == [{"a": 0}] # left < min
+        assert read_table("//tmp/table[#2:#5]") == [{"c": 2}, {"d": 3}] # right > max
+        assert read_table("//tmp/table[#-10:#-5]") == [] # negative indexes
 
-        assert read("//tmp/table[#1:#1]") == [] # left = right
-        assert read("//tmp/table[#3:#1]") == [] # left > right
+        assert read_table("//tmp/table[#1:#1]") == [] # left = right
+        assert read_table("//tmp/table[#3:#1]") == [] # left > right
 
         # open ranges
-        assert read("//tmp/table[:]") == [{"a": 0}, {"b" : 1}, {"c" : 2}, {"d" : 3}]
-        assert read("//tmp/table[:#3]") == [{"a": 0}, {"b" : 1}, {"c" : 2}]
-        assert read("//tmp/table[#2:]") == [{"c" : 2}, {"d" : 3}]
+        assert read_table("//tmp/table[:]") == [{"a": 0}, {"b" : 1}, {"c" : 2}, {"d" : 3}]
+        assert read_table("//tmp/table[:#3]") == [{"a": 0}, {"b" : 1}, {"c" : 2}]
+        assert read_table("//tmp/table[#2:]") == [{"c" : 2}, {"d" : 3}]
 
         # multiple ranges
-        assert read("//tmp/table[:,:]") == [{"a": 0}, {"b" : 1}, {"c" : 2}, {"d" : 3}] * 2
-        assert read("//tmp/table[#1:#2,#3:#4]") == [{"b": 1}, {"d": 3}]
+        assert read_table("//tmp/table[:,:]") == [{"a": 0}, {"b" : 1}, {"c" : 2}, {"d" : 3}] * 2
+        assert read_table("//tmp/table[#1:#2,#3:#4]") == [{"b": 1}, {"d": 3}]
 
         # reading key selectors from unsorted table
-        with pytest.raises(YtError): read("//tmp/table[:a]")
+        with pytest.raises(YtError): read_table("//tmp/table[:a]")
 
     def test_row_key_selector(self):
         create("table", "//tmp/table")
@@ -129,27 +129,27 @@ class TestTables(YTEnvSetup):
         v5 = {"s" : "c", "i": -100, "d" : 10.}
 
         values = [v1, v2, v3, v4, v5]
-        write("//tmp/table", values, sorted_by=["s", "i", "d"])
+        write_table("//tmp/table", values, sorted_by=["s", "i", "d"])
 
         # possible empty ranges
-        assert read("//tmp/table[a : a]") == []
-        assert read("//tmp/table[(a, 1) : (a, 10)]") == []
-        assert read("//tmp/table[b : a]") == []
-        assert read("//tmp/table[(c, 0) : (a, 10)]") == []
-        assert read("//tmp/table[(a, 10, 1e7) : (b, )]") == []
+        assert read_table("//tmp/table[a : a]") == []
+        assert read_table("//tmp/table[(a, 1) : (a, 10)]") == []
+        assert read_table("//tmp/table[b : a]") == []
+        assert read_table("//tmp/table[(c, 0) : (a, 10)]") == []
+        assert read_table("//tmp/table[(a, 10, 1e7) : (b, )]") == []
 
         # some typical cases
-        assert read("//tmp/table[(a, 4) : (b, 20, 18.)]") == [v2, v3]
-        assert read("//tmp/table[c:]") == [v5]
-        assert read("//tmp/table[:(a, 10)]") == [v1]
-        assert read("//tmp/table[:(a, 10),:(a, 10)]") == [v1, v1]
-        assert read("//tmp/table[:(a, 11)]") == [v1, v2]
-        assert read("//tmp/table[:]") == [v1, v2, v3, v4, v5]
-        assert read("//tmp/table[a : b , b : c]") == [v1, v2, v3, v4]
+        assert read_table("//tmp/table[(a, 4) : (b, 20, 18.)]") == [v2, v3]
+        assert read_table("//tmp/table[c:]") == [v5]
+        assert read_table("//tmp/table[:(a, 10)]") == [v1]
+        assert read_table("//tmp/table[:(a, 10),:(a, 10)]") == [v1, v1]
+        assert read_table("//tmp/table[:(a, 11)]") == [v1, v2]
+        assert read_table("//tmp/table[:]") == [v1, v2, v3, v4, v5]
+        assert read_table("//tmp/table[a : b , b : c]") == [v1, v2, v3, v4]
 
         # combination of row and key selectors
-        assert read("//tmp/table{i}[aa: (b, 10)]") == [{"i" : 5}]
-        assert read("//tmp/table{a: o}[(b, 0): (c, 0)]") == \
+        assert read_table("//tmp/table{i}[aa: (b, 10)]") == [{"i" : 5}]
+        assert read_table("//tmp/table{a: o}[(b, 0): (c, 0)]") == \
             [
                 {"i": 5, "d" : 20.},
                 {"i": 20,"d" : 20.},
@@ -157,101 +157,101 @@ class TestTables(YTEnvSetup):
             ]
 
         # limits of different types
-        assert read("//tmp/table[#0:zz]") == [v1, v2, v3, v4, v5]
+        assert read_table("//tmp/table[#0:zz]") == [v1, v2, v3, v4, v5]
 
 
     def test_column_selector(self):
         create("table", "//tmp/table")
 
-        write("//tmp/table", {"a": 1, "aa": 2, "b": 3, "bb": 4, "c": 5})
+        write_table("//tmp/table", {"a": 1, "aa": 2, "b": 3, "bb": 4, "c": 5})
         # empty columns
-        assert read("//tmp/table{}") == [{}]
+        assert read_table("//tmp/table{}") == [{}]
 
         # single columms
-        assert read("//tmp/table{a}") == [{"a" : 1}]
-        assert read("//tmp/table{a, }") == [{"a" : 1}] # extra comma
-        assert read("//tmp/table{a, a}") == [{"a" : 1}]
-        assert read("//tmp/table{c, b}") == [{"b" : 3, "c" : 5}]
-        assert read("//tmp/table{zzzzz}") == [{}] # non existent column
+        assert read_table("//tmp/table{a}") == [{"a" : 1}]
+        assert read_table("//tmp/table{a, }") == [{"a" : 1}] # extra comma
+        assert read_table("//tmp/table{a, a}") == [{"a" : 1}]
+        assert read_table("//tmp/table{c, b}") == [{"b" : 3, "c" : 5}]
+        assert read_table("//tmp/table{zzzzz}") == [{}] # non existent column
 
         # range columns
         # closed ranges
-        with pytest.raises(YtError): read("//tmp/table{a:a}")  # left = right
-        with pytest.raises(YtError): read("//tmp/table{b:a}")  # left > right
+        with pytest.raises(YtError): read_table("//tmp/table{a:a}")  # left = right
+        with pytest.raises(YtError): read_table("//tmp/table{b:a}")  # left > right
 
-        assert read("//tmp/table{aa:b}") == [{"aa" : 2}]  # (+, +)
-        assert read("//tmp/table{aa:bx}") == [{"aa" : 2, "b" : 3, "bb" : 4}]  # (+, -)
-        assert read("//tmp/table{aaa:b}") == [{}]  # (-, +)
-        assert read("//tmp/table{aaa:bx}") == [{"b" : 3, "bb" : 4}] # (-, -)
+        assert read_table("//tmp/table{aa:b}") == [{"aa" : 2}]  # (+, +)
+        assert read_table("//tmp/table{aa:bx}") == [{"aa" : 2, "b" : 3, "bb" : 4}]  # (+, -)
+        assert read_table("//tmp/table{aaa:b}") == [{}]  # (-, +)
+        assert read_table("//tmp/table{aaa:bx}") == [{"b" : 3, "bb" : 4}] # (-, -)
 
         # open ranges
         # from left
-        assert read("//tmp/table{:aa}") == [{"a" : 1}] # +
-        assert read("//tmp/table{:aaa}") == [{"a" : 1, "aa" : 2}] # -
+        assert read_table("//tmp/table{:aa}") == [{"a" : 1}] # +
+        assert read_table("//tmp/table{:aaa}") == [{"a" : 1, "aa" : 2}] # -
 
         # from right
-        assert read("//tmp/table{bb:}") == [{"bb" : 4, "c" : 5}] # +
-        assert read("//tmp/table{bz:}") == [{"c" : 5}] # -
-        assert read("//tmp/table{xxx:}") == [{}]
+        assert read_table("//tmp/table{bb:}") == [{"bb" : 4, "c" : 5}] # +
+        assert read_table("//tmp/table{bz:}") == [{"c" : 5}] # -
+        assert read_table("//tmp/table{xxx:}") == [{}]
 
         # fully open
-        assert read("//tmp/table{:}") == [{"a" :1, "aa": 2,  "b": 3, "bb" : 4, "c": 5}]
+        assert read_table("//tmp/table{:}") == [{"a" :1, "aa": 2,  "b": 3, "bb" : 4, "c": 5}]
 
         # mixed column keys
-        assert read("//tmp/table{aa, a:bb}") == [{"a" : 1, "aa" : 2, "b": 3}]
+        assert read_table("//tmp/table{aa, a:bb}") == [{"a" : 1, "aa" : 2, "b": 3}]
 
     def test_shared_locks_two_chunks(self):
         create("table", "//tmp/table")
         tx = start_transaction()
 
-        write("<append=true>//tmp/table", {"a": 1}, tx=tx)
-        write("<append=true>//tmp/table", {"b": 2}, tx=tx)
+        write_table("<append=true>//tmp/table", {"a": 1}, tx=tx)
+        write_table("<append=true>//tmp/table", {"b": 2}, tx=tx)
 
-        assert read("//tmp/table") == []
-        assert read("//tmp/table", tx=tx) == [{"a":1}, {"b":2}]
+        assert read_table("//tmp/table") == []
+        assert read_table("//tmp/table", tx=tx) == [{"a":1}, {"b":2}]
 
         commit_transaction(tx)
-        assert read("//tmp/table") == [{"a":1}, {"b":2}]
+        assert read_table("//tmp/table") == [{"a":1}, {"b":2}]
 
     def test_shared_locks_three_chunks(self):
         create("table", "//tmp/table")
         tx = start_transaction()
 
-        write("<append=true>//tmp/table", {"a": 1}, tx=tx)
-        write("<append=true>//tmp/table", {"b": 2}, tx=tx)
-        write("<append=true>//tmp/table", {"c": 3}, tx=tx)
+        write_table("<append=true>//tmp/table", {"a": 1}, tx=tx)
+        write_table("<append=true>//tmp/table", {"b": 2}, tx=tx)
+        write_table("<append=true>//tmp/table", {"c": 3}, tx=tx)
 
-        assert read("//tmp/table") == []
-        assert read("//tmp/table", tx=tx) == [{"a":1}, {"b":2}, {"c" : 3}]
+        assert read_table("//tmp/table") == []
+        assert read_table("//tmp/table", tx=tx) == [{"a":1}, {"b":2}, {"c" : 3}]
 
         commit_transaction(tx)
-        assert read("//tmp/table") == [{"a":1}, {"b":2}, {"c" : 3}]
+        assert read_table("//tmp/table") == [{"a":1}, {"b":2}, {"c" : 3}]
 
     def test_shared_locks_parallel_tx(self):
         create("table", "//tmp/table")
 
-        write("//tmp/table", {"a": 1})
+        write_table("//tmp/table", {"a": 1})
 
         tx1 = start_transaction()
         tx2 = start_transaction()
 
-        write("<append=true>//tmp/table", {"b": 2}, tx=tx1)
+        write_table("<append=true>//tmp/table", {"b": 2}, tx=tx1)
 
-        write("<append=true>//tmp/table", {"c": 3}, tx=tx2)
-        write("<append=true>//tmp/table", {"d": 4}, tx=tx2)
+        write_table("<append=true>//tmp/table", {"c": 3}, tx=tx2)
+        write_table("<append=true>//tmp/table", {"d": 4}, tx=tx2)
 
         # check which records are seen from different transactions
-        assert read("//tmp/table") == [{"a" : 1}]
-        assert read("//tmp/table", tx = tx1) == [{"a" : 1}, {"b": 2}]
-        assert read("//tmp/table", tx = tx2) == [{"a" : 1}, {"c": 3}, {"d" : 4}]
+        assert read_table("//tmp/table") == [{"a" : 1}]
+        assert read_table("//tmp/table", tx = tx1) == [{"a" : 1}, {"b": 2}]
+        assert read_table("//tmp/table", tx = tx2) == [{"a" : 1}, {"c": 3}, {"d" : 4}]
 
         commit_transaction(tx2)
-        assert read("//tmp/table") == [{"a" : 1}, {"c": 3}, {"d" : 4}]
-        assert read("//tmp/table", tx = tx1) == [{"a" : 1}, {"b": 2}]
+        assert read_table("//tmp/table") == [{"a" : 1}, {"c": 3}, {"d" : 4}]
+        assert read_table("//tmp/table", tx = tx1) == [{"a" : 1}, {"b": 2}]
 
         # now all records are in table in specific order
         commit_transaction(tx1)
-        assert read("//tmp/table") == [{"a" : 1}, {"c": 3}, {"d" : 4}, {"b" : 2}]
+        assert read_table("//tmp/table") == [{"a" : 1}, {"c": 3}, {"d" : 4}, {"b" : 2}]
 
     def test_shared_locks_nested_tx(self):
         create("table", "//tmp/table")
@@ -263,51 +263,51 @@ class TestTables(YTEnvSetup):
 
         outer_tx = start_transaction()
 
-        write("//tmp/table", v1, tx=outer_tx)
+        write_table("//tmp/table", v1, tx=outer_tx)
 
         inner_tx = start_transaction(tx=outer_tx)
 
-        write("<append=true>//tmp/table", v2, tx=inner_tx)
-        assert read("//tmp/table", tx=outer_tx) == [v1]
-        assert read("//tmp/table", tx=inner_tx) == [v1, v2]
+        write_table("<append=true>//tmp/table", v2, tx=inner_tx)
+        assert read_table("//tmp/table", tx=outer_tx) == [v1]
+        assert read_table("//tmp/table", tx=inner_tx) == [v1, v2]
 
-        write("<append=true>//tmp/table", v3, tx=outer_tx) # this won"t be seen from inner
-        assert read("//tmp/table", tx=outer_tx) == [v1, v3]
-        assert read("//tmp/table", tx=inner_tx) == [v1, v2]
+        write_table("<append=true>//tmp/table", v3, tx=outer_tx) # this won"t be seen from inner
+        assert read_table("//tmp/table", tx=outer_tx) == [v1, v3]
+        assert read_table("//tmp/table", tx=inner_tx) == [v1, v2]
 
-        write("<append=true>//tmp/table", v4, tx=inner_tx)
-        assert read("//tmp/table", tx=outer_tx) == [v1, v3]
-        assert read("//tmp/table", tx=inner_tx) == [v1, v2, v4]
+        write_table("<append=true>//tmp/table", v4, tx=inner_tx)
+        assert read_table("//tmp/table", tx=outer_tx) == [v1, v3]
+        assert read_table("//tmp/table", tx=inner_tx) == [v1, v2, v4]
 
         commit_transaction(inner_tx)
-        self.assertItemsEqual(read("//tmp/table", tx=outer_tx), [v1, v2, v4, v3]) # order is not specified
+        self.assertItemsEqual(read_table("//tmp/table", tx=outer_tx), [v1, v2, v4, v3]) # order is not specified
 
         commit_transaction(outer_tx)
 
     def test_codec_in_writer(self):
         create("table", "//tmp/table")
         set("//tmp/table/@compression_codec", "gzip_best_compression")
-        write("//tmp/table", {"b": "hello"})
+        write_table("//tmp/table", {"b": "hello"})
 
-        assert read("//tmp/table") == [{"b":"hello"}]
+        assert read_table("//tmp/table") == [{"b":"hello"}]
 
         chunk_id = get("//tmp/table/@chunk_ids/0")
         assert get("#%s/@compression_codec" % chunk_id) == "gzip_best_compression"
 
     def test_copy(self):
         create("table", "//tmp/t")
-        write("//tmp/t", {"a": "b"})
+        write_table("//tmp/t", {"a": "b"})
 
-        assert read("//tmp/t") == [{"a" : "b"}]
+        assert read_table("//tmp/t") == [{"a" : "b"}]
 
         copy("//tmp/t", "//tmp/t2")
-        assert read("//tmp/t2") == [{"a" : "b"}]
+        assert read_table("//tmp/t2") == [{"a" : "b"}]
 
         assert get("//tmp/t2/@resource_usage") == get("//tmp/t/@resource_usage")
         assert get("//tmp/t2/@replication_factor") == get("//tmp/t/@replication_factor")
 
         remove("//tmp/t")
-        assert read("//tmp/t2") == [{"a" : "b"}]
+        assert read_table("//tmp/t2") == [{"a" : "b"}]
 
         remove("//tmp/t2")
         for chunk in get_chunks():
@@ -317,27 +317,27 @@ class TestTables(YTEnvSetup):
 
     def test_copy_to_the_same_table(self):
         create("table", "//tmp/t")
-        write("//tmp/t", {"a": "b"})
+        write_table("//tmp/t", {"a": "b"})
 
         with pytest.raises(YtError): copy("//tmp/t", "//tmp/t")
 
     def test_copy_tx(self):
         create("table", "//tmp/t")
-        write("//tmp/t", {"a": "b"})
+        write_table("//tmp/t", {"a": "b"})
 
         tx = start_transaction()
-        assert read("//tmp/t", tx=tx) == [{"a" : "b"}]
+        assert read_table("//tmp/t", tx=tx) == [{"a" : "b"}]
         copy("//tmp/t", "//tmp/t2", tx=tx)
-        assert read("//tmp/t2", tx=tx) == [{"a" : "b"}]
+        assert read_table("//tmp/t2", tx=tx) == [{"a" : "b"}]
 
         #assert get("//tmp/@recursive_resource_usage") == {"disk_space" : 438}
         #assert get("//tmp/@recursive_resource_usage", tx=tx) == {"disk_space" : 2 * 438}
         commit_transaction(tx)
 
-        assert read("//tmp/t2") == [{"a" : "b"}]
+        assert read_table("//tmp/t2") == [{"a" : "b"}]
 
         remove("//tmp/t")
-        assert read("//tmp/t2") == [{"a" : "b"}]
+        assert read_table("//tmp/t2") == [{"a" : "b"}]
 
         remove("//tmp/t2")
         for chunk in get_chunks():
@@ -411,7 +411,7 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/t")
         set("//tmp/t/@replication_factor", 2)
 
-        write("//tmp/t", {"foo" : "bar"})
+        write_table("//tmp/t", {"foo" : "bar"})
 
         chunk_ids = get("//tmp/t/@chunk_ids")
         assert len(chunk_ids) == 1
@@ -421,7 +421,7 @@ class TestTables(YTEnvSetup):
 
     def test_recursive_resource_usage(self):
         create("table", "//tmp/t1")
-        write("//tmp/t1", {"a": "b"})
+        write_table("//tmp/t1", {"a": "b"})
         copy("//tmp/t1", "//tmp/t2")
 
         assert get("//tmp/t1/@resource_usage")["disk_space"] + \
@@ -431,7 +431,7 @@ class TestTables(YTEnvSetup):
     def test_chunk_tree_balancer(self):
         create("table", "//tmp/t")
         for i in xrange(0, 40):
-            write("<append=true>//tmp/t", {"a" : "b"})
+            write_table("<append=true>//tmp/t", {"a" : "b"})
         chunk_list_id = get("//tmp/t/@chunk_list_id")
         statistics = get("#" + chunk_list_id + "/@statistics")
         assert statistics["chunk_count"] == 40
@@ -447,7 +447,7 @@ class TestTables(YTEnvSetup):
         tx_stack.append(tx)
 
         for i in xrange(0, 1000):
-            write("<append=true>//tmp/t", {"a" : i}, tx=tx)
+            write_table("<append=true>//tmp/t", {"a" : i}, tx=tx)
 
         chunk_list_id = get("//tmp/t/@chunk_list_id", tx=tx)
         statistics = get("#" + chunk_list_id + "/@statistics", tx=tx)
@@ -456,7 +456,7 @@ class TestTables(YTEnvSetup):
         assert statistics["row_count"] == 1000
         assert statistics["rank"] == 1001
 
-        tbl_a = read("//tmp/t", tx=tx)
+        tbl_a = read_table("//tmp/t", tx=tx)
 
         commit_transaction(tx)
         sleep(1.0)
@@ -468,7 +468,7 @@ class TestTables(YTEnvSetup):
         assert statistics["row_count"] == 1000
         assert statistics["rank"] == 2
 
-        assert tbl_a == read("//tmp/t")
+        assert tbl_a == read_table("//tmp/t")
 
     def _check_replication_factor(self, path, expected_rf):
         chunk_ids = get(path + "/@chunk_ids")
@@ -478,7 +478,7 @@ class TestTables(YTEnvSetup):
     def test_vital_update(self):
         create("table", "//tmp/t")
         for i in xrange(0, 5):
-            write("<append=true>//tmp/t", {"a" : "b"})
+            write_table("<append=true>//tmp/t", {"a" : "b"})
 
         def check_vital_chunks(is_vital):
             chunk_ids = get("//tmp/t/@chunk_ids")
@@ -497,7 +497,7 @@ class TestTables(YTEnvSetup):
     def test_replication_factor_update1(self):
         create("table", "//tmp/t")
         for i in xrange(0, 5):
-            write("<append=true>//tmp/t", {"a" : "b"})
+            write_table("<append=true>//tmp/t", {"a" : "b"})
         set("//tmp/t/@replication_factor", 4)
         sleep(2)
         self._check_replication_factor("//tmp/t", 4)
@@ -506,7 +506,7 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/t")
         tx = start_transaction()
         for i in xrange(0, 5):
-            write("<append=true>//tmp/t", {"a" : "b"}, tx=tx)
+            write_table("<append=true>//tmp/t", {"a" : "b"}, tx=tx)
         set("//tmp/t/@replication_factor", 4)
         commit_transaction(tx)
         sleep(2)
@@ -516,7 +516,7 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/t")
         tx = start_transaction()
         for i in xrange(0, 5):
-            write("<append=true>//tmp/t", {"a" : "b"}, tx=tx)
+            write_table("<append=true>//tmp/t", {"a" : "b"}, tx=tx)
         set("//tmp/t/@replication_factor", 2)
         commit_transaction(tx)
         sleep(2)
@@ -529,7 +529,7 @@ class TestTables(YTEnvSetup):
 
     def test_key_columns2(self):
         create("table", "//tmp/t")
-        write("//tmp/t", {"a" : "b"})
+        write_table("//tmp/t", {"a" : "b"})
         with pytest.raises(YtError): set("//tmp/t/@key_columns", ["a", "b"])
 
     def test_key_columns3(self):
@@ -540,7 +540,7 @@ class TestTables(YTEnvSetup):
         table = "//tmp/t"
         create("table", table)
         set("//tmp/t/@compression_codec", "snappy")
-        write(table, {"foo": "bar"})
+        write_table(table, {"foo": "bar"})
 
         for i in xrange(8):
             merge(in_=[table, table], out="<append=true>" + table)
@@ -558,7 +558,7 @@ class TestTables(YTEnvSetup):
     def test_statistics2(self):
         tableA = "//tmp/a"
         create("table", tableA)
-        write(tableA, {"foo": "bar"})
+        write_table(tableA, {"foo": "bar"})
 
         tableB = "//tmp/b"
         create("table", tableB)
@@ -571,17 +571,17 @@ class TestTables(YTEnvSetup):
 
     def test_json_format(self):
         create("table", "//tmp/t")
-        write('//tmp/t', '{"x":"0"}\n{"x":"1"}', input_format="json", is_raw=True)
-        assert '{"x":"0"}\n{"x":"1"}\n' == read("//tmp/t", output_format="json")
+        write_table('//tmp/t', '{"x":"0"}\n{"x":"1"}', input_format="json", is_raw=True)
+        assert '{"x":"0"}\n{"x":"1"}\n' == read_table("//tmp/t", output_format="json")
 
     def test_boolean(self):
         create("table", "//tmp/t")
         format = yson.loads("<boolean_as_string=false;format=text>yson")
-        write("//tmp/t", "{x=%false};{x=%true};{x=false};", input_format=format, is_raw=True)
-        assert '{"x"=%false};\n{"x"=%true};\n{"x"="false"};\n' == read("//tmp/t", output_format=format)
+        write_table("//tmp/t", "{x=%false};{x=%true};{x=false};", input_format=format, is_raw=True)
+        assert '{"x"=%false};\n{"x"=%true};\n{"x"="false"};\n' == read_table("//tmp/t", output_format=format)
 
     def test_uint64(self):
         create("table", "//tmp/t")
         format = yson.loads("<format=text>yson")
-        write("//tmp/t", "{x=1u};{x=4u};{x=9u};", input_format=format, is_raw=True)
-        assert '{"x"=1u};\n{"x"=4u};\n{"x"=9u};\n' == read("//tmp/t", output_format=format)
+        write_table("//tmp/t", "{x=1u};{x=4u};{x=9u};", input_format=format, is_raw=True)
+        assert '{"x"=1u};\n{"x"=4u};\n{"x"=9u};\n' == read_table("//tmp/t", output_format=format)

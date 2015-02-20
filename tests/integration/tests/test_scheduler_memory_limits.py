@@ -37,7 +37,7 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
     @only_linux
     def test_map(self):
         create("table", "//tmp/t_in")
-        write("//tmp/t_in", {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})
+        write_table("//tmp/t_in", {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})
 
         mapper = \
 """
@@ -47,7 +47,7 @@ while True:
 """
 
         create("file", "//tmp/mapper.py")
-        upload("//tmp/mapper.py", mapper)
+        write_file("//tmp/mapper.py", mapper)
 
         create("table", "//tmp/t_out")
 
@@ -66,7 +66,7 @@ while True:
     @only_linux
     def test_dirty_sandbox(self):
         create("table", "//tmp/t_in")
-        write("//tmp/t_in", {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})
+        write_table("//tmp/t_in", {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})
 
         create("table", "//tmp/t_out")
 

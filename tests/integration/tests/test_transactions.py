@@ -228,7 +228,7 @@ class TestTransactions(YTEnvSetup):
 
     def test_abort_snapshot_lock(self):
         create("file", "//tmp/file")
-        upload("//tmp/file", "some_data")
+        write_file("//tmp/file", "some_data")
 
         tx = start_transaction()
 
@@ -238,7 +238,7 @@ class TestTransactions(YTEnvSetup):
 
     def test_commit_snapshot_lock(self):
         create("file", "//tmp/file")
-        upload("//tmp/file", "some_data")
+        write_file("//tmp/file", "some_data")
 
         tx = start_transaction()
 

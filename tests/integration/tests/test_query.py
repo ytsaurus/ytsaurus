@@ -39,7 +39,7 @@ class TestQuery(YTEnvSetup):
             data = [
                 {"a": (i * stripe + j), "b": (i * stripe + j) * 10}
                 for j in xrange(1, 1 + stripe)]
-            write("<append=true>" + path, data)
+            write_table("<append=true>" + path, data)
 
         sort(in_=path, out=path, sort_by=["a", "b"])
 
@@ -148,7 +148,7 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/t")
 
         format = yson.loads("<boolean_as_string=false;format=text>yson")
-        write(
+        write_table(
             "//tmp/t",
             '{a=10;b=%false;c="hello";d=32u};{a=20;b=%true;c="world";d=64u};',
             input_format=format,

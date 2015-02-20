@@ -180,7 +180,7 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError): set("//tmp/t/@", [])
         with pytest.raises(YtError): set("//tmp/t/@", [1, 2, 3])
 
-    def test_attributes_tx_read(self):
+    def test_attributes_tx_read_table(self):
         set("//tmp/t", "<attr=100> 123", is_raw=True)
         assert get("//tmp/t") == 123
         assert get("//tmp/t/@attr") == 100
@@ -555,7 +555,7 @@ class TestCypress(YTEnvSetup):
 
         assert get("#%s" % id, tx = tx) == 1
         assert get("//tmp/t2&/@broken")
-        with pytest.raises(YtError): read("//tmp/t2")
+        with pytest.raises(YtError): read_table("//tmp/t2")
 
     def test_link5(self):
         set("//tmp/t1", 1)
@@ -681,7 +681,7 @@ class TestCypress(YTEnvSetup):
         time.sleep(1.0)
         create("table", "//tmp/t")
         c1 = get("//tmp/t/@access_counter")
-        read("//tmp/t", suppress_access_tracking=True)
+        read_table("//tmp/t", suppress_access_tracking=True)
         time.sleep(1.0)
         c2 = get("//tmp/t/@access_counter")
         assert c1 == c2
@@ -690,7 +690,7 @@ class TestCypress(YTEnvSetup):
         time.sleep(1.0)
         create("file", "//tmp/f")
         c1 = get("//tmp/f/@access_counter")
-        download("//tmp/f", suppress_access_tracking=True)
+        read_file("//tmp/f", suppress_access_tracking=True)
         time.sleep(1.0)
         c2 = get("//tmp/f/@access_counter")
         assert c1 == c2

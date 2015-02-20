@@ -109,7 +109,7 @@ class TestAccounts(YTEnvSetup):
         assert self._get_account_chunk_count("max") == 0
 
         create("table", "//tmp/t")
-        write("//tmp/t", {"a" : "b"})
+        write_table("//tmp/t", {"a" : "b"})
 
         tmp_node_count = self._get_account_node_count("tmp")
         tmp_chunk_count = self._get_account_chunk_count("tmp")
@@ -150,12 +150,12 @@ class TestAccounts(YTEnvSetup):
 
         content = "some_data"
         create("file", "//tmp/f1")
-        upload("//tmp/f1", content)
+        write_file("//tmp/f1", content)
         space = self._get_account_disk_space("tmp")
         assert space > 0
 
         create("file", "//tmp/f2")
-        upload("//tmp/f2", content)
+        write_file("//tmp/f2", content)
         assert self._get_account_disk_space("tmp") == 2 * space
 
         remove("//tmp/f1")
@@ -169,7 +169,7 @@ class TestAccounts(YTEnvSetup):
     def test_file2(self):
         content = "some_data"
         create("file", "//tmp/f")
-        upload("//tmp/f", content)
+        write_file("//tmp/f", content)
         space = self._get_account_disk_space("tmp")
 
         create_account("max")
@@ -189,7 +189,7 @@ class TestAccounts(YTEnvSetup):
 
         content = "some_data"
         create("file", "//tmp/f", attributes={"account": "max"})
-        upload("//tmp/f", content)
+        write_file("//tmp/f", content)
         assert self._get_account_disk_space("max") > 0
 
         remove("//tmp/f")
@@ -201,7 +201,7 @@ class TestAccounts(YTEnvSetup):
 
         content = "some_data"
         create("file", "//tmp/f", attributes={"account": "max"})
-        upload("//tmp/f", content)
+        write_file("//tmp/f", content)
         space = self._get_account_disk_space("max")
         assert space > 0
 
@@ -212,7 +212,7 @@ class TestAccounts(YTEnvSetup):
 
     def test_table1(self):
         create("table", "//tmp/t")
-        write("//tmp/t", {"a" : "b"})
+        write_table("//tmp/t", {"a" : "b"})
         assert self._get_account_disk_space("tmp") > 0
 
     def test_table2(self):
@@ -220,7 +220,7 @@ class TestAccounts(YTEnvSetup):
 
         tx = start_transaction()
         for i in xrange(0, 5):
-            write("//tmp/t", {"a" : "b"}, tx=tx)
+            write_table("//tmp/t", {"a" : "b"}, tx=tx)
             account_space = self._get_account_disk_space("tmp")
             tx_space = self._get_tx_disk_space(tx, "tmp")
             assert account_space > 0
@@ -234,12 +234,12 @@ class TestAccounts(YTEnvSetup):
 
     def test_table3(self):
         create("table", "//tmp/t")
-        write("//tmp/t", {"a" : "b"})
+        write_table("//tmp/t", {"a" : "b"})
         space1 = self._get_account_disk_space("tmp")
         assert space1 > 0
 
         tx = start_transaction()
-        write("//tmp/t", {"xxxx" : "yyyy"}, tx=tx)
+        write_table("//tmp/t", {"xxxx" : "yyyy"}, tx=tx)
         space2 = self._get_tx_disk_space(tx, "tmp")
         assert space1 != space2
         assert self._get_account_disk_space("tmp") == space1 + space2
@@ -253,7 +253,7 @@ class TestAccounts(YTEnvSetup):
     def test_table4(self):
         tx = start_transaction()
         create("table", "//tmp/t", tx=tx)
-        write("//tmp/t", {"a" : "b"}, tx=tx)
+        write_table("//tmp/t", {"a" : "b"}, tx=tx)
         assert self._get_account_disk_space("tmp") > 0
         abort_transaction(tx)
         assert self._get_account_disk_space("tmp") == 0
@@ -263,7 +263,7 @@ class TestAccounts(YTEnvSetup):
         tmp_chunk_count = self._get_account_chunk_count("tmp")
 
         create("table", "//tmp/t")
-        write("//tmp/t", {"a" : "b"})
+        write_table("//tmp/t", {"a" : "b"})
         assert self._get_account_node_count("tmp") == tmp_node_count + 1
         assert self._get_account_chunk_count("tmp") == tmp_chunk_count + 1
         space = self._get_account_disk_space("tmp")
@@ -290,14 +290,14 @@ class TestAccounts(YTEnvSetup):
         create("table", "//tmp/t")
 
         tx = start_transaction()
-        write("//tmp/t", {"a" : "b"}, tx=tx)
+        write_table("//tmp/t", {"a" : "b"}, tx=tx)
         space = self._get_node_disk_space("//tmp/t", tx=tx)
         assert space > 0
         assert self._get_account_disk_space("tmp") == space
 
         tx2 = start_transaction(tx=tx)
         assert self._get_node_disk_space("//tmp/t", tx=tx2) == space
-        write("<append=true>//tmp/t", {"a" : "b"}, tx=tx2)
+        write_table("<append=true>//tmp/t", {"a" : "b"}, tx=tx2)
         assert self._get_node_disk_space("//tmp/t", tx=tx2) == space * 2
         assert self._get_account_disk_space("tmp") == space * 2
 
@@ -343,14 +343,14 @@ class TestAccounts(YTEnvSetup):
         create_account("max")
         assert self._get_account_chunk_count("max") == 0
         create("table", "//tmp/t")
-        write("//tmp/t", {"a" : "b"})
+        write_table("//tmp/t", {"a" : "b"})
         set("//tmp/t/@account", "max")
         assert self._get_account_chunk_count("max") == 1
 
     def test_chunk_count_limits3(self):
         create_account("max")
         create("table", "//tmp/t")
-        write("//tmp/t", {"a" : "b"})
+        write_table("//tmp/t", {"a" : "b"})
         self._set_account_chunk_count_limit("max", 0)
         with pytest.raises(YtError): set("//tmp/t/@account", "max")
 
@@ -370,16 +370,16 @@ class TestAccounts(YTEnvSetup):
         create("table", "//tmp/t")
         set("//tmp/t/@account", "max")
 
-        write("//tmp/t", {"a" : "b"})
+        write_table("//tmp/t", {"a" : "b"})
         assert not self._is_account_disk_space_limit_violated("max")
 
         self._set_account_disk_space_limit("max", 0)
         assert self._is_account_disk_space_limit_violated("max")
-        with pytest.raises(YtError): write("//tmp/t", {"a" : "b"})
+        with pytest.raises(YtError): write_table("//tmp/t", {"a" : "b"})
 
         self._set_account_disk_space_limit("max", self._get_account_disk_space("max") + 1)
         assert not self._is_account_disk_space_limit_violated("max")
-        write("<append=true>//tmp/t", {"a" : "b"})
+        write_table("<append=true>//tmp/t", {"a" : "b"})
         assert self._is_account_disk_space_limit_violated("max")
 
     def test_disk_space_limits3(self):
@@ -389,20 +389,20 @@ class TestAccounts(YTEnvSetup):
         content = "some_data"
 
         create("file", "//tmp/f1", attributes={"account": "max"})
-        upload("//tmp/f1", content)
+        write_file("//tmp/f1", content)
         assert not self._is_account_disk_space_limit_violated("max")
 
         self._set_account_disk_space_limit("max", 0)
         assert self._is_account_disk_space_limit_violated("max")
 
         create("file", "//tmp/f2", attributes={"account": "max"})
-        with pytest.raises(YtError): upload("//tmp/f2", content)
+        with pytest.raises(YtError): write_file("//tmp/f2", content)
 
         self._set_account_disk_space_limit("max", self._get_account_disk_space("max") + 1)
         assert not self._is_account_disk_space_limit_violated("max")
 
         create("file", "//tmp/f3", attributes={"account": "max"})
-        upload("//tmp/f3", content)
+        write_file("//tmp/f3", content)
         assert self._is_account_disk_space_limit_violated("max")
 
     def test_disk_space_limits4(self):
@@ -410,9 +410,9 @@ class TestAccounts(YTEnvSetup):
 
         create("map_node", "//tmp/a")
         create("file", "//tmp/a/f1")
-        upload("//tmp/a/f1", content)
+        write_file("//tmp/a/f1", content)
         create("file", "//tmp/a/f2")
-        upload("//tmp/a/f2", content)
+        write_file("//tmp/a/f2", content)
 
         disk_space = get("//tmp/a/f1/@resource_usage/disk_space")
         assert get("//tmp/a/f2/@resource_usage/disk_space") == disk_space
@@ -441,13 +441,13 @@ class TestAccounts(YTEnvSetup):
         assert self._get_account_committed_disk_space("tmp") == 0
 
         create("table", "//tmp/t")
-        write("//tmp/t", {"a" : "b"})
+        write_table("//tmp/t", {"a" : "b"})
         space = get("//tmp/t/@resource_usage/disk_space")
         assert space > 0
         assert self._get_account_committed_disk_space("tmp") == space
 
         tx = start_transaction()
-        write("<append=true>//tmp/t", {"a" : "b"}, tx=tx)
+        write_table("<append=true>//tmp/t", {"a" : "b"}, tx=tx)
         assert self._get_account_committed_disk_space("tmp") == space
 
         commit_transaction(tx)
@@ -466,7 +466,7 @@ class TestAccounts(YTEnvSetup):
         create("table", "//tmp/x1/t")
         assert get("//tmp/x1/t/@account") == "a1"
 
-        write("//tmp/x1/t", {"a" : "b"})
+        write_table("//tmp/x1/t", {"a" : "b"})
         space = self._get_account_disk_space("a1")
         assert space > 0
         assert space == self._get_account_committed_disk_space("a1")

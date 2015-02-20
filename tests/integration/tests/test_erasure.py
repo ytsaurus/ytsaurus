@@ -15,17 +15,17 @@ class TestErasure(YTEnvSetup):
         create("table", "//tmp/table")
         set("//tmp/table/@erasure_codec", erasure_codec)
 
-        assert read("//tmp/table") == []
+        assert read_table("//tmp/table") == []
         assert get("//tmp/table/@row_count") == 0
         assert get("//tmp/table/@chunk_count") == 0
 
-        write("//tmp/table", {"b": "hello"})
-        assert read("//tmp/table") == [{"b":"hello"}]
+        write_table("//tmp/table", {"b": "hello"})
+        assert read_table("//tmp/table") == [{"b":"hello"}]
         assert get("//tmp/table/@row_count") == 1
         assert get("//tmp/table/@chunk_count") == 1
 
-        write("<append=true>//tmp/table", [{"b": "2", "a": "1"}, {"x": "10", "y": "20", "a": "30"}])
-        assert read("//tmp/table") == [{"b": "hello"}, {"a":"1", "b":"2"}, {"a":"30", "x":"10", "y":"20"}]
+        write_table("<append=true>//tmp/table", [{"b": "2", "a": "1"}, {"x": "10", "y": "20", "a": "30"}])
+        assert read_table("//tmp/table") == [{"b": "hello"}, {"a":"1", "b":"2"}, {"a":"30", "x":"10", "y":"20"}]
         assert get("//tmp/table/@row_count") == 3
         assert get("//tmp/table/@chunk_count") == 2
 
@@ -50,7 +50,7 @@ class TestErasure(YTEnvSetup):
         remove("//tmp/table", force=True)
         create("table", "//tmp/table")
         set("//tmp/table/@erasure_codec", codec)
-        write("//tmp/table", {"b": "hello"})
+        write_table("//tmp/table", {"b": "hello"})
 
         chunk_ids = get("//tmp/table/@chunk_ids")
         assert len(chunk_ids) == 1
@@ -80,7 +80,7 @@ class TestErasure(YTEnvSetup):
                 time.sleep(0.2)
 
             assert ok
-            assert read("//tmp/table") == [{"b":"hello"}]
+            assert read_table("//tmp/table") == [{"b":"hello"}]
 
             set("//sys/nodes/%s/@banned" % r, False)
 
@@ -95,10 +95,10 @@ class TestErasure(YTEnvSetup):
         set("//tmp/t1/@erasure_codec", "reed_solomon_6_3")
         create("table", "//tmp/t2")
         set("//tmp/t2/@erasure_codec", "lrc_12_2_2")
-        write("//tmp/t1", {"a": "b"})
+        write_table("//tmp/t1", {"a": "b"})
         map(in_="//tmp/t1", out="//tmp/t2", command="cat")
 
-        assert read("//tmp/t2") == [{"a" : "b"}]
+        assert read_table("//tmp/t2") == [{"a" : "b"}]
 
     def test_sort(self):
         v1 = {"key" : "aaa"}
@@ -109,7 +109,7 @@ class TestErasure(YTEnvSetup):
 
         create("table", "//tmp/t_in")
         set("//tmp/t_in/@erasure_codec", "lrc_12_2_2")
-        write("//tmp/t_in", [v3, v5, v1, v2, v4]) # some random order
+        write_table("//tmp/t_in", [v3, v5, v1, v2, v4]) # some random order
 
         create("table", "//tmp/t_out")
         set("//tmp/t_in/@erasure_codec", "reed_solomon_6_3")
@@ -118,6 +118,6 @@ class TestErasure(YTEnvSetup):
              out="//tmp/t_out",
              sort_by="key")
 
-        assert read("//tmp/t_out") == [v1, v2, v3, v4, v5]
+        assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5]
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["key"]

@@ -17,7 +17,7 @@ class TestRff(YTEnvSetup):
         }
     }
 
-    def test_plain_read(self):
+    def test_plain_read_table(self):
         set('//tmp/x', 123)
         for i in xrange(100):
             assert get("//tmp/x", read_from="follower") == 123

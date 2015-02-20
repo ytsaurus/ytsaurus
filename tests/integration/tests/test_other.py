@@ -18,9 +18,9 @@ class TestResourceLeak(YTEnvSetup):
                 assert not file.endswith("~") or file == "health_check~", "Found temporary file: " + file
 
     # should be called on empty nodes
-    def test_canceled_upload(self):
+    def test_canceled_write_file(self):
         class InputStream(object):
-            def read(self):
+            def read_table(self):
                 time.sleep(1)
                 raise Exception("xxx")
 

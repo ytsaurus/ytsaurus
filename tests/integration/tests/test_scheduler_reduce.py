@@ -14,7 +14,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @only_linux
     def test_tricky_chunk_boundaries(self):
         create('table', '//tmp/in1')
-        write(
+        write_table(
             '//tmp/in1',
             [
                 {'key': "0", 'value': 1},
@@ -23,7 +23,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             sorted_by = ['key', 'value'])
 
         create('table', '//tmp/in2')
-        write(
+        write_table(
             '//tmp/in2',
             [
                 {'key': "2", 'value': 6},
@@ -41,7 +41,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             spec={"reducer": {"format": yson.loads("<line_prefix=tskv>dsv")},
                   "data_size_per_job": 1})
 
-        assert read('//tmp/out') == \
+        assert read_table('//tmp/out') == \
             [
                 {'key': "0"},
                 {'key': "2"},
@@ -53,7 +53,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @only_linux
     def test_cat(self):
         create('table', '//tmp/in1')
-        write(
+        write_table(
             '//tmp/in1',
             [
                 {'key': 0, 'value': 1},
@@ -64,7 +64,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             sorted_by = 'key')
 
         create('table', '//tmp/in2')
-        write(
+        write_table(
             '//tmp/in2',
             [
                 {'key': -1,'value': 5},
@@ -82,7 +82,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             command='cat',
             spec={"reducer": {"format": "dsv"}})
 
-        assert read('//tmp/out') == \
+        assert read_table('//tmp/out') == \
             [
                 {'key': "-1",'value': "5"},
                 {'key': "0", 'value': "1"},
@@ -100,7 +100,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @only_linux
     def test_cat_teleport(self):
         create('table', '//tmp/in1')
-        write(
+        write_table(
             '//tmp/in1',
             [
                 {'key': 0, 'value': 1},
@@ -111,7 +111,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             sorted_by = ['key', 'value'])
 
         create('table', '//tmp/in2')
-        write(
+        write_table(
             '//tmp/in2',
             [
                 {'key': 8,'value': 5},
@@ -120,13 +120,13 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             sorted_by = ['key', 'value'])
 
         create('table', '//tmp/in3')
-        write(
+        write_table(
             '//tmp/in3',
             [ {'key': 8,'value': 1}, ],
             sorted_by = ['key', 'value'])
 
         create('table', '//tmp/in4')
-        write(
+        write_table(
             '//tmp/in4',
             [ {'key': 9,'value': 7}, ],
             sorted_by = ['key', 'value'])
@@ -141,7 +141,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             reduce_by = 'key',
             spec={"reducer": {"format": "dsv"}})
 
-        assert read('//tmp/out1') == \
+        assert read_table('//tmp/out1') == \
             [
                 {'key': 0, 'value': 1},
                 {'key': 2, 'value': 2},
@@ -149,7 +149,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 {'key': 7, 'value': 4}
             ]
 
-        assert read('//tmp/out2') == \
+        assert read_table('//tmp/out2') == \
             [
                 {'key': "8",'value': "1"},
                 {'key': "8",'value': "5"},
@@ -163,7 +163,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @only_linux
     def test_maniac_chunk(self):
         create('table', '//tmp/in1')
-        write(
+        write_table(
             '//tmp/in1',
             [
                 {'key': 0, 'value': 1},
@@ -172,7 +172,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             sorted_by = 'key')
 
         create('table', '//tmp/in2')
-        write(
+        write_table(
             '//tmp/in2',
             [
                 {'key': 2, 'value': 6},
@@ -189,7 +189,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             command = 'cat',
             spec={"reducer": {"format": "dsv"}})
 
-        assert read('//tmp/out') == \
+        assert read_table('//tmp/out') == \
             [
                 {'key': "0", 'value': "1"},
                 {'key': "2", 'value': "9"},
@@ -205,7 +205,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         create('table', '//tmp/in')
 
         # TODO(panin): replace it with sort of empty input (when it will be fixed)
-        write('//tmp/in', {'foo': 'bar'}, sorted_by='a')
+        write_table('//tmp/in', {'foo': 'bar'}, sorted_by='a')
         erase('//tmp/in')
 
         create('table', '//tmp/out')
@@ -215,12 +215,12 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             out = '//tmp/out',
             command = 'cat')
 
-        assert read('//tmp/out') == []
+        assert read_table('//tmp/out') == []
 
     def test_unsorted_input(self):
         create('table', '//tmp/in')
         create('table', '//tmp/out')
-        write('//tmp/in', {'foo': 'bar'})
+        write_table('//tmp/in', {'foo': 'bar'})
 
         with pytest.raises(YtError):
             reduce(
@@ -231,7 +231,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     def test_non_prefix(self):
         create('table', '//tmp/in')
         create('table', '//tmp/out')
-        write('//tmp/in', {'key': '1', 'subkey': '2'}, sorted_by=['key', 'subkey'])
+        write_table('//tmp/in', {'key': '1', 'subkey': '2'}, sorted_by=['key', 'subkey'])
 
         with pytest.raises(YtError):
             reduce(
@@ -248,7 +248,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         for table_path in output_tables:
             create('table', table_path)
 
-        write('//tmp/t_in', [{"k": 10}], sorted_by='k')
+        write_table('//tmp/t_in', [{"k": 10}], sorted_by='k')
 
         reducer = \
 """
@@ -259,16 +259,16 @@ echo {v = 2} >&7
 
 """
         create('file', '//tmp/reducer.sh')
-        upload('//tmp/reducer.sh', reducer)
+        write_file('//tmp/reducer.sh', reducer)
 
         reduce(in_='//tmp/t_in',
             out=output_tables,
             command='bash reducer.sh',
             file='//tmp/reducer.sh')
 
-        assert read(output_tables[0]) == [{'v': 0}]
-        assert read(output_tables[1]) == [{'v': 1}]
-        assert read(output_tables[2]) == [{'v': 2}]
+        assert read_table(output_tables[0]) == [{'v': 0}]
+        assert read_table(output_tables[1]) == [{'v': 1}]
+        assert read_table(output_tables[2]) == [{'v': 2}]
 
     def test_job_count(self):
         create('table', '//tmp/in', attributes={"compression_codec": "none"})
@@ -278,7 +278,7 @@ echo {v = 2} >&7
 
         # Job count works only if we have enough splits in input chunks.
         # Its default rate 0.0001, so we should have enough rows in input table
-        write(
+        write_table(
             '//tmp/in',
             [ {'key': "%.010d" % num} for num in xrange(count) ],
             sorted_by = ['key'],
