@@ -149,7 +149,7 @@ class TestParser(unittest.TestCase, YsonParserTestBase):
 
 class YsonWriterTestBase(object):
     def test_slash(self):
-        self.assertEqual(self.writer.dumps({"key": "1\\"}, yson_format="text"), '{"key"="1\\\\";}')
+        self.assertEqual(self.writer.dumps({"key": "1\\"}, yson_format="text"), '{"key"="1\\\\"}')
 
     def test_boolean(self):
         self.assertEqual(self.writer.dumps(False, boolean_as_string=True), '"false"')

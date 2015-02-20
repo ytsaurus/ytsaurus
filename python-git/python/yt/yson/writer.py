@@ -125,7 +125,10 @@ class Dumper(object):
 
     def _dump_map(self, obj):
         result = ['{', self._format.nextline()]
-        for k, v in obj.items():
+        size = len(obj)
+        items = obj.iteritems()
+        for index, item in enumerate(items):
+            k, v = item
             if not isinstance(k, basestring):
                 raise TypeError("Only string can be Yson map key. Key: %s" % repr(obj))
 
@@ -133,7 +136,7 @@ class Dumper(object):
             def process_item():
                 return [self._format.prefix(self._level + 1),
                     self._dump_string(k), self._format.space(), '=',
-                    self._format.space(), self.dumps(v), ';', self._format.nextline()]
+                    self._format.space(), self.dumps(v), ';' if index + 1 < size else '', self._format.nextline()]
 
             result += process_item()
 
