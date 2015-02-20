@@ -18,6 +18,34 @@ class Kiwi(object):
         self.url = url
         self.kwworm = kwworm
 
+    def _get_option_key(self, option):
+        if isinstance(option, list):
+            return option[0]
+        return option
+
+    def _option_to_str(self, option):
+        if isinstance(option, list):
+            return " ".join(option)
+        return option
+
+    def _join_options(self, base_options, additional_options):
+        result = deepcopy(base_options)
+        key_to_index = dict((self._get_option_key(option), index) for index, option in enumerate(base_options))
+        for option in additional_options:
+            key = self._get_option_key(option)
+            if key in key_to_index:
+                result[key_to_index[key]] = option
+            else:
+                result.append(option)
+        return result
+
+    def get_command(self, kiwi_user, kwworm_options=None):
+        if kwworm_options is None:
+            kwworm_options = []
+        command = " ".join(map(self._option_to_str, self._join_options(self.kwworm, kwworm_options)))
+        return command.format(kiwi_url=self.url, kiwi_user=kiwi_user)
+
+
 def _which(file):
     for path in os.environ["PATH"].split(":"):
         if os.path.exists(path + "/" + file):
@@ -359,7 +387,7 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, spec_templa
         logger.error(error)
         raise yt.IncorrectRowCount(error)
 
-def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, kiwi_user, files=None, spec_template=None, write_to_table=False, protobin=True, message_queue=None):
+def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, kiwi_user, files=None, spec_template=None, write_to_table=False, protobin=True, kwworm_options=None, message_queue=None):
     extract_value_script_to_table = """\
 import sys
 import struct
@@ -418,7 +446,7 @@ while True:
         output_format = yt.YamrFormat(lenval=True,has_subkey=False)
     else:
         extract_value_script = extract_value_script_to_worm
-        kiwi_command = kiwi_client.kwworm.format(kiwi_url=kiwi_client.url, kiwi_user=kiwi_user)
+        kiwi_command = kiwi_client.get_command(kiwi_user=kiwi_user, kwworm_options=kwworm_options)
         write_command = "| {0} >output 2>&1; RESULT=$?; cat output; tail -n 100 output >&2; exit $RESULT".format(kiwi_command)
         output_format = yt.SchemafulDsvFormat(columns=["error"])
 
