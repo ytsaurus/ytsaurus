@@ -172,7 +172,7 @@ def make_request(command_name, params,
     allow_retries = \
             not command.is_volatile or \
             (config.http.RETRY_VOLATILE_COMMANDS and not command.is_heavy)
-    params["retry"] = False
+    params["retry"] = bool_to_string(False)
     if command.is_volatile and allow_retries:
         if config.MUTATION_ID is not None:
             params["mutation_id"] = config.MUTATION_ID
@@ -204,7 +204,7 @@ def make_request(command_name, params,
 
     if command.is_volatile and allow_retries:
         def set_retry():
-            params["retry"] = True
+            params["retry"] = bool_to_string(True)
             headers.update({"X-YT-Parameters": json.dumps(escape_utf8(params))})
         retry_action = set_retry
     else:
