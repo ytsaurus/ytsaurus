@@ -3,7 +3,7 @@ from common import require, prefix, get_value
 from errors import YtError, YtOperationFailedError, YtResponseError, format_error, YtTimeoutError
 from driver import make_request
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
-from tree_commands import get_attribute, exists, search
+from tree_commands import get_attribute, exists, search, get
 from file_commands import download_file
 import yt.logger as logger
 
@@ -270,51 +270,62 @@ def get_operation_result(operation, client=None):
     else:
         return result
 
-class WaitStrategy(object):
-    """Strategy synchronously wait operation, print current progress and finalize at the completion."""
-    def __init__(self, check_result=True, print_progress=True, timeout=None):
-        """
-        :param check_result: (bool) get stderr if operation failed
-        :param print_progress: (bool)
-        :param timeout: (double) timeout of operation in sec. ``None`` means operation is endlessly waited for.
-        """
-        self.check_result = check_result
-        self.print_progress = print_progress
-        self.timeout = timeout
+class Operation(object):
+    """Holds information about started operation."""
+    def __init__(self, type, id, finalize=None, client=None):
+        self.type = type
+        self.id = id
+        self.finalize = finalize
+        self.client = client
 
-    def process_operation(self, type, operation, finalize=None, client=None):
-        """Track running operation.
+    def suspend(self):
+        suspend_operation(self.id)
+
+    def resume(self):
+        resume_operation(self.id)
+
+    def abort(self):
+        abort_operation(self.id)
+
+    def attributes(self):
+        return get("{0}/{1}/@".format(OPERATIONS_PATH, self.id))
+
+    def wait(self, check_result=True, print_progress=True, timeout=None):
+        """Synchronously track operation, print current progress and finalize at the completion.
 
         If timeout occurred, raise `YtTimeoutError`.
         If operation failed, raise `YtOperationFailedError`.
         If `KeyboardInterrupt` occurred, abort operation, finalize and reraise `KeyboardInterrupt`.
+
+        :param check_result: (bool) get stderr if operation failed
+        :param print_progress: (bool)
+        :param timeout: (double) timeout of operation in sec. ``None`` means operation is endlessly waited for.
         """
-        finalize = finalize if finalize else lambda state: None
+        finalize = self.finalize if self.finalize else lambda state: None
         time_watcher = TimeWatcher(min_interval=config.OPERATION_STATE_UPDATE_PERIOD / 5.0,
                                    max_interval=config.OPERATION_STATE_UPDATE_PERIOD,
-                                   slowdown_coef=0.1, timeout=self.timeout)
-        print_info = PrintOperationInfo(operation, client=client) if self.print_progress else lambda state: None
+                                   slowdown_coef=0.1, timeout=timeout)
+        print_info = PrintOperationInfo(self.id, client=self.client) if print_progress else lambda state: None
 
         def abort():
-            state = wait_final_state(operation, TimeWatcher(1.0, 1.0, 0.0, timeout=None),
-                                     print_info, lambda: abort_operation(operation, client=client), client=client)
+            state = wait_final_state(self.id, TimeWatcher(1.0, 1.0, 0.0, timeout=None),
+                                     print_info, lambda: abort_operation(self.id, client=self.client), client=self.client)
             finalize(state)
             return state
 
         with KeyboardInterruptsCatcher(abort):
-            state = wait_final_state(operation, time_watcher, print_info, client=client)
+            state = wait_final_state(self.id, time_watcher, print_info, client=self.client)
             timeout_occurred = time_watcher.is_time_up()
             finalize(state)
             if timeout_occurred:
                 logger.info("Timeout occurred.")
                 raise YtTimeoutError
 
-        if self.check_result and state.is_failed():
-            operation_result = get_operation_result(operation, client=client)
-            stderrs = get_stderrs(operation, only_failed_jobs=True, client=client)
+        if check_result and state.is_failed():
+            operation_result = get_operation_result(self.id, client=self.client)
+            stderrs = get_stderrs(self.id, only_failed_jobs=True, client=self.client)
             message = "Operation {0} {1}. Result: {2}"\
-                .format(operation, str(state),
-                        operation_result)
+                .format(self.id, str(state), operation_result)
 
             attributes = {}
             if stderrs:
@@ -323,28 +334,21 @@ class WaitStrategy(object):
 
         stderr_level = logging._levelNames[config.STDERR_LOGGING_LEVEL]
         if logger.LOGGER.isEnabledFor(stderr_level):
-            stderrs = get_stderrs(operation, only_failed_jobs=False, client=client)
+            stderrs = get_stderrs(self.id, only_failed_jobs=False, client=self.client)
             if stderrs:
                 logger.log(stderr_level, "\n" + stderrs)
 
+class WaitStrategy(object):
+    """Deprecated! Strategy synchronously wait operation, print current progress and finalize at the completion."""
+    def __init__(self, check_result=True, print_progress=True, timeout=None):
+        self.check_result = check_result
+        self.print_progress = print_progress
+        self.timeout = timeout
 
-# TODO(ignat): Fix interaction with transactions
-class AsyncStrategy(object):
-    """Strategy just save some info about operations."""
-    # TODO(improve this strategy)
-    def __init__(self):
-        self.operations = []
+    def process_operation(self, type, operation, finalize=None, client=None):
+        """Track running operation."""
+        operation = Operation(type, operation, finalize, client)
+        operation.wait(self.check_result, self.print_progress, self.timeout)
 
-    def process_operation(self, type, operation, finalize, client=None):
-        """Save operation info."""
-        self.operations.append(tuple([type, operation, finalize]))
-
-    def get_last_operation(self):
-        """
-        Return last operation.
-
-        :raises `IndexError`: no operations
-        """
-        return self.operations[-1]
 
 config.DEFAULT_STRATEGY = WaitStrategy()

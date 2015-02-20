@@ -11,6 +11,7 @@ import yt.yson as yson
 import os
 import sys
 import simplejson as json
+import inspect
 import fnmatch
 import shlex
 
@@ -408,27 +409,6 @@ def add_select_parser(add_parser):
     parser.add_argument("--format", action=ParseFormat)
     parser.set_defaults(func=select)
 
-def add_erase_parser(add_parser):
-    parser = add_parser("erase", yt.run_erase, epilog="Note you can specify range in table to erase.")
-    add_ypath_argument(parser, name="table", help="path to table to erase")
-
-def add_merge_parser(add_parser):
-    parser = add_parser("merge", yt.run_merge)
-    add_ypath_argument(parser, name="--src", action="append", required=True, dest="source_table",
-                       help="path to source table")
-    add_ypath_argument(parser, name="--dst", required=True, dest="destination_table",
-        help="path to destination table. For append mode add <append=true> before path.")
-    parser.add_argument("--mode", default="unordered", choices=["unordered", "ordered", "sorted"],
-        help="use sorted mode for saving sortedness. unordered mode by default, ordered for chunk magic")
-    add_spec_help(parser)
-
-def add_sort_parser(add_parser):
-    parser = add_parser("sort", yt.run_sort)
-    parser.add_argument("--src", action="append", required=True, dest="source_table")
-    parser.add_argument("--dst", required=True, dest="destination_table")
-    parser.add_argument("--sort-by", action="append", required=True, help="Columns to sort by.")
-    add_spec_help(parser)
-
 def operation_args(parser):
     parser.add_argument("binary", metavar="command")
     parser.add_argument("--src", action="append", required=True, dest="source_table")
@@ -441,20 +421,60 @@ def operation_args(parser):
     parser.add_argument("--format", action=ParseFormat)
     parser.add_argument("--input-format", action=ParseFormat)
     parser.add_argument("--output-format", action=ParseFormat)
+    parser.add_argument("--print-statistics", action="store_true", default=False)
+
+def operation_handler(function):
+    def handler(*args, **kwargs):
+        print_statistics = kwargs.get("print_statistics", False)
+        if "print_statistics" in kwargs:
+            del kwargs["print_statistics"]
+
+        operation = function(*args, **kwargs)
+
+        if print_statistics:
+            print >>sys.stderr, dump_data(operation.attributes()["progress"])
+
+    handler.__doc__ = inspect.getdoc(function)
+
+    return handler
+
+def add_erase_parser(add_parser):
+    parser = add_parser("erase", operation_handler(yt.run_erase), epilog="Note you can specify range in table to erase.")
+    add_ypath_argument(parser, name="table", help="path to table to erase")
+    parser.add_argument("--print-statistics", action="store_true", default=False)
+
+def add_merge_parser(add_parser):
+    parser = add_parser("merge", operation_handler(yt.run_merge))
+    add_ypath_argument(parser, name="--src", action="append", required=True, dest="source_table",
+                       help="path to source table")
+    add_ypath_argument(parser, name="--dst", required=True, dest="destination_table",
+        help="path to destination table. For append mode add <append=true> before path.")
+    parser.add_argument("--mode", default="unordered", choices=["unordered", "ordered", "sorted"],
+        help="use sorted mode for saving sortedness. unordered mode by default, ordered for chunk magic")
+    parser.add_argument("--print-statistics", action="store_true", default=False)
+    add_spec_help(parser)
+
+def add_sort_parser(add_parser):
+    parser = add_parser("sort", operation_handler(yt.run_sort))
+    parser.add_argument("--src", action="append", required=True, dest="source_table")
+    parser.add_argument("--dst", required=True, dest="destination_table")
+    parser.add_argument("--sort-by", action="append", required=True, help="Columns to sort by.")
+    parser.add_argument("--print-statistics", action="store_true", default=False)
+    add_spec_help(parser)
 
 def add_map_parser(add_parser):
-    parser = add_parser("map", yt.run_map, epilog="See also yt map-reduce --help for brief options description.")
+    parser = add_parser("map", operation_handler(yt.run_map), epilog="See also yt map-reduce --help for brief options description.")
     operation_args(parser)
 
 def add_reduce_parser(add_parser):
-    parser = add_parser("reduce", yt.run_reduce,
+    parser = add_parser("reduce", operation_handler(yt.run_reduce),
         epilog="See also yt map-reduce --help for brief options description.\n Note, source tables must be sorted!\
 For reducing not sorted table use map-reduce command without --mapper")
     operation_args(parser)
     parser.add_argument("--reduce-by", action="append", help="Columns to reduce by.")
 
 def add_remote_copy_parser(add_parser):
-    parser = add_parser("remote-copy", yt.run_remote_copy)
+    parser = add_parser("remote-copy", operation_handler(yt.run_remote_copy))
     parser.add_argument("--src", action="append", required=True, dest="source_table", help="path to source Cypress node in remote cluster")
     parser.add_argument("--dst", required=True, dest="destination_table", help="path to destination node in current cluster")
     parser.add_argument("--cluster", required=True, dest="cluster_name", help="remote cluster proxy, like smith")
@@ -479,7 +499,7 @@ Source and destination tables can be specified multiple times (but be ready to p
 
 For append mode in destination table add <append=true> modificator to path.
 '''
-    parser = add_parser("map-reduce", yt.run_map_reduce, epilog=MAP_REDUCE_EPILOG, formatter_class=RawDescriptionHelpFormatter)
+    parser = add_parser("map-reduce", operation_handler(yt.run_map_reduce), epilog=MAP_REDUCE_EPILOG, formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument("--mapper", required=False)
     parser.add_argument("--reducer", required=True)
     parser.add_argument("--reduce-combiner", required=False)
@@ -626,16 +646,33 @@ def main():
 
     subparsers = parser.add_subparsers(metavar="command")
 
-    def add_parser(command_name, function=None, help=None, *args, **kwargs):
+    def extract_help(help, function):
         if not help:
             help = function.__doc__.split("\n")[0]
         pythonic_help = help.strip(" .")
         pythonic_help = pythonic_help[0].lower() + pythonic_help[1:]
+        return pythonic_help
+
+    def add_parser(command_name, function=None, help=None, pythonic_help=None, *args, **kwargs):
+        if pythonic_help is None:
+            pythonic_help = extract_help(help, function)
         parser = fix_parser(subparsers.add_parser(command_name, *args, description=help,
                                                   help=pythonic_help, **kwargs))
         parser.set_defaults(func=function)
         return parser
 
+    def add_run_operation_parser(command_name, function=None, help=None, *args, **kwargs):
+        def action(*args, **kwargs):
+            print_statistics = kwargs.get("print_statistics", False)
+            if "print_statistics" in kwargs:
+                del kwargs["print_statistics"]
+
+            operation = function(*args, **kwargs)
+
+            if print_statistics:
+                print >>sys.stderr, dump_data(operation.attributes()["progress"])
+
+        return add_parser(command_name, action, help=help, pythonic_help=extract_help(help, function), *args, **kwargs)
 
     add_exists_parser(add_parser)
     add_list_parser(add_parser)
@@ -660,6 +697,7 @@ def main():
     add_reshard_table_parser(add_parser)
 
     add_select_parser(add_parser)
+
     add_erase_parser(add_parser)
     add_merge_parser(add_parser)
     add_sort_parser(add_parser)
