@@ -37,7 +37,8 @@ struct TChunkTreeStatistics
     //! Total number of chunk lists in the tree.
     int ChunkListCount = 0;
 
-    //! Distance to leaves (chunks) in edges. Leaves have rank zero.
+    //! Chunks have zero ranks.
+    //! Chunk lists have rank |1 + maxChildRank|, where |maxChildRank = 0| if there are no children.
     int Rank = 0;
 
     //! |false| indicates that there is an unsealed journal chunk at the end.
