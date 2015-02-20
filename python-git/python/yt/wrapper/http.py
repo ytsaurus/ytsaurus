@@ -78,7 +78,7 @@ def _process_request_backoff(current_time):
             time.sleep(float(http_config.REQUEST_BACKOFF) / 1000.0 - diff)
         get_session().last_request_time = now_seconds
 
-def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_should_be_json=False, timeout=None, **kwargs):
+def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_should_be_json=False, timeout=None, retry_action=None, **kwargs):
     if timeout is not None:
         timeout = http_config.REQUEST_RETRY_TIMEOUT / 1000.0
 
@@ -115,6 +115,8 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
         except tuple(retriable_errors) as error:
             message =  "HTTP %s request %s has failed with error %s, message: '%s', headers: %s" % (method, url, type(error), str(error), headers)
             if make_retries and attempt + 1 < http_config.REQUEST_RETRY_COUNT:
+                if retry_action is not None:
+                    retry_action()
                 backoff = get_backoff(http_config.REQUEST_RETRY_TIMEOUT, current_time)
                 if backoff:
                     logger.warning("%s. Sleep for %.2lf seconds...", message, backoff)
