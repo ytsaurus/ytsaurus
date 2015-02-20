@@ -21,10 +21,11 @@ if __name__ == "__main__":
     parser.add_argument("--proxy")
     parser.add_argument("--queue-path")
 
-    parser.add_argument("--minimum-number-of-chunks", type=int, default=10)
+    parser.add_argument("--minimum-number-of-chunks", type=int, default=100)
     parser.add_argument("--maximum-chunk-size", type=int, default=100 *1024 * 1024)
     parser.add_argument("--minimal-age", type=int, default=0)
     parser.add_argument("--filter-out", action="append")
+    parser.add_argument("--ignore-suppress-nightly-merge", action="store_true", default=False)
     parser.add_argument("--print-only", action="store_true", default=False)
 
     args = parser.parse_args()
@@ -40,7 +41,9 @@ if __name__ == "__main__":
     for table in yt.search("/",
                            node_type="table",
                            attributes=["compressed_data_size", "chunk_count", "modification_time", "suppress_nightly_merge"],
-                           subtree_filter=lambda path, obj: not obj.attributes.get("suppress_nightly_merge", False),
+                           subtree_filter=lambda path, obj:
+                               args.ignore_suppress_nightly_merge or
+                               not obj.attributes.get("suppress_nightly_merge", False),
                            exclude=args.filter_out):
         chunk_count = int(table.attributes["chunk_count"])
         if chunk_count == 0: continue
