@@ -15,7 +15,7 @@ def walk(root, limit):
 
 def main():
     for line in sys.stdin:
-        table, count = line.split()
+        table, count = line.rsplit(" ", 1)
         count = int(count)
         child = None
         while True:
