@@ -61,6 +61,7 @@ public:
     int GetColumnIndexOrThrow(const TStringBuf& name) const;
 
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
+    TTableSchema TrimNonkeyColumns(const TKeyColumns& keyColumns) const;
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);

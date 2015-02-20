@@ -118,18 +118,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInsertExecutor
+class TInsertRowsExecutor
     : public TRequestExecutor
 {
 public:
-    TInsertExecutor();
+    TInsertRowsExecutor();
 
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
     TCLAP::SwitchArg UpdateArg;
     TUnlabeledStringArg ValueArg;
 
-    bool UseStdIn;
+    bool UseStdIn = true;
     TStringStream Stream;
 
     virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
@@ -139,11 +139,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSelectExecutor
+class TSelectRowsExecutor
     : public TRequestExecutor
 {
 public:
-    TSelectExecutor();
+    TSelectRowsExecutor();
 
 private:
     TCLAP::UnlabeledValueArg<Stroka> QueryArg;
@@ -157,35 +157,43 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLookupExecutor
+class TLookupRowsExecutor
     : public TRequestExecutor
 {
 public:
-    TLookupExecutor();
+    TLookupRowsExecutor();
 
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
-    TCLAP::UnlabeledValueArg<Stroka> KeyArg;
     TCLAP::ValueArg<NTransactionClient::TTimestamp> TimestampArg;
+    TUnlabeledStringArg ValueArg;
+
+    bool UseStdIn = true;
+    TStringStream Stream;
 
     virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
+    virtual TInputStream* GetInputStream() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDeleteExecutor
+class TDeleteRowsExecutor
     : public TRequestExecutor
 {
 public:
-    TDeleteExecutor();
+    TDeleteRowsExecutor();
 
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
-    TCLAP::UnlabeledValueArg<Stroka> KeyArg;
+    TUnlabeledStringArg ValueArg;
+
+    bool UseStdIn = true;
+    TStringStream Stream;
 
     virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
+    virtual TInputStream* GetInputStream() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

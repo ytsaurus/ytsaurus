@@ -182,6 +182,17 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
     return result;
 }
 
+TTableSchema TTableSchema::TrimNonkeyColumns(const TKeyColumns& keyColumns) const
+{
+    TTableSchema result;
+    YCHECK(Columns_.size() >= keyColumns.size());
+    for (int id = 0; id < keyColumns.size(); ++id) {
+        YCHECK(Columns_[id].Name == keyColumns[id]);
+        result.Columns().push_back(Columns_[id]);
+    }
+    return result;
+}
+
 void TTableSchema::Save(TStreamSaveContext& context) const
 {
     NYT::Save(context, NYT::ToProto<NVersionedTableClient::NProto::TTableSchemaExt>(*this));
@@ -195,7 +206,6 @@ void TTableSchema::Load(TStreamLoadContext& context)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
 {

@@ -51,32 +51,32 @@ class TestQuery(YTEnvSetup):
             path = "//tmp/t{0}".format(i)
 
             self._sample_data(path=path, chunks=i, stripe=10)
-            result = select("a, b from [{0}]".format(path), verbose=False)
+            result = select_rows("a, b from [{0}]".format(path), verbose=False)
 
             assert len(result) == 10 * i
 
     def test_project1(self):
         self._sample_data(path="//tmp/p1")
         expected = [{"s": 2 * i + 10 * i - 1} for i in xrange(1, 10)]
-        actual = select("2 * a + b - 1 as s from [//tmp/p1]")
+        actual = select_rows("2 * a + b - 1 as s from [//tmp/p1]")
         assert expected == actual
 
     def test_group_by1(self):
         self._sample_data(path="//tmp/g1")
         expected = [{"s": 450}]
-        actual = select("sum(b) as s from [//tmp/g1] group by 1 as k")
+        actual = select_rows("sum(b) as s from [//tmp/g1] group by 1 as k")
         self.assertItemsEqual(expected, actual)
 
     def test_group_by2(self):
         self._sample_data(path="//tmp/g2")
         expected = [{"k": 0, "s": 200}, {"k": 1, "s": 250}]
-        actual = select("k, sum(b) as s from [//tmp/g2] group by a % 2 as k")
+        actual = select_rows("k, sum(b) as s from [//tmp/g2] group by a % 2 as k")
         self.assertItemsEqual(expected, actual)
 
     def test_limit(self):
         self._sample_data(path="//tmp/l1")
         expected = [{"a": 1, "b": 10}]
-        actual = select("* from [//tmp/l1] limit 1")
+        actual = select_rows("* from [//tmp/l1] limit 1")
         assert expected == actual
 
     def test_join(self):
@@ -117,7 +117,7 @@ class TestQuery(YTEnvSetup):
             {"LogID": 2, "OrderID": 4, "UpdateTime": 6 },
             {"LogID": 3, "OrderID": 1, "UpdateTime": 7 }]
 
-        insert("//tmp/jl", data)
+        insert_rows("//tmp/jl", data)
 
         data = [
             {"LogID1": 1, "OrderID1": 2, "UpdateTime": 0 },
@@ -129,7 +129,7 @@ class TestQuery(YTEnvSetup):
             {"LogID1": 2, "OrderID1": 4, "UpdateTime": 6 },
             {"LogID1": 3, "OrderID1": 1, "UpdateTime": 7 }]
 
-        insert("//tmp/jr", data)
+        insert_rows("//tmp/jr", data)
 
         expected = [
             {"LogID": 1, "OrderID": 2, "UpdateTime": 0, "LogID1": 1, "OrderID1": 2},
@@ -141,7 +141,7 @@ class TestQuery(YTEnvSetup):
             {"LogID": 2, "OrderID": 4, "UpdateTime": 6, "LogID1": 2, "OrderID1": 4},
             {"LogID": 3, "OrderID": 1, "UpdateTime": 7, "LogID1": 3, "OrderID1": 1}]
 
-        actual = select("* from [//tmp/jl] join [//tmp/jr] using UpdateTime where LogID < 4")
+        actual = select_rows("* from [//tmp/jl] join [//tmp/jr] using UpdateTime where LogID < 4")
         assert expected == actual
 
     def test_types(self):
@@ -162,7 +162,7 @@ class TestQuery(YTEnvSetup):
             {"name": "d", "type": "uint64"},
         ])
 
-        assert select('a, b, c, d from [//tmp/t] where c="hello"', output_format=format) == \
+        assert select_rows('a, b, c, d from [//tmp/t] where c="hello"', output_format=format) == \
                 '{"a"=10;"b"=%false;"c"="hello";"d"=32u};\n'
 
     def test_tablets(self):
@@ -183,7 +183,7 @@ class TestQuery(YTEnvSetup):
             data = [
                 {"key": (i * stripe + j), "value": (i * stripe + j) * 10}
                 for j in xrange(1, 1 + stripe)]
-            insert("//tmp/tt", data)
+            insert_rows("//tmp/tt", data)
 
         unmount_table("//tmp/tt")
         self._wait_for_tablet_state("//tmp/tt", ["unmounted"])
@@ -191,6 +191,6 @@ class TestQuery(YTEnvSetup):
         mount_table("//tmp/tt", first_tablet_index=0, last_tablet_index=2)
         self._wait_for_tablet_state("//tmp/tt", ["unmounted", "mounted"])
 
-        select("* from [//tmp/tt] where key < 50")
+        select_rows("* from [//tmp/tt] where key < 50")
 
-        with pytest.raises(YtError): select("* from [//tmp/tt] where key < 51")
+        with pytest.raises(YtError): select_rows("* from [//tmp/tt] where key < 51")

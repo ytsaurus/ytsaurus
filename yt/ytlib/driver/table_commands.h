@@ -165,34 +165,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TInsertRequest
-    : public TRequest
-{
-    NYPath::TRichYPath Path;
-    bool Update;
-    NYTree::INodePtr TableWriter;
-
-    TInsertRequest()
-    {
-        RegisterParameter("path", Path);
-        RegisterParameter("update", Update)
-            .Default(false);
-        RegisterParameter("table_writer", TableWriter)
-            .Default(nullptr);
-    }
-};
-
-class TInsertCommand
-    : public TTypedCommand<TInsertRequest>
-{
-private:
-    virtual void DoExecute() override;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TSelectRequest
+struct TSelectRowsRequest
     : public TRequest
 {
     Stroka Query;
@@ -200,7 +173,7 @@ struct TSelectRequest
     TNullable<i64> InputRowLimit;
     TNullable<i64> OutputRowLimit;
 
-    TSelectRequest()
+    TSelectRowsRequest()
     {
         RegisterParameter("query", Query);
         RegisterParameter("timestamp", Timestamp)
@@ -212,8 +185,8 @@ struct TSelectRequest
     }
 };
 
-class TSelectCommand
-    : public TTypedCommand<TSelectRequest>
+class TSelectRowsCommand
+    : public TTypedCommand<TSelectRowsRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -222,18 +195,46 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLookupRequest
+struct TInsertRowsRequest
     : public TRequest
 {
+    NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
-    NVersionedTableClient::TOwningKey Key;
+    bool Update;
+
+    TInsertRowsRequest()
+    {
+        RegisterParameter("table_writer", TableWriter)
+            .Default();
+        RegisterParameter("path", Path);
+        RegisterParameter("update", Update)
+            .Default(false);
+    }
+};
+
+class TInsertRowsCommand
+    : public TTypedCommand<TInsertRowsRequest>
+{
+private:
+    virtual void DoExecute() override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TLookupRowsRequest
+    : public TRequest
+{
+    NYTree::INodePtr TableWriter;
+    NYPath::TRichYPath Path;
     NTransactionClient::TTimestamp Timestamp;
     TNullable<std::vector<Stroka>> ColumnNames;
 
-    TLookupRequest()
+    TLookupRowsRequest()
     {
+        RegisterParameter("table_writer", TableWriter)
+            .Default();
         RegisterParameter("path", Path);
-        RegisterParameter("key", Key);
         RegisterParameter("timestamp", Timestamp)
             .Default(NTransactionClient::SyncLastCommittedTimestamp);
         RegisterParameter("column_names", ColumnNames)
@@ -241,8 +242,8 @@ struct TLookupRequest
     }
 };
 
-class TLookupCommand
-    : public TTypedCommand<TLookupRequest>
+class TLookupRowsCommand
+    : public TTypedCommand<TLookupRowsRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -251,21 +252,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDeleteRequest
+struct TDeleteRowsRequest
     : public TRequest
 {
+    NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
-    NVersionedTableClient::TOwningKey Key;
 
-    TDeleteRequest()
+    TDeleteRowsRequest()
     {
+        RegisterParameter("table_writer", TableWriter)
+            .Default();
         RegisterParameter("path", Path);
-        RegisterParameter("key", Key);
     }
 };
 
-class TDeleteCommand
-    : public TTypedCommand<TDeleteRequest>
+class TDeleteRowsCommand
+    : public TTypedCommand<TDeleteRowsRequest>
 {
 private:
     virtual void DoExecute() override;
