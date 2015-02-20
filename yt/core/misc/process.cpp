@@ -4,8 +4,11 @@
 #include "proc.h"
 
 #include <core/logging/log.h>
+
 #include <core/misc/error.h>
 #include <core/misc/fs.h>
+
+#include <util/system/execpath.h>
 
 #ifndef _win_
   #include <unistd.h>
@@ -28,9 +31,52 @@ static const pid_t InvalidProcessId = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef _linux_
+
+bool TryWaitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
+{
+    while (true) {
+        if (infop != nullptr) {
+            // See comment below.
+            infop->si_pid = 0;
+        }
+
+        auto res = ::waitid(idtype, id, infop, options);
+
+        if (res == 0) {
+            // According to man wait.
+            // If WNOHANG was specified in options and there were
+            // no children in a waitable state, then waitid() returns 0 immediately.
+            // To distinguish this case from that where a child
+            // was in a waitable state, zero out the si_pid field
+            // before the call and check for a nonzero value in this field after
+            // the call returns.
+            if ((infop != nullptr) && (infop->si_pid == 0)) {
+                return false;
+            }
+            return true;
+        }
+
+        if (errno == EINTR) {
+            continue;
+        }
+
+        return false;
+    }
+}
+
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+TProcess::TProcess()
+    // TODO(tramsmm) Should I really copy the environment?
+    : TProcess(GetExecPath(), true)
+{ }
+
 TProcess::TProcess(const Stroka& path, bool copyEnv)
-    : Finished_(false)
-    , Status_(0)
+    : Started_(false)
+    , Finished_(false)
     , ProcessId_(InvalidProcessId)
     // Stroka is guaranteed to be zero-terminated.
     // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/StrokaAndTStringBuf#sobstvennosimvoly
@@ -118,7 +164,7 @@ void TProcess::Spawn()
     Pipe_ = pipeFactory.Create();
     pipeFactory.Clear();
 
-    LOG_DEBUG("Process arguments: %v, environment: %v", JoinToString(Args_), JoinToString(Env_));
+    LOG_DEBUG("Process arguments: [%v], environment: [%v]", JoinToString(Args_), JoinToString(Env_));
 
     Env_.push_back(nullptr);
     Args_.push_back(nullptr);
@@ -148,21 +194,36 @@ void TProcess::Spawn()
             << TError::FromSystem();
     }
 
+    ProcessId_ = pid;
+
+    {
+        TGuard<TSpinLock> guard(LifecycleChangeLock_);
+        Started_ = true;
+    }
+
     YCHECK(::close(Pipe_.WriteFD) == 0);
     Pipe_.WriteFD = TPipe::InvalidFd;
 
     int data[2];
     int res = ::read(Pipe_.ReadFD, &data, sizeof(data));
     if (res == 0) {
-        // Child successfully spawned.
-        ProcessId_ = pid;
+        // Child successfully spawned or was killed by a signal.
+        // But there is no way to ditinguish between two situations:
+        // * child killed by signal before exec
+        // * child killed by signal after exec
+        // So we treat kill-before-exec the same way as kill-after-exec
         return;
     }
 
-    YCHECK(res == sizeof(data));
-    YCHECK(::waitpid(pid, nullptr, 0) == pid);
+    ProcessId_ = InvalidProcessId;
 
-    Finished_ = true;
+    YCHECK(res == sizeof(data));
+    YCHECK(TryWaitid(P_PID, pid, nullptr, WEXITED));
+
+    {
+        TGuard<TSpinLock> guard(LifecycleChangeLock_);
+        Finished_ = true;
+    }
 
     int actionIndex = data[0];
     int errorCode = data[1];
@@ -173,21 +234,85 @@ void TProcess::Spawn()
 #endif
 }
 
+TError ProcessInfoToError(const siginfo_t& processInfo)
+{
+    int signalBase = static_cast<int>(EExitStatus::SignalBase);
+    if (processInfo.si_code == CLD_EXITED) {
+        auto exitCode = processInfo.si_status;
+        if (exitCode == 0) {
+            return TError();
+        } else {
+            return TError(
+                signalBase + exitCode,
+                "Process exited with code %v",
+                exitCode);
+        }
+    } else if ((processInfo.si_code == CLD_KILLED) || (processInfo.si_code == CLD_DUMPED)) {
+        return TError(
+            signalBase + processInfo.si_status,
+            "Process terminated by signal %v",
+            processInfo.si_status);
+    }
+    YUNREACHABLE();
+}
+
 TError TProcess::Wait()
 {
 #ifdef _win_
     return TError("Windows is not supported");
 #else
+    siginfo_t processInfo;
+    memset(&processInfo, 0, sizeof(processInfo));
 
-    int result = ::waitpid(ProcessId_, &Status_, WUNTRACED);
-    Finished_ = true;
+    // Note WNOWAIT flag.
+    // This call just waits for a process to be finished but does not clear zombie flag.
+    bool isOK = TryWaitid(P_PID, ProcessId_, &processInfo, WEXITED | WNOWAIT);
 
-    if (result < 0) {
-        return TError("waitpid failed") << TError::FromSystem();
+    if (!isOK) {
+        return TError("WNOWAIT waitid failed") << TError::FromSystem();
+    }
+    YCHECK(processInfo.si_pid == ProcessId_);
+
+    memset(&processInfo, 0, sizeof(processInfo));
+    {
+        TGuard<TSpinLock> guard(LifecycleChangeLock_);
+
+        // This call just should return immediately
+        // because we have already waited for this process with WNOHANG
+        isOK = TryWaitid(P_PID, ProcessId_, &processInfo, WEXITED | WNOHANG);
+
+        if (!isOK) {
+            return TError("waitid failed") << TError::FromSystem();
+        }
+        YCHECK(processInfo.si_pid == ProcessId_);
+
+        Finished_ = true;
     }
 
-    YCHECK(result == ProcessId_);
-    return StatusToError(Status_);
+    return ProcessInfoToError(processInfo);
+#endif
+}
+
+void TProcess::Kill(int signal)
+{
+#ifdef _win_
+    THROW_ERROR_EXCEPTION("Windows is not supported");
+#else
+
+    TGuard<TSpinLock> guard(LifecycleChangeLock_);
+
+    if (!Started_) {
+        THROW_ERROR_EXCEPTION("Process is not started yet");
+    }
+
+    if (Finished_) {
+        return;
+    }
+
+    int result = ::kill(ProcessId_, signal);
+    if (result < 0) {
+        THROW_ERROR_EXCEPTION("kill failed") << TError::FromSystem();
+    }
 #endif
 }
 
