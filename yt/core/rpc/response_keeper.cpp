@@ -89,7 +89,7 @@ public:
         TGuard<TSpinLock> guard(SpinLock_);
 
         if (!Started_) {
-            return TFuture<TSharedRefArray>();
+            THROW_ERROR_EXCEPTION("Response keeper is not active");
         }
 
         auto pendingIt = PendingResponses_.find(id);
