@@ -90,7 +90,7 @@ class Task(object):
     # NB: destination table is missing if we copy to kiwi
     def __init__(self, source_cluster, source_table, destination_cluster, creation_time, id, state, user,
                  destination_table=None, source_cluster_token=None, token=None, destination_cluster_token=None, mr_user=None, error=None,
-                 start_time=None, finish_time=None, copy_method=None, progress=None, backend_tag=None, kiwi_user=None, pool=None, meta=None,
+                 start_time=None, finish_time=None, copy_method=None, progress=None, backend_tag=None, kiwi_user=None, kwworm_options=None, pool=None, meta=None,
                  destination_compression_codec=None, destination_erasure_codec=None, destination_force_sort=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
@@ -114,6 +114,7 @@ class Task(object):
         self.backend_tag = backend_tag
         self.pool = pool
         self.kiwi_user = kiwi_user
+        self.kwworm_options = kwworm_options
 
         self.destination_compression_codec = destination_compression_codec
         self.destination_erasure_codec = destination_erasure_codec
@@ -770,6 +771,7 @@ class Application(object):
                     task.source_table,
                     fastbone=fastbone,
                     kiwi_user=task.kiwi_user,
+                    kwworm_options=task.kwworm_options,
                     spec_template=task_spec,
                     message_queue=message_queue)
             else:
