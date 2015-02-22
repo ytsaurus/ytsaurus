@@ -1,4 +1,4 @@
-from yt.wrapper.common import generate_uuid
+from yt.wrapper.common import generate_uuid, bool_to_string
 from yt.tools.conversion_tools import convert_to_erasure
 import yt.logger as logger
 import yt.wrapper as yt
@@ -140,20 +140,25 @@ set +e"""
 
 
 class AsyncStrategy(object):
+    def __init__(self):
+        self.runned = False
+
     def process_operation(self, type, operation, finalize, client=None):
+        self.runned = True
         self.type = type
         self.operation_id = operation
         self.finalize = finalize
         self.client = client
 
     def wait(self):
-        yt.WaitStrategy().process_operation(self.type, self.operation_id, self.finalize, self.client)
+        if self.runned:
+            yt.WaitStrategy().process_operation(self.type, self.operation_id, self.finalize, self.client)
 
 
 def run_operation_and_notify(message_queue, yt_client, run_operation):
     strategy = AsyncStrategy()
     run_operation(yt_client, strategy)
-    if message_queue:
+    if message_queue and strategy.runned:
         message_queue.put({"type": "operation_started",
                            "operation": {
                                "id": strategy.operation_id,
@@ -161,6 +166,26 @@ def run_operation_and_notify(message_queue, yt_client, run_operation):
                             }})
     strategy.wait()
 
+def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, spec_template=None, message_queue=None):
+    merge_spec = deepcopy(spec_template)
+    merge_spec["combine_chunks"] = bool_to_string(True)
+    run_operation_and_notify(
+        message_queue,
+        source_client,
+        lambda client, strategy: client.run_merge(src, src, spec=merge_spec))
+
+    run_operation_and_notify(
+        message_queue,
+        destination_client,
+        lambda client, strategy:
+            client.run_remote_copy(
+                src,
+                dst,
+                cluster_name=source_client._name,
+                network_name=network_name,
+                spec=spec_template,
+                remote_cluster_token=source_client.token,
+                strategy=strategy))
 
 def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, spec_template=None, message_queue=None):
     if spec_template is None:
