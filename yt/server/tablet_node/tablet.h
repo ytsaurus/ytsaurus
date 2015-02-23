@@ -29,6 +29,7 @@ struct TTabletSnapshot
     : public TIntrinsicRefCounted
 {
     TTabletId TabletId;
+    NObjectClient::TObjectId TableId;
     TTabletSlotPtr Slot;
     TTableMountConfigPtr Config;
 
@@ -83,7 +84,8 @@ class TTablet
     , public TRefTracked<TTablet>
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(TTabletId, Id);
+    DEFINE_BYVAL_RO_PROPERTY(TTabletId, TabletId);
+    DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, TableId);
     DEFINE_BYVAL_RO_PROPERTY(TTabletSlotPtr, Slot);
 
     DEFINE_BYVAL_RW_PROPERTY(TTabletSnapshotPtr, Snapshot);
@@ -104,11 +106,12 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastPartitioningTime);
 
 public:
-    explicit TTablet(const TTabletId& id);
+    explicit TTablet(const TTabletId& tabletId);
     TTablet(
         TTableMountConfigPtr config,
         TTabletWriterOptionsPtr writerOptions,
-        const TTabletId& id,
+        const TTabletId& tabletId,
+        const NObjectClient::TObjectId& tableId,
         TTabletSlotPtr slot,
         const NVersionedTableClient::TTableSchema& schema,
         const NVersionedTableClient::TKeyColumns& keyColumns,

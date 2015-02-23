@@ -17,6 +17,7 @@ message TChunkStoreDescriptor
 message TReqMountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid table_id = 9;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt schema = 2;
     required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 3;
     repeated TChunkStoreDescriptor chunk_stores = 4;

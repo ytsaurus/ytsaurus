@@ -458,6 +458,7 @@ public:
 
             TReqMountTablet req;           
             ToProto(req.mutable_tablet_id(), tablet->GetId());
+            ToProto(req.mutable_table_id(), table->GetId());
             ToProto(req.mutable_schema(), schema);
             ToProto(req.mutable_key_columns()->mutable_names(), table->KeyColumns());
             ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());

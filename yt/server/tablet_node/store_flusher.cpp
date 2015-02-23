@@ -187,13 +187,13 @@ private:
 
         if (storeManager->IsPeriodicRotationNeeded()) {
             LOG_INFO("Scheduling periodic store rotation (TabletId: %v)",
-                tablet->GetId());
+                tablet->GetTabletId());
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
         if (storeManager->IsOverflowRotationNeeded()) {
             LOG_INFO("Scheduling store rotation due to overflow (TabletId: %v)",
-                tablet->GetId());
+                tablet->GetTabletId());
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
@@ -217,7 +217,7 @@ private:
                     PassiveMemoryUsage_ += memoryUsage;
                 } else {
                     TForcedRotationCandidate candidate;
-                    candidate.TabletId = tablet->GetId();
+                    candidate.TabletId = tablet->GetTabletId();
                     candidate.MemoryUsage = memoryUsage;
                     ForcedRotationCandidates_.push_back(candidate);
                 }
@@ -255,7 +255,7 @@ private:
         auto slot = tablet->GetSlot();
         auto hydraManager = slot->GetHydraManager();
         auto tabletManager = slot->GetTabletManager();
-        auto tabletId = tablet->GetId();
+        auto tabletId = tablet->GetTabletId();
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
         auto writerOptions = CloneYsonSerializable(tablet->GetWriterOptions());

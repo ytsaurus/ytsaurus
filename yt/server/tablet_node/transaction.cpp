@@ -61,7 +61,7 @@ void TTransaction::Save(TSaveContext& context) const
         const auto* locks = row.BeginLocks(keyColumnCount);
 
         // Tablet
-        Save(context, tablet->GetId());
+        Save(context, tablet->GetTabletId());
 
         // Keys
         SaveRowKeys(context, tablet->Schema(), tablet->KeyColumns(), row);
