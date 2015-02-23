@@ -151,7 +151,7 @@ public:
 
         if (tablet->GetState() != ETabletState::Mounted) {
             THROW_ERROR_EXCEPTION("Tablet %v is not in \"mounted\" state",
-                tablet->GetId());
+                tablet->GetTabletId());
         }
     }
 
@@ -235,7 +235,7 @@ public:
         if (prelockedCountDelta > 0) {
             LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v)",
                 transaction->GetId(),
-                tablet->GetId(),
+                tablet->GetTabletId(),
                 prelockedCountDelta);
 
             auto requestData = reader->GetConsumedPart();
@@ -243,7 +243,7 @@ public:
 
             TReqExecuteWrite hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
-            ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
+            ToProto(hydraRequest.mutable_tablet_id(), tablet->GetTabletId());
             hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
             hydraRequest.set_compressed_data(ToString(compressedRequestData));
             CreateMutation(Slot_->GetHydraManager(), hydraRequest)
@@ -286,7 +286,7 @@ public:
                     &TImpl::OnRowBlocked,
                     MakeWeak(this),
                     Unretained(store.Get()),
-                    tablet->GetId(),
+                    tablet->GetTabletId(),
                     Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read)));
                 return store;
             }
@@ -350,7 +350,7 @@ public:
         storeManager->ScheduleRotation();
 
         TReqRotateStore request;
-        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
 
         auto this_ = MakeStrong(this);
         CommitTabletMutation(request)
@@ -362,7 +362,7 @@ public:
             }));
 
         LOG_DEBUG("Store rotation scheduled (TabletId: %v)",
-            tablet->GetId());
+            tablet->GetTabletId());
     }
 
 
@@ -374,7 +374,7 @@ public:
             .DoMapFor(TabletMap_, [&] (TFluentMap fluent, const std::pair<TTabletId, TTablet*>& pair) {
                 auto* tablet = pair.second;
                 fluent
-                    .Item(ToString(tablet->GetId()))
+                    .Item(ToString(tablet->GetTabletId()))
                     .Do(BIND(&TImpl::BuildTabletOrchidYson, Unretained(this), tablet));
             });
     }
@@ -534,6 +534,7 @@ private:
     void HydraMountTablet(const TReqMountTablet& request)
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto tableId = FromProto<TObjectId>(request.table_id());
         auto schema = FromProto<TTableSchema>(request.schema());
         auto keyColumns = FromProto<TKeyColumns>(request.key_columns());
         auto pivotKey = FromProto<TOwningKey>(request.pivot_key());
@@ -545,6 +546,7 @@ private:
             mountConfig,
             writerOptions,
             tabletId,
+            tableId,
             Slot_,
             schema,
             keyColumns,
@@ -609,8 +611,9 @@ private:
             StartTabletEpoch(tablet);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, Keys: %v .. %v, StoreCount: %v, PartitionCount: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, TableId: %v, Keys: %v .. %v, StoreCount: %v, PartitionCount: %v)",
             tabletId,
+            tableId,
             pivotKey,
             nextPivotKey,
             request.chunk_stores_size(),
@@ -787,7 +790,7 @@ private:
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %v, TabletId: %v)",
             transaction->GetId(),
-            tablet->GetId());
+            tablet->GetTabletId());
     }
 
     void HydraRotateStore(const TReqRotateStore& request)
@@ -943,7 +946,7 @@ private:
         int partitionIndex = partition->GetIndex();
 
         LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, PartitionId: %v, DataSize: %v, Keys: %v)",
-            tablet->GetId(),
+            tablet->GetTabletId(),
             partitionId,
             partition->GetUncompressedDataSize(),
             JoinToString(pivotKeys, Stroka(" .. ")));
@@ -975,7 +978,7 @@ private:
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, PartitionIds: [%v])",
-            tablet->GetId(),
+            tablet->GetTabletId(),
             JoinToString(ConvertToStrings(
                 tablet->Partitions().begin() + firstPartitionIndex,
                 tablet->Partitions().begin() + lastPartitionIndex + 1,
@@ -1113,7 +1116,7 @@ private:
             YCHECK(OrphanedStores_.insert(dynamicStore).second);
             LOG_INFO_UNLESS(IsRecovery(), "Dynamic memory store is orphaned and will be kept (StoreId: %v, TabletId: %v, LockCount: %v)",
                 store->GetId(),
-                tablet->GetId(),
+                tablet->GetTabletId(),
                 lockCount);
         }
     }
@@ -1221,12 +1224,12 @@ private:
             return;
 
         LOG_INFO_UNLESS(IsRecovery(), "All tablet locks released (TabletId: %v)",
-            tablet->GetId());
+            tablet->GetTabletId());
 
         tablet->SetState(ETabletState::FlushPending);
 
         TReqSetTabletState request;
-        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
         request.set_state(static_cast<int>(ETabletState::Flushing));
 
         auto this_ = MakeStrong(this);
@@ -1248,12 +1251,12 @@ private:
             return;
 
         LOG_INFO_UNLESS(IsRecovery(), "All tablet stores flushed (TabletId: %v)",
-            tablet->GetId());
+            tablet->GetTabletId());
 
         tablet->SetState(ETabletState::UnmountPending);
 
         TReqSetTabletState request;
-        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
         request.set_state(static_cast<int>(ETabletState::Unmounted));
 
         auto this_ = MakeStrong(this);
@@ -1365,6 +1368,7 @@ private:
                 .Item("opaque").Value(true)
             .EndAttributes()
             .BeginMap()
+                .Item("table_id").Value(tablet->GetTableId())
                 .Item("state").Value(tablet->GetState())
                 .Item("pivot_key").Value(tablet->GetPivotKey())
                 .Item("next_pivot_key").Value(tablet->GetNextPivotKey())
