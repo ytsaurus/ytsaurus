@@ -109,7 +109,7 @@ private:
 
     virtual void DoGet(const TYPath& path) override
     {
-        LOG_DEBUG("Requesting table mount info for %v",
+        LOG_DEBUG("Requesting table mount info (Path: %v)",
             path);
 
         auto req = TTableYPathProxy::GetMountInfo(path);
