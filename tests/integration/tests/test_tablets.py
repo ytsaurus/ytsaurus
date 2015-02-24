@@ -217,3 +217,27 @@ class TestTablets(YTEnvSetup):
         self._sync_unmount_table("//tmp/t1")
 
         move("//tmp/t1", "//tmp/t2")
+
+    def test_any_value_type(self):
+        self._sync_create_cells(1, 1)
+        create("table", "//tmp/t1",
+            attributes = {
+                "schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "any"}],
+                "key_columns": ["key"]
+            })
+        self._sync_mount_table("//tmp/t1")
+
+        rows = [
+            {"key": 11, "value": 100},
+            {"key": 12, "value": False},
+            {"key": 13, "value": True},
+            {"key": 14, "value": 2**63 + 1 },
+            {"key": 15, "value": 'stroka'},
+            {"key": 16, "value": [1, {"attr": 3}, 4]},
+            {"key": 17, "value": {"numbers": [0,1,42]}}]
+
+        insert_rows("//tmp/t1", rows)
+        actual = select_rows("* from [//tmp/t1]")
+        self.assertItemsEqual(rows, actual)
+        actual = lookup_rows("//tmp/t1", [{"key": row["key"]} for row in rows])
+        self.assertItemsEqual(rows, actual)

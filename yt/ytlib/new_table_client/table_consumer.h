@@ -59,12 +59,16 @@ private:
     std::vector<bool> WrittenFlags_;
     bool TreatMissingAsNull_ = false;
 
+    TBlobOutput ValueBuffer_;
+    NYson::TYsonWriter ValueWriter_;
+
     virtual bool GetAllowUnknownColumns() const override;
 
     virtual void OnBeginRow() override;
     virtual void OnValue(const TUnversionedValue& value) override;
     virtual void OnEndRow() override;
 
+    TUnversionedValue MakeAnyFromScalar(const TUnversionedValue& value);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBuildingValueConsumer)

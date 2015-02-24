@@ -254,9 +254,13 @@ Stroka ToString(const TUnversionedValue& value)
             return Format("%v", value.Data.Boolean);
 
         case EValueType::String:
-        case EValueType::Any:
-            // TODO(babenko): handle Any separately
             return Stroka(value.Data.String, value.Length).Quote();
+
+        case EValueType::Any:
+            return ConvertToYsonString(
+                    TYsonString(Stroka(value.Data.String, value.Length)),
+                    EYsonFormat::Text)
+                .Data();
 
         default:
             YUNREACHABLE();

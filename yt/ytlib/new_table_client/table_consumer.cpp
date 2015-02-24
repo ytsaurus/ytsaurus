@@ -27,6 +27,7 @@ TBuildingValueConsumer::TBuildingValueConsumer(
     , KeyColumns_(keyColumns)
     , NameTable_(TNameTable::FromSchema(Schema_, true))
     , WrittenFlags_(NameTable_->GetSize(), false)
+    , ValueWriter_(&ValueBuffer_)
 { }
 
 const std::vector<TUnversionedOwningRow>& TBuildingValueConsumer::GetOwningRows() const
@@ -64,18 +65,53 @@ void TBuildingValueConsumer::OnBeginRow()
     // Do nothing.
 }
 
+TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedValue& value)
+{
+    switch (value.Type) {
+        case EValueType::Int64:
+            ValueWriter_.OnInt64Scalar(value.Data.Int64);
+            break;
+        case EValueType::Uint64:
+            ValueWriter_.OnUint64Scalar(value.Data.Uint64);
+            break;
+        case EValueType::Double:
+            ValueWriter_.OnDoubleScalar(value.Data.Double);
+            break;
+        case EValueType::Boolean:
+            ValueWriter_.OnBooleanScalar(value.Data.Boolean);
+            break;
+        case EValueType::String:
+            ValueWriter_.OnStringScalar(TStringBuf(value.Data.String, value.Length));
+            break;
+        default:
+            YUNREACHABLE();
+    }
+
+    return MakeUnversionedAnyValue(
+        TStringBuf(
+            ValueBuffer_.Begin(),
+            ValueBuffer_.Begin() + ValueBuffer_.Size()),
+        value.Id);
+}
+
 void TBuildingValueConsumer::OnValue(const TUnversionedValue& value)
 {
     auto schemaType = Schema_.Columns()[value.Id].Type;
-    if (value.Type != schemaType) {
-        THROW_ERROR TError("Invalid type of schema column %Qv: expected %Qlv, actual %Qlv",
-            Schema_.Columns()[value.Id].Name,
-            schemaType,
-            value.Type)
-        << TErrorAttribute("row_index", Rows_.size());
+    if (value.Type == schemaType) {
+        Builder_.AddValue(value);
+    } else {
+        if (schemaType == EValueType::Any) {
+            Builder_.AddValue(MakeAnyFromScalar(value));
+            ValueBuffer_.Clear();
+        } else {
+            THROW_ERROR_EXCEPTION("Invalid value type in column %Qv: expected %Qlv, actual %Qlv",
+                Schema_.Columns()[value.Id].Name,
+                schemaType,
+                value.Type)
+                << TErrorAttribute("row_index", Rows_.size());
+        }
     }
     WrittenFlags_[value.Id] = true;
-    Builder_.AddValue(value);
 }
 
 void TBuildingValueConsumer::OnEndRow()
