@@ -21,8 +21,7 @@ Common operations parameters
 
 * **spec** : (dict) universal method to set operation parameters
 
-* **strategy** : (`yt.wrapper.operation_commands.WaitStrategy` or \
-`yt.wrapper.operation_commands.AsyncStrategy`)\
+* **strategy** : (`yt.wrapper.operation_commands.WaitStrategy`) (Deprecated!) \
 strategy of waiting result, `yt.wrapper.config.DEFAULT_STRATEGY` by default
 
 * **replication_factor** : (integer) number of output data replicas
