@@ -30,9 +30,10 @@ namespace NCGroup {
 
 static const auto& Logger = CGroupLogger;
 static const Stroka CGroupRootPath("/sys/fs/cgroup");
+#ifdef _linux_
 static const int ReadByAll = S_IRUSR | S_IRGRP | S_IROTH;
 static const int ReadExecuteByAll = ReadByAll | S_IXUSR | S_IXGRP | S_IXOTH;
-
+#endif
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
