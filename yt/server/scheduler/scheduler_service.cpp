@@ -59,9 +59,7 @@ private:
         auto type = EOperationType(request->type());
         auto transactionId = GetTransactionId(context);
         auto mutationId = GetMutationId(context);
-
-        auto maybeUser = FindAuthenticatedUser(context);
-        auto user = maybeUser ? *maybeUser : RootUserName;
+        auto user = GetAuthenticatedUserOrThrow(context);
 
         IMapNodePtr spec;
         try {

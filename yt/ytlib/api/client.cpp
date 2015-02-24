@@ -578,13 +578,11 @@ public:
         SchedulerChannel_ = Connection_->GetSchedulerChannel();
         NodeChannelFactory_ = Connection_->GetNodeChannelFactory();
 
-        if (options.User != NSecurityClient::RootUserName) {
-            for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-                MasterChannels_[kind] = CreateAuthenticatedChannel(MasterChannels_[kind], options.User);
-            }
-            SchedulerChannel_ = CreateAuthenticatedChannel(SchedulerChannel_, options.User);
-            NodeChannelFactory_ = CreateAuthenticatedChannelFactory(NodeChannelFactory_, options.User);
+        for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
+            MasterChannels_[kind] = CreateAuthenticatedChannel(MasterChannels_[kind], options.User);
         }
+        SchedulerChannel_ = CreateAuthenticatedChannel(SchedulerChannel_, options.User);
+        NodeChannelFactory_ = CreateAuthenticatedChannelFactory(NodeChannelFactory_, options.User);
 
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
             MasterChannels_[kind] = CreateScopedChannel(MasterChannels_[kind]);
@@ -870,10 +868,7 @@ public:
     {
         const auto& cellDirectory = Connection_->GetCellDirectory();
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
-        if (Options_.User != NSecurityClient::RootUserName) {
-            channel = CreateAuthenticatedChannel(std::move(channel), Options_.User);
-        }
-        return channel;
+        return CreateAuthenticatedChannel(std::move(channel), Options_.User);
     }
 
 private:
