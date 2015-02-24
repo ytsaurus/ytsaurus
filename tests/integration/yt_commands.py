@@ -380,6 +380,9 @@ def build_snapshot(*args, **kwargs):
 def gc_collect():
     get_driver().gc_collect()
 
+def clear_metadata_caches():
+    get_driver().clear_metadata_caches()
+    
 def create_account(name, **kwargs):
     kwargs["type"] = "account"
     kwargs["attributes"] = {"name": name}
