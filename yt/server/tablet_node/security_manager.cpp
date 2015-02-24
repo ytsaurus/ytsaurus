@@ -4,7 +4,14 @@
 #include "config.h"
 #include "private.h"
 
+#include <core/misc/expiring_cache.h>
+
 #include <core/concurrency/scheduler.h>
+#include <core/concurrency/fls.h>
+
+#include <ytlib/api/client.h>
+
+#include <ytlib/object_client/helpers.h>
 
 #include <server/cell_node/bootstrap.h>
 
@@ -13,6 +20,9 @@ namespace NTabletNode {
 
 using namespace NYTree;
 using namespace NConcurrency;
+using namespace NObjectClient;
+using namespace NApi;
+using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +45,131 @@ TAuthenticatedUserGuard::~TAuthenticatedUserGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTablePermissionKey
+{
+    TObjectId TableId;
+    Stroka User;
+    EPermission Permission;
+
+    // Hasher.
+    operator size_t() const
+    {
+        size_t result = 0;
+        result = HashCombine(result, TableId);
+        result = HashCombine(result, User);
+        result = HashCombine(result, Permission);
+        return result;
+    }
+
+    // Comparer.
+    bool operator == (const TTablePermissionKey& other) const
+    {
+        return
+            TableId == other.TableId &&
+            User == other.User &&
+            Permission == other.Permission;
+    }
+
+    // Formatter.
+    friend Stroka ToString(const TTablePermissionKey& key)
+    {
+        return Format("%v:%v:%v",
+            key.TableId,
+            key.User,
+            key.Permission);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TTablePermissionCache)
+
+class TTablePermissionCache
+    : public TExpiringCache<TTablePermissionKey, void>
+{
+public:
+    TTablePermissionCache(
+        TExpiringCacheConfigPtr config,
+        NCellNode::TBootstrap* bootstrap)
+        : TExpiringCache(config)
+        , Bootstrap_(bootstrap)
+    { }
+
+private:
+    NCellNode::TBootstrap* const Bootstrap_;
+
+
+    virtual void DoGet(const TTablePermissionKey& key) override
+    {
+        LOG_DEBUG("Checking permission (Key: {%v})", key);
+
+        auto client = Bootstrap_->GetMasterClient();
+        client->CheckPermission(key.User, FromObjectId(key.TableId), key.Permission)
+            .Subscribe(BIND(&TTablePermissionCache::OnPermissionCheckResult, MakeWeak(this), key));
+    }
+
+    void OnPermissionCheckResult(
+        const TTablePermissionKey& key,
+        const TErrorOr<TCheckPermissionResult>& resultOrError)
+    {
+        if (!resultOrError.IsOK()) {
+            auto wrappedError = TError("Error checking permission for table %v",
+                key.TableId)
+                << resultOrError;
+            LOG_WARNING(wrappedError);
+            TExpiringCache::DoSet(key, wrappedError);
+            return;
+        }
+
+        LOG_DEBUG("Table permission check succeded (Key: {%v})", key);
+
+        auto error = ResultToError(key, resultOrError.Value());
+        TExpiringCache::DoSet(key, error);
+    }
+
+    static TError ResultToError(const TTablePermissionKey& key, const TCheckPermissionResult& result)
+    {
+        switch (result.Action) {
+            case ESecurityAction::Allow:
+                return TError();
+
+            case ESecurityAction::Deny: {
+                TError error;
+                if (result.ObjectName && result.SubjectName) {
+                    error = TError(
+                        NSecurityClient::EErrorCode::AuthorizationError,
+                        "Access denied: %Qlv permission is denied for %Qv by ACE at %v",
+                        key.Permission,
+                        *result.SubjectName,
+                        *result.ObjectName);
+                } else {
+                    error = TError(
+                        NSecurityClient::EErrorCode::AuthorizationError,
+                        "Access denied: %Qlv permission is not allowed by any matching ACE",
+                        key.Permission);
+                }
+                error.Attributes().Set("permission", key.Permission);
+                error.Attributes().Set("user", key.User);
+                error.Attributes().Set("object", key.TableId);
+                if (result.ObjectId != NullObjectId) {
+                    error.Attributes().Set("denied_by", result.ObjectId);
+                }
+                if (result.SubjectId != NullObjectId) {
+                    error.Attributes().Set("denied_for", result.SubjectId);
+                }
+                return error;
+            }
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTablePermissionCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSecurityManager::TImpl
     : public TRefCounted
 {
@@ -44,37 +179,42 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
+        , TablePermissionCache_(New<TTablePermissionCache>(Config_->TablePermissionCache, Bootstrap_))
     { }
 
     void SetAuthenticatedUser(const Stroka& user)
     {
-        YASSERT(!AuthenticatedUser_);
-        AuthenticatedUser_ = user;
+        YASSERT(!*AuthenticatedUser_);
+        *AuthenticatedUser_ = user;
     }
 
     void ResetAuthenticatedUser()
     {
-        YASSERT(AuthenticatedUser_);
-        AuthenticatedUser_.Reset();
+        YASSERT(*AuthenticatedUser_);
+        AuthenticatedUser_->Reset();
+    }
+
+    TNullable<Stroka> GetAuthenticatedUser()
+    {
+        return *AuthenticatedUser_;
     }
 
     TFuture<void> CheckPermission(
         TTabletSnapshotPtr tabletSnapshot,
         EPermission permission)
     {
-        if (!AuthenticatedUser_) {
+        auto maybeUser = GetAuthenticatedUser();
+        if (!maybeUser) {
             return VoidFuture;
         }
 
-        const auto& user = *AuthenticatedUser_;
+        // COMPAT(babenko)
+        if (tabletSnapshot->TableId == NullObjectId) {
+            return VoidFuture;
+        }
 
-        LOG_DEBUG("Checking permission (TabletId: %v, TableId: %v, User: %v, Permission: %v)",
-            tabletSnapshot->TabletId,
-            tabletSnapshot->TableId,
-            user,
-            permission);
-
-        return VoidFuture;
+        TTablePermissionKey key{tabletSnapshot->TableId, *maybeUser, permission};
+        return TablePermissionCache_->Get(key);
     }
 
     void ValidatePermission(
@@ -89,9 +229,11 @@ public:
 
 private:
     const TSecurityManagerConfigPtr Config_;
-    NCellNode::TBootstrap const* Bootstrap_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
-    TNullable<Stroka> AuthenticatedUser_;
+    const TTablePermissionCachePtr TablePermissionCache_;
+
+    TFls<TNullable<Stroka>> AuthenticatedUser_;
 
 };
 

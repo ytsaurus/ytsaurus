@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/config.h>
+
 #include <core/ytree/yson_serializable.h>
 
 #include <core/compression/public.h>
@@ -355,7 +357,13 @@ class TSecurityManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    TExpiringCacheConfigPtr TablePermissionCache;
 
+    TSecurityManagerConfig()
+    {
+        RegisterParameter("table_permission_cache", TablePermissionCache)
+            .DefaultNew();
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
