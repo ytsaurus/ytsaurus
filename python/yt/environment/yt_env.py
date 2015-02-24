@@ -510,7 +510,6 @@ class YTEnv(object):
     def _prepare_driver(self, driver_name):
         config = configs.get_driver_config()
         config['master']['addresses'] = self._master_addresses[driver_name.replace("driver", "master", 1)]
-        config['master_cache']['addresses'] = self._get_cache_addresses(driver_name.replace("driver", "", 1))
         config['timestamp_provider']['addresses'] = self._get_cache_addresses(driver_name.replace("driver", "", 1))
 
         self.configs[driver_name] = config
@@ -540,7 +539,6 @@ class YTEnv(object):
 
         driver_config = configs.get_driver_config()
         driver_config['master']['addresses'] = self._master_addresses[proxy_name.replace("proxy", "master", 1)]
-        driver_config['master_cache']['addresses'] = self._get_cache_addresses(proxy_name.replace("proxy", "", 1))
         driver_config['timestamp_provider']['addresses'] = self._get_cache_addresses(proxy_name.replace("proxy", "", 1))
 
         proxy_config = configs.get_proxy_config()
