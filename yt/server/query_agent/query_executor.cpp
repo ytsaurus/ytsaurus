@@ -163,9 +163,12 @@ public:
         const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer) override
     {
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        auto maybeUser = securityManager->GetAuthenticatedUser();
+
         return BIND(&TQueryExecutor::DoExecute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
-            .Run(fragment, std::move(writer));
+            .Run(fragment, std::move(writer), maybeUser);
     }
 
 private:
@@ -177,8 +180,12 @@ private:
 
     TQueryStatistics DoExecute(
         const TPlanFragmentPtr& fragment,
-        ISchemafulWriterPtr writer)
+        ISchemafulWriterPtr writer,
+        const TNullable<Stroka>& maybeUser)
     {
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager, maybeUser);
+
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
