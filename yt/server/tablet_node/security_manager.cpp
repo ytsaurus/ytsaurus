@@ -32,15 +32,20 @@ static const auto& Logger = TabletNodeLogger;
 
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(
     TSecurityManagerPtr securityManager,
-    const Stroka& user)
+    const TNullable<Stroka>& maybeUser)
     : SecurityManager_(std::move(securityManager))
+    , IsNull_(!maybeUser)
 {
-    SecurityManager_->SetAuthenticatedUser(user);
+    if (!IsNull_) {
+        SecurityManager_->SetAuthenticatedUser(*maybeUser);
+    }
 }
 
 TAuthenticatedUserGuard::~TAuthenticatedUserGuard()
 {
-    SecurityManager_->ResetAuthenticatedUser();
+    if (!IsNull_) {
+        SecurityManager_->ResetAuthenticatedUser();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -250,6 +255,11 @@ void TSecurityManager::SetAuthenticatedUser(const Stroka& user)
 void TSecurityManager::ResetAuthenticatedUser()
 {
     Impl_->ResetAuthenticatedUser();
+}
+
+TNullable<Stroka> TSecurityManager::GetAuthenticatedUser()
+{
+    return Impl_->GetAuthenticatedUser();
 }
 
 TFuture<void> TSecurityManager::CheckPermission(
