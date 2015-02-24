@@ -432,7 +432,7 @@ def operation_handler(function):
         operation = function(*args, **kwargs)
 
         if print_statistics:
-            print >>sys.stderr, dump_data(operation.attributes()["progress"])
+            print >>sys.stderr, dump_data(operation.get_attributes()["progress"])
 
     handler.__doc__ = inspect.getdoc(function)
 
