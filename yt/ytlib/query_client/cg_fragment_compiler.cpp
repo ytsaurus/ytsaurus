@@ -475,22 +475,100 @@ private:
         const TCodegenConsumer& codegenConsumer);
 };
 
-void CodegenIf(
+TCGValue MakePhi(
     TCGIRBuilder& builder,
-    const TCodegenBlock& conditionCodegen,
-    const TCodegenVoidBlock& thenCodegen,
-    const TCodegenVoidBlock& elseCodegen)
+    BasicBlock* thenBB,
+    BasicBlock* elseBB,
+    TCGValue thenValue,
+    TCGValue elseValue,
+    Twine name = Twine())
 {
-    auto* conditionBB = builder.CreateBBHere("condition");
+    Value* thenType = thenValue.GetType();
+    Value* thenLength = thenValue.GetLength();
+    Value* thenData = thenValue.GetData();
+    
+    Value* elseType = elseValue.GetType();
+    Value* elseLength = elseValue.GetLength();
+    Value* elseData = elseValue.GetData();
+
+    PHINode* phiType = builder.CreatePHI(builder.getInt16Ty(), 2, name + ".phiType");
+    phiType->addIncoming(thenType, thenBB);
+    phiType->addIncoming(elseType, elseBB);
+
+    YCHECK(thenValue.GetStaticType() == elseValue.GetStaticType());
+    EValueType type = thenValue.GetStaticType();
+    YCHECK(thenData->getType() == elseData->getType());
+
+    PHINode* phiData = builder.CreatePHI(thenData->getType(), 2, name + ".phiData");
+    phiData->addIncoming(thenData, thenBB);
+    phiData->addIncoming(elseData, elseBB);
+
+    PHINode* phiLength = nullptr;
+    if (type == EValueType::String) {
+        YCHECK(thenLength->getType() == elseLength->getType());
+
+        phiLength = builder.CreatePHI(thenLength->getType(), 2, name + ".phiLength");
+        phiLength->addIncoming(thenLength, thenBB);
+        phiLength->addIncoming(elseLength, elseBB);
+    }
+
+    return TCGValue::CreateFromValue(builder, phiType, phiLength, phiData, type, name);
+}
+
+Value* MakePhi(
+    TCGIRBuilder& builder,
+    BasicBlock* thenBB,
+    BasicBlock* elseBB,
+    Value* thenValue,
+    Value* elseValue,
+    Twine name = Twine())
+{
+    PHINode* phiValue = builder.CreatePHI(thenValue->getType(), 2, name + ".phiValue");
+    phiValue->addIncoming(thenValue, thenBB);
+    phiValue->addIncoming(elseValue, elseBB);
+    return phiValue;
+}
+
+template <class Result>
+Result CodegenIf(
+    TCGIRBuilder& builder,
+    Value* condition,
+    const std::function<Result(TCGIRBuilder& builder)>& thenCodegen,
+    const std::function<Result(TCGIRBuilder& builder)>& elseCodegen,
+    Twine name = Twine())
+{
     auto* thenBB = builder.CreateBBHere("then");
     auto* elseBB = builder.CreateBBHere("else");
     auto* endBB = builder.CreateBBHere("end");
 
-    builder.CreateBr(conditionBB);
+    builder.CreateCondBr(condition, thenBB, elseBB);
 
-    builder.SetInsertPoint(conditionBB);
-    builder.CreateCondBr(conditionCodegen(builder), thenBB, elseBB);
-    conditionBB = builder.GetInsertBlock();
+    builder.SetInsertPoint(thenBB);
+    auto thenValue = thenCodegen(builder);
+    builder.CreateBr(endBB);
+    thenBB = builder.GetInsertBlock();
+
+    builder.SetInsertPoint(elseBB);
+    auto elseValue = elseCodegen(builder);
+    builder.CreateBr(endBB);
+    elseBB = builder.GetInsertBlock();
+
+    builder.SetInsertPoint(endBB);
+
+    return MakePhi(builder, thenBB, elseBB, thenValue, elseValue, name);
+}
+
+void CodegenIf(
+    TCGIRBuilder& builder,
+    Value* condition,
+    const std::function<void(TCGIRBuilder& builder)>& thenCodegen,
+    const std::function<void(TCGIRBuilder& builder)>& elseCodegen)
+{
+    auto* thenBB = builder.CreateBBHere("then");
+    auto* elseBB = builder.CreateBBHere("else");
+    auto* endBB = builder.CreateBBHere("end");
+
+    builder.CreateCondBr(condition, thenBB, elseBB);
 
     builder.SetInsertPoint(thenBB);
     thenCodegen(builder);
@@ -503,68 +581,6 @@ void CodegenIf(
     elseBB = builder.GetInsertBlock();
 
     builder.SetInsertPoint(endBB);
-}
-
-TCGValue CodegenIfValue(
-    TCGIRBuilder& builder,
-    const TCodegenBlock& conditionCodegen,
-    const TCodegenValueBlock& thenCodegen,
-    const TCodegenValueBlock& elseCodegen,
-    Twine name = Twine())
-{
-    auto* conditionBB = builder.CreateBBHere("condition");
-    auto* thenBB = builder.CreateBBHere("then");
-    auto* elseBB = builder.CreateBBHere("else");
-    auto* endBB = builder.CreateBBHere("end");
-
-    builder.CreateBr(conditionBB);
-
-    builder.SetInsertPoint(conditionBB);
-    builder.CreateCondBr(conditionCodegen(builder), thenBB, elseBB);
-    conditionBB = builder.GetInsertBlock();
-
-    builder.SetInsertPoint(thenBB);
-    auto thenValue = thenCodegen(builder);
-    Value* thenType = thenValue.GetType();
-    Value* thenLength = thenValue.GetLength();
-    Value* thenData = thenValue.GetData();
-    builder.CreateBr(endBB);
-    thenBB = builder.GetInsertBlock();
-
-    builder.SetInsertPoint(elseBB);
-    auto elseValue = elseCodegen(builder);
-    Value* elseType = elseValue.GetType();
-    Value* elseLength = elseValue.GetLength();
-    Value* elseData = elseValue.GetData();
-    builder.CreateBr(endBB);
-    elseBB = builder.GetInsertBlock();
-
-    builder.SetInsertPoint(endBB);
-    PHINode* phiType = builder.CreatePHI(builder.getInt16Ty(), 2, name + ".phiType");
-    //phiType->addIncoming(builder.getInt16(EValueType::Null), conditionBB);
-    phiType->addIncoming(thenType, thenBB);
-    phiType->addIncoming(elseType, elseBB);
-
-    YCHECK(thenValue.GetStaticType() == elseValue.GetStaticType());
-    EValueType type = thenValue.GetStaticType();
-    YCHECK(thenData->getType() == elseData->getType());
-
-    PHINode* phiData = builder.CreatePHI(thenData->getType(), 2, name + ".phiData");
-    //phiData->addIncoming(llvm::UndefValue::get(thenData->getType()), conditionBB);
-    phiData->addIncoming(thenData, thenBB);
-    phiData->addIncoming(elseData, elseBB);
-
-    PHINode* phiLength = nullptr;
-    if (type == EValueType::String) {
-        YCHECK(thenLength->getType() == elseLength->getType());
-
-        phiLength = builder.CreatePHI(thenLength->getType(), 2, name + ".phiLength");
-        //phiLength->addIncoming(llvm::UndefValue::get(thenLength->getType()), conditionBB);
-        phiLength->addIncoming(thenLength, thenBB);
-        phiLength->addIncoming(elseLength, elseBB);
-    }
-
-    return TCGValue::CreateFromValue(builder, phiType, phiLength, phiData, type, name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -604,99 +620,101 @@ void CodegenAggregateFunction(
 {
     auto newValue = TCGValue::CreateFromRow(builder, newRow, index, type, name + ".new");
 
-    CodegenIf(builder, [&] (TCGIRBuilder& builder) {
-        return newValue.IsNull();
-    }, [&] (TCGIRBuilder& builder) {
+    CodegenIf(
+        builder,
+        newValue.IsNull(),
+        [&] (TCGIRBuilder& builder) { },
+        [&] (TCGIRBuilder& builder) {
+            auto aggregateValue = TCGValue::CreateFromRow(builder, aggregateRow, index, type, name + ".aggregate");
 
-    }, [&] (TCGIRBuilder& builder) {
-        auto aggregateValue = TCGValue::CreateFromRow(builder, aggregateRow, index, type, name + ".aggregate");
-
-        CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
-            return aggregateValue.IsNull();
-        }, [&] (TCGIRBuilder& builder) {
-            return newValue;
-        }, [&] (TCGIRBuilder& builder) {
-            Value* newData = newValue.GetData();
-            Value* aggregateData = aggregateValue.GetData();
-            Value* resultData = nullptr;
-
-            // TODO(lukyan): support other types
-
-            switch (aggregateFunction) {
-                case EAggregateFunctions::Sum:
-                    switch (type) {
-                        case EValueType::Int64:
-                        case EValueType::Uint64:
-                            resultData = builder.CreateAdd(
-                                aggregateData,
-                                newData);
-                            break;
-                        case EValueType::Double:
-                            resultData = builder.CreateFAdd(
-                                aggregateData,
-                                newData);
-                            break;
-                        default:
-                            YUNIMPLEMENTED();
-                    }
-                    break;
-                case EAggregateFunctions::Min:{
-                    Value* compareResult = nullptr;
-                    switch (type) {
-                        case EValueType::Int64:
-                            compareResult = builder.CreateICmpSLE(aggregateData, newData);
-                            break;
-                        case EValueType::Uint64:
-                            compareResult = builder.CreateICmpULE(aggregateData, newData);
-                            break;
-                        case EValueType::Double:
-                            compareResult = builder.CreateFCmpULE(aggregateData, newData);
-                            break;
-                        default:
-                            YUNIMPLEMENTED();
-                    }
-
-                    resultData = builder.CreateSelect(
-                        compareResult,
-                        aggregateData,
-                        newData);
-                    break;
-                }
-                case EAggregateFunctions::Max:{
-                    Value* compareResult = nullptr;
-                    switch (type) {
-                        case EValueType::Int64:
-                            compareResult = builder.CreateICmpSGE(aggregateData, newData);
-                            break;
-                        case EValueType::Uint64:
-                            compareResult = builder.CreateICmpUGE(aggregateData, newData);
-                            break;
-                        case EValueType::Double:
-                            compareResult = builder.CreateFCmpUGE(aggregateData, newData);
-                            break;
-                        default:
-                            YUNIMPLEMENTED();
-                    }
-
-                    resultData = builder.CreateSelect(
-                        compareResult,
-                        aggregateData,
-                        newData);
-                    break;
-                }
-                default:
-                    YUNIMPLEMENTED();
-            }
-
-            return TCGValue::CreateFromValue(
+            CodegenIf<TCGValue>(
                 builder,
-                builder.getInt16(static_cast<ui16>(type)),
-                nullptr,
-                resultData,
-                type,
-                name);
-        }).StoreToRow(aggregateRow, index, id);
-    });
+                aggregateValue.IsNull(),
+                [&] (TCGIRBuilder& builder) {
+                    return newValue;
+                },
+                [&] (TCGIRBuilder& builder) {
+                    Value* newData = newValue.GetData();
+                    Value* aggregateData = aggregateValue.GetData();
+                    Value* resultData = nullptr;
+
+                    // TODO(lukyan): support other types
+
+                    switch (aggregateFunction) {
+                        case EAggregateFunctions::Sum:
+                            switch (type) {
+                                case EValueType::Int64:
+                                case EValueType::Uint64:
+                                    resultData = builder.CreateAdd(
+                                        aggregateData,
+                                        newData);
+                                    break;
+                                case EValueType::Double:
+                                    resultData = builder.CreateFAdd(
+                                        aggregateData,
+                                        newData);
+                                    break;
+                                default:
+                                    YUNIMPLEMENTED();
+                            }
+                            break;
+                        case EAggregateFunctions::Min:{
+                            Value* compareResult = nullptr;
+                            switch (type) {
+                                case EValueType::Int64:
+                                    compareResult = builder.CreateICmpSLE(aggregateData, newData);
+                                    break;
+                                case EValueType::Uint64:
+                                    compareResult = builder.CreateICmpULE(aggregateData, newData);
+                                    break;
+                                case EValueType::Double:
+                                    compareResult = builder.CreateFCmpULE(aggregateData, newData);
+                                    break;
+                                default:
+                                    YUNIMPLEMENTED();
+                            }
+
+                            resultData = builder.CreateSelect(
+                                compareResult,
+                                aggregateData,
+                                newData);
+                            break;
+                        }
+                        case EAggregateFunctions::Max:{
+                            Value* compareResult = nullptr;
+                            switch (type) {
+                                case EValueType::Int64:
+                                    compareResult = builder.CreateICmpSGE(aggregateData, newData);
+                                    break;
+                                case EValueType::Uint64:
+                                    compareResult = builder.CreateICmpUGE(aggregateData, newData);
+                                    break;
+                                case EValueType::Double:
+                                    compareResult = builder.CreateFCmpUGE(aggregateData, newData);
+                                    break;
+                                default:
+                                    YUNIMPLEMENTED();
+                            }
+
+                            resultData = builder.CreateSelect(
+                                compareResult,
+                                aggregateData,
+                                newData);
+                            break;
+                        }
+                        default:
+                            YUNIMPLEMENTED();
+                    }
+
+                    return TCGValue::CreateFromValue(
+                        builder,
+                        builder.getInt16(static_cast<ui16>(type)),
+                        nullptr,
+                        resultData,
+                        type,
+                        name);
+                }).StoreToRow(aggregateRow, index, id);
+        });
 }
 
 void CodegenForEachRow(
@@ -760,82 +778,93 @@ TCGValue TCGContext::DoCodegenFunctionExpr(
         auto condition = codegenArgs[0](builder);
         YCHECK(condition.GetStaticType() == EValueType::Boolean);
 
-        return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
-            return condition.IsNull();
-        }, [&] (TCGIRBuilder& builder) {
-            return TCGValue::CreateNull(builder, type);
-        }, [&] (TCGIRBuilder& builder) {
-            return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
-                return builder.CreateICmpNE(
-                    builder.CreateZExtOrBitCast(condition.GetData(), builder.getInt64Ty()),
-                    builder.getInt64(0));            
+        return CodegenIf<TCGValue>(builder,
+            condition.IsNull(),
+            [&] (TCGIRBuilder& builder) {
+                return TCGValue::CreateNull(builder, type);
             }, [&] (TCGIRBuilder& builder) {
-                return codegenArgs[1](builder);
-            }, [&] (TCGIRBuilder& builder) {
-                return codegenArgs[2](builder);
-            });
-        }, nameTwine);
+                return CodegenIf<TCGValue>(
+                    builder,
+                    builder.CreateICmpNE(
+                        builder.CreateZExtOrBitCast(condition.GetData(), builder.getInt64Ty()),
+                        builder.getInt64(0)),
+                    [&] (TCGIRBuilder& builder) {
+                        return codegenArgs[1](builder);
+                    },
+                    [&] (TCGIRBuilder& builder) {
+                        return codegenArgs[2](builder);
+                    });
+            },
+            nameTwine);
     } else if (functionName == "is_prefix") {
         YCHECK(codegenArgs.size() == 2);
         auto lhsValue = codegenArgs[0](builder);
         YCHECK(lhsValue.GetStaticType() == EValueType::String);
     
-        return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
-            return lhsValue.IsNull();
-        }, [&] (TCGIRBuilder& builder) {
-            return TCGValue::CreateNull(builder, type);
-        }, [&] (TCGIRBuilder& builder) {
-            auto rhsValue = codegenArgs[1](builder);
-            YCHECK(rhsValue.GetStaticType() == EValueType::String);
-
-            return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
-                return rhsValue.IsNull();            
-            }, [&] (TCGIRBuilder& builder) {
+        return CodegenIf<TCGValue>(
+            builder,
+            lhsValue.IsNull(),
+            [&] (TCGIRBuilder& builder) {
                 return TCGValue::CreateNull(builder, type);
-            }, [&] (TCGIRBuilder& builder) {
-                Value* lhsData = lhsValue.GetData();
-                Value* lhsLength = lhsValue.GetLength();
-                Value* rhsData = rhsValue.GetData();
-                Value* rhsLength = rhsValue.GetLength();
+            },
+            [&] (TCGIRBuilder& builder) {
+                auto rhsValue = codegenArgs[1](builder);
+                YCHECK(rhsValue.GetStaticType() == EValueType::String);
 
-                Value* result = builder.CreateCall4(
-                    Module_->GetRoutine("IsPrefix"),
-                    lhsData, lhsLength, rhsData, rhsLength);
-
-                return TCGValue::CreateFromValue(
+                return CodegenIf<TCGValue>(
                     builder,
-                    builder.getInt16(static_cast<ui16>(type)),
-                    nullptr,
-                    result,
-                    type);
-            });
-        }, nameTwine);
+                    rhsValue.IsNull(),
+                    [&] (TCGIRBuilder& builder) {
+                        return TCGValue::CreateNull(builder, type);
+                    },
+                    [&] (TCGIRBuilder& builder) {
+                        Value* lhsData = lhsValue.GetData();
+                        Value* lhsLength = lhsValue.GetLength();
+                        Value* rhsData = rhsValue.GetData();
+                        Value* rhsLength = rhsValue.GetLength();
+
+                        Value* result = builder.CreateCall4(
+                            Module_->GetRoutine("IsPrefix"),
+                            lhsData, lhsLength, rhsData, rhsLength);
+
+                        return TCGValue::CreateFromValue(
+                            builder,
+                            builder.getInt16(static_cast<ui16>(type)),
+                            nullptr,
+                            result,
+                            type);
+                    });
+            },
+            nameTwine);
     } else if (functionName == "lower") {
         YCHECK(codegenArgs.size() == 1);
         auto argValue = codegenArgs[0](builder);
         YCHECK(argValue.GetStaticType() == EValueType::String);
 
-        return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
-            return argValue.IsNull();
-        }, [&] (TCGIRBuilder& builder) {
-            return TCGValue::CreateNull(builder, type);
-        }, [&] (TCGIRBuilder& builder) {
-            Value* argData = argValue.GetData();
-            Value* argLength = argValue.GetLength();
+        return CodegenIf<TCGValue>(
+            builder,
+            argValue.IsNull(),
+            [&] (TCGIRBuilder& builder) {
+                return TCGValue::CreateNull(builder, type);
+            },
+            [&] (TCGIRBuilder& builder) {
+                Value* argData = argValue.GetData();
+                Value* argLength = argValue.GetLength();
 
-            Value* result = builder.CreateCall3(
-                Module_->GetRoutine("ToLower"),
-                GetExecutionContextPtr(builder),
-                argData,
-                argLength);
+                Value* result = builder.CreateCall3(
+                    Module_->GetRoutine("ToLower"),
+                    GetExecutionContextPtr(builder),
+                    argData,
+                    argLength);
 
-            return TCGValue::CreateFromValue(
-                builder,
-                builder.getInt16(static_cast<ui16>(type)),
-                argLength,
-                result,
-                type);
-        }, nameTwine);
+                return TCGValue::CreateFromValue(
+                    builder,
+                    builder.getInt16(static_cast<ui16>(type)),
+                    argLength,
+                    result,
+                    type);
+            },
+            nameTwine);
     } else if (functionName == "is_null") {
         YCHECK(codegenArgs.size() == 1);
         auto argValue = codegenArgs[0](builder);
@@ -885,153 +914,191 @@ TCGValue TCGContext::DoCodegenBinaryOpExpr(
 
     auto lhsValue = codegenLhs(builder);
 
-    return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
-            return lhsValue.IsNull();
-        }, [&] (TCGIRBuilder& builder) {
+    return CodegenIf<TCGValue>(
+        builder,
+        lhsValue.IsNull(),
+        [&] (TCGIRBuilder& builder) {
             return TCGValue::CreateNull(builder, type);
-        }, [&] (TCGIRBuilder& builder) {
+        },
+        [&] (TCGIRBuilder& builder) {
             auto rhsValue = codegenRhs(builder);
 
-            return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
-                return rhsValue.IsNull();            
-            }, [&] (TCGIRBuilder& builder) {
-                return TCGValue::CreateNull(builder, type);
-            }, [&] (TCGIRBuilder& builder) {
-                YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
-                auto operandType = lhsValue.GetStaticType();
+            return CodegenIf<TCGValue>(
+                builder,
+                rhsValue.IsNull(),
+                [&] (TCGIRBuilder& builder) {
+                    return TCGValue::CreateNull(builder, type);
+                },
+                [&] (TCGIRBuilder& builder) {
+                    YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
+                    auto operandType = lhsValue.GetStaticType();
 
-                Value* lhsData = lhsValue.GetData();
-                Value* rhsData = rhsValue.GetData();
-                Value* evalData = nullptr;
+                    Value* lhsData = lhsValue.GetData();
+                    Value* rhsData = rhsValue.GetData();
+                    Value* evalData = nullptr;
 
-                #define OP(opcode, optype) \
-                    case EBinaryOp::opcode: \
-                        evalData = builder.Create##optype(lhsData, rhsData); \
-                        break;
+                    #define OP(opcode, optype) \
+                        case EBinaryOp::opcode: \
+                            evalData = builder.Create##optype(lhsData, rhsData); \
+                            break;
 
-                #define CMP_OP(opcode, optype) \
-                    case EBinaryOp::opcode: \
-                        evalData = builder.CreateZExtOrBitCast( \
-                            builder.Create##optype(lhsData, rhsData), \
-                            TDataTypeBuilder::TBoolean::get(builder.getContext())); \
-                        break;
+                    #define CMP_OP(opcode, optype) \
+                        case EBinaryOp::opcode: \
+                            evalData = builder.CreateZExtOrBitCast( \
+                                builder.Create##optype(lhsData, rhsData), \
+                                TDataTypeBuilder::TBoolean::get(builder.getContext())); \
+                            break;
 
-                switch (operandType) {
+                    switch (operandType) {
 
-                    case EValueType::Boolean:
-                    case EValueType::Int64:
-                        switch (opcode) {
-                            OP(Plus, Add)
-                            OP(Minus, Sub)
-                            OP(Multiply, Mul)
-                            OP(Divide, SDiv)
-                            OP(Modulo, SRem)
-                            OP(And, And)
-                            OP(Or, Or)
-                            CMP_OP(Equal, ICmpEQ)
-                            CMP_OP(NotEqual, ICmpNE)
-                            CMP_OP(Less, ICmpSLT)
-                            CMP_OP(LessOrEqual, ICmpSLE)
-                            CMP_OP(Greater, ICmpSGT)
-                            CMP_OP(GreaterOrEqual, ICmpSGE)
-                            default:
-                                YUNREACHABLE();
+                        case EValueType::Boolean:
+                        case EValueType::Int64:
+                            switch (opcode) {
+                                OP(Plus, Add)
+                                OP(Minus, Sub)
+                                OP(Multiply, Mul)
+                                OP(Divide, SDiv)
+                                OP(Modulo, SRem)
+                                OP(And, And)
+                                OP(Or, Or)
+                                CMP_OP(Equal, ICmpEQ)
+                                CMP_OP(NotEqual, ICmpNE)
+                                CMP_OP(Less, ICmpSLT)
+                                CMP_OP(LessOrEqual, ICmpSLE)
+                                CMP_OP(Greater, ICmpSGT)
+                                CMP_OP(GreaterOrEqual, ICmpSGE)
+                                default:
+                                    YUNREACHABLE();
+                            }
+                            break;
+                        case EValueType::Uint64:
+                            switch (opcode) {
+                                OP(Plus, Add)
+                                OP(Minus, Sub)
+                                OP(Multiply, Mul)
+                                OP(Divide, UDiv)
+                                OP(Modulo, URem)
+                                OP(And, And)
+                                OP(Or, Or)
+                                CMP_OP(Equal, ICmpEQ)
+                                CMP_OP(NotEqual, ICmpNE)
+                                CMP_OP(Less, ICmpULT)
+                                CMP_OP(LessOrEqual, ICmpULE)
+                                CMP_OP(Greater, ICmpUGT)
+                                CMP_OP(GreaterOrEqual, ICmpUGE)
+                                default:
+                                    YUNREACHABLE();
+                            }
+                            break;
+                        case EValueType::Double:
+                            switch (opcode) {
+                                OP(Plus, FAdd)
+                                OP(Minus, FSub)
+                                OP(Multiply, FMul)
+                                OP(Divide, FDiv)
+                                CMP_OP(Equal, FCmpUEQ)
+                                CMP_OP(NotEqual, FCmpUNE)
+                                CMP_OP(Less, FCmpULT)
+                                CMP_OP(LessOrEqual, FCmpULE)
+                                CMP_OP(Greater, FCmpUGT)
+                                CMP_OP(GreaterOrEqual, FCmpUGE)
+                                default:
+                                    YUNREACHABLE();
+                            }
+                            break;
+                        case EValueType::String: {
+                            Value* lhsLength = lhsValue.GetLength();
+                            Value* rhsLength = rhsValue.GetLength();
+
+                            auto codegenEqual = [&] () {
+                                return CodegenIf<Value*>(
+                                    builder,
+                                    builder.CreateICmpEQ(lhsLength, rhsLength),
+                                    [&] (TCGIRBuilder& builder) {
+                                        Value* minLength = builder.CreateSelect(
+                                            builder.CreateICmpULT(lhsLength, rhsLength),
+                                            lhsLength,
+                                            rhsLength);
+
+                                        Value* cmpResult = builder.CreateCall3(
+                                            Module_->GetRoutine("memcmp"),
+                                            lhsData,
+                                            rhsData,
+                                            builder.CreateZExt(minLength, builder.getSizeType()));
+
+                                        return builder.CreateICmpEQ(cmpResult, builder.getInt32(0));
+                                    },
+                                    [&] (TCGIRBuilder& builder) {
+                                        return builder.getFalse();
+                                    });
+                            };
+
+                            auto codegenLexicographicalCompare = [&] (Value* lhsData, Value* lhsLength, Value* rhsData, Value* rhsLength) {
+                                Value* lhsLengthIsLess = builder.CreateICmpULT(lhsLength, rhsLength);
+                                Value* minLength = builder.CreateSelect(
+                                    lhsLengthIsLess,
+                                    lhsLength,
+                                    rhsLength);
+
+                                Value* cmpResult = builder.CreateCall3(
+                                    Module_->GetRoutine("memcmp"),
+                                    lhsData,
+                                    rhsData,
+                                    builder.CreateZExt(minLength, builder.getSizeType()));
+
+                                return builder.CreateOr(
+                                    builder.CreateICmpSLT(cmpResult, builder.getInt32(0)),
+                                    builder.CreateAnd(
+                                        builder.CreateICmpEQ(cmpResult, builder.getInt32(0)),
+                                        lhsLengthIsLess));
+                            };
+
+                            switch (opcode) {
+                                case EBinaryOp::Equal:
+                                    evalData = codegenEqual();
+                                    break;
+                                case EBinaryOp::NotEqual:
+                                    evalData = builder.CreateNot(codegenEqual());
+                                    break;
+                                case EBinaryOp::Less:
+                                    evalData = codegenLexicographicalCompare(lhsData, lhsLength, rhsData, rhsLength);
+                                    break;
+                                case EBinaryOp::Greater:
+                                    evalData = codegenLexicographicalCompare(rhsData, rhsLength, lhsData, lhsLength);
+                                    break;
+                                case EBinaryOp::LessOrEqual:
+                                    evalData =  builder.CreateNot(
+                                        codegenLexicographicalCompare(rhsData, rhsLength, lhsData, lhsLength));
+                                    break;
+                                case EBinaryOp::GreaterOrEqual:
+                                    evalData = builder.CreateNot(
+                                        codegenLexicographicalCompare(lhsData, lhsLength, rhsData, rhsLength));
+                                    break;
+                                default:
+                                    YUNREACHABLE();
+                            }
+
+                            evalData = builder.CreateZExtOrBitCast(
+                                evalData,
+                                TDataTypeBuilder::TBoolean::get(builder.getContext()));
+                            break;
                         }
-                        break;
-                    case EValueType::Uint64:
-                        switch (opcode) {
-                            OP(Plus, Add)
-                            OP(Minus, Sub)
-                            OP(Multiply, Mul)
-                            OP(Divide, UDiv)
-                            OP(Modulo, URem)
-                            OP(And, And)
-                            OP(Or, Or)
-                            CMP_OP(Equal, ICmpEQ)
-                            CMP_OP(NotEqual, ICmpNE)
-                            CMP_OP(Less, ICmpULT)
-                            CMP_OP(LessOrEqual, ICmpULE)
-                            CMP_OP(Greater, ICmpUGT)
-                            CMP_OP(GreaterOrEqual, ICmpUGE)
-                            default:
-                                YUNREACHABLE();
-                        }
-                        break;
-                    case EValueType::Double:
-                        switch (opcode) {
-                            OP(Plus, FAdd)
-                            OP(Minus, FSub)
-                            OP(Multiply, FMul)
-                            OP(Divide, FDiv)
-                            CMP_OP(Equal, FCmpUEQ)
-                            CMP_OP(NotEqual, FCmpUNE)
-                            CMP_OP(Less, FCmpULT)
-                            CMP_OP(LessOrEqual, FCmpULE)
-                            CMP_OP(Greater, FCmpUGT)
-                            CMP_OP(GreaterOrEqual, FCmpUGE)
-                            default:
-                                YUNREACHABLE();
-                        }
-                        break;
-                    case EValueType::String: {
-                        Value* lhsLength = lhsValue.GetLength();
-                        Value* rhsLength = rhsValue.GetLength();
-
-                        switch (opcode) {
-                            case EBinaryOp::Equal:
-                                evalData = builder.CreateCall4(
-                                    Module_->GetRoutine("Equal"),
-                                    lhsData, lhsLength, rhsData, rhsLength);
-                                break;
-                            case EBinaryOp::NotEqual:
-                                evalData = builder.CreateCall4(
-                                    Module_->GetRoutine("NotEqual"),
-                                    lhsData, lhsLength, rhsData, rhsLength);
-                                break;
-                            case EBinaryOp::Less:
-                                evalData = builder.CreateCall4(
-                                    Module_->GetRoutine("LexicographicalCompare"),
-                                    lhsData, lhsLength, rhsData, rhsLength);
-                                break;
-                            case EBinaryOp::Greater:
-                                evalData = builder.CreateCall4(
-                                    Module_->GetRoutine("LexicographicalCompare"),
-                                    rhsData, rhsLength, lhsData, lhsLength);
-                                break;
-                            case EBinaryOp::LessOrEqual:
-                                evalData =  builder.CreateXor(
-                                    builder.CreateCall4(
-                                        Module_->GetRoutine("LexicographicalCompare"),
-                                        rhsData, rhsLength, lhsData, lhsLength),
-                                    builder.getInt8(1));
-                                break;
-                            case EBinaryOp::GreaterOrEqual:
-                                evalData = builder.CreateXor(
-                                    builder.CreateCall4(
-                                        Module_->GetRoutine("LexicographicalCompare"),
-                                        lhsData, lhsLength, rhsData, rhsLength),
-                                    builder.getInt8(1));
-                                break;
-                            default:
-                                YUNREACHABLE();
-                        }
-                        break;
+                        default:
+                            YUNREACHABLE();
                     }
-                    default:
-                        YUNREACHABLE();
-                }
 
-                #undef OP
-                #undef CMP_OP
+                    #undef OP
+                    #undef CMP_OP
 
-                return TCGValue::CreateFromValue(
-                    builder,
-                    builder.getInt16(static_cast<ui16>(type)),
-                    nullptr,
-                    evalData,
-                    type);
-            });
-        }, nameTwine);
+                    return TCGValue::CreateFromValue(
+                        builder,
+                        builder.getInt16(static_cast<ui16>(type)),
+                        nullptr,
+                        evalData,
+                        type);
+                });
+       },
+       nameTwine);
 }
 
 TCGValue TCGContext::CodegenBinaryOpExpr(
@@ -1093,9 +1160,7 @@ Function* TCGContext::CodegenGroupComparerFunction(
             index,
             types[index]);
 
-        CodegenIf(builder, [&] (TCGIRBuilder& builder) {
-            return builder.CreateOr(lhsValue.IsNull(), rhsValue.IsNull());
-        }, [&] (TCGIRBuilder& builder) {
+        CodegenIf(builder, builder.CreateOr(lhsValue.IsNull(), rhsValue.IsNull()), [&] (TCGIRBuilder& builder) {
             returnIf(builder.CreateICmpNE(lhsValue.GetType(), rhsValue.GetType()));
         }, [&] (TCGIRBuilder& builder) {
             auto* lhsData = lhsValue.GetData();
@@ -1116,10 +1181,20 @@ Function* TCGContext::CodegenGroupComparerFunction(
                     Value* lhsLength = lhsValue.GetLength();
                     Value* rhsLength = rhsValue.GetLength();
 
-                    Value* isEqual = builder.CreateCall4(
-                                Module_->GetRoutine("Equal"),
-                                lhsData, lhsLength, rhsData, rhsLength);
-                    returnIf(builder.CreateICmpEQ(isEqual, builder.getInt8(0)));
+                    Value* minLength = builder.CreateSelect(
+                        builder.CreateICmpULT(lhsLength, rhsLength),
+                        lhsLength,
+                        rhsLength);
+
+                    Value* cmpResult = builder.CreateCall3(
+                        Module_->GetRoutine("memcmp"),
+                        lhsData,
+                        rhsData,
+                        builder.CreateZExt(minLength, builder.getSizeType()));
+
+                    returnIf(builder.CreateOr(
+                        builder.CreateICmpNE(cmpResult, builder.getInt32(0)),
+                        builder.CreateICmpNE(lhsLength, rhsLength)));
                     break;
                 }
 
@@ -1277,13 +1352,11 @@ Function* TCGContext::CodegenRowComparerFunction(
             index,
             types[index]);
 
-        CodegenIf(builder, [&] (TCGIRBuilder& builder) {
-            return builder.CreateOr(lhsValue.IsNull(), rhsValue.IsNull());
-        },  [&] (TCGIRBuilder& builder) {
+        CodegenIf(builder, builder.CreateOr(lhsValue.IsNull(), rhsValue.IsNull()),  [&] (TCGIRBuilder& builder) {
             returnIf(builder.CreateICmpNE(lhsValue.GetType(), rhsValue.GetType()), [&] (TCGIRBuilder&) {
                 return builder.CreateICmpULT(lhsValue.GetType(), rhsValue.GetType());
             });
-        },  [&] (TCGIRBuilder& builder) {
+        }, [&] (TCGIRBuilder& builder) {
             auto* lhsData = lhsValue.GetData();
             auto* rhsData = rhsValue.GetData();
 
@@ -1311,16 +1384,25 @@ Function* TCGContext::CodegenRowComparerFunction(
                     Value* lhsLength = lhsValue.GetLength();
                     Value* rhsLength = rhsValue.GetLength();
 
-                    Value* isEqual = builder.CreateCall4(
-                                Module_->GetRoutine("Equal"),
-                                lhsData, lhsLength, rhsData, rhsLength);
-                    returnIf(builder.CreateICmpEQ(isEqual, builder.getInt8(0)), [&] (TCGIRBuilder&) {
-                        return builder.CreateICmpEQ(
-                            builder.CreateCall4(
-                                Module_->GetRoutine("LexicographicalCompare"),
-                                lhsData, lhsLength, rhsData, rhsLength),
-                            builder.getInt8(1));
+                    Value* minLength = builder.CreateSelect(
+                        builder.CreateICmpULT(lhsLength, rhsLength),
+                        lhsLength,
+                        rhsLength);
+                    
+                    Value* cmpResult = builder.CreateCall3(
+                        Module_->GetRoutine("memcmp"),
+                        lhsData,
+                        rhsData,
+                        builder.CreateZExt(minLength, builder.getSizeType()));
+
+                    returnIf(builder.CreateICmpNE(cmpResult, builder.getInt32(0)), [&] (TCGIRBuilder&) {
+                        return builder.CreateICmpSLT(cmpResult, builder.getInt32(0));
                     });
+
+                    returnIf(builder.CreateICmpNE(lhsLength, rhsLength), [&] (TCGIRBuilder&) {
+                        return builder.CreateICmpULT(lhsLength, rhsLength);
+                    });
+
                     break;
                 }
 
@@ -1760,11 +1842,11 @@ void TCGContext::CodegenGroupOp(
             newRowPtrRef,
             builder.getInt32(keySize + aggregateItemCount));
 
-        CodegenIf(builder, [&] (TCGIRBuilder& builder) {
-            return builder.CreateICmpNE(
-                foundRowPtr,
-                llvm::ConstantPointerNull::get(newRowRef->getType()->getPointerTo()));
-        }, [&] (TCGIRBuilder& builder) {
+        Value* condition = builder.CreateICmpNE(
+            foundRowPtr,
+            llvm::ConstantPointerNull::get(newRowRef->getType()->getPointerTo()));
+
+        CodegenIf(builder, condition, [&] (TCGIRBuilder& builder) {
             Value* foundRow = builder.CreateLoad(foundRowPtr);
             for (int index = 0; index < aggregateItemCount; ++index) {
                 const auto& item = clause.AggregateItems[index];
