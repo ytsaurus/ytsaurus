@@ -213,22 +213,6 @@ class YamrModeTester(YtTestBase, YTEnv):
                       table, other_table,
                       files=_test_file_path("cpp_bin"))
 
-    def test_abort_operation(self):
-        strategy = yt.AsyncStrategy()
-        table = self.create_temp_table()
-        other_table = TEST_DIR + "/temp_other"
-        yt.run_map("PYTHONPATH=. ./my_op.py 10.0",
-                   table, other_table,
-                   files=map(_test_file_path, ["my_op.py", "helpers.py"]),
-                   strategy=strategy)
-
-        type, operation, finalization = strategy.operations[-1]
-        yt.abort_operation(operation)
-        self.assertEqual(yt.get_operation_state(operation), "aborted")
-
-        finalization("none")
-
-
     def test_dsv(self):
         table = self.create_dsv_table()
         other_table = TEST_DIR + "/dsv_capital"
