@@ -76,6 +76,8 @@ public:
     void CreateStackRestore(llvm::Value* ptr);
 
     llvm::CallInst* CreateCallWithArgs(llvm::Value* callee, std::initializer_list<llvm::Value*> args, const llvm::Twine& name = "");
+
+    llvm::Type* getSizeType() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
