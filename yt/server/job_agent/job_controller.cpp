@@ -81,7 +81,7 @@ std::vector<IJobPtr> TJobController::GetJobs()
 TNodeResources TJobController::GetResourceLimits()
 {
     TNodeResources result;
-    result.set_user_slots(Bootstrap->GetSlotManager()->GetSlotCount());
+    result.set_user_slots(Bootstrap->GetExecSlotManager()->GetSlotCount());
     result.set_cpu(Config->ResourceLimits->Cpu);
     result.set_network(Config->ResourceLimits->Network);
     result.set_replication_slots(Config->ResourceLimits->ReplicationSlots);

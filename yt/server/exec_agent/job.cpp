@@ -134,7 +134,7 @@ public:
         JobState = EJobState::Running;
 
         YCHECK(!Slot);
-        auto slotManager = Bootstrap->GetSlotManager();
+        auto slotManager = Bootstrap->GetExecSlotManager();
         Slot = slotManager->AcquireSlot();
 
         auto invoker = Slot->GetInvoker();

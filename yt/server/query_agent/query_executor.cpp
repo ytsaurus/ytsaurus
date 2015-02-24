@@ -1,5 +1,4 @@
 #include "stdafx.h"
-
 #include "query_executor.h"
 #include "config.h"
 #include "private.h"
@@ -46,6 +45,7 @@
 #include <server/tablet_node/tablet_slot.h>
 #include <server/tablet_node/tablet.h>
 #include <server/tablet_node/tablet_reader.h>
+#include <server/tablet_node/security_manager.h>
 #include <server/tablet_node/config.h>
 
 #include <server/hydra/hydra_manager.h>
@@ -170,11 +170,11 @@ public:
     }
 
 private:
-    TQueryAgentConfigPtr Config_;
-    TBootstrap* Bootstrap_;
+    const TQueryAgentConfigPtr Config_;
+    TBootstrap* const Bootstrap_;
+    const TEvaluatorPtr Evaluator_;
+    const IExecutorPtr RemoteExecutor_;
 
-    TEvaluatorPtr Evaluator_;
-    IExecutorPtr RemoteExecutor_;
 
     TQueryStatistics DoExecute(
         const TPlanFragmentPtr& fragment,
@@ -566,6 +566,9 @@ private:
 
             auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
             auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
+
+            auto securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
 
             auto lowerBound = GetLowerBoundFromDataSplit(split);
             auto upperBound = GetUpperBoundFromDataSplit(split);
