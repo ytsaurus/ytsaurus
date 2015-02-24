@@ -51,6 +51,7 @@ struct ICheckpointableInputStream;
 struct ICheckpointableOutputStream;
 
 DECLARE_REFCOUNTED_CLASS(TSlruCacheConfig)
+DECLARE_REFCOUNTED_CLASS(TExpiringCacheConfig)
 
 typedef ui64 TChecksum;
 
