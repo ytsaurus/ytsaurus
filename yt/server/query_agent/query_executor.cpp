@@ -249,7 +249,7 @@ private:
         TNodeDirectoryPtr nodeDirectory,
         const NLogging::TLogger& Logger)
     {
-        std::map<TGuid, TDataSplits> splitsByTablet;
+        yhash_map<TGuid, TDataSplits> splitsByTablet;
 
         TDataSplits allSplits;
         for (const auto& split : splits) {
@@ -260,7 +260,6 @@ private:
                 splitsByTablet[objectId].push_back(split);
             } else {
                 allSplits.push_back(split);
-                continue;
             }
         }
 
