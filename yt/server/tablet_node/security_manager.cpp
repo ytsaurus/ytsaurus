@@ -106,7 +106,8 @@ private:
 
     virtual TFuture<void> DoGet(const TTablePermissionKey& key) override
     {
-        LOG_DEBUG("Checking permission (Key: {%v})", key);
+        LOG_DEBUG("Table permission check started (Key: {%v})",
+            key);
 
         auto client = Bootstrap_->GetMasterClient();
         return client->CheckPermission(key.User, FromObjectId(key.TableId), key.Permission).Apply(
@@ -119,9 +120,13 @@ private:
                     THROW_ERROR wrappedError;
                 }
 
-                LOG_DEBUG("Table permission check succeded (Key: {%v})", key);
+                const auto& result = resultOrError.Value();
 
-                ResultToError(key, resultOrError.Value())
+                LOG_DEBUG("Table permission check complete (Key: {%v}, Action: %v)",
+                    key,
+                    result.Action);
+
+                ResultToError(key, result)
                     .ThrowOnError();
             }));
     }
