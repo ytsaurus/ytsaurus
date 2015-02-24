@@ -216,6 +216,8 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
         userName,
         permission);
 
+    auto objectManager = Bootstrap_->GetObjectManager();
+
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetUserByNameOrThrow(userName);
 
@@ -224,15 +226,14 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
     response->set_action(static_cast<int>(result.Action));
     if (result.Object) {
         ToProto(response->mutable_object_id(), result.Object->GetId());
+        response->set_object_name(objectManager->GetHandler(result.Object)->GetName(result.Object));
     }
     if (result.Subject) {
-        response->set_subject(result.Subject->GetName());
+        ToProto(response->mutable_subject_id(), result.Subject->GetId());
+        response->set_subject_name(result.Subject->GetName());
     }
 
-    context->SetResponseInfo("Action: %v, Object: %v, Subject: %v",
-        permission,
-        result.Object ? ToString(result.Object->GetId()) : "<Null>",
-        result.Subject ? ToString(result.Subject->GetId()) : "<Null>");
+    context->SetResponseInfo("Action: %v", result.Action);
     context->Reply();
 }
 

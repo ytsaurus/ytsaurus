@@ -1659,7 +1659,9 @@ private:
         TCheckPermissionResult result;
         result.Action = ESecurityAction(rsp->action());
         result.ObjectId = rsp->has_object_id() ? FromProto<TObjectId>(rsp->object_id()) : NullObjectId;
-        result.Subject = rsp->has_subject() ? MakeNullable(rsp->subject()) : Null;
+        result.ObjectName = rsp->has_object_name() ? MakeNullable(rsp->object_name()) : Null;
+        result.SubjectId = rsp->has_subject_id() ? FromProto<TSubjectId>(rsp->subject_id()) : NullObjectId;
+        result.SubjectName = rsp->has_subject_name() ? MakeNullable(rsp->subject_name()) : Null;
         return result;
     }
 

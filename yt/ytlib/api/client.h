@@ -114,7 +114,9 @@ struct TCheckPermissionResult
 {
     NSecurityClient::ESecurityAction Action;
     NObjectClient::TObjectId ObjectId;
-    TNullable<Stroka> Subject;
+    TNullable<Stroka> ObjectName;
+    NSecurityClient::TSubjectId SubjectId;
+    TNullable<Stroka> SubjectName;
 };
 
 struct TTransactionStartOptions
