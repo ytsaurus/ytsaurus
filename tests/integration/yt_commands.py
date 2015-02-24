@@ -188,7 +188,7 @@ def select_rows(query, **kwargs):
 
 def _prepare_rows_stream(data):
     # remove surrounding [ ]
-    return StringIO(yson.dumps(data)[1:-1])
+    return StringIO(yson.dumps(data, boolean_as_string=False)[1:-1])
 
 def insert_rows(path, data, is_raw=False, **kwargs):
     kwargs["path"] = path

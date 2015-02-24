@@ -38,6 +38,7 @@ public:
 private:
     NConcurrency::IAsyncOutputStreamPtr Stream_;
 
+    TYsonFormatConfigPtr Config_;
     TBlobOutput Buffer_;
     NYson::TYsonWriter Writer_;
 
