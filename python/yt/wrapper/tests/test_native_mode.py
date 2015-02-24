@@ -679,6 +679,13 @@ class NativeModeTester(YtTestBase, YTEnv):
         finally:
             yt.config.DETACHED = 1
 
+    def test_abort_operation(self):
+        table = TEST_DIR + "/table"
+        op = yt.run_map("sleep 10; cat", table, table, sync=False)
+        op.abort()
+        self.assertEqual(op.get_state(), "aborted")
+
+
 # Map method for test operations with python entities
 class ChangeX__(object):
     def __call__(self, rec):
