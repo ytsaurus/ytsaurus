@@ -840,7 +840,7 @@ public:
                     permission,
                     objectManager->GetHandler(object)->GetName(object));
             }
-            error.Attributes().Set("permission", ~FormatEnum(permission));
+            error.Attributes().Set("permission", permission);
             error.Attributes().Set("user", user->GetName());
             error.Attributes().Set("object", object->GetId());
             if (result.Object) {
