@@ -567,7 +567,6 @@ TQueryStatistics CoordinateAndExecute(
 
             ISchemafulReaderPtr reader;
             TFuture<TQueryStatistics> statistics;
-
             std::tie(reader, statistics) = evaluateSubquery(subquery, index);
 
             splitReaders.push_back(reader);
