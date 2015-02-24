@@ -21,10 +21,10 @@ class OperationState(object):
     def __init__(self, name):
         self.name = name
 
-    def is_final(self):
+    def is_finished(self):
         return self.name in ["aborted", "completed", "failed"]
 
-    def is_failed(self):
+    def is_unsuccessfully_finished(self):
         return self.name in ["aborted", "failed"]
 
     def is_running(self):
@@ -108,7 +108,6 @@ class OperationProgressFormatter(logging.Formatter):
                 time = time.isoformat(" ")
             return "{0} ({1:2} min)".format(time, elapsed)
 
-
 def get_operation_state(operation, client=None):
     """Return current state of operation.
 
@@ -187,7 +186,7 @@ def abort_operation(operation, client=None):
 
     :param operation: (string) operation id.
     """
-    if get_operation_state(operation, client=client).is_final():
+    if get_operation_state(operation, client=client).is_finished():
         return
     make_request("abort_op", {"operation_id": operation}, client=client)
 
@@ -222,7 +221,7 @@ def wait_final_state(operation, time_watcher, print_info, action=lambda: None, c
 
         state = get_operation_state(operation, client=client)
         print_info(state)
-        if state.is_final():
+        if state.is_finished():
             break
 
         time_watcher.wait()
@@ -279,16 +278,22 @@ class Operation(object):
         self.client = client
 
     def suspend(self):
-        suspend_operation(self.id)
+        suspend_operation(self.id, client=self.client)
 
     def resume(self):
-        resume_operation(self.id)
+        resume_operation(self.id, client=self.client)
 
     def abort(self):
-        abort_operation(self.id)
+        abort_operation(self.id, client=self.client)
 
-    def attributes(self):
-        return get("{0}/{1}/@".format(OPERATIONS_PATH, self.id))
+    def get_attributes(self):
+        return get("{0}/{1}/@".format(OPERATIONS_PATH, self.id), client=self.client)
+
+    def get_state(self):
+        return OperationState(get("{0}/{1}/@state".format(OPERATIONS_PATH, self.id), client=self.client))
+
+    def get_stderrs(self, only_failed_jobs=False):
+        return get_stderrs(self.id, only_failed_jobs=only_failed_jobs, client=self.client)
 
     def wait(self, check_result=True, print_progress=True, timeout=None):
         """Synchronously track operation, print current progress and finalize at the completion.
@@ -321,7 +326,7 @@ class Operation(object):
                 logger.info("Timeout occurred.")
                 raise YtTimeoutError
 
-        if check_result and state.is_failed():
+        if check_result and state.is_unsuccessfully_finished():
             operation_result = get_operation_result(self.id, client=self.client)
             stderrs = get_stderrs(self.id, only_failed_jobs=True, client=self.client)
             message = "Operation {0} {1}. Result: {2}"\
