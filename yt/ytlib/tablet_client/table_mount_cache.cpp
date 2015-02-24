@@ -4,6 +4,7 @@
 #include "private.h"
 
 #include <core/misc/string.h>
+#include <core/misc/expiring_cache.h>
 
 #include <core/concurrency/rw_spinlock.h>
 #include <core/concurrency/delayed_executor.h>
@@ -76,94 +77,37 @@ TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableMountCache::TImpl
-    : public TRefCounted
+    : public TExpiringCache<TYPath, TTableMountInfoPtr>
 {
 public:
     TImpl(
         TTableMountCacheConfigPtr config,
         IChannelPtr masterChannel,
         TCellDirectoryPtr cellDirectory)
-        : Config_(config)
+        : TExpiringCache(config)
+        , Config_(config)
         , ObjectProxy_(masterChannel)
         , CellDirectory_(cellDirectory)
     { }
 
     TFuture<TTableMountInfoPtr> GetTableInfo(const TYPath& path)
     {
-        auto now = TInstant::Now();
-
-        // Fast path.
-        {
-            TReaderGuard guard(SpinLock_);
-            auto it = PathToEntry_.find(path);
-            if (it != PathToEntry_.end()) {
-                const auto& entry = it->second;
-                if (now < entry.Deadline) {
-                    return entry.Promise;
-                }
-            }
-        }
-
-        // Slow path.
-        {
-            TWriterGuard guard(SpinLock_);
-            auto it = PathToEntry_.find(path);
-            if (it == PathToEntry_.end()) {
-                TTableEntry entry;
-                entry.Deadline = TInstant::Max();
-                auto promise = entry.Promise = NewPromise<TTableMountInfoPtr>();
-                YCHECK(PathToEntry_.insert(std::make_pair(path, entry)).second);
-                guard.Release();
-                RequestTableMountInfo(path);
-                return promise;
-            }
-
-            auto& entry = it->second;
-            const auto& promise = entry.Promise;
-            if (!promise.IsSet()) {
-                return promise;
-            }
-
-            if (now > entry.Deadline) {
-                // Evict and retry.
-                TDelayedExecutor::CancelAndClear(entry.ProbationCookie);
-                PathToEntry_.erase(it);
-                guard.Release();
-                return GetTableInfo(path);
-            }
-
-            return promise;
-        }
+        return TExpiringCache::Get(path);
     }
 
     void Clear()
     {
-        TWriterGuard guard(SpinLock_);
-        PathToEntry_.clear();
+        TExpiringCache::Clear();
         LOG_DEBUG("Table mount info cache cleared");
     }
 
 private:
-    TTableMountCacheConfigPtr Config_;
+    const TTableMountCacheConfigPtr Config_;
     TObjectServiceProxy ObjectProxy_;
-    TCellDirectoryPtr CellDirectory_;
-    
-
-    struct TTableEntry
-    {
-        //! When this entry must be evicted.
-        TInstant Deadline;
-        //! Some latest known info (possibly not yet set).
-        TPromise<TTableMountInfoPtr> Promise;
-        //! Corresponds to a future probation request.
-        TDelayedExecutorCookie ProbationCookie;
-    };
-
-    TReaderWriterSpinLock SpinLock_;
-    yhash<TYPath, TTableEntry> PathToEntry_;
+    const TCellDirectoryPtr CellDirectory_;
 
 
-    void RequestTableMountInfo(const TYPath& path)
+    virtual void DoGet(const TYPath& path) override
     {
         LOG_DEBUG("Requesting table mount info for %v",
             path);
@@ -179,29 +123,12 @@ private:
 
     void OnTableMountInfoResponse(const TYPath& path, const TTableYPathProxy::TErrorOrRspGetMountInfoPtr& rspOrError)
     {
-        TWriterGuard guard(SpinLock_);
-        auto it = PathToEntry_.find(path);
-        if (it == PathToEntry_.end())
-            return;
-
-        auto& entry = it->second;
-
-        auto setResult = [&] (const TErrorOr<TTableMountInfoPtr>& result) {
-            auto expirationTime = result.IsOK() ? Config_->SuccessExpirationTime : Config_->FailureExpirationTime;
-            entry.Deadline = TInstant::Now() + expirationTime;
-            if (entry.Promise.IsSet()) {
-                entry.Promise = MakePromise(result);
-            } else {
-                entry.Promise.Set(result);
-            }
-        };
-
         if (!rspOrError.IsOK()) {
             auto wrappedError = TError("Error getting mount info for %v",
                 path)
                 << rspOrError;
-            setResult(wrappedError);
             LOG_WARNING(wrappedError);
+            TExpiringCache::DoSet(path, wrappedError);
             return;
         }
 
@@ -238,20 +165,13 @@ private:
             tableInfo->Tablets.push_back(tabletInfo);
         }
 
-        setResult(tableInfo);
-
-        {
-            NTracing::TNullTraceContextGuard guard;
-            entry.ProbationCookie = TDelayedExecutor::Submit(
-                BIND(&TImpl::RequestTableMountInfo, MakeWeak(this), path),
-                Config_->SuccessProbationTime);
-        }
-
         LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Sorted: %v)",
             path,
             tableInfo->TableId,
             tableInfo->Tablets.size(),
             tableInfo->Sorted);
+
+        TExpiringCache::DoSet(path, tableInfo);
     }
 
 };
