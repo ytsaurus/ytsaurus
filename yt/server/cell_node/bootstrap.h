@@ -19,6 +19,8 @@
 
 #include <ytlib/api/public.h>
 
+#include <ytlib/query_client/public.h>
+
 #include <server/data_node/public.h>
 
 #include <server/chunk_server/public.h>
@@ -54,7 +56,8 @@ public:
     NYTree::IMapNodePtr GetOrchidRoot() const;
     NJobAgent::TJobTrackerPtr GetJobController() const;
     NTabletNode::TTabletSlotManagerPtr GetTabletSlotManager() const;
-    NExecAgent::TSlotManagerPtr GetSlotManager() const;
+    NTabletNode::TSecurityManagerPtr GetSecurityManager() const;
+    NExecAgent::TSlotManagerPtr GetExecSlotManager() const;
     NExecAgent::TEnvironmentManagerPtr GetEnvironmentManager() const;
     NJobProxy::TJobProxyConfigPtr GetJobProxyConfig() const;
     TNodeMemoryTracker* GetMemoryUsageTracker();
@@ -68,6 +71,7 @@ public:
     NDataNode::TBlobReaderCachePtr GetBlobReaderCache() const;
     NDataNode::TJournalDispatcherPtr GetJournalDispatcher() const;
     NDataNode::TMasterConnectorPtr GetMasterConnector() const;
+    NQueryClient::IExecutorPtr GetQueryExecutor() const;
 
     NConcurrency::IThroughputThrottlerPtr GetReplicationInThrottler() const;
     NConcurrency::IThroughputThrottlerPtr GetReplicationOutThrottler() const;
@@ -100,7 +104,7 @@ private:
     NRpc::IChannelFactoryPtr TabletChannelFactory;
     NYTree::IMapNodePtr OrchidRoot;
     NJobAgent::TJobTrackerPtr JobController;
-    NExecAgent::TSlotManagerPtr SlotManager;
+    NExecAgent::TSlotManagerPtr ExecSlotManager;
     NExecAgent::TEnvironmentManagerPtr EnvironmentManager;
     NJobProxy::TJobProxyConfigPtr JobProxyConfig;
     TMemoryUsageTracker<EMemoryConsumer> MemoryUsageTracker;
@@ -121,7 +125,11 @@ private:
     NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler;
     NConcurrency::IThroughputThrottlerPtr RepairInThrottler;
     NConcurrency::IThroughputThrottlerPtr RepairOutThrottler;
+
     NTabletNode::TTabletSlotManagerPtr TabletSlotManager;
+    NTabletNode::TSecurityManagerPtr SecurityManager;
+
+    NQueryClient::IExecutorPtr QueryExecutor;
 
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor;
 

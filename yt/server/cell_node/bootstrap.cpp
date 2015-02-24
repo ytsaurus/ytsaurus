@@ -77,6 +77,7 @@
 #include <server/tablet_node/store_flusher.h>
 #include <server/tablet_node/store_compactor.h>
 #include <server/tablet_node/partition_balancer.h>
+#include <server/tablet_node/security_manager.h>
 
 #include <server/query_agent/query_executor.h>
 #include <server/query_agent/query_service.h>
@@ -264,7 +265,7 @@ void TBootstrap::DoRun()
     JobProxyConfig->SupervisorConnection->Priority = 6;
     JobProxyConfig->CellId = GetCellId();
 
-    SlotManager = New<TSlotManager>(Config->ExecAgent->SlotManager, this);
+    ExecSlotManager = New<TSlotManager>(Config->ExecAgent->SlotManager, this);
 
     JobController = New<TJobController>(Config->ExecAgent->JobController, this);
 
@@ -322,12 +323,11 @@ void TBootstrap::DoRun()
 
     TabletSlotManager = New<TTabletSlotManager>(Config->TabletNode, this);
 
-    auto queryExecutor = CreateQueryExecutor(Config->QueryAgent, this);
+    SecurityManager = New<TSecurityManager>(Config->TabletNode->SecurityManager, this);
 
-    RpcServer->RegisterService(CreateQueryService(
-        Config->QueryAgent,
-        GetQueryPoolInvoker(),
-        queryExecutor));
+    QueryExecutor = CreateQueryExecutor(Config->QueryAgent, this);
+
+    RpcServer->RegisterService(CreateQueryService(Config->QueryAgent, this));
 
     RpcServer->RegisterService(CreateTimestampProxyService(
         clusterConnection->GetTimestampProvider()));
@@ -388,7 +388,7 @@ void TBootstrap::DoRun()
     ChunkStore->Initialize();
     ChunkCache->Initialize();
     JournalDispatcher->Initialize();
-    SlotManager->Initialize(Config->ExecAgent->JobController->ResourceLimits->UserSlots);
+    ExecSlotManager->Initialize(Config->ExecAgent->JobController->ResourceLimits->UserSlots);
     monitoringManager->Start();
     PeerBlockUpdater->Start();
     MasterConnector->Start();
@@ -451,9 +451,14 @@ TTabletSlotManagerPtr TBootstrap::GetTabletSlotManager() const
     return TabletSlotManager;
 }
 
-TSlotManagerPtr TBootstrap::GetSlotManager() const
+TSecurityManagerPtr TBootstrap::GetSecurityManager() const
 {
-    return SlotManager;
+    return SecurityManager;
+}
+
+TSlotManagerPtr TBootstrap::GetExecSlotManager() const
+{
+    return ExecSlotManager;
 }
 
 TEnvironmentManagerPtr TBootstrap::GetEnvironmentManager() const
@@ -519,6 +524,11 @@ TJournalDispatcherPtr TBootstrap::GetJournalDispatcher() const
 NDataNode::TMasterConnectorPtr TBootstrap::GetMasterConnector() const
 {
     return MasterConnector;
+}
+
+NQueryClient::IExecutorPtr TBootstrap::GetQueryExecutor() const
+{
+    return QueryExecutor;
 }
 
 const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const

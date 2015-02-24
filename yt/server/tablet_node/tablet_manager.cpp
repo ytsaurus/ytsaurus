@@ -14,6 +14,7 @@
 #include "store_flusher.h"
 #include "lookup.h"
 #include "private.h"
+#include "security_manager.h"
 
 #include <core/misc/ring_queue.h>
 #include <core/misc/string.h>
@@ -182,6 +183,9 @@ public:
 
         ValidateReadTimestamp(timestamp);
 
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(tabletSnapshot, EPermission::Read);
+
         while (!reader->IsFinished()) {
             ExecuteSingleRead(
                 tabletSnapshot,
@@ -203,6 +207,9 @@ public:
             transaction->ThrowInvalidState();
         }
         ValidateMemoryLimit();
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(tablet->GetSnapshot(), EPermission::Write);
 
         // Protect from tablet disposal.
         TCurrentInvokerGuard guard(tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));

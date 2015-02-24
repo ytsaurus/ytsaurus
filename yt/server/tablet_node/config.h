@@ -274,6 +274,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TStoreFlusherConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TStoreCompactorConfig
     : public NYTree::TYsonSerializable
 {
@@ -297,6 +299,8 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreCompactorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TPartitionBalancerConfig
     : public NYTree::TYsonSerializable
@@ -347,6 +351,17 @@ DEFINE_REFCOUNTED_TYPE(TTabletChunkReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSecurityManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletNodeConfig
     : public NYTree::TYsonSerializable
 {
@@ -379,6 +394,7 @@ public:
     TStoreFlusherConfigPtr StoreFlusher;
     TStoreCompactorConfigPtr StoreCompactor;
     TPartitionBalancerConfigPtr PartitionBalancer;
+    TSecurityManagerConfigPtr SecurityManager;
 
     TTabletChunkReaderConfigPtr ChunkReader;
     NVersionedTableClient::TTableWriterConfigPtr ChunkWriter;
@@ -415,6 +431,8 @@ public:
         RegisterParameter("store_compactor", StoreCompactor)
             .DefaultNew();
         RegisterParameter("partition_balancer", PartitionBalancer)
+            .DefaultNew();
+        RegisterParameter("security_manager", SecurityManager)
             .DefaultNew();
 
         RegisterParameter("chunk_reader", ChunkReader)

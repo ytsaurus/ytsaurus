@@ -40,20 +40,21 @@ struct TPermissionCheckResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A simple RAII guard for settings the current authenticated user.
+//! A simple RAII guard for setting the current authenticated user.
 /*!
- *  \see #TSecurityManager::PushAuthenticatedUser
- *  \see #TSecurityManager::PopAuthenticatedUser
+ *  \see #TSecurityManager::SetAuthenticatedUser
+ *  \see #TSecurityManager::ResetAuthenticatedUser
  */
 class TAuthenticatedUserGuard
+    : private TNonCopyable
 {
 public:
     TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, TUser* user);
     ~TAuthenticatedUserGuard();
 
 private:
-    TSecurityManagerPtr SecurityManager_;
-    bool IsNull_;
+    const TSecurityManagerPtr SecurityManager_;
+    const bool IsNull_;
 
 };
 
@@ -173,14 +174,13 @@ public:
     TAccessControlList GetEffectiveAcl(NObjectServer::TObjectBase* object);
 
 
-    //! Pushes a new current user onto the stack.
-    void PushAuthenticatedUser(TUser* user);
+    //! Sets the authenticated user.
+    void SetAuthenticatedUser(TUser* user);
 
-    //! Pops the current user from the stack.
-    void PopAuthenticatedUser();
+    //! Resets the authenticated user.
+    void ResetAuthenticatedUser();
 
-    //! Returns the current user, which is placed on the top of the stack.
-    //! If the stack is empty then "root" user is returned.
+    //! Returns the current user or |nullptr| if there's no one.
     TUser* GetAuthenticatedUser();
 
 
