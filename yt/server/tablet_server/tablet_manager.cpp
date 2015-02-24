@@ -1478,6 +1478,9 @@ private:
             descriptor.GetDefaultAddress(),
             peerId);
 
+        if (peer.Node) {
+            peer.Node->DetachTabletCell(cell);
+        }
         RemoveFromAddressToCellMap(descriptor, cell);
         cell->RevokePeer(peerId);
     }
