@@ -267,3 +267,64 @@ class TestTablets(YTEnvSetup):
         move("//tmp/t3", "//tmp/t1")
 
         assert self._get_pivot_keys("//tmp/t1") == [[], [100], [200], [300], [400]]
+
+    def _prepare_allowed(self, permission):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+        create_user("u")
+        set("//tmp/t/@inherit_acl", False)
+        set("//tmp/t/@acl", [{"permissions": [permission], "action": "allow", "subjects": ["u"]}])
+        
+    def _prepare_denied(self, permission):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+        create_user("u")
+        set("//tmp/t/@acl", [{"permissions": [permission], "action": "deny", "subjects": ["u"]}])
+        
+    def test_select_allowed(self):
+        self._prepare_allowed("read")
+        insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
+        expected = [{"key": 1, "value": "test"}]
+        actual = select_rows("* from [//tmp/t]", user="u")
+        self.assertItemsEqual(expected, actual)
+
+    def test_select_denied(self):
+        self._prepare_denied("read")
+        with pytest.raises(YtError): select_rows("* from [//tmp/t]", user="u")
+
+    def test_lookup_allowed(self):
+        self._prepare_allowed("read")
+        insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
+        expected = [{"key": 1, "value": "test"}]
+        actual = lookup_rows("//tmp/t", [{"key" : 1}], user="u")
+        self.assertItemsEqual(expected, actual)
+
+    def test_lookup_denied(self):
+        self._prepare_denied("read")
+        insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
+        with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key" : 1}], user="u")
+
+    def test_insert_allowed(self):
+        self._prepare_allowed("write")
+        insert_rows("//tmp/t", [{"key": 1, "value": "test"}], user="u")
+        expected = [{"key": 1, "value": "test"}]
+        actual = lookup_rows("//tmp/t", [{"key" : 1}])
+        self.assertItemsEqual(expected, actual)
+
+    def test_insert_denied(self):
+        self._prepare_denied("write")
+        with pytest.raises(YtError): insert_rows("//tmp/t", [{"key": 1, "value": "test"}], user="u")
+
+    def test_delete_allowed(self):
+        self._prepare_allowed("write")
+        insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
+        delete_rows("//tmp/t", [{"key": 1}], user="u")
+        expected = []
+        actual = lookup_rows("//tmp/t", [{"key" : 1}])
+        self.assertItemsEqual(expected, actual)
+
+    def test_delete_denied(self):
+        self._prepare_denied("write")
+        with pytest.raises(YtError): delete_rows("//tmp/t", [{"key": 1}], user="u")
