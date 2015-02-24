@@ -269,7 +269,6 @@ private:
         const NLogging::TLogger& Logger)
     {
         yhash_map<TGuid, TDataSplits> splitsByTablet;
-
         TDataSplits allSplits;
         for (const auto& split : splits) {
             auto objectId = GetObjectIdFromDataSplit(split);
@@ -281,6 +280,8 @@ private:
                 allSplits.push_back(split);
             }
         }
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
 
         for (auto& tabletIdSplit : splitsByTablet) {
             auto tabletId = tabletIdSplit.first;
@@ -298,6 +299,8 @@ private:
 
             auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
             auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
+
+            securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
 
             int lastIndex = 0;
             std::vector<std::pair<TOwningKey, TOwningKey>> resultRanges;
@@ -574,7 +577,6 @@ private:
             upperBound,
             timestamp);
     }
-
 
     ISchemafulReaderPtr GetTabletReader(
         const TDataSplit& split,
