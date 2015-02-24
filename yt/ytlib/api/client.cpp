@@ -468,7 +468,7 @@ private:
             writer,
             false,
             ranges,
-            [&] (const TConstQueryPtr& subquery, size_t index) {
+            [&] (const TConstQueryPtr& subquery, int index) {
                 auto subfragment = New<TPlanFragment>(fragment->Source);
                 subfragment->NodeDirectory = nodeDirectory;
                 subfragment->DataSplits = groupedSplits[index].first;
@@ -477,14 +477,14 @@ private:
 
                 const auto& address = groupedSplits[index].second;
 
-                LOG_DEBUG("Delegating subfragment (SubfragmentId: %v) to %v",
+                LOG_DEBUG("Delegating subfragment (SubfragmentId: %v, Address: %v)",
                     subquery->Id,
                     address);
 
                 return Delegate(subfragment, address);
             },
             [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
-                LOG_DEBUG("Evaluating topquery (TopqueryId: %v)", topQuery->Id);
+                LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
                 return evaluator->Run(topQuery, std::move(reader), std::move(writer));
             });
@@ -519,7 +519,7 @@ private:
             writer,
             true,
             ranges,
-            [&] (const TConstQueryPtr& subquery, size_t index) {
+            [&] (const TConstQueryPtr& subquery, int index) {
                 auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(splits[index].replicas());
                 if (replicas.empty()) {
                     auto objectId = GetObjectIdFromDataSplit(splits[index]);

@@ -523,7 +523,7 @@ TQueryStatistics CoordinateAndExecute(
     ISchemafulWriterPtr writer,
     bool isOrdered,
     const std::vector<TKeyRange>& ranges,
-    std::function<TEvaluateResult(const TConstQueryPtr&, size_t)> evaluateSubquery,
+    std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
     std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
     bool pushdownGroupOp)
 {
@@ -544,7 +544,7 @@ TQueryStatistics CoordinateAndExecute(
     if (isOrdered) {
         int index = 0;
 
-        topReader = CreateOrderedSchemafulReader([&, index ] () mutable -> ISchemafulReaderPtr {
+        topReader = CreateOrderedSchemafulReader([&, index] () mutable -> ISchemafulReaderPtr {
             if (index >= subqueries.size()) {
                 return nullptr;
             }
@@ -562,7 +562,7 @@ TQueryStatistics CoordinateAndExecute(
             return reader;
         });
     } else {
-        for (size_t index = 0; index < subqueries.size(); ++index) {
+        for (int index = 0; index < subqueries.size(); ++index) {
             auto subquery = subqueries[index];
 
             ISchemafulReaderPtr reader;
