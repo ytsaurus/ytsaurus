@@ -153,6 +153,11 @@ llvm::CallInst* TCGIRBuilder::CreateCallWithArgs(llvm::Value* callee, std::initi
     return Insert(llvm::CallInst::Create(callee, argsArray), name);
 }
 
+llvm::Type* TCGIRBuilder::getSizeType() const
+{
+    return TypeBuilder<size_t, false>::get(getContext());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

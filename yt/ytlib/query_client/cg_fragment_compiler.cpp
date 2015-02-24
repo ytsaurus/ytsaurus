@@ -99,7 +99,7 @@ private:
             YCHECK(Length_->getType() == TTypeBuilder::TLength::get(Builder_.getContext()));
         }
         if (Data_) {
-            YCHECK(Data_->getType() == TTypeBuilder::TData::get(Builder_.getContext()));
+            YCHECK(Data_->getType() == TDataTypeBuilder::get(Builder_.getContext(), StaticType_));
         }
     }
 
@@ -157,18 +157,6 @@ public:
         EValueType staticType,
         Twine name = Twine())
     {
-        if (data) {
-            auto targetType = TDataTypeBuilder::get(builder.getContext());
-
-            if (data->getType()->isPointerTy()) {
-                data = builder.CreatePtrToInt(data, targetType);
-            } else if (data->getType()->isFloatingPointTy()) {
-                data = builder.CreateBitCast(data, targetType);
-            } else {
-                data = builder.CreateIntCast(data, targetType, false);
-            }
-        }
-
         return TCGValue(builder, type, length, data, staticType, name);
     }
 
@@ -192,7 +180,27 @@ public:
         auto data = builder.CreateLoad(
             builder.CreateStructGEP(valuePtr, TTypeBuilder::Data, name + ".dataPtr"),
             name + ".data");
-        return TCGValue(builder, type, length, data, staticType, name);
+
+        Type* targetType = TDataTypeBuilder::get(builder.getContext(), staticType);
+
+        Value* castedData = nullptr;
+
+        if (targetType->isPointerTy()) {
+            castedData = builder.CreateIntToPtr(data,
+                targetType,
+                Twine(name) + ".data");
+        } else if (targetType->isFloatingPointTy()) {
+            castedData = builder.CreateBitCast(data,
+                targetType,
+                Twine(name) + ".data");
+        } else {
+            castedData = builder.CreateIntCast(data,
+                targetType,
+                false,
+                Twine(name) + ".data");
+        }
+
+        return TCGValue(builder, type, length, castedData, staticType, name);
     }
 
     static TCGValue CreateNull(
@@ -204,7 +212,7 @@ public:
             builder,
             builder.getInt16(static_cast<ui16>(EValueType::Null)),
             llvm::UndefValue::get(TTypeBuilder::TLength::get(builder.getContext())),
-            llvm::UndefValue::get(TTypeBuilder::TData::get(builder.getContext())),
+            llvm::UndefValue::get(TDataTypeBuilder::get(builder.getContext(), staticType)),
             staticType,
             name);
     }
@@ -242,8 +250,19 @@ public:
                 Builder_.CreateStructGEP(valuePtr, TTypeBuilder::Length, nameTwine + ".lengthPtr"));
         }
         if (Data_) {
+            Value* data = nullptr;
+            auto targetType = TDataTypeBuilder::get(Builder_.getContext());
+                
+            if (Data_->getType()->isPointerTy()) {
+                data = Builder_.CreatePtrToInt(Data_, targetType);
+            } else if (Data_->getType()->isFloatingPointTy()) {
+                data = Builder_.CreateBitCast(Data_, targetType);
+            } else {
+                data = Builder_.CreateIntCast(Data_, targetType, false);
+            }
+
             Builder_.CreateStore(
-                Data_,
+                data,
                 Builder_.CreateStructGEP(valuePtr, TTypeBuilder::Data, nameTwine + ".dataPtr"));
         }
     }
@@ -275,42 +294,7 @@ public:
 
     Value* GetData()
     {
-        Type* targetType;
-
-        switch (StaticType_) {
-            case EValueType::Boolean:
-                targetType = TDataTypeBuilder::TBoolean::get(Builder_.getContext());
-                break;
-            case EValueType::Int64:
-                targetType = TDataTypeBuilder::TInt64::get(Builder_.getContext());
-                break;
-            case EValueType::Uint64:
-                targetType = TDataTypeBuilder::TUint64::get(Builder_.getContext());
-                break;
-            case EValueType::Double:
-                targetType = TDataTypeBuilder::TDouble::get(Builder_.getContext());
-                break;
-            case EValueType::String:
-                targetType = TDataTypeBuilder::TString::get(Builder_.getContext());
-                break;
-            default:
-                YUNREACHABLE();
-        }
-
-        if (targetType->isPointerTy()) {
-            return Builder_.CreateIntToPtr(Data_,
-                targetType,
-                Twine(Name_) + ".data");
-        } else if (targetType->isFloatingPointTy()) {
-            return Builder_.CreateBitCast(Data_,
-                targetType,
-                Twine(Name_) + ".data");        
-        } else {
-            return Builder_.CreateIntCast(Data_,
-                targetType,
-                false,
-                Twine(Name_) + ".data");
-        }
+        return Data_;
     }
 
     TCGValue Cast(EValueType dest, bool bitcast = false)

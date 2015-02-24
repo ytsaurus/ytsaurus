@@ -25,6 +25,25 @@ public:
         return TypeBuilder<i64, Cross>::get(context);
     }
 
+    static Type* get(LLVMContext& context, NYT::NVersionedTableClient::EValueType staticType)
+    {
+        using NYT::NVersionedTableClient::EValueType;
+        switch (staticType) {
+            case EValueType::Boolean:
+                return TBoolean::get(context);
+            case EValueType::Int64:
+                return TInt64::get(context);
+            case EValueType::Uint64:
+                return TUint64::get(context);
+            case EValueType::Double:
+                return TDouble::get(context);
+            case EValueType::String:
+                return TString::get(context);
+            default:
+                YUNREACHABLE();
+        }
+    }
+
     static_assert(
         std::is_union<NYT::NVersionedTableClient::TUnversionedValueData>::value,
         "TUnversionedValueData must be a union");
