@@ -135,16 +135,19 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    TFuture<TQueryStatistics> Execute(
+    virtual TFuture<TQueryStatistics> Execute(
         const TPlanFragmentPtr& fragment,
-        ISchemafulWriterPtr writer)
+        ISchemafulWriterPtr writer) override
     {
-        return Bootstrap_->GetMasterClient()->GetQueryExecutor()->Execute(fragment, std::move(writer));
+        auto executor = Bootstrap_->GetMasterClient()->GetQueryExecutor();
+        return executor->Execute(fragment, std::move(writer));
     }
 
 private:
-    TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TQueryExecutor
     : public IExecutor
