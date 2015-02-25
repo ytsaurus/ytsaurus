@@ -111,7 +111,8 @@ void TReadTableCommand::DoExecute()
     }
 
     BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
-        .Item("start_row_index").Value(reader->GetTableRowIndex());
+        .Item("start_row_index").Value(reader->GetTableRowIndex())
+        .Item("approximate_row_count").Value(reader->GetSessionRowCount());
 
     while (true) {
         ProduceRow(consumer.get(), reader->GetRow());
