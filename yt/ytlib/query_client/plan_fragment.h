@@ -337,16 +337,14 @@ struct TQuery
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
 
-class TPlanFragment
+struct TPlanFragment
     : public TIntrinsicRefCounted
 {
-public:
-    explicit TPlanFragment(
-        const TStringBuf& source = TStringBuf())
-        : Source_(source)
+    explicit TPlanFragment(const TStringBuf& source = TStringBuf())
+        : Source(source)
     { }
 
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Source);
+    Stroka Source;
 
     TNodeDirectoryPtr NodeDirectory;
     TDataSplits DataSplits;

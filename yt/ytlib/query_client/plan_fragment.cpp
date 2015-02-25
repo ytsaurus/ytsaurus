@@ -1209,7 +1209,7 @@ void ToProto(NProto::TPlanFragment* proto, const TConstPlanFragmentPtr& fragment
     ToProto(proto->mutable_foreign_data_split(), fragment->ForeignDataSplit);
     proto->set_ordered(fragment->Ordered);
     
-    proto->set_source(fragment->GetSource());
+    proto->set_source(fragment->Source);
 }
 
 TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
