@@ -464,7 +464,7 @@ private:
             false,
             ranges,
             [&] (const TConstQueryPtr& subquery, size_t index) {
-                auto subfragment = New<TPlanFragment>(fragment->GetSource());
+                auto subfragment = New<TPlanFragment>(fragment->Source);
                 subfragment->NodeDirectory = nodeDirectory;
                 subfragment->DataSplits = groupedSplits[index].first;
                 subfragment->ForeignDataSplit = fragment->ForeignDataSplit;
@@ -522,7 +522,7 @@ private:
 
                 LOG_DEBUG("Delegating subquery (SubqueryId: %v)", subquery->Id);
 
-                auto subfragment = New<TPlanFragment>(fragment->GetSource());
+                auto subfragment = New<TPlanFragment>(fragment->Source);
                 subfragment->NodeDirectory = nodeDirectory;
                 subfragment->DataSplits.push_back(splits[index]);
                 subfragment->ForeignDataSplit = fragment->ForeignDataSplit;

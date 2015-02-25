@@ -35,7 +35,7 @@ typedef TIntrusivePtr<const TExpression> TConstExpressionPtr;
 DECLARE_REFCOUNTED_STRUCT(TQuery);
 typedef TIntrusivePtr<const TQuery> TConstQueryPtr;
 
-DECLARE_REFCOUNTED_CLASS(TPlanFragment);
+DECLARE_REFCOUNTED_STRUCT(TPlanFragment);
 typedef TIntrusivePtr<const TPlanFragment> TConstPlanFragmentPtr;
 
 struct IPrepareCallbacks;
