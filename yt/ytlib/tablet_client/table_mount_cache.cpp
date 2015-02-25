@@ -107,7 +107,7 @@ private:
     const TCellDirectoryPtr CellDirectory_;
 
 
-    virtual void DoGet(const TYPath& path) override
+    virtual TFuture <TTableMountInfoPtr> DoGet(const TYPath& path) override
     {
         LOG_DEBUG("Requesting table mount info (Path: %v)",
             path);
@@ -117,61 +117,61 @@ private:
         cachingHeaderExt->set_success_expiration_time(Config_->SuccessExpirationTime.MilliSeconds());
         cachingHeaderExt->set_failure_expiration_time(Config_->FailureExpirationTime.MilliSeconds());
 
-        ObjectProxy_.Execute(req).Subscribe(
-            BIND(&TImpl::OnTableMountInfoResponse, MakeWeak(this), path));
+        return ObjectProxy_.Execute(req).Apply(
+            BIND([= , this_ = MakeStrong(this)] (const TTableYPathProxy::TErrorOrRspGetMountInfoPtr& rspOrError) {
+                if (!rspOrError.IsOK()) {
+                    auto wrappedError = TError("Error getting mount info for %v",
+                        path)
+                        << rspOrError;
+                    LOG_WARNING(wrappedError);
+                    THROW_ERROR wrappedError;
+                }
+
+                const auto& rsp = rspOrError.Value();
+                auto tableInfo = New<TTableMountInfo>();
+                tableInfo->Path = path;
+                tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
+                tableInfo->Schema = FromProto<TTableSchema>(rsp->schema());
+                tableInfo->KeyColumns = FromProto<TKeyColumns>(rsp->key_columns());
+                tableInfo->Sorted = rsp->sorted();
+                tableInfo->NeedKeyEvaluation = tableInfo->Schema.HasComputedColumns(tableInfo->KeyColumns.size());
+
+                auto nodeDirectory = New<TNodeDirectory>();
+                nodeDirectory->MergeFrom(rsp->node_directory());
+
+                for (const auto& protoTabletInfo : rsp->tablets()) {
+                    auto tabletInfo = New<TTabletInfo>();
+                    tabletInfo->TabletId = FromProto<TObjectId>(protoTabletInfo.tablet_id());
+                    tabletInfo->State = ETabletState(protoTabletInfo.state());
+                    tabletInfo->PivotKey = FromProto<TOwningKey>(protoTabletInfo.pivot_key());
+
+                    if (protoTabletInfo.has_cell_config()) {
+                        auto config = ConvertTo<TCellConfigPtr>(TYsonString(protoTabletInfo.cell_config()));
+                        tabletInfo->CellId = config->CellId;
+                        CellDirectory_->RegisterCell(config, protoTabletInfo.cell_config_version());
+                    }
+
+                    for (auto nodeId : protoTabletInfo.replica_node_ids()) {
+                        tabletInfo->Replicas.push_back(TTabletReplica(
+                            nodeId,
+                            nodeDirectory->GetDescriptor(nodeId)));
+                    }
+
+                    tableInfo->Tablets.push_back(tabletInfo);
+                }
+
+                LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Sorted: %v)",
+                    path,
+                    tableInfo->TableId,
+                    tableInfo->Tablets.size(),
+                    tableInfo->Sorted);
+
+                return tableInfo;
+            }));
     }
 
     void OnTableMountInfoResponse(const TYPath& path, const TTableYPathProxy::TErrorOrRspGetMountInfoPtr& rspOrError)
     {
-        if (!rspOrError.IsOK()) {
-            auto wrappedError = TError("Error getting mount info for %v",
-                path)
-                << rspOrError;
-            LOG_WARNING(wrappedError);
-            TExpiringCache::DoSet(path, wrappedError);
-            return;
-        }
-
-        const auto& rsp = rspOrError.Value();
-        auto tableInfo = New<TTableMountInfo>();
-        tableInfo->Path = path;
-        tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
-        tableInfo->Schema = FromProto<TTableSchema>(rsp->schema());
-        tableInfo->KeyColumns = FromProto<TKeyColumns>(rsp->key_columns());
-        tableInfo->Sorted = rsp->sorted();
-        tableInfo->NeedKeyEvaluation = tableInfo->Schema.HasComputedColumns(tableInfo->KeyColumns.size());
-
-        auto nodeDirectory = New<TNodeDirectory>();
-        nodeDirectory->MergeFrom(rsp->node_directory());
-
-        for (const auto& protoTabletInfo : rsp->tablets()) {
-            auto tabletInfo = New<TTabletInfo>();
-            tabletInfo->TabletId = FromProto<TObjectId>(protoTabletInfo.tablet_id());
-            tabletInfo->State = ETabletState(protoTabletInfo.state());
-            tabletInfo->PivotKey = FromProto<TOwningKey>(protoTabletInfo.pivot_key());
-
-            if (protoTabletInfo.has_cell_config()) {
-                auto config = ConvertTo<TCellConfigPtr>(TYsonString(protoTabletInfo.cell_config()));
-                tabletInfo->CellId = config->CellId;
-                CellDirectory_->RegisterCell(config, protoTabletInfo.cell_config_version());
-            }
-            
-            for (auto nodeId : protoTabletInfo.replica_node_ids()) {
-                tabletInfo->Replicas.push_back(TTabletReplica(
-                    nodeId,
-                    nodeDirectory->GetDescriptor(nodeId)));
-            }
-
-            tableInfo->Tablets.push_back(tabletInfo);
-        }
-
-        LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Sorted: %v)",
-            path,
-            tableInfo->TableId,
-            tableInfo->Tablets.size(),
-            tableInfo->Sorted);
-
-        TExpiringCache::DoSet(path, tableInfo);
     }
 
 };

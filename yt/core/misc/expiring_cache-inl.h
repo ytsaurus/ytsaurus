@@ -41,7 +41,7 @@ TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
             auto promise = entry.Promise = NewPromise<TValue>();
             YCHECK(Map_.insert(std::make_pair(key, entry)).second);
             guard.Release();
-            DoGet(key);
+            InvokeGet(key);
             return promise;
         }
 
@@ -71,29 +71,31 @@ void TExpiringCache<TKey, TValue>::Clear()
 }
 
 template <class TKey, class TValue>
-void TExpiringCache<TKey, TValue>::DoSet(const TKey& key, const TErrorOr<TValue>& valueOrError)
+void TExpiringCache<TKey, TValue>::InvokeGet(const TKey& key)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
-    auto it = Map_.find(key);
-    if (it == Map_.end())
-        return;
+    DoGet(key).Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
+        NConcurrency::TWriterGuard guard(SpinLock_);
+        auto it = Map_.find(key);
+        if (it == Map_.end())
+            return;
 
-    auto& entry = it->second;
+        auto& entry = it->second;
 
-    auto expirationTime = valueOrError.IsOK() ? Config_->SuccessExpirationTime : Config_->FailureExpirationTime;
-    entry.Deadline = TInstant::Now() + expirationTime;
-    if (entry.Promise.IsSet()) {
-        entry.Promise = MakePromise(valueOrError);
-    } else {
-        entry.Promise.Set(valueOrError);
-    }
+        auto expirationTime = valueOrError.IsOK() ? Config_->SuccessExpirationTime : Config_->FailureExpirationTime;
+        entry.Deadline = TInstant::Now() + expirationTime;
+        if (entry.Promise.IsSet()) {
+            entry.Promise = MakePromise(valueOrError);
+        } else {
+            entry.Promise.Set(valueOrError);
+        }
 
-    if (valueOrError.IsOK()) {
-        NTracing::TNullTraceContextGuard guard;
-        entry.ProbationCookie = NConcurrency::TDelayedExecutor::Submit(
-            BIND(&TExpiringCache::DoGet, MakeWeak(this), key),
-            Config_->SuccessProbationTime);
-    }
+        if (valueOrError.IsOK()) {
+            NTracing::TNullTraceContextGuard guard;
+            entry.ProbationCookie = NConcurrency::TDelayedExecutor::Submit(
+                BIND(&TExpiringCache::InvokeGet, MakeWeak(this), key),
+                Config_->SuccessProbationTime);
+        }
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
