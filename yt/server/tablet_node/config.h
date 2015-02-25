@@ -119,12 +119,12 @@ public:
             .Default(10000000);
         RegisterParameter("max_memory_store_aligned_pool_size", MaxMemoryStoreAlignedPoolSize)
             .GreaterThan(0)
-            .Default((i64) 256 * 1024 * 1024);
+            .Default((i64) 1024 * 1024 * 1024);
         RegisterParameter("max_memory_store_unaligned_pool_size", MaxMemoryStoreUnalignedPoolSize)
             .GreaterThan(0)
-            .Default((i64) 256 * 1024 * 1024);
+            .Default((i64) 1024 * 1024 * 1024);
         RegisterParameter("memory_store_auto_flush_period", MemoryStoreAutoFlushPeriod)
-            .Default(TDuration::Minutes(5));
+            .Default(TDuration::Hours(1));
 
         RegisterParameter("max_partition_data_size", MaxPartitionDataSize)
             .Default((i64) 256 * 1024 * 1024)
@@ -150,7 +150,7 @@ public:
             .Default(10)
             .GreaterThan(0);
         RegisterParameter("auto_partitioning_period", AutoPartitioningPeriod)
-            .Default(TDuration::Minutes(5));
+            .Default(TDuration::Hours(1));
 
         RegisterParameter("min_compaction_chunk_count", MinCompactionChunkCount)
             .Default(3)
