@@ -39,7 +39,6 @@ DECLARE_REFCOUNTED_CLASS(TPlanFragment);
 typedef TIntrusivePtr<const TPlanFragment> TConstPlanFragmentPtr;
 
 struct IPrepareCallbacks;
-struct IEvaluateCallbacks;
 
 struct TQueryStatistics;
 
