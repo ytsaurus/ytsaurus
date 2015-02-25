@@ -282,12 +282,13 @@ void TMultiChunkReaderBase::OnReaderFinished()
         FinishedReaders_.push_back(CurrentSession_.ChunkReader);
     }
 
-    TGuard<TSpinLock> guard(DataStatisticsLock_);
-    DataStatistics_ += CurrentSession_.ChunkReader->GetDataStatistics();
-    YCHECK(ActiveReaders_.erase(CurrentSession_.ChunkReader));
+    {
+        TGuard<TSpinLock> guard(DataStatisticsLock_);
+        DataStatistics_ += CurrentSession_.ChunkReader->GetDataStatistics();
+        YCHECK(ActiveReaders_.erase(CurrentSession_.ChunkReader));
+    }
 
     CurrentSession_.Reset();
-
     OpenNextChunk();
 }
 

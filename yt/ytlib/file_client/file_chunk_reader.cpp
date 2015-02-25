@@ -344,8 +344,13 @@ bool TFileMultiChunkReader::ReadBlock(TSharedRef* block)
     if (!block->Empty()) {
         return true;
     }
-
-    return OnEmptyRead(readerFinished);
+    
+    if (OnEmptyRead(readerFinished)) {
+        return true;
+    } else {
+        CurrentReader_ = nullptr;
+        return false;
+    }
 }
 
 IChunkReaderBasePtr TFileMultiChunkReader::CreateTemplateReader(
