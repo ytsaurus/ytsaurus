@@ -345,7 +345,7 @@ bool TNonOwningCGroup::TryUnlock() const
 
 void TNonOwningCGroup::DoUnlock() const
 {
-    YCHECK(TryUnlock() == 0);
+    YCHECK(TryUnlock());
 }
 
 void TNonOwningCGroup::DoKill() const
