@@ -320,6 +320,10 @@ bool TNonOwningCGroup::TryUnlock() const
 {
     LOG_INFO("Unlocking cgroup %v", FullPath_);
 
+    if (!Exists()) {
+        return true;
+    }
+
     bool result = true;
 
 #ifdef _linux_
