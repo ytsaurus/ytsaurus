@@ -499,6 +499,7 @@ bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows
         return true;
     } else {
         RowCount_ = RowIndex_.load();
+        CurrentReader_ = nullptr;
         return false;
     }
 }
