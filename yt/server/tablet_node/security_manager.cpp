@@ -99,32 +99,26 @@ private:
     NCellNode::TBootstrap* const Bootstrap_;
 
 
-    virtual void DoGet(const TTablePermissionKey& key) override
+    virtual TFuture<void> DoGet(const TTablePermissionKey& key) override
     {
         LOG_DEBUG("Checking permission (Key: {%v})", key);
 
         auto client = Bootstrap_->GetMasterClient();
-        client->CheckPermission(key.User, FromObjectId(key.TableId), key.Permission)
-            .Subscribe(BIND(&TTablePermissionCache::OnPermissionCheckResult, MakeWeak(this), key));
-    }
+        return client->CheckPermission(key.User, FromObjectId(key.TableId), key.Permission).Apply(
+            BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TCheckPermissionResult>& resultOrError) {
+                if (!resultOrError.IsOK()) {
+                    auto wrappedError = TError("Error checking permission for table %v",
+                        key.TableId)
+                        << resultOrError;
+                    LOG_WARNING(wrappedError);
+                    THROW_ERROR wrappedError;
+                }
 
-    void OnPermissionCheckResult(
-        const TTablePermissionKey& key,
-        const TErrorOr<TCheckPermissionResult>& resultOrError)
-    {
-        if (!resultOrError.IsOK()) {
-            auto wrappedError = TError("Error checking permission for table %v",
-                key.TableId)
-                << resultOrError;
-            LOG_WARNING(wrappedError);
-            TExpiringCache::DoSet(key, wrappedError);
-            return;
-        }
+                LOG_DEBUG("Table permission check succeded (Key: {%v})", key);
 
-        LOG_DEBUG("Table permission check succeded (Key: {%v})", key);
-
-        auto error = ResultToError(key, resultOrError.Value());
-        TExpiringCache::DoSet(key, error);
+                ResultToError(key, resultOrError.Value())
+                    .ThrowOnError();
+            }));
     }
 
     static TError ResultToError(const TTablePermissionKey& key, const TCheckPermissionResult& result)

@@ -21,8 +21,7 @@ public:
     void Clear();
 
 protected:
-    virtual void DoGet(const TKey& key) = 0;
-    void DoSet(const TKey& key, const TErrorOr<TValue>& valueOrError);
+    virtual TFuture<TValue> DoGet(const TKey& key) = 0;
 
 private:
     const TExpiringCacheConfigPtr Config_;
@@ -39,6 +38,9 @@ private:
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;
     yhash<TKey, TEntry> Map_;
+
+
+    void InvokeGet(const TKey& key);
 
 };
 
