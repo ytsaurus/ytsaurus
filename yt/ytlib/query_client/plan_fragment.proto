@@ -21,7 +21,7 @@ message TExpression
 message TLiteralExpression
 {
     extend TExpression {
-        optional TLiteralExpression literal_expression = 107;
+        optional TLiteralExpression literal_expression = 103;
     }
 
     optional int64 int64_value = 1;
@@ -48,10 +48,19 @@ message TFunctionExpression
     repeated TExpression arguments = 2;
 }
 
+message TUnaryOpExpression
+{
+    extend TExpression {
+        optional TUnaryOpExpression unary_op_expression = 106;
+    }
+    required int32 opcode = 1; // EUnaryOp
+    required TExpression operand = 2;
+}
+
 message TBinaryOpExpression
 {
     extend TExpression {
-        optional TBinaryOpExpression binary_op_expression = 106;
+        optional TBinaryOpExpression binary_op_expression = 107;
     }
     required int32 opcode = 1; // EBinaryOp
     required TExpression lhs = 2;

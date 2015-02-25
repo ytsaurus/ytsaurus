@@ -24,6 +24,7 @@ DEFINE_ENUM(EExpressionKind,
     (Literal)
     (Reference)
     (Function)
+    (UnaryOp)
     (BinaryOp)
     (InOp)
 );
@@ -140,6 +141,30 @@ struct TFunctionExpression
 
     Stroka FunctionName;
     TArguments Arguments;
+
+};
+
+struct TUnaryOpExpression
+    : public TExpression
+{
+    TUnaryOpExpression(
+        const TSourceLocation& sourceLocation,
+        EValueType type)
+        : TExpression(sourceLocation, type)
+    { }
+
+    TUnaryOpExpression(
+        const TSourceLocation& sourceLocation,
+        EValueType type,
+        EUnaryOp opcode,
+        const TConstExpressionPtr& operand)
+        : TExpression(sourceLocation, type)
+        , Opcode(opcode)
+        , Operand(operand)
+    { }
+
+    EUnaryOp Opcode;
+    TConstExpressionPtr Operand;
 
 };
 

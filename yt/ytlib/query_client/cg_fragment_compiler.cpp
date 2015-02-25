@@ -423,6 +423,12 @@ private:
         const TTableSchema& schema,
         Value* row);
 
+    TCGValue CodegenUnaryOpExpr(
+        TCGIRBuilder& builder,
+        const TUnaryOpExpression* expr,
+        const TTableSchema& schema,
+        Value* row);
+
     TCGValue CodegenBinaryOpExpr(
         TCGIRBuilder& builder,
         const TBinaryOpExpression* expr,
@@ -895,6 +901,60 @@ TCGValue TCGContext::CodegenFunctionExpr(
         
     auto name = "{" + expr->GetName() + "}";
     return DoCodegenFunctionExpr(builder, expr->FunctionName, codegenArgs, expr->Type, name);
+}
+
+TCGValue TCGContext::CodegenUnaryOpExpr(
+    TCGIRBuilder& builder,
+    const TUnaryOpExpression* expr,
+    const TTableSchema& schema,
+    Value* row)
+{
+    auto name = "{" + expr->GetName() + "}";
+    auto operandValue = CodegenExpr(builder, expr->Operand, schema, row);
+    auto type = expr->Type;
+
+    return CodegenIf<TCGValue>(
+        builder,
+        operandValue.IsNull(builder),
+        [&] (TCGIRBuilder& builder) {
+            return TCGValue::CreateNull(builder, type);
+        },
+        [&] (TCGIRBuilder& builder) {
+            auto operandType = operandValue.GetStaticType();
+            Value* operandData = operandValue.GetData();
+            Value* evalData = nullptr;
+
+            switch(expr->Opcode) {
+                case EUnaryOp::Plus:
+                    evalData = operandData;
+                    break;
+
+                case EUnaryOp::Minus:
+                    switch (operandType) {
+                        case EValueType::Int64:
+                        case EValueType::Uint64:
+                            evalData = builder.CreateSub(builder.getInt64(0), operandData);
+                            break;
+                        case EValueType::Double:
+                            evalData = builder.CreateFSub(ConstantFP::get(builder.getDoubleTy(), 0.0), operandData);
+                            break;
+                        default:
+                            YUNREACHABLE();
+                    }
+
+                    break;
+                default:
+                    YUNREACHABLE();
+            }
+
+            return TCGValue::CreateFromValue(
+                builder,
+                builder.getInt16(static_cast<ui16>(type)),
+                nullptr,
+                evalData,
+                type);
+        },
+        Twine(name.c_str()));
 }
 
 TCGValue TCGContext::DoCodegenBinaryOpExpr(
@@ -1528,6 +1588,12 @@ TCGValue TCGContext::CodegenExpr(
         return CodegenFunctionExpr(
             builder,
             functionExpr,
+            schema,
+            row);
+    } else if (auto unaryOpExpr = expr->As<TUnaryOpExpression>()) {
+        return CodegenUnaryOpExpr(
+            builder,
+            unaryOpExpr,
             schema,
             row);
     } else if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {

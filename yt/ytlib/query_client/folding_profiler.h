@@ -27,6 +27,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (LiteralExpr)
     (ReferenceExpr)
     (FunctionExpr)
+    (UnaryOpExpr)
     (BinaryOpExpr)
     (InOpExpr)
 

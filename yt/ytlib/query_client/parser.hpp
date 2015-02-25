@@ -1,4 +1,4 @@
-// A Bison parser, made by GNU Bison 3.0.
+// A Bison parser, made by GNU Bison 3.0.2.
 
 // Skeleton interface for Bison LALR(1) parsers in C++
 
@@ -31,14 +31,14 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/lukyan/dev/yt/yt/ytlib/query_client/parser.hpp
+ ** \file /home/savrus/dev/yt/minus/yt/ytlib/query_client/parser.hpp
  ** Define the NYT::NQueryClient::NAst::parser class.
  */
 
 // C++ LALR(1) parser skeleton written by Akim Demaille.
 
-#ifndef YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
-# define YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_MINUS_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+# define YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_MINUS_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
 // //                    "%code requires" blocks.
 
     #include "ast.h"
@@ -64,6 +64,59 @@
 # define YYASSERT assert
 #endif
 
+
+#ifndef YY_ATTRIBUTE
+# if (defined __GNUC__                                               \
+      && (2 < __GNUC__ || (__GNUC__ == 2 && 96 <= __GNUC_MINOR__)))  \
+     || defined __SUNPRO_C && 0x5110 <= __SUNPRO_C
+#  define YY_ATTRIBUTE(Spec) __attribute__(Spec)
+# else
+#  define YY_ATTRIBUTE(Spec) /* empty */
+# endif
+#endif
+
+#ifndef YY_ATTRIBUTE_PURE
+# define YY_ATTRIBUTE_PURE   YY_ATTRIBUTE ((__pure__))
+#endif
+
+#ifndef YY_ATTRIBUTE_UNUSED
+# define YY_ATTRIBUTE_UNUSED YY_ATTRIBUTE ((__unused__))
+#endif
+
+#if !defined _Noreturn \
+     && (!defined __STDC_VERSION__ || __STDC_VERSION__ < 201112)
+# if defined _MSC_VER && 1200 <= _MSC_VER
+#  define _Noreturn __declspec (noreturn)
+# else
+#  define _Noreturn YY_ATTRIBUTE ((__noreturn__))
+# endif
+#endif
+
+/* Suppress unused-variable warnings by "using" E.  */
+#if ! defined lint || defined __GNUC__
+# define YYUSE(E) ((void) (E))
+#else
+# define YYUSE(E) /* empty */
+#endif
+
+#if defined __GNUC__ && 407 <= __GNUC__ * 100 + __GNUC_MINOR__
+/* Suppress an incorrect diagnostic about yylval being uninitialized.  */
+# define YY_IGNORE_MAYBE_UNINITIALIZED_BEGIN \
+    _Pragma ("GCC diagnostic push") \
+    _Pragma ("GCC diagnostic ignored \"-Wuninitialized\"")\
+    _Pragma ("GCC diagnostic ignored \"-Wmaybe-uninitialized\"")
+# define YY_IGNORE_MAYBE_UNINITIALIZED_END \
+    _Pragma ("GCC diagnostic pop")
+#else
+# define YY_INITIAL_VALUE(Value) Value
+#endif
+#ifndef YY_IGNORE_MAYBE_UNINITIALIZED_BEGIN
+# define YY_IGNORE_MAYBE_UNINITIALIZED_BEGIN
+# define YY_IGNORE_MAYBE_UNINITIALIZED_END
+#endif
+#ifndef YY_INITIAL_VALUE
+# define YY_INITIAL_VALUE(Value) /* Nothing. */
+#endif
 
 /* Debug traces.  */
 #ifndef YT_QL_YYDEBUG
@@ -230,8 +283,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // multiplicative-op
       char dummy1[sizeof(EBinaryOp)];
 
+      // unary-op
+      char dummy2[sizeof(EUnaryOp)];
+
       // "string literal"
-      char dummy2[sizeof(Stroka)];
+      char dummy3[sizeof(Stroka)];
 
       // where-clause
       // expression
@@ -241,44 +297,45 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // additive-op-expr
       // multiplicative-op-expr
       // comma-expr
+      // unary-expr
       // atomic-expr
-      char dummy3[sizeof(TExpressionPtr)];
+      char dummy4[sizeof(TExpressionPtr)];
 
       // identifier-list
-      char dummy4[sizeof(TIdentifierList)];
+      char dummy5[sizeof(TIdentifierList)];
 
       // named-expression
-      char dummy5[sizeof(TNamedExpression)];
+      char dummy6[sizeof(TNamedExpression)];
 
       // group-by-clause
       // named-expression-list
-      char dummy6[sizeof(TNamedExpressionList)];
+      char dummy7[sizeof(TNamedExpressionList)];
 
       // select-clause
-      char dummy7[sizeof(TNullableNamedExprs)];
+      char dummy8[sizeof(TNullableNamedExprs)];
 
       // "identifier"
-      char dummy8[sizeof(TStringBuf)];
+      char dummy9[sizeof(TStringBuf)];
 
       // literal-expr
-      char dummy9[sizeof(TUnversionedValue)];
+      char dummy10[sizeof(TUnversionedValue)];
 
       // literal-list
       // literal-tuple
-      char dummy10[sizeof(TValueList)];
+      char dummy11[sizeof(TValueList)];
 
       // literal-tuple-list
-      char dummy11[sizeof(TValueTupleList)];
+      char dummy12[sizeof(TValueTupleList)];
 
       // "double literal"
-      char dummy12[sizeof(double)];
+      char dummy13[sizeof(double)];
 
       // "int64 literal"
       // limit-clause
-      char dummy13[sizeof(i64)];
+      char dummy14[sizeof(i64)];
 
       // "uint64 literal"
-      char dummy14[sizeof(ui64)];
+      char dummy15[sizeof(ui64)];
 };
 
     /// Symbol semantic values.
@@ -371,6 +428,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   basic_symbol (typename Base::kind_type t, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const EBinaryOp v, const location_type& l);
+
+  basic_symbol (typename Base::kind_type t, const EUnaryOp v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const Stroka v, const location_type& l);
 
@@ -607,14 +666,14 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 #if YT_QL_YYDEBUG
     /// The current debugging stream.
-    std::ostream& debug_stream () const;
+    std::ostream& debug_stream () const YY_ATTRIBUTE_PURE;
     /// Set the current debugging stream.
     void set_debug_stream (std::ostream &);
 
     /// Type for debugging levels.
     typedef int debug_level_type;
     /// The current debugging level.
-    debug_level_type debug_level () const;
+    debug_level_type debug_level () const YY_ATTRIBUTE_PURE;
     /// Set the current debugging level.
     void set_debug_level (debug_level_type l);
 #endif
@@ -643,8 +702,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
     /// Compute post-reduction state.
     /// \param yystate   the current state
-    /// \param yylhs     the nonterminal to push on the stack
-    state_type yy_lr_goto_state_ (state_type yystate, int yylhs);
+    /// \param yysym     the nonterminal to push on the stack
+    state_type yy_lr_goto_state_ (state_type yystate, int yysym);
 
     /// Whether the given \c yypact_ value indicates a defaulted state.
     /// \param yyvalue   the value to check
@@ -722,7 +781,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     /// \brief Reclaim the memory associated to a symbol.
     /// \param yymsg     Why this token is reclaimed.
     ///                  If null, print nothing.
-    /// \param s         The symbol.
+    /// \param yysym     The symbol.
     template <typename Base>
     void yy_destroy_ (const char* yymsg, basic_symbol<Base>& yysym) const;
 
@@ -796,13 +855,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 102,           //< Last index in yytable_.
-      yynnts_ = 28,  //< Number of nonterminal symbols.
+      yylast_ = 106,     ///< Last index in yytable_.
+      yynnts_ = 30,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 27, //< Termination state number.
+      yyfinal_ = 31, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 37    //< Number of tokens.
+      yyntokens_ = 37  ///< Number of tokens.
     };
 
 
@@ -819,4 +878,4 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
 
-#endif // !YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_MINUS_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
