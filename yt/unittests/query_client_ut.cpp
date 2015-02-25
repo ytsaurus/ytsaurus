@@ -1723,234 +1723,253 @@ protected:
 
 };
 
+std::vector<TOwningRow> BuildRows(std::initializer_list<const char*> rowsData, const TDataSplit& split)
+{
+    std::vector<TOwningRow> result;
+
+    for (auto row : rowsData) {
+        result.push_back(BuildRow(row, split, true));
+    }
+
+    return result;
+}
+
 TEST_F(TQueryEvaluateTest, Simple)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::Int64);
-    columns.emplace_back("b", EValueType::Int64);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
 
-    std::vector<TOwningRow> source;
-    source.push_back(BuildRow("a=4;b=5", simpleSplit, false));
-    source.push_back(BuildRow("a=10;b=11", simpleSplit, false));
+    auto source = BuildRows({
+        "a=4;b=5",
+        "a=10;b=11"
+    }, split);
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("a=4;b=5", simpleSplit, false));
-    result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
+    auto result = BuildRows({
+        "a=4;b=5",
+        "a=10;b=11"
+    }, split);
 
-    Evaluate("a, b FROM [//t]", simpleSplit, source, result);
+    Evaluate("a, b FROM [//t]", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleCmpInt)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::Int64);
-    columns.emplace_back("b", EValueType::Int64);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
 
-    std::vector<TOwningRow> source;
-    source.push_back(BuildRow("a=4;b=5", simpleSplit, false));
-    source.push_back(BuildRow("a=6;b=6", simpleSplit, false));
+    auto source = BuildRows({
+        "a=4;b=5",
+        "a=6;b=6"
+    }, split);
 
-    std::vector<TColumnSchema> resultColumns;
-    resultColumns.emplace_back("r1", EValueType::Boolean);
-    resultColumns.emplace_back("r2", EValueType::Boolean);
-    resultColumns.emplace_back("r3", EValueType::Boolean);
-    resultColumns.emplace_back("r4", EValueType::Boolean);
-    resultColumns.emplace_back("r5", EValueType::Boolean);
-    auto resultSplit = MakeSplit(resultColumns);
+    auto resultSplit = MakeSplit({
+        {"r1", EValueType::Boolean},
+        {"r2", EValueType::Boolean},
+        {"r3", EValueType::Boolean},
+        {"r4", EValueType::Boolean},
+        {"r5", EValueType::Boolean}
+    });
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("r1=%true;r2=%false;r3=%true;r4=%false;r5=%false", resultSplit, false));
-    result.push_back(BuildRow("r1=%false;r2=%false;r3=%true;r4=%true;r5=%true", resultSplit, false));
+    auto result = BuildRows({
+        "r1=%true;r2=%false;r3=%true;r4=%false;r5=%false",
+        "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true"
+    }, resultSplit);
 
-    Evaluate("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]", simpleSplit, source, result);
+    Evaluate("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleCmpString)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::String);
-    columns.emplace_back("b", EValueType::String);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::String},
+        {"b", EValueType::String}
+    });
 
-    std::vector<TOwningRow> source;
-    source.push_back(BuildRow("a=\"a\";b=\"aa\"", simpleSplit, false));
-    source.push_back(BuildRow("a=\"aa\";b=\"aa\"", simpleSplit, false));
+    auto source = BuildRows({
+        "a=\"a\";b=\"aa\"",
+        "a=\"aa\";b=\"aa\""
+    }, split);
 
-    std::vector<TColumnSchema> resultColumns;
-    resultColumns.emplace_back("r1", EValueType::Boolean);
-    resultColumns.emplace_back("r2", EValueType::Boolean);
-    resultColumns.emplace_back("r3", EValueType::Boolean);
-    resultColumns.emplace_back("r4", EValueType::Boolean);
-    resultColumns.emplace_back("r5", EValueType::Boolean);
-    auto resultSplit = MakeSplit(resultColumns);
+    auto resultSplit = MakeSplit({
+        {"r1", EValueType::Boolean},
+        {"r2", EValueType::Boolean},
+        {"r3", EValueType::Boolean},
+        {"r4", EValueType::Boolean},
+        {"r5", EValueType::Boolean}
+    });
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("r1=%true;r2=%false;r3=%true;r4=%false;r5=%false", resultSplit, false));
-    result.push_back(BuildRow("r1=%false;r2=%false;r3=%true;r4=%true;r5=%true", resultSplit, false));
+    auto result = BuildRows({
+        "r1=%true;r2=%false;r3=%true;r4=%false;r5=%false",
+        "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true"
+    }, resultSplit);
 
-    Evaluate("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]", simpleSplit, source, result);
+    Evaluate("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::Int64);
-    columns.emplace_back("b", EValueType::Int64);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
 
-    std::vector<TOwningRow> source;
-    source.push_back(BuildRow("a=4;b=5", simpleSplit, false));
-    source.push_back(BuildRow("a=10;b=11", simpleSplit, false));
-    source.push_back(BuildRow("a=15;b=11", simpleSplit, false));
+    auto source = BuildRows({
+        "a=4;b=5", 
+        "a=10;b=11",
+        "a=15;b=11"
+    }, split);
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
+    auto result = BuildRows({
+        "a=10;b=11"
+    }, split);
 
-    Evaluate("a, b FROM [//t] where a between 9 and 11", simpleSplit, source, result);
+    Evaluate("a, b FROM [//t] where a between 9 and 11", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleIn)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::Int64);
-    columns.emplace_back("b", EValueType::Int64);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
 
-    std::vector<TOwningRow> source;
-    source.push_back(BuildRow("a=4;b=5", simpleSplit, false));
-    source.push_back(BuildRow("a=10;b=11", simpleSplit, false));
-    source.push_back(BuildRow("a=15;b=11", simpleSplit, false));
+    auto source = BuildRows({
+        "a=4;b=5", 
+        "a=10;b=11",
+        "a=15;b=11"
+    }, split);
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("a=4;b=5", simpleSplit, false));
-    result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
+    auto result = BuildRows({
+        "a=4;b=5",
+        "a=10;b=11"
+    }, split);
 
-    Evaluate("a, b FROM [//t] where a in (4, 10)", simpleSplit, source, result);
+    Evaluate("a, b FROM [//t] where a in (4, 10)", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleWithNull)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::Int64);
-    columns.emplace_back("b", EValueType::Int64);
-    columns.emplace_back("c", EValueType::Int64);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64}
+    });
 
-    std::vector<TOwningRow> source;
-    source.push_back(BuildRow("a=4;b=5", simpleSplit, true));
-    source.push_back(BuildRow("a=10;b=11;c=9", simpleSplit, true));
-    source.push_back(BuildRow("a=16", simpleSplit, true));
+    auto source = BuildRows({
+        "a=4;b=5",
+        "a=10;b=11;c=9",
+        "a=16"
+    }, split);
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("a=4;b=5", simpleSplit, true));
-    result.push_back(BuildRow("a=10;b=11;c=9", simpleSplit, true));
-    result.push_back(BuildRow("a=16", simpleSplit, true));
+    auto result = BuildRows({
+        "a=4;b=5",
+        "a=10;b=11;c=9",
+        "a=16"
+    }, split);
 
-    Evaluate("a, b, c FROM [//t] where a > 3", simpleSplit, source, result);
+    Evaluate("a, b, c FROM [//t] where a > 3", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleWithNull2)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::Int64);
-    columns.emplace_back("b", EValueType::Int64);
-    columns.emplace_back("c", EValueType::Int64);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64}
+    });
 
-    std::vector<TOwningRow> source;
-    source.push_back(BuildRow("a=1;b=2;c=3", simpleSplit, true));
-    source.push_back(BuildRow("a=4", simpleSplit, true));
-    source.push_back(BuildRow("a=5;b=5", simpleSplit, true));
-    source.push_back(BuildRow("a=7;c=8", simpleSplit, true));
-    source.push_back(BuildRow("a=10;b=1", simpleSplit, true));
-    source.push_back(BuildRow("a=10;c=1", simpleSplit, true));
+    auto source = BuildRows({
+        "a=1;b=2;c=3",
+        "a=4",
+        "a=5;b=5",
+        "a=7;c=8",
+        "a=10;b=1",
+        "a=10;c=1"
+    }, split);
 
-    std::vector<TColumnSchema> resultColumns;
-    resultColumns.emplace_back("a", EValueType::Int64);
-    resultColumns.emplace_back("x", EValueType::Int64);
-    auto resultSplit = MakeSplit(resultColumns);
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"x", EValueType::Int64}
+    });
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("a=1;x=5", resultSplit, true));
-    result.push_back(BuildRow("a=4;", resultSplit, true));
-    result.push_back(BuildRow("a=5;", resultSplit, true));
-    result.push_back(BuildRow("a=7;", resultSplit, true));
+    auto result = BuildRows({
+        "a=1;x=5",
+        "a=4;",
+        "a=5;",
+        "a=7;"
+    }, resultSplit);
 
-    Evaluate("a, b + c as x FROM [//t] where a < 10", simpleSplit, source, result);
+    Evaluate("a, b + c as x FROM [//t] where a < 10", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleStrings)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("s", EValueType::String);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"s", EValueType::String}
+    });
 
-    std::vector<TOwningRow> source;
-    source.push_back(BuildRow("s=foo", simpleSplit, true));
-    source.push_back(BuildRow("s=bar", simpleSplit, true));
-    source.push_back(BuildRow("s=baz", simpleSplit, true));
+    auto source = BuildRows({
+        "s=foo",
+        "s=bar",
+        "s=baz"
+    }, split);
 
-    auto resultSplit = MakeSplit(columns);
-
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("s=foo", resultSplit, true));
-    result.push_back(BuildRow("s=bar", resultSplit, true));
-    result.push_back(BuildRow("s=baz", resultSplit, true));
-
-    Evaluate("s FROM [//t]", simpleSplit, source, result);
+    Evaluate("s FROM [//t]", split, source, source);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleStrings2)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("s", EValueType::String);
-    columns.emplace_back("u", EValueType::String);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"s", EValueType::String},
+        {"u", EValueType::String}
+    });
 
-    std::vector<TOwningRow> source;
-    source.push_back(BuildRow("s=foo; u=x", simpleSplit, true));
-    source.push_back(BuildRow("s=bar; u=y", simpleSplit, true));
-    source.push_back(BuildRow("s=baz; u=x", simpleSplit, true));
-    source.push_back(BuildRow("s=olala; u=z", simpleSplit, true));
+    auto source = BuildRows({
+        "s=foo; u=x",
+        "s=bar; u=y",
+        "s=baz; u=x",
+        "s=olala; u=z"
+    }, split);
 
-    auto resultSplit = MakeSplit(columns);
+    auto result = BuildRows({
+        "s=foo; u=x",
+        "s=baz; u=x"
+    }, split);
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("s=foo; u=x", resultSplit, true));
-    result.push_back(BuildRow("s=baz; u=x", resultSplit, true));
-
-    Evaluate("s, u FROM [//t] where u = \"x\"", simpleSplit, source, result);
+    Evaluate("s, u FROM [//t] where u = \"x\"", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, HasPrefixStrings)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("s", EValueType::String);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"s", EValueType::String}
+    });
 
-    std::vector<TOwningRow> source;
-    source.push_back(BuildRow("s=foobar", simpleSplit, true));
-    source.push_back(BuildRow("s=bar", simpleSplit, true));
-    source.push_back(BuildRow("s=baz", simpleSplit, true));
+    auto source = BuildRows({
+        "s=foobar",
+        "s=bar",
+        "s=baz"
+    }, split);
 
-    auto resultSplit = MakeSplit(columns);
+    auto result = BuildRows({
+        "s=foobar"
+    }, split);
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("s=foobar", resultSplit, true));
-
-    Evaluate("s FROM [//t] where is_prefix(\"foo\", s)", simpleSplit, source, result);
+    Evaluate("s FROM [//t] where is_prefix(\"foo\", s)", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, Complex)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::Int64);
-    columns.emplace_back("b", EValueType::Int64);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
 
-    const char* sourceRowsData[] = {
+    auto source = BuildRows({
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -1960,30 +1979,31 @@ TEST_F(TQueryEvaluateTest, Complex)
         "a=7;b=70",
         "a=8;b=80",
         "a=9;b=90"
-    };
+    }, split);
 
-    std::vector<TOwningRow> source;
-    for (auto row : sourceRowsData) {
-        source.push_back(BuildRow(row, simpleSplit, false));
-    }
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"t", EValueType::Int64}
+    });
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("x=0;t=200", simpleSplit, false));
-    result.push_back(BuildRow("x=1;t=241", simpleSplit, false));
+    auto result = BuildRows({
+        "x=0;t=200",
+        "x=1;t=241"
+    }, resultSplit);
 
-    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x", simpleSplit, source, result);
+    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x", split, source, result);
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, Complex2)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::Int64);
-    columns.emplace_back("b", EValueType::Int64);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
 
-    const char* sourceRowsData[] = {
+    auto source = BuildRows({
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -1993,57 +2013,58 @@ TEST_F(TQueryEvaluateTest, Complex2)
         "a=7;b=70",
         "a=8;b=80",
         "a=9;b=90"
-    };
+    }, split);
 
-    std::vector<TOwningRow> source;
-    for (auto row : sourceRowsData) {
-        source.push_back(BuildRow(row, simpleSplit, false));
-    }
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"q", EValueType::Int64},
+        {"t", EValueType::Int64}
+    });
 
-    std::vector<TColumnSchema> resultColumns;
-    resultColumns.emplace_back("x", EValueType::Int64);
-    resultColumns.emplace_back("q", EValueType::Int64);
-    resultColumns.emplace_back("t", EValueType::Int64);
-    auto resultSplit = MakeSplit(resultColumns);
+    auto result = BuildRows({
+        "x=0;q=0;t=200",
+        "x=1;q=0;t=241"
+    }, resultSplit);
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("x=0;q=0;t=200", resultSplit, false));
-    result.push_back(BuildRow("x=1;q=0;t=241", resultSplit, false));
-
-    Evaluate("x, q, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x, 0 as q", simpleSplit, source, result);
+    Evaluate("x, q, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x, 0 as q", split, source, result);
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, ComplexBigResult)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::Int64);
-    columns.emplace_back("b", EValueType::Int64);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
 
     std::vector<TOwningRow> source;
     for (size_t i = 0; i < 10000; ++i) {
-        source.push_back(BuildRow(Stroka() + "a=" + ToString(i) + ";b=" + ToString(i * 10), simpleSplit, false));
+        source.push_back(BuildRow(Stroka() + "a=" + ToString(i) + ";b=" + ToString(i * 10), split, false));
     }
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"t", EValueType::Int64}
+    });
 
     std::vector<TOwningRow> result;
 
     for (size_t i = 2; i < 10000; ++i) {
-        result.push_back(BuildRow(Stroka() + "x=" + ToString(i) + ";t=" + ToString(i * 10 + i), simpleSplit, false));
+        result.push_back(BuildRow(Stroka() + "x=" + ToString(i) + ";t=" + ToString(i * 10 + i), resultSplit, false));
     }
 
-    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a as x", simpleSplit, source, result);
+    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a as x", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, ComplexWithNull)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::Int64);
-    columns.emplace_back("b", EValueType::Int64);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
 
-    const char* sourceRowsData[] = {
+    auto source = BuildRows({
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -2057,37 +2078,33 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
         "b=1",
         "b=2",
         "b=3"
-    };
+    }, split);
 
-    std::vector<TOwningRow> source;
-    for (auto row : sourceRowsData) {
-        source.push_back(BuildRow(row, simpleSplit, true));
-    }
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"t", EValueType::Int64},
+        {"y", EValueType::Int64}
+    });
 
-    std::vector<TColumnSchema> resultColumns;
-    resultColumns.emplace_back("x", EValueType::Int64);
-    resultColumns.emplace_back("t", EValueType::Int64);
-    resultColumns.emplace_back("y", EValueType::Int64);
-    auto resultSplit = MakeSplit(resultColumns);
+    auto result = BuildRows({
+        "x=1;t=251;y=250",
+        "x=0;t=200;y=200",
+        "y=6"
+    }, resultSplit);
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("x=1;t=251;y=250", resultSplit, true));
-    result.push_back(BuildRow("x=0;t=200;y=200", resultSplit, true));
-    result.push_back(BuildRow("y=6", resultSplit, true));
-
-    Evaluate("x, sum(b) + x as t, sum(b) as y FROM [//t] group by a % 2 as x", simpleSplit, source, result);
+    Evaluate("x, sum(b) + x as t, sum(b) as y FROM [//t] group by a % 2 as x", split, source, result);
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, IsNull)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::Int64);
-    columns.emplace_back("b", EValueType::Int64);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
 
-    const char* sourceRowsData[] = {
+    auto source = BuildRows({
         "a=1;b=10",
         "a=2;b=20",
         "a=9;b=90",
@@ -2095,35 +2112,31 @@ TEST_F(TQueryEvaluateTest, IsNull)
         "b=1",
         "b=2",
         "b=3"
-    };
+    }, split);
 
-    std::vector<TOwningRow> source;
-    for (auto row : sourceRowsData) {
-        source.push_back(BuildRow(row, simpleSplit, true));
-    }
+    auto resultSplit = MakeSplit({
+        {"b", EValueType::Int64}
+    });
 
-    std::vector<TColumnSchema> resultColumns;
-    resultColumns.emplace_back("b", EValueType::Int64);
-    auto resultSplit = MakeSplit(resultColumns);
+    auto result = BuildRows({
+        "b=1",
+        "b=2",
+        "b=3"
+    }, resultSplit);
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("b=1", resultSplit, true));
-    result.push_back(BuildRow("b=2", resultSplit, true));
-    result.push_back(BuildRow("b=3", resultSplit, true));
-
-    Evaluate("b FROM [//t] where is_null(a)", simpleSplit, source, result);
+    Evaluate("b FROM [//t] where is_null(a)", split, source, result);
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, ComplexStrings)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::Int64);
-    columns.emplace_back("s", EValueType::String);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"s", EValueType::String}
+    });
 
-    const char* sourceRowsData[] = {
+    auto source = BuildRows({
         "a=10;s=x",
         "a=20;s=y",
         "a=30;s=x",
@@ -2136,73 +2149,65 @@ TEST_F(TQueryEvaluateTest, ComplexStrings)
         "a=80;s=y",
         "a=85",
         "a=90;s=z"
-    };
+    }, split);
 
-    std::vector<TOwningRow> source;
-    for (auto row : sourceRowsData) {
-        source.push_back(BuildRow(row, simpleSplit, true));
-    }
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::String},
+        {"t", EValueType::Int64}
+    });
 
-    std::vector<TColumnSchema> resultColumns;
-    resultColumns.emplace_back("x", EValueType::String);
-    resultColumns.emplace_back("t", EValueType::Int64);
-    auto resultSplit = MakeSplit(resultColumns);
+    auto result = BuildRows({
+        "x=y;t=160",
+        "x=x;t=120",
+        "t=199",
+        "x=z;t=160"
+    }, resultSplit);
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("x=y;t=160", resultSplit, true));
-    result.push_back(BuildRow("x=x;t=120", resultSplit, true));
-    result.push_back(BuildRow("t=199", resultSplit, true));
-    result.push_back(BuildRow("x=z;t=160", resultSplit, true));
-
-    Evaluate("x, sum(a) as t FROM [//t] where a > 10 group by s as x", simpleSplit, source, result);
+    Evaluate("x, sum(a) as t FROM [//t] where a > 10 group by s as x", split, source, result);
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, ComplexStringsLower)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::String);
-    columns.emplace_back("s", EValueType::String);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::String},
+        {"s", EValueType::String}
+    });
 
-    const char* sourceRowsData[] = {
+    auto source = BuildRows({
         "a=XyZ;s=one",
         "a=aB1C;s=two",
         "a=cs1dv;s=three",
         "a=HDs;s=four",
         "a=kIu;s=five",
         "a=trg1t;s=six"
-    };
+    }, split);
 
-    std::vector<TOwningRow> source;
-    for (auto row : sourceRowsData) {
-        source.push_back(BuildRow(row, simpleSplit, true));
-    }
+    auto resultSplit = MakeSplit({
+        {"s", EValueType::String}
+    });
 
-    std::vector<TColumnSchema> resultColumns;
-    resultColumns.emplace_back("s", EValueType::String);
-    auto resultSplit = MakeSplit(resultColumns);
+    auto result = BuildRows({
+        "s=one",
+        "s=two",
+        "s=four",
+        "s=five"
+    }, resultSplit);
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("s=one", resultSplit, true));
-    result.push_back(BuildRow("s=two", resultSplit, true));
-    result.push_back(BuildRow("s=four", resultSplit, true));
-    result.push_back(BuildRow("s=five", resultSplit, true));
-
-    Evaluate("s FROM [//t] where lower(a) in (\"xyz\",\"ab1c\",\"hds\",\"kiu\")", simpleSplit, source, result);
+    Evaluate("s FROM [//t] where lower(a) in (\"xyz\",\"ab1c\",\"hds\",\"kiu\")", split, source, result);
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestIf)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::Int64);
-    columns.emplace_back("b", EValueType::Int64);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
 
-    const char* sourceRowsData[] = {
+    auto source = BuildRows({
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -2212,30 +2217,31 @@ TEST_F(TQueryEvaluateTest, TestIf)
         "a=7;b=70",
         "a=8;b=80",
         "a=9;b=90"
-    };
+    }, split);
 
-    std::vector<TOwningRow> source;
-    for (auto row : sourceRowsData) {
-        source.push_back(BuildRow(row, simpleSplit, false));
-    }
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::String},
+        {"t", EValueType::Double}
+    });
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("x=b;t=251.", simpleSplit, false));
-    result.push_back(BuildRow("x=a;t=201.", simpleSplit, false));
+    auto result = BuildRows({
+        "x=b;t=251.",
+        "x=a;t=201."
+    }, resultSplit);
     
-    Evaluate("if(x = 4, \"a\", \"b\") as x, double(sum(b)) + 1.0 as t FROM [//t] group by if(a % 2 = 0, 4, 5) as x", simpleSplit, source, result);
+    Evaluate("if(x = 4, \"a\", \"b\") as x, double(sum(b)) + 1.0 as t FROM [//t] group by if(a % 2 = 0, 4, 5) as x", split, source, result);
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestInputRowLimit)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::Int64);
-    columns.emplace_back("b", EValueType::Int64);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
 
-    const char* sourceRowsData[] = {
+    auto source = BuildRows({
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -2245,30 +2251,26 @@ TEST_F(TQueryEvaluateTest, TestInputRowLimit)
         "a=7;b=70",
         "a=8;b=80",
         "a=9;b=90"
-    };
+    }, split);
 
-    std::vector<TOwningRow> source;
-    for (auto row : sourceRowsData) {
-        source.push_back(BuildRow(row, simpleSplit, false));
-    }
+    auto result = BuildRows({
+        "a=2;b=20",
+        "a=3;b=30"
+    }, split);
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("a=2;b=20", simpleSplit, false));
-    result.push_back(BuildRow("a=3;b=30", simpleSplit, false));
-
-    Evaluate("a, b FROM [//t] where uint64(a) > 1u and uint64(a) < 9u", simpleSplit, source, result, 3);
+    Evaluate("a, b FROM [//t] where uint64(a) > 1u and uint64(a) < 9u", split, source, result, 3);
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::Int64);
-    columns.emplace_back("b", EValueType::Int64);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
 
-    const char* sourceRowsData[] = {
+    auto source = BuildRows({
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -2278,31 +2280,27 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
         "a=7;b=70",
         "a=8;b=80",
         "a=9;b=90"
-    };
+    }, split);
 
-    std::vector<TOwningRow> source;
-    for (auto row : sourceRowsData) {
-        source.push_back(BuildRow(row, simpleSplit, false));
-    }
+    auto result = BuildRows({
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40"
+    }, split);
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("a=2;b=20", simpleSplit, false));
-    result.push_back(BuildRow("a=3;b=30", simpleSplit, false));
-    result.push_back(BuildRow("a=4;b=40", simpleSplit, false));
-
-    Evaluate("a, b FROM [//t] where a > 1 and a < 9", simpleSplit, source, result, std::numeric_limits<i64>::max(), 3);
+    Evaluate("a, b FROM [//t] where a > 1 and a < 9", split, source, result, std::numeric_limits<i64>::max(), 3);
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, TestTypeInference)
 {
-    std::vector<TColumnSchema> columns;
-    columns.emplace_back("a", EValueType::Int64);
-    columns.emplace_back("b", EValueType::Int64);
-    auto simpleSplit = MakeSplit(columns);
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
 
-    const char* sourceRowsData[] = {
+    auto source = BuildRows({
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -2312,32 +2310,21 @@ TEST_F(TQueryEvaluateTest, TestTypeInference)
         "a=7;b=70",
         "a=8;b=80",
         "a=9;b=90"
-    };
+    }, split);
 
-    std::vector<TOwningRow> source;
-    for (auto row : sourceRowsData) {
-        source.push_back(BuildRow(row, simpleSplit, false));
-    }
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::String},
+        {"t", EValueType::Double}
+    });
 
-    std::vector<TOwningRow> result;
-    result.push_back(BuildRow("x=b;t=251.", simpleSplit, false));
-    result.push_back(BuildRow("x=a;t=201.", simpleSplit, false));
+    auto result = BuildRows({
+        "x=b;t=251.",
+        "x=a;t=201."
+    }, resultSplit);
     
-    Evaluate("if(int64(x) = 4, \"a\", \"b\") as x, double(sum(uint64(b) * 1u)) + 1.0 as t FROM [//t] group by if(a % 2 = 0, double(4u), 5.0) as x", simpleSplit, source, result);
+    Evaluate("if(int64(x) = 4, \"a\", \"b\") as x, double(sum(uint64(b) * 1u)) + 1.0 as t FROM [//t] group by if(a % 2 = 0, double(4u), 5.0) as x", split, source, result);
 
     SUCCEED();
-}
-
-// TODO: Use BuildRows in other tests
-std::vector<TOwningRow> BuildRows(std::initializer_list<const char*> rowsData, const TDataSplit& split)
-{
-    std::vector<TOwningRow> result;
-
-    for (auto row : rowsData) {
-        result.push_back(BuildRow(row, split, false));
-    }
-
-    return result;
 }
 
 TEST_F(TQueryEvaluateTest, TestJoinEmpty)
@@ -2798,7 +2785,6 @@ TEST_F(TComputedColumnTest, ComputedColumnLast)
     EXPECT_EQ(BuildKey("10;13;"), result[0].first);
     EXPECT_EQ(BuildKey("10;13;" _MAX_), result[0].second);
 }
-
 
 TEST_F(TComputedColumnTest, Complex1)
 {
