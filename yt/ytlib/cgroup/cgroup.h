@@ -60,6 +60,8 @@ protected:
     void DoLock() const;
     void DoUnlock() const;
 
+    bool TryUnlock() const;
+
     void DoKill() const;
 
     void DoRemove() const;

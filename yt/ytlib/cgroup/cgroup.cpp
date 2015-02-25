@@ -291,7 +291,7 @@ void TNonOwningCGroup::RemoveAllSubcgroups() const
     auto this_ = this;
     Traverse(
         BIND([] (const TNonOwningCGroup& group) {
-            group.DoUnlock();
+            group.TryUnlock();
         }),
         BIND([this_] (const TNonOwningCGroup& group) {
             if (this_ != &group) {
@@ -316,19 +316,32 @@ void TNonOwningCGroup::DoLock() const
 #endif
 }
 
-void TNonOwningCGroup::DoUnlock() const
+bool TNonOwningCGroup::TryUnlock() const
 {
     LOG_INFO("Unlocking cgroup %v", FullPath_);
+
+    bool result = true;
 
 #ifdef _linux_
     if (!IsNull()) {
         int code = chmod(~GetPath("tasks"), ReadByAll | S_IWUSR);
-        YCHECK(code == 0);
+        if (code != 0) {
+            result = false;
+        }
 
         code = chmod(~FullPath_, ReadExecuteByAll | S_IWUSR);
-        YCHECK(code == 0);
+        if (code != 0) {
+            result = false;
+        }
     }
 #endif
+
+    return result;
+}
+
+void TNonOwningCGroup::DoUnlock() const
+{
+    YCHECK(TryUnlock() == 0);
 }
 
 void TNonOwningCGroup::DoKill() const
