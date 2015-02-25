@@ -49,6 +49,12 @@ TEST(CGroup, NotExistingGroupGetTasks)
     EXPECT_THROW(group.GetTasks(), std::exception);
 }
 
+TEST(CGroup, NotExistingRemoveAllSubcgroup)
+{
+    TBlockIO group("not_existing_remove_all_subcgroup" + ToString(TGuid::Create()));
+    group.RemoveAllSubcgroups();
+}
+
 #endif
 
 TEST(CGroup, DoubleCreate)
