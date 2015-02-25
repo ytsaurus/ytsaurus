@@ -838,14 +838,6 @@ ISchemalessTableReaderPtr CreateSchemalessTableReader(
         nameTable);
 }
 
-
-/*
-IPartitionChunkReaderPtr CreatePartitionChunkReader()
-{
-    // How does it look like.
-}
-*/
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient
