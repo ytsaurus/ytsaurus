@@ -48,6 +48,11 @@ void PrintTo(const TKey& key, ::std::ostream* os)
     *os << KeyToYson(key);
 }
 
+void PrintTo(const TUnversionedValue& value, ::std::ostream* os)
+{
+    *os << ToString(value);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient
@@ -1393,6 +1398,13 @@ protected:
                     return false;
                 }
             }
+        } else if (auto unaryLhs = lhs->As<TUnaryOpExpression>()) {
+            auto unaryRhs = rhs->As<TUnaryOpExpression>();
+            if (unaryRhs == nullptr
+                || unaryLhs->Opcode != unaryRhs->Opcode
+                || !Equal(unaryLhs->Operand, unaryRhs->Operand)) {
+                return false;
+            }
         } else if (auto binaryLhs = lhs->As<TBinaryOpExpression>()) {
             auto binaryRhs = rhs->As<TBinaryOpExpression>();
             if (binaryRhs == nullptr
@@ -1507,7 +1519,13 @@ INSTANTIATE_TEST_CASE_P(
                 std::initializer_list<TConstExpressionPtr>({
                     Make<TLiteralExpression>(MakeString("abc")),
                     Make<TReferenceExpression>("s")})),
-            "is_prefix(\"abc\", s)")
+            "is_prefix(\"abc\", s)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Greater,
+                Make<TUnaryOpExpression>(EUnaryOp::Minus,
+                    Make<TReferenceExpression>("a")),
+                Make<TLiteralExpression>(MakeInt64(-2))),
+            "-a > -2")
     ));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2589,16 +2607,24 @@ TEST_F(TQueryEvaluateTest, TestJoin)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TExpressionExecutorTest, BuildExpression)
+class TEvaluateExpressionTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<const char*, const char*, TUnversionedValue>>
+{ };
+
+TEST_P(TEvaluateExpressionTest, Basic)
 {
+    const auto& param = GetParam();
+    const auto& rowString = std::get<0>(param);
+    const auto& exprString = std::get<1>(param);
+    const auto& expected = std::get<2>(param);
+
     TTableSchema schema;
     schema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
     schema.Columns().emplace_back(TColumnSchema("b", EValueType::Int64));
     TKeyColumns keyColumns;
-    keyColumns.emplace_back("a");
-    keyColumns.emplace_back("b");
 
-    auto expr = PrepareExpression("a + b", schema);
+    auto expr = PrepareExpression(exprString, schema);
 
     TCGVariables variables;
     TCGBinding binding;
@@ -2608,8 +2634,7 @@ TEST(TExpressionExecutorTest, BuildExpression)
         .Profile(expr);
     auto callback = CodegenExpression(expr, schema, binding);
 
-    auto expected = MakeUnversionedInt64Value(33 + 22);
-    auto row = NVersionedTableClient::BuildRow("a=33;b=22", keyColumns, schema, true);
+    auto row = NVersionedTableClient::BuildRow(rowString, keyColumns, schema, true);
     TUnversionedValue result;
 
     TQueryStatistics statistics;
@@ -2629,6 +2654,19 @@ TEST(TExpressionExecutorTest, BuildExpression)
 
     EXPECT_EQ(expected, result);
 }
+
+INSTANTIATE_TEST_CASE_P(
+    EvaluateExpressionTest,
+    TEvaluateExpressionTest,
+    ::testing::Values(
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "a=33;b=22",
+            "a + b",
+            MakeUnversionedInt64Value(33 + 22)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "a=33;b=22",
+            "-a",
+            MakeUnversionedInt64Value(-33))));
 
 ////////////////////////////////////////////////////////////////////////////////
 

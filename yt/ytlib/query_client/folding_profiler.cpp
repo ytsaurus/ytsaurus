@@ -103,6 +103,11 @@ void TFoldingProfiler::Profile(const TConstExpressionPtr& expr)
         for (const auto& argument : functionExpr->Arguments) {
             Profile(argument);
         }
+    } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
+        Fold(static_cast<int>(EFoldingObjectType::UnaryOpExpr));
+        Fold(static_cast<int>(unaryOp->Opcode));
+
+        Profile(unaryOp->Operand);
     } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
         Fold(static_cast<int>(EFoldingObjectType::BinaryOpExpr));
         Fold(static_cast<int>(binaryOp->Opcode));

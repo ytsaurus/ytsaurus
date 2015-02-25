@@ -90,6 +90,12 @@ Stroka InferName(TConstExpressionPtr expr)
         newTuple = false;
         return Stroka(isNewTuple ? "" : ", ");
     };
+    auto canOmitParenthesis = [] (TConstExpressionPtr expr) {
+        return
+            expr->As<TLiteralExpression>() ||
+            expr->As<TReferenceExpression>() ||
+            expr->As<TFunctionExpression>();
+    };
 
     if (!expr) {
         return Stroka();
@@ -103,13 +109,13 @@ Stroka InferName(TConstExpressionPtr expr)
             str += comma() + InferName(argument);
         }
         return str + ")";
+    } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
+        auto rhsName = InferName(unaryOp->Operand);
+        if (!canOmitParenthesis(unaryOp->Operand)) {
+            rhsName = "(" + rhsName + ")";
+        }
+        return Stroka() + GetUnaryOpcodeLexeme(unaryOp->Opcode) + rhsName;
     } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
-        auto canOmitParenthesis = [] (TConstExpressionPtr expr) {
-            return
-                expr->As<TLiteralExpression>() ||
-                expr->As<TReferenceExpression>() ||
-                expr->As<TFunctionExpression>();
-        };
         auto lhsName = InferName(binaryOp->Lhs);
         if (!canOmitParenthesis(binaryOp->Lhs)) {
             lhsName = "(" + lhsName + ")";
@@ -184,6 +190,24 @@ Stroka InferName(TConstQueryPtr query)
 Stroka TExpression::GetName() const
 {
     return Stroka();
+}
+
+EValueType InferUnaryExprType(EUnaryOp opCode, EValueType operandType, const TStringBuf& source)
+{
+    switch (opCode) {
+        case EUnaryOp::Plus:
+        case EUnaryOp::Minus:
+            if (!IsArithmeticType(operandType)) {
+                THROW_ERROR_EXCEPTION(
+                    "Expression %Qv requires either integral or floating-point operand",
+                    source)
+                    << TErrorAttribute("operand_type", ToString(operandType));
+            }
+            return operandType;
+
+        default:
+            YUNREACHABLE();
+    }
 }
 
 EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType rhsType, const TStringBuf& source)
@@ -356,6 +380,9 @@ void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)
             CheckExpressionDepth(argument, depth + 1);
         }
         return;
+    } else if (auto unaryOpExpr = op->As<TUnaryOpExpression>()) {
+        CheckExpressionDepth(unaryOpExpr->Operand, depth + 1);
+        return;
     } else if (auto binaryOpExpr = op->As<TBinaryOpExpression>()) {
         CheckExpressionDepth(binaryOpExpr->Lhs, depth + 1);
         CheckExpressionDepth(binaryOpExpr->Rhs, depth + 1);
@@ -488,6 +515,19 @@ static std::vector<TConstExpressionPtr> BuildTypedExpression(
                     InferFunctionExprType(functionName, types, functionExpr->GetSource(querySourceString)),
                     functionName,
                     typedOperands));
+            }
+        } else if (auto unaryExpr = expr->As<NAst::TUnaryOpExpression>()) {
+            auto typedOperandExpr = buildTypedExpression(tableSchema, unaryExpr->Operand.Get(), groupProxy);
+
+            for (const auto& operand : typedOperandExpr) {
+                result.push_back(New<TUnaryOpExpression>(
+                    unaryExpr->SourceLocation,
+                    InferUnaryExprType(
+                        unaryExpr->Opcode,
+                        operand->Type,
+                        unaryExpr->GetSource(querySourceString)),
+                    unaryExpr->Opcode,
+                    operand));
             }
         } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
             auto typedLhsExpr = buildTypedExpression(tableSchema, binaryExpr->Lhs.Get(), groupProxy);
@@ -945,6 +985,11 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         auto* proto = serialized->MutableExtension(NProto::TFunctionExpression::function_expression);
         proto->set_function_name(functionExpr->FunctionName);
         ToProto(proto->mutable_arguments(), functionExpr->Arguments);
+    } else if (auto unaryOpExpr = original->As<TUnaryOpExpression>()) {
+        serialized->set_kind(static_cast<int>(EExpressionKind::UnaryOp));
+        auto* proto = serialized->MutableExtension(NProto::TUnaryOpExpression::unary_op_expression);
+        proto->set_opcode(static_cast<int>(unaryOpExpr->Opcode));
+        ToProto(proto->mutable_operand(), unaryOpExpr->Operand);
     } else if (auto binaryOpExpr = original->As<TBinaryOpExpression>()) {
         serialized->set_kind(static_cast<int>(EExpressionKind::BinaryOp));
         auto* proto = serialized->MutableExtension(NProto::TBinaryOpExpression::binary_op_expression);
@@ -1023,6 +1068,14 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
             return typedResult;
         }
 
+        case EExpressionKind::UnaryOp: {
+            auto typedResult = New<TUnaryOpExpression>(sourceLocation, type);
+            auto data = serialized.GetExtension(NProto::TUnaryOpExpression::unary_op_expression);
+            typedResult->Opcode = EUnaryOp(data.opcode());
+            typedResult->Operand = FromProto(data.operand());
+            return typedResult;
+        }
+
         case EExpressionKind::BinaryOp: {
             auto typedResult = New<TBinaryOpExpression>(sourceLocation, type);
             auto data = serialized.GetExtension(NProto::TBinaryOpExpression::binary_op_expression);
@@ -1030,7 +1083,7 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
             typedResult->Lhs = FromProto(data.lhs());
             typedResult->Rhs = FromProto(data.rhs());
             return typedResult;
-        } 
+        }
 
         case EExpressionKind::InOp: {
             auto typedResult = New<TInOpExpression>(sourceLocation, type);
