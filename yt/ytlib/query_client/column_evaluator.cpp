@@ -30,6 +30,7 @@ TColumnEvaluator::TColumnEvaluator(const TTableSchema& schema, int keySize)
 
 void TColumnEvaluator::PrepareEvaluator(int index)
 {
+#ifdef YT_USE_LLVM
     YCHECK(index < KeySize_);
     YCHECK(Schema_.Columns()[index].Expression);
 
@@ -43,6 +44,9 @@ void TColumnEvaluator::PrepareEvaluator(int index)
             .Profile(expr);
         Evaluators_[index] = CodegenExpression(expr, Schema_, binding);
     }
+#else
+    THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
+#endif
 }
 
 void TColumnEvaluator::EvaluateKey(TRow fullRow, TRowBuffer& buffer, int index)
@@ -135,8 +139,12 @@ void TColumnEvaluator::EvaluateKeys(
 
 const yhash_set<Stroka>& TColumnEvaluator::GetReferences(int index)
 {
+#ifdef YT_USE_LLVM
     PrepareEvaluator(index);
     return References_[index];
+#else
+    THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
