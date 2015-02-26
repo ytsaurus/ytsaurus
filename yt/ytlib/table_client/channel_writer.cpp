@@ -13,8 +13,9 @@ using namespace NYson;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-const int TChannelWriter::MaxUpperReserveLimit = 64 * 1024;
-const int TChannelWriter::MinUpperReserveLimit = 4 * 1024;
+const int TChannelWriter::MaxUpperReserveLimit = 256 * 1024;
+// More than lf_alloc small block size.
+const int TChannelWriter::MinUpperReserveLimit = 64 * 1024 + 1;
 static const int RangeSizesChunk = 1024;
 
 TChannelWriter::TChannelWriter(
@@ -24,8 +25,8 @@ TChannelWriter::TChannelWriter(
     int upperReserveLimit)
     : BufferIndex_(bufferIndex)
     , HeapIndex_(bufferIndex)
-    , FixedColumns(fixedColumnCount, TChunkedOutputStream(upperReserveLimit))
-    , RangeColumns(upperReserveLimit)
+    , FixedColumns(fixedColumnCount, TChunkedOutputStream(upperReserveLimit, upperReserveLimit))
+    , RangeColumns(upperReserveLimit, upperReserveLimit)
     // This buffer incurs additional overhead for
     // partition chunks, but it is very small: 1K per partition.
     , RangeSizes(writeRangeSizes ? RangeSizesChunk : 1)
