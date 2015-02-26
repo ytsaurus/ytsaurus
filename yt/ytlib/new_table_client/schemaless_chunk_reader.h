@@ -92,11 +92,13 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
 struct ISchemalessTableReader
     : public ISchemalessReader
 {
+    //! The current row index (measured from the table beginning).
+    //! Only makes sense if the read range is nonempty.
     virtual i64 GetTableRowIndex() const = 0;
 
-    //! Approximate row count readable with this reader.
+    //! An upper approximate for the row count obtainable via this reader.
     //! May change over time and finally converges to actually read row count.
-    virtual i64 GetSessionRowCount() const = 0;
+    virtual i64 GetTotalRowCount() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessTableReader)

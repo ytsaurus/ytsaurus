@@ -86,7 +86,7 @@ void TReadTableCommand::DoExecute()
     WaitFor(reader->Open())
         .ThrowOnError();
 
-    if (reader->GetSessionRowCount() > 0) {
+    if (reader->GetTotalRowCount() > 0) {
         BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
             .Item("start_row_index").Value(reader->GetTableRowIndex());
     }

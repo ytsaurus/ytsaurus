@@ -638,7 +638,7 @@ public:
 
     virtual i64 GetTableRowIndex() const override;
     virtual TNameTablePtr GetNameTable() const override;
-    virtual i64 GetSessionRowCount() const override;
+    virtual i64 GetTotalRowCount() const override;
 
 private:
     typedef TSchemalessMultiChunkReader<TSequentialMultiChunkReaderBase> TUnderlyingReader;
@@ -817,7 +817,7 @@ i64 TSchemalessTableReader::GetTableRowIndex() const
     return UnderlyingReader_->GetTableRowIndex();
 }
 
-i64 TSchemalessTableReader::GetSessionRowCount() const
+i64 TSchemalessTableReader::GetTotalRowCount() const
 {
     YCHECK(UnderlyingReader_);
     return UnderlyingReader_->GetSessionRowCount();
