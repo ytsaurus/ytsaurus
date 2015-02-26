@@ -389,17 +389,20 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
         rsp = yt.read_table(table, response_type="raw")
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
-            {"start_row_index": 0})
+            {"start_row_index": 0,
+             "approximate_row_count": 3})
 
         rsp = yt.read_table(yt.TablePath(table, start_index=1), response_type="raw")
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
-            {"start_row_index": 1})
+            {"start_row_index": 1,
+             "approximate_row_count": 2})
 
         rsp = yt.read_table(yt.TablePath(table, lower_key=["d"]), response_type="raw")
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
-            {"start_row_index": 2})
+            {"start_row_index": 2,
+             "approximate_row_count": 1})
 
         rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]), response_type="raw")
         self.assertEqual(
