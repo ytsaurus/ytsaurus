@@ -77,7 +77,7 @@ TChunkInfo TJournalChunk::GetInfo() const
 
 TFuture<TRefCountedChunkMetaPtr> TJournalChunk::GetMeta(
     i64 /*priority*/,
-    const std::vector<int>* tags /*= nullptr*/)
+    const TNullable<std::vector<int>>& extensionTags)
 {
     UpdateCachedParams();
 
@@ -88,7 +88,7 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::GetMeta(
     miscExt.set_sealed(CachedSealed_);
     SetProtoExtension(Meta_->mutable_extensions(), miscExt);
 
-    return MakeFuture(FilterCachedMeta(tags));
+    return MakeFuture(FilterCachedMeta(extensionTags));
 }
 
 TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlocks(

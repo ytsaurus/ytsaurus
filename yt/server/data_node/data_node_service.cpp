@@ -602,25 +602,23 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        auto extensionTags = FromProto<int>(request->extension_tags());
-        auto partitionTag =
-            request->has_partition_tag()
-            ? TNullable<int>(request->partition_tag())
+        auto partitionTag = request->has_partition_tag()
+            ? MakeNullable(request->partition_tag())
             : Null;
+        auto extensionTags = request->all_extension_tags()
+            ? Null
+            : MakeNullable(FromProto<int>(request->extension_tags()));
 
-        context->SetRequestInfo("ChunkId: %v, AllExtensionTags: %v, ExtensionTags: [%v], PartitionTag: %v",
+        context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v",
             chunkId,
-            request->all_extension_tags(),
-            JoinToString(extensionTags),
+            extensionTags ? "[" + JoinToString(*extensionTags) + "]" : "<Null>",
             partitionTag);
 
         ValidateConnected();
 
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->GetChunk(chunkId);
-        auto asyncChunkMeta = chunk->GetMeta(
-            context->GetPriority(),
-            request->all_extension_tags() ? nullptr : &extensionTags);
+        auto asyncChunkMeta = chunk->GetMeta(context->GetPriority(), extensionTags);
 
         asyncChunkMeta.Subscribe(BIND([=] (const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError) {
             if (!metaOrError.IsOK()) {

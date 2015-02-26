@@ -167,14 +167,15 @@ TFuture<void> TChunkReader::Open(
 
 void TChunkReader::DoOpen()
 {
-    std::vector<int> tags;
-    tags.push_back(TProtoExtensionTag<NProto::TTableSchemaExt>::Value);
-    tags.push_back(TProtoExtensionTag<NProto::TBlockMetaExt>::Value);
-    tags.push_back(TProtoExtensionTag<NProto::TNameTableExt>::Value);
-    tags.push_back(TProtoExtensionTag<TMiscExt>::Value);
+    std::vector<int> extensionTags = {
+        TProtoExtensionTag<NProto::TTableSchemaExt>::Value,
+        TProtoExtensionTag<NProto::TBlockMetaExt>::Value,
+        TProtoExtensionTag<NProto::TNameTableExt>::Value,
+        TProtoExtensionTag<TMiscExt>::Value
+    };
 
     LOG_INFO("Requesting chunk meta");
-    auto metaOrError = WaitFor(ChunkReader->GetMeta(Null, &tags));
+    auto metaOrError = WaitFor(ChunkReader->GetMeta(Null, extensionTags));
     if (!metaOrError.IsOK()) {
         State.Fail(metaOrError);
         return;

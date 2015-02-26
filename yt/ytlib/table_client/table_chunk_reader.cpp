@@ -171,7 +171,6 @@ public:
         , Channel(tableReader->Channel)
         , StartLimit(startLimit)
         , EndLimit(endLimit)
-        , HasRangeRequest(false)
         , Logger(TableClientLogger)
     { }
 
@@ -182,25 +181,24 @@ public:
 
         Logger.AddTag("ChunkId: %v", ChunkReader->GetChunkId());
 
-        std::vector<int> tags;
-        tags.reserve(10);
-        tags.push_back(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-        tags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
+        std::vector<int> extensionTags {
+            TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
+            TProtoExtensionTag<NProto::TChannelsExt>::Value
+        };
 
-        HasRangeRequest = StartLimit.HasKey()||
-            (EndLimit.HasKey() && (EndLimit.GetKey().GetCount() > 0));
+        HasRangeRequest = StartLimit.HasKey()||  (EndLimit.HasKey() && EndLimit.GetKey().GetCount() > 0);
 
         if (HasRangeRequest) {
-            tags.push_back(TProtoExtensionTag<NProto::TIndexExt>::Value);
+            extensionTags.push_back(TProtoExtensionTag<NProto::TIndexExt>::Value);
         }
 
         if (HasRangeRequest || chunkReader->Options->ReadKey) {
-            tags.push_back(TProtoExtensionTag<NProto::TKeyColumnsExt>::Value);
+            extensionTags.push_back(TProtoExtensionTag<NProto::TKeyColumnsExt>::Value);
         }
 
         LOG_INFO("Requesting chunk meta");
 
-        ChunkReader->GetMeta(Null, &tags).Subscribe(
+        ChunkReader->GetMeta(Null, extensionTags).Subscribe(
             BIND(&TRegularInitializer::OnGotMeta, MakeStrong(this))
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
@@ -598,15 +596,15 @@ private:
     }
 
 
-    TSequentialReaderConfigPtr SequentialConfig;
-    NChunkClient::IChunkReaderPtr ChunkReader;
-    IBlockCachePtr UncompressedBlockCache;
-    TWeakPtr<TTableChunkReader> TableReader;
+    const TSequentialReaderConfigPtr SequentialConfig;
+    const NChunkClient::IChunkReaderPtr ChunkReader;
+    const IBlockCachePtr UncompressedBlockCache;
+    const TWeakPtr<TTableChunkReader> TableReader;
 
     TChannel Channel;
 
-    TReadLimit StartLimit;
-    TReadLimit EndLimit;
+    const TReadLimit StartLimit;
+    const TReadLimit EndLimit;
 
     std::unique_ptr<TKeyValidator> StartValidator;
 
@@ -616,10 +614,10 @@ private:
 
     //! First row of the first block in each selected channel.
     /*!
-     *  Is used to set channel readers to ChunkReader's StartRow during initialization.
+     *  Used to set channel readers to ChunkReader's StartRow during initialization.
      */
     std::vector<i64> StartRows;
-    bool HasRangeRequest;
+    bool HasRangeRequest = false;
 
     NLogging::TLogger Logger;
 
@@ -650,14 +648,14 @@ public:
 
         Logger.AddTag("ChunkId: %v", ChunkReader->GetChunkId());
 
-        std::vector<int> tags;
-        tags.reserve(10);
-        tags.push_back(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-        tags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
-
         LOG_INFO("Requesting chunk meta");
 
-        ChunkReader->GetMeta(chunkReader->PartitionTag, &tags)
+        std::vector<int> extensionTags = {
+            TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
+            TProtoExtensionTag<NProto::TChannelsExt>::Value
+        };
+
+        ChunkReader->GetMeta(chunkReader->PartitionTag, extensionTags)
             .Subscribe(BIND(&TPartitionInitializer::OnGotMeta, MakeStrong(this))
                 .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
     }

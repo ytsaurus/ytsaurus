@@ -66,27 +66,26 @@ bool TBlobChunkBase::IsActive() const
 
 TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::GetMeta(
     i64 priority,
-    const std::vector<int>* tags)
+    const TNullable<std::vector<int>>& extensionTags)
 {
     {
         TGuard<TSpinLock> guard(SpinLock_);
         if (Meta_) {
             guard.Release();
             LOG_DEBUG("Meta cache hit (ChunkId: %v)", Id_);
-            return MakeFuture(FilterCachedMeta(tags));
+            return MakeFuture(FilterCachedMeta(extensionTags));
         }
     }
 
     LOG_DEBUG("Meta cache miss (ChunkId: %v)", Id_);
 
     // Make a copy of tags list to pass it into the closure.
-    auto tags_ = MakeNullable(tags);
     auto this_ = MakeStrong(this);
     auto invoker = Bootstrap_->GetControlInvoker();
     return ReadMeta(priority).Apply(
         BIND([=] () {
             UNUSED(this_);
-            return FilterCachedMeta(tags_.GetPtr());
+            return FilterCachedMeta(extensionTags);
         }).AsyncVia(invoker));
 }
 
