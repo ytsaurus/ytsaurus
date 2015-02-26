@@ -201,6 +201,8 @@ void TProcess::Spawn()
         Started_ = true;
     }
 
+    LOG_DEBUG("Children process is spawned. Pid: %v", ProcessId_);
+
     YCHECK(::close(Pipe_.WriteFD) == 0);
     Pipe_.WriteFD = TPipe::InvalidFd;
 
@@ -212,6 +214,7 @@ void TProcess::Spawn()
         // * child killed by signal before exec
         // * child killed by signal after exec
         // So we treat kill-before-exec the same way as kill-after-exec
+        LOG_DEBUG("Command execed. Pid: %v", ProcessId_);
         return;
     }
 
@@ -261,6 +264,9 @@ TError TProcess::Wait()
 #ifdef _win_
     return TError("Windows is not supported");
 #else
+    YCHECK(ProcessId_ != InvalidProcessId);
+    LOG_DEBUG("Start to wait for %v to finish", ProcessId_);
+
     siginfo_t processInfo;
     memset(&processInfo, 0, sizeof(processInfo));
 
@@ -288,6 +294,7 @@ TError TProcess::Wait()
 
         Finished_ = true;
     }
+    LOG_DEBUG("Finish to wait for %v to finish", ProcessId_);
 
     return ProcessInfoToError(processInfo);
 #endif
@@ -298,6 +305,8 @@ void TProcess::Kill(int signal)
 #ifdef _win_
     THROW_ERROR_EXCEPTION("Windows is not supported");
 #else
+
+    LOG_DEBUG("Kill %v process", ProcessId_);
 
     TGuard<TSpinLock> guard(LifecycleChangeLock_);
 
