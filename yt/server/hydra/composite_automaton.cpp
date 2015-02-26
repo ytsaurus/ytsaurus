@@ -8,6 +8,7 @@
 #include <core/misc/checkpointable_stream.h>
 
 #include <util/stream/buffered.h>
+#include <Accounts/Accounts.h>
 
 namespace NYT {
 namespace NHydra {
@@ -282,6 +283,10 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     const auto& type = context->Request().Type;
     if (type.empty()) {
         // Empty mutation. Typically appears as a tombstone after editing changelogs.
+        return;
+    }
+    // COMPAT(babenko)
+    if (type == "NYT.NHydra.NProto.TReqEvictExpiredResponses") {
         return;
     }
     auto it = Methods.find(type);
