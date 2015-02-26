@@ -64,6 +64,7 @@ struct TSchedulableAttributes
     double AdjustedMinShareRatio = 0.0;
     double MaxShareRatio = 1.0;
     double SatisfactionRatio = 0.0;
+    double BestAllocationRatio = 1.0;
     i64 DominantLimit = 0;
     bool Active = true;
 };
@@ -164,11 +165,12 @@ public:
         // Choose dominant resource types, compute max share ratios, compute demand ratios.
         auto demand = ResourceDemand();
         auto usage = ResourceUsage() - ResourceUsageDiscount();
-        auto totalLimits = GetAdjustedResourceLimits(
+        auto totalLimits = Host->GetTotalResourceLimits();
+        auto allocationLimits = GetAdjustedResourceLimits(
             demand,
-            Host->GetTotalResourceLimits(),
+            totalLimits,
             Host->GetExecNodeCount());
-        auto limits = Min(Host->GetTotalResourceLimits(), ResourceLimits());
+        auto limits = Min(totalLimits, ResourceLimits());
 
         Attributes_.MaxShareRatio = std::min(
             GetMinResourceRatio(limits, totalLimits),
@@ -178,9 +180,18 @@ public:
 
         i64 dominantDemand = GetResource(demand, Attributes_.DominantResource);
         i64 dominantUsage = GetResource(usage, Attributes_.DominantResource);
+        i64 dominantAllocationLimit = GetResource(allocationLimits, Attributes_.DominantResource);
         i64 dominantLimit = GetResource(totalLimits, Attributes_.DominantResource);
-        Attributes_.DemandRatio = dominantLimit == 0 ? 1.0 : (double) dominantDemand / dominantLimit;
-        Attributes_.UsageRatio = dominantLimit == 0 ? 1.0 : (double) dominantUsage / dominantLimit;
+
+        Attributes_.DemandRatio =
+            dominantLimit == 0 ? 1.0 : (double) dominantDemand / dominantLimit;
+
+        Attributes_.UsageRatio =
+            dominantLimit == 0 ? 1.0 : (double) dominantUsage / dominantLimit;
+
+        Attributes_.BestAllocationRatio =
+            dominantLimit == 0 ? 1.0 : (double) dominantAllocationLimit / dominantLimit;
+
         Attributes_.DominantLimit = dominantLimit;
     }
 
@@ -225,7 +236,6 @@ protected:
             return usageRatio / fairShareRatio;
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -242,10 +252,16 @@ public:
 
     virtual void UpdateBottomUp() override
     {
+        ResourceDemand_ = ZeroNodeResources();
+        Attributes_.BestAllocationRatio = 0.0;
         for (const auto& child : Children) {
             child->UpdateBottomUp();
+
+            ResourceDemand_ += child->ResourceDemand();
+            Attributes_.BestAllocationRatio = std::max(
+                Attributes_.BestAllocationRatio,
+                child->Attributes().BestAllocationRatio);
         }
-        ResourceDemand_ = ComputeDemand();
         TSchedulerElementBase::UpdateBottomUp();
     }
 
@@ -355,15 +371,6 @@ public:
         return Children.empty();
     }
 
-    TNodeResources ComputeDemand() const
-    {
-        auto result = ZeroNodeResources();
-        for (const auto& child : Children) {
-            result += child->ResourceDemand();
-        }
-        return result;
-    }
-
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceDemand);
 
 protected:
@@ -453,6 +460,8 @@ protected:
             result = std::min(result, childAttributes.DemandRatio);
             // Never give more than max share allows.
             result = std::min(result, childAttributes.MaxShareRatio);
+            // Never give more than we can allocate.
+            result = std::min(result, childAttributes.BestAllocationRatio);
             childAttributes.AdjustedMinShareRatio = result;
             minShareSum += result;
 
@@ -1132,7 +1141,8 @@ public:
         const auto& attributes = element->Attributes();
         return Format(
             "Scheduling = {Status: %v, DominantResource: %v, Demand: %.4lf, "
-            "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf, "
+            "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lf, AdjustedMinShare: %.4lf, "
+            "MaxShare: %.4lf,  BestAllocation: %.4lf, "
             "Starving: %v, Weight: %v, "
             "PreemptableRunningJobs: %v}",
             element->GetStatus(),
@@ -1143,6 +1153,7 @@ public:
             attributes.SatisfactionRatio,
             attributes.AdjustedMinShareRatio,
             attributes.MaxShareRatio,
+            attributes.BestAllocationRatio,
             element->GetStarving(),
             element->GetWeight(),
             element->PreemptableJobs().size());
@@ -1658,7 +1669,8 @@ private:
             .Item("usage_ratio").Value(attributes.UsageRatio)
             .Item("demand_ratio").Value(attributes.DemandRatio)
             .Item("fair_share_ratio").Value(attributes.FairShareRatio)
-            .Item("satisfaction_ratio").Value(attributes.SatisfactionRatio);
+            .Item("satisfaction_ratio").Value(attributes.SatisfactionRatio)
+            .Item("best_allocation_ratio").Value(attributes.BestAllocationRatio);
     }
 
 };
