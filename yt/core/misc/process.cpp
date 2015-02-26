@@ -65,14 +65,24 @@ bool TryWaitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
     }
 }
 
+void WaitidOrDie(idtype_t idtype, id_t id, siginfo_t *infop, int options)
+{
+    YCHECK(infop != nullptr);
+
+    memset(infop, 0, sizeof(siginfo_t));
+
+    bool isOK = TryWaitid(idtype, id, infop, options);
+
+    if (!isOK) {
+        LOG_FATAL(TError::FromSystem(), "Waitid failed with options: %v", options);
+    }
+
+    YCHECK(infop->si_pid == id);
+}
+
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TProcess::TProcess()
-    // TODO(tramsmm) Should I really copy the environment?
-    : TProcess(GetExecPath(), true)
-{ }
 
 TProcess::TProcess(const Stroka& path, bool copyEnv)
     : Started_(false)
@@ -98,6 +108,39 @@ TProcess::~TProcess()
 
     TryClose(Pipe_.ReadFD);
     TryClose(Pipe_.WriteFD);
+}
+
+TProcess::TProcess(TProcess&& other)
+    : Started_(false)
+    , Finished_(false)
+    , ProcessId_(InvalidProcessId)
+    , MaxSpawnActionFD_(-1)
+{
+    Swap(other);
+}
+
+void TProcess::Swap(TProcess& other)
+{
+    std::swap(Started_, other.Started_);
+    std::swap(Finished_, other.Finished_);
+    std::swap(ProcessId_, other.ProcessId_);
+    std::swap(Path_, other.Path_);
+    std::swap(MaxSpawnActionFD_, other.MaxSpawnActionFD_);
+    // All iterators, pointers and references referring to elements
+    // in both containers remain valid, and are now referring to
+    // the same elements they referred to before
+    // the call, but in the other container, where they now iterate.
+    // Note that the end iterators do not refer to elements and may be invalidated.
+    StringHolder_.swap(other.StringHolder_);
+    Args_.swap(other.Args_);
+    Env_.swap(other.Env_);
+    SpawnActions_.swap(other.SpawnActions_);
+}
+
+
+TProcess TProcess::CreateCurrentProcessSpawner()
+{
+    return TProcess(GetExecPath(), true);
 }
 
 void TProcess::AddArgument(TStringBuf arg)
@@ -260,29 +303,17 @@ TError TProcess::Wait()
     LOG_DEBUG("Start to wait for %v to finish", ProcessId_);
 
     siginfo_t processInfo;
-    memset(&processInfo, 0, sizeof(processInfo));
 
     // Note WNOWAIT flag.
     // This call just waits for a process to be finished but does not clear zombie flag.
-    bool isOK = TryWaitid(P_PID, ProcessId_, &processInfo, WEXITED | WNOWAIT);
+    WaitidOrDie(P_PID, ProcessId_, &processInfo, WEXITED | WNOWAIT);
 
-    if (!isOK) {
-        LOG_FATAL(TError::FromSystem(), "Failed to waitid with WNOWAIT")
-    }
-    YCHECK(processInfo.si_pid == ProcessId_);
-
-    memset(&processInfo, 0, sizeof(processInfo));
     {
         TGuard<TSpinLock> guard(LifecycleChangeLock_);
 
         // This call just should return immediately
         // because we have already waited for this process with WNOHANG
-        isOK = TryWaitid(P_PID, ProcessId_, &processInfo, WEXITED | WNOHANG);
-
-        if (!isOK) {
-            LOG_FATAL(TError::FromSystem(), "Failed to waitid")
-        }
-        YCHECK(processInfo.si_pid == ProcessId_);
+        WaitidOrDie(P_PID, ProcessId_, &processInfo, WEXITED | WNOHANG);
 
         Finished_ = true;
     }
@@ -312,7 +343,8 @@ void TProcess::Kill(int signal)
 
     int result = ::kill(ProcessId_, signal);
     if (result < 0) {
-        THROW_ERROR_EXCEPTION("kill failed") << TError::FromSystem();
+        THROW_ERROR_EXCEPTION("kill failed")
+            << TError::FromSystem();
     }
 #endif
 }

@@ -16,12 +16,13 @@ namespace NYT {
 class TProcess
 {
 public:
-    explicit TProcess();
     explicit TProcess(const Stroka& path, bool copyEnv = true);
     ~TProcess();
 
     TProcess(const TProcess& other) = delete;
-    TProcess(TProcess&& other) = delete;
+    TProcess(TProcess&& other);
+
+    static TProcess CreateCurrentProcessSpawner();
 
     void AddArgument(TStringBuf arg);
     void AddEnvVar(TStringBuf var);
@@ -62,6 +63,7 @@ private:
     char* Capture(TStringBuf arg);
 
     void DoSpawn();
+    void Swap(TProcess& other);
 
 };
 
