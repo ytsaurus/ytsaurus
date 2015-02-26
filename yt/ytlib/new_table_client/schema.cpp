@@ -193,11 +193,10 @@ TTableSchema TTableSchema::TrimNonkeyColumns(const TKeyColumns& keyColumns) cons
     return result;
 }
 
-bool TTableSchema::HasComputedColumns(int keySize) const
+bool TTableSchema::HasComputedColumns() const
 {
-    YCHECK(keySize <= Columns().size());
-    for (int index = 0; index < keySize; ++index) {
-        if (Columns()[index].Expression) {
+    for (const auto& column : Columns()) {
+        if (column.Expression) {
             return true;
         }
     }

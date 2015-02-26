@@ -73,7 +73,7 @@ public:
         auto keyColumns = GetKeyColumnsFromDataSplit(splits[0]);
 
 #ifdef YT_USE_LLVM
-        if (!schema.HasComputedColumns(keyColumns.size())) {
+        if (!schema.HasComputedColumns()) {
             Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns);
             return;
         }

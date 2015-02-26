@@ -134,7 +134,7 @@ private:
                 tableInfo->Schema = FromProto<TTableSchema>(rsp->schema());
                 tableInfo->KeyColumns = FromProto<TKeyColumns>(rsp->key_columns());
                 tableInfo->Sorted = rsp->sorted();
-                tableInfo->NeedKeyEvaluation = tableInfo->Schema.HasComputedColumns(tableInfo->KeyColumns.size());
+                tableInfo->NeedKeyEvaluation = tableInfo->Schema.HasComputedColumns();
 
                 auto nodeDirectory = New<TNodeDirectory>();
                 nodeDirectory->MergeFrom(rsp->node_directory());
