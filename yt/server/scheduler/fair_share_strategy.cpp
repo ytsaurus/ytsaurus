@@ -67,7 +67,7 @@ struct ISchedulerElement
     virtual void UpdateTopDown() = 0;
 
     virtual void BeginHeartbeat() = 0;
-    virtual void UpdateSatisfaction() = 0;
+    virtual void UpdateDynamicAttributes() = 0;
     virtual void PrescheduleJob(TExecNodePtr node, bool starvingOnly) = 0;
     virtual bool ScheduleJob(ISchedulingContext* context, bool starvingOnly) = 0;
     virtual void EndHeartbeat() = 0;
@@ -83,6 +83,8 @@ struct ISchedulerElement
     virtual double GetWeight() const = 0;
     virtual double GetMinShareRatio() const = 0;
     virtual double GetMaxShareRatio() const = 0;
+
+    virtual ISchedulerElement* GetBestLeafDescendant() = 0;
 
     virtual const TNodeResources& ResourceDemand() const = 0;
     virtual const TNodeResources& ResourceUsage() const = 0;
@@ -136,14 +138,14 @@ public:
         Attributes_.Active = true;
     }
 
-    virtual void UpdateSatisfaction() override
+    virtual void UpdateDynamicAttributes() override
     {
         Attributes_.SatisfactionRatio = ComputeLocalSatisfactionRatio();
     }
 
     virtual void PrescheduleJob(TExecNodePtr /*node*/, bool /*starvingOnly*/) override
     {
-        UpdateSatisfaction();
+        UpdateDynamicAttributes();
     }
 
     virtual void EndHeartbeat() override
@@ -244,7 +246,11 @@ class TCompositeSchedulerElement
 public:
     explicit TCompositeSchedulerElement(ISchedulerStrategyHost* host)
         : TSchedulerElementBase(host)
+        , Parent_(nullptr)
         , ResourceDemand_(ZeroNodeResources())
+        , ResourceUsage_(ZeroNodeResources())
+        , ResourceUsageDiscount_(ZeroNodeResources())
+        , ResourceLimits_(InfiniteNodeResources())
         , Mode(ESchedulingMode::Fifo)
     { }
 
@@ -294,7 +300,7 @@ public:
         }
     }
 
-    virtual void UpdateSatisfaction() override
+    virtual void UpdateDynamicAttributes() override
     {
         // Compute local satisfaction ratio.
         Attributes_.SatisfactionRatio = ComputeLocalSatisfactionRatio();
@@ -303,19 +309,20 @@ public:
         // Adjust satisfaction ratio using children.
         // Declare the element passive if all children are passive.
         Attributes_.Active = false;
+        BestLeafDescendant_ = nullptr;
 
-        for (const auto& child : GetActiveChildren()) {
-            if (child->Attributes().Active) {
-                // We need to evaluate both MinSubtreeStartTime and SatisfactionRatio
-                // because parent can use different scheduling mode.
-                MinSubtreeStartTime = std::min(MinSubtreeStartTime, child->GetStartTime());
+        auto bestChild = GetBestChild();
+        if (bestChild) {
+            // We need to evaluate both MinSubtreeStartTime and SatisfactionRatio
+            // because parent can use different scheduling mode.
+            MinSubtreeStartTime = std::min(MinSubtreeStartTime, bestChild->GetStartTime());
 
-                Attributes_.SatisfactionRatio = std::min(
-                    Attributes_.SatisfactionRatio,
-                    child->Attributes().SatisfactionRatio);
+            Attributes_.SatisfactionRatio = std::min(
+                Attributes_.SatisfactionRatio,
+                bestChild->Attributes().SatisfactionRatio);
 
-                Attributes_.Active = true;
-            }
+            BestLeafDescendant_ = bestChild->GetBestLeafDescendant();
+            Attributes_.Active = true;
         }
     }
 
@@ -332,19 +339,17 @@ public:
         for (const auto& child : GetActiveChildren()) {
             child->PrescheduleJob(node, starvingOnly);
         }
-        UpdateSatisfaction();
+        UpdateDynamicAttributes();
     }
 
     virtual bool ScheduleJob(ISchedulingContext* context, bool starvingOnly) override
     {
-        auto bestChild = GetBestChild();
-
-        if (!bestChild) {
+        if (!BestLeafDescendant_) {
             return false;
         }
 
         // NB: Ignore the child's result.
-        bestChild->ScheduleJob(context, starvingOnly);
+        BestLeafDescendant_->ScheduleJob(context, starvingOnly);
 
         return true;
     }
@@ -355,6 +360,11 @@ public:
         for (const auto& child : Children) {
             child->EndHeartbeat();
         }
+    }
+
+    virtual ISchedulerElement* GetBestLeafDescendant() override
+    {
+        return BestLeafDescendant_;
     }
 
     void AddChild(ISchedulerElementPtr child)
@@ -377,12 +387,19 @@ public:
         return Children.empty();
     }
 
+    DEFINE_BYVAL_RW_PROPERTY(TCompositeSchedulerElement*, Parent);
+
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceDemand);
+    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsageDiscount);
+    DEFINE_BYREF_RO_PROPERTY(TNodeResources, ResourceLimits);
 
 protected:
     ESchedulingMode Mode;
 
     yhash_set<ISchedulerElementPtr> Children;
+
+    ISchedulerElement* BestLeafDescendant_ = nullptr;
 
     TInstant MinSubtreeStartTime;
 
@@ -591,10 +608,6 @@ public:
         ISchedulerStrategyHost* host,
         const Stroka& id)
         : TCompositeSchedulerElement(host)
-        , Parent_(nullptr)
-        , ResourceUsage_(ZeroNodeResources())
-        , ResourceUsageDiscount_(ZeroNodeResources())
-        , ResourceLimits_(InfiniteNodeResources())
         , Id(id)
     {
         SetDefaultConfig();
@@ -662,20 +675,14 @@ public:
 
     virtual void IncreaseUsage(const TNodeResources& delta) override
     {
-        auto* currentPool = this;
+        TCompositeSchedulerElement* currentPool = this;
         while (currentPool) {
             currentPool->ResourceUsage() += delta;
             currentPool->IncreaseUsageRatio(delta);
-            currentPool->UpdateSatisfaction();
+            currentPool->UpdateDynamicAttributes();
             currentPool = currentPool->GetParent();
         }
     }
-
-    DEFINE_BYVAL_RW_PROPERTY(TPool*, Parent);
-
-    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
-    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsageDiscount);
-    DEFINE_BYREF_RO_PROPERTY(TNodeResources, ResourceLimits);
 
 private:
     Stroka Id;
@@ -758,7 +765,7 @@ public:
 
         // Compute job limits from node limits and pool limits.
         auto jobLimits = node->ResourceLimits() - node->ResourceUsage() + node->ResourceUsageDiscount();
-        auto* pool = Pool_;
+        TCompositeSchedulerElement* pool = Pool_;
         while (pool) {
             auto poolLimits = pool->ResourceLimits() - pool->ResourceUsage() + pool->ResourceUsageDiscount();
             jobLimits = Min(jobLimits, poolLimits);
@@ -772,9 +779,9 @@ public:
             return true;
         } else {
             Attributes_.Active = false;
-            auto* pool = Pool_;
+            TCompositeSchedulerElement* pool = Pool_;
             while (pool) {
-                pool->UpdateSatisfaction();
+                pool->UpdateDynamicAttributes();
                 pool = pool->GetParent();
             }
             return false;
@@ -809,6 +816,11 @@ public:
     virtual TNullable<Stroka> GetSchedulingTag() const override
     {
         return Spec_->SchedulingTag;
+    }
+
+    virtual ISchedulerElement* GetBestLeafDescendant() override
+    {
+        return this;
     }
 
     virtual const TNodeResources& ResourceDemand() const override
@@ -863,7 +875,7 @@ public:
     {
         ResourceUsage() += delta;
         IncreaseUsageRatio(delta);
-        UpdateSatisfaction();
+        UpdateDynamicAttributes();
         GetPool()->IncreaseUsage(delta);
     }
 
@@ -932,10 +944,6 @@ public:
     {
         return Null;
     }
-
-    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
-    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsageDiscount);
-    DEFINE_BYREF_RO_PROPERTY(TNodeResources, ResourceLimits);
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1013,13 +1021,13 @@ public:
 
         // Compute discount to node usage.
         LOG_DEBUG("Looking for preemptable jobs");
-        yhash_set<TPoolPtr> discountedPools;
+        yhash_set<TCompositeSchedulerElementPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
         for (const auto& job : context->RunningJobs()) {
             auto operation = job->GetOperation();
             auto operationElement = GetOperationElement(operation);
             if (IsJobPreemptable(job)) {
-                auto* pool = operationElement->GetPool();
+                TCompositeSchedulerElement* pool = operationElement->GetPool();
                 while (pool) {
                     discountedPools.insert(pool);
                     pool->ResourceUsageDiscount() += job->ResourceUsage();
@@ -1066,7 +1074,7 @@ public:
         auto poolLimitsViolated = [&] (TJobPtr job) -> bool {
             auto operation = job->GetOperation();
             auto operationElement = GetOperationElement(operation);
-            auto* pool = operationElement->GetPool();
+            TCompositeSchedulerElement* pool = operationElement->GetPool();
             while (pool) {
                 if (!Dominates(pool->ResourceLimits(), pool->ResourceUsage())) {
                     return true;
@@ -1269,7 +1277,7 @@ private:
         auto pool = FindPool(poolId);
         if (!pool) {
             pool = New<TPool>(Host, poolId);
-            RegisterPool(pool);
+            RegisterPool(pool, RootElement);
         }
 
         auto operationElement = New<TOperationElement>(
@@ -1367,42 +1375,29 @@ private:
         OnJobResourceUsageUpdated(job, element, resourcesDelta);
     }
 
-
-    TCompositeSchedulerElementPtr GetPoolParentElement(TPoolPtr pool)
-    {
-        auto* parentPool = pool->GetParent();
-        return parentPool ? TCompositeSchedulerElementPtr(parentPool) : RootElement;
-    }
-
-    // Handles nullptr (aka "root") properly.
-    Stroka GetPoolId(TPoolPtr pool)
-    {
-        return pool ? pool->GetId() : Stroka("<Root>");
-    }
-
-
-    void RegisterPool(TPoolPtr pool)
+    void RegisterPool(TPoolPtr pool, TCompositeSchedulerElementPtr parent)
     {
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
-        GetPoolParentElement(pool)->AddChild(pool);
+        pool->SetParent(parent.Get());
+        parent->AddChild(pool);
 
         LOG_INFO("Pool registered (Pool: %v, Parent: %v)",
-            GetPoolId(pool),
-            GetPoolId(pool->GetParent()));
+            pool->GetId(),
+            parent->GetId());
     }
 
     void UnregisterPool(TPoolPtr pool)
     {
         YCHECK(Pools.erase(pool->GetId()) == 1);
+        auto parent = pool->GetParent();
         SetPoolParent(pool, nullptr);
-        GetPoolParentElement(pool)->RemoveChild(pool);
 
         LOG_INFO("Pool unregistered (Pool: %v, Parent: %v)",
-            GetPoolId(pool),
-            GetPoolId(pool->GetParent()));
+            pool->GetId(),
+            parent->GetId());
     }
 
-    void SetPoolParent(TPoolPtr pool, TPoolPtr parent)
+    void SetPoolParent(TPoolPtr pool, TCompositeSchedulerElementPtr parent)
     {
         if (pool->GetParent() == parent)
             return;
@@ -1410,13 +1405,12 @@ private:
         auto* oldParent = pool->GetParent();
         if (oldParent) {
             oldParent->IncreaseUsage(-pool->ResourceUsage());
+            oldParent->RemoveChild(pool);
         }
-        GetPoolParentElement(pool)->RemoveChild(pool);
 
         pool->SetParent(parent.Get());
-
-        GetPoolParentElement(pool)->AddChild(pool);
         if (parent) {
+            parent->AddChild(pool);
             parent->IncreaseUsage(pool->ResourceUsage());
         }
     }
@@ -1461,8 +1455,8 @@ private:
             yhash_map<Stroka, TYPath> poolIdToPath;
 
             // NB: std::function is needed by parseConfig to capture itself.
-            std::function<void(INodePtr, TPoolPtr)> parseConfig =
-                [&] (INodePtr configNode, TPoolPtr parent) {
+            std::function<void(INodePtr, TCompositeSchedulerElementPtr)> parseConfig =
+                [&] (INodePtr configNode, TCompositeSchedulerElementPtr parent) {
                     auto configMap = configNode->AsMap();
                     for (const auto& pair : configMap->GetChildren()) {
                         const auto& childId = pair.first;
@@ -1496,7 +1490,7 @@ private:
                             // Create new pool.
                             pool = New<TPool>(Host, childId);
                             pool->SetConfig(config);
-                            RegisterPool(pool);
+                            RegisterPool(pool, parent);
                         }
                         SetPoolParent(pool, parent);
 
@@ -1506,7 +1500,7 @@ private:
                 };
 
             // Run recursive descent parsing.
-            parseConfig(poolsNode, nullptr);
+            parseConfig(poolsNode, RootElement);
 
             // Unregister orphan pools.
             for (const auto& id : orphanPoolIds) {
@@ -1515,7 +1509,7 @@ private:
                     UnregisterPool(pool);
                 } else {
                     pool->SetDefaultConfig();
-                    SetPoolParent(pool, nullptr);
+                    SetPoolParent(pool, RootElement);
                 }
             }
 
