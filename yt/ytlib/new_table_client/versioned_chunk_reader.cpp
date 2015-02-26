@@ -182,10 +182,10 @@ std::vector<TSequentialReader::TBlockInfo> TVersionedChunkReader::GetBlockSequen
     auto& blockMeta = blockMetaExt.blocks(CurrentBlockIndex_);
     CurrentRowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
 
-    for (int index = CurrentBlockIndex_; index < endBlockIndex; ++index) {
-        auto& blockMeta = blockMetaExt.blocks(index);
+    for (int blockIndex = CurrentBlockIndex_; blockIndex < endBlockIndex; ++blockIndex) {
+        auto& blockMeta = blockMetaExt.blocks(blockIndex);
         TSequentialReader::TBlockInfo blockInfo;
-        blockInfo.Index = blockMeta.block_index();
+        blockInfo.Index = blockIndex;
         blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
         blocks.push_back(blockInfo);
     }
