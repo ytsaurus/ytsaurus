@@ -9,10 +9,6 @@ namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransactionListener::TTransactionListener()
-    : IsAborted_(false)
-{ }
-
 void TTransactionListener::ListenTransaction(TTransactionPtr transaction)
 {
     YCHECK(transaction);
@@ -32,7 +28,7 @@ bool TTransactionListener::IsAborted() const
     return IsAborted_;
 }
 
-void TTransactionListener::CheckAborted() const
+void TTransactionListener::ValidateAborted() const
 {
     if (IsAborted_) {
         THROW_ERROR_EXCEPTION("Transaction aborted");

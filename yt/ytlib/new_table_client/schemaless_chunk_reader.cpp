@@ -45,11 +45,10 @@ using namespace NProto;
 using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NRpc;
 
 using NChunkClient::TReadLimit;
 using NChunkClient::TChannel;
-
-using NRpc::IChannelPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,15 +79,15 @@ public:
     i64 GetTableRowIndex() const;
 
 private:
-    TNameTablePtr NameTable_;
+    const TNameTablePtr NameTable_;
     TNameTablePtr ChunkNameTable_;
 
-    TColumnFilter ColumnFilter_;
+    const TColumnFilter ColumnFilter_;
     TKeyColumns KeyColumns_;
 
     const i64 TableRowIndex_;
 
-    TNullable<int> PartitionTag_;
+    const TNullable<int> PartitionTag_;
 
     // Maps chunk name table ids into client id.
     // For filtered out columns maps id to -1.
@@ -150,7 +149,9 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     , ChunkMeta_(masterMeta)
 {
     Logger.AddTag("SchemalessChunkReader: %p", this);
-    LOG_DEBUG("LowerLimit: %v, UpperLimit: %v", LowerLimit_, UpperLimit_);
+    LOG_DEBUG("LowerLimit: %v, UpperLimit: %v",
+        LowerLimit_,
+        UpperLimit_);
 }
 
 std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequence() 
@@ -173,11 +174,9 @@ void TSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extensionTags, T
 {
     extensionTags.push_back(TProtoExtensionTag<TBlockMetaExt>::Value);
     extensionTags.push_back(TProtoExtensionTag<TNameTableExt>::Value);
+    ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(partitionTag, &extensionTags))
+        .ValueOrThrow();
 
-    auto errorOrMeta = WaitFor(UnderlyingReader_->GetMeta(partitionTag, &extensionTags));
-    THROW_ERROR_EXCEPTION_IF_FAILED(errorOrMeta);
-
-    ChunkMeta_ = errorOrMeta.Value();
     BlockMetaExt_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
 
     auto nameTableExt = GetProtoExtension<TNameTableExt>(ChunkMeta_.extensions());
@@ -486,8 +485,9 @@ bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows
     YCHECK(ReadyEvent_.Get().IsOK());
 
     // Nothing to read.
-    if (!CurrentReader_)
+    if (!CurrentReader_) {
         return false;
+    }
 
     bool readerFinished = !CurrentReader_->Read(rows);
     if (!rows->empty()) {
@@ -512,8 +512,8 @@ IChunkReaderBasePtr TSchemalessMultiChunkReader<TBase>::CreateTemplateReader(
     using NYT::FromProto;
 
     auto channel = chunkSpec.has_channel()
-            ? FromProto<TChannel>(chunkSpec.channel())
-            : TChannel::Universal();
+        ? FromProto<TChannel>(chunkSpec.channel())
+        : TChannel::Universal();
 
     return CreateSchemalessChunkReader(
         Config_, 
@@ -646,15 +646,15 @@ private:
 
     NLogging::TLogger Logger;
 
-    TTableReaderConfigPtr Config_;
-    IChannelPtr MasterChannel_;
-    TTransactionPtr Transaction_;
-    IBlockCachePtr CompressedBlockCache_;
-    IBlockCachePtr UncompressedBlockCache_;
-    TRichYPath RichPath_;
-    TNameTablePtr NameTable_;
+    const TTableReaderConfigPtr Config_;
+    const IChannelPtr MasterChannel_;
+    const TTransactionPtr Transaction_;
+    const IBlockCachePtr CompressedBlockCache_;
+    const IBlockCachePtr UncompressedBlockCache_;
+    const TRichYPath RichPath_;
+    const TNameTablePtr NameTable_;
 
-    TTransactionId TransactionId_;
+    const TTransactionId TransactionId_;
 
     TUnderlyingReaderPtr UnderlyingReader_;
 
@@ -678,19 +678,23 @@ TSchemalessTableReader::TSchemalessTableReader(
     , Transaction_(transaction)
     , CompressedBlockCache_(compressedBlockCache)
     , UncompressedBlockCache_(uncompressedBlockCache)
-    , RichPath_(richPath.Normalize())
+    , RichPath_(richPath)
     , NameTable_(nameTable)
     , TransactionId_(transaction ? transaction->GetId() : NullTransactionId)
 {
-    YCHECK(masterChannel);
+    YCHECK(Config_);
+    YCHECK(MasterChannel_);
+    YCHECK(CompressedBlockCache_);
+    YCHECK(UncompressedBlockCache_);
+    YCHECK(NameTable_);
 
-    Logger.AddTag("Path: %v, TransactionId: %v", RichPath_.GetPath(), TransactionId_);
+    Logger.AddTag("Path: %v, TransactionId: %v",
+        RichPath_.GetPath(),
+        TransactionId_);
 }
 
 TFuture<void> TSchemalessTableReader::Open()
 {
-    LOG_INFO("Opening table reader");
-
     return BIND(&TSchemalessTableReader::DoOpen, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
@@ -698,9 +702,12 @@ TFuture<void> TSchemalessTableReader::Open()
 
 void TSchemalessTableReader::DoOpen()
 {
+    const auto& path = RichPath_.GetPath();
+
+    LOG_INFO("Opening table reader");
+
     TObjectServiceProxy objectProxy(MasterChannel_);
 
-    const auto& path = RichPath_.GetPath();
     auto batchReq = objectProxy.ExecuteBatch();
 
     {
@@ -708,7 +715,9 @@ void TSchemalessTableReader::DoOpen()
         SetTransactionId(req, Transaction_);
         SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
         batchReq->AddRequest(req, "get_type");
-    } {
+    }
+
+    {
         auto req = TTableYPathProxy::Fetch(path);
         InitializeFetchRequest(req.Get(), RichPath_);
         req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
@@ -730,11 +739,13 @@ void TSchemalessTableReader::DoOpen()
         auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
         if (type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                RichPath_.GetPath(),
-                EObjectType(EObjectType::Table),
+                path,
+                EObjectType::Table,
                 type);
         }
-    } {
+    }
+
+    {
         auto rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspFetch>("fetch");
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching table chunks");
         auto rsp = rspOrError.Value();
@@ -753,8 +764,7 @@ void TSchemalessTableReader::DoOpen()
                 continue;
             }
              
-            THROW_ERROR_EXCEPTION(
-                "Chunk is unavailable (ChunkId: %v)",
+            THROW_ERROR_EXCEPTION("Chunk %v is unavailable",
                 NYT::FromProto<TChunkId>(chunkSpec.chunk_id()));
         }
 
@@ -769,8 +779,8 @@ void TSchemalessTableReader::DoOpen()
             NameTable_,
             TKeyColumns());
 
-        auto error = WaitFor(UnderlyingReader_->Open());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        WaitFor(UnderlyingReader_->Open())
+            .ThrowOnError();
     }
 
     if (Transaction_) {
@@ -793,7 +803,8 @@ bool TSchemalessTableReader::Read(std::vector<TUnversionedRow> *rows)
 TFuture<void> TSchemalessTableReader::GetReadyEvent()
 {
     if (IsAborted()) {
-        return MakeFuture(TError("Transaction aborted (TransactionId: %v))", TransactionId_));
+        return MakeFuture(TError("Transaction %v aborted",
+            TransactionId_));
     }
 
     YCHECK(UnderlyingReader_);
@@ -821,8 +832,8 @@ TNameTablePtr TSchemalessTableReader::GetNameTable() const
 
 ISchemalessTableReaderPtr CreateSchemalessTableReader(
     TTableReaderConfigPtr config,
-    NRpc::IChannelPtr masterChannel,
-    NTransactionClient::TTransactionPtr transaction,
+    IChannelPtr masterChannel,
+    TTransactionPtr transaction,
     IBlockCachePtr compressedBlockCache,
     IBlockCachePtr uncompressedBlockCache,
     const NYPath::TRichYPath& richPath,
@@ -834,7 +845,7 @@ ISchemalessTableReaderPtr CreateSchemalessTableReader(
         transaction,
         compressedBlockCache,
         uncompressedBlockCache,
-        richPath,
+        richPath.Normalize(),
         nameTable);
 }
 
