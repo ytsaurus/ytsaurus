@@ -234,7 +234,7 @@ public:
             SafePipe(fds);
             SafeMakeNonblocking(fds[0]);
 
-            LOG_INFO("Snapshot transfer pipe opened (ReadFd: %v, WriteFd: %v)",
+            LOG_INFO("Snapshot transfer pipe opened (ReadFD: %v, WriteFD: %v)",
                 fds[0],
                 fds[1]);
 

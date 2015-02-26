@@ -83,14 +83,14 @@ TProcess::~TProcess()
         YCHECK(Finished_);
     }
 
-    if (Pipe_.ReadFd != TPipe::InvalidFd) {
-        ::close(Pipe_.ReadFd);
-        Pipe_.ReadFd = TPipe::InvalidFd;
+    if (Pipe_.ReadFD != TPipe::InvalidFd) {
+        ::close(Pipe_.ReadFD);
+        Pipe_.ReadFD = TPipe::InvalidFd;
     }
 
-    if (Pipe_.WriteFd != TPipe::InvalidFd) {
-        ::close(Pipe_.WriteFd);
-        Pipe_.WriteFd = TPipe::InvalidFd;
+    if (Pipe_.WriteFD != TPipe::InvalidFd) {
+        ::close(Pipe_.WriteFD);
+        Pipe_.WriteFD = TPipe::InvalidFd;
     }
 }
 
@@ -177,11 +177,11 @@ void TProcess::Spawn()
             << TError::FromSystem();
     }
 
-    YCHECK(::close(Pipe_.WriteFd) == 0);
-    Pipe_.WriteFd = TPipe::InvalidFd;
+    YCHECK(::close(Pipe_.WriteFD) == 0);
+    Pipe_.WriteFD = TPipe::InvalidFd;
 
     int data[2];
-    int res = ::read(Pipe_.ReadFd, &data, sizeof(data));
+    int res = ::read(Pipe_.ReadFD, &data, sizeof(data));
     if (res == 0) {
         // Child successfully spawned.
         ProcessId_ = pid;
@@ -233,7 +233,7 @@ char* TProcess::Capture(TStringBuf arg)
 
 void TProcess::DoSpawn()
 {
-    YCHECK(Pipe_.WriteFd != TPipe::InvalidFd);
+    YCHECK(Pipe_.WriteFD != TPipe::InvalidFd);
 
     for (int actionIndex = 0; actionIndex < SpawnActions_.size(); ++actionIndex) {
         auto& action = SpawnActions_[actionIndex];
@@ -245,7 +245,7 @@ void TProcess::DoSpawn()
             };
 
             // According to pipe(7) write of small buffer is atomic.
-            YCHECK(::write(Pipe_.WriteFd, &data, sizeof(data)) == sizeof(data));
+            YCHECK(::write(Pipe_.WriteFD, &data, sizeof(data)) == sizeof(data));
             _exit(1);
         }
     }
