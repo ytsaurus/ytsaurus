@@ -31,14 +31,13 @@ namespace {
 
 TFuture<TChunkMeta> GetPlacementMeta(IChunkReaderPtr reader)
 {
-    std::vector<int> tags;
-    tags.push_back(TProtoExtensionTag<TErasurePlacementExt>::Value);
-    return reader->GetMeta(Null, &tags);
+    std::vector<int> extensionTags {
+        TProtoExtensionTag<TErasurePlacementExt>::Value
+    };
+    return reader->GetMeta(Null, extensionTags);
 }
 
 } // namespace
-
-///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
 // Non-repairing reader
@@ -113,8 +112,6 @@ public:
     }
 
 private:
-    typedef TNonReparingReaderSession TThis;
-
     struct TPartComparer
     {
         bool operator()(int position, const TPartInfo& info) const
@@ -161,8 +158,8 @@ public:
     }
 
     virtual TFuture<TChunkMeta> GetMeta(
-        const TNullable<int>& partitionTag = Null,
-        const std::vector<int>* extensionTags = nullptr) override
+        const TNullable<int>& partitionTag,
+        const TNullable<std::vector<int>>& extensionTags) override
     {
         // TODO(ignat): check that no storage-layer extensions are being requested
         YCHECK(!partitionTag);

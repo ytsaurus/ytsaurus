@@ -174,7 +174,7 @@ void TSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extensionTags, T
 {
     extensionTags.push_back(TProtoExtensionTag<TBlockMetaExt>::Value);
     extensionTags.push_back(TProtoExtensionTag<TNameTableExt>::Value);
-    ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(partitionTag, &extensionTags))
+    ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(partitionTag, extensionTags))
         .ValueOrThrow();
 
     BlockMetaExt_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());

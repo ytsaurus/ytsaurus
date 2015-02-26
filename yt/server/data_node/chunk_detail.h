@@ -71,7 +71,7 @@ protected:
     void StartAsyncRemove();
     virtual TFuture<void> AsyncRemove() = 0;
 
-    TRefCountedChunkMetaPtr FilterCachedMeta(const std::vector<int>* tags) const;
+    TRefCountedChunkMetaPtr FilterCachedMeta(const TNullable<std::vector<int>>& extensionTags) const;
 
 };
 

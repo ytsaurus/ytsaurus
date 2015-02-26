@@ -62,7 +62,7 @@ std::vector<TSequentialReader::TBlockInfo> TPartitionChunkReader::GetBlockSequen
         TProtoExtensionTag<TKeyColumnsExt>::Value
     };
 
-    auto errorOrMeta = WaitFor(UnderlyingReader_->GetMeta(PartitionTag_, &extensionTags));
+    auto errorOrMeta = WaitFor(UnderlyingReader_->GetMeta(PartitionTag_, extensionTags));
     THROW_ERROR_EXCEPTION_IF_FAILED(errorOrMeta);
 
     ChunkMeta_ = errorOrMeta.Value();

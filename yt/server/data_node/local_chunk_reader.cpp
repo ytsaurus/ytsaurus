@@ -104,19 +104,17 @@ public:
 
     virtual TFuture<TChunkMeta> GetMeta(
         const TNullable<int>& partitionTag,
-        const std::vector<int>* extensionTags) override
+        const TNullable<std::vector<int>>& extensionTags) override
     {
         NTracing::TTraceSpanGuard guard(
             // XXX(sandello): Disable tracing due to excessive output.
             NTracing::NullTraceContext, /* NTracing::GetCurrentTraceContext(), */
             "LocalChunkReader",
             "GetChunkMeta");
-        return Chunk_
-            ->GetMeta(0, extensionTags)
-            .Apply(BIND(
-                &TLocalChunkReader::OnGotChunkMeta,
-                partitionTag,
-                Passed(std::move(guard))));
+        return Chunk_->GetMeta(0, extensionTags).Apply(BIND(
+            &TLocalChunkReader::OnGotChunkMeta,
+            partitionTag,
+            Passed(std::move(guard))));
     }
 
     virtual TChunkId GetChunkId() const override

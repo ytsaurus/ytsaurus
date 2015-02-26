@@ -101,8 +101,8 @@ public:
     }
 
     virtual TFuture<TChunkMeta> GetMeta(
-        const TNullable<int>& partitionTag = Null,
-        const std::vector<int>* extensionTags = nullptr) override
+        const TNullable<int>& partitionTag,
+        const TNullable<std::vector<int>>& extensionTags) override
     {
         auto this_ = MakeStrong(this);
         return UnderlyingReader_->GetMeta(partitionTag, extensionTags).Apply(
