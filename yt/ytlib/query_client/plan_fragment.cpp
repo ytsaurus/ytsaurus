@@ -850,7 +850,7 @@ TPlanFragmentPtr PreparePlanFragment(
 
     std::function<bool(const TColumnSchema&)> columnFilter;
 
-    if (initialTableSchema.HasComputedColumns(keyColumnCount)) {
+    if (initialTableSchema.HasComputedColumns()) {
         columnFilter = [&] (const TColumnSchema& columnSchema) {
             int index = initialTableSchema.GetColumnIndexOrThrow(columnSchema.Name);
             return index >= keyColumnCount
