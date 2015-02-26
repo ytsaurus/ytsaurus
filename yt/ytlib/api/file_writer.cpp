@@ -106,7 +106,7 @@ private:
 
     void DoOpen()
     {
-        CheckAborted();
+        ValidateAborted();
 
         LOG_INFO("Creating upload transaction");
 
@@ -220,7 +220,7 @@ private:
 
     void DoWrite(const TRef& data)
     {
-        CheckAborted();
+        ValidateAborted();
 
         if (!Writer_->Write(data)) {
             WaitFor(Writer_->GetReadyEvent())
@@ -230,7 +230,7 @@ private:
 
     void DoClose()
     {
-        CheckAborted();
+        ValidateAborted();
 
         LOG_INFO("Closing file writer and committing upload transaction");
 

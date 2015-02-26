@@ -187,7 +187,7 @@ private:
 
     TSharedRef DoRead()
     {
-        CheckAborted();
+        ValidateAborted();
 
         TSharedRef block;
         while (true) {

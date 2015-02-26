@@ -178,7 +178,7 @@ private:
     std::vector<TSharedRef> DoRead()
     {
         while (true) {
-            CheckAborted();
+            ValidateAborted();
 
             if (Finished_) {
                 return std::vector<TSharedRef>();

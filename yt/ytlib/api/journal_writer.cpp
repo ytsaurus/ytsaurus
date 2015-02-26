@@ -563,7 +563,7 @@ private:
         void WriteChunk()
         {
             while (true) {
-                CheckAborted();
+                ValidateAborted();
                 auto command = DequeueCommand();
                 if (command.Is<TCloseCommand>()) {
                     HandleClose();

@@ -44,17 +44,19 @@ using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
-using namespace NProto;
+using namespace NVersionedTableClient::NProto;
 using namespace NRpc;
 using namespace NTransactionClient;
+using namespace NNodeTrackerClient;
 using namespace NYPath;
 using namespace NYTree;
 
-using NNodeTrackerClient::TNodeDirectoryPtr;
+using NYT::ToProto;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-auto& Logger = TableClientLogger;
+static const auto& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,7 +80,7 @@ public:
     virtual bool IsSorted() const override;
 
 private:
-    TNameTablePtr NameTable_;
+    const TNameTablePtr NameTable_;
 
     THorizontalSchemalessBlockWriter* CurrentBlockWriter_;
 
@@ -162,9 +164,18 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     NChunkClient::IChunkWriterPtr chunkWriter)
 {
     if (keyColumns.empty()) {
-        return New<TSchemalessChunkWriter<TSequentialChunkWriterBase>>(config, options, nameTable, chunkWriter);
+        return New<TSchemalessChunkWriter<TSequentialChunkWriterBase>>(
+            config,
+            options,
+            nameTable,
+            chunkWriter);
     } else {
-        return New<TSchemalessChunkWriter<TSortedChunkWriterBase>>(config, options, nameTable, chunkWriter, keyColumns);
+        return New<TSchemalessChunkWriter<TSortedChunkWriterBase>>(
+            config,
+            options,
+            nameTable,
+            chunkWriter,
+            keyColumns);
     }
 }
 
@@ -196,8 +207,8 @@ public:
     virtual bool IsSorted() const override;
 
 private:
-    TNameTablePtr NameTable_;
-    TKeyColumns KeyColumns_;
+    const TNameTablePtr NameTable_;
+    const TKeyColumns KeyColumns_;
 
     TPartitionsExt PartitionsExt_;
 
@@ -365,7 +376,7 @@ void TPartitionChunkWriter::PrepareChunkMeta()
     SetProtoExtension(meta.mutable_extensions(), PartitionsExt_);
 
     TKeyColumnsExt keyColumnsExt;
-    NYT::ToProto(keyColumnsExt.mutable_names(), KeyColumns_);
+    ToProto(keyColumnsExt.mutable_names(), KeyColumns_);
     SetProtoExtension(meta.mutable_extensions(), keyColumnsExt);
 
     TNameTableExt nameTableExt;
@@ -597,8 +608,8 @@ public:
     }
 
 private:
-    TNameTablePtr NameTable_;
-    bool IsSorted_;
+    const TNameTablePtr NameTable_;
+    const bool IsSorted_;
 
 };
 
@@ -640,10 +651,11 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
         nameTable,
         isSorted);
 
-    if (reorderValues && isSorted)
+    if (reorderValues && isSorted) {
         return New<TReorderingSchemalessMultiChunkWriter>(keyColumns, nameTable, writer);
-    else
+    } else {
         return writer;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -718,15 +730,15 @@ public:
 private:
     NLogging::TLogger Logger;
 
-    TTableWriterConfigPtr Config_;
-    TTableWriterOptionsPtr Options_;
+    const TTableWriterConfigPtr Config_;
+    const TTableWriterOptionsPtr Options_;
 
-    TRichYPath RichPath_;
-    TNameTablePtr NameTable_;
-    TKeyColumns KeyColumns_;
-    IChannelPtr MasterChannel_;
-    TTransactionPtr Transaction_;
-    TTransactionManagerPtr TransactionManager_;
+    const TRichYPath RichPath_;
+    const TNameTablePtr NameTable_;
+    const TKeyColumns KeyColumns_;
+    const IChannelPtr MasterChannel_;
+    const TTransactionPtr Transaction_;
+    const TTransactionManagerPtr TransactionManager_;
 
     TTransactionId TransactionId_;
 
@@ -794,8 +806,7 @@ bool TSchemalessTableWriter::Write(const std::vector<TUnversionedRow>& rows)
 TFuture<void> TSchemalessTableWriter::GetReadyEvent()
 {
     if (IsAborted()) {
-        return MakeFuture(TError("Transaction aborted (Path: %v, TransactionId: %v)", 
-            RichPath_.GetPath(),
+        return MakeFuture(TError("Transaction %v aborted",
             TransactionId_));
     }
 
@@ -811,6 +822,8 @@ TFuture<void> TSchemalessTableWriter::Close()
 
 void TSchemalessTableWriter::CreateUploadTransaction()
 {
+    LOG_INFO("Creating upload transaction");
+
     TTransactionStartOptions options;
     options.ParentId = TransactionId_;
     options.EnableUncommittedAccounting = false;
@@ -825,12 +838,13 @@ void TSchemalessTableWriter::CreateUploadTransaction()
 
     THROW_ERROR_EXCEPTION_IF_FAILED(
         transactionOrError, 
-        "Error creating upload transaction (Path: %v, TransactionId: %v)", 
-        RichPath_.GetPath(),
-        TransactionId_);
+        "Error creating upload transaction");
 
     UploadTransaction_ = transactionOrError.Value();
     ListenTransaction(UploadTransaction_);
+
+    LOG_INFO("Upload transaction created (TransactionId: %v)",
+        UploadTransaction_->GetId());
 }
 
 void TSchemalessTableWriter::FetchTableInfo()
@@ -860,7 +874,9 @@ void TSchemalessTableWriter::FetchTableInfo()
 
         ToProto(req->mutable_attribute_filter(), attributeFilter);
         batchReq->AddRequest(req, "get_attributes");
-    } {
+    }
+
+    {
         auto req = TTableYPathProxy::PrepareForUpdate(path);
         SetTransactionId(req, UploadTransaction_);
         GenerateMutationId(req);
@@ -873,9 +889,8 @@ void TSchemalessTableWriter::FetchTableInfo()
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(
         GetCumulativeError(batchRspOrError), 
-        "Error requesting table info (Path: %v, TransactionId: %v)", 
-        path,
-        TransactionId_);
+        "Error requesting table info for %v",
+        path);
     const auto& batchRsp = batchRspOrError.Value();
 
     {
@@ -886,19 +901,17 @@ void TSchemalessTableWriter::FetchTableInfo()
         auto type = attributes.Get<EObjectType>("type");
         if (type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION(
-                "Invalid type of cypress node: expected %Qlv, actual %Qlv (Path: %v, TransactionId: %v)",
-                EObjectType::Table,
-                type,
+                "Invalid type of %v: expected %Qlv, actual %Qlv",
                 path,
-                TransactionId_);
+                EObjectType::Table,
+                type);
         }
 
         // TODO(psushin): Keep in sync with OnInputsReceived (operation_controller_detail.cpp).
         if (!KeyColumns_.empty() && RichPath_.GetAppend()) {
             if (attributes.Get<i64>("row_count") > 0) {
-                THROW_ERROR_EXCEPTION("Cannot write sorted data into a non-empty table (Path: %v, TransactionId: %v)",
-                    path,
-                    TransactionId_);
+                THROW_ERROR_EXCEPTION("Cannot write sorted data into a non-empty table %v",
+                    path);
             }
         }
 
@@ -907,21 +920,20 @@ void TSchemalessTableWriter::FetchTableInfo()
         Options_->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec");
         Options_->Account = attributes.Get<Stroka>("account");
         Options_->ChunksVital = attributes.Get<bool>("vital");
-    } {
-        using NYT::FromProto;
+    }
 
+    {
         auto rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
         ChunkListId_ = FromProto<TChunkListId>(rspOrError.Value()->chunk_list_id());
     }
 
-    LOG_INFO("Table info received (ChunkListId: %v)", ChunkListId_);
+    LOG_INFO("Table info received (ChunkListId: %v)",
+        ChunkListId_);
 }
 
 void TSchemalessTableWriter::DoOpen()
 {
     CreateUploadTransaction();
-    LOG_INFO("Upload transaction created (TransactionId: %v)", UploadTransaction_->GetId());
-
     FetchTableInfo();
 
     UnderlyingWriter_ = CreateSchemalessMultiChunkWriter(
@@ -937,9 +949,7 @@ void TSchemalessTableWriter::DoOpen()
     auto error = WaitFor(UnderlyingWriter_->Open());
     THROW_ERROR_EXCEPTION_IF_FAILED(
         error, 
-        "Error opening table chunk writer (Path: %v, TransactionId: %v)", 
-        RichPath_.GetPath(),
-        TransactionId_);
+        "Error opening table chunk writer");
 
     if (Transaction_) {
         ListenTransaction(Transaction_);
@@ -948,17 +958,16 @@ void TSchemalessTableWriter::DoOpen()
 
 void TSchemalessTableWriter::DoClose()
 {
+    const auto& path = RichPath_.GetPath();
+
     LOG_INFO("Closing table writer");
     {
         auto error = WaitFor(UnderlyingWriter_->Close());
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing chunk writer");
-        LOG_INFO("Chunk writer closed");
     }
+    LOG_INFO("Chunk writer closed");
 
     if (!KeyColumns_.empty()) {
-        using NYT::ToProto;
-
-        auto path = RichPath_.GetPath();
         LOG_INFO("Marking table as sorted by %v",
             ConvertToYsonString(KeyColumns_, NYson::EYsonFormat::Text).Data());
 
@@ -972,9 +981,10 @@ void TSchemalessTableWriter::DoClose()
 
         THROW_ERROR_EXCEPTION_IF_FAILED(
             rspOrError, 
-            "Error marking table as sorted (Path: %v, TransactionId: %v)", 
-            RichPath_.GetPath(),
-            TransactionId_)
+            "Error marking table %v as sorted",
+            path);
+
+        LOG_INFO("Table is marked as sorted");
     }
 
     LOG_INFO("Committing upload transaction");
@@ -982,12 +992,12 @@ void TSchemalessTableWriter::DoClose()
         auto error = WaitFor(UploadTransaction_->Commit());
         THROW_ERROR_EXCEPTION_IF_FAILED(
             error, 
-            "Error committing upload transaction (Path: %v, TransactionId: %v)", 
-            RichPath_.GetPath(),
-            TransactionId_);
-        LOG_INFO("Upload transaction committed");
-        LOG_INFO("Table writer closed");
+            "Error committing upload transaction",
+            RichPath_.GetPath());
     }
+    LOG_INFO("Upload transaction committed");
+
+    LOG_INFO("Table writer closed");
 }
 
 TNameTablePtr TSchemalessTableWriter::GetNameTable() const
@@ -1011,7 +1021,14 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
     TTransactionPtr transaction,
     TTransactionManagerPtr transactionManager)
 {
-    return New<TSchemalessTableWriter>(config, richPath, nameTable, keyColumns, masterChannel, transaction, transactionManager);
+    return New<TSchemalessTableWriter>(
+        config,
+        richPath.Normalize(),
+        nameTable,
+        keyColumns,
+        masterChannel,
+        transaction,
+        transactionManager);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
