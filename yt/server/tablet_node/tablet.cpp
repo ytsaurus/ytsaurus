@@ -204,7 +204,6 @@ void TTablet::Load(TLoadContext& context)
         Load(context, TableId_);
     }
     Load(context, Schema_);
-    Load(context, Schema_);
     Load(context, KeyColumns_);
     Load(context, PivotKey_);
     Load(context, NextPivotKey_);
