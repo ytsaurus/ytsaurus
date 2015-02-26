@@ -94,9 +94,7 @@ TProcess::TProcess(const Stroka& path, bool copyEnv)
 
 TProcess::~TProcess()
 {
-    if (ProcessId_ != InvalidProcessId) {
-        YCHECK(Finished_);
-    }
+    YCHECK(ProcessId_ == InvalidProcessId || Finished_);
 
     TryClose(Pipe_.ReadFD);
     TryClose(Pipe_.WriteFD);
@@ -226,7 +224,8 @@ void TProcess::Spawn()
 
     YCHECK(0 <= actionIndex && actionIndex < SpawnActions_.size());
     const auto& action = SpawnActions_[actionIndex];
-    THROW_ERROR_EXCEPTION("%v", action.ErrorMessage) << TError::FromSystem(errorCode);
+    THROW_ERROR_EXCEPTION("%v", action.ErrorMessage)
+        << TError::FromSystem(errorCode);
 #endif
 }
 
@@ -268,7 +267,7 @@ TError TProcess::Wait()
     bool isOK = TryWaitid(P_PID, ProcessId_, &processInfo, WEXITED | WNOWAIT);
 
     if (!isOK) {
-        return TError("WNOWAIT waitid failed") << TError::FromSystem();
+        LOG_FATAL(TError::FromSystem(), "Failed to waitid with WNOWAIT")
     }
     YCHECK(processInfo.si_pid == ProcessId_);
 
@@ -281,7 +280,7 @@ TError TProcess::Wait()
         isOK = TryWaitid(P_PID, ProcessId_, &processInfo, WEXITED | WNOHANG);
 
         if (!isOK) {
-            return TError("waitid failed") << TError::FromSystem();
+            LOG_FATAL(TError::FromSystem(), "Failed to waitid")
         }
         YCHECK(processInfo.si_pid == ProcessId_);
 
