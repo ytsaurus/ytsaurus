@@ -98,15 +98,8 @@ TProcess::~TProcess()
         YCHECK(Finished_);
     }
 
-    if (Pipe_.ReadFD != TPipe::InvalidFd) {
-        ::close(Pipe_.ReadFD);
-        Pipe_.ReadFD = TPipe::InvalidFd;
-    }
-
-    if (Pipe_.WriteFD != TPipe::InvalidFd) {
-        ::close(Pipe_.WriteFD);
-        Pipe_.WriteFD = TPipe::InvalidFd;
-    }
+    TryClose(Pipe_.ReadFD);
+    TryClose(Pipe_.WriteFD);
 }
 
 void TProcess::AddArgument(TStringBuf arg)
@@ -203,7 +196,7 @@ void TProcess::Spawn()
 
     LOG_DEBUG("Children process is spawned. Pid: %v", ProcessId_);
 
-    YCHECK(::close(Pipe_.WriteFD) == 0);
+    YCHECK(TryClose(Pipe_.WriteFD));
     Pipe_.WriteFD = TPipe::InvalidFd;
 
     int data[2];
