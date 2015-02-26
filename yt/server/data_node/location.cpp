@@ -515,6 +515,7 @@ TNullable<TChunkDescriptor> TLocation::RepairJournalChunk(const TChunkId& chunkI
         TChunkDescriptor descriptor;
         descriptor.Id = chunkId;
         descriptor.DiskSpace = changelog->GetDataSize();
+        descriptor.RowCount = changelog->GetRecordCount();
         descriptor.Sealed = changelog->IsSealed();
         return descriptor;
     } else if (!hasData && hasIndex) {
