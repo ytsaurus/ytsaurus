@@ -64,7 +64,6 @@ public:
        const TDataSplits& splits,
        const TColumnEvaluatorCachePtr& evaluatorCache)
     {
-#ifdef YT_USE_LLVM
         if (splits.size() == 0 || !predicate) {
             Impl_ = std::make_unique<TRangeInferrerLight>(predicate, TKeyColumns());
             return;
@@ -73,6 +72,7 @@ public:
         auto schema = GetTableSchemaFromDataSplit(splits[0]);
         auto keyColumns = GetKeyColumnsFromDataSplit(splits[0]);
 
+#ifdef YT_USE_LLVM
         if (!schema.HasComputedColumns(keyColumns.size())) {
             Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns);
             return;
@@ -92,7 +92,7 @@ public:
 
         Impl_ = std::make_unique<TRangeInferrerHeavy>(predicate, schema, keyColumns, evaluatorCache);
 #else
-        Impl_ = std::make_unique<TRangeInferrerLight>(predicate, TKeyColumns());
+        Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns);
 #endif
     }
 
