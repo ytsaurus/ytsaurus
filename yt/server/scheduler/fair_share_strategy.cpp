@@ -79,6 +79,7 @@ struct ISchedulerElement
     virtual void UpdateTopDown() = 0;
 
     virtual void BeginHeartbeat() = 0;
+    virtual void UpdateSatisfaction() = 0;
     virtual void PrescheduleJob(TExecNodePtr node, bool starvingOnly) = 0;
     virtual bool ScheduleJob(ISchedulingContext* context, bool starvingOnly) = 0;
     virtual void EndHeartbeat() = 0;
@@ -147,9 +148,14 @@ public:
         Attributes_.Active = true;
     }
 
-    virtual void PrescheduleJob(TExecNodePtr /*node*/, bool /*starvingOnly*/) override
+    virtual void UpdateSatisfaction() override
     {
         Attributes_.SatisfactionRatio = ComputeLocalSatisfactionRatio();
+    }
+
+    virtual void PrescheduleJob(TExecNodePtr /*node*/, bool /*starvingOnly*/) override
+    {
+        UpdateSatisfaction();
     }
 
     virtual void EndHeartbeat() override
@@ -296,25 +302,17 @@ public:
         }
     }
 
-    virtual void PrescheduleJob(TExecNodePtr node, bool starvingOnly) override
+    virtual void UpdateSatisfaction() override
     {
         // Compute local satisfaction ratio.
-        TSchedulerElementBase::PrescheduleJob(node, starvingOnly);
+        Attributes_.SatisfactionRatio = ComputeLocalSatisfactionRatio();
         // Start times bubble up from leaf nodes with operations.
         MinSubtreeStartTime = TInstant::Max();
-
-        if (!Attributes_.Active)
-            return;
-
         // Adjust satisfaction ratio using children.
         // Declare the element passive if all children are passive.
         Attributes_.Active = false;
-        if (!node->CanSchedule(GetSchedulingTag())) {
-            return;
-        }
 
         for (const auto& child : GetActiveChildren()) {
-            child->PrescheduleJob(node, starvingOnly);
             if (child->Attributes().Active) {
                 // We need to evaluate both MinSubtreeStartTime and SatisfactionRatio
                 // because parent can use different scheduling mode.
@@ -327,6 +325,22 @@ public:
                 Attributes_.Active = true;
             }
         }
+    }
+
+    virtual void PrescheduleJob(TExecNodePtr node, bool starvingOnly) override
+    {
+        if (!Attributes_.Active)
+            return;
+
+        if (!node->CanSchedule(GetSchedulingTag())) {
+            Attributes_.Active = false;
+            return;
+        }
+
+        for (const auto& child : GetActiveChildren()) {
+            child->PrescheduleJob(node, starvingOnly);
+        }
+        UpdateSatisfaction();
     }
 
     virtual bool ScheduleJob(ISchedulingContext* context, bool starvingOnly) override
@@ -658,6 +672,7 @@ public:
         while (currentPool) {
             currentPool->ResourceUsage() += delta;
             currentPool->IncreaseUsageRatio(delta);
+            currentPool->UpdateSatisfaction();
             currentPool = currentPool->GetParent();
         }
     }
@@ -771,6 +786,11 @@ public:
             return true;
         } else {
             Attributes_.Active = false;
+            auto* pool = Pool_;
+            while (pool) {
+                pool->UpdateSatisfaction();
+                pool = pool->GetParent();
+            }
             return false;
         }
     }
@@ -853,6 +873,7 @@ public:
     {
         ResourceUsage() += delta;
         IncreaseUsageRatio(delta);
+        UpdateSatisfaction();
         GetPool()->IncreaseUsage(delta);
     }
 
@@ -993,8 +1014,8 @@ public:
 
         // First-chance scheduling.
         LOG_DEBUG("Scheduling new jobs");
+        RootElement->PrescheduleJob(context->GetNode(), false);
         while (context->CanStartMoreJobs()) {
-            RootElement->PrescheduleJob(context->GetNode(), false);
             if (!RootElement->ScheduleJob(context, false)) {
                 break;
             }
@@ -1031,8 +1052,8 @@ public:
         // Second-chance scheduling.
         // NB: Schedule at most one job.
         LOG_DEBUG("Scheduling new jobs with preemption");
+        RootElement->PrescheduleJob(context->GetNode(), true);
         while (context->CanStartMoreJobs()) {
-            RootElement->PrescheduleJob(context->GetNode(), true);
             if (!RootElement->ScheduleJob(context, true)) {
                 break;
             }
@@ -1415,17 +1436,6 @@ private:
             parent->IncreaseUsage(pool->ResourceUsage());
         }
     }
-
-    void IncreasePoolUsage(TPoolPtr pool, const TNodeResources& delta)
-    {
-        auto* currentPool = pool.Get();
-        while (currentPool) {
-            currentPool->ResourceUsage() += delta;
-            currentPool->IncreaseUsageRatio(delta);
-            currentPool = currentPool->GetParent();
-        }
-    }
-
 
     TPoolPtr FindPool(const Stroka& id)
     {
