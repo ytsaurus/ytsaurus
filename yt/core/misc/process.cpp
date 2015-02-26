@@ -203,27 +203,19 @@ void TProcess::Spawn()
     Env_.push_back(nullptr);
     Args_.push_back(nullptr);
 
-    bool useVFork = SpawnActions_.empty();
-
     SpawnActions_.push_back(TSpawnAction {
         std::bind(TryExecve, ~Path_, Args_.data(), Env_.data()),
         "Error starting child process: execve failed"
     });
 
-    int pid = -1;
-    if (useVFork) {
-        // One is not allowed to call close and dup2 after vfork.
-        pid = vfork();
-    } else {
-        pid = fork();
-    }
+    int pid = vfork();
 
     if (pid == 0) {
         DoSpawn();
     }
 
     if (pid < 0) {
-        THROW_ERROR_EXCEPTION("Error starting child process: %v failed", useVFork ? "vfork" : "fork")
+        THROW_ERROR_EXCEPTION("Error starting child process: vfork failed")
             << TErrorAttribute("path", Path_)
             << TError::FromSystem();
     }
