@@ -51,7 +51,7 @@ protected:
     NChunkClient::NProto::TMiscExt Misc_;
     TFuture<void> ReadyEvent_;
 
-    bool BlockEnded_;
+    bool BlockEnded_ = false;
 
     TChunkedMemoryPool MemoryPool_;
 
