@@ -294,6 +294,7 @@ void TTableConsumer::OnEntity()
         ThrowMapExpected();
     } else {
         ValueWriter_.OnEntity();
+        FlushCurrentValueIfCompleted();
     }
 }
 
@@ -310,9 +311,6 @@ void TTableConsumer::OnBeginList()
     if (Depth_ == 0) {
         ThrowMapExpected();
     } else {
-        if (Depth_ == 1) {
-            ValueBeginOffset_ = ValueBuffer_.Size();
-        }
         ValueWriter_.OnBeginList();
     }
     ++Depth_;
@@ -330,9 +328,6 @@ void TTableConsumer::OnBeginAttributes()
     if (Depth_ == 0) {
         ControlState_ = EControlState::ExpectName;
     } else {
-        if (Depth_ == 1) {
-            ValueBeginOffset_ = ValueBuffer_.Size();
-        }
         ValueWriter_.OnBeginAttributes();
     }
 
@@ -384,9 +379,6 @@ void TTableConsumer::OnBeginMap()
     if (Depth_ == 0) {
         CurrentValueConsumer_->OnBeginRow();
     } else {
-        if (Depth_ == 1) {
-            ValueBeginOffset_ = ValueBuffer_.Size();
-        }
         ValueWriter_.OnBeginMap();
     }
     ++Depth_;
@@ -445,15 +437,7 @@ void TTableConsumer::OnEndMap()
     --Depth_;
     if (Depth_ > 0) {
         ValueWriter_.OnEndMap();
-        if (Depth_ == 1) {
-            CurrentValueConsumer_->OnValue(MakeUnversionedAnyValue(
-                TStringBuf(
-                    ValueBuffer_.Begin() + ValueBeginOffset_, 
-                    ValueBuffer_.Begin() + ValueBuffer_.Size()),
-                ColumnIndex_));
-            ValueBuffer_.Clear();
-            ValueBeginOffset_ = -1;
-        }
+        FlushCurrentValueIfCompleted();
     } else {
         CurrentValueConsumer_->OnEndRow();
         ++RowIndex_;
@@ -469,15 +453,7 @@ void TTableConsumer::OnEndList()
     YASSERT(Depth_ > 0);
 
     ValueWriter_.OnEndList();
-    if (Depth_ == 1) {
-        CurrentValueConsumer_->OnValue(MakeUnversionedAnyValue(
-            TStringBuf(
-                ValueBuffer_.Begin() + ValueBeginOffset_, 
-                ValueBuffer_.Begin() + ValueBuffer_.Size()),
-            ColumnIndex_));
-        ValueBuffer_.Clear();
-        ValueBeginOffset_ = -1;
-    }
+    FlushCurrentValueIfCompleted();
 }
 
 void TTableConsumer::OnEndAttributes()
@@ -502,6 +478,18 @@ void TTableConsumer::OnEndAttributes()
         default:
             YUNREACHABLE();
     }
+}
+
+void TTableConsumer::FlushCurrentValueIfCompleted()
+{
+    if (Depth_ == 1) {
+        CurrentValueConsumer_->OnValue(MakeUnversionedAnyValue(
+            TStringBuf(
+                ValueBuffer_.Begin(), 
+                ValueBuffer_.Begin() + ValueBuffer_.Size()),
+            ColumnIndex_));
+        ValueBuffer_.Clear();
+    }   
 }
 
 ////////////////////////////////////////////////////////////////////////////////

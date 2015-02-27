@@ -157,13 +157,14 @@ protected:
     void OnControlStringScalar(const TStringBuf& value);
 
 
+    void FlushCurrentValueIfCompleted();
+
     std::vector<IValueConsumerPtr> ValueConsumers_;
     IValueConsumer* CurrentValueConsumer_;
 
     EControlState ControlState_ = EControlState::None;
     NTableClient::EControlAttribute ControlAttribute_;
 
-    i64 ValueBeginOffset_ = -1;
     TBlobOutput ValueBuffer_;
     NYson::TYsonWriter ValueWriter_;
 
