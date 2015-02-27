@@ -170,7 +170,7 @@ std::vector<TSequentialReader::TBlockInfo> TVersionedChunkReader::GetBlockSequen
 {
     const auto& blockMetaExt = CachedChunkMeta_->BlockMeta();
 
-    int CurrentBlockIndex_ = std::max(ApplyLowerRowLimit(blockMetaExt), ApplyLowerKeyLimit(blockMetaExt));
+    CurrentBlockIndex_ = std::max(ApplyLowerRowLimit(blockMetaExt), ApplyLowerKeyLimit(blockMetaExt));
     int endBlockIndex = std::min(ApplyUpperRowLimit(blockMetaExt), ApplyUpperKeyLimit(blockMetaExt));
 
     std::vector<TSequentialReader::TBlockInfo> blocks;
