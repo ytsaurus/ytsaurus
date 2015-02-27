@@ -128,9 +128,7 @@ private:
     {
     public:
         explicit TCache(TMasterCacheService* owner)
-            : TAsyncSlruCacheBase(
-                owner->Config_,
-                NProfiling::TProfiler(ObjectServerProfiler.GetPathPrefix() + "/master_cache"))
+            : TAsyncSlruCacheBase(owner->Config_)
             , Owner_(owner)
             , Logger(ObjectServerLogger)
         { }

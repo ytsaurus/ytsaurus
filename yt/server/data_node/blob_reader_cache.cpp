@@ -48,9 +48,7 @@ class TBlobReaderCache::TImpl
 {
 public:
     explicit TImpl(TDataNodeConfigPtr config)
-        : TAsyncSlruCacheBase(
-            config->BlobReaderCache,
-            NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/block_reader_cache"))
+        : TAsyncSlruCacheBase(config->BlobReaderCache)
     { }
 
     TFileReaderPtr GetReader(IChunkPtr chunk)
