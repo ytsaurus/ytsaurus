@@ -26,7 +26,6 @@ static const auto& Logger = ChunkClientLogger;
 class TCachedBlock
     : public TSyncCacheValueBase<TBlockId, TCachedBlock>
 {
-public:
     DEFINE_BYVAL_RO_PROPERTY(TSharedRef, Data);
 
 public:
@@ -42,10 +41,8 @@ class TClientBlockCache
     , public IBlockCache
 {
 public:
-    explicit TClientBlockCache(
-        TSlruCacheConfigPtr config,
-        const NProfiling::TProfiler& profiler)
-        : TSyncSlruCacheBase(config, profiler)
+    explicit TClientBlockCache(TSlruCacheConfigPtr config)
+        : TSyncSlruCacheBase(config)
     { }
 
     virtual void Put(
@@ -85,11 +82,9 @@ private:
 
 };
 
-IBlockCachePtr CreateClientBlockCache(
-    TSlruCacheConfigPtr config,
-    const NProfiling::TProfiler& profiler)
+IBlockCachePtr CreateClientBlockCache(TSlruCacheConfigPtr config)
 {
-    return New<TClientBlockCache>(config, profiler);
+    return New<TClientBlockCache>(config);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -113,9 +113,7 @@ public:
     explicit TImpl(
         NCellNode::TBootstrap* bootstrap,
         TDataNodeConfigPtr config)
-        : TAsyncSlruCacheBase<TChunkId, TCachedChangelog>(
-            config->ChangelogReaderCache,
-            NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/changelog_cache"))
+        : TAsyncSlruCacheBase<TChunkId, TCachedChangelog>(config->ChangelogReaderCache)
         , Bootstrap_(bootstrap)
         , Config_(config)
         , ChangelogDispatcher_(New<TFileChangelogDispatcher>("JournalFlush"))

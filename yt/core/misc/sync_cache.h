@@ -5,7 +5,6 @@
 #include <core/concurrency/rw_spinlock.h>
 
 #include <core/profiling/timing.h>
-#include <core/profiling/profiler.h>
 
 namespace NYT {
 
@@ -52,9 +51,7 @@ protected:
     TSlruCacheConfigPtr Config_;
 
 
-    explicit TSyncSlruCacheBase(
-        TSlruCacheConfigPtr config,
-        const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
+    explicit TSyncSlruCacheBase(TSlruCacheConfigPtr config);
 
     virtual i64 GetWeight(TValue* value) const;
     virtual void OnAdded(TValue* value);
@@ -76,16 +73,13 @@ private:
     NConcurrency::TReaderWriterSpinLock SpinLock_;
 
     TIntrusiveListWithAutoDelete<TItem, TDelete> YoungerLruList_;
+    i64 YoungerWeight_ = 0;
+
     TIntrusiveListWithAutoDelete<TItem, TDelete> OlderLruList_;
+    i64 OlderWeight_ = 0;
 
     yhash_map<TKey, TItem*, THash> ItemMap_;
     volatile int ItemMapSize_ = 0; // used by GetSize
-
-    NProfiling::TProfiler Profiler;
-    NProfiling::TAggregateCounter HitWeightCounter_;
-    NProfiling::TAggregateCounter MissedWeightCounter_;
-    NProfiling::TAggregateCounter YoungerWeightCounter_;
-    NProfiling::TAggregateCounter OlderWeightCounter_;
 
 
     static bool CanTouch(TItem* item);

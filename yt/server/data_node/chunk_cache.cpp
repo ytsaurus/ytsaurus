@@ -54,9 +54,7 @@ class TChunkCache::TImpl
 {
 public:
     TImpl(TDataNodeConfigPtr config, TBootstrap* bootstrap)
-        : TAsyncSlruCacheBase(
-            New<TSlruCacheConfig>(config->CacheLocation->Quota.Get(std::numeric_limits<i64>::max())),
-            NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/chunk_cache"))
+        : TAsyncSlruCacheBase(New<TSlruCacheConfig>(config->CacheLocation->Quota.Get(std::numeric_limits<i64>::max())))
         , Config_(config)
         , Bootstrap_(bootstrap)
     {
@@ -168,9 +166,8 @@ public:
     }
 
 private:
-    const TDataNodeConfigPtr Config_;
-    TBootstrap* const Bootstrap_;
-
+    TDataNodeConfigPtr Config_;
+    TBootstrap* Bootstrap_;
     TLocationPtr Location_;
 
     DEFINE_SIGNAL(void(IChunkPtr), ChunkAdded);
