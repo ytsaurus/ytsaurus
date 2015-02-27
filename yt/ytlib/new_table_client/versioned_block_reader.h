@@ -38,11 +38,8 @@ public:
     static const ETableChunkFormat FormatVersion = ETableChunkFormat::VersionedSimple;
 
 private:
-
     TSharedRef Block_;
     typedef TReadOnlyBitmap<ui64> TBitmap;
-
-    TSharedRef Data_;
 
     TTimestamp Timestamp_;
     const int KeyColumnCount_;
