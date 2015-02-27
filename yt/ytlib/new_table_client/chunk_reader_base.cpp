@@ -21,6 +21,8 @@ using namespace NCompression;
 using namespace NConcurrency;
 using namespace NProto;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReaderBase::TChunkReaderBase(
@@ -37,8 +39,9 @@ TChunkReaderBase::TChunkReaderBase(
     , UncompressedBlockCache_(uncompressedBlockCache)
     , UnderlyingReader_(underlyingReader)
     , Misc_(misc)
-    , BlockEnded_(false)
-{ }
+{
+    Logger.AddTag("ChunkId: %v", UnderlyingReader_->GetChunkId());
+}
 
 TFuture<void> TChunkReaderBase::Open()
 {
@@ -85,14 +88,15 @@ void TChunkReaderBase::DoSwitchBlock()
 bool TChunkReaderBase::OnBlockEnded()
 {
     BlockEnded_ = false;
-    if (SequentialReader_->HasMoreBlocks()) {
-        ReadyEvent_ = BIND(&TChunkReaderBase::DoSwitchBlock, MakeStrong(this))
-            .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-            .Run();
-        return true;
-    } else {
+
+    if (!SequentialReader_->HasMoreBlocks()) {
         return false;
     }
+
+    ReadyEvent_ = BIND(&TChunkReaderBase::DoSwitchBlock, MakeStrong(this))
+        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+        .Run();
+    return true;
 }
 
 int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta) const
@@ -102,8 +106,7 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta) const
     }
 
     if (LowerLimit_.GetRowIndex() >= Misc_.row_count()) {
-        LOG_DEBUG(
-            "Lower limit overstep chunk boundaries (LowerLimit: %v, RowCount: %v)",
+        LOG_DEBUG("Lower limit overstep chunk boundaries (LowerLimit: {%v}, RowCount: %v)",
             LowerLimit_,
             Misc_.row_count());
         return blockMeta.blocks_size();
@@ -120,7 +123,7 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta) const
         rend,
         LowerLimit_.GetRowIndex(),
         [] (int index, const TBlockMeta& blockMeta) {
-            // Global (chunkwide) index of last row in block.
+            // Global (chunk-wide) index of last row in block.
             auto maxRowIndex = blockMeta.chunk_row_count() - 1;
             return index > maxRowIndex;
         });
@@ -143,15 +146,12 @@ int TChunkReaderBase::ApplyLowerKeyLimit(const TBlockMetaExt& blockMeta) const
     const auto& blockMetaEntries = blockMeta.blocks();
     int beginBlockIndex = 0;
 
-    TOwningKey maxKey;
     auto& lastBlock = *(--blockMetaEntries.end());
-    FromProto(&maxKey, lastBlock.last_key());
+    auto maxKey = FromProto<TOwningKey>(lastBlock.last_key());
     if (LowerLimit_.GetKey() > maxKey) {
-        LOG_DEBUG(
-            "Lower limit overstep chunk boundaries (LowerLimit: %v, MaxKey: %v)",
+        LOG_DEBUG("Lower limit overstep chunk boundaries (LowerLimit: {%v}, MaxKey: {%v})",
             LowerLimit_,
             maxKey);
-
         return blockMetaEntries.size();
     }
 
@@ -163,10 +163,8 @@ int TChunkReaderBase::ApplyLowerKeyLimit(const TBlockMetaExt& blockMeta) const
         rend,
         LowerLimit_.GetKey(),
         [] (const TOwningKey& pivot, const TBlockMeta& block) {
-            TOwningKey key;
             YCHECK(block.has_last_key());
-            FromProto(&key, block.last_key());
-            return pivot > key;
+            return pivot > FromProto<TOwningKey>(block.last_key());
         });
 
     if (it != rend) {
@@ -223,9 +221,7 @@ int TChunkReaderBase::ApplyUpperKeyLimit(const TBlockMetaExt& blockMeta) const
         end,
         UpperLimit_.GetKey(),
         [] (const TBlockMeta& block, const TOwningKey& pivot) {
-            TOwningKey key;
-            FromProto(&key, block.last_key());
-            return key < pivot;
+            return FromProto<TOwningKey>(block.last_key()) < pivot;
         });
 
     if (it != end) {
@@ -239,24 +235,22 @@ int TChunkReaderBase::ApplyUpperKeyLimit(const TBlockMetaExt& blockMeta) const
 
 TDataStatistics TChunkReaderBase::GetDataStatistics() const
 {
-
-    if (SequentialReader_) {
-        TDataStatistics dataStatistics;
-        dataStatistics.set_chunk_count(1);
-        dataStatistics.set_uncompressed_data_size(SequentialReader_->GetUncompressedDataSize());
-        dataStatistics.set_compressed_data_size(SequentialReader_->GetCompressedDataSize());
-        return dataStatistics;
-    } else {
+    if (!SequentialReader_) {
         return ZeroDataStatistics();
     }
+    TDataStatistics dataStatistics;
+    dataStatistics.set_chunk_count(1);
+    dataStatistics.set_uncompressed_data_size(SequentialReader_->GetUncompressedDataSize());
+    dataStatistics.set_compressed_data_size(SequentialReader_->GetCompressedDataSize());
+    return dataStatistics;
 }
 
 TFuture<void> TChunkReaderBase::GetFetchingCompletedEvent()
 {
-    if (SequentialReader_)
-        return SequentialReader_->GetFetchingCompletedEvent();
-    else
+    if (!SequentialReader_) {
         return VoidFuture;
+    }
+    return SequentialReader_->GetFetchingCompletedEvent();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
