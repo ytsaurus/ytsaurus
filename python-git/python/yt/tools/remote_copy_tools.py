@@ -167,6 +167,9 @@ def run_operation_and_notify(message_queue, yt_client, run_operation):
     strategy.wait()
 
 def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, spec_template=None, message_queue=None):
+    if spec_template is None:
+        spec_template = {}
+
     merge_spec = deepcopy(spec_template)
     merge_spec["combine_chunks"] = bool_to_string(True)
     run_operation_and_notify(
@@ -515,4 +518,29 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
 
 def copy_yamr_to_kiwi():
     pass
+
+def copy_hive_to_yt(hive_client, yt_client, source, destination_table, spec_template=None, message_queue=None):
+    if spec_template is None:
+        spec_template = {}
+
+    read_config, files = hive_client.get_table_config_and_files(*source)
+    read_command = hive_client.get_read_command(read_config)
+
+    temp_table = yt_client.create_temp_table()
+    yt_client.write_table(temp_table, [{"file": file} for file in files], raw=False)
+
+    spec = deepcopy(spec_template)
+    spec["data_size_per_job"] = 1
+    run_operation_and_notify(
+        message_queue,
+        yt_client,
+        lambda client, strategy:
+            client.run_map(
+                read_command,
+                temp_table,
+                destination_table,
+                format=yt.SchemafulDsvFormat(columns=["file"]),
+                files=hive_client.hive_exporter_library,
+                spec=spec))
+
 
