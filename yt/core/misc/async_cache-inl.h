@@ -39,7 +39,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
     : Config_(std::move(config))
     , Profiler(profiler)
     , HitWeightCounter_("/hit")
-    , MissedWeightCounter_("/hit")
+    , MissedWeightCounter_("/missed")
     , YoungerWeightCounter_("/younger")
     , OlderWeightCounter_("/older")
 { }
