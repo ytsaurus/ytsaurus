@@ -58,11 +58,11 @@ protected:
 
     // These methods return min block index, satisfying the lower limit.
     int ApplyLowerRowLimit(const NProto::TBlockMetaExt& blockMeta) const;
-    int ApplyLowerKeyLimit(const NProto::TBlockMetaExt& blockMeta) const;
+    int ApplyLowerKeyLimit(const std::vector<TOwningKey>& blockIndexKeys) const;
 
     // These methods return max block index, satisfying the upper limit.
     int ApplyUpperRowLimit(const NProto::TBlockMetaExt& blockMeta) const;
-    int ApplyUpperKeyLimit(const NProto::TBlockMetaExt& blockMeta) const;
+    int ApplyUpperKeyLimit(const std::vector<TOwningKey>& blockIndexKeys) const;
 
     void DoOpen();
 

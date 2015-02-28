@@ -222,8 +222,14 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSeque
         KeyColumns_ = chunkKeyColumns;
     }
 
-    int beginIndex = std::max(ApplyLowerRowLimit(BlockMetaExt_), ApplyLowerKeyLimit(BlockMetaExt_));
-    int endIndex = std::min(ApplyUpperRowLimit(BlockMetaExt_), ApplyUpperKeyLimit(BlockMetaExt_));
+    std::vector<TOwningKey> blockIndexKeys;
+    for (const auto& blockMeta : BlockMetaExt_.blocks()) {
+        YCHECK(blockMeta.has_last_key());
+        blockIndexKeys.push_back(NYT::FromProto<TOwningKey>(blockMeta.last_key()));
+    }
+
+    int beginIndex = std::max(ApplyLowerRowLimit(BlockMetaExt_), ApplyLowerKeyLimit(blockIndexKeys));
+    int endIndex = std::min(ApplyUpperRowLimit(BlockMetaExt_), ApplyUpperKeyLimit(blockIndexKeys));
 
     return CreateBlockSequence(beginIndex, endIndex);
 }

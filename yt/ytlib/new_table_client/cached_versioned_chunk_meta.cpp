@@ -61,7 +61,7 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
 
         BlockIndexKeys_.reserve(BlockMeta_.blocks_size());
 
-        // COMPAT(psushin): new chunks store index in TBlockMeta.
+        // COMPAT(psushin): newer chunks store index inside TBlockMeta.
         auto blockIndexExt = FindProtoExtension<TBlockIndexExt>(ChunkMeta_.extensions());
         if (blockIndexExt) {
             for (const auto& protoKey : blockIndexExt->entries()) {

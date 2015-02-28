@@ -169,9 +169,10 @@ bool TVersionedChunkReader::Read(std::vector<TVersionedRow>* rows)
 std::vector<TSequentialReader::TBlockInfo> TVersionedChunkReader::GetBlockSequence()
 {
     const auto& blockMetaExt = CachedChunkMeta_->BlockMeta();
+    const auto& blockIndexKeys = CachedChunkMeta_->BlockIndexKeys();
 
-    CurrentBlockIndex_ = std::max(ApplyLowerRowLimit(blockMetaExt), ApplyLowerKeyLimit(blockMetaExt));
-    int endBlockIndex = std::min(ApplyUpperRowLimit(blockMetaExt), ApplyUpperKeyLimit(blockMetaExt));
+    CurrentBlockIndex_ = std::max(ApplyLowerRowLimit(blockMetaExt), ApplyLowerKeyLimit(blockIndexKeys));
+    int endBlockIndex = std::min(ApplyUpperRowLimit(blockMetaExt), ApplyUpperKeyLimit(blockIndexKeys));
 
     std::vector<TSequentialReader::TBlockInfo> blocks;
 
