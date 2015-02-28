@@ -23,7 +23,7 @@ using namespace NPipes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const static int PipeBlockSize = 64 * 1024;
+const static size_t PipeBlockSize = 64 * 1024;
 const static auto& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,7 +36,6 @@ TSubprocess TSubprocess::CreateCurrentProcessSpawner()
 {
     return TSubprocess(GetExecPath());
 }
-
 
 void TSubprocess::AddArgument(TStringBuf arg)
 {
@@ -138,7 +137,7 @@ TSubprocessResult TSubprocess::Execute()
     const auto& outputs = outputsOrError.Value();
     YCHECK(outputs.size() == 2);
 
-    // This can block indefinately.
+    // This can block indefinetely.
     auto exitCode = Process_.Wait();
     return TSubprocessResult{outputs[0], outputs[1], exitCode};
 }
