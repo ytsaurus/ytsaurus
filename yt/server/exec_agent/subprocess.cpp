@@ -15,6 +15,8 @@
 
 #include <util/system/execpath.h>
 
+#include <array>
+
 namespace NYT {
 namespace NExecAgent {
 
