@@ -6,6 +6,7 @@ from yt.transfer_manager.pattern_matching import match_copy_pattern
 
 from yt.tools.logging_server import LogRecordSocketReceiver
 from yt.tools.yamr import Yamr
+from yt.tools.hadoop import Hive
 from yt.tools.remote_copy_tools import \
     copy_yamr_to_yt_pull, \
     copy_yt_to_yamr_pull, \
@@ -13,6 +14,7 @@ from yt.tools.remote_copy_tools import \
     copy_yt_to_kiwi, \
     copy_yt_to_yt, \
     copy_yt_to_yt_through_proxy, \
+    copy_hive_to_yt, \
     Kiwi
 
 from yt.wrapper.client import Yt
@@ -89,11 +91,12 @@ def now():
 class Task(object):
     # NB: destination table is missing if we copy to kiwi
     def __init__(self, source_cluster, source_table, destination_cluster, creation_time, id, state, user,
-                 destination_table=None, source_cluster_token=None, token=None, destination_cluster_token=None, mr_user=None, error=None,
+                 destination_table=None, source_database=None, source_cluster_token=None, token=None, destination_cluster_token=None, mr_user=None, error=None,
                  start_time=None, finish_time=None, copy_method=None, progress=None, backend_tag=None, kiwi_user=None, kwworm_options=None, pool=None, meta=None,
                  destination_compression_codec=None, destination_erasure_codec=None, destination_force_sort=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
+        self.source_database = source_database
         self.source_cluster_token = get_value(source_cluster_token, token)
         self.destination_cluster = destination_cluster
         self.destination_table = destination_table
@@ -317,6 +320,8 @@ class Application(object):
                 self._clusters[name] = Yamr(**options)
             elif type == "kiwi":
                 self._clusters[name] = Kiwi(**options)
+            elif type == "hive":
+                self._clusters[name] = Hive(**options)
             else:
                 raise yt.YtError("Incorrect cluster type " + options["type"])
 
@@ -543,6 +548,8 @@ class Application(object):
 
             if destination_client._type == "kiwi" and self.kiwi_transmitter is None:
                 raise yt.YtError("Transimission cluster for transfer to kiwi is not configured")
+            if source_client._type == "hive" and task.source_database is None:
+                raise yt.YtError("Source database is not set")
         except TimeoutExpired:
             custom_logger.info("Precheck timed out")
             if not ignore_timeout:
@@ -769,6 +776,14 @@ class Application(object):
                     fastbone=fastbone,
                     kiwi_user=task.kiwi_user,
                     kwworm_options=task.kwworm_options,
+                    spec_template=task_spec,
+                    message_queue=message_queue)
+            elif source_client._type == "hive" and destination_client._type == "yt":
+                copy_hive_to_yt(
+                    source_client,
+                    destination_client,
+                    (task.source_database, task.source_table),
+                    task.destination_table,
                     spec_template=task_spec,
                     message_queue=message_queue)
             else:
@@ -1079,6 +1094,14 @@ DEFAULT_CONFIG = {
                 "kwworm": "/home/monster/kwworm"
             },
             "fastbone": True
+        },
+        "tasmania": {
+            "type": "hive",
+            "options": {
+                "hcatalog_host": "v013h.hdp.yandex.net:50111",
+                "hdfs_host": "w001h.hdp.yandex.net:50070",
+                "hive_exporter_library": "/home/ignat/hive_import/hiveExporter.jar"
+            }
         }
     },
     "kiwi_transmitter": "flux",
@@ -1087,7 +1110,8 @@ DEFAULT_CONFIG = {
         "smith": ["cedar", "redwood", "quine", "plato"],
         "plato": ["cedar", "redwood", "quine", "smith", "apterix"],
         "cedar": ["redwood", "smith", "plato"],
-        "redwood": ["cedar", "smith", "plato"]
+        "redwood": ["cedar", "smith", "plato"],
+        "tasmania": ["plato"]
     },
     "backend_tag": "testing",
     "default_mr_user": "userdata",
