@@ -14,15 +14,15 @@ import "yt/ytlib/hydra/hydra_manager.proto";
 message TChunkAddInfo
 {
     required NYT.NProto.TGuid chunk_id = 1;
-    required bool cached = 2;
-    required bool active = 3;
-    required NYT.NChunkClient.NProto.TChunkInfo chunk_info = 4;
+    optional bool cached = 2 [default = false];
+    optional bool active = 3 [default = false];
+    optional bool sealed = 4 [default = false];
 }
 
 message TChunkRemoveInfo
 {
     required NYT.NProto.TGuid chunk_id = 1;
-    required bool cached = 2;
+    optional bool cached = 2 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
