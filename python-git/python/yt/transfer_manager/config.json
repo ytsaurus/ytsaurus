@@ -135,6 +135,14 @@
             },
             "table_url_pattern": "http://bsmr-server.yandex.ru:13013/debug?info=table&table=%table%",
             "fastbone": false
+        },
+        "tasmania": {
+            "type": "hive",
+            "options": {
+                "hcatalog_host": "v013h.hdp.yandex.net:50111",
+                "hdfs_host": "w001h.hdp.yandex.net:50070",
+                "hive_exporter_library": "/home/ignat/hive_import/hiveExporter.jar"
+            }
         }
     },
     "kiwi_transmitter": "flux",
@@ -146,7 +154,8 @@
         "betula": ["smith", "plato", "cedar", "redwood"],
         "redwood": ["plato", "smith", "cedar", "betula"],
         "bsmr": ["plato"],
-        "aristotle": ["plato", "kiwi_apteryx", "kiwi_main"]
+        "aristotle": ["plato", "kiwi_apteryx", "kiwi_main"],
+        "tasmania": ["plato"]
     },
     "backend_tag": "testing",
     "scheduling_backoff": 5,
