@@ -407,9 +407,9 @@ TChunkAddInfo TMasterConnector::BuildAddChunkInfo(IChunkPtr chunk)
 {
     TChunkAddInfo result;
     ToProto(result.mutable_chunk_id(), chunk->GetId());
-    *result.mutable_chunk_info() = chunk->GetInfo();
     result.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
     result.set_active(chunk->IsActive());
+    result.set_sealed(chunk->GetInfo().sealed());
     return result;
 }
 

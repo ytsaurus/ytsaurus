@@ -1392,7 +1392,7 @@ private:
 
         if (chunkAddInfo.active()) {
             return ActiveChunkReplicaIndex;
-        } else if (chunkAddInfo.chunk_info().sealed()) {
+        } else if (chunkAddInfo.sealed()) {
             return SealedChunkReplicaIndex;
         } else {
             return UnsealedChunkReplicaIndex;
