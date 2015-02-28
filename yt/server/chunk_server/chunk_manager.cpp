@@ -1381,6 +1381,24 @@ private:
     }
 
 
+    static int GetAddedChunkReplicaIndex(
+        TChunk* chunk,
+        const TChunkAddInfo& chunkAddInfo,
+        const TChunkIdWithIndex& chunkIdWithIndex)
+    {
+        if (!chunk->IsJournal()) {
+            return chunkIdWithIndex.Index;
+        }
+
+        if (chunkAddInfo.active()) {
+            return ActiveChunkReplicaIndex;
+        } else if (chunkAddInfo.chunk_info().sealed()) {
+            return SealedChunkReplicaIndex;
+        } else {
+            return UnsealedChunkReplicaIndex;
+        }
+    }
+
     void ProcessAddedChunk(
         TNode* node,
         const TChunkAddInfo& chunkAddInfo,
@@ -1412,19 +1430,7 @@ private:
             return;
         }
 
-        int replicaIndex;
-        if (chunk->IsJournal()) {
-            if (chunkAddInfo.active()) {
-                replicaIndex = ActiveChunkReplicaIndex;
-            } else if (chunkAddInfo.chunk_info().sealed()) {
-                replicaIndex = SealedChunkReplicaIndex;
-            } else {
-                replicaIndex = UnsealedChunkReplicaIndex;
-            }
-        } else {
-            replicaIndex = chunkIdWithIndex.Index;
-        }
-
+        int replicaIndex = GetAddedChunkReplicaIndex(chunk, chunkAddInfo, chunkIdWithIndex);
         TChunkPtrWithIndex chunkWithIndex(chunk, replicaIndex);
         TNodePtrWithIndex nodeWithIndex(node, replicaIndex);
 
