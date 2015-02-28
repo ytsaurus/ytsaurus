@@ -31,6 +31,13 @@
 //  - TBAA is a king
 //  - Capture pointers by value in ViaClosure
 
+// FIXME: try to fix in new visual studio
+#ifdef _win_
+#define MOVE(name) name
+#else
+#define MOVE(name) name = std::move(name)
+#endif
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -58,8 +65,49 @@ using NCodegen::TCGModulePtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<void(TCGIRBuilder& builder, Value* row)> TCodegenConsumer;
-typedef std::function<void(TCGIRBuilder& builder, const TCodegenConsumer& codegenConsumer)> TCodegenSource;
+class TCGContext
+    : public TCGIRBuilder
+{
+    Value* ConstantsRow_;
+    Value* ExecutionContextPtr_;
+
+public:
+    const TCGModulePtr Module;
+    
+    TCGContext(
+        const TCGModulePtr module,
+        Value* constantsRow,
+        Value* executionContextPtr,
+        llvm::BasicBlock* basicBlock)
+        : TCGIRBuilder(basicBlock)        
+        , ConstantsRow_(constantsRow)
+        , ExecutionContextPtr_(executionContextPtr)
+        , Module(std::move(module))
+    { }
+
+    TCGContext(
+        llvm::Function* function,
+        TCGContext* parent,
+        llvm::Value* closurePtr)
+        : TCGIRBuilder(function, parent, closurePtr)
+        , ConstantsRow_(parent->ConstantsRow_)
+        , ExecutionContextPtr_(parent->ExecutionContextPtr_)
+        , Module(parent->Module)
+    { }
+
+    Value* GetConstantsRows()
+    {
+        return ViaClosure(ConstantsRow_, "constantsRow");
+    }
+
+    Value* GetExecutionContextPtr()
+    {
+        return ViaClosure(ExecutionContextPtr_, "executionContextPtr");
+    }
+};
+
+typedef std::function<void(TCGContext& builder, Value* row)> TCodegenConsumer;
+typedef std::function<void(TCGContext& builder, const TCodegenConsumer& codegenConsumer)> TCodegenSource;
 
 static Value* CodegenValuesPtrFromRow(TCGIRBuilder&, Value*);
 
@@ -341,138 +389,8 @@ public:
 };
 
 typedef std::function<Value* (TCGIRBuilder& builder)> TCodegenBlock;
-typedef std::function<TCGValue(TCGIRBuilder& builder)> TCodegenValueBlock;
-typedef std::function<void(TCGIRBuilder& builder)> TCodegenVoidBlock;
-
-class TCGContext
-{
-private:
-    friend TCGQueryCallback CodegenEvaluate(
-        const TConstQueryPtr& query,
-        const TCGBinding& binding);
-
-    friend TCGExpressionCallback CodegenExpression(
-        const TConstExpressionPtr& expression,
-        const TTableSchema& tableSchema,
-        const TCGBinding& binding);
-
-    const TCGModulePtr Module_;
-    const TCGBinding& Binding_;
-    Value* ConstantsRow_;
-    Value* ExecutionContextPtr_;
-
-    TCGContext(
-        const TCGModulePtr module,
-        const TCGBinding& binding,
-        Value* constantsRow,
-        Value* executionContextPtr)
-        : Module_(std::move(module))
-        , Binding_(binding)
-        , ConstantsRow_(constantsRow)
-        , ExecutionContextPtr_(executionContextPtr)
-    { }
-
-    Value* GetConstantsRows(TCGIRBuilder& builder) const
-    {
-        return builder.ViaClosure(ConstantsRow_, "constantsRow");
-    }
-
-    Value* GetExecutionContextPtr(TCGIRBuilder& builder) const
-    {
-        return builder.ViaClosure(ExecutionContextPtr_, "executionContextPtr");
-    }
-
-    TCGValue DoCodegenFunctionExpr(
-        TCGIRBuilder& builder,
-        Stroka functionName,
-        const std::vector<TCodegenValueBlock>& codegenArgs,
-        EValueType type,
-        Stroka name);
-
-    TCGValue DoCodegenBinaryOpExpr(
-        TCGIRBuilder& builder,
-        EBinaryOp opcode,
-        const TCodegenValueBlock& codegenLhs,
-        const TCodegenValueBlock& codegenRhs,
-        EValueType type,
-        Stroka name);
-
-    TCGValue DoCodegenInOpExpr(
-        TCGIRBuilder& builder,
-        const std::vector<TCodegenValueBlock>& codegenArgs,
-        int arrayIndex);
-
-    Function* CodegenGroupComparerFunction(
-        const std::vector<EValueType>& types);
-
-    Function* CodegenGroupHasherFunction(
-        const std::vector<EValueType>& types);
-
-    Function* CodegenRowComparerFunction(
-        const std::vector<EValueType>& types);
-
-    TCGValue CodegenExpr(
-        TCGIRBuilder& builder,
-        const TConstExpressionPtr& expr,
-        const TTableSchema& schema,
-        Value* row);
-
-    TCGValue CodegenFunctionExpr(
-        TCGIRBuilder& builder,
-        const TFunctionExpression* expr,
-        const TTableSchema& schema,
-        Value* row);
-
-    TCGValue CodegenUnaryOpExpr(
-        TCGIRBuilder& builder,
-        const TUnaryOpExpression* expr,
-        const TTableSchema& schema,
-        Value* row);
-
-    TCGValue CodegenBinaryOpExpr(
-        TCGIRBuilder& builder,
-        const TBinaryOpExpression* expr,
-        const TTableSchema& schema,
-        Value* row);
-
-    TCGValue CodegenInOpExpr(
-        TCGIRBuilder& builder,
-        const TInOpExpression* expr,
-        const TTableSchema& schema,
-        Value* row);
-
-    void CodegenScanOp(
-        TCGIRBuilder& builder,
-        const TCodegenConsumer& codegenConsumer);
-
-    void CodegenJoinOp(
-        TCGIRBuilder& builder,
-        const TJoinClause& clause,
-        const TTableSchema& sourceTableSchema,
-        const TCodegenSource& codegenSource,
-        const TCodegenConsumer& codegenConsumer);
-
-    void CodegenFilterOp(
-        TCGIRBuilder& builder,
-        const TConstExpressionPtr& predicate,
-        const TTableSchema& sourceTableSchema,
-        const TCodegenSource& codegenSource,
-        const TCodegenConsumer& codegenConsumer);
-
-    void CodegenProjectOp(
-        TCGIRBuilder& builder,
-        const TProjectClause& op,
-        const TTableSchema& sourceTableSchema,
-        const TCodegenSource& codegenSource,
-        const TCodegenConsumer& codegenConsumer);
-
-    void CodegenGroupOp(
-        TCGIRBuilder& builder,
-        const TGroupClause& op,
-        const TTableSchema& sourceTableSchema,
-        const TCodegenSource& codegenSource,
-        const TCodegenConsumer& codegenConsumer);
-};
+typedef std::function<TCGValue(TCGContext& builder, Value* row)> TCodegenExpression;
+typedef std::function<void(TCGContext& builder, Value* row, Value* newRow)> TCodegenAggregate;
 
 TCGValue MakePhi(
     TCGIRBuilder& builder,
@@ -528,12 +446,12 @@ Value* MakePhi(
     return phiValue;
 }
 
-template <class Result>
-Result CodegenIf(
-    TCGIRBuilder& builder,
+template <class TBuilder, class TResult>
+TResult CodegenIf(
+    TBuilder& builder,
     Value* condition,
-    const std::function<Result(TCGIRBuilder& builder)>& thenCodegen,
-    const std::function<Result(TCGIRBuilder& builder)>& elseCodegen,
+    const std::function<TResult(TBuilder& builder)>& thenCodegen,
+    const std::function<TResult(TBuilder& builder)>& elseCodegen,
     Twine name = Twine())
 {
     auto* thenBB = builder.CreateBBHere("then");
@@ -557,11 +475,12 @@ Result CodegenIf(
     return MakePhi(builder, thenBB, elseBB, thenValue, elseValue, name);
 }
 
+template <class TBuilder>
 void CodegenIf(
-    TCGIRBuilder& builder,
+    TBuilder& builder,
     Value* condition,
-    const std::function<void(TCGIRBuilder& builder)>& thenCodegen,
-    const std::function<void(TCGIRBuilder& builder)>& elseCodegen)
+    const std::function<void(TBuilder& builder)>& thenCodegen,
+    const std::function<void(TBuilder& builder)>& elseCodegen)
 {
     auto* thenBB = builder.CreateBBHere("then");
     auto* elseBB = builder.CreateBBHere("else");
@@ -608,7 +527,7 @@ static Value* CodegenValuesPtrFromRow(TCGIRBuilder& builder, Value* row)
 //
 
 void CodegenAggregateFunction(
-    TCGIRBuilder& builder,
+    TCGContext& builder,
     Value* aggregateRow,
     Value* newRow,
     EAggregateFunctions aggregateFunction,
@@ -619,20 +538,20 @@ void CodegenAggregateFunction(
 {
     auto newValue = TCGValue::CreateFromRow(builder, newRow, index, type, name + ".new");
 
-    CodegenIf(
+    CodegenIf<TCGContext>(
         builder,
         newValue.IsNull(builder),
-        [&] (TCGIRBuilder& builder) { },
-        [&] (TCGIRBuilder& builder) {
+        [&] (TCGContext& builder) { },
+        [&] (TCGContext& builder) {
             auto aggregateValue = TCGValue::CreateFromRow(builder, aggregateRow, index, type, name + ".aggregate");
 
-            CodegenIf<TCGValue>(
+            CodegenIf<TCGContext, TCGValue>(
                 builder,
                 aggregateValue.IsNull(builder),
-                [&] (TCGIRBuilder& builder) {
+                [&] (TCGContext& builder) {
                     return newValue;
                 },
-                [&] (TCGIRBuilder& builder) {
+                [&] (TCGContext& builder) {
                     Value* newData = newValue.GetData();
                     Value* aggregateData = aggregateValue.GetData();
                     Value* resultData = nullptr;
@@ -717,7 +636,7 @@ void CodegenAggregateFunction(
 }
 
 void CodegenForEachRow(
-    TCGIRBuilder& builder,
+    TCGContext& builder,
     Value* rows,
     Value* size,
     Value* stopFlag,
@@ -762,436 +681,23 @@ void CodegenForEachRow(
 // Expressions
 //
 
-TCGValue TCGContext::DoCodegenFunctionExpr(
-    TCGIRBuilder& builder,
-    Stroka functionName,
-    const std::vector<TCodegenValueBlock>& codegenArgs,
-    EValueType type,
-    Stroka name)
+Function* CodegenGroupComparerFunction(
+    const std::vector<EValueType>& types,
+    const TCGModule& module)
 {
-    functionName.to_lower();
-    auto nameTwine = Twine(name.c_str());
-
-    if (functionName == "if") {
-        YCHECK(codegenArgs.size() == 3);
-        auto condition = codegenArgs[0](builder);
-        YCHECK(condition.GetStaticType() == EValueType::Boolean);
-
-        return CodegenIf<TCGValue>(
-            builder,
-            condition.IsNull(builder),
-            [&] (TCGIRBuilder& builder) {
-                return TCGValue::CreateNull(builder, type);
-            },
-            [&] (TCGIRBuilder& builder) {
-                return CodegenIf<TCGValue>(
-                    builder,
-                    builder.CreateICmpNE(
-                        builder.CreateZExtOrBitCast(condition.GetData(), builder.getInt64Ty()),
-                        builder.getInt64(0)),
-                    [&] (TCGIRBuilder& builder) {
-                        return codegenArgs[1](builder);
-                    },
-                    [&] (TCGIRBuilder& builder) {
-                        return codegenArgs[2](builder);
-                    });
-            },
-            nameTwine);
-    } else if (functionName == "is_prefix") {
-        YCHECK(codegenArgs.size() == 2);
-        auto lhsValue = codegenArgs[0](builder);
-        YCHECK(lhsValue.GetStaticType() == EValueType::String);
-    
-        return CodegenIf<TCGValue>(
-            builder,
-            lhsValue.IsNull(builder),
-            [&] (TCGIRBuilder& builder) {
-                return TCGValue::CreateNull(builder, type);
-            },
-            [&] (TCGIRBuilder& builder) {
-                auto rhsValue = codegenArgs[1](builder);
-                YCHECK(rhsValue.GetStaticType() == EValueType::String);
-
-                return CodegenIf<TCGValue>(
-                    builder,
-                    rhsValue.IsNull(builder),
-                    [&] (TCGIRBuilder& builder) {
-                        return TCGValue::CreateNull(builder, type);
-                    },
-                    [&] (TCGIRBuilder& builder) {
-                        Value* lhsData = lhsValue.GetData();
-                        Value* lhsLength = lhsValue.GetLength();
-                        Value* rhsData = rhsValue.GetData();
-                        Value* rhsLength = rhsValue.GetLength();
-
-                        Value* result = builder.CreateCall4(
-                            Module_->GetRoutine("IsPrefix"),
-                            lhsData, lhsLength, rhsData, rhsLength);
-
-                        return TCGValue::CreateFromValue(
-                            builder,
-                            builder.getInt16(static_cast<ui16>(type)),
-                            nullptr,
-                            result,
-                            type);
-                    });
-            },
-            nameTwine);
-    } else if (functionName == "lower") {
-        YCHECK(codegenArgs.size() == 1);
-        auto argValue = codegenArgs[0](builder);
-        YCHECK(argValue.GetStaticType() == EValueType::String);
-
-        return CodegenIf<TCGValue>(
-            builder,
-            argValue.IsNull(builder),
-            [&] (TCGIRBuilder& builder) {
-                return TCGValue::CreateNull(builder, type);
-            },
-            [&] (TCGIRBuilder& builder) {
-                Value* argData = argValue.GetData();
-                Value* argLength = argValue.GetLength();
-
-                Value* result = builder.CreateCall3(
-                    Module_->GetRoutine("ToLower"),
-                    GetExecutionContextPtr(builder),
-                    argData,
-                    argLength);
-
-                return TCGValue::CreateFromValue(
-                    builder,
-                    builder.getInt16(static_cast<ui16>(type)),
-                    argLength,
-                    result,
-                    type);
-            },
-            nameTwine);
-    } else if (functionName == "is_null") {
-        YCHECK(codegenArgs.size() == 1);
-        auto argValue = codegenArgs[0](builder);
-
-        return TCGValue::CreateFromValue(
-            builder,
-            builder.getInt16(static_cast<ui16>(type)),
-            nullptr,            
-            builder.CreateZExtOrBitCast(
-                argValue.IsNull(builder),
-                TDataTypeBuilder::TBoolean::get(builder.getContext())),
-            type);
-    } else if (functionName == "int64" || functionName == "uint64" || functionName == "double") {
-        YCHECK(codegenArgs.size() == 1);
-        return codegenArgs[0](builder).Cast(builder, type);
-    }
-
-    YUNIMPLEMENTED();
-}
-
-TCGValue TCGContext::CodegenFunctionExpr(
-    TCGIRBuilder& builder,
-    const TFunctionExpression* expr,
-    const TTableSchema& schema,
-    Value* row)
-{
-    std::vector<TCodegenValueBlock> codegenArgs;
-    for (const auto& argument : expr->Arguments) {
-        codegenArgs.push_back([&] (TCGIRBuilder& builder) {
-            return CodegenExpr(builder, argument, schema, row);
-        });
-    }
-        
-    auto name = "{" + expr->GetName() + "}";
-    return DoCodegenFunctionExpr(builder, expr->FunctionName, codegenArgs, expr->Type, name);
-}
-
-TCGValue TCGContext::CodegenUnaryOpExpr(
-    TCGIRBuilder& builder,
-    const TUnaryOpExpression* expr,
-    const TTableSchema& schema,
-    Value* row)
-{
-    auto name = "{" + expr->GetName() + "}";
-    auto operandValue = CodegenExpr(builder, expr->Operand, schema, row);
-    auto type = expr->Type;
-
-    return CodegenIf<TCGValue>(
-        builder,
-        operandValue.IsNull(builder),
-        [&] (TCGIRBuilder& builder) {
-            return TCGValue::CreateNull(builder, type);
-        },
-        [&] (TCGIRBuilder& builder) {
-            auto operandType = operandValue.GetStaticType();
-            Value* operandData = operandValue.GetData();
-            Value* evalData = nullptr;
-
-            switch(expr->Opcode) {
-                case EUnaryOp::Plus:
-                    evalData = operandData;
-                    break;
-
-                case EUnaryOp::Minus:
-                    switch (operandType) {
-                        case EValueType::Int64:
-                        case EValueType::Uint64:
-                            evalData = builder.CreateSub(builder.getInt64(0), operandData);
-                            break;
-                        case EValueType::Double:
-                            evalData = builder.CreateFSub(ConstantFP::get(builder.getDoubleTy(), 0.0), operandData);
-                            break;
-                        default:
-                            YUNREACHABLE();
-                    }
-
-                    break;
-                default:
-                    YUNREACHABLE();
-            }
-
-            return TCGValue::CreateFromValue(
-                builder,
-                builder.getInt16(static_cast<ui16>(type)),
-                nullptr,
-                evalData,
-                type);
-        },
-        Twine(name.c_str()));
-}
-
-TCGValue TCGContext::DoCodegenBinaryOpExpr(
-    TCGIRBuilder& builder,
-    EBinaryOp opcode,
-    const TCodegenValueBlock& codegenLhs,
-    const TCodegenValueBlock& codegenRhs,
-    EValueType type,
-    Stroka name)
-{
-    auto nameTwine = Twine(name.c_str());
-
-    auto lhsValue = codegenLhs(builder);
-
-    return CodegenIf<TCGValue>(
-        builder,
-        lhsValue.IsNull(builder),
-        [&] (TCGIRBuilder& builder) {
-            return TCGValue::CreateNull(builder, type);
-        },
-        [&] (TCGIRBuilder& builder) {
-            auto rhsValue = codegenRhs(builder);
-
-            return CodegenIf<TCGValue>(
-                builder,
-                rhsValue.IsNull(builder),
-                [&] (TCGIRBuilder& builder) {
-                    return TCGValue::CreateNull(builder, type);
-                },
-                [&] (TCGIRBuilder& builder) {
-                    YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
-                    auto operandType = lhsValue.GetStaticType();
-
-                    Value* lhsData = lhsValue.GetData();
-                    Value* rhsData = rhsValue.GetData();
-                    Value* evalData = nullptr;
-
-                    #define OP(opcode, optype) \
-                        case EBinaryOp::opcode: \
-                            evalData = builder.Create##optype(lhsData, rhsData); \
-                            break;
-
-                    #define CMP_OP(opcode, optype) \
-                        case EBinaryOp::opcode: \
-                            evalData = builder.CreateZExtOrBitCast( \
-                                builder.Create##optype(lhsData, rhsData), \
-                                TDataTypeBuilder::TBoolean::get(builder.getContext())); \
-                            break;
-
-                    switch (operandType) {
-
-                        case EValueType::Boolean:
-                        case EValueType::Int64:
-                            switch (opcode) {
-                                OP(Plus, Add)
-                                OP(Minus, Sub)
-                                OP(Multiply, Mul)
-                                OP(Divide, SDiv)
-                                OP(Modulo, SRem)
-                                OP(And, And)
-                                OP(Or, Or)
-                                CMP_OP(Equal, ICmpEQ)
-                                CMP_OP(NotEqual, ICmpNE)
-                                CMP_OP(Less, ICmpSLT)
-                                CMP_OP(LessOrEqual, ICmpSLE)
-                                CMP_OP(Greater, ICmpSGT)
-                                CMP_OP(GreaterOrEqual, ICmpSGE)
-                                default:
-                                    YUNREACHABLE();
-                            }
-                            break;
-                        case EValueType::Uint64:
-                            switch (opcode) {
-                                OP(Plus, Add)
-                                OP(Minus, Sub)
-                                OP(Multiply, Mul)
-                                OP(Divide, UDiv)
-                                OP(Modulo, URem)
-                                OP(And, And)
-                                OP(Or, Or)
-                                CMP_OP(Equal, ICmpEQ)
-                                CMP_OP(NotEqual, ICmpNE)
-                                CMP_OP(Less, ICmpULT)
-                                CMP_OP(LessOrEqual, ICmpULE)
-                                CMP_OP(Greater, ICmpUGT)
-                                CMP_OP(GreaterOrEqual, ICmpUGE)
-                                default:
-                                    YUNREACHABLE();
-                            }
-                            break;
-                        case EValueType::Double:
-                            switch (opcode) {
-                                OP(Plus, FAdd)
-                                OP(Minus, FSub)
-                                OP(Multiply, FMul)
-                                OP(Divide, FDiv)
-                                CMP_OP(Equal, FCmpUEQ)
-                                CMP_OP(NotEqual, FCmpUNE)
-                                CMP_OP(Less, FCmpULT)
-                                CMP_OP(LessOrEqual, FCmpULE)
-                                CMP_OP(Greater, FCmpUGT)
-                                CMP_OP(GreaterOrEqual, FCmpUGE)
-                                default:
-                                    YUNREACHABLE();
-                            }
-                            break;
-                        case EValueType::String: {
-                            Value* lhsLength = lhsValue.GetLength();
-                            Value* rhsLength = rhsValue.GetLength();
-
-                            auto codegenEqual = [&] () {
-                                return CodegenIf<Value*>(
-                                    builder,
-                                    builder.CreateICmpEQ(lhsLength, rhsLength),
-                                    [&] (TCGIRBuilder& builder) {
-                                        Value* minLength = builder.CreateSelect(
-                                            builder.CreateICmpULT(lhsLength, rhsLength),
-                                            lhsLength,
-                                            rhsLength);
-
-                                        Value* cmpResult = builder.CreateCall3(
-                                            Module_->GetRoutine("memcmp"),
-                                            lhsData,
-                                            rhsData,
-                                            builder.CreateZExt(minLength, builder.getSizeType()));
-
-                                        return builder.CreateICmpEQ(cmpResult, builder.getInt32(0));
-                                    },
-                                    [&] (TCGIRBuilder& builder) {
-                                        return builder.getFalse();
-                                    });
-                            };
-
-                            auto codegenLexicographicalCompare = [&] (Value* lhsData, Value* lhsLength, Value* rhsData, Value* rhsLength) {
-                                Value* lhsLengthIsLess = builder.CreateICmpULT(lhsLength, rhsLength);
-                                Value* minLength = builder.CreateSelect(
-                                    lhsLengthIsLess,
-                                    lhsLength,
-                                    rhsLength);
-
-                                Value* cmpResult = builder.CreateCall3(
-                                    Module_->GetRoutine("memcmp"),
-                                    lhsData,
-                                    rhsData,
-                                    builder.CreateZExt(minLength, builder.getSizeType()));
-
-                                return builder.CreateOr(
-                                    builder.CreateICmpSLT(cmpResult, builder.getInt32(0)),
-                                    builder.CreateAnd(
-                                        builder.CreateICmpEQ(cmpResult, builder.getInt32(0)),
-                                        lhsLengthIsLess));
-                            };
-
-                            switch (opcode) {
-                                case EBinaryOp::Equal:
-                                    evalData = codegenEqual();
-                                    break;
-                                case EBinaryOp::NotEqual:
-                                    evalData = builder.CreateNot(codegenEqual());
-                                    break;
-                                case EBinaryOp::Less:
-                                    evalData = codegenLexicographicalCompare(lhsData, lhsLength, rhsData, rhsLength);
-                                    break;
-                                case EBinaryOp::Greater:
-                                    evalData = codegenLexicographicalCompare(rhsData, rhsLength, lhsData, lhsLength);
-                                    break;
-                                case EBinaryOp::LessOrEqual:
-                                    evalData =  builder.CreateNot(
-                                        codegenLexicographicalCompare(rhsData, rhsLength, lhsData, lhsLength));
-                                    break;
-                                case EBinaryOp::GreaterOrEqual:
-                                    evalData = builder.CreateNot(
-                                        codegenLexicographicalCompare(lhsData, lhsLength, rhsData, rhsLength));
-                                    break;
-                                default:
-                                    YUNREACHABLE();
-                            }
-
-                            evalData = builder.CreateZExtOrBitCast(
-                                evalData,
-                                TDataTypeBuilder::TBoolean::get(builder.getContext()));
-                            break;
-                        }
-                        default:
-                            YUNREACHABLE();
-                    }
-
-                    #undef OP
-                    #undef CMP_OP
-
-                    return TCGValue::CreateFromValue(
-                        builder,
-                        builder.getInt16(static_cast<ui16>(type)),
-                        nullptr,
-                        evalData,
-                        type);
-                });
-       },
-       nameTwine);
-}
-
-TCGValue TCGContext::CodegenBinaryOpExpr(
-    TCGIRBuilder& builder,
-    const TBinaryOpExpression* expr,
-    const TTableSchema& schema,
-    Value* row)
-{
-    auto name = "{" + expr->GetName() + "}";
-    
-    return DoCodegenBinaryOpExpr(builder, expr->Opcode, 
-        [&] (TCGIRBuilder& builder) {
-            return CodegenExpr(builder, expr->Lhs, schema, row);
-        },
-        [&] (TCGIRBuilder& builder) {
-            return CodegenExpr(builder, expr->Rhs, schema, row);
-        },
-        expr->Type,
-        name);
-}
-
-Function* TCGContext::CodegenGroupComparerFunction(
-    const std::vector<EValueType>& types)
-{
-    auto module = Module_->GetModule();
-
+    auto llvmModule = module.GetModule();
     Function* function = Function::Create(
-        TypeBuilder<char(TRow, TRow), false>::get(module->getContext()),
+        TypeBuilder<char(TRow, TRow), false>::get(llvmModule->getContext()),
         Function::ExternalLinkage,
         "GroupComparer",
-        module);
+        llvmModule);
 
     auto args = function->arg_begin();
     Value* lhsRow = args; lhsRow->setName("lhsRow");
     Value* rhsRow = ++args; rhsRow->setName("rhsRow");
     YCHECK(++args == function->arg_end());
 
-    TCGIRBuilder builder(BasicBlock::Create(module->getContext(), "entry", function));
+    TCGIRBuilder builder(BasicBlock::Create(llvmModule->getContext(), "entry", function));
 
     auto returnIf = [&] (Value* condition) {
         auto* thenBB = builder.CreateBBHere("then");
@@ -1215,7 +721,7 @@ Function* TCGContext::CodegenGroupComparerFunction(
             index,
             types[index]);
 
-        CodegenIf(
+        CodegenIf<TCGIRBuilder>(
             builder,
             builder.CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
             [&] (TCGIRBuilder& builder) {
@@ -1246,7 +752,7 @@ Function* TCGContext::CodegenGroupComparerFunction(
                             rhsLength);
 
                         Value* cmpResult = builder.CreateCall3(
-                            Module_->GetRoutine("memcmp"),
+                            module.GetRoutine("memcmp"),
                             lhsData,
                             rhsData,
                             builder.CreateZExt(minLength, builder.getSizeType()));
@@ -1274,22 +780,22 @@ Function* TCGContext::CodegenGroupComparerFunction(
     return function;
 }
 
-Function* TCGContext::CodegenGroupHasherFunction(
-    const std::vector<EValueType>& types)
+Function* CodegenGroupHasherFunction(
+    const std::vector<EValueType>& types,
+    const TCGModule& module)
 {
-    auto module = Module_->GetModule();
-
+    auto llvmModule = module.GetModule();
     Function* function = Function::Create(
-        TypeBuilder<ui64(TRow), false>::get(module->getContext()),
+        TypeBuilder<ui64(TRow), false>::get(llvmModule->getContext()),
         Function::ExternalLinkage,
         "GroupHasher",
-        module);
+        llvmModule);
 
     auto args = function->arg_begin();
     Value* row = args; row->setName("row");
     YCHECK(++args == function->arg_end());
 
-    TCGIRBuilder builder(BasicBlock::Create(module->getContext(), "entry", function));
+    TCGIRBuilder builder(BasicBlock::Create(llvmModule->getContext(), "entry", function));
 
     auto codegenHashOp = [&] (size_t index, TCGIRBuilder& builder) -> Value* {
         auto value = TCGValue::CreateFromRow(
@@ -1322,7 +828,7 @@ Function* TCGContext::CodegenGroupHasherFunction(
 
             case EValueType::String:
                 thenResult = builder.CreateCall2(
-                    Module_->GetRoutine("StringHash"),
+                    module.GetRoutine("StringHash"),
                     value.GetData(),
                     value.GetLength());
                 break;
@@ -1371,23 +877,23 @@ Function* TCGContext::CodegenGroupHasherFunction(
     return function;
 }
 
-Function* TCGContext::CodegenRowComparerFunction(
-    const std::vector<EValueType>& types)
+Function* CodegenRowComparerFunction(
+    const std::vector<EValueType>& types,
+    const TCGModule& module)
 {
-    auto module = Module_->GetModule();
-
+    auto llvmModule = module.GetModule();
     Function* function = Function::Create(
-        TypeBuilder<char(TRow, TRow), false>::get(module->getContext()),
+        TypeBuilder<char(TRow, TRow), false>::get(llvmModule->getContext()),
         Function::ExternalLinkage,
         "RowComparer",
-        module);
+        llvmModule);
 
     auto args = function->arg_begin();
     Value* lhsRow = args; lhsRow->setName("lhsRow");
     Value* rhsRow = ++args; rhsRow->setName("rhsRow");
     YCHECK(++args == function->arg_end());
 
-    TCGIRBuilder builder(BasicBlock::Create(module->getContext(), "entry", function));
+    TCGIRBuilder builder(BasicBlock::Create(llvmModule->getContext(), "entry", function));
 
     auto returnIf = [&] (Value* condition, const TCodegenBlock& codegenInner) {
         auto* thenBB = builder.CreateBBHere("then");
@@ -1411,7 +917,7 @@ Function* TCGContext::CodegenRowComparerFunction(
             index,
             types[index]);
 
-        CodegenIf(
+        CodegenIf<TCGIRBuilder>(
             builder,
             builder.CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
             [&] (TCGIRBuilder& builder) {
@@ -1461,7 +967,7 @@ Function* TCGContext::CodegenRowComparerFunction(
                             rhsLength);
                     
                         Value* cmpResult = builder.CreateCall3(
-                            Module_->GetRoutine("memcmp"),
+                            module.GetRoutine("memcmp"),
                             lhsData,
                             rhsData,
                             builder.CreateZExt(minLength, builder.getSizeType()));
@@ -1498,116 +1004,514 @@ Function* TCGContext::CodegenRowComparerFunction(
     return function;
 }
 
-TCGValue TCGContext::DoCodegenInOpExpr(
-    TCGIRBuilder& builder,
-    const std::vector<TCodegenValueBlock>& codegenArgs,
-    int arrayIndex)
-{  
-    size_t keySize = codegenArgs.size();
-
-    Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-    Value* executionContextPtrRef = GetExecutionContextPtr(builder);
-
-    builder.CreateCall3(
-        Module_->GetRoutine("AllocateRow"),
-        executionContextPtrRef,
-        builder.getInt32(keySize),
-        newRowPtr);
-
-    Value* newRowRef = builder.CreateLoad(newRowPtr);
-
-    std::vector<EValueType> keyTypes;
-    for (int index = 0; index < keySize; ++index) {
-        auto id = index;
-        auto value = codegenArgs[index](builder);
-        keyTypes.push_back(value.GetStaticType());        
-        value.StoreToRow(builder, newRowRef, index, id);
-    }
-
-    Value* result = builder.CreateCall4(
-        Module_->GetRoutine("IsRowInArray"),
-        executionContextPtrRef,
-        CodegenRowComparerFunction(keyTypes),
-        newRowRef,
-        builder.getInt32(arrayIndex));
-
-    return TCGValue::CreateFromValue(
-        builder,
-        builder.getInt16(static_cast<ui16>(EValueType::Boolean)),
-        nullptr,
-        result,
-        EValueType::Boolean);
-}
-
-TCGValue TCGContext::CodegenInOpExpr(
-    TCGIRBuilder& builder,
-    const TInOpExpression* expr,
-    const TTableSchema& schema,
-    Value* row)
+TCodegenExpression MakeCodegenFunctionExpr(
+    Stroka functionName,
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    Stroka name)
 {
-    std::vector<TCodegenValueBlock> codegenArgs;
-    for (const auto& argument : expr->Arguments) {
-        codegenArgs.push_back([&] (TCGIRBuilder& builder) {
-            return CodegenExpr(builder, argument, schema, row);
-        });
-    }
+    functionName.to_lower();
 
-    auto it = Binding_.NodeToRows.find(expr);
-    YCHECK(it != Binding_.NodeToRows.end());
+    return [
+        MOVE(functionName),
+        MOVE(codegenArgs),
+        MOVE(type),
+        MOVE(name)
+    ] (TCGContext& builder, Value* row) {
+        auto nameTwine = Twine(name.c_str());
 
-    return DoCodegenInOpExpr(builder, codegenArgs, it->second);
+        if (functionName == "if") {
+            YCHECK(codegenArgs.size() == 3);
+            auto condition = codegenArgs[0](builder, row);
+            YCHECK(condition.GetStaticType() == EValueType::Boolean);
+
+            return CodegenIf<TCGContext, TCGValue>(
+                builder,
+                condition.IsNull(builder),
+                [&] (TCGContext& builder) {
+                    return TCGValue::CreateNull(builder, type);
+                },
+                [&] (TCGContext& builder) {
+                    return CodegenIf<TCGContext, TCGValue>(
+                        builder,
+                        builder.CreateICmpNE(
+                            builder.CreateZExtOrBitCast(condition.GetData(), builder.getInt64Ty()),
+                            builder.getInt64(0)),
+                        [&] (TCGContext& builder) {
+                            return codegenArgs[1](builder, row);
+                        },
+                        [&] (TCGContext& builder) {
+                            return codegenArgs[2](builder, row);
+                        });
+                },
+                nameTwine);
+        } else if (functionName == "is_prefix") {
+            YCHECK(codegenArgs.size() == 2);
+            auto lhsValue = codegenArgs[0](builder, row);
+            YCHECK(lhsValue.GetStaticType() == EValueType::String);
+    
+            return CodegenIf<TCGContext, TCGValue>(
+                builder,
+                lhsValue.IsNull(builder),
+                [&] (TCGContext& builder) {
+                    return TCGValue::CreateNull(builder, type);
+                },
+                [&] (TCGContext& builder) {
+                    auto rhsValue = codegenArgs[1](builder, row);
+                    YCHECK(rhsValue.GetStaticType() == EValueType::String);
+
+                    return CodegenIf<TCGContext, TCGValue>(
+                        builder,
+                        rhsValue.IsNull(builder),
+                        [&] (TCGContext& builder) {
+                            return TCGValue::CreateNull(builder, type);
+                        },
+                        [&] (TCGContext& builder) {
+                            Value* lhsData = lhsValue.GetData();
+                            Value* lhsLength = lhsValue.GetLength();
+                            Value* rhsData = rhsValue.GetData();
+                            Value* rhsLength = rhsValue.GetLength();
+
+                            Value* result = builder.CreateCall4(
+                                builder.Module->GetRoutine("IsPrefix"),
+                                lhsData, lhsLength, rhsData, rhsLength);
+
+                            return TCGValue::CreateFromValue(
+                                builder,
+                                builder.getInt16(static_cast<ui16>(type)),
+                                nullptr,
+                                result,
+                                type);
+                        });
+                },
+                nameTwine);
+        } else if (functionName == "lower") {
+            YCHECK(codegenArgs.size() == 1);
+            auto argValue = codegenArgs[0](builder, row);
+            YCHECK(argValue.GetStaticType() == EValueType::String);
+
+            return CodegenIf<TCGContext, TCGValue>(
+                builder,
+                argValue.IsNull(builder),
+                [&] (TCGContext& builder) {
+                    return TCGValue::CreateNull(builder, type);
+                },
+                [&] (TCGContext& builder) {
+                    Value* argData = argValue.GetData();
+                    Value* argLength = argValue.GetLength();
+
+                    Value* result = builder.CreateCall3(
+                        builder.Module->GetRoutine("ToLower"),
+                        builder.GetExecutionContextPtr(),
+                        argData,
+                        argLength);
+
+                    return TCGValue::CreateFromValue(
+                        builder,
+                        builder.getInt16(static_cast<ui16>(type)),
+                        argLength,
+                        result,
+                        type);
+                },
+                nameTwine);
+        } else if (functionName == "is_null") {
+            YCHECK(codegenArgs.size() == 1);
+            auto argValue = codegenArgs[0](builder, row);
+
+            return TCGValue::CreateFromValue(
+                builder,
+                builder.getInt16(static_cast<ui16>(type)),
+                nullptr,            
+                builder.CreateZExtOrBitCast(
+                    argValue.IsNull(builder),
+                    TDataTypeBuilder::TBoolean::get(builder.getContext())),
+                type);
+        } else if (functionName == "int64" || functionName == "uint64" || functionName == "double") {
+            YCHECK(codegenArgs.size() == 1);
+            return codegenArgs[0](builder, row).Cast(builder, type);
+        }
+
+        YUNIMPLEMENTED();
+    };
 }
 
-TCGValue TCGContext::CodegenExpr(
-    TCGIRBuilder& builder,
+TCodegenExpression MakeCodegenUnaryOpExpr(
+    EUnaryOp opcode,
+    TCodegenExpression codegenOperand,
+    EValueType type,
+    Stroka name)
+{
+    return [
+        MOVE(opcode),
+        MOVE(codegenOperand),
+        MOVE(type),
+        MOVE(name)
+    ] (TCGContext& builder, Value* row) {
+
+        auto operandValue = codegenOperand(builder, row);
+
+        return CodegenIf<TCGContext, TCGValue>(
+            builder,
+            operandValue.IsNull(builder),
+            [&] (TCGIRBuilder& builder) {
+                return TCGValue::CreateNull(builder, type);
+            },
+            [&] (TCGIRBuilder& builder) {
+                auto operandType = operandValue.GetStaticType();
+                Value* operandData = operandValue.GetData();
+                Value* evalData = nullptr;
+
+                switch(opcode) {
+                    case EUnaryOp::Plus:
+                        evalData = operandData;
+                        break;
+
+                    case EUnaryOp::Minus:
+                        switch (operandType) {
+                            case EValueType::Int64:
+                            case EValueType::Uint64:
+                                evalData = builder.CreateSub(builder.getInt64(0), operandData);
+                                break;
+                            case EValueType::Double:
+                                evalData = builder.CreateFSub(ConstantFP::get(builder.getDoubleTy(), 0.0), operandData);
+                                break;
+                            default:
+                                YUNREACHABLE();
+                        }
+
+                        break;
+                    default:
+                        YUNREACHABLE();
+                }
+
+                return TCGValue::CreateFromValue(
+                    builder,
+                    builder.getInt16(static_cast<ui16>(type)),
+                    nullptr,
+                    evalData,
+                    type);
+            },
+            Twine(name.c_str()));
+    };
+}
+
+TCodegenExpression MakeCodegenBinaryOpExpr(
+    EBinaryOp opcode,
+    TCodegenExpression codegenLhs,
+    TCodegenExpression codegenRhs,
+    EValueType type,
+    Stroka name)
+{
+    return [
+        MOVE(opcode),
+        MOVE(codegenLhs),
+        MOVE(codegenRhs),
+        MOVE(type),
+        MOVE(name)
+    ] (TCGContext& builder, Value* row) {
+        auto nameTwine = Twine(name.c_str());
+
+        auto lhsValue = codegenLhs(builder, row);
+
+        return CodegenIf<TCGContext, TCGValue>(
+            builder,
+            lhsValue.IsNull(builder),
+            [&] (TCGContext& builder) {
+                return TCGValue::CreateNull(builder, type);
+            },
+            [&] (TCGContext& builder) {
+                auto rhsValue = codegenRhs(builder, row);
+
+                return CodegenIf<TCGContext, TCGValue>(
+                    builder,
+                    rhsValue.IsNull(builder),
+                    [&] (TCGContext& builder) {
+                        return TCGValue::CreateNull(builder, type);
+                    },
+                    [&] (TCGContext& builder) {
+                        YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
+                        auto operandType = lhsValue.GetStaticType();
+
+                        Value* lhsData = lhsValue.GetData();
+                        Value* rhsData = rhsValue.GetData();
+                        Value* evalData = nullptr;
+
+                        #define OP(opcode, optype) \
+                            case EBinaryOp::opcode: \
+                                evalData = builder.Create##optype(lhsData, rhsData); \
+                                break;
+
+                        #define CMP_OP(opcode, optype) \
+                            case EBinaryOp::opcode: \
+                                evalData = builder.CreateZExtOrBitCast( \
+                                    builder.Create##optype(lhsData, rhsData), \
+                                    TDataTypeBuilder::TBoolean::get(builder.getContext())); \
+                                break;
+
+                        switch (operandType) {
+
+                            case EValueType::Boolean:
+                            case EValueType::Int64:
+                                switch (opcode) {
+                                    OP(Plus, Add)
+                                    OP(Minus, Sub)
+                                    OP(Multiply, Mul)
+                                    OP(Divide, SDiv)
+                                    OP(Modulo, SRem)
+                                    OP(And, And)
+                                    OP(Or, Or)
+                                    CMP_OP(Equal, ICmpEQ)
+                                    CMP_OP(NotEqual, ICmpNE)
+                                    CMP_OP(Less, ICmpSLT)
+                                    CMP_OP(LessOrEqual, ICmpSLE)
+                                    CMP_OP(Greater, ICmpSGT)
+                                    CMP_OP(GreaterOrEqual, ICmpSGE)
+                                    default:
+                                        YUNREACHABLE();
+                                }
+                                break;
+                            case EValueType::Uint64:
+                                switch (opcode) {
+                                    OP(Plus, Add)
+                                    OP(Minus, Sub)
+                                    OP(Multiply, Mul)
+                                    OP(Divide, UDiv)
+                                    OP(Modulo, URem)
+                                    OP(And, And)
+                                    OP(Or, Or)
+                                    CMP_OP(Equal, ICmpEQ)
+                                    CMP_OP(NotEqual, ICmpNE)
+                                    CMP_OP(Less, ICmpULT)
+                                    CMP_OP(LessOrEqual, ICmpULE)
+                                    CMP_OP(Greater, ICmpUGT)
+                                    CMP_OP(GreaterOrEqual, ICmpUGE)
+                                    default:
+                                        YUNREACHABLE();
+                                }
+                                break;
+                            case EValueType::Double:
+                                switch (opcode) {
+                                    OP(Plus, FAdd)
+                                    OP(Minus, FSub)
+                                    OP(Multiply, FMul)
+                                    OP(Divide, FDiv)
+                                    CMP_OP(Equal, FCmpUEQ)
+                                    CMP_OP(NotEqual, FCmpUNE)
+                                    CMP_OP(Less, FCmpULT)
+                                    CMP_OP(LessOrEqual, FCmpULE)
+                                    CMP_OP(Greater, FCmpUGT)
+                                    CMP_OP(GreaterOrEqual, FCmpUGE)
+                                    default:
+                                        YUNREACHABLE();
+                                }
+                                break;
+                            case EValueType::String: {
+                                Value* lhsLength = lhsValue.GetLength();
+                                Value* rhsLength = rhsValue.GetLength();
+
+                                auto codegenEqual = [&] () {
+                                    return CodegenIf<TCGContext, Value*>(
+                                        builder,
+                                        builder.CreateICmpEQ(lhsLength, rhsLength),
+                                        [&] (TCGContext& builder) {
+                                            Value* minLength = builder.CreateSelect(
+                                                builder.CreateICmpULT(lhsLength, rhsLength),
+                                                lhsLength,
+                                                rhsLength);
+
+                                            Value* cmpResult = builder.CreateCall3(
+                                                builder.Module->GetRoutine("memcmp"),
+                                                lhsData,
+                                                rhsData,
+                                                builder.CreateZExt(minLength, builder.getSizeType()));
+
+                                            return builder.CreateICmpEQ(cmpResult, builder.getInt32(0));
+                                        },
+                                        [&] (TCGContext& builder) {
+                                            return builder.getFalse();
+                                        });
+                                };
+
+                                auto codegenLexicographicalCompare = [&] (Value* lhsData, Value* lhsLength, Value* rhsData, Value* rhsLength) {
+                                    Value* lhsLengthIsLess = builder.CreateICmpULT(lhsLength, rhsLength);
+                                    Value* minLength = builder.CreateSelect(
+                                        lhsLengthIsLess,
+                                        lhsLength,
+                                        rhsLength);
+
+                                    Value* cmpResult = builder.CreateCall3(
+                                        builder.Module->GetRoutine("memcmp"),
+                                        lhsData,
+                                        rhsData,
+                                        builder.CreateZExt(minLength, builder.getSizeType()));
+
+                                    return builder.CreateOr(
+                                        builder.CreateICmpSLT(cmpResult, builder.getInt32(0)),
+                                        builder.CreateAnd(
+                                            builder.CreateICmpEQ(cmpResult, builder.getInt32(0)),
+                                            lhsLengthIsLess));
+                                };
+
+                                switch (opcode) {
+                                    case EBinaryOp::Equal:
+                                        evalData = codegenEqual();
+                                        break;
+                                    case EBinaryOp::NotEqual:
+                                        evalData = builder.CreateNot(codegenEqual());
+                                        break;
+                                    case EBinaryOp::Less:
+                                        evalData = codegenLexicographicalCompare(lhsData, lhsLength, rhsData, rhsLength);
+                                        break;
+                                    case EBinaryOp::Greater:
+                                        evalData = codegenLexicographicalCompare(rhsData, rhsLength, lhsData, lhsLength);
+                                        break;
+                                    case EBinaryOp::LessOrEqual:
+                                        evalData =  builder.CreateNot(
+                                            codegenLexicographicalCompare(rhsData, rhsLength, lhsData, lhsLength));
+                                        break;
+                                    case EBinaryOp::GreaterOrEqual:
+                                        evalData = builder.CreateNot(
+                                            codegenLexicographicalCompare(lhsData, lhsLength, rhsData, rhsLength));
+                                        break;
+                                    default:
+                                        YUNREACHABLE();
+                                }
+
+                                evalData = builder.CreateZExtOrBitCast(
+                                    evalData,
+                                    TDataTypeBuilder::TBoolean::get(builder.getContext()));
+                                break;
+                            }
+                            default:
+                                YUNREACHABLE();
+                        }
+
+                        #undef OP
+                        #undef CMP_OP
+
+                        return TCGValue::CreateFromValue(
+                            builder,
+                            builder.getInt16(static_cast<ui16>(type)),
+                            nullptr,
+                            evalData,
+                            type);
+                    });
+           },
+            nameTwine);
+    };
+}
+
+TCodegenExpression MakeCodegenInOpExpr(
+    std::vector<TCodegenExpression> codegenArgs,
+    int arrayIndex)
+{
+    return [
+        MOVE(codegenArgs),
+        MOVE(arrayIndex)
+    ] (TCGContext& builder, Value* row) {
+        size_t keySize = codegenArgs.size();
+
+        Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
+        Value* executionContextPtrRef = builder.GetExecutionContextPtr();
+
+        builder.CreateCall3(
+            builder.Module->GetRoutine("AllocateRow"),
+            executionContextPtrRef,
+            builder.getInt32(keySize),
+            newRowPtr);
+
+        Value* newRowRef = builder.CreateLoad(newRowPtr);
+
+        std::vector<EValueType> keyTypes;
+        for (int index = 0; index < keySize; ++index) {
+            auto id = index;
+            auto value = codegenArgs[index](builder, row);
+            keyTypes.push_back(value.GetStaticType());        
+            value.StoreToRow(builder, newRowRef, index, id);
+        }
+
+        Value* result = builder.CreateCall4(
+            builder.Module->GetRoutine("IsRowInArray"),
+            executionContextPtrRef,
+            CodegenRowComparerFunction(keyTypes, *builder.Module),
+            newRowRef,
+            builder.getInt32(arrayIndex));
+
+        return TCGValue::CreateFromValue(
+            builder,
+            builder.getInt16(static_cast<ui16>(EValueType::Boolean)),
+            nullptr,
+            result,
+            EValueType::Boolean);
+    };
+}
+
+TCodegenExpression MakeCodegenExpr(
     const TConstExpressionPtr& expr,
-    const TTableSchema& schema,
-    Value* row)
+    const TCGBinding& binding,
+    const TTableSchema& schema)
 {
     if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        auto it = Binding_.NodeToConstantIndex.find(literalExpr);
-        YCHECK(it != Binding_.NodeToConstantIndex.end());
+        auto it = binding.NodeToConstantIndex.find(literalExpr);
+        YCHECK(it != binding.NodeToConstantIndex.end());
         auto index = it->second;
-        return TCGValue::CreateFromRow(
-            builder,
-            GetConstantsRows(builder),
-            index,
-            literalExpr->Type,
-            "literal." + Twine(index))
-            .Steal();
+        return [index, literalExpr] (TCGContext& builder, Value* row) {
+            return TCGValue::CreateFromRow(
+                builder,
+                builder.GetConstantsRows(),
+                index,
+                literalExpr->Type,
+                "literal." + Twine(index))
+                .Steal();
+        };
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
         auto column = referenceExpr->ColumnName;
-        auto index = schema.GetColumnIndexOrThrow(column);
-        return TCGValue::CreateFromRow(
+        return [
+            referenceExpr,
+            column,
+            index = schema.GetColumnIndexOrThrow(column)            
+        ] (TCGContext& builder, Value* row) {
+            return TCGValue::CreateFromRow(
             builder,
             row,
             index,
             referenceExpr->Type,
             "reference." + Twine(column.c_str()));
+        };
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        return CodegenFunctionExpr(
-            builder,
-            functionExpr,
-            schema,
-            row);
+        std::vector<TCodegenExpression> codegenArgs;
+        for (const auto& argument : functionExpr->Arguments) {
+            codegenArgs.push_back(MakeCodegenExpr(argument, binding, schema));
+        }
+
+        return MakeCodegenFunctionExpr(
+            functionExpr->FunctionName,
+            std::move(codegenArgs),
+            functionExpr->Type,
+            "{" + functionExpr->GetName() + "}");
     } else if (auto unaryOpExpr = expr->As<TUnaryOpExpression>()) {
-        return CodegenUnaryOpExpr(
-            builder,
-            unaryOpExpr,
-            schema,
-            row);
+        return MakeCodegenUnaryOpExpr(
+            unaryOpExpr->Opcode,
+            MakeCodegenExpr(unaryOpExpr->Operand, binding, schema),
+            unaryOpExpr->Type,
+            "{" + unaryOpExpr->GetName() + "}");
     } else if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
-        return CodegenBinaryOpExpr(
-            builder,
-            binaryOpExpr,
-            schema,
-            row);
+        return MakeCodegenBinaryOpExpr(
+            binaryOpExpr->Opcode,
+            MakeCodegenExpr(binaryOpExpr->Lhs, binding, schema),
+            MakeCodegenExpr(binaryOpExpr->Rhs, binding, schema),
+            binaryOpExpr->Type,
+            "{" + binaryOpExpr->GetName() + "}");
     } else if (auto inOpExpr = expr->As<TInOpExpression>()) {
-        return CodegenInOpExpr(
-            builder,
-            inOpExpr,
-            schema,
-            row);
+        std::vector<TCodegenExpression> codegenArgs;
+        for (const auto& argument : inOpExpr->Arguments) {
+            codegenArgs.push_back(MakeCodegenExpr(argument, binding, schema));
+        }
+
+        auto it = binding.NodeToRows.find(inOpExpr);
+        YCHECK(it != binding.NodeToRows.end());
+
+        return MakeCodegenInOpExpr(codegenArgs, it->second);
     } else {
         YUNREACHABLE();
     }
@@ -1617,11 +1521,11 @@ TCGValue TCGContext::CodegenExpr(
 // Operators
 //
 
-void TCGContext::CodegenScanOp(
-    TCGIRBuilder& builder,
+void CodegenScanOp(
+    TCGContext& builder,
     const TCodegenConsumer& codegenConsumer)
 {
-    auto module = Module_->GetModule();
+    auto module = builder.Module->GetModule();
 
     // See ScanOpHelper.
     Function* function = Function::Create(
@@ -1637,7 +1541,7 @@ void TCGContext::CodegenScanOp(
     Value* stopFlag = ++args; stopFlag->setName("stopFlag");
     YCHECK(++args == function->arg_end());
 
-    TCGIRBuilder innerBuilder(
+    TCGContext innerBuilder(
         function,
         &builder,
         closure);
@@ -1649,360 +1553,354 @@ void TCGContext::CodegenScanOp(
     int dataSplitsIndex = 0;
 
     builder.CreateCall4(
-        Module_->GetRoutine("ScanOpHelper"),
-        GetExecutionContextPtr(builder),
+        builder.Module->GetRoutine("ScanOpHelper"),
+        builder.GetExecutionContextPtr(),
         builder.getInt32(dataSplitsIndex),
         innerBuilder.GetClosure(),
         function);
 }
 
-void TCGContext::CodegenJoinOp(
-    TCGIRBuilder& builder,
-    const TJoinClause& clause,
-    const TTableSchema& sourceTableSchema,
-    const TCodegenSource& codegenSource,
-    const TCodegenConsumer& codegenConsumer)
+TCodegenSource MakeCodegenJoinOp(
+    std::vector<Stroka> joinColumns,
+    TTableSchema sourceTableSchema,
+    TCodegenSource codegenSource)
 {
-    auto module = Module_->GetModule();
+    return [
+        MOVE(joinColumns),
+        MOVE(sourceTableSchema),
+        codegenSource = std::move(codegenSource)
+    ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
+        auto module = builder.Module->GetModule();
 
-    // See JoinOpHelper.
-    Function* collectRows = Function::Create(
-        TypeBuilder<void(void**, void*, void*, void*), false>::get(builder.getContext()),
-        Function::ExternalLinkage,
-        "CollectRows",
-        module);
+        // See JoinOpHelper.
+        Function* collectRows = Function::Create(
+            TypeBuilder<void(void**, void*, void*, void*), false>::get(builder.getContext()),
+            Function::ExternalLinkage,
+            "CollectRows",
+            module);
 
-    auto collectRowsArgs = collectRows->arg_begin();
-    Value* closure = collectRowsArgs; closure->setName("closure");
-    Value* keys = ++collectRowsArgs; keys->setName("keys");
-    Value* keysLookup = ++collectRowsArgs; keysLookup->setName("keysLookup");
-    Value* allRows = ++collectRowsArgs; allRows->setName("allRows");
-    YCHECK(++collectRowsArgs == collectRows->arg_end());
+        auto collectRowsArgs = collectRows->arg_begin();
+        Value* closure = collectRowsArgs; closure->setName("closure");
+        Value* keys = ++collectRowsArgs; keys->setName("keys");
+        Value* keysLookup = ++collectRowsArgs; keysLookup->setName("keysLookup");
+        Value* allRows = ++collectRowsArgs; allRows->setName("allRows");
+        YCHECK(++collectRowsArgs == collectRows->arg_end());
 
-    TCGIRBuilder collectBuilder(
-        collectRows,
-        &builder,
-        closure);
-
-    int joinKeySize = clause.JoinColumns.size();
-
-    Value* newRowPtr = collectBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-
-    collectBuilder.CreateCall3(
-        Module_->GetRoutine("AllocatePermanentRow"),
-        GetExecutionContextPtr(collectBuilder),
-        builder.getInt32(joinKeySize),
-        newRowPtr);
-
-    codegenSource(
-        collectBuilder,
-        [&] (TCGIRBuilder& builder, Value* row) {
-            Value* executionContextPtrRef = GetExecutionContextPtr(builder);
-            Value* keysRef = builder.ViaClosure(keys);
-            Value* allRowsRef = builder.ViaClosure(allRows);
-            Value* keysLookupRef = builder.ViaClosure(keysLookup);
-            Value* newRowPtrRef = builder.ViaClosure(newRowPtr);
-            Value* newRowRef = builder.CreateLoad(newRowPtrRef);
-
-            builder.CreateCall3(
-                Module_->GetRoutine("SaveJoinRow"),
-                executionContextPtrRef,
-                allRowsRef,
-                row);
-
-            for (int index = 0; index < joinKeySize; ++index) {
-                auto id = index;
-
-                auto columnName = clause.JoinColumns[index];
-                auto column = sourceTableSchema.GetColumnOrThrow(columnName);
-
-                auto columnIndex = sourceTableSchema.GetColumnIndexOrThrow(columnName);
-                TCGValue::CreateFromRow(
-                    builder,
-                    row,
-                    columnIndex,
-                    column.Type,
-                    "reference." + Twine(columnName.c_str()))
-                    .StoreToRow(builder, newRowRef, index, id);                
-            }
-
-            // Add row to rows and lookup;
-
-            builder.CreateCall5(
-                Module_->GetRoutine("InsertJoinRow"),
-                executionContextPtrRef,
-                keysLookupRef,
-                keysRef,
-                newRowPtrRef,
-                builder.getInt32(joinKeySize));
-
-        });
-
-    collectBuilder.CreateRetVoid();
-
-    // See JoinOpHelper.
-    Function* consumeJoinedRows = Function::Create(
-        TypeBuilder<void(void**, void*, char*), false>::get(builder.getContext()),
-        Function::ExternalLinkage,
-        "JoinOpInner",
-        module);
-
-    auto consumeJoinedRowsArgs = consumeJoinedRows->arg_begin();
-    Value* consumeClosure = consumeJoinedRowsArgs; consumeClosure->setName("consumeClosure");
-    Value* joinedRows = ++consumeJoinedRowsArgs; joinedRows->setName("joinedRows");
-    Value* stopFlag = ++consumeJoinedRowsArgs; stopFlag->setName("stopFlag");
-    YCHECK(++consumeJoinedRowsArgs == consumeJoinedRows->arg_end());
-
-    TCGIRBuilder consumeBuilder(
-        consumeJoinedRows,
-        &builder,
-        consumeClosure);
-
-    CodegenForEachRow(
-        consumeBuilder,
-        consumeBuilder.CreateCall(Module_->GetRoutine("GetRowsData"), joinedRows),
-        consumeBuilder.CreateCall(Module_->GetRoutine("GetRowsSize"), joinedRows),
-        stopFlag,
-        codegenConsumer);
-
-    consumeBuilder.CreateRetVoid();
- 
-    std::vector<EValueType> keyTypes;
-    for (int index = 0; index < clause.JoinColumns.size(); ++index) {
-        keyTypes.push_back(sourceTableSchema.FindColumn(clause.JoinColumns[index])->Type);
-    }
-
-    builder.CreateCallWithArgs(
-        Module_->GetRoutine("JoinOpHelper"),
-        {
-            GetExecutionContextPtr(builder),
-            CodegenGroupHasherFunction(keyTypes),
-            CodegenGroupComparerFunction(keyTypes),
-
-            collectBuilder.GetClosure(),
+        TCGContext collectBuilder(
             collectRows,
+            &builder,
+            closure);
 
-            consumeBuilder.GetClosure(),
-            consumeJoinedRows
-        });
+        int joinKeySize = joinColumns.size();
 
+        Value* newRowPtr = collectBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
+
+        collectBuilder.CreateCall3(
+            builder.Module->GetRoutine("AllocatePermanentRow"),
+            collectBuilder.GetExecutionContextPtr(),
+            builder.getInt32(joinKeySize),
+            newRowPtr);
+
+        codegenSource(
+            collectBuilder,
+            [&] (TCGContext& builder, Value* row) {
+                Value* executionContextPtrRef = builder.GetExecutionContextPtr();
+                Value* keysRef = builder.ViaClosure(keys);
+                Value* allRowsRef = builder.ViaClosure(allRows);
+                Value* keysLookupRef = builder.ViaClosure(keysLookup);
+                Value* newRowPtrRef = builder.ViaClosure(newRowPtr);
+                Value* newRowRef = builder.CreateLoad(newRowPtrRef);
+
+                builder.CreateCall3(
+                    builder.Module->GetRoutine("SaveJoinRow"),
+                    executionContextPtrRef,
+                    allRowsRef,
+                    row);
+
+                for (int index = 0; index < joinKeySize; ++index) {
+                    auto id = index;
+
+                    auto columnName = joinColumns[index];
+                    auto column = sourceTableSchema.GetColumnOrThrow(columnName);
+
+                    auto columnIndex = sourceTableSchema.GetColumnIndexOrThrow(columnName);
+                    TCGValue::CreateFromRow(
+                        builder,
+                        row,
+                        columnIndex,
+                        column.Type,
+                        "reference." + Twine(columnName.c_str()))
+                        .StoreToRow(builder, newRowRef, index, id);                
+                }
+
+                // Add row to rows and lookup;
+
+                builder.CreateCall5(
+                    builder.Module->GetRoutine("InsertJoinRow"),
+                    executionContextPtrRef,
+                    keysLookupRef,
+                    keysRef,
+                    newRowPtrRef,
+                    builder.getInt32(joinKeySize));
+
+            });
+
+        collectBuilder.CreateRetVoid();
+
+        // See JoinOpHelper.
+        Function* consumeJoinedRows = Function::Create(
+            TypeBuilder<void(void**, void*, char*), false>::get(builder.getContext()),
+            Function::ExternalLinkage,
+            "JoinOpInner",
+            module);
+
+        auto consumeJoinedRowsArgs = consumeJoinedRows->arg_begin();
+        Value* consumeClosure = consumeJoinedRowsArgs; consumeClosure->setName("consumeClosure");
+        Value* joinedRows = ++consumeJoinedRowsArgs; joinedRows->setName("joinedRows");
+        Value* stopFlag = ++consumeJoinedRowsArgs; stopFlag->setName("stopFlag");
+        YCHECK(++consumeJoinedRowsArgs == consumeJoinedRows->arg_end());
+
+        TCGContext consumeBuilder(
+            consumeJoinedRows,
+            &builder,
+            consumeClosure);
+
+        CodegenForEachRow(
+            consumeBuilder,
+            consumeBuilder.CreateCall(builder.Module->GetRoutine("GetRowsData"), joinedRows),
+            consumeBuilder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), joinedRows),
+            stopFlag,
+            codegenConsumer);
+
+        consumeBuilder.CreateRetVoid();
+ 
+        std::vector<EValueType> keyTypes;
+        for (int index = 0; index < joinColumns.size(); ++index) {
+            keyTypes.push_back(sourceTableSchema.FindColumn(joinColumns[index])->Type);
+        }
+
+        builder.CreateCallWithArgs(
+            builder.Module->GetRoutine("JoinOpHelper"),
+            {
+                builder.GetExecutionContextPtr(),
+                CodegenGroupHasherFunction(keyTypes, *builder.Module),
+                CodegenGroupComparerFunction(keyTypes, *builder.Module),
+
+                collectBuilder.GetClosure(),
+                collectRows,
+
+                consumeBuilder.GetClosure(),
+                consumeJoinedRows
+            });
+    };
 }
 
-void TCGContext::CodegenFilterOp(
-    TCGIRBuilder& builder,
-    const TConstExpressionPtr& predicate,
-    const TTableSchema& sourceTableSchema,
-    const TCodegenSource& codegenSource,
-    const TCodegenConsumer& codegenConsumer)
+TCodegenSource MakeCodegenFilterOp(
+    TCodegenExpression codegenPredicate,
+    TCodegenSource codegenSource)
 {
-    codegenSource(
-        builder,
-        [&] (TCGIRBuilder& builder, Value* row) {
-            auto predicateResult = CodegenExpr(
-                builder,
-                predicate,
-                sourceTableSchema,
-                row);
+    return [
+        MOVE(codegenPredicate), 
+        codegenSource = std::move(codegenSource)
+    ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
+        codegenSource(
+            builder,
+            [&] (TCGContext& builder, Value* row) {
+                auto predicateResult = codegenPredicate(builder, row);
 
-            Value* result = builder.CreateZExtOrBitCast(
-                predicateResult.GetData(),
-                builder.getInt64Ty());
+                Value* result = builder.CreateZExtOrBitCast(
+                    predicateResult.GetData(),
+                    builder.getInt64Ty());
 
-            auto* ifBB = builder.CreateBBHere("if");
-            auto* endifBB = builder.CreateBBHere("endif");
+                auto* ifBB = builder.CreateBBHere("if");
+                auto* endifBB = builder.CreateBBHere("endif");
 
-            builder.CreateCondBr(
-                builder.CreateICmpNE(result, builder.getInt64(0)),
-                ifBB,
-                endifBB);
+                builder.CreateCondBr(
+                    builder.CreateICmpNE(result, builder.getInt64(0)),
+                    ifBB,
+                    endifBB);
 
-            builder.SetInsertPoint(ifBB);
-            codegenConsumer(builder, row);
-            builder.CreateBr(endifBB);
+                builder.SetInsertPoint(ifBB);
+                codegenConsumer(builder, row);
+                builder.CreateBr(endifBB);
 
-            builder.SetInsertPoint(endifBB);
-        });
+                builder.SetInsertPoint(endifBB);
+            });
+    };
 }
 
-void TCGContext::CodegenProjectOp(
-    TCGIRBuilder& builder,
-    const TProjectClause& clause,
-    const TTableSchema& sourceTableSchema,
-    const TCodegenSource& codegenSource,
-    const TCodegenConsumer& codegenConsumer)
+TCodegenSource MakeCodegenProjectOp(
+    std::vector<TCodegenExpression> codegenArgs,
+    TCodegenSource codegenSource)
 {
-    int projectionCount = clause.Projections.size();
+    return [
+        MOVE(codegenArgs),
+        codegenSource = std::move(codegenSource)        
+    ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
+        int projectionCount = codegenArgs.size();
 
-    codegenSource(
-        builder,
-        [&] (TCGIRBuilder& builder, Value* row) {
-            Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
+        codegenSource(
+            builder,
+            [&] (TCGContext& builder, Value* row) {
+                Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
-            builder.CreateCall3(
-                Module_->GetRoutine("AllocateRow"),
-                GetExecutionContextPtr(builder),
-                builder.getInt32(projectionCount),
-                newRowPtr);
+                builder.CreateCall3(
+                    builder.Module->GetRoutine("AllocateRow"),
+                    builder.GetExecutionContextPtr(),
+                    builder.getInt32(projectionCount),
+                    newRowPtr);
 
-            Value* newRow = builder.CreateLoad(newRowPtr);
+                Value* newRow = builder.CreateLoad(newRowPtr);
 
-            for (int index = 0; index < projectionCount; ++index) {
-                const auto& expr = clause.Projections[index].Expression;
-                auto id = index;
+                for (int index = 0; index < projectionCount; ++index) {
+                    auto id = index;
+                
+                    codegenArgs[index](builder, row)
+                        .StoreToRow(builder, newRow, index, id);
+                }
 
-                CodegenExpr(builder, expr, sourceTableSchema, row)
-                    .StoreToRow(builder, newRow, index, id);
-            }
-
-            codegenConsumer(builder, newRow);
-        });
+                codegenConsumer(builder, newRow);
+            });
+    };
 }
 
-void TCGContext::CodegenGroupOp(
-    TCGIRBuilder& builder,
-    const TGroupClause& clause,
-    const TTableSchema& sourceTableSchema,
-    const TCodegenSource& codegenSource,
-    const TCodegenConsumer& codegenConsumer)
+TCodegenSource MakeCodegenGroupOp(
+    std::vector<TCodegenExpression> codegenGroupExprs,
+    std::vector<TCodegenExpression> codegenAggregateExprs,
+    std::vector<TCodegenAggregate> codegenAggregates,
+    TCodegenSource codegenSource)
 {
-    auto module = Module_->GetModule();
+    return [
+        MOVE(codegenGroupExprs),
+        MOVE(codegenAggregateExprs),
+        MOVE(codegenAggregates),
+        codegenSource = std::move(codegenSource)
+    ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
+        auto module = builder.Module->GetModule();
 
-    // See GroupOpHelper.
-    Function* collect = Function::Create(
-        TypeBuilder<void(void**, void*, void*), false>::get(builder.getContext()),
-        Function::ExternalLinkage,
-        "CollectGroups",
-        module);
+        // See GroupOpHelper.
+        Function* collect = Function::Create(
+            TypeBuilder<void(void**, void*, void*), false>::get(builder.getContext()),
+            Function::ExternalLinkage,
+            "CollectGroups",
+            module);
 
-    auto collectArgs = collect->arg_begin();
-    Value* collectClosure = collectArgs; collectClosure->setName("closure");
-    Value* groupedRows = ++collectArgs; groupedRows->setName("groupedRows");
-    Value* lookup = ++collectArgs; lookup->setName("lookup");
-    YCHECK(++collectArgs == collect->arg_end());
+        auto collectArgs = collect->arg_begin();
+        Value* collectClosure = collectArgs; collectClosure->setName("closure");
+        Value* groupedRows = ++collectArgs; groupedRows->setName("groupedRows");
+        Value* lookup = ++collectArgs; lookup->setName("lookup");
+        YCHECK(++collectArgs == collect->arg_end());
 
-    TCGIRBuilder collectBuilder(
-        collect,
-        &builder,
-        collectClosure);
-
-    int keySize = clause.GroupItems.size();
-    int aggregateItemCount = clause.AggregateItems.size();
-
-    Value* newRowPtr = collectBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-
-    collectBuilder.CreateCall3(
-        Module_->GetRoutine("AllocatePermanentRow"),
-        GetExecutionContextPtr(collectBuilder),
-        builder.getInt32(keySize + aggregateItemCount),
-        newRowPtr);
-
-    codegenSource(
-        collectBuilder,
-        [&] (TCGIRBuilder& builder, Value* row) {
-            Value* executionContextPtrRef = GetExecutionContextPtr(builder);
-            Value* groupedRowsRef = builder.ViaClosure(groupedRows);
-            Value* lookupRef = builder.ViaClosure(lookup);
-            Value* newRowPtrRef = builder.ViaClosure(newRowPtr);
-            Value* newRowRef = builder.CreateLoad(newRowPtrRef);
-
-            for (int index = 0; index < keySize; ++index) {
-                const auto& expr = clause.GroupItems[index].Expression;
-                auto id = index;
-
-                CodegenExpr(builder, expr, sourceTableSchema, row)
-                    .StoreToRow(builder, newRowRef, index, id);
-            }
-
-            for (int index = 0; index < aggregateItemCount; ++index) {
-                const auto& item = clause.AggregateItems[index];
-                const auto& expr = item.Expression;
-
-                auto id = keySize + index;
-
-                CodegenExpr(builder, expr, sourceTableSchema, row)
-                    .StoreToRow(builder, newRowRef, keySize + index, id);
-            }
-
-            Value* foundRowPtr = builder.CreateCall5(
-                Module_->GetRoutine("InsertGroupRow"),
-                executionContextPtrRef,
-                lookupRef,
-                groupedRowsRef,
-                newRowPtrRef,
-                builder.getInt32(keySize + aggregateItemCount));
-
-            Value* condition = builder.CreateICmpNE(
-                foundRowPtr,
-                llvm::ConstantPointerNull::get(newRowRef->getType()->getPointerTo()));
-
-            CodegenIf(
-                builder,
-                condition,
-                [&] (TCGIRBuilder& builder) {
-                    Value* foundRow = builder.CreateLoad(foundRowPtr);
-                    for (int index = 0; index < aggregateItemCount; ++index) {
-                        const auto& item = clause.AggregateItems[index];
-                        const auto& name = item.Name;
-
-                        auto id = keySize + index;
-                        auto type = item.Expression->Type;
-                        auto fn = item.AggregateFunction;
-
-                        CodegenAggregateFunction(builder, foundRow, newRowRef, fn, keySize + index, id, type, name.c_str());
-                    }
-                },
-                [&] (TCGIRBuilder& builder) {
-
-                });
-        });
-
-    collectBuilder.CreateRetVoid();
-
-    Function* consume = Function::Create(
-        TypeBuilder<void(void**, void*, char*), false>::get(builder.getContext()),
-        Function::ExternalLinkage,
-        "Consume",
-        module);
-
-    auto consumeArgs = consume->arg_begin();
-    Value* consumeClosure = consumeArgs; consumeClosure->setName("closure");
-    Value* finalGroupedRows = ++consumeArgs; finalGroupedRows->setName("finalGroupedRows");
-    Value* stopFlag = ++consumeArgs; stopFlag->setName("stopFlag");
-    YCHECK(++consumeArgs == consume->arg_end());
-
-    TCGIRBuilder consumeBuilder(
-        consume,
-        &builder,
-        consumeClosure);
-
-    CodegenForEachRow(
-        consumeBuilder,
-        consumeBuilder.CreateCall(Module_->GetRoutine("GetRowsData"), finalGroupedRows),
-        consumeBuilder.CreateCall(Module_->GetRoutine("GetRowsSize"), finalGroupedRows),
-        stopFlag,
-        codegenConsumer);
-
-    consumeBuilder.CreateRetVoid();
-
-    std::vector<EValueType> keyTypes;
-    for (int index = 0; index < keySize; ++index) {
-        keyTypes.push_back(clause.GroupItems[index].Expression->Type);
-    }
-
-    builder.CreateCallWithArgs(
-        Module_->GetRoutine("GroupOpHelper"),
-        {
-            GetExecutionContextPtr(builder),
-            CodegenGroupHasherFunction(keyTypes),
-            CodegenGroupComparerFunction(keyTypes),
-
-            collectBuilder.GetClosure(),
+        TCGContext collectBuilder(
             collect,
+            &builder,
+            collectClosure);
 
-            consumeBuilder.GetClosure(),
+        int keySize = codegenGroupExprs.size();
+        int aggregatesCount = codegenAggregateExprs.size();
+
+        Value* newRowPtr = collectBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
+
+        collectBuilder.CreateCall3(
+            builder.Module->GetRoutine("AllocatePermanentRow"),
+            collectBuilder.GetExecutionContextPtr(),
+            builder.getInt32(keySize + aggregatesCount),
+            newRowPtr);
+
+        std::vector<EValueType> keyTypes;
+
+        codegenSource(
+            collectBuilder,
+            [&] (TCGContext& builder, Value* row) {
+                Value* executionContextPtrRef = builder.GetExecutionContextPtr();
+                Value* groupedRowsRef = builder.ViaClosure(groupedRows);
+                Value* lookupRef = builder.ViaClosure(lookup);
+                Value* newRowPtrRef = builder.ViaClosure(newRowPtr);
+                Value* newRowRef = builder.CreateLoad(newRowPtrRef);
+
+                for (int index = 0; index < keySize; ++index) {
+                    auto id = index;
+
+                    auto value = codegenGroupExprs[index](builder, row);
+                    keyTypes.push_back(value.GetStaticType());
+                    value.StoreToRow(builder, newRowRef, index, id);
+                }
+
+                std::vector<EValueType> aggregateTypes;
+                for (int index = 0; index < aggregatesCount; ++index) {
+                    auto id = keySize + index;
+
+                    codegenAggregateExprs[index](builder, row)
+                        .StoreToRow(builder, newRowRef, keySize + index, id);
+                }
+
+                Value* foundRowPtr = builder.CreateCall5(
+                    builder.Module->GetRoutine("InsertGroupRow"),
+                    executionContextPtrRef,
+                    lookupRef,
+                    groupedRowsRef,
+                    newRowPtrRef,
+                    builder.getInt32(keySize + aggregatesCount));
+
+                Value* condition = builder.CreateICmpNE(
+                    foundRowPtr,
+                    llvm::ConstantPointerNull::get(newRowRef->getType()->getPointerTo()));
+
+                CodegenIf<TCGContext>(
+                    builder,
+                    condition,
+                    [&] (TCGContext& builder) {
+                        Value* foundRow = builder.CreateLoad(foundRowPtr);
+                        for (int index = 0; index < aggregatesCount; ++index) {
+                            codegenAggregates[index](builder, foundRow, newRowRef);
+                        }
+                    },
+                    [&] (TCGContext& builder) { });
+            });
+
+        collectBuilder.CreateRetVoid();
+
+        Function* consume = Function::Create(
+            TypeBuilder<void(void**, void*, char*), false>::get(builder.getContext()),
+            Function::ExternalLinkage,
+            "Consume",
+            module);
+
+        auto consumeArgs = consume->arg_begin();
+        Value* consumeClosure = consumeArgs; consumeClosure->setName("closure");
+        Value* finalGroupedRows = ++consumeArgs; finalGroupedRows->setName("finalGroupedRows");
+        Value* stopFlag = ++consumeArgs; stopFlag->setName("stopFlag");
+        YCHECK(++consumeArgs == consume->arg_end());
+
+        TCGContext consumeBuilder(
             consume,
-        });
+            &builder,
+            consumeClosure);
 
+        CodegenForEachRow(
+            consumeBuilder,
+            consumeBuilder.CreateCall(builder.Module->GetRoutine("GetRowsData"), finalGroupedRows),
+            consumeBuilder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), finalGroupedRows),
+            stopFlag,
+            codegenConsumer);
+
+        consumeBuilder.CreateRetVoid();
+
+        builder.CreateCallWithArgs(
+            builder.Module->GetRoutine("GroupOpHelper"),
+            {
+                builder.GetExecutionContextPtr(),
+                CodegenGroupHasherFunction(keyTypes, *builder.Module),
+                CodegenGroupComparerFunction(keyTypes, *builder.Module),
+
+                collectBuilder.GetClosure(),
+                collect,
+
+                consumeBuilder.GetClosure(),
+                consume,
+            });
+
+    };
 }
 
 TCGQueryCallback CodegenEvaluate(
@@ -2010,6 +1908,71 @@ TCGQueryCallback CodegenEvaluate(
     const TCGBinding& binding)
 {
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
+
+    TTableSchema sourceSchema = query->TableSchema;
+    
+    TCodegenSource codegenSource = &CodegenScanOp;
+    
+    if (auto joinClause = query->JoinClause.GetPtr()) {
+        if (binding.SelfJoinPredicate) {
+            codegenSource = MakeCodegenFilterOp(MakeCodegenExpr(binding.SelfJoinPredicate, binding, joinClause->SelfTableSchema), std::move(codegenSource));
+        }
+
+        codegenSource = MakeCodegenJoinOp(joinClause->JoinColumns, joinClause->SelfTableSchema, std::move(codegenSource));
+    }
+
+    if (auto predicate = query->Predicate.Get()) {
+        codegenSource = MakeCodegenFilterOp(MakeCodegenExpr(predicate, binding, sourceSchema), std::move(codegenSource));
+    }
+
+    if (auto groupClause = query->GroupClause.GetPtr()) {
+        std::vector<TCodegenExpression> codegenGroupExprs;
+        std::vector<TCodegenExpression> codegenAggregateExprs;
+        std::vector<TCodegenAggregate> codegenAggregates;
+
+        for (const auto& groupItem : groupClause->GroupItems) {
+            codegenGroupExprs.push_back(MakeCodegenExpr(groupItem.Expression, binding, sourceSchema));
+        }
+
+        int aggregateIndex = codegenGroupExprs.size();
+
+        for (const auto& aggregateItem : groupClause->AggregateItems) {
+            codegenAggregateExprs.push_back(MakeCodegenExpr(aggregateItem.Expression, binding, sourceSchema));
+
+            codegenAggregates.push_back([aggregateItem, aggregateIndex] (TCGContext& builder, Value* foundRow, Value* newRowRef) {
+                CodegenAggregateFunction(
+                    builder,
+                    foundRow,
+                    newRowRef,
+                    aggregateItem.AggregateFunction,
+                    aggregateIndex,
+                    aggregateIndex,
+                    aggregateItem.Expression->Type,
+                    aggregateItem.Name.c_str());
+            });
+            ++aggregateIndex;
+        }
+
+        codegenSource = MakeCodegenGroupOp(
+            std::move(codegenGroupExprs),
+            std::move(codegenAggregateExprs),
+            std::move(codegenAggregates),
+            std::move(codegenSource));
+
+        sourceSchema = query->GroupClause->GetTableSchema();
+    }
+
+    if (auto projectClause = query->ProjectClause.GetPtr()) {
+        std::vector<TCodegenExpression> codegenProjectExprs;
+
+        for (const auto& item : projectClause->Projections) {
+            codegenProjectExprs.push_back(MakeCodegenExpr(item.Expression, binding, sourceSchema));
+        }
+
+        codegenSource = MakeCodegenProjectOp(std::move(codegenProjectExprs), std::move(codegenSource));
+        sourceSchema = query->ProjectClause->GetTableSchema();
+    }
+
     auto& context = module->GetContext();
 
     auto entryFunctionName = Stroka("Evaluate");
@@ -2025,53 +1988,12 @@ TCGQueryCallback CodegenEvaluate(
     Value* executionContextPtr = ++args; executionContextPtr->setName("passedFragmentParamsPtr");
     YCHECK(++args == function->arg_end());
 
-    TCGIRBuilder builder(BasicBlock::Create(context, "entry", function));
-
-    TCGContext ctx(module, binding, constants, executionContextPtr);
-
-    TCodegenSource codegenSource = [&] (TCGIRBuilder& builder, const TCodegenConsumer& codegenConsumer) {
-        ctx.CodegenScanOp(builder, codegenConsumer);
-    };
-    
-    if (auto joinClause = query->JoinClause.GetPtr()) {
-        if (binding.SelfJoinPredicate) {
-            codegenSource = [&, codegenSource, joinClause] (TCGIRBuilder& builder, const TCodegenConsumer& codegenConsumer) {
-                ctx.CodegenFilterOp(builder, binding.SelfJoinPredicate, joinClause->SelfTableSchema, codegenSource, codegenConsumer);
-            };
-        }
-
-        codegenSource = [&, codegenSource, joinClause] (TCGIRBuilder& builder, const TCodegenConsumer& codegenConsumer) {
-            ctx.CodegenJoinOp(builder, *joinClause, joinClause->SelfTableSchema, codegenSource, codegenConsumer);
-        };
-    }
-
-    TTableSchema sourceSchema = query->TableSchema;
-
-    if (query->Predicate) {
-        codegenSource = [&, codegenSource, sourceSchema] (TCGIRBuilder& builder, const TCodegenConsumer& codegenConsumer) {
-            ctx.CodegenFilterOp(builder, query->Predicate, sourceSchema, codegenSource, codegenConsumer);
-        };
-    }
-
-    if (query->GroupClause) {
-        codegenSource = [&, codegenSource, sourceSchema] (TCGIRBuilder& builder, const TCodegenConsumer& codegenConsumer) {
-            ctx.CodegenGroupOp(builder, query->GroupClause.Get(), sourceSchema, codegenSource, codegenConsumer);
-        };
-        sourceSchema = query->GroupClause->GetTableSchema();
-    }
-
-    if (query->ProjectClause) {
-        codegenSource = [&, codegenSource, sourceSchema] (TCGIRBuilder& builder, const TCodegenConsumer& codegenConsumer) {
-            ctx.CodegenProjectOp(builder, query->ProjectClause.Get(), sourceSchema, codegenSource, codegenConsumer);
-        };
-        sourceSchema = query->ProjectClause->GetTableSchema();
-    }
+    TCGContext builder(module, constants, executionContextPtr, BasicBlock::Create(context, "entry", function));
 
     codegenSource(
         builder,
-        [&] (TCGIRBuilder& builder, Value* row) {
-            Value* executionContextPtrRef = builder.ViaClosure(executionContextPtr);
-            builder.CreateCall2(module->GetRoutine("WriteRow"), row, executionContextPtrRef);
+        [&] (TCGContext& builder, Value* row) {
+            builder.CreateCall2(module->GetRoutine("WriteRow"), row, builder.GetExecutionContextPtr());
         });
 
     builder.CreateRetVoid();
@@ -2102,15 +2024,9 @@ TCGExpressionCallback CodegenExpression(
     Value* executionContextPtr = ++args; executionContextPtr->setName("passedFragmentParamsPtr");
     YCHECK(++args == function->arg_end());
 
-    TCGIRBuilder builder(BasicBlock::Create(context, "entry", function));
+    TCGContext builder(module, constants, executionContextPtr, BasicBlock::Create(context, "entry", function));
 
-    TCGContext ctx(module, binding, constants, executionContextPtr);
-
-    auto result = ctx.CodegenExpr(
-        builder,
-        expression,
-        tableSchema,
-        inputRow);
+    auto result = MakeCodegenExpr(expression, binding, tableSchema)(builder, inputRow);
 
     result.StoreToValue(builder, resultPtr, 0, "writeResult");
 
