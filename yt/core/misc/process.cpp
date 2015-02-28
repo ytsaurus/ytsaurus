@@ -188,9 +188,7 @@ void TProcess::AddDup2FileAction(int oldFd, int newFd)
 
 void TProcess::Spawn()
 {
-#ifdef _win_
-    THROW_ERROR_EXCEPTION("Windows is not supported");
-#else
+#ifdef _linux_
     YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
 
     // Make sure no spawn action closes Pipe_.WriteFD
@@ -261,6 +259,8 @@ void TProcess::Spawn()
     const auto& action = SpawnActions_[actionIndex];
     THROW_ERROR_EXCEPTION("%v", action.ErrorMessage)
         << TError::FromSystem(errorCode);
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
 }
 
@@ -288,9 +288,7 @@ TError ProcessInfoToError(const siginfo_t& processInfo)
 
 TError TProcess::Wait()
 {
-#ifdef _win_
-    return TError("Windows is not supported");
-#else
+#ifdef _linux_
     YCHECK(ProcessId_ != InvalidProcessId);
     LOG_DEBUG("Start to wait for %v to finish", ProcessId_);
 
@@ -312,15 +310,14 @@ TError TProcess::Wait()
     LOG_DEBUG("Finish to wait for %v to finish", ProcessId_);
 
     return ProcessInfoToError(processInfo);
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
 }
 
 void TProcess::Kill(int signal)
 {
-#ifdef _win_
-    THROW_ERROR_EXCEPTION("Windows is not supported");
-#else
-
+#ifdef _linux_
     LOG_DEBUG("Kill %v process", ProcessId_);
 
     TGuard<TSpinLock> guard(LifecycleChangeLock_);
@@ -338,6 +335,8 @@ void TProcess::Kill(int signal)
         THROW_ERROR_EXCEPTION("kill failed")
             << TError::FromSystem();
     }
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
 }
 
