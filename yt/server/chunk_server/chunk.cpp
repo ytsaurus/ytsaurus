@@ -316,17 +316,17 @@ void TChunk::SetErasureCodec(NErasure::ECodec value)
 
 bool TChunk::IsErasure() const
 {
-    return TypeFromId(Id) == EObjectType::ErasureChunk;
+    return GetType() == EObjectType::ErasureChunk;
 }
 
 bool TChunk::IsJournal() const
 {
-    return TypeFromId(Id) == EObjectType::JournalChunk;
+    return GetType() == EObjectType::JournalChunk;
 }
 
 bool TChunk::IsRegular() const
 {
-    return TypeFromId(Id) == EObjectType::Chunk;
+    return GetType() == EObjectType::Chunk;
 }
 
 bool TChunk::IsAvailable() const
