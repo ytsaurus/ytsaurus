@@ -82,6 +82,7 @@ struct TExecutionContext
 
     i64 Limit;
 
+    // "char" type is to due LLVM interop.
     char StopFlag = false;
 
     TJoinEvaluator EvaluateJoin;
