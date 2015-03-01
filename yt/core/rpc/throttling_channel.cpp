@@ -31,10 +31,7 @@ public:
         bool requestAck) override
     {
         auto requestControlThunk = New<TClientRequestControlThunk>();
-        auto this_ = MakeStrong(this);
-        Throttler_->Throttle(1).Subscribe(BIND([=] (const TError& error) {
-            UNUSED(this_);
-
+        Throttler_->Throttle(1).Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
             if (!error.IsOK()) {
                 responseHandler->HandleError(error);
                 return;

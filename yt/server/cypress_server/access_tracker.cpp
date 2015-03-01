@@ -120,14 +120,12 @@ void TAccessTracker::OnFlush()
     LOG_DEBUG("Starting access statistics commit for %v nodes",
         UpdateAccessStatisticsRequest_.updates_size());
 
-    auto this_ = MakeStrong(this);
     auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
     Bootstrap_
         ->GetCypressManager()
         ->CreateUpdateAccessStatisticsMutation(UpdateAccessStatisticsRequest_)
         ->Commit()
-        .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
-            UNUSED(this_);
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
             if (error.IsOK()) {
                 FlushExecutor_->ScheduleOutOfBand();
             } else {

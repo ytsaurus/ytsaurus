@@ -223,10 +223,9 @@ void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
         return;
 
     auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    auto this_ = MakeStrong(this);
     CreateMutation(hydraManager, request)
         ->Commit()
-        .Subscribe(BIND([] (const TErrorOr<TMutationResponse>& error) {
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
             if (!error.IsOK()) {
                 LOG_WARNING(error, "Error committing peer revocation mutation");
             }

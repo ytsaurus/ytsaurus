@@ -135,7 +135,6 @@ public:
         TInsertCookie cookie(blockId);
         if (enableCaching) {
             if (!BeginInsert(&cookie)) {
-                auto this_ = MakeStrong(this);
                 return cookie
                     .GetValue()
                     .Apply(BIND(&TStoreImpl::OnCachedBlockReady, MakeStrong(this)));

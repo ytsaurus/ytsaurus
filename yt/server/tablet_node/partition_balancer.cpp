@@ -191,11 +191,9 @@ private:
             ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_pivot_keys(), pivotKeys);
 
-            auto this_ = MakeStrong(this);
             CreateMutation(hydraManager, request)
                 ->Commit()
-                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
-                    UNUSED(this_);
+                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
                     if (!error.IsOK()) {
                         LOG_ERROR(error, "Error committing partition split mutation");
                     }
@@ -243,11 +241,9 @@ private:
         ToProto(request.mutable_partition_id(), tablet->Partitions()[firstPartitionIndex]->GetId());
         request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
 
-        auto this_ = MakeStrong(this);
         CreateMutation(hydraManager, request)
             ->Commit()
-            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
-                UNUSED(this_);
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
                 if (!error.IsOK()) {
                     LOG_ERROR(error, "Error committing partition merge mutation");
                 }
@@ -296,11 +292,9 @@ private:
             ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_sample_keys(), samples);
 
-            auto this_ = MakeStrong(this);
             CreateMutation(hydraManager, request)
                 ->Commit()
-                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
-                    UNUSED(this_);
+                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
                     if (!error.IsOK()) {
                         LOG_ERROR(error, "Error committing sample keys update mutation");
                     }

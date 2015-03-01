@@ -360,11 +360,9 @@ private:
 
             SwitchTo(automatonInvoker);
 
-            auto this_ = MakeStrong(this);
             CreateMutation(slot->GetHydraManager(), hydraRequest)
                 ->Commit()
-                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
-                    UNUSED(this_);
+                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
                     if (!error.IsOK()) {
                         LOG_ERROR(error, "Error committing tablet stores update mutation");
                     }

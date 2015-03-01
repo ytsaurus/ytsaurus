@@ -82,20 +82,16 @@ public:
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
     {
-        auto this_ = MakeStrong(this);
         return UnderlyingReader_->ReadBlocks(blockIndexes).Apply(
-            BIND([=] (const TErrorOr<std::vector<TSharedRef>>& result) -> std::vector<TSharedRef> {
-                UNUSED(this_);
+            BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TSharedRef>>& result) -> std::vector<TSharedRef> {
                 return CheckResult(result);
             }));
     }
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override
     {
-        auto this_ = MakeStrong(this);
         return UnderlyingReader_->ReadBlocks(firstBlockIndex, blockCount).Apply(
-            BIND([=] (const TErrorOr<std::vector<TSharedRef>>& result) -> std::vector<TSharedRef> {
-                UNUSED(this_);
+            BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TSharedRef>>& result) -> std::vector<TSharedRef> {
                 return CheckResult(result);
             }));
     }
@@ -104,10 +100,8 @@ public:
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override
     {
-        auto this_ = MakeStrong(this);
         return UnderlyingReader_->GetMeta(partitionTag, extensionTags).Apply(
-            BIND([=] (const TErrorOr<TChunkMeta>& result) -> TChunkMeta {
-                UNUSED(this_);
+            BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TChunkMeta>& result) -> TChunkMeta {
                 return CheckResult(result);
             }));
     }
@@ -431,10 +425,8 @@ IChunkPtr TChunkStore::PrepareChunk()
         Chunk_ = chunk;
     }
 
-    auto this_ = MakeStrong(this);
     TDelayedExecutor::Submit(
-        BIND([=] () {
-            UNUSED(this_);
+        BIND([=, this_ = MakeStrong(this)] () {
             TWriterGuard guard(ChunkLock_);
             ChunkInitialized_ = false;
             Chunk_.Reset();
@@ -493,9 +485,8 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
         ChunkReader_ = chunkReader;
     }
 
-    auto this_ = MakeStrong(this);
     TDelayedExecutor::Submit(
-        BIND([this, this_] () {
+        BIND([=, this_ = MakeStrong(this)] () {
             TWriterGuard guard(ChunkReaderLock_);
             ChunkReader_.Reset();
         }),

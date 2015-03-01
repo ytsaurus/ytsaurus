@@ -1401,13 +1401,11 @@ void TChunkReplicator::OnPropertiesUpdate()
     LOG_DEBUG("Starting chunk properties update (Count: %v)",
         request.updates_size());
 
-    auto this_ = MakeStrong(this);
     auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
     chunkManager
         ->CreateUpdateChunkPropertiesMutation(request)
         ->Commit()
-        .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
-            UNUSED(this_);
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
             if (error.IsOK()) {
                 PropertiesUpdateExecutor_->ScheduleOutOfBand();
             } else {

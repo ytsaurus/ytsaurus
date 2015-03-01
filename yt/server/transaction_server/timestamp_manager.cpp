@@ -258,14 +258,13 @@ private:
         LOG_INFO("Persistent timestamp is %v",
             PersistentTimestamp_);
 
-        auto this_ = MakeStrong(this);
         auto persistentTimestamp = PersistentTimestamp_;
         auto invoker = HydraManager_
             ->GetAutomatonEpochContext()
             ->CancelableContext
             ->CreateInvoker(TimestampInvoker_);
 
-        auto callback = BIND([this, this_, persistentTimestamp] () {
+        auto callback = BIND([=, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(TimestampThread);
 
             Active_ = true;
@@ -292,8 +291,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto this_ = MakeStrong(this);
-        TimestampInvoker_->Invoke(BIND([this, this_] () {
+        TimestampInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(TimestampThread);
 
             if (!Active_)

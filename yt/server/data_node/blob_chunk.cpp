@@ -80,11 +80,9 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::GetMeta(
     LOG_DEBUG("Meta cache miss (ChunkId: %v)", Id_);
 
     // Make a copy of tags list to pass it into the closure.
-    auto this_ = MakeStrong(this);
     auto invoker = Bootstrap_->GetControlInvoker();
     return ReadMeta(priority).Apply(
-        BIND([=] () {
-            UNUSED(this_);
+        BIND([=, this_ = MakeStrong(this)] () {
             return FilterCachedMeta(extensionTags);
         }).AsyncVia(invoker));
 }
