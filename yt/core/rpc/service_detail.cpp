@@ -235,7 +235,7 @@ private:
 
         if (Profiler.GetEnabled()) {
             auto value = CpuDurationToValue(SyncStartTime_ - ArrivalTime_);
-            Profiler.Aggregate(RuntimeInfo_->LocalWaitTimeCounter, value);
+            Profiler.Update(RuntimeInfo_->LocalWaitTimeCounter, value);
         }
     }
 
@@ -291,12 +291,12 @@ private:
             if (!Completed_) {
                 SyncStopTime_ = GetCpuInstant();
                 auto value = CpuDurationToValue(SyncStopTime_ - SyncStartTime_);
-                Profiler.Aggregate(RuntimeInfo_->SyncTimeCounter, value);
+                Profiler.Update(RuntimeInfo_->SyncTimeCounter, value);
             }
 
             if (RuntimeInfo_->Descriptor.OneWay) {
                 auto value = CpuDurationToValue(SyncStopTime_ - ArrivalTime_);
-                Profiler.Aggregate(RuntimeInfo_->TotalTimeCounter, value);
+                Profiler.Update(RuntimeInfo_->TotalTimeCounter, value);
             }
         }
     }
@@ -344,17 +344,17 @@ private:
                 if (RunningSync_) {
                     SyncStopTime_ = now;
                     auto value = CpuDurationToValue(SyncStopTime_ - SyncStartTime_);
-                    Profiler.Aggregate(RuntimeInfo_->SyncTimeCounter, value);
+                    Profiler.Update(RuntimeInfo_->SyncTimeCounter, value);
                 }
 
                 {
                     auto value = CpuDurationToValue(now - SyncStopTime_);
-                    Profiler.Aggregate(RuntimeInfo_->AsyncTimeCounter, value);
+                    Profiler.Update(RuntimeInfo_->AsyncTimeCounter, value);
                 }
 
                 {
                     auto value = CpuDurationToValue(now - ArrivalTime_);
-                    Profiler.Aggregate(RuntimeInfo_->TotalTimeCounter, value);
+                    Profiler.Update(RuntimeInfo_->TotalTimeCounter, value);
                 }
             }
         }
@@ -549,7 +549,7 @@ void TServiceBase::HandleRequest(
         retryStart = std::min(retryStart, now);
         requestStart = std::min(requestStart, retryStart);
 
-        Profiler.Aggregate(runtimeInfo->RemoteWaitTimeCounter, (now - requestStart).MicroSeconds());
+        Profiler.Update(runtimeInfo->RemoteWaitTimeCounter, (now - requestStart).MicroSeconds());
     }
 
     auto traceContext = GetTraceContext(*header);

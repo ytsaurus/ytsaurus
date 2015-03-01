@@ -237,8 +237,8 @@ private:
 
     void OnProfiling()
     {
-        Profiler.Aggregate(CountCounter_, FinishedResponseCount_);
-        Profiler.Aggregate(SpaceCounter_, FinishedResponseSpace_);
+        Profiler.Update(CountCounter_, FinishedResponseCount_);
+        Profiler.Update(SpaceCounter_, FinishedResponseSpace_);
     }
 
     void OnEvict()

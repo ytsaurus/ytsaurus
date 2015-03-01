@@ -72,8 +72,8 @@ void TMemoryUsageTracker<EMemoryConsumer>::DoAcquire(EMemoryConsumer consumer, i
     FreeMemory -= size;
     auto& usedMemory = UsedMemory[consumer];
     usedMemory += size;
-    Profiler.Aggregate(FreeMemoryCounter, FreeMemory);
-    Profiler.Aggregate(ConsumerCounters[consumer], usedMemory);
+    Profiler.Update(FreeMemoryCounter, FreeMemory);
+    Profiler.Update(ConsumerCounters[consumer], usedMemory);
 }
 
 template <class EMemoryConsumer>
@@ -105,8 +105,8 @@ void TMemoryUsageTracker<EMemoryConsumer>::Release(EMemoryConsumer consumer, i64
     FreeMemory += size;
     YCHECK(FreeMemory <= TotalMemory);
 
-    Profiler.Aggregate(FreeMemoryCounter, FreeMemory);
-    Profiler.Aggregate(ConsumerCounters[consumer], usedMemory);
+    Profiler.Update(FreeMemoryCounter, FreeMemory);
+    Profiler.Update(ConsumerCounters[consumer], usedMemory);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
