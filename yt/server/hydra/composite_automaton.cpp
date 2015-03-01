@@ -7,8 +7,6 @@
 #include <core/misc/serialize.h>
 #include <core/misc/checkpointable_stream.h>
 
-#include <core/profiling/profile_manager.h>
-
 #include <util/stream/buffered.h>
 
 namespace NYT {
@@ -34,27 +32,29 @@ void TLoadContext::Reset()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompositeAutomatonPart::TCompositeAutomatonPart(TCompositeAutomatonPtr automaton)
-    : Automaton_(automaton.Get())
-    , HydraManager_(Automaton_->HydraManager_)
+TCompositeAutomatonPart::TCompositeAutomatonPart(
+    IHydraManagerPtr hydraManager,
+    TCompositeAutomatonPtr automaton)
+    : HydraManager(hydraManager)
+    , Automaton(automaton.Get())
 {
-    YCHECK(Automaton_);
-    YCHECK(HydraManager_);
+    YCHECK(HydraManager);
+    YCHECK(Automaton);
 
-    HydraManager_->SubscribeStartLeading(BIND(&TThis::OnStartLeading, MakeWeak(this)));
-    HydraManager_->SubscribeStartLeading(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
-    HydraManager_->SubscribeLeaderRecoveryComplete(BIND(&TThis::OnRecoveryComplete, MakeWeak(this)));
-    HydraManager_->SubscribeLeaderRecoveryComplete(BIND(&TThis::OnLeaderRecoveryComplete, MakeWeak(this)));
-    HydraManager_->SubscribeLeaderActive(BIND(&TThis::OnLeaderActive, MakeWeak(this)));
-    HydraManager_->SubscribeStopLeading(BIND(&TThis::OnStopLeading, MakeWeak(this)));
+    HydraManager->SubscribeStartLeading(BIND(&TThis::OnStartLeading, MakeWeak(this)));
+    HydraManager->SubscribeStartLeading(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
+    HydraManager->SubscribeLeaderRecoveryComplete(BIND(&TThis::OnRecoveryComplete, MakeWeak(this)));
+    HydraManager->SubscribeLeaderRecoveryComplete(BIND(&TThis::OnLeaderRecoveryComplete, MakeWeak(this)));
+    HydraManager->SubscribeLeaderActive(BIND(&TThis::OnLeaderActive, MakeWeak(this)));
+    HydraManager->SubscribeStopLeading(BIND(&TThis::OnStopLeading, MakeWeak(this)));
 
-    HydraManager_->SubscribeStartFollowing(BIND(&TThis::OnStartFollowing, MakeWeak(this)));
-    HydraManager_->SubscribeStartFollowing(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
-    HydraManager_->SubscribeFollowerRecoveryComplete(BIND(&TThis::OnRecoveryComplete, MakeWeak(this)));
-    HydraManager_->SubscribeFollowerRecoveryComplete(BIND(&TThis::OnFollowerRecoveryComplete, MakeWeak(this)));
-    HydraManager_->SubscribeStopFollowing(BIND(&TThis::OnStopFollowing, MakeWeak(this)));
+    HydraManager->SubscribeStartFollowing(BIND(&TThis::OnStartFollowing, MakeWeak(this)));
+    HydraManager->SubscribeStartFollowing(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
+    HydraManager->SubscribeFollowerRecoveryComplete(BIND(&TThis::OnRecoveryComplete, MakeWeak(this)));
+    HydraManager->SubscribeFollowerRecoveryComplete(BIND(&TThis::OnFollowerRecoveryComplete, MakeWeak(this)));
+    HydraManager->SubscribeStopFollowing(BIND(&TThis::OnStopFollowing, MakeWeak(this)));
 
-    Automaton_->RegisterPart(this);
+    Automaton->RegisterPart(this);
 }
 
 void TCompositeAutomatonPart::RegisterSaver(
@@ -63,7 +63,7 @@ void TCompositeAutomatonPart::RegisterSaver(
     TClosure saver)
 {
     TCompositeAutomaton::TSaverInfo info(priority, name, saver, this);
-    YCHECK(Automaton_->Savers_.insert(std::make_pair(name, info)).second);
+    YCHECK(Automaton->Savers.insert(std::make_pair(name, info)).second);
 }
 
 void TCompositeAutomatonPart::RegisterLoader(
@@ -71,7 +71,7 @@ void TCompositeAutomatonPart::RegisterLoader(
     TClosure loader)
 {
     TCompositeAutomaton::TLoaderInfo info(name, loader, this);
-    YCHECK(Automaton_->Loaders_.insert(std::make_pair(name, info)).second);
+    YCHECK(Automaton->Loaders.insert(std::make_pair(name, info)).second);
 }
 
 void TCompositeAutomatonPart::RegisterSaver(
@@ -83,7 +83,7 @@ void TCompositeAutomatonPart::RegisterSaver(
         priority,
         name,
         BIND([=] () {
-            auto& context = Automaton_->SaveContext();
+            auto& context = Automaton->SaveContext();
             saver.Run(context);
         }));
 }
@@ -95,20 +95,9 @@ void TCompositeAutomatonPart::RegisterLoader(
     TCompositeAutomatonPart::RegisterLoader(
         name,
         BIND([=] () {
-            auto& context = Automaton_->LoadContext();
+            auto& context = Automaton->LoadContext();
             loader.Run(context);
         }));
-}
-
-void TCompositeAutomatonPart::RegisterMethod(
-    const Stroka& type,
-    TCallback<void(TMutationContext*)> handler)
-{
-    TCompositeAutomaton::TMethodInfo info {
-        handler,
-        NProfiling::TProfileManager::Get()->RegisterTag("type", type)
-    };
-    YCHECK(Automaton_->Methods_.insert(std::make_pair(type, info)).second);
 }
 
 bool TCompositeAutomatonPart::ValidateSnapshotVersion(int /*version*/)
@@ -132,17 +121,17 @@ void TCompositeAutomatonPart::OnAfterSnapshotLoaded()
 
 bool TCompositeAutomatonPart::IsLeader() const
 {
-    return HydraManager_->IsLeader();
+    return HydraManager->IsLeader();
 }
 
 bool TCompositeAutomatonPart::IsFollower() const
 {
-    return HydraManager_->IsFollower();
+    return HydraManager->IsFollower();
 }
 
 bool TCompositeAutomatonPart::IsRecovery() const
 {
-    return HydraManager_->IsRecovery();
+    return HydraManager->IsRecovery();
 }
 
 void TCompositeAutomatonPart::OnStartLeading()
@@ -196,25 +185,15 @@ TCompositeAutomaton::TLoaderInfo::TLoaderInfo(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompositeAutomaton::TCompositeAutomaton(IHydraManagerPtr hydraManager)
-    : HydraManager_(hydraManager)
-    , Logger(HydraLogger)
-    , Profiler(HydraProfiler)
-{
-    YCHECK(HydraManager_);
-
-    HydraManager_->SubscribeStartLeading(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
-    HydraManager_->SubscribeLeaderRecoveryComplete(BIND(&TThis::OnRecoveryComplete, MakeWeak(this)));
-
-    HydraManager_->SubscribeStartFollowing(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
-    HydraManager_->SubscribeFollowerRecoveryComplete(BIND(&TThis::OnRecoveryComplete, MakeWeak(this)));
-}
+TCompositeAutomaton::TCompositeAutomaton()
+    : Logger(HydraLogger)
+{ }
 
 void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPart* part)
 {
     YCHECK(part);
 
-    Parts_.push_back(part);
+    Parts.push_back(part);
 }
 
 void TCompositeAutomaton::SaveSnapshot(TOutputStream* output)
@@ -222,7 +201,7 @@ void TCompositeAutomaton::SaveSnapshot(TOutputStream* output)
     using NYT::Save;
 
     std::vector<TSaverInfo> infos;
-    for (const auto& pair : Savers_) {
+    for (const auto& pair : Savers) {
         infos.push_back(pair.second);
     }
 
@@ -266,7 +245,7 @@ void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
 
     LOG_INFO("Started loading composite automaton");
 
-    for (auto part : Parts_) {
+    for (auto part : Parts) {
         part->OnBeforeSnapshotLoaded();
     }
 
@@ -274,8 +253,8 @@ void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
     for (int partIndex = 0; partIndex < partCount; ++partIndex) {
         auto name = Load<Stroka>(context);
         int version = Load<i32>(context);
-        auto it = Loaders_.find(name);
-        if (it == Loaders_.end()) {
+        auto it = Loaders.find(name);
+        if (it == Loaders.end()) {
             LOG_INFO("Skipping unknown automaton part (Name: %v, Version: %v)",
                 name,
                 version);
@@ -291,7 +270,7 @@ void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
         checkpointableInput->SkipToCheckpoint();
     }
 
-    for (auto part : Parts_) {
+    for (auto part : Parts) {
         part->OnAfterSnapshotLoaded();
     }
 
@@ -309,34 +288,16 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     if (type == "NYT.NHydra.NProto.TReqEvictExpiredResponses") {
         return;
     }
-
-    auto it = Methods_.find(type);
-    YCHECK(it != Methods_.end());
-    const auto& info = it->second;
-
-    NProfiling::TTagIdList tagIds;
-    tagIds.push_back(info.TagId);
-    static const auto profilingPath = NYTree::TYPath("/mutation_execute_time");
-    PROFILE_TIMING (profilingPath, tagIds) {
-        info.Callback.Run(context);
-    }
+    auto it = Methods.find(type);
+    YCHECK(it != Methods.end());
+    it->second.Run(context);
 }
 
 void TCompositeAutomaton::Clear()
 {
-    for (auto part : Parts_) {
+    for (auto part : Parts) {
         part->Clear();
     }
-}
-
-void TCompositeAutomaton::OnRecoveryStarted()
-{
-    Profiler.SetEnabled(false);
-}
-
-void TCompositeAutomaton::OnRecoveryComplete()
-{
-    Profiler.SetEnabled(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

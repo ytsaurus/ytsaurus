@@ -50,12 +50,19 @@ public:
             GetSyncInvoker(),
             TTimestampServiceProxy::GetServiceName(),
             TransactionServerLogger)
-        , TCompositeAutomatonPart(automaton)
+        , TCompositeAutomatonPart(
+            hydraManager,
+            automaton)
         , Config_(config)
         , AutomatonInvoker_(automatonInvoker)
+        , HydraManager_(hydraManager)
+        , Active_(false)
+        , CurrentTimestamp_(NullTimestamp)
+        , CommittedTimestamp_(NullTimestamp)
     {
         YCHECK(Config_);
         YCHECK(AutomatonInvoker_);
+        YCHECK(HydraManager_);
 
         TimestampQueue_ = New<TActionQueue>("Timestamp");
         TimestampInvoker_ = TimestampQueue_->GetInvoker();
@@ -91,6 +98,7 @@ public:
 private:
     TTimestampManagerConfigPtr Config_;
     IInvokerPtr AutomatonInvoker_;
+    IHydraManagerPtr HydraManager_;
 
     TActionQueuePtr TimestampQueue_;
     IInvokerPtr TimestampInvoker_;
@@ -100,14 +108,14 @@ private:
     // Timestamp thread affinity:
     
     //! Can we generate timestamps?
-    volatile bool Active_ = false;
+    volatile bool Active_;
 
     //! First unused timestamp.
-    TTimestamp CurrentTimestamp_ = NullTimestamp;
+    TTimestamp CurrentTimestamp_;
 
     //! Last committed timestamp as viewed by the timestamp thread.
     //! All generated timestamps must be less than this one.
-    TTimestamp CommittedTimestamp_ = NullTimestamp;
+    TTimestamp CommittedTimestamp_;
 
 
     // Automaton thread affinity:

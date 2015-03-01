@@ -5,8 +5,6 @@
 
 #include <core/logging/log.h>
 
-#include <core/profiling/profiler.h>
-
 namespace NYT {
 namespace NHydra {
 
@@ -89,11 +87,13 @@ class TCompositeAutomatonPart
     : public virtual TRefCounted
 {
 public:
-    explicit TCompositeAutomatonPart(TCompositeAutomatonPtr automaton);
+    TCompositeAutomatonPart(
+        IHydraManagerPtr hydraManager,
+        TCompositeAutomatonPtr automaton);
 
 protected:
-    TCompositeAutomaton* const Automaton_;
-    const IHydraManagerPtr HydraManager_;
+    IHydraManagerPtr HydraManager;
+    TCompositeAutomaton* Automaton;
 
     void RegisterSaver(
         ESerializationPriority priority,
@@ -147,10 +147,6 @@ private:
     template <class TRequest, class TResponse>
     struct TThunkTraits;
 
-    void RegisterMethod(
-        const Stroka& name,
-        TCallback<void(TMutationContext*)> handler);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeAutomatonPart)
@@ -160,29 +156,20 @@ DEFINE_REFCOUNTED_TYPE(TCompositeAutomatonPart)
 class TCompositeAutomaton
     : public IAutomaton
 {
-protected:
-    const IHydraManagerPtr HydraManager_;
-
-    NLogging::TLogger Logger;
-    NProfiling::TProfiler Profiler;
-
-
-    explicit TCompositeAutomaton(IHydraManagerPtr hydraManager);
-
+public:
     void RegisterPart(TCompositeAutomatonPart* part);
+
+protected:
+    NLogging::TLogger Logger;
+
+
+    TCompositeAutomaton();
 
     virtual TSaveContext& SaveContext() = 0;
     virtual TLoadContext& LoadContext() = 0;
 
 private:
-    typedef TCompositeAutomaton TThis;
     friend class TCompositeAutomatonPart;
-
-    struct TMethodInfo
-    {
-        TCallback<void(TMutationContext* context)> Callback;
-        NProfiling::TTagId TagId;
-    };
 
     struct TSaverInfo
     {
@@ -210,12 +197,13 @@ private:
             TCompositeAutomatonPart* part);
     };
 
-    std::vector<TCompositeAutomatonPart*> Parts_;
+    yhash_map<Stroka, TCallback<void(TMutationContext* context)>> Methods;
 
-    yhash_map<Stroka, TMethodInfo> Methods_;
+    std::vector<TCompositeAutomatonPart*> Parts;
 
-    yhash_map<Stroka, TLoaderInfo> Loaders_;
-    yhash_map<Stroka, TSaverInfo> Savers_;
+    yhash_map<Stroka, TLoaderInfo> Loaders;
+    yhash_map<Stroka, TSaverInfo>  Savers;
+
 
 
     virtual void SaveSnapshot(TOutputStream* output) override;
@@ -224,10 +212,6 @@ private:
     virtual void ApplyMutation(TMutationContext* context) override;
 
     virtual void Clear() override;
-
-
-    void OnRecoveryStarted();
-    void OnRecoveryComplete();
 
 };
 
