@@ -295,7 +295,7 @@ private:
         hydraRequest.set_prepare_timestamp(prepareTimestamp);
 
         auto this_ = MakeStrong(this);
-        CreateMutation(HydraManager, hydraRequest)
+        CreateMutation(HydraManager_, hydraRequest)
             ->Commit()
             .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
                 UNUSED(this_);
@@ -332,7 +332,7 @@ private:
         hydraRequest.set_force(force);
 
         auto this_ = MakeStrong(this);
-        return CreateMutation(HydraManager, hydraRequest)
+        return CreateMutation(HydraManager_, hydraRequest)
             ->Commit()
             .Apply(BIND([=] (const TErrorOr<TMutationResponse>& result) -> TSharedRefArray {
                 if (result.IsOK()) {
@@ -752,7 +752,7 @@ private:
             TReqCommitDistributedTransactionPhaseTwo hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_commit_timestamp(timestamp);
-            CreateMutation(HydraManager, hydraRequest)
+            CreateMutation(HydraManager_, hydraRequest)
                 ->Commit()
                 .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
                     UNUSED(this_);
@@ -765,7 +765,7 @@ private:
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             ToProto(hydraRequest.mutable_mutation_id(), commit->GetMutationId());
             hydraRequest.set_commit_timestamp(timestamp);
-            CreateMutation(HydraManager, hydraRequest)
+            CreateMutation(HydraManager_, hydraRequest)
                 ->Commit()
                 .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
                     UNUSED(this_);

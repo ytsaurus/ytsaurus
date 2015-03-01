@@ -68,7 +68,10 @@ TTabletAutomatonPart::TTabletAutomatonPart(
         slot->GetAutomaton())
     , Slot_(slot)
     , Bootstrap_(bootstrap)
-{ }
+{
+    YCHECK(Slot_);
+    YCHECK(Bootstrap_);
+}
 
 bool TTabletAutomatonPart::ValidateSnapshotVersion(int version)
 {
