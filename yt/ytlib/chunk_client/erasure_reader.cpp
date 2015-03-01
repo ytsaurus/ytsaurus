@@ -89,7 +89,6 @@ public:
         }
 
         std::vector<TFuture<std::vector<TSharedRef>>> readBlocksFutures;
-        auto this_ = MakeStrong(this);
         auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetReaderInvoker());
         for (int readerIndex = 0; readerIndex < Readers_.size(); ++readerIndex) {
             auto reader = Readers_[readerIndex];
@@ -97,18 +96,15 @@ public:
         }
 
         return Combine(readBlocksFutures).Apply(
-            BIND([this, this_, blockLocations] (std::vector<std::vector<TSharedRef>> readBlocks) //Error) 
-                    -> std::vector<TSharedRef>
-                {
-                    std::vector<TSharedRef> resultBlocks(BlockIndexes_.size());
-                    for (int readerIndex = 0; readerIndex < readBlocks.size(); ++readerIndex) {
-                        for (int index = 0; index < readBlocks[readerIndex].size(); ++index) {
-                            resultBlocks[blockLocations[readerIndex].second[index]] = readBlocks[readerIndex][index];
-                        }
+            BIND([=, this_ = MakeStrong(this)] (std::vector<std::vector<TSharedRef>> readBlocks) {
+                std::vector<TSharedRef> resultBlocks(BlockIndexes_.size());
+                for (int readerIndex = 0; readerIndex < readBlocks.size(); ++readerIndex) {
+                    for (int index = 0; index < readBlocks[readerIndex].size(); ++index) {
+                        resultBlocks[blockLocations[readerIndex].second[index]] = readBlocks[readerIndex][index];
                     }
-                    return resultBlocks;
-                })
-            );
+                }
+                return resultBlocks;
+            }));
     }
 
 private:
@@ -143,10 +139,8 @@ public:
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
     {
-        auto this_ = MakeStrong(this);
         return PreparePartInfos().Apply(
-            BIND([=] () -> TFuture<std::vector<TSharedRef>> {
-                UNUSED(this_);
+            BIND([=, this_ = MakeStrong(this)] () -> TFuture<std::vector<TSharedRef>> {
                 return New<TNonReparingReaderSession>(Readers_, PartInfos_, blockIndexes)->Run();
             }).AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
     }
@@ -500,7 +494,6 @@ TFuture<TRepairReader::TBlock> TRepairReader::RepairNextBlock()
     YCHECK(Prepared_);
     YCHECK(HasNextBlock());
 
-    auto this_ = MakeStrong(this);
     return RepairBlockIfNeeded().Apply(BIND(&TRepairReader::OnBlockRepaired, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
 }

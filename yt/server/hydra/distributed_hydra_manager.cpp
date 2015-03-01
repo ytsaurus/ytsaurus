@@ -326,8 +326,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto this_ = MakeStrong(this);
-        return BIND([this, this_] (IYsonConsumer* consumer) {
+        return BIND([=, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
             VERIFY_THREAD_AFFINITY_ANY();
             BuildYsonFluently(consumer)
                 .BeginMap()

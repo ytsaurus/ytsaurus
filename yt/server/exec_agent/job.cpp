@@ -543,7 +543,6 @@ private:
     void DownloadChunks(const google::protobuf::RepeatedPtrField<TChunkSpec>& chunks)
     {
         auto chunkCache = Bootstrap->GetChunkCache();
-        auto this_ = MakeStrong(this);
 
         std::vector<TFuture<IChunkPtr>> asyncResults;
         for (const auto chunk : chunks) {

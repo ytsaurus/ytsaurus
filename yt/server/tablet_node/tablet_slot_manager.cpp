@@ -300,8 +300,6 @@ private:
 
         LOG_DEBUG("Slot scan started");
 
-        auto this_ = MakeStrong(this);
-
         BeginSlotScan_.Fire();
 
         std::vector<TFuture<void>> asyncResults;
@@ -310,8 +308,7 @@ private:
                 continue;
 
             asyncResults.push_back(
-                BIND([=] () {
-                    UNUSED(this_);
+                BIND([=, this_ = MakeStrong(this)] () {
                     if (slot->GetHydraManager()->IsActiveLeader()) {
                         ScanSlot_.Fire(slot);
                     }
@@ -320,8 +317,7 @@ private:
                 .Run());
         }
 
-        Combine(asyncResults).Subscribe(BIND([=] (const TError&) {
-            UNUSED(this_);
+        Combine(asyncResults).Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError&) {
             VERIFY_THREAD_AFFINITY(ControlThread);
             EndSlotScan_.Fire();
             LOG_DEBUG("Slot scan completed");

@@ -294,11 +294,9 @@ private:
         ToProto(hydraRequest.mutable_participant_cell_ids(), commit->ParticipantCellIds());
         hydraRequest.set_prepare_timestamp(prepareTimestamp);
 
-        auto this_ = MakeStrong(this);
         CreateMutation(HydraManager_, hydraRequest)
             ->Commit()
-            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
-                UNUSED(this_);
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
                 if (!error.IsOK()) {
                     LOG_WARNING(error, "Error committing distributed transaction phase one start");
                 }
@@ -331,10 +329,9 @@ private:
         ToProto(hydraRequest.mutable_mutation_id(), mutationId);
         hydraRequest.set_force(force);
 
-        auto this_ = MakeStrong(this);
         return CreateMutation(HydraManager_, hydraRequest)
             ->Commit()
-            .Apply(BIND([=] (const TErrorOr<TMutationResponse>& result) -> TSharedRefArray {
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& result) -> TSharedRefArray {
                 if (result.IsOK()) {
                     return result.Value().Data;
                 } else {
@@ -434,8 +431,7 @@ private:
             PersistentCommitMap_.Remove(transactionId);
             if (IsLeader()) {
                 // Best effort, fire-and-forget.
-                auto this_ = MakeStrong(this);
-                EpochAutomatonInvoker_->Invoke(BIND([this, this_, transactionId] () {
+                EpochAutomatonInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
                     AbortTransaction(transactionId, false);
                 }));
             }
@@ -747,15 +743,13 @@ private:
         }
 
         auto timestamp = timestampOrError.Value();
-        auto this_ = MakeStrong(this);
         if (commit->IsDistributed()) {
             TReqCommitDistributedTransactionPhaseTwo hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_commit_timestamp(timestamp);
             CreateMutation(HydraManager_, hydraRequest)
                 ->Commit()
-                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
-                    UNUSED(this_);
+                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
                     if (!error.IsOK()) {
                         LOG_ERROR(error, "Error committing distributed transaction phase two start mutation");
                     }
@@ -767,8 +761,7 @@ private:
             hydraRequest.set_commit_timestamp(timestamp);
             CreateMutation(HydraManager_, hydraRequest)
                 ->Commit()
-                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
-                    UNUSED(this_);
+                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
                     if (!error.IsOK()) {
                         LOG_ERROR(error, "Error committing simple transaction commit mutation");
                     }

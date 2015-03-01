@@ -56,9 +56,7 @@ TFuture<void> TJournalSession::DoStart()
     auto chunkStore = Bootstrap_->GetChunkStore();
     chunkStore->RegisterNewChunk(Chunk_);
 
-    auto this_ = MakeStrong(this);
-    return asyncChangelog.Apply(BIND([=] (IChangelogPtr changelog) {
-        UNUSED(this_);
+    return asyncChangelog.Apply(BIND([=, this_ = MakeStrong(this)] (IChangelogPtr changelog) {
         if (Chunk_->IsRemoveScheduled())
             return;
         Chunk_->AttachChangelog(changelog);
@@ -93,9 +91,7 @@ TFuture<IChunkPtr> TJournalSession::DoFinish(
         sealResult = changelog->Seal(changelog->GetRecordCount());
     }
 
-    auto this_ = MakeStrong(this);
-    return sealResult.Apply(BIND([=] (const TError& error) -> IChunkPtr {
-        UNUSED(this_);
+    return sealResult.Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) -> IChunkPtr {
         DoCancel();
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
         return IChunkPtr(Chunk_);

@@ -552,8 +552,7 @@ NRpc::IServicePtr TElectionManager::TImpl::GetRpcService()
 
 TYsonProducer TElectionManager::TImpl::GetMonitoringProducer()
 {
-    auto this_ = MakeStrong(this);
-    return BIND([this, this_] (IYsonConsumer* consumer) {
+    return BIND([=, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
         auto epochContext = EpochContext;
         BuildYsonFluently(consumer)
             .BeginMap()

@@ -50,7 +50,6 @@ public:
             "ReadBlocks");
 
         auto blockStore = Bootstrap_->GetBlockStore();
-        auto this_ = MakeStrong(this);
 
         std::vector<TFuture<TSharedRef>> asyncBlocks;
         i64 priority = 0;
@@ -66,9 +65,7 @@ public:
                 .AsyncVia(Bootstrap_->GetControlInvoker())
                 .Run();
 
-            asyncBlocks.push_back(asyncBlock.Apply(BIND([=] (const TErrorOr<TSharedRef>& blockOrError) -> TSharedRef {
-                UNUSED(this_);
-
+            asyncBlocks.push_back(asyncBlock.Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TSharedRef>& blockOrError) -> TSharedRef {
                 if (!blockOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(
                         NDataNode::EErrorCode::LocalChunkReaderFailed,

@@ -163,8 +163,7 @@ public:
 
         store->SetState(state);
 
-        auto this_ = MakeStrong(this);
-        auto callback = BIND([this, this_, store] () {
+        auto callback = BIND([=, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(AutomatonThread);
             store->SetState(store->GetPersistentState());
         }).Via(Slot_->GetEpochAutomatonInvoker());
@@ -359,10 +358,8 @@ public:
         TReqRotateStore request;
         ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
 
-        auto this_ = MakeStrong(this);
         CommitTabletMutation(request)
-            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
-                UNUSED(this_);
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
                 if (!error.IsOK()) {
                     LOG_ERROR(error, "Error committing tablet store rotation mutation");
                 }
@@ -1239,10 +1236,8 @@ private:
         ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
         request.set_state(static_cast<int>(ETabletState::Flushing));
 
-        auto this_ = MakeStrong(this);
         CommitTabletMutation(request)
-            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
-                UNUSED(this_);
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
                 if (!error.IsOK()) {
                     LOG_ERROR(error, "Error committing tablet state change mutation");
                 }
@@ -1266,10 +1261,8 @@ private:
         ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
         request.set_state(static_cast<int>(ETabletState::Unmounted));
 
-        auto this_ = MakeStrong(this);
         CommitTabletMutation(request)
-            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
-                UNUSED(this_);
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
                 if (!error.IsOK()) {
                     LOG_ERROR(error, "Error committing tablet state change mutation");
                 }
@@ -1285,7 +1278,6 @@ private:
 
     TFuture<TMutationResponse> CommitTabletMutation(const ::google::protobuf::MessageLite& message)
     {
-        auto this_ = MakeStrong(this);
         auto mutation = CreateMutation(Slot_->GetHydraManager(), message);
         return BIND(&TMutation::Commit, mutation)
             .AsyncVia(Slot_->GetEpochAutomatonInvoker())
@@ -1353,9 +1345,7 @@ private:
             store->GetId(),
             backingStore->GetId());
 
-        auto this_ = MakeStrong(this);
-        auto callback = BIND([=] () {
-            UNUSED(this_);
+        auto callback = BIND([=, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(AutomatonThread);
             store->SetBackingStore(nullptr);
             LOG_DEBUG("Backing store released (StoreId: %v)", store->GetId());

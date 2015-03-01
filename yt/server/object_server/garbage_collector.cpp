@@ -190,13 +190,12 @@ void TGarbageCollector::OnSweep()
     LOG_DEBUG("Starting GC sweep for %v objects",
         request.object_ids_size());
 
-    auto this_ = MakeStrong(this);
     auto invoker = hydraFacade->GetEpochAutomatonInvoker();
     Bootstrap_
         ->GetObjectManager()
         ->CreateDestroyObjectsMutation(request)
         ->Commit()
-        .Subscribe(BIND([this, this_] (const TErrorOr<TMutationResponse>& error) {
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
             if (error.IsOK()) {
                 SweepExecutor_->ScheduleOutOfBand();
             } else {

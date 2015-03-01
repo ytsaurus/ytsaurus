@@ -270,10 +270,8 @@ protected:
             return;
         }
 
-        auto this_ = MakeStrong(this);
         Refilling_ = true;
-        ReadyEvent_ = Combine(asyncResults).Apply(BIND([=] (const TError& error) {
-            UNUSED(this_);
+        ReadyEvent_ = Combine(asyncResults).Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
             Refilling_ = false;
             error.ThrowOnError();
         }));

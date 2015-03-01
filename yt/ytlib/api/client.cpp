@@ -894,10 +894,8 @@ private:
     template <class T>
     TFuture<T> Execute(const Stroka& commandName, TCallback<T()> callback)
     {
-        auto this_ = MakeStrong(this);
         return
-            BIND([=] () {
-                UNUSED(this_);
+            BIND([=, this_ = MakeStrong(this)] () {
                 try {
                     LOG_DEBUG("Command started (Command: %v)", commandName);
                     TBox<T> result(callback);
@@ -2323,9 +2321,8 @@ TFuture<ITransactionPtr> TClient::StartTransaction(
     ETransactionType type,
     const TTransactionStartOptions& options)
 {
-    auto this_ = MakeStrong(this);
     return TransactionManager_->Start(type, options).Apply(
-        BIND([=] (NTransactionClient::TTransactionPtr transaction) -> ITransactionPtr {
+        BIND([=, this_ = MakeStrong(this)] (NTransactionClient::TTransactionPtr transaction) -> ITransactionPtr {
             return New<TTransaction>(this_, transaction);
         }));
 }

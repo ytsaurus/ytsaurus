@@ -523,10 +523,9 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     auto jobType = GetJobType();
 
     // Async part.
-    auto this_ = MakeStrong(this);
     auto controller = MakeStrong(Controller); // hold the controller
     auto operation = MakeStrong(Controller->Operation); // hold the operation
-    auto jobSpecBuilder = BIND([this, this_, joblet, controller, operation] (TJobSpec* jobSpec) {
+    auto jobSpecBuilder = BIND([=, this_ = MakeStrong(this)] (TJobSpec* jobSpec) {
         BuildJobSpec(joblet, jobSpec);
         Controller->CustomizeJobSpec(joblet, jobSpec);
 
@@ -1076,12 +1075,10 @@ TFuture<void> TOperationControllerBase::Prepare()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto this_ = MakeStrong(this);
-    return BIND(&TThis::DoPrepare, this_)
+    return BIND(&TThis::DoPrepare, MakeStrong(this))
         .AsyncVia(CancelableBackgroundInvoker)
         .Run()
-        .Apply(BIND([=] () {
-            UNUSED(this_);
+        .Apply(BIND([=, this_ = MakeStrong(this)] () {
             Prepared = true;
             Running = true;
         }).AsyncVia(CancelableControlInvoker));
@@ -1144,12 +1141,10 @@ void TOperationControllerBase::DoSaveSnapshot(TOutputStream* output)
 
 TFuture<void> TOperationControllerBase::Revive()
 {
-    auto this_ = MakeStrong(this);
-    return BIND(&TOperationControllerBase::DoRevive, this_)
+    return BIND(&TOperationControllerBase::DoRevive, MakeStrong(this))
         .AsyncVia(CancelableBackgroundInvoker)
         .Run()
-        .Apply(BIND([=] () {
-            UNUSED(this_);
+        .Apply(BIND([=, this_ = MakeStrong(this)] () {
             ReinstallLivePreview();
             Prepared = true;
             Running = true;

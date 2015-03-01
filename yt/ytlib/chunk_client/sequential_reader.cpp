@@ -93,11 +93,9 @@ TFuture<void> TSequentialReader::FetchNextBlock()
 
     ++FirstReadyWindowIndex_;
 
-    auto this_ = MakeStrong(this);
     Window_[FirstReadyWindowIndex_].Block
         .ToFuture()
-        .Subscribe(BIND([=] (const TErrorOr<TSharedRef>& result) {
-            UNUSED(this_);
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TSharedRef>& result) {
             State_.FinishOperation(result);
         }));
 

@@ -1728,9 +1728,8 @@ private:
 
     void UpdateClusterDirectory()
     {
-        auto this_ = MakeStrong(this);
         GetClusters()
-            .Subscribe(BIND([this, this_] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
                 OnGotClusters(rspOrError);
                 OnClusterDirectoryUpdated();
             }).Via(CancelableControlInvoker));

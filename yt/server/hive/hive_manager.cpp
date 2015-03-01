@@ -542,11 +542,9 @@ private:
         ToProto(req.mutable_cell_id(), mailbox->GetCellId());
         req.set_last_incoming_message_id(lastIncomingMessageId);
 
-        auto this_ = MakeStrong(this);
         CreateAcknowledgeMessagesMutation(req)
             ->Commit()
-            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
-                UNUSED(this_);
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
                 if (!error.IsOK()) {
                     LOG_ERROR(error, "Error committing message acknowledgment mutation");
                 }

@@ -180,8 +180,7 @@ public:
         if (!guard)
             return;
 
-        auto this_ = MakeStrong(this);
-        auto doInvoke = [this, this_] (IInvokerPtr invoker, const TClosure& callback) {
+        auto doInvoke = [=, this_ = MakeStrong(this)] (IInvokerPtr invoker, const TClosure& callback) {
             if (Owner_->GetState() != EPeerState::Leading &&
                 Owner_->GetState() != EPeerState::Following)
                 return;

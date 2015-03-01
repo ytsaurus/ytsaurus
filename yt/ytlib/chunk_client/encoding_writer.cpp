@@ -207,9 +207,8 @@ TFuture<void> TEncodingWriter::GetReadyEvent()
     if (!Semaphore.IsReady()) {
         State.StartOperation();
 
-        auto this_ = MakeStrong(this);
-        Semaphore.GetReadyEvent().Subscribe(BIND([=] (const TError& error) {
-            this_->State.FinishOperation(error);
+        Semaphore.GetReadyEvent().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            State.FinishOperation(error);
         }));
     }
 
@@ -220,10 +219,8 @@ TFuture<void> TEncodingWriter::Flush()
 {
     State.StartOperation();
 
-    auto this_ = MakeStrong(this);
     Semaphore.GetFreeEvent().Subscribe(
-        BIND([=] (const TError& error) {
-            UNUSED(this_);
+        BIND([=, this_ = MakeStrong(this)] (const TError& error) {
             if (IsWaiting) {
                 // We dumped all data to ReplicationWriter, and subscribed on ReadyEvent.
                 CloseRequested = true;

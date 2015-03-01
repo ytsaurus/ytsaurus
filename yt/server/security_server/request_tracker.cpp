@@ -97,12 +97,11 @@ void TRequestTracker::OnFlush()
 
     auto hydraFacade = Bootstrap_->GetHydraFacade();
     auto invoker = hydraFacade->GetEpochAutomatonInvoker();
-    auto this_ = MakeStrong(this);
     Bootstrap_
         ->GetSecurityManager()
         ->CreateUpdateRequestStatisticsMutation(UpdateRequestStatisticsRequest_)
         ->Commit()
-        .Subscribe(BIND([this, this_] (const TErrorOr<TMutationResponse>& error) {
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
             if (error.IsOK()) {
                 FlushExecutor_->ScheduleOutOfBand();
             } else {
