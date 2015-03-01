@@ -1023,7 +1023,7 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
 {
     return New<TSchemalessTableWriter>(
         config,
-        richPath.Normalize(),
+        richPath,
         nameTable,
         keyColumns,
         masterChannel,

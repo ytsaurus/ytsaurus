@@ -25,6 +25,13 @@ struct TReadTableRequest
         RegisterParameter("table_reader", TableReader)
             .Default(nullptr);
     }
+
+    virtual void OnLoaded() override
+    {
+        TTransactionalRequest::OnLoaded();
+        
+        Path = Path.Normalize();
+    }
 };
 
 class TReadTableCommand
@@ -48,6 +55,13 @@ struct TWriteTableRequest
         RegisterParameter("path", Path);
         RegisterParameter("table_writer", TableWriter)
             .Default(nullptr);
+    }
+
+    virtual void OnLoaded() override
+    {
+        TTransactionalRequest::OnLoaded();
+        
+        Path = Path.Normalize();
     }
 };
 
