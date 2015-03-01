@@ -845,7 +845,7 @@ ISchemalessTableReaderPtr CreateSchemalessTableReader(
         transaction,
         compressedBlockCache,
         uncompressedBlockCache,
-        richPath.Normalize(),
+        richPath,
         nameTable);
 }
 
