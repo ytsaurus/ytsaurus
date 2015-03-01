@@ -1421,7 +1421,7 @@ private:
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Format("Prerequisite for cell %v", cell->GetId()));
         auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->FillAttributes(transaction, *attributes);
+        objectManager->FillCustomAttributes(transaction, *attributes);
 
         YCHECK(!cell->GetPrerequisiteTransaction());
         cell->SetPrerequisiteTransaction(transaction);

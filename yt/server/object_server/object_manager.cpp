@@ -775,7 +775,7 @@ void TObjectManager::MergeAttributes(
     }
 }
 
-void TObjectManager::FillAttributes(
+void TObjectManager::FillCustomAttributes(
     TObjectBase* object,
     const IAttributeDictionary& attributes)
 {
@@ -900,7 +900,7 @@ TObjectBase* TObjectManager::CreateObject(
         request,
         response);
 
-    FillAttributes(object, *attributes);
+    FillCustomAttributes(object, *attributes);
 
     auto* stagingTransaction = handler->GetStagingTransaction(object);
     if (stagingTransaction) {
