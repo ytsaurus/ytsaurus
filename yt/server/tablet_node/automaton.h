@@ -34,8 +34,8 @@ public:
     NVersionedTableClient::TUnversionedRowBuilder* GetRowBuilder() const;
 
 private:
-    std::unique_ptr<TChunkedMemoryPool> TempPool_;
-    std::unique_ptr<NVersionedTableClient::TUnversionedRowBuilder> RowBuilder_;
+    const std::unique_ptr<TChunkedMemoryPool> TempPool_;
+    const std::unique_ptr<NVersionedTableClient::TUnversionedRowBuilder> RowBuilder_;
 
 };
 
@@ -65,8 +65,8 @@ class TTabletAutomatonPart
     : public NHydra::TCompositeAutomatonPart
 {
 protected:
-    TTabletSlotPtr Slot_;
-    NCellNode::TBootstrap* Bootstrap_;
+    const TTabletSlotPtr Slot_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
 
     explicit TTabletAutomatonPart(
