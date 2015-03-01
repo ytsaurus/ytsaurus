@@ -30,9 +30,6 @@ using NChunkClient::NProto::TBlocksExt;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
-static auto& Profiler = DataNodeProfiler;
-
-static NProfiling::TRateCounter CacheReadThroughputCounter("/cache_read_throughput");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,10 +56,11 @@ public:
     TStoreImpl(
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
-        : TAsyncSlruCacheBase(config->CompressedBlockCache)
+        : TAsyncSlruCacheBase(
+            config->CompressedBlockCache,
+            NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/compressed_block_cache"))
         , Config_(config)
         , Bootstrap_(bootstrap)
-        , PendingReadSize_(0)
     { }
 
     void Initialize()
@@ -218,10 +216,10 @@ public:
     }
 
 private:
-    TDataNodeConfigPtr Config_;
-    TBootstrap* Bootstrap_;
+    const TDataNodeConfigPtr Config_;
+    TBootstrap* const Bootstrap_;
 
-    std::atomic<i64> PendingReadSize_;
+    std::atomic<i64> PendingReadSize_ = {0};
 
 
     virtual i64 GetWeight(TCachedBlock* block) const override
@@ -231,7 +229,6 @@ private:
 
     void LogCacheHit(TCachedBlockPtr block)
     {
-        Profiler.Increment(CacheReadThroughputCounter, block->GetData().Size());
         LOG_DEBUG("Block cache hit (BlockId: %v)",
             block->GetKey());
     }
@@ -308,7 +305,7 @@ public:
     }
 
 private:
-    TIntrusivePtr<TStoreImpl> StoreImpl_;
+    const TIntrusivePtr<TStoreImpl> StoreImpl_;
 
 };
 

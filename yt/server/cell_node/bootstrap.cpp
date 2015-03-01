@@ -211,7 +211,9 @@ void TBootstrap::DoRun()
 
     BlockStore = New<TBlockStore>(Config->DataNode, this);
 
-    UncompressedBlockCache = CreateClientBlockCache(Config->DataNode->UncompressedBlockCache);
+    UncompressedBlockCache = CreateClientBlockCache(
+        Config->DataNode->UncompressedBlockCache,
+        NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/uncompressed_block_cache"));
 
     PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
 
