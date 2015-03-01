@@ -69,9 +69,7 @@ public:
             automatonInvoker,
             TServiceId(THiveServiceProxy::GetServiceName(), selfCellId),
             HiveLogger)
-        , TCompositeAutomatonPart(
-            hydraManager,
-            automaton)
+        , TCompositeAutomatonPart(automaton)
         , SelfCellId_(selfCellId)
         , Config_(config)
         , CellDirectory_(cellDirectory)
@@ -519,7 +517,7 @@ private:
     TMutationPtr CreateAcknowledgeMessagesMutation(const TReqAcknowledgeMessages& req)
     {
         return CreateMutation(
-            HydraManager,
+            HydraManager_,
             req,
             this,
             &TImpl::HydraAcknowledgeMessages);
@@ -527,7 +525,7 @@ private:
 
     TMutationPtr CreatePostMessagesMutation(TCtxPostMessagesPtr context)
     {
-        return CreateMutation(HydraManager)
+        return CreateMutation(HydraManager_)
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
             ->SetAction(BIND(&TImpl::HydraPostMessages, MakeStrong(this), context, ConstRef(context->Request())));
     }
@@ -614,7 +612,7 @@ private:
             {
                 TMutationContext context(GetCurrentMutationContext(), request);
                 TMutationContextGuard contextGuard(&context);
-                static_cast<IAutomaton*>(Automaton)->ApplyMutation(&context);
+                static_cast<IAutomaton*>(Automaton_)->ApplyMutation(&context);
             }
 
             TRACE_ANNOTATION(

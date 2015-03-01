@@ -10,7 +10,8 @@ namespace NCellMaster {
 ////////////////////////////////////////////////////////////////////////////////
 
 TMasterAutomaton::TMasterAutomaton(TBootstrap* bootstrap)
-    : SaveContext_(new TSaveContext())
+    : TCompositeAutomaton(bootstrap->GetHydraFacade()->GetHydraManager())
+    , SaveContext_(new TSaveContext())
     , LoadContext_(new TLoadContext(bootstrap))
 { }
 
@@ -27,9 +28,7 @@ TLoadContext& TMasterAutomaton::LoadContext()
 ////////////////////////////////////////////////////////////////////////////////
 
 TMasterAutomatonPart::TMasterAutomatonPart(TBootstrap* bootstrap)
-    : TCompositeAutomatonPart(
-        bootstrap->GetHydraFacade()->GetHydraManager(),
-        bootstrap->GetHydraFacade()->GetAutomaton())
+    : TCompositeAutomatonPart(bootstrap->GetHydraFacade()->GetAutomaton())
     , Bootstrap_(bootstrap)
 { }
 
