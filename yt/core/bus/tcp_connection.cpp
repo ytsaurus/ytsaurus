@@ -201,11 +201,11 @@ void TTcpConnection::UpdatePendingOut(int countDelta, i64 sizeDelta)
 {
     {
         int value = (Statistics().PendingOutCount += countDelta);
-        Profiler.Aggregate(PendingOutCounter, value);
+        Profiler.Update(PendingOutCounter, value);
     }
     {
         size_t value = (Statistics().PendingOutSize += sizeDelta);
-        Profiler.Aggregate(PendingOutSize, value);
+        Profiler.Update(PendingOutSize, value);
     }
 }
 
@@ -596,7 +596,7 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
     *bytesRead = result;
 
     Profiler.Increment(InThroughputCounter, *bytesRead);
-    Profiler.Aggregate(ReceiveSize, *bytesRead);
+    Profiler.Update(ReceiveSize, *bytesRead);
 
     LOG_TRACE("%v bytes read", *bytesRead);
 
@@ -829,7 +829,7 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
 #endif
 
     Profiler.Increment(OutThroughputCounter, *bytesWritten);
-    Profiler.Aggregate(SendSize, *bytesWritten);
+    Profiler.Update(SendSize, *bytesWritten);
 
     LOG_TRACE("%v bytes written", *bytesWritten);
 

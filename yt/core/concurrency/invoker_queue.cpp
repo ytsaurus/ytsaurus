@@ -99,7 +99,7 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 
     action->StartedAt = GetCpuInstant();
 
-    Profiler.Aggregate(
+    Profiler.Update(
         WaitTimeCounter,
         CpuDurationToValue(action->StartedAt - action->EnqueuedAt));
 
@@ -123,13 +123,13 @@ void TInvokerQueue::EndExecute(TEnqueuedAction* action)
     }
 
     int queueSize = QueueSize.fetch_sub(1, std::memory_order_relaxed) - 1;
-    Profiler.Aggregate(QueueSizeCounter, queueSize);
+    Profiler.Update(QueueSizeCounter, queueSize);
 
     auto finishedAt = GetCpuInstant();
-    Profiler.Aggregate(
+    Profiler.Update(
         ExecTimeCounter,
         CpuDurationToValue(finishedAt - action->StartedAt));
-    Profiler.Aggregate(
+    Profiler.Update(
         TotalTimeCounter,
         CpuDurationToValue(finishedAt - action->EnqueuedAt));
 
