@@ -33,7 +33,7 @@ struct IBlockCache
 
     //! Fetches a block from the cache.
     /*!
-     *  If no such block is present, then NULL is returned.
+     *  If no such block is present, then null is returned.
      */
     virtual TSharedRef Find(const TBlockId& id) = 0;
 };
