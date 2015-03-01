@@ -136,7 +136,7 @@ public:
         const TVersionedObjectId& branchedId);
 
     //! Fills the attributes of a given unversioned object.
-    void FillAttributes(
+    void FillCustomAttributes(
         TObjectBase* object,
         const NYTree::IAttributeDictionary& attributes);
 
