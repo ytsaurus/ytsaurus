@@ -46,9 +46,12 @@ template <class TRequest, class TResponse>
 void TCompositeAutomatonPart::RegisterMethod(
     TCallback<TResponse(const TRequest&)> handler)
 {
-    RegisterMethod(
+    auto wrappedHandler = BIND(
+        &TMutationActionTraits<TRequest, TResponse>::Run,
+        std::move(handler));
+    YCHECK(Automaton->Methods.insert(std::make_pair(
         TRequest::default_instance().GetTypeName(),
-        BIND(&TMutationActionTraits<TRequest, TResponse>::Run, handler));
+        std::move(wrappedHandler))).second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

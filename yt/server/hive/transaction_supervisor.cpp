@@ -63,7 +63,9 @@ public:
             automatonInvoker,
             TServiceId(TTransactionSupervisorServiceProxy::GetServiceName(), hiveManager->GetSelfCellId()),
             HiveLogger)
-        , TCompositeAutomatonPart(automaton)
+        , TCompositeAutomatonPart(
+            hydraManager,
+            automaton)
         , Config_(config)
         , ResponseKeeper_(responseKeeper)
         , HiveManager_(hiveManager)
@@ -293,7 +295,7 @@ private:
         hydraRequest.set_prepare_timestamp(prepareTimestamp);
 
         auto this_ = MakeStrong(this);
-        CreateMutation(HydraManager_, hydraRequest)
+        CreateMutation(HydraManager, hydraRequest)
             ->Commit()
             .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
                 UNUSED(this_);
@@ -330,7 +332,7 @@ private:
         hydraRequest.set_force(force);
 
         auto this_ = MakeStrong(this);
-        return CreateMutation(HydraManager_, hydraRequest)
+        return CreateMutation(HydraManager, hydraRequest)
             ->Commit()
             .Apply(BIND([=] (const TErrorOr<TMutationResponse>& result) -> TSharedRefArray {
                 if (result.IsOK()) {
@@ -750,7 +752,7 @@ private:
             TReqCommitDistributedTransactionPhaseTwo hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_commit_timestamp(timestamp);
-            CreateMutation(HydraManager_, hydraRequest)
+            CreateMutation(HydraManager, hydraRequest)
                 ->Commit()
                 .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
                     UNUSED(this_);
@@ -763,7 +765,7 @@ private:
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             ToProto(hydraRequest.mutable_mutation_id(), commit->GetMutationId());
             hydraRequest.set_commit_timestamp(timestamp);
-            CreateMutation(HydraManager_, hydraRequest)
+            CreateMutation(HydraManager, hydraRequest)
                 ->Commit()
                 .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& error) {
                     UNUSED(this_);
