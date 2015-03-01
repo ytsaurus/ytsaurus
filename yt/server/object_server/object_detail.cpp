@@ -269,7 +269,8 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
     tagIds.push_back(objectManager->GetTypeTagId(TypeFromId(objectId.ObjectId)));
     tagIds.push_back(objectManager->GetMethodTagId(context->GetMethod()));
     auto& Profiler = objectManager->GetProfiler();
-    PROFILE_TIMING ("/request_time", tagIds) {
+    static const auto profilingPath = TYPath("/verb_execute_time");
+    PROFILE_TIMING (profilingPath, tagIds) {
         TSupportsAttributes::Invoke(std::move(context));
     }
 }
