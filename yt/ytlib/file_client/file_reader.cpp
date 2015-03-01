@@ -41,7 +41,7 @@ TAsyncReader::TAsyncReader(
     , MasterChannel(masterChannel)
     , BlockCache(blockCache)
     , Transaction(transaction)
-    , RichPath(richPath.Simplify())
+    , RichPath(richPath)
     , Offset(offset)
     , Length(length)
     , IsFirstBlock(true)

@@ -659,7 +659,7 @@ public:
         TOperationSpecBase::OnLoaded();
 
         InputTablePaths = NYT::NYPath::Simplify(InputTablePaths);
-        OutputTablePath.Simplify();
+        OutputTablePath = OutputTablePath.Simplify();
     }
 };
 

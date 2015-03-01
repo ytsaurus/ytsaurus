@@ -43,7 +43,7 @@ TAsyncWriter::TAsyncWriter(
     , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionManager(transactionManager)
-    , RichPath(richPath.Simplify())
+    , RichPath(richPath)
     , Logger(FileWriterLogger)
 {
     YCHECK(transactionManager);

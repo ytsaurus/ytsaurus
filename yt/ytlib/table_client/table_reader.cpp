@@ -44,7 +44,7 @@ TAsyncTableReader::TAsyncTableReader(
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
     , BlockCache(blockCache)
     , NodeDirectory(New<TNodeDirectory>())
-    , RichPath(richPath.Simplify())
+    , RichPath(richPath)
     , IsOpen(false)
     , IsReadStarted_(false)
     , ObjectProxy(masterChannel)
