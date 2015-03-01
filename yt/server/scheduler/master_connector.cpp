@@ -319,15 +319,11 @@ public:
             }
             ++index;
         }
+
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         auto error = GetCumulativeError(batchRspOrError);
-
-        if (!error.IsOK()) {
-            auto wrappedError = TError("Error saving input context into %v",
-                path)
-                << error;
-            THROW_ERROR(wrappedError);
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error saving input context into %v",
+            path);
     }
 
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
@@ -1571,14 +1567,8 @@ private:
 
         auto operationId = operation->GetId();
         auto error = GetCumulativeError(batchRspOrError);
-
-        if (!error.IsOK()) {
-            auto wrappedError = TError("Error creating operation node %v",
-                operationId)
-                << error;
-            LOG_WARNING(wrappedError);
-            THROW_ERROR(wrappedError);
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error creating operation node %v",
+            operationId);
 
         LOG_INFO("Operation node created (OperationId: %v)",
             operationId);
@@ -1594,14 +1584,8 @@ private:
         auto operationId = operation->GetId();
 
         auto error = GetCumulativeError(batchRspOrError);
-
-        if (!error.IsOK()) {
-            auto wrappedError = TError("Error resetting reviving operation node %v",
-                operationId)
-                << error;
-            LOG_ERROR(wrappedError);
-            THROW_ERROR(wrappedError);
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error resetting reviving operation node %v",
+            operationId);
 
         LOG_INFO("Reviving operation node reset (OperationId: %v)",
             operationId);
@@ -1791,7 +1775,7 @@ private:
             }
             LOG_DEBUG("Cluster directory updated successfully");
         } catch (const std::exception& ex) {
-            LOG_ERROR(TError("Error updating cluster directory") << ex);
+            LOG_ERROR(ex, "Error updating cluster directory");
         }
     }
 
