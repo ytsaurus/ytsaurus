@@ -303,7 +303,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (parent && parent->GetPersistentState() == ETransactionState::Active) {
+        if (parent && parent->GetPersistentState() != ETransactionState::Active) {
             parent->ThrowInvalidState();
         }
 
