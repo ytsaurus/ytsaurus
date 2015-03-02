@@ -182,7 +182,7 @@ class TestQuery(YTEnvSetup):
             {"LogID": 2, "OrderID": 4, "UpdateTime": 6 },
             {"LogID": 3, "OrderID": 1, "UpdateTime": 7 }]
 
-        insert("//tmp/jl", data)
+        insert_rows("//tmp/jl", data)
 
         data = [
             {"LogID1": 1, "OrderID1": 2, "UpdateTime": 0 },
@@ -194,7 +194,7 @@ class TestQuery(YTEnvSetup):
             {"LogID1": 2, "OrderID1": 4, "UpdateTime": 6 },
             {"LogID1": 3, "OrderID1": 1, "UpdateTime": 7 }]
 
-        insert("//tmp/jr", data)
+        insert_rows("//tmp/jr", data)
 
         expected = [
             {"LogID": 1, "OrderID": 2, "UpdateTime": 0, "LogID1": 1, "OrderID1": 2},
