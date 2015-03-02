@@ -73,7 +73,7 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     {
         int averageBufferSize = config->MaxBufferSize / Partitioner->GetPartitionCount() / 2;
         while (upperReserveLimit > averageBufferSize) {
-            upperReserveLimit >>= 1;
+            upperReserveLimit = std::max(upperReserveLimit >> 1, averageBufferSize);
         }
 
         YCHECK(upperReserveLimit >= TChannelWriter::MinUpperReserveLimit);
