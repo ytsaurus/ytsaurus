@@ -59,12 +59,12 @@ def test_reliable_remove_tempfiles():
 class NativeModeTester(YtTestBase, YTEnv):
     @classmethod
     def setup_class(cls):
-        YtTestBase._setup_class(YTEnv)
+        super(NativeModeTester, cls).setup_class()
         yt.config.format.TABULAR_DATA_FORMAT = yt.format.DsvFormat()
 
     @classmethod
     def teardown_class(cls):
-        YtTestBase._teardown_class()
+        super(NativeModeTester, cls).teardown_class()
 
     # Check equality of records in dsv format
     def check(self, recordsA, recordsB):
@@ -699,22 +699,22 @@ class ChangeX__(object):
 class TestNativeModeV2(NativeModeTester):
     @classmethod
     def setup_class(cls):
-        NativeModeTester.setup_class()
+        super(TestNativeModeV2, cls).setup_class()
         yt.config.VERSION = "v2"
         yt.config.COMMANDS = None
 
     @classmethod
     def teardown_class(cls):
-        NativeModeTester.teardown_class()
+        super(TestNativeModeV2, cls).teardown_class()
 
 class TestNativeModeV3(NativeModeTester):
     @classmethod
     def setup_class(cls):
-        NativeModeTester.setup_class()
+        super(TestNativeModeV3, cls).setup_class()
         yt.config.VERSION = "v3"
         yt.config.COMMANDS = None
 
     @classmethod
     def teardown_class(cls):
-        NativeModeTester.teardown_class()
+        super(TestNativeModeV3, cls).teardown_class()
 
