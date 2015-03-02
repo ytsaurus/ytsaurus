@@ -173,9 +173,8 @@ std::vector<TSequentialReader::TBlockInfo> TVersionedChunkReader::GetBlockSequen
 
     CurrentBlockIndex_ = std::max(ApplyLowerRowLimit(blockMetaExt), ApplyLowerKeyLimit(blockIndexKeys));
     int endBlockIndex = std::min(ApplyUpperRowLimit(blockMetaExt), ApplyUpperKeyLimit(blockIndexKeys));
-
+    
     std::vector<TSequentialReader::TBlockInfo> blocks;
-
     if (CurrentBlockIndex_ >= blockMetaExt.blocks_size()) {
         return blocks;
     }
