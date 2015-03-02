@@ -942,7 +942,7 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
                 "Prerequisite check failed: transaction %v is missing",
                 transactionId);
         }
-        if (transaction->GetState() != ETransactionState::Active) {
+        if (transaction->GetPersistentState() != ETransactionState::Active) {
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                 "Prerequisite check failed: transaction %v is not active",

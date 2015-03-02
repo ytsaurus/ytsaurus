@@ -936,7 +936,7 @@ private:
     {
         PROFILE_TIMING ("/node_unregister_time") {
             auto* transaction = UnregisterLeaseTransaction(node);
-            if (transaction && transaction->GetState() == ETransactionState::Active) {
+            if (transaction && transaction->GetPersistentState() == ETransactionState::Active) {
                 auto transactionManager = Bootstrap_->GetTransactionManager();
                 // NB: This will trigger OnTransactionFinished, however we've already evicted the
                 // lease so the latter call is no-op.
