@@ -220,7 +220,7 @@ public:
                 ToProto(req->add_participant_cell_ids(), cellId);
             }
         }
-        SetOrGenerateMutationId(req, options.MutationId);
+        SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
         return req->Invoke().Apply(
             BIND(&TImpl::OnTransactionCommitted, MakeStrong(this), coordinatorCellId));
@@ -478,7 +478,7 @@ private:
         reqExt->set_timeout(options.Timeout.Get(Owner_->Config_->DefaultTransactionTimeout).MilliSeconds());
 
         if (options.ParentId != NullTransactionId) {
-            SetOrGenerateMutationId(req, options.MutationId);
+            SetOrGenerateMutationId(req, options.MutationId, options.Retry);
         }
 
         return proxy.Execute(req).Apply(
@@ -669,9 +669,7 @@ private:
             auto req = proxy.AbortTransaction();
             ToProto(req->mutable_transaction_id(), Id_);
             req->set_force(options.Force);
-            if (options.MutationId != NullMutationId) {
-                SetMutationId(req, options.MutationId);
-            }
+            SetMutationId(req, options.MutationId, options.Retry);
 
             auto asyncRspOrError = req->Invoke();
             // NB: "this" could be dying; can't capture it.

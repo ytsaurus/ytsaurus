@@ -938,12 +938,8 @@ private:
         if (options.MutationId == NullMutationId) {
             options.MutationId = NRpc::GenerateMutationId();
         }
-        SetMutationId(request, options.MutationId);
+        SetMutationId(request, options.MutationId, options.Retry);
         ++options.MutationId.Parts32[1];
-
-        if (options.Retry) {
-            request->SetRetry(true);
-        }
     }
 
 
