@@ -125,7 +125,6 @@ set( HDRS
   ${BASE}/collection_helpers-inl.h
   ${BASE}/lock_free.h
   ${BASE}/lock_free-inl.h
-  ${BASE}/ioprio.h
   ${BASE}/variant.h
   ${BASE}/variant-inl.h
   ${BASE}/any.h
