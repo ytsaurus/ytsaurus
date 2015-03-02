@@ -34,9 +34,9 @@ while true; do
     set -e
     if [ "$result" != "0" ]; then break; fi;
 
-    {jar} xf ./{hive_exporter_library} libhadoop.so libsnappy.so.1;
+    {jar} -J-Xmx1024m xf ./{hive_exporter_library} libhadoop.so libsnappy.so.1 >&2;
     curl --silent --show-error "http://{hdfs_host}/webhdfs/v1/${{table}}?op=OPEN" >output;
-    {java} -Dhadoop.root.logger=INFO -Djava.library.path=./ -jar ./{hive_exporter_library} -file output -config {read_config};
+    {java} -Xmx1024m -Dhadoop.root.logger=INFO -Djava.library.path=./ -jar ./{hive_exporter_library} -file output -config {read_config};
 done
 """\
             .format(java=os.path.join(self.java_path, "java"),
