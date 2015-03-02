@@ -94,21 +94,21 @@ public:
 
         auto pendingIt = PendingResponses_.find(id);
         if (pendingIt != PendingResponses_.end()) {
-            if (isRetry) {
-                LOG_DEBUG("Replying with pending response (MutationId: %v)", id);
-            } else {
-                LOG_ERROR("Replying with pending response for a request not marked as \"retry\" (MutationId: %v)", id);
+            if (!isRetry) {
+                THROW_ERROR_EXCEPTION("Duplicate request is not marked as \"retry\"")
+                    << TErrorAttribute("mutation_id", id);
             }
+            LOG_DEBUG("Replying with pending response (MutationId: %v)", id);
             return pendingIt->second;
         }
 
         auto finishedIt = FinishedResponses_.find(id);
         if (finishedIt != FinishedResponses_.end()) {
-            if (isRetry) {
-                LOG_DEBUG("Replying with finished response (MutationId: %v)", id);
-            } else {
-                LOG_ERROR("Replying with finished response for a request not marked as \"retry\" (MutationId: %v)", id);
+            if (!isRetry) {
+                THROW_ERROR_EXCEPTION("Duplicate request is not marked as \"retry\"")
+                    << TErrorAttribute("mutation_id", id);
             }
+            LOG_DEBUG("Replying with finished response (MutationId: %v)", id);
             return MakeFuture(finishedIt->second);
         }
 
