@@ -40,10 +40,10 @@ protected:
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     const TEpochContext* EpochContext_;
 
-    NProfiling::TRateCounter CommitCounter_;
-    NProfiling::TRateCounter BatchFlushCounter_;
+    NProfiling::TSimpleCounter CommitCounter_;
+    NProfiling::TSimpleCounter FlushCounter_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
 

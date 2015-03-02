@@ -139,7 +139,7 @@ public:
     TChunkProperties GetChunkProperties() const;
 
     //! Returns the maximum number of replicas that can be stored in the same
-    //! rack without violating the avilability guarantees.
+    //! rack without violating the availability guarantees.
     int GetMaxReplicasPerRack() const;
 
 private:

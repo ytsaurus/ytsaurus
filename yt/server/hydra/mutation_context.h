@@ -36,6 +36,8 @@ struct TMutationResponse
     TSharedRefArray Data;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TMutationContext
 {
 public:
@@ -63,6 +65,26 @@ private:
     TMutationResponse Response_;
     TInstant Timestamp_;
     TRandomGenerator RandomGenerator_;
+
+};
+
+TMutationContext* TryGetCurrentMutationContext();
+TMutationContext* GetCurrentMutationContext();
+bool HasMutationContext();
+void SetCurrentMutationContext(TMutationContext* context);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMutationContextGuard
+    : public TNonCopyable
+{
+public:
+    explicit TMutationContextGuard(TMutationContext* context);
+    ~TMutationContextGuard();
+
+private:
+    TMutationContext* Context_;
+    TMutationContext* SavedContext_;
 
 };
 

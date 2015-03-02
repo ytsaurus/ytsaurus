@@ -308,7 +308,7 @@ public:
             throw CreateYtError("Incorrect arguments");
         }
 
-        NLog::TLogManager::Get()->Configure(config->AsMap());
+        NLogging::TLogManager::Get()->Configure(config->AsMap());
 
         return Py::None();
     }

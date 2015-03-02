@@ -16,8 +16,6 @@
 
 #include <ytlib/file_client/config.h>
 
-#include <ytlib/table_client/config.h>
-
 #include <ytlib/chunk_client/config.h>
 
 #include <ytlib/new_table_client/config.h>
@@ -69,6 +67,7 @@ public:
     NTabletClient::TTableMountCacheConfigPtr TableMountCache;
 
     NQueryClient::TExecutorConfigPtr QueryEvaluator;
+    NQueryClient::TColumnEvaluatorCacheConfigPtr ColumnEvaluatorCache;
     TDuration QueryTimeout;
     NCompression::ECodec QueryResponseCodec;
     int DefaultInputRowLimit;

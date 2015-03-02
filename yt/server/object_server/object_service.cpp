@@ -127,7 +127,7 @@ private:
     int CurrentRequestPartIndex = 0;
     TNullable<Stroka> UserName;
 
-    const NLog::TLogger& Logger = ObjectServerLogger;
+    const NLogging::TLogger& Logger = ObjectServerLogger;
 
 
     void OnSync(const TError& error)
@@ -196,7 +196,11 @@ private:
                         "Error parsing request header");
                 }
 
-                auto mutationId = GetMutationId(requestHeader);
+                // Propagate retry flag to the subrequest.
+                if (Context->IsRetry()) {
+                    requestHeader.set_retry(true);
+                    requestMessage = SetRequestHeader(requestMessage, requestHeader);
+                }
 
                 const auto& ypathExt = requestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
                 const auto& path = ypathExt.path();
@@ -210,14 +214,13 @@ private:
                     return;
                 }
 
-                LOG_DEBUG("Execute[%v] <- %v:%v %v (RequestId: %v, Mutating: %v, MutationId: %v)",
+                LOG_DEBUG("Execute[%v] <- %v:%v %v (RequestId: %v, Mutating: %v)",
                     CurrentRequestIndex,
                     requestHeader.service(),
                     requestHeader.method(),
                     path,
                     Context->GetRequestId(),
-                    mutating,
-                    mutationId);
+                    mutating);
 
                 NTracing::TTraceContextGuard traceContextGuard(NTracing::CreateChildTraceContext());
                 NTracing::TraceEvent(
@@ -361,7 +364,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     ValidateActivePeer();
 
     auto session = New<TExecuteSession>(
-        Bootstrap,
+        Bootstrap_,
         std::move(context));
     session->Run();
 }
@@ -375,7 +378,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
 
     ValidateActiveLeader();
 
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
     context->ReplyFrom(objectManager->GCCollect());
 }
 
@@ -388,7 +391,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, BuildSnapshot)
 
     ValidateActiveLeader();
 
-    auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
+    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
 
     if (setReadOnly) {
         hydraManager->SetReadOnly(true);

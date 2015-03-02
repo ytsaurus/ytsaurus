@@ -32,14 +32,13 @@ class TQueryStatistics;
 DECLARE_REFCOUNTED_STRUCT(TExpression)
 typedef TIntrusivePtr<const TExpression> TConstExpressionPtr;
 
-DECLARE_REFCOUNTED_CLASS(TQuery);
+DECLARE_REFCOUNTED_STRUCT(TQuery);
 typedef TIntrusivePtr<const TQuery> TConstQueryPtr;
 
-DECLARE_REFCOUNTED_CLASS(TPlanFragment);
+DECLARE_REFCOUNTED_STRUCT(TPlanFragment);
 typedef TIntrusivePtr<const TPlanFragment> TConstPlanFragmentPtr;
 
 struct IPrepareCallbacks;
-struct IEvaluateCallbacks;
 
 struct TQueryStatistics;
 
@@ -48,6 +47,12 @@ DECLARE_REFCOUNTED_STRUCT(IExecutor)
 DECLARE_REFCOUNTED_CLASS(TEvaluator)
 
 DECLARE_REFCOUNTED_CLASS(TExecutorConfig)
+
+DECLARE_REFCOUNTED_CLASS(TColumnEvaluator)
+
+DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCache)
+
+DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheConfig)
 
 // TODO(babenko): kill this when refactoring TDataSplit
 typedef NChunkClient::NProto::TChunkSpec TDataSplit;

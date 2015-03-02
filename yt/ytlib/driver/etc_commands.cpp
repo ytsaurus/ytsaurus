@@ -77,8 +77,14 @@ void TCheckPermissionCommand::DoExecute()
             .DoIf(result.ObjectId != NullObjectId, [&] (TFluentMap fluent) {
                 fluent.Item("object_id").Value(result.ObjectId);
             })
-            .DoIf(result.Subject.HasValue(), [&] (TFluentMap fluent) {
-                fluent.Item("subject").Value(*result.Subject);
+            .DoIf(result.ObjectName.HasValue(), [&] (TFluentMap fluent) {
+                fluent.Item("object_name").Value(result.ObjectName);
+            })
+            .DoIf(result.SubjectId != NullObjectId, [&] (TFluentMap fluent) {
+                fluent.Item("subject_id").Value(result.SubjectId);
+            })
+            .DoIf(result.SubjectName.HasValue(), [&] (TFluentMap fluent) {
+                fluent.Item("subject_name").Value(result.SubjectName);
             })
         .EndMap());
 }

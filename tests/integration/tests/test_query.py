@@ -51,32 +51,97 @@ class TestQuery(YTEnvSetup):
             path = "//tmp/t{0}".format(i)
 
             self._sample_data(path=path, chunks=i, stripe=10)
-            result = select("a, b from [{0}]".format(path), verbose=False)
+            result = select_rows("a, b from [{0}]".format(path), verbose=False)
 
             assert len(result) == 10 * i
 
     def test_project1(self):
         self._sample_data(path="//tmp/p1")
         expected = [{"s": 2 * i + 10 * i - 1} for i in xrange(1, 10)]
-        actual = select("2 * a + b - 1 as s from [//tmp/p1]")
+        actual = select_rows("2 * a + b - 1 as s from [//tmp/p1]")
         assert expected == actual
 
     def test_group_by1(self):
         self._sample_data(path="//tmp/g1")
         expected = [{"s": 450}]
-        actual = select("sum(b) as s from [//tmp/g1] group by 1 as k")
+        actual = select_rows("sum(b) as s from [//tmp/g1] group by 1 as k")
         self.assertItemsEqual(expected, actual)
 
     def test_group_by2(self):
         self._sample_data(path="//tmp/g2")
         expected = [{"k": 0, "s": 200}, {"k": 1, "s": 250}]
-        actual = select("k, sum(b) as s from [//tmp/g2] group by a % 2 as k")
+        actual = select_rows("k, sum(b) as s from [//tmp/g2] group by a % 2 as k")
         self.assertItemsEqual(expected, actual)
 
     def test_limit(self):
         self._sample_data(path="//tmp/l1")
         expected = [{"a": 1, "b": 10}]
-        actual = select("* from [//tmp/l1] limit 1")
+        actual = select_rows("* from [//tmp/l1] limit 1")
+        assert expected == actual
+
+    def test_join(self):
+
+        self._sync_create_cells(3, 1)
+
+        create("table", "//tmp/jl",
+            attributes = {
+                "schema": [
+                    {"name": "LogID", "type": "int64"},
+                    {"name": "OrderID", "type": "int64"},
+                    {"name": "UpdateTime", "type": "int64"}],
+                "key_columns": ["LogID", "OrderID"]
+            })
+
+        mount_table("//tmp/jl")
+        self._wait_for_tablet_state("//tmp/jl", ["mounted"])
+
+        create("table", "//tmp/jr",
+            attributes = {
+                "schema": [
+                    {"name": "UpdateTime", "type": "int64"},
+                    {"name": "LogID1", "type": "int64"},
+                    {"name": "OrderID1", "type": "int64"}],
+                "key_columns": ["UpdateTime"]
+            })
+
+        mount_table("//tmp/jr")
+        self._wait_for_tablet_state("//tmp/jr", ["mounted"])
+
+        data = [
+            {"LogID": 1, "OrderID": 2, "UpdateTime": 0 },
+            {"LogID": 1, "OrderID": 3, "UpdateTime": 1 },
+            {"LogID": 1, "OrderID": 4, "UpdateTime": 2 },
+            {"LogID": 2, "OrderID": 1, "UpdateTime": 3 },
+            {"LogID": 2, "OrderID": 2, "UpdateTime": 4 },
+            {"LogID": 2, "OrderID": 3, "UpdateTime": 5 },
+            {"LogID": 2, "OrderID": 4, "UpdateTime": 6 },
+            {"LogID": 3, "OrderID": 1, "UpdateTime": 7 }]
+
+        insert_rows("//tmp/jl", data)
+
+        data = [
+            {"LogID1": 1, "OrderID1": 2, "UpdateTime": 0 },
+            {"LogID1": 1, "OrderID1": 3, "UpdateTime": 1 },
+            {"LogID1": 1, "OrderID1": 4, "UpdateTime": 2 },
+            {"LogID1": 2, "OrderID1": 1, "UpdateTime": 3 },
+            {"LogID1": 2, "OrderID1": 2, "UpdateTime": 4 },
+            {"LogID1": 2, "OrderID1": 3, "UpdateTime": 5 },
+            {"LogID1": 2, "OrderID1": 4, "UpdateTime": 6 },
+            {"LogID1": 3, "OrderID1": 1, "UpdateTime": 7 }]
+
+        insert_rows("//tmp/jr", data)
+
+        expected = [
+            {"LogID": 1, "OrderID": 2, "UpdateTime": 0, "LogID1": 1, "OrderID1": 2},
+            {"LogID": 1, "OrderID": 3, "UpdateTime": 1, "LogID1": 1, "OrderID1": 3},
+            {"LogID": 1, "OrderID": 4, "UpdateTime": 2, "LogID1": 1, "OrderID1": 4},
+            {"LogID": 2, "OrderID": 1, "UpdateTime": 3, "LogID1": 2, "OrderID1": 1},
+            {"LogID": 2, "OrderID": 2, "UpdateTime": 4, "LogID1": 2, "OrderID1": 2},
+            {"LogID": 2, "OrderID": 3, "UpdateTime": 5, "LogID1": 2, "OrderID1": 3},
+            {"LogID": 2, "OrderID": 4, "UpdateTime": 6, "LogID1": 2, "OrderID1": 4},
+            {"LogID": 3, "OrderID": 1, "UpdateTime": 7, "LogID1": 3, "OrderID1": 1}]
+
+        actual = select_rows("* from [//tmp/jl] join [//tmp/jr] using UpdateTime where LogID < 4")
         assert expected == actual
 
     def test_join(self):
@@ -162,7 +227,7 @@ class TestQuery(YTEnvSetup):
             {"name": "d", "type": "uint64"},
         ])
 
-        assert select('a, b, c, d from [//tmp/t] where c="hello"', output_format=format) == \
+        assert select_rows('a, b, c, d from [//tmp/t] where c="hello"', output_format=format) == \
                 '{"a"=10;"b"=%false;"c"="hello";"d"=32u};\n'
 
     def test_tablets(self):
@@ -183,7 +248,7 @@ class TestQuery(YTEnvSetup):
             data = [
                 {"key": (i * stripe + j), "value": (i * stripe + j) * 10}
                 for j in xrange(1, 1 + stripe)]
-            insert("//tmp/tt", data)
+            insert_rows("//tmp/tt", data)
 
         unmount_table("//tmp/tt")
         self._wait_for_tablet_state("//tmp/tt", ["unmounted"])
@@ -191,6 +256,36 @@ class TestQuery(YTEnvSetup):
         mount_table("//tmp/tt", first_tablet_index=0, last_tablet_index=2)
         self._wait_for_tablet_state("//tmp/tt", ["unmounted", "mounted"])
 
-        select("* from [//tmp/tt] where key < 50")
+        select_rows("* from [//tmp/tt] where key < 50")
 
-        with pytest.raises(YtError): select("* from [//tmp/tt] where key < 51")
+        with pytest.raises(YtError): select_rows("* from [//tmp/tt] where key < 51")
+
+    def test_computed_column(self):
+        self._sync_create_cells(3, 1)
+
+        create("table", "//tmp/tc",
+            attributes = {
+                "schema": [
+                    {"name": "hash", "type": "int64", "expression": "key * 33"},
+                    {"name": "key", "type": "int64"},
+                    {"name": "value", "type": "int64"}],
+                "key_columns": ["hash", "key"]
+            })
+        reshard_table("//tmp/tc", [[]] + [[i] for i in xrange(1, 100 * 33, 1000)])
+        mount_table("//tmp/tc")
+        self._wait_for_tablet_state("//tmp/tc", ["mounted"])
+
+        insert_rows("//tmp/tc", [{"key": i, "value": i * 2} for i in xrange(0,100)])
+
+        expected = [{"hash": 42 * 33, "key": 42, "value": 42 * 2}]
+        actual = select_rows("* from [//tmp/tc] where key = 42")
+        self.assertItemsEqual(expected, actual)
+
+        expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in xrange(10,80)]
+        actual = sorted(select_rows("* from [//tmp/tc] where key >= 10 and key < 80"))
+        self.assertItemsEqual(expected, actual)
+
+        expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in [10, 20, 30]]
+        actual = sorted(select_rows("* from [//tmp/tc] where key in (10, 20, 30)"))
+        self.assertItemsEqual(expected, actual)
+        

@@ -67,7 +67,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto interfaceType = GetInterfaceType(Config_->Address);
+        auto interfaceType = Config_->UnixDomainName ? ETcpInterfaceType::Remote : GetInterfaceType(Config_->Address.Get());
 
         LOG_DEBUG("Connecting to %v (ConnectionId: %v, InterfaceType: %v)",
             Config_->Address,
@@ -78,10 +78,11 @@ public:
             Config_,
             DispatcherThread_,
             EConnectionType::Client,
-            interfaceType, 
+            interfaceType,
             Id_,
             INVALID_SOCKET,
-            Config_->Address,
+            Config_->UnixDomainName.HasValue() ? Config_->UnixDomainName.Get() : Config_->Address.Get(),
+            Config_->UnixDomainName.HasValue(),
             Config_->Priority,
             Handler_);
         DispatcherThread_->AsyncRegister(Connection_);

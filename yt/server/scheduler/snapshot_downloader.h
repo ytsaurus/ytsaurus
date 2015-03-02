@@ -27,7 +27,7 @@ private:
     NCellScheduler::TBootstrap* Bootstrap;
     TOperationPtr Operation;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 };
 

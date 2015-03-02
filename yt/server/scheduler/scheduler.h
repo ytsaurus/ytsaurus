@@ -55,7 +55,7 @@ public:
     TFuture<TOperationPtr> StartOperation(
         EOperationType type,
         const NTransactionClient::TTransactionId& transactionId,
-        const NHydra::TMutationId& mutationId,
+        const NRpc::TMutationId& mutationId,
         NYTree::IMapNodePtr spec,
         const Stroka& user);
 
@@ -65,6 +65,8 @@ public:
 
     TFuture<void> SuspendOperation(TOperationPtr operation);
     TFuture<void> ResumeOperation(TOperationPtr operation);
+
+    TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path);
 
     typedef
         NRpc::TTypedServiceContext<

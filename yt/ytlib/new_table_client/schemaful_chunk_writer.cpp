@@ -39,7 +39,7 @@ class TChunkWriter
 public:
     TChunkWriter(
         TChunkWriterConfigPtr config,
-        TChunkWriterOptionsPtr options,
+        TEncodingWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter);
 
     virtual TFuture<void> Open(

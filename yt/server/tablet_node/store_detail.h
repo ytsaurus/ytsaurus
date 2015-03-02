@@ -33,7 +33,7 @@ protected:
     const TStoreId StoreId_;
     TTablet* const Tablet_;
 
-    const TTabletStatisticsPtr Statistics_;
+    const TTabletPerformanceCountersPtr PerformanceCounters_;
     const TTabletId TabletId_;
     const NVersionedTableClient::TTableSchema Schema_;
     const NVersionedTableClient::TKeyColumns KeyColumns_;

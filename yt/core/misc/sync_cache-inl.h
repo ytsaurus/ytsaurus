@@ -25,8 +25,15 @@ TSyncCacheValueBase<TKey, TValue, THash>::TSyncCacheValueBase(const TKey& key)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class THash>
-TSyncSlruCacheBase<TKey, TValue, THash>::TSyncSlruCacheBase(TSlruCacheConfigPtr config)
+TSyncSlruCacheBase<TKey, TValue, THash>::TSyncSlruCacheBase(
+    TSlruCacheConfigPtr config,
+    const NProfiling::TProfiler& profiler)
     : Config_(std::move(config))
+    , Profiler(profiler)
+    , HitWeightCounter_("/hit")
+    , MissedWeightCounter_("/missed")
+    , YoungerWeightCounter_("/younger")
+    , OlderWeightCounter_("/older")
 { }
 
 template <class TKey, class TValue, class THash>
@@ -42,10 +49,13 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Clear()
         ItemMapSize_ = 0;
 
         YoungerLruList_.Swap(youngerLruList);
-        YoungerWeight_ = 0;
+        Profiler.Update(YoungerWeightCounter_, 0);
 
         OlderLruList_.Swap(olderLruList);
-        OlderWeight_ = 0;
+        Profiler.Update(OlderWeightCounter_, 0);
+
+        Profiler.Update(HitWeightCounter_, 0);
+        Profiler.Update(MissedWeightCounter_, 0);
     }
 }
 
@@ -63,6 +73,9 @@ TSyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
     auto* item = itemIt->second;
     bool canTouch = CanTouch(item);
     auto value = item->Value;
+
+    auto weight = GetWeight(item->Value.Get());
+    Profiler.Increment(HitWeightCounter_, weight);
 
     guard.Release();
 
@@ -105,6 +118,9 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(TValuePtr value, TValueP
     auto* item = new TItem(value);
     YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
     ++ItemMapSize_;
+
+    auto weight = GetWeight(value.Get());
+    Profiler.Increment(MissedWeightCounter_, weight);
 
     PushToYounger(item);
 
@@ -222,7 +238,8 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TItem* item)
 {
     YASSERT(item->Empty());
     YoungerLruList_.PushFront(item);
-    YoungerWeight_ += GetWeight(item->Value.Get());
+    auto weight = GetWeight(item->Value.Get());
+    Profiler.Increment(YoungerWeightCounter_, +weight);
     item->Younger = true;
 }
 
@@ -233,9 +250,9 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TItem* item)
     item->Unlink();
     YoungerLruList_.PushFront(item);
     if (!item->Younger) {
-        i64 weight = GetWeight(item->Value.Get());
-        OlderWeight_ -= weight;
-        YoungerWeight_ += weight;
+        auto weight = GetWeight(item->Value.Get());
+        Profiler.Increment(OlderWeightCounter_, -weight);
+        Profiler.Increment(YoungerWeightCounter_, +weight);
         item->Younger = true;
     }
 }
@@ -247,9 +264,9 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TItem* item)
     item->Unlink();
     OlderLruList_.PushFront(item);
     if (item->Younger) {
-        i64 weight = GetWeight(item->Value.Get());
-        YoungerWeight_ -= weight;
-        OlderWeight_ += weight;
+        auto weight = GetWeight(item->Value.Get());
+        Profiler.Increment(YoungerWeightCounter_, -weight);
+        Profiler.Increment(OlderWeightCounter_, +weight);
         item->Younger = false;
     }
 }
@@ -259,11 +276,11 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Pop(TItem* item)
 {
     if (item->Empty())
         return;
-    i64 weight = GetWeight(item->Value.Get());
+    auto weight = GetWeight(item->Value.Get());
     if (item->Younger) {
-        YoungerWeight_ -= weight;
+        Profiler.Increment(YoungerWeightCounter_, -weight);
     } else {
-        OlderWeight_ -= weight;
+        Profiler.Increment(OlderWeightCounter_, -weight);
     }
     item->Unlink();
 }
@@ -275,7 +292,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::TrimIfNeeded()
     while (true) {
         NConcurrency::TWriterGuard guard(SpinLock_);
 
-        if (OlderLruList_.Empty() || OlderWeight_ <= Config_->Capacity * (1 - Config_->YoungerSizeFraction))
+        if (OlderLruList_.Empty() || OlderWeightCounter_.Current <= Config_->Capacity * (1 - Config_->YoungerSizeFraction))
             break;
 
         auto* item = &*(--OlderLruList_.End());
@@ -286,7 +303,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::TrimIfNeeded()
     while (true) {
         NConcurrency::TWriterGuard guard(SpinLock_);
 
-        if (YoungerLruList_.Empty() || YoungerWeight_ + OlderWeight_ <= Config_->Capacity)
+        if (YoungerLruList_.Empty() || YoungerWeightCounter_.Current + OlderWeightCounter_.Current <= Config_->Capacity)
             break;
 
         auto* item = &*(--YoungerLruList_.End());

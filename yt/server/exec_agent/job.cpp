@@ -12,6 +12,7 @@
 #include <core/misc/assert.h>
 
 #include <core/concurrency/scheduler.h>
+#include <core/concurrency/thread_affinity.h>
 
 #include <core/actions/invoker_util.h>
 
@@ -20,26 +21,33 @@
 #include <core/logging/log.h>
 #include <core/logging/log_manager.h>
 
+#include <core/bus/tcp_client.h>
+
+#include <core/rpc/bus_channel.h>
+
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/file_client/file_ypath_proxy.h>
 #include <ytlib/file_client/file_chunk_reader.h>
 
-#include <ytlib/table_client/table_producer.h>
-#include <ytlib/table_client/table_chunk_reader.h>
-#include <ytlib/table_client/sync_reader.h>
-#include <ytlib/table_client/config.h>
+#include <ytlib/new_table_client/config.h>
+#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/schemaless_chunk_reader.h>
+#include <ytlib/new_table_client/helpers.h>
 
 #include <ytlib/file_client/config.h>
 #include <ytlib/file_client/file_chunk_reader.h>
 
-#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
+#include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/client_block_cache.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/helpers.h>
 
 #include <ytlib/job_tracker_client/statistics.h>
+
+#include <ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <ytlib/security_client/public.h>
 
@@ -70,8 +78,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NTableClient;
-using namespace NTableClient::NProto;
+using namespace NVersionedTableClient;
 using namespace NFileClient;
 using namespace NCellNode;
 using namespace NDataNode;
@@ -127,7 +134,7 @@ public:
         JobState = EJobState::Running;
 
         YCHECK(!Slot);
-        auto slotManager = Bootstrap->GetSlotManager();
+        auto slotManager = Bootstrap->GetExecSlotManager();
         Slot = slotManager->AcquireSlot();
 
         auto invoker = Slot->GetInvoker();
@@ -213,7 +220,7 @@ public:
 
         if (error.IsOK()) {
             return;
-        } 
+        }
 
         if (IsFatalError(error)) {
             error.Attributes().Set("fatal", IsFatalError(error));
@@ -275,6 +282,22 @@ public:
         }
     }
 
+    std::vector<TChunkId> DumpInputContexts() const override
+    {
+        auto jobProberClient = CreateTcpBusClient(Slot->GetRpcClientConfig());
+        auto jobProberChannel = CreateBusChannel(jobProberClient);
+
+        NJobProberClient::TJobProberServiceProxy jobProberProxy(jobProberChannel);
+
+        auto req = jobProberProxy.DumpInputContext();
+
+        ToProto(req->mutable_job_id(), JobId);
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+
+        return FromProto<TGuid>(rsp->chunk_id());
+    }
+
 private:
     TJobId JobId;
     TJobSpec JobSpec;
@@ -286,7 +309,7 @@ private:
     TSpinLock ResourcesLock;
     TNodeResources ResourceUsage;
 
-    NLog::TLogger Logger = ExecAgentLogger;
+    NLogging::TLogger Logger = ExecAgentLogger;
 
     TSlotPtr Slot;
 
@@ -371,6 +394,8 @@ private:
         proxyConfig->JobIO = ioConfig;
         proxyConfig->UserId = Slot->GetUserId();
 
+        proxyConfig->RpcServer = Slot->GetRpcServerConfig();
+
         auto proxyConfigPath = NFS::CombinePaths(
             Slot->GetWorkingDirectory(),
             ProxyConfigFileName);
@@ -382,7 +407,7 @@ private:
             proxyConfig->Save(&writer);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error saving job proxy config (Path: %Qv)", proxyConfigPath);
-            NLog::TLogManager::Get()->Shutdown();
+            NLogging::TLogManager::Get()->Shutdown();
             _exit(1);
         }
     }
@@ -518,7 +543,6 @@ private:
     void DownloadChunks(const google::protobuf::RepeatedPtrField<TChunkSpec>& chunks)
     {
         auto chunkCache = Bootstrap->GetChunkCache();
-        auto this_ = MakeStrong(this);
 
         std::vector<TFuture<IChunkPtr>> asyncResults;
         for (const auto chunk : chunks) {
@@ -626,37 +650,29 @@ private:
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
 
         auto chunks = PatchCachedChunkReplicas(descriptor.chunks());
-        auto config = New<TFileReaderConfig>();
 
-        auto provider = New<TFileChunkReaderProvider>(
-            config,
-            Bootstrap->GetUncompressedBlockCache());
-
-        typedef TOldMultiChunkSequentialReader<TFileChunkReader> TReader;
-
-        auto reader = New<TReader>(
-            config,
-            Bootstrap->GetMasterClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
+        auto reader = CreateFileMultiChunkReader(
+            New<TFileReaderConfig>(),
+            New<TMultiChunkReaderOptions>(),
+            Bootstrap->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader),
             Bootstrap->GetBlockStore()->GetCompressedBlockCache(),
+            Bootstrap->GetUncompressedBlockCache(),
             NodeDirectory,
-            std::move(chunks),
-            provider);
+            std::move(chunks));
 
         try {
-            WaitFor(reader->AsyncOpen())
+            WaitFor(reader->Open())
                 .ThrowOnError();
 
             auto producer = [&] (TOutputStream* output) {
-                auto* facade = reader->GetFacade();
-                while (facade) {
-                    auto block = facade->GetBlock();
-                    output->Write(block.Begin(),block.Size());
-
-                    if (!reader->FetchNext()) {
+                TSharedRef block;
+                while (reader->ReadBlock(&block)) {
+                    if (block.Empty()) {
                         WaitFor(reader->GetReadyEvent())
                             .ThrowOnError();
+                    } else {
+                        output->Write(block.Begin(), block.Size());
                     }
-                    facade = reader->GetFacade();
                 }
             };
 
@@ -686,33 +702,28 @@ private:
 
         auto chunks = PatchCachedChunkReplicas(descriptor.chunks());
 
-        auto config = New<TTableReaderConfig>();
-
-        auto readerProvider = New<TTableChunkReaderProvider>(
-            chunks,
+        auto config = New<TMultiChunkReaderConfig>();
+        auto options = New<TMultiChunkReaderOptions>();
+        auto nameTable = New<TNameTable>();
+        auto reader = CreateSchemalessSequentialMultiChunkReader(
             config,
-            Bootstrap->GetUncompressedBlockCache());
-
-        auto asyncReader = New<TTableChunkSequenceReader>(
-            config,
-            Bootstrap->GetMasterClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
+            options,
+            Bootstrap->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader),
             Bootstrap->GetBlockStore()->GetCompressedBlockCache(),
+            Bootstrap->GetUncompressedBlockCache(),
             NodeDirectory,
-            std::move(chunks),
-            readerProvider);
+            chunks,
+            nameTable);
 
-        auto syncReader = CreateSyncReader(asyncReader);
         auto format = ConvertTo<NFormats::TFormat>(TYsonString(descriptor.format()));
 
         try {
-            syncReader->Open();
+            WaitFor(reader->Open()).ThrowOnError();
 
             auto producer = [&] (TOutputStream* output) {
-                auto consumer = CreateConsumerForFormat(
-                    format,
-                    NFormats::EDataType::Tabular,
-                    output);
-                ProduceYson(syncReader, consumer.get());
+                TBufferedOutput bufferedOutput(output);
+                auto writer = CreateSchemalessWriterForFormat(format, nameTable, &bufferedOutput);
+                PipeReaderToWriter(reader, writer, 10000);
             };
 
             Slot->MakeFile(fileName, producer);
@@ -731,9 +742,9 @@ private:
     {
         auto resultError = FromProto<TError>(jobResult.error());
 
-        if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) || 
+        if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
-            resultError.FindMatching(EErrorCode::ConfigCreationFailed) || 
+            resultError.FindMatching(EErrorCode::ConfigCreationFailed) ||
             resultError.FindMatching(static_cast<int>(EExitStatus::ExitCodeBase) + static_cast<int>(EJobProxyExitCode::HeartbeatFailed)))
         {
             return MakeNullable(EAbortReason::Other);
@@ -756,7 +767,7 @@ private:
     static bool IsFatalError(const TError& error)
     {
         return
-            error.FindMatching(NTableClient::EErrorCode::SortOrderViolation) ||
+            error.FindMatching(NVersionedTableClient::EErrorCode::SortOrderViolation) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) ||

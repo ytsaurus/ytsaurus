@@ -78,7 +78,7 @@ private:
     bool BuildingSnapshot_ = false;
     bool RotatingChangelogs_ = false;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     class TSession;
 

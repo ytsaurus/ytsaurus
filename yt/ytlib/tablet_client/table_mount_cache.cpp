@@ -4,6 +4,7 @@
 #include "private.h"
 
 #include <core/misc/string.h>
+#include <core/misc/expiring_cache.h>
 
 #include <core/concurrency/rw_spinlock.h>
 #include <core/concurrency/delayed_executor.h>
@@ -16,12 +17,11 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/table_client/table_ypath_proxy.h>
-
 #include <ytlib/tablet_client/public.h>
 
 #include <ytlib/hive/cell_directory.h>
 
+#include <ytlib/new_table_client/table_ypath_proxy.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
 #ifdef YT_USE_LLVM
@@ -42,7 +42,6 @@ using namespace NRpc;
 using namespace NElection;
 using namespace NObjectClient;
 using namespace NCypressClient;
-using namespace NTableClient;
 using namespace NVersionedTableClient;
 using namespace NHive;
 using namespace NNodeTrackerClient;
@@ -85,155 +84,42 @@ TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row)
     return *(it - 1);
 }
 
-void TTableMountInfo::EvaluateKeys(TUnversionedRow fullRow, TRowBuffer& buffer)
-{
-#ifdef YT_USE_LLVM
-    for (int index = 0; index < KeyColumns.size(); ++index) {
-        if (Schema.Columns()[index].Expression) {
-            if (!Evaluators[index]) {
-                auto expr = PrepareExpression(Schema.Columns()[index].Expression.Get(), Schema);
-                TCGBinding binding;
-                TFoldingProfiler()
-                    .Set(binding)
-                    .Set(Variables[index])
-                    .Profile(expr);
-                Evaluators[index] = CodegenExpression(expr, Schema, binding);
-            }
-
-            TQueryStatistics statistics;
-            TExecutionContext executionContext;
-            executionContext.Schema = Schema;
-            executionContext.LiteralRows = &Variables[index].LiteralRows;
-            executionContext.PermanentBuffer = &buffer;
-            executionContext.OutputBuffer = &buffer;
-            executionContext.IntermediateBuffer = &buffer;
-            executionContext.Statistics = &statistics;
-
-            Evaluators[index](&fullRow[index], fullRow, Variables[index].ConstantsRowBuilder.GetRow(), &executionContext);
-        }
-    }
-#else
-    THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
-#endif
-}
-
-void TTableMountInfo::EvaluateKeys(
-    TUnversionedRow fullRow,
-    TRowBuffer& buffer,
-    const TUnversionedRow partialRow,
-    const TNameTableToSchemaIdMapping& idMapping)
-{
-    int columnCount = fullRow.GetCount();
-
-    for (int index = 0; index < columnCount; ++index) {
-        fullRow[index].Type = EValueType::Null;
-    }
-
-    for (int index = 0; index < partialRow.GetCount(); ++index) {
-        YCHECK(idMapping[partialRow[index].Id] < columnCount);
-        fullRow[idMapping[partialRow[index].Id]] = partialRow[index];
-    }
-
-    EvaluateKeys(fullRow, buffer);
-
-    for (int index = 0; index < columnCount; ++index) {
-        fullRow[index].Id = index;
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableMountCache::TImpl
-    : public TRefCounted
+    : public TExpiringCache<TYPath, TTableMountInfoPtr>
 {
 public:
     TImpl(
         TTableMountCacheConfigPtr config,
         IChannelPtr masterChannel,
         TCellDirectoryPtr cellDirectory)
-        : Config_(config)
+        : TExpiringCache(config)
+        , Config_(config)
         , ObjectProxy_(masterChannel)
         , CellDirectory_(cellDirectory)
     { }
 
     TFuture<TTableMountInfoPtr> GetTableInfo(const TYPath& path)
     {
-        auto now = TInstant::Now();
-
-        // Fast path.
-        {
-            TReaderGuard guard(SpinLock_);
-            auto it = PathToEntry_.find(path);
-            if (it != PathToEntry_.end()) {
-                const auto& entry = it->second;
-                if (now < entry.Deadline) {
-                    return entry.Promise;
-                }
-            }
-        }
-
-        // Slow path.
-        {
-            TWriterGuard guard(SpinLock_);
-            auto it = PathToEntry_.find(path);
-            if (it == PathToEntry_.end()) {
-                TTableEntry entry;
-                entry.Deadline = TInstant::Max();
-                auto promise = entry.Promise = NewPromise<TTableMountInfoPtr>();
-                YCHECK(PathToEntry_.insert(std::make_pair(path, entry)).second);
-                guard.Release();
-                RequestTableMountInfo(path);
-                return promise;
-            }
-
-            auto& entry = it->second;
-            const auto& promise = entry.Promise;
-            if (!promise.IsSet()) {
-                return promise;
-            }
-
-            if (now > entry.Deadline) {
-                // Evict and retry.
-                TDelayedExecutor::CancelAndClear(entry.ProbationCookie);
-                PathToEntry_.erase(it);
-                guard.Release();
-                return GetTableInfo(path);
-            }
-
-            return promise;
-        }
+        return TExpiringCache::Get(path);
     }
 
     void Clear()
     {
-        TWriterGuard guard(SpinLock_);
-        PathToEntry_.clear();
+        TExpiringCache::Clear();
         LOG_DEBUG("Table mount info cache cleared");
     }
 
 private:
-    TTableMountCacheConfigPtr Config_;
+    const TTableMountCacheConfigPtr Config_;
     TObjectServiceProxy ObjectProxy_;
-    TCellDirectoryPtr CellDirectory_;
-    
+    const TCellDirectoryPtr CellDirectory_;
 
-    struct TTableEntry
+
+    virtual TFuture <TTableMountInfoPtr> DoGet(const TYPath& path) override
     {
-        //! When this entry must be evicted.
-        TInstant Deadline;
-        //! Some latest known info (possibly not yet set).
-        TPromise<TTableMountInfoPtr> Promise;
-        //! Corresponds to a future probation request.
-        TDelayedExecutorCookie ProbationCookie;
-    };
-
-    TReaderWriterSpinLock SpinLock_;
-    yhash<TYPath, TTableEntry> PathToEntry_;
-
-
-    void RequestTableMountInfo(const TYPath& path)
-    {
-        LOG_DEBUG("Requesting table mount info for %v",
+        LOG_DEBUG("Requesting table mount info (Path: %v)",
             path);
 
         auto req = TTableYPathProxy::GetMountInfo(path);
@@ -241,98 +127,57 @@ private:
         cachingHeaderExt->set_success_expiration_time(Config_->SuccessExpirationTime.MilliSeconds());
         cachingHeaderExt->set_failure_expiration_time(Config_->FailureExpirationTime.MilliSeconds());
 
-        ObjectProxy_.Execute(req).Subscribe(
-            BIND(&TImpl::OnTableMountInfoResponse, MakeWeak(this), path));
-    }
+        return ObjectProxy_.Execute(req).Apply(
+            BIND([= , this_ = MakeStrong(this)] (const TTableYPathProxy::TErrorOrRspGetMountInfoPtr& rspOrError) {
+                if (!rspOrError.IsOK()) {
+                    auto wrappedError = TError("Error getting mount info for %v",
+                        path)
+                        << rspOrError;
+                    LOG_WARNING(wrappedError);
+                    THROW_ERROR wrappedError;
+                }
 
-    void OnTableMountInfoResponse(const TYPath& path, const TTableYPathProxy::TErrorOrRspGetMountInfoPtr& rspOrError)
-    {
-        TWriterGuard guard(SpinLock_);
-        auto it = PathToEntry_.find(path);
-        if (it == PathToEntry_.end())
-            return;
+                const auto& rsp = rspOrError.Value();
+                auto tableInfo = New<TTableMountInfo>();
+                tableInfo->Path = path;
+                tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
+                tableInfo->Schema = FromProto<TTableSchema>(rsp->schema());
+                tableInfo->KeyColumns = FromProto<TKeyColumns>(rsp->key_columns());
+                tableInfo->Sorted = rsp->sorted();
+                tableInfo->NeedKeyEvaluation = tableInfo->Schema.HasComputedColumns();
 
-        auto& entry = it->second;
+                auto nodeDirectory = New<TNodeDirectory>();
+                nodeDirectory->MergeFrom(rsp->node_directory());
 
-        auto setResult = [&] (const TErrorOr<TTableMountInfoPtr>& result) {
-            auto expirationTime = result.IsOK() ? Config_->SuccessExpirationTime : Config_->FailureExpirationTime;
-            entry.Deadline = TInstant::Now() + expirationTime;
-            if (entry.Promise.IsSet()) {
-                entry.Promise = MakePromise(result);
-            } else {
-                entry.Promise.Set(result);
-            }
-        };
+                for (const auto& protoTabletInfo : rsp->tablets()) {
+                    auto tabletInfo = New<TTabletInfo>();
+                    tabletInfo->TabletId = FromProto<TObjectId>(protoTabletInfo.tablet_id());
+                    tabletInfo->State = ETabletState(protoTabletInfo.state());
+                    tabletInfo->PivotKey = FromProto<TOwningKey>(protoTabletInfo.pivot_key());
 
-        if (!rspOrError.IsOK()) {
-            auto wrappedError = TError("Error getting mount info for %v",
-                path)
-                << rspOrError;
-            setResult(wrappedError);
-            LOG_WARNING(wrappedError);
-            return;
-        }
+                    if (protoTabletInfo.has_cell_config()) {
+                        auto config = ConvertTo<TCellConfigPtr>(TYsonString(protoTabletInfo.cell_config()));
+                        tabletInfo->CellId = config->CellId;
+                        CellDirectory_->RegisterCell(config, protoTabletInfo.cell_config_version());
+                    }
 
-        const auto& rsp = rspOrError.Value();
-        auto tableInfo = New<TTableMountInfo>();
-        tableInfo->Path = path;
-        tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
-        tableInfo->Schema = FromProto<TTableSchema>(rsp->schema());
-        tableInfo->KeyColumns = FromProto<TKeyColumns>(rsp->key_columns());
-        tableInfo->Sorted = rsp->sorted();
+                    for (auto nodeId : protoTabletInfo.replica_node_ids()) {
+                        tabletInfo->Replicas.push_back(TTabletReplica(
+                            nodeId,
+                            nodeDirectory->GetDescriptor(nodeId)));
+                    }
 
-        for (int index = 0; index < tableInfo->KeyColumns.size(); ++index) {
-            if (tableInfo->Schema.Columns()[index].Expression) {
-                tableInfo->NeedKeyEvaluation = true;
-                break;
-            }
-        }
-#ifdef YT_USE_LLVM
-        if (tableInfo->NeedKeyEvaluation) {
-            auto keyColumnCount = tableInfo->KeyColumns.size();
-            tableInfo->Evaluators.resize(keyColumnCount);
-            tableInfo->Variables.resize(keyColumnCount);
-        }
-#endif
+                    tableInfo->Tablets.push_back(tabletInfo);
+                }
 
-        auto nodeDirectory = New<TNodeDirectory>();
-        nodeDirectory->MergeFrom(rsp->node_directory());
+                LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Sorted: %v)",
+                    path,
+                    tableInfo->TableId,
+                    tableInfo->Tablets.size(),
+                    tableInfo->Sorted);
 
-        for (const auto& protoTabletInfo : rsp->tablets()) {
-            auto tabletInfo = New<TTabletInfo>();
-            tabletInfo->TabletId = FromProto<TObjectId>(protoTabletInfo.tablet_id());
-            tabletInfo->State = ETabletState(protoTabletInfo.state());
-            tabletInfo->PivotKey = FromProto<TOwningKey>(protoTabletInfo.pivot_key());
-
-            if (protoTabletInfo.has_cell_config()) {
-                auto config = ConvertTo<TCellConfigPtr>(TYsonString(protoTabletInfo.cell_config()));
-                tabletInfo->CellId = config->CellId;
-                CellDirectory_->RegisterCell(config, protoTabletInfo.cell_config_version());
-            }
-            
-            for (auto nodeId : protoTabletInfo.replica_node_ids()) {
-                tabletInfo->Replicas.push_back(TTabletReplica(
-                    nodeId,
-                    nodeDirectory->GetDescriptor(nodeId)));
-            }
-
-            tableInfo->Tablets.push_back(tabletInfo);
-        }
-
-        setResult(tableInfo);
-
-        {
-            NTracing::TNullTraceContextGuard guard;
-            entry.ProbationCookie = TDelayedExecutor::Submit(
-                BIND(&TImpl::RequestTableMountInfo, MakeWeak(this), path),
-                Config_->SuccessProbationTime);
-        }
-
-        LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Sorted: %v)",
-            path,
-            tableInfo->TableId,
-            tableInfo->Tablets.size(),
-            tableInfo->Sorted);
+                return tableInfo;
+            }));
     }
 
 };

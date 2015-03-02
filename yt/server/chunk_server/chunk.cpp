@@ -207,6 +207,8 @@ void TChunk::Confirm(
     ChunkInfo_.Swap(chunkInfo);
     ChunkMeta_.Swap(chunkMeta);
     MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+
+    YASSERT(IsConfirmed());
 }
 
 bool TChunk::IsConfirmed() const
@@ -314,17 +316,17 @@ void TChunk::SetErasureCodec(NErasure::ECodec value)
 
 bool TChunk::IsErasure() const
 {
-    return TypeFromId(Id_) == EObjectType::ErasureChunk;
+    return GetType() == EObjectType::ErasureChunk;
 }
 
 bool TChunk::IsJournal() const
 {
-    return TypeFromId(Id_) == EObjectType::JournalChunk;
+    return GetType() == EObjectType::JournalChunk;
 }
 
 bool TChunk::IsRegular() const
 {
-    return TypeFromId(Id_) == EObjectType::Chunk;
+    return GetType() == EObjectType::Chunk;
 }
 
 bool TChunk::IsAvailable() const

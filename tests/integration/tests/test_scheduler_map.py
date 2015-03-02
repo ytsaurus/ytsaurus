@@ -5,6 +5,8 @@ import os
 import tempfile
 import subprocess
 
+from yt.wrapper import format
+
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
@@ -586,8 +588,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         op_id = map(command="cat; echo {hello=world} >&4", in_="//tmp/t1", out=["//tmp/t2", "//tmp/t3"])
         progress = get("//sys/operations/{0}/@progress".format(op_id))
-        assert progress["output_statistics_detailed"][0]["row_count"] == 5
-        assert progress["output_statistics_detailed"][1]["row_count"] == 1
+        assert progress["detailed_output_statistics"][0]["row_count"] == 5
+        assert progress["detailed_output_statistics"][1]["row_count"] == 1
 
 
     def test_invalid_output_record(self):
@@ -619,6 +621,48 @@ class TestSchedulerMapCommands(YTEnvSetup):
         jobs_path = "//sys/operations/" + op_id + "/jobs"
         for job_id in ls(jobs_path):
             assert len(read_file(jobs_path + "/" + job_id + "/fail_contexts/0")) > 0
+
+    def test_dump_input_context(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        set("//tmp/input_contexts", {})
+
+        tmpdir = tempfile.mkdtemp(prefix="dump_input_context_semaphore")
+
+        command="touch {0}/started; cat; until rmdir {0} 2>/dev/null; do sleep 1; done".format(tmpdir)
+
+        op_id = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=command,
+            spec={
+                "mapper": {
+                    "input_format": "json",
+                    "output_format": "json"
+                }
+            })
+
+        pin_filename = os.path.join(tmpdir, "started")
+        while not os.access(pin_filename, os.F_OK):
+            time.sleep(0.2)
+
+        try:
+            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+            jobs = ls(jobs_path)
+            assert jobs
+            for job_id in jobs:
+                dump_input_context(job_id, "//tmp/input_contexts")
+
+        finally:
+            os.unlink(pin_filename)
+
+        track_op(op_id)
+
+        context = download("//tmp/input_contexts/0")
+        assert format.JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
 
     @only_linux
     def test_sorted_output(self):

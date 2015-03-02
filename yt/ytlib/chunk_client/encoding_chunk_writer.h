@@ -26,6 +26,8 @@ public:
         IChunkWriterPtr asyncWriter);
 
     void WriteBlock(std::vector<TSharedRef>&& data);
+    void WriteBlock(TSharedRef&& data);
+    
     void Close();
 
     TFuture<void> GetReadyEvent() const;

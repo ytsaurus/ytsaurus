@@ -349,12 +349,10 @@ void TErasureWriter::EncodeAndWriteParityBlocks()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    auto this_ = MakeStrong(this);
     for (i64 begin = 0; begin < ParityDataSize_; begin += Config_->ErasureWindowSize) {
         i64 end = std::min(begin + Config_->ErasureWindowSize, ParityDataSize_);
         auto asyncParityBlocks =
-            BIND([=] () {
-                UNUSED(this_);
+            BIND([=, this_ = MakeStrong(this)] () {
                 // Generate bytes from [begin, end) for parity blocks.
                 std::vector<TSharedRef> slices;
                 for (const auto& slicer : Slicers_) {

@@ -11,7 +11,7 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! Provides a local and synchronous implementation of IAsyncReader.
+//! Provides a local and synchronous implementation of IReader.
 class TFileReader
     : public IChunkReader
 {
@@ -32,8 +32,7 @@ public:
     i64 GetFullSize() const;
 
     //! Synchronously returns the requested meta.
-    NProto::TChunkMeta GetMeta(
-        const std::vector<int>* extensionTags = nullptr);
+    NProto::TChunkMeta GetMeta(const TNullable<std::vector<int>>& extensionTags = Null);
 
     // IReader implementation.
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override;
@@ -42,7 +41,7 @@ public:
     
     virtual TFuture<NProto::TChunkMeta> GetMeta(
         const TNullable<int>& partitionTag,
-        const std::vector<int>* extensionTags = nullptr) override;
+        const TNullable<std::vector<int>>& extensionTags) override;
 
     virtual TChunkId GetChunkId() const override;
 

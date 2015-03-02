@@ -31,7 +31,7 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TAccount> TBase;
 
-    virtual NLog::TLogger CreateLogger() const override
+    virtual NLogging::TLogger CreateLogger() const override
     {
         return SecurityServerLogger;
     }

@@ -6,6 +6,15 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const char* GetUnaryOpcodeLexeme(EUnaryOp opcode)
+{
+    switch (opcode) {
+        case EUnaryOp::Plus:           return "+";
+        case EUnaryOp::Minus:          return "-";
+    }
+    YUNREACHABLE();
+}
+
 const char* GetBinaryOpcodeLexeme(EBinaryOp opcode)
 {
     switch (opcode) {

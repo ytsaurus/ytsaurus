@@ -8,6 +8,8 @@
 
 #include <core/logging/log.h>
 
+#include <ytlib/job_tracker_client/public.h>
+
 #include <server/job_agent/public.h>
 
 #include <server/exec_agent/supervisor_service_proxy.h>
@@ -28,11 +30,17 @@ public:
     //! Runs the job. Blocks until the job is complete.
     void Run();
 
+    IInvokerPtr GetControlInvoker() const;
+
+    virtual std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId) override;
+
 private:
     TJobProxyConfigPtr Config_;
     NJobAgent::TJobId JobId_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
+
+    NRpc::IServerPtr RpcServer;
 
     std::unique_ptr<NExecAgent::TSupervisorServiceProxy> SupervisorProxy_;
 
@@ -47,6 +55,7 @@ private:
 
     IJobPtr Job_;
     NConcurrency::TActionQueuePtr JobThread_;
+    NConcurrency::TActionQueuePtr ControlThread_;
 
     NJobTrackerClient::NProto::TJobSpec JobSpec_;
     NNodeTrackerClient::NProto::TNodeResources ResourceUsage_;
@@ -79,7 +88,7 @@ private:
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const override;
 
-    virtual NLog::TLogger GetLogger() const override;
+    virtual NLogging::TLogger GetLogger() const override;
 
     void CheckMemoryUsage();
 

@@ -15,11 +15,13 @@ message TRequestHeader
     required string method = 3;
     optional NYT.NProto.TGuid realm_id = 8;
 
-    optional bool one_way = 4;
+    optional bool one_way = 4 [default = false];
     optional int32 protocol_version = 9 [default = 0];
 
     optional int64 request_start_time = 6;
     optional int64 retry_start_time = 7;
+    optional bool retry = 11 [default = false];
+
     optional int64 timeout = 10;
 
     extensions 100 to max;

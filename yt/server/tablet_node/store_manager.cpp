@@ -58,7 +58,7 @@ TStoreManager::TStoreManager(
     YCHECK(Tablet_);
     YCHECK(DynamicMemoryStoreFactory_);
 
-    Logger.AddTag("TabletId: %v", Tablet_->GetId());
+    Logger.AddTag("TabletId: %v", Tablet_->GetTabletId());
     if (Tablet_->GetSlot()) {
         Logger.AddTag("CellId: %v", Tablet_->GetSlot()->GetCellId());
     }
@@ -104,7 +104,8 @@ bool TStoreManager::HasUnflushedStores() const
 void TStoreManager::StartEpoch(TTabletSlotPtr slot)
 {
     Tablet_->StartEpoch(slot);
-    LastRotated_ = TInstant::Now();
+    const auto& config = Tablet_->GetConfig();
+    LastRotated_ = TInstant::Now() - RandomDuration(config->AutoPartitioningPeriod);
     RotationScheduled_ = false;
 }
 
@@ -125,7 +126,7 @@ TDynamicRowRef TStoreManager::WriteRow(
     if (row.GetCount() == KeyColumnCount_) {
         THROW_ERROR_EXCEPTION("Empty writes are not allowed")
             << TErrorAttribute("transaction_id", transaction->GetId())
-            << TErrorAttribute("tablet_id", Tablet_->GetId())
+            << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
             << TErrorAttribute("key", row);
     }
 

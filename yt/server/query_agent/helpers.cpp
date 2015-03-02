@@ -21,7 +21,7 @@ bool IsRetriableError(const TError& error)
 
 void ExecuteRequestWithRetries(
     int maxRetries,
-    const NLog::TLogger& logger,
+    const NLogging::TLogger& logger,
     const std::function<void()>& callback)
 {
     const auto& Logger = logger;

@@ -17,11 +17,11 @@ TSchemafulYsonWriter::TSchemafulYsonWriter(
     IAsyncOutputStreamPtr stream,
     TYsonFormatConfigPtr config)
     : Stream_(stream)
+    , Config_(config)
     , Writer_(
         &Buffer_,
         config->Format,
-        EYsonType::ListFragment,
-        true)
+        EYsonType::ListFragment)
 { }
 
 TFuture<void> TSchemafulYsonWriter::Open(

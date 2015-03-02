@@ -17,10 +17,11 @@ protected:
         IHydraManagerPtr hydraManager,
         IInvokerPtr automatonInvoker,
         const NRpc::TServiceId& serviceId,
-        const NLog::TLogger& logger,
+        const NLogging::TLogger& logger,
         int protocolVersion = NRpc::TProxyBase::DefaultProtocolVersion);
 
-    IInvokerPtr AutomatonInvoker_;
+    const IInvokerPtr AutomatonInvoker_;
+
     IInvokerPtr EpochAutomatonInvoker_;
 
     void ValidateActiveLeader();
@@ -28,7 +29,7 @@ protected:
 
 private:
     // Avoid name clash when inheriting from both THydraServiceBase and TCompositeAutomatonPart.
-    IHydraManagerPtr ServiceHydraManager_;
+    const IHydraManagerPtr ServiceHydraManager_;
 
     void OnLeaderActive();
     void OnStopLeading();

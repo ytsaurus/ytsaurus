@@ -15,8 +15,6 @@ namespace NFormats {
 using namespace NVersionedTableClient;
 using namespace NYson;
 
-TFuture<void> TSchemalessWriterAdapter::StaticError_ = MakeFuture(TError());
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemalessWriterAdapter::TSchemalessWriterAdapter(
@@ -28,7 +26,7 @@ TSchemalessWriterAdapter::TSchemalessWriterAdapter(
 
 TFuture<void> TSchemalessWriterAdapter::Open()
 {
-    return MakeFuture(TError());
+    return VoidFuture;
 }
 
 bool TSchemalessWriterAdapter::Write(const std::vector<TUnversionedRow> &rows)
@@ -39,6 +37,12 @@ bool TSchemalessWriterAdapter::Write(const std::vector<TUnversionedRow> &rows)
             Consumer_->OnBeginMap();
             for (auto* it = row.Begin(); it != row.End(); ++it) {
                 auto& value = *it;
+
+                if (value.Type == EValueType::Null) {
+                    // Simply skip null values.
+                    continue;
+                }
+
                 Consumer_->OnKeyedItem(NameTable_->GetName(value.Id));
                 switch (value.Type) {
                     case EValueType::Int64:
@@ -83,7 +87,15 @@ TFuture<void> TSchemalessWriterAdapter::Close()
     return MakeFuture(Error_);
 }
 
+TNameTablePtr TSchemalessWriterAdapter::GetNameTable() const
+{
+    return NameTable_;
+}
 
+bool TSchemalessWriterAdapter::IsSorted() const
+{
+    return false;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -35,10 +35,7 @@ public:
     explicit TAsyncReaderImpl(int fd)
         : FD_(fd)
     {
-        auto this_ = MakeStrong(this);
-        BIND([=] () {
-            UNUSED(this_);
-
+        BIND([=, this_ = MakeStrong(this)] () {
             FDWatcher_.set(FD_, ev::READ);
             FDWatcher_.set(TIODispatcher::Get()->Impl_->GetEventLoop());
             FDWatcher_.set<TAsyncReaderImpl, &TAsyncReaderImpl::OnRead>(this);
@@ -65,16 +62,13 @@ public:
 
         auto promise = NewPromise<size_t>();
 
-        auto this_ = MakeStrong(this);
-        BIND([=] () {
-            UNUSED(this_);
-
+        BIND([=, this_ = MakeStrong(this)] () {
             YCHECK(ReadResultPromise_.IsSet());
             ReadResultPromise_ = promise;
 
             switch (State_) {
                 case EReaderState::Aborted:
-                    ReadResultPromise_.Set(TError("Reader aborted")
+                    ReadResultPromise_.Set(TError(EErrorCode::Aborted, "Reader aborted")
                         << TErrorAttribute("fd", FD_));
                     break;
 
@@ -110,23 +104,19 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto this_ = MakeStrong(this);
-        return BIND([=] () {
-            UNUSED(this_);
+        return BIND([=, this_ = MakeStrong(this)] () {
+                if (State_ != EReaderState::Active)
+                    return;
 
-            if (State_ != EReaderState::Active) {
-                return;
-            }
+                State_ = EReaderState::Aborted;
+                FDWatcher_.stop();
+                ReadResultPromise_.TrySet(TError(EErrorCode::Aborted, "Reader aborted")
+                    << TErrorAttribute("fd", FD_));
 
-            State_ = EReaderState::Aborted;
-            FDWatcher_.stop();
-            ReadResultPromise_.TrySet(TError("Reader aborted")
-                << TErrorAttribute("fd", FD_));
-
-            YCHECK(TryClose(FD_));
-        })
-        .AsyncVia(TIODispatcher::Get()->Impl_->GetInvoker())
-        .Run();
+                YCHECK(TryClose(FD_));
+            })
+            .AsyncVia(TIODispatcher::Get()->Impl_->GetInvoker())
+            .Run();
     }
 
 private:

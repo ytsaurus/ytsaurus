@@ -20,6 +20,11 @@ public:
         return "TransactionSupervisorService";
     }
 
+    static int GetProtocolVersion()
+    {
+        return 0;
+    }
+
     explicit TTransactionSupervisorServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }

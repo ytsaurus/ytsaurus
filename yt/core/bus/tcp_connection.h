@@ -48,6 +48,7 @@ public:
         const TConnectionId& id,
         int socket,
         const Stroka& address,
+        bool isUnixDomain,
         int priority,
         IMessageHandlerPtr handler);
 
@@ -122,35 +123,34 @@ private:
         TPromise<void> Promise;
     };
 
-    TTcpBusConfigPtr Config_;
-    TTcpDispatcherThreadPtr DispatcherThread_;
-    EConnectionType ConnectionType_;
-    ETcpInterfaceType InterfaceType_;
-    TConnectionId Id_;
+    const TTcpBusConfigPtr Config_;
+    const TTcpDispatcherThreadPtr DispatcherThread_;
+    const EConnectionType ConnectionType_;
+    const ETcpInterfaceType InterfaceType_;
+    const TConnectionId Id_;
     int Socket_;
-    int Fd_;
-    Stroka Address_;
+    const Stroka Address_;
+    const bool IsUnixDomain_;
 #ifdef _linux_
-    int Priority_;
+    const int Priority_;
 #endif
-    IMessageHandlerPtr Handler_;
+    const IMessageHandlerPtr Handler_;
 
-    NLog::TLogger Logger;
+    int FD_ = INVALID_SOCKET;
+
+    NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
-    
+
     // Only used by client sockets.
     int Port_ = 0;
 
-    // ETcpConnectionState actually, managed by GetState and SetState.
     std::atomic<ETcpConnectionState> State_;
 
-    TClosure MessageEnqueuedCallback_;
-    std::atomic<bool> MessageEnqueuedCallbackPending_;
+    const TClosure MessageEnqueuedCallback_;
+    std::atomic<bool> MessageEnqueuedCallbackPending_ = {false};
     TMultipleProducerSingleConsumerLockFreeStack<TQueuedMessage> QueuedMessages_;
 
-    TSpinLock TerminateSpinLock_;
-    TError TerminateError_;
-    TCallbackList<void(const TError&)> Terminated_;
+    TSingleShotCallbackList<void(const TError&)> Terminated_;
 
     std::unique_ptr<ev::io> SocketWatcher_;
 
@@ -181,9 +181,9 @@ private:
     void SyncResolve();
     void SyncClose(const TError& error);
 
-    void InitFd();
+    void InitFD();
     void InitSocketWatcher();
-    
+
     void ConnectSocket(const TNetworkAddress& netAddress);
     void CloseSocket();
 

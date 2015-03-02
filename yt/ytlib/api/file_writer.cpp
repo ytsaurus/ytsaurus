@@ -19,7 +19,6 @@
 
 #include <ytlib/chunk_client/private.h>
 #include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
@@ -100,15 +99,14 @@ private:
     TTransactionPtr Transaction_;
     TTransactionPtr UploadTransaction_;
 
-    typedef TOldMultiChunkSequentialWriter<TFileChunkWriterProvider> TWriter;
-    TIntrusivePtr<TWriter> Writer_;
-    
-    NLog::TLogger Logger = ApiLogger;
+    IFileMultiChunkWriterPtr Writer_;
+
+    NLogging::TLogger Logger = ApiLogger;
 
 
     void DoOpen()
     {
-        CheckAborted();
+        ValidateAborted();
 
         LOG_INFO("Creating upload transaction");
 
@@ -209,39 +207,30 @@ private:
             writerOptions->Account,
             chunkListId);
 
-        auto provider = New<TFileChunkWriterProvider>(
-            Config_,
-            writerOptions);
-
-        Writer_ = New<TWriter>(
+        Writer_ = CreateFileMultiChunkWriter(
             Config_,
             writerOptions,
-            provider,
             masterChannel,
             UploadTransaction_->GetId(),
             chunkListId);
 
-        {
-            auto result = WaitFor(Writer_->Open());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        WaitFor(Writer_->Open())
+            .ThrowOnError();
     }
 
     void DoWrite(const TRef& data)
     {
-        CheckAborted();
+        ValidateAborted();
 
-        while (!Writer_->GetCurrentWriter()) {
-            auto result = WaitFor(Writer_->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        if (!Writer_->Write(data)) {
+            WaitFor(Writer_->GetReadyEvent())
+                .ThrowOnError();
         }
-        
-        Writer_->GetCurrentWriter()->Write(data);
     }
 
     void DoClose()
     {
-        CheckAborted();
+        ValidateAborted();
 
         LOG_INFO("Closing file writer and committing upload transaction");
 

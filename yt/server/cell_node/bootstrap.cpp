@@ -66,6 +66,7 @@
 #include <server/exec_agent/config.h>
 #include <server/exec_agent/slot_manager.h>
 #include <server/exec_agent/supervisor_service.h>
+#include <server/exec_agent/job_prober_service.h>
 #include <server/exec_agent/environment.h>
 #include <server/exec_agent/environment_manager.h>
 #include <server/exec_agent/unsafe_environment.h>
@@ -76,6 +77,7 @@
 #include <server/tablet_node/store_flusher.h>
 #include <server/tablet_node/store_compactor.h>
 #include <server/tablet_node/partition_balancer.h>
+#include <server/tablet_node/security_manager.h>
 
 #include <server/query_agent/query_executor.h>
 #include <server/query_agent/query_service.h>
@@ -110,7 +112,7 @@ using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Bootstrap");
+static NLogging::TLogger Logger("Bootstrap");
 static const i64 FootprintMemorySize = (i64) 1024 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -176,9 +178,12 @@ void TBootstrap::DoRun()
         "Query");
     BoundedConcurrencyQueryPoolInvoker = CreateBoundedConcurrencyInvoker(
         QueryThreadPool->GetInvoker(),
-        Config->QueryAgent->MaxConcurrentRequests);
+        Config->QueryAgent->MaxConcurrentQueries);
+    BoundedConcurrencyQueryPoolInvoker = CreateBoundedConcurrencyInvoker(
+        QueryThreadPool->GetInvoker(),
+        Config->QueryAgent->MaxConcurrentReads);
 
-    BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
+    BusServer = CreateTcpBusServer(TTcpBusServerConfig::CreateTcp(Config->RpcPort));
 
     RpcServer = CreateBusServer(BusServer);
 
@@ -206,7 +211,9 @@ void TBootstrap::DoRun()
 
     BlockStore = New<TBlockStore>(Config->DataNode, this);
 
-    UncompressedBlockCache = CreateClientBlockCache(Config->DataNode->UncompressedBlockCache);
+    UncompressedBlockCache = CreateClientBlockCache(
+        Config->DataNode->UncompressedBlockCache,
+        NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/uncompressed_block_cache"));
 
     PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
 
@@ -261,7 +268,7 @@ void TBootstrap::DoRun()
     JobProxyConfig->SupervisorConnection->Priority = 6;
     JobProxyConfig->CellId = GetCellId();
 
-    SlotManager = New<TSlotManager>(Config->ExecAgent->SlotManager, this);
+    ExecSlotManager = New<TSlotManager>(Config->ExecAgent->SlotManager, this);
 
     JobController = New<TJobController>(Config->ExecAgent->JobController, this);
 
@@ -308,6 +315,8 @@ void TBootstrap::DoRun()
     JobController->RegisterFactory(NJobAgent::EJobType::RepairChunk,     createChunkJob);
     JobController->RegisterFactory(NJobAgent::EJobType::SealChunk,       createChunkJob);
 
+    RpcServer->RegisterService(CreateJobProberService(this));
+
     RpcServer->RegisterService(New<TSupervisorService>(this));
 
     EnvironmentManager = New<TEnvironmentManager>(Config->ExecAgent->EnvironmentManager);
@@ -317,12 +326,11 @@ void TBootstrap::DoRun()
 
     TabletSlotManager = New<TTabletSlotManager>(Config->TabletNode, this);
 
-    auto queryExecutor = CreateQueryExecutor(Config->QueryAgent, this);
+    SecurityManager = New<TSecurityManager>(Config->TabletNode->SecurityManager, this);
 
-    RpcServer->RegisterService(CreateQueryService(
-        Config->QueryAgent,
-        GetQueryPoolInvoker(),
-        queryExecutor));
+    QueryExecutor = CreateQueryExecutor(Config->QueryAgent, this);
+
+    RpcServer->RegisterService(CreateQueryService(Config->QueryAgent, this));
 
     RpcServer->RegisterService(CreateTimestampProxyService(
         clusterConnection->GetTimestampProvider()));
@@ -383,7 +391,7 @@ void TBootstrap::DoRun()
     ChunkStore->Initialize();
     ChunkCache->Initialize();
     JournalDispatcher->Initialize();
-    SlotManager->Initialize(Config->ExecAgent->JobController->ResourceLimits->UserSlots);
+    ExecSlotManager->Initialize(Config->ExecAgent->JobController->ResourceLimits->UserSlots);
     monitoringManager->Start();
     PeerBlockUpdater->Start();
     MasterConnector->Start();
@@ -416,6 +424,11 @@ IInvokerPtr TBootstrap::GetBoundedConcurrencyQueryPoolInvoker() const
     return BoundedConcurrencyQueryPoolInvoker;
 }
 
+IInvokerPtr TBootstrap::GetBoundedConcurrencyReadPoolInvoker() const
+{
+    return BoundedConcurrencyReadPoolInvoker;
+}
+
 IClientPtr TBootstrap::GetMasterClient() const
 {
     return MasterClient;
@@ -446,9 +459,14 @@ TTabletSlotManagerPtr TBootstrap::GetTabletSlotManager() const
     return TabletSlotManager;
 }
 
-TSlotManagerPtr TBootstrap::GetSlotManager() const
+TSecurityManagerPtr TBootstrap::GetSecurityManager() const
 {
-    return SlotManager;
+    return SecurityManager;
+}
+
+TSlotManagerPtr TBootstrap::GetExecSlotManager() const
+{
+    return ExecSlotManager;
 }
 
 TEnvironmentManagerPtr TBootstrap::GetEnvironmentManager() const
@@ -514,6 +532,11 @@ TJournalDispatcherPtr TBootstrap::GetJournalDispatcher() const
 NDataNode::TMasterConnectorPtr TBootstrap::GetMasterConnector() const
 {
     return MasterConnector;
+}
+
+NQueryClient::IExecutorPtr TBootstrap::GetQueryExecutor() const
+{
+    return QueryExecutor;
 }
 
 const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const

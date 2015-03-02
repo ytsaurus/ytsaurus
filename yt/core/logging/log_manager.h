@@ -7,7 +7,7 @@
 #include <core/ytree/public.h>
 
 namespace NYT {
-namespace NLog {
+namespace NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,11 +40,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLog
+} // namespace NLogging
 } // namespace NYT
 
 template <>
-struct TSingletonTraits<NYT::NLog::TLogManager>
+struct TSingletonTraits<NYT::NLogging::TLogManager>
 {
     enum
     {

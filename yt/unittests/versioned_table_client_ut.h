@@ -68,6 +68,16 @@ class TVersionedTableClientTestBase
     : public ::testing::Test
 {
 protected:
+    void ExpectRowsEqual(TUnversionedRow expected, TUnversionedRow actual)
+    {
+        if (!expected) {
+            EXPECT_FALSE(actual);
+            return;
+        }
+
+        EXPECT_EQ(0, CompareRows(expected.Begin(), expected.End(), actual.Begin(), actual.End()));
+    }
+
     void ExpectRowsEqual(TVersionedRow expected, TVersionedRow actual)
     {
         if (!expected) {

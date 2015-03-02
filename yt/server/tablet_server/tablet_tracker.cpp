@@ -3,6 +3,7 @@
 #include "tablet_manager.h"
 #include "tablet_cell.h"
 #include "config.h"
+#include "private.h"
 
 #include <core/concurrency/periodic_executor.h>
 
@@ -21,10 +22,12 @@ using namespace NConcurrency;
 using namespace NObjectServer;
 using namespace NTabletServer::NProto;
 using namespace NNodeTrackerServer;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TDuration CellsScanPeriod = TDuration::Seconds(3);
+static const auto CellsScanPeriod = TDuration::Seconds(3);
+static const auto& Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,6 +114,33 @@ void TTabletTracker::Stop()
     }
 }
 
+bool TTabletTracker::IsEnabled()
+{
+    // This method also logs state changes.
+
+    auto nodeTracker = Bootstrap_->GetNodeTracker();
+
+    int needOnline = Config_->SafeOnlineNodeCount;
+    int gotOnline = nodeTracker->GetOnlineNodeCount();
+
+    if (gotOnline < needOnline) {
+        if (!LastEnabled_ || *LastEnabled_) {
+            LOG_INFO("Tablet tracker disabled: too few online nodes, needed >= %v but got %v",
+                needOnline,
+                gotOnline);
+            LastEnabled_ = false;
+        }
+        return false;
+    }
+
+    if (!LastEnabled_ || !*LastEnabled_) {
+        LOG_INFO("Tablet tracker enabled");
+        LastEnabled_ = true;
+    }
+
+    return true;
+}
+
 void TTabletTracker::ScanCells()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -129,41 +159,47 @@ void TTabletTracker::ScanCells()
 }
 
 void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
-{   
+{
+    if (!IsEnabled())
+        return;
+
     TReqAssignPeers request;
     ToProto(request.mutable_cell_id(), cell->GetId());
 
     const auto& peers = cell->Peers();
-    for (int index = 0; index < static_cast<int>(peers.size()); ++index) {
-        request.add_node_ids(InvalidNodeId);
-    }
 
     SmallSet<Stroka, TypicalCellSize> forbiddenAddresses;
-    for (const auto& peer : cell->Peers()) {
-        if (peer.Address) {
-            forbiddenAddresses.insert(*peer.Address);
+    for (const auto& peer : peers) {
+        if (peer.Descriptor) {
+            forbiddenAddresses.insert(peer.Descriptor->GetDefaultAddress());
         }
     }
 
-    bool assigned = false;
-    for (int index = 0; index < static_cast<int>(peers.size()); ++index) {
-        if (cell->Peers()[index].Address)
+    for (TPeerId peerId = 0; peerId < static_cast<int>(peers.size()); ++peerId) {
+        if (peers[peerId].Descriptor)
             continue;
 
         auto* node = pool->TryAllocate(cell, forbiddenAddresses);
         if (!node)
             break;
 
-        request.set_node_ids(index, node->GetId());
+        auto* peerInfo = request.add_peer_infos();
+        peerInfo->set_peer_id(peerId);
+        ToProto(peerInfo->mutable_node_descriptor(), node->GetDescriptor());
         forbiddenAddresses.insert(node->GetAddress());
-        assigned = true;
     }
 
-    if (assigned) {
-        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->Commit();
-    }
+    if (request.peer_infos_size() == 0)
+        return;
+
+    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    CreateMutation(hydraManager, request)
+        ->Commit()
+        .Subscribe(BIND([] (const TErrorOr<TMutationResponse>& error) {
+            if (!error.IsOK()) {
+                LOG_WARNING(error, "Error committing peer assignment mutation");
+            }
+        }));
 }
 
 void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
@@ -177,30 +213,39 @@ void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
     // Look for timed out peers.
     TReqRevokePeers request;
     ToProto(request.mutable_cell_id(), cellId);
-    for (auto peerId = 0; peerId < cell->Peers().size(); ++peerId) {
+    for (TPeerId peerId = 0; peerId < cell->Peers().size(); ++peerId) {
         if (IsFailoverNeeded(cell, peerId)) {
             request.add_peer_ids(peerId);
         }
     }
 
-    if (request.peer_ids_size() > 0) {
-        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->Commit();
-    }
+    if (request.peer_ids_size() == 0)
+        return;
+
+    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    CreateMutation(hydraManager, request)
+        ->Commit()
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
+            if (!error.IsOK()) {
+                LOG_WARNING(error, "Error committing peer revocation mutation");
+            }
+        }));
 }
 
 bool TTabletTracker::IsFailoverNeeded(TTabletCell* cell, TPeerId peerId)
 {
     const auto& peer = cell->Peers()[peerId];
-    if (!peer.Address)
+    if (!peer.Descriptor) {
         return false;
+    }
 
-    if (peer.Node)
+    if (peer.Node) {
         return false;
+    }
 
-    if (peer.LastSeenTime > TInstant::Now() - Config_->PeerFailoverTimeout)
+    if (peer.LastSeenTime > TInstant::Now() - Config_->PeerFailoverTimeout) {
         return false;
+    }
 
     return true;
 }

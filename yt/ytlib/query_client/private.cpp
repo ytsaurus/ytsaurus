@@ -6,12 +6,12 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLog::TLogger QueryClientLogger("QueryClient");
+const NLogging::TLogger QueryClientLogger("QueryClient");
 
-NLog::TLogger BuildLogger(const TConstQueryPtr& query)
+NLogging::TLogger BuildLogger(const TConstQueryPtr& query)
 {
-    NLog::TLogger result(QueryClientLogger);
-    result.AddTag("FragmentId: %v", query->GetId());
+    NLogging::TLogger result(QueryClientLogger);
+    result.AddTag("FragmentId: %v", query->Id);
     return result;
 }
 

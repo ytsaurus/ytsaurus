@@ -72,10 +72,10 @@ public:
         REGISTER(TWriteTableExecutor,        "write_table"       );
         REGISTER(TReadTableExecutor,         "read_table"        );
         // TODO(babenko): proper naming
-        REGISTER(TInsertExecutor,            "insert"            );
-        REGISTER(TSelectExecutor,            "select"            );
-        REGISTER(TLookupExecutor,            "lookup"            );
-        REGISTER(TDeleteExecutor,            "delete"            );
+        REGISTER(TInsertRowsExecutor,        "insert_rows"       );
+        REGISTER(TSelectRowsExecutor,        "select_rows"       );
+        REGISTER(TLookupRowsExecutor,        "lookup_rows"       );
+        REGISTER(TDeleteRowsExecutor,        "delete_row"        );
         // COMPAT(babenko)
         REGISTER(TWriteTableExecutor,        "write"             );
         REGISTER(TReadTableExecutor,         "read"              );

@@ -26,7 +26,7 @@ using namespace NChunkClient::NProto;
 
 static const auto& Logger = DataNodeLogger;
 
-static NProfiling::TRateCounter DiskBlobReadThroughputCounter("/disk_blob_read_throughput");
+static NProfiling::TSimpleCounter DiskBlobReadByteCounter("/disk_blob_read_bytes");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,27 +66,24 @@ bool TBlobChunkBase::IsActive() const
 
 TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::GetMeta(
     i64 priority,
-    const std::vector<int>* tags)
+    const TNullable<std::vector<int>>& extensionTags)
 {
     {
         TGuard<TSpinLock> guard(SpinLock_);
         if (Meta_) {
             guard.Release();
             LOG_DEBUG("Meta cache hit (ChunkId: %v)", Id_);
-            return MakeFuture(FilterCachedMeta(tags));
+            return MakeFuture(FilterCachedMeta(extensionTags));
         }
     }
 
     LOG_DEBUG("Meta cache miss (ChunkId: %v)", Id_);
 
     // Make a copy of tags list to pass it into the closure.
-    auto tags_ = MakeNullable(tags);
-    auto this_ = MakeStrong(this);
     auto invoker = Bootstrap_->GetControlInvoker();
     return ReadMeta(priority).Apply(
-        BIND([=] () {
-            UNUSED(this_);
-            return FilterCachedMeta(tags_.GetPtr());
+        BIND([=, this_ = MakeStrong(this)] () {
+            return FilterCachedMeta(extensionTags);
         }).AsyncVia(invoker));
 }
 
@@ -182,7 +179,7 @@ void TBlobChunkBase::DoReadBlocks(
         locationProfiler.Enqueue("/blob_block_read_size", pendingSize);
         locationProfiler.Enqueue("/blob_block_read_time", readTime.MicroSeconds());
         locationProfiler.Enqueue("/blob_block_read_throughput", pendingSize * 1000000 / (1 + readTime.MicroSeconds()));
-        DataNodeProfiler.Increment(DiskBlobReadThroughputCounter, pendingSize);
+        DataNodeProfiler.Increment(DiskBlobReadByteCounter, pendingSize);
 
         promise.Set(blocksOrError.Value());
     } catch (const std::exception& ex) {
@@ -301,12 +298,7 @@ void TBlobChunkBase::SyncRemove(bool force)
 
 TFuture<void> TBlobChunkBase::AsyncRemove()
 {
-    auto this_ = MakeStrong(this);
-    return
-        BIND([=] () {
-            UNUSED(this_);
-            SyncRemove(false);
-        })
+    return BIND(&TBlobChunkBase::SyncRemove, MakeStrong(this), false)
         .AsyncVia(Location_->GetWritePoolInvoker())
         .Run();
 }

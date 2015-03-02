@@ -187,13 +187,13 @@ private:
 
         if (storeManager->IsPeriodicRotationNeeded()) {
             LOG_INFO("Scheduling periodic store rotation (TabletId: %v)",
-                tablet->GetId());
+                tablet->GetTabletId());
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
         if (storeManager->IsOverflowRotationNeeded()) {
             LOG_INFO("Scheduling store rotation due to overflow (TabletId: %v)",
-                tablet->GetId());
+                tablet->GetTabletId());
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
@@ -217,7 +217,7 @@ private:
                     PassiveMemoryUsage_ += memoryUsage;
                 } else {
                     TForcedRotationCandidate candidate;
-                    candidate.TabletId = tablet->GetId();
+                    candidate.TabletId = tablet->GetTabletId();
                     candidate.MemoryUsage = memoryUsage;
                     ForcedRotationCandidates_.push_back(candidate);
                 }
@@ -255,7 +255,7 @@ private:
         auto slot = tablet->GetSlot();
         auto hydraManager = slot->GetHydraManager();
         auto tabletManager = slot->GetTabletManager();
-        auto tabletId = tablet->GetId();
+        auto tabletId = tablet->GetTabletId();
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
         auto writerOptions = CloneYsonSerializable(tablet->GetWriterOptions());
@@ -263,7 +263,7 @@ private:
 
         YCHECK(store->GetState() == EStoreState::Flushing);
 
-        NLog::TLogger Logger(TabletNodeLogger);
+        NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, StoreId: %v",
             tabletId,
             store->GetId());
@@ -336,9 +336,6 @@ private:
             while (true) {
                 // NB: Memory store reader is always synchronous.
                 reader->Read(&rows);
-                for (auto row : rows) {
-                    Magic(STRINGBUF("TStoreFlusher::FlushStore"), row);
-                }
                 if (rows.empty())
                     break;
                 if (!writer->Write(rows)) {
@@ -364,7 +361,12 @@ private:
             SwitchTo(automatonInvoker);
 
             CreateMutation(slot->GetHydraManager(), hydraRequest)
-                ->Commit();
+                ->Commit()
+                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
+                    if (!error.IsOK()) {
+                        LOG_ERROR(error, "Error committing tablet stores update mutation");
+                    }
+                }));
 
             LOG_INFO("Store flush completed (ChunkIds: [%v])",
                 JoinToString(chunkIds));

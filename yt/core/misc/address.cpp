@@ -31,7 +31,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Network");
+static NLogging::TLogger Logger("Network");
 static NProfiling::TProfiler Profiler("/network");
 
 static const auto WarningDuration = TDuration::MilliSeconds(100);

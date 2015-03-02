@@ -36,6 +36,17 @@ class TVersionedChunksTest
     : public TVersionedTableClientTestBase
 {
 protected:
+    TTableSchema Schema;
+    TKeyColumns KeyColumns;
+
+    IVersionedReaderPtr ChunkReader;
+    IVersionedWriterPtr ChunkWriter;
+
+    IChunkReaderPtr MemoryReader;
+    TMemoryWriterPtr MemoryWriter;
+
+    TChunkedMemoryPool MemoryPool;
+
     virtual void SetUp() override
     {
         Schema.Columns() = {
@@ -61,16 +72,24 @@ protected:
         EXPECT_TRUE(ChunkWriter->Open().Get().IsOK());
     }
 
-    TTableSchema Schema;
-    TKeyColumns KeyColumns;
+    void CheckResult(const std::vector<TVersionedRow>& expected, IVersionedReaderPtr reader)
+    {
+        auto it = expected.begin();
+        std::vector<TVersionedRow> actual;
+        actual.reserve(1000);
 
-    IVersionedReaderPtr ChunkReader;
-    IVersionedWriterPtr ChunkWriter;
+        while (reader->Read(&actual)) {
+            if (actual.empty()) {
+                EXPECT_TRUE(reader->GetReadyEvent().Get().IsOK());
+                continue;
+            }
+            std::vector<TVersionedRow> ex(it, it + actual.size());
+            CheckResult(ex, actual);
+            it += actual.size();
+        }
 
-    IChunkReaderPtr MemoryReader;
-    TMemoryWriterPtr MemoryWriter;
-
-    TChunkedMemoryPool MemoryPool;
+        EXPECT_TRUE(it == expected.end());
+    }
 
     void CheckResult(const std::vector<TVersionedRow>& expected, const std::vector<TVersionedRow>& actual)
     {
@@ -298,9 +317,11 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
     std::vector<TVersionedRow> actual;
     actual.reserve(10);
 
-    EXPECT_FALSE(chunkReader->Read(&actual));
-
+    EXPECT_TRUE(chunkReader->Read(&actual));
     CheckResult(expected, actual);
+
+    EXPECT_FALSE(chunkReader->Read(&actual));
+    EXPECT_TRUE(actual.empty());
 }
 
 TEST_F(TVersionedChunksTest, ReadByTimestamp)
@@ -345,9 +366,11 @@ TEST_F(TVersionedChunksTest, ReadByTimestamp)
     std::vector<TVersionedRow> actual;
     actual.reserve(10);
 
-    EXPECT_FALSE(chunkReader->Read(&actual));
-
+    EXPECT_TRUE(chunkReader->Read(&actual));
     CheckResult(expected, actual);
+
+    EXPECT_FALSE(chunkReader->Read(&actual));
+    EXPECT_TRUE(actual.empty());
 }
 
 TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
@@ -406,9 +429,11 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
     std::vector<TVersionedRow> actual;
     actual.reserve(10);
 
-    EXPECT_FALSE(chunkReader->Read(&actual));
-
+    EXPECT_TRUE(chunkReader->Read(&actual));
     CheckResult(expected, actual);
+
+    EXPECT_FALSE(chunkReader->Read(&actual));
+    EXPECT_TRUE(actual.empty());
 }
 
 TEST_F(TVersionedChunksTest, ReadEmpty)
@@ -465,32 +490,47 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
         Schema,
         KeyColumns).Get().ValueOrThrow();
 
-    auto chunkReader = CreateVersionedChunkReader(
-        New<TChunkReaderConfig>(),
-        MemoryReader,
-        GetNullBlockCache(),
-        chunkMeta,
-        TReadLimit(),
-        TReadLimit(),
-        TColumnFilter(),
-        AsyncAllCommittedTimestamp);
+    {
+        auto chunkReader = CreateVersionedChunkReader(
+            New<TChunkReaderConfig>(),
+            MemoryReader,
+            GetNullBlockCache(),
+            chunkMeta,
+            TReadLimit(),
+            TReadLimit(),
+            TColumnFilter(),
+            AsyncAllCommittedTimestamp);
 
-    EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+        EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+        CheckResult(expected, chunkReader);
+    }
 
-    auto it = expected.begin();
-    std::vector<TVersionedRow> actual;
-    actual.reserve(1000);
+    {
+        int firstRow = 250000;
+        TUnversionedOwningRowBuilder lowerKeyBuilder;
+        lowerKeyBuilder.AddValue(MakeUnversionedStringValue(A, 0));
+        lowerKeyBuilder.AddValue(MakeUnversionedInt64Value(firstRow, 1));
 
-    while (chunkReader->Read(&actual)) {
-        if (actual.empty()) {
-            EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
-            continue;
-        }
-        std::vector<TVersionedRow> ex(it, it + actual.size());
-        CheckResult(ex, actual);
-        it += actual.size();
+        TReadLimit lowerLimit;
+        lowerLimit.SetKey(lowerKeyBuilder.FinishRow());
+
+        auto chunkReader = CreateVersionedChunkReader(
+            New<TChunkReaderConfig>(),
+            MemoryReader,
+            GetNullBlockCache(),
+            chunkMeta,
+            lowerLimit,
+            TReadLimit(),
+            TColumnFilter(),
+            AsyncAllCommittedTimestamp);
+
+        EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+
+        expected.erase(expected.begin(), expected.begin() + firstRow);
+        CheckResult(expected, chunkReader);
     }
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

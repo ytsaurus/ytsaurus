@@ -187,11 +187,17 @@ private:
             }
 
             TReqSplitPartition request;
-            ToProto(request.mutable_tablet_id(), tablet->GetId());
+            ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
             ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_pivot_keys(), pivotKeys);
+
             CreateMutation(hydraManager, request)
-                ->Commit();
+                ->Commit()
+                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
+                    if (!error.IsOK()) {
+                        LOG_ERROR(error, "Error committing partition split mutation");
+                    }
+                }));
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Partitioning aborted");
             partition->SetState(EPartitionState::Normal);
@@ -217,7 +223,7 @@ private:
 
         auto Logger = TabletNodeLogger;
         Logger.AddTag("TabletId: %v, PartitionIds: [%v]",
-            partition->GetTablet()->GetId(),
+            partition->GetTablet()->GetTabletId(),
             JoinToString(ConvertToStrings(
                 tablet->Partitions().begin() + firstPartitionIndex,
                 tablet->Partitions().begin() + lastPartitionIndex,
@@ -231,11 +237,17 @@ private:
         auto hydraManager = slot->GetHydraManager();
 
         TReqMergePartitions request;
-        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
         ToProto(request.mutable_partition_id(), tablet->Partitions()[firstPartitionIndex]->GetId());
         request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
+
         CreateMutation(hydraManager, request)
-            ->Commit();
+            ->Commit()
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
+                if (!error.IsOK()) {
+                    LOG_ERROR(error, "Error committing partition merge mutation");
+                }
+            }));
     }
 
 
@@ -276,11 +288,17 @@ private:
                 samples.end());
 
             TReqUpdatePartitionSampleKeys request;
-            ToProto(request.mutable_tablet_id(), tablet->GetId());
+            ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
             ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_sample_keys(), samples);
+
             CreateMutation(hydraManager, request)
-                ->Commit();
+                ->Commit()
+                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
+                    if (!error.IsOK()) {
+                        LOG_ERROR(error, "Error committing sample keys update mutation");
+                    }
+                }));
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Partition sampling aborted");
         }
@@ -389,11 +407,11 @@ private:
     }
 
 
-    static NLog::TLogger BuildLogger(TPartition* partition)
+    static NLogging::TLogger BuildLogger(TPartition* partition)
     {
         auto logger = TabletNodeLogger;
         logger.AddTag("TabletId: %v, PartitionId: %v",
-            partition->GetTablet()->GetId(),
+            partition->GetTablet()->GetTabletId(),
             partition->GetId());
         return logger;
     }

@@ -37,6 +37,9 @@ public:
     virtual TInstant GetStartTime() const override;
     virtual void SetStartTime(TInstant value) override;
 
+    virtual bool GetRetry() const override;
+    virtual void SetRetry(bool value) override;
+
     virtual const NRpc::NProto::TRequestHeader& Header() const override;
     virtual NRpc::NProto::TRequestHeader& Header() override;
 
@@ -52,6 +55,8 @@ protected:
     virtual TSharedRef SerializeBody() = 0;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TYPathRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,6 +109,8 @@ protected:
     virtual void DeserializeBody(const TRef& data);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TYPathResponse)
 
 ////////////////////////////////////////////////////////////////////////////////
 

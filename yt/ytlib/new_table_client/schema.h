@@ -61,10 +61,12 @@ public:
     int GetColumnIndexOrThrow(const TStringBuf& name) const;
 
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
+    TTableSchema TrimNonkeyColumns(const TKeyColumns& keyColumns) const;
+
+    bool HasComputedColumns() const;
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
-
 };
 
 void Serialize(const TTableSchema& schema, NYson::IYsonConsumer* consumer);
@@ -87,14 +89,7 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NVersionedTableClient
-} // namespace NYT
-
-
-// TODO(babenko): move to NVersionedTableClient after migration
 // NB: Need to place this into NProto for ADL to work properly since TKeyColumns is std::vector.
-namespace NYT {
-namespace NTableClient {
 namespace NProto {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,5 +100,8 @@ void FromProto(TKeyColumns* keyColumns, const NProto::TKeyColumnsExt& protoKeyCo
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProto
-} // namespace NTableClient
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NVersionedTableClient
 } // namespace NYT

@@ -148,13 +148,7 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table[a : b , b : c]") == [v1, v2, v3, v4]
 
         # combination of row and key selectors
-        assert read_table("//tmp/table{i}[aa: (b, 10)]") == [{"i" : 5}]
-        assert read_table("//tmp/table{a: o}[(b, 0): (c, 0)]") == \
-            [
-                {"i": 5, "d" : 20.},
-                {"i": 20,"d" : 20.},
-                {"i": -100, "d" : 10.}
-            ]
+        assert read_table('//tmp/table{i}[aa: (b, 10)]') == [{'i' : 5}]
 
         # limits of different types
         assert read_table("//tmp/table[#0:zz]") == [v1, v2, v3, v4, v5]
@@ -174,31 +168,11 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table{c, b}") == [{"b" : 3, "c" : 5}]
         assert read_table("//tmp/table{zzzzz}") == [{}] # non existent column
 
-        # range columns
-        # closed ranges
-        with pytest.raises(YtError): read_table("//tmp/table{a:a}")  # left = right
-        with pytest.raises(YtError): read_table("//tmp/table{b:a}")  # left > right
-
-        assert read_table("//tmp/table{aa:b}") == [{"aa" : 2}]  # (+, +)
-        assert read_table("//tmp/table{aa:bx}") == [{"aa" : 2, "b" : 3, "bb" : 4}]  # (+, -)
-        assert read_table("//tmp/table{aaa:b}") == [{}]  # (-, +)
-        assert read_table("//tmp/table{aaa:bx}") == [{"b" : 3, "bb" : 4}] # (-, -)
-
-        # open ranges
-        # from left
-        assert read_table("//tmp/table{:aa}") == [{"a" : 1}] # +
-        assert read_table("//tmp/table{:aaa}") == [{"a" : 1, "aa" : 2}] # -
-
-        # from right
-        assert read_table("//tmp/table{bb:}") == [{"bb" : 4, "c" : 5}] # +
-        assert read_table("//tmp/table{bz:}") == [{"c" : 5}] # -
-        assert read_table("//tmp/table{xxx:}") == [{}]
-
-        # fully open
-        assert read_table("//tmp/table{:}") == [{"a" :1, "aa": 2,  "b": 3, "bb" : 4, "c": 5}]
-
-        # mixed column keys
-        assert read_table("//tmp/table{aa, a:bb}") == [{"a" : 1, "aa" : 2, "b": 3}]
+        assert read_table("//tmp/table{a}") == [{"a" : 1}]
+        assert read_table("//tmp/table{a, }") == [{"a" : 1}] # extra comma
+        assert read_table("//tmp/table{a, a}") == [{"a" : 1}]
+        assert read_table("//tmp/table{c, b}") == [{"b" : 3, "c" : 5}]
+        assert read_table("//tmp/table{zzzzz}") == [{}] # non existent column
 
     def test_shared_locks_two_chunks(self):
         create("table", "//tmp/table")

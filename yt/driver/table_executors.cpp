@@ -184,18 +184,17 @@ Stroka TReshardTableExecutor::GetCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInsertExecutor::TInsertExecutor()
+TInsertRowsExecutor::TInsertRowsExecutor()
     : PathArg("path", "table path to insert into", true, "", "YPATH")
     , UpdateArg("", "update", "update row values, don't replace the whole row", false)
     , ValueArg("value", "row(s) to write", false, "", "YSON")
-    , UseStdIn(true)
 {
     CmdLine.add(PathArg);
     CmdLine.add(UpdateArg);
     CmdLine.add(ValueArg);
 }
 
-void TInsertExecutor::BuildParameters(IYsonConsumer* consumer)
+void TInsertRowsExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -212,19 +211,19 @@ void TInsertExecutor::BuildParameters(IYsonConsumer* consumer)
     TRequestExecutor::BuildParameters(consumer);
 }
 
-TInputStream* TInsertExecutor::GetInputStream()
+TInputStream* TInsertRowsExecutor::GetInputStream()
 {
     return UseStdIn ? &StdInStream() : &Stream;
 }
 
-Stroka TInsertExecutor::GetCommandName() const
+Stroka TInsertRowsExecutor::GetCommandName() const
 {
-    return "insert";
+    return "insert_rows";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSelectExecutor::TSelectExecutor()
+TSelectRowsExecutor::TSelectRowsExecutor()
     : QueryArg("query", "query to execute", true, "", "QUERY")
     , TimestampArg("", "timestamp", "timestamp to use", false, NTransactionClient::SyncLastCommittedTimestamp, "TIMESTAMP")
     , InputRowLimitArg("", "input_row_limit", "input rows limit", false, std::numeric_limits<int>::max(), "INTEGER")
@@ -236,7 +235,7 @@ TSelectExecutor::TSelectExecutor()
     CmdLine.add(OutputRowLimitArg);
 }
 
-void TSelectExecutor::BuildParameters(IYsonConsumer* consumer)
+void TSelectRowsExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("query").Value(QueryArg.getValue())
@@ -251,64 +250,82 @@ void TSelectExecutor::BuildParameters(IYsonConsumer* consumer)
         });
 }
 
-Stroka TSelectExecutor::GetCommandName() const
+Stroka TSelectRowsExecutor::GetCommandName() const
 {
-    return "select";
+    return "select_rows";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLookupExecutor::TLookupExecutor()
+TLookupRowsExecutor::TLookupRowsExecutor()
     : PathArg("path", "table path to lookup", true, "", "YPATH")
-    , KeyArg("key", "key to lookup", true, "", "YSON_LIST_FRAGMENT")
     , TimestampArg("", "timestamp", "timestamp to use", false, NTransactionClient::SyncLastCommittedTimestamp, "TIMESTAMP")
+    , ValueArg("value", "keys(s) to lookup", false, "", "YSON")
 {
     CmdLine.add(PathArg);
-    CmdLine.add(KeyArg);
     CmdLine.add(TimestampArg);
+    CmdLine.add(ValueArg);
 }
 
-void TLookupExecutor::BuildParameters(IYsonConsumer* consumer)
+void TLookupRowsExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
-    auto key = ConvertTo<std::vector<INodePtr>>(TYsonString(KeyArg.getValue(), EYsonType::ListFragment));
+
+    const auto& value = ValueArg.getValue();
+    if (!value.empty()) {
+        Stream.Write(value);
+        UseStdIn = false;
+    }
 
     BuildYsonMapFluently(consumer)
         .Item("path").Value(path)
-        .Item("key").Value(key)
         .DoIf(TimestampArg.isSet(), [&] (TFluentMap fluent) {
             fluent.Item("timestamp").Value(TimestampArg.getValue());
         });
 }
 
-Stroka TLookupExecutor::GetCommandName() const
+Stroka TLookupRowsExecutor::GetCommandName() const
 {
     return "lookup";
 }
 
+TInputStream* TLookupRowsExecutor::GetInputStream()
+{
+    return UseStdIn ? &StdInStream() : &Stream;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TDeleteExecutor::TDeleteExecutor()
+TDeleteRowsExecutor::TDeleteRowsExecutor()
     : PathArg("path", "table path to delete rows from", true, "", "YPATH")
-    , KeyArg("key", "key to delete", true, "", "YSON_LIST_FRAGMENT")
+    , ValueArg("value", "keys(s) to delete", false, "", "YSON")
 {
     CmdLine.add(PathArg);
-    CmdLine.add(KeyArg);
+    CmdLine.add(ValueArg);
 }
 
-void TDeleteExecutor::BuildParameters(IYsonConsumer* consumer)
+void TDeleteRowsExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
-    auto key = ConvertTo<std::vector<INodePtr>>(TYsonString(KeyArg.getValue(), EYsonType::ListFragment));
+
+    const auto& value = ValueArg.getValue();
+    if (!value.empty()) {
+        Stream.Write(value);
+        UseStdIn = false;
+    }
 
     BuildYsonMapFluently(consumer)
-        .Item("path").Value(path)
-        .Item("key").Value(key);
+        .Item("path").Value(path);
 }
 
-Stroka TDeleteExecutor::GetCommandName() const
+Stroka TDeleteRowsExecutor::GetCommandName() const
 {
-    return "delete";
+    return "delete_rows";
+}
+
+TInputStream* TDeleteRowsExecutor::GetInputStream()
+{
+    return UseStdIn ? &StdInStream() : &Stream;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

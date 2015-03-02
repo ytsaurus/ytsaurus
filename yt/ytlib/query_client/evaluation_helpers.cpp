@@ -16,6 +16,16 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool CountRow(i64* limit)
+{
+    if (*limit > 0) {
+        --*limit;
+        return false;
+    } else {
+        return true;
+    }
+}
+
 TJoinEvaluator GetJoinEvaluator(
     const TJoinClause& joinClause,
     const TConstExpressionPtr& predicate,
@@ -24,7 +34,7 @@ TJoinEvaluator GetJoinEvaluator(
     const auto& joinColumns = joinClause.JoinColumns;
     auto& foreignTableSchema = joinClause.ForeignTableSchema;
     auto& foreignKeyColumns = joinClause.ForeignKeyColumns;
-    auto foreignPredicate = ExtractPredicateForColumnsSubset(predicate, foreignTableSchema);
+    auto foreignPredicate = ExtractPredicateForColumnSubset(predicate, foreignTableSchema);
     const auto& selfTableSchema = joinClause.SelfTableSchema;
 
     // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
@@ -134,6 +144,11 @@ TJoinEvaluator GetJoinEvaluator(
                     auto foreignRow = *it;
                     for (int valueIndex = joinColumns.size(); valueIndex < foreignRow.GetCount(); ++valueIndex) {
                         rowBuilder.AddValue(foreignRow[valueIndex]);
+                    }
+
+                    if (executionContext->StopFlag = CountRow(&executionContext->JoinRowLimit)) {
+                        executionContext->Statistics->IncompleteOutput = true;
+                        return;
                     }
 
                     joinedRows->push_back(executionContext->PermanentBuffer->Capture(rowBuilder.GetRow()));

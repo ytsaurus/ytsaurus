@@ -222,36 +222,34 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EPersistenceDirection,
-    (Save)
-    (Load)
-);
-
 template <class TSaveContext, class TLoadContext>
 class TCustomPersistenceContext
 {
 public:
     TCustomPersistenceContext(TSaveContext& context)
-        : Direction_(EPersistenceDirection::Save)
-        , SaveContext_(&context)
+        : SaveContext_(&context)
         , LoadContext_(nullptr)
     { }
 
     TCustomPersistenceContext(TLoadContext& context)
-        : Direction_(EPersistenceDirection::Load)
-        , SaveContext_(nullptr)
+        : SaveContext_(nullptr)
         , LoadContext_(&context)
     { }
 
-    EPersistenceDirection GetDirection() const
+    bool IsSave() const
     {
-        return Direction_;
+        return SaveContext_ != nullptr;
     }
 
     TSaveContext& SaveContext()
     {
         YASSERT(SaveContext_);
         return *SaveContext_;
+    }
+
+    bool IsLoad() const
+    {
+        return LoadContext_ != nullptr;
     }
 
     TLoadContext& LoadContext()
@@ -261,9 +259,8 @@ public:
     }
 
 private:
-    EPersistenceDirection Direction_;
-    TSaveContext* SaveContext_;
-    TLoadContext* LoadContext_;
+    TSaveContext* const SaveContext_;
+    TLoadContext* const LoadContext_;
 
 };
 
@@ -1032,15 +1029,12 @@ T Load(C& context)
 template <class S, class T, class C>
 void Persist(C& context, T& value)
 {
-    switch (context.GetDirection()) {
-        case  EPersistenceDirection::Save:
-            S::Save(context.SaveContext(), value);
-            break;
-        case EPersistenceDirection::Load:
-            S::Load(context.LoadContext(), value);
-            break;
-        default:
-            YUNREACHABLE();
+    if (context.IsSave()) {
+        S::Save(context.SaveContext(), value);
+    } else if (context.IsLoad()) {
+        S::Load(context.LoadContext(), value);
+    } else {
+        YUNREACHABLE();
     }
 }
 

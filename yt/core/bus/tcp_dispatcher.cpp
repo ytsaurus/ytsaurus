@@ -20,12 +20,12 @@ TTcpDispatcherStatistics& operator += (
     TTcpDispatcherStatistics& lhs,
     const TTcpDispatcherStatistics& rhs)
 {
-    lhs.PendingInCount += rhs.PendingInCount;
-    lhs.PendingInSize += rhs.PendingInSize;
-    lhs.PendingOutCount += rhs.PendingOutCount;
-    lhs.PendingOutSize += rhs.PendingOutSize;
-    lhs.ClientConnectionCount += rhs.ClientConnectionCount;
-    lhs.ServerConnectionCount += rhs.ServerConnectionCount;
+    lhs.PendingInPackets += rhs.PendingInPackets;
+    lhs.PendingInBytes += rhs.PendingInBytes;
+    lhs.PendingOutPackets += rhs.PendingOutPackets;
+    lhs.PendingOutBytes += rhs.PendingOutBytes;
+    lhs.ClientConnections += rhs.ClientConnections;
+    lhs.ServerConnections += rhs.ServerConnections;
     return lhs;
 }
 

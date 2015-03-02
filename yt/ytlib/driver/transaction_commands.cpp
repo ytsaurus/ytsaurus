@@ -26,9 +26,9 @@ using namespace NConcurrency;
 void TStartTransactionCommand::DoExecute()
 {
     TTransactionStartOptions options;
+    SetMutatingOptions(&options);
     options.Timeout = Request_->Timeout;
     options.ParentId = Request_->TransactionId;
-    options.MutationId = Request_->MutationId;
     options.Ping = true;
     options.AutoAbort = false;
     options.PingAncestors = Request_->PingAncestors;
@@ -67,7 +67,7 @@ void TCommitTransactionCommand::DoExecute()
 {
     auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
     TTransactionCommitOptions options;
-    options.MutationId = GenerateMutationId();
+    SetMutatingOptions(&options);
     auto result = WaitFor(transaction->Commit(options));
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
@@ -78,8 +78,8 @@ void TAbortTransactionCommand::DoExecute()
 {
     auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
     TTransactionAbortOptions options;
+    SetMutatingOptions(&options);
     options.Force = Request_->Force;
-    options.MutationId = GenerateMutationId();
     auto result = WaitFor(transaction->Abort(options));
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }

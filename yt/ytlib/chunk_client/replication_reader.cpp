@@ -105,7 +105,7 @@ public:
 
     virtual TFuture<TChunkMeta> GetMeta(
         const TNullable<int>& partitionTag,
-        const std::vector<i32>* extensionTags = nullptr) override;
+        const TNullable<std::vector<int>>& extensionTags) override;
 
     virtual TChunkId GetChunkId() const override
     {
@@ -126,7 +126,7 @@ private:
     Stroka NetworkName_;
     EReadSessionType SessionType_;
     IThroughputThrottlerPtr Throttler_;
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     TObjectServiceProxy ObjectServiceProxy_;
     TChunkServiceProxy ChunkServiceProxy_;
@@ -277,7 +277,7 @@ protected:
     //! The instant this session has started.
     TInstant StartTime_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     explicit TSessionBase(TReplicationReader* reader)
@@ -1094,18 +1094,12 @@ public:
     TGetMetaSession(
         TReplicationReader* reader,
         const TNullable<int> partitionTag,
-        const std::vector<int>* extensionTags)
+        const TNullable<std::vector<int>>& extensionTags)
         : TSessionBase(reader)
         , Promise_(NewPromise<TChunkMeta>())
         , PartitionTag_(partitionTag)
+        , ExtensionTags_(extensionTags)
     {
-        if (extensionTags) {
-            ExtensionTags_ = *extensionTags;
-            AllExtensionTags_ = false;
-        } else {
-            AllExtensionTags_ = true;
-        }
-
         Logger.AddTag("Session: %v", this);
     }
 
@@ -1124,9 +1118,8 @@ private:
     //! Promise representing the session.
     TPromise<TChunkMeta> Promise_;
 
-    std::vector<int> ExtensionTags_;
-    TNullable<int> PartitionTag_;
-    bool AllExtensionTags_;
+    const TNullable<int> PartitionTag_;
+    const TNullable<std::vector<int>> ExtensionTags_;
 
 
     virtual void NextPass()
@@ -1165,11 +1158,13 @@ private:
         auto req = proxy.GetChunkMeta();
         req->SetStartTime(StartTime_);
         ToProto(req->mutable_chunk_id(), reader->ChunkId_);
-        req->set_all_extension_tags(AllExtensionTags_);
+        req->set_all_extension_tags(!ExtensionTags_);
         if (PartitionTag_) {
             req->set_partition_tag(PartitionTag_.Get());
         }
-        ToProto(req->mutable_extension_tags(), ExtensionTags_);
+        if (ExtensionTags_) {
+            ToProto(req->mutable_extension_tags(), *ExtensionTags_);
+        }
 
         req->Invoke().Subscribe(
             BIND(&TGetMetaSession::OnGetChunkMeta, MakeStrong(this), address)
@@ -1228,7 +1223,7 @@ private:
 
 TFuture<TChunkMeta> TReplicationReader::GetMeta(
     const TNullable<int>& partitionTag,
-    const std::vector<i32>* extensionTags)
+    const TNullable<std::vector<int>>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

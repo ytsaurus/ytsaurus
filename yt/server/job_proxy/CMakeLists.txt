@@ -3,6 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/server/job_proxy )
 set( SRCS
   ${BASE}/job_detail.cpp
   ${BASE}/job_proxy.cpp
+  ${BASE}/job_prober_service.cpp
   ${BASE}/helpers.cpp
   ${BASE}/map_job_io.cpp
   ${BASE}/merge_job.cpp
@@ -16,7 +17,6 @@ set( SRCS
   ${BASE}/small_key.cpp
   ${BASE}/sorted_merge_job.cpp
   ${BASE}/sorted_reduce_job_io.cpp
-  ${BASE}/sorting_reader.cpp
   ${BASE}/stderr_output.cpp
   ${BASE}/table_output.cpp
   ${BASE}/user_job.cpp
@@ -27,6 +27,7 @@ set( HDRS
   ${BASE}/job.h
   ${BASE}/job_detail.h
   ${BASE}/job_proxy.h
+  ${BASE}/job_prober_service.h
   ${BASE}/helpers.h
   ${BASE}/map_job_io.h
   ${BASE}/merge_job.h
@@ -41,7 +42,6 @@ set( HDRS
   ${BASE}/small_key.h
   ${BASE}/sorted_merge_job.h
   ${BASE}/sorted_reduce_job_io.h
-  ${BASE}/sorting_reader.h
   ${BASE}/stderr_output.h
   ${BASE}/table_output.h
   ${BASE}/user_job.h

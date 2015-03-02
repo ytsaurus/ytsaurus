@@ -712,7 +712,10 @@ private:
 
         virtual void Cancel() override
         {
-            Session_->Cancel(this);
+            // YT-1639: Avoid calling TSession::Cancel directly as this may lead
+            // to an exteremely long chain of recursive calls.
+            TDispatcher::Get()->GetInvoker()->Invoke(
+                BIND(&TSession::Cancel, Session_, MakeStrong(this)));
         }
 
     private:
@@ -744,7 +747,7 @@ class TBusChannelFactory
 public:
     virtual IChannelPtr CreateChannel(const Stroka& address) override
     {
-        auto config = New<TTcpBusClientConfig>(address);
+        auto config = TTcpBusClientConfig::CreateTcp(address);
         auto client = CreateTcpBusClient(config);
         return CreateBusChannel(client);
     }

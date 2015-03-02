@@ -12,7 +12,7 @@ TMutation::TMutation(IHydraManagerPtr hydraManager)
     : HydraManager_(std::move(hydraManager))
 { }
 
-TFuture<TMutationResponse>  TMutation::Commit()
+TFuture<TMutationResponse> TMutation::Commit()
 {
     return HydraManager_->CommitMutation(Request_);
 }

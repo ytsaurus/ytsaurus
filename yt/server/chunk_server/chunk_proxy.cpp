@@ -64,7 +64,7 @@ private:
         return true;
     }
 
-    virtual NLog::TLogger CreateLogger() const override
+    virtual NLogging::TLogger CreateLogger() const override
     {
         return ChunkServerLogger;
     }
@@ -460,7 +460,6 @@ private:
         DeclareMutating();
 
         auto replicas = FromProto<NChunkClient::TChunkReplica>(request->replicas());
-        YCHECK(!replicas.empty());
 
         context->SetRequestInfo("Targets: [%v]", JoinToString(replicas));
 

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 
+#include "private.h"
 #include "versioned_block_reader.h"
 #include "versioned_block_writer.h"
 
@@ -15,32 +16,14 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-template <class TPredicate>
-int LowerBound(int lowerIndex, int upperIndex, const TPredicate& less)
-{
-    while (upperIndex - lowerIndex > 0) {
-        auto middle = (upperIndex + lowerIndex) / 2;
-        if (less(middle)) {
-            lowerIndex = middle + 1;
-        } else {
-            upperIndex = middle;
-        }
-    }
-    return lowerIndex;
-}
-
-} // namespace
-
 TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
-    const TSharedRef& data,
+    const TSharedRef& block,
     const TBlockMeta& meta,
     const TTableSchema& chunkSchema,
     const TKeyColumns& keyColumns,
     const std::vector<TColumnIdMapping>& schemaIdMapping,
     TTimestamp timestamp)
-    : Data_(data)
+    : Block_(block)
     , Timestamp_(timestamp)
     , KeyColumnCount_(keyColumns.size())
     , SchemaIdMapping_(schemaIdMapping)
@@ -55,7 +38,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     }
     Key_ = KeyBuilder_.GetRow();
 
-    KeyData_ = TRef(const_cast<char*>(data.Begin()), TSimpleVersionedBlockWriter::GetPaddedKeySize(
+    KeyData_ = TRef(const_cast<char*>(Block_.Begin()), TSimpleVersionedBlockWriter::GetPaddedKeySize(
         KeyColumnCount_,
         ChunkSchema_.Columns().size()) * Meta_.row_count());
 
@@ -73,7 +56,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     ValueNullFlags_.Reset(reinterpret_cast<const ui64*>(ptr), VersionedMeta_.value_count());
     ptr += ValueNullFlags_.GetByteSize();
 
-    StringData_ = TRef(const_cast<char*>(ptr), const_cast<char*>(data.End()));
+    StringData_ = TRef(const_cast<char*>(ptr), const_cast<char*>(Block_.End()));
 
     JumpToRowIndex(0);
 }
@@ -84,7 +67,7 @@ bool TSimpleVersionedBlockReader::NextRow()
     return JumpToRowIndex(RowIndex_ + 1);
 }
 
-bool TSimpleVersionedBlockReader::SkipToRowIndex(int rowIndex)
+bool TSimpleVersionedBlockReader::SkipToRowIndex(i64 rowIndex)
 {
     YCHECK(!Closed_);
     YCHECK(rowIndex >= RowIndex_);
@@ -111,7 +94,7 @@ bool TSimpleVersionedBlockReader::SkipToKey(TKey key)
     return JumpToRowIndex(index);
 }
 
-bool TSimpleVersionedBlockReader::JumpToRowIndex(int index)
+bool TSimpleVersionedBlockReader::JumpToRowIndex(i64 index)
 {
     YCHECK(!Closed_);
 
@@ -423,6 +406,11 @@ TTimestamp TSimpleVersionedBlockReader::ReadTimestamp(int timestampIndex)
     return *reinterpret_cast<TTimestamp*>(
         TimestampsData_.Begin() +
         timestampIndex * TSimpleVersionedBlockWriter::TimestampSize);
+}
+
+i64 TSimpleVersionedBlockReader::GetRowIndex() const
+{
+    return RowIndex_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
