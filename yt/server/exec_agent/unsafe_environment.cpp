@@ -72,7 +72,6 @@ public:
         , Slot(slot)
         , Logger(ExecAgentLogger)
         , Process(proxyPath)
-        , Waited(false)
         , EnvironmentBuilder(envBuilder)
         , OnExit(NewPromise<void>())
         , ControllerThread(ThreadFunc, this)
@@ -130,19 +129,13 @@ public:
 
         SetError(error);
 
-        int pid = Process.GetProcessId();
-
-        if ((pid > 0) && !Waited) {
-            auto result = kill(pid, 9);
-            if (result != 0) {
-                switch (errno) {
-                    case ESRCH:
-                        // Process doesn't exist already.
-                        return;
-                    default:
-                        LOG_FATAL(TError::FromSystem(), "Failed to kill job proxy: kill failed");
-                        break;
-                }
+        // One certaily can say that Process.Spawn exited
+        // before this line due to thread affinity
+        if (Process.Started()) {
+            try {
+                Process.Kill(9);
+            } catch (const std::exception& ex) {
+                LOG_FATAL(ex, "Failed to kill job proxy: kill failed");
             }
         }
 
@@ -187,7 +180,6 @@ private:
 
         auto error = Process.Wait();
         LOG_INFO(error, "Job proxy finished");
-        Waited = true;
 
         if (!error.IsOK()) {
             auto wrappedError = TError("Job proxy failed") << error;
@@ -206,7 +198,6 @@ private:
     NLogging::TLogger Logger;
 
     TProcess Process;
-    bool Waited;
     TIntrusivePtr<TUnsafeEnvironmentBuilder> EnvironmentBuilder;
 
     TSpinLock SpinLock;
