@@ -120,7 +120,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(TValuePtr value, TValueP
     ++ItemMapSize_;
 
     auto weight = GetWeight(value.Get());
-    Profiler.Update(MissedWeightCounter_, weight);
+    Profiler.Increment(MissedWeightCounter_, weight);
 
     PushToYounger(item);
 
