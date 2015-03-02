@@ -7,7 +7,7 @@
 #include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
 
 #include <server/data_node/chunk.h>
 #include <server/data_node/block_store.h>
@@ -19,7 +19,7 @@ namespace NDataNode {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NTableClient;
+using namespace NVersionedTableClient;
 using namespace NDataNode;
 using namespace NCellNode;
 
@@ -50,7 +50,6 @@ public:
             "ReadBlocks");
 
         auto blockStore = Bootstrap_->GetBlockStore();
-        auto this_ = MakeStrong(this);
 
         std::vector<TFuture<TSharedRef>> asyncBlocks;
         i64 priority = 0;
@@ -66,9 +65,7 @@ public:
                 .AsyncVia(Bootstrap_->GetControlInvoker())
                 .Run();
 
-            asyncBlocks.push_back(asyncBlock.Apply(BIND([=] (const TErrorOr<TSharedRef>& blockOrError) -> TSharedRef {
-                UNUSED(this_);
-
+            asyncBlocks.push_back(asyncBlock.Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TSharedRef>& blockOrError) -> TSharedRef {
                 if (!blockOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(
                         NDataNode::EErrorCode::LocalChunkReaderFailed,
@@ -104,19 +101,17 @@ public:
 
     virtual TFuture<TChunkMeta> GetMeta(
         const TNullable<int>& partitionTag,
-        const std::vector<int>* extensionTags) override
+        const TNullable<std::vector<int>>& extensionTags) override
     {
         NTracing::TTraceSpanGuard guard(
             // XXX(sandello): Disable tracing due to excessive output.
             NTracing::NullTraceContext, /* NTracing::GetCurrentTraceContext(), */
             "LocalChunkReader",
             "GetChunkMeta");
-        return Chunk_
-            ->GetMeta(0, extensionTags)
-            .Apply(BIND(
-                &TLocalChunkReader::OnGotChunkMeta,
-                partitionTag,
-                Passed(std::move(guard))));
+        return Chunk_->GetMeta(0, extensionTags).Apply(BIND(
+            &TLocalChunkReader::OnGotChunkMeta,
+            partitionTag,
+            Passed(std::move(guard))));
     }
 
     virtual TChunkId GetChunkId() const override

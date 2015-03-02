@@ -29,7 +29,7 @@
 #include <ytlib/chunk_client/schema.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
-#include <ytlib/table_client/table_ypath.pb.h>
+#include <ytlib/new_table_client/table_ypath.pb.h>
 
 #include <ytlib/journal_client/helpers.h>
 
@@ -329,10 +329,10 @@ public:
         , Config_(config)
         , ChunkTreeBalancer_(New<TChunkTreeBalancerCallbacks>(Bootstrap_))
         , Profiler(ChunkServerProfiler)
-        , AddChunkCounter_("/add_chunk_rate")
-        , RemoveChunkCounter_("/remove_chunk_rate")
-        , AddChunkReplicaCounter_("/add_chunk_replica_rate")
-        , RemoveChunkReplicaCounter_("/remove_chunk_replica_rate")
+        , AddedChunkCounter_("/added_chunks")
+        , RemovedChunkCounter_("/removed_chunks")
+        , AddedChunkReplicaCounter_("/added_chunk_replicas")
+        , RemovedChunkReplicaCounter_("/removed_chunk_replicas")
     {
         RegisterMethod(BIND(&TImpl::UpdateChunkProperties, Unretained(this)));
 
@@ -404,7 +404,7 @@ public:
 
     TChunk* CreateChunk(EObjectType type)
     {
-        Profiler.Increment(AddChunkCounter_);
+        Profiler.Increment(AddedChunkCounter_);
         auto id = Bootstrap_->GetObjectManager()->GenerateId(type);
         auto* chunk = new TChunk(id);
         ChunkMap_.Insert(id, chunk);
@@ -529,7 +529,7 @@ public:
 
         auto nodeTracker = Bootstrap_->GetNodeTracker();
 
-        auto* mutationContext = Bootstrap_->GetHydraFacade()->GetHydraManager()->GetMutationContext();
+        const auto* mutationContext = GetCurrentMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
         for (auto replica : replicas) {
@@ -887,10 +887,10 @@ private:
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
     NProfiling::TProfiler Profiler;
-    NProfiling::TRateCounter AddChunkCounter_;
-    NProfiling::TRateCounter RemoveChunkCounter_;
-    NProfiling::TRateCounter AddChunkReplicaCounter_;
-    NProfiling::TRateCounter RemoveChunkReplicaCounter_;
+    NProfiling::TSimpleCounter AddedChunkCounter_;
+    NProfiling::TSimpleCounter RemovedChunkCounter_;
+    NProfiling::TSimpleCounter AddedChunkReplicaCounter_;
+    NProfiling::TSimpleCounter RemovedChunkReplicaCounter_;
 
     TChunkPlacementPtr ChunkPlacement_;
     TChunkReplicatorPtr ChunkReplicator_;
@@ -930,7 +930,7 @@ private:
             }
         }
 
-        Profiler.Increment(RemoveChunkCounter_);
+        Profiler.Increment(RemovedChunkCounter_);
     }
 
     void DestroyChunkList(TChunkList* chunkList)
@@ -1042,7 +1042,7 @@ private:
             ProcessRemovedChunk(node, chunkInfo);
         }
 
-        auto* mutationContext = Bootstrap_->GetHydraFacade()->GetHydraManager()->GetMutationContext();
+        const auto* mutationContext = GetCurrentMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
         auto& unapprovedReplicas = node->UnapprovedReplicas();
@@ -1308,7 +1308,7 @@ private:
         if (!IsRecovery()) {
             LOG_EVENT(
                 Logger,
-                reason == EAddReplicaReason::FullHeartbeat ? NLog::ELogLevel::Trace : NLog::ELogLevel::Debug,
+                reason == EAddReplicaReason::FullHeartbeat ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
                 "Chunk replica added (ChunkId: %v, Cached: %v, NodeId: %v, Address: %v)",
                 chunkWithIndex,
                 cached,
@@ -1325,7 +1325,7 @@ private:
         }
 
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
-            Profiler.Increment(AddChunkReplicaCounter_);
+            Profiler.Increment(AddedChunkReplicaCounter_);
         }
     }
 
@@ -1364,7 +1364,7 @@ private:
                 Logger,
                 reason == ERemoveReplicaReason::NodeRemoved ||
                 reason == ERemoveReplicaReason::ChunkIsDead
-                ? NLog::ELogLevel::Trace : NLog::ELogLevel::Debug,
+                ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
                 "Chunk replica removed (ChunkId: %v, Cached: %v, Reason: %v, NodeId: %v, Address: %v)",
                 chunkWithIndex,
                 cached,
@@ -1377,9 +1377,27 @@ private:
             ChunkReplicator_->ScheduleChunkRefresh(chunk);
         }
 
-        Profiler.Increment(RemoveChunkReplicaCounter_);
+        Profiler.Increment(RemovedChunkReplicaCounter_);
     }
 
+
+    static int GetAddedChunkReplicaIndex(
+        TChunk* chunk,
+        const TChunkAddInfo& chunkAddInfo,
+        const TChunkIdWithIndex& chunkIdWithIndex)
+    {
+        if (!chunk->IsJournal()) {
+            return chunkIdWithIndex.Index;
+        }
+
+        if (chunkAddInfo.active()) {
+            return ActiveChunkReplicaIndex;
+        } else if (chunkAddInfo.sealed()) {
+            return SealedChunkReplicaIndex;
+        } else {
+            return UnsealedChunkReplicaIndex;
+        }
+    }
 
     void ProcessAddedChunk(
         TNode* node,
@@ -1412,19 +1430,7 @@ private:
             return;
         }
 
-        int replicaIndex;
-        if (chunk->IsJournal()) {
-            if (chunkAddInfo.active()) {
-                replicaIndex = ActiveChunkReplicaIndex;
-            } else if (chunkAddInfo.chunk_info().sealed()) {
-                replicaIndex = SealedChunkReplicaIndex;
-            } else {
-                replicaIndex = UnsealedChunkReplicaIndex;
-            }
-        } else {
-            replicaIndex = chunkIdWithIndex.Index;
-        }
-
+        int replicaIndex = GetAddedChunkReplicaIndex(chunk, chunkAddInfo, chunkIdWithIndex);
         TChunkPtrWithIndex chunkWithIndex(chunk, replicaIndex);
         TNodePtrWithIndex nodeWithIndex(node, replicaIndex);
 

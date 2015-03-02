@@ -27,7 +27,8 @@ public:
     virtual TNullable<TInstant> GetRequestStartTime() const override;
     virtual TNullable<TInstant> GetRetryStartTime() const override;
     virtual TNullable<TDuration> GetTimeout() const override;
-
+    virtual bool IsRetry() const override;
+    
     virtual i64 GetPriority() const override;
     
     virtual const Stroka& GetService() const override;
@@ -43,6 +44,11 @@ public:
 
     virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
     virtual TSharedRefArray GetResponseMessage() const override;
+
+    virtual void SubscribeCanceled(const TClosure& callback) override;
+    virtual void UnsubscribeCanceled(const TClosure& callback) override;
+
+    virtual void Cancel() override;
 
     virtual const TError& GetError() const override;
 
@@ -60,11 +66,14 @@ public:
     virtual void SetRawRequestInfo(const Stroka& info) override;
     virtual void SetRawResponseInfo(const Stroka& info) override;
 
-    virtual NLog::TLogger& GetLogger() override;
+    virtual NLogging::TLogger& GetLogger() override;
 
 protected:
-    std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
-    TSharedRefArray RequestMessage_;
+    const std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
+    const TSharedRefArray RequestMessage_;
+
+    NLogging::TLogger Logger;
+    const NLogging::ELogLevel LogLevel_;
 
     TRequestId RequestId_;
     TRealmId RealmId_;
@@ -72,7 +81,7 @@ protected:
     TSharedRef RequestBody_;
     std::vector<TSharedRef> RequestAttachments_;
 
-    bool Replied_;
+    bool Replied_ = false;
     TError Error_;
 
     TSharedRef ResponseBody_;
@@ -81,20 +90,16 @@ protected:
     Stroka RequestInfo_;
     Stroka ResponseInfo_;
 
-    NLog::TLogger Logger;
-    NLog::ELogLevel LogLevel_;
-
-
     TServiceContextBase(
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray requestMessage,
-        const NLog::TLogger& logger,
-        NLog::ELogLevel logLevel);
+        const NLogging::TLogger& logger,
+        NLogging::ELogLevel logLevel);
 
     TServiceContextBase(
         TSharedRefArray requestMessage,
-        const NLog::TLogger& logger,
-        NLog::ELogLevel logLevel);
+        const NLogging::TLogger& logger,
+        NLogging::ELogLevel logLevel);
 
     virtual void DoReply() = 0;
 
@@ -134,6 +139,7 @@ public:
     virtual TNullable<TInstant> GetRequestStartTime() const override;
     virtual TNullable<TInstant> GetRetryStartTime() const override;
     virtual TNullable<TDuration> GetTimeout() const override;
+    virtual bool IsRetry() const override;
 
     virtual i64 GetPriority() const override;
 
@@ -149,6 +155,11 @@ public:
 
     virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
     virtual TSharedRefArray GetResponseMessage() const override;
+
+    virtual void SubscribeCanceled(const TClosure& callback) override;
+    virtual void UnsubscribeCanceled(const TClosure& callback) override;
+
+    virtual void Cancel() override;
 
     virtual const TError& GetError() const override;
 
@@ -166,10 +177,10 @@ public:
     virtual void SetRawRequestInfo(const Stroka& info) override;
     virtual void SetRawResponseInfo(const Stroka& info) override;
 
-    virtual NLog::TLogger& GetLogger() override;
+    virtual NLogging::TLogger& GetLogger() override;
 
 protected:
-    IServiceContextPtr UnderlyingContext_;
+    const IServiceContextPtr UnderlyingContext_;
 
 };
 
@@ -179,8 +190,6 @@ class TServerBase
     : public IServer
 {
 public:
-    TServerBase();
-
     virtual void RegisterService(IServicePtr service) override;
     virtual void UnregisterService(IServicePtr service) override;
     
@@ -192,7 +201,7 @@ public:
     virtual void Stop() override;
 
 protected:
-    std::atomic<bool> Started_;
+    std::atomic<bool> Started_ = {false};
 
     NConcurrency::TReaderWriterSpinLock ServicesLock_;
     TServerConfigPtr Config_;

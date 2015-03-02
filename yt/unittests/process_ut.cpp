@@ -1,6 +1,10 @@
 #include "stdafx.h"
 #include "framework.h"
 
+#include <core/concurrency/delayed_executor.h>
+
+#include <core/actions/bind.h>
+
 #include <core/misc/process.h>
 
 namespace NYT {
@@ -8,13 +12,14 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef _win_
+#ifdef _linux_
 
 TEST(TProcessTest, Basic)
 {
     TProcess p("/bin/ls");
     ASSERT_NO_THROW(p.Spawn());
-    p.Wait();
+    auto error = p.Wait();
+    ASSERT_TRUE(error.IsOK()) << ToString(error);
 }
 
 TEST(TProcessTest, InvalidPath)
@@ -115,6 +120,50 @@ TEST(TProcessTest, InheritEnvironment)
     EXPECT_FALSE(error.IsOK());
 
     unsetenv(name);
+}
+
+TEST(TProcessTest, Kill)
+{
+    TProcess p("/bin/sleep");
+    p.AddArgument("1");
+
+    ASSERT_NO_THROW(p.Spawn());
+
+    NConcurrency::TDelayedExecutor::Submit(
+        BIND([&] () {
+            p.Kill(9);
+        }),
+        TDuration::MilliSeconds(100));
+
+    auto error = p.Wait();
+    EXPECT_FALSE(error.IsOK());
+}
+
+TEST(TProcessTest, KillFinished)
+{
+    TProcess p("/bin/true");
+
+    ASSERT_NO_THROW(p.Spawn());
+
+    auto error = p.Wait();
+    EXPECT_TRUE(error.IsOK());
+
+    p.Kill(9);
+}
+
+TEST(TProcessTest, KillZombie)
+{
+    TProcess p("/bin/true");
+
+    ASSERT_NO_THROW(p.Spawn());
+
+    siginfo_t infop;
+    auto res = ::waitid(P_PID, p.GetProcessId(), &infop, WEXITED | WNOWAIT);
+    EXPECT_TRUE(res == 0);
+    EXPECT_EQ(p.GetProcessId(), infop.si_pid);
+
+    p.Kill(9);
+    auto error = p.Wait();
 }
 
 #endif

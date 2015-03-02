@@ -32,7 +32,7 @@ public:
     virtual NYTree::ENodeType GetNodeType() override;
 
 protected:
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     virtual std::unique_ptr<TChunkOwner> DoCreate(
         const NCypressServer::TVersionedNodeId& id,

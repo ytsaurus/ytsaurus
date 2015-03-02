@@ -77,19 +77,12 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
     {
-        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-
         if (ypathExt.mutating()) {
             // Mutating request.
 
-            if (hydraManager->IsMutating()) {
-                // Nested call.
-                return DoResolveThere(path, std::move(context));
-            }
-
-            if (hydraManager->IsRecovery()) {
-                // Recovery.
+            if (HasMutationContext()) {
+                // Nested call or recovery.
                 return DoResolveThere(path, std::move(context));
             }
 
@@ -109,10 +102,10 @@ public:
             return;
         }
 
-        auto responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
         auto mutationId = GetMutationId(context);
         if (mutationId != NullMutationId) {
-            auto asyncResponseMessage = responseKeeper->TryBeginRequest(mutationId);
+            auto responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
+            auto asyncResponseMessage = responseKeeper->TryBeginRequest(mutationId, context->IsRetry());
             if (asyncResponseMessage) {
                 context->ReplyFrom(std::move(asyncResponseMessage));
                 return;
@@ -150,7 +143,7 @@ public:
             }));
     }
 
-    virtual NLog::TLogger GetLogger() const override
+    virtual NLogging::TLogger GetLogger() const override
     {
         return ObjectServerLogger;
     }
@@ -475,13 +468,8 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto* mutationContext = Bootstrap_
-        ->GetHydraFacade()
-        ->GetHydraManager()
-        ->GetMutationContext();
-
-    const auto& version = mutationContext->GetVersion();
-
+    auto* mutationContext = GetCurrentMutationContext();
+    auto version = mutationContext->GetVersion();
     auto random = mutationContext->RandomGenerator().Generate<ui64>();
 
     TObjectId id(
@@ -807,7 +795,7 @@ void TObjectManager::MergeAttributes(
     }
 }
 
-void TObjectManager::FillAttributes(
+void TObjectManager::FillCustomAttributes(
     TObjectBase* object,
     const IAttributeDictionary& attributes)
 {
@@ -932,7 +920,7 @@ TObjectBase* TObjectManager::CreateObject(
         request,
         response);
 
-    FillAttributes(object, *attributes);
+    FillCustomAttributes(object, *attributes);
 
     auto* stagingTransaction = handler->GetStagingTransaction(object);
     if (stagingTransaction) {
@@ -1062,8 +1050,6 @@ void TObjectManager::HydraExecuteLeader(
     const TMutationId& mutationId,
     IServiceContextPtr context)
 {
-    auto asyncResponseMessage = context->GetAsyncResponseMessage();
-
     try {
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetUserOrThrow(userId);
@@ -1075,12 +1061,8 @@ void TObjectManager::HydraExecuteLeader(
 
     if (mutationId != NullMutationId) {
         auto responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
-        asyncResponseMessage.Subscribe(
-            BIND([=] (const TErrorOr<TSharedRefArray>& messageOrError) {
-                if (messageOrError.IsOK()) {
-                    responseKeeper->EndRequest(mutationId, messageOrError.Value());
-                }
-            }));
+        // NB: Context must already be replied by now.
+        responseKeeper->EndRequest(mutationId, context->GetResponseMessage());
     }
 }
 

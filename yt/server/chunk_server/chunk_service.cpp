@@ -46,7 +46,7 @@ private:
     {
         context->SetRequestInfo("ChunkCount: %v", request->chunk_ids_size());
 
-        auto chunkManager = Bootstrap->GetChunkManager();
+        auto chunkManager = Bootstrap_->GetChunkManager();
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
 
         for (const auto& protoChunkId : request->chunk_ids()) {
@@ -89,8 +89,8 @@ private:
             preferredHostName,
             JoinToString(forbiddenAddresses));
         
-        auto chunkManager = Bootstrap->GetChunkManager();
-        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
         
         auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
 

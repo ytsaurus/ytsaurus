@@ -18,8 +18,6 @@ i64 GetProcessRss(int pid = -1);
 
 TError StatusToError(int status);
 
-void RunCleaner(const Stroka& path);
-
 void RemoveDirAsRoot(const Stroka& path);
 
 bool TryClose(int fd);
@@ -30,6 +28,7 @@ void SafeDup2(int oldFd, int newFd);
 
 bool TryExecve(const char* path, char* const argv[], char* const env[]);
 
+// Returns a pipe with CLOSE_EXEC flag.
 void SafePipe(int fd[2]);
 void SafeMakeNonblocking(int fd);
 

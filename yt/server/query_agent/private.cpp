@@ -6,7 +6,7 @@ namespace NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////
 
-const NLog::TLogger QueryAgentLogger("QueryAgent");
+const NLogging::TLogger QueryAgentLogger("QueryAgent");
 NProfiling::TProfiler QueryAgentProfiler("/query_agent");
 
 ////////////////////////////////////////////////////////////////////

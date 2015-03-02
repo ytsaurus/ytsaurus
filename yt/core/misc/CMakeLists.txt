@@ -133,6 +133,9 @@ set( HDRS
   ${BASE}/format.h
   ${BASE}/format-inl.h
   ${BASE}/lifecycle.h
+  ${BASE}/finally.h
+  ${BASE}/expiring_cache.h
+  ${BASE}/expiring_cache-inl.h
 )
 
 list(APPEND YT_SOURCE_FILES

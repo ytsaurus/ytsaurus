@@ -14,8 +14,6 @@
 
 #include <core/concurrency/scheduler.h>
 
-#include <core/rpc/response_keeper.h>
-
 #include <ytlib/election/cell_manager.h>
 
 #include <ytlib/hydra/hydra_service.pb.h>
@@ -159,7 +157,7 @@ public:
     }
 
 private:
-    TDecoratedAutomaton* Owner_;
+    TDecoratedAutomaton* const Owner_;
 
 };
 
@@ -182,8 +180,7 @@ public:
         if (!guard)
             return;
 
-        auto this_ = MakeStrong(this);
-        auto doInvoke = [this, this_] (IInvokerPtr invoker, const TClosure& callback) {
+        auto doInvoke = [=, this_ = MakeStrong(this)] (IInvokerPtr invoker, const TClosure& callback) {
             if (Owner_->GetState() != EPeerState::Leading &&
                 Owner_->GetState() != EPeerState::Following)
                 return;
@@ -199,7 +196,7 @@ public:
     }
 
 private:
-    TDecoratedAutomatonPtr Owner_;
+    const TDecoratedAutomatonPtr Owner_;
 
 };
 
@@ -236,7 +233,7 @@ public:
             SafePipe(fds);
             SafeMakeNonblocking(fds[0]);
 
-            LOG_INFO("Snapshot transfer pipe opened (ReadFd: %v, WriteFd: %v)",
+            LOG_INFO("Snapshot transfer pipe opened (ReadFD: %v, WriteFD: %v)",
                 fds[0],
                 fds[1]);
 
@@ -258,9 +255,9 @@ public:
     }
 
 private:
-    TDecoratedAutomatonPtr Owner_;
-    TVersion SnapshotVersion_;
-    int SnapshotId_;
+    const TDecoratedAutomatonPtr Owner_;
+    const TVersion SnapshotVersion_;
+    const int SnapshotId_;
 
     TSnapshotMeta Meta_;
 
@@ -290,6 +287,11 @@ private:
     virtual void RunParent() override
     {
         OutputFile_->Close();
+    }
+
+    virtual void Cleanup() override
+    {
+        Owner_->BuildingSnapshot_.clear();
     }
 
     void TransferLoop()
@@ -326,12 +328,8 @@ private:
              bytesTotal);
     }
 
-    TRemoteSnapshotParams OnFinished(const TError& error)
+    TRemoteSnapshotParams OnFinished()
     {
-        Owner_->BuildingSnapshot_.clear();
-
-        error.ThrowOnError();
-
         WaitFor(AsyncTransferResult_)
             .ThrowOnError();
 
@@ -359,7 +357,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     IInvokerPtr controlInvoker,
     ISnapshotStorePtr snapshotStore,
     IChangelogStorePtr changelogStore,
-    NProfiling::TProfiler profiler)
+    const NProfiling::TProfiler& profiler)
     : State_(EPeerState::Stopped)
     , Config_(config)
     , CellManager_(cellManager)
@@ -449,13 +447,6 @@ IInvokerPtr TDecoratedAutomaton::GetSystemInvoker()
     VERIFY_THREAD_AFFINITY_ANY();
 
     return SystemInvoker_;
-}
-
-IAutomatonPtr TDecoratedAutomaton::GetAutomaton()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Automaton_;
 }
 
 void TDecoratedAutomaton::Clear()
@@ -706,15 +697,14 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context, bool recove
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    YASSERT(!MutationContext_);
-    MutationContext_ = context;
-
     const auto& request = context->Request();
     auto automatonVersion = GetAutomatonVersion();
 
     LOG_DEBUG_UNLESS(recovery, "Applying mutation (Version: %v, MutationType: %v)",
         automatonVersion,
         request.Type);
+
+    TMutationContextGuard contextGuard(context);
 
     if (request.Action) {
         request.Action.Run(context);
@@ -723,8 +713,6 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context, bool recove
     }
 
     AutomatonVersion_ = automatonVersion.Advance();
-
-    MutationContext_ = nullptr;
 }
 
 TVersion TDecoratedAutomaton::GetLoggedVersion() const
@@ -780,13 +768,6 @@ void TDecoratedAutomaton::RotateAutomatonVersion(int segmentId)
 
     LOG_INFO("Automaton version is rotated to %v",
         automatonVersion);
-}
-
-TMutationContext* TDecoratedAutomaton::GetMutationContext()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    return MutationContext_;
 }
 
 bool TDecoratedAutomaton::TryAcquireUserLock()

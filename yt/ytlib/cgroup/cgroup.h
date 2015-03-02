@@ -26,7 +26,7 @@ class TNonOwningCGroup
     : private TNonCopyable
 {
 public:
-    TNonOwningCGroup();
+    TNonOwningCGroup() = default;
     explicit TNonOwningCGroup(const Stroka& fullPath);
     TNonOwningCGroup(const Stroka& type, const Stroka& name);
     TNonOwningCGroup(TNonOwningCGroup&& other);
@@ -34,18 +34,17 @@ public:
     void AddTask(int pid) const;
     void AddCurrentTask() const;
 
-    Stroka Get(const Stroka& name) const;
-    void Set(const Stroka& name, const Stroka& value) const;
-    void Append(const Stroka& name, const Stroka& value) const;
-
     bool IsRoot() const;
     bool IsNull() const;
+    bool Exists() const;
+
     std::vector<int> GetTasks() const;
     const Stroka& GetFullPath() const;
 
     std::vector<TNonOwningCGroup> GetChildren() const;
 
     void EnsureExistance() const;
+
     void Lock() const;
     void Unlock() const;
 
@@ -54,8 +53,14 @@ public:
     void RemoveAllSubcgroups() const;
 
 protected:
+    Stroka Get(const Stroka& name) const;
+    void Set(const Stroka& name, const Stroka& value) const;
+    void Append(const Stroka& name, const Stroka& value) const;
+
     void DoLock() const;
     void DoUnlock() const;
+
+    bool TryUnlock() const;
 
     void DoKill() const;
 
@@ -159,20 +164,10 @@ public:
     };
 
     explicit TMemory(const Stroka& name);
-    TMemory(TMemory&& other);
+
     TStatistics GetStatistics() const;
 
-    i64 GetUsageInBytes() const;
-    i64 GetMaxUsageInBytes() const;
-
     void SetLimitInBytes(i64 bytes) const;
-
-    bool IsHierarchyEnabled() const;
-    void EnableHierarchy() const;
-
-    bool IsOomEnabled() const;
-    void DisableOom() const;
-    TEvent GetOomEvent() const;
 
     void ForceEmpty() const;
 };

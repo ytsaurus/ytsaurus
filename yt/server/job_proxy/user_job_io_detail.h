@@ -4,7 +4,7 @@
 
 #include "user_job_io.h"
 
-#include <ytlib/table_client/public.h>
+#include <ytlib/new_table_client/public.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -23,8 +23,8 @@ public:
 
     virtual void Init() override;
 
-    virtual const std::vector<NTableClient::ISyncWriterUnsafePtr>& GetWriters() const override;
-    virtual const std::vector<NTableClient::ISyncReaderPtr>& GetReaders() const override;
+    virtual const std::vector<NVersionedTableClient::ISchemalessMultiChunkWriterPtr>& GetWriters() const override;
+    virtual const std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr>& GetReaders() const override;
 
     virtual void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) override;
 
@@ -34,30 +34,37 @@ protected:
     const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpec_;
     NScheduler::TJobIOConfigPtr JobIOConfig_;
 
-    std::vector<NTableClient::ISyncReaderPtr> Readers_;
-    std::vector<NTableClient::ISyncWriterUnsafePtr> Writers_;
+    std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr> Readers_;
+    std::vector<NVersionedTableClient::ISchemalessMultiChunkWriterPtr> Writers_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
-    virtual NTableClient::ISyncWriterUnsafePtr DoCreateWriter(
-        NTableClient::TTableWriterOptionsPtr options,
+    virtual NVersionedTableClient::ISchemalessMultiChunkWriterPtr DoCreateWriter(
+        NVersionedTableClient::TTableWriterOptionsPtr options,
         const NChunkClient::TChunkListId& chunkListId,
-        const NTransactionClient::TTransactionId& transactionId) = 0;
+        const NTransactionClient::TTransactionId& transactionId,
+        const NVersionedTableClient::TKeyColumns& keyColumns) = 0;
 
-    virtual std::vector<NTableClient::ISyncReaderPtr> DoCreateReaders() = 0;
+    virtual std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr> DoCreateReaders() = 0;
 
-    std::vector<NTableClient::ISyncReaderPtr> CreateRegularReaders(bool isParallel);
 
-    NTableClient::ISyncReaderPtr CreateTableReader(
-        NTableClient::TChunkReaderOptionsPtr options,
-        std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs, 
+    std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr> CreateRegularReaders(bool isParallel);
+
+    NVersionedTableClient::ISchemalessMultiChunkReaderPtr CreateTableReader(
+        NChunkClient::TMultiChunkReaderOptionsPtr options,
+        const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs, 
+        NVersionedTableClient::TNameTablePtr nameTable,
         bool isParallel);
 
-    NTableClient::ISyncWriterUnsafePtr CreateTableWriter(
-        NTableClient::TTableWriterOptionsPtr options,
+    NVersionedTableClient::ISchemalessMultiChunkWriterPtr CreateTableWriter(
+        NVersionedTableClient::TTableWriterOptionsPtr options,
         const NChunkClient::TChunkListId& chunkListId,
-        const NTransactionClient::TTransactionId& transactionId);
+        const NTransactionClient::TTransactionId& transactionId,
+        const NVersionedTableClient::TKeyColumns& keyColumns); 
+    
+    NVersionedTableClient::NProto::TBoundaryKeysExt GetBoundaryKeys(
+        NVersionedTableClient::ISchemalessMultiChunkWriterPtr writer) const;
 
 };
 

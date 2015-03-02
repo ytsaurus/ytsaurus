@@ -59,9 +59,6 @@ using NElection::InvalidPeerId;
 using NElection::TPeerPriority;
 using NElection::TEpochId;
 
-using NRpc::TMutationId;
-using NRpc::NullMutationId;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NHydra

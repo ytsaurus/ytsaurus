@@ -3,13 +3,11 @@
 
 #include <ytlib/formats/parser.h>
 #include <core/yson/consumer.h>
-#include <ytlib/table_client/sync_writer.h>
 
 namespace NYT {
 namespace NJobProxy {
 
 using namespace NFormats;
-using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////
 

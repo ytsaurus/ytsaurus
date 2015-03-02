@@ -11,13 +11,10 @@
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
-
 namespace NYT {
 namespace NQueryClient {
 
 using namespace NChunkClient::NProto;
-using namespace NTableClient::NProto;
 using namespace NVersionedTableClient::NProto;
 
 using NChunkClient::TReadLimit;
@@ -40,7 +37,7 @@ TTableSchema GetTableSchemaFromDataSplit(const TDataSplit& dataSplit)
 
 TKeyColumns GetKeyColumnsFromDataSplit(const TDataSplit& dataSplit)
 {
-    auto keyColumnsExt = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(
+    auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(
         dataSplit.chunk_meta().extensions());
     return FromProto<TKeyColumns>(keyColumnsExt);
 }

@@ -31,6 +31,7 @@
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/query_client/evaluator.h>
+#include <ytlib/query_client/column_evaluator.h>
 
 namespace NYT {
 namespace NApi {
@@ -56,7 +57,6 @@ TClientOptions GetRootClientOptions()
 ////////////////////////////////////////////////////////////////////////////////
 
 IAdminPtr CreateAdmin(IConnectionPtr connection, const TAdminOptions& options);
-
 IClientPtr CreateClient(IConnectionPtr connection, const TClientOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,6 +119,7 @@ public:
             CellDirectory_);
 
         QueryEvaluator_ = New<TEvaluator>(Config_->QueryEvaluator);
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(Config_->ColumnEvaluatorCache);
     }
 
     // IConnection implementation.
@@ -173,6 +174,11 @@ public:
         return QueryEvaluator_;
     }
 
+    virtual TColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
+    {
+        return ColumnEvaluatorCache_;
+    }
+
     virtual IAdminPtr CreateAdmin(const TAdminOptions& options) override
     {
         return NApi::CreateAdmin(this, options);
@@ -201,6 +207,7 @@ private:
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;
     TEvaluatorPtr QueryEvaluator_;
+    TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
     
     static IChannelPtr CreatePeerChannel(

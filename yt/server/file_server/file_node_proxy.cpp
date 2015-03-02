@@ -40,7 +40,7 @@ public:
 private:
     typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TFileNode> TBase;
 
-    virtual NLog::TLogger CreateLogger() const override
+    virtual NLogging::TLogger CreateLogger() const override
     {
         return FileServerLogger;
     }

@@ -12,20 +12,22 @@ using namespace NTableClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TChunkMeta FilterChunkMetaByExtensionTags(const TChunkMeta& chunkMeta, const std::vector<int>& tags)
+TChunkMeta FilterChunkMetaByExtensionTags(
+    const TChunkMeta& chunkMeta,
+    const TNullable<std::vector<int>>& extensionTags)
 {
-    // ToDo: use FilterProtoExtensions.
+    if (!extensionTags) {
+        return chunkMeta;
+    }
+
     TChunkMeta filteredChunkMeta;
     filteredChunkMeta.set_type(chunkMeta.type());
     filteredChunkMeta.set_version(chunkMeta.version());
 
-    yhash_set<int> tagsSet(tags.begin(), tags.end());
-
-    for (const auto& extension : chunkMeta.extensions().extensions()) {
-        if (tagsSet.find(extension.tag()) != tagsSet.end()) {
-            *filteredChunkMeta.mutable_extensions()->add_extensions() = extension;
-        }
-    }
+    FilterProtoExtensions(
+        filteredChunkMeta.mutable_extensions(),
+        chunkMeta.extensions(),
+        yhash_set<int>(extensionTags->begin(), extensionTags->end()));
 
     return filteredChunkMeta;
 }

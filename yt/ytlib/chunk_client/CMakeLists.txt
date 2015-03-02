@@ -20,7 +20,8 @@ set( SRCS
   ${BASE}/file_writer.cpp
   ${BASE}/memory_reader.cpp
   ${BASE}/memory_writer.cpp
-  ${BASE}/multi_chunk_sequential_writer_base.cpp
+  ${BASE}/multi_chunk_reader_base.cpp
+  ${BASE}/multi_chunk_writer_base.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp
   ${BASE}/read_limit.cpp
@@ -60,19 +61,13 @@ set( HDRS
   ${BASE}/format.h
   ${BASE}/memory_reader.h
   ${BASE}/memory_writer.h
-  ${BASE}/old_multi_chunk_parallel_reader-inl.h
-  ${BASE}/old_multi_chunk_parallel_reader.h
-  ${BASE}/old_multi_chunk_reader_base-inl.h
-  ${BASE}/old_multi_chunk_reader_base.h
-  ${BASE}/old_multi_chunk_sequential_reader-inl.h
-  ${BASE}/old_multi_chunk_sequential_reader.h
-  ${BASE}/multi_chunk_sequential_writer-inl.h
-  ${BASE}/multi_chunk_sequential_writer.h
-  ${BASE}/multi_chunk_sequential_writer_base.h
   ${BASE}/multi_chunk_reader.h
+  ${BASE}/multi_chunk_reader_base.h
   ${BASE}/multi_chunk_writer.h
+  ${BASE}/multi_chunk_writer_base.h
   ${BASE}/private.h
   ${BASE}/public.h
+  ${BASE}/reader_base.h
   ${BASE}/read_limit.h
   ${BASE}/replication_reader.h
   ${BASE}/replication_writer.h

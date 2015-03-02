@@ -16,23 +16,27 @@ void IServiceContext::SetResponseInfo()
     SetRawResponseInfo("");
 }
 
-void IServiceContext::ReplyFrom(TFuture<TSharedRefArray> message)
+void IServiceContext::ReplyFrom(TFuture<TSharedRefArray> asyncMessage)
 {
-    auto this_ = MakeStrong(this);
-    message.Subscribe(BIND([this, this_] (const TErrorOr<TSharedRefArray>& result) {
+    asyncMessage.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TSharedRefArray>& result) {
         if (result.IsOK()) {
             Reply(result.Value());
         } else {
             Reply(TError(result));
         }
     }));
+    SubscribeCanceled(BIND([=] () mutable {
+        asyncMessage.Cancel();
+    }));
 }
 
-void IServiceContext::ReplyFrom(TFuture<void> error)
+void IServiceContext::ReplyFrom(TFuture<void> asyncError)
 {
-    auto this_ = MakeStrong(this);
-    error.Subscribe(BIND([this, this_] (const TError& error) {
+    asyncError.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
         Reply(error);
+    }));
+    SubscribeCanceled(BIND([=] () mutable {
+        asyncError.Cancel();
     }));
 }
 

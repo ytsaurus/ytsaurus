@@ -46,7 +46,7 @@ DECLARE_REFCOUNTED_CLASS(TOneWayClientResponse)
 DECLARE_REFCOUNTED_CLASS(TStaticChannelFactory)
 DECLARE_REFCOUNTED_CLASS(TClientRequestControlThunk)
 
-DECLARE_REFCOUNTED_STRUCT(IResponseKeeper)
+DECLARE_REFCOUNTED_CLASS(TResponseKeeper)
 
 ////////////////////////////////////////////////////////////////////////////////
 

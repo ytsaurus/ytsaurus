@@ -53,8 +53,8 @@ public:
     virtual TLoadContext& LoadContext() override;
 
 private:
-    std::unique_ptr<TSaveContext> SaveContext_;
-    std::unique_ptr<TLoadContext> LoadContext_;
+    const std::unique_ptr<TSaveContext> SaveContext_;
+    const std::unique_ptr<TLoadContext> LoadContext_;
 
 };
 
@@ -66,7 +66,7 @@ class TMasterAutomatonPart
     : public NHydra::TCompositeAutomatonPart
 {
 protected:
-    TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
 
     explicit TMasterAutomatonPart(TBootstrap* bootstrap);
 

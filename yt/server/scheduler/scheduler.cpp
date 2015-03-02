@@ -32,6 +32,8 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
+#include <ytlib/job_prober_client/job_prober_service_proxy.h>
+
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/helpers.h>
 
@@ -44,6 +46,9 @@
 #include <ytlib/object_client/master_ypath_proxy.h>
 
 #include <ytlib/chunk_client/data_statistics.h>
+#include <ytlib/chunk_client/private.h>
+
+#include <ytlib/job_tracker_client/statistics.h>
 
 #include <ytlib/job_tracker_client/statistics.h>
 
@@ -51,9 +56,10 @@
 
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/table_client/async_writer.h>
-#include <ytlib/table_client/buffered_table_writer.h>
-#include <ytlib/table_client/table_consumer.h>
+#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/schemaless_writer.h>
+#include <ytlib/new_table_client/schemaless_buffered_table_writer.h>
+#include <ytlib/new_table_client/table_consumer.h>
 
 #include <core/ytree/ypath_proxy.h>
 #include <core/ytree/fluent.h>
@@ -78,7 +84,9 @@ using namespace NHydra;
 using namespace NScheduler::NProto;
 using namespace NJobTrackerClient;
 using namespace NChunkClient;
+using namespace NJobProberClient;
 using namespace NNodeTrackerClient;
+using namespace NVersionedTableClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NTableClient;
@@ -176,19 +184,24 @@ public:
             ProfilingPeriod);
         ProfilingExecutor_->Start();
 
-        EventLogWriter_ = CreateBufferedTableWriter(
+        auto nameTable = New<TNameTable>();
+        EventLogWriter_ = CreateSchemalessBufferedTableWriter(
             Config_->EventLog,
             // TODO(ignat): pass Client instead of Channel and TransactionManager
             Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader),
             Bootstrap_->GetMasterClient()->GetTransactionManager(),
+            nameTable,
             Config_->EventLog->Path);
-        EventLogWriter_->Open();
-        EventLogConsumer_.reset(new TLegacyTableConsumer(EventLogWriter_));
+
+        // Open is always synchronous for buffered writer.
+        YCHECK(EventLogWriter_->Open().IsSet());
+
+        auto valueConsumer = New<TWritingValueConsumer>(EventLogWriter_, true);
+        EventLogConsumer_.reset(new TTableConsumer(valueConsumer));
 
         LogEventFluently(ELogEventType::SchedulerStarted)
             .Item("address").Value(ServiceAddress_);
     }
-
 
     ISchedulerStrategy* GetStrategy()
     {
@@ -327,11 +340,10 @@ public:
         operation->SetCleanStart(true);
         operation->SetState(EOperationState::Initializing);
 
-        LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, MutationId: %v, User: %v)",
+        LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, User: %v)",
             type,
             operationId,
             transactionId,
-            mutationId,
             user);
 
         LOG_INFO("Total resource limits (OperationId: %v, ResourceLimits: {%v})",
@@ -415,6 +427,45 @@ public:
         return VoidFuture;
     }
 
+    TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+    {
+        return BIND(&TImpl::DoDumpInputContext, MakeStrong(this), jobId, path)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+    }
+
+    void DoDumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto job = FindJob(jobId);
+        if (!job) {
+            THROW_ERROR_EXCEPTION("No such job %v", jobId);
+        }
+
+        const auto& address = job->GetNode()->Descriptor().GetInterconnectAddress();
+        auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
+
+        TJobProberServiceProxy probeProxy(channel);
+
+        auto req = probeProxy.DumpInputContext();
+        ToProto(req->mutable_job_id(), jobId);
+
+        auto errorOrResponse = WaitFor(req->Invoke());
+
+        if (!errorOrResponse.IsOK()) {
+            THROW_ERROR_EXCEPTION("Error dumping input context for job: %v", jobId)
+                << errorOrResponse;
+        }
+
+        auto response = errorOrResponse.Value();
+        auto chunkIds = FromProto<TGuid>(response->chunk_id());
+        MasterConnector_->SaveInputContext(path, chunkIds);
+
+        LOG_INFO("Input context saved (JobId: %v, Path: %v)",
+            jobId,
+            path);
+    }
 
     void ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
     {
@@ -695,7 +746,7 @@ private:
 
     Stroka ServiceAddress_;
 
-    NTableClient::IAsyncWriterPtr EventLogWriter_;
+    ISchemalessWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogConsumer_;
 
     yhash_map<Stroka, TNodeResources> SchedulingTagResources_;
@@ -728,6 +779,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto responseKeeper = Bootstrap_->GetResponseKeeper();
+        responseKeeper->Start();
+
         LogEventFluently(ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
 
@@ -738,6 +792,9 @@ private:
     void OnMasterDisconnected()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto responseKeeper = Bootstrap_->GetResponseKeeper();
+        responseKeeper->Stop();
 
         LogEventFluently(ELogEventType::MasterDisconnected)
             .Item("address").Value(ServiceAddress_);
@@ -932,7 +989,7 @@ private:
 
     void RequestConfig(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        LOG_INFO("Updating configuration");
+        LOG_INFO("Updating scheduler configuration");
 
         auto req = TYPathProxy::Get("//sys/scheduler/config");
         batchReq->AddRequest(req, "get_config");
@@ -950,7 +1007,7 @@ private:
             return;
         }
 
-        INodePtr oldConfig = ConvertToNode(Config_);
+        auto oldConfig = ConvertToNode(Config_);
 
         try {
             const auto& rsp = rspOrError.Value();
@@ -967,7 +1024,7 @@ private:
             LOG_ERROR(ex, "Error parsing updated scheduler configuration");
         }
 
-        INodePtr newConfig = ConvertToNode(Config_);
+        auto newConfig = ConvertToNode(Config_);
 
         if (!NYTree::AreNodesEqual(oldConfig, newConfig)) {
             LOG_INFO("Scheduler configuration updated");
@@ -1175,13 +1232,6 @@ private:
     }
 
 
-    TJobPtr FindJob(const TJobId& jobId)
-    {
-        auto it = IdToJob_.find(jobId);
-        return it == IdToJob_.end() ? nullptr : it->second;
-    }
-
-
     TExecNodePtr RegisterNode(const TNodeDescriptor& descriptor)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1383,6 +1433,12 @@ private:
         LOG_DEBUG("Job unregistered (JobId: %v, OperationId: %v)",
             job->GetId(),
             operation->GetId());
+    }
+
+    TJobPtr FindJob(const TJobId& jobId)
+    {
+        auto it = IdToJob_.find(jobId);
+        return it == IdToJob_.end() ? nullptr : it->second;
     }
 
     void AbortJob(TJobPtr job, const TError& error)
@@ -1849,7 +1905,7 @@ private:
         auto state = EJobState(jobStatus->state());
         const auto& jobAddress = node->GetAddress();
 
-        NLog::TLogger Logger(SchedulerLogger);
+        NLogging::TLogger Logger(SchedulerLogger);
         Logger.AddTag("Address: %v, JobId: %v",
             jobAddress,
             jobId);
@@ -2186,6 +2242,11 @@ TFuture<void> TScheduler::ResumeOperation(TOperationPtr operation)
     return Impl_->ResumeOperation(operation);
 }
 
+TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+{
+    return Impl_->DumpInputContext(jobId, path);
+}
+
 void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
 {
     Impl_->ProcessHeartbeat(node, context);
@@ -2195,4 +2256,3 @@ void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
 
 } // namespace NScheduler
 } // namespace NYT
-

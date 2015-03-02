@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/config.h>
+
 #include <core/ytree/yson_serializable.h>
 
 #include <ytlib/election/config.h>
@@ -52,28 +54,11 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellConfig)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TTableMountCacheConfig
-    : public NYTree::TYsonSerializable
+    : public TExpiringCacheConfig
 {
 public:
-    TDuration SuccessExpirationTime;
-    TDuration SuccessProbationTime;
-    TDuration FailureExpirationTime;
-
     TTableMountCacheConfig()
-    {
-        RegisterParameter("success_expiration_time", SuccessExpirationTime)
-            .Default(TDuration::Seconds(15));
-        RegisterParameter("success_probation_time", SuccessProbationTime)
-            .Default(TDuration::Seconds(10));
-        RegisterParameter("failure_expiration_time", FailureExpirationTime)
-            .Default(TDuration::Seconds(15));
-
-        RegisterValidator([&] () {
-            if (SuccessProbationTime > SuccessExpirationTime) {
-                THROW_ERROR_EXCEPTION("\"success_probation_time\" must be less than \"success_expiration_time\"");
-            }
-        });
-    }
+    { }
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableMountCacheConfig)

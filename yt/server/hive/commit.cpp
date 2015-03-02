@@ -8,12 +8,14 @@
 namespace NYT {
 namespace NHive {
 
+using namespace NRpc;
 using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TCommit::TCommit(const TTransactionId& transationId)
     : TransactionId_(transationId)
+    , Persistent_(false)
 { }
 
 TCommit::TCommit(
@@ -23,6 +25,7 @@ TCommit::TCommit(
     : TransactionId_(transationId)
     , MutationId_(mutationId)
     , ParticipantCellIds_(participantCellIds)
+    , Persistent_(false)
 { }
 
 TFuture<TSharedRefArray> TCommit::GetAsyncResponseMessage()
@@ -44,6 +47,7 @@ void TCommit::Save(TSaveContext& context) const
 {
     using NYT::Save;
 
+    YCHECK(Persistent_);
     Save(context, TransactionId_);
     Save(context, MutationId_);
     Save(context, ParticipantCellIds_);
@@ -54,6 +58,7 @@ void TCommit::Load(TLoadContext& context)
 {
     using NYT::Load;
 
+    Persistent_ = true;
     Load(context, TransactionId_);
     Load(context, MutationId_);
     Load(context, ParticipantCellIds_);

@@ -43,20 +43,6 @@ struct IPrepareCallbacks
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IEvaluateCallbacks
-{
-    virtual ~IEvaluateCallbacks()
-    { }
-
-    //! Returns a reader for a given split.
-    virtual ISchemafulReaderPtr GetReader(
-        const TDataSplit& split,
-        TNodeDirectoryPtr nodeDirectory) = 0;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NQueryClient
 } // namespace NYT
 

@@ -13,6 +13,7 @@
 #include "sorted_reduce_job_io.h"
 #include "partition_reduce_job_io.h"
 #include "user_job_io.h"
+#include "job_prober_service.h"
 
 #include <core/actions/invoker_util.h>
 
@@ -30,8 +31,10 @@
 #include <core/logging/log_manager.h>
 
 #include <core/bus/tcp_client.h>
+#include <core/bus/tcp_server.h>
 
 #include <core/rpc/bus_channel.h>
+#include <core/rpc/server.h>
 #include <core/rpc/helpers.h>
 
 #include <ytlib/scheduler/public.h>
@@ -88,8 +91,24 @@ TJobProxy::TJobProxy(
     , Logger(JobProxyLogger)
     , JobProxyMemoryLimit_(InitialJobProxyMemoryLimit)
     , JobThread_(New<TActionQueue>("JobMain"))
+    , ControlThread_(New<TActionQueue>("Control"))
 {
     Logger.AddTag("JobId: %v", JobId_);
+}
+
+std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(const TJobId& jobId)
+{
+    if (JobId_ != jobId) {
+        THROW_ERROR_EXCEPTION("Job id mismatch: expected %v, got %v",
+            JobId_,
+            jobId);
+    }
+
+    if (!Job_) {
+        THROW_ERROR_EXCEPTION("Job is not started yet");
+    }
+
+    return Job_->DumpInputContext();
 }
 
 void TJobProxy::SendHeartbeat()
@@ -135,7 +154,7 @@ void TJobProxy::RetrieveJobSpec()
     JobSpec_ = rsp->job_spec();
     ResourceUsage_ = rsp->resource_usage();
 
-    LOG_INFO("Job_ spec received (JobType: %v, ResourceLimits: {%v})\n%v",
+    LOG_INFO("Job spec received (JobType: %v, ResourceLimits: {%v})\n%v",
         NScheduler::EJobType(rsp->job_spec().type()),
         FormatResources(ResourceUsage_),
         rsp->job_spec().DebugString());
@@ -257,6 +276,10 @@ IJobPtr TJobProxy::CreateBuiltinJob()
 
 TJobResult TJobProxy::DoRun()
 {
+    RpcServer = CreateBusServer(CreateTcpBusServer(Config_->RpcServer));
+    RpcServer->RegisterService(CreateJobProberService(this));
+    RpcServer->Start();
+
     auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
     auto supervisorChannel = CreateBusChannel(supervisorClient);
 
@@ -280,7 +303,7 @@ TJobResult TJobProxy::DoRun()
         BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
         Config_->HeartbeatPeriod);
 
-    if (schedulerJobSpecExt.job_proxy_memory_control()) {
+    if (schedulerJobSpecExt.enable_job_proxy_memory_control()) {
         MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
             GetSyncInvoker(),
             BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
@@ -293,11 +316,10 @@ TJobResult TJobProxy::DoRun()
             JobProxyMemoryLimit_ -= userJobSpec.memory_reserve();
             auto jobIO = CreateUserJobIO();
             jobIO->Init();
-            Job_ = CreateUserJob(this, userJobSpec, std::move(jobIO), JobId_);
+            Job_ = CreateUserJob(this, userJobSpec, JobId_, std::move(jobIO));
         } else {
             Job_ = CreateBuiltinJob();
         }
-
 
         if (MemoryWatchdogExecutor_) {
             MemoryWatchdogExecutor_->Start();
@@ -415,13 +437,18 @@ void TJobProxy::CheckMemoryUsage()
 
 void TJobProxy::Exit(EJobProxyExitCode exitCode)
 {
-    NLog::TLogManager::Get()->Shutdown();
+    NLogging::TLogManager::Get()->Shutdown();
     _exit(static_cast<int>(exitCode));
 }
 
-NLog::TLogger TJobProxy::GetLogger() const
+NLogging::TLogger TJobProxy::GetLogger() const
 {
     return Logger;
+}
+
+IInvokerPtr TJobProxy::GetControlInvoker() const
+{
+    return ControlThread_->GetInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

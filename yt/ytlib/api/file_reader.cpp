@@ -22,7 +22,6 @@
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
 #include <ytlib/file_client/file_chunk_reader.h>
@@ -93,15 +92,11 @@ private:
     TFileReaderOptions Options_;
     TFileReaderConfigPtr Config_;
 
-    bool IsFirstBlock_ = true;
-    bool IsFinished_ = false;
-
     TTransactionPtr Transaction_;
 
-    typedef TOldMultiChunkSequentialReader<TFileChunkReader> TReader;
-    TIntrusivePtr<TReader> Reader_;
+    IFileMultiChunkReaderPtr Reader_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     void DoOpen()
@@ -168,21 +163,19 @@ private:
             nodeDirectory->MergeFrom(rsp->node_directory());
 
             auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
-            auto provider = New<TFileChunkReaderProvider>(
+            Reader_ = CreateFileMultiChunkReader(
                 Config_,
-                Client_->GetConnection()->GetUncompressedBlockCache());
-            Reader_ = New<TReader>(
-                Config_,
+                New<TMultiChunkReaderOptions>(),
                 masterChannel,
                 Client_->GetConnection()->GetCompressedBlockCache(),
+                Client_->GetConnection()->GetUncompressedBlockCache(),
                 nodeDirectory,
-                std::move(chunks),
-                provider);
+                std::move(chunks));
         }
 
         {
-            auto result = WaitFor(Reader_->AsyncOpen());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            WaitFor(Reader_->Open())
+                .ThrowOnError();
         }
 
         if (Transaction_) {
@@ -194,25 +187,17 @@ private:
 
     TSharedRef DoRead()
     {
-        CheckAborted();
+        ValidateAborted();
 
-        if (IsFinished_) {
-            return TSharedRef();
-        }
+        TSharedRef block;
+        while (true) {
+            auto endOfData = !Reader_->ReadBlock(&block);
 
-        if (!IsFirstBlock_ && !Reader_->FetchNext()) {
-            auto result = WaitFor(Reader_->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
-
-        IsFirstBlock_ = false;
-
-        auto* facade = Reader_->GetFacade();
-        if (facade) {
-            return facade->GetBlock();
-        } else {
-            IsFinished_ = true;
-            return TSharedRef();
+            if (!block.Empty() || endOfData) {
+                return block;
+            }
+            WaitFor(Reader_->GetReadyEvent()).
+                ThrowOnError();
         }
     }
 

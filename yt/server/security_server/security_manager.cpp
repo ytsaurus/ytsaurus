@@ -58,18 +58,18 @@ static auto& Profiler = SecurityServerProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, TUser* user)
-    : SecurityManager_(securityManager)
+    : SecurityManager_(std::move(securityManager))
     , IsNull_(!user)
 {
-    if (user) {
-        SecurityManager_->PushAuthenticatedUser(user);
+    if (!IsNull_) {
+        SecurityManager_->SetAuthenticatedUser(user);
     }
 }
 
 TAuthenticatedUserGuard::~TAuthenticatedUserGuard()
 {
     if (!IsNull_) {
-        SecurityManager_->PopAuthenticatedUser();
+        SecurityManager_->ResetAuthenticatedUser();
     }
 }
 
@@ -709,19 +709,19 @@ public:
     }
 
 
-    void PushAuthenticatedUser(TUser* user)
+    void SetAuthenticatedUser(TUser* user)
     {
-        AuthenticatedUserStack_.push_back(user);
+        AuthenticatedUser_ = user;
     }
 
-    void PopAuthenticatedUser()
+    void ResetAuthenticatedUser()
     {
-        AuthenticatedUserStack_.pop_back();
+        AuthenticatedUser_ = nullptr;
     }
 
     TUser* GetAuthenticatedUser()
     {
-        return AuthenticatedUserStack_.back();
+        return AuthenticatedUser_ ? AuthenticatedUser_ : RootUser_;
     }
 
 
@@ -829,7 +829,7 @@ public:
                     permission,
                     objectManager->GetHandler(object)->GetName(object));
             }
-            error.Attributes().Set("permission", ~FormatEnum(permission));
+            error.Attributes().Set("permission", permission);
             error.Attributes().Set("user", user->GetName());
             error.Attributes().Set("object", object->GetId());
             if (result.Object) {
@@ -948,7 +948,7 @@ private:
     TGroupId SuperusersGroupId_;
     TGroup* SuperusersGroup_ = nullptr;
 
-    std::vector<TUser*> AuthenticatedUserStack_;
+    TUser* AuthenticatedUser_ = nullptr;
 
 
     static bool IsUncommittedAccountingEnabled(TCypressNodeBase* node)
@@ -1214,7 +1214,7 @@ private:
         }
 
         InitBuiltins();
-        InitAuthenticatedUser();
+        ResetAuthenticatedUser();
 
         // COMPAT(babenko)
         if (RecomputeResources_) {
@@ -1281,14 +1281,8 @@ private:
     {
         DoClear();
         InitBuiltins();
-        InitAuthenticatedUser();
+        ResetAuthenticatedUser();
         InitDefaultSchemaAcds();
-    }
-
-    void InitAuthenticatedUser()
-    {
-        AuthenticatedUserStack_.clear();
-        AuthenticatedUserStack_.push_back(RootUser_);
     }
 
     void InitDefaultSchemaAcds()
@@ -1734,14 +1728,14 @@ TAccessControlList TSecurityManager::GetEffectiveAcl(TObjectBase* object)
     return Impl_->GetEffectiveAcl(object);
 }
 
-void TSecurityManager::PushAuthenticatedUser(TUser* user)
+void TSecurityManager::SetAuthenticatedUser(TUser* user)
 {
-    Impl_->PushAuthenticatedUser(user);
+    Impl_->SetAuthenticatedUser(user);
 }
 
-void TSecurityManager::PopAuthenticatedUser()
+void TSecurityManager::ResetAuthenticatedUser()
 {
-    Impl_->PopAuthenticatedUser();
+    Impl_->ResetAuthenticatedUser();
 }
 
 TUser* TSecurityManager::GetAuthenticatedUser()

@@ -128,6 +128,7 @@ DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TStoreFlusherConfig)
 DECLARE_REFCOUNTED_CLASS(TStoreCompactorConfig)
 DECLARE_REFCOUNTED_CLASS(TPartitionBalancerConfig)
+DECLARE_REFCOUNTED_CLASS(TSecurityManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletChunkReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletNodeConfig)
 
@@ -147,7 +148,7 @@ class TTablet;
 DECLARE_REFCOUNTED_STRUCT(TKeyList)
 DECLARE_REFCOUNTED_STRUCT(TPartitionSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TTabletSnapshot)
-DECLARE_REFCOUNTED_STRUCT(TTabletStatistics)
+DECLARE_REFCOUNTED_STRUCT(TTabletPerformanceCounters)
 
 class TTransaction;
 
@@ -156,6 +157,7 @@ DECLARE_REFCOUNTED_STRUCT(IStore)
 DECLARE_REFCOUNTED_CLASS(TDynamicMemoryStore)
 DECLARE_REFCOUNTED_CLASS(TChunkStore)
 DECLARE_REFCOUNTED_CLASS(TStoreManager)
+DECLARE_REFCOUNTED_CLASS(TSecurityManager)
 
 struct TDynamicRowHeader;
 class TDynamicRow;
@@ -170,8 +172,8 @@ typedef TEditList<NVersionedTableClient::TTimestamp> TTimestampList;
 class TUnversionedRowMerger;
 class TVersionedRowMerger;
 
-typedef NChunkClient::TMultiChunkWriterOptions TTabletWriterOptions;
-typedef NChunkClient::TMultiChunkWriterOptionsPtr TTabletWriterOptionsPtr;
+typedef NVersionedTableClient::TMultiChunkWriterOptions TTabletWriterOptions;
+typedef NVersionedTableClient::TMultiChunkWriterOptionsPtr TTabletWriterOptionsPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -128,7 +128,9 @@ private:
     {
     public:
         explicit TCache(TMasterCacheService* owner)
-            : TAsyncSlruCacheBase(owner->Config_)
+            : TAsyncSlruCacheBase(
+                owner->Config_,
+                NProfiling::TProfiler(ObjectServerProfiler.GetPathPrefix() + "/master_cache"))
             , Owner_(owner)
             , Logger(ObjectServerLogger)
         { }
@@ -189,7 +191,7 @@ private:
     private:
         TMasterCacheService* Owner_;
 
-        const NLog::TLogger& Logger;
+        const NLogging::TLogger& Logger;
 
 
         virtual void OnAdded(TEntry* entry) override
@@ -307,7 +309,7 @@ private:
         TObjectServiceProxy::TReqExecutePtr Request_;
         std::vector<TPromise<TSharedRefArray>> Promises_;
 
-        const NLog::TLogger& Logger;
+        const NLogging::TLogger& Logger;
 
 
         void OnResponse(const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError)

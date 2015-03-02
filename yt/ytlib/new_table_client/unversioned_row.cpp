@@ -254,9 +254,13 @@ Stroka ToString(const TUnversionedValue& value)
             return Format("%v", value.Data.Boolean);
 
         case EValueType::String:
-        case EValueType::Any:
-            // TODO(babenko): handle Any separately
             return Stroka(value.Data.String, value.Length).Quote();
+
+        case EValueType::Any:
+            return ConvertToYsonString(
+                    TYsonString(Stroka(value.Data.String, value.Length)),
+                    EYsonFormat::Text)
+                .Data();
 
         default:
             YUNREACHABLE();
@@ -512,11 +516,11 @@ size_t GetHash(const TUnversionedValue& value)
     }
 }
 
-size_t GetHash(TUnversionedRow row)
+size_t GetHash(TUnversionedRow row, int keyColumnCount)
 {
     size_t result = 0xdeadc0de;
-    int partCount = row.GetCount();
-    for (int i = 0; i < row.GetCount(); ++i) {
+    int partCount = std::min(row.GetCount(), keyColumnCount);
+    for (int i = 0; i < partCount; ++i) {
         result = (result * 1000003) ^ GetHash(row[i]);
     }
     return result ^ partCount;
@@ -819,6 +823,13 @@ TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength)
         key,
         prefixLength,
         EValueType::Max);
+}
+
+TOwningKey GetKeyPrefix(TKey key, int prefixLength)
+{
+    return TOwningKey(
+        key.Begin(), 
+        key.Begin() + std::min(key.GetCount(), prefixLength));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

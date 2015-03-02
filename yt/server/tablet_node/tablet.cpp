@@ -69,8 +69,8 @@ TPartitionSnapshotPtr TTabletSnapshot::FindContainingPartition(TKey key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTablet::TTablet(const TTabletId& id)
-    : Id_(id)
+TTablet::TTablet(const TTabletId& tabletId)
+    : TabletId_(tabletId)
     , Slot_(nullptr)
     , Config_(New<TTableMountConfig>())
     , WriterOptions_(New<TTabletWriterOptions>())
@@ -79,13 +79,15 @@ TTablet::TTablet(const TTabletId& id)
 TTablet::TTablet(
     TTableMountConfigPtr config,
     TTabletWriterOptionsPtr writerOptions,
-    const TTabletId& id,
+    const TTabletId& tabletId,
+    const TObjectId& tableId,
     TTabletSlotPtr slot,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
     TOwningKey pivotKey,
     TOwningKey nextPivotKey)
-    : Id_(id)
+    : TabletId_(tabletId)
+    , TableId_(tableId)
     , Slot_(slot)
     , Schema_(schema)
     , KeyColumns_(keyColumns)
@@ -149,15 +151,16 @@ void TTablet::SetStoreManager(TStoreManagerPtr storeManager)
     StoreManager_ = storeManager;
 }
 
-const TTabletStatisticsPtr& TTablet::GetStatistics() const
+const TTabletPerformanceCountersPtr& TTablet::GetPerformanceCounters() const
 {
-    return Statistics_;
+    return PerformanceCounters_;
 }
 
 void TTablet::Save(TSaveContext& context) const
 {
     using NYT::Save;
 
+    Save(context, TableId_);
     Save(context, Schema_);
     Save(context, KeyColumns_);
     Save(context, PivotKey_);
@@ -197,6 +200,9 @@ void TTablet::Load(TLoadContext& context)
 
     Slot_ = context.GetSlot();
 
+    if (context.GetVersion() >= 5) {
+        Load(context, TableId_);
+    }
     Load(context, Schema_);
     Load(context, KeyColumns_);
     Load(context, PivotKey_);
@@ -517,7 +523,8 @@ IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
 TTabletSnapshotPtr TTablet::BuildSnapshot() const
 {
     auto tabletSnapshot = New<TTabletSnapshot>();
-    tabletSnapshot->TabletId = Id_;
+    tabletSnapshot->TabletId = TabletId_;
+    tabletSnapshot->TableId = TableId_;
     tabletSnapshot->Slot = Slot_;
     tabletSnapshot->Config = Config_;
     tabletSnapshot->Schema = Schema_;
@@ -530,13 +537,13 @@ TTabletSnapshotPtr TTablet::BuildSnapshot() const
         tabletSnapshot->StoreCount += partitionSnapshot->Stores.size();
     }
     tabletSnapshot->RowKeyComparer = GetRowKeyComparer();
-    tabletSnapshot->Statistics = Statistics_;
+    tabletSnapshot->PerformanceCounters = PerformanceCounters_;
     return tabletSnapshot;
 }
 
 void TTablet::Initialize()
 {
-    Statistics_ = New<TTabletStatistics>();
+    PerformanceCounters_ = New<TTabletPerformanceCounters>();
 
     Comparer_ = TDynamicRowKeyComparer(
         GetKeyColumnCount(),

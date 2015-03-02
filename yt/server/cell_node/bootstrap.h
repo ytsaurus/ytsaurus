@@ -19,6 +19,8 @@
 
 #include <ytlib/api/public.h>
 
+#include <ytlib/query_client/public.h>
+
 #include <server/data_node/public.h>
 
 #include <server/chunk_server/public.h>
@@ -48,13 +50,15 @@ public:
     IInvokerPtr GetControlInvoker() const;
     IInvokerPtr GetQueryPoolInvoker() const;
     IInvokerPtr GetBoundedConcurrencyQueryPoolInvoker() const;
+    IInvokerPtr GetBoundedConcurrencyReadPoolInvoker() const;
     NApi::IClientPtr GetMasterClient() const;
     NRpc::IServerPtr GetRpcServer() const;
     NRpc::IChannelFactoryPtr GetTabletChannelFactory() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
     NJobAgent::TJobTrackerPtr GetJobController() const;
     NTabletNode::TTabletSlotManagerPtr GetTabletSlotManager() const;
-    NExecAgent::TSlotManagerPtr GetSlotManager() const;
+    NTabletNode::TSecurityManagerPtr GetSecurityManager() const;
+    NExecAgent::TSlotManagerPtr GetExecSlotManager() const;
     NExecAgent::TEnvironmentManagerPtr GetEnvironmentManager() const;
     NJobProxy::TJobProxyConfigPtr GetJobProxyConfig() const;
     TNodeMemoryTracker* GetMemoryUsageTracker();
@@ -68,12 +72,13 @@ public:
     NDataNode::TBlobReaderCachePtr GetBlobReaderCache() const;
     NDataNode::TJournalDispatcherPtr GetJournalDispatcher() const;
     NDataNode::TMasterConnectorPtr GetMasterConnector() const;
+    NQueryClient::IExecutorPtr GetQueryExecutor() const;
 
     NConcurrency::IThroughputThrottlerPtr GetReplicationInThrottler() const;
     NConcurrency::IThroughputThrottlerPtr GetReplicationOutThrottler() const;
     NConcurrency::IThroughputThrottlerPtr GetRepairInThrottler() const;
     NConcurrency::IThroughputThrottlerPtr GetRepairOutThrottler() const;
-    
+
     NConcurrency::IThroughputThrottlerPtr GetInThrottler(NChunkClient::EWriteSessionType sessionType) const;
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EWriteSessionType sessionType) const;
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EReadSessionType sessionType) const;
@@ -92,6 +97,7 @@ private:
 
     NConcurrency::TThreadPoolPtr QueryThreadPool;
     IInvokerPtr BoundedConcurrencyQueryPoolInvoker;
+    IInvokerPtr BoundedConcurrencyReadPoolInvoker;
 
     NBus::IBusServerPtr BusServer;
     NApi::IClientPtr MasterClient;
@@ -100,7 +106,7 @@ private:
     NRpc::IChannelFactoryPtr TabletChannelFactory;
     NYTree::IMapNodePtr OrchidRoot;
     NJobAgent::TJobTrackerPtr JobController;
-    NExecAgent::TSlotManagerPtr SlotManager;
+    NExecAgent::TSlotManagerPtr ExecSlotManager;
     NExecAgent::TEnvironmentManagerPtr EnvironmentManager;
     NJobProxy::TJobProxyConfigPtr JobProxyConfig;
     TMemoryUsageTracker<EMemoryConsumer> MemoryUsageTracker;
@@ -121,7 +127,11 @@ private:
     NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler;
     NConcurrency::IThroughputThrottlerPtr RepairInThrottler;
     NConcurrency::IThroughputThrottlerPtr RepairOutThrottler;
+
     NTabletNode::TTabletSlotManagerPtr TabletSlotManager;
+    NTabletNode::TSecurityManagerPtr SecurityManager;
+
+    NQueryClient::IExecutorPtr QueryExecutor;
 
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor;
 

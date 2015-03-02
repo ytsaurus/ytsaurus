@@ -45,10 +45,14 @@ TSharedRefArray TClientRequest::Serialize()
 {
     auto now = TInstant::Now();
 
-    // Set request start time on first serialization attempt.
-    if (!Header_.has_request_start_time()) {
+    if (FirstTimeSerialization_) {
         Header_.set_request_start_time(now.MicroSeconds());
+        FirstTimeSerialization_ = false;
+    } else {
+        // request_start_time is already set, see above.
+        Header_.set_retry(true);
     }
+
     Header_.set_retry_start_time(now.MicroSeconds());
 
     if (Timeout_) {
@@ -117,6 +121,16 @@ TInstant TClientRequest::GetStartTime() const
 void TClientRequest::SetStartTime(TInstant value)
 {
     Header_.set_request_start_time(value.MicroSeconds());
+}
+
+bool TClientRequest::GetRetry() const
+{
+    return Header_.retry();
+}
+
+void TClientRequest::SetRetry(bool value)
+{
+    Header_.set_retry(value);
 }
 
 TClientContextPtr TClientRequest::CreateClientContext()

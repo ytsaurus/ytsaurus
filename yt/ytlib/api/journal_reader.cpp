@@ -99,7 +99,7 @@ private:
     i64 CurrentRowIndex_ = -1;
     i64 EndRowIndex_ = -1; // exclusive
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     void DoOpen()
@@ -178,7 +178,7 @@ private:
     std::vector<TSharedRef> DoRead()
     {
         while (true) {
-            CheckAborted();
+            ValidateAborted();
 
             if (Finished_) {
                 return std::vector<TSharedRef>();

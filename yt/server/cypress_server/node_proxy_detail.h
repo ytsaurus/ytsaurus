@@ -68,7 +68,7 @@ protected:
     bool ModificationTrackingSuppressed = false;
 
 
-    virtual NLog::TLogger CreateLogger() const override;
+    virtual NLogging::TLogger CreateLogger() const override;
 
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;

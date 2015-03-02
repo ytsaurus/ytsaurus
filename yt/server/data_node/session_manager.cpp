@@ -38,7 +38,6 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
-static NProfiling::TRateCounter DiskWriteThroughputCounter("/disk_write_throughput_counter");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +46,6 @@ TSessionManager::TSessionManager(
     TBootstrap* bootstrap)
     : Config_(config)
     , Bootstrap_(bootstrap)
-    , PendingWriteSize_(0)
 {
     YCHECK(config);
     YCHECK(bootstrap);

@@ -87,10 +87,11 @@ private:
         const auto& serviceName = header->service();
         const auto& methodName = header->method();
         auto realmId = header->has_realm_id() ? FromProto<TRealmId>(header->realm_id()) : NullRealmId;
-        bool oneWay = header->has_one_way() ? header->one_way() : false;
+        bool isOneWay = header->one_way();
         auto timeout = header->has_timeout() ? MakeNullable(TDuration(header->timeout())) : Null;
         auto requestStartTime = header->has_request_start_time() ? MakeNullable(header->request_start_time()) : Null;
         auto retryStartTime = header->has_retry_start_time() ? MakeNullable(header->retry_start_time()) : Null;
+        bool isRetry = header->retry();
 
         if (message.Size() < 2) {
             LOG_ERROR("Too few request parts: expected >= 2, actual %v (RequestId: %v)",
@@ -99,22 +100,23 @@ private:
             return;
         }
 
-        LOG_DEBUG("Request received (Method: %v:%v, RealmId: %v, RequestId: %v, OneWay: %v, Timeout: %v, RequestStartTime: %v, RetryStartTime: %v)",
+        LOG_DEBUG("Request received (Method: %v:%v, RealmId: %v, RequestId: %v, OneWay: %v, Timeout: %v, RequestStartTime: %v, RetryStartTime: %v, Retry: %v)",
             serviceName,
             methodName,
             realmId,
             requestId,
-            oneWay,
+            isOneWay,
             timeout,
             requestStartTime,
-            retryStartTime);
+            retryStartTime,
+            isRetry);
 
         if (!Started_) {
             auto error = TError(NRpc::EErrorCode::Unavailable, "Server is not started");
 
             LOG_DEBUG(error);
 
-            if (!oneWay) {
+            if (!isOneWay) {
                 auto response = CreateErrorResponseMessage(requestId, error);
                 replyBus->Send(response, EDeliveryTrackingLevel::None);
             }
@@ -133,7 +135,7 @@ private:
 
             LOG_WARNING(error);
 
-            if (!oneWay) {
+            if (!isOneWay) {
                 auto response = CreateErrorResponseMessage(requestId, error);
                 replyBus->Send(response, EDeliveryTrackingLevel::None);
             }

@@ -7,20 +7,21 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail
-{
-    typedef uintptr_t (*TFlsSlotCtor)();
-    typedef void (*TFlsSlotDtor)(uintptr_t);
+namespace NDetail  {
 
-    int FlsAllocateSlot(TFlsSlotCtor ctor, TFlsSlotDtor dtor);
+typedef uintptr_t (*TFlsSlotCtor)();
+typedef void (*TFlsSlotDtor)(uintptr_t);
 
-    int FlsCountSlots();
+int FlsAllocateSlot(TFlsSlotCtor ctor, TFlsSlotDtor dtor);
 
-    uintptr_t FlsConstruct(int index);
-    void FlsDestruct(int index, uintptr_t value);
+int FlsCountSlots();
 
-    uintptr_t& FlsAt(int index, TFiber* fiber = nullptr);
-};
+uintptr_t FlsConstruct(int index);
+void FlsDestruct(int index, uintptr_t value);
+
+uintptr_t& FlsAt(int index, TFiber* fiber = nullptr);
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 

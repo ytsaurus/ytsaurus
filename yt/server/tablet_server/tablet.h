@@ -37,6 +37,34 @@ void Serialize(const TTabletStatistics& statistics, NYson::IYsonConsumer* consum
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTabletPerformanceCounter
+{
+    i64 Count = 0;
+    double Rate = 0.0;
+};
+
+#define ITERATE_TABLET_PERFORMANCE_COUNTERS(XX) \
+    XX(dynamic_memory_row_read,     DynamicMemoryRowRead) \
+    XX(dynamic_memory_row_lookup,   DynamicMemoryRowLookup) \
+    XX(dynamic_memory_row_write,    DynamicMemoryRowWrite) \
+    XX(dynamic_memory_row_delete,   DynamicMemoryRowDelete) \
+    XX(static_chunk_row_read,       StaticChunkRowRead) \
+    XX(static_chunk_row_lookup,     StaticChunkRowLookup) \
+    XX(unmerged_row_read,           UnmergedRowRead) \
+    XX(merged_row_read,             MergedRowRead)
+
+struct TTabletPerformanceCounters
+{
+    TInstant Timestamp;
+    #define XX(name, Name) TTabletPerformanceCounter Name;
+    ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
+    #undef XX
+};
+
+void Serialize(const TTabletPerformanceCounters& counters, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTablet
     : public NObjectServer::TNonversionedObjectBase
     , public TRefTracked<TTablet>
@@ -48,6 +76,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);
     DEFINE_BYVAL_RW_PROPERTY(NVersionedTableClient::TOwningKey, PivotKey);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TTabletStatistics, NodeStatistics);
+    DEFINE_BYREF_RW_PROPERTY(TTabletPerformanceCounters, PerformanceCounters);
 
 public:
     explicit TTablet(const TTabletId& id);

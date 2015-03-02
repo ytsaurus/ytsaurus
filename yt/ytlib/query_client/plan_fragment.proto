@@ -21,7 +21,7 @@ message TExpression
 message TLiteralExpression
 {
     extend TExpression {
-        optional TLiteralExpression literal_expression = 107;
+        optional TLiteralExpression literal_expression = 103;
     }
 
     optional int64 int64_value = 1;
@@ -48,10 +48,19 @@ message TFunctionExpression
     repeated TExpression arguments = 2;
 }
 
+message TUnaryOpExpression
+{
+    extend TExpression {
+        optional TUnaryOpExpression unary_op_expression = 106;
+    }
+    required int32 opcode = 1; // EUnaryOp
+    required TExpression operand = 2;
+}
+
 message TBinaryOpExpression
 {
     extend TExpression {
-        optional TBinaryOpExpression binary_op_expression = 106;
+        optional TBinaryOpExpression binary_op_expression = 107;
     }
     required int32 opcode = 1; // EBinaryOp
     required TExpression lhs = 2;
@@ -96,8 +105,7 @@ message TJoinClause
     repeated string join_columns = 1;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt self_table_schema = 2;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt foreign_table_schema = 3;
-    required NYT.NTableClient.NProto.TKeyColumnsExt foreign_key_columns = 4;
-
+    required NYT.NVersionedTableClient.NProto.TKeyColumnsExt foreign_key_columns = 4;
 }
 
 message TQuery
@@ -109,7 +117,7 @@ message TQuery
     required int64 limit = 4;
 
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt table_schema = 5;
-    required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 6;
+    required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 6;
 
     optional TJoinClause join_clause = 7;
     optional TExpression predicate = 8;
@@ -125,7 +133,6 @@ message TPlanFragment
     required NYT.NChunkClient.NProto.TChunkSpec foreign_data_split = 3;
     required TQuery query = 4;
     required bool ordered = 5;
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////

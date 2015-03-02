@@ -118,8 +118,7 @@ private:
 
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
-        auto this_ = MakeStrong(this);
-        Invoker_->Invoke(BIND([this, this_, context] () {
+        Invoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
             ExecuteVerb(UnderlyingService_, context);
         }));
         return true;

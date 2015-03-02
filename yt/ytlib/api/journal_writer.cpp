@@ -181,7 +181,7 @@ private:
         TObjectServiceProxy ObjectProxy_;
         TChunkServiceProxy ChunkProxy_;
 
-        NLog::TLogger Logger = ApiLogger;
+        NLogging::TLogger Logger = ApiLogger;
 
         struct TBatch
             : public TIntrinsicRefCounted
@@ -519,6 +519,7 @@ private:
                 auto batchReq = CreateMasterBatchRequest();
 
                 {
+                    YCHECK(!replicas.empty());
                     auto req = TChunkYPathProxy::Confirm(FromObjectId(CurrentSession_->ChunkId));
                     req->mutable_chunk_info();
                     ToProto(req->mutable_replicas(), replicas);
@@ -562,7 +563,7 @@ private:
         void WriteChunk()
         {
             while (true) {
-                CheckAborted();
+                ValidateAborted();
                 auto command = DequeueCommand();
                 if (command.Is<TCloseCommand>()) {
                     HandleClose();

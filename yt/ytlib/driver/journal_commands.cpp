@@ -44,7 +44,7 @@ void TReadJournalCommand::DoExecute()
         }
     };
 
-    auto path = Request_->Path.Normalize();
+    const auto& path = Request_->Path;
 
     if (path.GetRanges().size() > 1) {
         THROW_ERROR_EXCEPTION("Reading multiple ranges is not supported in journals");

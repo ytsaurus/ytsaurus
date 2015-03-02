@@ -10,6 +10,8 @@
 
 #include <ytlib/new_table_client/versioned_row.h>
 
+#include <ytlib/transaction_client/helpers.h>
+
 #include <server/hydra/composite_automaton.h>
 
 namespace NYT {
@@ -22,7 +24,7 @@ using namespace NVersionedTableClient;
 
 TTransaction::TTransaction(const TTransactionId& id)
     : Id_(id)
-    , StartTime_(TInstant::Zero())
+    , RegisterTime_(TInstant::Zero())
     , State_(ETransactionState::Active)
     , StartTimestamp_(NullTimestamp)
     , PrepareTimestamp_(NullTimestamp)
@@ -35,7 +37,7 @@ void TTransaction::Save(TSaveContext& context) const
     using NYT::Save;
 
     Save(context, Timeout_);
-    Save(context, StartTime_);
+    Save(context, RegisterTime_);
     Save(context, GetPersistentState());
     Save(context, StartTimestamp_);
     Save(context, GetPersistentPrepareTimestamp());
@@ -59,7 +61,7 @@ void TTransaction::Save(TSaveContext& context) const
         const auto* locks = row.BeginLocks(keyColumnCount);
 
         // Tablet
-        Save(context, tablet->GetId());
+        Save(context, tablet->GetTabletId());
 
         // Keys
         SaveRowKeys(context, tablet->Schema(), tablet->KeyColumns(), row);
@@ -89,7 +91,7 @@ void TTransaction::Load(TLoadContext& context)
     using NYT::Load;
 
     Load(context, Timeout_);
-    Load(context, StartTime_);
+    Load(context, RegisterTime_);
     Load(context, State_);
     Load(context, StartTimestamp_);
     Load(context, PrepareTimestamp_);
@@ -190,6 +192,11 @@ void TTransaction::ThrowInvalidState() const
     THROW_ERROR_EXCEPTION("Transaction %v is in %Qlv state",
         Id_,
         State_);
+}
+
+TInstant TTransaction::GetStartTime() const
+{
+    return TimestampToInstant(StartTimestamp_).first;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

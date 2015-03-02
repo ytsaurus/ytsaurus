@@ -39,6 +39,7 @@ namespace {
 
 using namespace NTabletClient;
 using namespace NVersionedTableClient;
+using namespace NObjectClient;
 using namespace NYson;
 using namespace NYTree;
 
@@ -61,6 +62,7 @@ protected:
             New<TTableMountConfig>(),
             New<TTabletWriterOptions>(),
             NullTabletId,
+            NullObjectId,
             nullptr,
             schema,
             keyColumns,

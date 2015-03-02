@@ -32,7 +32,7 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TLock> TBase;
 
-    virtual NLog::TLogger CreateLogger() const override
+    virtual NLogging::TLogger CreateLogger() const override
     {
         return CypressServerLogger;
     }

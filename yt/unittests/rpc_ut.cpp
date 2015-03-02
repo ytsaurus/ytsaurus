@@ -82,12 +82,6 @@ TSharedRef SharedRefFromString(const Stroka& s)
     return TSharedRef::FromString(s);
 }
 
-IChannelPtr CreateChannel(const Stroka& address = "localhost:2000")
-{
-    auto client = CreateTcpBusClient(New<TTcpBusClientConfig>(address));
-    return CreateBusChannel(client);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMyService
@@ -98,7 +92,7 @@ public:
         : TServiceBase(
             invoker,
             TMyProxy::GetServiceName(),
-            NLog::TLogger("Main"))
+            NLogging::TLogger("Main"))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SomeCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyAttachments));
@@ -192,14 +186,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcTest
+class TRpcTestBase
     : public ::testing::Test
 {
 public:
     virtual void SetUp()
     {
-        auto busConfig = New<TTcpBusServerConfig>(2000);
-        auto busServer = CreateTcpBusServer(busConfig);
+        auto busServer = CreateServer();
 
         Server_ = CreateBusServer(busServer);
 
@@ -217,10 +210,31 @@ public:
     }
 
 protected:
+    virtual IBusServerPtr CreateServer() = 0;
+
     TActionQueuePtr Queue_;
     TIntrusivePtr<TMyService> Service_;
     IServerPtr Server_;
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRpcTest
+    : public TRpcTestBase
+{
+public:
+    virtual IBusServerPtr CreateServer()
+    {
+        auto busConfig = TTcpBusServerConfig::CreateTcp(2000);
+        return CreateTcpBusServer(busConfig);
+    }
+
+    IChannelPtr CreateChannel(const Stroka& address = "localhost:2000")
+    {
+        auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(address));
+        return CreateBusChannel(client);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -231,7 +245,7 @@ TEST_F(TRpcTest, Send)
     auto req = proxy.SomeCall();
     req->set_a(42);
     auto rspOrError = req->Invoke().Get();
-    EXPECT_TRUE(rspOrError.IsOK());
+    EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
     const auto& rsp = rspOrError.Value();
     EXPECT_EQ(142, rsp->b());
 }
@@ -345,6 +359,7 @@ TEST_F(TRpcTest, ClientCancel)
     Sleep(TDuration::Seconds(0.5));
     EXPECT_FALSE(asyncRspOrError.IsSet());
     asyncRspOrError.Cancel();
+    Sleep(TDuration::Seconds(0.1));
     EXPECT_TRUE(asyncRspOrError.IsSet());
     auto rspOrError = asyncRspOrError.Get();
     EXPECT_EQ(NYT::EErrorCode::Canceled, rspOrError.GetCode());
@@ -442,6 +457,41 @@ TEST_F(TRpcTest, ProtocolVersionMismatch)
     auto rspOrError = req->Invoke().Get();
     EXPECT_EQ(NRpc::EErrorCode::ProtocolError, rspOrError.GetCode());
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+#ifdef _linux_
+
+class TRpcUnixDomainTest
+    : public TRpcTestBase
+{
+public:
+    virtual IBusServerPtr CreateServer()
+    {
+        auto busConfig = TTcpBusServerConfig::CreateUnixDomain("unix_domain");
+        return CreateTcpBusServer(busConfig);
+    }
+
+    IChannelPtr CreateChannel(const Stroka& address = "unix_domain")
+    {
+        auto clientConfig = TTcpBusClientConfig::CreateUnixDomain(address);
+        auto client = CreateTcpBusClient(clientConfig);
+        return CreateBusChannel(client);
+    }
+};
+
+TEST_F(TRpcUnixDomainTest, Send)
+{
+    TMyProxy proxy(CreateChannel());
+    auto req = proxy.SomeCall();
+    req->set_a(42);
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
+    const auto& rsp = rspOrError.Value();
+    EXPECT_EQ(142, rsp->b());
+}
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

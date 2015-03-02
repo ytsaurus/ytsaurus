@@ -11,19 +11,8 @@ class TestOrchid(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     def _check_service(self, path_to_orchid, service_name):
-        path_to_value = path_to_orchid + "/value"
-
         assert get(path_to_orchid + "/service/name") == service_name
-
-        some_map = {"a": 1, "b": 2}
-
-        set(path_to_value, some_map)
-        assert get(path_to_value) == some_map
-
-        self.assertItemsEqual(ls(path_to_value), ["a", "b"])
-        remove(path_to_value)
-        with pytest.raises(YtError): get(path_to_value)
-
+        with pytest.raises(YtError): set(path_to_orchid + "/key", "value")
 
     def _check_orchid(self, path, num_services, service_name):
         services = ls(path)

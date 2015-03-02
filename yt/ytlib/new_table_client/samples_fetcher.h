@@ -27,7 +27,7 @@ public:
         const TKeyColumns& keyColumns,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
-        const NLog::TLogger& logger);
+        const NLogging::TLogger& logger);
 
     virtual void AddChunk(NChunkClient::TRefCountedChunkSpecPtr chunk) override;
     virtual TFuture<void> Fetch() override;

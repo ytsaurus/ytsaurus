@@ -18,7 +18,7 @@ using namespace NTransactionClient;
 TOperation::TOperation(
     const TOperationId& id,
     EOperationType type,
-    const NHydra::TMutationId& mutationId,
+    const NRpc::TMutationId& mutationId,
     TTransactionPtr userTransaction,
     NYTree::IMapNodePtr spec,
     const Stroka& authenticatedUser,
@@ -43,8 +43,7 @@ TOperation::TOperation(
 
 TFuture<TOperationPtr> TOperation::GetStarted()
 {
-    auto this_ = MakeStrong(this);
-    return StartedPromise.ToFuture().Apply(BIND([this_] () -> TOperationPtr {
+    return StartedPromise.ToFuture().Apply(BIND([this_ = MakeStrong(this)] () -> TOperationPtr {
         return this_;
     }));
 }

@@ -10,6 +10,11 @@ namespace NQueryClient {
 typedef std::pair<int, int> TSourceLocation;
 static const TSourceLocation NullSourceLocation(0, 0);
 
+DEFINE_ENUM(EUnaryOp,
+    (Plus)
+    (Minus)
+);
+
 DEFINE_ENUM(EBinaryOp,
     // Arithmetical operations.
     (Plus)
@@ -30,6 +35,7 @@ DEFINE_ENUM(EBinaryOp,
     (GreaterOrEqual)
 );
 
+const char* GetUnaryOpcodeLexeme(EUnaryOp opcode);
 const char* GetBinaryOpcodeLexeme(EBinaryOp opcode);
 
 // Reverse binary opcode for compariosn operations.

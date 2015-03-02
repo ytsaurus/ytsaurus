@@ -2,13 +2,15 @@
 #include "slot.h"
 #include "private.h"
 #include "config.h"
+#include "subprocess.h"
 
 #include <ytlib/cgroup/cgroup.h>
 
 #include <core/logging/log_manager.h>
 
-#include <core/misc/proc.h>
 #include <core/misc/string.h>
+
+#include <core/bus/config.h>
 
 #include <core/ytree/yson_producer.h>
 
@@ -16,6 +18,7 @@ namespace NYT {
 namespace NExecAgent {
 
 using namespace NConcurrency;
+using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,11 +32,13 @@ Stroka GetSlotProcessGroup(int slotId)
 TSlot::TSlot(
     TSlotManagerConfigPtr config,
     const Stroka& path,
+    const Stroka& nodeId,
     int slotIndex,
     TNullable<int> userId)
     : IsFree_(true)
     , IsClean_(true)
     , Path_(path)
+    , NodeId_(nodeId)
     , SlotIndex_(slotIndex)
     , UserId_(userId)
     , SlotThread_(New<TActionQueue>(Format("ExecSlot:%v", slotIndex)))
@@ -120,12 +125,37 @@ std::vector<Stroka> TSlot::GetCGroupPaths() const
     return result;
 }
 
+TTcpBusServerConfigPtr TSlot::GetRpcServerConfig() const
+{
+    Stroka unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
+    return TTcpBusServerConfig::CreateUnixDomain(unixDomainName);
+}
+
+TTcpBusClientConfigPtr TSlot::GetRpcClientConfig() const
+{
+    Stroka unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
+    return TTcpBusClientConfig::CreateUnixDomain(unixDomainName);
+}
+
 void TSlot::DoCleanSandbox()
 {
     try {
         if (NFS::Exists(SandboxPath_)) {
             if (UserId_.HasValue()) {
-                RunCleaner(SandboxPath_);
+                auto process = TSubprocess::CreateCurrentProcessSpawner();
+                process.AddArguments({
+                    "--cleaner",
+                    "--dir-to-remove",
+                    SandboxPath_
+                });
+
+                auto result = process.Execute();
+                if (!result.Status.IsOK()) {
+                    TError wrappedError("Unable to clean sandbox %v: %Qv", SandboxPath_, result.Error);
+                    wrappedError << result.Status;
+                    LOG_ERROR(wrappedError);
+                    THROW_ERROR wrappedError;
+                }
             } else {
                 NFS::RemoveRecursive(SandboxPath_);
             }
@@ -227,7 +257,7 @@ void TSlot::MakeLink(
 void TSlot::LogErrorAndExit(const TError& error)
 {
     LOG_ERROR(error);
-    NLog::TLogManager::Get()->Shutdown();
+    NLogging::TLogManager::Get()->Shutdown();
     _exit(1);
 }
 

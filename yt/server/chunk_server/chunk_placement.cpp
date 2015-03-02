@@ -426,6 +426,9 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
         if (!chunk->GetMovable()) {
             continue;
         }
+        if (!chunk->IsSealed()) {
+            continue;
+        }
         if (chunkManager->FindJobList(chunk)) {
             continue;
         }

@@ -673,9 +673,6 @@ private:
 
         OnlineNodeCount_ = 0;
         RegisteredNodeCount_ = 0;
-
-        NodeRemovalQueue_.clear();
-        PendingRemoveNodeMutationCount_ = 0;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -735,6 +732,9 @@ private:
             auto* node = pair.second;
             RefreshNodeConfig(node);
         }
+
+        NodeRemovalQueue_.clear();
+        PendingRemoveNodeMutationCount_ = 0;
     }
 
     virtual void OnLeaderActive() override
@@ -788,9 +788,6 @@ private:
         if (!transaction)
             return;
 
-        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        const auto* mutationContext = hydraManager->GetMutationContext();
-
         auto timeout = GetNodeLeaseTimeout(node);
         transaction->SetTimeout(timeout);
 
@@ -798,7 +795,9 @@ private:
             auto objectManager = Bootstrap_->GetObjectManager();
             auto rootService = objectManager->GetRootService();
             auto nodePath = GetNodePath(node);
-            SyncYPathSet(rootService, nodePath + "/@last_seen_time", ConvertToYsonString(mutationContext->GetTimestamp()));
+            const auto* mutationContext = GetCurrentMutationContext();
+            auto mutationTimestamp = mutationContext->GetTimestamp();
+            SyncYPathSet(rootService, nodePath + "/@last_seen_time", ConvertToYsonString(mutationTimestamp));
         } catch (const std::exception& ex) {
             LOG_ERROR_UNLESS(IsRecovery(), ex, "Error updating node properties in Cypress");
         }
@@ -843,8 +842,7 @@ private:
             auto config = GetNodeConfigByAddress(address);
             auto nodeId = GenerateNodeId();
 
-            auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            const auto* mutationContext = hydraManager->GetMutationContext();
+            const auto* mutationContext = GetCurrentMutationContext();
 
             auto* node = new TNode(
                 nodeId,
@@ -880,7 +878,7 @@ private:
                 {
                     auto attributes = CreateEphemeralAttributes();
                     attributes->Set("title", Format("Lease for node %v", node->GetAddress()));
-                    objectManager->FillAttributes(transaction, *attributes);
+                    objectManager->FillCustomAttributes(transaction, *attributes);
                 }
 
                 // Create Cypress node.
@@ -1000,10 +998,14 @@ private:
         request.set_node_id(node->GetId());
 
         auto mutation = CreateUnregisterNodeMutation(request);
-        Bootstrap_
-            ->GetHydraFacade()
-            ->GetEpochAutomatonInvoker()
-            ->Invoke(BIND(IgnoreResult(&TMutation::Commit), mutation));
+        BIND(&TMutation::Commit, mutation)
+            .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker())
+            .Run()
+            .Subscribe(BIND([] (const TErrorOr<TMutationResponse>& error) {
+                if (!error.IsOK()) {
+                    LOG_ERROR(error, "Error committing node unregistration mutation");
+                }
+            }));
     }
 
     void MaybePostRemoveNodeMutations()
@@ -1021,10 +1023,14 @@ private:
             ++PendingRemoveNodeMutationCount_;
 
             auto mutation = CreateRemoveNodeMutation(request);
-            Bootstrap_
-                ->GetHydraFacade()
-                ->GetEpochAutomatonInvoker()
-                ->Invoke(BIND(IgnoreResult(&TMutation::Commit), mutation));
+            BIND(&TMutation::Commit, mutation)
+                .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker())
+                .Run()
+                .Subscribe(BIND([] (const TErrorOr<TMutationResponse>& error) {
+                    if (!error.IsOK()) {
+                        LOG_ERROR(error, "Error committing node removal mutation");
+                    }
+                }));
         }
     }
 

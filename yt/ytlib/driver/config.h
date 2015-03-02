@@ -31,12 +31,13 @@ class TDriverConfig
 public:
     NApi::TFileReaderConfigPtr FileReader;
     NApi::TFileWriterConfigPtr FileWriter;
-    NTableClient::TTableReaderConfigPtr TableReader;
-    NTableClient::TTableWriterConfigPtr TableWriter;
-    NVersionedTableClient::TChunkWriterConfigPtr NewTableWriter; // TODO(babenko): merge with the above
+    NVersionedTableClient::TTableReaderConfigPtr TableReader;
+    NVersionedTableClient::TTableWriterConfigPtr TableWriter;
     NApi::TJournalReaderConfigPtr JournalReader;
     NApi::TJournalWriterConfigPtr JournalWriter;
+    i64 ReadBufferRowCount;
     i64 ReadBufferSize;
+
     i64 WriteBufferSize;
     int LightPoolSize;
     int HeavyPoolSize;
@@ -55,8 +56,9 @@ public:
             .DefaultNew();
         RegisterParameter("journal_writer", JournalWriter)
             .DefaultNew();
-        RegisterParameter("new_table_writer", NewTableWriter)
-            .DefaultNew();
+
+        RegisterParameter("read_buffer_row_count", ReadBufferRowCount)
+            .Default((i64) 10000);
         RegisterParameter("read_buffer_size", ReadBufferSize)
             .Default((i64) 1 * 1024 * 1024);
         RegisterParameter("write_buffer_size", WriteBufferSize)

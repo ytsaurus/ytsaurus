@@ -11,7 +11,7 @@
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
-#include <ytlib/chunk_client/multi_chunk_sequential_writer_base.h>
+#include <ytlib/chunk_client/multi_chunk_writer_base.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h> // TODO(babenko): remove after migration
 
@@ -68,9 +68,6 @@ private:
     TBlockMetaExt BlockMetaExt_;
     i64 BlockMetaExtSize_ = 0;
 
-    TBlockIndexExt BlockIndexExt_;
-    i64 BlockIndexExtSize_ = 0;
-
     TSamplesExt SamplesExt_;
     i64 SamplesExtSize_ = 0;
     double AverageSampleSize_ = 0.0;
@@ -92,7 +89,7 @@ private:
     void EmitSample(TVersionedRow row);
 
     void FinishBlockIfLarge(TVersionedRow row);
-    void FinishBlock();
+    void FinishBlock(const TUnversionedValue* beginKey, const TUnversionedValue* endKey);
 
     void DoClose();
     void FillCommonMeta(TChunkMeta* meta) const;
@@ -172,7 +169,7 @@ TFuture<void> TVersionedChunkWriter::GetReadyEvent()
 i64 TVersionedChunkWriter::GetMetaSize() const
 {
     // Other meta parts are negligible.
-    return BlockIndexExtSize_ + BlockMetaExtSize_ + SamplesExtSize_;
+    return BlockMetaExtSize_ + SamplesExtSize_;
 }
 
 i64 TVersionedChunkWriter::GetDataSize() const
@@ -230,18 +227,16 @@ void TVersionedChunkWriter::FinishBlockIfLarge(TVersionedRow row)
         return;
     }
 
-    // Emit block index
-    ToProto(BlockIndexExt_.add_entries(), row.BeginKeys(), row.EndKeys());
-    BlockIndexExtSize_ = BlockIndexExt_.ByteSize();
-
-    FinishBlock();
+    FinishBlock(row.BeginKeys(), row.EndKeys());
     BlockWriter_.reset(new TSimpleVersionedBlockWriter(Schema_, KeyColumns_));
 }
 
-void TVersionedChunkWriter::FinishBlock()
+void TVersionedChunkWriter::FinishBlock(const TUnversionedValue* beginKey, const TUnversionedValue* endKey)
 {
     auto block = BlockWriter_->FlushBlock();
     block.Meta.set_chunk_row_count(RowCount_);
+    block.Meta.set_block_index(BlockMetaExt_.blocks_size());
+    ToProto(block.Meta.mutable_last_key(), beginKey, endKey);
 
     BlockMetaExtSize_ += block.Meta.ByteSize();
 
@@ -257,7 +252,7 @@ void TVersionedChunkWriter::DoClose()
     using NYT::ToProto;
 
     if (BlockWriter_->GetRowCount() > 0) {
-        FinishBlock();
+        FinishBlock(LastKey_.Begin(), LastKey_.End());
     }
 
     ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
@@ -274,7 +269,6 @@ void TVersionedChunkWriter::DoClose()
     SetProtoExtension(meta.mutable_extensions(), keyColumnsExt);
 
     SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
-    SetProtoExtension(meta.mutable_extensions(), BlockIndexExt_);
     SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
 
     auto& miscExt = EncodingChunkWriter_->MiscExt();
@@ -318,73 +312,6 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedMultiChunkWriter
-    : public TMultiChunkSequentialWriterBase
-    , public IVersionedMultiChunkWriter
-{
-public:
-    TVersionedMultiChunkWriter(
-        TTableWriterConfigPtr config,
-        TTableWriterOptionsPtr options,
-        const TTableSchema& schema,
-        const TKeyColumns& keyColumns,
-        IChannelPtr masterChannel,
-        const TTransactionId& transactionId,
-        const TChunkListId& parentChunkListId = NChunkClient::NullChunkListId);
-
-    virtual bool Write(const std::vector<TVersionedRow>& rows) override;
-
-private:
-    TTableWriterConfigPtr Config_;
-    TTableWriterOptionsPtr Options_;
-    TTableSchema Schema_;
-    TKeyColumns KeyColumns_;
-
-    IVersionedWriter* CurrentWriter_;
-
-
-    virtual IChunkWriterBasePtr CreateFrontalWriter(IChunkWriterPtr underlyingWriter) override;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TVersionedMultiChunkWriter::TVersionedMultiChunkWriter(
-    TTableWriterConfigPtr config,
-    TTableWriterOptionsPtr options,
-    const TTableSchema& schema,
-    const TKeyColumns& keyColumns,
-    IChannelPtr masterChannel,
-    const TTransactionId& transactionId,
-    const TChunkListId& parentChunkListId)
-    : TMultiChunkSequentialWriterBase(config, options, masterChannel, transactionId, parentChunkListId)
-    , Config_(config)
-    , Options_(options)
-    , Schema_(schema)
-    , KeyColumns_(keyColumns)
-    , CurrentWriter_(nullptr)
-{ }
-
-bool TVersionedMultiChunkWriter::Write(const std::vector<TVersionedRow> &rows)
-{
-    if (!VerifyActive()) {
-        return false;
-    }
-
-    // Return true if current writer is ready for more data and
-    // we didn't switch to the next chunk.
-    return CurrentWriter_->Write(rows) && !TrySwitchSession();
-}
-
-IChunkWriterBasePtr TVersionedMultiChunkWriter::CreateFrontalWriter(IChunkWriterPtr underlyingWriter)
-{
-    auto writer = CreateVersionedChunkWriter(Config_, Options_, Schema_, KeyColumns_, underlyingWriter);
-    CurrentWriter_ = writer.Get();
-    return writer;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
@@ -394,7 +321,27 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     const NTransactionClient::TTransactionId& transactionId,
     const TChunkListId& parentChunkListId)
 {
-    return New<TVersionedMultiChunkWriter>(config, options, schema, keyColumns, masterChannel, transactionId, parentChunkListId);
+    typedef TMultiChunkWriterBase<
+        IVersionedMultiChunkWriter,
+        IVersionedChunkWriter,
+        const std::vector<TVersionedRow>&> TVersionedMultiChunkWriter;
+
+    auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
+        return CreateVersionedChunkWriter(
+            config,
+            options,
+            schema,
+            keyColumns,
+            underlyingWriter);
+    };
+
+    return New<TVersionedMultiChunkWriter>(
+        config,
+        options,
+        masterChannel,
+        transactionId,
+        parentChunkListId,
+        createChunkWriter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

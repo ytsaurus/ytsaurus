@@ -109,6 +109,9 @@ public:
     //! HTTP monitoring interface port number.
     int MonitoringPort;
 
+    //! If |true| then |//sys/@provision_lock| is set during cluster initialization.
+    bool EnableProvisionLock;
+
     TCellMasterConfig()
     {
         RegisterParameter("master", Master);
@@ -143,6 +146,8 @@ public:
             .Default(9000);
         RegisterParameter("monitoring_port", MonitoringPort)
             .Default(10000);
+        RegisterParameter("enable_provision_lock", EnableProvisionLock)
+            .Default(true);
     }
 };
 

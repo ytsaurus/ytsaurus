@@ -114,7 +114,7 @@ public:
                 fluent
                     .Item(ToString(transaction->GetId())).BeginMap()
                         .Item("timeout").Value(transaction->GetTimeout())
-                        .Item("start_time").Value(transaction->GetStartTime())
+                        .Item("register_time").Value(transaction->GetRegisterTime())
                         .Item("state").Value(transaction->GetState())
                         .Item("start_timestamp").Value(transaction->GetStartTimestamp())
                         .Item("prepare_timestamp").Value(transaction->GetPrepareTimestamp())
@@ -134,21 +134,28 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        if (transaction->GetState() != ETransactionState::Active) {
+        auto state = transaction->GetState();
+        
+        // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
+        if (state != ETransactionState::Active &&
+            (!persistent || state != ETransactionState::TransientCommitPrepared))
+        {
             transaction->ThrowInvalidState();
         }
 
-        transaction->SetPrepareTimestamp(prepareTimestamp);
         transaction->SetState(persistent
             ? ETransactionState::PersistentCommitPrepared
             : ETransactionState::TransientCommitPrepared);
 
-        TransactionPrepared_.Fire(transaction);
+        if (state == ETransactionState::Active) {
+            transaction->SetPrepareTimestamp(prepareTimestamp);
+            TransactionPrepared_.Fire(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %v)",
-            transactionId,
-            persistent,
-            prepareTimestamp);
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %v)",
+                transactionId,
+                persistent,
+                prepareTimestamp);
+        }
     }
 
     void PrepareTransactionAbort(const TTransactionId& transactionId, bool force)
@@ -156,14 +163,17 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        if (transaction->GetState() != ETransactionState::Active && !force) {
+        auto state = transaction->GetState();
+        if (state != ETransactionState::Active && !force) {
             transaction->ThrowInvalidState();
         }
 
-        transaction->SetState(ETransactionState::TransientAbortPrepared);
+        if (state == ETransactionState::Active) {
+            transaction->SetState(ETransactionState::TransientAbortPrepared);
 
-        LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
-            transactionId);
+            LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
+                transactionId);
+        }
     }
 
     void CommitTransaction(const TTransactionId& transactionId, TTimestamp commitTimestamp)
@@ -171,10 +181,11 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
+        auto state = transaction->GetState();
 
-        if (transaction->GetState() != ETransactionState::Active &&
-            transaction->GetState() != ETransactionState::TransientCommitPrepared &&
-            transaction->GetState() != ETransactionState::PersistentCommitPrepared)
+        if (state != ETransactionState::Active &&
+            state != ETransactionState::TransientCommitPrepared &&
+            state != ETransactionState::PersistentCommitPrepared)
         {
             transaction->ThrowInvalidState();
         }
@@ -200,8 +211,9 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-
-        if (transaction->GetState() == ETransactionState::PersistentCommitPrepared && !force) {
+        auto state = transaction->GetState();
+        
+        if (state == ETransactionState::PersistentCommitPrepared && !force) {
             transaction->ThrowInvalidState();
         }
 
@@ -246,7 +258,7 @@ private:
 
     TEntityMap<TTransactionId, TTransaction> TransactionMap_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -347,12 +359,11 @@ private:
         auto* transaction = new TTransaction(transactionId);
         TransactionMap_.Insert(transactionId, transaction);
 
-        auto hydraManager = Slot_->GetHydraManager();
-        const auto* mutationContext = hydraManager->GetMutationContext();
+        const auto* mutationContext = GetCurrentMutationContext();
 
         transaction->SetTimeout(timeout);
         transaction->SetStartTimestamp(startTimestamp);
-        transaction->SetStartTime(mutationContext->GetTimestamp());
+        transaction->SetRegisterTime(mutationContext->GetTimestamp());
         transaction->SetState(ETransactionState::Active);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %v, Timeout: %v)",

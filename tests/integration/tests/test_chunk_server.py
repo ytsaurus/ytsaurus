@@ -42,14 +42,10 @@ class TestChunkServer(YTEnvSetup):
         nodes = get("#%s/@stored_replicas" % chunk_id)
         assert len(nodes) == 3
 
-    def _test_decommission(self, erasure_codec, replica_count):
-        create("table", "//tmp/t")
-        set("//tmp/t/@erasure_codec", erasure_codec)
-        write_table("//tmp/t", {"a" : "b"})
-
+    def _test_decommission(self, path, replica_count):
         sleep(2) # wait for background replication
 
-        chunk_ids = get("//tmp/t/@chunk_ids")
+        chunk_ids = get(path + "/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
 
@@ -59,6 +55,7 @@ class TestChunkServer(YTEnvSetup):
         node_to_decommission = nodes[0]
         assert get("//sys/nodes/%s/@stored_replica_count" % node_to_decommission) == 1
 
+        print "Decommissioning node", node_to_decommission
         set("//sys/nodes/%s/@decommissioned" % node_to_decommission, True)
 
         sleep(2) # wait for background replication
@@ -67,7 +64,17 @@ class TestChunkServer(YTEnvSetup):
         assert len(get("#%s/@stored_replicas" % chunk_id)) == replica_count
 
     def test_decommission_regular(self):
-        self._test_decommission("none", 3)
+        create("table", "//tmp/t")
+        write("//tmp/t", {"a" : "b"})
+        self._test_decommission("//tmp/t", 3)
 
     def test_decommission_erasure(self):
-        self._test_decommission("lrc_12_2_2", 16)
+        create("table", "//tmp/t")
+        set("//tmp/t/@erasure_codec", "lrc_12_2_2")
+        write("//tmp/t", {"a" : "b"})
+        self._test_decommission("//tmp/t", 16)
+
+    def test_decommission_journal(self):
+        create("journal", "//tmp/j")
+        write_journal("//tmp/j", [{"data" : "payload" + str(i)} for i in xrange(0, 10)])
+        self._test_decommission("//tmp/j", 3)

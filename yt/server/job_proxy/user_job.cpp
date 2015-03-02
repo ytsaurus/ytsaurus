@@ -14,10 +14,10 @@
 
 #include <ytlib/chunk_client/public.h>
 
-#include <ytlib/table_client/table_producer.h>
-#include <ytlib/table_client/table_consumer.h>
-#include <ytlib/table_client/sync_reader.h>
-#include <ytlib/table_client/sync_writer.h>
+#include <ytlib/new_table_client/helpers.h>
+#include <ytlib/new_table_client/table_consumer.h>
+#include <ytlib/new_table_client/schemaless_chunk_reader.h>
+#include <ytlib/new_table_client/schemaless_chunk_writer.h>
 
 #include <ytlib/scheduler/statistics.h>
 
@@ -31,6 +31,8 @@
 #include <ytlib/pipes/async_reader.h>
 #include <ytlib/pipes/async_writer.h>
 
+#include <core/actions/callback.h>
+
 #include <core/logging/log.h>
 
 #include <core/misc/error.h>
@@ -38,6 +40,7 @@
 #include <core/misc/proc.h>
 #include <core/misc/process.h>
 #include <core/misc/pattern_formatter.h>
+#include <core/misc/pipe.h>
 
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/action_queue.h>
@@ -53,7 +56,7 @@ namespace NJobProxy {
 
 using namespace NYTree;
 using namespace NYson;
-using namespace NTableClient;
+using namespace NVersionedTableClient;
 using namespace NFormats;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
@@ -80,15 +83,9 @@ using NPipes::TAsyncWriterPtr;
 static const int JobStatisticsFD = 5;
 static const char* CGroupPrefix = "user_jobs/yt-job-";
 
+static const int BufferSize = 1024 * 1024;
+
 static TNullOutput NullOutput;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPipe
-{
-    int ReadFD;
-    int WriteFD;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,10 +101,11 @@ public:
         : TJob(host)
         , JobIO_(std::move(userJobIO))
         , UserJobSpec_(userJobSpec)
-        , JobId_(jobId)
         , Config_(host->GetConfig())
         , JobErrorPromise_(NewPromise<void>())
+        , Prepared_(false)
         , MemoryUsage_(UserJobSpec_.memory_reserve())
+        , PipeIOQueue_(New<TActionQueue>("PipeIO"))
         , PeriodicQueue_(New<TActionQueue>("UserJobPeriodic"))
         , Process_(GetExecPath(), false)
         , CpuAccounting_(CGroupPrefix + ToString(jobId))
@@ -116,8 +114,6 @@ public:
         , Freezer_(CGroupPrefix + ToString(jobId))
         , Logger(host->GetLogger())
     {
-        Logger.AddTag("JobId: %v", jobId);
-
         MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
             PeriodicQueue_->GetInvoker(),
             BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
@@ -135,6 +131,8 @@ public:
 
         Prepare();
 
+        Prepared_ = true;
+
         Process_.Spawn();
         LOG_INFO("Job process started");
 
@@ -143,9 +141,6 @@ public:
 
         DoJobIO();
 
-        auto jobExitError = Process_.Wait();
-        LOG_INFO(jobExitError, "Job process completed");
-
         AddStatistic(
             "/user_job/time",
             TSummary(static_cast<i64>(GetElapsedTime().MilliSeconds())));
@@ -153,15 +148,14 @@ public:
         WaitFor(BlockIOWatchdogExecutor_->Stop());
         WaitFor(MemoryWatchdogExecutor_->Stop());
 
-        if (jobExitError.IsOK()) {
+        if (!JobErrorPromise_.IsSet())  {
             FinalizeJobIO();
         }
 
-        JobErrorPromise_.TrySet(jobExitError);
-
-        const auto& jobResultError = JobErrorPromise_.Get();
-
         CleanupCGroups();
+
+        JobErrorPromise_.TrySet(TError());
+        const auto& jobResultError = JobErrorPromise_.Get();
 
         TJobResult result;
         ToProto(result.mutable_error(), jobResultError.IsOK()
@@ -173,8 +167,8 @@ public:
 
         if (jobResultError.IsOK()) {
             JobIO_->PopulateResult(schedulerResultExt);
-        } else if (UserJobSpec_.has_stderr_transaction_id()) {
-            SaveFailContexts(schedulerResultExt);
+        } else {
+            DumpFailContexts(schedulerResultExt);
         }
 
         return result;
@@ -211,19 +205,24 @@ private:
     std::unique_ptr<IUserJobIO> JobIO_;
 
     const TUserJobSpec& UserJobSpec_;
-    TJobId JobId_;
 
     TJobProxyConfigPtr Config_;
 
     TPromise<void> JobErrorPromise_;
 
+    std::atomic<bool> Prepared_;
+
     i64 MemoryUsage_;
+
+    TActionQueuePtr PipeIOQueue_;
 
     TActionQueuePtr PeriodicQueue_;
     TPeriodicExecutorPtr MemoryWatchdogExecutor_;
     TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
 
     std::vector<std::unique_ptr<TOutputStream>> TableOutputs_;
+    std::vector<TWritingValueConsumerPtr> WritingValueConsumers_;
+
     std::unique_ptr<TErrorOutput> ErrorOutput_;
     std::unique_ptr<TTableOutput> StatisticsOutput_;
 
@@ -232,7 +231,8 @@ private:
 
     std::vector<TContextPreservingInputPtr> ContextPreservingInputs_;
 
-    std::vector<TCallback<void()>> IOActions_;
+    std::vector<TCallback<void()>> InputActions_;
+    std::vector<TCallback<void()>> OutputActions_;
     std::vector<TCallback<void()>> FinalizeActions_;
 
     TProcess Process_;
@@ -247,7 +247,7 @@ private:
     TSpinLock StatisticsLock_;
     TStatistics Statistics_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     void Prepare()
@@ -267,11 +267,6 @@ private:
 
         if (Config_->UserId) {
             Process_.AddArguments({"--uid", ::ToString(*Config_->UserId)});
-
-            // ToDo(psushin): remove, use cgroups limit instead.
-            if (UserJobSpec_.enable_io_prio()) {
-                Process_.AddArgument("--enable-io-prio");
-            }
         }
 
         // Init environment variables.
@@ -291,7 +286,7 @@ private:
 
         try {
             // Kill everything for sanity reasons: main user process completed,
-            // but its children may be still alive.
+            // but its children may still be alive.
             RunKiller(Freezer_.GetFullPath());
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Failed to clean up user processes");
@@ -325,17 +320,13 @@ private:
 
     TOutputStream* CreateErrorOutput()
     {
-        if (!UserJobSpec_.has_stderr_transaction_id()) {
-            return &NullOutput;
-        }
-
         auto host = Host.Lock();
         YCHECK(host);
 
         ErrorOutput_.reset(new TErrorOutput(
             Config_->JobIO->ErrorFileWriter,
             host->GetMasterChannel(),
-            FromProto<TTransactionId>(UserJobSpec_.stderr_transaction_id()),
+            FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id()),
             UserJobSpec_.max_stderr_size()));
 
         return ErrorOutput_.get();
@@ -354,34 +345,69 @@ private:
         }
     }
 
-    void SaveFailContexts(TSchedulerJobResultExt* schedulerResultExt)
+    void DumpFailContexts(TSchedulerJobResultExt* schedulerResultExt)
     {
-        if (!UserJobSpec_.has_stderr_transaction_id()) {
-            return;
+        auto contexts = DoGetInputContexts();
+        auto contextChunkIds = DoDumpInputContexts(contexts);
+
+        for (const auto& contextChunkId : contextChunkIds) {
+            ToProto(schedulerResultExt->add_fail_context_chunk_ids(), contextChunkId);
+        }
+    }
+
+    virtual std::vector<TChunkId> DumpInputContext() override
+    {
+        if (!Prepared_) {
+            THROW_ERROR_EXCEPTION("Cannot dump input context: job pipes are not prepared yet");
         }
 
+        auto asyncContexts = BIND(&TUserJob::DoGetInputContexts, MakeStrong(this))
+                .AsyncVia(PipeIOQueue_->GetInvoker())
+                .Run();
+        auto contexts = WaitFor(asyncContexts)
+            .ValueOrThrow();
+
+        return DoDumpInputContexts(contexts);
+    }
+
+    std::vector<TChunkId> DoDumpInputContexts(const std::vector<TBlob>& contexts)
+    {
         auto host = Host.Lock();
         YCHECK(host);
 
-        auto transactionId = FromProto<TTransactionId>(UserJobSpec_.stderr_transaction_id());
-        for (int inputIndex = 0; inputIndex < ContextPreservingInputs_.size(); ++inputIndex) {
-            auto input = ContextPreservingInputs_[inputIndex];
+        std::vector<TChunkId> result;
 
+        auto transactionId = FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id());
+        for (int index = 0; index < contexts.size(); ++index) {
             TErrorOutput contextOutput(
                 Config_->JobIO->ErrorFileWriter,
                 host->GetMasterChannel(),
                 transactionId);
 
-            auto context = input->GetContext();
+            const auto& context = contexts[index];
             contextOutput.Write(context.Begin(), context.Size());
             contextOutput.Finish();
 
             auto contextChunkId = contextOutput.GetChunkId();
-            ToProto(schedulerResultExt->add_fail_context_chunk_ids(), contextChunkId);
-            LOG_INFO("Fail context chunk generated (ChunkId: %v, InputIndex: %v)",
+            LOG_INFO("Input context chunk generated (ChunkId: %v, InputIndex: %v)",
                 contextChunkId,
-                inputIndex);
+                index);
+
+            result.push_back(contextChunkId);
         }
+
+        return result;
+    }
+
+    std::vector<TBlob> DoGetInputContexts()
+    {
+        std::vector<TBlob> result;
+
+        for (const auto& input : ContextPreservingInputs_) {
+            result.push_back(input->GetContext());
+        }
+
+        return result;
     }
 
     int GetMaxReservedDescriptor() const
@@ -397,14 +423,26 @@ private:
         return std::max(result, JobStatisticsFD + 1);
     }
 
-    void PrepareOutputTablePipes(std::function<TPipe()> createPipe)
+    std::vector<IValueConsumerPtr> CreateValueConsumers()
+    {
+        std::vector<IValueConsumerPtr> valueConsumers;
+        for (const auto& writer : JobIO_->GetWriters()) {
+            WritingValueConsumers_.push_back(New<TWritingValueConsumer>(writer));
+            valueConsumers.push_back(WritingValueConsumers_.back());
+        }
+        return valueConsumers;
+    }
+
+    void PrepareOutputTablePipes(TPipeFactory& pipeFactory)
     {
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.output_format()));
 
-        auto& writers = JobIO_->GetWriters();
+        const auto& writers = JobIO_->GetWriters();
+
         TableOutputs_.resize(writers.size());
         for (int i = 0; i < writers.size(); ++i) {
-            std::unique_ptr<IYsonConsumer> consumer(new TLegacyTableConsumer(writers, i));
+            auto valueConsumers = CreateValueConsumers();
+            std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(valueConsumers, i));
             auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.get());
             TableOutputs_[i].reset(new TTableOutput(
                 std::move(parser),
@@ -414,23 +452,25 @@ private:
                 ? 3 + i
                 : 3 * i + 1;
 
-            auto reader = PrepareOutputPipe(createPipe(), jobDescriptor, TableOutputs_[i].get());
+            auto reader = PrepareOutputPipe(pipeFactory.Create(), jobDescriptor, TableOutputs_[i].get());
             TablePipeReaders_.push_back(reader);
         }
 
         FinalizeActions_.push_back(BIND([=] () {
-            for (auto& writer : JobIO_->GetWriters()) {
-                writer->Close();
+            for (auto valueConsumer : WritingValueConsumers_) {
+                valueConsumer->Flush();
+            }
+
+            for (auto writer : JobIO_->GetWriters()) {
+                auto error = WaitFor(writer->Close());
+                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing table output");
             }
         }));
     }
 
     TAsyncReaderPtr PrepareOutputPipe(TPipe pipe, int jobDescriptor, TOutputStream* output)
     {
-        Process_.AddCloseFileAction(pipe.ReadFD);
-        Process_.AddCloseFileAction(jobDescriptor);
         Process_.AddDup2FileAction(pipe.WriteFD, jobDescriptor);
-        Process_.AddCloseFileAction(pipe.WriteFD);
 
         Process_.AddArguments({ "--prepare-pipe", ::ToString(jobDescriptor) });
 
@@ -438,29 +478,18 @@ private:
 
         auto asyncInput = New<TAsyncReader>(pipe.ReadFD);
 
-        IOActions_.push_back(BIND(
-            &TUserJob::ReadFromOutputPipe,
-            MakeWeak(this),
-            pipe,
-            asyncInput,
-            output));
+        OutputActions_.push_back(BIND([=] () {
+            SafeClose(pipe.WriteFD);
+            auto input = CreateSyncAdapter(asyncInput);
+            PipeInputToOutput(input.get(), output, BufferSize);
+        }));
 
         return asyncInput;
     }
 
-    void ReadFromOutputPipe(TPipe pipe, IAsyncInputStreamPtr asyncInput, TOutputStream* output)
-    {
-        SafeClose(pipe.WriteFD);
-        auto input = CreateSyncAdapter(asyncInput);
-        PipeInputToOutput(input.get(), output);
-    }
-
     void PrepareInputTablePipe(TPipe pipe, int jobDescriptor, TContextPreservingInputPtr input)
     {
-        Process_.AddCloseFileAction(pipe.WriteFD);
-        Process_.AddCloseFileAction(jobDescriptor);
         Process_.AddDup2FileAction(pipe.ReadFD, jobDescriptor);
-        Process_.AddCloseFileAction(pipe.ReadFD);
 
         Process_.AddArguments({ "--prepare-pipe", ::ToString(jobDescriptor) });
 
@@ -468,7 +497,7 @@ private:
         auto asyncOutput = New<TAsyncWriter>(pipe.WriteFD);
         TablePipeWriters_.push_back(asyncOutput);
 
-        IOActions_.push_back(BIND([=] () {
+        InputActions_.push_back(BIND([=] () {
             auto output = CreateSyncAdapter(asyncOutput);
             input->PipeReaderToOutput(output.get());
             auto error = WaitFor(asyncOutput->Close());
@@ -490,10 +519,11 @@ private:
                 THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process")
                     << TErrorAttribute("fd", jobDescriptor);
             }
+            // close pipe.ReadFd?
         }));
     }
 
-    void PrepareInputTablePipes(std::function<TPipe()> createPipe)
+    void PrepareInputTablePipes(TPipeFactory& pipeFactory)
     {
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
         const auto& readers = JobIO_->GetReaders();
@@ -504,10 +534,10 @@ private:
             auto input = New<TContextPreservingInput>(
                 readers[i],
                 format,
-                Config_->JobIO->TableReader->EnableTableIndex);
+                Config_->JobIO->EnableInputTableIndex);
 
             ContextPreservingInputs_.push_back(input);
-            PrepareInputTablePipe(createPipe(), 3 * i, input);
+            PrepareInputTablePipe(pipeFactory.Create(), 3 * i, input);
         }
     }
 
@@ -538,25 +568,12 @@ private:
         // and "standard" descriptor numbers in forked job (see comments above)
         // we ensure that enough lower descriptors are allocated before creating pipes.
 
-        std::vector<int> reservedDescriptors;
-        auto createPipe = [&] () -> TPipe {
-            while (true) {
-                int fd[2];
-                SafePipe(fd);
-                if (fd[0] < maxReservedDescriptor || fd[1] < maxReservedDescriptor) {
-                    reservedDescriptors.push_back(fd[0]);
-                    reservedDescriptors.push_back(fd[1]);
-                } else {
-                    TPipe pipe = {fd[0], fd[1]};
-                    return pipe;
-                }
-            }
-        };
+        TPipeFactory pipeFactory(maxReservedDescriptor + 1);
 
         // Configure stderr pipe.
-        PrepareOutputPipe(createPipe(), STDERR_FILENO, CreateErrorOutput());
+        PrepareOutputPipe(pipeFactory.Create(), STDERR_FILENO, CreateErrorOutput());
 
-        PrepareOutputTablePipes(createPipe);
+        PrepareOutputTablePipes(pipeFactory);
 
         if (UserJobSpec_.use_yamr_descriptors()) {
             // This hack is to work around the fact that usual output pipe accepts a
@@ -564,15 +581,13 @@ private:
             Process_.AddDup2FileAction(3, 1);
         } else {
             // Configure statistics output pipe.
-            PrepareOutputPipe(createPipe(), JobStatisticsFD, CreateStatisticsOutput());
+            PrepareOutputPipe(pipeFactory.Create(), JobStatisticsFD, CreateStatisticsOutput());
         }
 
-        PrepareInputTablePipes(createPipe);
+        PrepareInputTablePipes(pipeFactory);
 
         // Close reserved descriptors.
-        for (int fd : reservedDescriptors) {
-            SafeClose(fd);
-        }
+        pipeFactory.Clear();
 
         LOG_DEBUG("Pipes initialized");
     }
@@ -649,7 +664,7 @@ private:
     void DoJobIO()
     {
         auto onIOError = BIND([=] (const TError& error) {
-            if (error.IsOK()) {
+            if (error.IsOK() || error.FindMatching(NPipes::EErrorCode::Aborted)) {
                 return;
             }
 
@@ -668,17 +683,46 @@ private:
             }
         });
 
-        auto queue = New<TActionQueue>("PipesIO");
+        auto runActions = [&] (std::vector<TCallback<void()>>& actions) {
+            std::vector<TFuture<void>> result;
+            for (auto& action : actions) {
+                auto asyncError = action
+                    .AsyncVia(PipeIOQueue_->GetInvoker())
+                    .Run();
+                asyncError.Subscribe(onIOError);
+                result.emplace_back(std::move(asyncError));
+            }
+            return result;
+        };
 
-        auto awaiter = New<TParallelAwaiter>(queue->GetInvoker());
-        for (auto& action : IOActions_) {
-            auto asyncError = action
-                .AsyncVia(queue->GetInvoker())
-                .Run();
-            awaiter->Await(asyncError, onIOError);
+        auto inputFutures = runActions(InputActions_);
+        auto outputFutures = runActions(OutputActions_);
+
+        // First, wait for job output pipes.
+        // If job successfully completes or dies prematurely, they close automatically.
+        // ToDo(psushin): extract into separate function (e.g. CombineAll?  )
+        for (const auto& future : outputFutures) {
+            WaitFor(future);
         }
 
-        WaitFor(awaiter->Complete());
+        // Then, wait for job process to finish.
+        // Theoretically, process may have closed its output pipes,
+        // but still doing some computations.
+        auto jobExitError = Process_.Wait();
+        LOG_INFO(jobExitError, "Job process completed");
+        onIOError.Run(jobExitError);
+
+        // Abort input pipes unconditionally.
+        // If job didn't read input to the end, pipe writer could be blocked,
+        // because we didn't close the reader end.
+        for (auto& writer : TablePipeWriters_) {
+            writer->Abort();
+        }
+
+        // Make sure, that input pipes are also completed.
+        for (const auto& future : inputFutures) {
+            WaitFor(future);
+        }
     }
 
     void FinalizeJobIO()
@@ -829,9 +873,9 @@ private:
 
 IJobPtr CreateUserJob(
     IJobHost* host,
-    const NScheduler::NProto::TUserJobSpec& UserJobSpec_,
-    std::unique_ptr<IUserJobIO> userJobIO,
-    const TJobId& jobId)
+    const TUserJobSpec& UserJobSpec_,
+    const TJobId& jobId,
+    std::unique_ptr<IUserJobIO> userJobIO)
 {
     return New<TUserJob>(
         host,
@@ -844,9 +888,9 @@ IJobPtr CreateUserJob(
 
 IJobPtr CreateUserJob(
     IJobHost* host,
-    const NScheduler::NProto::TUserJobSpec& UserJobSpec_,
-    std::unique_ptr<IUserJobIO> userJobIO,
-    const TJobId& jobId)
+    const TUserJobSpec& UserJobSpec_,
+    const TJobId& jobId,
+    std::unique_ptr<IUserJobIO> userJobIO)
 {
     THROW_ERROR_EXCEPTION("Streaming jobs are supported only under Linux");
 }

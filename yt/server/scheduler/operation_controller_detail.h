@@ -20,8 +20,7 @@
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-#include <ytlib/table_client/table_ypath_proxy.h>
-
+#include <ytlib/new_table_client/table_ypath_proxy.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/file_client/file_ypath_proxy.h>
@@ -136,7 +135,7 @@ protected:
     NApi::IClientPtr AuthenticatedInputMasterClient;
     NApi::IClientPtr AuthenticatedOutputMasterClient;
 
-    mutable NLog::TLogger Logger;
+    mutable NLogging::TLogger Logger;
 
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableControlInvoker;
@@ -236,13 +235,14 @@ protected:
             : Clear(false)
             , Overwrite(false)
             , LockMode(NCypressClient::ELockMode::Shared)
-            , Options(New<NTableClient::TTableWriterOptions>())
+            , Options(New<NVersionedTableClient::TTableWriterOptions>())
         { }
 
         bool Clear;
         bool Overwrite;
         NCypressClient::ELockMode LockMode;
-        NTableClient::TTableWriterOptionsPtr Options;
+        NVersionedTableClient::TTableWriterOptionsPtr Options;
+        TNullable<NVersionedTableClient::TKeyColumns> KeyColumns;
 
         // Chunk list for appending the output.
         NChunkClient::TChunkListId OutputChunkListId;
@@ -476,7 +476,7 @@ protected:
         yhash_map<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
 
     protected:
-        NLog::TLogger Logger;
+        NLogging::TLogger Logger;
 
         virtual NNodeTrackerClient::NProto::TNodeResources GetMinNeededResourcesHeavy() const = 0;
 
@@ -749,7 +749,7 @@ protected:
 
 
     void RegisterEndpoints(
-        const NTableClient::NProto::TOldBoundaryKeysExt& boundaryKeys,
+        const NVersionedTableClient::NProto::TBoundaryKeysExt& boundaryKeys,
         int key,
         TOutputTable* outputTable);
 
@@ -846,13 +846,13 @@ private:
         void LocateChunks();
         void OnLocateChunksResponse(const NChunkClient::TChunkServiceProxy::TErrorOrRspLocateChunksPtr& rspOrError);
 
-        TOperationControllerBase* Controller;
+        TWeakPtr<TOperationControllerBase> Controller;
         NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
         NChunkClient::TChunkServiceProxy Proxy;
         TInputChunkMap::iterator NextChunkIterator;
         bool Started;
 
-        NLog::TLogger& Logger;
+        NLogging::TLogger& Logger;
 
     };
 

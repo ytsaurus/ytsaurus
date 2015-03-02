@@ -141,11 +141,11 @@ void TChunkBase::StartAsyncRemove()
     RemovedPromise_.SetFrom(AsyncRemove());
 }
 
-TRefCountedChunkMetaPtr TChunkBase::FilterCachedMeta(const std::vector<int>* tags) const
+TRefCountedChunkMetaPtr TChunkBase::FilterCachedMeta(const TNullable<std::vector<int>>& extensionTags) const
 {
     YCHECK(Meta_);
-    return tags
-        ? New<TRefCountedChunkMeta>(FilterChunkMetaByExtensionTags(*Meta_, *tags))
+    return extensionTags
+        ? New<TRefCountedChunkMeta>(FilterChunkMetaByExtensionTags(*Meta_, extensionTags))
         : Meta_;
 }
 

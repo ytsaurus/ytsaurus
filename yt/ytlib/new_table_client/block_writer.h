@@ -25,6 +25,9 @@ struct IBlockWriter
     virtual i64 GetRowCount() const = 0;
 
     virtual TBlock FlushBlock() = 0;
+
+    virtual ~IBlockWriter()
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
