@@ -164,6 +164,7 @@ TEST(TProcessTest, KillZombie)
 
     p.Kill(9);
     auto error = p.Wait();
+    EXPECT_TRUE(error.IsOK());
 }
 
 #endif
