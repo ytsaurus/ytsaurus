@@ -844,7 +844,7 @@ def select(query, timestamp=None, format=None, response_type=None, raw=True, cli
         params["timestamp"] = timestamp
 
     response = _make_transactional_request(
-        "select",
+        "select_rows",
         params,
         return_content=False,
         use_heavy_proxy=True,
