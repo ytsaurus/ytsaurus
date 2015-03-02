@@ -79,9 +79,7 @@ public:
         }
 
         yhash_set<Stroka> references;
-        TFoldingProfiler()
-            .Set(references)
-            .Profile(predicate);
+        Profile(predicate, schema, nullptr, nullptr, &references);
 
         for (const auto& reference : references) {
             if (schema.GetColumnOrThrow(reference).Expression) {

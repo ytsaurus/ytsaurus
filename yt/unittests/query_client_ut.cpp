@@ -2627,12 +2627,8 @@ TEST_P(TEvaluateExpressionTest, Basic)
     auto expr = PrepareExpression(exprString, schema);
 
     TCGVariables variables;
-    TCGBinding binding;
-    TFoldingProfiler()
-        .Set(binding)
-        .Set(variables)
-        .Profile(expr);
-    auto callback = CodegenExpression(expr, schema, binding);
+
+    auto callback = Profile(expr, schema, nullptr, &variables, nullptr)();
 
     auto row = NVersionedTableClient::BuildRow(rowString, keyColumns, schema, true);
     TUnversionedValue result;

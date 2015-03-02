@@ -200,13 +200,9 @@ private:
     TCGQueryCallback Codegen(const TConstQueryPtr& query, TCGVariables& variables)
     {
         llvm::FoldingSetNodeID id;
-        TCGBinding binding;
 
-        TFoldingProfiler()
-            .Set(id)
-            .Set(binding)
-            .Set(variables)
-            .Profile(query);
+        auto makeCodegenQuery = Profile(query, &id, &variables, nullptr);
+
         auto Logger = BuildLogger(query);
 
         auto cgQuery = Find(id);
@@ -215,7 +211,7 @@ private:
             try {
                 TRACE_CHILD("QueryClient", "Compile") {
                     LOG_DEBUG("Started compiling fragment");
-                    cgQuery = New<TCachedCGQuery>(id, CodegenEvaluate(MakeCodegenQuery(query, binding)));
+                    cgQuery = New<TCachedCGQuery>(id, makeCodegenQuery());
                     LOG_DEBUG("Finished compiling fragment");
                     TryInsert(cgQuery, &cgQuery);
                 }
