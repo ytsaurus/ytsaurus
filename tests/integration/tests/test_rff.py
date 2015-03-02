@@ -28,7 +28,7 @@ class TestRff(YTEnvSetup):
             assert get("//tmp/x", read_from="follower") == i
 
     def test_leader_forwarding(self):
-        assert not get("//sys/nodes/@chunk_replicator_enabled", read_from="follower")
+        assert get("//sys/nodes/@chunk_replicator_enabled", read_from="follower")
 
     def test_access_stat(self):
         time.sleep(1.0)
