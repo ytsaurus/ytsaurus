@@ -215,7 +215,7 @@ private:
             try {
                 TRACE_CHILD("QueryClient", "Compile") {
                     LOG_DEBUG("Started compiling fragment");
-                    cgQuery = New<TCachedCGQuery>(id, CodegenEvaluate(query, binding));
+                    cgQuery = New<TCachedCGQuery>(id, CodegenEvaluate(MakeCodegenQuery(query, binding)));
                     LOG_DEBUG("Finished compiling fragment");
                     TryInsert(cgQuery, &cgQuery);
                 }
