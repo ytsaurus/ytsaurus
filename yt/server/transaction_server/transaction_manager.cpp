@@ -303,6 +303,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        if (parent && parent->GetPersistentState() == ETransactionState::Active) {
+            THROW_ERROR_EXCEPTION("Parent transaction %v has invalid state %Qlv",
+                parent->GetId(),
+                parent->GetState());
+        }
+
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Transaction);
 
@@ -511,14 +517,14 @@ public:
             transaction->ThrowInvalidState();
         }
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(transaction, EPermission::Write);
-
         if (!transaction->NestedTransactions().empty()) {
             THROW_ERROR_EXCEPTION("Cannot commit transaction %v since it has %v active nested transaction(s)",
                 transaction->GetId(),
                 transaction->NestedTransactions().size());
         }
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(transaction, EPermission::Write);
 
         transaction->SetState(persistent
             ? ETransactionState::PersistentCommitPrepared
@@ -586,7 +592,7 @@ public:
 private:
     friend class TTransactionTypeHandler;
 
-    TTransactionManagerConfigPtr Config_;
+    const TTransactionManagerConfigPtr Config_;
 
     NHydra::TEntityMap<TTransactionId, TTransaction> TransactionMap_;
     yhash_map<TTransactionId, TLease> LeaseMap_;
