@@ -193,11 +193,11 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
-        write("//tmp/t_in", [ {"x": 1, "y" : 2},
+        write_table("//tmp/t_in", [ {"x": 1, "y" : 2},
                               {"x": 1, "y" : 1},
                               {"x": 1, "y" : 3} ])
 
-        write("<append=true>//tmp/t_in", 
+        write_table("<append=true>//tmp/t_in", 
                             [ {"x": 2, "y" : 3},
                               {"x": 2, "y" : 2},
                               {"x": 2, "y" : 4} ])
@@ -230,7 +230,7 @@ print "x={0}\ty={1}".format(x, y)
                      "partition_count": 2, 
                      "reducer": {"format": "dsv"}})
 
-        assert read("//tmp/t_out") == [{"x": "1", "y" : "1"},
+        assert read_table("//tmp/t_out") == [{"x": "1", "y" : "1"},
                                        {"x": "1", "y" : "2"},
                                        {"x": "1", "y" : "3"},
                                        {"x": "1", "y" : "6"},
