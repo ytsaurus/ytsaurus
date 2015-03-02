@@ -42,7 +42,7 @@ Simple examples:
 
 from collections import Iterable, Mapping
 
-from yson_types import YsonEntity, YsonBoolean
+from yson_types import YsonEntity, YsonBoolean, YsonInt64, YsonUint64
 
 __all__ = ["dump", "dumps"]
 
@@ -100,7 +100,21 @@ class Dumper(object):
                 result = '"true"'
             else:
                 result = "%true"
-        elif isinstance(obj, (int, long, float)):
+        elif isinstance(obj, (int, long)):
+            if obj < -2 ** 63 or obj >= 2 ** 64:
+                raise TypeError("Integer {0} cannot be represented in YSON "
+                                "since it is out of range [-2^63, 2^64 - 1])".format(obj))
+            
+            greater_than_max_int64 = obj >= 2 ** 63
+            if isinstance(obj, YsonUint64) and obj < 0:
+                raise TypeError("Can not dump negative integer as YSON uint64")
+            if isinstance(obj, YsonInt64) and greater_than_max_int64:
+                raise TypeError("Can not dump integer greater than 2^63-1 as YSON int64")
+
+            result = str(obj)
+            if greater_than_max_int64 or isinstance(obj, YsonUint64):
+                result += "u"
+        elif isinstance(obj, float):
             result = str(obj)
         elif isinstance(obj, basestring):
             result = self._dump_string(obj)
