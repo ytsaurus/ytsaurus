@@ -505,9 +505,9 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        auto state = persistent ? transaction->GetPersistentState() : transaction->GetState();
-        
+
         // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
+        auto state = persistent ? transaction->GetPersistentState() : transaction->GetState();
         if (state != ETransactionState::Active &&
             (!persistent || state != ETransactionState::TransientCommitPrepared))
         {
