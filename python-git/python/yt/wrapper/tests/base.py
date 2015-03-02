@@ -1,3 +1,5 @@
+from yt.environment import YTEnv
+
 import yt.logger as logger
 import yt.wrapper as yt
 
@@ -8,27 +10,27 @@ TEST_DIR = "//home/wrapper_tests"
 
 class YtTestBase(object):
     @classmethod
-    def _setup_class(cls, test_class):
+    def setup_class(cls):
         logging.basicConfig(level=logging.WARNING)
         logger.LOGGER.setLevel(logging.WARNING)
 
-        test_class.NUM_MASTERS = 1
-        test_class.NUM_NODES = 5
-        test_class.NUM_SCHEDULERS = 1
-        test_class.START_PROXY = True
 
-        test_class.DELTA_NODE_CONFIG = {
-            'exec_agent' : {
-                'slot_manager' : {
-                    'enable_cgroups' : 'false'
+        dir = os.path.join(os.environ.get("TESTS_SANDBOX", "tests/sandbox"), cls.__name__)
+
+        cls.env = YTEnv()
+        cls.env.NUM_MASTERS = 1
+        cls.env.NUM_NODES = 5
+        cls.env.NUM_SCHEDULERS = 1
+        cls.env.START_PROXY = True
+
+        cls.env.DELTA_NODE_CONFIG = {
+            "exec_agent" : {
+                "slot_manager" : {
+                    "enable_cgroups" : "false"
                 }
             }
         }
 
-        # (TODO): remake this strange stuff.
-        cls.env = test_class()
-
-        dir = os.environ.get("TESTS_SANDBOX", "tests/sandbox")
         cls.env.set_environment(dir, os.path.join(dir, "pids.txt"), supress_yt_output=True)
 
         yt.config.http.PROXY = None
@@ -44,7 +46,7 @@ class YtTestBase(object):
         yt.config.OPERATION_STATE_UPDATE_PERIOD = 100
 
     @classmethod
-    def _teardown_class(cls):
+    def teardown_class(cls):
         cls.env.clear_environment()
 
     def setup(self):
