@@ -172,7 +172,10 @@ def make_request(command_name, params,
     allow_retries = \
             not command.is_volatile or \
             (config.http.RETRY_VOLATILE_COMMANDS and not command.is_heavy)
-    params["retry"] = bool_to_string(False)
+    if config.RETRY is None:
+        params["retry"] = bool_to_string(False)
+    else:
+        params["retry"] = bool_to_string(config.RETRY)
     if command.is_volatile and allow_retries:
         if config.MUTATION_ID is not None:
             params["mutation_id"] = config.MUTATION_ID
