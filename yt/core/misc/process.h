@@ -66,9 +66,11 @@ private:
 
     char* Capture(TStringBuf arg);
 
-    void DoSpawn();
-    void Swap(TProcess& other);
+    void SpawnChild();
+    void ThrowOnChildError();
+    void Child();
 
+    void Swap(TProcess& other);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

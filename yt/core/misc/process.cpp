@@ -33,6 +33,16 @@ static const pid_t InvalidProcessId = -1;
 
 #ifdef _linux_
 
+bool TryKill(int pid, int signal)
+{
+    YCHECK(pid > 0);
+    int result = ::kill(pid, signal);
+    if (result < 0) {
+        return false;
+    }
+    return true;
+}
+
 bool TryWaitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
 {
     while (true) {
@@ -78,6 +88,14 @@ void WaitidOrDie(idtype_t idtype, id_t id, siginfo_t *infop, int options)
     }
 
     YCHECK(infop->si_pid == id);
+}
+
+void Cleanup(int pid)
+{
+    YCHECK(pid > 0);
+
+    YCHECK(TryKill(pid, 9));
+    YCHECK(TryWaitid(P_PID, pid, nullptr, WEXITED));
 }
 
 #endif
@@ -206,16 +224,31 @@ void TProcess::Spawn()
         "Error starting child process: execve failed"
     });
 
-    int pid = vfork();
+    SpawnChild();
 
-    if (pid == 0) {
-        DoSpawn();
-    }
+    LOG_DEBUG("Children process is spawned. Pid: %v", ProcessId_);
+
+    YCHECK(TryClose(Pipe_.WriteFD));
+    Pipe_.WriteFD = TPipe::InvalidFd;
+
+    ThrowOnChildError();
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
+#endif
+}
+
+void TProcess::SpawnChild()
+{
+    int pid = vfork();
 
     if (pid < 0) {
         THROW_ERROR_EXCEPTION("Error starting child process: vfork failed")
             << TErrorAttribute("path", Path_)
             << TError::FromSystem();
+    }
+
+    if (pid == 0) {
+        Child();
     }
 
     ProcessId_ = pid;
@@ -224,12 +257,10 @@ void TProcess::Spawn()
         TGuard<TSpinLock> guard(LifecycleChangeLock_);
         Started_ = true;
     }
+}
 
-    LOG_DEBUG("Children process is spawned. Pid: %v", ProcessId_);
-
-    YCHECK(TryClose(Pipe_.WriteFD));
-    Pipe_.WriteFD = TPipe::InvalidFd;
-
+void TProcess::ThrowOnChildError()
+{
     int data[2];
     int res = ::read(Pipe_.ReadFD, &data, sizeof(data));
     if (res == 0) {
@@ -242,15 +273,15 @@ void TProcess::Spawn()
         return;
     }
 
+    YCHECK(res == sizeof(data));
+
     {
         TGuard<TSpinLock> guard(LifecycleChangeLock_);
         Finished_ = true;
     }
 
+    Cleanup(ProcessId_);
     ProcessId_ = InvalidProcessId;
-
-    YCHECK(res == sizeof(data));
-    YCHECK(TryWaitid(P_PID, pid, nullptr, WEXITED));
 
     int actionIndex = data[0];
     int errorCode = data[1];
@@ -259,9 +290,6 @@ void TProcess::Spawn()
     const auto& action = SpawnActions_[actionIndex];
     THROW_ERROR_EXCEPTION("%v", action.ErrorMessage)
         << TError::FromSystem(errorCode);
-#else
-    THROW_ERROR_EXCEPTION("Unsupported platform");
-#endif
 }
 
 TError ProcessInfoToError(const siginfo_t& processInfo)
@@ -330,8 +358,8 @@ void TProcess::Kill(int signal)
         return;
     }
 
-    int result = ::kill(ProcessId_, signal);
-    if (result < 0) {
+    auto result = TryKill(ProcessId_, signal);
+    if (!result) {
         THROW_ERROR_EXCEPTION("kill failed")
             << TError::FromSystem();
     }
@@ -361,7 +389,7 @@ char* TProcess::Capture(TStringBuf arg)
     return const_cast<char*>(~StringHolder_.back());
 }
 
-void TProcess::DoSpawn()
+void TProcess::Child()
 {
     YCHECK(Pipe_.WriteFD != TPipe::InvalidFd);
 
@@ -379,6 +407,8 @@ void TProcess::DoSpawn()
             _exit(1);
         }
     }
+
+    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
