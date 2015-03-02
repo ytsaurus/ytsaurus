@@ -10,7 +10,7 @@ from yt.yson import to_yson_type
 
 class TestRff(YTEnvSetup):
     NUM_MASTERS = 5
-    NUM_NODES = 0
+    NUM_NODES = 3
     DELTA_MASTER_CONFIG = {
         "hydra" : {
             "max_commit_batch_delay" : 1000
@@ -27,8 +27,16 @@ class TestRff(YTEnvSetup):
             set('//tmp/x', i)
             assert get("//tmp/x", read_from="follower") == i
 
-    def test_leader_forwarding(self):
+    def test_leader_forwarding1(self):
         assert get("//sys/nodes/@chunk_replicator_enabled", read_from="follower")
+
+    def test_leader_forwarding2(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_ids = get("//tmp/t/@chunk_ids", read_from="follower")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+        assert get("#" + chunk_id + "/@available", read_from="follower")
 
     def test_access_stat(self):
         time.sleep(1.0)
