@@ -661,7 +661,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         track_op(op_id)
 
-        context = download("//tmp/input_contexts/0")
+        context = read_file("//tmp/input_contexts/0")
         assert format.JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
 
     @only_linux
