@@ -242,15 +242,15 @@ void TProcess::Spawn()
         return;
     }
 
-    ProcessId_ = InvalidProcessId;
-
-    YCHECK(res == sizeof(data));
-    YCHECK(TryWaitid(P_PID, pid, nullptr, WEXITED));
-
     {
         TGuard<TSpinLock> guard(LifecycleChangeLock_);
         Finished_ = true;
     }
+
+    ProcessId_ = InvalidProcessId;
+
+    YCHECK(res == sizeof(data));
+    YCHECK(TryWaitid(P_PID, pid, nullptr, WEXITED));
 
     int actionIndex = data[0];
     int errorCode = data[1];
