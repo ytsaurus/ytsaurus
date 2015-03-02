@@ -67,10 +67,9 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
             for (const auto& protoKey : blockIndexExt->entries()) {
                 BlockIndexKeys_.push_back(FromProto<TOwningKey>(protoKey));
             }
+            BlockIndexKeys_.push_back(MaxKey_);
         } else {
-            // Block index keys don't contain key for the last block.
-            for (int i = 0; i < BlockMeta_.blocks_size() - 1; ++i) {
-                const auto& block = BlockMeta_.blocks(i);
+            for (const auto& block : BlockMeta_.blocks()) {
                 YCHECK(block.has_last_key());
                 BlockIndexKeys_.push_back(FromProto<TOwningKey>(block.last_key()));
             }
