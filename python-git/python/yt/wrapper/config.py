@@ -66,6 +66,8 @@ PYTHON_CREATE_MODULES_ARCHIVE = None
 PYTHON_USE_DILL = True
 PYTHON_USE_CLOUDPICKLE = False
 
+# for test purpose
+RETRY = None
 MUTATION_ID = None
 TRACE = None
 
