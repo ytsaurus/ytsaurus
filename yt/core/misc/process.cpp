@@ -98,6 +98,24 @@ void Cleanup(int pid)
     YCHECK(TryWaitid(P_PID, pid, nullptr, WEXITED));
 }
 
+bool TrySetSignalMask(const sigset_t* sigmask, sigset_t* oldSigmask)
+{
+    int error = pthread_sigmask(SIG_SETMASK, sigmask, oldSigmask);
+    if (error != 0) {
+      return false;
+    }
+    return true;
+}
+
+bool TryResetSignals()
+{
+    for (int sig = 1; sig < NSIG; ++sig) {
+        // Ignore invalid signal errors.
+        ::signal(sig, SIG_DFL);
+    }
+    return true;
+}
+
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -219,6 +237,37 @@ void TProcess::Spawn()
     Env_.push_back(nullptr);
     Args_.push_back(nullptr);
 
+    // Block all signals around vfork; see http://ewontfix.com/7/
+
+    // As the child may run in the same address space as the parent until
+    // the actual execve() system call, any (custom) signal handlers that
+    // the parent has might alter parent's memory if invoked in the child,
+    // with undefined results.  So we block all signals in the parent before
+    // vfork(), which will cause them to be blocked in the child as well (we
+    // rely on the fact that Linux, just like all sane implementations, only
+    // clones the calling thread).  Then, in the child, we reset all signals
+    // to their default dispositions (while still blocked), and unblock them
+    // (so the exec()ed process inherits the parent's signal mask)
+
+    sigset_t allBlocked;
+    sigfillset(&allBlocked);
+    sigset_t oldSignals;
+
+    if (!TrySetSignalMask(&allBlocked, &oldSignals)) {
+        THROW_ERROR_EXCEPTION("Failed to block all signals")
+            << TError::FromSystem();
+    }
+
+    SpawnActions_.push_back(TSpawnAction {
+        TryResetSignals,
+        "Error reseting signals to default desposition: signal failed"
+    });
+
+    SpawnActions_.push_back(TSpawnAction {
+        std::bind(TrySetSignalMask, &oldSignals, nullptr),
+        "Error unblocking signals: pthread_sigmask failed"
+    });
+
     SpawnActions_.push_back(TSpawnAction {
         std::bind(TryExecve, ~Path_, Args_.data(), Env_.data()),
         "Error starting child process: execve failed"
@@ -227,6 +276,9 @@ void TProcess::Spawn()
     SpawnChild();
 
     LOG_DEBUG("Children process is spawned. Pid: %v", ProcessId_);
+
+    // This should not fail ever.
+    YCHECK(TrySetSignalMask(&oldSignals, nullptr));
 
     YCHECK(TryClose(Pipe_.WriteFD));
     Pipe_.WriteFD = TPipe::InvalidFd;
