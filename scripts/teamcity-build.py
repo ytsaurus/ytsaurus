@@ -373,18 +373,20 @@ def clean_artifacts(options, n=10):
 
 
 @yt_register_cleanup_step
-def clean_failed_tests(options, n=5):
-    for path in ls(
-        os.path.expanduser("~/failed_tests/"),
-        reverse=True,
-        select=os.path.isdir,
-        start=n,
-        stop=sys.maxint):
+def clean_failed_tests(options, max_allowed_size=50 * 1024 * 1024 * 1024):
+    total_size = 0
+    for path in ls(os.path.expanduser("~/failed_tests/"),
+                   select=os.path.isdir,
+                   stop=sys.maxint):
+        size = os.stat(path).st_size
+        if total_size + size > max_allowed_size:
             teamcity_message("Removing {0}...".format(path), status="WARNING")
             if os.path.isdir(path):
-                shutil.rmtree(path)
+                run("rm -rf " + path, shell=True)
             else:
                 os.unlink(path)
+        else:
+            total_size += size
 
 
 ################################################################################
@@ -491,14 +493,13 @@ def cwd(*args):
 
 def ls(path, reverse=True, select=None, start=0, stop=None):
     if not os.path.isdir(path):
-        return
+        return []
     iterable = os.listdir(path)
     iterable = map(lambda x: os.path.realpath(os.path.join(path, x)), iterable)
     iterable = sorted(iterable, key=lambda x: os.stat(x).st_mtime, reverse=reverse)
     iterable = itertools.ifilter(select, iterable)
     iterable = itertools.islice(iterable, start, stop)
-    for item in iterable:
-        yield item
+    return iterable
 
 
 def mkdirp(path):
