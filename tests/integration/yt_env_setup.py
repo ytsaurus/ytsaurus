@@ -6,9 +6,7 @@ import yt.bindings.driver
 import gc
 import os
 import logging
-import shutil
 import uuid
-from datetime import datetime
 
 from functools import wraps
 
