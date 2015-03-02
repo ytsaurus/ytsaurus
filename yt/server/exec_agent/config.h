@@ -90,7 +90,7 @@ public:
 };
 
 class TSchedulerConnectorConfig
-    : public NScheduler::TSchedulerConnectionConfig
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Period between consequent heartbeats.
