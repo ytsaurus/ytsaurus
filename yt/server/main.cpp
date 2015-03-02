@@ -49,8 +49,6 @@
 #ifdef _linux_
     #include <sys/resource.h>
 
-    #include <core/misc/ioprio.h>
-
     #include <ytlib/cgroup/cgroup.h>
 #endif
 
@@ -101,8 +99,6 @@ public:
         , PreparePipes("", "prepare-pipe", "prepare pipe descriptor  (for executor mode)", false, "FD")
         , EnableCoreDump("", "enable-core-dump", "enable core dump (for executor mode)")
         , Uid("", "uid", "set uid  (for executor mode)", false, -1, "NUM")
-        // compat
-        , EnableIOPrio("", "enable-io-prio", "set low io prio (for executor mode)")
         , Command("", "command", "command (for executor mode)", false, "", "COMMAND")
 #endif
     {
@@ -125,7 +121,6 @@ public:
         CmdLine.add(PreparePipes);
         CmdLine.add(EnableCoreDump);
         CmdLine.add(Uid);
-        CmdLine.add(EnableIOPrio);
         CmdLine.add(Command);
 #endif
     }
@@ -152,7 +147,6 @@ public:
     TCLAP::MultiArg<int> PreparePipes;
     TCLAP::SwitchArg EnableCoreDump;
     TCLAP::ValueArg<int> Uid;
-    TCLAP::SwitchArg EnableIOPrio;
     TCLAP::ValueArg<Stroka> Command;
 #endif
 
