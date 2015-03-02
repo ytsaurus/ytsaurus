@@ -363,7 +363,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     IInvokerPtr controlInvoker,
     ISnapshotStorePtr snapshotStore,
     IChangelogStorePtr changelogStore,
-    NProfiling::TProfiler profiler)
+    const NProfiling::TProfiler& profiler)
     : State_(EPeerState::Stopped)
     , Config_(config)
     , CellManager_(cellManager)

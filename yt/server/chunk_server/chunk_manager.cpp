@@ -329,10 +329,10 @@ public:
         , Config_(config)
         , ChunkTreeBalancer_(New<TChunkTreeBalancerCallbacks>(Bootstrap_))
         , Profiler(ChunkServerProfiler)
-        , AddChunkCounter_("/add_chunk_rate")
-        , RemoveChunkCounter_("/remove_chunk_rate")
-        , AddChunkReplicaCounter_("/add_chunk_replica_rate")
-        , RemoveChunkReplicaCounter_("/remove_chunk_replica_rate")
+        , AddedChunkCounter_("/added_chunks")
+        , RemovedChunkCounter_("/removed_chunks")
+        , AddedChunkReplicaCounter_("/added_chunk_replicas")
+        , RemovedChunkReplicaCounter_("/removed_chunk_replicas")
     {
         RegisterMethod(BIND(&TImpl::UpdateChunkProperties, Unretained(this)));
 
@@ -404,7 +404,7 @@ public:
 
     TChunk* CreateChunk(EObjectType type)
     {
-        Profiler.Increment(AddChunkCounter_);
+        Profiler.Increment(AddedChunkCounter_);
         auto id = Bootstrap_->GetObjectManager()->GenerateId(type);
         auto* chunk = new TChunk(id);
         ChunkMap_.Insert(id, chunk);
@@ -887,10 +887,10 @@ private:
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
     NProfiling::TProfiler Profiler;
-    NProfiling::TRateCounter AddChunkCounter_;
-    NProfiling::TRateCounter RemoveChunkCounter_;
-    NProfiling::TRateCounter AddChunkReplicaCounter_;
-    NProfiling::TRateCounter RemoveChunkReplicaCounter_;
+    NProfiling::TSimpleCounter AddedChunkCounter_;
+    NProfiling::TSimpleCounter RemovedChunkCounter_;
+    NProfiling::TSimpleCounter AddedChunkReplicaCounter_;
+    NProfiling::TSimpleCounter RemovedChunkReplicaCounter_;
 
     TChunkPlacementPtr ChunkPlacement_;
     TChunkReplicatorPtr ChunkReplicator_;
@@ -930,7 +930,7 @@ private:
             }
         }
 
-        Profiler.Increment(RemoveChunkCounter_);
+        Profiler.Increment(RemovedChunkCounter_);
     }
 
     void DestroyChunkList(TChunkList* chunkList)
@@ -1325,7 +1325,7 @@ private:
         }
 
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
-            Profiler.Increment(AddChunkReplicaCounter_);
+            Profiler.Increment(AddedChunkReplicaCounter_);
         }
     }
 
@@ -1377,7 +1377,7 @@ private:
             ChunkReplicator_->ScheduleChunkRefresh(chunk);
         }
 
-        Profiler.Increment(RemoveChunkReplicaCounter_);
+        Profiler.Increment(RemovedChunkReplicaCounter_);
     }
 
 

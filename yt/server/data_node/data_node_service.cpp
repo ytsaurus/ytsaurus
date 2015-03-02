@@ -1041,7 +1041,7 @@ private:
     i64 GetPendingOutSize() const
     {
         return
-            NBus::TTcpDispatcher::Get()->GetStatistics(NBus::ETcpInterfaceType::Remote).PendingOutSize +
+            NBus::TTcpDispatcher::Get()->GetStatistics(NBus::ETcpInterfaceType::Remote).PendingOutBytes +
             Bootstrap_->GetBlockStore()->GetPendingReadSize();
     }
 

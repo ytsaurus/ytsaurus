@@ -71,9 +71,11 @@ struct TTimer
 struct TCounterBase
 {
     TCounterBase(
-        const NYPath::TYPath& path,
-        const TTagIdList& tagIds,
-        TDuration interval);
+        const NYPath::TYPath& path = "",
+        const TTagIdList& tagIds = EmptyTagIds,
+        TDuration interval = TDuration::MilliSeconds(100));
+    TCounterBase(const TCounterBase& other);
+    TCounterBase& operator = (const TCounterBase& other);
 
     TSpinLock SpinLock;
     NYPath::TYPath Path;
@@ -82,40 +84,6 @@ struct TCounterBase
     TCpuDuration Interval;
     //! The time when the next sample must be queued (in ticks).
     TCpuInstant Deadline;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Measures the rate of certain event.
-/*!
- *  Used to measure rates of high-frequency events. For these events we cannot
- *  afford to use sample-per-instance strategy. Instead we maintain a counter indicating
- *  the total number of events occurred so far and track its increase over
- *  certain fixed intervals of time. E.g. if the interval is 1 second then
- *  this counter will actually be sampling RPS.
- *
- *  \note Thread-safe.
- */
-struct TRateCounter
-    : public TCounterBase
-{
-    TRateCounter(
-        const NYPath::TYPath& path = "",
-        const TTagIdList& tagIds = EmptyTagIds,
-        TDuration interval = TDuration::MilliSeconds(1000));
-
-    // NB: Need to write these by hand because of std::atomic.
-    TRateCounter(const TRateCounter& other);
-    TRateCounter& operator = (const TRateCounter& other);
-
-    //! The current counter's value.
-    std::atomic<TValue> Value;
-
-    //! The counter's value at the moment of the last sampling.
-    TValue LastValue;
-
-    //! The time when the last sample was queued (in ticks).
-    TCpuInstant LastTime;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -149,6 +117,8 @@ struct TAggregateCounter
         const TTagIdList& tagIds = EmptyTagIds,
         EAggregateMode mode = EAggregateMode::Max,
         TDuration interval = TDuration::MilliSeconds(100));
+    TAggregateCounter(const TAggregateCounter& other);
+    TAggregateCounter& operator = (const TAggregateCounter& other);
 
     void Reset();
 
@@ -171,6 +141,8 @@ struct TSimpleCounter
         const NYPath::TYPath& path = "",
         const TTagIdList& tagIds = EmptyTagIds,
         TDuration interval = TDuration::MilliSeconds(100));
+    TSimpleCounter(const TSimpleCounter& other);
+    TSimpleCounter& operator = (const TSimpleCounter& other);
 
     std::atomic<TValue> Current;
 };
@@ -245,15 +217,6 @@ public:
     TDuration TimingStop(TTimer& timer);
 
 
-    //! Increments the counter value and possibly enqueues a rate sample.
-    //! Returns the incremented value.
-    /*!
-     *  The default increment is 1, i.e. the counter measures individual events.
-     *  Other (positive) values also make sense. E.g. one can set increment to the
-     *  number of bytes to be written and thus obtain a throughput counter.
-     */
-    TValue Increment(TRateCounter& counter, TValue delta = 1);
-
     //! Updates the counter value and possibly enqueues samples.
     void Update(TAggregateCounter& counter, TValue value);
 
@@ -275,8 +238,6 @@ private:
     bool IsCounterEnabled(const TCounterBase& counter);
 
     void DoUpdate(TAggregateCounter& counter, TValue value);
-
-    void OnUpdated(TRateCounter& counter);
 
     void OnUpdated(TSimpleCounter& counter);
 

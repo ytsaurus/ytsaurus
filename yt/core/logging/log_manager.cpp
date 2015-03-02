@@ -226,8 +226,8 @@ public:
             false,
             false))
         , LoggingThread_(New<TThread>(this))
-        , EnqueueCounter_("/enqueue_rate")
-        , WriteCounter_("/write_rate")
+        , EnqueuedCounter_("/enqueued")
+        , WrittenCounter_("/written")
         , BacklogCounter_("/backlog")
     {
         SystemWriters_.push_back(New<TStderrLogWriter>());
@@ -298,7 +298,7 @@ public:
             ShutdownRequested_ = true;
 
             // Add fatal message to log and notify event log queue.
-            LoggingProfiler.Increment(EnqueueCounter_);
+            LoggingProfiler.Increment(EnqueuedCounter_);
             PushLogEvent(std::move(event));
 
             if (LoggingThread_->GetId() != GetCurrentThreadId()) {
@@ -340,7 +340,7 @@ public:
         }
 
         int backlogSize = LoggingProfiler.Increment(BacklogCounter_);
-        LoggingProfiler.Increment(EnqueueCounter_);
+        LoggingProfiler.Increment(EnqueuedCounter_);
         PushLogEvent(std::move(event));
         EventCount_.NotifyOne();
 
@@ -504,7 +504,7 @@ private:
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
         for (auto& writer : GetWriters(event)) {
-            LoggingProfiler.Increment(WriteCounter_);
+            LoggingProfiler.Increment(WrittenCounter_);
             writer->Write(event);
         }
     }
@@ -693,8 +693,8 @@ private:
     // default configuration (default level etc.).
     std::atomic<int> Version_ = {-1};
     TLogConfigPtr Config_;
-    NProfiling::TRateCounter EnqueueCounter_;
-    NProfiling::TRateCounter WriteCounter_;
+    NProfiling::TSimpleCounter EnqueuedCounter_;
+    NProfiling::TSimpleCounter WrittenCounter_;
     NProfiling::TAggregateCounter BacklogCounter_;
     bool Suspended_ = false;
     TMultipleProducerSingleConsumerLockFreeStack<TLoggerQueueItem> LoggerQueue_;

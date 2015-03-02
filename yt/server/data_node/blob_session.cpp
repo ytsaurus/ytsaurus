@@ -32,7 +32,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NProfiling::TRateCounter DiskWriteThroughputCounter("/disk_write_throughput_counter");
+static NProfiling::TSimpleCounter DiskBlobWriteByteCounter("/disk_blob_write_bytes");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -246,9 +246,9 @@ void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
     auto& locationProfiler = Location_->Profiler();
     locationProfiler.Enqueue("/blob_block_write_size", block.Size());
     locationProfiler.Enqueue("/blob_block_write_time", writeTime.MicroSeconds());
-    locationProfiler.Enqueue("/blob_block_write_speed", block.Size() * 1000000 / (1 + writeTime.MicroSeconds()));
+    locationProfiler.Enqueue("/blob_block_write_throughput", block.Size() * 1000000 / (1 + writeTime.MicroSeconds()));
 
-    DataNodeProfiler.Increment(DiskWriteThroughputCounter, block.Size());
+    DataNodeProfiler.Increment(DiskBlobWriteByteCounter, block.Size());
 
     THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 }

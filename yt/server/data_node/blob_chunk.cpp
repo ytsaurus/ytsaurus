@@ -26,7 +26,7 @@ using namespace NChunkClient::NProto;
 
 static const auto& Logger = DataNodeLogger;
 
-static NProfiling::TRateCounter DiskBlobReadThroughputCounter("/disk_blob_read_throughput");
+static NProfiling::TSimpleCounter DiskBlobReadByteCounter("/disk_blob_read_bytes");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -179,7 +179,7 @@ void TBlobChunkBase::DoReadBlocks(
         locationProfiler.Enqueue("/blob_block_read_size", pendingSize);
         locationProfiler.Enqueue("/blob_block_read_time", readTime.MicroSeconds());
         locationProfiler.Enqueue("/blob_block_read_throughput", pendingSize * 1000000 / (1 + readTime.MicroSeconds()));
-        DataNodeProfiler.Increment(DiskBlobReadThroughputCounter, pendingSize);
+        DataNodeProfiler.Increment(DiskBlobReadByteCounter, pendingSize);
 
         promise.Set(blocksOrError.Value());
     } catch (const std::exception& ex) {

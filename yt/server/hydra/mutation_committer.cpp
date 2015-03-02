@@ -41,8 +41,8 @@ TCommitterBase::TCommitterBase(
     : CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)
     , EpochContext_(epochContext)
-    , CommitCounter_("/commit_rate")
-    , BatchFlushCounter_("/batch_flush_rate")
+    , CommitCounter_("/commits")
+    , FlushCounter_("/flushes")
     , Logger(HydraLogger)
     , Profiler(profiler)
 {
@@ -427,7 +427,7 @@ void TLeaderCommitter::FlushCurrentBatch()
 
     TDelayedExecutor::CancelAndClear(BatchTimeoutCookie_);
 
-    Profiler.Increment(BatchFlushCounter_);
+    Profiler.Increment(FlushCounter_);
 }
 
 TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(TVersion version)
@@ -549,7 +549,7 @@ TFuture<void> TFollowerCommitter::DoLogMutations(
     }
 
     Profiler.Increment(CommitCounter_, recordsCount);
-    Profiler.Increment(BatchFlushCounter_);
+    Profiler.Increment(FlushCounter_);
 
     return result;
 }

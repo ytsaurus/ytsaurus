@@ -34,19 +34,19 @@ static const size_t MaxFragmentsPerWrite = 256;
 static const size_t MaxBatchWriteSize    = 64 * 1024;
 static const size_t MaxWriteCoalesceSize = 4 * 1024;
 
-static NProfiling::TAggregateCounter ReceiveTime("/receive_time");
-static NProfiling::TAggregateCounter ReceiveSize("/receive_size");
-static NProfiling::TAggregateCounter InHandlerTime("/in_handler_time");
-static NProfiling::TRateCounter InThroughputCounter("/in_throughput");
-static NProfiling::TRateCounter InCounter("/in_rate");
+static NProfiling::TAggregateCounter ReceiveTimeCounter("/receive_time");
+static NProfiling::TAggregateCounter ReceiveSizeCounter("/receive_size");
+static NProfiling::TAggregateCounter InHandlerTimeCounter("/in_handler_time");
+static NProfiling::TSimpleCounter InByteCounter("/in_bytes");
+static NProfiling::TSimpleCounter InPacketCounter("/in_packets");
 
-static NProfiling::TAggregateCounter SendTime("/send_time");
-static NProfiling::TAggregateCounter SendSize("/send_size");
-static NProfiling::TAggregateCounter OutHandlerTime("/out_handler_time");
-static NProfiling::TRateCounter OutThroughputCounter("/out_throughput");
-static NProfiling::TRateCounter OutCounter("/out_rate");
-static NProfiling::TAggregateCounter PendingOutCounter("/pending_out_count");
-static NProfiling::TAggregateCounter PendingOutSize("/pending_out_size");
+static NProfiling::TAggregateCounter SendTimeCounter("/send_time");
+static NProfiling::TAggregateCounter SendSizeCounter("/send_size");
+static NProfiling::TAggregateCounter OutHandlerTimeCounter("/out_handler_time");
+static NProfiling::TSimpleCounter OutBytesCounter("/out_bytes");
+static NProfiling::TSimpleCounter OutPacketCounter("/out_packets");
+static NProfiling::TAggregateCounter PendingOutPacketCounter("/pending_out_packets");
+static NProfiling::TAggregateCounter PendingOutByteCounter("/pending_out_bytes");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -181,13 +181,13 @@ void TTcpConnection::UpdateConnectionCount(int delta)
 {
     switch (ConnectionType_) {
         case EConnectionType::Client: {
-            int value = (Statistics().ClientConnectionCount += delta);
+            int value = (Statistics().ClientConnections += delta);
             Profiler.Enqueue("/client_connection_count", value);
             break;
         }
 
         case EConnectionType::Server: {
-            int value = (Statistics().ServerConnectionCount += delta);
+            int value = (Statistics().ServerConnections += delta);
             Profiler.Enqueue("/server_connection_count", value);
             break;
         }
@@ -200,12 +200,12 @@ void TTcpConnection::UpdateConnectionCount(int delta)
 void TTcpConnection::UpdatePendingOut(int countDelta, i64 sizeDelta)
 {
     {
-        int value = (Statistics().PendingOutCount += countDelta);
-        Profiler.Update(PendingOutCounter, value);
+        int value = (Statistics().PendingOutPackets += countDelta);
+        Profiler.Update(PendingOutPacketCounter, value);
     }
     {
-        size_t value = (Statistics().PendingOutSize += sizeDelta);
-        Profiler.Update(PendingOutSize, value);
+        size_t value = (Statistics().PendingOutBytes += sizeDelta);
+        Profiler.Update(PendingOutByteCounter, value);
     }
 }
 
@@ -582,7 +582,7 @@ void TTcpConnection::OnSocketRead()
 bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 {
     ssize_t result;
-    PROFILE_AGGREGATED_TIMING (ReceiveTime) {
+    PROFILE_AGGREGATED_TIMING (ReceiveTimeCounter) {
         do {
             result = recv(Socket_, buffer, size, 0);
         } while (result < 0 && errno == EINTR);
@@ -595,8 +595,8 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 
     *bytesRead = result;
 
-    Profiler.Increment(InThroughputCounter, *bytesRead);
-    Profiler.Update(ReceiveSize, *bytesRead);
+    Profiler.Increment(InByteCounter, *bytesRead);
+    Profiler.Update(ReceiveSizeCounter, *bytesRead);
 
     LOG_TRACE("%v bytes read", *bytesRead);
 
@@ -651,7 +651,7 @@ bool TTcpConnection::AdvanceDecoder(size_t size)
 
 bool TTcpConnection::OnPacketReceived()
 {
-    Profiler.Increment(InCounter);
+    Profiler.Increment(InPacketCounter);
     switch (Decoder_.GetPacketType()) {
         case EPacketType::Ack:
             return OnAckPacketReceived();
@@ -686,7 +686,7 @@ bool TTcpConnection::OnAckPacketReceived()
 
     LOG_DEBUG("Ack received (PacketId: %v)", Decoder_.GetPacketId());
 
-    PROFILE_AGGREGATED_TIMING (OutHandlerTime) {
+    PROFILE_AGGREGATED_TIMING (OutHandlerTimeCounter) {
         if (unackedMessage.Promise) {
             unackedMessage.Promise.Set(TError());
         }
@@ -708,7 +708,7 @@ bool TTcpConnection::OnMessagePacketReceived()
     }
 
     auto message = Decoder_.GetMessage();
-    PROFILE_AGGREGATED_TIMING (InHandlerTime) {
+    PROFILE_AGGREGATED_TIMING (InHandlerTimeCounter) {
         Handler_->HandleMessage(std::move(message), this);
     }
 
@@ -815,12 +815,12 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     ssize_t result;
 #ifdef _win_
     DWORD bytesWritten_ = 0;
-    PROFILE_AGGREGATED_TIMING (SendTime) {
+    PROFILE_AGGREGATED_TIMING (SendTimeCounter) {
         result = WSASend(Socket_, SendVector_.data(), SendVector_.size(), &bytesWritten_, 0, NULL, NULL);
     }
     *bytesWritten = static_cast<size_t>(bytesWritten_);
 #else
-    PROFILE_AGGREGATED_TIMING (SendTime) {
+    PROFILE_AGGREGATED_TIMING (SendTimeCounter) {
         do {
             result = writev(Socket_, SendVector_.data(), SendVector_.size());
         } while (result < 0 && errno == EINTR);
@@ -828,8 +828,8 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     *bytesWritten = result >= 0 ? result : 0;
 #endif
 
-    Profiler.Increment(OutThroughputCounter, *bytesWritten);
-    Profiler.Update(SendSize, *bytesWritten);
+    Profiler.Increment(OutBytesCounter, *bytesWritten);
+    Profiler.Update(SendSizeCounter, *bytesWritten);
 
     LOG_TRACE("%v bytes written", *bytesWritten);
 
@@ -1001,7 +1001,7 @@ void TTcpConnection::OnPacketSent()
 
 
     UpdatePendingOut(-1, -packet->Size);
-    Profiler.Increment(OutCounter);
+    Profiler.Increment(OutPacketCounter);
 
     delete packet;
     EncodedPackets_.pop();

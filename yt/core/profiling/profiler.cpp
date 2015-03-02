@@ -58,30 +58,17 @@ TCounterBase::TCounterBase(
     , Deadline(0)
 { }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TRateCounter::TRateCounter(
-    const TYPath& path,
-    const TTagIdList& tagIds,
-    TDuration interval)
-    : TCounterBase(path, tagIds, interval)
-    , Value(0)
-    , LastValue(0)
-    , LastTime(0)
-{ }
-
-TRateCounter::TRateCounter(const TRateCounter& other)
-    : TCounterBase(other)
+TCounterBase::TCounterBase(const TCounterBase& other)
 {
     *this = other;
 }
 
-TRateCounter& TRateCounter::operator=(const TRateCounter& other)
+TCounterBase& TCounterBase::operator=(const TCounterBase& other)
 {
-    static_cast<TCounterBase&>(*this) = other;
-    Value.store(other.Value);
-    LastValue = other.LastValue;
-    LastTime = other.LastTime;
+    Path = other.Path;
+    TagIds = other.TagIds;
+    Interval = other.Interval;
+    Deadline = 0;
     return *this;
 }
 
@@ -97,6 +84,22 @@ TAggregateCounter::TAggregateCounter(
     , Current(0)
 {
     Reset();
+}
+
+TAggregateCounter::TAggregateCounter(const TAggregateCounter& other)
+    : TCounterBase(other)
+    , Current(0)
+{
+    *this = other;
+    Reset();
+}
+
+TAggregateCounter& TAggregateCounter::operator=(const TAggregateCounter& other)
+{
+    static_cast<TCounterBase&>(*this) = static_cast<const TCounterBase&>(other);
+    Current = other.Current;
+    Reset();
+    return *this;
 }
 
 void TAggregateCounter::Reset()
@@ -116,6 +119,18 @@ TSimpleCounter::TSimpleCounter(
     : TCounterBase(path, tagIds, interval)
     , Current(0)
 { }
+
+TSimpleCounter::TSimpleCounter(const TSimpleCounter& other)
+{
+    *this = other;
+}
+
+TSimpleCounter& TSimpleCounter::operator=(const TSimpleCounter& other)
+{
+    static_cast<TCounterBase&>(*this) = static_cast<const TCounterBase&>(other);
+    Current = other.Current.load();
+    return *this;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -253,19 +268,6 @@ TDuration TProfiler::DoTimingCheckpoint(
     }
 }
 
-TValue TProfiler::Increment(TRateCounter& counter, TValue delta)
-{
-    YASSERT(delta >= 0);
-
-    auto result = (counter.Value += delta);
-
-    if (IsCounterEnabled(counter)) {
-        OnUpdated(counter);
-    }
-
-    return result;
-}
-
 void TProfiler::Update(TAggregateCounter& counter, TValue value)
 {
     TGuard<TSpinLock> guard(counter.SpinLock);
@@ -353,35 +355,6 @@ void TProfiler::DoUpdate(TAggregateCounter& counter, TValue value)
             default:
                 YUNREACHABLE();
         }
-    }
-}
-
-void TProfiler::OnUpdated(TRateCounter& counter)
-{
-    auto now = GetCpuInstant();
-    if (now < counter.Deadline)
-        return;
-
-    TNullable<TValue> sampleValue;
-    {
-        TGuard<TSpinLock> guard(counter.SpinLock);
-
-        if (now < counter.Deadline)
-            return;
-
-        if (counter.LastTime != 0) {
-            auto counterDelta = counter.Value - counter.LastValue;
-            auto timeDelta = now - counter.LastTime;
-            sampleValue = counterDelta * counter.Interval / timeDelta;
-        }
-
-        counter.LastTime = now;
-        counter.LastValue = counter.Value;
-        counter.Deadline = now + counter.Interval;
-    }
-
-    if (sampleValue) {
-        Enqueue(counter.Path, *sampleValue, counter.TagIds);
     }
 }
 

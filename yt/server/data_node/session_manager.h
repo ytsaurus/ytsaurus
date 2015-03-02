@@ -61,7 +61,7 @@ private:
 
     yhash_map<TChunkId, ISessionPtr> SessionMap_;
     TEnumIndexedVector<int, EWriteSessionType> PerTypeSessionCount_;
-    std::atomic<i64> PendingWriteSize_;
+    std::atomic<i64> PendingWriteSize_ = {0};
 
 
     ISessionPtr CreateSession(const TChunkId& chunkId, const TSessionOptions& options);

@@ -33,7 +33,7 @@ using namespace NChunkClient::NProto;
 
 static const auto& Logger = DataNodeLogger;
 
-static NProfiling::TRateCounter DiskJournalReadThroughputCounter("/disk_journal_read_throughput");
+static NProfiling::TSimpleCounter DiskJournalReadByteCounter("/disk_journal_read_bytes");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -167,7 +167,7 @@ void TJournalChunk::DoReadBlocks(
         locationProfiler.Enqueue("/journal_read_size", bytesRead);
         locationProfiler.Enqueue("/journal_read_time", readTime.MicroSeconds());
         locationProfiler.Enqueue("/journal_read_throughput", bytesRead * 1000000 / (1 + readTime.MicroSeconds()));
-        DataNodeProfiler.Increment(DiskJournalReadThroughputCounter, bytesRead);
+        DataNodeProfiler.Increment(DiskJournalReadByteCounter, bytesRead);
 
         promise.Set(blocks);
     } catch (const std::exception& ex) {
