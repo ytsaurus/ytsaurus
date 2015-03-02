@@ -93,12 +93,15 @@ class TestYsonStream(YsonParserTestBase, unittest.TestCase):
 
         long = 2 ** 63 - 1
         self.assertEqual('%s' % str(long), dumps(long))
+        self.assertEqual('%su' % str(long), dumps(YsonUint64(long)))
 
         long = -2 ** 63
         self.assertEqual('%s' % str(long), dumps(long))
-
+        
         self.assertRaises(Exception, lambda: dumps(2 ** 64))
         self.assertRaises(Exception, lambda: dumps(-2 ** 63 - 1))
+        self.assertRaises(Exception, lambda: dumps(YsonUint64(-2 ** 63)))
+        self.assertRaises(Exception, lambda: dumps(YsonInt64(2 ** 63 + 1)))
 
     def test_loading_raw_rows(self):
         rows = list(loads("{a=b};{c=d};", raw=True, yson_type="list_fragment"))
