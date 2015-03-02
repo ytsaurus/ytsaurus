@@ -28,7 +28,7 @@ def _module_file_path(path):
 class YamrModeTester(YtTestBase, YTEnv):
     @classmethod
     def setup_class(cls):
-        YtTestBase._setup_class(YTEnv)
+        super(YamrModeTester, cls).setup_class()
         config.set_yamr_mode()
         config.TREAT_UNEXISTING_AS_EMPTY = False
         if not yt.exists("//sys/empty_yamr_table"):
@@ -39,7 +39,7 @@ class YamrModeTester(YtTestBase, YTEnv):
 
     @classmethod
     def teardown_class(cls):
-        YtTestBase._teardown_class()
+        super(YamrModeTester, cls).teardown_class()
 
     def read_records(self, table, format=None):
         return map(partial(loads_row, format=format),
@@ -543,21 +543,21 @@ class YamrModeTester(YtTestBase, YTEnv):
 class TestYamrModeV2(YamrModeTester):
     @classmethod
     def setup_class(cls):
-        YamrModeTester.setup_class()
+        super(TestYamrModeV2, cls).setup_class()
         yt.config.VERSION = "v2"
         yt.config.COMMANDS = None
 
     @classmethod
     def teardown_class(cls):
-        YamrModeTester.teardown_class()
+        super(TestYamrModeV2, cls).teardown_class()
 
 class TestYamrModeV3(YamrModeTester):
     @classmethod
     def setup_class(cls):
-        YamrModeTester.setup_class()
+        super(TestYamrModeV3, cls).setup_class()
         yt.config.VERSION = "v3"
         yt.config.COMMANDS = None
 
     @classmethod
     def teardown_class(cls):
-        YamrModeTester.teardown_class()
+        super(TestYamrModeV3, cls).teardown_class()
