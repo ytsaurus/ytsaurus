@@ -36,14 +36,6 @@ DEFINE_ENUM(EOperatorKind,
     (Project)
 );
 
-DEFINE_ENUM(EAggregateFunctions,
-    (Sum)
-    (Min)
-    (Max)
-    (Average)
-    (Count)
-);
-
 struct TExpression
     : public TIntrinsicRefCounted
 {

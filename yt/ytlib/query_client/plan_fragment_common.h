@@ -35,6 +35,12 @@ DEFINE_ENUM(EBinaryOp,
     (GreaterOrEqual)
 );
 
+DEFINE_ENUM(EAggregateFunctions,
+    (Sum)
+    (Min)
+    (Max)
+);
+
 const char* GetUnaryOpcodeLexeme(EUnaryOp opcode);
 const char* GetBinaryOpcodeLexeme(EBinaryOp opcode);
 
