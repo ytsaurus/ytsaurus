@@ -4,6 +4,7 @@
 
 #include <core/compression/codec.h>
 
+#include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 

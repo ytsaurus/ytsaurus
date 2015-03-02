@@ -13,6 +13,7 @@ include_directories(
   ${BASE}
   ${CMAKE_BINARY_DIR}
   ${CMAKE_SOURCE_DIR}
+  ${CMAKE_BINARY_DIR}/include
 )
 
 add_library( ytext-arcadia-library-lwtrace STATIC ${SRCS} )
