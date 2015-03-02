@@ -218,7 +218,7 @@ print "x={0}\ty={1}".format(x, y)
 """
 
         create("file", "//tmp/reducer.py")
-        upload("//tmp/reducer.py", reducer)
+        write_file("//tmp/reducer.py", reducer)
 
         map_reduce(in_="//tmp/t_in",
                    out="<sorted_by=[x; y]>//tmp/t_out",

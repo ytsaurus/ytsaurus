@@ -206,7 +206,7 @@ class TestQuery(YTEnvSetup):
             {"LogID": 2, "OrderID": 4, "UpdateTime": 6, "LogID1": 2, "OrderID1": 4},
             {"LogID": 3, "OrderID": 1, "UpdateTime": 7, "LogID1": 3, "OrderID1": 1}]
 
-        actual = select("* from [//tmp/jl] join [//tmp/jr] using UpdateTime where LogID < 4")
+        actual = select_rows("* from [//tmp/jl] join [//tmp/jr] using UpdateTime where LogID < 4")
         assert expected == actual
 
     def test_types(self):
