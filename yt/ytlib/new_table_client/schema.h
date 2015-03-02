@@ -63,6 +63,9 @@ public:
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
     TTableSchema TrimNonkeyColumns(const TKeyColumns& keyColumns) const;
 
+    TTableSchema Deplete() const;
+    TKeyColumns DepleteKeyColumns(const TKeyColumns& keyColumns) const;
+
     bool HasComputedColumns() const;
 
     void Save(TStreamSaveContext& context) const;
