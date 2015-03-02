@@ -38,7 +38,7 @@ class TestTablets(YTEnvSetup):
                 "schema": [
                     {"name": "key1", "type": "int64"},
                     {"name": "key2", "type": "int64", "expression": "key1 * 100 + 3"},
-                    {"name": "value", "type": "int64"}],
+                    {"name": "value", "type": "string"}],
                 "key_columns": ["key1", "key2"]
             })
 
@@ -158,7 +158,7 @@ class TestTablets(YTEnvSetup):
         self._sync_mount_table("//tmp/t")
 
         with pytest.raises(YtError): read("//tmp/t")
-        with pytest.raises(YtError): write("//tmp/t", [{"key": 1, "value": 2}])
+        with pytest.raises(YtError): write("//tmp/t", [{"key": 1, "value": "2"}])
 
     @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
     def test_computed_column(self):
@@ -166,25 +166,25 @@ class TestTablets(YTEnvSetup):
         self._create_table_with_computed_column("//tmp/t")
         self._sync_mount_table("//tmp/t")
 
-        insert_rows("//tmp/t", [{"key1": 1, "value": 2}])
-        expected = [{"key1": 1, "key2": 103, "value": 2}]
+        insert_rows("//tmp/t", [{"key1": 1, "value": "2"}])
+        expected = [{"key1": 1, "key2": 103, "value": "2"}]
         actual = select_rows("* from [//tmp/t]");
         self.assertItemsEqual(expected, actual);
 
-        insert_rows("//tmp/t", [{"key1": 2, "value": 2}])
-        expected = [{"key1": 1, "key2": 103, "value": 2}]
+        insert_rows("//tmp/t", [{"key1": 2, "value": "2"}])
+        expected = [{"key1": 1, "key2": 103, "value": "2"}]
         actual = lookup_rows("//tmp/t", [{"key1" : 1}]);
         self.assertItemsEqual(expected, actual);
-        expected = [{"key1": 2, "key2": 203, "value": 2}]
+        expected = [{"key1": 2, "key2": 203, "value": "2"}]
         actual = lookup_rows("//tmp/t", [{"key1": 2}]);
         self.assertItemsEqual(expected, actual);
 
         delete_rows("//tmp/t", [{"key1": 1}])
-        expected = [{"key1": 2, "key2": 203, "value": 2}]
+        expected = [{"key1": 2, "key2": 203, "value": "2"}]
         actual = select_rows("* from [//tmp/t]");
         self.assertItemsEqual(expected, actual);
 
-        with pytest.raises(YtError): insert_rows("//tmp/t", [{"key1": 3, "key2": 3, "value": 3}])
+        with pytest.raises(YtError): insert_rows("//tmp/t", [{"key1": 3, "key2": 3, "value": "3"}])
         with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key1": 2, "key2": 203}])
         with pytest.raises(YtError): delete_rows("//tmp/t", [{"key1": 2, "key2": 203}])
 
@@ -192,7 +192,7 @@ class TestTablets(YTEnvSetup):
         actual = lookup_rows("//tmp/t", [{"key1": 3}])
         self.assertItemsEqual(expected, actual)
 
-        expected = [{"key1": 2, "key2": 203, "value": 2}]
+        expected = [{"key1": 2, "key2": 203, "value": "2"}]
         actual = select_rows("* from [//tmp/t]");
         self.assertItemsEqual(expected, actual);
 
