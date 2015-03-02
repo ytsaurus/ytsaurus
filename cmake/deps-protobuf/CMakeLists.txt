@@ -2,13 +2,12 @@ set( BASE ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf )
 
 set( SRCS_PROTOBUF
   ${BASE}/stubs/common.cc
-  ${BASE}/stubs/hash.cc
-  ${BASE}/stubs/map-util.cc
   ${BASE}/stubs/once.cc
   ${BASE}/stubs/structurally_valid.cc
-  ${BASE}/stubs/stl_util-inl.cc
   ${BASE}/stubs/substitute.cc
   ${BASE}/stubs/strutil.cc
+  ${BASE}/stubs/stringprintf.cc
+  ${BASE}/stubs/atomicops_internals_x86_gcc.cc
 
   ${BASE}/io/coded_stream.cc
   ${BASE}/io/printer.cc
@@ -16,6 +15,7 @@ set( SRCS_PROTOBUF
   ${BASE}/io/zero_copy_stream.cc
   ${BASE}/io/zero_copy_stream_impl.cc
   ${BASE}/io/zero_copy_stream_impl_lite.cc
+  ${BASE}/io/strtod.cc
 
   ${BASE}/compiler/importer.cc
   ${BASE}/compiler/parser.cc
@@ -74,8 +74,29 @@ set( SRCS_PROTOC
   ${BASE}/compiler/java/java_message_field.cc
   ${BASE}/compiler/java/java_primitive_field.cc
   ${BASE}/compiler/java/java_service.cc
+  ${BASE}/compiler/java/java_context.cc
+  ${BASE}/compiler/java/java_doc_comment.cc
+  ${BASE}/compiler/java/java_enum.cc
+  ${BASE}/compiler/java/java_enum_field.cc
+  ${BASE}/compiler/java/java_extension.cc
+  ${BASE}/compiler/java/java_field.cc
+  ${BASE}/compiler/java/java_file.cc
+  ${BASE}/compiler/java/java_generator.cc
+  ${BASE}/compiler/java/java_generator_factory.cc
+  ${BASE}/compiler/java/java_helpers.cc
+  ${BASE}/compiler/java/java_lazy_message_field.cc
+  ${BASE}/compiler/java/java_message.cc
+  ${BASE}/compiler/java/java_message_field.cc
+  ${BASE}/compiler/java/java_name_resolver.cc
+  ${BASE}/compiler/java/java_primitive_field.cc
+  ${BASE}/compiler/java/java_service.cc
+  ${BASE}/compiler/java/java_shared_code_generator.cc
+  ${BASE}/compiler/java/java_string_field.cc
 
   ${BASE}/compiler/python/python_generator.cc
+
+  ${BASE}/compiler/perlxs/perlxs_generator.cc
+  ${BASE}/compiler/perlxs/perlxs_helpers.cc
 )
 
 add_library( protobuf STATIC

@@ -14,6 +14,8 @@
 #include <ytlib/new_table_client/schemaful_writer.h>
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 
+#include <contrib/libs/protobuf/io/coded_stream.h>
+
 namespace NYT {
 namespace NTabletClient {
 
