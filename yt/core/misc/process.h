@@ -51,8 +51,6 @@ private:
     bool Started_;
     bool Finished_;
 
-    TError InternalError_;
-
     int ProcessId_;
     Stroka Path_;
 
