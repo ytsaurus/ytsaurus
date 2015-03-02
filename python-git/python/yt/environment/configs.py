@@ -201,6 +201,10 @@ def get_node_config():
         transaction_manager = {
             ping_period = 500;
         };
+
+        scheduler = {
+            retry_backoff_time = 100;
+        };
     };
 
     data_node = {
@@ -216,7 +220,6 @@ def get_node_config():
 
     exec_agent = {
         scheduler_connector = {
-            retry_backoff_time = 100;
             heartbeat_period = 200;
         };
 
