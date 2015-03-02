@@ -66,9 +66,8 @@ TMutationId GetMutationId(IServiceContextPtr context);
 TMutationId GetMutationId(const NProto::TRequestHeader& header);
 
 void GenerateMutationId(IClientRequestPtr request);
-void SetMutationId(NProto::TRequestHeader* header, const TMutationId& id);
-void SetMutationId(IClientRequestPtr request, const TMutationId& id);
-void SetOrGenerateMutationId(IClientRequestPtr request, const TMutationId& id);
+void SetMutationId(IClientRequestPtr request, const TMutationId& id, bool retry);
+void SetOrGenerateMutationId(IClientRequestPtr request, const TMutationId& id, bool retry);
 
 ////////////////////////////////////////////////////////////////////////////////
 

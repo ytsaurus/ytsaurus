@@ -233,23 +233,23 @@ TMutationId GetMutationId(IServiceContextPtr context)
 
 void GenerateMutationId(IClientRequestPtr request)
 {
-    SetMutationId(request, GenerateMutationId());
+    SetMutationId(request, GenerateMutationId(), false);
 }
 
-void SetMutationId(TRequestHeader* header, const TMutationId& id)
+void SetMutationId(IClientRequestPtr request, const TMutationId& id, bool retry)
 {
-    auto* ext = header->MutableExtension(TMutatingExt::mutating_ext);
-    ToProto(ext->mutable_mutation_id(), id);
+    auto* ext = request->Header().MutableExtension(TMutatingExt::mutating_ext);
+    if (id != NullMutationId) {
+        ToProto(ext->mutable_mutation_id(), id);
+        if (retry) {
+            request->SetRetry(true);
+        }
+    }
 }
 
-void SetMutationId(IClientRequestPtr request, const TMutationId& id)
+void SetOrGenerateMutationId(IClientRequestPtr request, const TMutationId& id, bool retry)
 {
-    SetMutationId(&request->Header(), id);
-}
-
-void SetOrGenerateMutationId(IClientRequestPtr request, const TMutationId& id)
-{
-    SetMutationId(request, id == NullMutationId ? TMutationId::Create() : id);
+    SetMutationId(request, id == NullMutationId ? TMutationId::Create() : id, retry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
