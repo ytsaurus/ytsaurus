@@ -531,6 +531,7 @@ def copy_hive_to_yt(hive_client, yt_client, source, destination_table, spec_temp
 
     spec = deepcopy(spec_template)
     spec["data_size_per_job"] = 1
+    spec["mapper"] = {"memory_limit": 2 * 1024 * 1024 * 1024}
     run_operation_and_notify(
         message_queue,
         yt_client,
