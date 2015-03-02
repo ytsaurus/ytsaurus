@@ -170,10 +170,6 @@ private:
             }));
     }
 
-    void OnTableMountInfoResponse(const TYPath& path, const TTableYPathProxy::TErrorOrRspGetMountInfoPtr& rspOrError)
-    {
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
