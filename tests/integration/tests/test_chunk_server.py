@@ -65,13 +65,13 @@ class TestChunkServer(YTEnvSetup):
 
     def test_decommission_regular(self):
         create("table", "//tmp/t")
-        write("//tmp/t", {"a" : "b"})
+        write_table("//tmp/t", {"a" : "b"})
         self._test_decommission("//tmp/t", 3)
 
     def test_decommission_erasure(self):
         create("table", "//tmp/t")
         set("//tmp/t/@erasure_codec", "lrc_12_2_2")
-        write("//tmp/t", {"a" : "b"})
+        write_table("//tmp/t", {"a" : "b"})
         self._test_decommission("//tmp/t", 16)
 
     def test_decommission_journal(self):
