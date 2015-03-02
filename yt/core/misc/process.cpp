@@ -292,6 +292,7 @@ void TProcess::ThrowOnChildError()
         << TError::FromSystem(errorCode);
 }
 
+#ifdef _linux_
 TError ProcessInfoToError(const siginfo_t& processInfo)
 {
     int signalBase = static_cast<int>(EExitStatus::SignalBase);
@@ -313,6 +314,7 @@ TError ProcessInfoToError(const siginfo_t& processInfo)
     }
     YUNREACHABLE();
 }
+#endif
 
 TError TProcess::Wait()
 {
