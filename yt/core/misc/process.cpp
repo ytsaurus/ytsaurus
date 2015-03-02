@@ -332,7 +332,9 @@ void TProcess::ThrowOnChildError()
         Finished_ = true;
     }
 
+#ifdef _linux_
     Cleanup(ProcessId_);
+#endif
     ProcessId_ = InvalidProcessId;
 
     int actionIndex = data[0];
