@@ -463,8 +463,8 @@ public:
             ActionQueue_->GetInvoker(),
             ProcessQueuesCallback_,
             FlushThreadQuantum))
-        , RecordCounter_("/record_rate")
-        , SizeCounter_("/record_throughput")
+        , RecordCounter_("/records")
+        , ByteCounter_("/bytes")
     {
         PeriodicExecutor_->Start();
     }
@@ -499,7 +499,7 @@ public:
         Wakeup();
 
         Profiler.Increment(RecordCounter_);
-        Profiler.Increment(SizeCounter_, record.Size());
+        Profiler.Increment(ByteCounter_, record.Size());
 
         return result;
     }
@@ -561,8 +561,8 @@ private:
     TSpinLock SpinLock_;
     yhash_map<TSyncFileChangelogPtr, TFileChangelogQueuePtr> QueueMap_;
 
-    NProfiling::TRateCounter RecordCounter_;
-    NProfiling::TRateCounter SizeCounter_;
+    NProfiling::TSimpleCounter RecordCounter_;
+    NProfiling::TSimpleCounter ByteCounter_;
 
 
     TFileChangelogQueuePtr FindQueue(TSyncFileChangelogPtr changelog) const

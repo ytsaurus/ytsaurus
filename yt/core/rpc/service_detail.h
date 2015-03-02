@@ -586,7 +586,7 @@ private:
     int ProtocolVersion_;
 
     NProfiling::TTagId ServiceTagId_;
-    NProfiling::TRateCounter RequestCounter_;
+    NProfiling::TSimpleCounter RequestCounter_;
 
     NConcurrency::TReaderWriterSpinLock MethodMapLock_;
     yhash_map<Stroka, TRuntimeMethodInfoPtr> MethodMap_;

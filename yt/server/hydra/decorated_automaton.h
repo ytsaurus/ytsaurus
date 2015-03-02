@@ -114,7 +114,7 @@ public:
         IInvokerPtr controlInvoker,
         ISnapshotStorePtr snapshotStore,
         IChangelogStorePtr changelogStore,
-        NProfiling::TProfiler profiler);
+        const NProfiling::TProfiler& profiler);
 
     void OnStartLeading();
     void OnLeaderRecoveryComplete();

@@ -463,7 +463,7 @@ void TServiceBase::Init(
     {
         NProfiling::TTagIdList tagIds;
         tagIds.push_back(ServiceTagId_);
-        RequestCounter_ = TRateCounter("/request_rate", tagIds);
+        RequestCounter_ = TSimpleCounter("/requests", tagIds);
     }
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)

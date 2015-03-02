@@ -47,8 +47,8 @@ public:
             false))
         , Thread(New<TThread>(this))
         , Root(GetEphemeralNodeFactory()->CreateMap())
-        , EnqueueCounter("/enqueue_rate")
-        , DequeueCounter("/dequeue_rate")
+        , EnqueuedCounter("/enqueued")
+        , DequeuedCounter("/dequeued")
     {
 #ifdef _linux_
         ResourceTracker = New<TResourceTracker>(GetInvoker());
@@ -78,7 +78,7 @@ public:
             return;
 
         if (!selfProfiling) {
-            ProfilingProfiler.Increment(EnqueueCounter);
+            ProfilingProfiler.Increment(EnqueuedCounter);
         }
 
         SampleQueue.Enqueue(sample);
@@ -293,8 +293,8 @@ private:
     TEnqueuedAction CurrentAction;
 
     IMapNodePtr Root;
-    TRateCounter EnqueueCounter;
-    TRateCounter DequeueCounter;
+    TSimpleCounter EnqueuedCounter;
+    TSimpleCounter DequeuedCounter;
 
     TLockFreeQueue<TQueuedSample> SampleQueue;
     yhash_map<TYPath, TBucketPtr> PathToBucket;
@@ -326,7 +326,7 @@ private:
             ++samplesProcessed;
         }
 
-        ProfilingProfiler.Increment(DequeueCounter, samplesProcessed);
+        ProfilingProfiler.Increment(DequeuedCounter, samplesProcessed);
 
         if (samplesProcessed > 0) {
             EventCount.CancelWait();

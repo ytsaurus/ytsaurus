@@ -23,13 +23,12 @@ class TLimitedThroughputThrottler
 public:
     TLimitedThroughputThrottler(
         TThroughputThrottlerConfigPtr config,
-        NLogging::TLogger logger,
-        NProfiling::TProfiler profiler)
+        const NLogging::TLogger& logger,
+        const NProfiling::TProfiler& profiler)
         : Config_(config)
         , Logger(logger)
         , Profiler(profiler)
-        , TotalCounter_("/total")
-        , RateCounter_("/rate")
+        , ValueCounter_("/value")
     {
         if (Config_->Limit) {
             ThroughputPerPeriod_ = static_cast<i64>(Config_->Period.SecondsFloat() * (*Config_->Limit));
@@ -48,8 +47,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count >= 0);
 
-        Profiler.Increment(TotalCounter_, count);
-        Profiler.Increment(RateCounter_, count);
+        Profiler.Increment(ValueCounter_, count);
 
         if (count == 0 || !Config_->Limit) {
             return VoidFuture;
@@ -65,9 +63,7 @@ public:
 
         // Enqueue request to be executed later.
         LOG_DEBUG("Started waiting for throttler (Count: %v)", count);
-        TRequest request;
-        request.Count = count;
-        request.Promise = NewPromise<void>();
+        TRequest request{count, NewPromise<void>()};
         Requests_.push(request);
         return request.Promise;
     }
@@ -82,8 +78,7 @@ private:
     TThroughputThrottlerConfigPtr Config_;
     NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
-    NProfiling::TAggregateCounter TotalCounter_;
-    NProfiling::TRateCounter RateCounter_;
+    NProfiling::TAggregateCounter ValueCounter_;
 
     i64 ThroughputPerPeriod_ = -1;
     TPeriodicExecutorPtr PeriodicExecutor_;
@@ -120,8 +115,8 @@ private:
 
 IThroughputThrottlerPtr CreateLimitedThrottler(
     TThroughputThrottlerConfigPtr config,
-    NLogging::TLogger logger,
-    NProfiling::TProfiler profiler)
+    const NLogging::TLogger& logger,
+    const NProfiling::TProfiler& profiler)
 {
     return New<TLimitedThroughputThrottler>(
         config,

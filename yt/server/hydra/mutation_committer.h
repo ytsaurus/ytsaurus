@@ -38,8 +38,8 @@ protected:
     TDecoratedAutomatonPtr DecoratedAutomaton_;
     TEpochContext* EpochContext_;
 
-    NProfiling::TRateCounter CommitCounter_;
-    NProfiling::TRateCounter BatchFlushCounter_;
+    NProfiling::TSimpleCounter CommitCounter_;
+    NProfiling::TSimpleCounter FlushCounter_;
 
     NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;

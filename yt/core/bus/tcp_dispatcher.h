@@ -11,14 +11,14 @@ namespace NBus {
 
 struct TTcpDispatcherStatistics
 {
-    int PendingInCount = 0;
-    i64 PendingInSize = 0;
+    int PendingInPackets = 0;
+    i64 PendingInBytes = 0;
 
-    int PendingOutCount = 0;
-    i64 PendingOutSize = 0;
+    int PendingOutPackets = 0;
+    i64 PendingOutBytes = 0;
 
-    int ClientConnectionCount = 0;
-    int ServerConnectionCount = 0;
+    int ClientConnections = 0;
+    int ServerConnections = 0;
 };
 
 TTcpDispatcherStatistics operator + (
@@ -63,7 +63,7 @@ private:
     friend class TTcpBusServerProxy;
 
     class TImpl;
-    std::unique_ptr<TImpl> Impl_;
+    const std::unique_ptr<TImpl> Impl_;
 
 };
 
