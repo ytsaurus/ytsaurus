@@ -304,9 +304,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (parent && parent->GetPersistentState() == ETransactionState::Active) {
-            THROW_ERROR_EXCEPTION("Parent transaction %v has invalid state %Qlv",
-                parent->GetId(),
-                parent->GetState());
+            parent->ThrowInvalidState();
         }
 
         auto objectManager = Bootstrap_->GetObjectManager();
@@ -357,10 +355,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto state = transaction->GetState();
+        auto state = transaction->GetPersistentState();
         
         if (state != ETransactionState::Active &&
-            state != ETransactionState::TransientCommitPrepared &&
             state != ETransactionState::PersistentCommitPrepared)
         {
             transaction->ThrowInvalidState();
@@ -387,7 +384,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto state = transaction->GetState();
+        auto state = transaction->GetPersistentState();
         if (state == ETransactionState::PersistentCommitPrepared && !force) {
             transaction->ThrowInvalidState();
         }
@@ -508,7 +505,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        auto state = transaction->GetState();
+        auto state = persistent ? transaction->GetPersistentState() : transaction->GetState();
         
         // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
         if (state != ETransactionState::Active &&
@@ -634,7 +631,6 @@ private:
     void DoPingTransaction(TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-
         YCHECK(transaction->GetState() == ETransactionState::Active);
 
         auto timeout = transaction->GetTimeout();
