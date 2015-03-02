@@ -353,9 +353,7 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
 #ifdef YT_USE_LLVM
                 auto expr = PrepareExpression(columnSchema.Expression.Get(), schema);
                 yhash_set<Stroka> references;
-                TFoldingProfiler()
-                    .Set(references)
-                    .Profile(expr);
+                Profile(expr, schema, nullptr, nullptr, &references);
                 for (const auto& ref : references) {
                     if (schema.GetColumnIndexOrThrow(ref) >= keyColumns.size()) {
                         THROW_ERROR_EXCEPTION("Computed column %Qv depends on a non-key column %Qv",
