@@ -106,7 +106,7 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta) const
     }
 
     if (LowerLimit_.GetRowIndex() >= Misc_.row_count()) {
-        LOG_DEBUG("Lower limit overstep chunk boundaries (LowerLimit: {%v}, RowCount: %v)",
+        LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: {%v}, RowCount: %v)",
             LowerLimit_,
             Misc_.row_count());
         return blockMeta.blocks_size();
@@ -160,7 +160,7 @@ int TChunkReaderBase::ApplyLowerKeyLimit(const TBlockMetaExt& blockMeta) const
     auto& lastBlock = *(--blockMetaEntries.end());
     auto maxKey = FromProto<TOwningKey>(lastBlock.last_key());
     if (LowerLimit_.GetKey() > maxKey) {
-        LOG_DEBUG("Lower limit overstep chunk boundaries (LowerLimit: {%v}, MaxKey: {%v})",
+        LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: {%v}, MaxKey: {%v})",
             LowerLimit_,
             maxKey);
         return blockMetaEntries.size();
