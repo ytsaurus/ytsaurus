@@ -1973,7 +1973,7 @@ TEST_F(TQueryEvaluateTest, SimpleStrings2)
     Evaluate("s, u FROM [//t] where u = \"x\"", split, source, result);
 }
 
-TEST_F(TQueryEvaluateTest, HasPrefixStrings)
+TEST_F(TQueryEvaluateTest, IsPrefixStrings)
 {
     auto split = MakeSplit({
         {"s", EValueType::String}
@@ -1990,6 +1990,32 @@ TEST_F(TQueryEvaluateTest, HasPrefixStrings)
     }, split);
 
     Evaluate("s FROM [//t] where is_prefix(\"foo\", s)", split, source, result);
+}
+
+TEST_F(TQueryEvaluateTest, IsSubstrStrings)
+{
+    auto split = MakeSplit({
+        {"s", EValueType::String}
+    });
+
+    auto source = BuildRows({
+        "s=foobar",
+        "s=barfoo",
+        "s=abc",
+        "s=\"baz foo bar\"",
+        "s=\"baz fo bar\"",
+        "s=xyz",
+        "s=baz"
+    }, split);
+
+    auto result = BuildRows({
+        "s=foobar",
+        "s=barfoo",
+        "s=\"baz foo bar\"",
+        "s=baz"
+    }, split);
+
+    Evaluate("s FROM [//t] where is_substr(\"foo\", s) or is_substr(s, \"XX baz YY\")", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, Complex)
