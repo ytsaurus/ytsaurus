@@ -1070,7 +1070,7 @@ private:
             transaction->GetId(),
             transaction->LockedRows().size());
 
-        YCHECK(transaction->PrelockedRows().empty());
+        YCHECK(transaction->                    n      NullStoreId  NullTimestamp                                        PrelockedRows().empty());
         transaction->LockedRows().clear();
 
         OnTransactionFinished(transaction);
@@ -1497,11 +1497,6 @@ void TTabletManager::Initialize()
 TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
 {
     return Impl_->GetTabletOrThrow(id);
-}
-
-void TTabletManager::ValidateTabletMounted(TTablet* tablet)
-{
-    Impl_->ValidateTabletMounted(tablet);
 }
 
 void TTabletManager::BackoffStore(IStorePtr store, EStoreState state)
