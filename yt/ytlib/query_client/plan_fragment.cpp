@@ -349,6 +349,24 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
         }
 
         return EValueType::String;
+    } else if (functionName == "simple_hash") {
+        if (argTypes.size() == 0) {
+            THROW_ERROR_EXCEPTION(
+                "Expression %Qv expects some arguments but none provided",
+                source);
+        }
+
+        for (const auto& argType : argTypes) {
+            // NB: hash has to be deterministic.
+            if (!(IsIntegralType(argType) || argType == EValueType::Boolean || argType == EValueType::String)) {
+                THROW_ERROR_EXCEPTION(
+                    "Expression %Qv supports only integer, boolean and string arguments",
+                    source)
+                    << TErrorAttribute("arg_type", ToString(argType));
+            }
+        }
+
+        return EValueType::Uint64;
     } else if (functionName == "is_null") {
         validateArgCount(1);
         return EValueType::Boolean;

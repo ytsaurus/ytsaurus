@@ -822,6 +822,35 @@ TCodegenExpression MakeCodegenFunctionExpr(
                     argValue.IsNull(),
                     TDataTypeBuilder::TBoolean::get(builder.getContext())),
                 type);
+        } else if (functionName == "simple_hash") {
+            Value* argRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
+            Value* executionContextPtrRef = builder.GetExecutionContextPtr();
+
+            builder.CreateCall3(
+                builder.Module->GetRoutine("AllocateRow"),
+                executionContextPtrRef,
+                builder.getInt32(codegenArgs.size()),
+                argRowPtr);
+
+            Value* argRowRef = builder.CreateLoad(argRowPtr);
+
+            std::vector<EValueType> keyTypes;
+            for (int index = 0; index < codegenArgs.size(); ++index) {
+                auto id = index;
+                auto value = codegenArgs[index](builder, row);
+                value.StoreToRow(builder, argRowRef, index, id);
+            }
+
+            Value* result = builder.CreateCall(
+                builder.Module->GetRoutine("SimpleHash"),
+                argRowRef);
+
+            return TCGValue::CreateFromValue(
+                builder,
+                builder.getInt1(false),
+                nullptr,
+                result,
+                EValueType::Uint64);
         } else if (functionName == "int64" || functionName == "uint64" || functionName == "double") {
             YCHECK(codegenArgs.size() == 1);
             return codegenArgs[0](builder, row).Cast(builder, type);
