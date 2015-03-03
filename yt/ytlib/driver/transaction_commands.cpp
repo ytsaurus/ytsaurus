@@ -6,10 +6,6 @@
 #include <core/ytree/fluent.h>
 #include <core/ytree/attribute_helpers.h>
 
-#include <ytlib/transaction_client/transaction_ypath_proxy.h>
-
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-
 #include <ytlib/transaction_client/transaction_manager.h>
 
 namespace NYT {
@@ -57,8 +53,8 @@ void TPingTransactionCommand::DoExecute()
         return;
 
     auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
-    auto result = WaitFor(transaction->Ping());
-    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    WaitFor(transaction->Ping())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,8 +64,8 @@ void TCommitTransactionCommand::DoExecute()
     auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
     TTransactionCommitOptions options;
     SetMutatingOptions(&options);
-    auto result = WaitFor(transaction->Commit(options));
-    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    WaitFor(transaction->Commit(options))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,8 +76,8 @@ void TAbortTransactionCommand::DoExecute()
     TTransactionAbortOptions options;
     SetMutatingOptions(&options);
     options.Force = Request_->Force;
-    auto result = WaitFor(transaction->Abort(options));
-    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    WaitFor(transaction->Abort(options))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
