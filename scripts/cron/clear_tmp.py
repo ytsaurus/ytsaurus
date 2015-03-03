@@ -31,24 +31,26 @@ def is_locked(obj):
 
 def main():
     parser = argparse.ArgumentParser(description='Clean operations from cypress.')
+    parser.add_argument('--directory', default="//tmp")
+    parser.add_argument('--account', default="tmp")
     parser.add_argument('--max-count', type=int, default=50000)
     parser.add_argument('--max-size', type=int, default=None)
     parser.add_argument('--days', type=int, default=7)
     args = parser.parse_args()
 
     if args.max_size is None:
-        args.max_size = yt.get("//sys/accounts/tmp/@resource_limits/disk_space") / 2.0
+        args.max_size = yt.get("//sys/accounts/{0}/@resource_limits/disk_space".format(args.account)) / 2.0
 
     # collect links
-    links = yt.search("//tmp", node_type="link")
+    links = yt.search(args.directory, node_type="link")
 
     # collect dirs
-    dirs = yt.search("//tmp", node_type="map_node", attributes=["modification_time", "count"])
+    dirs = yt.search(args.directory, node_type="map_node", attributes=["modification_time", "count"])
     dir_sizes = dict((str(obj), obj.attributes["count"]) for obj in dirs)
 
     # collect table and files
     objects = []
-    for obj in yt.search("//tmp", node_type=["table", "file"], attributes=["access_time", "modification_time", "locks", "hash", "resource_usage"]):
+    for obj in yt.search(args.directory, node_type=["table", "file"], attributes=["access_time", "modification_time", "locks", "hash", "resource_usage"]):
         if is_locked(obj):
             continue
         objects.append((get_age(obj), obj))
@@ -82,7 +84,7 @@ def main():
                 raise
 
     # check broken links
-    for obj in yt.search("//tmp", node_type=["link"], attributes=["broken"]):
+    for obj in yt.search(args.directory, node_type=["link"], attributes=["broken"]):
         if obj.attributes["broken"] == "true":
             logger.warning("Removing broken link %s", obj)
             yt.remove(obj, force=True)
