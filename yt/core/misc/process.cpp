@@ -291,6 +291,7 @@ void TProcess::Spawn()
 
 void TProcess::SpawnChild()
 {
+#ifdef _linux_
     int pid = vfork();
 
     if (pid < 0) {
@@ -309,10 +310,14 @@ void TProcess::SpawnChild()
         TGuard<TSpinLock> guard(LifecycleChangeLock_);
         Started_ = true;
     }
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
+#endif
 }
 
 void TProcess::ThrowOnChildError()
 {
+#ifdef _linux_
     int data[2];
     int res = ::read(Pipe_.ReadFD, &data, sizeof(data));
     if (res == 0) {
@@ -344,6 +349,9 @@ void TProcess::ThrowOnChildError()
     const auto& action = SpawnActions_[actionIndex];
     THROW_ERROR_EXCEPTION("%v", action.ErrorMessage)
         << TError::FromSystem(errorCode);
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
+#endif
 }
 
 #ifdef _linux_
