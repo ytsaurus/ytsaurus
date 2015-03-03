@@ -236,15 +236,20 @@ void GenerateMutationId(IClientRequestPtr request)
     SetMutationId(request, GenerateMutationId(), false);
 }
 
-void SetMutationId(IClientRequestPtr request, const TMutationId& id, bool retry)
+void SetMutationId(TRequestHeader* header, const TMutationId& id, bool retry)
 {
-    auto* ext = request->Header().MutableExtension(TMutatingExt::mutating_ext);
+    auto* ext = header->MutableExtension(TMutatingExt::mutating_ext);
     if (id != NullMutationId) {
         ToProto(ext->mutable_mutation_id(), id);
         if (retry) {
-            request->SetRetry(true);
+            header->set_retry(true);
         }
     }
+}
+
+void SetMutationId(IClientRequestPtr request, const TMutationId& id, bool retry)
+{
+    SetMutationId(&request->Header(), id, retry);
 }
 
 void SetOrGenerateMutationId(IClientRequestPtr request, const TMutationId& id, bool retry)
