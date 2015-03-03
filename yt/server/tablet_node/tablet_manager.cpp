@@ -767,7 +767,10 @@ private:
             return;
 
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
-        auto* tablet = GetTablet(tabletId);
+        // COMPAT(babenko)
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet)
+            return;
 
         auto codecId = ECodec(request.codec());
         auto* codec = GetCodec(codecId);
