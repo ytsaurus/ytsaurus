@@ -47,6 +47,8 @@
 
 #include <ytlib/hive/cluster_directory.h>
 
+#include <yt/ytlib/file_client/file_ypath.pb.h>
+
 #include <server/cell_scheduler/bootstrap.h>
 #include <server/cell_scheduler/config.h>
 
