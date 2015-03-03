@@ -6,6 +6,7 @@
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unversioned_row.h>

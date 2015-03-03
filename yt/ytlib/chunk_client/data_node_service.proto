@@ -5,7 +5,6 @@ import "yt/core/misc/error.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_info.proto";
-import "yt/ytlib/chunk_client/schema.proto";
 import "yt/ytlib/chunk_client/chunk_spec.proto";
 
 ////////////////////////////////////////////////////////////////////////////////

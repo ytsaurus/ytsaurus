@@ -6,8 +6,6 @@
 
 #include <core/ytree/fluent.h>
 
-#include <ytlib/cypress_client/lock_ypath.pb.h>
-
 #include <server/object_server/object_detail.h>
 
 #include <server/transaction_server/transaction.h>

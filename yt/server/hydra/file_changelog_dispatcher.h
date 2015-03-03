@@ -6,6 +6,8 @@
 
 #include <core/actions/public.h>
 
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
+
 namespace NYT {
 namespace NHydra {
 

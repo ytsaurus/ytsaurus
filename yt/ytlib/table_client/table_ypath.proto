@@ -4,7 +4,6 @@ import "yt/core/misc/guid.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/new_table_client/chunk_meta.proto";
 import "yt/ytlib/table_client/table_chunk_meta.proto";
-import "yt/ytlib/hydra/hydra_manager.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

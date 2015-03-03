@@ -1,7 +1,5 @@
 package NYT.NNodeTrackerClient.NProto;
 
-import "yt/core/misc/guid.proto";
-
 ////////////////////////////////////////////////////////////////////////////////
 
 // Describes the current state of a storage location.

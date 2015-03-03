@@ -7,8 +7,6 @@
 
 #include <ytlib/object_client/object_ypath_proxy.h>
 
-#include <ytlib/cypress_client/lock_ypath.pb.h>
-
 namespace NYT {
 namespace NCypressClient {
 

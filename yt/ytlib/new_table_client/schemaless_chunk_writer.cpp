@@ -11,6 +11,7 @@
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer_base.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/transaction_client/public.h>
 

@@ -12,6 +12,7 @@
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer_base.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h> // TODO(babenko): remove after migration
 

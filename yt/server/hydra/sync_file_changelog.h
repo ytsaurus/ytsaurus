@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include <core/misc/ref.h>
+
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 
 namespace NYT {

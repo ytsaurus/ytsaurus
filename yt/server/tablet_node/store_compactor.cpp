@@ -29,6 +29,7 @@
 #include <ytlib/new_table_client/versioned_chunk_writer.h>
 
 #include <ytlib/chunk_client/config.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/api/client.h>
 #include <ytlib/api/connection.h>

@@ -1,7 +1,6 @@
 package NYT.NChunkServer.NProto;
 
 import "yt/core/misc/guid.proto";
-import "yt/ytlib/node_tracker_client/node_tracker_service.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -18,4 +18,3 @@ list(APPEND YT_SOURCE_FILES
 
 protoc( ${BASE}/rpc.proto YT_SOURCE_FILES )
 protoc( ${BASE}/cypress_ypath.proto YT_SOURCE_FILES )
-protoc( ${BASE}/lock_ypath.proto YT_SOURCE_FILES )
