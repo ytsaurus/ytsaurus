@@ -580,6 +580,11 @@ static TValue MakeInt64(i64 value)
     return MakeUnversionedInt64Value(value);
 }
 
+static TValue MakeUint64(i64 value)
+{
+    return MakeUnversionedUint64Value(value);
+}
+
 static TValue MakeString(const TStringBuf& value)
 {
     return MakeUnversionedStringValue(value);
@@ -2627,8 +2632,10 @@ TEST_P(TEvaluateExpressionTest, Basic)
     const auto& expected = std::get<2>(param);
 
     TTableSchema schema;
-    schema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
-    schema.Columns().emplace_back(TColumnSchema("b", EValueType::Int64));
+    schema.Columns().emplace_back(TColumnSchema("i1", EValueType::Int64));
+    schema.Columns().emplace_back(TColumnSchema("i2", EValueType::Int64));
+    schema.Columns().emplace_back(TColumnSchema("u1", EValueType::Uint64));
+    schema.Columns().emplace_back(TColumnSchema("u2", EValueType::Uint64));
     TKeyColumns keyColumns;
 
     auto expr = PrepareExpression(exprString, schema);
@@ -2667,13 +2674,22 @@ INSTANTIATE_TEST_CASE_P(
     TEvaluateExpressionTest,
     ::testing::Values(
         std::tuple<const char*, const char*, TUnversionedValue>(
-            "a=33;b=22",
-            "a + b",
-            MakeUnversionedInt64Value(33 + 22)),
+            "i1=33;i2=22",
+            "i1 + i2",
+            MakeInt64(33 + 22)),
         std::tuple<const char*, const char*, TUnversionedValue>(
-            "a=33;b=22",
-            "-a",
-            MakeUnversionedInt64Value(-33))));
+            "i1=33",
+            "-i1",
+            MakeInt64(-33)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=20",
+            "uint64(i1)",
+            MakeUint64(20)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=30",
+            "int64(u1)",
+            MakeInt64(30))
+));
 
 ////////////////////////////////////////////////////////////////////////////////
 

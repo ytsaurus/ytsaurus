@@ -52,17 +52,17 @@ TCGValue MakePhi(
     TCGValue elseValue,
     Twine name = Twine())
 {
-    Value* thenType = thenValue.GetType();
+    Value* thenNull = thenValue.IsNull();
     Value* thenLength = thenValue.GetLength();
     Value* thenData = thenValue.GetData();
     
-    Value* elseType = elseValue.GetType();
+    Value* elseNull = elseValue.IsNull();
     Value* elseLength = elseValue.GetLength();
     Value* elseData = elseValue.GetData();
 
-    PHINode* phiType = builder.CreatePHI(builder.getInt16Ty(), 2, name + ".phiType");
-    phiType->addIncoming(thenType, thenBB);
-    phiType->addIncoming(elseType, elseBB);
+    PHINode* phiNull = builder.CreatePHI(builder.getInt1Ty(), 2, name + ".phiNull");
+    phiNull->addIncoming(thenNull, thenBB);
+    phiNull->addIncoming(elseNull, elseBB);
 
     YCHECK(thenValue.GetStaticType() == elseValue.GetStaticType());
     EValueType type = thenValue.GetStaticType();
@@ -81,7 +81,7 @@ TCGValue MakePhi(
         phiLength->addIncoming(elseLength, elseBB);
     }
 
-    return TCGValue::CreateFromValue(builder, phiType, phiLength, phiData, type, name);
+    return TCGValue::CreateFromValue(builder, phiNull, phiLength, phiData, type, name);
 }
 
 Value* MakePhi(
@@ -192,14 +192,14 @@ TCodegenAggregate MakeCodegenAggregateFunction(
             ui16 id = index;
             CodegenIf<TCGContext>(
                 builder,
-                newValue.IsNull(builder),
+                newValue.IsNull(),
                 [&] (TCGContext& builder) { },
                 [&] (TCGContext& builder) {
                     auto aggregateValue = TCGValue::CreateFromRow(builder, aggregateRow, index, type, name + ".aggregate");
 
                     CodegenIf<TCGContext, TCGValue>(
                         builder,
-                        aggregateValue.IsNull(builder),
+                        aggregateValue.IsNull(),
                         [&] (TCGContext& builder) {
                             return newValue;
                         },
@@ -278,7 +278,7 @@ TCodegenAggregate MakeCodegenAggregateFunction(
 
                             return TCGValue::CreateFromValue(
                                 builder,
-                                builder.getInt16(static_cast<ui16>(type)),
+                                builder.getInt1(false),
                                 nullptr,
                                 resultData,
                                 type,
@@ -376,9 +376,9 @@ Function* CodegenGroupComparerFunction(
 
         CodegenIf<TCGIRBuilder>(
             builder,
-            builder.CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
+            builder.CreateOr(lhsValue.IsNull(), rhsValue.IsNull()),
             [&] (TCGIRBuilder& builder) {
-                returnIf(builder.CreateICmpNE(lhsValue.GetType(), rhsValue.GetType()));
+                returnIf(builder.CreateICmpNE(lhsValue.GetType(builder), rhsValue.GetType(builder)));
             },
             [&] (TCGIRBuilder& builder) {
                 auto* lhsData = lhsValue.GetData();
@@ -465,7 +465,7 @@ Function* CodegenGroupHasherFunction(
         builder.CreateBr(conditionBB);
 
         builder.SetInsertPoint(conditionBB);
-        builder.CreateCondBr(value.IsNull(builder), elseBB, thenBB);
+        builder.CreateCondBr(value.IsNull(), elseBB, thenBB);
         conditionBB = builder.GetInsertBlock();
 
         builder.SetInsertPoint(thenBB);
@@ -572,12 +572,12 @@ Function* CodegenRowComparerFunction(
 
         CodegenIf<TCGIRBuilder>(
             builder,
-            builder.CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
+            builder.CreateOr(lhsValue.IsNull(), rhsValue.IsNull()),
             [&] (TCGIRBuilder& builder) {
                 returnIf(
-                    builder.CreateICmpNE(lhsValue.GetType(), rhsValue.GetType()),
+                    builder.CreateICmpNE(lhsValue.GetType(builder), rhsValue.GetType(builder)),
                     [&] (TCGIRBuilder&) {
-                        return builder.CreateICmpULT(lhsValue.GetType(), rhsValue.GetType());
+                        return builder.CreateICmpULT(lhsValue.GetType(builder), rhsValue.GetType(builder));
                     });
             },
             [&] (TCGIRBuilder& builder) {
@@ -717,7 +717,7 @@ TCodegenExpression MakeCodegenFunctionExpr(
 
             return CodegenIf<TCGContext, TCGValue>(
                 builder,
-                condition.IsNull(builder),
+                condition.IsNull(),
                 [&] (TCGContext& builder) {
                     return TCGValue::CreateNull(builder, type);
                 },
@@ -742,7 +742,7 @@ TCodegenExpression MakeCodegenFunctionExpr(
     
             return CodegenIf<TCGContext, TCGValue>(
                 builder,
-                lhsValue.IsNull(builder),
+                lhsValue.IsNull(),
                 [&] (TCGContext& builder) {
                     return TCGValue::CreateNull(builder, type);
                 },
@@ -752,7 +752,7 @@ TCodegenExpression MakeCodegenFunctionExpr(
 
                     return CodegenIf<TCGContext, TCGValue>(
                         builder,
-                        rhsValue.IsNull(builder),
+                        rhsValue.IsNull(),
                         [&] (TCGContext& builder) {
                             return TCGValue::CreateNull(builder, type);
                         },
@@ -768,7 +768,7 @@ TCodegenExpression MakeCodegenFunctionExpr(
 
                             return TCGValue::CreateFromValue(
                                 builder,
-                                builder.getInt16(static_cast<ui16>(type)),
+                                builder.getInt1(false),
                                 nullptr,
                                 result,
                                 type);
@@ -782,7 +782,7 @@ TCodegenExpression MakeCodegenFunctionExpr(
 
             return CodegenIf<TCGContext, TCGValue>(
                 builder,
-                argValue.IsNull(builder),
+                argValue.IsNull(),
                 [&] (TCGContext& builder) {
                     return TCGValue::CreateNull(builder, type);
                 },
@@ -798,7 +798,7 @@ TCodegenExpression MakeCodegenFunctionExpr(
 
                     return TCGValue::CreateFromValue(
                         builder,
-                        builder.getInt16(static_cast<ui16>(type)),
+                        builder.getInt1(false),
                         argLength,
                         result,
                         type);
@@ -810,10 +810,10 @@ TCodegenExpression MakeCodegenFunctionExpr(
 
             return TCGValue::CreateFromValue(
                 builder,
-                builder.getInt16(static_cast<ui16>(type)),
+                builder.getInt1(false),
                 nullptr,            
                 builder.CreateZExtOrBitCast(
-                    argValue.IsNull(builder),
+                    argValue.IsNull(),
                     TDataTypeBuilder::TBoolean::get(builder.getContext())),
                 type);
         } else if (functionName == "int64" || functionName == "uint64" || functionName == "double") {
@@ -842,7 +842,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
 
         return CodegenIf<TCGContext, TCGValue>(
             builder,
-            operandValue.IsNull(builder),
+            operandValue.IsNull(),
             [&] (TCGIRBuilder& builder) {
                 return TCGValue::CreateNull(builder, type);
             },
@@ -876,7 +876,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
 
                 return TCGValue::CreateFromValue(
                     builder,
-                    builder.getInt16(static_cast<ui16>(type)),
+                    builder.getInt1(false),
                     nullptr,
                     evalData,
                     type);
@@ -905,7 +905,7 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
 
         return CodegenIf<TCGContext, TCGValue>(
             builder,
-            lhsValue.IsNull(builder),
+            lhsValue.IsNull(),
             [&] (TCGContext& builder) {
                 return TCGValue::CreateNull(builder, type);
             },
@@ -914,7 +914,7 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
 
                 return CodegenIf<TCGContext, TCGValue>(
                     builder,
-                    rhsValue.IsNull(builder),
+                    rhsValue.IsNull(),
                     [&] (TCGContext& builder) {
                         return TCGValue::CreateNull(builder, type);
                     },
@@ -1081,7 +1081,7 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
 
                         return TCGValue::CreateFromValue(
                             builder,
-                            builder.getInt16(static_cast<ui16>(type)),
+                            builder.getInt1(false),
                             nullptr,
                             evalData,
                             type);
@@ -1129,7 +1129,7 @@ TCodegenExpression MakeCodegenInOpExpr(
 
         return TCGValue::CreateFromValue(
             builder,
-            builder.getInt16(static_cast<ui16>(EValueType::Boolean)),
+            builder.getInt1(false),
             nullptr,
             result,
             EValueType::Boolean);

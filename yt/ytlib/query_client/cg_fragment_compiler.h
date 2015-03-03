@@ -82,14 +82,14 @@ typedef TypeBuilder<TValueData, false> TDataTypeBuilder;
 class TCGValue
 {
 private:
-    Value* Type_;
+    Value* IsNull_;
     Value* Length_;
     Value* Data_;
     EValueType StaticType_;
     std::string Name_;
 
-    TCGValue(Value* type, Value* length, Value* data, EValueType staticType, Twine name)
-        : Type_(type)
+    TCGValue(Value* isNull, Value* length, Value* data, EValueType staticType, Twine name)
+        : IsNull_(isNull)
         , Length_(length)
         , Data_(data)
         , StaticType_(staticType)
@@ -107,7 +107,7 @@ public:
     TCGValue(const TCGValue& other) = default;
 
     TCGValue(TCGValue&& other)
-        : Type_(other.Type_)
+        : IsNull_(other.IsNull_)
         , Length_(other.Length_)
         , Data_(other.Data_)
         , StaticType_(other.StaticType_)
@@ -118,7 +118,7 @@ public:
 
     TCGValue& operator=(TCGValue&& other)
     {
-        Type_ = other.Type_;
+        IsNull_ = other.IsNull_;
         Length_ = other.Length_;
         Data_ = other.Data_;
         StaticType_ = other.StaticType_;
@@ -135,7 +135,7 @@ public:
 
     void Reset()
     {
-        Type_ = nullptr;
+        IsNull_ = nullptr;
         Length_ = nullptr;
         Data_ = nullptr;
         StaticType_ = EValueType::TheBottom;
@@ -148,14 +148,14 @@ public:
 
     static TCGValue CreateFromValue(
         TCGIRBuilder& builder,
-        Value* type,
+        Value* isNull,
         Value* length,
         Value* data,
         EValueType staticType,
         Twine name = Twine())
     {
-        if (type) {
-            YCHECK(type->getType() == TTypeBuilder::TType::get(builder.getContext()));
+        if (isNull) {
+            YCHECK(isNull->getType() == builder.getInt1Ty());
         }
         if (length) {
             YCHECK(length->getType() == TTypeBuilder::TLength::get(builder.getContext()));
@@ -163,7 +163,7 @@ public:
         if (data) {
             YCHECK(data->getType() == TDataTypeBuilder::get(builder.getContext(), staticType));
         }
-        return TCGValue(type, length, data, staticType, name);
+        return TCGValue(isNull, length, data, staticType, name);
     }
 
     static TCGValue CreateFromRow(
@@ -194,19 +194,24 @@ public:
         if (targetType->isPointerTy()) {
             castedData = builder.CreateIntToPtr(data,
                 targetType,
-                Twine(name) + ".data");
+                name + ".data");
         } else if (targetType->isFloatingPointTy()) {
             castedData = builder.CreateBitCast(data,
                 targetType,
-                Twine(name) + ".data");
+                name + ".data");
         } else {
             castedData = builder.CreateIntCast(data,
                 targetType,
                 false,
-                Twine(name) + ".data");
+                name + ".data");
         }
 
-        return CreateFromValue(builder, type, length, castedData, staticType, name);
+        auto isNull = builder.CreateICmpEQ(
+            type,
+            builder.getInt16(static_cast<ui16>(EValueType::Null)),
+            name + ".isNull");
+
+        return CreateFromValue(builder, isNull, length, castedData, staticType, name);
     }
 
     static TCGValue CreateNull(
@@ -215,8 +220,8 @@ public:
         Twine name = Twine())
     {
         return CreateFromValue(
-            builder, 
-            builder.getInt16(static_cast<ui16>(EValueType::Null)),
+            builder,
+            builder.getInt1(true),
             llvm::UndefValue::get(TTypeBuilder::TLength::get(builder.getContext())),
             llvm::UndefValue::get(TDataTypeBuilder::get(builder.getContext(), staticType)),
             staticType,
@@ -245,9 +250,9 @@ public:
             builder.getInt16(id),
             builder.CreateStructGEP(valuePtr, TTypeBuilder::Id, nameTwine + ".idPtr"));
 
-        if (Type_) {
+        if (IsNull_) {
             builder.CreateStore(
-                Type_,
+                GetType(builder),
                 builder.CreateStructGEP(valuePtr, TTypeBuilder::Type, nameTwine + ".typePtr"));
         }
         if (Length_) {
@@ -273,24 +278,18 @@ public:
         }
     }
 
-    Value* IsNull(TCGIRBuilder& builder)
+    Value* IsNull()
     {
-        // A little bit of manual constant folding.
-        if (Type_ && llvm::isa<ConstantInt>(Type_)) {
-            auto* constantType = llvm::cast<ConstantInt>(Type_);
-            if (constantType->getZExtValue() == static_cast<ui16>(EValueType::Null)) {
-                return builder.getFalse();
-            }
-        }
-        return builder.CreateICmpEQ(
-            Type_,
-            builder.getInt16(static_cast<ui16>(EValueType::Null)),
-            Twine(Name_) + ".isNull");
+        YCHECK(IsNull_);
+        return IsNull_;
     }
 
-    Value* GetType()
+    Value* GetType(TCGIRBuilder& builder)
     {
-        return Type_;
+        return builder.CreateSelect(
+            IsNull_,
+            builder.getInt16(static_cast<ui16>(EValueType::Null)),
+            builder.getInt16(static_cast<ui16>(StaticType_)));
     }
 
     Value* GetLength()
@@ -349,7 +348,7 @@ public:
             YUNREACHABLE();
         }
 
-        return CreateFromValue(builder, GetType(), GetLength(), result, dest);
+        return CreateFromValue(builder, IsNull_, GetLength(), result, dest);
     }
 };
 
