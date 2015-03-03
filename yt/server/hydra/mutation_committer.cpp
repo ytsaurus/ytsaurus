@@ -69,9 +69,7 @@ public:
         : Owner_(owner)
         , StartVersion_(startVersion)
         , Logger(Owner_->Logger)
-    {
-        Logger.AddTag("StartVersion: %v", StartVersion_);
-    }
+    { }
 
     void AddMutation(const TSharedRef& recordData, TFuture<void> localFlushResult)
     {
@@ -92,9 +90,12 @@ public:
 
     void Flush()
     {
-        int mutationCount = static_cast<int>(BatchedRecordsData_.size());
-        Logger.AddTag("MutationCount: %v", mutationCount);
+        int mutationCount = GetMutationCount();
         CommittedVersion_ = TVersion(StartVersion_.SegmentId, StartVersion_.RecordId + mutationCount);
+
+        LOG_DEBUG("Flushing batched mutations (StartVersion: %v, MutationCount: %v)",
+            StartVersion_,
+            mutationCount);
 
         Owner_->Profiler.Enqueue("/commit_batch_size", mutationCount);
 
@@ -458,8 +459,6 @@ void TLeaderCommitter::OnBatchTimeout(TBatchPtr batch)
     TGuard<TSpinLock> guard(BatchSpinLock_);
     if (batch != CurrentBatch_)
         return;
-
-    LOG_DEBUG("Flushing batched mutations");
 
     FlushCurrentBatch();
 }
