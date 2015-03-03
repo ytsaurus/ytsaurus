@@ -1207,6 +1207,7 @@ private:
         }
 
         if (prelock) {
+            ValidateTabletMounted(tablet);
             ValidateTransactionActive(transaction);
             PrelockedTransactions_.push(transaction);
             transaction->PrelockedRows().push(rowRef);
