@@ -233,12 +233,6 @@ class TTransactionalCommandBase<
     : public virtual TTypedCommandBase<TRequest>
 {
 protected:
-    NTransactionClient::TTransactionId GetTransactionId(EAllowNullTransaction allowNullTransaction)
-    {
-        auto transaction = this->GetTransaction(allowNullTransaction, EPingTransaction::Yes);
-        return transaction ? transaction->GetId() : NTransactionClient::NullTransactionId;
-    }
-
     NTransactionClient::TTransactionPtr GetTransaction(EAllowNullTransaction allowNullTransaction, EPingTransaction pingTransaction)
     {
         if (allowNullTransaction == EAllowNullTransaction::No &&
