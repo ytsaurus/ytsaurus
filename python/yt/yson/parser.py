@@ -442,6 +442,10 @@ class StreamWrap(object):
 
 
 def load(stream, yson_type=None):
+    """Deserialize `object` from YSON formatted stream `stream`.
+
+    :param yson_type: (string) type of YSON ("node", "list_fragment" or "map_fragment").
+    """
     if yson_type == "list_fragment":
         stream = StreamWrap(stream, "[", "]")
     if yson_type == "map_fragment":
@@ -451,5 +455,7 @@ def load(stream, yson_type=None):
     return parser.parse()
 
 def loads(string, yson_type=None):
+    """Deserialize `object` from YSON formatted string `string`. See `load`.
+    """
     return load(StringIO(string), yson_type)
 
