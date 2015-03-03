@@ -33,10 +33,6 @@ def export_table(object, args):
 
     logger.info("Exporting '%s' to '%s'", src, dst)
 
-    if not yt.exists(src):
-        logger.warning("Export table '%s' is empty", src)
-        return CANCEL
-
     if params.yt_proxy is None:
         logger.error("You should specify yt proxy")
         return CANCEL
@@ -47,8 +43,11 @@ def export_table(object, args):
 
     source_client = Yt(yt.config.http.PROXY, get_token())
     destination_client = Yt(params.yt_proxy, params.yt_token)
-
     yt.config.http.PROXY = None
+  
+    if not source_client.exists(src):
+        logger.warning("Export table '%s' is empty", src)
+        return CANCEL
 
     if destination_client.exists(dst) and destination_client.records_count(dst) != 0:
         if params.force:
