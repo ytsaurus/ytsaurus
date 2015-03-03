@@ -368,6 +368,89 @@ size_t StringHash(
     return TStringBuf(data, length).hash();
 }
 
+// FarmHash and MurmurHash hybrid to hash TRow.
+ui64 SimpleHash(TRow row)
+{
+    const ui64 FarmHashConstant = 0x9ddfea08eb382d69ULL;
+    const ui64 MurmurHashConstant = 0xc6a4a7935bd1e995ULL;
+
+    // Google FarmHash fingerprint. See https://code.google.com/p/farmhash.
+    const auto FramHashFingerprint64 = [FarmHashConstant] (ui64 data) {
+        // Murmur-inspired hashing.
+        ui64 result = data * FarmHashConstant;
+        result ^= (result >> 44);
+        result *= FarmHashConstant;
+        result ^= (result >> 41);
+        result *= FarmHashConstant;
+        return result;
+    };
+
+    // Append fingerprint to hash value. Like Murmurhash.
+    const auto hash64 = [&, MurmurHashConstant] (ui64 data, ui64 value) {
+        value ^= FramHashFingerprint64(data);
+        value *= MurmurHashConstant;
+        return value;
+    };
+
+    // Hash string. Like Murmurhash.
+    const auto hash = [&, MurmurHashConstant] (const void* voidData, int length, ui64 seed) {
+        ui64 result = seed;
+        const ui64* ui64Data = reinterpret_cast<const ui64*>(voidData);
+        const ui64* ui64End = ui64Data + (length / 8);
+
+        while (ui64Data < ui64End) {
+            auto data = *ui64Data++;
+            result = hash64(data, result);
+        }
+
+        const char* charData = reinterpret_cast<const char*>(ui64Data);
+
+        if (length & 4) {
+            result ^= (*reinterpret_cast<const ui32*>(charData) << (length & 3));
+            charData += 4;
+        }
+        if (length & 2) {
+            result ^= (*reinterpret_cast<const ui16*>(charData) << (length & 1));
+            charData += 2;
+        }
+        if (length & 1) {
+            result ^= *reinterpret_cast<const ui8*>(charData);
+        }
+
+        result *= MurmurHashConstant;
+        result ^= (result >> 47);
+        result *= MurmurHashConstant;
+        result ^= (result >> 47);
+        return result;
+    };
+
+    ui64 result = row.GetCount();
+
+    for (int index = 0; index < row.GetCount(); ++index) {
+        switch(row[index].Type) {
+            case EValueType::Int64:
+                result = hash64(row[index].Data.Int64, result);
+                break;
+            case EValueType::Uint64:
+                result = hash64(row[index].Data.Uint64, result);
+                break;
+            case EValueType::Boolean:
+                result = hash64(row[index].Data.Boolean, result);
+                break;
+            case EValueType::String:
+                result = hash(
+                    row[index].Data.String,
+                    row[index].Length,
+                    result);
+                break;
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoutines
@@ -394,9 +477,10 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(GetRowsData);
     REGISTER_ROUTINE(GetRowsSize);
     REGISTER_ROUTINE(IsPrefix);
-    REGISTER_ROUTINE(IsSubstr);    
+    REGISTER_ROUTINE(IsSubstr);
     REGISTER_ROUTINE(ToLower);
     REGISTER_ROUTINE(IsRowInArray);
+    REGISTER_ROUTINE(SimpleHash);
 #undef REGISTER_ROUTINE
 
     registry->RegisterRoutine("memcmp", std::memcmp);
