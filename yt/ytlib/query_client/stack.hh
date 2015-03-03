@@ -31,12 +31,12 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/savrus/dev/yt/minus/yt/ytlib/query_client/stack.hh
+ ** \file /home/savrus/dev/yt/calc/yt/ytlib/query_client/stack.hh
  ** Define the NYT::NQueryClient::NAst::stack class.
  */
 
-#ifndef YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_MINUS_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
-# define YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_MINUS_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_CALC_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
+# define YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_CALC_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
 
 # include <vector>
 
@@ -151,4 +151,4 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 } } } // NYT::NQueryClient::NAst
 
-#endif // !YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_MINUS_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_CALC_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED

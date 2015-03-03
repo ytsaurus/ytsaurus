@@ -1524,8 +1524,15 @@ INSTANTIATE_TEST_CASE_P(
             Make<TBinaryOpExpression>(EBinaryOp::Greater,
                 Make<TUnaryOpExpression>(EUnaryOp::Minus,
                     Make<TReferenceExpression>("a")),
-                Make<TLiteralExpression>(MakeInt64(-2))),
-            "-a > -2")
+                Make<TUnaryOpExpression>(EUnaryOp::Minus,
+                    Make<TLiteralExpression>(MakeInt64(2)))),
+            "-a > -2"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Minus,
+                Make<TUnaryOpExpression>(EUnaryOp::Minus,
+                    Make<TReferenceExpression>("a")),
+                Make<TLiteralExpression>(MakeInt64(2))),
+            "-a - 2")
     ));
 
 ////////////////////////////////////////////////////////////////////////////////
