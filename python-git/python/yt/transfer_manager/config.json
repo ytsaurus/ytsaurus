@@ -76,8 +76,8 @@
             "type": "kiwi",
             "options": {
                 "url": "fb-kiwi1500.search.yandex.net",
-                "kwworm": [
-                    "/home/monster/kwworm",
+                "kwworm_binary": "/home/ignat/kwworm",
+                "kwworm_options": [
                     ["-c", "{kiwi_url}"],
                     "-6",
                     ["-u", "{kiwi_user}"],
@@ -102,8 +102,8 @@
             "type": "kiwi",
             "options": {
                 "url": "fb-kiwi000.search.yandex.net",
-                "kwworm": [
-                    "/home/monster/kwworm",
+                "kwworm_binary": "/home/ignat/kwworm",
+                "kwworm_options": [
                     ["-c", "{kiwi_url}"],
                     "-6",
                     ["-u", "{kiwi_user}"],
