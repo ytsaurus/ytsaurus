@@ -14,9 +14,10 @@ class IncorrectRowCount(yt.YtError):
     pass
 
 class Kiwi(object):
-    def __init__(self, url, kwworm):
+    def __init__(self, url, kwworm_binary, kwworm_options):
         self.url = url
-        self.kwworm = kwworm
+        self.kwworm_binary = kwworm_binary
+        self.kwworm_options = kwworm_options
 
     def _get_option_key(self, option):
         if isinstance(option, list):
@@ -39,10 +40,10 @@ class Kiwi(object):
                 result.append(option)
         return result
 
-    def get_command(self, kiwi_user, kwworm_options=None):
+    def get_write_command(self, kiwi_user, kwworm_options=None):
         if kwworm_options is None:
             kwworm_options = []
-        command = " ".join(map(self._option_to_str, self._join_options(self.kwworm, kwworm_options)))
+        command = "./kwworm " + " ".join(map(self._option_to_str, self._join_options(self.kwworm_options, kwworm_options)))
         return command.format(kiwi_url=self.url, kiwi_user=kiwi_user)
 
 
@@ -474,7 +475,7 @@ while True:
         output_format = yt.YamrFormat(lenval=True,has_subkey=False)
     else:
         extract_value_script = extract_value_script_to_worm
-        kiwi_command = kiwi_client.get_command(kiwi_user=kiwi_user, kwworm_options=kwworm_options)
+        kiwi_command = kiwi_client.get_write_command(kiwi_user=kiwi_user, kwworm_options=kwworm_options)
         write_command = "| {0} >output 2>&1; RESULT=$?; cat output; tail -n 100 output >&2; exit $RESULT".format(kiwi_command)
         output_format = yt.SchemafulDsvFormat(columns=["error"])
 
@@ -484,6 +485,7 @@ while True:
     command_script = "set -o pipefail; {0} | python extract_value.py {1}".format(read_command, write_command)
     files.append(_pack_string("command.sh", command_script, tmp_dir))
     files.append(_pack_string("extract_value.py", extract_value_script, tmp_dir))
+    files.append(kiwi_client.kwworm_binary)
 
     try:
         run_operation_and_notify(
