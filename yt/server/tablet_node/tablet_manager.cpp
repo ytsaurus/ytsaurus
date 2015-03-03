@@ -146,16 +146,6 @@ public:
         return tablet;
     }
 
-    void ValidateTabletMounted(TTablet* tablet)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        if (tablet->GetState() != ETabletState::Mounted) {
-            THROW_ERROR_EXCEPTION("Tablet %v is not in \"mounted\" state",
-                tablet->GetTabletId());
-        }
-    }
-
 
     void BackoffStore(IStorePtr store, EStoreState state)
     {
@@ -180,10 +170,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        ValidateReadTimestamp(timestamp);
-
         auto securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(tabletSnapshot, EPermission::Read);
+
+        ValidateReadTimestamp(timestamp);
 
         while (!reader->IsFinished()) {
             ExecuteSingleRead(
@@ -201,21 +191,19 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        ValidateTabletMounted(tablet);
-        if (transaction->GetState() != ETransactionState::Active) {
-            transaction->ThrowInvalidState();
-        }
-        ValidateMemoryLimit();
-
         auto securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(tablet->GetSnapshot(), EPermission::Write);
+
+        ValidateTabletMounted(tablet);
+        ValidateTransactionActive(transaction);
+        ValidateMemoryLimit();
 
         // Protect from tablet disposal.
         TCurrentInvokerGuard guard(tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
 
         int prelockedCountBefore = PrelockedTransactions_.size();
 
-        TNullable<TError> error;
+        TError error;
         TNullable<TRowBlockedException> rowBlockedEx;
 
         while (!reader->IsFinished()) {
@@ -264,8 +252,8 @@ public:
                 rowBlockedEx->GetTimestamp());
         }
 
-        if (error) {
-            THROW_ERROR *error;
+        if (!error.IsOK()) {
+            THROW_ERROR error;
         }
     }
 
@@ -1070,7 +1058,7 @@ private:
             transaction->GetId(),
             transaction->LockedRows().size());
 
-        YCHECK(transaction->                    n      NullStoreId  NullTimestamp                                        PrelockedRows().empty());
+        YCHECK(transaction->PrelockedRows().empty());
         transaction->LockedRows().clear();
 
         OnTransactionFinished(transaction);
@@ -1216,6 +1204,7 @@ private:
         }
 
         if (prelock) {
+            ValidateTransactionActive(transaction);
             PrelockedTransactions_.push(transaction);
             transaction->PrelockedRows().push(rowRef);
         }
@@ -1468,6 +1457,24 @@ private:
     void SchedulePartitionsSampling(TTablet* tablet)
     {
         SchedulePartitionsSampling(tablet, 0, tablet->Partitions().size());
+    }
+
+
+    void ValidateTabletMounted(TTablet* tablet)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (tablet->GetState() != ETabletState::Mounted) {
+            THROW_ERROR_EXCEPTION("Tablet %v is not in \"mounted\" state",
+                tablet->GetTabletId());
+        }
+    }
+
+    void ValidateTransactionActive(TTransaction* transaction)
+    {
+        if (transaction->GetState() != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
     }
 
 };
