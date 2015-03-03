@@ -125,7 +125,7 @@ private:
             // Spawn the actor.
             BIND(&TImpl::ActorMain, MakeStrong(this))
                 // TODO(babenko): another invoker?
-                .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
+                .AsyncVia(Invoker_)
                 .Run();
 
             if (Transaction_) {
@@ -176,6 +176,8 @@ private:
         const TYPath Path_;
         const TJournalWriterOptions Options_;
         const TJournalWriterConfigPtr Config_;
+
+        const IInvokerPtr Invoker_ = NChunkClient::TDispatcher::Get()->GetWriterInvoker();
 
         const IChannelPtr MasterChannel_;
         TObjectServiceProxy ObjectProxy_;
@@ -494,7 +496,7 @@ private:
                     req->set_optimize_for_latency(true);
                     auto asyncRsp = req->Invoke().Apply(
                         BIND(&TImpl::OnChunkStarted, MakeStrong(this), node)
-                            .AsyncVia(GetCurrentInvoker()));
+                            .AsyncVia(Invoker_));
                     asyncResults.push_back(asyncRsp);
                 }
                 auto result = WaitFor(Combine(asyncResults));
@@ -508,7 +510,7 @@ private:
 
             for (auto node : CurrentSession_->Nodes) {
                 node->PingExecutor = New<TPeriodicExecutor>(
-                    GetCurrentInvoker(),
+                    Invoker_,
                     BIND(&TImpl::SendPing, MakeWeak(this), MakeWeak(CurrentSession_), MakeWeak(node)),
                     Config_->NodePingPeriod);
                 node->PingExecutor->Start();
@@ -653,7 +655,7 @@ private:
                 ToProto(req->mutable_chunk_id(), session->ChunkId);
                 req->Invoke().Subscribe(
                     BIND(&TImpl::OnChunkFinished, MakeStrong(this), node)
-                        .Via(GetCurrentInvoker()));
+                        .Via(Invoker_));
                 if (node->PingExecutor) {
                     node->PingExecutor->Stop();
                     node->PingExecutor.Reset();
@@ -762,7 +764,7 @@ private:
                 CurrentBatch_ = New<TBatch>();
                 CurrentBatchFlushCookie_ = TDelayedExecutor::Submit(
                     BIND(&TImpl::OnBatchTimeout, MakeWeak(this), CurrentBatch_)
-                        .Via(GetCurrentInvoker()),
+                        .Via(Invoker_),
                     Config_->MaxBatchDelay);
             }
 
@@ -808,7 +810,7 @@ private:
             ToProto(req->mutable_chunk_id(), session->ChunkId);
             req->Invoke().Subscribe(
                 BIND(&TImpl::OnPingSent, MakeWeak(this), session, node)
-                    .Via(GetCurrentInvoker()));
+                    .Via(Invoker_));
         }
 
         void OnPingSent(TChunkSessionPtr session, TNodePtr node, const TDataNodeServiceProxy::TErrorOrRspPingSessionPtr& rspOrError)
@@ -892,7 +894,7 @@ private:
 
             req->Invoke().Subscribe(
                 BIND(&TImpl::OnBlocksFlushed, MakeWeak(this), CurrentSession_, node, flushRowCount)
-                    .Via(GetCurrentInvoker()));
+                    .Via(Invoker_));
         }
 
         void OnBlocksFlushed(
