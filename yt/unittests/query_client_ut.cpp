@@ -2652,6 +2652,10 @@ TEST_P(TEvaluateExpressionTest, Basic)
     executionContext.OutputBuffer = &outputBuffer;
     executionContext.IntermediateBuffer = &intermediateBuffer;
     executionContext.Statistics = &statistics;
+#ifndef NDEBUG
+    volatile int dummy;
+    executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
+#endif
 
     callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext);
 
