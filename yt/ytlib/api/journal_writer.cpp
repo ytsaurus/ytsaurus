@@ -124,7 +124,6 @@ private:
 
             // Spawn the actor.
             BIND(&TImpl::ActorMain, MakeStrong(this))
-                // TODO(babenko): another invoker?
                 .AsyncVia(Invoker_)
                 .Run();
 
@@ -146,18 +145,18 @@ private:
                 return MakeFuture(Error_);
             }
 
-            auto batch = EnsureCurrentBatch();
+            TFuture<void> result = VoidFuture;
             for (const auto& row : rows) {
-                AppendToBatch(batch, row);
+                auto batch = EnsureCurrentBatch();
+                // NB: We can form a handful of batches but since flushes are monotonic,
+                // the last one will do.
+                result = AppendToBatch(batch, row);
                 if (IsBatchFull(batch)) {
                     FlushCurrentBatch();
-                    batch = EnsureCurrentBatch();
                 }
             }
 
-            // NB: We can form a handful of batches but since flushes are monotonic,
-            // the last one will do.
-            return batch->FlushedPromise;
+            return result;
         }
 
         TFuture<void> Close()
@@ -741,11 +740,12 @@ private:
         }
 
 
-        static void AppendToBatch(const TBatchPtr& batch, const TSharedRef& row)
+        static TFuture<void> AppendToBatch(const TBatchPtr& batch, const TSharedRef& row)
         {
             YASSERT(row);
             batch->Rows.push_back(row);
             batch->DataSize += row.Size();
+            return batch->FlushedPromise;
         }
 
         bool IsBatchFull(const TBatchPtr& batch)
