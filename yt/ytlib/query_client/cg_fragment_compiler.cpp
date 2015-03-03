@@ -278,7 +278,7 @@ TCodegenAggregate MakeCodegenAggregateFunction(
 
                             return TCGValue::CreateFromValue(
                                 builder,
-                                builder.getInt1(false),
+                                builder.getFalse(),
                                 nullptr,
                                 resultData,
                                 type,
@@ -378,7 +378,7 @@ Function* CodegenGroupComparerFunction(
             builder,
             builder.CreateOr(lhsValue.IsNull(), rhsValue.IsNull()),
             [&] (TCGIRBuilder& builder) {
-                returnIf(builder.CreateICmpNE(lhsValue.GetType(builder), rhsValue.GetType(builder)));
+                returnIf(builder.CreateICmpNE(lhsValue.IsNull(), rhsValue.IsNull()));
             },
             [&] (TCGIRBuilder& builder) {
                 auto* lhsData = lhsValue.GetData();
@@ -575,9 +575,9 @@ Function* CodegenRowComparerFunction(
             builder.CreateOr(lhsValue.IsNull(), rhsValue.IsNull()),
             [&] (TCGIRBuilder& builder) {
                 returnIf(
-                    builder.CreateICmpNE(lhsValue.GetType(builder), rhsValue.GetType(builder)),
+                    builder.CreateICmpNE(lhsValue.IsNull(), rhsValue.IsNull()),
                     [&] (TCGIRBuilder&) {
-                        return builder.CreateICmpULT(lhsValue.GetType(builder), rhsValue.GetType(builder));
+                        return builder.CreateICmpULT(lhsValue.IsNull(), rhsValue.IsNull());
                     });
             },
             [&] (TCGIRBuilder& builder) {
@@ -743,7 +743,7 @@ TCodegenExpression MakeCodegenFunctionExpr(
 
                             return TCGValue::CreateFromValue(
                                 builder,
-                                builder.getInt1(false),
+                                builder.getFalse(),
                                 nullptr,
                                 result,
                                 type);
@@ -804,7 +804,7 @@ TCodegenExpression MakeCodegenFunctionExpr(
 
                     return TCGValue::CreateFromValue(
                         builder,
-                        builder.getInt1(false),
+                        builder.getFalse(),
                         argLength,
                         result,
                         type);
@@ -816,7 +816,7 @@ TCodegenExpression MakeCodegenFunctionExpr(
 
             return TCGValue::CreateFromValue(
                 builder,
-                builder.getInt1(false),
+                builder.getFalse(),
                 nullptr,            
                 builder.CreateZExtOrBitCast(
                     argValue.IsNull(),
@@ -882,7 +882,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
 
                 return TCGValue::CreateFromValue(
                     builder,
-                    builder.getInt1(false),
+                    builder.getFalse(),
                     nullptr,
                     evalData,
                     type);
@@ -1087,7 +1087,7 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
 
                         return TCGValue::CreateFromValue(
                             builder,
-                            builder.getInt1(false),
+                            builder.getFalse(),
                             nullptr,
                             evalData,
                             type);
@@ -1135,7 +1135,7 @@ TCodegenExpression MakeCodegenInOpExpr(
 
         return TCGValue::CreateFromValue(
             builder,
-            builder.getInt1(false),
+            builder.getFalse(),
             nullptr,
             result,
             EValueType::Boolean);
