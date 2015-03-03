@@ -47,13 +47,21 @@ from yson_types import YsonEntity, YsonBoolean, YsonInt64, YsonUint64
 __all__ = ["dump", "dumps"]
 
 def dump(object, stream, yson_format=None, indent=None, check_circular=True, encoding='utf-8', yson_type=None, boolean_as_string=True):
-    '''Serialize ``object`` as a Yson formatted stream to ``fp`` (a
-    ``.write()``-supporting file-like object).'''
+    """Serialize `object` as a YSON formatted stream to `stream`.
+
+    :param yson_format: (string) format of YSON ("binary", "text" or "pretty").
+    :param yson_type: (string) type of YSON ("node", "list_fragment" or "map_fragment").
+    :param indent: (int) number of identation spaces in pretty format.
+    :param encoding: (string) encoding that uses to encode unicode strings.
+    :param boolean_as_string: (bool) whether dump boolean values as YSON strings (needed for backward compatibility).
+    """
+
     stream.write(dumps(object, yson_format=yson_format, check_circular=check_circular, encoding=encoding, indent=indent, yson_type=yson_type, boolean_as_string=boolean_as_string))
 
 
 def dumps(object, yson_format=None, indent=None, check_circular=True, encoding='utf-8', yson_type=None, boolean_as_string=True):
-    '''Serialize ``object`` as a Yson formatted string'''
+    """Serialize `object` as a YSON formatted stream to string and returns it. See `dump`
+    """
     if indent is None:
         indent = 4
     if isinstance(indent, int):
