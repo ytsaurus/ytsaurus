@@ -3,6 +3,8 @@
 #include "string.h"
 #include "process.h"
 
+#include <core/tools/registry.h>
+
 #include <core/logging/log.h>
 
 #include <core/misc/string.h>
@@ -119,7 +121,7 @@ std::vector<Stroka> GetProcessCommandLine(int pid)
 void RemoveDirAsRoot(const Stroka& path)
 {
     // Child process
-    YCHECK(setuid(0) == 0);
+    SafeSetUid(0);
     execl("/bin/rm", "/bin/rm", "-rf", path.c_str(), (void*)nullptr);
 
     THROW_ERROR_EXCEPTION("Failed to remove directory %Qv: execl failed",
@@ -282,6 +284,14 @@ void SafeMakeNonblocking(int fd)
     }
 }
 
+void SafeSetUid(int uid)
+{
+    if (setuid(uid) != 0) {
+        THROW_ERROR_EXCEPTION("setuid failed to set uid to %v", uid)
+            << TError::FromSystem();
+    }
+}
+
 #else
 
 bool TryClose(int /* fd */)
@@ -339,6 +349,11 @@ void SafeMakeNonblocking(int /* fd */)
     YUNIMPLEMENTED();
 }
 
+void SafeSetUid(int /* uid */)
+{
+    YUNIMPLEMENTED();
+}
+
 #endif
 
 void CloseAllDescriptors(const std::vector<int>& exceptFor)
@@ -367,6 +382,15 @@ void CloseAllDescriptors(const std::vector<int>& exceptFor)
     YCHECK(::closedir(dirStream) == 0);
 #endif
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TRemoveDirAsRootTool::operator()(const Stroka& arg) const
+{
+    RemoveDirAsRoot(arg);
+}
+
+REGISTER_TOOL(TRemoveDirAsRootTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -3,7 +3,11 @@
 #include "private.h"
 #include "config.h"
 
-#include <core/misc/subprocess.h>
+#include <ytlib/cgroup/cgroup.h>
+
+#include <core/tools/tools.h>
+
+#include <core/misc/proc.h>
 
 #include <core/logging/log_manager.h>
 
@@ -135,20 +139,8 @@ void TSlot::DoCleanSandbox()
     try {
         if (NFS::Exists(SandboxPath_)) {
             if (UserId_) {
-                auto process = TSubprocess::CreateCurrentProcessSpawner();
-                process.AddArguments({
-                    "--cleaner",
-                    "--dir-to-remove",
-                    SandboxPath_
-                });
-
-                auto result = process.Execute();
-                if (!result.Status.IsOK()) {
-                    TError wrappedError("Unable to clean sandbox %v: %Qv", SandboxPath_, result.Error);
-                    wrappedError << result.Status;
-                    LOG_ERROR(wrappedError);
-                    THROW_ERROR wrappedError;
-                }
+                LOG_DEBUG("Clean sandbox %v", SandboxPath_);
+                RunTool<TRemoveDirAsRootTool>(SandboxPath_);
             } else {
                 NFS::RemoveRecursive(SandboxPath_);
             }

@@ -18,7 +18,12 @@ void RemoveAllSubcgroups(const Stroka& path);
 
 void RunKiller(const Stroka& processGroupPath);
 
-void KillProcessGroup(const Stroka& processGroupPath);
+////////////////////////////////////////////////////////////////////////////////
+
+struct TKillProcessGroupTool
+{
+    void operator()(const Stroka& processGroupPath) const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

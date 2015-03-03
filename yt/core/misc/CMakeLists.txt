@@ -83,6 +83,7 @@ set( HDRS
   ${BASE}/format-inl.h
   ${BASE}/format.h
   ${BASE}/fs.h
+  ${BASE}/function_traits.h
   ${BASE}/guid-inl.h
   ${BASE}/guid.h
   ${BASE}/hash.h

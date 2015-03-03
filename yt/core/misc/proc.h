@@ -35,6 +35,8 @@ bool TryExecve(const char* path, char* const argv[], char* const env[]);
 void SafePipe(int fd[2]);
 void SafeMakeNonblocking(int fd);
 
+void SafeSetUid(int uid);
+
 void SetPermissions(int fd, int permissions);
 
 void CloseAllDescriptors(const std::vector<int>& exceptFor = std::vector<int>());
@@ -46,6 +48,13 @@ DEFINE_ENUM(EExitStatus,
     ((SigTerm)              (11006))
     ((SigKill)              (11009))
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRemoveDirAsRootTool
+{
+    void operator()(const Stroka& arg) const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

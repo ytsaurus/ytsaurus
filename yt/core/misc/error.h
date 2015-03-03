@@ -109,7 +109,10 @@ Stroka ToString(const TError& error);
 void ToProto(NProto::TError* protoError, const TError& error);
 void FromProto(TError* error, const NProto::TError& protoError);
 
-void Serialize(const TError& error, NYson::IYsonConsumer* consumer);
+void Serialize(
+    const TError& error,
+    NYson::IYsonConsumer* consumer,
+    const std::function<void(NYson::IYsonConsumer*)>* valueProducer = nullptr);
 void Deserialize(TError& error, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////

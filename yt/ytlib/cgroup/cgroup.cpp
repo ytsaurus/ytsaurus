@@ -5,11 +5,13 @@
 #include <core/ytree/fluent.h>
 
 #include <core/misc/fs.h>
-#include <core/misc/process.h>
+#include <core/misc/proc.h>
+
+#include <core/tools/tools.h>
+#include <core/tools/registry.h>
 
 #include <util/string/split.h>
 #include <util/folder/path.h>
-#include <util/system/execpath.h>
 #include <util/system/yield.h>
 
 #ifdef _linux_
@@ -28,6 +30,7 @@ static const Stroka CGroupRootPath("/sys/fs/cgroup");
 static const int ReadByAll = S_IRUSR | S_IRGRP | S_IROTH;
 static const int ReadExecuteByAll = ReadByAll | S_IXUSR | S_IXGRP | S_IXOTH;
 #endif
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -70,16 +73,6 @@ TDuration FromJiffies(i64 jiffies)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<Stroka> GetSupportedCGroups()
-{
-    std::vector<Stroka> result;
-    result.push_back("cpuacct");
-    result.push_back("blkio");
-    result.push_back("memory");
-    return result;
-}
-
-// The caller must be sure that it has root privileges.
 void RunKiller(const Stroka& processGroupPath)
 {
     LOG_INFO("Killing processes in cgroup %v", processGroupPath);
@@ -102,21 +95,27 @@ void RunKiller(const Stroka& processGroupPath)
     if (children.empty() && pids.empty())
         return;
 
-    TProcess process(GetExecPath());
-    process.AddArguments({
-        "--killer",
-        "--process-group-path",
-        processGroupPath
-    });
-
-    // We are forking here in order not to give the root privileges to the parent process ever,
-    // because we cannot know what the other threads are doing.
-    process.Spawn();
-
-    auto error = process.Wait();
-    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    RunTool<TKillProcessGroupTool>(processGroupPath);
 #endif
 }
+
+std::vector<Stroka> GetSupportedCGroups()
+{
+    std::vector<Stroka> result;
+    result.push_back("cpuacct");
+    result.push_back("blkio");
+    result.push_back("memory");
+    return result;
+}
+
+void TKillProcessGroupTool::operator()(const Stroka& processGroupPath) const
+{
+    SafeSetUid(0);
+    NCGroup::TNonOwningCGroup group(processGroupPath);
+    group.Kill();
+}
+
+REGISTER_TOOL(TKillProcessGroupTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 

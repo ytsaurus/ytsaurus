@@ -154,6 +154,20 @@ void Serialize(const std::map<Stroka, T>& items, NYson::IYsonConsumer* consumer)
     consumer->OnEndMap();
 }
 
+template<class T>
+void Serialize(const TErrorOr<T>& error, NYson::IYsonConsumer* consumer)
+{
+    const TError& justError = error;
+    if (error.IsOK()) {
+        std::function<void(NYson::IYsonConsumer*)> valueProducer = [&error] (NYson::IYsonConsumer* consumer) {
+            Serialize(error.Value(), consumer);
+        };
+        Serialize(justError, consumer, &valueProducer);
+    } else {
+        Serialize(justError, consumer);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -271,6 +285,19 @@ void Deserialize(std::map<Stroka, T>& value, INodePtr node)
     }
 }
 
+template<class T>
+void Deserialize(TErrorOr<T>& error, NYTree::INodePtr node)
+{
+    TError& justError = error;
+    Deserialize(justError, node);
+    if (error.IsOK()) {
+        auto mapNode = node->AsMap();
+        auto valueNode = mapNode->FindChild("value");
+        if (valueNode) {
+            Deserialize(error.Value(), std::move(valueNode));
+        }
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
