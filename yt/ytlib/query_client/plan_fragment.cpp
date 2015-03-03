@@ -322,7 +322,7 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
         }
 
         return thenType;
-    } else if (functionName == "is_prefix") {
+    } else if (functionName == "is_prefix" || functionName == "is_substr") {
         validateArgCount(2);
 
         auto lhsType = argTypes[0];

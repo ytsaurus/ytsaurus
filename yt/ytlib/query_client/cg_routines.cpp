@@ -304,6 +304,19 @@ char IsPrefix(
         std::mismatch(lhsData, lhsData + lhsLength, rhsData).first == lhsData + lhsLength;
 }
 
+char IsSubstr(
+    const char* patternData,
+    ui32 patternLength,
+    const char* stringData,
+    ui32 stringLength)
+{
+    return std::search(
+        stringData,
+        stringData + stringLength,
+        patternData,
+        patternData + patternLength) != stringData + stringLength;
+}
+
 char* ToLower(
     TExecutionContext* executionContext,
     const char* data,
@@ -381,6 +394,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(GetRowsData);
     REGISTER_ROUTINE(GetRowsSize);
     REGISTER_ROUTINE(IsPrefix);
+    REGISTER_ROUTINE(IsSubstr);    
     REGISTER_ROUTINE(ToLower);
     REGISTER_ROUTINE(IsRowInArray);
 #undef REGISTER_ROUTINE

@@ -710,32 +710,7 @@ TCodegenExpression MakeCodegenFunctionExpr(
     ] (TCGContext& builder, Value* row) {
         auto nameTwine = Twine(name.c_str());
 
-        if (functionName == "if") {
-            YCHECK(codegenArgs.size() == 3);
-            auto condition = codegenArgs[0](builder, row);
-            YCHECK(condition.GetStaticType() == EValueType::Boolean);
-
-            return CodegenIf<TCGContext, TCGValue>(
-                builder,
-                condition.IsNull(),
-                [&] (TCGContext& builder) {
-                    return TCGValue::CreateNull(builder, type);
-                },
-                [&] (TCGContext& builder) {
-                    return CodegenIf<TCGContext, TCGValue>(
-                        builder,
-                        builder.CreateICmpNE(
-                            builder.CreateZExtOrBitCast(condition.GetData(), builder.getInt64Ty()),
-                            builder.getInt64(0)),
-                        [&] (TCGContext& builder) {
-                            return codegenArgs[1](builder, row);
-                        },
-                        [&] (TCGContext& builder) {
-                            return codegenArgs[2](builder, row);
-                        });
-                },
-                nameTwine);
-        } else if (functionName == "is_prefix") {
+        auto makeBinaryFunctionCall = [&] (const Stroka& routineName) {
             YCHECK(codegenArgs.size() == 2);
             auto lhsValue = codegenArgs[0](builder, row);
             YCHECK(lhsValue.GetStaticType() == EValueType::String);
@@ -763,7 +738,7 @@ TCodegenExpression MakeCodegenFunctionExpr(
                             Value* rhsLength = rhsValue.GetLength();
 
                             Value* result = builder.CreateCall4(
-                                builder.Module->GetRoutine("IsPrefix"),
+                                builder.Module->GetRoutine(routineName),
                                 lhsData, lhsLength, rhsData, rhsLength);
 
                             return TCGValue::CreateFromValue(
@@ -775,6 +750,37 @@ TCodegenExpression MakeCodegenFunctionExpr(
                         });
                 },
                 nameTwine);
+        };
+
+        if (functionName == "if") {
+            YCHECK(codegenArgs.size() == 3);
+            auto condition = codegenArgs[0](builder, row);
+            YCHECK(condition.GetStaticType() == EValueType::Boolean);
+
+            return CodegenIf<TCGContext, TCGValue>(
+                builder,
+                condition.IsNull(),
+                [&] (TCGContext& builder) {
+                    return TCGValue::CreateNull(builder, type);
+                },
+                [&] (TCGContext& builder) {
+                    return CodegenIf<TCGContext, TCGValue>(
+                        builder,
+                        builder.CreateICmpNE(
+                            builder.CreateZExtOrBitCast(condition.GetData(), builder.getInt64Ty()),
+                            builder.getInt64(0)),
+                        [&] (TCGContext& builder) {
+                            return codegenArgs[1](builder, row);
+                        },
+                        [&] (TCGContext& builder) {
+                            return codegenArgs[2](builder, row);
+                        });
+                },
+                nameTwine);
+        } else if (functionName == "is_prefix") {
+            return makeBinaryFunctionCall("IsPrefix");
+        } else if (functionName == "is_substr") {
+            return makeBinaryFunctionCall("IsSubstr");
         } else if (functionName == "lower") {
             YCHECK(codegenArgs.size() == 1);
             auto argValue = codegenArgs[0](builder, row);
