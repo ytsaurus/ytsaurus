@@ -9,6 +9,7 @@
 #include "stderr_output.h"
 #include "table_output.h"
 #include "user_job_io.h"
+#include "stracer.h"
 
 #include <server/exec_agent/public.h>
 
@@ -36,6 +37,8 @@
 #include <core/misc/subprocess.h>
 #include <core/misc/pattern_formatter.h>
 #include <core/misc/finally.h>
+
+#include <core/tools/tools.h>
 
 #include <core/concurrency/action_queue.h>
 
@@ -442,20 +445,8 @@ private:
             Stracing_.clear();
         });
 
-        TYsonString spec = BuildYsonStringFluently(NYson::EYsonFormat::Text)
-            .BeginMap()
-                .Item("pids").Value(pids)
-            .EndMap();
-
-        auto stracer = NExecAgent::TSubprocess::CreateCurrentProcessSpawner();
-        stracer.AddArguments({
-            "--stracer",
-            "--spec",
-            spec.Data()
-        });
-
         auto asyncTraces = WaitFor(BIND([&] () {
-            return stracer.Execute();
+            return RunTool<TStraceTool>(pids);
         })
             .AsyncVia(JobProberQueue_->GetInvoker())
             .Run());
@@ -465,21 +456,7 @@ private:
                 << asyncTraces;
         }
 
-        const auto& traces = asyncTraces.Value();
-
-        try {
-            if (!traces.Status.IsOK()) {
-                THROW_ERROR traces.Status;
-            }
-
-            LOG_DEBUG("Stracer stderr: %Qv", traces.Error);
-
-            return TYsonString(Stroka(traces.Output.Begin(), traces.Output.End()));
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to strace")
-                << ex
-                << TErrorAttribute("error", ToString(traces.Error));
-        }
+        return ConvertToYsonString(asyncTraces.Value());
     }
 
     int GetMaxReservedDescriptor() const

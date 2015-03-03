@@ -69,6 +69,7 @@ set( SRCS
   ${BASE}/subprocess_ut.cpp
   ${BASE}/sync_file_changelog_ut.cpp
   ${BASE}/thread_affinity_ut.cpp
+  ${BASE}/tools_ut.cpp
   ${BASE}/tree_builder_ut.cpp
   ${BASE}/url_ut.cpp
   ${BASE}/variant_ut.cpp

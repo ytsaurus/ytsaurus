@@ -27,13 +27,15 @@
 #include <core/misc/crash_handler.h>
 #include <core/misc/proc.h>
 
-#include <core/build.h>
+#include <core/tools/tools.h>
 
-#include <core/logging/log_manager.h>
+#include <core/build.h>
 
 #include <core/profiling/profile_manager.h>
 
 #include <core/tracing/trace_manager.h>
+
+#include <core/logging/log_manager.h>
 
 #include <util/system/sigset.h>
 #include <util/system/execpath.h>
@@ -83,13 +85,9 @@ public:
         , JobProxy("", "job-proxy", "start job proxy")
         , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
 #ifdef _linux_
-        , Cleaner("", "cleaner", "start cleaner")
-        , Killer("", "killer", "start killer")
-        , Stracer("", "stracer", "start stracer")
-        , Spec("", "spec", "command spec", false, "", "SPEC")
+        , Tool("", "tool", "tool id", false, "", "ID")
+        , Spec("", "spec", "tool spec", false, "", "SPEC")
         , CloseAllFDs("", "close-all-fds", "close all file descriptors")
-        , DirToRemove("", "dir-to-remove", "directory to remove (for cleaner mode)", false, "", "DIR")
-        , ProcessGroupPath("", "process-group-path", "path to process group to kill (for killer mode)", false, "", "UID")
         , CGroups("", "cgroup", "run in cgroup", false, "")
         , Executor("", "executor", "start a user job")
         , PreparePipes("", "prepare-pipe", "prepare pipe descriptor  (for executor mode)", false, "FD")
@@ -110,13 +108,9 @@ public:
         CmdLine.add(JobProxy);
         CmdLine.add(JobId);
 #ifdef _linux_
-        CmdLine.add(Cleaner);
-        CmdLine.add(Killer);
-        CmdLine.add(Stracer);
+        CmdLine.add(Tool);
         CmdLine.add(Spec);
         CmdLine.add(CloseAllFDs);
-        CmdLine.add(DirToRemove);
-        CmdLine.add(ProcessGroupPath);
         CmdLine.add(CGroups);
         CmdLine.add(Executor);
         CmdLine.add(PreparePipes);
@@ -139,13 +133,9 @@ public:
     TCLAP::ValueArg<Stroka> JobId;
 
 #ifdef _linux_
-    TCLAP::SwitchArg Cleaner;
-    TCLAP::SwitchArg Killer;
-    TCLAP::SwitchArg Stracer;
+    TCLAP::ValueArg<Stroka> Tool;
     TCLAP::ValueArg<Stroka> Spec;
     TCLAP::SwitchArg CloseAllFDs;
-    TCLAP::ValueArg<Stroka> DirToRemove;
-    TCLAP::ValueArg<Stroka> ProcessGroupPath;
     TCLAP::MultiArg<Stroka> CGroups;
     TCLAP::SwitchArg Executor;
     TCLAP::MultiArg<int> PreparePipes;
@@ -176,9 +166,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     bool isJobProxy = parser.JobProxy.getValue();
 
 #ifdef _linux_
-    bool isCleaner = parser.Cleaner.getValue();
-    bool isKiller = parser.Killer.getValue();
-    bool isStracer = parser.Stracer.getValue();
+    Stroka toolName = parser.Tool.getValue();
     bool isExecutor = parser.Executor.getValue();
     bool doCloseAllFDs = parser.CloseAllFDs.getValue();
 #endif
@@ -207,13 +195,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
 #ifdef _linux_
-    if (isCleaner) {
-        ++modeCount;
-    }
-    if (isKiller) {
-        ++modeCount;
-    }
-    if (isStracer) {
+    if (!toolName.Empty()) {
         ++modeCount;
     }
     if (isExecutor) {
@@ -237,75 +219,10 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
 #ifdef _linux_
-    if (isCleaner) {
-        NConcurrency::SetCurrentThreadName("CleanerMain");
-
-        Stroka path = parser.DirToRemove.getValue();
-        if (path.empty() || path[0] != '/') {
-            THROW_ERROR_EXCEPTION("A path should be absolute. Path: %v", ~path);
-        }
-        int counter = 0;
-        size_t nextSlash = 0;
-        while (nextSlash != Stroka::npos) {
-            nextSlash = path.find('/', nextSlash + 1);
-            ++counter;
-        }
-
-        if (counter <= 3) {
-            THROW_ERROR_EXCEPTION("A path should contain at least 4 slashes. Path: %v", ~path);
-        }
-
-        RemoveDirAsRoot(path);
-
-        return EExitCode::OK;
-    }
-
-    if (isKiller) {
-        NConcurrency::SetCurrentThreadName("KillerMain");
-
-        YCHECK(setuid(0) == 0);
-        auto path = parser.ProcessGroupPath.getValue();
-        NCGroup::TNonOwningCGroup group(path);
-        group.Kill();
-
-        return EExitCode::OK;
-    }
-
-    if (isStracer) {
-        NConcurrency::SetCurrentThreadName("StracerMain");
-
-        YCHECK(setuid(0) == 0);
-
-        auto builder = CreateBuilderFromFactory(NYT::NYTree::GetEphemeralNodeFactory());
-        NYT::NYTree::BuildYsonFluently(builder.get())
-            .BeginMap()
-                .Item("rules")
-                .BeginList()
-                    .Item()
-                    .BeginMap()
-                        .Item("min_level").Value("info")
-                        .Item("writers").BeginList().Item().Value("stderr").EndList()
-                        .Item("categories").List("*")
-                    .EndMap()
-                .EndList()
-                .Item("writers")
-                .BeginMap()
-                    .Item("stderr")
-                    .BeginMap()
-                        .Item("type").Value("stderr")
-                        .Item("pattern").Value("$(datetime) $(level) $(category) $(message)")
-                    .EndMap()
-                .EndMap()
-            .EndMap();
-        NYT::NLogging::TLogManager::Get()->Configure(builder->EndTree());
-
-        auto spec = ConvertToNode(NYTree::TYsonString(parser.Spec.getValue()));
-        auto pids = NYTree::ConvertTo<std::vector<int>>(spec->AsMap()->GetChild("pids"));
-
-        auto straceResult = Strace(pids);
-
-        Cout << NYTree::ConvertToYsonString(straceResult).Data();
-
+    if (!toolName.Empty()) {
+        NYTree::TYsonString spec(parser.Spec.getValue());
+        auto result = ExecuteTool(toolName, spec);
+        Cout << result.Data();
         return EExitCode::OK;
     }
 #endif

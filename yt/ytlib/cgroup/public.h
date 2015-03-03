@@ -5,7 +5,6 @@ namespace NCGroup {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEvent;
 class TNonOwningCGroup;
 class TCGroup;
 class TCpuAccounting;

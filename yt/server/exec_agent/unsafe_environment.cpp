@@ -5,11 +5,13 @@
 
 #include <server/exec_agent/slot.h>
 
+#include <server/job_proxy/public.h>
+
 #include <core/concurrency/thread_affinity.h>
 
 #include <core/misc/process.h>
 
-#include <server/job_proxy/public.h>
+#include <core/tools/tools.h>
 
 #include <util/system/execpath.h>
 

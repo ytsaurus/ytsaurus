@@ -349,7 +349,7 @@ void FromProto(TError* error, const NYT::NProto::TError& protoError)
     error->InnerErrors() = FromProto<TError>(protoError.inner_errors());
 }
 
-void Serialize(const TError& error, NYson::IYsonConsumer* consumer)
+void Serialize(const TError& error, NYson::IYsonConsumer* consumer, const std::function<void(NYson::IYsonConsumer*)>* valueProducer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -365,6 +365,10 @@ void Serialize(const TError& error, NYson::IYsonConsumer* consumer)
                         fluent
                             .Item().Value(innerError);
                     });
+            })
+            .DoIf(valueProducer != nullptr, [=] (TFluentMap fluent) {
+                fluent
+                    .Item("value").Do(BIND(*valueProducer));
             })
         .EndMap();
 }

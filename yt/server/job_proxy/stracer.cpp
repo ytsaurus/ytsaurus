@@ -4,6 +4,9 @@
 #include <core/misc/subprocess.h>
 #include <core/misc/proc.h>
 
+#include <core/tools/tools.h>
+#include <core/tools/registry.h>
+
 #include <core/ytree/fluent.h>
 
 namespace NYT {
@@ -20,6 +23,16 @@ static const TDuration TraceTimeout = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TStracerResult TStraceTool::operator()(const std::vector<int>& pids) const
+{
+    SafeSetUid(0);
+    return NJobProxy::Strace(pids);;
+}
+
+REGISTER_TOOL(TStraceTool);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Serialize(const TStrace& trace, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
@@ -28,6 +41,15 @@ void Serialize(const TStrace& trace, NYson::IYsonConsumer* consumer)
             .Item("process_name").Value(trace.ProcessName)
             .Item("process_command_line").List(trace.ProcessCommandLine)
         .EndMap();
+}
+
+void Deserialize(TStrace& value, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+
+    value.Trace = ConvertTo<Stroka>(mapNode->GetChild("trace"));
+    value.ProcessName = ConvertTo<Stroka>(mapNode->GetChild("process_name"));
+    value.ProcessCommandLine = ConvertTo<std::vector<Stroka>>(mapNode->GetChild("process_command_line"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,6 +63,23 @@ void Serialize(const TStracerResult& stracerResult, NYson::IYsonConsumer* consum
                     .Item(ToString(pair.first)).Value(pair.second);
             })
         .EndMap();
+}
+
+template <class T>
+void Deserialize(yhash_map<int, T>& value, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    for (const auto& pair : mapNode->GetChildren()) {
+        int key = ConvertTo<int>(TYsonString(pair.first));
+        T item;
+        Deserialize(item, pair.second);
+        value.insert(std::make_pair(key, std::move(item)));
+    }
+}
+
+void Deserialize(TStracerResult& value, INodePtr node)
+{
+    Deserialize(value.Traces, node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
