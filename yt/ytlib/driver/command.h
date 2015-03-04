@@ -225,13 +225,13 @@ protected:
             return nullptr;
         }
 
-        NTransactionClient::TTransactionAttachOptions options(transactionId);
+        auto transactionManager = this->Context_->GetClient()->GetTransactionManager();
+
+        NTransactionClient::TTransactionAttachOptions options;
         options.AutoAbort = false;
         options.Ping = !required;
         options.PingAncestors = this->Request_->PingAncestors;
-
-        auto transactionManager = this->Context_->GetClient()->GetTransactionManager();
-        return transactionManager->Attach(options);
+        return transactionManager->Attach(transactionId, options);
     }
 
     void SetTransactionalOptions(NApi::TTransactionalOptions* options)

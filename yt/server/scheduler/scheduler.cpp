@@ -310,14 +310,13 @@ public:
 
         // Attach user transaction if any. Don't ping it.
         auto transactionManager = GetMasterClient()->GetTransactionManager();
-        TTransactionAttachOptions userAttachOptions(transactionId);
+        TTransactionAttachOptions userAttachOptions;
         userAttachOptions.AutoAbort = false;
         userAttachOptions.Ping = false;
         userAttachOptions.PingAncestors = false;
-        auto userTransaction =
-            transactionId == NullTransactionId
+        auto userTransaction = transactionId == NullTransactionId
             ? nullptr
-            : transactionManager->Attach(userAttachOptions);
+            : transactionManager->Attach(transactionId, userAttachOptions);
 
         // Merge operation spec with template
         auto specTemplate = GetSpecTemplate(type, spec);

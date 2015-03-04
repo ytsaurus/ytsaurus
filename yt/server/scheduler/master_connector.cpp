@@ -556,10 +556,10 @@ private:
                 const auto& rsp = rspOrError.Value();
                 auto transactionId = FromProto<TTransactionId>(rsp->object_ids(0));
 
-                TTransactionAttachOptions options(transactionId);
+                TTransactionAttachOptions options;
                 options.AutoAbort = true;
                 auto transactionManager = Owner->Bootstrap->GetMasterClient()->GetTransactionManager();
-                Owner->LockTransaction = transactionManager->Attach(options);
+                Owner->LockTransaction = transactionManager->Attach(transactionId, options);
 
                 LOG_INFO("Lock transaction is %v", transactionId);
             }
@@ -945,11 +945,11 @@ private:
             auto connection = clusterDirectory->GetConnection(CellTagFromId(id));
             auto client = connection->CreateClient(GetRootClientOptions());
             auto transactionManager = client->GetTransactionManager();
-            TTransactionAttachOptions options(id);
+            TTransactionAttachOptions options;
             options.AutoAbort = false;
             options.Ping = ping;
             options.PingAncestors = false;
-            return transactionManager->Attach(options);
+            return transactionManager->Attach(id, options);
         };
 
         auto userTransaction = getTransaction(
