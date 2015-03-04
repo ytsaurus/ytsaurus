@@ -13,43 +13,9 @@ var __DBG = require("./debug").that("A", "Authentication");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtAuthority(config, driver)
+function createNewResult()
 {
     "use strict";
-    this.__DBG = __DBG.Tagged();
-
-    this.config = config;
-    this.driver = driver;
-
-    // Caches token authentication results.
-    this.token_cache = lru_cache({
-        max: this.config.cache_max_size,
-        maxAge: this.config.cache_max_token_age,
-    });
-
-    // Caches user existence.
-    this.exist_cache = lru_cache({
-        max: this.config.cache_max_size,
-        maxAge: this.config.cache_max_exist_age,
-    });
-
-    this.__DBG("New");
-}
-
-YtAuthority.prototype.authenticate = Q.method(
-function YtAuthority$authenticate(logger, party, token)
-{
-    "use strict";
-    this.__DBG("authenticate");
-
-    // This structure represents an immutable request state.
-    // It is passed to all subsequent calls.
-    var context = {
-        ts: new Date(),
-        logger: logger,
-        party: party,
-        token: token,
-    };
 
     // This structure represents a mutable response state.
     // If |result.login| is string, then it is a login.
@@ -67,40 +33,92 @@ function YtAuthority$authenticate(logger, party, token)
         enumerable: true
     });
 
-    // Reject empty tokens.
-    if (token === "") {
-        result.realm = "empty";
-        return result;
-    }
+    return result;
+}
+
+function YtAuthority(config, driver)
+{
+    "use strict";
+    this.__DBG = __DBG.Tagged();
+
+    this.config = config;
+    this.driver = driver;
+
+    // Caches token authentication results.
+    this.authentication_cache = lru_cache({
+        max: this.config.cache_max_size,
+        maxAge: this.config.cache_max_token_age,
+    });
+
+    // Caches user existence.
+    this.exist_cache = lru_cache({
+        max: this.config.cache_max_size,
+        maxAge: this.config.cache_max_exist_age,
+    });
+
+    this.__DBG("New");
+}
+
+YtAuthority.prototype.authenticateByToken = Q.method(
+function YtAuthority$authenticateByToken(logger, party, token)
+{
+    "use strict";
+    this.__DBG("authenticateByToken");
+
+    // This structure represents an immutable request state.
+    // It is passed to all subsequent calls.
+    var context = {
+        ts: new Date(),
+        logger: logger,
+        party: party,
+        cache_key: "T" + token,
+        token: token,
+    };
+
+    var result = createNewResult();
 
     // Fast-path.
     if (this._syncCheckCache(context, result)) {
         return result;
     }
 
-    // Cache |token_cache| variable. :)
-    var token_cache = this.token_cache;
-
     // Perform proper authentication here and cache the result.
     return Q.resolve()
     .then(this._asyncQueryCypress.bind(this, context, result))
-    .then(this._asyncQueryBlackbox.bind(this, context, result))
+    .then(this._asyncQueryBlackboxToken.bind(this, context, result))
     .then(this._ensureUserExists.bind(this, context, result))
-    .then(function() {
-        var dt = (new Date()) - context.ts;
-        if (result.isAuthenticated) {
-            context.logger.debug("Authentication succeeded", {
-                authentication_time: dt,
-            });
-            token_cache.set(context.token, result);
-        } else {
-            context.logger.info("Authentication failed", {
-                authentication_time: dt,
-            });
-            token_cache.del(context.token);
-        }
+    .then(this._syncFinalize.bind(this, context, result));
+});
+
+YtAuthority.prototype.authenticateByCookie = Q.method(
+function YtAuthority$authenticateByCookie(logger, party, sessionid, sslsessionid)
+{
+    "use strict";
+    this.__DBG("authenticateByCookie");
+
+    // This structure represents an immutable request state.
+    // It is passed to all subsequent calls.
+    var context = {
+        ts: new Date(),
+        logger: logger,
+        party: party,
+        cache_key: "C" + sessionid + "/" + sslsessionid,
+        sessionid: sessionid,
+        sslsessionid: sslsessionid,
+    };
+
+    var result = createNewResult();
+
+    // Fast-path.
+    if (this._syncCheckCache(context, result)) {
         return result;
-    });
+    }
+
+    // Perform proper authentication here.
+    return Q.resolve()
+    .then(this._asyncQueryBlackboxCookie.bind(this, context, result))
+    .then(this._ensureUserExists.bind(this, context, result))
+    .then(this._syncFinalize.bind(this, context, result));
 });
 
 YtAuthority.prototype.oAuthObtainToken = Q.method(
@@ -173,7 +191,7 @@ YtAuthority.prototype._syncCheckCache = function(context, result)
     "use strict";
     this.__DBG("_syncCheckCache");
 
-    var cached_result = this.token_cache.get(context.token);
+    var cached_result = this.authentication_cache.get(context.cache_key);
     if (typeof(cached_result) !== "undefined") {
         // Since |result| is a "pointer", we have to set fields explicitly.
         // We can't do something like |*result = cached_result;|.
@@ -189,10 +207,10 @@ YtAuthority.prototype._syncCheckCache = function(context, result)
     }
 };
 
-YtAuthority.prototype._asyncQueryBlackbox = function(context, result)
+YtAuthority.prototype._asyncQueryBlackboxToken = function(context, result)
 {
     "use strict";
-    this.__DBG("_asyncQueryBlackbox");
+    this.__DBG("_asyncQueryBlackboxToken");
 
     if (!this.config.blackbox.enable || result.isAuthenticated) {
         return Q.resolve();
@@ -235,13 +253,74 @@ YtAuthority.prototype._asyncQueryBlackbox = function(context, result)
             realm = realm.key;
         }
 
-        var login = data.login;
-
         context.logger.debug("Blackbox has approved the token");
 
-        result.login = login;
+        result.login = data.login;
         result.realm = "blackbox-" + realm;
     });
+};
+
+YtAuthority.prototype._asyncQueryBlackboxCookie = function(context, result)
+{
+    "use strict";
+    this.__DBG("_asyncQueryBlackboxCookie");
+
+    if (!this.config.blackbox.enable || result.isAuthenticated) {
+        return Q.resolve();
+    }
+
+    var self = this;
+
+    return external_services.blackboxValidateCookie(
+        context.logger,
+        context.party,
+        context.sessionid,
+        context.sslsessionid)
+    .then(function(data) {
+        // Since we are caching results, we don't have to bother too much about
+        // the most efficient order here. We prefer to keep logic readable.
+        if (typeof(data.status) === "undefined") {
+            throw new YtError("Unreachable (you are lucky)");
+        }
+
+        switch (data.status.id) {
+            case 0: // VALID
+                context.logger.debug("Blackbox has approved the cookie");
+            case 1: // NEED_RESET
+                context.logger.debug("Blackbox asks to resign the cookie (ignored)")
+                result.login = data.login;
+                result.realm = "blackbox_session_cookie";
+                break;
+            case 2: // EXPIRED
+            case 3: // NOAUTH
+            case 4: // DISABLED
+            case 5: // INVALID
+            default:
+                context.logger.debug("Blackbox has rejected the cookie");
+                break;
+        }
+    });
+};
+
+YtAuthority.prototype._syncFinalize = function(context, result)
+{
+    "use strict";
+    this.__DBG("_syncFinalize");
+
+    var dt = (new Date()) - context.ts;
+    if (result.isAuthenticated) {
+        context.logger.debug("Authentication succeeded", {
+            authentication_time: dt,
+        });
+        this.authentication_cache.set(context.cache_key, result);
+    } else {
+        context.logger.info("Authentication failed", {
+            authentication_time: dt,
+        });
+        this.authentication_cache.del(context.cache_key);
+    }
+
+    return result;
 };
 
 YtAuthority.prototype._asyncQueryCypress = function(context, result)
