@@ -169,7 +169,7 @@ if __name__ == '__main__':
 
     echo "{k=1;v=2}" | ./mapreduce -format yson -write "ignat/table"
     # TODO: We need to check equality in order independent manner
-    check "v=2\tk=1" "`./mapreduce -format dsv -read "ignat/table"`"
+    check "k=1\tv=2" "`./mapreduce -format dsv -read "ignat/table"`"
 }
 
 test_transactions()
@@ -267,7 +267,7 @@ test_smart_format()
     set +B
     check_failed "./mapreduce -read ${ranged_table}"
     set -B
-    check "z=10\tx=1" "`./mapreduce -read ${ranged_table} -dsv`"
+    check "x=1\tz=10" "`./mapreduce -read ${ranged_table} -dsv`"
 
     unset YT_SMART_FORMAT
     # write in yamr
@@ -297,6 +297,10 @@ test_smart_format()
 
     # TODO(ignat): improve this test to check that reduce is made by proper columns
     echo -e "1 2\t\tz=1" | ./mapreduce -write "ignat/smart_x" -append
+
+    ./mapreduce -read "ignat/smart_x" -dsv
+    ./mapreduce -read "ignat/smart_x"
+
     ./mapreduce -reduce "tr '=' ' ' | awk '{sum+=\$4} END {print sum \"\t\"}'" -src "ignat/smart_x" -dst "ignat/output" -jobcount 2
     check "11\t" "`./mapreduce -read "ignat/output"`"
 }
