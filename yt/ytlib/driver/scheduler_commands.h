@@ -25,8 +25,6 @@ struct TDumpInputContextRequest
     }
 };
 
-//////////////////////////////////////////////////////////////////////////////
-
 class TDumpInputContextCommand
     : public TTypedCommand<TDumpInputContextRequest>
 {
@@ -54,83 +52,69 @@ struct TStartOperationRequest
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulerCommandBase
+class TStartOperationCommandBase
     : public TTypedCommand<TStartOperationRequest>
 {
 protected:
-    typedef TSchedulerCommandBase TThis;
+    virtual void DoExecute() override;
 
-    void StartOperation(NScheduler::EOperationType type);
+    virtual NScheduler::EOperationType GetOperationType() const = 0;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TMapCommand
-    : public TSchedulerCommandBase
+    : public TStartOperationCommandBase
 {
 private:
-    virtual void DoExecute() override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TMergeCommand
-    : public TSchedulerCommandBase
+    : public TStartOperationCommandBase
 {
 private:
-    virtual void DoExecute() override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TSortCommand
-    : public TSchedulerCommandBase
+    : public TStartOperationCommandBase
 {
 private:
-    virtual void DoExecute() override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TEraseCommand
-    : public TSchedulerCommandBase
+    : public TStartOperationCommandBase
 {
 private:
-    virtual void DoExecute() override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TReduceCommand
-    : public TSchedulerCommandBase
+    : public TStartOperationCommandBase
 {
 private:
-    virtual void DoExecute() override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TMapReduceCommand
-    : public TSchedulerCommandBase
+    : public TStartOperationCommandBase
 {
 private:
-    virtual void DoExecute() override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 class TRemoteCopyCommand
-    : public TSchedulerCommandBase
+    : public TStartOperationCommandBase
 {
 private:
-    virtual void DoExecute() override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 
 };
 

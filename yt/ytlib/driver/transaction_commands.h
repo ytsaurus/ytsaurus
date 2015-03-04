@@ -23,8 +23,6 @@ struct TStartTransactionRequest
     }
 };
 
-typedef TIntrusivePtr<TStartTransactionRequest> TStartRequestPtr;
-
 class TStartTransactionCommand
     : public TTypedCommand<TStartTransactionRequest>
 {
@@ -38,8 +36,6 @@ private:
 struct TPingTransactionRequest
     : public TTransactionalRequest
 { };
-
-typedef TIntrusivePtr<TPingTransactionRequest> TRenewRequestPtr;
 
 class TPingTransactionCommand
     : public TTypedCommand<TPingTransactionRequest>
@@ -55,8 +51,6 @@ struct TCommitTransactionRequest
     : public TTransactionalRequest
     , public TMutatingRequest
 { };
-
-typedef TIntrusivePtr<TCommitTransactionRequest> TCommitRequestPtr;
 
 class TCommitTransactionCommand
     : public TTypedCommand<TCommitTransactionRequest>
@@ -80,8 +74,6 @@ struct TAbortTransactionRequest
             .Default(false);
     }
 };
-
-typedef TIntrusivePtr<TAbortTransactionRequest> TAbortTransactionRequestPtr;
 
 class TAbortTransactionCommand
     : public TTypedCommand<TAbortTransactionRequest>

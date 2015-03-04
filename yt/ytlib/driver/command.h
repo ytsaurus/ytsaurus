@@ -61,8 +61,6 @@ struct TTransactionalRequest
     }
 };
 
-typedef TIntrusivePtr<TTransactionalRequest> TTransactionalRequestPtr;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TMutatingRequest
@@ -80,8 +78,6 @@ struct TMutatingRequest
     }
 };
 
-typedef TIntrusivePtr<TMutatingRequest> TMutatingRequestPtr;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TReadOnlyRequest
@@ -95,8 +91,6 @@ struct TReadOnlyRequest
             .Default(NApi::EMasterChannelKind::LeaderOrFollower);
     }
 };
-
-typedef TIntrusivePtr<TReadOnlyRequest> TReadOnlyRequestPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,8 +108,6 @@ struct TSuppressableAccessTrackingRequest
             .Default(false);
     }
 };
-
-typedef TIntrusivePtr<TSuppressableAccessTrackingRequest> TAccessTrackingSuppressableRequestPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
