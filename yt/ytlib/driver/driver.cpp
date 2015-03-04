@@ -109,19 +109,15 @@ public:
 
         REGISTER(TWriteFileCommand,         "write_file",        Binary,     Null,       true,  true );
         REGISTER(TReadFileCommand,          "read_file",         Null,       Binary,     false, true );
-        // COMPAT(babenko)
-        REGISTER(TWriteFileCommand,         "upload",            Binary,     Null,       true,  true );
-        REGISTER(TReadFileCommand,          "download",          Null,       Binary,     false, true );
 
         REGISTER(TWriteTableCommand,        "write_table",       Tabular,    Null,       true,  true );
         REGISTER(TReadTableCommand,         "read_table",        Null,       Tabular,    false, true );
         REGISTER(TInsertRowsCommand,        "insert_rows",       Tabular,    Null,       true,  true );
         REGISTER(TDeleteRowsCommand,        "delete_rows",       Tabular,    Null,       true,  true);
+        // COMPAT(sandello): Remove when releasing 0.17. See YT-1658.
+        REGISTER(TSelectRowsCommand,        "select",            Null,       Tabular,    false, true );
         REGISTER(TSelectRowsCommand,        "select_rows",       Null,       Tabular,    false, true );
         REGISTER(TLookupRowsCommand,        "lookup_rows",       Tabular,    Tabular,    false, true );
-        // COMPAT(babenko)
-        REGISTER(TWriteTableCommand,        "write",             Tabular,    Null,       true,  true );
-        REGISTER(TReadTableCommand,         "read",              Null,       Tabular,    false, true );
 
         REGISTER(TMountTableCommand,        "mount_table",       Null,       Null,       true,  false);
         REGISTER(TUnmountTableCommand,      "unmount_table",     Null,       Null,       true,  false);
