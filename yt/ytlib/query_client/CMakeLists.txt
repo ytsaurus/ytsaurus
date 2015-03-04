@@ -54,6 +54,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/cg_fragment_compiler.h
     ${BASE}/folding_profiler.h
     ${BASE}/evaluation_helpers.h
+    ${BASE}/function_registry.h
   )
 endif()
 
