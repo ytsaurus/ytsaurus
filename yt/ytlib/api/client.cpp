@@ -965,11 +965,11 @@ private:
             THROW_ERROR_EXCEPTION("A valid master transaction is required");
         }
 
-        TTransactionAttachOptions attachOptions(options.TransactionId);
+        TTransactionAttachOptions attachOptions;
         attachOptions.AutoAbort = false;
         attachOptions.Ping = pingTransaction;
         attachOptions.PingAncestors = options.PingAncestors;
-        return TransactionManager_->Attach(attachOptions);
+        return TransactionManager_->Attach(options.TransactionId, attachOptions);
     }
 
     void SetTransactionId(

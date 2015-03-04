@@ -58,7 +58,9 @@ public:
         ETransactionType type,
         const TTransactionStartOptions& options);
 
-    TTransactionPtr Attach(const TTransactionAttachOptions& options);
+    TTransactionPtr Attach(
+        const TTransactionId& id,
+        const TTransactionAttachOptions& options);
 
     void AbortAll();
 
@@ -128,12 +130,14 @@ public:
             .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
     }
 
-    void Attach(const TTransactionAttachOptions& options)
+    void Attach(
+        const TTransactionId& id,
+        const TTransactionAttachOptions& options)
     {
-        YCHECK(TypeFromId(options.Id) == EObjectType::Transaction);
+        YCHECK(TypeFromId(id) == EObjectType::Transaction);
 
         Type_ = ETransactionType::Master;
-        Id_ = options.Id;
+        Id_ = id;
         AutoAbort_ = options.AutoAbort;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
@@ -789,12 +793,14 @@ TFuture<TTransactionPtr> TTransactionManager::TImpl::Start(
     }));
 }
 
-TTransactionPtr TTransactionManager::TImpl::Attach(const TTransactionAttachOptions& options)
+TTransactionPtr TTransactionManager::TImpl::Attach(
+    const TTransactionId& id,
+    const TTransactionAttachOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto transaction = New<TTransaction::TImpl>(this);
-    transaction->Attach(options);
+    transaction->Attach(id, options);
     return TTransaction::Create(transaction);
 }
 
@@ -902,9 +908,11 @@ TFuture<TTransactionPtr> TTransactionManager::Start(
     return Impl_->Start(type, options);
 }
 
-TTransactionPtr TTransactionManager::Attach(const TTransactionAttachOptions& options)
+TTransactionPtr TTransactionManager::Attach(
+    const TTransactionId& id,
+    const TTransactionAttachOptions& options)
 {
-    return Impl_->Attach(options);
+    return Impl_->Attach(id, options);
 }
 
 void TTransactionManager::AbortAll()

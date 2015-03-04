@@ -113,9 +113,9 @@ private:
         {
             if (Options_.TransactionId != NullTransactionId) {
                 auto transactionManager = Client_->GetTransactionManager();
-                TTransactionAttachOptions attachOptions(Options_.TransactionId);
+                TTransactionAttachOptions attachOptions;
                 attachOptions.AutoAbort = false;
-                Transaction_ = transactionManager->Attach(attachOptions);
+                Transaction_ = transactionManager->Attach(Options_.TransactionId, attachOptions);
             }
 
             Logger.AddTag("Path: %v, TransactionId: %v",
