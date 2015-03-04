@@ -106,14 +106,16 @@ void TRequestTracker::OnFlush()
     LOG_DEBUG("Starting request statistics commit for %v users",
         UpdateRequestStatisticsRequest_.updates_size());
 
-    auto this_ = MakeStrong(this);
-    auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
-    CreateMutation(hydraManager, UpdateRequestStatisticsRequest_)
+    auto hydraFacade = Bootstrap_->GetHydraFacade();
+    auto invoker = hydraFacade->GetEpochAutomatonInvoker();
+    CreateMutation(hydraFacade->GetHydraManager(), UpdateRequestStatisticsRequest_)
         ->SetAllowLeaderForwarding(true)
         ->Commit()
-        .Subscribe(BIND([this, this_] (const TErrorOr<TMutationResponse>& result) {
-            if (result.IsOK()) {
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
+            if (error.IsOK()) {
                 FlushExecutor_->ScheduleOutOfBand();
+            } else {
+                LOG_ERROR(error, "Error committing request statistics update mutation");
             }
             FlushExecutor_->ScheduleNext();
         }).Via(invoker));

@@ -51,6 +51,8 @@ void GetStatistics(
     i64* rowCount = nullptr,
     i64* valueCount = nullptr);
 
+i64 GetCumulativeRowCount(const std::vector<NProto::TChunkSpec>& chunkSpecs);
+
 //! Constructs a new chunk slice removing any limits from origin.
 TRefCountedChunkSpecPtr CreateCompleteChunk(TRefCountedChunkSpecPtr chunkSpec);
 

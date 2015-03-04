@@ -44,7 +44,6 @@ template <class TKey, class TComparer>
 class TSkipList;
 
 class TBlobOutput;
-class TFakeStringBufStore;
 
 class TStringBuilder;
 
@@ -52,6 +51,7 @@ struct ICheckpointableInputStream;
 struct ICheckpointableOutputStream;
 
 DECLARE_REFCOUNTED_CLASS(TSlruCacheConfig)
+DECLARE_REFCOUNTED_CLASS(TExpiringCacheConfig)
 
 typedef ui64 TChecksum;
 

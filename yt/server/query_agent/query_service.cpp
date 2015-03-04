@@ -23,6 +23,10 @@
 #include <server/query_agent/config.h>
 #include <server/query_agent/helpers.h>
 
+#include <server/tablet_node/security_manager.h>
+
+#include <server/cell_node/bootstrap.h>
+
 namespace NYT {
 namespace NQueryAgent {
 
@@ -32,6 +36,7 @@ using namespace NCompression;
 using namespace NQueryClient;
 using namespace NVersionedTableClient;
 using namespace NTabletClient;
+using namespace NTabletNode;
 using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,18 +47,15 @@ class TQueryService
 public:
     TQueryService(
         TQueryAgentConfigPtr config,
-        IInvokerPtr invoker,
-        IExecutorPtr executor)
+        NCellNode::TBootstrap* bootstrap)
         : TServiceBase(
-            CreatePrioritizedInvoker(invoker),
+            CreatePrioritizedInvoker(bootstrap->GetQueryPoolInvoker()),
             TQueryServiceProxy::GetServiceName(),
             QueryAgentLogger,
             TQueryServiceProxy::GetProtocolVersion())
         , Config_(config)
-        , Executor_(executor)
+        , Bootstrap_(bootstrap)
     {
-        YCHECK(Executor_);
-
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetCancelable(true)
             .SetEnableReorder(true));
@@ -61,7 +63,7 @@ public:
 
 private:
     const TQueryAgentConfigPtr Config_;
-    const IExecutorPtr Executor_;
+    const NCellNode::TBootstrap* Bootstrap_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
@@ -69,7 +71,11 @@ private:
         auto planFragment = FromProto(request->plan_fragment());
         planFragment->NodeDirectory->MergeFrom(request->node_directory());
 
-        context->SetRequestInfo("FragmentId: %v", planFragment->Query->GetId());
+        context->SetRequestInfo("FragmentId: %v", planFragment->Query->Id);
+
+        auto user = GetAuthenticatedUserOrThrow(context);
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager, user);
 
         ExecuteRequestWithRetries(
             Config_->MaxQueryRetries,
@@ -78,7 +84,8 @@ private:
                 TWireProtocolWriter protocolWriter;
                 auto rowsetWriter = protocolWriter.CreateSchemafulRowsetWriter();
 
-                auto result = WaitFor(Executor_->Execute(planFragment, rowsetWriter))
+                auto executor = Bootstrap_->GetQueryExecutor();
+                auto result = WaitFor(executor->Execute(planFragment, rowsetWriter))
                     .ValueOrThrow();
 
                 auto responseCodec = request->has_response_codec()
@@ -94,13 +101,9 @@ private:
 
 IServicePtr CreateQueryService(
     TQueryAgentConfigPtr config,
-    IInvokerPtr invoker,
-    IExecutorPtr executor)
+    NCellNode::TBootstrap* bootstrap)
 {
-    return New<TQueryService>(
-        config,
-        invoker,
-        executor);
+    return New<TQueryService>(config, bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

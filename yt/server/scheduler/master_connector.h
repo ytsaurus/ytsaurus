@@ -67,6 +67,10 @@ public:
     void AddOperationWatcherRequester(TOperationPtr operation, TWatcherRequester requester);
     void AddOperationWatcherHandler(TOperationPtr operation, TWatcherHandler handler);
 
+    void SaveInputContext(
+        const NYPath::TYPath& directory,
+        const std::vector<NChunkClient::TChunkId>& inputContexts);
+
     DECLARE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DECLARE_SIGNAL(void(), MasterDisconnected);
 

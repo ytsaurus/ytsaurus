@@ -54,7 +54,9 @@ class TChunkCache::TImpl
 {
 public:
     TImpl(TDataNodeConfigPtr config, TBootstrap* bootstrap)
-        : TAsyncSlruCacheBase(New<TSlruCacheConfig>(config->CacheLocation->Quota.Get(std::numeric_limits<i64>::max())))
+        : TAsyncSlruCacheBase(
+            New<TSlruCacheConfig>(config->CacheLocation->Quota.Get(std::numeric_limits<i64>::max())),
+            NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/chunk_cache"))
         , Config_(config)
         , Bootstrap_(bootstrap)
     {
@@ -166,8 +168,9 @@ public:
     }
 
 private:
-    TDataNodeConfigPtr Config_;
-    TBootstrap* Bootstrap_;
+    const TDataNodeConfigPtr Config_;
+    TBootstrap* const Bootstrap_;
+
     TLocationPtr Location_;
 
     DEFINE_SIGNAL(void(IChunkPtr), ChunkAdded);
@@ -222,7 +225,7 @@ private:
         const TChunkReplicaList& seedReplicas,
         TInsertCookie cookie)
     {
-        NLog::TLogger Logger(DataNodeLogger);
+        NLogging::TLogger Logger(DataNodeLogger);
         Logger.AddTag("ChunkId: %v", chunkId);
 
         try {

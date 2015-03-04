@@ -10,7 +10,7 @@
 #include <core/tracing/trace_context.h>
 
 namespace NYT {
-namespace NLog {
+namespace NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +50,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef YT_ENABLE_TRACE_LOGGING
-#define LOG_TRACE(...)                      LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Trace, __VA_ARGS__)
+#define LOG_TRACE(...)                      LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Trace, __VA_ARGS__)
 #define LOG_TRACE_IF(condition, ...)        if (condition) LOG_TRACE(__VA_ARGS__)
 #define LOG_TRACE_UNLESS(condition, ...)    if (!condition) LOG_TRACE(__VA_ARGS__)
 #else
@@ -60,36 +60,36 @@ private:
 #define LOG_TRACE_UNLESS(condition, ...)    LOG_UNUSED(__VA_ARGS__)
 #endif
 
-#define LOG_DEBUG(...)                      LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Debug, __VA_ARGS__)
+#define LOG_DEBUG(...)                      LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Debug, __VA_ARGS__)
 #define LOG_DEBUG_IF(condition, ...)        if (condition) LOG_DEBUG(__VA_ARGS__)
 #define LOG_DEBUG_UNLESS(condition, ...)    if (!condition) LOG_DEBUG(__VA_ARGS__)
 
-#define LOG_INFO(...)                       LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Info, __VA_ARGS__)
+#define LOG_INFO(...)                       LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Info, __VA_ARGS__)
 #define LOG_INFO_IF(condition, ...)         if (condition) LOG_INFO(__VA_ARGS__)
 #define LOG_INFO_UNLESS(condition, ...)     if (!condition) LOG_INFO(__VA_ARGS__)
 
-#define LOG_WARNING(...)                    LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Warning, __VA_ARGS__)
+#define LOG_WARNING(...)                    LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Warning, __VA_ARGS__)
 #define LOG_WARNING_IF(condition, ...)      if (condition) LOG_WARNING(__VA_ARGS__)
 #define LOG_WARNING_UNLESS(condition, ...)  if (!condition) LOG_WARNING(__VA_ARGS__)
 
-#define LOG_ERROR(...)                      LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Error, __VA_ARGS__)
+#define LOG_ERROR(...)                      LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Error, __VA_ARGS__)
 #define LOG_ERROR_IF(condition, ...)        if (condition) LOG_ERROR(__VA_ARGS__)
 #define LOG_ERROR_UNLESS(condition, ...)    if (!condition) LOG_ERROR(__VA_ARGS__)
 
-#define LOG_FATAL(...)                      LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Fatal, __VA_ARGS__)
+#define LOG_FATAL(...)                      LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Fatal, __VA_ARGS__)
 #define LOG_FATAL_IF(condition, ...)        if (UNLIKELY(condition)) LOG_FATAL(__VA_ARGS__)
 #define LOG_FATAL_UNLESS(condition, ...)    if (!LIKELY(condition)) LOG_FATAL(__VA_ARGS__)
 
 #define LOG_EVENT(logger, level, ...) \
     do { \
         if (logger.IsEnabled(level)) { \
-            ::NYT::NLog::NDetail::LogEventImpl( \
+            ::NYT::NLogging::NDetail::LogEventImpl( \
                 logger, \
                 __FILE__, \
                 __LINE__, \
                 __FUNCTION__, \
                 level, \
-                ::NYT::NLog::NDetail::FormatLogMessage(__VA_ARGS__)); \
+                ::NYT::NLogging::NDetail::FormatLogMessage(__VA_ARGS__)); \
         } \
     } while (false)
 
@@ -146,5 +146,5 @@ void LogEventImpl(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLog
+} // namespace NLogging
 } // namespace NYT

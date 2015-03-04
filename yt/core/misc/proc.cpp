@@ -15,7 +15,6 @@
 
 #include <util/system/yield.h>
 #include <util/system/info.h>
-#include <util/system/execpath.h>
 
 #ifdef _unix_
     #include <stdio.h>
@@ -29,7 +28,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NLog::TLogger Logger("Proc");
+static const NLogging::TLogger Logger("Proc");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,37 +91,7 @@ i64 GetProcessRss(int pid)
 #endif
 }
 
-void PrepareUserJobPipe(int fd, int permissions)
-{
 #ifdef _unix_
-    auto procPath = Format("/proc/self/fd/%v", fd);
-    auto res = chmod(~procPath, permissions);
-
-    if (res == -1) {
-        THROW_ERROR_EXCEPTION("Failed to chmod job descriptor")
-            << TErrorAttribute("fd", fd)
-            << TErrorAttribute("permissions", permissions)
-            << TError::FromSystem();
-    }
-#endif
-}
-
-#ifdef _unix_
-
-void RunCleaner(const Stroka& path)
-{
-    LOG_INFO("Clean %Qs", path);
-
-    TProcess process(GetExecPath());
-    process.AddArguments({
-        "--cleaner",
-        "--dir-to-remove",
-        path
-    });
-
-    process.Spawn();
-    process.Wait().ThrowOnError();
-}
 
 void RemoveDirAsRoot(const Stroka& path)
 {
@@ -241,11 +210,36 @@ void SetPermissions(int fd, int permissions)
 
 void SafePipe(int fd[2])
 {
-    auto res = pipe(fd);
-    if (res == -1) {
-        THROW_ERROR_EXCEPTION("pipe failed")
+#if defined(_linux_)
+    auto result = ::pipe2(fd, O_CLOEXEC);
+    if (result == -1) {
+        THROW_ERROR_EXCEPTION("Error creating pipe")
             << TError::FromSystem();
     }
+#elif defined(_darwin_)
+    {
+        int result = ::pipe(fd);
+        if (result == -1) {
+            THROW_ERROR_EXCEPTION("Error creating pipe: pipe creation failed")
+                << TError::FromSystem();
+        }
+    }
+    for (int index = 0; index < 2; ++index) {
+        int getResult = ::fcntl(fd[index], F_GETFL);
+        if (getResult == -1) {
+            THROW_ERROR_EXCEPTION("Error creating pipe: fcntl failed to get descriptor flags")
+                << TError::FromSystem();
+        }
+
+        int setResult = ::fcntl(fd[index], F_SETFL, getResult | FD_CLOEXEC);
+        if (setResult == -1) {
+            THROW_ERROR_EXCEPTION("Error creating pipe: fcntl failed to set descriptor flags")
+                << TError::FromSystem();
+        }
+    }
+#else
+    THROW_ERROR_EXCEPTION("Windows is not supported");
+#endif
 }
 
 void SafeMakeNonblocking(int fd)
@@ -298,11 +292,6 @@ TError StatusToError(int /* status */)
 }
 
 void RemoveDirAsRoot(const Stroka& /* path */)
-{
-    YUNIMPLEMENTED();
-}
-
-void RunCleaner(const Stroka& /* path */)
 {
     YUNIMPLEMENTED();
 }

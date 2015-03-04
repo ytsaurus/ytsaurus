@@ -17,6 +17,10 @@ namespace NPipes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EErrorCode,
+    ((Aborted) (1500))
+);
+
 DECLARE_REFCOUNTED_CLASS(TAsyncReader);
 DECLARE_REFCOUNTED_CLASS(TAsyncWriter);
 

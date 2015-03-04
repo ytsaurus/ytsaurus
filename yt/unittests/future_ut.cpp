@@ -647,11 +647,20 @@ TEST_F(TFutureTest, Timeout)
     EXPECT_EQ(NYT::EErrorCode::Timeout, result.GetCode());
 }
 
-TEST_W(TFutureTest, HolderBlocked)
+TEST_W(TFutureTest, BlockingHolder)
 {
     auto future = TDelayedExecutor::MakeDelayed(TDuration::Seconds(0.1));
-    MakeHolder(future);
+    MakeHolder(future, true);
     EXPECT_TRUE(future.IsSet());
+}
+
+TEST_W(TFutureTest, NonblockingHolder)
+{
+    auto promise = NewPromise<void>();
+    auto future = promise.ToFuture();
+    MakeHolder(future, false);
+    EXPECT_FALSE(future.IsSet());
+    EXPECT_TRUE(future.IsCanceled());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

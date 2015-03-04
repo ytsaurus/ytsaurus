@@ -8,8 +8,8 @@ namespace NScheduler {
 
 const double ApproximateSizesBoostFactor = 1.3;
 
-const NLog::TLogger SchedulerLogger("Scheduler");
-const NLog::TLogger OperationLogger("Operation");
+const NLogging::TLogger SchedulerLogger("Scheduler");
+const NLogging::TLogger OperationLogger("Operation");
 NProfiling::TProfiler SchedulerProfiler("/scheduler");
 
 ////////////////////////////////////////////////////////////////////

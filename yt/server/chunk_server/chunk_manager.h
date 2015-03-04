@@ -136,7 +136,7 @@ private:
     class TJournalChunkTypeHandler;
     class TChunkListTypeHandler;
 
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

@@ -60,7 +60,7 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TSchemaObject> TBase;
 
-    virtual NLog::TLogger CreateLogger() const override
+    virtual NLogging::TLogger CreateLogger() const override
     {
         return ObjectServerLogger;
     }

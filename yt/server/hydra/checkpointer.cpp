@@ -77,7 +77,7 @@ private:
     TParallelAwaiterPtr ChangelogAwaiter_;
     std::vector<TNullable<TChecksum>> SnapshotChecksums_;
 
-    NLog::TLogger& Logger;
+    NLogging::TLogger& Logger;
 
 
     void OnQuorumFlushed(const TError& error)
@@ -103,8 +103,6 @@ private:
         SnapshotChecksums_.resize(Owner_->CellManager_->GetPeerCount());
 
         auto awaiter = SnapshotAwaiter_ = New<TParallelAwaiter>(Owner_->EpochContext_->EpochControlInvoker);
-        auto this_ = MakeStrong(this);
-
         for (auto peerId = 0; peerId < Owner_->CellManager_->GetPeerCount(); ++peerId) {
             if (peerId == Owner_->CellManager_->GetSelfPeerId())
                 continue;
@@ -124,15 +122,15 @@ private:
 
             awaiter->Await(
                 req->Invoke(),
-                BIND(&TSession::OnRemoteSnapshotBuilt, this_, peerId));
+                BIND(&TSession::OnRemoteSnapshotBuilt, MakeStrong(this), peerId));
         }
 
         awaiter->Await(
             Owner_->DecoratedAutomaton_->BuildSnapshot(),
-            BIND(&TSession::OnLocalSnapshotBuilt, this_));
+            BIND(&TSession::OnLocalSnapshotBuilt, MakeStrong(this)));
 
         awaiter->Complete(
-            BIND(&TSession::OnSnapshotsComplete, this_));
+            BIND(&TSession::OnSnapshotsComplete, MakeStrong(this)));
     }
 
     void OnRemoteSnapshotBuilt(TPeerId id, const THydraServiceProxy::TErrorOrRspBuildSnapshotPtr& rspOrError)
@@ -207,8 +205,6 @@ private:
     void RequestChangelogRotation()
     {
         auto awaiter = ChangelogAwaiter_ = New<TParallelAwaiter>(Owner_->EpochContext_->EpochControlInvoker);
-        auto this_ = MakeStrong(this);
-
         for (auto peerId = 0; peerId < Owner_->CellManager_->GetPeerCount(); ++peerId) {
             if (peerId == Owner_->CellManager_->GetSelfPeerId())
                 continue;
@@ -228,15 +224,15 @@ private:
 
             awaiter->Await(
                 req->Invoke(),
-                BIND(&TSession::OnRemoteChangelogRotated, this_, peerId));
+                BIND(&TSession::OnRemoteChangelogRotated, MakeStrong(this), peerId));
         }
 
         awaiter->Await(
             Owner_->DecoratedAutomaton_->RotateChangelog(Owner_->EpochContext_),
-            BIND(&TSession::OnLocalChangelogRotated, this_));
+            BIND(&TSession::OnLocalChangelogRotated, MakeStrong(this)));
 
         awaiter->Complete(
-            BIND(&TSession::OnRotationFailed, this_));
+            BIND(&TSession::OnRotationFailed, MakeStrong(this)));
     }
 
     void OnRemoteChangelogRotated(TPeerId id, const THydraServiceProxy::TErrorOrRspRotateChangelogPtr& rspOrError)

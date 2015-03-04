@@ -154,7 +154,7 @@ public:
     void PostMessage(TMailbox* mailbox, const TEncapsulatedMessage& message)
     {
         // A typical mistake is to try sending a Hive message outside of a mutation.
-        YCHECK(HydraManager->IsMutating());
+        YCHECK(HasMutationContext());
 
         int messageId =
             mailbox->GetFirstOutcomingMessageId() +
@@ -181,10 +181,11 @@ public:
 
         mailbox->OutcomingMessages().push_back(tracedMessage);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Outcoming message added (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Outcoming message added (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
             SelfCellId_,
             mailbox->GetCellId(),
-            messageId);
+            messageId,
+            message.type());
 
         MaybePostOutcomingMessages(mailbox);
     }
@@ -518,7 +519,7 @@ private:
     TMutationPtr CreateAcknowledgeMessagesMutation(const TReqAcknowledgeMessages& req)
     {
         return CreateMutation(
-            HydraManager,
+            HydraManager_,
             req,
             this,
             &TImpl::HydraAcknowledgeMessages);
@@ -526,7 +527,7 @@ private:
 
     TMutationPtr CreatePostMessagesMutation(TCtxPostMessagesPtr context)
     {
-        return CreateMutation(HydraManager)
+        return CreateMutation(HydraManager_)
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
             ->SetAction(BIND(&TImpl::HydraPostMessages, MakeStrong(this), context, ConstRef(context->Request())));
     }
@@ -540,8 +541,14 @@ private:
         TReqAcknowledgeMessages req;
         ToProto(req.mutable_cell_id(), mailbox->GetCellId());
         req.set_last_incoming_message_id(lastIncomingMessageId);
+
         CreateAcknowledgeMessagesMutation(req)
-            ->Commit();
+            ->Commit()
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
+                if (!error.IsOK()) {
+                    LOG_ERROR(error, "Error committing message acknowledgment mutation");
+                }
+            }));
     }
 
     void HandleIncomingMessages(TMailbox* mailbox, const TReqPostMessages& req)
@@ -555,64 +562,71 @@ private:
     void HandleIncomingMessage(TMailbox* mailbox, int messageId, const TEncapsulatedMessage& message)
     {
         if (messageId <= mailbox->GetLastIncomingMessageId()) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Dropping an obsolete incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Dropping obsolete incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
                 mailbox->GetCellId(),
                 SelfCellId_,
                 messageId);
-        } else {
-            auto& incomingMessages = mailbox->IncomingMessages();
-            YCHECK(incomingMessages.insert(std::make_pair(messageId, message)).second);
+            return;
+        }
 
-            bool consumed = false;
-            while (!incomingMessages.empty()) {
-                const auto& frontPair = *incomingMessages.begin();
-                int frontMessageId = frontPair.first;
-                const auto& frontMessage = frontPair.second;
-                if (frontMessageId != mailbox->GetLastIncomingMessageId() + 1)
-                    break;
+        auto& incomingMessages = mailbox->IncomingMessages();
+        if (!incomingMessages.insert(std::make_pair(messageId, message)).second) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Dropping duplicate incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
+                mailbox->GetCellId(),
+                SelfCellId_,
+                messageId);
+            return;
+        }
 
-                LOG_DEBUG_UNLESS(IsRecovery(), "Consuming incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
-                    mailbox->GetCellId(),
-                    SelfCellId_,
-                    frontMessageId,
-                    frontMessage.type());
+        bool consumed = false;
+        while (!incomingMessages.empty()) {
+            const auto& frontPair = *incomingMessages.begin();
+            int frontMessageId = frontPair.first;
+            const auto& frontMessage = frontPair.second;
+            if (frontMessageId != mailbox->GetLastIncomingMessageId() + 1)
+                break;
 
-                TMutationRequest request;
-                request.Type = frontMessage.type();
-                request.Data = TSharedRef::FromString(frontMessage.data());
+            LOG_DEBUG_UNLESS(IsRecovery(), "Consuming incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
+                mailbox->GetCellId(),
+                SelfCellId_,
+                frontMessageId,
+                frontMessage.type());
 
-                auto traceContext = GetTraceContext(message);
-                TTraceContextGuard traceContextGuard(traceContext);
+            TMutationRequest request;
+            request.Type = frontMessage.type();
+            request.Data = TSharedRef::FromString(frontMessage.data());
 
-                TRACE_ANNOTATION(
-                    traceContext,
-                    HiveTracingService,
-                    request.Type,
-                    ServerReceiveAnnotation);
+            auto traceContext = GetTraceContext(message);
+            TTraceContextGuard traceContextGuard(traceContext);
 
-                YCHECK(incomingMessages.erase(frontMessageId) == 1);
-                mailbox->SetLastIncomingMessageId(frontMessageId);
-                consumed = true;
+            TRACE_ANNOTATION(
+                traceContext,
+                HiveTracingService,
+                request.Type,
+                ServerReceiveAnnotation);
 
-                TMutationContext context(HydraManager->GetMutationContext(), request);
-                static_cast<IAutomaton*>(Automaton)->ApplyMutation(&context);
+            YCHECK(incomingMessages.erase(frontMessageId) == 1);
+            mailbox->SetLastIncomingMessageId(frontMessageId);
+            consumed = true;
 
-                // XXX(babenko): this is a temporary workaround
-                HydraManager->GetMutationContext()->Response().Data.Reset();
-
-                TRACE_ANNOTATION(
-                    traceContext,
-                    HiveTracingService,
-                    request.Type,
-                    ServerSendAnnotation);
+            {
+                TMutationContext context(GetCurrentMutationContext(), request);
+                TMutationContextGuard contextGuard(&context);
+                static_cast<IAutomaton*>(Automaton_)->ApplyMutation(&context);
             }
 
-            if (!consumed) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Keeping an out-of-order incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
-                    mailbox->GetCellId(),
-                    SelfCellId_,
-                    messageId);
-            }
+            TRACE_ANNOTATION(
+                traceContext,
+                HiveTracingService,
+                request.Type,
+                ServerSendAnnotation);
+        }
+
+        if (!consumed) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Keeping an out-of-order incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
+                mailbox->GetCellId(),
+                SelfCellId_,
+                messageId);
         }
     }
 

@@ -20,7 +20,8 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
 TDataSplits GetPrunedSplits(
     const TConstQueryPtr& query,
-    const TDataSplits& splits);
+    const TDataSplits& splits,
+    const TColumnEvaluatorCachePtr& evaluatorCache);
 
 TKeyRange GetRange(const TDataSplits& splits);
 
@@ -32,7 +33,7 @@ TQueryStatistics CoordinateAndExecute(
     const TPlanFragmentPtr& fragment,
     ISchemafulWriterPtr writer,
     bool isOrdered,
-    std::vector<TKeyRange>& ranges,
+    const std::vector<TKeyRange>& ranges,
     std::function<TEvaluateResult(const TConstQueryPtr&, size_t)> evaluateSubquery,
     std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
     bool pushdownGroupOp = true);

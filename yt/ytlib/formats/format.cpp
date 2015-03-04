@@ -257,7 +257,7 @@ ISchemafulWriterPtr CreateSchemafulWriterForFormat(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessWriterPtr CreateSchemalessWriterAdaptor(
+ISchemalessWriterPtr CreateSchemalessWriterAdapter(
     std::unique_ptr<IYsonConsumer> consumer,
     TNameTablePtr nameTable)
 {
@@ -269,7 +269,7 @@ ISchemalessWriterPtr CreateSchemalessWriterForFormat(
     TNameTablePtr nameTable,
     TOutputStream* output)
 {
-    return CreateSchemalessWriterAdaptor(
+    return CreateSchemalessWriterAdapter(
         CreateConsumerForFormat(format, EDataType::Tabular, output),
         nameTable);
 }

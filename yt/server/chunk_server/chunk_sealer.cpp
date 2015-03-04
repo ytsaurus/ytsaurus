@@ -59,7 +59,7 @@ public:
         TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
-        , Semaphore_(Config_->MaxChunkConcurrentSeals)
+        , Semaphore_(Config_->MaxConcurrentChunkSeals)
     {
         auto chunkManager = Bootstrap_->GetChunkManager();
         for (const auto& pair : chunkManager->Chunks()) {

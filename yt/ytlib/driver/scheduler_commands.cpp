@@ -18,6 +18,14 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDumpInputContextCommand::DoExecute()
+{
+    WaitFor(Context_->GetClient()->DumpInputContext(Request_->JobId, Request_->Path))
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSchedulerCommandBase::StartOperation(EOperationType type)
 {
     TStartOperationOptions options;

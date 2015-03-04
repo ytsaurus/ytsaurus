@@ -45,7 +45,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Reads single table chunk row-after-row using given #NChunkClient::IAsyncReader.
+//! Reads single table chunk row-after-row using given #NChunkClient::IReader.
 class TTableChunkReader
     : public virtual TRefCounted
 {
@@ -78,7 +78,7 @@ public:
     i64 GetSessionRowIndex() const;
     i64 GetSessionRowCount() const;
     i64 GetTableRowIndex() const;
-    TFuture<void> GetFetchingCompleteEvent();
+    TFuture<void> GetFetchingCompletedEvent();
 
     // Called by facade.
     const TRow& GetRow() const;

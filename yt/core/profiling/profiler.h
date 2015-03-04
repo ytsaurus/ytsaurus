@@ -71,9 +71,11 @@ struct TTimer
 struct TCounterBase
 {
     TCounterBase(
-        const NYPath::TYPath& path,
-        const TTagIdList& tagIds,
-        TDuration interval);
+        const NYPath::TYPath& path = "",
+        const TTagIdList& tagIds = EmptyTagIds,
+        TDuration interval = TDuration::MilliSeconds(100));
+    TCounterBase(const TCounterBase& other);
+    TCounterBase& operator = (const TCounterBase& other);
 
     TSpinLock SpinLock;
     NYPath::TYPath Path;
@@ -82,42 +84,6 @@ struct TCounterBase
     TCpuDuration Interval;
     //! The time when the next sample must be queued (in ticks).
     TCpuInstant Deadline;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Measures rate of certain event.
-/*!
- *  Used to measure rates of high-frequency events. For these events we cannot
- *  afford to use sample-per-instance strategy. Instead we maintain a counter indicating
- *  the total number of events occurred so far and track its increase over
- *  certain fixed intervals of time. E.g. if the interval is 1 second then
- *  this counter will actually be sampling RPS.
- *
- *  \note Thread-safe.
- */
-struct TRateCounter
-    : public TCounterBase
-{
-    TRateCounter(
-        const NYPath::TYPath& path = "",
-        const TTagIdList& tagIds = EmptyTagIds,
-        TDuration interval = TDuration::MilliSeconds(1000));
-
-    // NB: Need to write these by hand because of std::atomic.
-    TRateCounter(const TRateCounter& other);
-    TRateCounter& operator = (const TRateCounter& other);
-
-
-    //! The current counter's value.
-    std::atomic<TValue> Value;
-
-    //! The counter's value at the moment of the last sampling.
-    TValue LastValue;
-
-    //! The time when the last sample was queued (in ticks).
-    TCpuInstant LastTime;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,6 +117,8 @@ struct TAggregateCounter
         const TTagIdList& tagIds = EmptyTagIds,
         EAggregateMode mode = EAggregateMode::Max,
         TDuration interval = TDuration::MilliSeconds(100));
+    TAggregateCounter(const TAggregateCounter& other);
+    TAggregateCounter& operator = (const TAggregateCounter& other);
 
     void Reset();
 
@@ -160,6 +128,23 @@ struct TAggregateCounter
     TValue Max;
     TValue Sum;
     int SampleCount;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A rudimentary but much cheaper version of TAggregateCounter capable of
+//! maintaining just the value itself but not any of its aggregates.
+struct TSimpleCounter
+    : public TCounterBase
+{
+    TSimpleCounter(
+        const NYPath::TYPath& path = "",
+        const TTagIdList& tagIds = EmptyTagIds,
+        TDuration interval = TDuration::MilliSeconds(100));
+    TSimpleCounter(const TSimpleCounter& other);
+    TSimpleCounter& operator = (const TSimpleCounter& other);
+
+    std::atomic<TValue> Current;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -232,29 +217,29 @@ public:
     TDuration TimingStop(TTimer& timer);
 
 
-    //! Increments the counter and possibly enqueues a rate sample.
+    //! Updates the counter value and possibly enqueues samples.
+    void Update(TAggregateCounter& counter, TValue value);
+
+    //! Increments the counter value and possibly enqueues aggregate samples.
     //! Returns the incremented value.
-    /*!
-     *  The default increment is 1, i.e. the counter measures individual events.
-     *  Other (positive) values also make sense. E.g. one can set increment to the
-     *  number of bytes to be written and thus obtain a throughput counter.
-     */
-    TValue Increment(TRateCounter& counter, TValue delta = 1);
-
-    //! Aggregates the value and possibly enqueues samples.
-    void Aggregate(TAggregateCounter& counter, TValue value);
-
-    //! Aggregates |current + delta| and possibly enqueues samples.
     TValue Increment(TAggregateCounter& counter, TValue delta = 1);
 
-private:
-    bool SelfProfiling;
+    //! Updates the counter value and possibly enqueues samples.
+    void Update(TSimpleCounter& counter, TValue value);
 
-    void DoAggregate(
-        TAggregateCounter& counter,
-        TGuard<TSpinLock>& guard,
-        TValue value,
-        TCpuInstant now);
+    //! Increments the counter value and possibly enqueues a sample.
+    //! Returns the incremented value.
+    TValue Increment(TSimpleCounter& counter, TValue delta = 1);
+
+private:
+    bool SelfProfiling_;
+
+
+    bool IsCounterEnabled(const TCounterBase& counter);
+
+    void DoUpdate(TAggregateCounter& counter, TValue value);
+
+    void OnUpdated(TSimpleCounter& counter);
 
     TDuration DoTimingCheckpoint(
         TTimer& timer,
@@ -283,29 +268,28 @@ public:
         TProfiler* profiler,
         const NYPath::TYPath& path,
         const TTagIdList& tagIds = EmptyTagIds)
-        : Profiler(profiler)
-        , Timer(Profiler->TimingStart(path, tagIds))
+        : Profiler_(profiler)
+        , Timer_(Profiler_->TimingStart(path, tagIds))
     { }
 
     TTimingGuard(TTimingGuard&& other)
-        : Profiler(other.Profiler)
-        , Timer(other.Timer)
+        : Profiler_(other.Profiler_)
+        , Timer_(other.Timer_)
     {
-        other.Profiler = nullptr;
+        other.Profiler_ = nullptr;
     }
-
 
     ~TTimingGuard()
     {
         // Don't measure anything during exception unwinding.
-        if (!std::uncaught_exception() && Profiler) {
-            Profiler->TimingStop(Timer);
+        if (!std::uncaught_exception() && Profiler_) {
+            Profiler_->TimingStop(Timer_);
         }
     }
 
     void Checkpoint(const TStringBuf& key)
     {
-        Profiler->TimingCheckpoint(Timer, key);
+        Profiler_->TimingCheckpoint(Timer_, key);
     }
 
     //! Needed for PROFILE_TIMING.
@@ -315,8 +299,8 @@ public:
     }
 
 private:
-    TProfiler* Profiler;
-    TTimer Timer;
+    TProfiler* Profiler_;
+    TTimer Timer_;
 
 };
 
@@ -347,29 +331,29 @@ class TAggregatedTimingGuard
 {
 public:
     TAggregatedTimingGuard(TProfiler* profiler, TAggregateCounter* counter)
-        : Profiler(profiler)
-        , Counter(counter)
-        , Start(GetCpuInstant())
+        : Profiler_(profiler)
+        , Counter_(counter)
+        , Start_(GetCpuInstant())
     {
         YASSERT(profiler);
         YASSERT(counter);
     }
 
     TAggregatedTimingGuard(TAggregatedTimingGuard&& other)
-        : Profiler(other.Profiler)
-        , Counter(other.Counter)
-        , Start(other.Start)
+        : Profiler_(other.Profiler_)
+        , Counter_(other.Counter_)
+        , Start_(other.Start_)
     {
-        other.Profiler = nullptr;
+        other.Profiler_ = nullptr;
     }
 
     ~TAggregatedTimingGuard()
     {
         // Don't measure anything during exception unwinding.
-        if (!std::uncaught_exception() && Profiler) {
+        if (!std::uncaught_exception() && Profiler_) {
             auto stop = GetCpuInstant();
-            auto value = CpuDurationToValue(stop - Start);
-            Profiler->Aggregate(*Counter, value);
+            auto value = CpuDurationToValue(stop - Start_);
+            Profiler_->Update(*Counter_, value);
         }
     }
 
@@ -379,9 +363,9 @@ public:
     }
 
 private:
-    TProfiler* Profiler;
-    TAggregateCounter* Counter;
-    TCpuInstant Start;
+    TProfiler* Profiler_;
+    TAggregateCounter* Counter_;
+    TCpuInstant Start_;
 
 };
 

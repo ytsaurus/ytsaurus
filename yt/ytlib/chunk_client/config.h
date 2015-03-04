@@ -298,7 +298,7 @@ public:
         RegisterParameter("chunks_movable", ChunksMovable)
             .Default(true);
         RegisterParameter("sync_chunk_switch", SyncChunkSwitch)
-            .Default(false);
+            .Default(true);
     }
 };
 
@@ -341,6 +341,7 @@ class TMultiChunkReaderConfig
 public:
     i64 MaxBufferSize;
 
+
     TMultiChunkReaderConfig()
     {
         RegisterParameter("max_buffer_size", MaxBufferSize)
@@ -357,6 +358,24 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TMultiChunkReaderOptions
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    bool KeepInMemory;
+
+    TMultiChunkReaderOptions()
+    {
+        RegisterParameter("keep_in_memory", KeepInMemory)
+            .Default(false);
+    }
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderOptions)
 
 ///////////////////////////////////////////////////////////////////////////////
 

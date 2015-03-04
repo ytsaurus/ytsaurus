@@ -3,7 +3,6 @@
 #include "framework.h"
 
 #include <ytlib/cgroup/cgroup.h>
-#include <ytlib/cgroup/event.h>
 
 #include <core/misc/guid.h>
 #include <core/misc/proc.h>
@@ -48,6 +47,12 @@ TEST(CGroup, NotExistingGroupGetTasks)
 {
     TBlockIO group("not_existing_group_get_tasks" + ToString(TGuid::Create()));
     EXPECT_THROW(group.GetTasks(), std::exception);
+}
+
+TEST(CGroup, NotExistingRemoveAllSubcgroup)
+{
+    TBlockIO group("not_existing_remove_all_subcgroup" + ToString(TGuid::Create()));
+    group.RemoveAllSubcgroups();
 }
 
 #endif
@@ -156,7 +161,6 @@ TEST(CGroup, GetMemoryStats)
     auto group = CreateCGroup<TMemory>("get_memory_stat_" + ToString(TGuid::Create()));
 
     auto stats = group.GetStatistics();
-    EXPECT_EQ(0, group.GetUsageInBytes());
     EXPECT_EQ(0, stats.Rss);
 
     group.Destroy();
@@ -166,7 +170,6 @@ TEST(CGroup, UsageInBytesWithoutLimit)
 {
     const i64 memoryUsage = 8 * 1024 * 1024;
     auto group = CreateCGroup<TMemory>("usage_in_bytes_without_limit_" + ToString(TGuid::Create()));
-    auto event = group.GetOomEvent();
 
     i64 num = 1;
     auto exitBarier = ::eventfd(0, 0);
@@ -192,233 +195,11 @@ TEST(CGroup, UsageInBytesWithoutLimit)
     EXPECT_TRUE(::read(initBarier, &num, sizeof(num)) == sizeof(num));
 
     auto statistics = group.GetStatistics();
-    EXPECT_TRUE(group.GetUsageInBytes() >= memoryUsage);
-    EXPECT_TRUE(group.GetMaxUsageInBytes() >= memoryUsage);
     EXPECT_TRUE(statistics.Rss >= memoryUsage);
 
     EXPECT_TRUE(::write(exitBarier, &num, sizeof(num)) == sizeof(num));
 
     EXPECT_EQ(pid, waitpid(pid, nullptr, 0));
-}
-
-TEST(CGroup, OomEnabledByDefault)
-{
-    auto group = CreateCGroup<TMemory>("oom_enabled_by_default_" + ToString(TGuid::Create()));
-
-    EXPECT_TRUE(group.IsOomEnabled());
-
-    group.Destroy();
-}
-
-TEST(CGroup, DisableOom)
-{
-    auto group = CreateCGroup<TMemory>("disable_oom_" + ToString(TGuid::Create()));
-    group.DisableOom();
-
-    EXPECT_FALSE(group.IsOomEnabled());
-
-    group.Destroy();
-}
-
-TEST(CGroup, OomSettingsIsInherited)
-{
-    Stroka rootName("oom_setting_is_inherited_" + ToString(TGuid::Create()));
-    auto group = CreateCGroup<TMemory>(rootName);
-    group.DisableOom();
-
-    auto child = CreateCGroup<TMemory>(rootName + "/child");
-    EXPECT_FALSE(child.IsOomEnabled());
-
-    child.Destroy();
-    group.Destroy();
-}
-
-TEST(CGroup, UnableToDisableOom)
-{
-    Stroka rootName("unable_to_disable_oom_" + ToString(TGuid::Create()));
-    auto group = CreateCGroup<TMemory>(rootName);
-    group.EnableHierarchy();
-
-    auto child = CreateCGroup<TMemory>(rootName + "/child");
-    EXPECT_THROW(group.DisableOom(), std::exception);
-
-    child.Destroy();
-    group.Destroy();
-}
-
-TEST(CGroup, GetOomEventIfOomIsEnabled)
-{
-    auto group = CreateCGroup<TMemory>("get_oom_event_if_oom_is_enabled_"
-        + ToString(TGuid::Create()));
-    auto event = group.GetOomEvent();
-}
-
-TEST(CGroup, OomEventFiredIfOomIsEnabled)
-{
-    const i64 limit = 8 * 1024 * 1024;
-    auto group = CreateCGroup<TMemory>("get_event_fired_if_oom_is_enabled_"
-        + ToString(TGuid::Create()));
-    group.SetLimitInBytes(limit);
-    auto event = group.GetOomEvent();
-
-    auto pid = fork();
-    if (pid == 0) {
-        group.AddCurrentTask();
-        volatile char* data = new char[limit + 1];
-        for (int i = 0; i < limit + 1; ++i) {
-            data[i] = 0;
-        }
-        delete[] data;
-        _exit(1);
-    }
-
-    int status;
-    auto waitedpid = waitpid(pid, &status, 0);
-    EXPECT_TRUE(WIFSIGNALED(status));
-
-    EXPECT_TRUE(event.Fired());
-    EXPECT_EQ(1, event.GetLastValue());
-
-    group.Destroy();
-
-    ASSERT_EQ(pid, waitedpid);
-}
-
-TEST(CGroup, OomEventMissingEvent)
-{
-    const i64 limit = 8 * 1024 * 1024;
-    auto group = CreateCGroup<TMemory>("oom_event_missing_" + ToString(TGuid::Create()));
-    group.SetLimitInBytes(limit);
-
-    auto pid = fork();
-    if (pid == 0) {
-        group.AddCurrentTask();
-        volatile char* data = new char[limit + 1];
-        for (int i = 0; i < limit; ++i) {
-            data[i] = 0;
-        }
-        delete[] data;
-        _exit(1);
-    }
-
-    int status;
-    auto waitedpid = waitpid(pid, &status, 0);
-    EXPECT_TRUE(WIFSIGNALED(status));
-
-    auto event = group.GetOomEvent();
-    EXPECT_FALSE(event.Fired());
-
-    group.Destroy();
-
-    ASSERT_EQ(pid, waitedpid);
-}
-
-TEST(CGroup, ParentLimit)
-{
-    Stroka rootName("parent_limit_"  + ToString(TGuid::Create()));
-    const i64 limit = 8 * 1024 * 1024;
-    auto parent = CreateCGroup<TMemory>(rootName);
-    parent.EnableHierarchy();
-    parent.SetLimitInBytes(limit);
-
-    auto child = CreateCGroup<TMemory>(rootName + "/child");
-    auto childOom = child.GetOomEvent();
-
-    auto pid = fork();
-    if (pid == 0) {
-        child.AddCurrentTask();
-        volatile char* data = new char[limit + 1];
-        for (int i = 0; i < limit + 1; ++i) {
-            data[i] = 0;
-        }
-        delete[] data;
-        _exit(1);
-    }
-
-    int status;
-    waitpid(pid, &status, 0);
-    EXPECT_TRUE(WIFSIGNALED(status));
-
-    EXPECT_TRUE(childOom.Fired());
-}
-
-TEST(CGroup, ParentLimitTwoChildren)
-{
-    Stroka rootName("parent_limit_two_children" + ToString(TGuid::Create()));
-    const i64 limit = 8 * 1024 * 1024;
-    auto parent = CreateCGroup<TMemory>(rootName);
-    parent.EnableHierarchy();
-    parent.SetLimitInBytes(limit);
-    TEvent parentOom = parent.GetOomEvent();
-
-    auto exitBarier = ::eventfd(0, EFD_SEMAPHORE);
-    EXPECT_TRUE(exitBarier > 0);
-
-    auto initBarier = ::eventfd(0, EFD_SEMAPHORE);
-    EXPECT_TRUE(initBarier > 0);
-
-    std::array<TMemory, 2> children = {
-        TMemory(rootName + "/child"),
-        TMemory(rootName + "/other_child")
-    };
-
-    std::array<TEvent, 2> oomEvents;
-
-    for (auto i = 0; i < children.size(); ++i) {
-        children[i].Create();
-        oomEvents[i] = children[i].GetOomEvent();
-    }
-
-    std::array<int, 2> pids;
-    for (auto i = 0; i < children.size(); ++i) {
-        pids[i] = fork();
-        EXPECT_TRUE(pids[i] >= 0);
-
-        if (pids[i] == 0) {
-            children[i].AddCurrentTask();
-
-            volatile char* data = new char[limit / 2 + 1];
-            for (int i = 0; i < limit / 2; ++i) {
-                data[i] = 0;
-            }
-
-            i64 num = 1;
-            YCHECK(::read(exitBarier, &num, sizeof(num)) == sizeof(num));
-            delete[] data;
-            _exit(1);
-        }
-
-    }
-
-    // make sure that you actually wait for one of these two children
-    // not some lost child from other tests
-    int status;
-    int pid = 0;
-    while (pid != pids[0] && pid != pids[1]) {
-        pid = wait(&status);
-        ASSERT_TRUE(pid > 0);
-    }
-
-    EXPECT_TRUE(WIFSIGNALED(status)) << WEXITSTATUS(status);
-
-    i64 num;
-    num = 2;
-    EXPECT_EQ(sizeof(num), ::write(exitBarier, &num, sizeof(num)));
-
-    int index;
-    if (pids[0] == pid) {
-        index = 0;
-    } else {
-        index = 1;
-    }
-
-    EXPECT_TRUE(oomEvents[index].Fired());
-    EXPECT_TRUE(oomEvents[1 - index].Fired());
-    EXPECT_TRUE(parentOom.Fired());
-
-    EXPECT_TRUE(children[index].GetMaxUsageInBytes() < limit);
-
-    EXPECT_EQ(pids[1 - index], waitpid(pids[1 - index], nullptr, 0));
 }
 
 // This test proves that there is a bug in memory cgroup
@@ -430,7 +211,7 @@ TEST(CGroup, Bug)
 
     group.ForceEmpty();
     int iterations = 0;
-    while (group.GetUsageInBytes() != 0) {
+    while (group.GetStatistics().Rss != 0) {
         sleep(1);
         ++iterations;
         if (iterations > 10) {
@@ -482,6 +263,17 @@ TEST(CGroup, Bug)
 
     auto waitedpid = waitpid(pid, NULL, 0);
     EXPECT_TRUE(waitedpid == pid);
+}
+
+TEST(CGroup, RemoveAllSubcgroupsAfterLock)
+{
+    auto parentName = "remove_all_subcgroups_after_lock_" + ToString(TGuid::Create());
+    auto parent = CreateCGroup<TFreezer>(parentName);
+    TNonOwningCGroup child(parent.GetFullPath() + "/child");
+
+    child.EnsureExistance();
+    parent.Lock();
+    parent.RemoveAllSubcgroups();
 }
 
 TEST(CGroup, FreezerEmpty)
@@ -562,53 +354,6 @@ TEST(ProcessCGroup, BadInput)
 {
     Stroka basic("xxx:cpuacct,cpu,cpuset:/daemons\n");
     EXPECT_THROW(ParseProcessCGroups(basic), std::exception);
-}
-
-class TTestableEvent
-    : public NCGroup::TEvent
-{
-public:
-    TTestableEvent(int eventFd, int fd = -1)
-        : NCGroup::TEvent(eventFd, fd)
-    { }
-};
-
-TEST(TEvent, Fired)
-{
-    auto eventFd = eventfd(0, EFD_NONBLOCK);
-    TTestableEvent event(eventFd, -1);
-
-    EXPECT_FALSE(event.Fired());
-
-    i64 value = 1;
-    EXPECT_EQ(::write(eventFd, &value, sizeof(value)), sizeof(value));
-
-    EXPECT_TRUE(event.Fired());
-}
-
-TEST(TEvent, Sticky)
-{
-    auto eventFd = eventfd(0, EFD_NONBLOCK);
-    TTestableEvent event(eventFd, -1);
-
-    i64 value = 1;
-    EXPECT_EQ(::write(eventFd, &value, sizeof(value)), sizeof(value));
-
-    EXPECT_TRUE(event.Fired());
-    EXPECT_TRUE(event.Fired());
-}
-
-TEST(TEvent, Clear)
-{
-    auto eventFd = eventfd(0, EFD_NONBLOCK);
-    TTestableEvent event(eventFd, -1);
-
-    i64 value = 1;
-    EXPECT_EQ(::write(eventFd, &value, sizeof(value)),sizeof(value));
-
-    EXPECT_TRUE(event.Fired());
-    event.Clear();
-    EXPECT_FALSE(event.Fired());
 }
 
 #endif // _linux_

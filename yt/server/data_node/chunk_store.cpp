@@ -369,7 +369,9 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location, const TError& reason
                 ++count;
             }
         }
-        LOG_INFO("%v chunks discarded at disabled location", count);
+        LOG_INFO("%v chunks discarded at disabled location (LocationId: %v)",
+            count,
+            location->GetId());
     }
 
     // Scan through all sessions and cancel those opened for discarded chunks.
@@ -383,7 +385,9 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location, const TError& reason
                 ++count;
             }
         }
-        LOG_INFO("%v sessions canceled at disabled location", count);
+        LOG_INFO("%v sessions canceled at disabled location (LocationId: %v)",
+            count,
+            location->GetId());
     }
 
     // Register an alert and

@@ -62,7 +62,7 @@ private:
 
     TPromise<void> Promise_ = NewPromise<void>();
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     void DoRun()
@@ -171,7 +171,7 @@ private:
 
     TPromise<TMiscExt> Promise_ = NewPromise<TMiscExt>();
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     void DoRun()

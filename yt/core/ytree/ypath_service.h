@@ -75,7 +75,7 @@ struct IYPathService
 
     //! Called for the target service and returns the logger that will be used by RPC infrastructure
     //! to log various details about verb invocation (e.g. request and response infos).
-    virtual NLog::TLogger GetLogger() const = 0;
+    virtual NLogging::TLogger GetLogger() const = 0;
 
 
     // Extension methods
@@ -95,6 +95,8 @@ struct IYPathService
     IYPathServicePtr Cached(TDuration expirationTime);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(IYPathService)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -20,7 +20,7 @@ class TTabletTracker
     : public TRefCounted
 {
 public:
-    explicit TTabletTracker(
+    TTabletTracker(
         TTabletManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
@@ -30,15 +30,16 @@ public:
 private:
     class TCandidatePool;
 
-    TTabletManagerConfigPtr Config_;
-    NCellMaster::TBootstrap* Bootstrap_;
+    const TTabletManagerConfigPtr Config_;
+    NCellMaster::TBootstrap* const Bootstrap_;
 
     TInstant StartTime_;
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
+    TNullable<bool> LastEnabled_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-
+    bool IsEnabled();
     void ScanCells();
 
     void SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool);
@@ -47,6 +48,8 @@ private:
     bool IsFailoverNeeded(TTabletCell* cell, TPeerId peerId);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TTabletTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 

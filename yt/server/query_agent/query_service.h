@@ -15,8 +15,7 @@ namespace NQueryAgent {
 
 NRpc::IServicePtr CreateQueryService(
     TQueryAgentConfigPtr config,
-    IInvokerPtr invoker,
-    NQueryClient::IExecutorPtr executor);
+    NCellNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

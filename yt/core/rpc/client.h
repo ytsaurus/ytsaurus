@@ -42,6 +42,9 @@ struct IClientRequest
 
     virtual TInstant GetStartTime() const = 0;
     virtual void SetStartTime(TInstant value) = 0;
+
+    virtual bool GetRetry() const = 0;
+    virtual void SetRetry(bool value) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClientRequest)
@@ -98,10 +101,14 @@ public:
     virtual TInstant GetStartTime() const override;
     virtual void SetStartTime(TInstant value) override;
 
+    virtual bool GetRetry() const override;
+    virtual void SetRetry(bool value) override;
+
 protected:
     const IChannelPtr Channel_;
 
     TSharedRef SerializedBody_;
+    bool FirstTimeSerialization_ = true;
 
 
     TClientRequest(

@@ -145,9 +145,74 @@ TKeyTrieNode& TKeyTrieNode::Unite(const TKeyTrieNode& rhs)
         std::vector<TBound> bounds = UniteBounds(Bounds, rhs.Bounds);
 
         Bounds = IntersectBounds(bounds, deletedPoints);
-    }    
+    }
 
     return *this;
+}
+
+TKeyTrieNode TKeyTrieNode::FromLowerBound(const TKey& bound)
+{
+    auto result = TKeyTrieNode::Universal();
+
+    for (int offset = 0; offset < bound.GetCount(); ++offset) {
+        if (bound[offset].Type != EValueType::Min && bound[offset].Type != EValueType::Max) {
+            auto node = TKeyTrieNode(offset);
+
+            if (offset + 1 < bound.GetCount()) {
+                if (bound[offset + 1].Type == EValueType::Min) {
+                    node.Bounds.emplace_back(bound[offset], true);
+                    node.Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+                } else if (bound[offset + 1].Type == EValueType::Max) {
+                    node.Bounds.emplace_back(bound[offset], false);
+                    node.Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+                } else {
+                    node.Next.emplace(bound[offset], TKeyTrieNode::Universal());
+                }
+            } else {
+                node.Bounds.emplace_back(bound[offset], true);
+                node.Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+            }
+
+            result = IntersectKeyTrie(result, node);
+        }
+    }
+
+    return result;
+}
+
+TKeyTrieNode TKeyTrieNode::FromUpperBound(const TKey& bound)
+{
+    auto result = TKeyTrieNode::Universal();
+
+    for (int offset = 0; offset < bound.GetCount(); ++offset) {
+        if (bound[offset].Type != EValueType::Min && bound[offset].Type != EValueType::Max) {
+            auto node = TKeyTrieNode(offset);
+
+            if (offset + 1 < bound.GetCount()) {
+                if (bound[offset + 1].Type == EValueType::Min) {
+                    node.Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
+                    node.Bounds.emplace_back(bound[offset], false);
+                } else if (bound[offset + 1].Type == EValueType::Max) {
+                    node.Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
+                    node.Bounds.emplace_back(bound[offset], true);
+                } else {
+                    node.Next.emplace(bound[offset], TKeyTrieNode::Universal());
+                }
+            } else {
+                node.Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
+                node.Bounds.emplace_back(bound[offset], false);
+            }
+
+            result = IntersectKeyTrie(result, node);
+        }
+    }
+
+    return result;
+}
+
+TKeyTrieNode TKeyTrieNode::FromRange(const TKeyRange& range)
+{
+    return IntersectKeyTrie(FromLowerBound(range.first), FromUpperBound(range.second));
 }
 
 TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)

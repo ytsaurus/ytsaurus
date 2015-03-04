@@ -58,7 +58,7 @@ struct IChunk
      */
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         i64 priority,
-        const std::vector<int>* tags = nullptr) = 0;
+        const TNullable<std::vector<int>>& extensionTags = Null) = 0;
 
     //! Asynchronously reads a range of blocks.
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(

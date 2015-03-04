@@ -12,6 +12,7 @@ namespace NYT {
 namespace NTabletServer {
 
 using namespace NElection;
+using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
 using namespace NCellMaster;
 
@@ -20,7 +21,15 @@ using namespace NCellMaster;
 void TTabletCell::TPeer::Persist(NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, Address);
+
+    // COMPAT(babenko)
+    if (context.IsLoad() && context.LoadContext().GetVersion() < 113) {
+        TNullable<Stroka> address;
+        Persist(context, address);
+        YCHECK(!address);
+    } else {
+        Persist(context, Descriptor);
+    }
     Persist(context, Node);
     Persist(context, LastSeenTime);
 }
@@ -61,17 +70,15 @@ void TTabletCell::Load(TLoadContext& context)
     Load(context, *Config_);
     Load(context, *Options_);
     Load(context, Tablets_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 108) {
-        Load(context, PrerequisiteTransaction_);
-    }
+    Load(context, PrerequisiteTransaction_);
 }
 
 TPeerId TTabletCell::FindPeerId(const Stroka& address) const
 {
-    for (int index = 0; index < static_cast<int>(Peers_.size()); ++index) {
-        if (Peers_[index].Address == address) {
-            return index;
+    for (TPeerId peerId = 0; peerId < static_cast<int>(Peers_.size()); ++peerId) {
+        const auto& peer = Peers_[peerId];
+        if (peer.Descriptor && peer.Descriptor->GetDefaultAddress() == address) {
+            return peerId;
         }
     }
     return InvalidPeerId;
@@ -86,9 +93,9 @@ TPeerId TTabletCell::GetPeerId(const Stroka& address) const
 
 TPeerId TTabletCell::FindPeerId(TNode* node) const
 {
-    for (int index = 0; index < static_cast<int>(Peers_.size()); ++index) {
-        if (Peers_[index].Node == node) {
-            return index;
+    for (TPeerId peerId = 0; peerId < static_cast<int>(Peers_.size()); ++peerId) {
+        if (Peers_[peerId].Node == node) {
+            return peerId;
         }
     }
     return InvalidPeerId;
@@ -101,26 +108,26 @@ TPeerId TTabletCell::GetPeerId(TNode* node) const
     return peerId;
 }
 
-void TTabletCell::AssignPeer(const Stroka& address, TPeerId peerId)
+void TTabletCell::AssignPeer(const TNodeDescriptor& descriptor, TPeerId peerId)
 {
     auto& peer = Peers_[peerId];
-    YCHECK(!peer.Address);
-    peer.Address = address;
+    YCHECK(!peer.Descriptor);
+    peer.Descriptor = descriptor;
 }
 
 void TTabletCell::RevokePeer(TPeerId peerId)
 {
     auto& peer = Peers_[peerId];
-    YCHECK(peer.Address);
-    YCHECK(!peer.Node);
-    peer.Address = Null;
+    YCHECK(peer.Descriptor);
+    peer.Descriptor.Reset();
+    peer.Node = nullptr;
 }
 
 void TTabletCell::AttachPeer(TNode* node, TPeerId peerId)
 {
     auto& peer = Peers_[peerId];
-    YCHECK(peer.Address);
-    YCHECK(*peer.Address == node->GetAddress());
+    YCHECK(peer.Descriptor);
+    YCHECK(peer.Descriptor->GetDefaultAddress() == node->GetAddress());
 
     YCHECK(!peer.Node);
     peer.Node = node;
@@ -144,7 +151,7 @@ int TTabletCell::GetOnlinePeerCount() const
 {
     int result = 0;
     for (const auto& peer : Peers_) {
-        if (peer.Address && peer.Node) {
+        if (peer.Descriptor && peer.Node) {
             ++result;
         }
     }

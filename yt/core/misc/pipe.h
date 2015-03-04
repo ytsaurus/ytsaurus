@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -8,18 +10,35 @@ struct TPipe
 {
     static const int InvalidFd;
 
-    int ReadFd;
-    int WriteFd;
+    int ReadFD;
+    int WriteFD;
 
     TPipe(int fd[2])
-        : ReadFd(fd[0])
-        , WriteFd(fd[1])
+        : ReadFD(fd[0])
+        , WriteFD(fd[1])
     { }
 
     TPipe()
-        : ReadFd(-1)
-        , WriteFd(-1)
+        : ReadFD(-1)
+        , WriteFD(-1)
     { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPipeFactory
+{
+public:
+    explicit TPipeFactory(int minFD);
+    ~TPipeFactory();
+
+    TPipe Create();
+
+    void Clear();
+
+private:
+    int MinFD_;
+    std::vector<int> ReservedFDs_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

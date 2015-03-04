@@ -6,7 +6,7 @@
 
 #include <core/rpc/config.h>
 
-#include <ytlib/table_client/config.h>
+#include <ytlib/new_table_client/config.h>
 
 #include <ytlib/chunk_client/config.h>
 
@@ -66,7 +66,7 @@ public:
 };
 
 class TEventLogConfig
-    : public NTableClient::TBufferedTableWriterConfig
+    : public NVersionedTableClient::TBufferedTableWriterConfig
 {
 public:
     NYPath::TYPath Path;
@@ -324,7 +324,8 @@ public:
             .Default(false);
 
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
-            .Default(1);
+            .GreaterThanOrEqual(0)
+            .Default(0);
 
         RegisterParameter("map_operation_spec", MapOperationSpec)
             .Default(nullptr);

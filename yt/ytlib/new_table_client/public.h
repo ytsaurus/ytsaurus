@@ -12,11 +12,6 @@
 
 #include <initializer_list>
 
-// TODO(babenko): remove after migration
-namespace NYT { namespace NTableClient { namespace NProto {
-    class TKeyColumnsExt;
-} } }
-
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -27,7 +22,7 @@ namespace NProto {
 class TNameTableExt;
 class TColumnSchema;
 class TTableSchemaExt;
-using NTableClient::NProto::TKeyColumnsExt; // TODO(babenko): remove after migration
+class TKeyColumnsExt;
 class TBoundaryKeysExt;
 class TBlockIndexesExt;
 class TBlockMetaExt;
@@ -59,7 +54,14 @@ const int MaxValuesPerRow = 1024;
 const int MaxRowsPerRowset = 1024 * 1024;
 const i64 MaxStringValueLength = (i64) 1024 * 1024; // 1 MB
 
+const int DefaultPartitionTag = -1;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EErrorCode,
+    ((MasterCommunicationFailed)  (300))
+    ((SortOrderViolation)         (301))
+);
 
 DEFINE_ENUM(ETableChunkFormat,
     ((Old)                  (1))
@@ -115,6 +117,10 @@ struct  IBlockWriter;
 
 class TBlockWriter;
 
+class THorizontalSchemalessBlockReader;
+
+struct IPartitioner;
+
 DECLARE_REFCOUNTED_CLASS(TSamplesFetcher)
 DECLARE_REFCOUNTED_CLASS(TChunkSplitsFetcher)
 
@@ -125,11 +131,16 @@ DECLARE_REFCOUNTED_CLASS(TSchemafulPipe)
 DECLARE_REFCOUNTED_STRUCT(ISchemalessReader)
 DECLARE_REFCOUNTED_STRUCT(ISchemalessWriter)
 
-//DECLARE_REFCOUNTED_STRUCT(ISchemalessChunkReader)
+DECLARE_REFCOUNTED_STRUCT(ISchemalessChunkReader)
 DECLARE_REFCOUNTED_STRUCT(ISchemalessChunkWriter)
 
-//DECLARE_REFCOUNTED_STRUCT(ISchemalessChunkReader)
+DECLARE_REFCOUNTED_STRUCT(ISchemalessMultiChunkReader)
 DECLARE_REFCOUNTED_STRUCT(ISchemalessMultiChunkWriter)
+
+DECLARE_REFCOUNTED_CLASS(TPartitionChunkReader)
+DECLARE_REFCOUNTED_CLASS(TPartitionMultiChunkReader)
+
+DECLARE_REFCOUNTED_STRUCT(ISchemalessTableReader)
 
 DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
 DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)
@@ -141,16 +152,25 @@ DECLARE_REFCOUNTED_CLASS(TCachedVersionedChunkMeta)
 
 DECLARE_REFCOUNTED_STRUCT(IVersionedLookuper)
 
-typedef NChunkClient::TEncodingWriterOptions TChunkWriterOptions;
-typedef NChunkClient::TEncodingWriterOptionsPtr TChunkWriterOptionsPtr;
+DECLARE_REFCOUNTED_STRUCT(IValueConsumer)
+DECLARE_REFCOUNTED_CLASS(TBuildingValueConsumer)
+DECLARE_REFCOUNTED_CLASS(TWritingValueConsumer)
 
-typedef NChunkClient::TMultiChunkWriterOptions TTableWriterOptions;
-typedef NChunkClient::TMultiChunkWriterOptionsPtr TTableWriterOptionsPtr;
+DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterOptions)
+
+typedef TMultiChunkWriterOptions TTableWriterOptions;
+typedef TMultiChunkWriterOptionsPtr TTableWriterOptionsPtr;
 
 DECLARE_REFCOUNTED_CLASS(TChunkWriterConfig)
-DECLARE_REFCOUNTED_CLASS(TChunkReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TChunkWriterOptions)
+
+typedef NChunkClient::TSequentialReaderConfig TChunkReaderConfig;
+typedef NChunkClient::TSequentialReaderConfigPtr TChunkReaderConfigPtr;
 
 DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TTableReaderConfig)
+
+DECLARE_REFCOUNTED_CLASS(TBufferedTableWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

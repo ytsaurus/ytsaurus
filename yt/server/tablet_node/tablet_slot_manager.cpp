@@ -35,7 +35,7 @@ using namespace NHydra;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;
-static auto SlotScanPeriod = TDuration::Seconds(3);
+static auto SlotScanPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -190,11 +190,11 @@ public:
 
         {
             TWriterGuard guard(TabletSnapshotsSpinLock_);
-            YCHECK(TabletIdToSnapshot_.insert(std::make_pair(tablet->GetId(), snapshot)).second);
+            YCHECK(TabletIdToSnapshot_.insert(std::make_pair(tablet->GetTabletId(), snapshot)).second);
         }
 
         LOG_INFO("Tablet snapshot registered (TabletId: %v)",
-            tablet->GetId());
+            tablet->GetTabletId());
     }
 
     void UnregisterTabletSnapshot(TTablet* tablet)
@@ -206,11 +206,11 @@ public:
         {
             TWriterGuard guard(TabletSnapshotsSpinLock_);
             // NB: Don't check the result.
-            TabletIdToSnapshot_.erase(tablet->GetId());
+            TabletIdToSnapshot_.erase(tablet->GetTabletId());
         }
 
         LOG_INFO("Tablet snapshot unregistered (TabletId: %v)",
-            tablet->GetId());
+            tablet->GetTabletId());
     }
 
     void UpdateTabletSnapshot(TTablet* tablet)
@@ -222,13 +222,13 @@ public:
 
         {
             TWriterGuard guard(TabletSnapshotsSpinLock_);
-            auto it = TabletIdToSnapshot_.find(tablet->GetId());
+            auto it = TabletIdToSnapshot_.find(tablet->GetTabletId());
             YCHECK(it != TabletIdToSnapshot_.end());
             it->second = snapshot;
         }
 
-        LOG_INFO("Tablet snapshot updated (TabletId: %v, CellId: %v)",
-            tablet->GetId(),
+        LOG_DEBUG("Tablet snapshot updated (TabletId: %v, CellId: %v)",
+            tablet->GetTabletId(),
             tablet->GetSlot()->GetCellId());
     }
 
@@ -264,8 +264,8 @@ public:
     DEFINE_SIGNAL(void(), EndSlotScan);
 
 private:
-    TTabletNodeConfigPtr Config_;
-    NCellNode::TBootstrap* Bootstrap_;
+    const TTabletNodeConfigPtr Config_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
     int UsedSlotCount_ = 0;
     std::vector<TTabletSlotPtr> Slots_;
@@ -300,8 +300,6 @@ private:
 
         LOG_DEBUG("Slot scan started");
 
-        auto this_ = MakeStrong(this);
-
         BeginSlotScan_.Fire();
 
         std::vector<TFuture<void>> asyncResults;
@@ -310,8 +308,7 @@ private:
                 continue;
 
             asyncResults.push_back(
-                BIND([=] () {
-                    UNUSED(this_);
+                BIND([=, this_ = MakeStrong(this)] () {
                     if (slot->GetHydraManager()->IsActiveLeader()) {
                         ScanSlot_.Fire(slot);
                     }
@@ -320,8 +317,7 @@ private:
                 .Run());
         }
 
-        Combine(asyncResults).Subscribe(BIND([=] (const TError&) {
-            UNUSED(this_);
+        Combine(asyncResults).Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError&) {
             VERIFY_THREAD_AFFINITY(ControlThread);
             EndSlotScan_.Fire();
             LOG_DEBUG("Slot scan completed");

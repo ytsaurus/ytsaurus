@@ -151,6 +151,11 @@ inline bool IsComparableType(EValueType type)
     return IsArithmeticType(type) || type == EValueType::String;
 }
 
+inline bool IsSentinelType(EValueType type)
+{
+    return type == EValueType::Min || type == EValueType::Max;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TUnversionedValue MakeUnversionedSentinelValue(EValueType type, int id = 0)
@@ -269,7 +274,7 @@ void ResetRowValues(TUnversionedRow* row);
 size_t GetHash(const TUnversionedValue& value);
 
 //! Computes hash for a given TUnversionedRow.
-size_t GetHash(TUnversionedRow row);
+size_t GetHash(TUnversionedRow row, int keyColumnCount = std::numeric_limits<int>::max());
 
 //! Returns the number of bytes needed to store the fixed part of the row (header + values).
 size_t GetUnversionedRowDataSize(int valueCount);
@@ -456,6 +461,8 @@ TOwningKey GetKeySuccessor(TKey key);
 //! a |EValueType::Max| sentinel.
 TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength);
 
+TOwningKey GetKeyPrefix(TKey key, int prefixLength);
+
 //! Returns the key with no components.
 const TOwningKey EmptyKey();
 
@@ -588,6 +595,11 @@ public:
         RowData_ = std::move(other.RowData_);
         StringData_ = std::move(other.StringData_);
         return *this;
+    }
+
+    int GetSize() const
+    {
+        return StringData_.length() + RowData_.Size();
     }
 
     void Save(TStreamSaveContext& context) const;

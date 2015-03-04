@@ -116,7 +116,7 @@ public:
         IInvokerPtr controlInvoker,
         ISnapshotStorePtr snapshotStore,
         IChangelogStorePtr changelogStore,
-        NProfiling::TProfiler profiler);
+        const NProfiling::TProfiler& profiler);
 
     void OnStartLeading();
     void OnLeaderRecoveryComplete();
@@ -142,8 +142,6 @@ public:
     TVersion GetAutomatonVersion() const;
     void RotateAutomatonVersion(int segmentId);
 
-    IAutomatonPtr GetAutomaton();
-
     void Clear();
     void LoadSnapshot(TVersion version, TInputStream* input);
 
@@ -167,8 +165,6 @@ public:
 
     void CommitMutations(TVersion version);
 
-    TMutationContext* GetMutationContext();
-
 private:
     friend class TUserLockGuard;
     friend class TSystemLockGuard;
@@ -190,7 +186,6 @@ private:
     std::atomic<int> SystemLock_ = {0};
 
     TEpochId Epoch_;
-    TMutationContext* MutationContext_ = nullptr;
     IChangelogPtr Changelog_;
 
     std::atomic<TVersion> LoggedVersion_;
@@ -215,7 +210,7 @@ private:
 
     NProfiling::TAggregateCounter BatchCommitTimeCounter_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
 

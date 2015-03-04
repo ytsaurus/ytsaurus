@@ -1,5 +1,4 @@
 #include "stdafx.h"
-
 #include "query_executor.h"
 #include "config.h"
 #include "private.h"
@@ -22,7 +21,7 @@
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_chunk_reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/schemaful_merging_reader.h>
+#include <ytlib/new_table_client/unordered_schemaful_reader.h>
 #include <ytlib/new_table_client/pipe.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
@@ -46,6 +45,7 @@
 #include <server/tablet_node/tablet_slot.h>
 #include <server/tablet_node/tablet.h>
 #include <server/tablet_node/tablet_reader.h>
+#include <server/tablet_node/security_manager.h>
 #include <server/tablet_node/config.h>
 
 #include <server/hydra/hydra_manager.h>
@@ -135,16 +135,19 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    TFuture<TQueryStatistics> Execute(
+    virtual TFuture<TQueryStatistics> Execute(
         const TPlanFragmentPtr& fragment,
-        ISchemafulWriterPtr writer)
+        ISchemafulWriterPtr writer) override
     {
-        return Bootstrap_->GetMasterClient()->GetQueryExecutor()->Execute(fragment, std::move(writer));
+        auto executor = Bootstrap_->GetMasterClient()->GetQueryExecutor();
+        return executor->Execute(fragment, std::move(writer));
     }
 
 private:
-    TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TQueryExecutor
     : public IExecutor
@@ -170,11 +173,11 @@ public:
     }
 
 private:
-    TQueryAgentConfigPtr Config_;
-    TBootstrap* Bootstrap_;
+    const TQueryAgentConfigPtr Config_;
+    TBootstrap* const Bootstrap_;
+    const TEvaluatorPtr Evaluator_;
+    const IExecutorPtr RemoteExecutor_;
 
-    TEvaluatorPtr Evaluator_;
-    IExecutorPtr RemoteExecutor_;
 
     TQueryStatistics DoExecute(
         const TPlanFragmentPtr& fragment,
@@ -207,14 +210,14 @@ private:
                 for (const auto& dataSplit : groupedSplits[index]) {
                     bottomSplitReaders.push_back(GetReader(dataSplit, nodeDirectory));
                 }
-                auto mergingReader = CreateSchemafulMergingReader(bottomSplitReaders);
+                auto mergingReader = CreateUnorderedSchemafulReader(bottomSplitReaders);
 
                 auto pipe = New<TSchemafulPipe>();
 
-                auto statistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
+                auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
                     .Run(subquery, mergingReader, pipe->GetWriter(), [&] (const TQueryPtr& subquery, ISchemafulWriterPtr writer) -> TQueryStatistics {
-                        TPlanFragmentPtr planFragment = New<TPlanFragment>();
+                        auto planFragment = New<TPlanFragment>();
 
                         planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
                         planFragment->Query = subquery;
@@ -222,16 +225,17 @@ private:
 
                         auto subqueryResult = RemoteExecutor_->Execute(planFragment, writer);
 
-                        return WaitFor(subqueryResult).ValueOrThrow();
+                        return WaitFor(subqueryResult)
+                            .ValueOrThrow();
                     });
 
-                statistics.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& result) {
+                asyncStatistics.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& result) {
                     if (!result.IsOK()) {
                         pipe->Fail(result);
                     }
                 }));
 
-                return std::make_pair(pipe->GetReader(), statistics);
+                return std::make_pair(pipe->GetReader(), asyncStatistics);
             },
             [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 auto asyncQueryStatisticsOrError = BIND(&TEvaluator::Run, Evaluator_)
@@ -246,9 +250,9 @@ private:
     TDataSplits Split(
         const TDataSplits& splits,
         TNodeDirectoryPtr nodeDirectory,
-        const NLog::TLogger& Logger)
+        const NLogging::TLogger& Logger)
     {
-        std::map<TGuid, TDataSplits> splitsByTablet;
+        yhash_map<TGuid, TDataSplits> splitsByTablet;
 
         TDataSplits allSplits;
         for (const auto& split : splits) {
@@ -259,7 +263,6 @@ private:
                 splitsByTablet[objectId].push_back(split);
             } else {
                 allSplits.push_back(split);
-                continue;
             }
         }
 
@@ -566,6 +569,9 @@ private:
 
             auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
             auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
+
+            auto securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
 
             auto lowerBound = GetLowerBoundFromDataSplit(split);
             auto upperBound = GetUpperBoundFromDataSplit(split);

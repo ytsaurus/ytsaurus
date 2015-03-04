@@ -93,6 +93,9 @@ void TSnapshotBuilderBase::DoRunParent()
 void TSnapshotBuilderBase::RunParent()
 { }
 
+void TSnapshotBuilderBase::Cleanup()
+{ }
+
 IInvokerPtr TSnapshotBuilderBase::GetWatchdogInvoker()
 {
     return WatchdogQueue->GetInvoker();
@@ -126,17 +129,19 @@ void TSnapshotBuilderBase::OnWatchdogCheck()
     }
     Result_.Set(error);
 
-    Cleanup();
+    DoCleanup();
 #endif
 }
 
-void TSnapshotBuilderBase::Cleanup()
+void TSnapshotBuilderBase::DoCleanup()
 {
     ChildPid_ = -1;
     if (WatchdogExecutor_) {
         WatchdogExecutor_->Stop();
         WatchdogExecutor_.Reset();
     }
+
+    Cleanup();
 }
 
 void TSnapshotBuilderBase::OnCanceled()
@@ -157,8 +162,7 @@ void TSnapshotBuilderBase::DoCancel()
 #endif
 
     Result_.TrySet(TError("Snapshot builder canceled"));
-
-    Cleanup();
+    DoCleanup();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,8 +4,39 @@
 
 #include <ytlib/scheduler/public.h>
 
+#include <ytlib/job_tracker_client/public.h>
+
 namespace NYT {
 namespace NDriver {
+
+//////////////////////////////////////////////////////////////////////////////
+
+struct TDumpInputContextRequest
+    : public TTransactionalRequest
+    , public TMutatingRequest
+{
+    NJobTrackerClient::TJobId JobId;
+    NYPath::TYPath Path;
+
+    TDumpInputContextRequest()
+    {
+        RegisterParameter("job_id", JobId);
+        RegisterParameter("path", Path);
+    }
+};
+
+//////////////////////////////////////////////////////////////////////////////
+
+class TDumpInputContextCommand
+    : public TTypedCommand<TDumpInputContextRequest>
+{
+protected:
+    typedef TDumpInputContextCommand TThis;
+
+private:
+    virtual void DoExecute() override;
+
+};
 
 //////////////////////////////////////////////////////////////////////////////
 

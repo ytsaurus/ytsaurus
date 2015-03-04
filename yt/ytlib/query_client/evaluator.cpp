@@ -88,7 +88,7 @@ public:
         TExecuteQuery executeCallback)
     {
         TRACE_CHILD("QueryClient", "Evaluate") {
-            TRACE_ANNOTATION("fragment_id", query->GetId());
+            TRACE_ANNOTATION("fragment_id", query->Id);
 
             auto Logger = BuildLogger(query);
 
@@ -110,8 +110,6 @@ public:
                         .ThrowOnError();
                 }
 
-                LOG_DEBUG("Writer opened");
-
                 TRowBuffer permanentBuffer;
                 TRowBuffer outputBuffer;
                 TRowBuffer intermediateBuffer;
@@ -132,9 +130,10 @@ public:
                 executionContext.Writer = writer.Get();
                 executionContext.Batch = &batch;
                 executionContext.Statistics = &statistics;
-                executionContext.InputRowLimit = query->GetInputRowLimit();
-                executionContext.OutputRowLimit = query->GetOutputRowLimit();
-                executionContext.GroupRowLimit = query->GetOutputRowLimit();
+                executionContext.InputRowLimit = query->InputRowLimit;
+                executionContext.OutputRowLimit = query->OutputRowLimit;
+                executionContext.GroupRowLimit = query->OutputRowLimit;
+                executionContext.JoinRowLimit = query->OutputRowLimit;
                 executionContext.Limit = query->Limit;
 
                 if (query->JoinClause) {
@@ -146,6 +145,7 @@ public:
                         executeCallback);
                 }
 
+                LOG_DEBUG("Evaluating query");
                 CallCGQueryPtr(cgQuery, fragmentParams.ConstantsRowBuilder.GetRow(), &executionContext);
 
                 LOG_DEBUG("Flushing writer");

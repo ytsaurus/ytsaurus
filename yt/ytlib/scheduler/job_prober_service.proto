@@ -1,0 +1,16 @@
+package NYT.NScheduler.NProto;
+
+import "yt/core/misc/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqDumpInputContext
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required string path = 2;
+}
+
+message TRspDumpInputContext
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

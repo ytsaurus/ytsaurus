@@ -55,14 +55,9 @@ public:
             automaton)
         , Config_(config)
         , AutomatonInvoker_(automatonInvoker)
-        , HydraManager_(hydraManager)
-        , Active_(false)
-        , CurrentTimestamp_(NullTimestamp)
-        , CommittedTimestamp_(NullTimestamp)
     {
         YCHECK(Config_);
         YCHECK(AutomatonInvoker_);
-        YCHECK(HydraManager_);
 
         TimestampQueue_ = New<TActionQueue>("Timestamp");
         TimestampInvoker_ = TimestampQueue_->GetInvoker();
@@ -98,7 +93,6 @@ public:
 private:
     TTimestampManagerConfigPtr Config_;
     IInvokerPtr AutomatonInvoker_;
-    IHydraManagerPtr HydraManager_;
 
     TActionQueuePtr TimestampQueue_;
     IInvokerPtr TimestampInvoker_;
@@ -108,14 +102,14 @@ private:
     // Timestamp thread affinity:
     
     //! Can we generate timestamps?
-    volatile bool Active_;
+    volatile bool Active_ = false;
 
     //! First unused timestamp.
-    TTimestamp CurrentTimestamp_;
+    TTimestamp CurrentTimestamp_ = NullTimestamp;
 
     //! Last committed timestamp as viewed by the timestamp thread.
     //! All generated timestamps must be less than this one.
-    TTimestamp CommittedTimestamp_;
+    TTimestamp CommittedTimestamp_ = NullTimestamp;
 
 
     // Automaton thread affinity:
@@ -214,13 +208,11 @@ private:
         request.set_timestamp(commitTimestamp);
 
         auto mutation = CreateMutation(HydraManager_, request);
-        auto this_ = MakeStrong(this);
-        AutomatonInvoker_->Invoke(BIND([=] () {
-            mutation
-                ->Commit()
-                 .Subscribe(BIND(&TImpl::OnTimestampCommitted, this_, commitTimestamp)
-                    .Via(TimestampInvoker_));
-        }));
+        BIND(&TMutation::Commit, mutation)
+            .AsyncVia(AutomatonInvoker_)
+            .Run()
+            .Subscribe(BIND(&TImpl::OnTimestampCommitted, MakeStrong(this), commitTimestamp)
+                .Via(TimestampInvoker_));
     }
 
     void OnTimestampCommitted(TTimestamp timestamp, TErrorOr<TMutationResponse> result)
@@ -266,14 +258,13 @@ private:
         LOG_INFO("Persistent timestamp is %v",
             PersistentTimestamp_);
 
-        auto this_ = MakeStrong(this);
         auto persistentTimestamp = PersistentTimestamp_;
         auto invoker = HydraManager_
             ->GetAutomatonEpochContext()
             ->CancelableContext
             ->CreateInvoker(TimestampInvoker_);
 
-        auto callback = BIND([this, this_, persistentTimestamp] () {
+        auto callback = BIND([=, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(TimestampThread);
 
             Active_ = true;
@@ -300,8 +291,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto this_ = MakeStrong(this);
-        TimestampInvoker_->Invoke(BIND([this, this_] () {
+        TimestampInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(TimestampThread);
 
             if (!Active_)

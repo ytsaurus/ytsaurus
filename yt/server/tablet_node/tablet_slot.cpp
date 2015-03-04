@@ -15,6 +15,7 @@
 #include <core/ytree/fluent.h>
 
 #include <core/rpc/server.h>
+#include <core/rpc/response_keeper.h>
 
 #include <core/logging/log.h>
 
@@ -38,7 +39,6 @@
 #include <server/hydra/remote_snapshot_store.h>
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/distributed_hydra_manager.h>
-#include <server/hydra/persistent_response_keeper.h>
 
 #include <server/hive/hive_manager.h>
 #include <server/hive/mailbox.h>
@@ -153,7 +153,7 @@ public:
         return HydraManager_;
     }
 
-    IResponseKeeperPtr GetResponseKeeper() const
+    TResponseKeeperPtr GetResponseKeeper() const
     {
         return ResponseKeeper_;
     }
@@ -215,10 +215,8 @@ public:
 
     TObjectId GenerateId(EObjectType type)
     {
-        auto* mutationContext = HydraManager_->GetMutationContext();
-
-        const auto& version = mutationContext->GetVersion();
-
+        auto* mutationContext = GetCurrentMutationContext();
+        auto version = mutationContext->GetVersion();
         auto random = mutationContext->RandomGenerator().Generate<ui64>();
 
         return TObjectId(
@@ -287,6 +285,11 @@ public:
 
             auto rpcServer = Bootstrap_->GetRpcServer();
 
+            ResponseKeeper_ = New<TResponseKeeper>(
+                Config_->HydraManager->ResponseKeeper,
+                Logger,
+                TabletNodeProfiler);
+
             HydraManager_ = CreateDistributedHydraManager(
                 Config_->HydraManager,
                 Bootstrap_->GetControlInvoker(),
@@ -295,7 +298,8 @@ public:
                 rpcServer,
                 CellManager_,
                 changelogStore,
-                snapshotStore);
+                snapshotStore,
+                ResponseKeeper_);
 
             HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
             HydraManager_->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
@@ -310,12 +314,6 @@ public:
                     GuardedAutomatonInvokers_[queue] = HydraManager_->CreateGuardedAutomatonInvoker(unguardedInvoker);
                 }
             }
-
-            ResponseKeeper_ = New<TPersistentResponseKeeper>(
-                Config_->HydraManager->ResponseKeeper,
-                GetAutomatonInvoker(),
-                HydraManager_,
-                Automaton_);
 
             HiveManager_ = New<THiveManager>(
                 Config_->HiveManager,
@@ -401,6 +399,8 @@ private:
     const TTabletNodeConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
 
+    const TFairShareActionQueuePtr AutomatonQueue_;
+
     TCellId CellId_;
     mutable EPeerState State_ = EPeerState::None;
     TPeerId PeerId_ = InvalidPeerId;
@@ -413,7 +413,7 @@ private:
 
     IHydraManagerPtr HydraManager_;
 
-    TPersistentResponseKeeperPtr ResponseKeeper_;
+    TResponseKeeperPtr ResponseKeeper_;
     
     THiveManagerPtr HiveManager_;
 
@@ -425,13 +425,12 @@ private:
     NRpc::IServicePtr TabletService_;
 
     TTabletAutomatonPtr Automaton_;
-    TFairShareActionQueuePtr AutomatonQueue_;
 
     TSpinLock InvokersSpinLock_;
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> GuardedAutomatonInvokers_;
 
-    NLog::TLogger Logger = TabletNodeLogger;
+    NLogging::TLogger Logger = TabletNodeLogger;
 
 
     void SetCellId(const TCellId& cellId)
@@ -442,7 +441,7 @@ private:
 
     void InitLogger()
     {
-        Logger = NLog::TLogger(TabletNodeLogger);
+        Logger = NLogging::TLogger(TabletNodeLogger);
         Logger.AddTag("Slot: %v", SlotIndex_);
         if (CellId_ != NullCellId) {
             Logger.AddTag("CellId: %v", CellId_);
@@ -642,7 +641,7 @@ IHydraManagerPtr TTabletSlot::GetHydraManager() const
     return Impl_->GetHydraManager();
 }
 
-IResponseKeeperPtr TTabletSlot::GetResponseKeeper() const
+TResponseKeeperPtr TTabletSlot::GetResponseKeeper() const
 {
     return Impl_->GetResponseKeeper();
 }

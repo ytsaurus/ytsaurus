@@ -21,7 +21,7 @@ public:
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         i64 priority,
-        const std::vector<int>* tags = nullptr) override;
+        const TNullable<std::vector<int>>& extensionTags) override;
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
         int firstBlockIndex,

@@ -217,7 +217,7 @@ public:
 
 
     void CreateJobNode(TJobPtr job,
-        const NChunkClient::TChunkId& stderrChunkId,
+        const TChunkId& stderrChunkId,
         const std::vector<TChunkId>& failContextChunkIds)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -303,6 +303,30 @@ public:
         list->WatcherHandlers.push_back(handler);
     }
 
+    void SaveInputContext(const TYPath& path, const std::vector<TChunkId>& inputContexts)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto batchReq = StartBatchRequest();
+        int index = 0;
+
+        for (const auto& inputContext : inputContexts) {
+            if (inputContext != NChunkServer::NullChunkId) {
+                auto contextPath = Format("%v/%v",
+                    path,
+                    ToYPathLiteral(index));
+                auto req = MakeCreateFileRequest(contextPath, inputContext);
+
+                batchReq->AddRequest(req, "create_input_context");
+            }
+            ++index;
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        auto error = GetCumulativeError(batchRspOrError);
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error saving input context into %v",
+            path);
+    }
 
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DEFINE_SIGNAL(void(), MasterDisconnected);
@@ -1431,19 +1455,7 @@ private:
                     for (const auto& failContextChunkId : request.FailContextChunkIds) {
                         if (failContextChunkId != NChunkServer::NullChunkId) {
                             auto failContextPath = GetFailContextPath(operation->GetId(), job->GetId(), index);
-
-                            auto req = TCypressYPathProxy::Create(failContextPath);
-                            GenerateMutationId(req);
-                            req->set_type(static_cast<int>(EObjectType::File));
-
-                            auto attributes = CreateEphemeralAttributes();
-                            attributes->Set("vital", false);
-                            attributes->Set("replication_factor", 1);
-                            attributes->Set("account", TmpAccountName);
-                            ToProto(req->mutable_node_attributes(), *attributes);
-
-                            auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file_ext);
-                            ToProto(reqExt->mutable_chunk_id(), failContextChunkId);
+                            auto req = MakeCreateFileRequest(failContextPath, failContextChunkId);
 
                             batchReq->AddRequest(req, "create_fail_context");
                         }
@@ -1557,14 +1569,8 @@ private:
 
         auto operationId = operation->GetId();
         auto error = GetCumulativeError(batchRspOrError);
-
-        if (!error.IsOK()) {
-            auto wrappedError = TError("Error creating operation node %v",
-                operationId)
-                << error;
-            LOG_WARNING(wrappedError);
-            THROW_ERROR(wrappedError);
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error creating operation node %v",
+            operationId);
 
         LOG_INFO("Operation node created (OperationId: %v)",
             operationId);
@@ -1580,14 +1586,8 @@ private:
         auto operationId = operation->GetId();
 
         auto error = GetCumulativeError(batchRspOrError);
-
-        if (!error.IsOK()) {
-            auto wrappedError = TError("Error resetting reviving operation node %v",
-                operationId)
-                << error;
-            LOG_ERROR(wrappedError);
-            THROW_ERROR(wrappedError);
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error resetting reviving operation node %v",
+            operationId);
 
         LOG_INFO("Reviving operation node reset (OperationId: %v)",
             operationId);
@@ -1730,9 +1730,8 @@ private:
 
     void UpdateClusterDirectory()
     {
-        auto this_ = MakeStrong(this);
         GetClusters()
-            .Subscribe(BIND([this, this_] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
                 OnGotClusters(rspOrError);
                 OnClusterDirectoryUpdated();
             }).Via(CancelableControlInvoker));
@@ -1777,8 +1776,26 @@ private:
             }
             LOG_DEBUG("Cluster directory updated successfully");
         } catch (const std::exception& ex) {
-            LOG_ERROR(TError("Error updating cluster directory") << ex);
+            LOG_ERROR(ex, "Error updating cluster directory");
         }
+    }
+
+    TCypressYPathProxy::TReqCreatePtr MakeCreateFileRequest(const TYPath& path, const TChunkId& chunkId)
+    {
+        auto req = TCypressYPathProxy::Create(path);
+        GenerateMutationId(req);
+        req->set_type(static_cast<int>(EObjectType::File));
+
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("vital", false);
+        attributes->Set("replication_factor", 1);
+        attributes->Set("account", TmpAccountName);
+        ToProto(req->mutable_node_attributes(), *attributes);
+
+        auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file_ext);
+        ToProto(reqExt->mutable_chunk_id(), chunkId);
+
+        return req;
     }
 };
 
@@ -1865,6 +1882,13 @@ void TMasterConnector::AddOperationWatcherRequester(TOperationPtr operation, TWa
 void TMasterConnector::AddOperationWatcherHandler(TOperationPtr operation, TWatcherHandler handler)
 {
     Impl->AddOperationWatcherHandler(operation, handler);
+}
+
+void TMasterConnector::SaveInputContext(
+    const TYPath& path,
+    const std::vector<TChunkId>& inputContexts)
+{
+    return Impl->SaveInputContext(path, inputContexts);
 }
 
 DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterConnected, *Impl);

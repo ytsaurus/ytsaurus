@@ -29,6 +29,7 @@ struct TTabletSnapshot
     : public TIntrinsicRefCounted
 {
     TTabletId TabletId;
+    NObjectClient::TObjectId TableId;
     TTabletSlotPtr Slot;
     TTableMountConfigPtr Config;
 
@@ -45,7 +46,7 @@ struct TTabletSnapshot
 
     TDynamicRowKeyComparer RowKeyComparer;
 
-    TTabletStatisticsPtr Statistics;
+    TTabletPerformanceCountersPtr PerformanceCounters;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
@@ -61,18 +62,20 @@ DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTabletStatistics
+struct TTabletPerformanceCounters
     : public TIntrinsicRefCounted
 {
     std::atomic<i64> DynamicMemoryRowReadCount = {0};
     std::atomic<i64> DynamicMemoryRowLookupCount = {0};
     std::atomic<i64> DynamicMemoryRowWriteCount = {0};
     std::atomic<i64> DynamicMemoryRowDeleteCount = {0};
+    std::atomic<i64> StaticChunkRowReadCount = {0};
+    std::atomic<i64> StaticChunkRowLookupCount = {0};
     std::atomic<i64> UnmergedRowReadCount = {0};
     std::atomic<i64> MergedRowReadCount = {0};
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletStatistics)
+DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,7 +84,8 @@ class TTablet
     , public TRefTracked<TTablet>
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(TTabletId, Id);
+    DEFINE_BYVAL_RO_PROPERTY(TTabletId, TabletId);
+    DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, TableId);
     DEFINE_BYVAL_RO_PROPERTY(TTabletSlotPtr, Slot);
 
     DEFINE_BYVAL_RW_PROPERTY(TTabletSnapshotPtr, Snapshot);
@@ -102,11 +106,12 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastPartitioningTime);
 
 public:
-    explicit TTablet(const TTabletId& id);
+    explicit TTablet(const TTabletId& tabletId);
     TTablet(
         TTableMountConfigPtr config,
         TTabletWriterOptionsPtr writerOptions,
-        const TTabletId& id,
+        const TTabletId& tabletId,
+        const NObjectClient::TObjectId& tableId,
         TTabletSlotPtr slot,
         const NVersionedTableClient::TTableSchema& schema,
         const NVersionedTableClient::TKeyColumns& keyColumns,
@@ -126,7 +131,7 @@ public:
     const TStoreManagerPtr& GetStoreManager() const;
     void SetStoreManager(TStoreManagerPtr storeManager);
 
-    const TTabletStatisticsPtr& GetStatistics() const;
+    const TTabletPerformanceCountersPtr& GetPerformanceCounters() const;
 
     typedef std::vector<std::unique_ptr<TPartition>> TPartitionList;
     const TPartitionList& Partitions() const;
@@ -175,7 +180,7 @@ private:
 
     TStoreManagerPtr StoreManager_;
 
-    TTabletStatisticsPtr Statistics_;
+    TTabletPerformanceCountersPtr PerformanceCounters_;
 
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
 

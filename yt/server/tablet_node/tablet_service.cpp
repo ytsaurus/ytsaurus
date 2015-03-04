@@ -7,6 +7,7 @@
 #include "transaction_manager.h"
 #include "transaction.h"
 #include "store_manager.h"
+#include "security_manager.h"
 #include "private.h"
 
 #include <core/compression/helpers.h>
@@ -67,8 +68,8 @@ public:
     }
 
 private:
-    TTabletSlotPtr Slot_;
-    NCellNode::TBootstrap* Bootstrap_;
+    const TTabletSlotPtr Slot_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, StartTransaction)
@@ -105,6 +106,10 @@ private:
             tabletId,
             timestamp);
 
+        auto user = GetAuthenticatedUserOrThrow(context);
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager, user);
+
         NQueryAgent::ExecuteRequestWithRetries(
             Bootstrap_->GetConfig()->QueryAgent->MaxQueryRetries,
             Logger,
@@ -113,15 +118,17 @@ private:
 
                 auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
                 auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
-                auto tabletManager = tabletSnapshot->Slot->GetTabletManager();
 
                 TWireProtocolReader reader(requestData);
                 TWireProtocolWriter writer;
+
+                auto tabletManager = tabletSnapshot->Slot->GetTabletManager();
                 tabletManager->Read(
                     tabletSnapshot,
                     timestamp,
                     &reader,
                     &writer);
+
                 auto responseData = writer.Flush();
                 auto responseCodec = request->has_response_codec()
                     ? ECodec(request->response_codec())
@@ -135,12 +142,17 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());
-        TWireProtocolReader reader(requestData);
 
         context->SetRequestInfo("TransactionId: %v, TabletId: %v",
             transactionId,
             tabletId);
+
+        auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());
+        TWireProtocolReader reader(requestData);
+
+        auto user = GetAuthenticatedUserOrThrow(context);
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager, user);
 
         while (!reader.IsFinished()) {
             ValidateActiveLeader();

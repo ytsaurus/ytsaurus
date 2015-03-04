@@ -42,13 +42,11 @@ public:
     }
 
     virtual TFuture<TChunkMeta> GetMeta(
-        const TNullable<int>& partitionTag = Null,
-        const std::vector<int>* extensionTags = nullptr) override
+        const TNullable<int>& partitionTag,
+        const TNullable<std::vector<int>>& extensionTags) override
     {
         YCHECK(!partitionTag);
-        return MakeFuture(extensionTags
-            ? FilterChunkMetaByExtensionTags(Meta_, *extensionTags)
-            : Meta_);
+        return MakeFuture(FilterChunkMetaByExtensionTags(Meta_, extensionTags));
     }
 
     virtual TChunkId GetChunkId() const override

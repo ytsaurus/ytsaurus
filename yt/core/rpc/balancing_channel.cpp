@@ -63,7 +63,7 @@ private:
     yhash_set<Stroka> ActiveAddresses_;
     yhash_set<Stroka> BannedAddresses_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     class TSession
@@ -96,7 +96,7 @@ private:
         TPromise<IChannelPtr> Promise_;
         yhash_set<Stroka> RequestedAddresses_;
 
-        NLog::TLogger Logger;
+        NLogging::TLogger Logger;
 
 
         void DoRun()

@@ -6,8 +6,8 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLog::TLogger RpcServerLogger("RpcServer");
-const NLog::TLogger RpcClientLogger("RpcClient");
+const NLogging::TLogger RpcServerLogger("RpcServer");
+const NLogging::TLogger RpcClientLogger("RpcClient");
 
 NProfiling::TProfiler RpcServerProfiler("/rpc/server");
 NProfiling::TProfiler RpcClientProfiler("/rpc/client");

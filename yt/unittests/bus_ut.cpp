@@ -42,7 +42,7 @@ Stroka Deserialize(TSharedRefArray message)
 
 IBusServerPtr StartBusServer(IMessageHandlerPtr handler)
 {
-    auto config = New<TTcpBusServerConfig>(2000);
+    auto config = TTcpBusServerConfig::CreateTcp(2000);
     auto server = CreateTcpBusServer(config);
     server->Start(handler);
     return server;
@@ -116,7 +116,7 @@ private:
 void TestReplies(int numRequests, int numParts, EDeliveryTrackingLevel level = EDeliveryTrackingLevel::Full)
 {
     auto server = StartBusServer(New<TReplying42BusHandler>(numParts));
-    auto client = CreateTcpBusClient(New<TTcpBusClientConfig>("localhost:2000"));
+    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp("localhost:2000"));
     auto handler = New<TChecking42BusHandler>(numRequests);
     auto bus = client->CreateBus(handler);
     auto message = CreateMessage(numParts);
@@ -141,10 +141,28 @@ void TestReplies(int numRequests, int numParts, EDeliveryTrackingLevel level = E
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TBusTest, ConfigDefaultConstructor)
+{
+    auto config = New<TTcpBusClientConfig>();
+}
+
+TEST(TBusTest, CreateTcpBusClientConfig)
+{
+    auto config = TTcpBusClientConfig::CreateTcp("localhost:2000");
+    EXPECT_EQ("localhost:2000", config->Address.Get());
+    EXPECT_FALSE(config->UnixDomainName);
+}
+
+TEST(TBusTest, CreateUnixDomainBusClientConfig)
+{
+    auto config = TTcpBusClientConfig::CreateUnixDomain("unix-socket");
+    EXPECT_EQ("unix-socket", config->UnixDomainName.Get());
+}
+
 TEST(TBusTest, OK)
 {
     auto server = StartBusServer(New<TEmptyBusHandler>());
-    auto client = CreateTcpBusClient(New<TTcpBusClientConfig>("localhost:2000"));
+    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp("localhost:2000"));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
     auto result = bus->Send(message, EDeliveryTrackingLevel::Full).Get();
@@ -154,7 +172,7 @@ TEST(TBusTest, OK)
 
 TEST(TBusTest, Failed)
 {
-    auto client = CreateTcpBusClient(New<TTcpBusClientConfig>("localhost:2000"));
+    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp("localhost:2000"));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
     auto result = bus->Send(message, EDeliveryTrackingLevel::Full).Get();

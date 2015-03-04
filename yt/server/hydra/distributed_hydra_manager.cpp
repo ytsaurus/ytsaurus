@@ -20,6 +20,7 @@
 
 #include <core/rpc/service_detail.h>
 #include <core/rpc/server.h>
+#include <core/rpc/response_keeper.h>
 
 #include <core/ytree/fluent.h>
 
@@ -108,7 +109,8 @@ public:
         IServerPtr rpcServer,
         TCellManagerPtr cellManager,
         IChangelogStorePtr changelogStore,
-        ISnapshotStorePtr snapshotStore)
+        ISnapshotStorePtr snapshotStore,
+        TResponseKeeperPtr responseKeeper)
         : TServiceBase(
             controlInvoker,
             NRpc::TServiceId(THydraServiceProxy::GetServiceName(), cellManager->GetCellId()),
@@ -121,6 +123,7 @@ public:
         , AutomatonInvoker_(automatonInvoker)
         , ChangelogStore_(changelogStore)
         , SnapshotStore_(snapshotStore)
+        , ResponseKeeper_(responseKeeper)
         , Profiler(HydraProfiler)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(controlInvoker, ControlThread);
@@ -284,13 +287,6 @@ public:
         return AutomatonEpochContext_;
     }
 
-    virtual bool IsMutating() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        return GetMutationContext() != nullptr;
-    }
-
     virtual bool GetReadOnly() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -333,8 +329,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto this_ = MakeStrong(this);
-        return BIND([this, this_] (IYsonConsumer* consumer) {
+        return BIND([=, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
             VERIFY_THREAD_AFFINITY_ANY();
             BuildYsonFluently(consumer)
                 .BeginMap()
@@ -351,7 +346,7 @@ public:
     virtual TFuture<void> SyncWithLeader() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(!DecoratedAutomaton_->GetMutationContext());
+        YCHECK(!HasMutationContext());
 
         if (ActiveLeader_) {
             return VoidFuture;
@@ -378,7 +373,7 @@ public:
     virtual TFuture<TMutationResponse> CommitMutation(const TMutationRequest& request) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(!DecoratedAutomaton_->GetMutationContext());
+        YCHECK(!HasMutationContext());
 
         if (ReadOnly_) {
             return MakeFuture<TMutationResponse>(TError(
@@ -408,13 +403,6 @@ public:
         }
     }
 
-    virtual TMutationContext* GetMutationContext() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        return DecoratedAutomaton_->GetMutationContext();
-    }
-
 
     DEFINE_SIGNAL(void(), StartLeading);
     DEFINE_SIGNAL(void(), LeaderRecoveryComplete);
@@ -436,6 +424,7 @@ private:
     const IInvokerPtr AutomatonInvoker_;
     const IChangelogStorePtr ChangelogStore_;
     const ISnapshotStorePtr SnapshotStore_;
+    const TResponseKeeperPtr ResponseKeeper_;
 
     std::atomic<bool> ReadOnly_ = {false};
     std::atomic<bool> ActiveLeader_ = {false};
@@ -1046,6 +1035,7 @@ private:
                 DecoratedAutomaton_,
                 ChangelogStore_,
                 SnapshotStore_,
+                ResponseKeeper_,
                 epochContext.Get());
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
@@ -1081,6 +1071,9 @@ private:
             LOG_INFO("Leader active");
 
             ActiveLeader_ = true;
+            if (ResponseKeeper_) {
+                ResponseKeeper_->Start();
+            }
             LeaderActive_.Fire();
 
             SwitchTo(epochContext->EpochControlInvoker);
@@ -1176,6 +1169,9 @@ public:
             VERIFY_THREAD_AFFINITY(ControlThread);
 
             ActiveFollower_ = true;
+            if (ResponseKeeper_) {
+                ResponseKeeper_->Start();
+            }
 
             SystemLockGuard_.Release();
         } catch (const std::exception& ex) {
@@ -1228,6 +1224,7 @@ public:
             DecoratedAutomaton_,
             ChangelogStore_,
             SnapshotStore_,
+            ResponseKeeper_,
             epochContext.Get(),
             version);
 
@@ -1409,7 +1406,8 @@ IHydraManagerPtr CreateDistributedHydraManager(
     IServerPtr rpcServer,
     TCellManagerPtr cellManager,
     IChangelogStorePtr changelogStore,
-    ISnapshotStorePtr snapshotStore)
+    ISnapshotStorePtr snapshotStore,
+    TResponseKeeperPtr responseKeeper)
 {
     YCHECK(config);
     YCHECK(controlInvoker);
@@ -1425,7 +1423,8 @@ IHydraManagerPtr CreateDistributedHydraManager(
         rpcServer,
         cellManager,
         changelogStore,
-        snapshotStore);
+        snapshotStore,
+        responseKeeper);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

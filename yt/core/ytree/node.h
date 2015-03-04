@@ -36,6 +36,8 @@ struct INodeResolver
     virtual TYPath GetPath(INodePtr node) = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(INodeResolver)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A base DOM-like interface representing a node.
@@ -115,6 +117,8 @@ struct INode
     TYPath GetPath() const;
 };
 
+DEFINE_REFCOUNTED_TYPE(INode)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A base interface for all scalar nodes, i.e. nodes containing a single atomic value.
@@ -136,6 +140,8 @@ struct IScalarNode
     struct I##name##Node \
         : IScalarNode<type> \
     { }; \
+    \
+    DEFINE_REFCOUNTED_TYPE(I##name##Node) \
     \
     namespace NDetail { \
     \
@@ -195,6 +201,8 @@ struct ICompositeNode
     virtual void RemoveChild(INodePtr child) = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(ICompositeNode)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A map node, which keeps a dictionary mapping strings (Stroka) to child nodes.
@@ -250,6 +258,8 @@ struct IMapNode
      */
     virtual Stroka GetChildKey(IConstNodePtr child) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IMapNode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -308,12 +318,16 @@ struct IListNode
 
 };
 
+DEFINE_REFCOUNTED_TYPE(IListNode)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! An structureless entity node.
 struct IEntityNode
     : public virtual INode
 { };
+
+DEFINE_REFCOUNTED_TYPE(IEntityNode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -359,6 +373,8 @@ struct INodeFactory
     virtual void Commit() = 0;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(INodeFactory)
 
 ////////////////////////////////////////////////////////////////////////////////
 

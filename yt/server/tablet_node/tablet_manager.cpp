@@ -14,6 +14,7 @@
 #include "store_flusher.h"
 #include "lookup.h"
 #include "private.h"
+#include "security_manager.h"
 
 #include <core/misc/ring_queue.h>
 #include <core/misc/string.h>
@@ -151,7 +152,7 @@ public:
 
         if (tablet->GetState() != ETabletState::Mounted) {
             THROW_ERROR_EXCEPTION("Tablet %v is not in \"mounted\" state",
-                tablet->GetId());
+                tablet->GetTabletId());
         }
     }
 
@@ -162,8 +163,7 @@ public:
 
         store->SetState(state);
 
-        auto this_ = MakeStrong(this);
-        auto callback = BIND([this, this_, store] () {
+        auto callback = BIND([=, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(AutomatonThread);
             store->SetState(store->GetPersistentState());
         }).Via(Slot_->GetEpochAutomatonInvoker());
@@ -181,6 +181,9 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         ValidateReadTimestamp(timestamp);
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(tabletSnapshot, EPermission::Read);
 
         while (!reader->IsFinished()) {
             ExecuteSingleRead(
@@ -203,6 +206,9 @@ public:
             transaction->ThrowInvalidState();
         }
         ValidateMemoryLimit();
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(tablet->GetSnapshot(), EPermission::Write);
 
         // Protect from tablet disposal.
         TCurrentInvokerGuard guard(tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
@@ -235,7 +241,7 @@ public:
         if (prelockedCountDelta > 0) {
             LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v)",
                 transaction->GetId(),
-                tablet->GetId(),
+                tablet->GetTabletId(),
                 prelockedCountDelta);
 
             auto requestData = reader->GetConsumedPart();
@@ -243,7 +249,7 @@ public:
 
             TReqExecuteWrite hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
-            ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
+            ToProto(hydraRequest.mutable_tablet_id(), tablet->GetTabletId());
             hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
             hydraRequest.set_compressed_data(ToString(compressedRequestData));
             CreateMutation(Slot_->GetHydraManager(), hydraRequest)
@@ -286,7 +292,7 @@ public:
                     &TImpl::OnRowBlocked,
                     MakeWeak(this),
                     Unretained(store.Get()),
-                    tablet->GetId(),
+                    tablet->GetTabletId(),
                     Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read)));
                 return store;
             }
@@ -350,11 +356,17 @@ public:
         storeManager->ScheduleRotation();
 
         TReqRotateStore request;
-        ToProto(request.mutable_tablet_id(), tablet->GetId());
-        CommitTabletMutation(request);
+        ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+
+        CommitTabletMutation(request)
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
+                if (!error.IsOK()) {
+                    LOG_ERROR(error, "Error committing tablet store rotation mutation");
+                }
+            }));
 
         LOG_DEBUG("Store rotation scheduled (TabletId: %v)",
-            tablet->GetId());
+            tablet->GetTabletId());
     }
 
 
@@ -366,7 +378,7 @@ public:
             .DoMapFor(TabletMap_, [&] (TFluentMap fluent, const std::pair<TTabletId, TTablet*>& pair) {
                 auto* tablet = pair.second;
                 fluent
-                    .Item(ToString(tablet->GetId()))
+                    .Item(ToString(tablet->GetTabletId()))
                     .Do(BIND(&TImpl::BuildTabletOrchidYson, Unretained(this), tablet));
             });
     }
@@ -526,6 +538,7 @@ private:
     void HydraMountTablet(const TReqMountTablet& request)
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto tableId = FromProto<TObjectId>(request.table_id());
         auto schema = FromProto<TTableSchema>(request.schema());
         auto keyColumns = FromProto<TKeyColumns>(request.key_columns());
         auto pivotKey = FromProto<TOwningKey>(request.pivot_key());
@@ -537,6 +550,7 @@ private:
             mountConfig,
             writerOptions,
             tabletId,
+            tableId,
             Slot_,
             schema,
             keyColumns,
@@ -601,8 +615,9 @@ private:
             StartTabletEpoch(tablet);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, Keys: %v .. %v, StoreCount: %v, PartitionCount: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, TableId: %v, Keys: %v .. %v, StoreCount: %v, PartitionCount: %v)",
             tabletId,
+            tableId,
             pivotKey,
             nextPivotKey,
             request.chunk_stores_size(),
@@ -779,14 +794,14 @@ private:
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %v, TabletId: %v)",
             transaction->GetId(),
-            tablet->GetId());
+            tablet->GetTabletId());
     }
 
     void HydraRotateStore(const TReqRotateStore& request)
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!tablet)
+        if (!tablet || tablet->GetState() != ETabletState::Mounted)
             return;
 
         RotateStores(tablet, true);
@@ -838,7 +853,7 @@ private:
 
             TReqHydraAbortTransaction masterRequest;
             ToProto(masterRequest.mutable_transaction_id(), transactionId);
-            ToProto(masterRequest.mutable_mutation_id(), NullMutationId);
+            ToProto(masterRequest.mutable_mutation_id(), NRpc::NullMutationId);
 
             hiveManager->PostMessage(slot->GetMasterMailbox(), masterRequest);
         }
@@ -935,7 +950,7 @@ private:
         int partitionIndex = partition->GetIndex();
 
         LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, PartitionId: %v, DataSize: %v, Keys: %v)",
-            tablet->GetId(),
+            tablet->GetTabletId(),
             partitionId,
             partition->GetUncompressedDataSize(),
             JoinToString(pivotKeys, Stroka(" .. ")));
@@ -967,7 +982,7 @@ private:
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, PartitionIds: [%v])",
-            tablet->GetId(),
+            tablet->GetTabletId(),
             JoinToString(ConvertToStrings(
                 tablet->Partitions().begin() + firstPartitionIndex,
                 tablet->Partitions().begin() + lastPartitionIndex + 1,
@@ -1000,8 +1015,7 @@ private:
         YCHECK(sampleKeys->Keys.empty() || sampleKeys->Keys[0] > partition->GetPivotKey());
         UpdateTabletSnapshot(tablet);
 
-        auto hydraManager = Slot_->GetHydraManager();
-        const auto* mutationContext = hydraManager->GetMutationContext();
+        const auto* mutationContext = GetCurrentMutationContext();
         partition->SetSamplingTime(mutationContext->GetTimestamp());
 
         LOG_INFO_UNLESS(IsRecovery(), "Partition sample keys updated (TabletId: %v, PartitionId: %v, SampleKeyCount: %v)",
@@ -1106,7 +1120,7 @@ private:
             YCHECK(OrphanedStores_.insert(dynamicStore).second);
             LOG_INFO_UNLESS(IsRecovery(), "Dynamic memory store is orphaned and will be kept (StoreId: %v, TabletId: %v, LockCount: %v)",
                 store->GetId(),
-                tablet->GetId(),
+                tablet->GetTabletId(),
                 lockCount);
         }
     }
@@ -1145,7 +1159,7 @@ private:
         switch (command) {
             case EWireProtocolCommand::LookupRows:
                 LookupRows(
-                    Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker(),
+                    Bootstrap_->GetBoundedConcurrencyReadPoolInvoker(),
                     std::move(tabletSnapshot),
                     timestamp,
                     reader,
@@ -1214,14 +1228,20 @@ private:
             return;
 
         LOG_INFO_UNLESS(IsRecovery(), "All tablet locks released (TabletId: %v)",
-            tablet->GetId());
+            tablet->GetTabletId());
 
         tablet->SetState(ETabletState::FlushPending);
 
         TReqSetTabletState request;
-        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
         request.set_state(static_cast<int>(ETabletState::Flushing));
-        CommitTabletMutation(request);
+
+        CommitTabletMutation(request)
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
+                if (!error.IsOK()) {
+                    LOG_ERROR(error, "Error committing tablet state change mutation");
+                }
+            }));
     }
 
     void CheckIfFullyFlushed(TTablet* tablet)
@@ -1233,14 +1253,20 @@ private:
             return;
 
         LOG_INFO_UNLESS(IsRecovery(), "All tablet stores flushed (TabletId: %v)",
-            tablet->GetId());
+            tablet->GetTabletId());
 
         tablet->SetState(ETabletState::UnmountPending);
 
         TReqSetTabletState request;
-        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
         request.set_state(static_cast<int>(ETabletState::Unmounted));
-        CommitTabletMutation(request);
+
+        CommitTabletMutation(request)
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
+                if (!error.IsOK()) {
+                    LOG_ERROR(error, "Error committing tablet state change mutation");
+                }
+            }));
     }
 
 
@@ -1250,12 +1276,12 @@ private:
     }
 
 
-    void CommitTabletMutation(const ::google::protobuf::MessageLite& message)
+    TFuture<TMutationResponse> CommitTabletMutation(const ::google::protobuf::MessageLite& message)
     {
         auto mutation = CreateMutation(Slot_->GetHydraManager(), message);
-        Slot_->GetEpochAutomatonInvoker()->Invoke(BIND(
-            IgnoreResult(&TMutation::Commit),
-            mutation));
+        return BIND(&TMutation::Commit, mutation)
+            .AsyncVia(Slot_->GetEpochAutomatonInvoker())
+            .Run();
     }
 
     void PostMasterMutation(const ::google::protobuf::MessageLite& message)
@@ -1319,9 +1345,7 @@ private:
             store->GetId(),
             backingStore->GetId());
 
-        auto this_ = MakeStrong(this);
-        auto callback = BIND([=] () {
-            UNUSED(this_);
+        auto callback = BIND([=, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(AutomatonThread);
             store->SetBackingStore(nullptr);
             LOG_DEBUG("Backing store released (StoreId: %v)", store->GetId());
@@ -1341,6 +1365,7 @@ private:
                 .Item("opaque").Value(true)
             .EndAttributes()
             .BeginMap()
+                .Item("table_id").Value(tablet->GetTableId())
                 .Item("state").Value(tablet->GetState())
                 .Item("pivot_key").Value(tablet->GetPivotKey())
                 .Item("next_pivot_key").Value(tablet->GetNextPivotKey())
@@ -1424,16 +1449,14 @@ private:
     void SchedulePartitionSampling(TPartition* partition)
     {
         if (partition->GetIndex() != TPartition::EdenIndex) {
-            auto hydraManager = Slot_->GetHydraManager();
-            const auto* mutationContext = hydraManager->GetMutationContext();
+            const auto* mutationContext = GetCurrentMutationContext();
             partition->SetSamplingRequestTime(mutationContext->GetTimestamp());
         }
     }
 
     void SchedulePartitionsSampling(TTablet* tablet, int beginPartitionIndex, int endPartitionIndex)
     {
-        auto hydraManager = Slot_->GetHydraManager();
-        const auto* mutationContext = hydraManager->GetMutationContext();
+        const auto* mutationContext = GetCurrentMutationContext();
         for (int index = beginPartitionIndex; index < endPartitionIndex; ++index) {
             tablet->Partitions()[index]->SetSamplingRequestTime(mutationContext->GetTimestamp());
         }

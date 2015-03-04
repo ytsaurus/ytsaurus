@@ -18,7 +18,7 @@ class TSimpleVersionedBlockReader
 {
 public:
     TSimpleVersionedBlockReader(
-        const TSharedRef& data,
+        const TSharedRef& block,
         const NProto::TBlockMeta& meta,
         const TTableSchema& chunkSchema,
         const TKeyColumns& keyColumns,
@@ -27,18 +27,19 @@ public:
 
     bool NextRow();
 
-    bool SkipToRowIndex(int rowIndex);
+    bool SkipToRowIndex(i64 rowIndex);
     bool SkipToKey(TKey key);
     
     TKey GetKey() const;
     TVersionedRow GetRow(TChunkedMemoryPool* memoryPool);
 
+    i64 GetRowIndex() const;
+
     static const ETableChunkFormat FormatVersion = ETableChunkFormat::VersionedSimple;
 
 private:
+    TSharedRef Block_;
     typedef TReadOnlyBitmap<ui64> TBitmap;
-
-    TSharedRef Data_;
 
     TTimestamp Timestamp_;
     const int KeyColumnCount_;
@@ -61,7 +62,7 @@ private:
 
     bool Closed_ = false;
 
-    int RowIndex_;
+    i64 RowIndex_;
 
     TUnversionedRowBuilder KeyBuilder_;
     TKey Key_;
@@ -72,7 +73,7 @@ private:
     ui16 WriteTimestampCount_;
     ui16 DeleteTimestampCount_;
 
-    bool JumpToRowIndex(int index);
+    bool JumpToRowIndex(i64 index);
     TVersionedRow ReadAllValues(TChunkedMemoryPool* memoryPool);
     TVersionedRow ReadValuesByTimestamp(TChunkedMemoryPool* memoryPool);
 
@@ -80,7 +81,7 @@ private:
     void ReadValue(TVersionedValue* value, int valueIndex, int id, int chunkSchemaId);
     TTimestamp ReadValueTimestamp(int valueIndex, int id);
     void ReadKeyValue(TUnversionedValue* value, int id);
-    
+
     void ReadInt64(TUnversionedValue* value, char* ptr);
     void ReadUint64(TUnversionedValue* value, char* ptr);
     void ReadDouble(TUnversionedValue* value, char* ptr);

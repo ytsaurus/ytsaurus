@@ -3,9 +3,9 @@
 #include "profile_manager.h"
 #include "timing.h"
 
-#include <core/ypath/token.h>
+#include <core/misc/nullable.h>
 
-#include <util/datetime/cputimer.h>
+#include <core/ypath/token.h>
 
 namespace NYT {
 namespace NProfiling  {
@@ -54,34 +54,21 @@ TCounterBase::TCounterBase(
     TDuration interval)
     : Path(path)
     , TagIds(tagIds)
-    , Interval(DurationToCycles(interval))
+    , Interval(DurationToCpuDuration(interval))
     , Deadline(0)
 { }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TRateCounter::TRateCounter(
-    const TYPath& path,
-    const TTagIdList& tagIds,
-    TDuration interval)
-    : TCounterBase(path, tagIds, interval)
-    , Value(0)
-    , LastValue(0)
-    , LastTime(0)
-{ }
-
-TRateCounter::TRateCounter(const TRateCounter& other)
-    : TCounterBase(other)
+TCounterBase::TCounterBase(const TCounterBase& other)
 {
     *this = other;
 }
 
-TRateCounter& TRateCounter::operator=(const TRateCounter& other)
+TCounterBase& TCounterBase::operator=(const TCounterBase& other)
 {
-    static_cast<TCounterBase&>(*this) = other;
-    Value.store(other.Value);
-    LastValue = other.LastValue;
-    LastTime = other.LastTime;
+    Path = other.Path;
+    TagIds = other.TagIds;
+    Interval = other.Interval;
+    Deadline = 0;
     return *this;
 }
 
@@ -99,12 +86,50 @@ TAggregateCounter::TAggregateCounter(
     Reset();
 }
 
+TAggregateCounter::TAggregateCounter(const TAggregateCounter& other)
+    : TCounterBase(other)
+    , Current(0)
+{
+    *this = other;
+    Reset();
+}
+
+TAggregateCounter& TAggregateCounter::operator=(const TAggregateCounter& other)
+{
+    static_cast<TCounterBase&>(*this) = static_cast<const TCounterBase&>(other);
+    Current = other.Current;
+    Reset();
+    return *this;
+}
+
 void TAggregateCounter::Reset()
 {
     Min = std::numeric_limits<TValue>::max();
     Max = std::numeric_limits<TValue>::min();
     Sum = 0;
     SampleCount = 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSimpleCounter::TSimpleCounter(
+    const NYPath::TYPath& path,
+    const TTagIdList& tagIds,
+    TDuration interval)
+    : TCounterBase(path, tagIds, interval)
+    , Current(0)
+{ }
+
+TSimpleCounter::TSimpleCounter(const TSimpleCounter& other)
+{
+    *this = other;
+}
+
+TSimpleCounter& TSimpleCounter::operator=(const TSimpleCounter& other)
+{
+    static_cast<TCounterBase&>(*this) = static_cast<const TCounterBase&>(other);
+    Current = other.Current.load();
+    return *this;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,7 +145,7 @@ TProfiler::TProfiler(
     : PathPrefix_(pathPrefix)
     , Enabled_(true)
     , TagIds_(tagIds)
-    , SelfProfiling(selfProfiling)
+    , SelfProfiling_(selfProfiling)
 { }
 
 void TProfiler::Enqueue(
@@ -136,7 +161,7 @@ void TProfiler::Enqueue(
     sample.Path = PathPrefix_ + path;
     sample.Value = value;
     sample.TagIds = TagIds_ + tagIds;
-    TProfileManager::Get()->Enqueue(sample, SelfProfiling);
+    TProfileManager::Get()->Enqueue(sample, SelfProfiling_);
 }
 
 TTimer TProfiler::TimingStart(
@@ -243,75 +268,65 @@ TDuration TProfiler::DoTimingCheckpoint(
     }
 }
 
-TValue TProfiler::Increment(TRateCounter& counter, TValue delta /*= 1*/)
+void TProfiler::Update(TAggregateCounter& counter, TValue value)
 {
-    YASSERT(delta >= 0);
+    TGuard<TSpinLock> guard(counter.SpinLock);
 
-    if (!Enabled_ || counter.Path.empty()) {
-        return counter.Value += delta;
+    if (IsCounterEnabled(counter)) {
+        DoUpdate(counter, value);
+    } else {
+        counter.Current = value;
     }
+}
 
-    auto now = GetCpuInstant();
+TValue TProfiler::Increment(TAggregateCounter& counter, TValue delta)
+{
+    TGuard<TSpinLock> guard(counter.SpinLock);
 
-    auto result = (counter.Value += delta);
-    if (now > counter.Deadline) {
-        TValue sampleValue = -1;
-        {
-            TGuard<TSpinLock> guard(counter.SpinLock);
-            if (now > counter.Deadline) {
-                if (counter.LastTime != 0) {
-                    auto counterDelta = counter.Value - counter.LastValue;
-                    auto timeDelta = now - counter.LastTime;
-                    sampleValue = counterDelta * counter.Interval / timeDelta;
-                }
-                counter.LastTime = now;
-                counter.LastValue = counter.Value;
-                counter.Deadline = now + counter.Interval;
-            }
-        }
-        if (sampleValue >= 0) {
-            Enqueue(counter.Path, sampleValue, counter.TagIds);
-        }
+    auto result = (counter.Current + delta);
+
+    if (IsCounterEnabled(counter)) {
+        DoUpdate(counter, counter.Current + delta);
+    } else {
+        counter.Current = result;
     }
 
     return result;
 }
 
-void TProfiler::Aggregate(TAggregateCounter& counter, TValue value)
+void TProfiler::Update(TSimpleCounter& counter, TValue value)
 {
-    if (!Enabled_ || counter.Path.empty())
-        return;
+    counter.Current = value;
 
-    auto now = GetCpuInstant();
-
-    TGuard<TSpinLock> guard(counter.SpinLock);
-    DoAggregate(counter, guard, value, now);
+    if (IsCounterEnabled(counter)) {
+        OnUpdated(counter);
+    }
 }
 
-TValue TProfiler::Increment(TAggregateCounter& counter, TValue delta /* = 1*/)
+TValue TProfiler::Increment(TSimpleCounter& counter, TValue delta)
 {
-    if (!Enabled_ || counter.Path.empty()) {
-        return counter.Current += delta;
+    auto result = (counter.Current += delta);
+
+    if (IsCounterEnabled(counter)) {
+        OnUpdated(counter);
     }
 
-    auto now = GetCpuInstant();
-
-    TGuard<TSpinLock> guard(counter.SpinLock);
-    DoAggregate(counter, guard, counter.Current + delta, now);
-    return counter.Current;
+    return result;
 }
 
-void TProfiler::DoAggregate(
-    TAggregateCounter& counter,
-    TGuard<TSpinLock>& guard,
-    TValue value,
-    TCpuInstant now)
+bool TProfiler::IsCounterEnabled(const TCounterBase& counter)
+{
+    return Enabled_ && !counter.Path.empty();
+}
+
+void TProfiler::DoUpdate(TAggregateCounter& counter, TValue value)
 {
     ++counter.SampleCount;
     counter.Current = value;
     counter.Min = std::min(counter.Min, value);
     counter.Max = std::max(counter.Max, value);
     counter.Sum += value;
+    auto now = GetCpuInstant();
     if (now > counter.Deadline) {
         auto min = counter.Min;
         auto max = counter.Max;
@@ -341,6 +356,26 @@ void TProfiler::DoAggregate(
                 YUNREACHABLE();
         }
     }
+}
+
+void TProfiler::OnUpdated(TSimpleCounter& counter)
+{
+    auto now = GetCpuInstant();
+    if (now < counter.Deadline)
+        return;
+
+    TValue sampleValue;
+    {
+        TGuard<TSpinLock> guard(counter.SpinLock);
+
+        if (now < counter.Deadline)
+            return;
+
+        sampleValue = counter.Current;
+        counter.Deadline = now + counter.Interval;
+    }
+
+    Enqueue(counter.Path, sampleValue, counter.TagIds);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -36,7 +36,7 @@ TSamplesFetcher::TSamplesFetcher(
     const TKeyColumns& keyColumns,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
-    const NLog::TLogger& logger)
+    const NLogging::TLogger& logger)
     : TFetcherBase(config, nodeDirectory, invoker, logger)
     , KeyColumns_(keyColumns)
     , DesiredSampleCount_(desiredSampleCount)

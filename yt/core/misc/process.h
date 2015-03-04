@@ -20,7 +20,9 @@ public:
     ~TProcess();
 
     TProcess(const TProcess& other) = delete;
-    TProcess(TProcess&& other) = delete;
+    TProcess(TProcess&& other);
+
+    static TProcess CreateCurrentProcessSpawner();
 
     void AddArgument(TStringBuf arg);
     void AddEnvVar(TStringBuf var);
@@ -32,8 +34,11 @@ public:
 
     void Spawn();
     TError Wait();
+    void Kill(int signal);
 
     int GetProcessId() const;
+    bool Started() const;
+    bool Finished() const;
 
 private:
     struct TSpawnAction
@@ -42,11 +47,16 @@ private:
         Stroka ErrorMessage;
     };
 
-
+    TSpinLock LifecycleChangeLock_;
+    bool Started_;
     bool Finished_;
-    int Status_;
+
+    TError InternalError_;
+
     int ProcessId_;
     Stroka Path_;
+
+    int MaxSpawnActionFD_;
 
     TPipe Pipe_;
     std::vector<Stroka> StringHolder_;
@@ -57,6 +67,7 @@ private:
     char* Capture(TStringBuf arg);
 
     void DoSpawn();
+    void Swap(TProcess& other);
 
 };
 

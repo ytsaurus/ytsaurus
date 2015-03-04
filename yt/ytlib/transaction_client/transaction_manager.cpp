@@ -230,9 +230,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto this_ = MakeStrong(this);
-        return SendAbort(options).Apply(BIND([=] () {
-            UNUSED(this_);
+        return SendAbort(options).Apply(BIND([=, this_ = MakeStrong(this)] () {
             DoAbort(TError("Transaction aborted by user request"));
         }));
     }
@@ -608,10 +606,8 @@ private:
             }
 
             auto asyncRspOrError = req->Invoke();
-            auto this_ = MakeStrong(this);
             asyncResults.push_back(asyncRspOrError.Apply(
-                BIND([=] (const TTransactionSupervisorServiceProxy::TErrorOrRspPingTransactionPtr& rspOrError) {
-                    UNUSED(this_);
+                BIND([=, this_ = MakeStrong(this)] (const TTransactionSupervisorServiceProxy::TErrorOrRspPingTransactionPtr& rspOrError) {
                     if (rspOrError.IsOK()) {
                         LOG_DEBUG("Transaction pinged (TransactionId: %v, CellId: %v)",
                             Id_,
@@ -646,9 +642,7 @@ private:
                 return;           
         }
 
-        auto this_ = MakeStrong(this);
-        SendPing().Subscribe(BIND([=] (const TError& error) {
-            UNUSED(this_);
+        SendPing().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
             if (!error.IsOK())
                 return;
             TDelayedExecutor::Submit(

@@ -1,5 +1,7 @@
 package NYT.NVersionedTableClient.NProto;
 
+import "yt/ytlib/chunk_client/chunk_meta.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TColumnSchema
@@ -31,6 +33,12 @@ message TBlockMeta
     optional int32 variable_buffer_offset = 5;
     optional int32 end_of_key_flags_offset = 6;
 
+    // COMPAT(psushin): make required.
+    optional int32 block_index = 7;
+
+    optional int32 partition_index = 8 [default = -1];
+    optional bytes last_key = 9;
+
     extensions 100 to max;
 }
 
@@ -50,20 +58,7 @@ message TBlockMetaExt
     repeated TBlockMeta blocks = 1;
 }
 
-// For each column in block, stores corresponding index in name table.
-message TBlockIndexesExt
-{
-    repeated int32 index_in_name_table = 1;
-}
-
-message TBlockIndexExt
-{
-    // Number of entries equals to block count.
-    repeated bytes entries = 1;
-}
-
 // Chunk meta extension.
-
 message TBoundaryKeysExt
 {
     required bytes min = 1;
@@ -72,6 +67,23 @@ message TBoundaryKeysExt
 
 message TSamplesExt
 {
+    repeated bytes entries = 1;
+}
+
+message TPartitionsExt
+{
+    repeated NChunkClient.NProto.TSizeOverrideExt partitions = 1;
+}
+
+message TKeyColumnsExt
+{
+    repeated string names = 1;
+}
+
+// COMPAT(psushin): new chunks store index in TBlockMeta.
+message TBlockIndexExt
+{
+    // Number of entries equals to block count.
     repeated bytes entries = 1;
 }
 

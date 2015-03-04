@@ -10,6 +10,7 @@
 #include <core/misc/raw_formatter.h>
 #include <core/misc/hash.h>
 #include <core/misc/lock_free.h>
+#include <core/misc/variant.h>
 
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>
@@ -40,7 +41,7 @@
 #endif
 
 namespace NYT {
-namespace NLog {
+namespace NLogging {
 
 using namespace NYTree;
 using namespace NConcurrency;
@@ -207,7 +208,7 @@ namespace {
 
 void ReloadSignalHandler(int signal)
 {
-    NLog::TLogManager::Get()->Reopen();
+    NLogging::TLogManager::Get()->Reopen();
 }
 
 } // namespace
@@ -225,12 +226,12 @@ public:
             false,
             false))
         , LoggingThread_(New<TThread>(this))
-        , EnqueueCounter_("/enqueue_rate")
-        , WriteCounter_("/write_rate")
+        , EnqueuedCounter_("/enqueued")
+        , WrittenCounter_("/written")
         , BacklogCounter_("/backlog")
     {
         SystemWriters_.push_back(New<TStderrLogWriter>());
-        DoUpdateConfig(TLogConfig::CreateDefault(), false);
+        UpdateConfig(TLogConfig::CreateDefault(), false);
         Writers_.insert(std::make_pair(DefaultStderrWriterName, New<TStderrLogWriter>()));
 
         LoggingThread_->Start();
@@ -241,7 +242,7 @@ public:
     {
         if (LoggingThread_->IsRunning()) {
             auto config = TLogConfig::CreateFromNode(node, path);
-            ConfigsToUpdate_.Enqueue(config);
+            LoggerQueue_.Enqueue(std::move(config));
             EventCount_.NotifyOne();
         }
     }
@@ -297,7 +298,7 @@ public:
             ShutdownRequested_ = true;
 
             // Add fatal message to log and notify event log queue.
-            LoggingProfiler.Increment(EnqueueCounter_);
+            LoggingProfiler.Increment(EnqueuedCounter_);
             PushLogEvent(std::move(event));
 
             if (LoggingThread_->GetId() != GetCurrentThreadId()) {
@@ -339,7 +340,7 @@ public:
         }
 
         int backlogSize = LoggingProfiler.Increment(BacklogCounter_);
-        LoggingProfiler.Increment(EnqueueCounter_);
+        LoggingProfiler.Increment(EnqueuedCounter_);
         PushLogEvent(std::move(event));
         EventCount_.NotifyOne();
 
@@ -356,6 +357,8 @@ public:
     }
 
 private:
+    using TLoggerQueueItem = TVariant<TLogEvent, TLogConfigPtr>;
+
     class TThread
         : public TSchedulerThread
     {
@@ -414,21 +417,24 @@ private:
             return result;
         }
 
-        bool configsUpdated = UpdateConfig(true);
-
         int eventsWritten = 0;
+        bool configsUpdated = false;
 
-        while (LogEventQueue_.DequeueAll(true, [&] (TLogEvent& event) {
-                // To avoid starvation of config update
-                UpdateConfig(false);
+        while (LoggerQueue_.DequeueAll(true, [&] (TLoggerQueueItem& eventOrConfig) {
+                if (const auto* configPtr = eventOrConfig.TryAs<TLogConfigPtr>()) {
+                    UpdateConfig(*configPtr);
+                    configsUpdated = true;
+                } else if (const auto* eventPtr = eventOrConfig.TryAs<TLogEvent>()) {
+                    if (ReopenRequested_) {
+                        ReopenRequested_ = false;
+                        ReloadWriters();
+                    }
 
-                if (ReopenRequested_) {
-                    ReopenRequested_ = false;
-                    ReloadWriters();
+                    Write(*eventPtr);
+                    ++eventsWritten;
+                } else {
+                    YUNREACHABLE();
                 }
-
-                Write(event);
-                ++eventsWritten;
             }))
         { }
 
@@ -498,7 +504,7 @@ private:
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
         for (auto& writer : GetWriters(event)) {
-            LoggingProfiler.Increment(WriteCounter_);
+            LoggingProfiler.Increment(WrittenCounter_);
             writer->Write(event);
         }
     }
@@ -520,7 +526,7 @@ private:
         return nullptr;
     }
 
-    void DoUpdateConfig(TLogConfigPtr config, bool verifyThreadAffinity = true)
+    void UpdateConfig(const TLogConfigPtr& config, bool verifyThreadAffinity = true)
     {
         if (verifyThreadAffinity) {
             VERIFY_THREAD_AFFINITY(LoggingThread);
@@ -667,29 +673,10 @@ private:
         }
     }
 
-    bool UpdateConfig(bool instantUpdate)
-    {
-        TLogConfigPtr config;
-        bool configsUpdated = false;
-        auto now = GetCpuInstant();
-        if (instantUpdate ||
-            now < LastConfigUpdateTime_ ||
-            CpuDurationToDuration(now - LastConfigUpdateTime_) > TDuration::Seconds(1))
-        {
-            while (ConfigsToUpdate_.Dequeue(&config)) {
-                DoUpdateConfig(config);
-                configsUpdated = true;
-            }
-
-            LastConfigUpdateTime_ = now;
-        }
-        return configsUpdated;
-    }
-
     void PushLogEvent(TLogEvent&& event)
     {
         EnqueuedLogEvents_++;
-        LogEventQueue_.Enqueue(std::move(event));
+        LoggerQueue_.Enqueue(std::move(event));
     }
 
     TEventCount EventCount_;
@@ -706,12 +693,11 @@ private:
     // default configuration (default level etc.).
     std::atomic<int> Version_ = {-1};
     TLogConfigPtr Config_;
-    NProfiling::TRateCounter EnqueueCounter_;
-    NProfiling::TRateCounter WriteCounter_;
+    NProfiling::TSimpleCounter EnqueuedCounter_;
+    NProfiling::TSimpleCounter WrittenCounter_;
     NProfiling::TAggregateCounter BacklogCounter_;
     bool Suspended_ = false;
-    TLockFreeQueue<TLogConfigPtr> ConfigsToUpdate_;
-    TMultipleProducerSingleConsumerLockFreeStack<TLogEvent> LogEventQueue_;
+    TMultipleProducerSingleConsumerLockFreeStack<TLoggerQueueItem> LoggerQueue_;
 
     std::atomic<ui64> EnqueuedLogEvents_ = {0};
     std::atomic<ui64> DequeuedLogEvents_ = {0};
@@ -730,8 +716,6 @@ private:
     std::unique_ptr<TNotificationHandle> NotificationHandle_;
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches_;
     yhash_map<int, TNotificationWatch*> NotificationWatchesIndex_;
-
-    TCpuInstant LastConfigUpdateTime_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -785,5 +769,5 @@ void TLogManager::Reopen()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLog
+} // namespace NLogging
 } // namespace NYT

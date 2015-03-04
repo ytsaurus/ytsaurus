@@ -85,10 +85,10 @@ bool TYPathServiceBase::IsLoggingEnabled() const
     return true;
 }
 
-NLog::TLogger TYPathServiceBase::CreateLogger() const
+NLogging::TLogger TYPathServiceBase::CreateLogger() const
 {
     // ... but a null logger is returned :)
-    return NLog::TLogger();
+    return NLogging::TLogger();
 }
 
 void TYPathServiceBase::Invoke(IServiceContextPtr context)
@@ -123,7 +123,7 @@ bool TYPathServiceBase::DoInvoke(IServiceContextPtr /*context*/)
 void TYPathServiceBase::AfterInvoke(IServiceContextPtr /*context*/)
 { }
 
-NLog::TLogger TYPathServiceBase::GetLogger() const
+NLogging::TLogger TYPathServiceBase::GetLogger() const
 {
     EnsureLoggerCreated();
     return Logger;
@@ -937,8 +937,8 @@ class TYPathServiceContext
 public:
     TYPathServiceContext(
         TSharedRefArray requestMessage,
-        const NLog::TLogger& logger,
-        NLog::ELogLevel logLevel)
+        const NLogging::TLogger& logger,
+        NLogging::ELogLevel logLevel)
         : TServiceContextBase(
             std::move(requestMessage),
             logger,
@@ -948,8 +948,8 @@ public:
     TYPathServiceContext(
         std::unique_ptr<TRequestHeader> requestHeader,
         TSharedRefArray requestMessage,
-        const NLog::TLogger& logger,
-        NLog::ELogLevel logLevel)
+        const NLogging::TLogger& logger,
+        NLogging::ELogLevel logLevel)
         : TServiceContextBase(
             std::move(requestHeader),
             std::move(requestMessage),
@@ -969,6 +969,8 @@ protected:
         if (mutationId != NullMutationId) {
             AppendInfo(&builder, "MutationId: %v", mutationId);
         }
+
+        AppendInfo(&builder, "Retry: %v", IsRetry());
 
         if (!RequestInfo_.empty()) {
             AppendInfo(&builder, "%v", RequestInfo_);
@@ -1002,8 +1004,8 @@ protected:
 
 IServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
-    const NLog::TLogger& logger,
-    NLog::ELogLevel logLevel)
+    const NLogging::TLogger& logger,
+    NLogging::ELogLevel logLevel)
 {
     YASSERT(requestMessage);
 
@@ -1016,8 +1018,8 @@ IServiceContextPtr CreateYPathContext(
 IServiceContextPtr CreateYPathContext(
     std::unique_ptr<TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
-    const NLog::TLogger& logger,
-    NLog::ELogLevel logLevel)
+    const NLogging::TLogger& logger,
+    NLogging::ELogLevel logLevel)
 {
     YASSERT(requestMessage);
 
@@ -1055,7 +1057,7 @@ public:
         return TResolveResult::There(UnderlyingService_, tokenizer.GetSuffix());
     }
 
-    virtual NLog::TLogger GetLogger() const override
+    virtual NLogging::TLogger GetLogger() const override
     {
         return UnderlyingService_->GetLogger();
     }

@@ -6,7 +6,7 @@
 
 #include <ytlib/api/config.h>
 
-#include <ytlib/table_client/config.h>
+#include <ytlib/new_table_client/config.h>
 
 #include <ytlib/formats/format.h>
 
@@ -29,18 +29,25 @@ class TJobIOConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    NTableClient::TTableReaderConfigPtr TableReader;
-    NTableClient::TTableWriterConfigPtr TableWriter;
+    NVersionedTableClient::TTableReaderConfigPtr NewTableReader;
+    NVersionedTableClient::TTableWriterConfigPtr NewTableWriter;
+
     NApi::TFileWriterConfigPtr ErrorFileWriter;
+
+    bool EnableInputTableIndex;
 
     TJobIOConfig()
     {
-        RegisterParameter("table_reader", TableReader)
+        RegisterParameter("table_reader", NewTableReader)
             .DefaultNew();
-        RegisterParameter("table_writer", TableWriter)
+        RegisterParameter("table_writer", NewTableWriter)
             .DefaultNew();
+
         RegisterParameter("error_file_writer", ErrorFileWriter)
             .DefaultNew();
+
+        RegisterParameter("enable_input_table_index", EnableInputTableIndex)
+            .Default(false);
 
         RegisterInitializer([&] () {
             ErrorFileWriter->UploadReplicationFactor = 1;
@@ -74,7 +81,7 @@ public:
     TNullable<int> MaxFailedJobCount;
     TNullable<int> MaxStderrCount;
 
-    bool JobProxyMemoryControl;
+    bool EnableJobProxyMemoryControl;
 
     bool EnableSortVerification;
 
@@ -116,7 +123,7 @@ public:
         RegisterParameter("max_stderr_count", MaxStderrCount)
             .Default(Null);
 
-        RegisterParameter("job_proxy_memory_control", JobProxyMemoryControl)
+        RegisterParameter("enable_job_proxy_memory_control", EnableJobProxyMemoryControl)
             .Default(true);
 
         RegisterParameter("enable_sort_verification", EnableSortVerification)
@@ -166,7 +173,6 @@ public:
     bool UseYamrDescriptors;
     bool CheckInputStreamFullyConsumed;
     bool EnableCoreDump;
-    bool EnableIOPrio;
 
     i64 MaxStderrSize;
 
@@ -200,8 +206,6 @@ public:
             .Default(false);
         RegisterParameter("enable_core_dump", EnableCoreDump)
             .Default(false);
-        RegisterParameter("enable_io_prio", EnableIOPrio)
-            .Default(true);
         RegisterParameter("max_stderr_size", MaxStderrSize)
             .Default((i64)5 * 1024 * 1024) // 5MB
             .GreaterThan(0)
@@ -213,7 +217,8 @@ public:
         if (!EnableInputTableIndex) {
             EnableInputTableIndex = (inputTableCount != 1);
         }
-        jobIOConfig->TableReader->EnableTableIndex = *EnableInputTableIndex;
+
+        jobIOConfig->EnableInputTableIndex = *EnableInputTableIndex;
     }
 };
 
@@ -251,8 +256,7 @@ public:
             .DefaultNew();
 
         RegisterInitializer([&] () {
-            JobIO->TableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
-            JobIO->TableWriter->SyncChunkSwitch = true;
+            JobIO->NewTableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
         });
     }
 
@@ -332,10 +336,6 @@ public:
             .Default(false);
         RegisterParameter("merge_by", MergeBy)
             .Default();
-
-        RegisterInitializer([&] () {
-            JobIO->TableWriter->SyncChunkSwitch = true;
-        });
     }
 
     virtual void OnLoaded() override
@@ -407,7 +407,6 @@ public:
 
         RegisterInitializer([&] () {
             DataSizePerJob = (i64) 128 * 1024 * 1024;
-            JobIO->TableWriter->SyncChunkSwitch = true;
         });
     }
 
@@ -545,14 +544,10 @@ public:
             .Default(TDuration::Minutes(1));
 
         RegisterInitializer([&] () {
-            PartitionJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
-            PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
-            PartitionJobIO->TableWriter->SyncChunkSwitch = true;
+            PartitionJobIO->NewTableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
+            PartitionJobIO->NewTableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
 
-            SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
-            SortJobIO->TableWriter->SyncChunkSwitch = true;
-
-            MergeJobIO->TableWriter->SyncChunkSwitch = true;
+            SortJobIO->NewTableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
 
             MapSelectivityFactor = 1.0;
         });
@@ -628,14 +623,10 @@ public:
         //   MapSelectivityFactor
 
         RegisterInitializer([&] () {
-            MapJobIO->TableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
-            MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GBs
-            MapJobIO->TableWriter->SyncChunkSwitch = true;
+            MapJobIO->NewTableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
+            MapJobIO->NewTableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GBs
 
-            SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
-            SortJobIO->TableWriter->SyncChunkSwitch = true;
-
-            ReduceJobIO->TableWriter->SyncChunkSwitch = true;
+            SortJobIO->NewTableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
         });
     }
 

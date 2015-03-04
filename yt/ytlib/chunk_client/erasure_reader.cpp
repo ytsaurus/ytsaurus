@@ -31,14 +31,13 @@ namespace {
 
 TFuture<TChunkMeta> GetPlacementMeta(IChunkReaderPtr reader)
 {
-    std::vector<int> tags;
-    tags.push_back(TProtoExtensionTag<TErasurePlacementExt>::Value);
-    return reader->GetMeta(Null, &tags);
+    std::vector<int> extensionTags {
+        TProtoExtensionTag<TErasurePlacementExt>::Value
+    };
+    return reader->GetMeta(Null, extensionTags);
 }
 
 } // namespace
-
-///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
 // Non-repairing reader
@@ -90,7 +89,6 @@ public:
         }
 
         std::vector<TFuture<std::vector<TSharedRef>>> readBlocksFutures;
-        auto this_ = MakeStrong(this);
         auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetReaderInvoker());
         for (int readerIndex = 0; readerIndex < Readers_.size(); ++readerIndex) {
             auto reader = Readers_[readerIndex];
@@ -98,7 +96,7 @@ public:
         }
 
         return Combine(readBlocksFutures).Apply(
-            BIND([this, this_, blockLocations] (std::vector<std::vector<TSharedRef>> readBlocks) {
+            BIND([=, this_ = MakeStrong(this)] (std::vector<std::vector<TSharedRef>> readBlocks) {
                 std::vector<TSharedRef> resultBlocks(BlockIndexes_.size());
                 for (int readerIndex = 0; readerIndex < readBlocks.size(); ++readerIndex) {
                     for (int blockIndex = 0; blockIndex < readBlocks[readerIndex].size(); ++blockIndex) {
@@ -110,8 +108,6 @@ public:
     }
 
 private:
-    typedef TNonReparingReaderSession TThis;
-
     struct TPartComparer
     {
         bool operator()(int position, const TPartInfo& info) const
@@ -143,10 +139,8 @@ public:
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
     {
-        auto this_ = MakeStrong(this);
         return PreparePartInfos().Apply(
-            BIND([=] () -> TFuture<std::vector<TSharedRef>> {
-                UNUSED(this_);
+            BIND([=, this_ = MakeStrong(this)] () -> TFuture<std::vector<TSharedRef>> {
                 return New<TNonReparingReaderSession>(Readers_, PartInfos_, blockIndexes)->Run();
             }).AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
     }
@@ -158,8 +152,8 @@ public:
     }
 
     virtual TFuture<TChunkMeta> GetMeta(
-        const TNullable<int>& partitionTag = Null,
-        const std::vector<int>* extensionTags = nullptr) override
+        const TNullable<int>& partitionTag,
+        const TNullable<std::vector<int>>& extensionTags) override
     {
         // TODO(ignat): check that no storage-layer extensions are being requested
         YCHECK(!partitionTag);
@@ -500,7 +494,6 @@ TFuture<TRepairReader::TBlock> TRepairReader::RepairNextBlock()
     YCHECK(Prepared_);
     YCHECK(HasNextBlock());
 
-    auto this_ = MakeStrong(this);
     return RepairBlockIfNeeded().Apply(BIND(&TRepairReader::OnBlockRepaired, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
 }

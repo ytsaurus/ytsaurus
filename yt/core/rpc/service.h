@@ -4,6 +4,8 @@
 
 #include <core/misc/ref.h>
 
+#include <core/actions/signal.h>
+
 #include <core/bus/public.h>
 
 #include <core/rpc/rpc.pb.h>
@@ -44,6 +46,9 @@ struct IServiceContext
     //! Returns the client-specified request timeout, if any.
     virtual TNullable<TDuration> GetTimeout() const = 0;
 
+    //! Returns |true| if this is a duplicate copy of a previously sent (and possibly served) request.
+    virtual bool IsRetry() const = 0;
+
     //! Returns request priority for reordering purposes.
     virtual i64 GetPriority() const = 0;
 
@@ -67,6 +72,15 @@ struct IServiceContext
 
     //! Parses the message and forwards to the client.
     virtual void Reply(TSharedRefArray message) = 0;
+
+    //! Raised when request processing is canceled.
+    DECLARE_INTERFACE_SIGNAL(void(), Canceled);
+
+    //! Cancels request processing.
+    /*!
+     *  Implementations are free to ignore this call.
+     */
+    virtual void Cancel() = 0;
 
     //! Returns a future representing the response message.
     /*!
@@ -116,10 +130,11 @@ struct IServiceContext
     virtual void SetRawResponseInfo(const Stroka& info) = 0;
 
     //! Returns the logger associated with the handler.
-    virtual NLog::TLogger& GetLogger() = 0;
+    virtual NLogging::TLogger& GetLogger() = 0;
 
 
     // Extension methods.
+
     void SetRequestInfo();
     void SetResponseInfo();
 
@@ -130,10 +145,10 @@ struct IServiceContext
     void SetResponseInfo(const char* format, const TArgs&... args);
 
     //! Replies with a given message when the latter is set.
-    void ReplyFrom(TFuture<TSharedRefArray> message);
+    void ReplyFrom(TFuture<TSharedRefArray> asyncMessage);
 
     //! Replies with a given error when the latter is set.
-    void ReplyFrom(TFuture<void> error);
+    void ReplyFrom(TFuture<void> asyncError);
 
 };
 
