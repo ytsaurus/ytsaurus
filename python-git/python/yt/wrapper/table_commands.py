@@ -65,7 +65,7 @@ from transaction import PingableTransaction, Transaction, Abort
 from format import create_format, YsonFormat
 from lock import lock
 from heavy_commands import make_heavy_request
-from http import RETRIABLE_ERRORS
+from http import RETRIABLE_ERRORS, get_api_version
 import yt.logger as logger
 
 from yt.yson import yson_to_json
@@ -499,7 +499,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
         logger.warning("Cannot split input into rows. Write is processing by one request.")
 
     make_heavy_request(
-        "write",
+        "write" if get_api_version(client=client) == "v2" else "write_table",
         input_stream,
         table,
         params,
@@ -539,6 +539,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
     if table_reader is not None:
         params["table_reader"] = table_reader
 
+    command_name = "read" if get_api_version(client=client) == "v2" else "read_table"
 
     def read_content(response_stream):
         if raw:
@@ -548,7 +549,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
 
     if not config.RETRY_READ:
         response = _make_transactional_request(
-            "read",
+            command_name,
             params,
             return_content=False,
             use_heavy_proxy=True,
@@ -593,7 +594,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
 
         def get_start_row_index():
             response = _make_transactional_request(
-                "read",
+                command_name,
                 params,
                 return_content=False,
                 use_heavy_proxy=True,
@@ -613,7 +614,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 table.name.attributes["lower_limit"] = {"row_index": self.index}
                 params["path"] = table.get_json()
                 self.response = _make_transactional_request(
-                    "read",
+                    command_name,
                     params,
                     return_content=False,
                     use_heavy_proxy=True,
