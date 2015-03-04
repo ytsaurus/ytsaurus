@@ -504,6 +504,8 @@ protected:
                 result = std::min(result, childAttributes.DemandRatio);
                 // Never give more than max share allows.
                 result = std::min(result, childAttributes.MaxShareRatio);
+                // Never give more than we can allocate.
+                result = std::min(result, childAttributes.BestAllocationRatio);
                 return result;
             },
             [&] (const ISchedulerElementPtr& child, double value) {
