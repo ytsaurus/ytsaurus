@@ -85,8 +85,9 @@ function YtDriverFacadeV2(driver)
     delete descriptors.insert_rows;
     delete descriptors.lookup_rows;
     delete descriptors.select_rows;
+    delete descriptors.select;
 
-    delete descriptors.dump_input_context
+    delete descriptors.dump_input_context;
 
     this.driver = driver;
     this.mapping = mapping;

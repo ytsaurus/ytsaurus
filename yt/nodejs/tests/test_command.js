@@ -321,7 +321,6 @@ describe("YtCommand - command descriptors", function() {
             'copy',
             'create',
             'delete_rows',
-            'download',
             'dump_input_context',
             'erase',
             'exists',
@@ -338,7 +337,6 @@ describe("YtCommand - command descriptors", function() {
             'move',
             'parse_ypath',
             'ping_tx',
-            'read',
             'read_file',
             'read_journal',
             'read_table',
@@ -349,14 +347,13 @@ describe("YtCommand - command descriptors", function() {
             'remove_member',
             'reshard_table',
             'resume_op',
+            'select',
             'select_rows',
             'set',
             'sort',
             'start_tx',
             'suspend_op',
             'unmount_table',
-            'upload',
-            'write',
             'write_file',
             'write_journal',
             'write_table',
@@ -381,13 +378,6 @@ describe("YtCommand - v2 command heaviness", function() {
 
     before(function() {
         this.driver = stubDriver(true);
-    });
-
-    [ "download", "read", "upload", "write" ]
-    .forEach(function(name) {
-        it("should affect '" + name + "'", function() {
-            this.driver.find_command_descriptor(name).is_heavy.should.be.true;
-        });
     });
 
     describe("when there is no workload", function() {
@@ -438,13 +428,6 @@ describe("YtCommand - v3 command heaviness", function() {
 
     before(function() {
         this.driver = stubDriver(true);
-    });
-
-    [ "read_file", "read_table", "read_journal", "write_file", "write_table", "write_journal" ]
-    .forEach(function(name) {
-        it("should affect '" + name + "'", function() {
-            this.driver.find_command_descriptor(name).is_heavy.should.be.true;
-        });
     });
 
     describe("when there is no workload", function() {
