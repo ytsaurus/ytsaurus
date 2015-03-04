@@ -207,16 +207,6 @@ template <class TRequest, class = void>
 class TTransactionalCommandBase
 { };
 
-DEFINE_ENUM(EAllowNullTransaction,
-    (Yes)
-    (No)
-);
-
-DEFINE_ENUM(EPingTransaction,
-    (Yes)
-    (No)
-);
-
 template <class TRequest>
 class TTransactionalCommandBase<
     TRequest,
@@ -225,23 +215,20 @@ class TTransactionalCommandBase<
     : public virtual TTypedCommandBase<TRequest>
 {
 protected:
-    NTransactionClient::TTransactionPtr GetTransaction(EAllowNullTransaction allowNullTransaction, EPingTransaction pingTransaction)
+    NTransactionClient::TTransactionPtr AttachTransaction(bool required)
     {
-        if (allowNullTransaction == EAllowNullTransaction::No &&
-            this->Request_->TransactionId == NTransactionClient::NullTransactionId)
-        {
-            THROW_ERROR_EXCEPTION("Transaction is required");
-        }
-
-        auto transactionId = this->Request_->TransactionId;
+        const auto& transactionId = this->Request_->TransactionId;
         if (transactionId == NTransactionClient::NullTransactionId) {
+            if (required) {
+                THROW_ERROR_EXCEPTION("Transaction is required");
+            }
             return nullptr;
         }
 
         NTransactionClient::TTransactionAttachOptions options(transactionId);
         options.AutoAbort = false;
-        options.Ping = (pingTransaction == EPingTransaction::Yes);
-        options.PingAncestors = this->Request_->PingAncestors;
+        options.Ping = !required;
+        options.PingAncestors = !required && this->Request_->PingAncestors;
 
         auto transactionManager = this->Context_->GetClient()->GetTransactionManager();
         return transactionManager->Attach(options);
