@@ -12,6 +12,7 @@ set( SRCS
   ${BASE}/checksum.cpp
   ${BASE}/chunked_memory_pool.cpp
   ${BASE}/chunked_output_stream.cpp
+  ${BASE}/cpuid.cpp
   ${BASE}/crash_handler.cpp
   ${BASE}/demangle.cpp
   ${BASE}/error.cpp
@@ -64,6 +65,7 @@ set( HDRS
   ${BASE}/config.h
   ${BASE}/collection_helpers.h
   ${BASE}/collection_helpers-inl.h
+  ${BASE}/cpuid.h
   ${BASE}/crash_handler.h
   ${BASE}/demangle.h
   ${BASE}/enum.h

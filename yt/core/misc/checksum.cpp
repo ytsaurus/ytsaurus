@@ -5,6 +5,7 @@
     #include <tmmintrin.h>
     #include <nmmintrin.h>
     #include <wmmintrin.h>
+    #include <core/misc/cpuid.h>
 #endif
 
 namespace NYT {
@@ -14,44 +15,6 @@ namespace NYT {
 namespace NDetail {
 
 #ifdef YT_USE_CRC_PCLMUL
-
-class TCheckPclmulSupport
-{
-    bool WasTested;
-    bool Result;
-
-    static void Cpuid(int regs[4], int mode)
-    {
-#ifdef _win_
-    __cpuid(regs, mode);
-#else
-    asm volatile
-        ("cpuid" : "=a" (regs[0]), "=b" (regs[1]), "=c" (regs[2]), "=d" (regs[3])
-        : "a" (mode), "c" (0));
-#endif
-    }
-
-public:
-    TCheckPclmulSupport() 
-        : WasTested(false)
-        , Result(false)
-    { }
-
-    bool operator() ()
-    {
-        if (WasTested) {
-            return Result;
-        } else {
-            int regs[4];
-            Cpuid(regs, 1);
-            Result = regs[2] & (1 << 1);
-            WasTested = true;
-            return Result;
-        }
-    }
-};
-
-TCheckPclmulSupport CheckPclmulSupport;
 
 namespace NCrcSSE0xE543279765927881 {
 
@@ -848,7 +811,7 @@ ui64 Crc(const void* buf, size_t buflen, ui64 crcinit)
 
 TChecksum GetChecksumImpl(const void* data, size_t length, TChecksum seed)
 {
-    if (CheckPclmulSupport()) {
+    if (CpuId.Pclmuldq()) {
         return NCrcSSE0xE543279765927881::Crc(data, length, seed);
     } else {
         return NCrcTable0xE543279765927881::Crc(data, length, seed);

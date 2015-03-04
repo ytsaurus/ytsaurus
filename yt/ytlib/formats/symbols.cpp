@@ -1,6 +1,10 @@
 #include "stdafx.h"
 #include "symbols.h"
 
+#ifdef YT_USE_SSE42
+    #include <core/misc/cpuid.h>
+#endif
+
 namespace NYT {
 namespace NFormats {
 
@@ -9,44 +13,6 @@ namespace NFormats {
 namespace {
 
 #ifdef YT_USE_SSE42
-
-class TCheckSSE42Support
-{
-    bool WasTested;
-    bool Result;
-
-    static void Cpuid(int regs[4], int mode)
-    {
-#ifdef _win_
-    __cpuid(regs, mode);
-#else
-    asm volatile
-        ("cpuid" : "=a" (regs[0]), "=b" (regs[1]), "=c" (regs[2]), "=d" (regs[3])
-        : "a" (mode), "c" (0));
-#endif
-    }
-
-public:
-    TCheckSSE42Support() 
-        : WasTested(false)
-        , Result(false)
-    { }
-
-    bool operator() ()
-    {
-        if (WasTested) {
-            return Result;
-        } else {
-            int regs[4];
-            Cpuid(regs, 1);
-            Result = regs[2] & (1 << 20);
-            WasTested = true;
-            return Result;
-        }
-    }
-};
-
-TCheckSSE42Support CheckSSE42Support;
 
 const char _m128i_shift_right[31] = {
      0,  1,  2,  3,  4,  5,  6,  7,
@@ -183,7 +149,7 @@ void TLookupTable::Fill(const char* begin, const char* end)
     YCHECK(end - begin <= 16);
 
 #ifdef YT_USE_SSE42
-    if (CheckSSE42Support()) {
+    if (CpuId.Sse42()) {
         char storage[16] = {0};
 
         SymbolCount = end - begin;
@@ -225,7 +191,7 @@ const char* TLookupTable::FindNext(const char* begin, const char* end) const
         return end;
     }
 #ifdef YT_USE_SSE42
-    if (CheckSSE42Support()) {
+    if (CpuId.Sse42()) {
         return FindNextSymbol(begin, end, Symbols, SymbolCount);
     } else
 #endif
