@@ -617,6 +617,8 @@ protected:
     void InitInputChunkScratcher();
     void SuspendUnavailableInputStripes();
 
+    bool ValidateKey(const NChunkClient::NProto::TKey& key);
+
     // Initialize transactions
     void StartAsyncSchedulerTransaction();
     void StartSyncSchedulerTransaction();

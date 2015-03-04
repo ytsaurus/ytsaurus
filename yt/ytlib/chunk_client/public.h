@@ -69,6 +69,8 @@ DECLARE_ENUM(EErrorCode,
 
     ((MasterCommunicationFailed)(712))
     ((AddressNotFound)          (713))
+
+    ((InvalidDoubleValue)       (714))
 );
 
 //! Values must be contiguous.

@@ -1728,6 +1728,9 @@ private:
         std::vector<const TKey*> sortedSamples;
         sortedSamples.reserve(sampleCount);
         FOREACH (const auto& sample, samples) {
+            if (!ValidateKey(sample)) {
+                THROW_ERROR_EXCEPTION("Invalid double value in table samples.");
+            }
             sortedSamples.push_back(&sample);
         }
 

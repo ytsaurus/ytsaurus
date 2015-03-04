@@ -46,6 +46,9 @@
 #include <core/ytree/convert.h>
 #include <core/ytree/attribute_helpers.h>
 
+#include <util/generic/ymath.h>
+
+
 #include <cmath>
 
 namespace NYT {
@@ -3619,6 +3622,20 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
     // Don't sync intermediate chunks.
     config->TableWriter->SyncOnClose = false;
 }
+
+bool TOperationControllerBase::ValidateKey(const NChunkClient::NProto::TKey& key) 
+{
+        for (const auto& keyPart : key.parts()) {
+            if (keyPart.type() != EKeyPartType::Double) {
+                continue;
+            }
+
+            if (!IsValidFloat(keyPart.double_value())) {
+                return false;
+            }
+        }
+        return true;
+    }
 
 void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)
 {

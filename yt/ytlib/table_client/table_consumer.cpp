@@ -3,7 +3,11 @@
 #include "table_consumer.h"
 #include "config.h"
 
+#include <ytlib/chunk_client/public.h>
+
 #include <core/misc/string.h>
+
+#include <util/generic/ymath.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -76,6 +80,13 @@ void TTableConsumer::OnDoubleScalar(double value)
     if (Depth == 0) {
         ThrowMapExpected();
     } else {
+        if (!IsValidFloat(value)) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::InvalidDoubleValue, 
+                "Failed to parse double value: \"%f\" is not a valid double",
+                value);
+        }
+
         ValueWriter.OnDoubleScalar(value);
     }
 }

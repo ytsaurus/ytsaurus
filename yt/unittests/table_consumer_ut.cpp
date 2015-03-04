@@ -146,6 +146,17 @@ TEST(TTableConsumerTest, InvalidControlAttributeValue)
         EXPECT_THROW(consumer.OnStringScalar("0"), std::exception);
 }
 
+TEST(TTableConsumerTest, InvalidDoubleValue)
+{
+    auto writer = New<TDummyTableWriter>();
+    TTableConsumer consumer(writer);
+
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("k1");
+        EXPECT_THROW(consumer.OnDoubleScalar(1.0 / 0), std::exception);
+}
+
 TEST(TTableConsumerTest, EmptyAttribute)
 {
     auto writer = New<TDummyTableWriter>();

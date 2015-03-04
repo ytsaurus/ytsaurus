@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <core/misc/error.h>
 #include <core/misc/small_vector.h>
 #include <core/misc/property.h>
 #include <core/misc/string.h>
@@ -11,6 +12,8 @@
 #include <core/yson/lexer.h>
 
 #include <ytlib/chunk_client/chunk_spec.pb.h>
+
+#include <util/generic/ymath.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -97,6 +100,9 @@ public:
 
     void SetValue(double value)
     {
+        if (!IsValidFloat(value)) {
+            THROW_ERROR_EXCEPTION(EErrorCode::InvalidDoubleValue, "Invalid double value in table data");
+        }
         Type_ = EKeyPartType::Double;
         DoubleValue = value;
     }

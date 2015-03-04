@@ -773,7 +773,8 @@ private:
             error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) ||
             error.FindMatching(NNodeTrackerClient::EErrorCode::InvalidNetwork) ||
-            error.FindMatching(NChunkClient::EErrorCode::AddressNotFound);
+            error.FindMatching(NChunkClient::EErrorCode::AddressNotFound) ||
+            error.FindMatching(NChunkClient::EErrorCode::InvalidDoubleValue);
     }
 
     void ThrowIfFinished()

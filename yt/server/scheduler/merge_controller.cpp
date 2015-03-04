@@ -1023,6 +1023,12 @@ protected:
         const auto& chunks = ChunkSplitsFetcher->GetChunkSplits();
         FOREACH (const auto& chunk, chunks) {
             auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->extensions());
+
+            if (!ValidateKey(boundaryKeysExt.start()) || !ValidateKey(boundaryKeysExt.end())) {
+                THROW_ERROR_EXCEPTION("Invalid double values in input table \"%s\"",
+                    ~ToString(GetInputTablePaths()[chunk->table_index()]));
+            }
+
             {
                 TKeyEndpoint endpoint;
                 endpoint.Type = EEndpointType::Left;
