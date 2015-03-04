@@ -287,7 +287,7 @@ public:
     Value* GetType(TCGIRBuilder& builder)
     {
         return builder.CreateSelect(
-            IsNull_,
+            IsNull(),
             builder.getInt16(static_cast<ui16>(EValueType::Null)),
             builder.getInt16(static_cast<ui16>(StaticType_)));
     }
@@ -348,7 +348,7 @@ public:
             YUNREACHABLE();
         }
 
-        return CreateFromValue(builder, IsNull_, GetLength(), result, dest);
+        return CreateFromValue(builder, IsNull(), GetLength(), result, dest);
     }
 };
 
