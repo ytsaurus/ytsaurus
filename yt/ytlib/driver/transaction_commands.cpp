@@ -50,7 +50,7 @@ void TPingTransactionCommand::DoExecute()
     if (Request_->TransactionId == NullTransactionId)
         return;
 
-    auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
+    auto transaction = AttachTransaction(true);
     WaitFor(transaction->Ping())
         .ThrowOnError();
 }
@@ -59,7 +59,7 @@ void TPingTransactionCommand::DoExecute()
 
 void TCommitTransactionCommand::DoExecute()
 {
-    auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
+    auto transaction = AttachTransaction(true);
     TTransactionCommitOptions options;
     SetMutatingOptions(&options);
     WaitFor(transaction->Commit(options))
@@ -70,7 +70,7 @@ void TCommitTransactionCommand::DoExecute()
 
 void TAbortTransactionCommand::DoExecute()
 {
-    auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
+    auto transaction = AttachTransaction(true);
     TTransactionAbortOptions options;
     SetMutatingOptions(&options);
     options.Force = Request_->Force;

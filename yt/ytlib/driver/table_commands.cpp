@@ -77,7 +77,7 @@ void TReadTableCommand::DoExecute()
     auto reader = CreateSchemalessTableReader(
         config,
         Context_->GetClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
-        GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
+        AttachTransaction(false),
         Context_->GetClient()->GetConnection()->GetCompressedBlockCache(),
         Context_->GetClient()->GetConnection()->GetUncompressedBlockCache(),
         Request_->Path,
@@ -122,7 +122,7 @@ void TWriteTableCommand::DoExecute()
         nameTable,
         keyColumns,
         Context_->GetClient()->GetMasterChannel(EMasterChannelKind::Leader),
-        GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
+        AttachTransaction(false),
         Context_->GetClient()->GetTransactionManager());
 
     WaitFor(writer->Open())
