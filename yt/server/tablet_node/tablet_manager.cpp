@@ -678,10 +678,15 @@ private:
         auto mountConfig = ConvertTo<TTableMountConfigPtr>(TYsonString(request.mount_config()));
         auto writerOptions = ConvertTo<TTabletWriterOptionsPtr>(TYsonString(request.writer_options()));
 
+        int oldSamplesPerPartition = tablet->GetConfig()->SamplesPerPartition;
+        int newSamplesPerPartition = mountConfig->SamplesPerPartition;
+
         tablet->SetConfig(mountConfig);
         tablet->SetWriterOptions(writerOptions);
 
-        SchedulePartitionsSampling(tablet);
+        if (oldSamplesPerPartition != newSamplesPerPartition) {
+            SchedulePartitionsSampling(tablet);
+        }
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %v)",
             tabletId);
